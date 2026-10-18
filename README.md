@@ -76,8 +76,8 @@ PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 4. `PSIV_GODOT` names your Godot executable (or put it on `PATH` as `godot` and
    skip that line). `python3 tools/godot.py prepare` checks it (a missing file,
    the wrong version or a build that is not `stable` is refused, with the
-   reason) and runs Godot's one-time import of the project, which a fresh
-   clone needs before the game's classes load.
+   reason) and writes the project's extension index (`godot/.godot/`, which Git
+   ignores), which a fresh clone needs before the game's classes load.
 5. The last line starts the game; `python3 tools/godot.py` prints the Godot
    executable it found.
 

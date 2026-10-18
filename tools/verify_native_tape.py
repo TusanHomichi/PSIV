@@ -422,9 +422,8 @@ def replay(args: argparse.Namespace) -> int:
     if args.drop_pad_at is not None:
         env["PSIV_TAPE_DROP_AT"] = str(args.drop_pad_at)
     # A fresh checkout has no Godot extension index (tools/godot.py `prepare`).
-    import_log = out / "godot-import.log"
     try:
-        imported = prepare(GODOT, ROOT / "godot", log=import_log, timeout=args.timeout)
+        prepared_now = prepare(ROOT / "godot")
     except GodotError as error:
         print(f"native tape: {error}")
         return 1
@@ -499,8 +498,7 @@ def replay(args: argparse.Namespace) -> int:
         "tape_sha256_before": tape_sha_before,
         "effective_psiv_env": {key: env[key] for key in sorted(env) if key.startswith("PSIV_")},
         "removed_inherited_psiv_keys": removed_psiv_keys,
-        "godot_import_ran": imported,
-        "godot_import_log": str(import_log) if imported else None,
+        "godot_project_prepared": prepared_now,
         "tape": str(tape), "tape_sha256": tape_sha_after,
         "source_save": str(source) if source else None,
         "source_sha256_before": source_before, "source_sha256_after": source_after,

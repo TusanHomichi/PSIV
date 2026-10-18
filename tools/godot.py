@@ -17,10 +17,18 @@ version is a one-line edit there.
 prepares the Godot project for its first run. Godot finds the game's
 GDExtension through `godot/.godot/extension_list.cfg`, which its editor
 import writes and Git ignores, so a fresh clone has none: the game then
-starts on a black screen with "Cannot get class 'Field'". `prepare` runs that
-import headless once (`--headless --path godot --editor --quit`) and checks
-the file; when the file already lists the extension it does nothing. Every
+starts on a black screen with "Cannot get class 'Field'". `prepare` writes
+that index, one line naming `res://psiv.gdextension`, beside any extension it
+already lists; when the game's extension is listed it does nothing. Every
 launcher and verifier calls it before starting the game.
+
+It writes the file rather than running the editor import
+(`--headless --editor --quit`) because, on a fresh project whose extension is
+already built (a clone after `cargo build`), the pinned Godot's headless
+editor aborts at exit, after writing the index. The game needs nothing else
+from the import: the project has no assets to import, and the title, a battle
+and the camp menu capture identically from an index-only project and a fully
+imported one.
 
 Stdlib only, Python 3.
 """
@@ -51,9 +59,6 @@ VERSION_TIMEOUT = 30
 PROJECT = ROOT / "godot"
 EXTENSION_INDEX = Path(".godot/extension_list.cfg")
 EXTENSION_ENTRY = "res://psiv.gdextension"
-
-#: Seconds the one-shot editor import may take (about 5 on a fresh project).
-IMPORT_TIMEOUT = 300
 
 _VERSION_RE = re.compile(r"\A\d+\.\d+(?:\.\d+)?\Z")
 
@@ -163,32 +168,25 @@ def prepared(project: Path = PROJECT) -> bool:
         return False
 
 
-def prepare(godot: Path, project: Path = PROJECT, log: Path | None = None,
-            timeout: float = IMPORT_TIMEOUT) -> bool:
-    """Make `project` ready to run: once, Godot's headless editor import.
+def prepare(project: Path = PROJECT) -> bool:
+    """Make `project` ready to run: list the game's extension in its index.
 
-    Returns True when it ran the import and False when the project was already
-    prepared. `log` receives the import's output (otherwise it is kept for the
-    error message). Raises `GodotError` when the import fails or leaves no
-    extension index.
+    Returns True when it wrote the index and False when the extension was
+    already listed. Other extensions the index lists are kept.
     """
     if prepared(project):
         return False
-    command = [str(godot), "--headless", "--path", str(project), "--editor", "--quit"]
+    index = project / EXTENSION_INDEX
     try:
-        proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
-                              check=False)
-        output, code = proc.stdout + proc.stderr, proc.returncode
-    except subprocess.TimeoutExpired as error:
-        output, code = f"timed out after {timeout} s\n{error.output or ''}", 124
+        kept = [line for line in index.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError:
+        kept = []
+    try:
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text("".join(f"{line}\n" for line in [*kept, EXTENSION_ENTRY]),
+                         encoding="utf-8")
     except OSError as error:
-        raise GodotError(f"cannot run the {project.name}/ import: {error}") from error
-    if log is not None:
-        log.write_text(output, encoding="utf-8")
-    if code != 0 or not prepared(project):
-        where = f"log={log}" if log is not None else "\n" + "\n".join(output.splitlines()[-20:])
-        raise GodotError(f"the {project.name}/ import (exit {code}) wrote no "
-                         f"{EXTENSION_ENTRY} to {EXTENSION_INDEX}; {where}")
+        raise GodotError(f"cannot write {index}: {error}") from error
     return True
 
 
@@ -200,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         godot = resolve()
         if argv:
-            ran = prepare(godot)
+            ran = prepare()
             print(f"godot: {PROJECT.name}/ {'prepared' if ran else 'already prepared'}",
                   file=sys.stderr)
         else:

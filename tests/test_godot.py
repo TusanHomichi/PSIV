@@ -9,8 +9,11 @@ wrong version (a patch release, a two-digit patch that shares the pinned
 prefix, an older minor), the pinned version as a release candidate, beta,
 dev or unlabelled build, a `PSIV_GODOT` that names nothing (which must not
 fall back to PATH), no Godot anywhere, a Godot whose `--version` fails, and a
-malformed version file. The last cases pin that the launchers ask the resolver
-instead of naming a host path.
+malformed version file. `Prepare` gives a fresh project its extension index
+once, keeps other extensions, and, with the real Godot, shows a clone's copy
+failing to load the game's classes until it is prepared. The last cases pin
+that the launchers ask the resolver and prepare the project instead of naming
+a host path.
 """
 import os
 import re
@@ -141,20 +144,6 @@ class CommandLine(FakeGodot):
         self.assertIn(f"is Godot 3.6; PSIV needs {pinned}", refused.stderr)
 
 
-IMPORTER = """#!/bin/sh
-# Stands in for Godot's headless editor import: logs the call, then writes
-# the extension index (or not) under the project --path names.
-echo "$@" >> "{calls}"
-[ "$1" = --headless ] || exit 9
-project=$3
-if [ -n "{writes}" ]; then
-    mkdir -p "$project/.godot"
-    printf '%s\\n' "{writes}" > "$project/.godot/extension_list.cfg"
-fi
-exit {code}
-"""
-
-
 class Prepare(unittest.TestCase):
     """`prepare`: a fresh clone's project gets its extension index, once."""
 
@@ -165,62 +154,61 @@ class Prepare(unittest.TestCase):
         self.project = self.dir / "godot"
         self.project.mkdir()
         (self.project / "project.godot").write_text("[application]\n")
-        self.calls = self.dir / "calls"
-
-    def importer(self, writes="res://psiv.gdextension", code=0):
-        path = self.dir / "importer"
-        path.write_text(IMPORTER.format(calls=self.calls, writes=writes, code=code))
-        path.chmod(0o755)
-        return path
-
-    def calls_made(self):
-        return self.calls.read_text().splitlines() if self.calls.exists() else []
+        self.index = self.project / ".godot/extension_list.cfg"
 
     def test_a_fresh_project_gets_the_index_once(self):
-        importer = self.importer()
-        self.assertFalse(godot.prepared(self.project))  # the fresh clone's state
-        log = self.dir / "import.log"
-        self.assertTrue(godot.prepare(importer, self.project, log=log))
+        self.assertFalse(godot.prepared(self.project))  # a fresh clone's state
+        self.assertTrue(godot.prepare(self.project))
+        self.assertEqual(self.index.read_text(), "res://psiv.gdextension\n")
         self.assertTrue(godot.prepared(self.project))
-        self.assertEqual(self.calls_made(),
-                         [f"--headless --path {self.project} --editor --quit"])
-        self.assertTrue(log.is_file())
-        self.assertFalse(godot.prepare(importer, self.project))  # idempotent
-        self.assertEqual(len(self.calls_made()), 1)
+        self.assertFalse(godot.prepare(self.project))  # idempotent
+        self.assertEqual(self.index.read_text(), "res://psiv.gdextension\n")
 
-    def test_an_index_without_the_extension_is_imported_again(self):
-        (self.project / ".godot").mkdir()
-        (self.project / ".godot/extension_list.cfg").write_text("res://other.gdextension\n")
-        self.assertTrue(godot.prepare(self.importer(), self.project))
-        self.assertTrue(godot.prepared(self.project))
+    def test_other_listed_extensions_are_kept(self):
+        self.index.parent.mkdir()
+        self.index.write_text("res://addons/other/other.gdextension\n")
+        self.assertTrue(godot.prepare(self.project))
+        self.assertEqual(self.index.read_text(),
+                         "res://addons/other/other.gdextension\nres://psiv.gdextension\n")
 
-    def test_an_import_that_writes_nothing_is_refused(self):
+    def test_an_unwritable_project_is_refused(self):
+        (self.project / ".godot").write_text("a file where the directory goes")
         with self.assertRaises(godot.GodotError) as caught:
-            godot.prepare(self.importer(writes=""), self.project)
-        self.assertIn("import (exit 0) wrote no res://psiv.gdextension", str(caught.exception))
-        self.assertFalse(godot.prepared(self.project))
+            godot.prepare(self.project)
+        self.assertIn("cannot write", str(caught.exception))
 
-    def test_a_failing_import_is_refused(self):
-        log = self.dir / "import.log"
-        with self.assertRaises(godot.GodotError) as caught:
-            godot.prepare(self.importer(code=1), self.project, log=log)
-        self.assertIn(f"import (exit 1) wrote no res://psiv.gdextension", str(caught.exception))
-        self.assertIn(f"log={log}", str(caught.exception))
+    def run_game(self, project, log):
+        """The real game for 30 frames, headless; its log text."""
+        proc = subprocess.run([str(self.real), "--headless", "--path", str(project),
+                               "--quit-after", "30"], capture_output=True, text=True,
+                              timeout=120, env={**os.environ, "PSIV_SAVE_DIR": str(self.dir / "saves")})
+        log.write_text(proc.stdout + proc.stderr)
+        return proc.stdout + proc.stderr
 
-    def test_the_real_godot_prepares_a_fresh_copy_of_the_project(self):
-        """The real import, on the tracked files of `godot/` alone (what a
-        clone has); skipped on a host without the pinned Godot."""
+    def test_the_real_game_loads_its_classes_only_once_prepared(self):
+        """A copy of the tracked `godot/` files (what a clone has) with the
+        built extension: unprepared, Godot cannot find the game's classes;
+        prepared, it can. Skipped without the pinned Godot or a built
+        extension."""
         try:
-            real = godot.resolve()
+            self.real = godot.resolve()
         except godot.GodotError as error:
             self.skipTest(f"no pinned Godot: {error}")
+        library = ROOT / "rust/target/debug/libpsiv_godot.so"
+        if not library.is_file():
+            self.skipTest(f"no built extension: {library}")
+        clone = self.dir / "clone"
         for name in repo_files(ROOT, ("godot/*",)):
-            target = self.dir / name
+            target = clone / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / name).read_bytes())
-        self.assertFalse(godot.prepared(self.project))
-        self.assertTrue(godot.prepare(real, self.project, log=self.dir / "import.log"))
-        self.assertTrue(godot.prepared(self.project))
+        (clone / "rust/target/debug").mkdir(parents=True)
+        (clone / "rust/target/debug/libpsiv_godot.so").symlink_to(library)
+        (self.dir / "saves").mkdir()
+        missing = "Cannot get class 'Field'"
+        self.assertIn(missing, self.run_game(clone / "godot", self.dir / "unprepared.log"))
+        self.assertTrue(godot.prepare(clone / "godot"))
+        self.assertNotIn(missing, self.run_game(clone / "godot", self.dir / "prepared.log"))
 
 
 class OnePlace(unittest.TestCase):

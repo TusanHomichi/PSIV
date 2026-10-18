@@ -108,8 +108,8 @@ EXEMPT: dict[str, frozenset[str] | None] = {
                                               "../outside.json"}),
     "tests/test_route_abilities.py": frozenset({"scene.md", "parent.rs", "child.rs"}),
     "tests/test_oracle_host_binary.py": frozenset({"oracle/new_launcher.py", "new_launcher.py"}),
-    # A stale extension index the test writes into a throwaway project.
-    "tests/test_godot.py": frozenset({"res://other.gdextension"}),
+    # Another extension's entry the test writes into a throwaway project's index.
+    "tests/test_godot.py": frozenset({"res://addons/other/other.gdextension"}),
     # Scripts and test modules the test writes and names in captured output.
     "tests/test_certify.py": frozenset({"fake_xvfb.py"}),
     "tests/test_gate.py": frozenset({".../capture/gate_sample_fail.py",

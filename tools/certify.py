@@ -463,7 +463,7 @@ def main(argv=None):
               f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
               f"{hold.path}", flush=True)
         try:  # a fresh clone's project has no extension index yet
-            prepare_godot(godot, root / "godot", log=receipt / "godot-import.log")
+            prepare_godot(root / "godot")
         except GodotError as error:
             print(f"certify: refused, {error}")
             return 2

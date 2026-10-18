@@ -400,8 +400,8 @@ class MainLocksTest(unittest.TestCase):
                 raise godot
             return godot
 
-        def prepare(path, project, log):
-            self.prepared.append((path, project))
+        def prepare(project):
+            self.prepared.append(project)
             if isinstance(prepare_error, Exception):
                 raise prepare_error
             return True
@@ -453,15 +453,14 @@ class MainLocksTest(unittest.TestCase):
     def test_godot_is_resolved_once_and_the_project_prepared_before_captures(self):
         code, out = self.run_main(["--no-build", "--only", "title"], godot=Path("/x/godot"))
         self.assertEqual(code, 0, out)
-        self.assertEqual(self.prepared, [(Path("/x/godot"), self.prepared[0][1])])
-        self.assertEqual(self.prepared[0][1].name, "godot")
+        self.assertEqual([project.name for project in self.prepared], ["godot"])
         self.assertEqual(self.take.keywords, {"godot": Path("/x/godot")})
 
-    def test_a_failed_project_import_is_refused(self):
-        error = certify.GodotError("the godot/ import (exit 1) wrote no res://psiv.gdextension")
+    def test_a_project_that_cannot_be_prepared_is_refused(self):
+        error = certify.GodotError("cannot write godot/.godot/extension_list.cfg: denied")
         code, out = self.run_main(["--no-build", "--only", "title"], prepare_error=error)
         self.assertEqual(code, 2)
-        self.assertIn("certify: refused, the godot/ import (exit 1)", out)
+        self.assertIn("certify: refused, cannot write godot/.godot/extension_list.cfg", out)
 
     def test_more_jobs_than_slots_is_refused_before_any_lock(self):
         code, out = self.run_main(["--jobs", "4"], slots="3")

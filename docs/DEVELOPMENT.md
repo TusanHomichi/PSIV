@@ -86,10 +86,10 @@ python3 tools/godot.py prepare
 PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
-`python3 tools/godot.py prepare` runs Godot's one-time headless import of the
-project: it writes `godot/.godot/`, which Git ignores, and without it a fresh
-clone starts on a black screen ("Cannot get class 'Field'"). It does nothing
-once the project is prepared. The explicit save directory makes
+`python3 tools/godot.py prepare` writes the project's extension index,
+`godot/.godot/extension_list.cfg`, which Godot's editor import would write and
+Git ignores; without it a fresh clone starts on a black screen ("Cannot get
+class 'Field'"). It does nothing once the index lists the game's extension. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
