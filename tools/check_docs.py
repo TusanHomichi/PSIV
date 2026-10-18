@@ -37,6 +37,9 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`, `build/lanes/<id>/`, or a
   tool's timestamped receipt, `build/gate/20261018T025426Z-3bddaba`); and a
   lane's name or id (`LANE_NAME_RE`: `oracle-lane's`, `lane A4`; issue #120).
+  The lane-name rule also reads the comments and docstrings of tracked
+  Python, Rust, GDScript and shell (`CODE_PATTERNS`), with this checker's own
+  examples exempt line by line (`LANE_NAME_EXEMPT`).
   Research documents pass: a dated heading or a dated
   chronology entry (`## 2026-10-03 - Rounds that open no party command
   window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
@@ -152,6 +155,18 @@ PIN_FILES = {
 #: `battle-scout-lane`) or a lane id (`lane A4`, `lanes P88b`). A document says
 #: what the cartridge does and how to reproduce it; who found it is in the Git log.
 LANE_NAME_RE = re.compile(r"\b[\w-]+-lanes?(?:'s)?(?![\w-])|\b[Ll]anes? [A-Z]{1,4}\d+[a-z]?\b")
+#: The code whose comments and docstrings are read for lane names too.
+CODE_PATTERNS = ("*.py", "*.rs", "*.gd", "*.sh")
+#: Lines that name a lane on purpose: this checker's own examples, by file and
+#: exact line text. An entry that matches no line is itself a problem.
+LANE_NAME_EXEMPT = {
+    ("tools/check_docs.py",
+     "lane's name or id (`LANE_NAME_RE`: `oracle-lane's`, `lane A4`; issue #120)."),
+    ("tools/check_docs.py",
+     '#: (issue #120): a hyphenated name ending in "lane" (`oracle-lane\'s`,'),
+    ("tools/check_docs.py",
+     "#: `battle-scout-lane`) or a lane id (`lane A4`, `lanes P88b`). A document says"),
+}
 #: Keys that make a `yaml` block a task graph.
 TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
@@ -471,6 +486,103 @@ def pinned_versions(root: Path) -> dict[str, re.Pattern]:
     return pins
 
 
+def _quote_aware_comment(line: str, marker: str, state: dict) -> str | None:
+    """The comment text of one code line, or None: from `marker` (`//` or `#`)
+    outside a string literal to the end of the line. Rust's `/* */` blocks are
+    followed across lines through `state`. A `#` counts only at the start of a
+    word, so shell's `$#` and `${#x}` are not comments."""
+    found, quote, index = [], None, 0
+    while index < len(line):
+        if state.get("block"):
+            end = line.find("*/", index)
+            found.append(line[index:] if end < 0 else line[index:end])
+            if end < 0:
+                return " ".join(found)
+            state["block"], index = False, end + 2
+            continue
+        char = line[index]
+        if quote:
+            if char == "\\":
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+        elif marker == "//" and line.startswith("'\"'", index):
+            index += 3  # Rust's character literal for a double quote
+            continue
+        elif char == '"' or (char == "'" and marker == "#"):
+            quote = char
+        elif line.startswith(marker, index) and (
+                marker == "//" or index == 0 or line[index - 1] in " \t;"):
+            found.append(line[index:])
+            return " ".join(found)
+        elif marker == "//" and line.startswith("/*", index):
+            state["block"], index = True, index + 2
+            continue
+        index += 1
+    return " ".join(found) or None
+
+
+def code_comments(name: str, text: str):
+    """`(line, text)` of every comment and docstring line in the code `name`."""
+    lines = text.splitlines()
+    if name.endswith(".py"):
+        import ast
+        import io
+        import tokenize
+        import warnings
+        try:
+            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+                if token.type == tokenize.COMMENT:
+                    yield token.start[0], token.string
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", SyntaxWarning)  # another file's escapes
+                tree = ast.parse(text)
+        except (SyntaxError, tokenize.TokenError):
+            return
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)) and node.body:
+                first = node.body[0]
+                if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                        and isinstance(first.value.value, str)):
+                    for number in range(first.lineno, first.end_lineno + 1):
+                        yield number, lines[number - 1]
+        return
+    marker = "//" if name.endswith(".rs") else "#"
+    state: dict = {}
+    for number, line in enumerate(lines, 1):
+        comment = _quote_aware_comment(line, marker, state)
+        if comment:
+            yield number, comment
+
+
+def lane_name_problems(root: Path) -> list[str]:
+    """Lane names in the comments and docstrings of tracked code (issue #120)."""
+    problems, matched = [], set()
+    for name in repo_files(root, CODE_PATTERNS):
+        try:
+            text = (root / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        lines = text.splitlines()
+        for number, comment in code_comments(name, text):
+            if not LANE_NAME_RE.search(comment):
+                continue
+            key = (name, lines[number - 1].strip())
+            if key in LANE_NAME_EXEMPT:
+                matched.add(key)
+                continue
+            for found in LANE_NAME_RE.findall(comment):
+                problems.append(f"{name}:{number}: lane name ({found}): say what the code "
+                                "does or which document owns the finding")
+    if Path(__file__).resolve().parents[1] == root.resolve():
+        for name, line in sorted(LANE_NAME_EXEMPT - matched):
+            problems.append(f"tools/check_docs.py: LANE_NAME_EXEMPT matches no line of {name}: "
+                            f"{line}")
+    return problems
+
+
 def check_tree() -> tuple[list[str], list[int]]:
     """Every problem in the tree, and the files/links/anchors/paths counts.
 
@@ -542,6 +654,7 @@ def check_tree() -> tuple[list[str], list[int]]:
                     message = check_path(path, files)
                     if message:
                         problems.append(f"{name}:{line}: {message}")
+    problems += lane_name_problems(root)
     return problems, counts
 
 

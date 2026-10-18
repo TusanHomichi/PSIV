@@ -576,6 +576,71 @@ class RunRecords(RepoCase):
         self.assertEqual(code, 0, out)
 
 
+class LaneNamesInCode(RepoCase):
+    """Issue #120 in code: a lane name in a comment or docstring is refused;
+    the same words in a string, an identifier or shell's `$#` are not."""
+
+    #: The lines 4d6d01e and the #120 sweep reworded, as they were.
+    OLD_LINES = {
+        "psiv_tools/map_effects/anchors.py": (
+            "#: `$F140` name is under review -- core-lane's map-load scout finds that bank\n",
+            59),
+        "tests/test_map_effects.py": (
+            'class TestFlagClears:\n    """Map-load flag clears, and the table core-lane '
+            'transcribed by hand."""\n', 553),
+        "tests/test_npc_commands.py": (
+            "def f():\n    # The NPC scene-lane traced: `moveq #1,d7` before the move call.\n"
+            "    return 1\n", 248),
+        "rust/psiv-core/src/battle/enemy_damage/routes/endgame.rs": (
+            "//! The damage arms after the Air Castle (lane A6): the Weapon Plant, Vahal Fort\n",
+            1),
+    }
+
+    def test_the_old_lines_are_refused(self):
+        files = {name: body for name, (body, _) in self.OLD_LINES.items()}
+        code, out = self.check({"README.md": lines("# R"), **files})
+        self.assertEqual(code, 1, out)
+        for name, found in (("psiv_tools/map_effects/anchors.py", "core-lane's"),
+                            ("tests/test_map_effects.py", "core-lane"),
+                            ("tests/test_npc_commands.py", "scene-lane"),
+                            ("rust/psiv-core/src/battle/enemy_damage/routes/endgame.rs",
+                             "lane A6")):
+            self.assertRegex(out, rf"{re.escape(name)}:\d+: lane name \({re.escape(found)}\)")
+
+    def test_every_comment_form(self):
+        code, out = self.check({
+            "README.md": lines("# R"),
+            "a.rs": lines("let x = 1; // lane A5 read it", "/* the C8-lane's",
+                          "   block */ let y = '\"'; // and lane S7"),
+            "b.gd": lines("var x = 1  # lane O1's capture"),
+            "c.sh": lines("#!/bin/bash", "echo hi  # lanes C4, M23"),
+        })
+        self.assertEqual(code, 1, out)
+        for where in ("a.rs:1: lane name (lane A5)", "a.rs:2: lane name (C8-lane's)",
+                      "a.rs:3: lane name (lane S7)", "b.gd:1: lane name (lane O1)",
+                      "c.sh:2: lane name (lanes C4)"):
+            self.assertIn(where, out)
+
+    def test_a_stale_exemption_is_reported(self):
+        from unittest import mock
+        from tools import check_docs
+        stale = {("tools/check_docs.py", "a line nobody wrote, lane A9")}
+        with mock.patch.object(check_docs, "LANE_NAME_EXEMPT",
+                               check_docs.LANE_NAME_EXEMPT | stale):
+            problems = check_docs.lane_name_problems(Path(check_docs.__file__).parents[1])
+        self.assertEqual(problems, ["tools/check_docs.py: LANE_NAME_EXEMPT matches no line "
+                                    "of tools/check_docs.py: a line nobody wrote, lane A9"])
+
+    def test_strings_identifiers_and_shell_counts_pass(self):
+        code, out = self.check({
+            "README.md": lines("# R"),
+            "a.py": lines("RESULT = 'include an out-of-lane ability'", "out_of_lane = 1"),
+            "b.rs": lines('const S: &str = "lane A6 // not a comment";'),
+            "c.sh": lines('echo "$# args, lane A6"', 'n=${#x}'),
+        })
+        self.assertEqual(code, 0, out)
+
+
 class PinnedVersions(RepoCase):
     """Issue #133: a document points at a pin file instead of copying its version."""
 
