@@ -1,6 +1,9 @@
 # Source / provenance notes
 
-The extractor is grounded against Peter's verified US retail PSIV ROM and the public `ps4disasm` work. No ROM bytes are shipped in this repository beyond very short structural signatures used as tests.
+The extractor is grounded against the US retail ROM (SHA-256
+`511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`) and the
+public `ps4disasm` work. The repository contains no game data beyond a few short
+byte signatures in tests that identify structures in the ROM.
 
 ## Topic files
 

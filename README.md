@@ -1,82 +1,94 @@
 # PSIV
 
-**Phantasy Star IV, rebuilt as a native game.** It runs on Linux and the Steam
-Deck today; Windows and macOS are part of 1.0.
+**Phantasy Star IV, rebuilt as a native game.** PSIV reads the game's data out
+of your own copy of the US Genesis/Mega Drive cartridge and runs it natively:
+Python extracts the maps, graphics, sound, dialogue and battle tables into a
+local data pack, Rust reproduces the game's rules frame by frame, and Godot draws
+it and reads your controller. No emulator runs while you play, and the goal is
+the original game's behavior, quirks included.
 
-PSIV reads the game's data out of your own copy of the US Genesis/Mega Drive
-cartridge and runs it natively: Python extracts the maps, graphics, sound,
-dialogue and battle tables into a local data pack, Rust reproduces the game's
-rules frame by frame, and Godot draws it and reads your controller. No emulator
-runs while you play, and the goal is the original game's behavior, quirks
-included.
-
-**You bring the ROM.** PSIV contains no game data. It builds everything from a
-ROM image of the US retail release that you supply; nothing derived from it is
-distributed here.
-
-[Roadmap](docs/ROADMAP.md) · [Contributing](CONTRIBUTING.md) ·
-[Developer guide](docs/DEVELOPMENT.md) · [Documentation](docs/README.md) ·
-[License](#license)
-
-## Status
-
-PSIV is not at 1.0 yet. An automated playthrough, pressing the same buttons a
+**How far it plays.** An automated playthrough, pressing the same buttons a
 player would, gets from New Game to Dark Force 2's defeat, and the native game
-replays it as far as the Air Castle so far. Every player technique and skill,
-and every enemy ability up to Dark Force 2, is checked against the cartridge.
-The rest, from there to the Ending, is in progress
-([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
-Presentation (some animations, whole-scene staging, audio timing) still
-differs from the original in places.
+replays it as far as the Air Castle. Every player technique and skill, and every
+enemy ability up to Dark Force 2, is checked against the cartridge. The rest of
+the story, from there to the Ending, is the open work before 1.0
+([#116](https://github.com/TusanHomichi/PSIV/issues/116)). Presentation (some
+animations, whole-scene staging, audio timing) still differs from the original
+in places; the [known differences](#known-differences) are listed.
 
-Version 1.0 means the unmodified game is completable from New Game to the
-Ending natively. The checklist:
+**Platforms.** Linux and the Steam Deck today. Windows and macOS are part of 1.0
+([#117](https://github.com/TusanHomichi/PSIV/issues/117)); the
+[roadmap](docs/ROADMAP.md) owns the release bar and the platform list.
 
-- [ ] The full campaign, New Game to the Ending, plays natively ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
-- [ ] Long sessions run without memory growth ([#92](https://github.com/TusanHomichi/PSIV/issues/92)).
-- [ ] Every story event that a trigger starts has its scene
-  ([#56](https://github.com/TusanHomichi/PSIV/issues/56), [#71](https://github.com/TusanHomichi/PSIV/issues/71), [#81](https://github.com/TusanHomichi/PSIV/issues/81), [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
-- [ ] Hosted CI runs the checks that need no ROM ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-- [ ] Windows and macOS builds ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), on the latest Godot ([#133](https://github.com/TusanHomichi/PSIV/issues/133)), checked by testers with a built-in self-check ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
-- [ ] A release package for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
-- [x] Player instructions: this README.
+| I want to… | Start here |
+| --- | --- |
+| **Play** | [Quick start](#quick-start-linux) below |
+| **Mod or contribute** | [Modding guide](docs/MODDING.md) and [contributing](CONTRIBUTING.md) |
+| **Read how the cartridge works** | The [documentation index](docs/README.md#retail-reference) |
+| **Work on it with a coding agent** | [AGENTS.md](AGENTS.md) and the [agent workflow](docs/AGENT_WORKFLOW.md) |
 
-The open items are the [v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker).
+## Quick start (Linux)
 
-## Play it
+PSIV runs from a source checkout until the release package lands
+([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
 
-PSIV currently runs from a source checkout; a packaged release is part of the
-1.0 work. You need:
+**You bring the ROM.** PSIV ships no game data: it builds everything from a ROM
+image of the US retail release that you supply, and nothing derived from it is
+distributed here. Check yours before you start; the SHA-256 must be exactly this
+one:
 
-- the US ROM, `Phantasy Star IV (USA).md` (`.md` is the Mega Drive ROM
-  extension; the accepted SHA-256 is in the
-  [developer guide](docs/DEVELOPMENT.md#prepare-the-local-pack));
-- Python, Rust and Godot at the versions the
-  [developer guide](docs/DEVELOPMENT.md#current-environment) names, plus `git`,
-  GNU `patch` and a C compiler.
+```console
+$ sha256sum "Phantasy Star IV (USA).md"
+511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a  Phantasy Star IV (USA).md
+```
 
-### On Linux
+(`.md` is the Mega Drive ROM extension, not Markdown.) The pack builder checks
+the same hash and refuses any other image.
 
-Build the data pack from your ROM, build the game, and start it. The exact
-commands are in the developer guide's
-[prepare the local pack](docs/DEVELOPMENT.md#prepare-the-local-pack) and
-[launch the native game](docs/DEVELOPMENT.md#launch-the-native-game) sections.
-In short: clone this repository, fetch the disassembly and the sound core the
-guide names, run `python3 -m psiv_tools pack <your ROM> runtime-pack`, build the
-`psiv-godot` extension with Cargo, and open the `godot/` project with Godot.
+**Prerequisites**
 
-Saves go to the directory `PSIV_SAVE_DIR` names, or to `saves/` in the
-directory the game starts from when it is unset. Load with the title screen's
-CONTINUE and save from the camp menu's STATE, then SAVE, as on the cartridge.
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Python | 3.10 or newer | standard library only, to build the pack |
+| Rust | 1.97.1 | install [rustup](https://rustup.rs/); it reads `rust-toolchain.toml` and fetches this toolchain on first use |
+| Godot | 4.7.1 (standard build) | from the [Godot download archive](https://godotengine.org/download/archive/) |
+| git, GNU `patch`, `make`, a C compiler | any recent | fetch and compile the sound chip's sources |
 
-### On the Steam Deck
+**Commands**, from a directory of your choice:
 
-Build the pack on a Linux PC as above, then run
+```bash
+git clone https://github.com/TusanHomichi/PSIV.git
+cd PSIV
+./oracle/build_core.sh
+python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
+cargo build --manifest-path rust/Cargo.toml -p psiv-godot
+export PSIV_GODOT=/path/to/Godot_v4.7.1-stable_linux.x86_64
+python3 tools/godot.py
+PSIV_SAVE_DIR="$PWD/saves" "$PSIV_GODOT" --path godot
+```
+
+1. `./oracle/build_core.sh` fetches the pinned Genesis Plus GX sources into
+   `oracle/gpgx-src/`. The game compiles one file of them, the sound chip
+   emulation, into itself.
+2. `pack` builds the data pack from your ROM into `runtime-pack/`. The ROM is an
+   argument; it can live anywhere.
+3. `cargo build` compiles the game's library for Godot.
+4. `PSIV_GODOT` names your Godot executable (or put it on `PATH` as `godot`);
+   `python3 tools/godot.py` prints it, or says why it is not usable (a missing
+   file, the wrong version).
+5. The last line starts the game.
+
+Saves go to the directory `PSIV_SAVE_DIR` names. Load with the title screen's
+CONTINUE, and save from the camp menu's STATE, then SAVE, as on the cartridge.
+
+**On the Steam Deck**, build the pack on a Linux PC as above, then run
 `tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
 release, puts the pack beside it, and copies both to `~/psiv` on the Deck over
-SSH. On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. This is the
-developer path until the release package lands; its requirements are in the
-developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-for-the-steam-deck).
+SSH. On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. Its requirements
+are in the developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-for-the-steam-deck).
+
+The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:
+the tests, the oracle and the checks a change runs.
 
 ### Controls
 
@@ -96,28 +108,40 @@ Where PSIV knowingly differs from the cartridge, there is an open issue:
   a rule that does not yet match the original.
 - [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
   drawing, animation, audio or timing that looks or sounds different.
+- A few original bugs are fixed on purpose; each is listed in the
+  [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 
-If you find a difference that is not listed, please open an issue with what you
-saw, where in the game, and what the original does.
+Found a difference that is not listed? [Open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose)
+with what you saw, where in the game, and what the original does. Questions go
+to [Discussions](https://github.com/TusanHomichi/PSIV/discussions).
 
-## Modding
+## Status
 
-The data pack is ordinary files: PNG images and JSON tables (plus some binary
-sound data) under `runtime-pack/`. Edit them and the game loads your edits,
-as long as they still fit the pack's schema (it refuses a malformed table).
-`python3 -m psiv_tools pack` rebuilds the pack from the ROM and overwrites
-edits made in place, so keep your changes separately. A mod overlay loader, so
-that mods sit beside the original pack instead of inside it, is planned after
-1.0 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
+Version 1.0 means the unmodified game is completable from New Game to the Ending
+natively. The open items are the
+[v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker),
+and the [roadmap](docs/ROADMAP.md) keeps the checklist.
 
-## Contributing
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents also read
-[AGENTS.md](AGENTS.md), which holds the project's working rules.
-
-## License
+## License and third-party code
 
 PSIV's original code and documentation are under the [MIT License](LICENSE),
-copyright © 2026 Peter Permenter. That license does not cover the original
-game, its ROM, anything extracted from it, or third-party components; those
-keep their own rights and licenses.
+copyright © 2026 Peter Permenter. The license covers what is in this repository
+and nothing else: not the original game, its ROM, the data pack built from it,
+extracted images or sound, captures, or saves. The repository contains no game
+data beyond a few short byte signatures in tests that identify structures in the
+ROM.
+
+Third-party code is fetched at build time, never committed:
+
+- **Genesis Plus GX** (`oracle/build_core.sh`, pinned commit
+  `2d7131c5efa606f649d36e1685a8ca47c24f31b3`) is under a non-commercial license.
+  Its emulator core is test tooling for the oracle and is never part of the
+  game, with one exception:
+- **Nuked OPN2** (`ym3438.c`, from the same checkout) is compiled into the game's
+  library for the sound chip. It is under the LGPL-2.1-or-later; its notice is
+  in the source, and how the release package carries it is
+  [#115](https://github.com/TusanHomichi/PSIV/issues/115).
+- **The `ps4disasm` disassembly**
+  ([alechenninger/ps4disasm](https://github.com/alechenninger/ps4disasm)) is a
+  research reference for developers; the game does not use it.
+- **Godot** is under the MIT license, with its own third-party notices.
