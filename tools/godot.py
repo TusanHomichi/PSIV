@@ -324,6 +324,13 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
     root = Path(root).absolute()
     try:
         root.mkdir(parents=True)
+    except OSError as error:
+        raise GodotError(f"cannot create the run root {root}: {error}") from error
+    try:
+        # A record first, so a run root that fails part-way is still one that
+        # `remove_run_root` (and `run-root --replace`) will remove.
+        (root / RUN_ROOT_RECORD).write_text(json.dumps({"root": str(root),
+                                                        "incomplete": True}) + "\n")
         snapshot = library_path(root, profile)
         snapshot.parent.mkdir(parents=True)
         method = snapshot_file(built, snapshot)
@@ -344,8 +351,11 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
                 shutil.copy2(source / name, target, follow_symlinks=True)
             prepare(project)
             made.append(project)
-    except OSError as error:
-        raise GodotError(f"cannot create the run root {root}: {error}") from error
+    except BaseException as error:
+        remove_run_root(root)
+        if isinstance(error, OSError):
+            raise GodotError(f"cannot create the run root {root}: {error}") from error
+        raise
     record = {
         "root": str(root), "projects": [str(project) for project in made],
         "profile": profile, "library": str(snapshot), "library_sha256": digest,

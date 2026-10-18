@@ -24,6 +24,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools import godot
 from tools.repo_files import repo_files
@@ -180,6 +181,29 @@ class Refusals(Checkout):
         with self.assertRaises(godot.GodotError):
             godot.remove_run_root(self.source)
         self.assertTrue((self.source / "godot/project.godot").is_file())
+
+    def test_a_run_root_that_fails_part_way_is_removed(self):
+        """The reviewer's reproduction: `prepare` failing on the second project."""
+        calls = []
+
+        def failing(project):
+            calls.append(project)
+            if len(calls) == 2:
+                raise godot.GodotError("cannot write the index")
+            return True
+
+        with mock.patch.object(godot, "prepare", failing), \
+                self.assertRaises(godot.GodotError):
+            self.create(projects=2)
+        self.assertFalse((self.dir / "run").exists())
+        self.create()  # the same path is free again
+
+    def test_negative_control_a_half_root_without_its_record_is_refused(self):
+        """What a failure left before the record came first: a directory that
+        `remove_run_root`, and so `run-root --replace`, refuses."""
+        (self.dir / "run/rust/target/debug").mkdir(parents=True)
+        with self.assertRaises(godot.GodotError):
+            godot.remove_run_root(self.dir / "run")
 
     def test_the_command_line_replaces_its_own_run_root(self):
         env = {**os.environ, "PYTHONPATH": str(ROOT)}
