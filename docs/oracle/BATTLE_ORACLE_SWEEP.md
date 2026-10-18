@@ -106,8 +106,8 @@ its fix.
 ### Reproducing this ledger
 
 ```sh
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --test-threads=1 every_fixture_replays_as_recorded
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- every_fixture_replays_as_recorded
 ```
 
 The manifest this ledger describes is generated, not typed: the Rust side writes
@@ -130,7 +130,7 @@ closing state, once every fixture replays exactly, and the manifest it builds is
 
 ```sh
 PSIV_MANIFEST_DUMP=build/findings.jsonl \
-    CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- --ignored --nocapture dump_manifest_entries
 python3 -m oracle.sweep.manifest --dump build/findings.jsonl \
     --manifest rust/psiv-core/src/battle/replay_fixtures/divergences.json

@@ -162,6 +162,54 @@ def module_file(module: str, crates: set[str], names: set[str]) -> bool:
 SERIAL_RE = re.compile(r"CARGO_BUILD_JOBS=|--test-threads")
 
 
+#: Lines under docs/ and oracle/ that name a jobs or thread pin on purpose, by
+#: exact text: measurements of a pinned run (DEVELOPMENT.md's table), the
+#: opt-level-3 extension build's measured `CARGO_BUILD_JOBS=2`
+#: (CAMPAIGN_RUNNER.md, "Native tape replay"), and the sound slice's record of the
+#: checks it ran then. Anything else pinned there is the pre-#157 serial form.
+SERIAL_ON_PURPOSE = frozenset({
+    ("docs/DEVELOPMENT.md", "| the opt-level-3 extension build ([native tape replay](campaign/"
+     "CAMPAIGN_RUNNER.md#native-tape-replay)), `CARGO_BUILD_JOBS=2`, cold, 0.1 s | 380 s | "
+     "4,817 MB | 3,018 MB | - | `exclusive` |"),
+    ("docs/DEVELOPMENT.md", "| the same, `CARGO_BUILD_JOBS=4`, #157, 2.6 GHz | 216 s | 3,999 MB "
+     "| - | - | `exclusive` |"),
+    ("docs/DEVELOPMENT.md", "| the same, `CARGO_BUILD_JOBS=1`, #157, 2.5 GHz | 583 s | 2,824 MB "
+     "| - | - | `exclusive` |"),
+    ("docs/DEVELOPMENT.md", "| the workspace `cargo test --test-threads=1`, built (the gate "
+     "before #157) | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |"),
+    ("docs/DEVELOPMENT.md", "| the same, `--test-threads=4`, #157, 2.8 GHz | 53 s | 305 MB | - "
+     "| reads | `exclusive` |"),
+    ("docs/DEVELOPMENT.md", "| the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - "
+     "| reads | `exclusive` |"),
+    ("docs/DEVELOPMENT.md", "| the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - "
+     "| reads | `exclusive` |"),
+    ("docs/campaign/CAMPAIGN_RUNNER.md", "CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 "
+     "CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \\"),
+    ("docs/campaign/CAMPAIGN_RUNNER.md", "CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run "
+     "--class build -- \\"),
+    ("docs/sound/SOUND_INTEGRATION.md", "CARGO_BUILD_JOBS=2 cargo clippy --manifest-path "
+     "rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings"),
+    ("docs/sound/SOUND_INTEGRATION.md", "CARGO_BUILD_JOBS=2 cargo test --manifest-path "
+     "rust/Cargo.toml --workspace"),
+})
+
+#: Where the serial-form scan reads: the guides and the oracle tooling.
+SERIAL_SCOPES = ("docs/", "oracle/")
+
+
+def serial_lines(sources, on_purpose=SERIAL_ON_PURPOSE) -> list[str]:
+    """`path:line: text` for each line of `(path, text)` pairs that pins jobs or threads.
+
+    A line in `on_purpose`, matched on its exact text, is not reported.
+    """
+    found = []
+    for path, text in sources:
+        for number, line in enumerate(text.splitlines(), start=1):
+            if SERIAL_RE.search(line) and (path, line.strip()) not in on_purpose:
+                found.append(f"{path}:{number}: {line.strip()}")
+    return found
+
+
 def command_problems(command: str, members: set[str], names: set[str]) -> list[str]:
     """Every way one focused-test command names something that is not there."""
     problems: list[str] = []
@@ -433,6 +481,38 @@ class Parsing(unittest.TestCase):
             problems = command_problems(command, {"psiv-core"}, names)
             self.assertEqual(len(problems), 1, command)
             self.assertIn("pins CARGO_BUILD_JOBS or --test-threads", problems[0])
+
+
+
+class SerialFormCase(unittest.TestCase):
+    """No guide or oracle tool pins cargo's jobs or test threads except on purpose (#157)."""
+
+    def sources(self):
+        for name in repo_files(ROOT):
+            if name.startswith(SERIAL_SCOPES) and name.endswith((".md", ".py", ".sh")):
+                path = ROOT / name
+                if path.is_file():
+                    yield name, path.read_text(encoding="utf-8")
+
+    def test_docs_and_oracle_pin_nothing_but_the_listed_lines(self):
+        sources = list(self.sources())
+        self.assertGreater(len(sources), 100, "the scan read too few files to be the tree")
+        self.assertEqual(serial_lines(sources), [])
+
+    def test_every_on_purpose_line_still_exists(self):
+        """A listed line that was edited or removed leaves the list, so it cannot excuse another."""
+        lines = {(name, line.strip()) for name, text in self.sources()
+                 for line in text.splitlines()}
+        self.assertEqual(sorted(SERIAL_ON_PURPOSE - lines), [])
+
+    def test_negative_control_a_pin_outside_the_list_is_found(self):
+        # The pre-#157 docs/oracle/BATTLE_ORACLE_REPLAY.md lines, verbatim.
+        text = ("CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \\\n"
+                "    -- --test-threads=1 replay\n")
+        self.assertEqual(len(serial_lines([("docs/oracle/BATTLE_ORACLE_REPLAY.md", text)])), 2)
+        listed = "CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml --workspace"
+        self.assertEqual(serial_lines([("docs/sound/SOUND_INTEGRATION.md", listed)]), [])
+        self.assertEqual(len(serial_lines([("docs/other.md", listed)])), 1)
 
 
 if __name__ == "__main__":

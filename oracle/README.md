@@ -305,7 +305,7 @@ python3 -m oracle.rng_trace check oracle/logs/tape07_rolls.csv \
 python3 -m oracle.fixture --trace oracle/logs/tape07_rolls.csv \
     --log oracle/logs/tape07_battle.csv \
     --out rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- tape07
 ```
 
@@ -556,8 +556,8 @@ python3 -m oracle.sweep.player_capture --cases build/player/cases.json \
   --scout build/scripted/scout.json --out build/player/captures \
   --fixtures rust/psiv-core/src/battle/replay_fixtures/player
 python3 -m oracle.sweep.replay_pack
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-  --lib every_fixture_replays_as_recorded -- --test-threads=1
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+  --lib every_fixture_replays_as_recorded
 ```
 
 Recipes declare `name`, `formation` (or `event`), `rounds`, optional `defaults`

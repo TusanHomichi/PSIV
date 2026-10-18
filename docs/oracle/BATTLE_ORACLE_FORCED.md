@@ -271,8 +271,8 @@ python3 -m oracle.fixture --trace build/forced/helex/capture/forced_5E_attack_ro
     --tape "forced_5E_attack.tape (python3 -m oracle.force --formation 0x5E)" \
     --battle-first 24794 --battle-last 25616 \
     --out rust/psiv-core/src/battle/replay_fixtures/forced_5e_helex.json
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --test-threads=1 every_fixture_replays_as_recorded
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- every_fixture_replays_as_recorded
 ```
 
 The four committed forced fixtures were extracted before the oracle entry
@@ -607,8 +607,8 @@ python3 -m oracle.fixture --trace <capture>/forced_110_attack_d19_rolls.csv \
     --out rust/psiv-core/src/battle/replay_fixtures/forced_110_techmaster.json \
     --tape "forced_110_attack_d19.tape (python3 -m oracle.force --formation 272 --max-rounds 1 --require-ability 71 --delay 19)" \
     --battle-first 24794 --battle-last 25308 --max-rounds 1 --minified
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --test-threads=1 every_fixture_replays_as_recorded
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- every_fixture_replays_as_recorded
 ```
 
 The replay harness reads the records those fixtures seat from
