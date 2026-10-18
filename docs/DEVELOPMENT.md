@@ -130,8 +130,10 @@ The keyboard and controller bindings are listed in the
 
 `tools/package/deploy-deck.sh` builds the release extension with
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), exports the Godot project's
-`Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
+symbol versions and the Deck refuses to load it), prepares the project
+(`python3 tools/godot.py prepare`), exports its `Linux-SteamDeck` preset to
+`build/deck/` (the full export log is `build/deck-export.log`; a failed export
+stops the script), stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
 executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
 It needs:

@@ -17,6 +17,7 @@ a host path.
 """
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -223,12 +224,34 @@ class OnePlace(unittest.TestCase):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
 
     def test_every_way_to_start_the_game_prepares_the_project(self):
-        for name in ("godot/run.sh", "README.md", "docs/DEVELOPMENT.md", "docs/MODDING.md"):
+        for name in ("godot/run.sh", "tools/package/deploy-deck.sh", "README.md",
+                     "docs/DEVELOPMENT.md", "docs/MODDING.md"):
             with self.subTest(name=name):
-                self.assertIn("python3 tools/godot.py prepare", (ROOT / name).read_text())
+                self.assertRegex((ROOT / name).read_text(),
+                                 r'python3 "?(\$HERE/)?tools/godot[.]py"? prepare')
         for name in ("tools/certify.py", "tools/verify_native_tape.py"):
             with self.subTest(name=name):
                 self.assertRegex((ROOT / name).read_text(), r"\bprepare(_godot)?\(")
+
+    def test_the_shell_launchers_stop_on_a_failed_pipeline(self):
+        """deploy-deck.sh pipes its export into `tail`; without pipefail a
+        failed export was hidden and the script staged a stale build."""
+        for launcher in ("tools/package/deploy-deck.sh",):
+            with self.subTest(launcher=launcher):
+                text = (ROOT / launcher).read_text()
+                self.assertRegex(text, r"(?m)^set -\w*e\w*o pipefail$")
+                syntax = subprocess.run(["bash", "-n", str(ROOT / launcher)],
+                                        capture_output=True, text=True)
+                self.assertEqual(syntax.returncode, 0, syntax.stderr)
+
+    def test_the_shell_launchers_pass_shellcheck(self):
+        if shutil.which("shellcheck") is None:
+            self.skipTest("shellcheck is not installed")
+        for launcher in ("godot/run.sh", "tools/package/deploy-deck.sh"):
+            with self.subTest(launcher=launcher):
+                proc = subprocess.run(["shellcheck", str(ROOT / launcher)],
+                                      capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0, proc.stdout)
 
     def test_only_the_resolver_knows_the_extension_index(self):
         code = [name for name in repo_files(ROOT, ("*.py", "*.sh", "*.gd"))
