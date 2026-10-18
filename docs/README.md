@@ -59,8 +59,8 @@ hardware's behavior through the oracle.
 - [Camp menu layout](camp/CAMP_MENU_LAYOUT.md), [party ORDER](camp/PARTY_ORDER.md),
   [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIPMENT.md),
   [progression](camp/PROGRESSION.md).
-- [Shops and inns](camp/SHOPS.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md),
-  [the save format](camp/SAVE_FORMAT.md).
+- [Shops and inns](camp/SHOPS.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md);
+  the save format is under [Play](#play).
 
 **Scenes and dialogue**
 
