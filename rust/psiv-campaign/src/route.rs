@@ -53,6 +53,7 @@
 //! | `rest_inn` | optional `face` | pay for a night at the inn counter the party faces |
 //! | `equip` | `member`, `item` | equip through camp |
 //! | `use_technique` | `caster`, `technique`, `target` | camp technique on a member |
+//! | `travel` | `caster`, `technique`, optional `town` | camp HINAS (the dungeon's exit) or RYUKA to the visited `town` of the current world; the validator places the party on the town's overworld cell, after HINAS the next `expect` pins it |
 //! | `use_item` | `item`, `target` | camp item on a member |
 //! | `reorder` | `order` | set party order, first to last |
 //! | `save` | `slot` | ordinary SAVE to slot `0..3` |
@@ -407,6 +408,16 @@ pub enum Objective {
         technique: NameOrId,
         /// Target member.
         target: NameOrId,
+    },
+    /// Cast a travel technique from camp: HINAS, or RYUKA to `town`.
+    Travel {
+        /// Casting member.
+        caster: NameOrId,
+        /// `HINAS` or `RYUKA`.
+        technique: NameOrId,
+        /// RYUKA's destination, by its listed name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        town: Option<String>,
     },
     /// Use an item from camp.
     UseItem {

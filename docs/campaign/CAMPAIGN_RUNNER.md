@@ -23,7 +23,10 @@ resolves into pad input:
   the terrain its machine crosses, `psiv_core::can_enter`; the route says so
   with `"vehicle": N` in an `expect` and ends it with `dismount`);
 - talk to an object, answer a choice, open a chest, use a field ability;
-- buy, sell, equip, rest at an inn, reorder the party;
+- buy, sell, equip, rest at an inn, reorder the party; `travel` casts HINAS
+  (the dungeon's exit) or RYUKA to a visited town of the current world from
+  camp, and the validator places a RYUKA party on the town's overworld cell
+  and rejects RYUKA where the map's `town_teleport` byte forbids it;
 - `interact` with a cell (doors and elevators that open walls), and `patrol`
   between two cells until a condition holds (grinding the route requires),
   with an optional `refuge` list the patrol runs when a member falls or a

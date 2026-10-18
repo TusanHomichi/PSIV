@@ -397,6 +397,14 @@ impl<'a> Run<'a> {
                 self.technique(technique)?;
                 self.member(target).map(|_| ())
             }
+            Objective::Travel {
+                caster,
+                technique,
+                town,
+            } => {
+                self.member(caster)?;
+                self.travel(technique, town.as_deref())
+            }
             Objective::UseItem { item, target } => {
                 self.item(item)?;
                 self.member(target).map(|_| ())
@@ -613,6 +621,66 @@ impl<'a> Run<'a> {
                 .find(|t| names_match(t.display_name.as_deref(), name))
                 .map(|t| t.id)
                 .ok_or_else(|| format!("no technique named {name:?}")),
+        }
+    }
+
+    /// A `travel`: HINAS without a town leaves the position unknown; RYUKA
+    /// names a town of the travel table and lands on its overworld cell
+    /// (`Runtime::town_destination`: map = world, cell = start / 2 with the
+    /// standing row), unknown when the name stands for towns of two worlds.
+    fn travel(&mut self, technique: &NameOrId, town: Option<&str>) -> Result<(), String> {
+        let id = self.technique(technique)?;
+        match (u8::try_from(id).ok(), town) {
+            (Some(psiv_runtime::HINAS), None) => {
+                self.pos = None;
+                Ok(())
+            }
+            (Some(psiv_runtime::RYUKA), Some(town)) => {
+                let here = self.here("travel")?;
+                if !self.record_of(here.map)?.flags.allows_town_teleport() {
+                    return Err(format!(
+                        "map {:#05x} does not allow RYUKA (its town_teleport byte is set)",
+                        here.map
+                    ));
+                }
+                let towns: Vec<_> = self
+                    .data
+                    .travel()
+                    .map(|travel| {
+                        travel
+                            .towns
+                            .iter()
+                            .filter(|t| t.name.eq_ignore_ascii_case(town))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut lands = towns
+                    .iter()
+                    .map(|t| Position {
+                        map: u16::from(t.world),
+                        cell: Cell::new(t.x / 2, t.y / 2 + 1),
+                    })
+                    .collect::<Vec<_>>();
+                lands.dedup();
+                match lands.as_slice() {
+                    [] => Err(format!("no RYUKA town named {town:?}")),
+                    [land] => {
+                        self.move_to(*land);
+                        Ok(())
+                    }
+                    _ => {
+                        self.pos = None;
+                        Ok(())
+                    }
+                }
+            }
+            (Some(psiv_runtime::HINAS), Some(town)) => Err(format!(
+                "HINAS leaves by the dungeon's exit; it takes no town ({town})"
+            )),
+            (Some(psiv_runtime::RYUKA), None) => Err("RYUKA needs a town".into()),
+            _ => Err(format!(
+                "{technique} is not a travel technique (HINAS or RYUKA)"
+            )),
         }
     }
 

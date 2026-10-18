@@ -290,6 +290,113 @@ impl Driver {
         target: &NameOrId,
     ) -> Res {
         self.open_camp()?;
+        self.pick_technique(caster, technique)?;
+        if self.camp_page()? == CampPage::AbilityTarget {
+            let who = self.member_row(target)?;
+            let rows = self.camp()?.snapshot.party.len();
+            self.cursor_to(
+                "technique target",
+                |d| d.session().camp_view().map(|v| v.target_selection),
+                who,
+                Some(rows),
+            )?;
+            self.tap(Button::Speak)?;
+        }
+        self.expect_camp_page(CampPage::AbilityResult)?;
+        let message = self.camp()?.message.clone();
+        self.note(format!("camp technique: {message}"));
+        if message.contains("NO EFFECT") {
+            return Err(Halt::new(
+                HaltKind::UnexpectedState,
+                format!("the technique did nothing: {message:?}"),
+            ));
+        }
+        self.close_camp()
+    }
+
+    /// Casts a travel technique from camp: HINAS to the dungeon's exit, or
+    /// RYUKA to the visited town named `town` (`Runtime::town_destinations`,
+    /// the current world's list). The camp closes on the press that accepts
+    /// the "READY TO TELEPORT" message, and the map loads.
+    ///
+    /// # Errors
+    ///
+    /// [`HaltKind::MenuEntryMissing`] when the caster, the technique or the
+    /// town is not listed; [`HaltKind::UnexpectedState`] when the cast is
+    /// refused (a refusal names its reason) or RYUKA's list opens and no town
+    /// was named, or HINAS is asked for a town.
+    pub fn travel(&mut self, caster: &NameOrId, technique: &NameOrId, town: Option<&str>) -> Res {
+        self.open_camp()?;
+        self.pick_technique(caster, technique)?;
+        match (self.camp_page()?, town) {
+            (CampPage::TravelTowns, Some(town)) => {
+                let row = {
+                    let towns = &self.camp()?.travel_towns;
+                    towns
+                        .iter()
+                        .position(|t| t.name.eq_ignore_ascii_case(town))
+                        .ok_or_else(|| {
+                            Halt::new(
+                                HaltKind::MenuEntryMissing,
+                                format!(
+                                    "{technique} does not list {town}; it lists: {}",
+                                    listing(towns, |t| t.name.as_str())
+                                ),
+                            )
+                        })?
+                };
+                let rows = self.camp()?.travel_towns.len();
+                self.cursor_to(
+                    "town list",
+                    |d| d.session().camp_view().map(|v| v.travel_selection),
+                    row,
+                    Some(rows),
+                )?;
+                self.tap(Button::Speak)?;
+            }
+            (CampPage::TravelTowns, None) => {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!("{technique} opened its town list and the objective names no town"),
+                ));
+            }
+            (CampPage::TravelReady, Some(town)) => {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!("{technique} leaves by the dungeon's exit; it takes no town ({town})"),
+                ));
+            }
+            (CampPage::TravelReady, None) => {}
+            (page, _) => {
+                let message = self.camp()?.message.clone();
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!("{technique} was refused on {page:?}: {message:?}"),
+                ));
+            }
+        }
+        if self.camp_page()? != CampPage::TravelReady {
+            let message = self.camp()?.message.clone();
+            return Err(Halt::new(
+                HaltKind::UnexpectedState,
+                format!("the town was refused: {message:?}"),
+            ));
+        }
+        let message = self.camp()?.message.clone();
+        self.note(format!("camp travel: {message}"));
+        self.tap(Button::Speak)?;
+        if self.session().camp_view().is_some() {
+            return Err(Halt::new(
+                HaltKind::UnexpectedState,
+                format!("the camp stayed open after {message:?}"),
+            ));
+        }
+        self.settle(false).map(|_| ())
+    }
+
+    /// From the open camp: TECH, the caster's row, then the technique's row,
+    /// with the press that chooses it.
+    fn pick_technique(&mut self, caster: &NameOrId, technique: &NameOrId) -> Res {
         self.camp_root(ROOT_TECH)?;
         self.expect_camp_page(CampPage::AbilityCharacters)?;
         let who = self.member_row(caster)?;
@@ -327,28 +434,7 @@ impl Driver {
             row,
             Some(rows),
         )?;
-        self.tap(Button::Speak)?;
-        if self.camp_page()? == CampPage::AbilityTarget {
-            let who = self.member_row(target)?;
-            let rows = self.camp()?.snapshot.party.len();
-            self.cursor_to(
-                "technique target",
-                |d| d.session().camp_view().map(|v| v.target_selection),
-                who,
-                Some(rows),
-            )?;
-            self.tap(Button::Speak)?;
-        }
-        self.expect_camp_page(CampPage::AbilityResult)?;
-        let message = self.camp()?.message.clone();
-        self.note(format!("camp technique: {message}"));
-        if message.contains("NO EFFECT") {
-            return Err(Halt::new(
-                HaltKind::UnexpectedState,
-                format!("the technique did nothing: {message:?}"),
-            ));
-        }
-        self.close_camp()
+        self.tap(Button::Speak)
     }
 
     /// Uses `item` from the pack on `target` through ITEM.
