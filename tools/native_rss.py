@@ -31,10 +31,23 @@ raises every later floor; a field transient shorter than the window cannot
 raise any. A route's brief late visits leave stretches no map's floors can see
 (`coverage_gaps`); the bracket covers them, so coverage is reported.
 
+The extension's own heap is counted, not inferred: a counting global
+allocator (`rust/psiv-godot/src/rust_heap.rs`, always on) reports live Rust
+bytes. RSS minus Godot static is reported as an unjudged residual, because
+the system allocator keeps freed pages.
+
+What the bounds mean, in events. The campaign route is about 3,800 battles
+and 62 chapters. 16 MB (`--rss-bound-mb`) over a whole route catches a leak
+of about 4 KB of live Rust bytes or of Godot static memory per battle (about
+260 KB per chapter); 256 objects catches one object leaked per 15 battles (4
+per chapter). Over a one-chapter smoke the same bounds only catch leaks
+dozens of times larger, so the full route is the check that closes #92. The
+object bound is provisional: it tightens once a full replay reports its
+residual outside the named caches (#92).
+
 Godot reports static memory only in debug builds (`MEMORY_STATIC` is 0 under
-a release template, which would make the extension term equal RSS and fail
-on the map swing), so the verdict is for debug builds of the extension and
-engine (#117).
+a release template, which would make the static terms meaningless), so the
+verdict is for debug builds of the extension and engine (#117).
 """
 
 from __future__ import annotations
@@ -82,7 +95,8 @@ RUN_SLOT_FILE = "slot_1.run.sram"
 
 FIELD = "field"
 PROBE_KEYS = ("rss_kb", "static_kb", "objects")
-RSS_SAMPLE_KEYS = ("frame", "elapsed_ms", "rss_kb", "static_kb", "objects", "map")
+RSS_SAMPLE_KEYS = ("frame", "elapsed_ms", "rss_kb", "static_kb", "objects", "map",
+                   "rust_live_bytes")
 
 
 def floor_samples_for(cadence: int, floor_frames: int = FLOOR_FRAMES) -> int:
@@ -241,9 +255,12 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     if not isinstance(samples, list) or len(samples) < PROBE_SAMPLES:
         return None, f"fewer than {PROBE_SAMPLES} samples"
     if not all(isinstance(item, dict) and item.get("activity") == FIELD
-               and all(isinstance(item.get(key), int) for key in PROBE_KEYS + ("orphan_nodes",))
+               and all(isinstance(item.get(key), int)
+                       for key in PROBE_KEYS + ("orphan_nodes", "rust_live_bytes"))
                and item["rss_kb"] > 0 for item in samples):
         return None, "a sample off the open field or unreadable"
+    if probe.get("orphan_monitor_alive") is not True:
+        return None, "its orphan-node monitor did not count a test orphan"
     caches = [probe_caches(item) for item in samples]
     if any(cache is None for cache in caches):
         return None, "a sample without its named caches"
@@ -261,7 +278,11 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     floor["static_outside_caches_kb"] = min(
         item["static_kb"] - sum(cache["bytes"] for cache in item_caches.values()) / 1024
         for item, item_caches in zip(samples, caches))
-    floor["extension_kb"] = min(item["rss_kb"] - item["static_kb"] for item in samples)
+    floor["rust_live_kb"] = min(item["rust_live_bytes"] for item in samples) / 1024
+    # Reported only: what RSS holds beyond Godot's static memory and the live
+    # Rust heap (the allocators' retained pages, stacks, mapped code).
+    floor["residual_kb"] = min(item["rss_kb"] - item["static_kb"] - item["rust_live_bytes"] / 1024
+                               for item in samples)
     if all(isinstance(item.get("nodes"), int) for item in samples):
         floor["nodes"] = min(item["nodes"] for item in samples)
     floor["caches"] = caches[-1]
@@ -274,10 +295,13 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
 
     Judged: Godot objects outside the caches may not grow more than
     `object_bound`, Godot static memory outside the caches' bytes and the
-    extension heap no more than `bound_mb`; neither probe may hold an orphan
-    node; and no cache may hold more entries than its content ceiling at
-    either probe. Each cache's growth is reported beside its ceiling. A
-    missing or unsettled probe, or one without its caches, fails."""
+    extension's live Rust bytes (`rust_heap.rs`) no more than `bound_mb`;
+    neither probe may hold an orphan node, and each probe's orphan monitor
+    must have counted a test orphan; and no cache may hold more entries than
+    its content ceiling at either probe. Each cache's growth is reported
+    beside its ceiling, and the RSS residual (RSS minus static minus live
+    Rust bytes) is reported, never judged. A missing or unsettled probe, or
+    one without its caches, fails."""
     probes = probes if isinstance(probes, dict) else {}
     start, start_why = probe_floor(probes.get("start"))
     end, end_why = probe_floor(probes.get("end"))
@@ -290,7 +314,7 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
         return round(kb / 1024, 1)
 
     static = end["static_outside_caches_kb"] - start["static_outside_caches_kb"]
-    extension = end["extension_kb"] - start["extension_kb"]
+    rust = end["rust_live_kb"] - start["rust_live_kb"]
     objects = end["objects_outside_caches"] - start["objects_outside_caches"]
     caches = {}
     for name in sorted(set(start["caches"]) | set(end["caches"])):
@@ -307,10 +331,13 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
     orphans = max(start["orphan_nodes"], end["orphan_nodes"])
     return {
         "start_floor": {"static_mb": mb(start["static_kb"]), "objects": start["objects"],
-                        "extension_mb": mb(start["extension_kb"]), "rss_mb": mb(start["rss_kb"])},
+                        "rust_live_mb": mb(start["rust_live_kb"]),
+                        "residual_mb": mb(start["residual_kb"]), "rss_mb": mb(start["rss_kb"])},
         "end_floor": {"static_mb": mb(end["static_kb"]), "objects": end["objects"],
-                      "extension_mb": mb(end["extension_kb"]), "rss_mb": mb(end["rss_kb"])},
-        "static_growth_mb": mb(static), "extension_growth_mb": mb(extension),
+                      "rust_live_mb": mb(end["rust_live_kb"]),
+                      "residual_mb": mb(end["residual_kb"]), "rss_mb": mb(end["rss_kb"])},
+        "static_growth_mb": mb(static), "rust_live_growth_mb": mb(rust),
+        "residual_growth_mb": mb(end["residual_kb"] - start["residual_kb"]),
         "object_growth": objects,
         "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]),
         "total_object_growth": end["objects"] - start["objects"],
@@ -319,7 +346,7 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
         "orphan_nodes": orphans,
         "objects_per_texture": [start["objects_per_texture"], end["objects_per_texture"]],
         "caches": caches,
-        "pass": static / 1024 <= bound_mb and extension / 1024 <= bound_mb
+        "pass": static / 1024 <= bound_mb and rust / 1024 <= bound_mb
         and objects <= object_bound and orphans == 0
         and all(cache["pass"] for cache in caches.values())}
 
@@ -336,9 +363,11 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     - `bracket` (`bracket_verdict`): the end probe over the start probe. It
       closes the check: it sees a persistent leak anywhere in the run.
 
-    - `extension`: RSS minus Godot static memory (the extension's Rust heap
-      and everything else outside Godot's allocator), over every sample, may
-      not grow more than `bound_mb` past the window's first sample.
+    - `rust_heap`: the extension's live Rust bytes (`rust_heap.rs`, a
+      counting global allocator), over every sample, may not grow more than
+      `bound_mb` past the window's first sample. RSS cannot stand in for it:
+      the system allocator keeps freed pages, so RSS minus static swings by
+      tens of MB with no leak and can hide one in pages it already holds.
     - `godot_static`: on each map, the highest field floor (`map_floors`) may
       not exceed the map's first floor by more than `bound_mb`: a breach is a
       leak signal mid-run, though a map floored nowhere cannot breach.
@@ -346,6 +375,8 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
 
     Reported, with `within_bound`/`within_limit` for the reader:
 
+    - `residual`: RSS minus Godot static minus live Rust bytes, never
+      judged.
     - `static_drift` and `object_drift`: the floors' growth pooled into one
       rate (`pooled_drift`) times the frames from the earliest floor to the
       latest, against the bound.
@@ -378,15 +409,17 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         verdict.update({"pass": False, "reason": refused})
         return verdict
     window = floor_samples_for(cadence, floor_frames)
-    measured = [dict(item, extension_kb=item["rss_kb"] - item["static_kb"]) for item in measured]
+    measured = [dict(item, rust_kb=item["rust_live_bytes"] / 1024,
+                     residual_kb=item["rss_kb"] - item["static_kb"] - item["rust_live_bytes"] / 1024)
+                for item in measured]
     baseline, last = measured[0], measured[-1]
     span_s = (last["elapsed_ms"] - baseline["elapsed_ms"]) / 1000
 
     def mb(kb: float) -> float:
         return round(kb / 1024, 1)
 
-    peak_ext = max(measured, key=lambda item: item["extension_kb"])
-    extension_growth = peak_ext["extension_kb"] - baseline["extension_kb"]
+    peak_rust = max(measured, key=lambda item: item["rust_kb"])
+    rust_growth = peak_rust["rust_kb"] - baseline["rust_kb"]
     field = [item for item in measured if item["activity"] == FIELD]
     floors, short = map_floors(field, window, "static_kb")
     object_floors, _ = map_floors(field, window, "objects")
@@ -413,13 +446,15 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         "rss_mb": {"baseline": mb(baseline["rss_kb"]), "last": mb(last["rss_kb"]),
                    "peak": mb(max(item["rss_kb"] for item in measured)),
                    "slope_kb_per_kframe": rss_slope(measured)},
-        "extension": {"baseline_mb": mb(baseline["extension_kb"]),
-                      "peak_mb": mb(peak_ext["extension_kb"]), "peak_frame": peak_ext["frame"],
-                      "last_mb": mb(last["extension_kb"]), "growth_mb": mb(extension_growth),
-                      "growth_mb_per_min": round(extension_growth / 1024 / span_s * 60, 2)
-                      if span_s > 0 else None,
-                      "slope_kb_per_kframe": rss_slope(measured, "extension_kb"),
-                      "pass": extension_growth / 1024 <= bound_mb},
+        "rust_heap": {"baseline_mb": mb(baseline["rust_kb"]),
+                      "peak_mb": mb(peak_rust["rust_kb"]), "peak_frame": peak_rust["frame"],
+                      "last_mb": mb(last["rust_kb"]), "growth_mb": mb(rust_growth),
+                      "slope_kb_per_kframe": rss_slope(measured, "rust_kb"),
+                      "pass": rust_growth / 1024 <= bound_mb},
+        "residual": {"baseline_mb": mb(baseline["residual_kb"]),
+                     "peak_mb": mb(max(item["residual_kb"] for item in measured)),
+                     "min_mb": mb(min(item["residual_kb"] for item in measured)),
+                     "last_mb": mb(last["residual_kb"])},
         "maps": maps,
         "maps_unjudged": unjudged,
         "godot_static": {"worst_map": worst_static[0],
@@ -453,5 +488,5 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         "bracket": bracket_verdict(probes, bound_mb, object_bound),
     })
     verdict["pass"] = all(verdict[part]["pass"] for part in
-                          ("extension", "bracket", "godot_static", "objects"))
+                          ("rust_heap", "bracket", "godot_static", "objects"))
     return verdict

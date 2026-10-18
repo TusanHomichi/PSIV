@@ -78,7 +78,6 @@ impl Field {
         }
     }
 
-    /// Read-only observation for input-driven native regression routes.
     /// What owns the session now (`Session::activity`), by name: the state
     /// `tools/native/native_tape.gd` tags each memory sample with, so the #92
     /// check compares Godot's memory between like states. Empty unless
@@ -112,6 +111,18 @@ impl Field {
         self.take_down_stage_for_title();
         godot_print!("native tape: title restored for a memory probe");
         true
+    }
+
+    /// The extension's counted heap (`rust_heap.rs`): live bytes, live
+    /// allocations, allocations ever made. Empty unless `PSIV_NATIVE_TAPE=1`.
+    pub(super) fn rust_heap_probe(&self) -> PackedInt64Array {
+        let mut values = PackedInt64Array::new();
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() == Ok("1") {
+            for value in crate::rust_heap::snapshot() {
+                values.push(i64::try_from(value).unwrap_or(i64::MAX));
+            }
+        }
+        values
     }
 
     /// The shell's first-use caches by name (`named_caches.rs`), as JSON:
@@ -177,6 +188,7 @@ impl Field {
         GString::from(serde_json::Value::Object(map).to_string().as_str())
     }
 
+    /// Read-only observation for input-driven native regression routes.
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();

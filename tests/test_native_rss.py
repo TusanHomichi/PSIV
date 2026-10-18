@@ -11,8 +11,9 @@ reason it must not.
 
 The bracket (the 2026-10-17 ruling's controls): (a) a leak injected in each of
 the gap windows no map's floors see fails the bracket, (b) a 20 MB transient
-released before the end passes, (c) the shipped #92 build's recorded run fails
-on the heap, (d) a probe that never settles on the field fails. The per-map
+released before the end passes, (c) the shipped #92 shape (live Rust bytes
+climbing) fails on the heap, and recorded runs without the heap counter are
+refused, (d) a probe that never settles on the field fails. The per-map
 floors: growth at re-entry, a tail step, n92's map-208 straddle at 2,500- and
 500-frame cadence, a transient on a re-entry sample. Reported, not judged: the
 drifts and coverage.
@@ -32,15 +33,17 @@ EVERY = 2500
 WARMUP = 5000
 
 
-def samples(*rows, every=EVERY):
+def samples(*rows, every=EVERY, residual=0.0):
     """One sample per row of (rss_mb, static_mb, objects, map[, activity])
     every `every` frames (activity defaults to the field); the first row is
-    frame `every`."""
+    frame `every`. Live Rust bytes are RSS minus static minus `residual` MB,
+    so a row's heap is what it does not give to Godot."""
     out = []
     for i, row in enumerate(rows):
         rss, static, objects, map_id, *rest = row
         out.append({"frame": every * (i + 1), "elapsed_ms": 1000 * (i + 1),
                     "rss_kb": int(rss * 1024), "static_kb": int(static * 1024),
+                    "rust_live_bytes": int((rss - static - residual) * 1024 * 1024),
                     "objects": int(objects), "map": map_id,
                     "activity": rest[0] if rest else "field"})
     return out
@@ -74,14 +77,15 @@ def cache(entries=0, textures=None, nodes=0, other=0, mb=0.0, ceiling=100):
 
 
 def probe(static=100, objects=2800, extension=150, settled=True, count=PROBE_SAMPLES,
-          caches=None, orphans=0, per_texture=2):
+          caches=None, orphans=0, per_texture=2, residual=0.0, monitor=True):
     """A settled bracket probe: `count` field samples at these values, with
     its named caches (none filled by default)."""
     caches = caches if caches is not None else {"battle_command_tiles": cache()}
     return {"settled": settled, "frames_waited": PROBE_SETTLE_FRAMES + 2000,
-            "objects_per_texture": per_texture,
+            "objects_per_texture": per_texture, "orphan_monitor_alive": monitor,
             "samples": [{"frame": PROBE_SETTLE_FRAMES + 250 * (i + 1),
-                         "rss_kb": int((static + extension) * 1024),
+                         "rss_kb": int((static + extension + residual) * 1024),
+                         "rust_live_bytes": int(extension * 1024 * 1024),
                          "static_kb": int(static * 1024), "objects": objects,
                          "orphan_nodes": orphans, "nodes": 30, "caches": caches,
                          "activity": "field", "map": 19} for i in range(count)]}
@@ -105,7 +109,7 @@ class Bracket(unittest.TestCase):
         verdict = judge(visits(WARM, *SWING))
         self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["bracket"]["static_growth_mb"], 0.0)
-        self.assertEqual(verdict["bracket"]["end_floor"]["extension_mb"], 150.0)
+        self.assertEqual(verdict["bracket"]["end_floor"]["rust_live_mb"], 150.0)
 
     def gap_run(self, where, leak_mb=200):
         """A stretch of brief visits (one sample each, never floored) at
@@ -143,10 +147,11 @@ class Bracket(unittest.TestCase):
         self.assertTrue(verdict["bracket"]["pass"], verdict["bracket"])
         self.assertEqual(verdict["bracket"]["static_growth_mb"], 0.0)
 
-    def test_the_extension_heap_and_objects_are_bracketed_too(self):
+    def test_live_rust_bytes_and_objects_are_bracketed_too(self):
+        # A synthetic leak of live Rust bytes fails the bracket.
         heap = judge(visits(WARM, *SWING), probes=bracket(end_extension=170))
         self.assertFalse(heap["bracket"]["pass"])
-        self.assertEqual(heap["bracket"]["extension_growth_mb"], 20.0)
+        self.assertEqual(heap["bracket"]["rust_live_growth_mb"], 20.0)
         objects = judge(visits(WARM, *SWING), probes=bracket(end_objects=3100))
         self.assertFalse(objects["bracket"]["pass"])
         self.assertEqual(objects["bracket"]["object_growth"], 300)
@@ -241,17 +246,44 @@ class Bracket(unittest.TestCase):
             self.assertFalse(verdict["pass"], why)
             self.assertIn(why, verdict["bracket"]["reason"])
 
-    def test_the_shipped_92_build_fails_on_its_heap(self):
-        # (c) Recorded 2026-10-15 over the chapter-14 prefix, before the
-        # bracket existed: the heap separates the arms on its own.
+    def test_the_rss_residual_is_reported_never_judged(self):
+        # 40 MB more RSS that is neither Godot static nor live Rust bytes:
+        # the allocator kept freed pages. Reported, and the run passes.
+        verdict = judge(visits(WARM, *SWING),
+                        probes={"start": probe(), "end": probe(residual=40)})
+        self.assertTrue(verdict["pass"], verdict["bracket"])
+        self.assertEqual(verdict["bracket"]["residual_growth_mb"], 40.0)
+        self.assertEqual(verdict["bracket"]["rust_live_growth_mb"], 0.0)
+        rows = samples(*visits(WARM, *SWING))
+        for index, item in enumerate(rows):
+            item["rss_kb"] += 1024 * 3 * index  # 3 MB more retained per sample
+        whole = rss_verdict(rows, WARMUP, 16, probes=bracket())
+        self.assertTrue(whole["pass"], whole["rust_heap"])
+        self.assertGreater(whole["residual"]["last_mb"] - whole["residual"]["baseline_mb"], 16)
+
+    def test_a_dead_orphan_monitor_fails_the_probe(self):
+        verdict = judge(visits(WARM, *SWING),
+                        probes={"start": probe(), "end": probe(monitor=False)})
+        self.assertFalse(verdict["pass"])
+        self.assertIn("orphan-node monitor", verdict["bracket"]["reason"])
+
+    def test_recorded_runs_without_the_heap_counter_are_refused(self):
+        # (c) The 2026-10-15 shipped and fixed chapter-14 runs predate the
+        # counter: they fail closed rather than be judged on RSS. Their
+        # verdict at the time (heap +115.5 vs +4.3 MB as RSS minus static) is
+        # in the commit messages; the shipped shape, live bytes climbing
+        # 3.8 MB a minute, is the synthetic case below.
         runs = json.loads(CHAPTER14.read_text())
-        shipped = rss_verdict(runs["shipped"], 20000, 16, probes=bracket())
-        fixed = rss_verdict(runs["fixed"], 20000, 16, probes=bracket())
-        self.assertFalse(shipped["pass"])
-        self.assertFalse(shipped["extension"]["pass"])
-        self.assertEqual(shipped["extension"]["growth_mb"], 115.5)
-        self.assertTrue(fixed["pass"], fixed)
-        self.assertEqual(fixed["extension"]["growth_mb"], 4.3)
+        for arm in ("shipped", "fixed"):
+            verdict = rss_verdict(runs[arm], 20000, 16, probes=bracket())
+            self.assertFalse(verdict["pass"], arm)
+            self.assertIn("unreadable", verdict["reason"], arm)
+        rows = samples(*visits(WARM, *SWING))
+        for index, item in enumerate(rows):
+            item["rust_live_bytes"] += int(3.8 * 1024 * 1024) * index
+        leaking = rss_verdict(rows, WARMUP, 16, probes=bracket())
+        self.assertFalse(leaking["pass"])
+        self.assertFalse(leaking["rust_heap"]["pass"])
 
 
 class Floors(unittest.TestCase):
@@ -380,22 +412,22 @@ class Cadence(unittest.TestCase):
                          FLOOR_FRAMES // 500)
 
 
-class Extension(unittest.TestCase):
-    def test_a_growing_extension_heap_fails_whatever_the_map(self):
+class RustHeap(unittest.TestCase):
+    def test_a_growing_rust_heap_fails_whatever_the_map(self):
         verdict = rss_verdict(samples((250, 100, 2800, 2), (250, 100, 2800, 2),
                                       (380, 210, 2800, 1), (290, 100, 2800, 2),
                                       (420, 210, 2800, 1), every=1000), 2000, 16,
                               floor_frames=2000, gap_limit_frames=2000, probes=bracket())
         self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["extension"]["pass"])
-        self.assertEqual(verdict["extension"]["growth_mb"], 60.0)
-        self.assertEqual(verdict["extension"]["slope_kb_per_kframe"], 20480.0)
+        self.assertFalse(verdict["rust_heap"]["pass"])
+        self.assertEqual(verdict["rust_heap"]["growth_mb"], 60.0)
+        self.assertEqual(verdict["rust_heap"]["slope_kb_per_kframe"], 20480.0)
 
-    def test_a_transient_extension_peak_counts_even_if_it_falls_back(self):
+    def test_a_transient_rust_heap_peak_counts_even_if_it_falls_back(self):
         rows = visits(WARM, (1, 100, 1, 2)) + [(300, 100, 1, 1)] + visits(*SWING)
         verdict = judge(rows)
         self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["extension"]["pass"])
+        self.assertFalse(verdict["rust_heap"]["pass"])
 
 
 class Inputs(unittest.TestCase):
@@ -414,7 +446,7 @@ class Inputs(unittest.TestCase):
         unreadable = samples(*flat)
         unreadable[2]["rss_kb"] = -1
         self.assertFalse(rss_verdict(unreadable, WARMUP, 16, probes=bracket())["pass"])
-        for key in ("static_kb", "map", "activity"):
+        for key in ("static_kb", "map", "activity", "rust_live_bytes"):
             missing = samples(*flat)
             del missing[1][key]
             verdict = rss_verdict(missing, WARMUP, 16, probes=bracket())

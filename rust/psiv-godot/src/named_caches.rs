@@ -87,17 +87,68 @@ impl CacheReport {
     }
 }
 
-/// The most scene temporary-object slots any transcribed scene uses: a
-/// `SceneOp::ObjectAnimation` writes one field-object slot, and the shell keeps
-/// one sprite per slot it has seen.
+/// The scene op that writes a temporary field-object slot, and the slot.
+/// Every op whose presentation reaches `PresentationState::object_animation`
+/// (cutscene/state.rs, the only insert into the slot map) is listed; the test
+/// below keeps the list and the dispatcher in step.
+fn temporary_slot_written(op: &psiv_core::SceneOp) -> Option<usize> {
+    match op {
+        psiv_core::SceneOp::ObjectAnimation { slot, .. }
+        | psiv_core::SceneOp::CreateFieldObject { slot, .. } => Some(*slot),
+        _ => None,
+    }
+}
+
+/// The op names `temporary_slot_written` matches, for the test.
+#[cfg(test)]
+const TEMPORARY_SLOT_WRITERS: [&str; 2] = ["ObjectAnimation", "CreateFieldObject"];
+
+/// The most scene temporary-object slots any transcribed scene uses: the
+/// shell keeps one sprite per slot it has seen.
 pub(crate) fn temporary_slot_ceiling() -> usize {
     psiv_core::SCENES
         .iter()
         .flat_map(|scene| scene.ops.iter())
-        .filter_map(|op| match op {
-            psiv_core::SceneOp::ObjectAnimation { slot, .. } => Some(*slot + 1),
-            _ => None,
-        })
+        .filter_map(temporary_slot_written)
+        .map(|slot| slot + 1)
         .max()
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TEMPORARY_SLOT_WRITERS, temporary_slot_ceiling};
+
+    /// Every `SceneOp` arm of the presentation dispatcher whose body writes a
+    /// temporary slot (through `object_animation` or `create_field_object`,
+    /// the slot map's only writers) is one the ceiling counts.
+    #[test]
+    fn the_ceiling_counts_every_op_that_writes_a_temporary_slot() {
+        let state = include_str!("cutscene/state.rs");
+        assert_eq!(
+            state.matches("self.temporary_objects.insert(").count(),
+            1,
+            "a second writer of the slot map needs adding here"
+        );
+        let ops = include_str!("cutscene/ops.rs");
+        let mut writers = Vec::new();
+        for arm in ops.split("SceneOp::").skip(1) {
+            let name: String = arm
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric())
+                .collect();
+            let body = arm.split("SceneOp::").next().unwrap_or("");
+            if body.contains(".object_animation(") || body.contains(".create_field_object(") {
+                writers.push(name);
+            }
+        }
+        writers.sort();
+        let mut expected: Vec<String> = TEMPORARY_SLOT_WRITERS
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        expected.sort();
+        assert_eq!(writers, expected);
+        assert!(temporary_slot_ceiling() > 0);
+    }
 }

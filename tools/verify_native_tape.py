@@ -471,16 +471,17 @@ def replay(args: argparse.Namespace) -> int:
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     if receipt["rss"] is not None:
         rss = receipt["rss"]
-        if "extension" in rss:
+        if "rust_heap" in rss:
             bracket = rss["bracket"]
             print(f"native tape: RSS bracket {'PASS' if bracket['pass'] else 'FAIL'}; " + (
                 f"end probe over start: Godot static +{bracket['static_growth_mb']} MB, "
-                f"extension heap +{bracket['extension_growth_mb']} MB, objects "
+                f"live Rust +{bracket['rust_live_growth_mb']} MB (RSS residual "
+                f"{bracket['residual_growth_mb']:+} MB, not judged), objects "
                 f"+{bracket['object_growth']}" if "static_growth_mb" in bracket
                 else bracket["reason"]))
             print(f"native tape: RSS {'PASS' if rss['pass'] else 'FAIL'}; frames "
-                  f"{rss['baseline_frame']}..{rss['last_frame']}: extension heap "
-                  f"+{rss['extension']['growth_mb']} MB; field floors over "
+                  f"{rss['baseline_frame']}..{rss['last_frame']}: live Rust heap "
+                  f"+{rss['rust_heap']['growth_mb']} MB; field floors over "
                   f"{rss['floor_frames']} frames: Godot static "
                   f"+{rss['godot_static']['growth_mb']} MB (map {rss['godot_static']['worst_map']}), "
                   f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "

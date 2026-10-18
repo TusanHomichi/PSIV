@@ -256,6 +256,7 @@ func _drive_probe(phase: int, window: int, cursor: int) -> void:
                 # the bracket separates bounded first-use growth from a leak.
                 "caches": JSON.parse_string(str(game.debug_named_caches())),
                 "activity": "field", "map": int(state["map"]) if typeof(state) == TYPE_DICTIONARY else -1})
+        _add_rust_heap(probe_samples[probe_samples.size() - 1])
         if probe_samples.size() >= probe_count:
             _finish_probe()
             return
@@ -276,10 +277,30 @@ func _objects_per_texture() -> int:
     texture = null
     return per_texture
 
+# The extension's counted heap (rust_heap.rs): live bytes, live allocations,
+# allocations ever made. Left out when the accessor is unavailable, which
+# fails the verdict.
+func _add_rust_heap(sample: Dictionary) -> void:
+    var heap: PackedInt64Array = game.debug_rust_heap()
+    if heap.size() == 3:
+        sample["rust_live_bytes"] = int(heap[0])
+        sample["rust_live_allocations"] = int(heap[1])
+        sample["rust_allocations"] = int(heap[2])
+
+# The orphan-node monitor must be alive for "no orphan" to mean anything: one
+# unparented node must raise it by one.
+func _orphan_monitor_moves() -> bool:
+    var before := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+    var node := Node.new()
+    var moved := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) == before + 1
+    node.free()
+    return moved
+
 func _finish_probe() -> void:
     report["rss_probes"][probe_stage] = {"settled": true, "frames_waited": probe_frames,
             "settle_frames": probe_settle, "samples": probe_samples,
-            "objects_per_texture": _objects_per_texture()}
+            "objects_per_texture": _objects_per_texture(),
+            "orphan_monitor_alive": _orphan_monitor_moves()}
     print("native-tape: %s memory probe settled after %d frames" % [probe_stage, probe_frames])
     probe_entered = false
     title_down = false
@@ -415,6 +436,7 @@ func _sample_rss() -> void:
             "resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
             "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
             "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))}
+    _add_rust_heap(sample)
     var state = JSON.parse_string(str(game.debug_play_state()))
     if typeof(state) == TYPE_DICTIONARY and state.has("map") and state["map"] != null:
         sample["map"] = int(state["map"])

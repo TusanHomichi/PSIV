@@ -26,6 +26,7 @@ mod input;
 mod named_caches;
 mod red_palette;
 mod runtime_events;
+mod rust_heap;
 mod save_dir;
 mod shop;
 #[path = "sound_hooks.rs"]
@@ -74,6 +75,9 @@ pub(crate) fn session_store() -> Option<SaveStore> {
     }
 }
 
+/// The cinema letterbox: four bars, made the first time a scene needs them.
+pub(crate) const LETTERBOX_BARS: usize = 4;
+
 /// The shell's configuration of a session it did not build itself — a runtime
 /// fixture (`psiv_runtime::camp_fixture`, `scene_fixture`): the run's store and
 /// the harness switches.
@@ -82,9 +86,6 @@ pub(crate) fn session_store() -> Option<SaveStore> {
 /// same configuration from the constructor
 /// (`with_saves`, `with_title_autostart`, `with_scene_dialogue_autoclose`),
 /// because the title reads its switch and its slot rows as it installs.
-/// The cinema letterbox: four bars, made the first time a scene needs them.
-pub(crate) const LETTERBOX_BARS: usize = 4;
-
 pub(crate) fn configure_session(mut session: Session, store: Option<SaveStore>) -> Session {
     if let Some(store) = store {
         session.set_save_store(store);
@@ -260,6 +261,11 @@ impl Field {
     #[func]
     fn debug_named_caches(&self) -> GString {
         self.named_caches_probe()
+    }
+
+    #[func]
+    fn debug_rust_heap(&self) -> PackedInt64Array {
+        self.rust_heap_probe()
     }
 
     #[func]
