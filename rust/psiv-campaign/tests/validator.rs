@@ -35,7 +35,7 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     assert_eq!(ids.first(), Some(&"academy"));
     assert_eq!(ids.last(), Some(&"reunion"));
     assert_eq!(
-        ids[ids.len() - 29..],
+        ids[ids.len() - 31..],
         [
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
@@ -52,7 +52,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "garuberk-tower-first-eye",
             "garuberk-tower-second-eye",
             "garuberk-dark-force-2",
+            "meese-supplies",
             "gumbious-bishop",
+            "mota-training",
             "seth-island",
             "island-cave",
             "soldiers-temple",

@@ -1291,12 +1291,49 @@
       ]
     },
     {
+      "id": "meese-supplies",
+      "title": "Meese: revival and cure items, and a shield for Chaz, before the island",
+      "source": "runtime-pack/shops.json (MeeseItemShop2 $12F, keeper (31,30): MOON-DEW 130 at 5000, STAR-DEW 131 at 10000, SOL-DEW 134 at 20000; MeeseWeaponShop $131, armour keeper (33,34) across its counter from (31,34): RFLCSHIELD 88 at 15600); runtime-pack/battle/abilities.json item_effects (SOL-DEW effect $16 and MOON-DEW $15, the revival objects; STAR-DEW $12 on all); runtime-pack/maps/12D_Meese.json (Dezolis warp 3 (146,52); the item shop's door (44,27) is warp 6, XYExact, and opens once Dark Force 2 is fought: map effect entry $6E, gated on $9E set, writes the door chunk 24 at (42..43,26..27)); the Dark Force 3 and Sa-Lews resume traces: both wipes leave Wren alone with no way to raise anyone, and every killing blow is a mental attack (Corrsion, Tandle, Hewn), so the shield's MDF 16 matters and the Laconian armour's DEF does not (its MDF 9 is below RFLC-MAIL's 14)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger on Dezolis (186,8), below the Garuberk Tower"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 301, "note": "Meese $12D by Dezolis warp 3 (146,52)"},
+        {"do": "expect", "map": 301, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to", "map": 301, "cell": [44, 28], "note": "below the item shop's door (44,27), the only cell that reaches it: a goal a wanderer stands on is waited for, a cell on the way is not"},
+        {"do": "go_to_map", "map": 303, "note": "Meese warp 6 (44,27) into MeeseItemShop2 $12F"},
+        {"do": "go_to", "map": 303, "cell": [31, 32], "note": "below the keeper (31,30)"},
+        {"do": "sell", "item": "HUNT-KNIFE", "face": "up", "note": "pack room: the pack holds 40 and stacks nothing"},
+        {"do": "sell", "item": "HUNT-KNIFE", "face": "up"},
+        {"do": "sell", "item": "LTHR-CLOTH", "face": "up"},
+        {"do": "sell", "item": "LTHR-CLOTH", "face": "up"},
+        {"do": "sell", "item": "LTHR-CLOTH", "face": "up"},
+        {"do": "sell", "item": "DAGGER", "face": "up"},
+        {"do": "sell", "item": "BOOMERANG", "face": "up"},
+        {"do": "sell", "item": "LTHR-BAND", "face": "up"},
+        {"do": "sell", "item": "LTHR-HELM", "face": "up"},
+        {"do": "buy", "item": "SOL-DEW", "count": 4, "face": "up", "note": "20000 each: full revival; one for each fall the two wipes took before Wren stood alone"},
+        {"do": "buy", "item": "MOON-DEW", "count": 4, "face": "up", "note": "5000 each: revival at a quarter of max HP"},
+        {"do": "buy", "item": "STAR-DEW", "count": 3, "face": "up", "note": "10000 each: heals every member, after a Corrsion or Tandle round"},
+        {"do": "go_to_map", "map": 305, "note": "out to Meese and in by warp 7 (22,31) to the weapon and armour shop $131"},
+        {"do": "go_to", "map": 305, "cell": [31, 34], "note": "beside the armour counter: the keeper stands at (33,34)"},
+        {"do": "buy", "item": "RFLCSHIELD", "count": 1, "face": "right", "note": "15600: Chaz's free left hand (DEF 23, MDF 16)"},
+        {"do": "equip", "member": "Chaz", "item": "RFLCSHIELD"},
+        {"do": "go_to_map", "map": 1, "note": "Meese's edge to Dezolis, arriving on (146,53)"},
+        {"do": "go_to", "map": 1, "cell": [144, 51], "note": "plain ground beside the town tile, where the machine boards"},
+        {"do": "expect", "map": 1, "cell": [144, 51], "items_held": ["SOL-DEW", "MOON-DEW", "STAR-DEW"], "items_absent": ["HUNT-KNIFE", "LTHR-CLOTH"], "note": "the supplies in the pack"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [144, 51], "party": ["Chaz", "Rika", "Rune", "Wren"], "items_held": ["SOL-DEW", "MOON-DEW", "STAR-DEW"], "flags_set": ["event:0x9e", "event:0xa1"]}
+      ]
+    },
+    {
       "id": "gumbious-bishop",
       "title": "Gumbious Temple: Cutscene_GumbiousBishop and the Hydrofoil",
       "source": "docs/scenes/74_GumbiousBishop.md (RunEvent_GumbiousBishop $48, RunEventsJmpTbl[$48], ps4.asm:116228-116241: Hydrofoil $9D clear, leader X $1E0..$1F0 = cells 30..31, Y at most $180 = row 24, Event_Index $8018) and AdjustGumbiousMap (ps4.asm:111750-111772: with Dark Force 2 defeated the entrance loads Gumbious_B2 at ($3C,$44) = (30,35)); runtime-pack/maps/164_Gumbious_B2.json warp 0 (30..31,23) into Gumbious_B2_Part2 $165",
       "random_battle_policy": "run_then_win",
       "objectives": [
-        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger on Dezolis (186,8)"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger on Dezolis (144,51), beside Meese"},
         {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
         {"do": "go_to_map", "map": 356, "note": "Dezolis warp 11 into the Gumbious entrance: with $9E set AdjustGumbiousMap loads Gumbious_B2 $164 at (30,35) instead"},
         {"do": "expect", "map": 356, "cell": [30, 35], "vehicle": 0, "note": "the map load parked the Ice Digger"},
@@ -1306,6 +1343,25 @@
       ],
       "closing": [
         {"map": 191, "cell": [30, 24], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9d", "event:0xc0"], "items_held": ["HYDROFOIL"], "items_absent": ["ECLPSTORCH"]}
+      ]
+    },
+    {
+      "id": "mota-training",
+      "title": "Motavia below the Mota Spaceport: training before the island",
+      "source": "the Dark Force 3 resume traces after meese-supplies: one resume of 76 still loses event battle 18 with the revival items in use (a SOL-DEW raised Rune; Corrsion takes 155..175 from each member in a round and Dark Force 3 acts first), and the Soldier's Temple cannot be left before the fight (SoldiersTemple town_teleport 1; HINAS exit 25 is SoldiersTempleOutside, where the fight starts), so the training is here; runtime-pack/battle/levels.json (Rune L45 at 851737, L46 at 910461; Wren L46 at 816243); docs/scenes/102_Recovery.md (the Mota Spaceport's recovery cells (34..35,38..39))",
+      "random_battle_policy": "fight_to_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 0, "note": "Mota Spaceport warp 0 (30,44) into Motavia (52,91)"},
+        {"do": "patrol", "map": 0, "a": [54, 97], "b": [58, 93], "until": {"party_level_at_least": 46}, "refuge": [
+          {"do": "go_to_map", "map": 191, "note": "Motavia warp 22 into the Mota Spaceport"},
+          {"do": "go_to", "map": 191, "cell": [34, 40], "note": "below the recovery cells"},
+          {"do": "go_to", "map": 191, "cell": [34, 38], "note": "RecoverStats: HP, TP, skill uses, the fallen raised"},
+          {"do": "go_to_map", "map": 0, "note": "back out to Motavia"}
+        ], "note": "the ground below the spaceport; Rune and Wren (L44) are the members the condition waits for"},
+        {"do": "go_to_map", "map": 191, "note": "back into the Mota Spaceport, where seth-island starts"}
+      ],
+      "closing": [
+        {"map": 191, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9d", "event:0xc0"]}
       ]
     },
     {
@@ -1400,9 +1456,12 @@
     {
       "id": "strength-tower-top",
       "title": "Rykros: the Strength Tower to its top and Event_StrengthTowerTop",
-      "source": "docs/scenes/75_StrengthTowerTop.md (Event_StrengthTowerTop $5E: RunEvent_StrengthTowerTop, RunEventsJmpTbl[$49], ps4.asm:116243, $E2 clear, on the load of StrengthTower_F4 $F6); runtime-pack/maps/002_Rykros.json warp 1 (32,33) into StrengthTower $F2, StrengthTower_F1..F4",
+      "source": "docs/scenes/75_StrengthTowerTop.md (Event_StrengthTowerTop $5E: RunEvent_StrengthTowerTop, RunEventsJmpTbl[$49], ps4.asm:116243, $E2 clear, on the load of StrengthTower_F4 $F6); runtime-pack/maps/002_Rykros.json warp 1 (32,33) into StrengthTower $F2, StrengthTower_F1..F4; docs/scenes/102_Recovery.md (LeRoofRoom $F0 names RunEventsJmpTbl[$12] RunEvent_Recovery in its event list, collision 2 at (31..32,31..32): RecoverStats refills HP, TP and skill uses before the tower boss)",
       "random_battle_policy": "run_then_win",
       "objectives": [
+        {"do": "go_to", "map": 240, "cell": [31, 34], "note": "below LeRoofRoom's recovery cells (31..32,31..32): collision 2, event list slot $12"},
+        {"do": "go_to", "map": 240, "cell": [31, 32], "note": "the rising edge on collision 2 fires Event_Recovery ($21): RecoverStats refills HP, TP and skill uses before the tower"},
+        {"do": "expect", "map": 240, "status_clear": true, "note": "full party, no status"},
         {"do": "go_to_map", "map": 246, "note": "LeRoofRoom, the Silence Temple, Rykros, the Strength Tower's four floors: F4 $F6 loads and Event_StrengthTowerTop runs"},
         {"do": "expect", "map": 246, "flags_set": ["event:0xe2"], "note": "$E2: the figures at the top kill the monsters"}
       ],
@@ -1423,7 +1482,10 @@
         {"do": "open_chest", "chest": 0, "note": "PalmaRing"},
         {"do": "open_chest", "chest": 1, "note": "MotaRing"},
         {"do": "open_chest", "chest": 2, "note": "DezoRing"},
-        {"do": "expect", "map": 246, "flags_set": ["event:0xd5"], "note": "MapUpdate_StrengthTwChests: all three chests open sets $D5"}
+        {"do": "expect", "map": 246, "flags_set": ["event:0xd5"], "note": "MapUpdate_StrengthTwChests: all three chests open sets $D5"},
+        {"do": "equip", "member": "Wren", "item": "PALMA-RING", "note": "PALMA-RING 155, head, Wren only: DEF 28, MDF 10 (CRMC-GEAR's 3) and electric resistance against Tandle, which takes double from Wren"},
+        {"do": "equip", "member": "Rika", "item": "MOTA-RING", "note": "MOTA-RING 156, head, Rika only: MDF 10 (SILV-CROWN's 4) and fire resistance against Flaeli"},
+        {"do": "equip", "member": "Rune", "item": "DEZO-RING", "note": "DEZO-RING 157, head, Rune only: MDF 10 (PSY-CIRCLT's 1), mental 3"}
       ],
       "closing": [
         {"map": 246, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd4", "event:0xe5", "event:0xd5"]}
@@ -1432,9 +1494,13 @@
     {
       "id": "courage-tower-top",
       "title": "Rykros: the Courage Tower to its top and Event_CourageTowerTop",
-      "source": "docs/scenes/76_CourageTowerTop.md (Event_CourageTowerTop $5F: RunEvent_CourageTowerTop, RunEventsJmpTbl[$4A], ps4.asm:116251, $E3 clear, on the load of CourageTower_F4 $FB); runtime-pack/maps/002_Rykros.json warp 2 (96,97) into CourageTower $F7",
+      "source": "docs/scenes/76_CourageTowerTop.md (Event_CourageTowerTop $5F: RunEvent_CourageTowerTop, RunEventsJmpTbl[$4A], ps4.asm:116251, $E3 clear, on the load of CourageTower_F4 $FB); runtime-pack/maps/002_Rykros.json warp 2 (96,97) into CourageTower $F7; docs/scenes/102_Recovery.md (LeRoofRoom $F0 names RunEventsJmpTbl[$12] RunEvent_Recovery in its event list, collision 2 at (31..32,31..32): RecoverStats refills HP, TP and skill uses before the tower boss)",
       "random_battle_policy": "run_then_win",
       "objectives": [
+        {"do": "go_to_map", "map": 240, "note": "back down the Strength Tower, across Rykros and through the Silence Temple to LeRoofRoom: with the Courage Tower's chests closed RunEvent_LeRoofAgain ($34) runs nothing"},
+        {"do": "go_to", "map": 240, "cell": [31, 34], "note": "below LeRoofRoom's recovery cells (31..32,31..32): collision 2, event list slot $12"},
+        {"do": "go_to", "map": 240, "cell": [31, 32], "note": "the rising edge on collision 2 fires Event_Recovery ($21): RecoverStats refills HP, TP and skill uses before the tower"},
+        {"do": "expect", "map": 240, "status_clear": true, "note": "full party, no status"},
         {"do": "go_to_map", "map": 251, "note": "Rykros, the Courage Tower's four floors: F4 $FB loads and Event_CourageTowerTop runs"},
         {"do": "expect", "map": 251, "flags_set": ["event:0xe3"], "note": "$E3"}
       ],
@@ -1454,7 +1520,8 @@
         {"do": "expect", "map": 251, "flags_set": ["event:0xd2", "event:0xe6"], "note": "$D2, then $E6"},
         {"do": "open_chest", "chest": 0, "note": "RykrRing"},
         {"do": "open_chest", "chest": 1, "note": "AlgoRing"},
-        {"do": "expect", "map": 251, "flags_set": ["event:0xd3"], "note": "MapUpdate_CourageTwChests: both chests open sets $D3"}
+        {"do": "expect", "map": 251, "flags_set": ["event:0xd3"], "note": "MapUpdate_CourageTwChests: both chests open sets $D3"},
+        {"do": "equip", "member": "Chaz", "item": "ALGO-RING", "note": "ALGO-RING 159, head, Chaz only: DEF 22, MDF 10 (CRMC-HELM's 0) and +2 to every other stat"}
       ],
       "closing": [
         {"map": 251, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd2", "event:0xe6", "event:0xd3"]}
