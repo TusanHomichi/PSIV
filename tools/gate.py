@@ -66,6 +66,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from heavy_lock import (EXCLUSIVE, HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
                         hold_heavy_lock, lock_holders)
+from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -345,34 +346,6 @@ def loaded_extension_pids(extension, proc_dir=Path("/proc")):
                 pids.add(int(entry.name))
                 break
     return sorted(pids)
-
-
-def cpu_mhz(cpuinfo=Path("/proc/cpuinfo")):
-    """The mean current clock over every core, in MHz, or None where the file has none.
-
-    Cargo's default jobs and test threads scale with the cores and the clock,
-    so a gate timing is read beside the clock it ran at (the host boosts
-    above its base clock under load; DEVELOPMENT.md's measurement table).
-    """
-    try:
-        values = [float(line.split(":", 1)[1]) for line in cpuinfo.read_text().splitlines()
-                  if line.startswith("cpu MHz")]
-    except (OSError, ValueError, IndexError):
-        return None
-    return sum(values) / len(values) if values else None
-
-
-def load_1m(loadavg=Path("/proc/loadavg")):
-    """The 1-minute load average, or None where the file is absent.
-
-    The heavy lock excludes locked jobs only; an unlocked headless run (a
-    resume check's parallel `psiv-campaign` resumes) still competes for the
-    cores, and a gate timing taken beside one is read with its load.
-    """
-    try:
-        return float(loadavg.read_text().split()[0])
-    except (OSError, ValueError, IndexError):
-        return None
 
 
 def _clock_summary(clocks):

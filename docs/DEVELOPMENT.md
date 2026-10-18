@@ -339,6 +339,12 @@ another value refuses with exit 2.
 One sizing rule holds for every class: its units are the fewest that keep at
 least 15% of the holding above its largest measured peak process-tree RSS,
 ceil(peak / (0.85 × 512 MB)), the RSS summed over every process of the job.
+Measure a job, to size a class or to remeasure a row below, with
+`python3 tools/heavy_lock.py run --priority --class exclusive -- python3
+tools/tree_rss.py --json <file> -- <job>`: `tools/tree_rss.py` samples the
+job's whole process tree every 0.1 s and reports its peak, the wall time, the
+mean and fastest-core live clock and the highest 1-minute load, and the
+exclusive hold keeps every other locked job off the machine while it runs.
 `build` is sized by the cold `cargo test --workspace --exclude psiv-godot
 --no-run` (2,964 MB in 7 units, 17% headroom), `godot` by a certify pair
 (418 MB in 1, 18%), `python` by the suite (815 MB in 2, 20%); jobs that

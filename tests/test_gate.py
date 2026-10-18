@@ -30,7 +30,7 @@ from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM,
                         SLOW_PYTHON_MODULES, GateRefused, available_cores, cargo_parallelism,
-                        command_slug, cpu_mhz, gate_environment, gate_lock, load_1m, main,
+                        command_slug, cpu_mhz, gate_environment, gate_lock, main,
                         parse_counts, quick_unittest, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
@@ -733,37 +733,6 @@ class ParallelismCase(unittest.TestCase):
         env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
         self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
         self.assertEqual(env["HOME"], "/h")
-
-
-class ClockCase(unittest.TestCase):
-    """`cpu_mhz` reads /proc/cpuinfo's per-core clocks, `load_1m` /proc/loadavg.
-
-    A missing reading is None, not 0.
-    """
-
-    def read(self, text):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "cpuinfo"
-            if text is not None:
-                path.write_text(text)
-            return cpu_mhz(path)
-
-    def test_the_mean_over_every_core(self):
-        # Hand-written, in /proc/cpuinfo's layout: two cores at 2000 and 3000 MHz.
-        text = ("processor\t: 0\ncpu MHz\t\t: 2000.000\n\n"
-                "processor\t: 1\ncpu MHz\t\t: 3000.000\n")
-        self.assertEqual(self.read(text), 2500.0)
-
-    def test_negative_control_no_clock_lines_or_no_file_is_none(self):
-        self.assertIsNone(self.read("processor\t: 0\nmodel name\t: x\n"))
-        self.assertIsNone(self.read(None))
-
-    def test_the_load_is_loadavgs_first_field(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "loadavg"
-            path.write_text("10.11 7.50 4.97 3/1200 1126765\n")  # hand-written, /proc layout
-            self.assertEqual(load_1m(path), 10.11)
-            self.assertIsNone(load_1m(Path(tmp) / "absent"))
 
 
 class NotARepositoryCase(unittest.TestCase):
