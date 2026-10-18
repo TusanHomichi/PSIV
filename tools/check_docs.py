@@ -433,7 +433,7 @@ def task_graph_keys(data) -> set[str]:
 def pinned_versions(root: Path) -> dict[str, re.Pattern]:
     """The pin file of each version `PIN_FILES` pins at `root`, with the
     pattern that finds the version written out: not inside a longer number
-    (`4.7.10`, `14.7.1`), but behind a `v` (`Godot_v4.7.1-stable`)."""
+    (`4.7.10`, `14.7.1`), but behind a `v` (`v4.7.1`)."""
     pins = {}
     for name, reader in PIN_FILES.items():
         try:

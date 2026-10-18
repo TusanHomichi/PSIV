@@ -141,14 +141,40 @@ class OnePlace(unittest.TestCase):
             with self.subTest(launcher=launcher):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
 
+    #: A host's own Godot: anything under `~/.local/bin` named for Godot, an
+    #: official download's file name, or a path carrying the pinned version.
+    @staticmethod
+    def host_godot_pattern(version):
+        return re.compile(rf"\.local/bin/[\w.-]*godot|Godot_v[\w.]*-stable|godot-{re.escape(version)}",
+                          re.IGNORECASE)
+
+    def test_the_pattern_catches_host_godot_paths(self):
+        pattern = self.host_godot_pattern("4.7.1")
+        for line in (
+            # tools/certify.py:64 before the resolver (commit 20a76de).
+            'GODOT = os.environ.get("PSIV_GODOT", str(Path.home() / '
+            '".local/bin/psiv-godot-4.7.1"))',
+            'GODOT="$HOME/.local/bin/godot"',
+            "/opt/Godot_v4.7.1-stable_linux.x86_64",
+            "Godot_v4.7.1-stable_mono_linux_x86_64",
+            "/srv/engines/godot-4.7.1/bin",
+        ):
+            with self.subTest(line=line):
+                self.assertRegex(line, pattern)
+        for line in ('PATH="$HOME/.local/bin:$PATH" cargo zigbuild',
+                     "res://psiv.gdextension", "python3 tools/godot.py"):
+            with self.subTest(line=line):
+                self.assertNotRegex(line, pattern)
+
     def test_no_code_names_a_host_godot_or_its_version(self):
-        version = re.escape(godot.required_version())
-        pattern = re.compile(rf"\.local/bin/[\w.-]*godot-\d|godot-{version}")
+        pattern = self.host_godot_pattern(godot.required_version())
         code = [name for name in repo_files(ROOT)
                 if name.endswith((".py", ".sh", ".gd", ".rs"))
                 and name != "tests/test_godot.py"]
-        hits = [name for name in code
-                if pattern.search((ROOT / name).read_text(encoding="utf-8", errors="replace"))]
+        hits = [f"{name}:{number}" for name in code
+                for number, text in enumerate(
+                    (ROOT / name).read_text(encoding="utf-8", errors="replace").splitlines(), 1)
+                if pattern.search(text)]
         self.assertEqual(hits, [])
 
 

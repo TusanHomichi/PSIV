@@ -247,7 +247,7 @@ class NegativeControls(RepoCase):
         code, out = self.check({
             "docs/report.md": lines(
                 "# Report", "",
-                "Set GODOT=/home/alice/.local/bin/godot first.",
+                "Set TOOL=/home/alice/.local/bin/tool first.",
                 "```sh", "/Users/bob/bin/godot --path godot", "```",
             ),
         })
@@ -369,7 +369,7 @@ class AcceptedCases(RepoCase):
         code, out = self.check({
             "docs/report.md": lines(
                 "# Report", "",
-                "The default is `~/.local/bin/psiv-godot`, or $HOME/.local/bin.",
+                "The default is `~/.local/bin/psiv-tool`, or $HOME/.local/bin.",
                 "[site](https://example.invalid/home/alice/page)",
                 "See https://example.com/home/x for the page, and ~/home/a/b.",
             ),
@@ -540,7 +540,7 @@ class PinnedVersions(RepoCase):
     def test_a_pinned_version_written_out(self):
         code, out = self.check({**self.PINS, "README.md": lines(
             "# Game", "", "| Godot | 4.7.1 | standard build |", "", "Rust 1.97.1 builds it.",
-            "", "```bash", "export PSIV_GODOT=/path/to/Godot_v4.7.1-stable_linux.x86_64", "```")})
+            "", "```bash", "export PSIV_GODOT=/opt/engine/v4.7.1/bin/engine", "```")})
         self.assertEqual(code, 1, out)
         self.assertIn("README.md:3: pinned version 4.7.1 written out: point at .godot-version", out)
         self.assertIn("README.md:5: pinned version 1.97.1 written out: point at "
