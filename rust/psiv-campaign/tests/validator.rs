@@ -594,3 +594,25 @@ fn an_arrival_scene_needs_an_expect_before_the_next_walk() {
         error.reason
     );
 }
+
+/// The flight's landing is the runtime's: `board` to the Air Castle lands on
+/// (63,54) (`psiv_runtime::start_cell` of the landing row's start words, the
+/// cell jut-outfit's expect names after its flight), so a `step_onto` of
+/// that very cell is the cell the party stands on, and rejected.
+#[test]
+fn the_flight_lands_where_the_runtime_lands() {
+    let board = "{\"do\": \"board\", \"step\": \"up\", \"to\": 5, \"note\": \"row 19 fires Cutscene_InsideSpaceship; the Air Castle is World_Index 5 ($DC mask with $99 set)\"},";
+    let text = mutate(
+        &main_text(),
+        board,
+        &format!("{board}\n        {{\"do\": \"step_onto\", \"map\": 369, \"cell\": [63, 54]}},"),
+    );
+    let Some(report) = run(&text) else { return };
+    assert!(
+        report.errors.iter().any(|e| e.chapter == "jut-outfit"
+            && e.reason.contains("ends in a step onto (63,54)")
+            && e.reason.contains("where the party stands")),
+        "{:?}",
+        report.errors
+    );
+}

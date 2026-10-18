@@ -272,7 +272,7 @@ impl Runtime {
     /// a load that fails leaves it as it was.
     fn redirect_kept_load(&self) -> FieldLoad {
         let leader = self.party.leader();
-        let load = adjust_field_load(
+        adjust_field_load(
             &self.game,
             FieldLoad {
                 map: self.map.id(),
@@ -280,8 +280,7 @@ impl Runtime {
                 facing: leader.facing(),
                 previous_map: self.saved_map_index_2,
             },
-        );
-        load
+        )
     }
 
     pub(crate) fn refresh_field_after_battle(&mut self) -> Result<(), BridgeError> {
@@ -515,9 +514,11 @@ mod kept_load_redirects {
     }
 
     /// A kept load whose redirected map is not in the pack fails and leaves
-    /// `Field_Map_Index_2` and the map as they were: the pack again, with
-    /// `Reshel1 + 1` moved from `maps` to `skipped` in a copy of its manifest
-    /// (every other entry is a link to the real pack).
+    /// `Field_Map_Index_2` and the map as they were. On `GumbiousEntrance`
+    /// after Dark Force 2 the redirect names `Gumbious_B2` and writes
+    /// `Field_Map_Index_2` = Dezolis, so a write before the load would show;
+    /// the pack is the real one with `Gumbious_B2` moved from `maps` to
+    /// `skipped` in a copy of its manifest (every other entry a link).
     #[cfg(unix)]
     #[test]
     fn a_failed_kept_load_writes_nothing() {
@@ -541,22 +542,22 @@ mod kept_load_redirects {
         }
         let text = std::fs::read_to_string(pack.join("manifest.json")).unwrap();
         let mut manifest: serde_json::Value = serde_json::from_str(&text).unwrap();
-        let reshel_2 = u64::from(RESHEL_1 + 1);
+        let b2 = 0x164_u16;
         let maps = manifest["maps"].as_array_mut().unwrap();
-        maps.retain(|entry| entry["id"].as_u64() != Some(reshel_2));
+        maps.retain(|entry| entry["id"].as_u64() != Some(u64::from(b2)));
         manifest["skipped"]
             .as_array_mut()
             .unwrap()
             .push(serde_json::json!({
-                "id": reshel_2, "id_hex": "0x14E", "reason": "test", "symbol": "Reshel2"
+                "id": b2, "id_hex": "0x164", "reason": "test", "symbol": "Gumbious_B2"
             }));
         std::fs::write(dir.join("manifest.json"), manifest.to_string()).unwrap();
-        let data = GameData::load(&dir).expect("the pack without Reshel2");
+        let data = GameData::load(&dir).expect("the pack without Gumbious_B2");
         let _ = std::fs::remove_dir_all(&dir);
         let mut rt = Runtime::new(
             data,
-            RESHEL_1,
-            Cell::new(30, 49),
+            0x160,
+            Cell::new(31, 39),
             Direction::Up,
             StepFrames::default(),
         )
@@ -565,10 +566,10 @@ mod kept_load_redirects {
         rt.saved_map_index_2 = 0x1234;
         assert!(matches!(
             rt.refresh_field_after_battle(),
-            Err(BridgeError::NotPacked(id)) if id == RESHEL_1 + 1
+            Err(BridgeError::NotPacked(id)) if id == b2
         ));
         assert_eq!(rt.saved_map_index_2, 0x1234, "Field_Map_Index_2 untouched");
-        assert_eq!(rt.map_id(), MapId(RESHEL_1));
+        assert_eq!(rt.map_id(), MapId(0x160));
         assert!(rt.reload_field_after_cutscene().is_err());
         assert_eq!(rt.saved_map_index_2, 0x1234);
     }
