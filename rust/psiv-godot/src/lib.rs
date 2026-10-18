@@ -756,6 +756,7 @@ impl Field {
     pub(crate) fn take_down_stage_for_title(&mut self) {
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.hide();
+            screen.bind_mut().release_stage();
         }
         self.battle_field_visibility = None;
         self.presentation.reset_scene();
