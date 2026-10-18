@@ -40,9 +40,12 @@ resolves into pad input:
   scene ran;
 - `go_to_map` with `arrival_scene` onto a map whose load starts a scene that
   carries the party off it (`Cutscene_Reunion` on the Dezo spaceport): the
-  objective ends when the map has loaded and the scene has left the party
-  elsewhere, and the next `expect` says where; an unmarked `go_to_map` halts
-  there instead of walking back. `plan --from-save FILE` plans from a chapter
+  objective ends only when the map has loaded and a scene that ended after
+  that load has left the party on another map, and the next `expect` says
+  where. A scene that ended before the load does not count, and a marked
+  objective whose party stays on the map (no scene, or one that leaves it
+  there with a menu or prompt open) halts. An unmarked `go_to_map` that a
+  scene carries off its map halts instead of walking back. `plan --from-save FILE` plans from a chapter
   save's position and event, temp and town flags;
 - `wait` frames while the field runs (an object a scene sent walking, the
   Esper Mansion's guards, finishes before the next walk is planned around it),

@@ -24,6 +24,9 @@ const DEZOLIS: u16 = 0x001;
 const MOTA_SPACEPORT: u16 = 0x0BF;
 const DEZO_SPACEPORT: u16 = 0x0D4;
 const RESHEL_1: u16 = 0x14D;
+/// `IslandCave` and `IslandCave_F1`.
+const ISLAND_CAVE: u16 = 0x092;
+const ISLAND_CAVE_F1: u16 = 0x093;
 const GUMBIOUS_ENTRANCE: u16 = 0x160;
 const GUMBIOUS_B2: u16 = 0x164;
 
@@ -58,6 +61,16 @@ fn party_at_with_digger(cell: (u16, u16), extra: &[u16]) -> Option<Session> {
 }
 
 fn party_with(cell: (u16, u16), extra: &[u16], ice_digger: bool) -> Option<Session> {
+    party_on((1, DEZOLIS), cell, extra, ice_digger)
+}
+
+/// The same party on `map` of world `world` (`World_Index`).
+fn party_on(
+    (world, map): (u16, u16),
+    cell: (u16, u16),
+    extra: &[u16],
+    ice_digger: bool,
+) -> Option<Session> {
     let set = pack()?;
     let initial = Session::start(set.data.clone())
         .with_battles(set.battle.clone())
@@ -90,9 +103,9 @@ fn party_with(cell: (u16, u16), extra: &[u16], ice_digger: bool) -> Option<Sessi
             .from_save(RetailSave {
                 snapshot: game.snapshot(),
                 location: RetailLocation {
-                    world_index: 1,
+                    world_index: world,
                     map_index_2: 0,
-                    map_index: DEZOLIS,
+                    map_index: map,
                     char_x: cell.0 * 16,
                     char_y: cell.1 * 16,
                 },
@@ -262,21 +275,57 @@ fn an_arrival_scene_ends_the_go_to_map_and_an_unmarked_one_halts() {
     assert_eq!(driver.runtime().map_id().0, MOTA_SPACEPORT);
 }
 
-/// Negative control for `arrival_scene`: without Elsydeon no scene runs, so
-/// the marked objective is an ordinary arrival.
+/// Negative control for `arrival_scene`: without Elsydeon the spaceport's
+/// load runs no scene, so a marked objective that arrives and stays halts,
+/// naming why, instead of passing as an ordinary arrival.
 #[test]
-fn without_a_scene_an_arrival_scene_objective_simply_arrives() {
+fn a_marked_arrival_that_stays_halts() {
     let Some(session) = party_at(BESIDE_SPACEPORT, &[SPACEPORT_OPEN, DARK_FORCE_2]) else {
         return;
     };
     let mut driver = Driver::new(session, None);
-    objective(
+    let halt = objective(
         &mut driver,
         r#"{"do": "go_to_map", "map": 212, "arrival_scene": true}"#,
     )
-    .expect("a plain arrival");
+    .expect_err("no scene took the party off the spaceport");
+    assert_eq!(halt.kind, HaltKind::UnexpectedState);
+    assert!(
+        halt.detail.contains("no scene ran after its load"),
+        "{}",
+        halt.detail
+    );
     assert_eq!(driver.runtime().map_id().0, DEZO_SPACEPORT);
     assert!(!flag(&driver, REUNION));
+}
+
+/// A scene that ended before the target's load does not count. On
+/// `IslandCave_F1` with `$C2` clear, `Event_SoldiersTempleCaveDialogue1`
+/// (`$9A`) runs as the objective settles; the walk back out to `IslandCave`
+/// (`$92`, whose load runs nothing) then arrives and stays, so the marked
+/// objective halts.
+#[test]
+fn a_scene_before_the_load_does_not_count() {
+    let Some(session) = party_on((0, ISLAND_CAVE_F1), (20, 17), &[0xC1], false) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.set_policy(psiv_campaign::policy::by_name("run_then_win").unwrap());
+    let before = driver.scenes_ended();
+    let halt = objective(
+        &mut driver,
+        r#"{"do": "go_to_map", "map": 146, "arrival_scene": true}"#,
+    )
+    .expect_err("the cave's scene ran before the load");
+    assert!(flag(&driver, 0xC2), "$9A ran during the objective");
+    assert!(driver.scenes_ended() > before);
+    assert_eq!(driver.runtime().map_id().0, ISLAND_CAVE);
+    assert_eq!(driver.scenes_since_load(ISLAND_CAVE), Some(0));
+    assert!(
+        halt.detail.contains("no scene ran after its load"),
+        "{}",
+        halt.detail
+    );
 }
 
 fn bin() -> Command {

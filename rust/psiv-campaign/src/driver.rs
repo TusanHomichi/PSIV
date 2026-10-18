@@ -160,8 +160,9 @@ pub struct Driver {
     routed: Vec<Routed>,
     areas: Vec<(u32, u16)>,
     scenes_ended: u64,
-    /// How many times each map has loaded (`RuntimeEvent::MapChanged`).
-    map_loads: HashMap<u16, u64>,
+    /// How many times each map has loaded (`RuntimeEvent::MapChanged`), and
+    /// [`Driver::scenes_ended`] as it stood at the latest of those loads.
+    map_loads: HashMap<u16, (u64, u64)>,
     battles: Vec<BattleRecord>,
     in_battle: bool,
     /// Where the route's `save` objectives write, or `None` while replaying
@@ -332,7 +333,17 @@ impl Driver {
     /// to tell that it arrived on a map a scene then carried the party off.
     #[must_use]
     pub fn map_loads(&self, map: u16) -> u64 {
-        self.map_loads.get(&map).copied().unwrap_or(0)
+        self.map_loads.get(&map).map_or(0, |&(loads, _)| loads)
+    }
+
+    /// The scenes that have ended since `map` last loaded, or `None` when it
+    /// never has: what a `go_to_map` with `arrival_scene` asks of its target,
+    /// so a scene that ended before the load does not count.
+    #[must_use]
+    pub fn scenes_since_load(&self, map: u16) -> Option<u64> {
+        self.map_loads
+            .get(&map)
+            .map(|&(_, at)| self.scenes_ended - at)
     }
 
     /// Forgets the routed windows and areas, at the start of an objective.
@@ -469,7 +480,8 @@ impl Driver {
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
                 RuntimeEvent::MapChanged { map, .. } => {
-                    *self.map_loads.entry(map.id().0).or_default() += 1;
+                    let entry = self.map_loads.entry(map.id().0).or_default();
+                    *entry = (entry.0 + 1, self.scenes_ended);
                 }
                 other if is_scene_fault(other, scene_began, self.is_doorway_row(other)) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));

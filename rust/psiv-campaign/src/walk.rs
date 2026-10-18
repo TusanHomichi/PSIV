@@ -206,12 +206,13 @@ impl Driver {
     /// As [`Driver::go_to_map`] for a map whose load starts a scene that
     /// carries the party off it (the Reunion on the Dezo Spaceport,
     /// `RunEvent_Reunion` firing on the arrival): the objective is met once
-    /// `map` has loaded and a scene has then left the party on another map,
-    /// and the next objective asserts that place.
+    /// `map` has loaded and a scene that ended after that load has left the
+    /// party on another map, and the next objective asserts that place.
     ///
     /// # Errors
     ///
-    /// As [`Driver::go_to_map`].
+    /// As [`Driver::go_to_map`], and [`HaltKind::UnexpectedState`] when the
+    /// party arrives on `map` and no scene after its load takes it off.
     pub fn go_to_map_scene(&mut self, map: u16, via_warp: Option<u32>) -> Res {
         self.go_to_map_with(map, via_warp, true)
     }
@@ -220,16 +221,16 @@ impl Driver {
         let mut stalled = 0;
         let mut first = via_warp;
         let start_map = self.map();
-        let scenes_before = self.scenes_ended();
         let loads_before = self.map_loads(map);
         for _ in 0..REPLAN_LIMIT {
             let settled = self.settle_at(true, true)?;
             let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
-            if here.0 != map
-                && self.map_loads(map) > loads_before
-                && self.scenes_ended() > scenes_before
-            {
+            // Scenes that ended after this objective's own load of `map`;
+            // one that ended earlier, on the way, does not count.
+            let after_load = (self.map_loads(map) > loads_before)
+                .then(|| self.scenes_since_load(map).unwrap_or(0));
+            if here.0 != map && after_load.is_some_and(|scenes| scenes > 0) {
                 // `map` loaded and a scene carried the party off it. Only an
                 // objective that says so ends here; any other would walk back
                 // into a map whose scene has already run.
@@ -249,9 +250,14 @@ impl Driver {
                 ));
                 return Ok(());
             }
+            let arrived = here.0 == map;
+            if arrived && arrival_scene {
+                // Control is back on `map` itself: no scene took the party off.
+                return Err(stayed_on_arrival(map, after_load, settled));
+            }
             if settled == Settled::Menu {
                 // The same for the ship's menu a scene opens on arrival.
-                if here.0 == map {
+                if arrived {
                     return Ok(());
                 }
                 return Err(Halt::new(
@@ -263,7 +269,7 @@ impl Driver {
                 // A scene that fires on arrival and asks a question (a house
                 // that offers a rest) has delivered the party: the prompt is
                 // the next objective's to answer.
-                if here.0 == map {
+                if arrived {
                     return Ok(());
                 }
                 return Err(unanswered_prompt());
@@ -273,7 +279,7 @@ impl Driver {
             }
             let steps = match first {
                 Some(index) => self.via_warp_steps(index)?,
-                None if here.0 == map => return Ok(()),
+                None if arrived => return Ok(()),
                 None => self.first_leg(Target::Map(map))?,
             };
             self.walk(&steps)?;
@@ -538,6 +544,28 @@ fn progress(stalled: &mut u32, before: (u16, Cell), after: (u16, Cell)) -> Res<u
         *stalled = 0;
     }
     Ok(*stalled)
+}
+
+/// The halt of an `arrival_scene` objective whose party stands on its target
+/// with control back: the load ran no scene, or the scene it ran left the
+/// party there (with a menu or a prompt open, or none).
+fn stayed_on_arrival(map: u16, after_load: Option<u64>, settled: Settled) -> Halt {
+    let what = match after_load {
+        Some(0) | None => "no scene ran after its load".to_owned(),
+        Some(scenes) => format!("{scenes} scene(s) ran after its load and left the party there"),
+    };
+    let window = match settled {
+        Settled::Menu => ", with the ship's destination menu open",
+        Settled::Choice => ", with a prompt open",
+        Settled::Idle => "",
+    };
+    Halt::new(
+        HaltKind::UnexpectedState,
+        format!(
+            "go_to_map {map:#x} with arrival_scene: the party stayed on the map ({what}{window}); \
+             drop arrival_scene or name the map the scene leads to"
+        ),
+    )
 }
 
 fn unanswered_prompt() -> Halt {

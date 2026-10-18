@@ -42,7 +42,7 @@
 //! | --- | --- | --- |
 //! | `go_to` | `map`, `cell` | stand on `cell` of `map`, crossing warps if needed |
 //! | `step_onto` | `map`, `cell` | take the one step onto `cell`, where a map trigger starts a scene: a warp footprint (the scene wins before the warp fires, `RunEvents` runs first) or any other trigger cell; halts when the warp fires instead, or the party stands on the cell and no scene ran; the position is unknown until a later `expect` pins it |
-//! | `go_to_map` | `map`, optional `via_warp`, optional `arrival_scene` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record); `arrival_scene` ends the objective when the scene that `map`'s load starts has run and carried the party elsewhere |
+//! | `go_to_map` | `map`, optional `via_warp`, optional `arrival_scene` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record); `arrival_scene` ends the objective only when `map` has loaded and a scene that ended after the load carried the party to another map; a marked objective whose party stays on `map` halts |
 //! | `talk` | `npc`, optional `opens` | face and talk to object `npc` (index in the current map's object list); `opens` lists the cells an object stands on that the conversation sends away, for planning |
 //! | `wait` | `frames` | press nothing for `frames` frames (1 to 600) while the field runs |
 //! | `answer` | `yes` | answer an open Yes/No prompt |
@@ -315,8 +315,10 @@ pub enum Objective {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         via_warp: Option<u32>,
         /// The map's load starts a scene that carries the party off it (the
-        /// Reunion on the Dezo Spaceport): the objective is met when that
-        /// scene has run, and the position is unknown until a later `expect`.
+        /// Reunion on the Dezo Spaceport): the objective is met when a scene
+        /// that ended after the map's load has left the party on another map,
+        /// and halts when the party stays; the position is unknown until a
+        /// later `expect`.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         arrival_scene: bool,
     },
