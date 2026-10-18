@@ -685,8 +685,11 @@ mod arrival_tests {
             scenes_ended: 1,
             scenes_at_last_load: Some(1),
         };
+        assert!(
+            !watch().carried_off(now, ELSEWHERE),
+            "false success: a scene that ended before the load counted as the carry-off"
+        );
         assert_eq!(watch().scenes_after_load(now), Some(0));
-        assert!(!watch().carried_off(now, ELSEWHERE));
     }
 
     /// No load of the target since the objective began: nothing to judge.
