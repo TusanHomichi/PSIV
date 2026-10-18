@@ -212,6 +212,40 @@ class Prepare(unittest.TestCase):
         self.assertNotIn(missing, self.run_game(clone / "godot", self.dir / "prepared.log"))
 
 
+#: An executed shell line that prepares the project: at the start of a command,
+#: so not behind `#` or inside an `echo "..."`.
+SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*python3 "?((?:\$HERE/)?tools/godot[.]py)"? prepare(?=[ \t]|$)')
+HEREDOC_RE = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
+
+
+def shell_prepares(text):
+    """True when a shell script runs `tools/godot.py prepare` as a command.
+
+    Here-document bodies are data, so they are dropped first; a comment or a
+    quoted string never starts its line with the command."""
+    return bool(SHELL_PREPARE_RE.search(HEREDOC_RE.sub("", text)))
+
+
+def markdown_prepares(text):
+    """True when a quick start's shell block runs `python3 tools/godot.py prepare`."""
+    from tools.check_docs import COMMAND_FENCE_LANGS, fence_language, iter_fenced_lines
+    return any(info is not None and fence_language(info) in COMMAND_FENCE_LANGS
+               and not delimiter and line.strip() == "python3 tools/godot.py prepare"
+               for _, line, info, delimiter in iter_fenced_lines(text.splitlines()))
+
+
+def python_prepares(text):
+    """True when a Python module calls `prepare` (`prepare_godot`, `godot.prepare`)."""
+    import ast
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if name in ("prepare", "prepare_godot"):
+                return True
+    return False
+
+
 class OnePlace(unittest.TestCase):
     """The version is written once, and the launchers ask the resolver."""
 
@@ -224,14 +258,39 @@ class OnePlace(unittest.TestCase):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
 
     def test_every_way_to_start_the_game_prepares_the_project(self):
-        for name in ("godot/run.sh", "tools/package/deploy-deck.sh", "README.md",
-                     "docs/DEVELOPMENT.md", "docs/MODDING.md"):
+        for name in self.SHELL_LAUNCHERS:
             with self.subTest(name=name):
-                self.assertRegex((ROOT / name).read_text(),
-                                 r'python3 "?(\$HERE/)?tools/godot[.]py"? prepare')
-        for name in ("tools/certify.py", "tools/verify_native_tape.py"):
+                self.assertTrue(shell_prepares((ROOT / name).read_text()), name)
+        for name in self.QUICK_STARTS:
             with self.subTest(name=name):
-                self.assertRegex((ROOT / name).read_text(), r"\bprepare(_godot)?\(")
+                self.assertTrue(markdown_prepares((ROOT / name).read_text()), name)
+        for name in self.PYTHON_LAUNCHERS:
+            with self.subTest(name=name):
+                self.assertTrue(python_prepares((ROOT / name).read_text()), name)
+
+    def test_negative_control_a_prepare_that_never_runs(self):
+        """A commented-out, quoted or here-document prepare is text, not a
+        command; so is one in a quick start's prose or a Python comment."""
+        for name in self.SHELL_LAUNCHERS:
+            text = (ROOT / name).read_text()
+            for dead in ("# python3 \\1 prepare", 'echo "python3 \\1 prepare"',
+                         "cat <<'EOF'\npython3 \\1 prepare\nEOF"):
+                with self.subTest(name=name, dead=dead):
+                    changed = re.sub(SHELL_PREPARE_RE.pattern + ".*$", dead, text, flags=re.M)
+                    self.assertNotEqual(changed, text)
+                    self.assertFalse(shell_prepares(changed))
+        for name in self.QUICK_STARTS:
+            with self.subTest(name=name):
+                text = re.sub(r"(?m)^python3 tools/godot[.]py prepare\n", "", (ROOT / name).read_text())
+                self.assertFalse(markdown_prepares(text + "\nRun `python3 tools/godot.py prepare` first.\n"))
+        for name in self.PYTHON_LAUNCHERS:
+            with self.subTest(name=name):
+                text = re.sub(r"\b(prepare(?:_godot)?)\(", r'"\1"(', (ROOT / name).read_text())
+                self.assertFalse(python_prepares(text + "\n# prepare(ROOT / 'godot')\n"))
+
+    SHELL_LAUNCHERS = ("godot/run.sh", "tools/package/deploy-deck.sh")
+    QUICK_STARTS = ("README.md", "docs/DEVELOPMENT.md", "docs/MODDING.md")
+    PYTHON_LAUNCHERS = ("tools/certify.py", "tools/verify_native_tape.py")
 
     def test_the_shell_launchers_stop_on_a_failed_pipeline(self):
         """deploy-deck.sh pipes its export into `tail`; without pipefail a
