@@ -24,16 +24,17 @@ tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
 lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
-docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, pack
-builds, which rewrite the runtime pack every run reads, and the opt-level-3
-extension build) holds the lock file with LOCK_EX and runs alone. The
+docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole and
+the opt-level-3 extension build) holds the lock file with LOCK_EX and runs alone. The
 shared classes hold it with LOCK_SH plus units of a machine memory budget,
 `PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
 beside it, taken all or none, `CLASS_UNITS` each: `build` (a cargo build,
 test or clippy run that does not compile psiv-godot: compilation is its peak),
 `extension` (one that does, in dev: `-p psiv-godot` or the workspace), `godot` (one
 Godot/Xvfb run, per slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot
-files) and `python` (the Python suite). The caller declares the class and is
+files), `python` (the Python suite) and `pack` (a pack build, which swaps
+the new pack in whole, psiv_tools/pack_swap.py, so its readers need no
+exclusion). The caller declares the class and is
 trusted: a build in `build` that compiles psiv-godot costs memory headroom,
 never a crash, because every Godot a repository tool starts loads its own copy
 of the library (tools/godot.py `create_run_root`). So shared holders run side by side
@@ -101,7 +102,8 @@ GODOT = "godot"
 BUILD = "build"
 EXTENSION = "extension"
 PYTHON = "python"
-LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, EXTENSION, PYTHON)
+PACK = "pack"
+LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, EXTENSION, PYTHON, PACK)
 #: How /proc/locks shows a LOCK_SH holder that holds no slot or unit yet (a
 #: shared head between its flock and its grant).
 SHARED = "shared"
@@ -118,10 +120,11 @@ DEFAULT_LOCK_UNITS = 16
 #: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
 #: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a cold `cargo test
 #: --workspace --no-run` at 8 jobs 4,979 MB (`extension`: 12 units, 19%), a
-#: certify pair 418 MB (1, 18%), the Python suite 815 MB (2, 20%). The
+#: certify pair 418 MB (1, 18%), the Python suite 815 MB (2, 20%), a full pack
+#: build 129 MB (1, 75%). The
 #: opt-level-3 extension build (5,582 MB, 13 units) is exclusive, so it does
 #: not size `extension`.
-CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 2}
+CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 2, PACK: 1}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
@@ -736,11 +739,12 @@ def run_parser():
 
 #: What `run` prints when no class is given, one line per class.
 CLASS_HELP = {
-    EXCLUSIVE: "the whole machine: pack builds, the opt-level-3 extension build",
+    EXCLUSIVE: "the whole machine: the opt-level-3 extension build",
     BUILD: "a cargo build, test or clippy run that does not compile psiv-godot",
     EXTENSION: "a cargo build, test or clippy run that compiles psiv-godot (or the workspace)",
     GODOT: "one Godot/Xvfb run",
     PYTHON: "the Python suite, or part of it",
+    PACK: "a pack build (`python3 -m psiv_tools pack`)",
 }
 
 

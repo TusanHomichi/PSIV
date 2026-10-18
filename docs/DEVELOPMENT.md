@@ -296,11 +296,12 @@ units fit:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
-| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads) and the opt-level-3 extension build of the [native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay) |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, the opt-level-3 extension build of the [native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay) |
 | `build` | 7 units | a cargo invocation that does not compile `psiv-godot` (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
 | `extension` | 12 units | a dev cargo invocation that compiles `psiv-godot` (`-p psiv-godot`, `--workspace` build, test or clippy, or no `-p` at the workspace root): certify's build and `heavy_lock.py run --class extension -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
+| `pack` | 1 unit | a pack build: `heavy_lock.py run --class pack -- python3 -m psiv_tools pack ...` |
 
 The caller declares the class, and the lock trusts it. A wrong declaration, a
 `psiv-godot` build in `build`, costs memory headroom, not a crash: every Godot
@@ -312,6 +313,16 @@ a loaded extension. So an extension build shares the machine with Godot runs:
 sized for its largest job, the cold workspace test build, so an incremental
 `cargo build -p psiv-godot` (3.6 GB) reserves 6 GB, and an extension build
 waits for any `build` holder (12 + 7) and for a second extension build.
+
+A pack build shares the machine with the runs that read the pack:
+`psiv_tools pack` builds into a sibling directory and swaps it in whole
+(`psiv_tools/pack_swap.py`), so a reader sees the old pack or the new one,
+never a half-written one, and a killed build leaves the old pack in place.
+`runtime-pack` becomes a link to the newest of three kept versions,
+`.runtime-pack.v<UTC stamp>-<pid>` beside it. A reader that must see one
+version for its whole run resolves the link once, as a run root and the game
+do; one that reopens `runtime-pack/...` file by file can mix two complete
+versions across a swap.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
@@ -371,7 +382,7 @@ uncapped (boosting to 3.9 GHz); each names its mean live clock
 | the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
 | the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
-| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
+| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `pack` (sizes it) |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |
 

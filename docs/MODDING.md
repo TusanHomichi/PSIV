@@ -26,8 +26,11 @@ python3 tools/godot.py prepare
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
-**`pack` overwrites.** Running `python3 -m psiv_tools pack` into a directory
-replaces what is there, edits included. Keep edits in a separate copy, as above.
+**`pack` replaces.** Running `python3 -m psiv_tools pack` into a directory
+builds a new pack beside it and swaps it in whole: the directory becomes a
+link to the new version, and the previous versions, edits included, are kept
+as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them.
+Keep edits in a separate copy, as above.
 A loader that layers a mod over the original pack instead is planned after 1.0
 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
 

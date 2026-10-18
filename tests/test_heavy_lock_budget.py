@@ -25,7 +25,7 @@ from unittest import mock
 
 from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses
 from tools import heavy_lock as heavy_lock_module
-from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
+from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, PACK, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
 
 
@@ -260,8 +260,7 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.finish(waiter), ["extension"])
 
     def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
-        """Pack builds and the gate take exclusive: this is what keeps a pack
-        rewrite away from every run that reads the pack."""
+        """The gate takes exclusive: nothing shares the machine with it."""
         for lock_class in (BUILD, GODOT, PYTHON):
             holder = self.holder()
             waiter = self.waiter(lock_class, "--class", lock_class)
@@ -366,13 +365,31 @@ class BudgetCase(LockProcesses):
         self.release(holder)
         self.assertEqual(self.finish(waiter), ["waiter"])
 
-    def test_there_is_no_pack_class(self):
-        """A pack build rewrites the runtime pack in place, so it must exclude
-        every reader: it is exclusive, never a budgeted class."""
-        self.assertNotIn("pack", heavy_lock_module.LOCK_CLASSES)
-        code, stderr = self.immediate("pack", "--class", "pack")
-        self.assertEqual(code, 2, stderr)
+    def test_the_pack_class_is_sized_by_a_full_pack_build(self):
+        """ceil(129 MB / (0.85 x 512 MB)) = 1, from docs/DEVELOPMENT.md's full
+        pack build: a hand-computed literal, not CLASS_UNITS."""
+        self.assertEqual(math.ceil(129 / (0.85 * 512)), 1)
+        self.assertEqual(CLASS_UNITS[PACK], 1)
+
+    def test_a_pack_build_shares_the_machine_with_its_readers(self):
+        """The pack is swapped in whole (psiv_tools/pack_swap.py), so a pack
+        build runs beside a cargo test, a Godot run and the Python suite."""
+        holders = [self.holder(BUILD), self.holder(GODOT), self.holder(PYTHON)]
+        code, stderr = self.immediate("pack", "--class", PACK)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+        self.assertEqual(self.granted(), ["pack"])
+        self.assertEqual(len(holders), 3)
+
+    def test_negative_control_an_exclusive_pack_build_waits_for_its_readers(self):
+        """The same build declared exclusive, as before #145, waits."""
+        reader = self.holder(PYTHON)
+        waiter = self.waiter("pack")
+        self.assertIn(f"{reader.pid} (python)", waiter.first_line)
+        time.sleep(0.5)
         self.assertEqual(self.granted(), [])
+        self.release(reader)
+        self.assertEqual(self.finish(waiter), ["pack"])
 
     def test_a_held_unit_under_another_budget_is_refused(self):
         self.holder("build", {UNITS_ENV: "16"})  # records 16 in its unit files
