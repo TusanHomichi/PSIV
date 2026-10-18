@@ -198,7 +198,8 @@ impl Runtime {
     /// music branch spent its extra `VInt_Prepare` (`:107619-107626`) and
     /// whether bit 7 skipped the fade.
     pub(crate) fn reload_field_after_cutscene(&mut self) -> Result<CutsceneReload, BridgeError> {
-        let target = self.redirect_kept_load();
+        let load = self.redirect_kept_load();
+        let target = load.map;
         let raw_music = self
             .data
             .map(psiv_data::MapId(target.0))
@@ -213,6 +214,7 @@ impl Runtime {
         // Bit 2 spares the objects and the vehicle; the byte is spent.
         let skip_fade = self.apply_map_load_flags(MapLoad::Field);
         self.rewalk_map_retaining_objects(target)?;
+        self.saved_map_index_2 = load.previous_map;
         let record = self
             .data
             .map(psiv_data::MapId(target.0))
@@ -265,9 +267,10 @@ impl Runtime {
     /// battle return reload the current map through the same routine, so a
     /// flag the scene or the battle set can change which map loads. The party
     /// placement is skipped on these loads, so of what a redirect writes only
-    /// `Field_Map_Index` and `Field_Map_Index_2` matter. Returns the map to
-    /// load.
-    fn redirect_kept_load(&mut self) -> MapId {
+    /// `Field_Map_Index` and `Field_Map_Index_2` matter. Returns the load;
+    /// the caller writes `Field_Map_Index_2` only once the map has loaded, so
+    /// a load that fails leaves it as it was.
+    fn redirect_kept_load(&self) -> FieldLoad {
         let leader = self.party.leader();
         let load = adjust_field_load(
             &self.game,
@@ -278,8 +281,7 @@ impl Runtime {
                 previous_map: self.saved_map_index_2,
             },
         );
-        self.saved_map_index_2 = load.previous_map;
-        load.map
+        load
     }
 
     pub(crate) fn refresh_field_after_battle(&mut self) -> Result<(), BridgeError> {
@@ -287,8 +289,9 @@ impl Runtime {
         // walk runs, while object initialization, party placement and camera
         // initialization do not. The loader's redirects run first, as on
         // every `GameMode_LoadFieldMap`.
-        let target = self.redirect_kept_load();
-        self.rewalk_map_retaining_objects(target)?;
+        let load = self.redirect_kept_load();
+        self.rewalk_map_retaining_objects(load.map)?;
+        self.saved_map_index_2 = load.previous_map;
         // The battle set bit 0 when it began (`bset #0`, `ps4.asm:118057` and
         // `120803`), so this load keeps the objects — and the party stays
         // mounted, because the flag test below finds the bit still set.
@@ -509,6 +512,65 @@ mod kept_load_redirects {
             rt.refresh_field_after_battle().unwrap();
             assert_eq!(rt.map_id(), MapId(want), "Dark Force 2 {flag}");
         }
+    }
+
+    /// A kept load whose redirected map is not in the pack fails and leaves
+    /// `Field_Map_Index_2` and the map as they were: the pack again, with
+    /// `Reshel1 + 1` moved from `maps` to `skipped` in a copy of its manifest
+    /// (every other entry is a link to the real pack).
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_kept_load_writes_nothing() {
+        let pack = Path::new(PACK);
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack absent; skipping");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("psiv-kept-load-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for entry in std::fs::read_dir(pack).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_name() != "manifest.json" {
+                std::os::unix::fs::symlink(
+                    entry.path().canonicalize().unwrap(),
+                    dir.join(entry.file_name()),
+                )
+                .unwrap();
+            }
+        }
+        let text = std::fs::read_to_string(pack.join("manifest.json")).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let reshel_2 = u64::from(RESHEL_1 + 1);
+        let maps = manifest["maps"].as_array_mut().unwrap();
+        maps.retain(|entry| entry["id"].as_u64() != Some(reshel_2));
+        manifest["skipped"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "id": reshel_2, "id_hex": "0x14E", "reason": "test", "symbol": "Reshel2"
+            }));
+        std::fs::write(dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let data = GameData::load(&dir).expect("the pack without Reshel2");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut rt = Runtime::new(
+            data,
+            RESHEL_1,
+            Cell::new(30, 49),
+            Direction::Up,
+            StepFrames::default(),
+        )
+        .unwrap();
+        rt.game.set(Flag::event(0x9E)).unwrap();
+        rt.saved_map_index_2 = 0x1234;
+        assert!(matches!(
+            rt.refresh_field_after_battle(),
+            Err(BridgeError::NotPacked(id)) if id == RESHEL_1 + 1
+        ));
+        assert_eq!(rt.saved_map_index_2, 0x1234, "Field_Map_Index_2 untouched");
+        assert_eq!(rt.map_id(), MapId(RESHEL_1));
+        assert!(rt.reload_field_after_cutscene().is_err());
+        assert_eq!(rt.saved_map_index_2, 0x1234);
     }
 
     /// The same on the cutscene return's load.
