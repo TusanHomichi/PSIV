@@ -141,6 +141,88 @@ class CommandLine(FakeGodot):
         self.assertIn(f"is Godot 3.6; PSIV needs {pinned}", refused.stderr)
 
 
+IMPORTER = """#!/bin/sh
+# Stands in for Godot's headless editor import: logs the call, then writes
+# the extension index (or not) under the project --path names.
+echo "$@" >> "{calls}"
+[ "$1" = --headless ] || exit 9
+project=$3
+if [ -n "{writes}" ]; then
+    mkdir -p "$project/.godot"
+    printf '%s\\n' "{writes}" > "$project/.godot/extension_list.cfg"
+fi
+exit {code}
+"""
+
+
+class Prepare(unittest.TestCase):
+    """`prepare`: a fresh clone's project gets its extension index, once."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="godot-prepare-")
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        self.project = self.dir / "godot"
+        self.project.mkdir()
+        (self.project / "project.godot").write_text("[application]\n")
+        self.calls = self.dir / "calls"
+
+    def importer(self, writes="res://psiv.gdextension", code=0):
+        path = self.dir / "importer"
+        path.write_text(IMPORTER.format(calls=self.calls, writes=writes, code=code))
+        path.chmod(0o755)
+        return path
+
+    def calls_made(self):
+        return self.calls.read_text().splitlines() if self.calls.exists() else []
+
+    def test_a_fresh_project_gets_the_index_once(self):
+        importer = self.importer()
+        self.assertFalse(godot.prepared(self.project))  # the fresh clone's state
+        log = self.dir / "import.log"
+        self.assertTrue(godot.prepare(importer, self.project, log=log))
+        self.assertTrue(godot.prepared(self.project))
+        self.assertEqual(self.calls_made(),
+                         [f"--headless --path {self.project} --editor --quit"])
+        self.assertTrue(log.is_file())
+        self.assertFalse(godot.prepare(importer, self.project))  # idempotent
+        self.assertEqual(len(self.calls_made()), 1)
+
+    def test_an_index_without_the_extension_is_imported_again(self):
+        (self.project / ".godot").mkdir()
+        (self.project / ".godot/extension_list.cfg").write_text("res://other.gdextension\n")
+        self.assertTrue(godot.prepare(self.importer(), self.project))
+        self.assertTrue(godot.prepared(self.project))
+
+    def test_an_import_that_writes_nothing_is_refused(self):
+        with self.assertRaises(godot.GodotError) as caught:
+            godot.prepare(self.importer(writes=""), self.project)
+        self.assertIn("import (exit 0) wrote no res://psiv.gdextension", str(caught.exception))
+        self.assertFalse(godot.prepared(self.project))
+
+    def test_a_failing_import_is_refused(self):
+        log = self.dir / "import.log"
+        with self.assertRaises(godot.GodotError) as caught:
+            godot.prepare(self.importer(code=1), self.project, log=log)
+        self.assertIn(f"import (exit 1) wrote no res://psiv.gdextension", str(caught.exception))
+        self.assertIn(f"log={log}", str(caught.exception))
+
+    def test_the_real_godot_prepares_a_fresh_copy_of_the_project(self):
+        """The real import, on the tracked files of `godot/` alone (what a
+        clone has); skipped on a host without the pinned Godot."""
+        try:
+            real = godot.resolve()
+        except godot.GodotError as error:
+            self.skipTest(f"no pinned Godot: {error}")
+        for name in repo_files(ROOT, ("godot/*",)):
+            target = self.dir / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / name).read_bytes())
+        self.assertFalse(godot.prepared(self.project))
+        self.assertTrue(godot.prepare(real, self.project, log=self.dir / "import.log"))
+        self.assertTrue(godot.prepared(self.project))
+
+
 class OnePlace(unittest.TestCase):
     """The version is written once, and the launchers ask the resolver."""
 
@@ -151,6 +233,22 @@ class OnePlace(unittest.TestCase):
         for launcher in ("godot/run.sh", "tools/package/deploy-deck.sh"):
             with self.subTest(launcher=launcher):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
+
+    def test_every_way_to_start_the_game_prepares_the_project(self):
+        for name in ("godot/run.sh", "README.md", "docs/DEVELOPMENT.md", "docs/MODDING.md"):
+            with self.subTest(name=name):
+                self.assertIn("python3 tools/godot.py prepare", (ROOT / name).read_text())
+        for name in ("tools/certify.py", "tools/verify_native_tape.py"):
+            with self.subTest(name=name):
+                self.assertRegex((ROOT / name).read_text(), r"\bprepare(_godot)?\(")
+
+    def test_only_the_resolver_knows_the_extension_index(self):
+        code = [name for name in repo_files(ROOT, ("*.py", "*.sh", "*.gd"))
+                if name.startswith(("tools/", "godot/", "oracle/", "psiv_tools/"))
+                and name != "tools/godot.py"]
+        hits = [name for name in code
+                if "extension_list" in (ROOT / name).read_text(encoding="utf-8", errors="replace")]
+        self.assertEqual(hits, [])
 
     #: A host's own Godot: anything under `~/.local/bin` named for Godot, an
     #: official download's file name, or a path carrying the pinned version.

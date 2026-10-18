@@ -82,10 +82,14 @@ Close any running PSIV/Godot instance before rebuilding its loaded extension.
 
 ```bash
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-PSIV_SAVE_DIR="$PWD/saves" godot --path godot
+python3 tools/godot.py prepare
+PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
-Here `godot` means your Godot executable. The explicit save directory makes
+`python3 tools/godot.py prepare` runs Godot's one-time headless import of the
+project: it writes `godot/.godot/`, which Git ignores, and without it a fresh
+clone starts on a black screen ("Cannot get class 'Field'"). It does nothing
+once the project is prepared. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
@@ -94,10 +98,11 @@ needs `rg` and `flock`.
 
 `PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
 is used. `tools/godot.py` is the one lookup: it prints the executable, or
-refuses one that does not report the version pinned in `.godot-version`
-(`python3 tools/godot.py` checks your setup). `godot/run.sh` and
-`tools/package/deploy-deck.sh`, `tools/certify.py` and
-`tools/verify_native_tape.py` ask it. The capture commands in the subsystem
+refuses one that does not report the version pinned in `.godot-version` or is
+not a `stable` build (`python3 tools/godot.py` checks your setup). `godot/run.sh`
+and `tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it, and the three that start the game run its
+`prepare` step first. The capture commands in the subsystem
 documents write it as `"$PSIV_GODOT"`; set it once in your shell.
 
 For campaign tape replay through the native game, use

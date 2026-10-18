@@ -381,12 +381,14 @@ class MainLocksTest(unittest.TestCase):
         self.holds.append((lock_class, slots))
         yield Hold(self.tmp / "heavy.lock", lock_class, slots, nested=False)
 
-    def run_main(self, argv, slots="3", interrupt_after=None, godot=Path("godot")):
+    def run_main(self, argv, slots="3", interrupt_after=None, godot=Path("godot"),
+                 prepare_error=None):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
-        def captures(tasks, jobs, receipt, results):
+        def captures(tasks, jobs, receipt, results, take):
             self.jobs = jobs
+            self.take = take
             for count, (name, _, _) in enumerate(tasks):
                 if count == interrupt_after:
                     raise KeyboardInterrupt
@@ -398,8 +400,16 @@ class MainLocksTest(unittest.TestCase):
                 raise godot
             return godot
 
+        def prepare(path, project, log):
+            self.prepared.append((path, project))
+            if isinstance(prepare_error, Exception):
+                raise prepare_error
+            return True
+
+        self.prepared = []
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
                 mock.patch.object(certify, "resolve_godot", resolve), \
+                mock.patch.object(certify, "prepare_godot", prepare), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify, "loaded_extension_pids", return_value=[]), \
                 mock.patch.object(certify.subprocess, "run",
@@ -439,6 +449,19 @@ class MainLocksTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
         self.assertIsNone(receipt["interrupted"])
+
+    def test_godot_is_resolved_once_and_the_project_prepared_before_captures(self):
+        code, out = self.run_main(["--no-build", "--only", "title"], godot=Path("/x/godot"))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.prepared, [(Path("/x/godot"), self.prepared[0][1])])
+        self.assertEqual(self.prepared[0][1].name, "godot")
+        self.assertEqual(self.take.keywords, {"godot": Path("/x/godot")})
+
+    def test_a_failed_project_import_is_refused(self):
+        error = certify.GodotError("the godot/ import (exit 1) wrote no res://psiv.gdextension")
+        code, out = self.run_main(["--no-build", "--only", "title"], prepare_error=error)
+        self.assertEqual(code, 2)
+        self.assertIn("certify: refused, the godot/ import (exit 1)", out)
 
     def test_more_jobs_than_slots_is_refused_before_any_lock(self):
         code, out = self.run_main(["--jobs", "4"], slots="3")

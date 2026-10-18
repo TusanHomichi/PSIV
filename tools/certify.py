@@ -32,6 +32,7 @@ under a godot holder, by the slots it holds.
 """
 import argparse
 import ctypes
+import functools
 import hashlib
 import json
 import os
@@ -61,7 +62,7 @@ from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import GodotError, resolve as resolve_godot  # noqa: E402
+from godot import GodotError, prepare as prepare_godot, resolve as resolve_godot  # noqa: E402
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -321,7 +322,7 @@ def xvfb_display(log):
             server.wait()
 
 
-def capture(name, env, tick, receipt, display):
+def capture(name, env, tick, receipt, display, godot):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
@@ -331,7 +332,7 @@ def capture(name, env, tick, receipt, display):
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["timeout", f"{capture_timeout(tick)}s", str(resolve_godot()),
+    command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
@@ -434,7 +435,7 @@ def main(argv=None):
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
     try:
-        resolve_godot()
+        godot = resolve_godot()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2
@@ -461,6 +462,11 @@ def main(argv=None):
         print(f"certify: {len(pairs)} pairs on {jobs} worker(s), "
               f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
               f"{hold.path}", flush=True)
+        try:  # a fresh clone's project has no extension index yet
+            prepare_godot(godot, root / "godot", log=receipt / "godot-import.log")
+        except GodotError as error:
+            print(f"certify: refused, {error}")
+            return 2
         started = time.monotonic()
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
@@ -472,7 +478,8 @@ def main(argv=None):
         prepared = time.monotonic()
         shots, interrupted = {}, None
         try:
-            run_captures(tasks, jobs, receipt, results=shots)
+            run_captures(tasks, jobs, receipt, results=shots,
+                         take=functools.partial(capture, godot=godot))
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop
         timing = {"oracle_s": round(prepared - started, 1),

@@ -12,6 +12,16 @@ Godot, or a release candidate of the pinned one, is refused rather than run. Tha
 call this script and the Python tools import `resolve`, so changing the
 version is a one-line edit there.
 
+    python3 tools/godot.py prepare
+
+prepares the Godot project for its first run. Godot finds the game's
+GDExtension through `godot/.godot/extension_list.cfg`, which its editor
+import writes and Git ignores, so a fresh clone has none: the game then
+starts on a black screen with "Cannot get class 'Field'". `prepare` runs that
+import headless once (`--headless --path godot --editor --quit`) and checks
+the file; when the file already lists the extension it does nothing. Every
+launcher and verifier calls it before starting the game.
+
 Stdlib only, Python 3.
 """
 
@@ -35,6 +45,15 @@ ENV = "PSIV_GODOT"
 
 #: Seconds `godot --version` may take.
 VERSION_TIMEOUT = 30
+
+#: The Godot project, the extension index its import writes, and the entry
+#: that index must hold for the game's classes to load.
+PROJECT = ROOT / "godot"
+EXTENSION_INDEX = Path(".godot/extension_list.cfg")
+EXTENSION_ENTRY = "res://psiv.gdextension"
+
+#: Seconds the one-shot editor import may take (about 5 on a fresh project).
+IMPORT_TIMEOUT = 300
 
 _VERSION_RE = re.compile(r"\A\d+\.\d+(?:\.\d+)?\Z")
 
@@ -136,9 +155,56 @@ def resolve(env: Mapping[str, str] | None = None,
     return check(find(env, which), version_file)
 
 
-def main() -> int:
+def prepared(project: Path = PROJECT) -> bool:
+    """True when `project`'s extension index lists the game's extension."""
     try:
-        print(resolve())
+        return EXTENSION_ENTRY in (project / EXTENSION_INDEX).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def prepare(godot: Path, project: Path = PROJECT, log: Path | None = None,
+            timeout: float = IMPORT_TIMEOUT) -> bool:
+    """Make `project` ready to run: once, Godot's headless editor import.
+
+    Returns True when it ran the import and False when the project was already
+    prepared. `log` receives the import's output (otherwise it is kept for the
+    error message). Raises `GodotError` when the import fails or leaves no
+    extension index.
+    """
+    if prepared(project):
+        return False
+    command = [str(godot), "--headless", "--path", str(project), "--editor", "--quit"]
+    try:
+        proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
+                              check=False)
+        output, code = proc.stdout + proc.stderr, proc.returncode
+    except subprocess.TimeoutExpired as error:
+        output, code = f"timed out after {timeout} s\n{error.output or ''}", 124
+    except OSError as error:
+        raise GodotError(f"cannot run the {project.name}/ import: {error}") from error
+    if log is not None:
+        log.write_text(output, encoding="utf-8")
+    if code != 0 or not prepared(project):
+        where = f"log={log}" if log is not None else "\n" + "\n".join(output.splitlines()[-20:])
+        raise GodotError(f"the {project.name}/ import (exit {code}) wrote no "
+                         f"{EXTENSION_ENTRY} to {EXTENSION_INDEX}; {where}")
+    return True
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv not in ([], ["prepare"]):
+        print("usage: python3 tools/godot.py [prepare]", file=sys.stderr)
+        return 2
+    try:
+        godot = resolve()
+        if argv:
+            ran = prepare(godot)
+            print(f"godot: {PROJECT.name}/ {'prepared' if ran else 'already prepared'}",
+                  file=sys.stderr)
+        else:
+            print(godot)
     except GodotError as error:
         print(f"godot: {error}", file=sys.stderr)
         return 1

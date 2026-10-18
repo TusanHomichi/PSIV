@@ -24,11 +24,11 @@ import time
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from tools.repo_files import repo_files
-    from tools.godot import GodotError, check as check_godot, find as find_godot
+    from tools.godot import GodotError, check as check_godot, find as find_godot, prepare
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from repo_files import repo_files
-    from godot import GodotError, check as check_godot, find as find_godot
+    from godot import GodotError, check as check_godot, find as find_godot, prepare
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -421,26 +421,13 @@ def replay(args: argparse.Namespace) -> int:
     })
     if args.drop_pad_at is not None:
         env["PSIV_TAPE_DROP_AT"] = str(args.drop_pad_at)
-    # A fresh checkout has no Godot extension index. The editor's one-shot
-    # scan creates it locally; no game or save is started by this step.
-    extension_index = ROOT / "godot/.godot/extension_list.cfg"
-    extension_entry = "res://psiv.gdextension"
-    import_command = None
-    import_code = None
+    # A fresh checkout has no Godot extension index (tools/godot.py `prepare`).
     import_log = out / "godot-import.log"
-    if not extension_index.is_file() or extension_entry not in extension_index.read_text():
-        import_command = [str(GODOT), "--headless", "--path", "godot", "--editor", "--quit"]
-        with import_log.open("w") as handle:
-            try:
-                import_code = subprocess.run(import_command, cwd=ROOT, env=env,
-                                             stdout=handle, stderr=subprocess.STDOUT,
-                                             timeout=args.timeout).returncode
-            except subprocess.TimeoutExpired:
-                import_code = 124
-        if (import_code != 0 or not extension_index.is_file()
-                or extension_entry not in extension_index.read_text()):
-            print(f"native tape: Godot extension import failed; log={import_log}")
-            return 1
+    try:
+        imported = prepare(GODOT, ROOT / "godot", log=import_log, timeout=args.timeout)
+    except GodotError as error:
+        print(f"native tape: {error}")
+        return 1
     library = ROOT / "rust/target/debug/libpsiv_godot.so"
     if not library.is_file():
         parser().error(f"native extension is missing: {library}; build it before replay")
@@ -512,9 +499,8 @@ def replay(args: argparse.Namespace) -> int:
         "tape_sha256_before": tape_sha_before,
         "effective_psiv_env": {key: env[key] for key in sorted(env) if key.startswith("PSIV_")},
         "removed_inherited_psiv_keys": removed_psiv_keys,
-        "godot_import_command": import_command,
-        "godot_import_exit_code": import_code,
-        "godot_import_log": str(import_log) if import_command else None,
+        "godot_import_ran": imported,
+        "godot_import_log": str(import_log) if imported else None,
         "tape": str(tape), "tape_sha256": tape_sha_after,
         "source_save": str(source) if source else None,
         "source_sha256_before": source_before, "source_sha256_after": source_after,

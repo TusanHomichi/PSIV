@@ -29,6 +29,8 @@ fi
 # The Godot to run: PSIV_GODOT, else `godot` on PATH, at the pinned version.
 psiv_godot=$(python3 tools/godot.py) || exit 1
 cargo build -p psiv-godot --manifest-path rust/Cargo.toml
+# A fresh clone's project has no extension index until Godot imports it once.
+python3 tools/godot.py prepare || exit 1
 # The managed checkout is read-only outside the workspace, so Godot's default
 # user:// timestamped log can abort a detached launch. Keep launcher logs in
 # /tmp where the comparison loop can write them reliably.

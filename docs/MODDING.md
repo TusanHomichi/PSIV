@@ -21,7 +21,8 @@ Work on a copy, so the original stays one command away:
 
 ```bash
 cp -a runtime-pack my-mod-pack
-PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" "$PSIV_GODOT" --path godot
+python3 tools/godot.py prepare
+PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
 **`pack` overwrites.** Running `python3 -m psiv_tools pack` into a directory
@@ -106,7 +107,7 @@ window reads "Professor! / Glad to see you in one piece!":
 
 ```bash
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
-  PSIV_DEBUG_EVENT=0x8007 "$PSIV_GODOT" --path godot
+  PSIV_DEBUG_EVENT=0x8007 "$(python3 tools/godot.py)" --path godot
 ```
 
 A longer line takes longer to type out: the window draws one character every
@@ -133,7 +134,7 @@ names. With the edited pack both enemies start at 99 HP:
 ```bash
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
   PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
-  "$PSIV_GODOT" --path godot --quit-after 400
+  "$(python3 tools/godot.py)" --path godot --quit-after 400
 ```
 
 ```text
