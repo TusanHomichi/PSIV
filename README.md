@@ -143,6 +143,12 @@ What the repository does hold from the game:
 - the game's rules and event scripts, rewritten in Rust from the disassembly,
   with the cartridge's own ids, flags, offsets and constants, and citations of
   the disassembly by symbol and line;
+- ids and addresses taken from the ROM and the disassembly:
+  `oracle/sweep/motavia_formations.json`
+  (the 83 formation ids of the Motavia encounter groups, from
+  `generated/formation_indexes.json`, ids only), the RAM addresses in
+  `oracle/ram_map.json`, and the map, shop, item and position ids the
+  campaign route `rust/psiv-campaign/routes/main.json` names;
 - short byte signatures that identify ROM structures, in the extractor and its
   tests;
 - names, numbers and short quoted lines of dialogue in the documents and tests;
