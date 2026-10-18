@@ -562,9 +562,9 @@ and conditional-only damage routes:
   was captured from the cartridge and replayed exactly: 83 Ripper in the Zio
   Fort, 100 TechMaster and 115 Greneris on Nurvus, 106 Haunt in Ladea Tower
   ([BATTLE_ORACLE_FORCED.md](../oracle/BATTLE_ORACLE_FORCED.md) §6). Two
-  carriers are deferred with their rows: 133 ProfoundDarkness1 (`$21`) and 140
-  Zio2 (`$4D`), both gated (`$FFFFEE87` and the `$FFFFEE98` phase counter) —
-  [ENEMY_DAMAGE_ROUTES.md](ENEMY_DAMAGE_ROUTES.md) §3.
+  gated carriers are routed too: 133 ProfoundDarkness1 (`$21`, behind the
+  scripted-battle latch `$FFFFEE87`) and 140 Zio2 (`$4D`, past the `$FFFFEE98`
+  phase counter) — [ENEMY_DAMAGE_ROUTES.md](ENEMY_DAMAGE_ROUTES.md) §3.
 - `$4C` EVIL EYE, `$2A` RIMIT and `$2F` VOL are **not** damage routes on any
   carrier read: every chain writes the flinch and no `move.w #$C`, so the
   effect handler — `$07` `AbilityEffect_SleepParalyze` for the first two, `$02`

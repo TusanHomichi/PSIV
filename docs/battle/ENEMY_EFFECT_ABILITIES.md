@@ -459,11 +459,14 @@ The script captures and their exact replays are in [section 10](#10-what-the-cap
 reject an untraced carrier or wrong effect record and pin the signed guard,
 word wrap, living-slot range and second-cast fallback.
 
-### What is deferred, and why
+### The pairs that share these routines
 
-| pair | reason |
-|---|---|
-| 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |
+58 FlameNewt `$24`, 105 ShadMirage `$4B` and 132 DarkForce3 `$4B` share a routine
+and object with a pair above and are routed in `enemy_effect_routes.rs`. FlameNewt's
+POISONMIST is captured in `endgame/poisonmist_newt.json` and DarkForce3's SHADOWBIND
+in `endgame/dark_force_3.json`
+([ENEMY_ABILITIES_ENDGAME.md](ENEMY_ABILITIES_ENDGAME.md)); ShadMirage's is
+covered by core tests only, since no US formation seats it.
 
 ## 8. The Air Castle pairs
 
@@ -643,14 +646,17 @@ round's draw count.
 - **A formation's slot records survive their init routine**: a cleared neighbour keeps
   its record and `enemy_count` counts it.
 
-### Still deferred
+### Routed but not captured
 
-| carrier | why |
+These carriers are routed in the core by the routine and arm they share with a
+captured pair; no capture shows them.
+
+| carrier | why no capture |
 |---|---|
-| 72 BloodSaber `$2D` DEBAN | Routed by its routine and arm (ShadowSabr's, captured), but no capture has the party *hit* it before its turn, so `EnemyAI_PhysicalAtkReceived` never fires there and the cast was never seen. |
+| 72 BloodSaber `$2D` DEBAN | Routed by ShadowSabr's routine and arm (captured), but no capture has the party *hit* it before its turn, so `EnemyAI_PhysicalAtkReceived` never fires there and the cast was never seen. |
 | 42 SatMinion `$17` WAITING (conditional, arm `$05`) | `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the FloatMine fall-through `loc_10406`, which `formation_124_d2` shows; every formation that triggers it opens with CRayTube's CHARGCNNON, and no fixture of it is committed. |
-| 58 FlameNewt `$24`, 105 ShadMirage `$4B` | Share a routine and arm with a routed pair; not captured. |
-| 39 Tower `$14` | Same init and record as 45 CommndBall; not captured. |
+| 105 ShadMirage `$4B` | No US formation seats it; core tests only. |
+| 39 Tower `$14` | Same init and record as 45 CommndBall, whose WARNING is captured. |
 
 ### What the captures do not prove
 

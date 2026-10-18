@@ -415,7 +415,8 @@ skill, item or vehicle skill whose record's effect nibble is not `1`
 four single-target paths is `rust/psiv-core/src/battle/retarget.rs`'s
 `single_target` (`Deficit::Largest`/`Smallest`); tests are
 `battle/retarget_tests.rs`. The mirror loop is read from `ps4.asm` and not yet
-captured: no capture's party commands a single-target non-damaging technique.
+captured: no capture's party commands a single-target non-damaging technique
+([#37](https://github.com/TusanHomichi/PSIV/issues/37)).
 The full finding is [`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
 2026-09-25 record.
 
