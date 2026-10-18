@@ -46,6 +46,39 @@
    "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
    "date": "2026-10-17",
    "note": "run_then_win RUNs every round whatever the escape odds: the Ice Digger (960 HP) fails three runs from four PROTECTBITs (formation 129) on Dezolis and is destroyed, the class #138 records for bioplant_survival"
+  },
+  {
+   "chapter": "alys-illusion",
+   "objective": 3,
+   "objective_kind": "step_onto",
+   "kind": "scene_fault",
+   "battle": null,
+   "resumes": ["alys-illusion"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
+   "date": "2026-10-18",
+   "note": "Event_AngerTowerExitTop restores the party slots Event_AngerTowerTop (ps4.asm:151963) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58; restored at :151996), RAM outside the SRAM payload; a fresh process resumed from the anger-tower-top save has none, and the restore faults (BadWrite), as the elsydeon entry does"
+  },
+  {
+   "chapter": "edge-training",
+   "objective": 1,
+   "objective_kind": "patrol",
+   "kind": "lost_battle",
+   "battle": "random",
+   "resumes": ["kuran-dark-force-1", "meese-supplies"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/154",
+   "date": "2026-10-18",
+   "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; the probe of this chapter from rykros-departure's save completes 39 of 40 trials (Wilson 95% lower bound 0.871)"
+  },
+  {
+   "chapter": "profound-darkness",
+   "objective": 1,
+   "objective_kind": "step_onto",
+   "kind": "lost_battle",
+   "battle": "event:26",
+   "resumes": ["bioplant-elevators", "ladea-tower-psycho-wand", "zelan-sabotage", "jut-outfit"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/154",
+   "date": "2026-10-18",
+   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the probe wins 97 of 100 (Wilson 95% lower bound 0.915), so some resumes' streams lose it"
   }
  ]
 }

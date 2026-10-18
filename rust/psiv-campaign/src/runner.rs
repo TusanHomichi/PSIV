@@ -169,15 +169,17 @@ pub fn run(config: &RunConfig) -> Result<RunResult, SetupError> {
 }
 
 /// Where a chapter stopped.
-struct Failure {
+pub(crate) struct Failure {
     /// Objective index, or `objectives.len() + n` for closing assertion `n`.
-    index: usize,
-    kind: String,
-    objective: Value,
-    halt: Halt,
+    pub(crate) index: usize,
+    pub(crate) kind: String,
+    pub(crate) objective: Value,
+    pub(crate) halt: Halt,
 }
 
-fn play_chapter(
+/// Plays one chapter's objectives and closing assertions, then writes its
+/// boundary save under `config.save_dir`.
+pub(crate) fn play_chapter(
     driver: &mut Driver,
     memory: &mut Memory,
     config: &RunConfig,

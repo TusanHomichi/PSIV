@@ -81,6 +81,38 @@ impl Mover {
             Mover::Vehicle(_) => vehicle_firing_warp(map, at, next),
         }
     }
+
+    /// Whether landing on `next` from `at` enters a map-change cell that no
+    /// map-change warp covers: the engine's `WarpUnmapped`
+    /// (`FieldState::tick`, `VehicleState::tick`), which the runner halts on
+    /// unless the cell is a doorway row ([`borders_warp`]).
+    #[must_use]
+    pub fn enters_unmapped(self, map: &FieldMap, at: Cell, next: Cell) -> bool {
+        let map_change = |cell: Cell| match self {
+            Mover::Foot => map
+                .collision_at(cell)
+                .is_some_and(CollisionType::is_map_change),
+            Mover::Vehicle(_) => standing_collision(map, cell) == 1,
+        };
+        map_change(next) && !map_change(at) && map.warp_at(next, WarpTrigger::MapChange).is_none()
+    }
+}
+
+/// Whether `cell` borders a warp footprint of `map`: a doorway row (type 1)
+/// whose warp the cartridge keeps in the normal-ground table one row on (the
+/// Air Castle's `AirCastle_F1` warp 0, rows 43 and 44). `RunMapTransitions`
+/// reads only the map-change table on the type-1 cell, finds nothing and the
+/// walk goes on to the row that fires, so an unmapped landing there is not a
+/// fault. The runner's halt rule and the planner's edges both ask this.
+#[must_use]
+pub fn borders_warp(map: &FieldMap, cell: Cell) -> bool {
+    let beside: Vec<Cell> = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        .into_iter()
+        .filter_map(|(dx, dy)| map.normalize_signed(i32::from(cell.x) + dx, i32::from(cell.y) + dy))
+        .collect();
+    map.warps()
+        .iter()
+        .any(|warp| beside.iter().any(|c| warp.source.contains(*c)))
 }
 
 /// Where a leg ends.
@@ -238,6 +270,12 @@ impl Flood {
                     flood.terminals.entry(warp).or_insert((at, direction, next));
                     continue;
                 }
+                // A map-change cell no warp covers is a halt for the runner
+                // (`WarpUnmapped`), so the walk goes around it; a doorway row
+                // is the exception both share.
+                if mover.enters_unmapped(map, at, next) && !borders_warp(map, next) {
+                    continue;
+                }
                 if next == start || flood.parent.contains_key(&next) {
                     continue;
                 }
@@ -317,7 +355,10 @@ impl Flood {
     /// (`ps4.asm:116768-116773`). Any other cell a trigger list names (the
     /// carnivorous trees' corridor, `RunEvent_CarnivorousTrees`,
     /// `ps4.asm:115977`) is the second: the ordinary walk that ends on it. A
-    /// cell the party already stands on has no step onto it.
+    /// map-change cell no warp covers is the third (`RunEvent_ProfoundDarkness`
+    /// on `TheEdge_Part9`'s type-1 row 23): the flood never crosses one, and
+    /// only a step onto one that a scene answers ends here. A cell the party
+    /// already stands on has no step onto it.
     #[must_use]
     pub fn onto_plan(&self, map: &FieldMap, mover: Mover, cell: Cell) -> Option<CellPlan> {
         let cell = map.normalize(cell)?;
@@ -326,15 +367,19 @@ impl Flood {
                 if mover.landing(map, at, direction) != Some(cell) {
                     continue;
                 }
-                let Some(warp) = mover.firing_warp(map, at, cell) else {
+                let fires = mover.firing_warp(map, at, cell);
+                // A trigger on a map-change cell no warp covers (the Profound
+                // Darkness row of `TheEdge_Part9`): the flood never walks onto
+                // it, and the step that does is the one a scene answers.
+                if fires.is_none() && !mover.enters_unmapped(map, at, cell) {
                     continue;
-                };
+                }
                 let mut steps = self.path_to(at)?;
                 steps.push(direction);
                 return Some(CellPlan {
                     steps,
                     end: cell,
-                    fires: Some(warp),
+                    fires,
                 });
             }
         }

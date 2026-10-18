@@ -60,7 +60,7 @@
 //! | `board` | optional `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens (without `step`, wait for the menu a scene opens by itself), move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
 //! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
-//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle`, `items_held`, `items_absent`, `status_clear` | halt unless all hold |
+//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle`, `items_held`, `items_absent`, `status_clear`, `ending_gate` | halt unless all hold |
 //!
 //! Names and ids: an item, technique or member is either its number or its
 //! cartridge display name (`"RES"`, `"Chaz"`), compared case-insensitively. A
@@ -280,6 +280,11 @@ pub struct Expectation {
     /// recovery tile).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub status_clear: bool,
+    /// The ending's final Start gate is up: `Cutscene_Ending` has run its
+    /// story and credits and waits on `ButtonStart` (`$07A228..$07A25A`,
+    /// `SceneOp::WaitForStart`). The route's last claim.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ending_gate: bool,
 }
 
 /// What a step asks of the runner.
@@ -444,6 +449,12 @@ pub enum Objective {
     /// Get out of the vehicle the party rides (the Action press on open
     /// ground).
     Dismount,
+    /// Ready the party through the camp, as a player does before a boss:
+    /// revive the fallen with a reviving technique (battle effect 21,
+    /// `REVER`), then cure every living member to full HP with the healing
+    /// techniques the between-battle recovery uses (`recovery.rs`). What the
+    /// party's TP cannot pay for is left as it is.
+    Restore,
     /// Walk between two cells, fighting random battles, until a condition
     /// holds: the route's honest form of grinding.
     Patrol {

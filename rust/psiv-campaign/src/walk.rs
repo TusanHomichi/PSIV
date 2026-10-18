@@ -609,6 +609,7 @@ fn stayed_on_arrival(map: u16, after_load: Option<u64>, settled: Settled) -> Hal
         Settled::Menu => ", with the ship's destination menu open",
         Settled::Choice => ", with a prompt open",
         Settled::Idle => "",
+        Settled::EndingGate => ", at the ending's final Start gate",
     };
     Halt::new(
         HaltKind::UnexpectedState,

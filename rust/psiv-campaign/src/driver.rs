@@ -174,6 +174,9 @@ pub struct Driver {
     scratch: Option<PathBuf>,
     policy: Option<Box<dyn Policy>>,
     recovery_due: bool,
+    /// The ending has reached its final Start gate (`SceneOp::WaitForStart`
+    /// presented): [`Driver::at_ending_gate`].
+    ending_gate: bool,
     trace: bool,
 }
 
@@ -238,6 +241,7 @@ impl Driver {
             scratch,
             policy: None,
             recovery_due: false,
+            ending_gate: false,
             trace: std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some(),
         }
     }
@@ -263,6 +267,13 @@ impl Driver {
         self.recovery_due = policy.recovers();
         self.policy = Some(policy);
         result
+    }
+
+    /// Whether `Cutscene_Ending` waits at its final Start gate: the scene
+    /// presented `SceneOp::WaitForStart` and has not ended.
+    #[must_use]
+    pub fn at_ending_gate(&self) -> bool {
+        self.ending_gate && self.runtime().scene_active()
     }
 
     /// Whether a battle ended and the camp has not yet cured the party; read
@@ -442,21 +453,13 @@ impl Driver {
     }
 
     /// Whether `event` is a [`RuntimeEvent::WarpUnmapped`] on a cell beside a
-    /// warp footprint of the current map (see [`is_scene_fault`]).
+    /// warp footprint of the current map (see [`is_scene_fault`] and
+    /// [`crate::cell_plan::borders_warp`]).
     fn is_doorway_row(&self, event: &RuntimeEvent) -> bool {
         let RuntimeEvent::WarpUnmapped { cell } = event else {
             return false;
         };
-        let map = self.runtime().map();
-        let beside: Vec<Cell> = [(0, -1), (0, 1), (-1, 0), (1, 0)]
-            .into_iter()
-            .filter_map(|(dx, dy)| {
-                map.normalize_signed(i32::from(cell.x) + dx, i32::from(cell.y) + dy)
-            })
-            .collect();
-        map.warps()
-            .iter()
-            .any(|warp| beside.iter().any(|c| warp.source.contains(*c)))
+        crate::cell_plan::borders_warp(self.runtime().map(), *cell)
     }
 
     fn absorb(&mut self, frame: Frame) -> Res {
@@ -496,6 +499,13 @@ impl Driver {
             .any(|event| matches!(event, RuntimeEvent::SceneStarted { .. }));
         for event in frame.events.iter().chain(&frame.menu_events) {
             match event {
+                RuntimeEvent::ScenePresentation {
+                    op: psiv_core::SceneOp::WaitForStart,
+                } => {
+                    self.ending_gate = true;
+                    self.note(format!("{event:?}"));
+                    continue;
+                }
                 RuntimeEvent::StepCompleted { .. } | RuntimeEvent::ScenePresentation { .. } => {
                     self.suppressed += 1;
                     continue;

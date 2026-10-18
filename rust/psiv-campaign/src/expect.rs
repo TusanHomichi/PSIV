@@ -109,6 +109,9 @@ impl Driver {
                 }
             }
         }
+        if expect.ending_gate && !self.at_ending_gate() {
+            misses.push("the ending's final Start gate is not up".to_owned());
+        }
         if misses.is_empty() {
             Ok(())
         } else {
