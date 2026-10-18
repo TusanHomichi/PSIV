@@ -29,8 +29,8 @@ from pathlib import Path
 from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
-                        command_slug, cpu_mhz, gate_lock, main, parse_counts, quick_unittest,
-                        run_gate)
+                        command_slug, cpu_mhz, gate_lock, load_1m, main, parse_counts,
+                        quick_unittest, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -314,11 +314,14 @@ class GateRunCase(unittest.TestCase):
     def test_the_clock_is_sampled_while_a_command_runs(self):
         """A longer command gets one clock sample per CPU_SAMPLE_S, not one in all."""
         sleeper = 'python3 -c "import time; time.sleep(0.5)"'
+        loads = iter([1.0, 9.5] + [2.0] * 100)
         with mock.patch("tools.gate.CPU_SAMPLE_S", 0.05), \
-                mock.patch("tools.gate.cpu_mhz", return_value=2300.0):
+                mock.patch("tools.gate.cpu_mhz", return_value=2300.0), \
+                mock.patch("tools.gate.load_1m", side_effect=lambda: next(loads)):
             receipt, _ = self.run_quiet([sleeper])
         self.assertEqual(receipt["commands"][0]["cpu_mhz"]["mean"], 2300)
         self.assertGreaterEqual(receipt["commands"][0]["cpu_mhz"]["samples"], 5)
+        self.assertEqual(receipt["commands"][0]["load_1m_max"], 9.5)
 
     def test_a_failure_is_recorded_and_later_commands_still_run(self):
         commands = [fake_step("first", marker="first.txt"),
@@ -735,7 +738,7 @@ def temp_dir_tree_findings(sources):
 
 
 def rust_sources():
-    """`(path, text)` for every Rust file under rust/ that calls temp_dir(), outside build output."""
+    """`(path, text)` for every Rust file under rust/, outside build output, calling temp_dir()."""
     rust = REPO_ROOT / "rust"
     for path in sorted(rust.rglob("*.rs")):
         if "target" in path.relative_to(rust).parts:
@@ -750,7 +753,7 @@ class ParallelTestPathsCase(unittest.TestCase):
 
     def test_every_temp_dir_is_keyed_by_process_and_call(self):
         findings, sites = temp_dir_tree_findings(rust_sources())
-        self.assertGreater(sites, 20, "the scan found too few temp_dir() sites to be reading the tree")
+        self.assertGreater(sites, 20, "too few temp_dir() sites found to be reading the tree")
         self.assertEqual(findings, [])
 
     def check(self, source):
@@ -759,22 +762,26 @@ class ParallelTestPathsCase(unittest.TestCase):
     def test_negative_control_an_unkeyed_name_is_found(self):
         # The pre-#157 psiv-core/src/battle/replay/data.rs line, collided on by
         # two suites at once ("cannot create .../lane-evidence: No such file").
-        self.assertEqual(self.check(
-            '#[test]\nfn t() {\n    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");\n}\n'),
-            ["not keyed by std::process::id()"])
+        old = ('#[test]\nfn t() {\n'
+               '    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");\n}\n')
+        self.assertEqual(self.check(old), ["not keyed by std::process::id()"])
+
+    def helper(self, *body, signature="fn scratch() -> PathBuf"):
+        """A non-test helper whose body is `body`, one statement per line."""
+        return signature + " {\n" + "".join(f"    {line}\n" for line in body) + "}\n"
 
     def test_negative_control_a_shared_helper_needs_a_per_call_key(self):
-        helper = ('fn scratch() -> PathBuf {\n'
-                  '    std::env::temp_dir().join(format!("psiv-x-{}", std::process::id()))\n}\n')
-        self.assertEqual(len(self.check(helper)), 1)
-        clock = ('fn scratch() -> PathBuf {\n    let nanos = SystemTime::now().as_nanos();\n'
-                 '    std::env::temp_dir().join(format!("psiv-x-{}-{nanos}", std::process::id()))\n}\n')
+        root = "std::env::temp_dir().join(format!("
+        pid_only = self.helper(root + '"psiv-x-{}", std::process::id()))')
+        self.assertEqual(len(self.check(pid_only)), 1)
+        clock = self.helper("let nanos = SystemTime::now().as_nanos();",
+                            root + '"psiv-x-{}-{nanos}", std::process::id()))')
         self.assertEqual(len(self.check(clock)), 1)
-        counter = ('fn scratch() -> PathBuf {\n    let n = NEXT.fetch_add(1, Ordering::Relaxed);\n'
-                   '    std::env::temp_dir().join(format!("psiv-x-{}-{n}", std::process::id()))\n}\n')
+        counter = self.helper("let n = NEXT.fetch_add(1, Ordering::Relaxed);",
+                              root + '"psiv-x-{}-{n}", std::process::id()))')
         self.assertEqual(self.check(counter), [])
-        named = ('fn scratch(name: &str) -> PathBuf {\n'
-                 '    std::env::temp_dir().join(format!("psiv-x-{}", std::process::id())).join(name)\n}\n')
+        named = self.helper(root + '"psiv-x-{}", std::process::id())).join(name)',
+                            signature="fn scratch(name: &str) -> PathBuf")
         self.assertEqual(self.check(named), [])
 
     def test_negative_control_one_prefix_at_two_sites_is_found(self):
@@ -786,7 +793,10 @@ class ParallelTestPathsCase(unittest.TestCase):
 
 
 class ClockCase(unittest.TestCase):
-    """`cpu_mhz` reads /proc/cpuinfo's per-core clocks; no clocks is None, not 0."""
+    """`cpu_mhz` reads /proc/cpuinfo's per-core clocks, `load_1m` /proc/loadavg.
+
+    A missing reading is None, not 0.
+    """
 
     def read(self, text):
         with tempfile.TemporaryDirectory() as tmp:
@@ -804,6 +814,13 @@ class ClockCase(unittest.TestCase):
     def test_negative_control_no_clock_lines_or_no_file_is_none(self):
         self.assertIsNone(self.read("processor\t: 0\nmodel name\t: x\n"))
         self.assertIsNone(self.read(None))
+
+    def test_the_load_is_loadavgs_first_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "loadavg"
+            path.write_text("10.11 7.50 4.97 3/1200 1126765\n")  # hand-written, /proc layout
+            self.assertEqual(load_1m(path), 10.11)
+            self.assertIsNone(load_1m(Path(tmp) / "absent"))
 
 
 class NotARepositoryCase(unittest.TestCase):

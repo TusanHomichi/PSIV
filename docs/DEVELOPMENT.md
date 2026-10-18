@@ -196,8 +196,10 @@ commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, the host's `cpu_count`, and each
-command's string, UTC start and end, duration, exit code, CPU clock while it
-ran (`cpu_mhz`, sampled every second), log path and parsed counts. Report a gate
+command's string, UTC start and end, duration, exit code, CPU clock and
+highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
+sampled every second; the heavy lock does not exclude unlocked headless runs,
+so a slow step is read beside its load), log path and parsed counts. Report a gate
 result from that receipt, not from a retyped summary. The gate refuses to start
 (exit 2, nothing run) while another gate holds the gate lock or while a
 process has the debug PSIV extension mapped

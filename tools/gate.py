@@ -14,7 +14,8 @@ command plus `receipt.json`, holding the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, the host's `cpu_count`, and for
 each command its string, UTC start and end, duration, exit code, the CPU clock
 sampled every second while it ran (`cpu_mhz`: mean, min, max and samples, null
-without /proc/cpuinfo), log path and parsed counts (a `Ran N tests`/`OK`/
+without /proc/cpuinfo) and the highest 1-minute load average seen then
+(`load_1m_max`, null without /proc/loadavg), log path and parsed counts (a `Ran N tests`/`OK`/
 `FAILED (...)` summary for a unittest command, `test result:` sums for
 `cargo test`; a count the run never reported is null, not zero). A gate result
 is reported from that receipt.
@@ -349,6 +350,19 @@ def cpu_mhz(cpuinfo=Path("/proc/cpuinfo")):
     return sum(values) / len(values) if values else None
 
 
+def load_1m(loadavg=Path("/proc/loadavg")):
+    """The 1-minute load average, or None where the file is absent.
+
+    The heavy lock excludes locked jobs only; an unlocked headless run (a
+    resume check's parallel `psiv-campaign` resumes) still competes for the
+    cores, and a gate timing taken beside one is read with its load.
+    """
+    try:
+        return float(loadavg.read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def _clock_summary(clocks):
     """A command's `cpu_mhz` receipt field: mean, min and max of its samples, or None."""
     if not clocks:
@@ -363,7 +377,7 @@ def _run_command(command, index, total, root, receipt_dir):
     print(f"[{index}/{total}] {command}", flush=True)
     started_wall = datetime.now(timezone.utc)
     started = time.monotonic()
-    clocks = []
+    clocks, loads = [], []
     with log_file.open("wb") as handle:
         process = subprocess.Popen(["bash", "-c", command], cwd=str(root),
                                    stdout=handle, stderr=subprocess.STDOUT)
@@ -372,6 +386,9 @@ def _run_command(command, index, total, root, receipt_dir):
                 clock = cpu_mhz()
                 if clock is not None:
                     clocks.append(clock)
+                load = load_1m()
+                if load is not None:
+                    loads.append(load)
                 try:
                     process.wait(timeout=CPU_SAMPLE_S)
                     break
@@ -396,6 +413,7 @@ def _run_command(command, index, total, root, receipt_dir):
         "counts": counts,
         "lock_class": GATE_LOCK_CLASS,
         "cpu_mhz": _clock_summary(clocks),
+        "load_1m_max": max(loads) if loads else None,
     }
 
 
