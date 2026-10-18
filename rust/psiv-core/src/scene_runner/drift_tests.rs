@@ -308,3 +308,51 @@ fn the_drift_loop_runs_map_updates_like_do_main_updates_loop() {
     runner.tick(&map, &mut state, SceneInput::None);
     assert!(runner.runs_map_updates());
 }
+
+/// `PlaceActor` is an absolute write to `$30`/`$34`: whatever sub-cell slide
+/// an `Event_StepObject` left goes with the old position. Eight frames of a
+/// one-pixel step leave the leader half a cell along; the placement lands him
+/// on the cell exactly.
+#[test]
+fn a_placement_drops_the_slide_a_step_left() {
+    static OPS: &[SceneOp] = &[
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::PartyMember(0),
+            backwards: false,
+            frames: 8,
+        },
+        SceneOp::PlaceActor {
+            actor: ActorRef::PartyMember(0),
+            x: 0x1F0,
+            y: 0x1F0,
+        },
+    ];
+    let map = map_of(&[]);
+    let mut state = GameState::new();
+    let leader = ActorRef::PartyMember(0);
+    let mut runner = SceneRunner::new(
+        OPS,
+        vec![ScriptedActor::new(leader, Cell::new(5, 5), Direction::Down)],
+        StepFrames::new(8).unwrap(),
+    );
+    let frames = StepFrames::new(8).unwrap();
+    // The op's own tick and seven more: the step's eight frames.
+    for _ in 0..7 {
+        runner.tick(&map, &mut state, SceneInput::None);
+        assert!(!runner.is_finished());
+    }
+    runner.tick(&map, &mut state, SceneInput::None);
+    let stepped = *runner.actor(leader).unwrap();
+    assert_eq!(
+        stepped.render_offset_16ths(frames),
+        (0, 8),
+        "half a cell down"
+    );
+    for _ in 0..4 {
+        runner.tick(&map, &mut state, SceneInput::None);
+    }
+    assert!(runner.is_finished());
+    let placed = *runner.actor(leader).unwrap();
+    assert_eq!(placed.cell, Cell::new(0x1F, 0x20));
+    assert_eq!(placed.render_offset_16ths(frames), (0, 0));
+}
