@@ -34,7 +34,6 @@ pub fn budget_for(objective: &Objective) -> u64 {
         | Objective::RestInn { .. }
         | Objective::Equip { .. }
         | Objective::UseTechnique { .. }
-        | Objective::Travel { .. }
         | Objective::UseItem { .. }
         | Objective::Reorder { .. }
         | Objective::Dismount
@@ -88,11 +87,6 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
             technique,
             target,
         } => driver.use_technique(caster, technique, target),
-        Objective::Travel {
-            caster,
-            technique,
-            town,
-        } => driver.travel(caster, technique, town.as_deref()),
         Objective::UseItem { item, target } => driver.use_item(item, target),
         Objective::Reorder { order } => driver.reorder(order),
         Objective::Save { slot } => driver.save_slot(*slot),

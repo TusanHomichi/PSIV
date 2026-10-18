@@ -24,11 +24,6 @@ const DEZOLIS: u16 = 0x001;
 const MOTA_SPACEPORT: u16 = 0x0BF;
 const DEZO_SPACEPORT: u16 = 0x0D4;
 const RESHEL_1: u16 = 0x14D;
-/// `SoldiersTemple` and Aiedo's RYUKA town flag (`travel.json`, index 7).
-const SOLDIERS_TEMPLE: u16 = 0x09A;
-const AIEDO_TOWN_FLAG: u16 = 7;
-/// `EventFlag_PrincipalConfession` (`ps4.constants.asm:1493`).
-const PRINCIPAL_CONFESSION: u16 = 0x0C;
 /// `IslandCave` and `IslandCave_F1`.
 const ISLAND_CAVE: u16 = 0x092;
 const ISLAND_CAVE_F1: u16 = 0x093;
@@ -328,91 +323,6 @@ fn a_scene_before_the_load_does_not_count() {
     assert_eq!(driver.scenes_since_load(ISLAND_CAVE), Some(0));
     assert!(
         halt.detail.contains("no scene ran after its load"),
-        "{}",
-        halt.detail
-    );
-}
-
-/// Rune with RYUKA and HINAS learned and TP to cast them, on `map` of world
-/// `world` at `cell`, with `towns` visited.
-fn rune_on(map: (u16, u16), cell: (u16, u16), towns: &[u16]) -> Option<Session> {
-    // `$C1`, `$C8`, `$C9`: Seth met, the Aero-Prism found; the Piata
-    // principal's confession (`EventFlag_PrincipalConfession`) keeps
-    // `RunEvent_ReenterPiata` quiet on Motavia.
-    let session = party_on(map, cell, &[PRINCIPAL_CONFESSION, 0xC1, 0xC8, 0xC9], false)?;
-    let mut game = GameState::from_snapshot(&session.runtime().game().snapshot());
-    let rune = game.roster_mut().get_mut(CharId(3)).expect("Rune");
-    let free = rune
-        .techniques
-        .iter()
-        .position(|&t| t == 0)
-        .expect("a free technique slot");
-    rune.techniques[free] = psiv_runtime::RYUKA;
-    rune.techniques[free + 1] = psiv_runtime::HINAS;
-    rune.curr_tp = 100;
-    rune.max_tp = 100;
-    for town in towns {
-        game.set(Flag::town(*town)).expect("town flag");
-    }
-    let set = pack()?;
-    Some(
-        Session::start(set.data.clone())
-            .with_battles(set.battle.clone())
-            .from_save(RetailSave {
-                snapshot: game.snapshot(),
-                location: RetailLocation {
-                    world_index: map.0,
-                    map_index_2: 0,
-                    map_index: map.1,
-                    char_x: cell.0 * 16,
-                    char_y: cell.1 * 16,
-                },
-            })
-            .expect("the map loads"),
-    )
-}
-
-/// RYUKA on Motavia (town teleport allowed) to Aiedo (town flag 7): the camp
-/// closes on the READY TO TELEPORT press and the party stands on Aiedo's
-/// overworld cell `(76/2, 116/2 + 1)`, the cell the validator places it on.
-/// An unvisited town is not listed, RYUKA without a town halts, and in the
-/// Soldier's Temple (`town_teleport` 1) the cast is refused: the negative
-/// controls.
-#[test]
-fn ryuka_takes_the_party_to_a_visited_town() {
-    let motavia = ((0, 0), (54, 93));
-    let Some(session) = rune_on(motavia.0, motavia.1, &[AIEDO_TOWN_FLAG]) else {
-        return;
-    };
-    let mut driver = Driver::new(session, None);
-    objective(
-        &mut driver,
-        r#"{"do": "travel", "caster": "Rune", "technique": "RYUKA", "town": "AIEDO"}"#,
-    )
-    .expect("RYUKA to Aiedo");
-    assert_eq!(driver.runtime().map_id().0, 0);
-    assert_eq!(driver.runtime().state().cell(), Cell::new(38, 59));
-
-    let ryuka = |town: &str, map: ((u16, u16), (u16, u16))| {
-        let session = rune_on(map.0, map.1, &[AIEDO_TOWN_FLAG]).unwrap();
-        let mut driver = Driver::new(session, None);
-        let json = if town.is_empty() {
-            r#"{"do": "travel", "caster": "Rune", "technique": "RYUKA"}"#.to_owned()
-        } else {
-            format!(
-                r#"{{"do": "travel", "caster": "Rune", "technique": "RYUKA", "town": "{town}"}}"#
-            )
-        };
-        objective(&mut driver, &json).expect_err("the travel is refused")
-    };
-    let halt = ryuka("TERMI", motavia);
-    assert_eq!(halt.kind, HaltKind::MenuEntryMissing, "{}", halt.detail);
-    assert!(halt.detail.contains("AIEDO"), "{}", halt.detail);
-    let halt = ryuka("", motavia);
-    assert!(halt.detail.contains("names no town"), "{}", halt.detail);
-    let halt = ryuka("AIEDO", ((0, SOLDIERS_TEMPLE), (32, 25)));
-    assert!(
-        halt.detail.contains("CANNOT TELEPORT HERE"),
         "{}",
         halt.detail
     );
