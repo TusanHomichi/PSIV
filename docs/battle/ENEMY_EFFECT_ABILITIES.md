@@ -345,11 +345,18 @@ sound and artwork. Both initialise with `bset #7,(a4)` / `clr.w $14(a4)` /
 for THREAD, `ps4.asm:36209`), then calls `loc_25474` (`ps4.asm:49303`), which
 loads the actor's ability, and `GetEnemySkillEffectAndRange` (`ps4.asm:8687`)
 once, at the animation handoff. It sets `Battle_Routine_2` to `$27` and
-`$FFFFEE82`. No arm of either object, and none of the helpers they call, writes
-a damage request, so the turn is the effect and nothing else.
-`Battle_DoAttackEffect` returns at `tst.w $24(a0)` / `bne.w loc_5DD2`
-(`ps4.asm:8576`) for any nonzero ability, which `roll_enemy_ability` mirrors by
-returning before `resolve_attack`.
+`$FFFFEE82`. The remaining differences between the two objects are cosmetic:
+POISON's `bset #4,$2(a4)`, a palette write, and the frame counts (`loc_1A946`
+`02 06`, `ps4.asm:36324`, against THREAD's `loc_1A7E8` `04 0B`,
+`ps4.asm:36223`). No arm of either object, and none of the animation helpers
+they call (`loc_12618`, `loc_15E1C`, `loc_256AE`, `loc_25474`, `loc_25978`,
+`QueueDMACommands`), writes a damage request or jumps into the shared damage
+tails, so the turn is the effect and nothing else.
+`Battle_DoAttackEffect` never runs the attack rider for that turn, for two
+reasons: it returns at `tst.b ($FFFFEE82).w` / `bne.w loc_5DDA`
+(`ps4.asm:8554`), the flag phase 1 set, and, decisively, at `tst.w $24(a0)` /
+`bne.w loc_5DD2` (`ps4.asm:8576`) for any nonzero ability, which
+`roll_enemy_ability` mirrors by returning before `resolve_attack`.
 
 **THREAD.** Record `$10` at `0x2833E4` is effect `$06`, STR against live AGI,
 physical resistance, miss threshold 64, range 8 (the drawn target). A success
@@ -375,8 +382,10 @@ or another carrier refused, a missing or dead target, the engine dispatch with
 no physical attack, THREAD's single roll and its AGI floor) and
 `rust/psiv-runtime/src/suites/combat_enemy_poison.rs` (three Caterpillrs from
 the pack: the poison lands, survives the escape to the field and a save round
-trip). Not modelled: both objects' artwork, frame tables and timelines, their
-palette write and the `bset #4,$2(a4)` sprite flag. Field poison (1 HP per four
+trip). Not modelled: both objects' artwork, frame tables (`02 06` and
+`04 0B`) and timelines, including the phase-8 teardown (`clr.w (a4)`,
+`Battle_Routine = $16`), POISON's palette write and its `bset #4,$2(a4)` sprite
+flag. Field poison (1 HP per four
 steps) is `rust/psiv-runtime/src/field_status.rs`.
 
 ### POISONMIST (`$24`, Mistralgec)
