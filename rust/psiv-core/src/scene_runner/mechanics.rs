@@ -10,7 +10,7 @@
 
 use super::{Blocked, SceneRunner};
 use crate::field::StepFrames;
-use crate::geom::{CELL_PIXELS, Cell, Direction};
+use crate::geom::{CELL_PIXELS, Direction};
 use crate::scene::{ActorRef, SceneEffect, SceneFault, SceneOp};
 use crate::state::{GameState, PARTY_SLOTS};
 use crate::trigger::PixelPos;
@@ -166,10 +166,7 @@ impl SceneRunner {
             let Some(member) = self.actor_mut(ActorRef::PartyMember(slot)) else {
                 continue;
             };
-            let slid = member.slide.1 + delta;
-            member.slide.1 = slid.rem_euclid(CELL_PIXELS);
-            let row = i32::from(member.cell.y) + slid.div_euclid(CELL_PIXELS);
-            member.cell = Cell::new(member.cell.x, row.clamp(0, i32::from(u16::MAX)) as u16);
+            member.slide_by(0, delta);
         }
     }
 

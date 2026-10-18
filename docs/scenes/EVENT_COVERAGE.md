@@ -143,7 +143,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$005F` | `Event_CourageTowerTop` | map trigger $4A | CourageTower_F4 | scene `Event_CourageTowerTop` |
 | `$0060` | `Event_DeVars` | dialogue `$F6` | tree 41 entry 13 | scene `Event_DeVars` |
 | `$0061` | `Event_SaLews` | dialogue `$F6` | tree 41 entry 14 | scene `Event_SaLews` |
-| `$0062` | `Event_AngerTowerAlys` | dialogue `$F6` | tree 41 entry 15 | allowlisted, #71 |
+| `$0062` | `Event_AngerTowerAlys` | dialogue `$F6` | tree 41 entry 15 | scene `Event_AngerTowerAlys` |
 | `$0063` | `Event_ReFaze` | map trigger $4E | AngerTower_F2 | scene `Event_ReFaze` |
 | `$0064` | `Event_DeVarsDefeated` | map trigger $4B | StrengthTower_F4 | scene `Event_DeVarsDefeated` |
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
@@ -198,7 +198,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
-| `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | allowlisted, #83 |
+| `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | scene `Event_EnterAngerTower` |
 | `$009A` | `Event_SoldiersTempleCaveDialogue1` | map trigger $57 | IslandCave_F1 | scene `Event_SoldiersTempleCaveDialogue1` |
 | `$009B` | `Event_SoldiersTempleCaveDialogue2` | map trigger $58 | IslandCave_F3 | scene `Event_SoldiersTempleCaveDialogue2` |
 | `$009C` | `Event_SoldiersTempleReached` | map trigger $59 | SoldiersTempleOutside | scene `Event_SoldiersTempleReached` |
@@ -252,17 +252,18 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | Issue | Area | Allowlisted events |
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
-| #71 | `Event_GetAndRunDialogue2` callers | 1 |
+| #71 | `Event_GetAndRunDialogue2` callers | 0 |
 | #81 | Motavia side content | 38 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 9 |
-| | total | 49 |
+| #83 | Dezolis late arc | 8 |
+| | total | 47 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
   (`$71`, `$37`, `$38`, `$96`, `$2A`); `$96` remains.
 - [#71](https://github.com/TusanHomichi/PSIV/issues/71): the four
-  `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`).
+  `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`); all four have
+  scenes. The entry stays so the issue's area keeps its row.
 - [#81](https://github.com/TusanHomichi/PSIV/issues/81): Motavia side content.
 - [#82](https://github.com/TusanHomichi/PSIV/issues/82): Vahal Fort and Weapon Plant.
   All nineteen events are transcribed (S9): [the story scenes](110_VahalFortStory.md),
@@ -272,14 +273,13 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 - [#83](https://github.com/TusanHomichi/PSIV/issues/83): Dezolis late arc,
   including the Dezolis dialogue controls.
 
-## Why the remaining #56 and #71 entries are not transcribed
+## Why the remaining #56 entry is not transcribed
 
-Each needs something the scene vocabulary does not have, and each is off the route:
+It needs something the scene vocabulary does not have, and it is off the route:
 
 | Event | Blocker |
 |---|---|
 | `$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) | Builds a temporary thief object in slot `$C380` (map object 2 of Zosa's item shop, which has two objects), steps it with `Event_MoveSingleObject` toward the leader's live X, then clears it. The scene cast holds party members and map objects by index; a temporary object has no `ActorRef`. |
-| `$62` `Event_AngerTowerAlys` (`$07148A`, #71) | Steps `Character_1` (the leader) and a map object with `Event_StepObject` along a direction table. `DriftNpcs` moves map objects only; the leader's position is the party driver's. |
 
 One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
 a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the

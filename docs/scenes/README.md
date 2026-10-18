@@ -132,6 +132,8 @@ tables; the clone's hack-only bodies are not evidence.
 | `Cutscene_Reunion` | `$801F` | [84](84_Reunion.md) | `$078A7C..$078D2F` |
 | `Event_AngerTowerTop` | `$69` | [85](85_AngerTowerTop.md) | `$0721CC..$072261` |
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
+| `Event_AngerTowerAlys` | `$62` | [114](114_AngerTowerAlys.md) | `$07148A..$071579` |
+| `Event_EnterAngerTower` | `$99` | [115](115_EnterAngerTower.md) | `$0737BE..$07387F` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
 ## Census-driven scenes (S7)

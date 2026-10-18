@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 49;
+const ALLOWLIST_CEILING: usize = 47;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -141,7 +141,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x005F, "Event_CourageTowerTop", Disposition::Scene),
     (0x0060, "Event_DeVars", Disposition::Scene),
     (0x0061, "Event_SaLews", Disposition::Scene),
-    (0x0062, "Event_AngerTowerAlys", Disposition::Allowlisted(71)),
+    (0x0062, "Event_AngerTowerAlys", Disposition::Scene),
     (0x0063, "Event_ReFaze", Disposition::Scene),
     (0x0064, "Event_DeVarsDefeated", Disposition::Scene),
     (0x0065, "Event_SaLewsDefeated", Disposition::Scene),
@@ -196,7 +196,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0096, "Event_PenguinFeedStolen", Disposition::Allowlisted(56)),
     (0x0097, "Event_Pennant", Disposition::Allowlisted(81)),
     (0x0098, "Event_WoodCarving", Disposition::Allowlisted(81)),
-    (0x0099, "Event_EnterAngerTower", Disposition::Allowlisted(83)),
+    (0x0099, "Event_EnterAngerTower", Disposition::Scene),
     (0x009A, "Event_SoldiersTempleCaveDialogue1", Disposition::Scene),
     (0x009B, "Event_SoldiersTempleCaveDialogue2", Disposition::Scene),
     (0x009C, "Event_SoldiersTempleReached", Disposition::Scene),

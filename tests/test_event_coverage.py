@@ -70,7 +70,7 @@ class EventCensus(unittest.TestCase):
         by_issue = {i: [e for e, (n, _) in ec.ALLOWLIST.items() if n == i] for i in ec.ISSUES}
         # #56 and #71 keep exactly what is still untranscribed of their lists.
         self.assertEqual(sorted(by_issue[56]), [0x96])
-        self.assertEqual(sorted(by_issue[71]), [0x62])
+        self.assertEqual(sorted(by_issue[71]), [])
 
     def test_the_census_sees_every_source_kind(self) -> None:
         kinds = {k for ev in self.census.events.values() for k in ev.kinds()}

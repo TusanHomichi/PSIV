@@ -8,7 +8,7 @@
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{PaletteHold, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -21,6 +21,10 @@ const MUSIC_MACHINE_CENTER: u8 = 0x89;
 const MUSIC_THE_AGE_OF_FABLES: u8 = 0xA1;
 const MUSIC_BLACK_BLOOD: u8 = 0xA8;
 const MUSIC_MYSTERY: u8 = 0xAB;
+/// `MusicID_RyucrossField` (`ps4.constants.asm:933`).
+const MUSIC_RYUCROSS_FIELD: u8 = 0x90;
+/// `Sound_StopMusic` (`ps4.constants.asm:1055`).
+const SOUND_STOP_MUSIC: u8 = 0xFB;
 const SOUND_STOP_ALL: u8 = 0xFE;
 const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_DOOR_OPENED: u8 = 0xE2;
@@ -604,6 +608,148 @@ pub static ANGER_TOWER_TOP: Scene = Scene {
             speed: 2,
         },
         SceneOp::Return { value: 0 },
+    ],
+};
+
+/// `$0062`, `Event_AngerTowerAlys`, `$07148A..$071579` (`ps4.asm:150697-150768`;
+/// record `docs/scenes/114_AngerTowerAlys.md`): tree 41 entry 15's `$F6`. The
+/// illusion (object 0) speaks, turns to Chaz, steps eight pixels at him while
+/// he backs off sixteen and steps eight more, then the retained line 8, Alys
+/// Fight `$E4`, Chaz set at `$1F0,$1F0` facing down, and battle `$18`.
+pub static ANGER_TOWER_ALYS: Scene = Scene {
+    name: "Event_AngerTowerAlys",
+    event: EventIndex(0x0062),
+    ops: &[
+        // $07148A: `moveq #7, d0` / `jsr Event_GetAndRunDialogue`.
+        standard(7),
+        // $071492..$0714A7: object 0 faces opposite the leader.
+        SceneOp::FaceOppositeOf {
+            actor: ActorRef::Npc(0),
+            of: LEADER,
+        },
+        // $0714A8..$0714D5: `move.w #7, d2` / `jsr Event_StepObject`, the
+        // step read from `loc_71572` by object 0's facing.
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::Npc(0),
+            backwards: false,
+            frames: 8,
+        },
+        // $0714D6..$071507: the leader's own facing, `neg.w` on both, `#$F`.
+        SceneOp::StepObjectAlongFacing {
+            actor: LEADER,
+            backwards: true,
+            frames: 16,
+        },
+        // $071508..$071535: object 0 again, eight frames.
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::Npc(0),
+            backwards: false,
+            frames: 8,
+        },
+        // $071536: `moveq #8, d0` / `jsr Event_GetAndRunDialogue2`.
+        retained(8),
+        // $07153E: `move.b #EventFlag_AlysFight, d0` / `jsr EventFlags_Set`.
+        SceneOp::SetFlag {
+            flag: Flag::event(0xE4),
+            value: true,
+        },
+        // $071548..$07155D: `move.w #$1F0` to `$30` and `$34` of Character_1,
+        // then `move.w #0, $6(a4)`: a raw facing write (down), no
+        // `Event_UpdateObjFacing` call.
+        SceneOp::PlaceActor {
+            actor: LEADER,
+            x: 0x1F0,
+            y: 0x1F0,
+        },
+        SceneOp::Face {
+            actor: LEADER,
+            facing: Direction::Down,
+        },
+        // $07155E: `bset #3, (Map_Load_Flags).w`.
+        SceneOp::SetMapLoadFlags {
+            set: 0x08,
+            clear: 0,
+        },
+        // $071564..$071570: battle `$18`, `bset #3, Routine_Exit_Flags`, `rts`.
+        SceneOp::StartBattle { index: 0x18 },
+    ],
+};
+
+/// `$0099`, `Event_EnterAngerTower`, `$0737BE..$07387F` (`ps4.asm:153370-153411`;
+/// record `docs/scenes/115_EnterAngerTower.md`): `RunEvent_EnterAngerTower`
+/// (trigger `$56`) fires it while Anger Tower `$E0` is clear. Without Elsydeon
+/// (`$D9`) the barrier throws the party back to Rykros; with it the barrier
+/// breaks (the palette whitens, the third line held) and `$E0` is set.
+pub static ENTER_ANGER_TOWER: Scene = Scene {
+    name: "Event_EnterAngerTower",
+    event: EventIndex(0x0099),
+    ops: &[
+        // $0737BE..$0737CB: `move.b #EventFlag_Elsydeon, d0` / test / `bne.w loc_73820`.
+        SceneOp::BranchFlag {
+            flag: Flag::event(0xD9),
+            if_set: 8,
+            if_clear: 1,
+        },
+        // $0737CC..$0737E1: dialogue 5, stop the music, fade out.
+        standard(5),
+        SceneOp::PlaySound {
+            id: SOUND_STOP_MUSIC,
+        },
+        SceneOp::FadeOut,
+        // $0737E2..$073811: Rykros (`$2`) from the Anger Tower (`$FC`) at
+        // `$44,$C2`, facing 0, alignment 0, `bclr #3, Map_Load_Flags`,
+        // `jsr RefreshMap`.
+        SceneOp::LoadMap {
+            map: 0x002,
+            prev_map: 0xFC,
+            start_x: 0x44,
+            start_y: 0xC2,
+            facing: Direction::Down,
+            align: 0,
+            clear_load_flags: 0x08,
+        },
+        // $073812..$07381F: the Rykros field music, `jmp Pal_FadeIn`.
+        SceneOp::PlaySound {
+            id: MUSIC_RYUCROSS_FIELD,
+        },
+        SceneOp::FadeIn,
+        SceneOp::End,
+        // loc_73820: dialogue 6 and `SFXID_BarrierBroken`.
+        standard(6),
+        SceneOp::PlaySound {
+            id: SFX_BARRIER_BROKEN,
+        },
+        // $073830..$073855: `moveq #$27, d7`; per frame `Pal_IncreaseTone`,
+        // `Pal_Init_Line_3` (`$296300`) copied over `Palette_Line_3`
+        // (`$FFFFFB40`, sixteen words), `VInt_Prepare`.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 40,
+                hold: Some(PaletteHold {
+                    source_rom_addr: 0x0029_6300,
+                    destination_ram: 0xFFFF_FB40,
+                    words: 16,
+                }),
+            },
+        },
+        SceneOp::WaitFrames { frames: 40 },
+        // $073856..$073867: `moveq #$27, d7`; per frame `loc_58666` steps all
+        // 64 words back toward `Palette_Table_Buffer_2`, then `VInt_Prepare`.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteToneFlash {
+                brighten: false,
+                words: 64,
+                frames: 40,
+            },
+        },
+        SceneOp::WaitFrames { frames: 40 },
+        // $073868..$073875: `popdlg` / `jsr Event_RunDialogue`.
+        SceneOp::RunDialogueResume,
+        // $073876: `move.b #EventFlag_AngerTower, d0` / `jmp EventFlags_Set`.
+        SceneOp::SetFlag {
+            flag: Flag::event(0xE0),
+            value: true,
+        },
     ],
 };
 

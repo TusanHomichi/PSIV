@@ -231,7 +231,10 @@ pub static RYKROS: Scene = Scene {
             },
         },
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 30 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 30,
+                hold: None,
+            },
         },
         SceneOp::WaitFrames { frames: 30 },
         SceneOp::PlaySound {
@@ -282,7 +285,10 @@ pub static ENDING: Scene = Scene {
         // $078F9C..$078FAD: `moveq #$3B, d7` / `jsr Pal_IncreaseTone` / `jsr
         // VInt_Prepare` / `dbra`: sixty frames, the tone and its frames.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         },
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
@@ -807,7 +813,10 @@ pub static ENDING: Scene = Scene {
         SceneOp::PlaySound { id: SOUND_STOP_ALL },
         // $079BD2..$079BE3: the same sixty-frame loop.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         },
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
@@ -910,7 +919,10 @@ pub static ENDING: Scene = Scene {
         },
         // $07A0FA..$07A10B: the same sixty-frame loop.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         },
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::LoadMap {

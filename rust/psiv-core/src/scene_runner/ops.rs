@@ -341,8 +341,11 @@ impl SceneRunner {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
+                // An absolute write to `$30`/`$34`: whatever sub-cell slide a
+                // step or ride left goes with the old position.
                 walker.cell = cell;
                 walker.target = None;
+                walker.slide = (0, 0);
                 effects.push(SceneEffect::ActorPlaced { actor, at: cell });
                 self.pc += 1;
             }
@@ -708,6 +711,20 @@ impl SceneRunner {
                     return Some(SceneFault::BadJump { target });
                 }
                 self.pc = target;
+            }
+            SceneOp::StepObjectAlongFacing {
+                actor,
+                backwards,
+                frames,
+            } => {
+                if self.actor(actor).is_none() {
+                    return Some(SceneFault::UnknownActor { actor });
+                }
+                self.start_step(actor, backwards, frames, effects);
+                self.pc += 1;
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
             }
             SceneOp::DriftNpcs { drifts, frames } => {
                 if let Some(actor) = self.start_drift(drifts, frames) {

@@ -257,7 +257,9 @@ pub static SCENES: &[Scene] = &[
     dezo_endgame::BEFORE_ELSYDEON_CAVE,
     dezo_endgame::ELSYDEON,
     dezo_endgame::REUNION,
+    dezo_endgame::ENTER_ANGER_TOWER,
     dezo_endgame::ANGER_TOWER_TOP,
+    dezo_endgame::ANGER_TOWER_ALYS,
     dezo_endgame::ANGER_TOWER_EXIT_TOP,
     dezo_endgame::PROFOUND_DARKNESS,
     retail_endgame::RAJA_SICK,
@@ -428,7 +430,9 @@ mod tests {
             ("Cutscene_BeforeElsydeonCave", 16),
             ("Cutscene_Elsydeon", 47),
             ("Cutscene_Reunion", 36),
+            ("Event_EnterAngerTower", 16),
             ("Event_AngerTowerTop", 12),
+            ("Event_AngerTowerAlys", 11),
             ("Event_AngerTowerExitTop", 10),
             ("Cutscene_ProfoundDarkness", 20),
             ("Cutscene_RajaSick", 54),
@@ -575,6 +579,7 @@ mod tests {
         ("Event_XeAThoulBeforeBattle", 0x070B32, 0x36),
         ("Event_AirCastleFakeChest", 0x070B58, 0x3C),
         ("Event_LashiecAppearance", 0x070E1E, 0x37),
+        ("Event_AngerTowerAlys", 0x071538, 0x08),
         ("Cutscene_Alshline", 0x074502, 0x68),
         ("Cutscene_ProfoundDarkness", 0x078E9C, 0x03),
         ("Event_FractOozeFound", 0x072B2E, 0x2F),
@@ -659,7 +664,7 @@ mod tests {
         match op {
             SceneOp::Presentation {
                 op:
-                    crate::scene_presentation::PresentationOp::PaletteIncreaseTone { frames }
+                    crate::scene_presentation::PresentationOp::PaletteIncreaseTone { frames, .. }
                     | crate::scene_presentation::PresentationOp::PaletteToneFlash { frames, .. },
             } => Some(*frames),
             _ => None,
@@ -700,7 +705,10 @@ mod tests {
     fn a_tone_loop_without_its_frames_is_reported() {
         use crate::scene_presentation::PresentationOp;
         let tone = SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         };
         assert_eq!(tone_loops_without_their_frames(&[tone]), vec![0]);
         assert_eq!(

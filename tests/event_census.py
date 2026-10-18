@@ -373,7 +373,7 @@ def chain_callers(ev: Event) -> list[int]:
 #: shrinks: `ALLOWLIST_CEILING` is the most it may ever hold).
 ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
     (ISSUE_TRIGGERS, "trigger-fired, no scene (issue #56)", (0x96,)),
-    (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", (0x62,)),
+    (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", ()),
     (
         ISSUE_MOTAVIA,
         "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Plate System and Wreckage",
@@ -390,10 +390,10 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
     ),
     (
         ISSUE_DEZOLIS,
-        "Dezolis late arc: the Silence Temple door, the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and Anger Tower controls",
+        "Dezolis late arc: the Silence Temple door, the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and the fifth-character controls",
         (
             0x42, 0x49, 0x4A, 0x4B, 0x5B,
-            0x67, 0x68, 0x6D, 0x99,
+            0x67, 0x68, 0x6D,
         ),
     ),
 )
@@ -401,7 +401,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 49
+ALLOWLIST_CEILING = 47
 
 
 def disposition(

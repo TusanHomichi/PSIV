@@ -146,7 +146,7 @@ mistaken for missing pointer data.
 | `$5F` | `Event_CourageTowerTop` | `$071102..$07144A` | [76](76_CourageTowerTop.md) |
 | `$60` | `Event_DeVars` | `$07144A..$07146A` | [77](77_DeVars.md) |
 | `$61` | `Event_SaLews` | `$07146A..$07148A` | [78](78_SaLews.md) |
-| `$62` | `Event_AngerTowerAlys` | `$07148A..$07157A` | boundary [88](88_RetailBoundaries.md) |
+| `$62` | `Event_AngerTowerAlys` | `$07148A..$07157A` | [114](114_AngerTowerAlys.md) |
 | `$63` | `Event_ReFaze` | `$07157A..$07175A` | [79](79_ReFaze.md) |
 | `$64` | `Event_DeVarsDefeated` | `$07175A..$071822` | [80](80_DeVarsDefeated.md) |
 | `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
