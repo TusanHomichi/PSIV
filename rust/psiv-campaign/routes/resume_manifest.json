@@ -34,7 +34,7 @@
    "resumes": ["elsydeon"],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
    "date": "2026-10-17",
-   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:151963-151964, 151996-151997), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
+   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave (ps4.asm:157427) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:157451-157452; restored by Cutscene_Elsydeon, :157468, at :157747-157748), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
   },
   {
    "chapter": "reunion",
