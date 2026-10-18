@@ -113,7 +113,7 @@ All commands run from the repository root. Prepare local prerequisites from
 
 ```bash
 PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_psiv_tools.py'
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::camp_order:: -- --test-threads=1
+cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::camp_order::
 ```
 
 The full commands and the heavy-run lock are in the

@@ -157,6 +157,11 @@ def module_file(module: str, crates: set[str], names: set[str]) -> bool:
     return False
 
 
+#: A jobs or test-thread pin in a focused-test command: the serial form the gate
+#: dropped in #157 (docs/DEVELOPMENT.md, "Run checks").
+SERIAL_RE = re.compile(r"CARGO_BUILD_JOBS=|--test-threads")
+
+
 def command_problems(command: str, members: set[str], names: set[str]) -> list[str]:
     """Every way one focused-test command names something that is not there."""
     problems: list[str] = []
@@ -176,6 +181,9 @@ def command_problems(command: str, members: set[str], names: set[str]) -> list[s
     for module in FILTER_RE.findall(command):
         if not module_file(module, crates, names):
             problems.append(f"filter names a module the crate does not have: {module}::")
+    if SERIAL_RE.search(command):
+        problems.append("pins CARGO_BUILD_JOBS or --test-threads; a focused test runs at "
+                        f"cargo's defaults, as the gate's cargo steps do (#157): {command}")
     if not crates and not MODULE_RE.search(command):
         problems.append(f"names no crate or Python module to check: {command}")
     return problems
@@ -398,10 +406,7 @@ class Parsing(unittest.TestCase):
     def test_commands_name_a_crate_a_target_and_a_module(self):
         names = {"rust/psiv-core/tests/warps.rs", "tests/test_shops.py"}
         members = {"psiv-core", "psiv-runtime"}
-        good = (
-            "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml "
-            "-p psiv-core --test warps -- --test-threads=1"
-        )
+        good = "cargo test --manifest-path rust/Cargo.toml -p psiv-core --test warps"
         self.assertEqual(command_problems(good, members, names), [])
         self.assertEqual(command_problems("PYTHONPATH=. python3 -m unittest tests.test_shops", members, names), [])
         broken = command_problems("-p psiv-godot --test warps", members, names)
@@ -412,12 +417,22 @@ class Parsing(unittest.TestCase):
     def test_a_lib_filter_names_a_module_the_crate_has(self):
         names = {"rust/psiv-godot/src/camp.rs", "rust/psiv-godot/src/battle/layout.rs"}
         members = {"psiv-godot"}
-        command = "cargo test --manifest-path rust/Cargo.toml -p psiv-godot --lib camp:: -- --test-threads=1"
+        command = "cargo test --manifest-path rust/Cargo.toml -p psiv-godot --lib camp::"
         self.assertEqual(command_problems(command, members, names), [])
         command = "cargo test --manifest-path rust/Cargo.toml -p psiv-godot --lib battle::layout::"
         self.assertEqual(command_problems(command, members, names), [])
         command = "cargo test --manifest-path rust/Cargo.toml -p psiv-godot --lib camps::"
         self.assertTrue(command_problems(command, members, names))
+
+    def test_negative_control_a_serial_pin_is_a_problem(self):
+        """The pre-#157 form, jobs and threads pinned to one, each on its own."""
+        names = {"rust/psiv-core/tests/warps.rs"}
+        base = "cargo test --manifest-path rust/Cargo.toml -p psiv-core --test warps"
+        for command in (f"CARGO_BUILD_JOBS=1 {base} -- --test-threads=1",
+                        f"CARGO_BUILD_JOBS=2 {base}", f"{base} -- --test-threads=1"):
+            problems = command_problems(command, {"psiv-core"}, names)
+            self.assertEqual(len(problems), 1, command)
+            self.assertIn("pins CARGO_BUILD_JOBS or --test-threads", problems[0])
 
 
 if __name__ == "__main__":
