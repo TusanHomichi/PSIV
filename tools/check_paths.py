@@ -52,17 +52,16 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
 
 try:  # imported as `tools.check_paths`: the suite, and the gate's `PYTHONPATH=.`
     from tools.check_docs import LINK_RE, heading_slugs, iter_fenced_lines, slugify
-    from tools.repo_files import RepoFilesError, repo_files
+    from tools.repo_files import RepoFilesError, ignored_paths, repo_files
 except ModuleNotFoundError:  # `python3 tools/check_paths.py` puts `tools/` itself on sys.path
     from check_docs import LINK_RE, heading_slugs, iter_fenced_lines, slugify
-    from repo_files import RepoFilesError, repo_files
+    from repo_files import RepoFilesError, ignored_paths, repo_files
 
 #: The sources scanned: code, and the routes whose note strings cite docs.
 SOURCE_PATTERNS = ("*.rs", "*.gd", "*.py", "*.sh", "*.c", "*.h", "*.md",
@@ -136,36 +135,6 @@ _RANGE_RE = re.compile(r"\.\.(?!/)")
 _QUOTED_HEADING_RE = re.compile(
     _START + r"`?(?P<path>[\w./-]+\.md)`?(?:'s)?,? (?:§ ?)?\\?\"(?P<heading>[^\"\\]{2,80})\\?\""
 )
-
-
-def _ignored(paths: Iterable[str], root: Path) -> set[str]:
-    """The members of `paths` that git ignores, themselves or through a parent.
-
-    A parent is asked first: in a checkout whose ignored input directories are
-    symbolic links, git refuses to answer for a path beyond one. A
-    directory-only pattern (`build/`) matches a path that does not exist only
-    when it is spelled with a trailing slash, so both spellings are asked, one
-    at a time, since git fails the whole question when one is beyond a link.
-    """
-    answers: dict[str, bool] = {}
-
-    def ignored(path: str) -> bool:
-        if path not in answers:
-            answers[path] = any(
-                subprocess.run(
-                    ["git", "check-ignore", "-q", spelling], capture_output=True,
-                    cwd=root, check=False,
-                ).returncode == 0
-                for spelling in (path, path + "/")
-            )
-        return answers[path]
-
-    found = set()
-    for path in set(paths):
-        parts = path.rstrip("/").split("/")
-        if any(ignored("/".join(parts[:end])) for end in range(1, len(parts) + 1)):
-            found.add(path)
-    return found
 
 
 def _crate_root(source: str, crates: set[str]) -> str | None:
@@ -383,7 +352,7 @@ def check(root: Path | str = Path("."),
                 shown = f'"{anchor}"' if kind == "heading" else f"#{anchor}"
                 problems.append(f"{source}:{line}: missing heading anchor: {target} {shown}")
 
-    ignored = _ignored((path for _, _, path, _, _ in unresolved), root)
+    ignored = ignored_paths((path for _, _, path, _, _ in unresolved), root)
     for source, line, path, anchor, kind in unresolved:
         if path.rstrip("/") in ignored:
             continue

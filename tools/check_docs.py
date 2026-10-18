@@ -86,9 +86,9 @@ except ModuleNotFoundError:  # reported by `main`: the checker cannot run withou
     yaml = None
 
 try:  # imported as `tools.check_docs`: the suite, and the gate's `PYTHONPATH=.`
-    from tools.repo_files import repo_files
+    from tools.repo_files import ignored_paths, repo_files
 except ModuleNotFoundError:  # `python3 tools/check_docs.py` puts `tools/` itself on sys.path
-    from repo_files import repo_files
+    from repo_files import ignored_paths, repo_files
 
 CHECKED_PATH_PREFIXES = (
     "docs/",
@@ -179,21 +179,9 @@ def git_stdout(*args: str) -> str:
 
 
 def is_ignored(path: str) -> bool:
-    """True when git ignores `path`, which marks it a local input.
-
-    A directory-only pattern (`oracle/frames/`) matches a path that does not
-    exist on disk only when the path is spelled with a trailing slash, so both
-    spellings go in. `-q` takes a single pathname; `--stdin` carries both.
-    """
-    proc = subprocess.run(
-        ["git", "check-ignore", "-q", "--stdin"],
-        input=f"{path}\n{path}/\n",
-        capture_output=True,
-        text=True,
-        cwd=Path.cwd(),
-        check=False,
-    )
-    return proc.returncode == 0
+    """True when git ignores `path`, which marks it a local input
+    (`tools/repo_files.py` `ignored_paths`, asked at the repository root)."""
+    return path in ignored_paths([path])
 
 
 def iter_fenced_lines(lines: list[str]):
