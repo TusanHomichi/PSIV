@@ -2,8 +2,8 @@
 
 The extractor is grounded against the US retail ROM (SHA-256
 `511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`) and the
-public `ps4disasm` work. The repository contains no game data beyond a few short
-byte signatures in tests that identify structures in the ROM.
+public `ps4disasm` work. What the repository holds from the game, and what stays
+local, is listed in the [README](../../README.md#license-and-third-party-code).
 
 ## Topic files
 

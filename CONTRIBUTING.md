@@ -19,9 +19,12 @@ code and focused test that own a feature in the [feature map](docs/FEATURE_MAP.m
 - Cite the cartridge for a rule (a disassembly symbol or ROM offset). A
   deliberate difference from the original is recorded in the
   [source notes](docs/source-notes/README.md).
-- Commit no ROM-derived data: not the ROM, the generated pack, extracted
-  images, captures or saves
-  ([local inputs](AGENTS.md#protect-local-inputs-and-evidence)).
+- Commit no ROM, pack, `generated/` output, extracted images or sound, captures
+  or saves ([local inputs](AGENTS.md#protect-local-inputs-and-evidence)), and
+  no table copied from the ROM: a test reads tables from the local pack. What
+  the repository does hold from the game (observed-state fixtures, byte
+  signatures, citations) is listed in the
+  [README](README.md#license-and-third-party-code).
 
 ## Questions, issues and labels
 

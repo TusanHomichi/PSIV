@@ -2,9 +2,10 @@
 
 [Project overview](../README.md) · [Documentation index](README.md)
 
-PSIV's game data is not compiled in. The game reads it at start-up from a
-**data pack**, a directory of JSON tables, PNG images and sound data that
-`python3 -m psiv_tools pack <ROM> runtime-pack` builds from your ROM. Edit those
+PSIV's game data is not compiled in (its rules and event scripts are). The game
+reads the data at start-up from a **data pack**, a directory of JSON tables, PNG
+images and sound data that `python3 -m psiv_tools pack <ROM> runtime-pack`
+builds from your ROM. Edit those
 files and the game plays your edits, as long as they still fit the pack's schema.
 The pack is built from the ROM, so a mod is shared as a description or a script
 of its edits, never as pack files.

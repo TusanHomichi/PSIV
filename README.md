@@ -32,9 +32,10 @@ in places; the [known differences](#known-differences) are listed.
 PSIV runs from a source checkout until the release package lands
 ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
 
-**You bring the ROM.** PSIV ships no game data: it builds everything from a ROM
-image of the US retail release that you supply, and nothing derived from it is
-distributed here. Check yours before you start; the SHA-256 must be exactly this
+**You bring the ROM.** PSIV builds the game's graphics, sound, maps, text and
+data tables from a ROM image of the US retail release that you supply, and does
+not distribute them; what the repository does hold from the game is listed
+under [license](#license-and-third-party-code). Check yours before you start; the SHA-256 must be exactly this
 one:
 
 ```console
@@ -128,11 +129,27 @@ and the [roadmap](docs/ROADMAP.md) keeps the checklist.
 ## License and third-party code
 
 PSIV's original code and documentation are under the [MIT License](LICENSE),
-copyright © 2026 Peter Permenter. The license covers what is in this repository
-and nothing else: not the original game, its ROM, the data pack built from it,
-extracted images or sound, captures, or saves. The repository contains no game
-data beyond a few short byte signatures in tests that identify structures in the
-ROM.
+copyright © 2026 Peter Permenter. The license covers PSIV's own work and nothing
+else: not the original game, its ROM, the data pack built from it, extracted
+images or sound, captures, or saves. None of those is tracked here; the ROM, the
+pack, `generated/`, saves and emulator captures stay local, ignored by Git.
+
+What the repository does hold from the game:
+
+- the game's rules and event scripts, rewritten in Rust from the disassembly,
+  with the cartridge's own ids, flags, offsets and constants, and citations of
+  the disassembly by symbol and line;
+- short byte signatures that identify ROM structures, in the extractor and its
+  tests;
+- names, numbers and short quoted lines of dialogue in the documents and tests;
+- test fixtures that record game state observed in an emulator: the battle
+  replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/` (party and
+  enemy stats, random draws, damage, turn order) and the oracle receipts under
+  `oracle/fixtures/`;
+- one fixture that copies part of the ROM's battle tables (enemies, enemy
+  skills, formations, equipment and techniques),
+  `rust/psiv-core/src/battle/replay_fixtures/motavia_pack.json`, which
+  [#149](https://github.com/TusanHomichi/PSIV/issues/149) removes before 1.0.
 
 Third-party code is fetched at build time, never committed:
 
