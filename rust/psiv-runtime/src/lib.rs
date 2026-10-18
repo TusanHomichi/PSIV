@@ -39,6 +39,7 @@ mod geometry;
 mod item_action;
 mod map_change;
 mod map_load_adjust;
+pub use map_change::LoadedMap;
 pub use map_load_adjust::{FieldLoad, adjust_field_load};
 mod new_game;
 mod pad;

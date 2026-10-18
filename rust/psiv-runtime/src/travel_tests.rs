@@ -93,7 +93,7 @@ fn travel_ryuka_browse_is_free_and_confirmation_charges_once_at_the_selected_tow
     );
     assert!(matches!(
         &rt.complete_camp_travel().unwrap()[..],
-        [RuntimeEvent::MapChanged { map: MapId(0), .. }]
+        [RuntimeEvent::MapChanged { map, .. }] if map.id() == MapId(0)
     ));
     assert_eq!(rt.state().cell(), Cell::new(61, 102));
     assert_eq!(rt.previous_map_id(), 0x1D);

@@ -166,9 +166,9 @@ fn a_trigger_on_a_warp_cell_wins_over_the_warp() {
     gated.game.set(Flag::event(0x82)).unwrap();
     let events = step_down(&mut gated);
     assert!(
-        events
-            .iter()
-            .any(|event| matches!(event, RuntimeEvent::MapChanged { map, .. } if *map == MapId(1))),
+        events.iter().any(
+            |event| matches!(event, RuntimeEvent::MapChanged { map, .. } if map.id() == MapId(1))
+        ),
         "the warp fires: {events:?}"
     );
     assert!(!gated.scene_active());

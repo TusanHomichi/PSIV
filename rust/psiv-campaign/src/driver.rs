@@ -469,7 +469,7 @@ impl Driver {
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
                 RuntimeEvent::MapChanged { map, .. } => {
-                    *self.map_loads.entry(map.0).or_default() += 1;
+                    *self.map_loads.entry(map.id().0).or_default() += 1;
                 }
                 other if is_scene_fault(other, scene_began, self.is_doorway_row(other)) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));

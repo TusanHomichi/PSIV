@@ -36,23 +36,42 @@ use crate::map_load_adjust::{FieldLoad, adjust_field_load};
 use crate::vehicle;
 use crate::{BridgeError, Runtime, RuntimeEvent};
 
-/// A field load that happened: the map the loader read, after
-/// `GameMode_LoadFieldMap`'s redirects. It is the only source of
-/// [`RuntimeEvent::MapChanged`], so the event names the map now loaded and
-/// never the one a warp or a scene asked for (`map_change_event_owner`
-/// guards it).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct MapLoaded {
+/// The map a field load read, after `GameMode_LoadFieldMap`'s redirects: the
+/// payload of [`RuntimeEvent::MapChanged`]. Only this module builds one, at
+/// the end of a load, so the event can only name the map now loaded, never
+/// the one a warp or a scene asked for. Its field is private, so no other
+/// module, in this crate or outside it, can construct one:
+///
+/// ```compile_fail,E0451
+/// let _ = psiv_runtime::LoadedMap { map: psiv_core::MapId(0x160) };
+/// ```
+///
+/// A reader takes the id:
+///
+/// ```
+/// fn loaded(event: &psiv_runtime::RuntimeEvent) -> Option<psiv_core::MapId> {
+///     match event {
+///         psiv_runtime::RuntimeEvent::MapChanged { map, .. } => Some(map.id()),
+///         _ => None,
+///     }
+/// }
+/// # let _ = loaded;
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LoadedMap {
     map: MapId,
 }
 
-impl MapLoaded {
+impl LoadedMap {
+    /// The map now loaded.
+    #[must_use]
+    pub fn id(self) -> MapId {
+        self.map
+    }
+
     /// The event the load reports, through `trigger`'s transition.
     pub(crate) fn event(self, trigger: WarpTrigger) -> RuntimeEvent {
-        RuntimeEvent::MapChanged {
-            map: self.map,
-            trigger,
-        }
+        RuntimeEvent::MapChanged { map: self, trigger }
     }
 }
 
@@ -261,7 +280,7 @@ impl Runtime {
         target: MapId,
         cell: Cell,
         facing: Direction,
-    ) -> Result<MapLoaded, BridgeError> {
+    ) -> Result<LoadedMap, BridgeError> {
         self.change_map_from(target, cell, facing, self.map.id().0)
     }
 
@@ -274,7 +293,7 @@ impl Runtime {
         facing: Direction,
         previous_map: u16,
         clear_load_flags: u8,
-    ) -> Result<MapLoaded, BridgeError> {
+    ) -> Result<LoadedMap, BridgeError> {
         // The scene's own `bclr`/`bset` writes precede the load call.
         self.map_load_flags &= !clear_load_flags;
         self.change_map_kind(target, cell, facing, previous_map, MapLoad::Refresh)
@@ -286,7 +305,7 @@ impl Runtime {
         cell: Cell,
         facing: Direction,
         previous_map: u16,
-    ) -> Result<MapLoaded, BridgeError> {
+    ) -> Result<LoadedMap, BridgeError> {
         self.change_map_kind(target, cell, facing, previous_map, MapLoad::Field)
     }
 
@@ -297,7 +316,7 @@ impl Runtime {
         facing: Direction,
         previous_map: u16,
         kind: MapLoad,
-    ) -> Result<MapLoaded, BridgeError> {
+    ) -> Result<LoadedMap, BridgeError> {
         // `GameMode_LoadFieldMap` redirects four maps from the event flags
         // before it reads the record (`ps4.asm:107526-107529`); `RefreshMap`
         // does not.
@@ -385,7 +404,7 @@ impl Runtime {
         }
         self.saved_map_index_2 = previous_map;
         self.apply_travel_entry();
-        Ok(MapLoaded { map: target })
+        Ok(LoadedMap { map: target })
     }
 }
 
@@ -422,55 +441,3 @@ mod map_music_tests {
     }
 }
 
-#[cfg(test)]
-mod map_change_event_owner {
-    use std::path::Path;
-
-    /// The source of `RuntimeEvent::MapChanged` constructions outside
-    /// `MapLoaded::event`: production code only (a file's text before its
-    /// first `#[cfg(test)]`, `*_tests.rs` and `suites/` skipped), with a
-    /// construction told from a pattern by having no `..`.
-    fn constructions(root: &Path, out: &mut Vec<String>) {
-        for entry in std::fs::read_dir(root).unwrap() {
-            let path = entry.unwrap().path();
-            let name = path.file_name().unwrap().to_string_lossy().into_owned();
-            if path.is_dir() {
-                if name != "suites" {
-                    constructions(&path, out);
-                }
-                continue;
-            }
-            if !name.ends_with(".rs") || name.ends_with("_tests.rs") {
-                continue;
-            }
-            if ["events.rs", "map_change.rs"].contains(&name.as_str())
-                && path.parent() == Some(root)
-            {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).unwrap();
-            let code = text.split("#[cfg(test)]").next().unwrap_or("");
-            for (at, _) in code.match_indices("MapChanged {") {
-                let body = &code[at..];
-                let body = &body[..body.find('}').unwrap_or(body.len())];
-                if !body.contains("..") {
-                    out.push(format!("{}: {}", path.display(), body.replace('\n', " ")));
-                }
-            }
-        }
-    }
-
-    /// Every `MapChanged` the runtime emits comes from the load that
-    /// happened, so its `map` is the map the redirects chose: no emitter may
-    /// build the variant from the map it asked for.
-    #[test]
-    fn only_a_finished_load_builds_map_changed() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        let mut found = Vec::new();
-        constructions(&root, &mut found);
-        assert!(
-            found.is_empty(),
-            "build it with MapLoaded::event: {found:#?}"
-        );
-    }
-}

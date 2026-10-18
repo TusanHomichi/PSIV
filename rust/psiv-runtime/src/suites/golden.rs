@@ -47,10 +47,13 @@ fn walking_into_the_academy_warps_to_the_academy() {
     }
 
     assert!(
-        events.contains(&RuntimeEvent::MapChanged {
-            map: MapId(0x011),
-            trigger: WarpTrigger::MapChange,
-        }),
+        events.iter().any(|e| matches!(
+            e,
+            RuntimeEvent::MapChanged {
+                map,
+                trigger: WarpTrigger::MapChange,
+            } if map.id() == MapId(0x011)
+        )),
         "expected the academy doorway to fire, got {events:?}"
     );
     assert_eq!(rt.map_id(), MapId(0x011));
