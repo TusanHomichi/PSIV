@@ -16,6 +16,7 @@ reader needs; the rest is verbatim.
 import contextlib
 import fcntl
 import io
+import itertools
 import json
 import os
 import subprocess
@@ -310,17 +311,51 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(receipt["cpu_count"], os.cpu_count())
         self.assertTrue((self.root / "second.txt").is_file())
 
-    def test_the_clock_is_sampled_while_a_command_runs(self):
-        """A longer command gets one clock sample per CPU_SAMPLE_S, not one in all."""
-        sleeper = 'python3 -c "import time; time.sleep(0.5)"'
-        loads = iter([1.0, 9.5] + [2.0] * 100)
-        with mock.patch("tools.gate.CPU_SAMPLE_S", 0.05), \
+    def run_sampled(self, loads, samples):
+        """One command that exits only after the gate has taken `samples` load samples.
+
+        The command waits on a file the patched `load_1m` writes at its
+        `samples`th call, so the sample count is set by the test, not by how
+        fast the host runs (a fixed sleep took fewer samples under load). Each
+        call returns the next value of `loads`. The command gives up after 60 s.
+        """
+        release = self.root / "sampled"
+        calls = itertools.count(1)
+
+        def load():
+            if next(calls) == samples:
+                release.write_text("")
+            return next(loads)
+
+        waiter = ("import os, sys, time; deadline = time.monotonic() + 60\n"
+                  f"while not os.path.exists({str(release)!r}):\n"
+                  "    time.sleep(0.01)\n"
+                  "    if time.monotonic() > deadline: sys.exit('never released')\n")
+        script = self.root / "waiter"
+        script.write_text(waiter)
+        with mock.patch("tools.gate.CPU_SAMPLE_S", 0.01), \
                 mock.patch("tools.gate.cpu_mhz", return_value=2300.0), \
-                mock.patch("tools.gate.load_1m", side_effect=lambda: next(loads)):
-            receipt, _ = self.run_quiet([sleeper])
-        self.assertEqual(receipt["commands"][0]["cpu_mhz"]["mean"], 2300)
-        self.assertGreaterEqual(receipt["commands"][0]["cpu_mhz"]["samples"], 5)
-        self.assertEqual(receipt["commands"][0]["load_1m_max"], 9.5)
+                mock.patch("tools.gate.load_1m", side_effect=load):
+            return self.run_quiet([f"python3 {script}"])[0]
+
+    def test_the_clock_is_sampled_while_a_command_runs(self):
+        """A longer command gets one sample per CPU_SAMPLE_S, not one in all."""
+        loads = itertools.chain([1.0, 9.5], itertools.repeat(2.0))
+        record = self.run_sampled(loads, samples=20)["commands"][0]
+        self.assertEqual(record["exit_code"], 0)
+        self.assertEqual(record["cpu_mhz"]["mean"], 2300)
+        self.assertGreaterEqual(record["cpu_mhz"]["samples"], 20)
+        self.assertEqual(record["load_1m_max"], 9.5)  # the highest, not the first or last
+
+    def test_negative_control_a_finite_load_supply_runs_out(self):
+        """The pre-fix form: a fixed list of loads, shorter than the samples taken.
+
+        A list sized for one host's speed ran out when the command ran longer;
+        here the command outlives three values, so `next` raises in the gate's
+        sampling loop, which kills the command and re-raises.
+        """
+        with self.assertRaises(StopIteration):
+            self.run_sampled(iter([1.0, 9.5, 2.0]), samples=10)
 
     def test_a_failure_is_recorded_and_later_commands_still_run(self):
         commands = [fake_step("first", marker="first.txt"),
