@@ -23,6 +23,7 @@ mod field_map;
 mod field_status;
 mod field_visuals;
 mod input;
+mod named_caches;
 mod red_palette;
 mod runtime_events;
 mod save_dir;
@@ -81,6 +82,9 @@ pub(crate) fn session_store() -> Option<SaveStore> {
 /// same configuration from the constructor
 /// (`with_saves`, `with_title_autostart`, `with_scene_dialogue_autoclose`),
 /// because the title reads its switch and its slot rows as it installs.
+/// The cinema letterbox: four bars, made the first time a scene needs them.
+pub(crate) const LETTERBOX_BARS: usize = 4;
+
 pub(crate) fn configure_session(mut session: Session, store: Option<SaveStore>) -> Session {
     if let Some(store) = store {
         session.set_save_store(store);
@@ -251,6 +255,11 @@ impl Field {
     #[func]
     fn debug_return_to_title(&mut self) -> bool {
         self.return_to_title_probe()
+    }
+
+    #[func]
+    fn debug_named_caches(&self) -> GString {
+        self.named_caches_probe()
     }
 
     #[func]
@@ -847,7 +856,7 @@ impl Field {
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
     fn set_letterbox(&mut self, on: bool) {
         if on && self.letterbox.is_empty() {
-            for _ in 0..4 {
+            for _ in 0..LETTERBOX_BARS {
                 let mut bar = godot::classes::ColorRect::new_alloc();
                 bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
                 bar.set_z_index(500);

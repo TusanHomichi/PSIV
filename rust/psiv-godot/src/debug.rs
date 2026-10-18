@@ -114,6 +114,69 @@ impl Field {
         true
     }
 
+    /// The shell's first-use caches by name (`named_caches.rs`), as JSON:
+    /// `{name: {entries, objects, bytes, ceiling}}`. Empty unless
+    /// `PSIV_NATIVE_TAPE=1`.
+    pub(super) fn named_caches_probe(&self) -> GString {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return GString::new();
+        }
+        let mut reports = Vec::new();
+        if let Some(screen) = self.battle_screen.as_ref() {
+            reports.extend(screen.bind().cache_reports());
+        }
+        if let Some(window) = self.dialogue.as_ref() {
+            reports.push(window.bind().cache_report());
+        }
+        use crate::named_caches::CacheReport;
+        reports.push(CacheReport::textures(
+            "field_sprite_sheets",
+            self.sheet_views.values().map(|view| &view.texture),
+            self.runtime()
+                .map_or(0, |runtime| runtime.data().sheets().len()),
+        ));
+        // Node pools made on first use and reused: one node per entry.
+        reports.extend([
+            CacheReport::pool(
+                "field_follower_nodes",
+                self.follower_nodes.len(),
+                0,
+                psiv_core::PARTY_SLOTS - 1,
+            ),
+            CacheReport::pool(
+                "field_temporary_nodes",
+                self.temporary_nodes.len(),
+                0,
+                crate::named_caches::temporary_slot_ceiling(),
+            ),
+            CacheReport::pool(
+                "letterbox_bars",
+                self.letterbox.len(),
+                0,
+                crate::LETTERBOX_BARS,
+            ),
+            CacheReport::pool(
+                "transition_rects",
+                self.transition_nodes.len(),
+                0,
+                crate::field_visuals::TRANSITION_RECTS,
+            ),
+            // The effect's node, plus its material and shader.
+            CacheReport::pool(
+                "red_palette",
+                usize::from(self.red_palette.made()),
+                if self.red_palette.made() { 2 } else { 0 },
+                1,
+            ),
+            CacheReport::pool("poison_flash", self.status_presentation.objects(), 0, 1),
+        ]);
+        let map: serde_json::Map<String, serde_json::Value> = reports
+            .iter()
+            .map(|report| (report.name.to_owned(), report.to_json()))
+            .collect();
+        GString::from(serde_json::Value::Object(map).to_string().as_str())
+    }
+
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();

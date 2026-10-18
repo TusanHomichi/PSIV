@@ -40,6 +40,14 @@ pub(super) struct RedPalette {
     restoring: bool,
 }
 
+impl RedPalette {
+    /// Whether the effect's node (with its material and shader) exists: it is
+    /// made the first time a scene turns the palette red (#92).
+    pub(super) fn made(&self) -> bool {
+        self.node.is_some()
+    }
+}
+
 impl Field {
     pub(super) fn start_red_palette(&mut self, delay: u8, restoring: bool) {
         if self.red_palette.node.is_none() {

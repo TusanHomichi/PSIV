@@ -15,7 +15,11 @@ process, the driver loads one fixed save through the title's CONTINUE before
 the tape starts and again after it ends, lets each settle on the open field,
 and samples it (`PROBE_*`). The same save, in the same state, in the same
 process: whatever the run left behind and still holds shows as the end probe's
-floor over the start probe's, wherever in the run it grew.
+floor over the start probe's, wherever in the run it grew. What the shell
+keeps on purpose and fills on first use (texture caches, node pools) is
+reported by name with a ceiling from content (`rust/psiv-godot/src/
+named_caches.rs`, read through `Field.debug_named_caches`) and subtracted
+first, so the bracket judges only what nothing names.
 
 Between the probes, the samples taken on the open field (`activity ==
 "field"`) are compared per map across visits, as a diagnostic that still fails
@@ -195,10 +199,40 @@ def growth(floors: dict, objects: dict, window: int, mb) -> dict:
     return maps
 
 
+CACHE_KEYS = ("entries", "textures", "nodes", "other_objects", "bytes", "ceiling")
+
+
+def probe_caches(sample: dict) -> dict | None:
+    """A probe sample's named caches (`named_caches.rs`), or None when absent
+    or malformed."""
+    caches = sample.get("caches")
+    if not isinstance(caches, dict) or not caches:
+        return None
+    out = {}
+    for name, cache in caches.items():
+        if not isinstance(cache, dict):
+            return None
+        values = {}
+        for key in CACHE_KEYS:
+            value = cache.get(key)
+            # Godot's JSON reads every number back as a float.
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            if not isinstance(value, int) or isinstance(value, bool):
+                return None
+            values[key] = value
+        out[name] = values
+    return out
+
+
 def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
-    """A probe's floor of each measure (`PROBE_KEYS` and the extension heap,
-    RSS minus static), or why it has none: missing, never settled on the open
-    field, too few samples, or a sample off the field or unreadable."""
+    """A probe's floor of each measure, or why it has none: missing, never
+    settled on the open field, too few samples, or a sample off the field,
+    unreadable or without its named caches.
+
+    Objects and static memory are floored outside the named caches: each
+    sample's cache objects and bytes are subtracted first. The caches
+    themselves are the last sample's."""
     if not isinstance(probe, dict):
         return None, "missing"
     if probe.get("settled") is not True:
@@ -207,22 +241,43 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     if not isinstance(samples, list) or len(samples) < PROBE_SAMPLES:
         return None, f"fewer than {PROBE_SAMPLES} samples"
     if not all(isinstance(item, dict) and item.get("activity") == FIELD
-               and all(isinstance(item.get(key), int) for key in PROBE_KEYS)
+               and all(isinstance(item.get(key), int) for key in PROBE_KEYS + ("orphan_nodes",))
                and item["rss_kb"] > 0 for item in samples):
         return None, "a sample off the open field or unreadable"
-    floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS}
-    # Reported only: nodes in and out of the scene tree, when recorded.
-    for key in ("nodes", "orphan_nodes"):
-        if all(isinstance(item.get(key), int) for item in samples):
-            floor[key] = min(item[key] for item in samples)
+    caches = [probe_caches(item) for item in samples]
+    if any(cache is None for cache in caches):
+        return None, "a sample without its named caches"
+    per_texture = probe.get("objects_per_texture")
+    if not isinstance(per_texture, int) or per_texture < 1:
+        return None, "no measured objects per texture"
+    for item_caches in caches:
+        for cache in item_caches.values():
+            cache["objects"] = (cache["textures"] * per_texture + cache["nodes"]
+                                + cache["other_objects"])
+    floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS + ("orphan_nodes",)}
+    floor["objects_outside_caches"] = min(
+        item["objects"] - sum(cache["objects"] for cache in item_caches.values())
+        for item, item_caches in zip(samples, caches))
+    floor["static_outside_caches_kb"] = min(
+        item["static_kb"] - sum(cache["bytes"] for cache in item_caches.values()) / 1024
+        for item, item_caches in zip(samples, caches))
     floor["extension_kb"] = min(item["rss_kb"] - item["static_kb"] for item in samples)
+    if all(isinstance(item.get("nodes"), int) for item in samples):
+        floor["nodes"] = min(item["nodes"] for item in samples)
+    floor["caches"] = caches[-1]
+    floor["objects_per_texture"] = per_texture
     return floor, None
 
 
 def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> dict:
-    """The end probe's floors over the start probe's: Godot static memory and
-    the extension heap may not grow more than `bound_mb`, Godot's object count
-    more than `object_bound`. A missing or unsettled probe fails."""
+    """The end probe over the start probe, outside the named caches.
+
+    Judged: Godot objects outside the caches may not grow more than
+    `object_bound`, Godot static memory outside the caches' bytes and the
+    extension heap no more than `bound_mb`; neither probe may hold an orphan
+    node; and no cache may hold more entries than its content ceiling at
+    either probe. Each cache's growth is reported beside its ceiling. A
+    missing or unsettled probe, or one without its caches, fails."""
     probes = probes if isinstance(probes, dict) else {}
     start, start_why = probe_floor(probes.get("start"))
     end, end_why = probe_floor(probes.get("end"))
@@ -234,9 +289,22 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
     def mb(kb: float) -> float:
         return round(kb / 1024, 1)
 
-    static = end["static_kb"] - start["static_kb"]
+    static = end["static_outside_caches_kb"] - start["static_outside_caches_kb"]
     extension = end["extension_kb"] - start["extension_kb"]
-    objects = end["objects"] - start["objects"]
+    objects = end["objects_outside_caches"] - start["objects_outside_caches"]
+    caches = {}
+    for name in sorted(set(start["caches"]) | set(end["caches"])):
+        before, after = start["caches"].get(name), end["caches"].get(name)
+        if before is None or after is None:
+            caches[name] = {"pass": False, "reason": "reported by one probe only"}
+            continue
+        caches[name] = {
+            "entries": [before["entries"], after["entries"]],
+            "objects": [before["objects"], after["objects"]],
+            "mb": [mb(before["bytes"] / 1024), mb(after["bytes"] / 1024)],
+            "ceiling": after["ceiling"],
+            "pass": max(before["entries"], after["entries"]) <= after["ceiling"]}
+    orphans = max(start["orphan_nodes"], end["orphan_nodes"])
     return {
         "start_floor": {"static_mb": mb(start["static_kb"]), "objects": start["objects"],
                         "extension_mb": mb(start["extension_kb"]), "rss_mb": mb(start["rss_kb"])},
@@ -244,12 +312,16 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
                       "extension_mb": mb(end["extension_kb"]), "rss_mb": mb(end["rss_kb"])},
         "static_growth_mb": mb(static), "extension_growth_mb": mb(extension),
         "object_growth": objects,
+        "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]),
+        "total_object_growth": end["objects"] - start["objects"],
         "node_growth": end["nodes"] - start["nodes"]
         if "nodes" in end and "nodes" in start else None,
-        "orphan_node_growth": end["orphan_nodes"] - start["orphan_nodes"]
-        if "orphan_nodes" in end and "orphan_nodes" in start else None,
+        "orphan_nodes": orphans,
+        "objects_per_texture": [start["objects_per_texture"], end["objects_per_texture"]],
+        "caches": caches,
         "pass": static / 1024 <= bound_mb and extension / 1024 <= bound_mb
-        and objects <= object_bound}
+        and objects <= object_bound and orphans == 0
+        and all(cache["pass"] for cache in caches.values())}
 
 
 def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,

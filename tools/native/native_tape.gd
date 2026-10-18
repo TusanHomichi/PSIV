@@ -252,6 +252,9 @@ func _drive_probe(phase: int, window: int, cursor: int) -> void:
                 "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
                 "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
                 "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+                # The shell's named caches and pools (named_caches.rs), so
+                # the bracket separates bounded first-use growth from a leak.
+                "caches": JSON.parse_string(str(game.debug_named_caches())),
                 "activity": "field", "map": int(state["map"]) if typeof(state) == TYPE_DICTIONARY else -1})
         if probe_samples.size() >= probe_count:
             _finish_probe()
@@ -261,9 +264,22 @@ func _drive_probe(phase: int, window: int, cursor: int) -> void:
                 "reason": "no %d field frames plus %d samples within %d frames" % [probe_settle, probe_count, probe_timeout]}
         _fail("%s memory probe did not settle on the open field within %d frames" % [probe_stage, probe_timeout])
 
+# How many Godot objects one texture is in this engine: a headless engine's
+# dummy renderer keeps each texture's image as a second object. Measured, not
+# assumed, by making one and counting.
+func _objects_per_texture() -> int:
+    var before := int(Performance.get_monitor(Performance.OBJECT_COUNT))
+    var image := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+    var texture := ImageTexture.create_from_image(image)
+    image = null
+    var per_texture := int(Performance.get_monitor(Performance.OBJECT_COUNT)) - before
+    texture = null
+    return per_texture
+
 func _finish_probe() -> void:
     report["rss_probes"][probe_stage] = {"settled": true, "frames_waited": probe_frames,
-            "settle_frames": probe_settle, "samples": probe_samples}
+            "settle_frames": probe_settle, "samples": probe_samples,
+            "objects_per_texture": _objects_per_texture()}
     print("native-tape: %s memory probe settled after %d frames" % [probe_stage, probe_frames])
     probe_entered = false
     title_down = false

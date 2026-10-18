@@ -64,12 +64,26 @@ WARM = (9, 100, 2800, 1)
 SWING = [(1, 210, 2800, 4), (2, 100, 2800, 4)] * 3
 
 
-def probe(static=100, objects=2800, extension=150, settled=True, count=PROBE_SAMPLES):
-    """A settled bracket probe: `count` field samples at these values."""
+def cache(entries=0, textures=None, nodes=0, other=0, mb=0.0, ceiling=100):
+    """One named cache as the debug accessor reports it (Godot's JSON reads
+    every number back as a float)."""
+    return {"entries": float(entries),
+            "textures": float(entries if textures is None else textures),
+            "nodes": float(nodes), "other_objects": float(other),
+            "bytes": float(int(mb * 1024 * 1024)), "ceiling": float(ceiling)}
+
+
+def probe(static=100, objects=2800, extension=150, settled=True, count=PROBE_SAMPLES,
+          caches=None, orphans=0, per_texture=2):
+    """A settled bracket probe: `count` field samples at these values, with
+    its named caches (none filled by default)."""
+    caches = caches if caches is not None else {"battle_command_tiles": cache()}
     return {"settled": settled, "frames_waited": PROBE_SETTLE_FRAMES + 2000,
+            "objects_per_texture": per_texture,
             "samples": [{"frame": PROBE_SETTLE_FRAMES + 250 * (i + 1),
                          "rss_kb": int((static + extension) * 1024),
                          "static_kb": int(static * 1024), "objects": objects,
+                         "orphan_nodes": orphans, "nodes": 30, "caches": caches,
                          "activity": "field", "map": 19} for i in range(count)]}
 
 
@@ -157,6 +171,75 @@ class Bracket(unittest.TestCase):
             self.assertFalse(verdict["pass"], why)
             self.assertIn(why, verdict["bracket"]["reason"])
         self.assertIn("missing", judge(visits(WARM, *SWING), probes=None)["bracket"]["reason"])
+
+    def test_cache_growth_within_its_ceiling_passes(self):
+        # (f) The academy smoke's shape: 36 command tiles and 14 sprite
+        # sheets filled on first use, 2 objects a texture (a headless dummy
+        # renderer keeps each texture's image), and their pixel bytes in
+        # static memory. Outside the caches nothing grew.
+        start = probe(caches={"battle_command_tiles": cache(0, ceiling=152),
+                              "field_sprite_sheets": cache(8, mb=0.2, ceiling=245)})
+        end = probe(static=100.3, objects=2800 + 72 + 28,
+                    caches={"battle_command_tiles": cache(36, ceiling=152),
+                            "field_sprite_sheets": cache(22, mb=0.5, ceiling=245)})
+        verdict = judge(visits(WARM, *SWING), probes={"start": start, "end": end})
+        bracket_part = verdict["bracket"]
+        self.assertTrue(bracket_part["pass"], bracket_part)
+        self.assertEqual((bracket_part["object_growth"], bracket_part["total_object_growth"]),
+                         (0, 100))
+        self.assertEqual(bracket_part["static_growth_mb"], 0.0)
+        self.assertEqual(bracket_part["caches"]["battle_command_tiles"]["entries"], [0, 36])
+        self.assertEqual(bracket_part["caches"]["battle_command_tiles"]["objects"], [0, 72])
+
+    def test_an_object_leak_outside_the_caches_fails(self):
+        # (e) The same caches, plus 300 objects nothing names.
+        start = probe(caches={"battle_command_tiles": cache(0, ceiling=152)})
+        end = probe(objects=2800 + 72 + 300,
+                    caches={"battle_command_tiles": cache(36, ceiling=152)})
+        verdict = judge(visits(WARM, *SWING), probes={"start": start, "end": end})
+        self.assertFalse(verdict["bracket"]["pass"])
+        self.assertEqual(verdict["bracket"]["object_growth"], 300)
+        self.assertTrue(verdict["bracket"]["caches"]["battle_command_tiles"]["pass"])
+
+    def test_a_cache_past_its_ceiling_fails(self):
+        # (g) A cache cannot hold more entries than the pack has assets.
+        start = probe(caches={"dialogue_portraits": cache(0, ceiling=39)})
+        end = probe(objects=2800 + 80,
+                    caches={"dialogue_portraits": cache(40, ceiling=39)})
+        verdict = judge(visits(WARM, *SWING), probes={"start": start, "end": end})
+        self.assertFalse(verdict["bracket"]["pass"])
+        self.assertFalse(verdict["bracket"]["caches"]["dialogue_portraits"]["pass"])
+        self.assertEqual(verdict["bracket"]["object_growth"], 0)
+
+    def test_an_orphan_node_fails(self):
+        # The flash-attack class: a node made and never parented.
+        verdict = judge(visits(WARM, *SWING),
+                        probes={"start": probe(), "end": probe(objects=2801, orphans=1)})
+        self.assertFalse(verdict["bracket"]["pass"])
+        self.assertEqual(verdict["bracket"]["orphan_nodes"], 1)
+
+    def test_static_memory_is_judged_outside_the_cache_bytes(self):
+        start = probe(caches={"field_sprite_sheets": cache(8, mb=0.2)})
+        within = probe(static=100.3, objects=2828,
+                       caches={"field_sprite_sheets": cache(22, mb=0.5)})
+        leak = probe(static=120.3, objects=2828,
+                     caches={"field_sprite_sheets": cache(22, mb=0.5)})
+        self.assertTrue(judge(visits(WARM, *SWING),
+                              probes={"start": start, "end": within})["bracket"]["pass"])
+        failed = judge(visits(WARM, *SWING), probes={"start": start, "end": leak})["bracket"]
+        self.assertFalse(failed["pass"])
+        self.assertEqual(failed["static_growth_mb"], 20.0)
+
+    def test_a_probe_without_its_caches_or_texture_ratio_fails(self):
+        no_caches = probe()
+        for sample in no_caches["samples"]:
+            del sample["caches"]
+        no_ratio = probe()
+        del no_ratio["objects_per_texture"]
+        for broken, why in ((no_caches, "named caches"), (no_ratio, "objects per texture")):
+            verdict = judge(visits(WARM, *SWING), probes={"start": probe(), "end": broken})
+            self.assertFalse(verdict["pass"], why)
+            self.assertIn(why, verdict["bracket"]["reason"])
 
     def test_the_shipped_92_build_fails_on_its_heap(self):
         # (c) Recorded 2026-10-15 over the chapter-14 prefix, before the

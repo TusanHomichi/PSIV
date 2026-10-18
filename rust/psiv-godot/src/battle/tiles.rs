@@ -76,6 +76,16 @@ impl CommandTiles {
         quads
     }
 
+    /// The cache's size: at most every tile of the art in each of its four
+    /// flips.
+    pub(super) fn cache_report(&self) -> crate::named_caches::CacheReport {
+        crate::named_caches::CacheReport::textures(
+            "battle_command_tiles",
+            self.cache.values(),
+            self.art.as_ref().map_or(0, |art| art.tiles.len() * 4),
+        )
+    }
+
     fn texture(&mut self, tile: u16, flip_h: bool, flip_v: bool) -> Option<Gd<ImageTexture>> {
         if let Some(texture) = self.cache.get(&(tile, flip_h, flip_v)) {
             return Some(texture.clone());
