@@ -14,8 +14,13 @@ growth that persists, so the closing measure is a bracket: in the same Godot
 process, the driver loads one fixed save through the title's CONTINUE before
 the tape starts and again after it ends, lets each settle on the open field,
 and samples it (`PROBE_*`). The same save, in the same state, in the same
-process: whatever the run left behind and still holds shows as the end probe's
-floor over the start probe's, wherever in the run it grew. What the shell
+process: what the run left behind in anything that outlives a CONTINUE shows
+as the end probe's floor over the start probe's, wherever in the run it grew.
+That is Godot's objects and static memory (nodes, textures, the shell's
+caches) and Rust memory held outside the session. CONTINUE replaces the
+session's Runtime, so a Rust leak living in session or runtime state is freed
+before the end probe: that one is guarded by the whole-run `rust_heap` check
+over the in-run samples, not by the bracket. What the shell
 keeps on purpose and fills on first use (texture caches, node pools) is
 reported by name with a ceiling from content (`rust/psiv-godot/src/
 named_caches.rs`, read through `Field.debug_named_caches`) and subtracted
@@ -41,9 +46,10 @@ and 62 chapters. 16 MB (`--rss-bound-mb`) over a whole route catches a leak
 of about 4 KB of live Rust bytes or of Godot static memory per battle (about
 260 KB per chapter); 256 objects catches one object leaked per 15 battles (4
 per chapter). Over a one-chapter smoke the same bounds only catch leaks
-dozens of times larger, so the full route is the check that closes #92. The
-object bound is provisional: it tightens once a full replay reports its
-residual outside the named caches (#92).
+dozens of times larger, so the full route is the check that closes #92. Both
+bounds are provisional: the object bound tightens once a full replay reports
+its residual outside the named caches, and the live-Rust bound once it reports
+how much live bytes vary on a route with no leak (#92).
 
 Godot reports static memory only in debug builds (`MEMORY_STATIC` is 0 under
 a release template, which would make the static terms meaningless), so the
@@ -361,7 +367,9 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     Judged:
 
     - `bracket` (`bracket_verdict`): the end probe over the start probe. It
-      closes the check: it sees a persistent leak anywhere in the run.
+      closes the check for what outlives a CONTINUE (Godot objects and static
+      memory, Rust memory outside the session); a leak in session or runtime
+      state is freed by CONTINUE and is `rust_heap`'s to catch.
 
     - `rust_heap`: the extension's live Rust bytes (`rust_heap.rs`, a
       counting global allocator), over every sample, may not grow more than

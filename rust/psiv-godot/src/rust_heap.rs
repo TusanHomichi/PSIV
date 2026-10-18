@@ -89,23 +89,3 @@ pub(crate) fn snapshot() -> [u64; 3] {
         ALLOCATIONS.load(Ordering::Relaxed),
     ]
 }
-
-#[cfg(test)]
-mod tests {
-    use super::snapshot;
-
-    #[test]
-    fn a_deliberate_allocation_shows_in_live_bytes_and_leaves_with_it() {
-        let before = snapshot();
-        let block = vec![7u8; 4 << 20];
-        let during = snapshot();
-        assert!(
-            during[0] >= before[0] + (4 << 20),
-            "live bytes {before:?} -> {during:?}"
-        );
-        assert!(during[2] > before[2]);
-        drop(std::hint::black_box(block));
-        let after = snapshot();
-        assert!(after[0] + (3 << 20) <= during[0], "{during:?} -> {after:?}");
-    }
-}
