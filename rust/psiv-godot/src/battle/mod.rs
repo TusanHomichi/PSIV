@@ -369,6 +369,7 @@ impl Field {
         }
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.set_visible(false);
+            screen.bind_mut().release_stage();
         }
         if let Some(visibility) = self.battle_field_visibility.take() {
             if let Some(node) = self.map_sprite.as_mut() {

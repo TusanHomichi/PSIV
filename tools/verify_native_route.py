@@ -15,19 +15,19 @@ from New Game is the route's evidence, so only a prefix of it can be replayed
 (`--until-chapter`), never a single chapter.
 
 `--rss-every N --rss-warmup-frames W --rss-bound-mb B` turns the replay into
-the #92 memory check: the driver samples memory every N frames and the receipt
-fails when memory past frame W grows beyond B (what is measured, and how, is
-`verify_native_tape.rss_verdict`). The check's coverage is set in frames, so
-every run plays the same maps and battles whatever the host's speed; the bound
-is judged over that window of frames. Growth is not normalized per frame:
+the #92 memory check: the driver samples memory every N frames, and before and
+after the replay loads the route's first chapter save through the title's
+CONTINUE to bracket the run; the receipt fails when memory grows beyond B (what
+is measured, and how, is `tools/native_rss.py`). The check's coverage is set
+in frames, so every run plays the same maps and battles whatever the host's
+speed; the bound is judged over that window of frames. Growth is not normalized per frame:
 audio is rendered on the wall clock, so a slower host renders more of it per
 frame. The verdict reads Godot's static memory, which only debug builds
 report, so the check is for debug builds (the release path is #117). The
-reference window is the campaign prefix through chapter 14:
+reference window is a whole completed route:
 
     psiv-campaign run rust/psiv-campaign/routes/main.json \
-        --until-chapter aiedo-chaz-house --save-dir RUN --tape RUN/run.tape \
-        --report RUN/report.json
+        --save-dir RUN --tape RUN/run.tape --report RUN/report.json
     verify_native_route.py --run-dir RUN --out OUT \
         --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 16
 
@@ -220,7 +220,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--rss-warmup-frames", type=int,
                          help="frames before the RSS baseline")
     command.add_argument("--rss-bound-mb", type=float,
-                         help="fail when RSS grows more than this past its baseline")
+                         help="memory bound in MB past warm-up (tools/native_rss.py)")
     command.add_argument("--drop-pad-at", type=int,
                          help="negative control: replace one pad byte with neutral")
     command.add_argument("--continue-probes", action="store_true",
@@ -247,6 +247,8 @@ def verify_route(args: argparse.Namespace) -> int:
             or args.rss_warmup_frames < args.rss_every):
         parser().error("--rss-bound-mb needs --rss-every and --rss-warmup-frames of at least "
                        "--rss-every")
+    if args.rss_bound_mb is not None and verify_native_tape.cadence_error(args.rss_every):
+        parser().error(f"--rss-every: {verify_native_tape.cadence_error(args.rss_every)}")
     run_dir = args.run_dir.resolve(strict=True)
     try:
         report, chapters, chapters_in_run = load_chapters(run_dir, args.until_chapter)
@@ -285,7 +287,10 @@ def verify_route(args: argparse.Namespace) -> int:
     if args.rss_warmup_frames is not None:
         tape_args += ["--rss-warmup-frames", str(args.rss_warmup_frames)]
     if args.rss_bound_mb is not None:
-        tape_args += ["--rss-bound-mb", str(args.rss_bound_mb)]
+        # The memory bracket loads the route's first chapter save before and
+        # after the replay (a copy, in the replay's own save directory).
+        tape_args += ["--rss-bound-mb", str(args.rss_bound_mb),
+                      "--rss-probe-save", str(chapters[0]["save"])]
     started = time.monotonic()
     code = verify_native_tape.main(tape_args)
     wall_s = time.monotonic() - started

@@ -125,8 +125,9 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
 
 /// `replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]`.
 ///
-/// `--map-every N` prints `map-sample <frames> <map>` after every N frames:
-/// the map the native RSS samples were taken on, for re-judging recorded
+/// `--map-every N` prints `map-sample <frames> <map> <activity>` after every N
+/// frames: the map and the session's activity the native RSS samples were
+/// taken on, for re-judging recorded
 /// samples (`tools/verify_native_tape.py`, #92).
 pub fn cmd_replay(args: &[String]) -> ExitCode {
     match replay_inner(args) {
@@ -157,9 +158,13 @@ fn replay_inner(args: &[String]) -> Result<ExitCode, String> {
         },
         None => None,
     };
-    let result = replay_observing(&pack_dir(&args), &tape, from_save, |frames, runtime| {
+    let result = replay_observing(&pack_dir(&args), &tape, from_save, |frames, session| {
         if map_every.is_some_and(|every| frames % every == 0) {
-            println!("map-sample {frames} {}", runtime.map_id().0);
+            println!(
+                "map-sample {frames} {} {}",
+                session.runtime().map_id().0,
+                session.activity().name()
+            );
         }
     })
     .map_err(|e| e.to_string())?;

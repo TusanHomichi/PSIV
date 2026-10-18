@@ -23,9 +23,13 @@ import time
 
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    from tools import native_rss
+    from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    import native_rss
+    from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
 
 
@@ -197,122 +201,6 @@ def host_power(sys_root: Path = Path("/sys"), proc_root: Path = Path("/proc")) -
             "cpu0_cpuinfo_max_freq_khz": read(cpufreq / "cpuinfo_max_freq")}
 
 
-def rss_slope(samples: list, key: str = "rss_kb") -> float | None:
-    """Least-squares slope of `key` in KiB per 1,000 gameplay frames. Reported,
-    not judged: wall-clock work such as audio rendering makes growth per frame
-    depend on the host's frame rate."""
-    if len(samples) < 2:
-        return None
-    frames = [item["frame"] / 1000 for item in samples]
-    values = [item[key] for item in samples]
-    mean_f = sum(frames) / len(frames)
-    mean_v = sum(values) / len(values)
-    spread = sum((f - mean_f) ** 2 for f in frames)
-    if spread == 0:
-        return None
-    return round(sum((f - mean_f) * (v - mean_v) for f, v in zip(frames, values)) / spread, 1)
-
-
-RSS_SAMPLE_KEYS = ("frame", "elapsed_ms", "rss_kb", "static_kb", "objects", "map")
-
-
-def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
-                object_bound: int = 256) -> dict:
-    """Memory after warm-up stays bounded (#92), judged in three parts over the
-    window from the first sample at or past `warmup_frames` to the last.
-
-    Total RSS is not the measure: Godot's own allocator holds the current
-    map's images, so its static memory swings by ~110 MB with the map and
-    returns. Instead:
-
-    - `extension`: RSS minus Godot static memory (the extension's Rust heap
-      and everything else outside Godot's allocator) may not grow more than
-      `bound_mb` past the window's first sample;
-    - `godot_static`: on each map, Godot's static memory may not grow more
-      than `bound_mb` past that map's first sample in the window;
-    - `objects`: on each map, Godot's object count may not grow more than
-      `object_bound` past that map's first sample in the window (leaked
-      nodes, images or textures).
-
-    A map is only compared with itself, so a leak inside Godot's allocator
-    cannot hide under a bigger map's images. A map sampled once in the window
-    proves nothing about growth and is listed as unjudged; a window in which no
-    map is sampled twice fails. Godot reports static memory only in debug
-    builds (`MEMORY_STATIC` is 0 under a release template, which would make
-    `extension` equal RSS and fail on the map swing), so this verdict is for
-    debug builds of the extension and engine.
-
-    Missing or unreadable samples (including a sample without its map) prove
-    nothing, so they fail rather than pass vacuously."""
-    samples = samples if isinstance(samples, list) else []
-    verdict = {"warmup_frames": warmup_frames, "bound_mb": bound_mb,
-               "object_bound": object_bound, "samples": len(samples)}
-    readable = all(isinstance(item, dict) and isinstance(item.get(key), int)
-                   for item in samples for key in RSS_SAMPLE_KEYS)
-    warmup = [item for item in samples if readable and item["frame"] < warmup_frames]
-    measured = [item for item in samples if readable and item["frame"] >= warmup_frames]
-    verdict["samples_after_warmup"] = len(measured)
-    if (len(measured) < 2 or not warmup or not readable
-            or any(item["rss_kb"] <= 0 for item in samples)):
-        verdict.update({"pass": False, "reason": "missing or unreadable samples around warm-up"})
-        return verdict
-    measured = [dict(item, extension_kb=item["rss_kb"] - item["static_kb"]) for item in measured]
-    baseline = measured[0]
-    last = measured[-1]
-    span_s = (last["elapsed_ms"] - baseline["elapsed_ms"]) / 1000
-
-    def mb(kb: float) -> float:
-        return round(kb / 1024, 1)
-
-    peak_ext = max(measured, key=lambda item: item["extension_kb"])
-    extension_growth = peak_ext["extension_kb"] - baseline["extension_kb"]
-    by_map: dict[int, list] = {}
-    for item in measured:
-        by_map.setdefault(item["map"], []).append(item)
-    maps = {}
-    for map_id, visits in sorted(by_map.items()):
-        first = visits[0]
-        peak_static = max(visits, key=lambda item: item["static_kb"])
-        peak_objects = max(visits, key=lambda item: item["objects"])
-        maps[str(map_id)] = {
-            "samples": len(visits), "first_frame": first["frame"],
-            "static_growth_mb": mb(peak_static["static_kb"] - first["static_kb"]),
-            "static_peak_frame": peak_static["frame"],
-            "object_growth": peak_objects["objects"] - first["objects"]}
-    judged = {key: value for key, value in maps.items() if value["samples"] >= 2}
-    worst_static = max(judged.items(), key=lambda item: item[1]["static_growth_mb"],
-                       default=(None, {"static_growth_mb": None}))
-    worst_objects = max(judged.items(), key=lambda item: item[1]["object_growth"],
-                        default=(None, {"object_growth": None}))
-    verdict.update({
-        "baseline_frame": baseline["frame"], "last_frame": last["frame"],
-        "span_s": round(span_s, 1),
-        "rss_mb": {"baseline": mb(baseline["rss_kb"]), "last": mb(last["rss_kb"]),
-                   "peak": mb(max(item["rss_kb"] for item in measured)),
-                   "slope_kb_per_kframe": rss_slope(measured)},
-        "extension": {"baseline_mb": mb(baseline["extension_kb"]),
-                      "peak_mb": mb(peak_ext["extension_kb"]), "peak_frame": peak_ext["frame"],
-                      "last_mb": mb(last["extension_kb"]), "growth_mb": mb(extension_growth),
-                      "growth_mb_per_min": round(extension_growth / 1024 / span_s * 60, 2)
-                      if span_s > 0 else None,
-                      "slope_kb_per_kframe": rss_slope(measured, "extension_kb"),
-                      "pass": extension_growth / 1024 <= bound_mb},
-        "maps": maps,
-        "maps_unjudged": sorted(int(key) for key, value in maps.items() if value["samples"] < 2),
-        "godot_static": {"worst_map": worst_static[0],
-                         "growth_mb": worst_static[1]["static_growth_mb"],
-                         "pass": bool(judged) and all(value["static_growth_mb"] <= bound_mb
-                                                      for value in judged.values())},
-        "objects": {"worst_map": worst_objects[0], "growth": worst_objects[1]["object_growth"],
-                    "pass": bool(judged) and all(value["object_growth"] <= object_bound
-                                                 for value in judged.values())},
-    })
-    if not judged:
-        verdict["reason"] = "no map was sampled twice past warm-up; Godot memory is unjudged"
-    verdict["pass"] = all(verdict[part]["pass"] for part in ("extension", "godot_static", "objects"))
-    return verdict
-
-
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     command.add_argument("--tape", type=Path, required=True)
@@ -338,7 +226,11 @@ def parser() -> argparse.ArgumentParser:
                          help="fail when memory grows more than this past warm-up (needs "
                               "--rss-every; see rss_verdict for what is measured)")
     command.add_argument("--rss-object-bound", type=int, default=256,
-                         help="fail when Godot's object count exceeds its warm-up peak by more")
+                         help="Godot object-count bound (tools/native_rss.py)")
+    command.add_argument("--rss-probe-save", type=Path,
+                         help="the save the memory bracket loads through the title's CONTINUE "
+                              "before and after the tape (copied into the isolated slot "
+                              f"{native_rss.PROBE_SLOT + 1}); required with --rss-bound-mb")
     command.add_argument("--render-capture", action="store_true")
     command.add_argument("--drop-pad-at", type=int, help="negative control: replace one byte with neutral")
     return command
@@ -374,6 +266,13 @@ def replay(args: argparse.Namespace) -> int:
         parser().error("--rss-bound-mb needs --rss-warmup-frames of at least --rss-every: "
                        "the verdict needs a warm-up sample, and memory grows while the first "
                        "maps and battles load")
+    if args.rss_bound_mb is not None and cadence_error(args.rss_every):
+        parser().error(f"--rss-every: {cadence_error(args.rss_every)}")
+    if args.rss_bound_mb is not None and args.rss_probe_save is None:
+        parser().error("--rss-bound-mb needs --rss-probe-save: the memory bracket closes the check")
+    probe_save = args.rss_probe_save.resolve(strict=True) if args.rss_probe_save else None
+    if probe_save and args.from_save:
+        parser().error("--rss-probe-save needs a new-game tape: a save-start tape owns slot 1")
     checkpoints = args.checkpoints.resolve(strict=True) if args.checkpoints else None
     if args.expect_cell:
         parts = args.expect_cell.split(",")
@@ -389,6 +288,10 @@ def replay(args: argparse.Namespace) -> int:
     godot_log = out / "godot.log"
     capture = out / "selected-1280x800.png"
     source_before = sha256(source) if source else None
+    probe_sha = sha256(probe_save) if probe_save else None
+    if probe_save:
+        # A copy: the source save is never opened for writing.
+        (saves / f"slot_{native_rss.PROBE_SLOT + 1}.sram").write_bytes(probe_save.read_bytes())
     expected_sha = sha256(expected) if expected else None
     written_sha = sha256(written) if written else None
     # No inherited selector, autostart, retail-pace or load-slot override may
@@ -413,6 +316,14 @@ def replay(args: argparse.Namespace) -> int:
         "PSIV_TAPE_CHECKPOINTS": str(checkpoints) if checkpoints else "",
         "PSIV_TAPE_STOP_AT": str(args.stop_at) if args.stop_at is not None else "",
         "PSIV_TAPE_RSS_EVERY": str(args.rss_every) if args.rss_every is not None else "",
+        **({"PSIV_TAPE_PROBE_SLOT": str(native_rss.PROBE_SLOT), "PSIV_TAPE_PROBE_SHA256": probe_sha,
+            "PSIV_TAPE_PROBE_SAVE": str(probe_save),
+            "PSIV_TAPE_PROBE_RUN_SLOT": native_rss.RUN_SLOT_FILE,
+            "PSIV_TAPE_PROBE_SETTLE": str(native_rss.PROBE_SETTLE_FRAMES),
+            "PSIV_TAPE_PROBE_SAMPLES": str(native_rss.PROBE_SAMPLES),
+            "PSIV_TAPE_PROBE_EVERY": str(native_rss.PROBE_SAMPLE_EVERY),
+            "PSIV_TAPE_PROBE_TIMEOUT": str(native_rss.PROBE_TIMEOUT_FRAMES)}
+           if probe_save else {}),
         "LIBGL_ALWAYS_SOFTWARE": "1",
     })
     if args.drop_pad_at is not None:
@@ -492,7 +403,9 @@ def replay(args: argparse.Namespace) -> int:
                               and mapped["path"] == code_before["extension"]["path"]
                               and mapped["inode"] == code_before["extension"]["inode"])
     source_after = sha256(source) if source else None
-    live_slot = saves / "slot_1.sram"
+    # With the bracket, slot 1 holds the probe save again after the run; the
+    # driver kept the run's own slot file beside it.
+    live_slot = saves / (native_rss.RUN_SLOT_FILE if probe_save else "slot_1.sram")
     result = json.loads(native_report.read_text()) if native_report.is_file() else None
     save_acks = result.get("camp_save_acks") if isinstance(result, dict) else None
     acknowledged = (isinstance(save_acks, list) and len(save_acks) == 3
@@ -533,13 +446,18 @@ def replay(args: argparse.Namespace) -> int:
     receipt["checkpoint_saves_stable"] = saves_before == saves_after
     receipt["checkpoints_passed"] = checkpoints_passed(result, checkpoints)
     receipt["host_power"] = host_power()
+    receipt["rss_probe_save"] = str(probe_save) if probe_save else None
+    receipt["rss_probe_save_sha256_before"] = probe_sha
+    receipt["rss_probe_save_sha256_after"] = sha256(probe_save) if probe_save else None
     receipt["rss"] = (rss_verdict((result or {}).get("rss_samples"), args.rss_warmup_frames,
-                                  args.rss_bound_mb, args.rss_object_bound)
+                                  args.rss_bound_mb, args.rss_object_bound,
+                                  probes=(result or {}).get("rss_probes"))
                       if args.rss_bound_mb is not None else None)
     receipt["pass"] = (
         code == 0 and result is not None and result.get("result") == "pass"
         and identity_stable and mapped_library_matches
         and source_before == source_after
+        and receipt["rss_probe_save_sha256_before"] == receipt["rss_probe_save_sha256_after"]
         and (source is None or (result.get("source_hash_verified_before_copy") is True
                                 and result.get("source_copied") is True))
         and snapshot.is_file()
@@ -553,15 +471,25 @@ def replay(args: argparse.Namespace) -> int:
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     if receipt["rss"] is not None:
         rss = receipt["rss"]
-        if "extension" in rss:
+        if "rust_heap" in rss:
+            bracket = rss["bracket"]
+            print(f"native tape: RSS bracket {'PASS' if bracket['pass'] else 'FAIL'}; " + (
+                f"end probe over start: Godot static +{bracket['static_growth_mb']} MB, "
+                f"live Rust +{bracket['rust_live_growth_mb']} MB (RSS residual "
+                f"{bracket['residual_growth_mb']:+} MB, not judged), objects "
+                f"+{bracket['object_growth']}" if "static_growth_mb" in bracket
+                else bracket["reason"]))
             print(f"native tape: RSS {'PASS' if rss['pass'] else 'FAIL'}; frames "
-                  f"{rss['baseline_frame']}..{rss['last_frame']}: extension heap "
-                  f"+{rss['extension']['growth_mb']} MB; per map, Godot static "
+                  f"{rss['baseline_frame']}..{rss['last_frame']}: live Rust heap "
+                  f"+{rss['rust_heap']['growth_mb']} MB; field floors over "
+                  f"{rss['floor_frames']} frames: Godot static "
                   f"+{rss['godot_static']['growth_mb']} MB (map {rss['godot_static']['worst_map']}), "
-                  f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}); "
-                  f"bounds {rss['bound_mb']} MB, {rss['object_bound']} objects; "
-                  f"{len(rss['maps']) - len(rss['maps_unjudged'])} maps judged, "
-                  f"{len(rss['maps_unjudged'])} sampled once; RSS {rss['rss_mb']['baseline']} -> "
+                  f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "
+                  f"{rss['static_drift']['drift_mb']} MB and {rss['object_drift']['drift']} objects; "
+                  f"widest coverage gap {rss['coverage']['widest_gap_frames']} frames "
+                  f"(reported; limit {rss['gap_limit_frames']}); bounds {rss['bound_mb']} MB, "
+                  f"{rss['object_bound']} objects; {len(rss['maps'])} maps judged, "
+                  f"{len(rss['maps_unjudged'])} unjudged; RSS {rss['rss_mb']['baseline']} -> "
                   f"{rss['rss_mb']['last']} MB")
         else:
             print(f"native tape: RSS FAIL; {rss['reason']}")

@@ -45,7 +45,7 @@ pub fn replay(
     replay_observing(pack, tape, from_save, |_, _| {})
 }
 
-/// [`replay`], handing `observe` the runtime after every frame with the count
+/// [`replay`], handing `observe` the session after every frame with the count
 /// of frames played so far (1 after the first pad). It only reads: the
 /// replay plays the same frames either way.
 ///
@@ -56,7 +56,7 @@ pub fn replay_observing(
     pack: &Path,
     tape: &Tape,
     from_save: Option<&Path>,
-    mut observe: impl FnMut(usize, &psiv_runtime::Runtime),
+    mut observe: impl FnMut(usize, &psiv_runtime::Session),
 ) -> Result<ReplayResult, SetupError> {
     let start = match (&tape.start, from_save) {
         (TapeStart::NewGame, None) => StartPoint::NewGame,
@@ -90,7 +90,7 @@ pub fn replay_observing(
         if let Err(halt) = driver.tick(Pad::from_bits(*byte)) {
             faults.push((frame, halt.to_string()));
         }
-        observe(frame + 1, driver.runtime());
+        observe(frame + 1, driver.session());
     }
     Ok(ReplayResult {
         frames: driver.frames(),

@@ -107,6 +107,7 @@
 //!
 //! [`DialogueRunner`]: crate::dialogue::DialogueRunner
 
+mod activity;
 mod battle;
 mod camp;
 mod debug;
@@ -123,6 +124,7 @@ mod shop;
 mod start;
 mod title;
 
+pub use activity::Activity;
 pub use battle::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
     CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,

@@ -14,6 +14,13 @@ pub(super) struct StatusPresentation {
     flash: Option<Gd<godot::classes::ColorRect>>,
 }
 
+impl StatusPresentation {
+    /// The flash node once made (#92): one Godot object.
+    pub(super) fn objects(&self) -> usize {
+        usize::from(self.flash.is_some())
+    }
+}
+
 impl Field {
     pub(super) fn poison_flash_visible(&self) -> bool {
         self.status_presentation

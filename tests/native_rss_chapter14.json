@@ -1,0 +1,1123 @@
+{
+ "about": "#92 native RSS samples, chapter-14 campaign prefix at e11e757 (156,761 frames, 75 battles), --rss-every 2500. 'shipped' is the e11e757 extension (always-on sound register trace), 'fixed' is d3ac8bc. Recorded 2026-10-15 by verify_native_tape.py (A-final, B-final); the runs predate per-sample maps and activities, so 'map' and 'activity' come from a headless psiv-campaign replay --map-every 2500 of the same tape (digest 639544483220fc42), whose maps equal the run's.",
+ "shipped": [
+  {
+   "frame": 2500,
+   "elapsed_ms": 16501,
+   "rss_kb": 362228,
+   "static_kb": 206624,
+   "objects": 2768,
+   "map": 0,
+   "activity": "scene"
+  },
+  {
+   "frame": 5000,
+   "elapsed_ms": 20282,
+   "rss_kb": 247532,
+   "static_kb": 95545,
+   "objects": 2772,
+   "map": 19,
+   "activity": "scene"
+  },
+  {
+   "frame": 7500,
+   "elapsed_ms": 39937,
+   "rss_kb": 247532,
+   "static_kb": 95571,
+   "objects": 2769,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 10000,
+   "elapsed_ms": 56868,
+   "rss_kb": 247532,
+   "static_kb": 95608,
+   "objects": 2773,
+   "map": 18,
+   "activity": "scene"
+  },
+  {
+   "frame": 12500,
+   "elapsed_ms": 77269,
+   "rss_kb": 247532,
+   "static_kb": 95609,
+   "objects": 2773,
+   "map": 18,
+   "activity": "scene"
+  },
+  {
+   "frame": 15000,
+   "elapsed_ms": 105956,
+   "rss_kb": 247544,
+   "static_kb": 96791,
+   "objects": 2938,
+   "map": 21,
+   "activity": "field"
+  },
+  {
+   "frame": 17500,
+   "elapsed_ms": 148132,
+   "rss_kb": 247544,
+   "static_kb": 97491,
+   "objects": 2975,
+   "map": 23,
+   "activity": "battle"
+  },
+  {
+   "frame": 20000,
+   "elapsed_ms": 198876,
+   "rss_kb": 247544,
+   "static_kb": 97492,
+   "objects": 2975,
+   "map": 23,
+   "activity": "battle"
+  },
+  {
+   "frame": 22500,
+   "elapsed_ms": 225425,
+   "rss_kb": 247544,
+   "static_kb": 97490,
+   "objects": 2974,
+   "map": 23,
+   "activity": "camp"
+  },
+  {
+   "frame": 25000,
+   "elapsed_ms": 272401,
+   "rss_kb": 257796,
+   "static_kb": 97103,
+   "objects": 2973,
+   "map": 22,
+   "activity": "battle"
+  },
+  {
+   "frame": 27500,
+   "elapsed_ms": 292962,
+   "rss_kb": 258524,
+   "static_kb": 97103,
+   "objects": 2973,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 30000,
+   "elapsed_ms": 314838,
+   "rss_kb": 258740,
+   "static_kb": 97115,
+   "objects": 2975,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 32500,
+   "elapsed_ms": 334593,
+   "rss_kb": 259044,
+   "static_kb": 100750,
+   "objects": 2990,
+   "map": 16,
+   "activity": "field"
+  },
+  {
+   "frame": 35000,
+   "elapsed_ms": 363445,
+   "rss_kb": 377052,
+   "static_kb": 207815,
+   "objects": 2943,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 37500,
+   "elapsed_ms": 394020,
+   "rss_kb": 265024,
+   "static_kb": 101196,
+   "objects": 3029,
+   "map": 44,
+   "activity": "battle"
+  },
+  {
+   "frame": 40000,
+   "elapsed_ms": 415507,
+   "rss_kb": 380320,
+   "static_kb": 208341,
+   "objects": 3015,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 42500,
+   "elapsed_ms": 426785,
+   "rss_kb": 266648,
+   "static_kb": 100820,
+   "objects": 2989,
+   "map": 64,
+   "activity": "scene"
+  },
+  {
+   "frame": 45000,
+   "elapsed_ms": 448909,
+   "rss_kb": 266776,
+   "static_kb": 100691,
+   "objects": 2988,
+   "map": 64,
+   "activity": "scene"
+  },
+  {
+   "frame": 47500,
+   "elapsed_ms": 467900,
+   "rss_kb": 333452,
+   "static_kb": 164649,
+   "objects": 2972,
+   "map": 216,
+   "activity": "scene"
+  },
+  {
+   "frame": 50000,
+   "elapsed_ms": 493868,
+   "rss_kb": 269124,
+   "static_kb": 105513,
+   "objects": 2971,
+   "map": 157,
+   "activity": "battle"
+  },
+  {
+   "frame": 52500,
+   "elapsed_ms": 525340,
+   "rss_kb": 270864,
+   "static_kb": 105674,
+   "objects": 2991,
+   "map": 67,
+   "activity": "scene"
+  },
+  {
+   "frame": 55000,
+   "elapsed_ms": 547905,
+   "rss_kb": 271020,
+   "static_kb": 105675,
+   "objects": 2991,
+   "map": 67,
+   "activity": "scene"
+  },
+  {
+   "frame": 57500,
+   "elapsed_ms": 567063,
+   "rss_kb": 271148,
+   "static_kb": 105717,
+   "objects": 2998,
+   "map": 65,
+   "activity": "field"
+  },
+  {
+   "frame": 60000,
+   "elapsed_ms": 600157,
+   "rss_kb": 388468,
+   "static_kb": 209171,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 62500,
+   "elapsed_ms": 654776,
+   "rss_kb": 393036,
+   "static_kb": 211202,
+   "objects": 3040,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 65000,
+   "elapsed_ms": 710810,
+   "rss_kb": 397492,
+   "static_kb": 213565,
+   "objects": 3035,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 67500,
+   "elapsed_ms": 757352,
+   "rss_kb": 401500,
+   "static_kb": 213241,
+   "objects": 2997,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 70000,
+   "elapsed_ms": 801635,
+   "rss_kb": 404820,
+   "static_kb": 208856,
+   "objects": 3044,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 72500,
+   "elapsed_ms": 853096,
+   "rss_kb": 409212,
+   "static_kb": 210626,
+   "objects": 2961,
+   "map": 0,
+   "activity": "camp"
+  },
+  {
+   "frame": 75000,
+   "elapsed_ms": 894900,
+   "rss_kb": 412580,
+   "static_kb": 213357,
+   "objects": 2989,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 77500,
+   "elapsed_ms": 938795,
+   "rss_kb": 416020,
+   "static_kb": 213562,
+   "objects": 3034,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 80000,
+   "elapsed_ms": 975389,
+   "rss_kb": 418764,
+   "static_kb": 211268,
+   "objects": 3035,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 82500,
+   "elapsed_ms": 1026754,
+   "rss_kb": 422312,
+   "static_kb": 209168,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 85000,
+   "elapsed_ms": 1077218,
+   "rss_kb": 426752,
+   "static_kb": 211394,
+   "objects": 3036,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 87500,
+   "elapsed_ms": 1117982,
+   "rss_kb": 429856,
+   "static_kb": 211275,
+   "objects": 3035,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 90000,
+   "elapsed_ms": 1162335,
+   "rss_kb": 433112,
+   "static_kb": 213561,
+   "objects": 3034,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 92500,
+   "elapsed_ms": 1213000,
+   "rss_kb": 437420,
+   "static_kb": 213892,
+   "objects": 3072,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 95000,
+   "elapsed_ms": 1262270,
+   "rss_kb": 441356,
+   "static_kb": 209173,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 97500,
+   "elapsed_ms": 1314445,
+   "rss_kb": 445868,
+   "static_kb": 211542,
+   "objects": 3076,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 100000,
+   "elapsed_ms": 1368711,
+   "rss_kb": 449964,
+   "static_kb": 211272,
+   "objects": 3035,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 102500,
+   "elapsed_ms": 1416305,
+   "rss_kb": 453560,
+   "static_kb": 213897,
+   "objects": 3071,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 105000,
+   "elapsed_ms": 1470186,
+   "rss_kb": 342920,
+   "static_kb": 106063,
+   "objects": 3037,
+   "map": 65,
+   "activity": "field"
+  },
+  {
+   "frame": 107500,
+   "elapsed_ms": 1492710,
+   "rss_kb": 344356,
+   "static_kb": 105320,
+   "objects": 3010,
+   "map": 72,
+   "activity": "battle"
+  },
+  {
+   "frame": 110000,
+   "elapsed_ms": 1527366,
+   "rss_kb": 345832,
+   "static_kb": 101002,
+   "objects": 2997,
+   "map": 74,
+   "activity": "scene"
+  },
+  {
+   "frame": 112500,
+   "elapsed_ms": 1557878,
+   "rss_kb": 347312,
+   "static_kb": 105700,
+   "objects": 3081,
+   "map": 73,
+   "activity": "battle"
+  },
+  {
+   "frame": 115000,
+   "elapsed_ms": 1589130,
+   "rss_kb": 348912,
+   "static_kb": 111101,
+   "objects": 3065,
+   "map": 161,
+   "activity": "battle"
+  },
+  {
+   "frame": 117500,
+   "elapsed_ms": 1630248,
+   "rss_kb": 352644,
+   "static_kb": 101055,
+   "objects": 3011,
+   "map": 155,
+   "activity": "battle"
+  },
+  {
+   "frame": 120000,
+   "elapsed_ms": 1659256,
+   "rss_kb": 354832,
+   "static_kb": 105780,
+   "objects": 3012,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 122500,
+   "elapsed_ms": 1681042,
+   "rss_kb": 354952,
+   "static_kb": 105790,
+   "objects": 3014,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 125000,
+   "elapsed_ms": 1706415,
+   "rss_kb": 355268,
+   "static_kb": 101701,
+   "objects": 3050,
+   "map": 36,
+   "activity": "battle"
+  },
+  {
+   "frame": 127500,
+   "elapsed_ms": 1754655,
+   "rss_kb": 356628,
+   "static_kb": 101692,
+   "objects": 3043,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 130000,
+   "elapsed_ms": 1781463,
+   "rss_kb": 357284,
+   "static_kb": 101772,
+   "objects": 3056,
+   "map": 36,
+   "activity": "field"
+  },
+  {
+   "frame": 132500,
+   "elapsed_ms": 1797140,
+   "rss_kb": 358748,
+   "static_kb": 101388,
+   "objects": 3061,
+   "map": 36,
+   "activity": "field"
+  },
+  {
+   "frame": 135000,
+   "elapsed_ms": 1822354,
+   "rss_kb": 360548,
+   "static_kb": 101661,
+   "objects": 3086,
+   "map": 44,
+   "activity": "field"
+  },
+  {
+   "frame": 137500,
+   "elapsed_ms": 1853357,
+   "rss_kb": 379144,
+   "static_kb": 110792,
+   "objects": 3068,
+   "map": 167,
+   "activity": "battle"
+  },
+  {
+   "frame": 140000,
+   "elapsed_ms": 1880056,
+   "rss_kb": 357072,
+   "static_kb": 101212,
+   "objects": 3032,
+   "map": 172,
+   "activity": "field"
+  },
+  {
+   "frame": 142500,
+   "elapsed_ms": 1900645,
+   "rss_kb": 357288,
+   "static_kb": 101222,
+   "objects": 3034,
+   "map": 172,
+   "activity": "scene"
+  },
+  {
+   "frame": 145000,
+   "elapsed_ms": 1919910,
+   "rss_kb": 357400,
+   "static_kb": 101251,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 147500,
+   "elapsed_ms": 1939999,
+   "rss_kb": 357560,
+   "static_kb": 101252,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 150000,
+   "elapsed_ms": 1961601,
+   "rss_kb": 357740,
+   "static_kb": 101253,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 152500,
+   "elapsed_ms": 1978628,
+   "rss_kb": 357956,
+   "static_kb": 101292,
+   "objects": 3045,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 155000,
+   "elapsed_ms": 2007937,
+   "rss_kb": 475152,
+   "static_kb": 210949,
+   "objects": 3006,
+   "map": 0,
+   "activity": "battle"
+  }
+ ],
+ "fixed": [
+  {
+   "frame": 2500,
+   "elapsed_ms": 18695,
+   "rss_kb": 361948,
+   "static_kb": 206624,
+   "objects": 2768,
+   "map": 0,
+   "activity": "scene"
+  },
+  {
+   "frame": 5000,
+   "elapsed_ms": 23041,
+   "rss_kb": 247252,
+   "static_kb": 95545,
+   "objects": 2772,
+   "map": 19,
+   "activity": "scene"
+  },
+  {
+   "frame": 7500,
+   "elapsed_ms": 44175,
+   "rss_kb": 247252,
+   "static_kb": 95571,
+   "objects": 2769,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 10000,
+   "elapsed_ms": 64289,
+   "rss_kb": 247252,
+   "static_kb": 95608,
+   "objects": 2773,
+   "map": 18,
+   "activity": "scene"
+  },
+  {
+   "frame": 12500,
+   "elapsed_ms": 87341,
+   "rss_kb": 246232,
+   "static_kb": 95609,
+   "objects": 2773,
+   "map": 18,
+   "activity": "scene"
+  },
+  {
+   "frame": 15000,
+   "elapsed_ms": 118009,
+   "rss_kb": 246308,
+   "static_kb": 96791,
+   "objects": 2938,
+   "map": 21,
+   "activity": "field"
+  },
+  {
+   "frame": 17500,
+   "elapsed_ms": 161686,
+   "rss_kb": 246308,
+   "static_kb": 97491,
+   "objects": 2975,
+   "map": 23,
+   "activity": "battle"
+  },
+  {
+   "frame": 20000,
+   "elapsed_ms": 213779,
+   "rss_kb": 246308,
+   "static_kb": 97492,
+   "objects": 2975,
+   "map": 23,
+   "activity": "battle"
+  },
+  {
+   "frame": 22500,
+   "elapsed_ms": 241838,
+   "rss_kb": 246308,
+   "static_kb": 97490,
+   "objects": 2974,
+   "map": 23,
+   "activity": "camp"
+  },
+  {
+   "frame": 25000,
+   "elapsed_ms": 286223,
+   "rss_kb": 246308,
+   "static_kb": 97103,
+   "objects": 2973,
+   "map": 22,
+   "activity": "battle"
+  },
+  {
+   "frame": 27500,
+   "elapsed_ms": 303003,
+   "rss_kb": 246308,
+   "static_kb": 97103,
+   "objects": 2973,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 30000,
+   "elapsed_ms": 320869,
+   "rss_kb": 246308,
+   "static_kb": 97115,
+   "objects": 2975,
+   "map": 20,
+   "activity": "scene"
+  },
+  {
+   "frame": 32500,
+   "elapsed_ms": 337244,
+   "rss_kb": 246308,
+   "static_kb": 100750,
+   "objects": 2990,
+   "map": 16,
+   "activity": "field"
+  },
+  {
+   "frame": 35000,
+   "elapsed_ms": 365359,
+   "rss_kb": 361068,
+   "static_kb": 207815,
+   "objects": 2943,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 37500,
+   "elapsed_ms": 390623,
+   "rss_kb": 246372,
+   "static_kb": 101196,
+   "objects": 3029,
+   "map": 44,
+   "activity": "battle"
+  },
+  {
+   "frame": 40000,
+   "elapsed_ms": 408997,
+   "rss_kb": 361068,
+   "static_kb": 208341,
+   "objects": 3015,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 42500,
+   "elapsed_ms": 418868,
+   "rss_kb": 246376,
+   "static_kb": 100820,
+   "objects": 2989,
+   "map": 64,
+   "activity": "scene"
+  },
+  {
+   "frame": 45000,
+   "elapsed_ms": 437120,
+   "rss_kb": 246376,
+   "static_kb": 100691,
+   "objects": 2988,
+   "map": 64,
+   "activity": "scene"
+  },
+  {
+   "frame": 47500,
+   "elapsed_ms": 458036,
+   "rss_kb": 311920,
+   "static_kb": 164649,
+   "objects": 2972,
+   "map": 216,
+   "activity": "scene"
+  },
+  {
+   "frame": 50000,
+   "elapsed_ms": 482401,
+   "rss_kb": 246380,
+   "static_kb": 105513,
+   "objects": 2971,
+   "map": 157,
+   "activity": "battle"
+  },
+  {
+   "frame": 52500,
+   "elapsed_ms": 508432,
+   "rss_kb": 246380,
+   "static_kb": 105674,
+   "objects": 2991,
+   "map": 67,
+   "activity": "scene"
+  },
+  {
+   "frame": 55000,
+   "elapsed_ms": 526624,
+   "rss_kb": 246380,
+   "static_kb": 105675,
+   "objects": 2991,
+   "map": 67,
+   "activity": "scene"
+  },
+  {
+   "frame": 57500,
+   "elapsed_ms": 541871,
+   "rss_kb": 246380,
+   "static_kb": 105717,
+   "objects": 2998,
+   "map": 65,
+   "activity": "field"
+  },
+  {
+   "frame": 60000,
+   "elapsed_ms": 573553,
+   "rss_kb": 361076,
+   "static_kb": 209171,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 62500,
+   "elapsed_ms": 616294,
+   "rss_kb": 361076,
+   "static_kb": 211202,
+   "objects": 3040,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 65000,
+   "elapsed_ms": 670282,
+   "rss_kb": 361076,
+   "static_kb": 213565,
+   "objects": 3035,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 67500,
+   "elapsed_ms": 717856,
+   "rss_kb": 361076,
+   "static_kb": 213241,
+   "objects": 2997,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 70000,
+   "elapsed_ms": 756824,
+   "rss_kb": 361076,
+   "static_kb": 208856,
+   "objects": 3044,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 72500,
+   "elapsed_ms": 802943,
+   "rss_kb": 361076,
+   "static_kb": 210755,
+   "objects": 2962,
+   "map": 0,
+   "activity": "camp"
+  },
+  {
+   "frame": 75000,
+   "elapsed_ms": 841213,
+   "rss_kb": 361076,
+   "static_kb": 213357,
+   "objects": 2989,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 77500,
+   "elapsed_ms": 888866,
+   "rss_kb": 361076,
+   "static_kb": 213562,
+   "objects": 3034,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 80000,
+   "elapsed_ms": 925608,
+   "rss_kb": 361076,
+   "static_kb": 211268,
+   "objects": 3035,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 82500,
+   "elapsed_ms": 973168,
+   "rss_kb": 361076,
+   "static_kb": 209168,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 85000,
+   "elapsed_ms": 1019296,
+   "rss_kb": 361076,
+   "static_kb": 211394,
+   "objects": 3036,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 87500,
+   "elapsed_ms": 1056531,
+   "rss_kb": 361076,
+   "static_kb": 211275,
+   "objects": 3035,
+   "map": 0,
+   "activity": "field"
+  },
+  {
+   "frame": 90000,
+   "elapsed_ms": 1096801,
+   "rss_kb": 361076,
+   "static_kb": 213561,
+   "objects": 3034,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 92500,
+   "elapsed_ms": 1146079,
+   "rss_kb": 361076,
+   "static_kb": 213892,
+   "objects": 3072,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 95000,
+   "elapsed_ms": 1191630,
+   "rss_kb": 361076,
+   "static_kb": 209173,
+   "objects": 3081,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 97500,
+   "elapsed_ms": 1240814,
+   "rss_kb": 361076,
+   "static_kb": 211542,
+   "objects": 3076,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 100000,
+   "elapsed_ms": 1291652,
+   "rss_kb": 361076,
+   "static_kb": 211272,
+   "objects": 3035,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 102500,
+   "elapsed_ms": 1332913,
+   "rss_kb": 361076,
+   "static_kb": 213897,
+   "objects": 3071,
+   "map": 0,
+   "activity": "battle"
+  },
+  {
+   "frame": 105000,
+   "elapsed_ms": 1383896,
+   "rss_kb": 246380,
+   "static_kb": 106063,
+   "objects": 3037,
+   "map": 65,
+   "activity": "field"
+  },
+  {
+   "frame": 107500,
+   "elapsed_ms": 1404976,
+   "rss_kb": 246380,
+   "static_kb": 105320,
+   "objects": 3010,
+   "map": 72,
+   "activity": "battle"
+  },
+  {
+   "frame": 110000,
+   "elapsed_ms": 1437525,
+   "rss_kb": 246380,
+   "static_kb": 101002,
+   "objects": 2997,
+   "map": 74,
+   "activity": "scene"
+  },
+  {
+   "frame": 112500,
+   "elapsed_ms": 1466952,
+   "rss_kb": 247148,
+   "static_kb": 105700,
+   "objects": 3081,
+   "map": 73,
+   "activity": "battle"
+  },
+  {
+   "frame": 115000,
+   "elapsed_ms": 1495481,
+   "rss_kb": 247148,
+   "static_kb": 111101,
+   "objects": 3065,
+   "map": 161,
+   "activity": "battle"
+  },
+  {
+   "frame": 117500,
+   "elapsed_ms": 1534901,
+   "rss_kb": 248084,
+   "static_kb": 101055,
+   "objects": 3011,
+   "map": 155,
+   "activity": "battle"
+  },
+  {
+   "frame": 120000,
+   "elapsed_ms": 1562372,
+   "rss_kb": 248084,
+   "static_kb": 105780,
+   "objects": 3012,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 122500,
+   "elapsed_ms": 1582617,
+   "rss_kb": 248084,
+   "static_kb": 105790,
+   "objects": 3014,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 125000,
+   "elapsed_ms": 1604379,
+   "rss_kb": 248084,
+   "static_kb": 101701,
+   "objects": 3050,
+   "map": 36,
+   "activity": "battle"
+  },
+  {
+   "frame": 127500,
+   "elapsed_ms": 1652136,
+   "rss_kb": 248084,
+   "static_kb": 101692,
+   "objects": 3043,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 130000,
+   "elapsed_ms": 1677154,
+   "rss_kb": 248084,
+   "static_kb": 101772,
+   "objects": 3056,
+   "map": 36,
+   "activity": "field"
+  },
+  {
+   "frame": 132500,
+   "elapsed_ms": 1691877,
+   "rss_kb": 248084,
+   "static_kb": 101388,
+   "objects": 3061,
+   "map": 36,
+   "activity": "field"
+  },
+  {
+   "frame": 135000,
+   "elapsed_ms": 1716414,
+   "rss_kb": 248084,
+   "static_kb": 101661,
+   "objects": 3086,
+   "map": 44,
+   "activity": "field"
+  },
+  {
+   "frame": 137500,
+   "elapsed_ms": 1747721,
+   "rss_kb": 264044,
+   "static_kb": 110792,
+   "objects": 3068,
+   "map": 167,
+   "activity": "battle"
+  },
+  {
+   "frame": 140000,
+   "elapsed_ms": 1776403,
+   "rss_kb": 239980,
+   "static_kb": 101212,
+   "objects": 3032,
+   "map": 172,
+   "activity": "field"
+  },
+  {
+   "frame": 142500,
+   "elapsed_ms": 1798357,
+   "rss_kb": 239980,
+   "static_kb": 101222,
+   "objects": 3034,
+   "map": 172,
+   "activity": "scene"
+  },
+  {
+   "frame": 145000,
+   "elapsed_ms": 1818857,
+   "rss_kb": 239980,
+   "static_kb": 101251,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 147500,
+   "elapsed_ms": 1839526,
+   "rss_kb": 239980,
+   "static_kb": 101252,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 150000,
+   "elapsed_ms": 1860835,
+   "rss_kb": 239980,
+   "static_kb": 101253,
+   "objects": 3037,
+   "map": 173,
+   "activity": "scene"
+  },
+  {
+   "frame": 152500,
+   "elapsed_ms": 1876611,
+   "rss_kb": 239980,
+   "static_kb": 101292,
+   "objects": 3045,
+   "map": 36,
+   "activity": "scene"
+  },
+  {
+   "frame": 155000,
+   "elapsed_ms": 1904195,
+   "rss_kb": 354676,
+   "static_kb": 210949,
+   "objects": 3006,
+   "map": 0,
+   "activity": "battle"
+  }
+ ]
+}
