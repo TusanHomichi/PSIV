@@ -27,7 +27,11 @@ fails on:
   must be a heading's slug, slugged as `check_docs` slugs it. A quoted name
   after the path, `` `path.md` "Heading" ``, `` `path.md`'s "Heading" ``,
   `path.md, "Heading"` or JSON's `path.md \"Heading\"`, must give a
-  heading's leading words or open a bold paragraph label (`**Heading`).
+  heading's leading words (its section number and a leading "The" may be
+  left out) or open a bold paragraph label (`**Heading`). The quoted form is
+  matched across wrapped lines: consecutive comment lines (`//`, `///`,
+  `//!`, `#`, `#:`) with their markers stripped, and consecutive prose lines
+  of Markdown.
 
 A file that no longer exists is cited by its commit instead: `RUNNER_LOG
 (commit 0faa91b^)` names the text `git show 0faa91b^:<path>` prints.
@@ -209,7 +213,10 @@ class Tree:
 
         A `#anchor` must be a heading's slug. A quoted name may give a
         heading's leading words (`"Finding 3"` for "Finding 3 - one inn ...")
-        or open a bold paragraph label (`**Fade correction:**`).
+        or open a bold paragraph label (`**Fade correction:**`), and may leave
+        out the heading's section number and leading "The" (`"How a shop opens"`
+        for "2. How a shop opens", `"per-frame tick structure"` for "The
+        per-frame tick structure - ...").
         """
         if path not in self._slugs:
             self._slugs[path] = heading_slugs(self.text(path).splitlines())
@@ -217,7 +224,8 @@ class Tree:
         if not quoted:
             return anchor in slugs
         slug = slugify(anchor)
-        return (any(found == slug or found.startswith(slug + "-") for found in slugs)
+        bare = {re.sub(r"\A(?:\d+[a-z]?-)?(?:the-)?", "", found) for found in slugs}
+        return (any(found == slug or found.startswith(slug + "-") for found in slugs | bare)
                 or f"**{anchor}" in self.text(path))
 
 
@@ -245,6 +253,46 @@ def _lines(source: str, text: str):
     for index, line, info, _ in iter_fenced_lines(lines):
         if info is None:
             yield index + 1, LINK_RE.sub(lambda match: match.group(0).split("](")[0], line)
+
+
+#: The comment markers a wrapped citation continues behind, longest first.
+_COMMENT_RE = re.compile(r"\A\s*(?://[/!]?|#:?)\s?")
+
+
+def _wrapped(source: str, lines: list[tuple[int, str]]):
+    """`(line starts, text)` of each run a citation can wrap across; the starts
+    are `(offset in text, line number)` pairs.
+
+    A quoted section name often wraps (`` `path.md` "Deliberate fixes to `` on
+    one comment line, `` retail battle bugs" `` on the next), so the quoted
+    form is matched over joined runs: consecutive comment lines of code with
+    their markers stripped, and consecutive non-blank prose lines of Markdown.
+    Other lines (code, JSON) are their own run.
+    """
+    run: list[tuple[int, str]] = []
+
+    def flush():
+        if run:
+            starts, offset = [], 0
+            for number, text in run:
+                starts.append((offset, number))
+                offset += len(text) + 1
+            yield starts, " ".join(text for _, text in run)
+            run.clear()
+
+    for number, line in lines:
+        if source.endswith(".md"):
+            if line.strip():
+                run.append((number, line.strip()))
+                continue
+        else:
+            marker = _COMMENT_RE.match(line)
+            if marker:
+                run.append((number, line[marker.end():].strip()))
+                continue
+        yield from flush()
+        yield [(0, number)], line
+    yield from flush()
 
 
 Reference = tuple[str, int, str, "str | None", str]
@@ -286,7 +334,9 @@ def scan(tree: Tree, sources: Iterable[str],
                     continue
                 count += 1
                 found.append((source, number, path, match["anchor"], "bare"))
-            for match in _QUOTED_HEADING_RE.finditer(line):
+        for starts, block in _wrapped(source, list(_lines(source, text))):
+            for match in _QUOTED_HEADING_RE.finditer(block):
+                number = max(line for offset, line in starts if offset <= match.start())
                 found.append((source, number, match["path"], match["heading"], "heading"))
     return found, count
 

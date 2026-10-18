@@ -2,8 +2,8 @@
 //!
 //! Integer math only. No clocks, no randomness, no interior mutability, no
 //! hashed iteration — the same state, map and input sequence always produces
-//! the same state and the same effect log. See `docs/RUNTIME_DESIGN.md`,
-//! "Fidelity spine (field mode)".
+//! the same state and the same effect log. See the field "Fidelity spine" of
+//! `docs/RUNTIME_DESIGN.md` at commit 3ea02d7^.
 
 use crate::collision::CollisionType;
 use crate::error::MapError;

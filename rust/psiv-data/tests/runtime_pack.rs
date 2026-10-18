@@ -1,8 +1,8 @@
 //! Integration test against the real runtime pack.
 //!
 //! Gated on the pack existing, mirroring the Python suite's ROM gating: the
-//! pack is Sega-derived and never committed (docs/RUNTIME_DESIGN.md, "Data
-//! path"), so a fresh clone must not fail this. Build one with
+//! pack is Sega-derived and never committed (docs/RUNTIME_DESIGN.md, "Data and
+//! runtime layers"), so a fresh clone must not fail this. Build one with
 //! `python -m psiv_tools pack <rom> runtime-pack/` and the test starts running.
 //!
 //! Set `PSIV_RUNTIME_PACK` to test a pack somewhere else -- a subset built for

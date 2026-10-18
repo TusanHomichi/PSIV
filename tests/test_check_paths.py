@@ -122,6 +122,16 @@ class NegativeControls(RepoCase):
             "rust/psiv-campaign/routes/main.json:1: path not found: docs/campaign/RUNNER_LOG.md",
         )
 
+    def test_a_quoted_section_wrapped_across_comment_lines(self):
+        self.assert_fails(
+            {"lib.rs": "/// The rule is `docs/a.md` \"Post-Rika northern\n/// crossing\".\n"},
+            'lib.rs:1: missing heading anchor: docs/a.md "Post-Rika northern crossing"',
+        )
+        self.assert_fails(
+            {"tool.py": "# see `docs/a.md`,\n# \"Post-Rika crossing\"\nX = 1\n"},
+            'tool.py:1: missing heading anchor: docs/a.md "Post-Rika crossing"',
+        )
+
     def test_a_json_escaped_quoted_section(self):
         route = '{"source": "docs/a.md \\"Post-Rika northern crossing\\""}\n'
         self.assert_fails(
@@ -187,6 +197,13 @@ class AcceptedCases(RepoCase):
 
     def test_ignored_local_inputs(self):
         self.assert_passes({"tool.py": "PACK = 'runtime-pack/battle/enemies.json'\n"})
+
+    def test_a_wrapped_section_that_exists(self):
+        self.assert_passes({"lib.rs": "//! See `docs/a.md`'s \"The northern\n//! bridge after Rika joins\".\n"})
+
+    def test_a_section_without_its_number_or_leading_the(self):
+        self.write({"docs/b.md": "# B\n\n## 2. How a shop opens\n\n## The per-frame tick structure\n"})
+        self.assert_passes({"lib.rs": '// `docs/b.md` "How a shop opens", `docs/b.md` "per-frame tick structure"\n'})
 
     def test_a_section_by_heading_prefix_or_bold_label(self):
         self.assert_passes({
