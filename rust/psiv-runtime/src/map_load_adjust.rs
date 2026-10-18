@@ -37,7 +37,7 @@ const GUMBIOUS_B1: u16 = 0x163;
 const GUMBIOUS_B2: u16 = 0x164;
 
 /// `EventFlag_ZioNurvus`, `DarkForce2`, `DarkForce3Defeated` and `Reunion`
-/// (`ps4.constants.asm:1552`, `:1632`, `:1646`).
+/// (`ps4.constants.asm:1552`, `:1597`, `:1632`, `:1646`).
 const ZIO_NURVUS: u16 = 0x65;
 const DARK_FORCE_2: u16 = 0x9E;
 const DARK_FORCE_3_DEFEATED: u16 = 0xC6;

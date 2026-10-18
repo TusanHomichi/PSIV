@@ -17,6 +17,9 @@ Four short events, all of the shape `moveq #n, d0` / `jsr Event_GetAndRunDialogu
 | `$009C` | `Event_SoldiersTempleReached` | `$0738A4..$0738B5` | `$59` (`:116421`), `SoldiersTempleOutside` `$99`, `$C4` clear | dialogue `$10`, set `$C4` (`SoldiersTemple`) |
 | `$009D` | `Event_AeroPrismFound` | `$0738B6..$0738D1` | `$5A` (`:116429`), `SoldiersTemple` `$9A`, chest `$10D` set and `$C8` clear | dialogue `$11`, set `$C9` (`AeroPrism2`) then `$C8` (`AeroPrism1`) |
 
-The triggers fire on a map load: none carries a position box, so each scene runs the moment the
-party arrives, before the first step (`RunEvents` on the first field frame). The dialogue is the
-current map's tree.
+None of the four triggers tests a position, only flags (and, for `$5A`, the chest flag).
+`RunEvents` walks the map's event list on every `FieldRoutine_Controls` frame on which the leader
+is not mid-step and bit 0 of `Tile_Coll_Run_Event_Flag` is clear (`ps4.asm:116755-116773`,
+`:114979-114986`). So `$57`, `$58` and `$59` fire on the first such frame after their map loads,
+before the party can take a step, and `$5A` on the first such frame after the Aero-Prism chest
+has set `$10D`. The dialogue is the current map's tree.

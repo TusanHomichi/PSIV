@@ -259,7 +259,7 @@ fn cmd_plan(args: &[String]) -> Result<ExitCode, String> {
         None => None,
     };
     let from = match (&saved, args.one("from-map"), args.one("from-cell")) {
-        (_, Some(map), Some(cell)) => Position {
+        (None, Some(map), Some(cell)) => Position {
             map: parse_map(map)?,
             cell: parse_cell(cell)?,
         },

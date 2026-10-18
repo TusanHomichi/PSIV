@@ -346,7 +346,7 @@ fn write_save(session: &Session, name: &str) -> PathBuf {
 /// with Dark Force 2 in the save, B2 is one redirected warp away. The same
 /// position named with `--from-map`/`--from-cell` and no flags has no plan
 /// (the negative control: the flags came from the save), and `--from-save`
-/// beside a half `--from-map` is a usage error.
+/// beside any `--from-map` or `--from-cell` is a usage error.
 #[test]
 fn plan_from_save_reads_the_saves_position_and_flags() {
     let Some(session) = party_at(BELOW_GUMBIOUS, &[DARK_FORCE_2]) else {
@@ -380,13 +380,24 @@ fn plan_from_save_reads_the_saves_position_and_flags() {
     assert_eq!(bare.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&bare.stdout).contains("no plan"));
 
-    let mixed = bin()
-        .arg("plan")
-        .arg("--from-save")
-        .arg(&save)
-        .args(["--from-map", "1", "--to-map", "0x164"])
-        .output()
-        .unwrap();
-    assert_eq!(mixed.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&mixed.stderr).contains("--from-save alone"));
+    // A save's position and a named one are never mixed: half a position or
+    // a whole one beside --from-save is a usage error.
+    for extra in [
+        &["--from-map", "1"][..],
+        &["--from-map", "1", "--from-cell", "125,73"],
+    ] {
+        let mixed = bin()
+            .arg("plan")
+            .arg("--from-save")
+            .arg(&save)
+            .args(extra)
+            .args(["--to-map", "0x164"])
+            .output()
+            .unwrap();
+        assert_eq!(mixed.status.code(), Some(2), "{extra:?}");
+        assert!(
+            String::from_utf8_lossy(&mixed.stderr).contains("--from-save alone"),
+            "{extra:?}"
+        );
+    }
 }

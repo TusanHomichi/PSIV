@@ -8,7 +8,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use psiv_core::Flag;
+use psiv_core::{Flag, FlagBank};
 
 use crate::start::{SetupError, StartPoint, open_session};
 
@@ -92,7 +92,7 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
         .map(|item| format!("{}:{}", item.id, item.name))
         .collect();
     let _ = writeln!(out, "inventory {}", items.join(", "));
-    let set: Vec<String> = (0..512u16)
+    let set: Vec<String> = (0..FlagBank::Event.capacity())
         .filter(|id| runtime.game().is_set(Flag::event(*id)))
         .map(|id| format!("{id:#x}"))
         .collect();
@@ -114,21 +114,12 @@ pub fn save_position(
     let runtime = session.runtime();
     let cell = crate::driver::standing_cell(runtime);
     let game = runtime.game();
-    let mut flags = Vec::new();
-    for id in 0..512 {
-        if game.is_set(Flag::event(id)) {
-            flags.push(Flag::event(id));
-        }
-    }
-    for id in 0..256 {
-        if game.is_set(Flag::temp(id)) {
-            flags.push(Flag::temp(id));
-        }
-    }
-    for id in 0..128 {
-        if game.is_set(Flag::town(id)) {
-            flags.push(Flag::town(id));
-        }
-    }
+    // Every bank to its capacity (`FlagBank::capacity`, the RAM map's one
+    // owner of the sizes).
+    let flags = [FlagBank::Event, FlagBank::Temp, FlagBank::Town]
+        .into_iter()
+        .flat_map(|bank| (0..bank.capacity()).map(move |id| Flag { bank, id }))
+        .filter(|flag| game.is_set(*flag))
+        .collect();
     Ok((runtime.map_id().0, cell, flags))
 }
