@@ -34,7 +34,7 @@ size    3145728 bytes
 ```
 
 Before a pointer is followed it verifies the structural anchors adjudicated in
-`docs/sound/SOUND_SCOUT.md`, plus SHA-256 hashes for the pointer tables, fixed driver
+`docs/sound/SOUND_DRIVER.md`, plus SHA-256 hashes for the pointer tables, fixed driver
 constants, the embedded Z80 driver and the DAC bank table. The provenance
 record in `sound/driver.json` names the checked-out source tree:
 `reference/ps4disasm/sound` (`DefCFlag.txt`, `DefDrv.txt`, `Notes.txt`,

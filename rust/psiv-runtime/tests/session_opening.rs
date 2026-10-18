@@ -4,7 +4,7 @@
 //! trigger 124 and Chaz's `$6D` line), and an eight-frame `Up`, and finds the
 //! cartridge's first control: map `$13`, standing cell `(48,18)`, Chaz alone,
 //! no active scene, 500 meseta and town flags `80008040`
-//! (`docs/campaign/PLAYABILITY_FOUNDATIONS.md`, "Evidence"). This case reaches
+//! (the foundations playability record's "Evidence", commit 0faa91b^). This case reaches
 //! the same state the same way a player does: one [`Pad`] per frame, Speak
 //! presses to dismiss the message boxes, then `Up`.
 //!
@@ -205,7 +205,7 @@ fn the_opening_reaches_first_control_through_pads() {
     );
 
     // The native smoke's eight-frame Up: one cell north, to the standing cell
-    // the retail oracle recorded (`docs/oracle/RESULTS.md`: 768,288 pixels =
+    // the retail oracle recorded (`docs/scenes/01_GameStart.md`: 768,288 pixels =
     // cell 48,18).
     for _ in 0..UP_FRAMES {
         player.tick(Pad::new(Button::Up));

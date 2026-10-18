@@ -26,7 +26,7 @@ use crate::policy::Policy;
 /// `RunMapTransitions` on every landing (`ps4.asm:116768-116773`), so a landing
 /// that started a scene never reached the map-change table, and the runtime's
 /// report of the type-1 cell it landed on as unmapped is no fault there (the
-/// Mota Spaceport's boarding row, RUNNER_LOG C4).
+/// Mota Spaceport's boarding row, RUNNER_LOG C4, commit 0faa91b^).
 ///
 /// `doorway_row` is whether the unmapped type-1 cell borders a warp footprint
 /// of the map: a doorway row (type 1) whose warp the cartridge keeps in the

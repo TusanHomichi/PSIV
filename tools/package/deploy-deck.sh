@@ -1,15 +1,19 @@
 #!/bin/bash
 # Package and push PSIV to a Steam Deck. Usage, from the repository root:
 # ./tools/package/deploy-deck.sh <deck-ip> [user]
-# The Deck user is almost always `deck`. Requires key auth (same setup as
-# MiraCraft's account). After the push: on the Deck, add
+# The Deck user is almost always `deck`. Requires SSH key authentication to
+# that user. After the push: on the Deck, add
 # ~/psiv/psiv.x86_64 as a non-Steam game (Desktop Mode > Steam > Add a Game),
 # or run it straight from Desktop Mode.
-set -e
+# pipefail: a failed export must stop the script, not vanish into `| tail`.
+set -euo pipefail
 DECK_IP="${1:?usage: ./tools/package/deploy-deck.sh <deck-ip> [user]}"
 DECK_USER="${2:-deck}"
 # tools/package/deploy-deck.sh: the repository root is two levels up.
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# The Godot that exports: PSIV_GODOT, else `godot` on PATH, at the pinned version.
+GODOT="$(python3 "$HERE/tools/godot.py")"
 
 # Always ship a current build: release lib, then export. The Deck runs
 # SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain
@@ -22,8 +26,12 @@ PATH="$HOME/.local/bin:$PATH" cargo zigbuild --release -p psiv-godot \
     --target "x86_64-unknown-linux-gnu.$DECK_GLIBC"
 cp "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" \
    "$HERE/rust/target/release/libpsiv_godot.so"
-"$HOME/.local/bin/psiv-godot-4.7.1" --headless --path "$HERE/godot" \
-    --export-release "Linux-SteamDeck" 2>&1 | tail -3
+# A fresh clone's project has no extension index until it is prepared, and
+# Godot refuses to export into a directory that does not exist.
+python3 "$HERE/tools/godot.py" prepare
+mkdir -p "$HERE/build/deck"
+"$GODOT" --headless --path "$HERE/godot" \
+    --export-release "Linux-SteamDeck" 2>&1 | tee "$HERE/build/deck-export.log" | tail -3
 
 STAGE="$HERE/build/deck-stage/psiv"
 rm -rf "$STAGE" && mkdir -p "$STAGE"

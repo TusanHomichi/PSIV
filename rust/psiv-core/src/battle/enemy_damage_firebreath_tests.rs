@@ -316,13 +316,14 @@ fn every_firebreath_route_resolves_in_an_ordinary_round() {
 /// 133 ProfoundDarkness1 carries `$21` in three of its eight regular slots, and
 /// `EnemyAttack_ProfoundDarkness1` (`ps4.asm:19823`) tests the scripted-battle
 /// flag `$FFFFEE87` before it dispatches anything: with the flag set it clears
-/// `$24(a4)` and loads object `$864` instead. The port models no battle objects,
-/// so it cannot tell which arm the cartridge takes and leaves the pair out of
-/// the table — the `$21` arm below the gate stays for a lane that models the
-/// flag. A row here would resolve FIREBREATH on a turn the cartridge spends on
-/// `$864`.
+/// `$24(a4)` and loads object `$864` instead. The engine spends that first turn
+/// (`scripted_flag::first_action`, `engine_tests_endgame.rs`), so the rolled
+/// `$21` reaches this table only below the gate, where it is a single-target
+/// route with one request (`$870`, then `$874`'s `loc_24A6C`) and no object
+/// calls. The captures `replay_fixtures/endgame/profound_darkness*.json` see it
+/// from round 2.
 #[test]
-fn the_gated_firebreath_carrier_is_refused() {
+fn profound_darkness_1s_firebreath_is_one_single_target_request() {
     let carrier = Carrier {
         enemy_id: 133,
         symbol: "ProfoundDarkness1",
@@ -332,10 +333,6 @@ fn the_gated_firebreath_carrier_is_refused() {
             FIREBREATH, FIREBREATH, FIREBREATH, 0x22, 0x22, 0x64, 0x64, 0x64,
         ],
     };
-    // Lane A6 modelled the latch (`scripted_flag::first_action`), so the
-    // engine spends the first turn on `$864` before the roll reaches this
-    // table (`engine_tests_endgame.rs`), and the row below the gate - `$870`,
-    // one request through `$874`'s `loc_24A6C` - is a route like the others.
     let route = super::all()
         .find(|route| route.enemy_id == 133 && route.ability == FIREBREATH)
         .expect("133 ProfoundDarkness1's FIREBREATH is a route");

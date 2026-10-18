@@ -134,20 +134,14 @@ their separate effect tracks; their local attack layer stays at the
 receipt-backed formation anchor, so the movement census no longer hides a
 presentation clock behind static-analysis silence.
 
-## Census delta
+## Census
 
-The left side is the honest post-wave-6 baseline from the pack census. The
-right side is the current extractor and emitted art index.
+Every enemy record's animation is exact: timed frame records, mapping and art
+composition and movement track for all 153 records, and 1,355 exact attack
+frames across the 153 enemies.
 
-| Surface | Before exact | Before partial | Before deferred | After exact | After partial | After deferred |
-|---|---:|---:|---:|---:|---:|---:|
-| Timed frame records | 79 | 0 | 74 | 153 | 0 | 0 |
-| Mapping/art composition | 60 | 15 | 78 | 153 | 0 | 0 |
-| Movement track | 30 | 49 | 74 | 153 | 0 | 0 |
-| Exact attack PNG frames | 393 frames / 60 enemies | — | — | 1355 frames / 153 enemies | — | — |
-
-Direct SFX remains 153 exact, with no generic fallback. The current routine
-classification census is:
+Direct SFX is 153 exact, with no generic fallback. The routine classification
+census is:
 
 | Class | Enemy records | Frame result |
 |---|---:|---|

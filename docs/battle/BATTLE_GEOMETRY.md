@@ -12,7 +12,7 @@ also checked against `oracle/frames/frame_25000.png`, the retail 320x224 capture
 Where something is genuinely dynamic the rule is given rather than a number.
 
 `loc_XXXXX` labels in `ps4.asm` are retail addresses (established in
-`docs/battle/BATTLE_SCOUT.md`); the `;0x…` inline comments are the fork's and drift.
+`docs/battle/BATTLE_RULES.md`); the `;0x…` inline comments are the fork's and drift.
 
 ---
 
@@ -475,8 +475,8 @@ animation timeline. §3 gives the idle default and the swing trigger only.
 | what | retail | how proven |
 |---|---|---|
 | enemy position → `fighter_x_pos` | `$0079AC` | `0240 007F / E748 / D042 / 3340 000C` |
-| enemy art blit anchor | `$00010ED4` | `205B 302C 000E` (`docs/battle/BATTLE_SCOUT.md`) |
-| enemy art record table | `$0027F3BC` | `0020D850 04080012 …` (BATTLE_SCOUT §13) |
+| enemy art blit anchor | `$00010ED4` | `205B 302C 000E` (`docs/battle/BATTLE_RULES.md`) |
+| enemy art record table | `$0027F3BC` | `0020D850 04080012 …` (BATTLE_RULES §13) |
 | party slot placement | `$008684` | full 86-byte block matched |
 | party pose buffer table | `$009A80` | `loc_9A6C` reads it by slot |
 | party slot erase | `$00008704` | 6 rows × 12 bytes |

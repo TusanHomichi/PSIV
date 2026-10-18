@@ -36,6 +36,7 @@ steps are nested no-ops and N is capped by the slot cap; under a godot holder
 """
 import argparse
 import ctypes
+import functools
 import hashlib
 import json
 import os
@@ -65,7 +66,7 @@ from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-GODOT = os.environ.get("PSIV_GODOT", str(Path.home() / ".local/bin/psiv-godot-4.7.1"))
+from godot import GodotError, prepare as prepare_godot, resolve as resolve_godot  # noqa: E402
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -325,7 +326,7 @@ def xvfb_display(log):
             server.wait()
 
 
-def capture(name, env, tick, receipt, display):
+def capture(name, env, tick, receipt, display, godot):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
@@ -335,7 +336,7 @@ def capture(name, env, tick, receipt, display):
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["timeout", f"{capture_timeout(tick)}s", GODOT,
+    command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
@@ -380,17 +381,18 @@ def job_count(requested, cap):
     return requested
 
 
-def run_captures(tasks, jobs, receipt, display=xvfb_display, take=None, results=None):
+def run_captures(tasks, jobs, receipt, display, take, results=None):
     """Capture every `(name, env, tick)` task across `jobs` workers, longest
     tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
 
-    Each worker owns one display from `display(log)` for its life. `take` is
-    `capture` (a parameter so the cases can stand in for Godot). When a capture
+    Each worker owns one display from `display(log)` (`xvfb_display`) for its
+    life. `take(name, env, tick, receipt, display)` makes one capture: `capture`
+    with the resolved Godot bound, which `main` passes; it has no default, since
+    `capture` alone cannot run without that Godot. When a capture
     raises or the wait is interrupted (Ctrl-C), the queued captures are
     cancelled, the running ones finish, and the exception propagates with
     `results` holding every capture that finished.
     """
-    take = take or capture
     jobs = min(jobs, len(tasks))
     displays = queue.Queue()
     results = {} if results is None else results
@@ -438,6 +440,11 @@ def main(argv=None):
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
     try:
+        godot = resolve_godot()
+    except GodotError as error:
+        print(f"certify: refused, {error}")
+        return 2
+    try:
         jobs = min(job_count(args.jobs, godot_slots()), len(pairs))
     except ValueError as error:
         print(f"certify: refused, {error}")
@@ -460,6 +467,11 @@ def main(argv=None):
         print(f"certify: {len(pairs)} pairs on {jobs} worker(s), "
               f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
               f"{hold.path}", flush=True)
+        try:  # a fresh clone's project has no extension index yet
+            prepare_godot(root / "godot")
+        except GodotError as error:
+            print(f"certify: refused, {error}")
+            return 2
         started = time.monotonic()
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
@@ -471,7 +483,8 @@ def main(argv=None):
         prepared = time.monotonic()
         shots, interrupted = {}, None
         try:
-            run_captures(tasks, jobs, receipt, results=shots)
+            run_captures(tasks, jobs, receipt, xvfb_display,
+                         functools.partial(capture, godot=godot), results=shots)
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop
         timing = {"oracle_s": round(prepared - started, 1),

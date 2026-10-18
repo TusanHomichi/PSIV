@@ -1,0 +1,6 @@
+# The Rust toolchain PSIV builds, tests and lints with (docs/DEVELOPMENT.md).
+# rustup reads this file from the repository root and installs the toolchain on
+# first use. Change the version here, and only here.
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]

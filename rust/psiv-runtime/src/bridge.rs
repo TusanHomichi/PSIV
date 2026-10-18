@@ -501,7 +501,7 @@ fn bespoke_kind(symbol: Option<&str>) -> Option<BespokeKind> {
         },
 
         // Input, mode, and cast-owned actors. Their input is scene authority,
-        // so inventing a field AI here would be a cross-lane semantic bug.
+        // so inventing a field AI here would put scene logic in the bridge.
         "AlysAngerTower"
         | "DemiSpaceportWaiting"
         | "GryzSpaceportWaiting"

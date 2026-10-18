@@ -1,8 +1,8 @@
 //! The battle command menu: who answers, what they may choose, and the
 //! `RoundOrders` the round runs with.
 //!
-//! Ported from `psiv-godot/src/battle/commands.rs` and `ui_input.rs` with the
-//! S3 node, because the cartridge decides this in `BattleRoutines2`
+//! Ported from the Godot crate's battle command and input modules (commit
+//! 25701a1), because the cartridge decides this in `BattleRoutines2`
 //! (`ps4.asm:1138`) and the shell was making game decisions it could not own:
 //! eligible actors, the TP/weapon/item-reservation enable rules,
 //! target lists, the Defend default and the per-slot order vector.
@@ -181,7 +181,8 @@ impl VehicleWindow {
 ///
 /// This is the S3 fidelity fix the brief names: the shell kept its own copy of
 /// the mounted record's skills and subtracted a use when the window closed
-/// (`psiv-godot/src/battle/ui_input.rs`, `self.vehicle_skills[...].current -= 1`),
+/// (the Godot crate's battle input module before commit 25701a1,
+/// `self.vehicle_skills[...].current -= 1`),
 /// while the engine subtracts the use from the battle record the moment the
 /// command resolves (`psiv-core/src/battle/engine.rs`, `Command::VehicleSkill`).
 /// Reading the roster means the window shows the record, and the absorbed

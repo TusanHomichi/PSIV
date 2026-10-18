@@ -5,7 +5,7 @@
 - **Trigger:** `RunEvent_EnterVahalFort` (`$75`, `ps4.asm:116508`), Vahal Fort `$C8`: `EventFlag_ZemaOldMan` (`$B3`) set and `EventFlag_VahalFort` (`$B4`) clear, anywhere on the map (`trigger_table.rs`).
 - **Data:** `vahal_fort.rs`, `VAHAL_FORT_ENTRANCE` (2 ops).
 
-Issue #82, transcribed by the S9 lane. The five story scenes of the fort and the
+Issue #82. The five story scenes of the fort and the
 plant are here; the two chest events are [111](111_WrenSkillChests.md) and the
 platforms, terminals and belts are [the field mechanics
 record](../field/PLATFORMS_AND_BELTS.md). Every body was read from the US image

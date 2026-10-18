@@ -177,7 +177,8 @@ pub struct Stats {
     /// on the cartridge, defending once permanently discards whatever
     /// resistance your gear was granting for the rest of the battle. That is
     /// the Defend/armour `physical_prop` clobber in
-    /// `docs/RUNTIME_DESIGN.md` "Battle bug policy", listed as a fix; the
+    /// `docs/source-notes/README.md` "Deliberate fixes to retail battle bugs",
+    /// listed as a fix; the
     /// disassembly's own `bugfixes=1` branch invents this same byte to solve it
     /// (`physical_prop_save = $7B`, `ps4.constants.asm:61`).
     pub physical_prop_save: u8,

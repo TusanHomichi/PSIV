@@ -245,7 +245,7 @@ class DisassemblyOracleTest(unittest.TestCase):
         self.assertIn("\tasr.l\t#8, d1\n\tsub.w\td1, x_step_duration(a4)", self.source)
 
     def test_alys_in_piata_selects_the_middle_speed(self):
-        # The NPC scene-lane traced: `moveq #1,d7` before the move call.
+        # The NPC's routine sets the middle speed: `moveq #1,d7` before the move call.
         body = self.source.split("FieldObj_NPCAlysPiataMain:")[1].split("; ---")[0]
         self.assertIn("moveq\t#1, d7", body)
         self.assertIn("bsr.w\tFieldObj_NPCMove", body)

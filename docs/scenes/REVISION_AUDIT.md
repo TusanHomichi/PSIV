@@ -74,14 +74,14 @@ instead of tree 36. Fixed in the same pass; the guard covers it either way.
 
 | Scene | Block (clone line) | Retail branch content | Port status |
 |---|---|---|---|
-| `Cutscene_AlysWounded` | `154305`, `154465` `if revision>0` | `DialogueTree6` loads before dialogues `$2C`, `$2D` | **was missing** → added |
+| `Cutscene_AlysWounded` | `154305`, `154465` `if revision>0` | `DialogueTree6` loads before dialogues `$2C`, `$2D` | present |
 | `Cutscene_AlysWounded` | `154558` `if revision>0` | `DialogueTree5` restore at the end | present |
-| `Cutscene_PsycoWand` | `154633`, `154938` `if revision>0` | `DialogueTree6` loads before `$2E` and the late resume | **was missing** → added |
+| `Cutscene_PsycoWand` | `154633`, `154938` `if revision>0` | `DialogueTree6` loads before `$2E` and the late resume | present |
 | `Cutscene_PsycoWand` | `155002` `if revision>0` | `DialogueTree5` restore | present |
 | `Cutscene_Alshline` | `153741`, `153835`, `153852` | trees 3, 3 and 4 | present (3 ops) |
 | `Cutscene_ZemaIgglanovaDefeated` | `153881` (nested) | tree 3 | present |
 | `Cutscene_ZioDefeated` | `155017` `if revision=0` | three `SFXID_Tandle` + 2-frame waits + `#*$27` | **not taken**: the port plays the revision-1 branch (common Tandle + two, waits 6/6/3, `$77` → 120 frames) |
-| `Cutscene_Elsydeon` | `157483` `if revision>0` | `move.b #SFXID_Deban` before the `$12B` panel | **was missing** → added (`SFX_DEBAN = $DC`) |
+| `Cutscene_Elsydeon` | `157483` `if revision>0` | `move.b #SFXID_Deban` before the `$12B` panel | present (`SFX_DEBAN = $DC`) |
 | `Cutscene_Ending` | `158031` `if revision>0` | hold Menu (`ButtonCamp`) at scene start jumps to the credits | not ported; see "Recorded deviation" below |
 | `Cutscene_Ending` | `158656` `if revision=0` | two credit lines `$12`/`$13` at planes `$850C`/`$880C` | **not taken**: the port transcribes the `else` branch — lines `$12`–`$15` at `$8406`/`$8586`/`$8706`/`$8886` |
 | `Cutscene_ProfoundDarkness` | `157992` `if revision=0` | palette line 2 forced to `$EEE` | **not taken**: the `else` ramp is the one the port's presentation follows |

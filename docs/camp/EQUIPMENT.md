@@ -1,6 +1,6 @@
-# EQUIP / UNEQUIP scout
+# Equipping and unequipping
 
-Status: **scouted and implemented**. This is the field-side companion to the
+Status: **implemented**. This is the field-side companion to the
 shared battle `Stats` record. The persistent equipment bytes remain the exact
 four-byte interface at `$4C..$4F`; no field was added or repurposed in
 `psiv-core/src/battle/stats.rs`.

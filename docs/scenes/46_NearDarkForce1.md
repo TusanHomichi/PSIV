@@ -19,8 +19,7 @@ not Grand Cross story code. Actual-ROM range: `$06FAE6..$06FAF8` exclusive end.
 | 1 | `$06FAF0..$06FAF7` | set `EventFlag_NearDarkForce1=$87` | flag |
 
 
-## In the route (C6)
-
+## In the route
 `RunEvent_NearDarkForce` tests `curr_y_pos == $200`
 (`ps4.asm:115892-115902`); a standing cell's y byte is its row less one, so the
 trigger is **row 33** of Kuran F3 `$198`, any x. The `kuran-near-dark-force`

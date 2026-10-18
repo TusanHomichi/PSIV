@@ -3,7 +3,7 @@
 Scout + extraction, 2026-08-15. Every address below was verified against the
 retail image (`Phantasy Star IV (USA).md`, sha256 `511f35cc…`) before it was
 used; `reference/ps4disasm` supplies the labels only. Citation standard is
-`docs/battle/BATTLE_SCOUT.md`'s: a claim is either a byte offset you can check or it
+`docs/battle/BATTLE_RULES.md`'s: a claim is either a byte offset you can check or it
 is marked as an inference.
 
 Extractors: `psiv_tools/shops.py` (the two tables, pre-existing),
@@ -174,7 +174,7 @@ the party, `Runtime::rest_event` answers which rests run a scene, and
 (`AiedoEventPending` included) is gone: the session runs one transaction in two
 halves, so there is no "pending" state left to model.
 
-`tests/session_menu_scenes.rs::the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill`
+`rust/psiv-runtime/tests/session_menu_scenes.rs::the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill`
 and its flagged control cover the isolated pad path. START and CONTINUE clear
 the pending handoff alongside other per-frame menu state, preventing an old
 Aiedo bill from being charged when a later scene ends.

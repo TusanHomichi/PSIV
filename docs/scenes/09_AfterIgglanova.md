@@ -168,7 +168,7 @@ It is Hahn who walks to (256, 192), not the leader.
 like the follower-spacing value — with it at 0 the party members stand on top of
 each other rather than trailing, which is what lets the scene pose them
 individually and then `Event_OverlapCharacters` collapse them again. Confirm
-with core-lane's follower work.
+with the follower model.
 
 ## Open questions
 
@@ -184,7 +184,7 @@ with core-lane's follower work.
    entry. Oracle claim: *`Saved_Dialogue_Addr` takes exactly three distinct
    values during this scene, and the two intermediate ones fall inside entry
    `$12`'s byte range.* Logging that address per frame gives the answer directly
-   and pins the chunk boundaries for the dialogue lane.
+   and pins the chunk boundaries for the dialogue runner.
 3. **`Event_OverlapCharacters` (`$5A87A`).** It computes the *last* party
    member's object (`party_count - 1`, `lsl #6`) into `a3` and clears
    `Joypad_Held`; the rest was not read. It presumably walks followers onto the

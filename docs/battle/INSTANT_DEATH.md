@@ -38,26 +38,12 @@ The native text/hide sequence is not a claim of original presentation parity.
 
 ## Verification
 
-`build/native-death-abilities/core-tests.log`: 220 core battle tests pass.
-New cases cover inclusive hit/miss boundaries, normal/weak/immune elements,
-MEN versus STR selection, spent TP/skill uses, dead-target retargeting,
-no damage draws, suppressed defeated-enemy turns, and once-only rewards.
-
-`build/native-death-abilities/real-record-tests.log` exercises original Gryz
-records through JSON, CRASH, BROSE, further paid CRASH attempts after misses,
-victory and a save/load cycle. No character stats are boosted. The isolated
-Godot fixture uses that original Gryz as a one-person party in Tonoe basement;
-it is not campaign progression. The existing opening technique/skill runtime
-tests and strict workspace Clippy also pass.
-
-`build/native-death-abilities/route/receipt.json` completes the isolated Godot
-run: seven submitted rounds, six paid CRASH commands and one BROSE, then
-ordinary victory and SAVE 2. Gryz ends at 57/66 HP, 4/20 TP, one CRASH use,
-and 506 meseta (the original 500 plus six). Captures were inspected.
-
-`build/native-death-abilities/continued/receipt.json` starts a fresh Godot
-process at the actual title, selects CONTINUE 2, verifies resources, moves
-one cell down and writes SAVE 3. Both source files remain byte-identical;
-the saved payload differs only at standing Y. This proves native resource
-persistence, not physical controller or audible sound output. The battle
-command icon still uses a question-mark placeholder for this skill.
+Core battle tests cover the inclusive hit and miss boundaries, normal, weak and
+immune elements, MEN versus STR selection, spent TP and skill uses, dead-target
+retargeting, no damage draws, suppressed defeated-enemy turns and once-only
+rewards. A runtime test runs Gryz's own records through JSON: CRASH, BROSE,
+further paid CRASH attempts after misses, victory and a save/load cycle, with no
+boosted stats. `tools/native/native_death_abilities.gd` plays the same isolated
+battle (Gryz alone in the Tonoe basement) with ordinary input and saves; a fresh
+process loads it through CONTINUE. It is not campaign progression, and the
+battle command icon for this skill is a placeholder.

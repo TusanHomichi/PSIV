@@ -111,9 +111,10 @@ Three details the tool insists on, because each was found the hard way:
 
 ### 1.3 The policy
 
-X86 adds per-round `--party-script` commands through live cartridge menus.
-The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts);
-state/RNG evidence is in [BATTLE_ORACLE_X86.md](BATTLE_ORACLE_X86.md).
+`--party-script` gives per-round commands through the live cartridge menus.
+The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts),
+and what a scripted capture guarantees is
+[section 9](#9-party-command-scripts-what-a-capture-guarantees).
 The two existing `--policy` inputs below are unchanged.
 
 `attack` (the default) is tape 07's own fight input: one `C` press every 16
@@ -125,8 +126,7 @@ so four Right presses step ATTACK -> TECHNIQUE -> SKILL -> ITEM -> DEFEND.
 Both are fixed frame patterns, so the inputs are frame-deterministic.
 
 `defend` was run end to end once, as the acceptable fallback for a battle the
-attack policy cannot finish: formation `$5E` again, `--repeats 60`
-(`build/lane-evidence/f94_defend/`, trace `7c4798e3…`, log `5a728739…`). The
+attack policy cannot finish: formation `$5E` again, `--repeats 60`. The
 battle runs to f25760 - longer than the attack policy's f25616, as defending
 should be - and the defender's `physical_prop` goes `514 -> 258` for the
 surviving member at f25439, which is the same retail DEFEND clobber
@@ -139,8 +139,7 @@ encounter has already fired, so the formation stays forced, while every roll in
 the fight shifts (`Main_Frame_Count` advances and the seed evolves frame by
 frame): the knob for a battle whose enemy never rolls the ability a capture is
 for. The probe and the seed patch are re-derived for each delay, because the
-draw's frame moves with it. Formation `$5E` with `--delay 5`
-(`build/lane-evidence/f94_d5/`) is the measurement: still two Helex, but the
+draw's frame moves with it. Formation `$5E` with `--delay 5` is the measurement: still two Helex, but the
 draw's `hv` is `$6DFF` rather than `$7195`, so `K` is 26 rather than 16 and the
 seed patch is `$0006` rather than `$001C`; the fight's own rolls differ (trace
 `da65b77f…`, log `e7fdf0ca…`, the two FLAME BOLTs at f25008/f25130 instead of
@@ -148,40 +147,10 @@ f25003/f25125) and the battle ends at f25621 instead of f25616. None of the
 three captures needed it - every ability fired on the first delay tried - but
 the knob is measured rather than assumed.
 
-**Historical limitation (2026-09-25), closed by X86.** The tool then had no
-policy commanding a technique, skill or item. The `--party-script` path now
-provides those inputs and command extraction; [X86 evidence](BATTLE_ORACLE_X86.md)
-records the closure. The original boundary was: `--policy` takes `attack` or `defend` and nothing else
-(`oracle/force/cli.py`; the frame patterns are `oracle/force/tape.py`'s
-`policy_steps`), so no run of this tool can open the TECH or SKILL list, pick an
-ability and pick its target - which is what a capture of the retarget rule's
-**mirror** loop would need (a single-target technique ordered at an enemy that
-falls before it resolves; `docs/source-notes/battle-party.md`, 2026-09-25).
-Three pieces are missing, in the order a lane would add them:
-
-* a `tech` policy: the frame arithmetic for COMD -> Right (the per-character
-  command menu is horizontal, which is what `defend`'s four Right presses
-  measure) -> C on TECHNIQUE -> the ability's own row in `Battle_Tech_List` ->
-  C -> the target cursor a target nibble of 1 opens when more than one enemy
-  lives (`Battle_ComdTechTarget_SingleEnemy` -> `Battle_PickTargetEnemy`,
-  `ps4.asm:2666-2684`). The policy is a fixed frame pattern with no feedback, so
-  each menu's own timing has to be measured the way `defend`'s was;
-* a party that knows the ability. The tape's three members start with
-  FOI/SHIFT/SANER, RES/GELUN and RES (`generated/characters.json`'s
-  `initial_techniques`); FOI is the only single-enemy one of those, and its
-  effect id 1 takes the *largest*-deficit loop. The mirror needs a
-  single-target non-damaging technique - VOL (effect 2, target nibble 1) is the
-  shortest route - so the policy alone is not enough: the run would need a party
-  that has learned one (`--ram-patch`, or a patch in the shape of
-  `oracle/force/durable.py`'s HP one);
-* the capture's *verdict*, which is not this tool's: `oracle/fixture/assembly.py`'s
-  `command_entry` writes `"command": "attack"` for every party action (it reads
-  the target cell only) and `rust/psiv-core/src/battle/replay/build.rs`'s
-  `orders` builds `Command::AttackTarget` from it, so a technique capture needs
-  both to carry the kind and id that `$FFFF4146` already logs
-  (`current_command`).
-
-Until then the rule is transcribed from `ps4.asm` and not oracle-verified.
+A capture of the retarget rule's **mirror** loop (a single-target technique
+ordered at an enemy that falls before it resolves) needs a scripted party that
+has learned a single-target non-damaging technique; it is
+[issue #37](https://github.com/TusanHomichi/PSIV/issues/37).
 
 ## 2. The four captures
 
@@ -248,6 +217,19 @@ python3 -m oracle.force --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
 ```
 
+Its runs log `core,battle,bhit,enemy,chars,rng,vehicle,bcmd`
+(`oracle/force/runs.py`'s `GROUPS`) - the vehicle group because a vehicle
+battle's party side is built from `Vehicle_Stats` and its saved record, which a
+fixture's `vehicle` section reads, and `bcmd` (`Character_Command_Data`,
+`constants:2005-2011`) because the command a member chose is the only record of
+what a swing was *aimed* at: the cartridge moves `Current_Target_Index` off a
+commanded enemy that has fallen (`ps4.asm:8345-8409`), so the cell is what tells
+a swing that kept its aim from one the retarget scan re-aimed. A capture carries
+`current_target`/`current_command` (`$FFFF4144`/`$FFFF4146`) and
+`cmd0_target`..`cmd4_target` with it; the extractor records the command's target
+per party action (`assembly.command_entry`) and no target at all for a capture
+taken before the group existed.
+
 Each writes, in its output directory: `scout.json` (the base tape's own run,
 cached and reused), `<stem>.full.tape` and `<stem>.tape` (the composed tape,
 before and after the trim), `<stem>.patches.txt` (the `--ram-patch` list),
@@ -266,32 +248,13 @@ A single capture is ~90 seconds of wall clock (five oracle runs over ~40k frames
 of tape). The scout is cached in the output directory, so a re-run of the same
 capture skips it, and `--scout` can point several captures at one cache.
 
-The logs are pinned by sha256 above, and two measurements back the pins. First,
-the traces are byte-identical to the ones the capture tool's own lane recorded
-in a *different* worktree; the logs differ from those earlier pins only in the
-`# tape=` line (a basename now) and in the seven columns the `vehicle` group
-adds, which is what re-running the Helex capture's tape and patches with the
-pre-change group set shows: 25,676 rows, every shared column identical. (Later
-on 2026-09-24 the group grew by five more - the Ice Digger's saved record, section
-5 - so a re-run against *those* pins now also carries
-`vehicle_ice_hp`/`_max_hp`/`_skill_mask`/`_skill1_current`/`_skill1_max`, which
-is a change to the log's column set and not to any pinned capture's log.) Second,
-the tape's *directory* is not part of the capture: with the tape copied to
-another directory and replayed from there, with the same patches, groups and
-ROM spelling, the log comes back byte-identical to the capture's
-(`b4ed383d91ea7ea7895ffbf559fd766be3d1317a80a9619b2be379442f3dd349`) and so does
-the trace (`build/lane-evidence/group_compare/`).
-
-**The ROM's spelling is part of the log, and only the log.** `# rom=` records
-the path the host was given, so the log's sha256 is worktree-specific while the
-trace's is not. Measured on the `$53` capture re-run in a later lane
-(`build/lane-evidence/desrtleach_recapture/`): the trace came back byte-identical
-to its pin (`aa133d61…`), the log differed in that one line
-(`<lane>/Phantasy Star IV (USA).md` rather than the pinning lane's), and
-substituting the pinning lane's ROM path into the re-run's log reproduces
-`33f19744…` exactly. The tool's own two-run byte comparison is unaffected - both
-runs share the path - and `python3 -m oracle.rng_trace check` reads the log's
-rows, not its header.
+The logs are pinned by sha256 above. A log's bytes change with its column set
+(a group gaining columns changes every later capture's log, not any pinned one),
+and the trace's do not. Neither depends on where the inputs sit: the host records
+`# rom=`, `# tape=` and `# rng-trace=` by file name
+([log format](../../oracle/README.md#log-format)), so a capture replayed from
+another directory with the same patches and groups is byte-identical, log and
+trace.
 
 ## 3a. The captures' replay verdicts
 
@@ -321,15 +284,11 @@ is byte-identical to what they hold.
 |---|---|---|
 | `$5E` two Helex | `forced_5e_helex.json` | **exact**: two rounds, 80 rolls, both FLAME BOLTs (`$02` at f25003 and f25125, and the re-rolled one at f25371) resolve damage for damage, and the party's defeat is the log's |
 | `$37` two Fanbite | `forced_37_fanbite.json` | **exact**: SPIRAL BLD (`$08` at f24903) takes all three party slots for the damage the log shows, and the wipe is the log's |
-| `$53` one Desrt Leach, Land Rover | `forced_53_desrtleach.json` | **exact** (2026-09-24): six rounds, 285 rolls, every vehicle swing's three hit passes and sixteen damage draws, the Desrt Leach's death at f26459, and the log's 1500 exp and 1 meseta |
-| `$53` one Desrt Leach, Ice Digger | `forced_53_icedigger.json` | **exact** (later on 2026-09-24): five rounds, 245 battle rolls, every swing's **two** hit passes and sixteen damage draws, and the Desrt Leach's death at f26253 — the one-pass-too-many this capture first recorded is fixed by `hit_passes` (section 5.1) |
+| `$53` one Desrt Leach, Land Rover | `forced_53_desrtleach.json` | **exact**: six rounds, 285 rolls, every vehicle swing's three hit passes and sixteen damage draws, the Desrt Leach's death at f26459, and the log's 1500 exp and 1 meseta |
+| `$53` one Desrt Leach, Ice Digger | `forced_53_icedigger.json` | **exact**: five rounds, 245 battle rolls, every swing's **two** hit passes and sixteen damage draws, and the Desrt Leach's death at f26253 — the one-pass-too-many this capture first recorded is fixed by `hit_passes` (section 5.1) |
 
-`replay_fixtures/divergences.json` carried one entry per recorded divergence.
-It was **empty** as of 2026-09-24, when the Desrt Leach capture closed the
-vehicle-rule worklist; the Ice Digger's capture (section 5) reopened it with a
-finding of its own, and **later the same day a per-vehicle pass count closed it
-again** — the manifest is empty once more. Section 5.1 says what the finding was
-and what fixed it. What the old entry carried, and what closed it:
+The Desrt Leach capture first diverged at the vehicle's swing. What the
+finding was, and the rule that closed it:
 
 * **frame** f25026, **round** 1, **kind** `no-swing`, **action** actor 1 (the
   vehicle), f25026-25169;
@@ -355,13 +314,7 @@ What the port did, and what the cartridge does instead:
   check and its `Character_AttackActionOffs` dispatch are never reached for a
   vehicle; the two extra rolls shifted the rest of the round's stream, which is
   why the round's draw count was 31 against 50.
-* The correction lane's first cut read the three passes as `CharAttack_Seth`'s
-  three close-range mappings (`ps4.asm:13759-13761`) instead. That was wrong:
-  the mappings belong to fighter routine 6's *character* dispatch, which a
-  vehicle never reaches, and the three frames come from the attack object the
-  vehicle's own routine loads. `loc_9848` (`ps4.asm:14964`) is the shared
-  second pass both readings share, and the third is the object's hand-back.
-* Fixed on 2026-09-24 in `rust/psiv-core/src/battle/vehicle_attack.rs`, with
+* The rule is `rust/psiv-core/src/battle/vehicle_attack.rs`, with
   `resolve_attack` dispatching to it. The rule, its citations, the six rounds'
   arithmetic and the tests are in
   [`source-notes/battle-party.md`](../source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24).
@@ -374,10 +327,8 @@ What the port did, and what the cartridge does instead:
   capture are why it matters: their first pass came back critical (`$01`) and
   their third normal, and their damage - 154 and 189 - is what only a normal
   hit's arithmetic produces (`((45+8)*200)>>6 + 200 = 365`, `365*2>>2 - 28 =
-  154`; with the `atk >> 2` bonus it would be 204). The fixture was re-extracted
-  from this capture on 2026-09-24, so those two bytes are `$00` and
-  `replay/compare.rs` compares every verdict strictly again - no
-  frame-dependent relaxation.
+  154`; with the `atk >> 2` bonus it would be 204). Those two bytes are `$00`
+  in the fixture, and `replay/compare.rs` compares every verdict strictly.
 
 The fixture's own reading of the vehicle battle is in its `vehicle` section:
 `Vehicle_Index` 1 (the selector's patch), the fighter's HP at the battle's first
@@ -385,12 +336,9 @@ frame (`Vehicle_Stats + curr_hp`, `$FFFF470E`, logged as
 `vehicle_fighter_hp`), and the saved record behind it
 (`Saved_Vehicle_Stats`, `$FFFFFA80`), whose own current HP **equals** the
 fighter's at that frame - which is what makes its maximum (740) the battle
-copy's, and what the fixture records rather than assumes. The 2026-09-24
-re-extraction is what put that on the record: the committed file predated
-`oracle/fixture/vehicle.py`'s `matches` reading, so its `max_hp` was `null` and
-it carried no `hp_matches_saved_record`; the regenerated file has `740` and
-`true` - the claim `rust/psiv-core/src/battle/replay/build.rs` asserts when it
-seats the vehicle - while every other vehicle cell is byte-identical. The
+copy's, and what the fixture records rather than assumes: `max_hp` 740 and
+`hp_matches_saved_record: true`, the claim
+`rust/psiv-core/src/battle/replay/build.rs` asserts when it seats the vehicle. The
 members' HP columns are the field's: nothing loads them in a vehicle battle, so
 the fixture carries no party at all and the party side's HP column *is*
 `vehicle_fighter_hp`.
@@ -405,21 +353,15 @@ carries `hp_matches_saved_record: false` with `max_hp: null` beside
 the Ice Digger's maximum, which is exactly what the two records being different
 means; `rust/psiv-core/src/battle/replay/build.rs` only asserts the equality
 when the fixture claims it, so the replay seats the fighter on the log's own
-960. The Ice Digger is the record that would want a *second* `Saved_Vehicle_Stats`
-column set in `oracle/ram_map.json` (`$FFFFFAA0`), and that file is outside this
-lane's write set - the reading above is what it can say without it.
-
-**Added later on 2026-09-24:** the second record's columns now exist
+960. The second record's columns exist
 (`vehicle_ice_hp`/`_max_hp`/`_skill_mask`/`_skill1_current`/`_skill1_max` at
 `$FFFFFAA0`+0/2/4/6/7, `Ice_Digger_Stats` `constants:2413`), and
 `oracle/fixture/vehicle.py` reads the record its `Vehicle_Index` names - index 1
-through the columns the fixtures already carry, index 2 through these, and an
-index with no logged record (the Hydrofoil's 3) through the first record's, with
-a note saying so. Nothing in the two committed fixtures changes: no capture has
-logged the new columns, so the Ice Digger's still reads `max_hp: null` beside
-`hp: 960`, and re-reading its log finds all five cells absent rather than wrong.
-Filling it needs a re-capture of `$53 --vehicle 2`, which is out of this lane's
-scope.
+through the first record's columns, index 2 through these, and an index with no
+logged record (the Hydrofoil's 3) through the first record's, with a note saying
+so. The committed Ice Digger capture predates those columns, so its fixture
+still reads `max_hp: null` beside `hp: 960`; a re-capture of `$53 --vehicle 2`
+fills it.
 
 ## 4. What this does and does not prove
 
@@ -455,20 +397,14 @@ Not proved, and not claimed:
   fighter (`loc_78EE`, `ps4.asm:11408`): the members' HP columns never move,
   and `vehicle_fighter_hp` (`Vehicle_Stats + curr_hp`, `$FFFF470E`) is what
   says how the fight is going. The two Desrt Leach captures are those battles.
-- **How many passes each vehicle's swing draws.** The Ice Digger's capture says
-  two where the rule says three (section 5.1): that is a recorded divergence in
-  `replay_fixtures/divergences.json`, not a verified rule, and the Hydrofoil's
-  12-frame wind-up is read from the disassembly rather than measured - no
-  capture has been fought by the Hydrofoil. **Corrected later on 2026-09-24:**
-  the rule *is* per vehicle now (three for the Land Rover and the Hydrofoil, two
-  for the Ice Digger, from each attack object's own `$1C` timer), the entry is
-  gone and the manifest is empty; the Hydrofoil's wind-up is still a
-  disassembly reading rather than a measurement.
+- **The Hydrofoil's swing.** The pass count is per vehicle (three for the Land
+  Rover and the Hydrofoil, two for the Ice Digger, from each attack object's own
+  `$1C` timer, section 5.1); the Hydrofoil's 12-frame wind-up is read from the
+  disassembly, and no capture has been fought by the Hydrofoil.
 - **A vehicle battle against the other vehicle tables.** The Dezolis table
   (group `$D`) and the capture a second table would prove are still open: its
-  formations' enemies (ProtectBit, LwAddmer, Owltalon) are not in
-  `rust/psiv-core/src/battle/replay/pack.rs`, which is outside this lane's write
-  set, and the region rule for the Ice Digger says they are what a Dezolis
+  formations' enemies (ProtectBit, LwAddmer, Owltalon) would first need to be in
+  the replay pack (`python3 -m oracle.sweep.replay_pack`), and the region rule for the Ice Digger says they are what a Dezolis
   vehicle battle would build.
 - **Anything after the battle.** The tape is trimmed 60 frames past the battle's
   last in-battle frame; the log's provenance after that is the game-over or
@@ -482,7 +418,7 @@ Not proved, and not claimed:
 The vehicle rule was proven on one record - the Land Rover of the `$53` capture.
 `--vehicle N` chooses which of `VehicleData`'s records the forced battle loads,
 and the fourth capture is the same formation fought by the **Ice Digger**
-(`build/forced/icedigger/`, trace
+(trace
 `ae50eaaeee6383f4cb0e7ddde9f702ae5fe9da1ef08d63a033ad7f999f6ff288`, log
 `5226afa4697307aa240a9fd047ab5a82a5975399e7648944463594116df6e2e9`). Two things
 about that choice are the cartridge's, and the tool checks both rather than
@@ -533,9 +469,6 @@ sit in no other group.
 | outcome | victory, the Leach at 0 HP, +1500 exp, +1 meseta | victory, +1500 exp, +1 meseta |
 | ability id used | `$37` SAND STORM at f25839 | `$37` SAND STORM at f25416 |
 
-The Ice Digger capture's log pin carries this lane's `# rom=` line (section 3);
-its trace pin does not.
-
 The two captures share a draw, a seed patch and a formation, so what differs
 between them is the vehicle record alone, and the log's own numbers say which
 record the battle loaded:
@@ -551,7 +484,7 @@ record the battle loaded:
   the first's. Round 1's sixteen draws at f25075 sum to 51 and the log holds
   **212**: `((51+8)*250)>>6 + 250 = 480`, `480*2>>2 - 28 = 212` for the Ice
   Digger's 250, where the Land Rover's 200 would land 164 and the Hydrofoil's
-  150 land 116 (`build/lane-evidence/icedigger/damage_arithmetic.log`). The
+  150 land 116. The
   Land Rover's own capture is the mirror image: its round-1 draws sum to 52 and
   its 165 is what 200 produces there, while 250 would produce 214.
 * **the element** is the *target's*, not the vehicle's - `loc_280A`
@@ -560,10 +493,7 @@ record the battle loaded:
   Desrt Leach's energy byte 2 gives 212, factor 1 would give 92, and the
   target's defence 28 is the subtraction (3 would give 237).
 
-The replay of this fixture does **not** come back exact, and that is the
-finding below rather than a rule change: `rust/psiv-core/src/battle/vehicle_attack.rs`
-is outside this lane's write set, so the divergence is recorded in
-`replay_fixtures/divergences.json` with its numbers.
+The swing's pass count is where the two vehicles differ, below.
 
 ### 5.1 The Ice Digger's two-pass swing
 
@@ -607,16 +537,7 @@ damage frame is the hand-back frame plus the object's state-1 timer, `$19` for
 the Land Rover (f25072 + 26 = f25098) and `$F` for the Ice Digger (f25059 + 16 =
 f25075), which is where each capture's sixteen draws sit.
 
-So `rust/psiv-core/src/battle/vehicle_attack.rs`'s `VEHICLE_HIT_PASSES = 3` is
-the Land Rover's and the Hydrofoil's pass count, not every vehicle's: the Ice
-Digger's record runs state 5 once, and a port that models the pass count per
-vehicle would need 2 for it. Changing that rule is a `psiv-core` change and is
-what this capture's manifest entry exists to record - the fixed rule, its
-citations and its tests are
-[`source-notes/battle-party.md`](../source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24)'s,
-and they were not changed here.
-
-**Done, later on 2026-09-24.** `VEHICLE_HIT_PASSES` is gone: the rule is
+The rule is
 `vehicle_attack.rs`'s `hit_passes(vehicle)`, 3 for the Land Rover and the
 Hydrofoil (their objects are created with `#$C`, `ps4.asm:82945`/`83071`) and 2
 for the Ice Digger (`clr.w $1C(a4)`, `ps4.asm:82996`), with
@@ -626,14 +547,10 @@ citing lines. `resolve_vehicle_attack` derives the vehicle from the actor's
 still decides. Two tests now pin this capture's own swing - it replays to the
 log's 212 and HP 828 on the rows of this fixture, and the pre-change uniform
 three-pass rule is reproduced beside it at 214 (19 rolls against the log's 18) -
-in `battle/vehicle_attack_passes_tests.rs`. The `forced_53_icedigger` entry is
-**gone** from `replay_fixtures/divergences.json`, which is empty again, and
-`every_fixture_replays_as_recorded` passes. Forcing `hit_passes` back to 3 fails
-it at exactly the entry's finding:
+in `battle/vehicle_attack_passes_tests.rs`, and the fixture replays exactly.
+Forcing `hit_passes` back to 3 fails the replay at:
 `forced_53_icedigger: the port diverges at f25026 (round 1, value): the log has
-FighterId(6): hit flag 00, damage Some(212), the port Normal with Some(214)`
-(`build/lane-evidence/10-negative-control-uniform-three.log`; the restored run is
-`11-replay-after-restore.log`). The Hydrofoil's twelve-frame wind-up is still a
+FighterId(6): hit flag 00, damage Some(212), the port Normal with Some(214)`. The Hydrofoil's twelve-frame wind-up is still a
 disassembly reading: no capture has been fought by it.
 
 The sweep's own two options - `--durable` (the party-side HP patch,
@@ -642,13 +559,10 @@ The sweep's own two options - `--durable` (the party-side HP patch,
 whole region's captures found with them are
 [`BATTLE_ORACLE_SWEEP.md`](BATTLE_ORACLE_SWEEP.md)'s.
 
-## 6. The Motavia arc: FIREBREATH, ZAN, FORCEFLASH, CORRSION (2026-10-02)
+## 6. The Motavia arc: FIREBREATH, ZAN, FORCEFLASH, CORRSION
 
-The [campaign runner](../campaign/CAMPAIGN_RUNNER.md) stopped in Zio's fort on
-`unsupported ability 71/86` (Juza's ZAN and FORCEFLASH) and on ability 33
-(FIREBREATH) in the fort's own encounters. The four abilities they name are the
-Zio-arc damage routes — `$21` FIREBREATH, `$47` ZAN, `$56` FORCEFLASH, `$4D`
-CORRSION — and this section is their cartridge evidence: one forced capture each,
+This section is the cartridge evidence for the Zio-arc damage routes — `$21`
+FIREBREATH, `$47` ZAN, `$56` FORCEFLASH, `$4D` CORRSION: one forced capture each,
 extracted into a fixture and replayed by
 [`every_fixture_replays_as_recorded`](../../rust/psiv-core/src/battle/replay/data.rs).
 
@@ -659,7 +573,7 @@ these captures add is the option combination and the reason for it.
 |---|---|
 | `--require-ability <id>` | the capture is only worth taking if the enemy *used* the ability, and the tool refuses the run otherwise. A roll is one of eight, so a series of `--delay` values is taken until one lands on it: `--delay` shifts every roll in the fight, and the attempts that miss are discarded (the reports that carry
 `require_ability_met: false` are what says so while the series runs). |
-| `--max-rounds 1` (ZAN, FORCEFLASH, CORRSION) or `3` (FIREBREATH) | the cap is what keeps a fight's *other* actions inside abilities the port runs: 100 TechMaster's `$3E` GIRES and its `$46` SAR condition, 115 Greneris's `$28`/`$29`/`$2A`/`$2F`/`$57` and 106 Haunt's `$4C` EVIL EYE are all outside this lane's four, and one of them in a captured round is one fixture the replay cannot hold. FIREBREATH's carrier needs no cap for that (83 Ripper's list is five zeros and three `$21`) — its three rounds are the long capture. |
+| `--max-rounds 1` (ZAN, FORCEFLASH, CORRSION) or `3` (FIREBREATH) | the cap is what keeps a fight's *other* actions inside abilities the port runs: 100 TechMaster's `$3E` GIRES and its `$46` SAR condition, 115 Greneris's `$28`/`$29`/`$2A`/`$2F`/`$57` and 106 Haunt's `$4C` EVIL EYE are none of these four, and one of them in a captured round is one fixture the replay cannot hold. FIREBREATH's carrier needs no cap for that (83 Ripper's list is five zeros and three `$21`) — its three rounds are the long capture. |
 | no `--durable` | the tape's own party fights and keeps its own HP, so nothing in the fixture is the capture's invention. The party is level 1-7 and every one of these formations wipes it, which is why all four captures are **defeats**: the enemies act first (their agility is higher) and the log holds their whole round. A `--durable` run is refused for these formations anyway — the probe draws the group's own entry, whose enemy count can differ from the forced one's by a frame of load, and the tool then reads the patch one frame late (`--durable wrote 999 to alys_hp at f24818, but the capture reads 53 at f24817`). |
 
 ### 6.1 The four captures
@@ -743,38 +657,36 @@ number at all.
 - **The abilities' own animations, sounds or timing.** `--max-rounds` cuts the
   capture at a round boundary and the fixture keeps the log's action frames; no
   frame-level animation claim is made here (that is
-  `BATTLE_ANIMATIONS.md`'s and the presentation lane's).
-- **Anything about the deferred carriers.** 133 ProfoundDarkness1's `$21` and
-  140 Zio2's `$4D` are behind gates this port does not model
-  (`$FFFFEE87` and the `$FFFFEE98` phase counter) and have no capture.
+  `BATTLE_ANIMATIONS.md`'s).
+- **The gated carriers.** 133 ProfoundDarkness1's `$21` and 140 Zio2's `$4D`
+  sit behind `$FFFFEE87` and the `$FFFFEE98` phase counter. The port models
+  both, and their captures run each event battle's own script:
+  `replay_fixtures/endgame/profound_darkness*.json` and
+  `replay_fixtures/zio_event06_psycho.json`.
 
-## 7. The durable patch's frame, corrected (2026-10-02)
+## 7. The durable patch's frame
 
 `--durable` writes the party's HP on the frame the extractor reads the battle's
-start state from. The tool used to take that frame from the **probe's** log, but
-the probe leaves the seed alone and so builds whatever formation the group's own
+start state from, and that frame is the forced formation's own: the
+**probe** leaves the seed alone and so builds whatever formation the group's own
 draw names, not the one being forced - and the load writes one enemy slot per
 frame (`loc_7F2E`, `ps4.asm:11911`). Forcing a two-enemy formation out of a
-three-enemy draw therefore put the patch one frame after the start state:
-`--durable wrote 999 to alys_hp at f24818, but the capture reads 53 at f24817`
-(TechMaster, `$110`). `oracle/force/durable.py`'s `forced_start_frame` derives the
+three-enemy draw from the probe's frame would put the patch one frame after the
+start state (TechMaster, `$110`: written at f24818, read at f24817). `oracle/force/durable.py`'s `forced_start_frame` derives the
 forced formation's own frame (`probe_start - (probe_enemies - 1) + (forced_enemies
 - 1)`), `oracle/force/phases.py` passes the formation to `probe_phase`, and the
-existing `durable.verify` of the capture's start state is the guard: the formations
-that failed now capture. A formation whose probe draw happens to have the same
+`durable.verify` of the capture's start state is the guard. A formation whose probe draw happens to have the same
 enemy count gets the frame it always did.
 
 The Motavia arc's twelve captures
-([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) were taken with it; their
+(`replay_fixtures/arc_motavia/`) were taken with it; their
 recipe is `python3 -m oracle.sweep.arc`.
 
-The durable patch's frame has a second case (2026-10-04). The slot-per-frame
+The durable patch's frame has a second case. The slot-per-frame
 arithmetic is exact when a formation's enemies are different records, and one
 frame late when some share a record: three GerotLux (`$11E`) read `enemy_count`
 3 from f24821 with one slot filled and **all three** filled on f24822, not
-f24823, so the patch landed a frame after the start state and
-`durable.verify` refused the capture (`wrote 999 to alys_hp at f24823, but the
-capture reads 53 at f24822`). The patch is now written on every frame from the
+f24823. The patch is therefore written on every frame from the
 one after the draw to the estimate (`oracle/force/durable.py`'s
 `first_frame`, the report's `durable.frames`): `FillBattleStats` is the only
 writer of the party's HP cells and it runs before `Battle_SetupEnemyData`
@@ -813,4 +725,34 @@ What differs from `--formation`, and where the code says so:
   scripted-battle latch is raised (`battle/scripted_flag.rs`).
 
 The first captures: event 8 (the Chaos Sorcerer of the sabotage scene), event
-9 (Dark Force 1) - `docs/oracle/BATTLE_ORACLE_ZELAN.md`.
+9 (Dark Force 1), `replay_fixtures/arc_zelan/event_08_d9.json` and
+`event_09_d0.json`.
+
+## 9. Party command scripts: what a capture guarantees
+
+The format and menu rules have one owner:
+[oracle/README.md](../../oracle/README.md#party-command-scripts).
+`script.py` validates every written round against a hashed observation of the
+base tape's actual party, TP, learned lists and inventory. `script_menu.py`
+reads live cursor/list state and expands commands to joypad presses.
+`script_capture.py` uses a read-only frame hook, freezes the input tape, then
+the existing capture/verify path runs the stock self-building host.
+
+The script never writes `Character_Command_Data`, `Current_Command`, target
+cells, list scratch or menu cursors. Queue-build readback rejects another
+command, record or target instead of patching it. The probe's input prefix is
+preserved through its measured formation draw and selector restoration: pad
+changes before that draw can change HV and select another formation.
+
+Fixture extraction reads command bytes 1..5 and each selected id/target, plus
+the selected equipment/inventory copy. No-RNG party turns are observed through
+`loc_57C4` (`ps4.asm:8045-8055`), only outside menus and after the actor's `$EE`
+status exclusion (`loc_576A`, 8033-8043). List scratch aliases the actor/command
+words and must not create phantom turns. Inventory, party TP, enemy forms,
+HP, status and battle MDEF are also checked at round end.
+
+Party definitions in the replay's existing generated mirror are emitted by
+`oracle.sweep.replay_pack` from the ignored, psiv_tools-decoded runtime pack.
+The native runtime still loads that pack through `psiv-data`; no retail ability
+record is transcribed into new Rust/Python source. Party ability ids are kept
+separate from enemy ability ids when selecting mirror records.

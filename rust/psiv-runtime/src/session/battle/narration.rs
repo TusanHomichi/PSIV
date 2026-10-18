@@ -7,8 +7,8 @@
 //! sentences the port has always shown; the damage block prints no prose at
 //! all, because retail draws five-by-two tile blocks there instead.
 //!
-//! The module moved here from `psiv-godot/src/battle/timeline.rs` with the
-//! battle mode: the runtime raises the beats and the shell only draws them.
+//! The module moved here from the Godot crate's battle timeline (commit
+//! 25701a1) with the battle mode: the runtime raises the beats and the shell only draws them.
 
 use std::collections::BTreeMap;
 

@@ -243,7 +243,8 @@ fn defending_no_longer_discards_what_armour_granted() {
     // Elast armour grants physical resistance. On the cartridge, defending
     // once and then reaching `Battle_RestoreStatsAtTurnEnd` restores $30 from
     // $31 — the record's innate 2 — and the armour's 1 is gone for the rest of
-    // the battle. `docs/RUNTIME_DESIGN.md` "Battle bug policy" fixes it.
+    // the battle. `docs/source-notes/README.md`
+    // "Deliberate fixes to retail battle bugs" fixes it.
     let data = data().with_items(vec![item(96, ItemKind::Body, 1)]);
     let mut record = party_fixtures::records()[0].clone();
     record.equipment = [2, 0, 0, 96];

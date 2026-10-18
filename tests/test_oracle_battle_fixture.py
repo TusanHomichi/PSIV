@@ -466,7 +466,7 @@ class FixtureAssembly(FixtureTest):
             self.build(trace_roll=0x1234)
 
     def test_a_trace_with_the_pre_fix_low_word_column_is_rejected(self):
-        # Lane O1's capture is exactly this trace: seeds, PCs, counter and
+        # An early oracle capture was exactly this trace: seeds, PCs, counter and
         # chain all right, every roll column shifted by a per-frame constant.
         with self.assertRaises(bf.FixtureError) as caught:
             self.build(column=trace_low_word_roll)

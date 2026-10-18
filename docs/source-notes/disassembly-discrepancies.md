@@ -188,7 +188,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   `Zio3` (16383 HP, all-255 defences — a debug/leftover boss) which appears
   in zero of the 504+27 formations. Verdict for the port: reject effect ids
   outside `$00-$2B` at data-load time and record the one offender as a
-  census anomaly. Full battle fact base: `docs/battle/BATTLE_SCOUT.md`.
+  census anomaly. Full battle fact base: `docs/battle/BATTLE_RULES.md`.
 - RETAIL CARTRIDGE BUG: Wren's battle pose 3 (Charge) decompresses 42 words
   into a 36-word plane buffer. The per-slot buffers (`loc_9A80`) are `$48`
   bytes apart and the draw loop (`loc_86D6`) stamps 6x6, so the surplus 6
@@ -287,7 +287,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   choice; `loc_5F99E` replaces the tentative default dispatch with that
   selection before inventory commit. The earlier initial-data-only claim
   stopped at `EquipItemType_OneHanded` and missed this later path. A left
-  weapon and a right shield are both valid. `docs/camp/EQUIP_SCOUT.md` records
+  weapon and a right shield are both valid. `docs/camp/EQUIPMENT.md` records
   the repaired native flow and its verification.
 - Citation correction: UpdateCharModStats is retail $05F754, not
   $05F880 ($05F880 is the unrelated routine UpdateEquipment tail-calls).
@@ -353,7 +353,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   alias is chest <-> extended-event, same-id same-bit; chest open state
   renders via the object's facing_dir byte, derived from the flag at
   load; grant and flag write are simultaneous. Oracle process lesson
-  kept in oracle/README: a negative about RAM is only as good as the
+  kept in oracle/README.md: a negative about RAM is only as good as the
   watched range — whole-RAM diff before ever reporting an absence.
 - CORRECTION to the shop-counter reading: the counter is NOT gated on
   collision type $C — loc_65D12 never touches the collision grid; the

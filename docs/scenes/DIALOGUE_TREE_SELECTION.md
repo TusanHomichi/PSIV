@@ -49,9 +49,6 @@ calls also use the current-tree lookup: `GetDialogueByID` calls occur at
 `:125791`, `:125814`, `:149083`, `:151129`, `:151248`, `:151258`, `:151298`,
 `:151338`, `:151373`, `:151379`, `:151419`, `:151444`, `:154209`, `:155041`,
 `:155772`, `:158040`, `:158653`, `:158662`, `:158675`, `:158682`, `:158689`.
-The complete mechanically collected callsite list is retained in
-`build/x79-evidence/cartridge-trace.txt`; any later fork line drift can be
-checked there without trusting a build-address comment.
 
 The cursor save/restore macros are `ps4.macrosetup.asm:152-167`, with
 `Saved_Dialogue_Addr` defined at `ps4.constants.asm:2256`. US `$06A12C`
@@ -79,14 +76,10 @@ new public event variant or a shell-side rule. The field dispatcher checks
 areas before an NPC/chest, preserves the first eligible area order and applies
 the retail bank gate before dispatch.
 
-Older packs can still load NPC and scene dialogue. A type-0 open without the
-new table emits a rebuild fault and consumes that interaction; it never falls
-back to the map's unrelated text or an NPC underneath the area. The native
-owner must install the rebuilt pack before testing this player-visible path.
-No Godot source/API/art changes were made. **Godot-visible behavior changed:**
-Speak on type-0 areas now opens the world-selected dialogue window.
-The orchestrator owns the 12 certified pairs; this lane does not claim a
-presentation certificate or a native connected playthrough.
+A pack without the selection table can still open NPC and scene dialogue; a
+type-0 open without it emits a rebuild fault and consumes that interaction,
+and never falls back to the map's unrelated text or an NPC underneath the area.
+Speak on a type-0 area opens the world-selected dialogue window.
 
 ## Census and issue #42
 
@@ -95,8 +88,8 @@ Reproduction (repository-owned census entry point):
 ```bash
 python3 -m psiv_tools.dialogue_pack.selection_census \
   "Phantasy Star IV (USA).md" runtime-pack \
-  --json build/x79-evidence/census.json \
-  --markdown build/x79-evidence/census-table.md
+  --json build/census.json \
+  --markdown build/census-table.md
 ```
 
 All **361 real maps**, **505 type-0 areas on 145 maps**, and all six legal
@@ -111,7 +104,7 @@ counterfactual worlds. This is deliberately exhaustive selector coverage,
 **not an exact campaign/geographic reachability census**. Static transition
 lists alone cannot prove reachability: Piata Academy F1 even carries unused
 Dezolis/Rykros transition records. No map/world pairs are excluded based on
-geography, collision, story progression or the brief's unverified prior census.
+geography, collision or story progression.
 NPC/default-scene selection is the map column on every world; an explicit
 scene tree supersedes that column. In each area cell `tree(s) (N)` gives the
 selected tree numbers and the number of areas differing from the map tree.
@@ -119,12 +112,11 @@ selected tree numbers and the number of areas differing from the map tree.
 map has parameters on both sides of the decoded unsigned cutoff.
 
 [Issue #42](https://github.com/TusanHomichi/PSIV/issues/42)'s trigger-census Tree
-column in [opening triggers](00_triggers.md#which-maps-check-which-triggers)
+column in [opening triggers](TRIGGER_CENSUS.md#which-maps-check-which-triggers)
 is correct **as a map-loaded NPC/default-scene binding**, not as the tree for
 all interactions. Piata's map tree 2 and Academy's tree 1 remain correct;
 their type-0 areas select tree 28 on World_Index 0. Thus the ambiguous column
-has the same root cause as #79. The owning doc's header/clarification is updated;
-no issue was opened or closed from this lane.
+has the same root cause as #79.
 
 <!-- BEGIN GENERATED SELECTION CENSUS -->
 | Map | NPC/default scene tree | Type-0 areas | W0 | W1 | W2 | W3 | W4 | W5 |

@@ -110,13 +110,13 @@ pub(super) const ROUTES: &[DamageRoute] = &[
     },
 ];
 
-// **133 ProfoundDarkness1 is not a row.** `EnemyAttack_ProfoundDarkness1`
-// (`ps4.asm:19823`) tests the scripted-battle flag `$FFFFEE87` first (line
-// 19824) and, when it is set, clears `$24(a4)` and loads object `$864` instead
-// of dispatching the rolled id at all. `EnemyInit_Lashiec` (`ps4.asm:18114`)
-// clears that flag and battle object `$7EC` (`ps4.asm:53102`) sets it, and this
-// port models no battle objects, so it cannot tell which arm the cartridge
-// would take: the `$21` arm below the gate (`loc_D8BE`, `ps4.asm:19849`, object
-// `$870` = `loc_30022` at line 62419, whose child `$874` = `loc_30092` at line
-// 62449 reaches the same `loc_24A6C` request through its own phase table's
-// entry at line 62466) is therefore left for a lane that models the flag.
+// **133 ProfoundDarkness1's FIREBREATH is a row of `endgame_bosses.rs`.**
+// `EnemyAttack_ProfoundDarkness1` (`ps4.asm:19823`) tests the scripted-battle
+// flag `$FFFFEE87` first (line 19824): while it is set, the turn clears
+// `$24(a4)` and loads object `$864` instead of dispatching the rolled id.
+// `scripted_flag::first_action` models that first action, so every later `$21`
+// takes the arm below the gate (`loc_D8BE`, `ps4.asm:19849`, object `$870` =
+// `loc_30022` at line 62419, whose child `$874` = `loc_30092` at line 62449
+// reaches the same `loc_24A6C` request through its own phase table's entry at
+// line 62466). The captures `replay_fixtures/endgame/profound_darkness*.json`
+// show it from round 2.

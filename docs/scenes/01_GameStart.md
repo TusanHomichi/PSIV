@@ -19,7 +19,7 @@ other opening-act scene put together.
 
 ## How the title screen gets here
 
-Cross-checked against the new-game extraction lane
+Cross-checked against the new-game extraction
 (`psiv_tools/newgame.py`, `runtime-pack/game_start.json`); we agree on the
 routine start (`$073946`) and on `rom_end = $073ECE`.
 
@@ -457,7 +457,7 @@ SetFlag{EventFlag_PiataFirstTime}
 
 ## Where the act's opening state comes from
 
-This is the routine the new-game-init lane's work has to agree with, and it
+This is the routine the new-game initialiser has to agree with, and it
 does — the epilogue below is decoded identically by `psiv_tools/newgame.py`
 (`runtime-pack/game_start.json`, `first_control`), which is the citable source
 for it. It ends by writing, in order:
@@ -529,6 +529,37 @@ expose it as a single `PlayIntroPrologue{}` effect and let `psiv-godot` own the
 whole sequence, rather than growing the `SceneOp` enum by six presentation-only
 ops that no other scene will ever use. The exact frame counts (60, 20, 900, 20,
 90 / 20, 900, 20, 120, 40) are recorded above so the renderer can be faithful.
+
+## Measured on the cartridge
+
+Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
+the named tape's log, which `oracle/verify.sh` regenerates.
+
+### New-game starting state
+
+**First sustained `FieldRoutine_Controls` frame: 6456** (`logs/01_newgame.csv`,
+CSV line 6461).
+
+| | |
+|---|---|
+| map | `$13` = `MapID_PiataAcademy_F1` (`constants:1086`) |
+| position | (768, 288) px = **cell (48, 18)** |
+| facing | 0 = DOWN |
+| party | `Current_Party_Slots` = `00FFFFFF` — **Chaz alone**, slots 2-5 empty (`$FF`) |
+| world | 0 (Motavia) |
+
+The opening runs `Event_GameStart` (`$9F`) across maps `$11` → `$5E` → `$54`
+→ `$00` → `$13`, then `Event_PiataChazAlone` (`$A0`) plays unattended for 226
+frames (f6230-6455) before handing over.
+
+Character IDs observed during the intro: **Chaz = 0, Alys = 1**. Party slots
+pass through `0001FFFF` (Chaz, Alys) and then `0100FFFF` — Alys in slot 1 —
+which corroborates the `Event_AlysFound` note in `EVENT_ENGINE.md` that
+**Alys leads the opening party**. By first control she has left and Chaz is
+alone.
+
+The intro genuinely requires input: with no presses at all it never leaves map
+`$11`.
 
 ## Open questions
 

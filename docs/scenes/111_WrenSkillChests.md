@@ -5,7 +5,7 @@
 - **Trigger:** interaction area type 2, `Interaction_EventIndexes[$0E] = $6E` (`ps4.asm:134938`), Weapon Plant F2 `$C6`: a one-cell area at (51,29) over a white chest, gated on **chest flag `$74`** (116), which the interaction gate tests and sets before the dispatch (`ps4.asm:118845-118869`).
 - **Data:** `weapon_plant.rs`, `BURSTROC` (14 ops).
 
-Issue #82, transcribed by the S9 lane. Wren installs the Burst Roc unit he finds
+Issue #82. Wren installs the Burst Roc unit he finds
 in the chest; the Positron Bolt unit in Vahal Fort F3 is the same routine at
 another object. Both bodies were read from the US image through `EventPtrs`;
 the clone's text (`ps4.asm:152126`, `:152152`) agrees and is corroboration only.
@@ -76,6 +76,6 @@ flag is the story's record.
   negative control that changes the skill id byte in the image.
 
 These are state tests from constructed saves: **the campaign route does not
-reach Vahal Fort or the Weapon Plant**, and the route lane that does runs them
-for real. The skills' battle behaviour (`SkillObj_Burstroc`, `SkillObj_Posibolt`)
-is the battle lanes' ([player abilities](../battle/PLAYER_ABILITIES.md)).
+reach Vahal Fort or the Weapon Plant** yet. The skills' battle behaviour
+(`SkillObj_Burstroc`, `SkillObj_Posibolt`) is
+[player abilities](../battle/PLAYER_ABILITIES.md).

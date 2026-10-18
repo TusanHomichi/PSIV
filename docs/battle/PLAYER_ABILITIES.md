@@ -78,11 +78,11 @@ writes when no victory boundary is observed.
   `EnemyAI_TechSealed` (ps4.asm:22203-22210) checks the acting enemy's bit 4
   and chooses its decoded conditional ability. It is not a blanket rejection
   of every enemy ability. The sealed-caster capture checks the resulting turn.
-  Its DISTORTION fallback was not previously enabled; the shared
+  Its DISTORTION fallback is enabled: the shared
   `EnemyAttack_DimensWorm` `$30` arm now reaches `loc_1CC64 -> loc_24BB6`
   (21903-21909,39283-39300,48562-48578). DimensWorm is captured;
   OuterBeast shares that source dispatch and has core controls, not a separate
-  stock capture. Other enemy routes remain outside this lane.
+  capture.
 - **Group commands preserve the stored aim's retarget draws.**
   `Battle_ComdTechTarget_All` (ps4.asm:2659-2661) leaves the target cell
   untouched. The turn pass still enters `loc_5A98` for ranges 1 through 3
@@ -101,25 +101,10 @@ their learned order, confirmation, costs, caster stat, human/android/dead
 eligibility and RNG consumption. No new field surface is introduced.
 
 TP restoration and resistance changes use narration the existing views render.
-This lane does not add retail spell art, object timing or a new Godot numeric
-overlay; it makes no visual-parity or fresh native-input claim. Those remain
-separate presentation work under [#88](https://github.com/TusanHomichi/PSIV/issues/88).
-The campaign policy and route are unchanged. The traced release run completes
-all 43 chapters in 3,682,524 frames, digest `a4c1d710f4053d81` (the baseline
-was `fbe9fef7015aba2e`). It selects CROSSCUT five times and NAGRA nine times.
-Those existing commands use the corrected one-pass damage and gravity-animation
-RNG, respectively, so the changed digest is expected. This proves the headless
-route, not a fresh native-input playthrough.
-
-Local raw commands, failures, hash-bound observations and final check receipts
-are retained under `build/p88-evidence/`; the committed fixtures and this
-generated inventory are the portable evidence.
-
-The [correction ladder](../AGENT_WORKFLOW.md#correction-ladder) uses rung 1
-for shared effect ownership and the exhaustive roster/event path, and rung 2
-for observed extraction boundaries, strict replay and inventory negative
-controls. Those observations are dynamic cartridge inputs, so their truth
-cannot be enforced by a Rust type alone. This lane's review is self-review.
+Retail spell art, object timing and a numeric overlay are presentation work
+([#88](https://github.com/TusanHomichi/PSIV/issues/88)); no visual-parity or
+native-input claim is made here. The committed fixtures and the generated
+inventory below are the evidence.
 
 ## Inventory
 

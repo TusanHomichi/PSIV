@@ -550,7 +550,7 @@ class TestImpossiblePaths(unittest.TestCase):
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestFlagClears(unittest.TestCase):
-    """Map-load flag clears, and the table core-lane transcribed by hand."""
+    """Map-load flag clears, and the table transcribed by hand from the disassembly."""
 
     #: `rust/psiv-core/src/map_load.rs`, `MAP_LOAD_FLAG_CLEARS`.
     CORE_TABLE = {

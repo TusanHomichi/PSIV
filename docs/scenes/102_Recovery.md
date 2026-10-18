@@ -42,7 +42,6 @@ bit 6 (`StatusAndroidDead`) comes back; it then refills the three vehicles' skil
 `PaletteToneFlash` is a new presentation record: Godot logs it with the other palette records it
 does not draw (`rust/psiv-godot/src/cutscene/ops.rs`).
 
-## In the route (C8)
-
+## In the route
 `air-castle-xe-athoul-room` walks the party over `AirCastle_F1_Part9`'s tile on the way to the
 Xe-A-Thoul room: Wren, shut down since Dark Force 1, is repaired there, as a player would.

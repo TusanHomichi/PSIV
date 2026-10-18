@@ -88,8 +88,9 @@ pub fn weapon_reach(stats: &Stats, data: &BattleData) -> Result<Option<Reach>, B
 ///
 /// Retail reads a *shield's* element byte as if it were a weapon's, so the
 /// off-hand shield can change what element your sword swings with. That is the
-/// shield-element read in `docs/RUNTIME_DESIGN.md` "Battle bug policy", listed
-/// there as a fix rather than a quirk to keep. Shields are skipped here.
+/// shield-element read in `docs/source-notes/README.md` "Deliberate fixes to
+/// retail battle bugs", listed there as a fix rather than a quirk to keep.
+/// Shields are skipped here.
 ///
 /// # Errors
 /// [`BattleDataError::UnknownItem`] for an undefined equipment id.
@@ -840,7 +841,7 @@ mod tests {
         // keeps a character-side aim (`retarget`'s party-slot arm), so the
         // swing's own reach - living enemies - leaves it with no target, and
         // the reach filter is not a scan, so nothing is drawn. The native enemy
-        // picker cannot produce such a cursor (`psiv-godot/src/battle/commands.rs`
+        // picker cannot produce such a cursor (`rust/psiv-runtime/src/session/battle/menu/`
         // offers enemy slots only), and the port's own default is
         // `Command::Attack`'s `None`, asserted above.
         assert!(

@@ -1,0 +1,55 @@
+name: Bug or difference from the original
+description: Something breaks, or PSIV does something the cartridge does not.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions go to [Discussions](https://github.com/TusanHomichi/PSIV/discussions) instead.
+        Check the [known differences](https://github.com/TusanHomichi/PSIV#known-differences) first.
+        Never attach the ROM, the data pack or anything extracted from them.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what PSIV did, and where in the game.
+    validations:
+      required: true
+  - type: textarea
+    id: original
+    attributes:
+      label: What the original does
+      description: What the cartridge does at the same point, if you know.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: The output of `git rev-parse --short HEAD` in your checkout.
+      placeholder: "20a76de"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - Steam Deck
+        - Windows
+        - macOS
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: rom
+    attributes:
+      label: ROM check
+      description: Does `sha256sum "Phantasy Star IV (USA).md"` print 511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a?
+      placeholder: "yes"
+    validations:
+      required: true
+  - type: textarea
+    id: save
+    attributes:
+      label: Save or steps to reproduce
+      description: A PSIV save file from your save directory reproduces most problems fastest; attach it, or list the steps.

@@ -2,7 +2,7 @@
 //! Kuran handoff that `dezo_campaign.rs` and `post_zio_cutscenes.rs` start from.
 //!
 //! The records are `docs/scenes/91_*` onward. They were found one halt at a
-//! time (runner log H28) until `docs/scenes/EVENT_COVERAGE.md` made the set
+//! time (runner log H28, commit 0faa91b^) until `docs/scenes/EVENT_COVERAGE.md` made the set
 //! structural: every event the cartridge can fire is either registered here or
 //! listed, with an issue, in the census allowlist.
 

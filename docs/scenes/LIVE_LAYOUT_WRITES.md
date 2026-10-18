@@ -58,7 +58,7 @@ had workarounds in it (`go_to_map` round trips); the rest were latent.
 | `Event_SilenceTmDoorOpening` `$42` | `$06FC04`, `$06FC16` | two-chunk door | not transcribed (the file's next body after `Event_JuzaDefeated`) |
 
 The last three groups are the already-recorded direct bodies outside this
-slice ([12_ArcTriggerCensus](12_ArcTriggerCensus.md)); listing them here keeps
+slice ([trigger census](TRIGGER_CENSUS.md)); listing them here keeps
 the *class* visible: each is a live collision change, not decoration.
 
 ### Visual-only writes on a collision plane that is not read
