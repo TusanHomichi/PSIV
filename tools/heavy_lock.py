@@ -31,7 +31,7 @@ shared classes hold it with LOCK_SH plus units of a machine memory budget,
 `PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
 beside it, taken all or none, `CLASS_UNITS` each: `build` (a cargo build,
 test or clippy run that does not compile psiv-godot: compilation is its peak),
-`extension` (one that does: `-p psiv-godot` or the workspace), `godot` (one
+`extension` (one that does, in dev: `-p psiv-godot` or the workspace), `godot` (one
 Godot/Xvfb run, per slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot
 files) and `python` (the Python suite). The caller declares the class and is
 trusted: a build in `build` that compiles psiv-godot costs memory headroom,
@@ -116,11 +116,12 @@ DEFAULT_LOCK_UNITS = 16
 #: the fewest units that keep at least 15% of the holding above the class's
 #: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
 #: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
-#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a dev `cargo build -p
-#: psiv-godot` 3,609 MB (`extension`: 9 units, 22%), a certify pair 418 MB
-#: (1, 18%), the Python suite 815 MB (2, 20%). The opt-level-3 extension build
-#: (5,582 MB, 13 units) is exclusive, so it does not size `extension`.
-CLASS_UNITS = {BUILD: 7, EXTENSION: 9, GODOT: 1, PYTHON: 2}
+#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a cold `cargo test
+#: --workspace --no-run` at 8 jobs 4,979 MB (`extension`: 12 units, 19%), a
+#: certify pair 418 MB (1, 18%), the Python suite 815 MB (2, 20%). The
+#: opt-level-3 extension build (5,582 MB, 13 units) is exclusive, so it does
+#: not size `extension`.
+CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 2}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 

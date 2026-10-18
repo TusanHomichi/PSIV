@@ -214,9 +214,10 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.finish(second), ["second-cargo"])
 
     def test_negative_control_a_budget_one_unit_short_makes_the_suite_wait(self):
-        short = CLASS_UNITS[BUILD] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON] - 1
+        # The extension class: a budget is never below the largest class.
+        short = CLASS_UNITS[EXTENSION] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON] - 1
         budget = {UNITS_ENV: str(short)}
-        cargo, _, _ = self.holder(BUILD, budget), self.holder(GODOT, budget), \
+        cargo, _, _ = self.holder(EXTENSION, budget), self.holder(GODOT, budget), \
             self.holder(GODOT, budget)
         suite = self.waiter("suite", "--class", PYTHON, env=budget)
         time.sleep(0.5)
@@ -232,34 +233,31 @@ class BudgetCase(LockProcesses):
         self.assertEqual(code, 0, stderr)
         self.assertNotIn("waiting", stderr)
 
-    def test_the_extension_class_is_sized_by_the_dev_extension_build(self):
-        """ceil(3,609 MB / (0.85 x 512 MB)) = 9, from docs/DEVELOPMENT.md's
-        measured dev `cargo build -p psiv-godot`, a literal, not CLASS_UNITS."""
-        self.assertEqual(math.ceil(3609 / (0.85 * 512)), 9)
-        self.assertEqual(CLASS_UNITS[EXTENSION], 9)
+    def test_the_extension_class_is_sized_by_the_workspace_test_build(self):
+        """ceil(4,979 MB / (0.85 x 512 MB)) = 12, from docs/DEVELOPMENT.md's
+        cold `cargo test --workspace --no-run` at 8 jobs (#157): a hand-computed
+        literal, not CLASS_UNITS."""
+        self.assertEqual(math.ceil(4979 / (0.85 * 512)), 12)
+        self.assertEqual(CLASS_UNITS[EXTENSION], 12)
 
-    def test_an_extension_build_shares_the_budget_with_a_build_but_not_two(self):
-        """9 + 7 fit the default 16 units; a second extension build (18) waits."""
-        extension = self.holder(EXTENSION)
-        code, stderr = self.immediate("cargo", "--class", BUILD)
-        self.assertEqual(code, 0, stderr)
-        self.assertNotIn("waiting", stderr)
-        self.assertEqual(units_in_use(self.lock), 9)
-        second = self.waiter("second-extension", "--class", EXTENSION)
-        self.assertIn(f"{extension.pid} (extension)", second.first_line)
-        time.sleep(0.5)
-        self.assertEqual(self.granted(), ["cargo"])
-        self.release(extension)
-        self.assertEqual(self.finish(second), ["cargo", "second-extension"])
-
-    def test_negative_control_an_extension_build_beside_three_godot_runs_and_a_suite_fits(self):
-        """9 + 3 + 2 = 14 of 16: the class does not exclude Godot runs."""
-        holders = [self.holder(GODOT), self.holder(GODOT), self.holder(GODOT),
-                   self.holder(PYTHON)]
+    def test_an_extension_build_fits_beside_three_godot_runs(self):
+        """12 + 3 = 15 of 16: the class does not exclude Godot runs."""
+        holders = [self.holder(GODOT), self.holder(GODOT), self.holder(GODOT)]
         code, stderr = self.immediate("extension", "--class", EXTENSION)
         self.assertEqual(code, 0, stderr)
         self.assertNotIn("waiting", stderr)
-        self.assertEqual(len(holders), 4)
+        self.assertEqual(units_in_use(self.lock), 3)
+        self.assertEqual(len(holders), 3)
+
+    def test_negative_control_an_extension_build_waits_for_a_build_holder(self):
+        """12 + 7 = 19 of 16: it waits until the build ends."""
+        build = self.holder(BUILD)
+        waiter = self.waiter("extension", "--class", EXTENSION)
+        self.assertIn(f"{build.pid} (build)", waiter.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(build)
+        self.assertEqual(self.finish(waiter), ["extension"])
 
     def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
         """Pack builds and the gate take exclusive: this is what keeps a pack
@@ -288,10 +286,10 @@ class BudgetCase(LockProcesses):
         """The head waits for units, not the lock file; a smaller arrival that
         would fit now still queues behind it, so a stream of Godot runs cannot
         starve a cargo run either."""
-        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD] + CLASS_UNITS[PYTHON])}
+        budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION] + CLASS_UNITS[PYTHON])}
         self.holder(PYTHON, budget)
         godot = self.holder(GODOT, budget)
-        build = self.waiter("build", "--class", BUILD, env=budget)
+        build = self.waiter("build", "--class", EXTENSION, env=budget)
         later = self.waiter("later-godot", "--class", GODOT, env=budget)
         self.assertIn("1 waiter(s) ahead", later.first_line)
         time.sleep(0.5)
@@ -300,7 +298,7 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.finish(build, later), ["build", "later-godot"])
 
     def test_negative_control_without_the_build_head_the_godot_run_starts(self):
-        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD] + CLASS_UNITS[PYTHON])}
+        budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION] + CLASS_UNITS[PYTHON])}
         self.holder(PYTHON, budget)
         self.holder(GODOT, budget)
         code, stderr = self.immediate("godot", "--class", GODOT, env=budget)
