@@ -307,7 +307,7 @@ impl<'a> Run<'a> {
                 self.require_map(landing.map)?;
                 self.move_to(Position {
                     map: landing.map,
-                    cell: Cell::new(landing.start_x / 2, landing.start_y / 2 + 1),
+                    cell: psiv_runtime::start_cell(landing.start_x, landing.start_y),
                 });
                 Ok(())
             }

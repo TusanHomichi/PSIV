@@ -9,8 +9,8 @@
 //! the loader a scene's `LoadMap` op takes, calls none of them
 //! (`ps4.asm:121767-121840`).
 //!
-//! The start words are eight-pixel units; a cell is `(x / 2, y / 2 + 1)`, as
-//! for a scene's `LoadMap` (`scene_runtime.rs`), and facing codes are the map
+//! The start words are eight-pixel units, turned into a standing cell by
+//! [`crate::start_cell`] as on every load, and facing codes are the map
 //! tables' (0 down, 4 up, 8 right, 12 left).
 //!
 //! The rules are a function of the flags and the load, so the runtime applies
@@ -62,7 +62,7 @@ impl FieldLoad {
     fn start(map: u16, (x, y): (u16, u16), facing: Direction, previous_map: u16) -> FieldLoad {
         FieldLoad {
             map: MapId(map),
-            cell: Cell::new(x / 2, y / 2 + 1),
+            cell: crate::start_cell(x, y),
             facing,
             previous_map,
         }

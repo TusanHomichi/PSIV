@@ -14,6 +14,16 @@ pub const TELEPIPE: u8 = 132;
 /// Retail field item that leaves the current dungeon.
 pub const ESCAPIPE: u8 = 133;
 
+/// The standing cell a load's start words name: `Map_Start_X`/`_Y` are
+/// eight-pixel units, and the party stands one row below the start's cell, as
+/// on every load that places the party (a RYUKA town, a HINAS exit, a scene's
+/// `LoadMap`, the flight's landing, `GameMode_LoadFieldMap`'s redirects). The
+/// one conversion the runtime and the campaign validator share.
+#[must_use]
+pub const fn start_cell(x: u16, y: u16) -> Cell {
+    Cell::new(x / 2, y / 2 + 1)
+}
+
 #[derive(Clone, Copy)]
 enum TravelPayment {
     Technique(CharId, u16),
@@ -244,7 +254,7 @@ impl Runtime {
         Ok(PendingTravel {
             map: exit.map,
             previous_map: self.map.id().0,
-            cell: Cell::new(exit.x / 2, exit.y / 2 + 1),
+            cell: start_cell(exit.x, exit.y),
             facing,
         })
     }
@@ -270,7 +280,7 @@ impl Runtime {
         Ok(PendingTravel {
             map: u16::from(town.world),
             previous_map: town.previous_map,
-            cell: Cell::new(town.x / 2, town.y / 2 + 1),
+            cell: start_cell(town.x, town.y),
             facing: Direction::Down,
         })
     }
@@ -338,5 +348,20 @@ impl Runtime {
         )?;
         self.set_field_suspended(false);
         Ok(vec![loaded.event(WarpTrigger::MapChange)])
+    }
+}
+
+#[cfg(test)]
+mod start_cell_tests {
+    use super::start_cell;
+    use psiv_core::Cell;
+
+    /// Aiedo's RYUKA start `(76,116)` stands at (38,59); the Gumbious
+    /// redirect's `($3C,$44)` at (30,35), the cell the route expects in B2.
+    #[test]
+    fn start_words_halve_and_stand_one_row_down() {
+        assert_eq!(start_cell(76, 116), Cell::new(38, 59));
+        assert_eq!(start_cell(0x3C, 0x44), Cell::new(30, 35));
+        assert_eq!(start_cell(1, 1), Cell::new(0, 1));
     }
 }
