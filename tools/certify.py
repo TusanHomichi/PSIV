@@ -381,17 +381,18 @@ def job_count(requested, cap):
     return requested
 
 
-def run_captures(tasks, jobs, receipt, display=xvfb_display, take=None, results=None):
+def run_captures(tasks, jobs, receipt, display, take, results=None):
     """Capture every `(name, env, tick)` task across `jobs` workers, longest
     tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
 
-    Each worker owns one display from `display(log)` for its life. `take` is
-    `capture` (a parameter so the cases can stand in for Godot). When a capture
+    Each worker owns one display from `display(log)` (`xvfb_display`) for its
+    life. `take(name, env, tick, receipt, display)` makes one capture: `capture`
+    with the resolved Godot bound, which `main` passes; it has no default, since
+    `capture` alone cannot run without that Godot. When a capture
     raises or the wait is interrupted (Ctrl-C), the queued captures are
     cancelled, the running ones finish, and the exception propagates with
     `results` holding every capture that finished.
     """
-    take = take or capture
     jobs = min(jobs, len(tasks))
     displays = queue.Queue()
     results = {} if results is None else results
@@ -482,8 +483,8 @@ def main(argv=None):
         prepared = time.monotonic()
         shots, interrupted = {}, None
         try:
-            run_captures(tasks, jobs, receipt, results=shots,
-                         take=functools.partial(capture, godot=godot))
+            run_captures(tasks, jobs, receipt, xvfb_display,
+                         functools.partial(capture, godot=godot), results=shots)
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop
         timing = {"oracle_s": round(prepared - started, 1),

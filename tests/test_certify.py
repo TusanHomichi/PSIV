@@ -12,6 +12,7 @@ servers when Xvfb is installed.
 """
 import contextlib
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -274,6 +275,14 @@ class RunCapturesTest(unittest.TestCase):
         self.assertEqual(self.started, ["pair-4550"])  # the rest never started
         self.assertEqual(results, {})
 
+    def test_the_capture_is_always_passed(self):
+        """`capture` needs the resolved Godot, so no default `take` could run."""
+        parameters = inspect.signature(certify.run_captures).parameters
+        self.assertIs(parameters["take"].default, inspect.Parameter.empty)
+        self.assertIs(parameters["display"].default, inspect.Parameter.empty)
+        self.assertIs(inspect.signature(certify.capture).parameters["godot"].default,
+                      inspect.Parameter.empty)
+
     def test_no_more_workers_than_tasks(self):
         certify.run_captures(self.TASKS[:2], 3, self.receipt, self.display, self.take())
         self.assertEqual(len(self.opened), 2)
@@ -386,7 +395,7 @@ class MainLocksTest(unittest.TestCase):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
-        def captures(tasks, jobs, receipt, results, take):
+        def captures(tasks, jobs, receipt, display, take, results):
             self.jobs = jobs
             self.take = take
             for count, (name, _, _) in enumerate(tasks):
