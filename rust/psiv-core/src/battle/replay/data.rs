@@ -418,7 +418,7 @@ fn repository_root() -> &'static Path {
 /// working directory: cargo runs a test binary from its package's directory
 /// (`rust/psiv-core`), so the documented
 /// `PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl` would otherwise
-/// leave the dump under `rust/psiv-core/` instead, where the reader - run from the
+/// leave the dump under `rust/psiv-core/build/`, where the reader - run from the
 /// root, as `docs/oracle/BATTLE_ORACLE_SWEEP.md` shows - does not look for it.
 fn manifest_dump_path() -> PathBuf {
     let value = match std::env::var_os(MANIFEST_DUMP) {

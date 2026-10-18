@@ -8,7 +8,9 @@ throwaway git repository, run the checker the way the gate does, and read the
 `path:line: message` lines it prints. The negative controls are the three the
 issue names (a deleted file, a renamed anchor, a path inside a JSON route's
 note string) and the forms around them: a bare retired file name, a quoted
-section name, the far end of a range and a stale `EXEMPT` entry. The
+section name, the far end of a range, a climbing `../` path, a path built on
+`CARGO_MANIFEST_DIR`, a `res://` path, a missing root file and a stale
+`EXEMPT` entry. The
 accepted cases pin what the checker lets through on purpose.
 """
 import os
@@ -170,6 +172,33 @@ class NegativeControls(RepoCase):
         self.assertIn("lib.rs:1: path not found: docs/gone.md", out)
         self.assertRegex(out, r"1 code paths; 1 problem\(s\)")
 
+    def test_a_climbing_path(self):
+        self.assert_fails(
+            {"docs/battle/b.md": "# B\n\nsee `../gone.md`\n",
+             "rust/c/Cargo.toml": "[package]\n",
+             "rust/c/tests/t.rs": 'const TAPES: &str = "../../oracle/tapes";\n'},
+            "docs/battle/b.md:3: path not found: ../gone.md",
+            "rust/c/tests/t.rs:1: path not found: ../../oracle/tapes")
+
+    def test_a_path_on_the_crate_directory(self):
+        self.assert_fails(
+            {"rust/c/Cargo.toml": "[package]\n",
+             "rust/c/tests/t.rs": 'const R: &str = concat!(env!("CARGO_MANIFEST_DIR"), '
+                                  '"/routes/gone.json");\n'
+                                  'fn f() {\n    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))\n'
+                                  '        .join("../../docs/gone.md");\n}\n'},
+            "rust/c/tests/t.rs:1: path not found: rust/c/routes/gone.json",
+            "rust/c/tests/t.rs:4: path not found: rust/c/../../docs/gone.md")
+
+    def test_a_godot_resource_path(self):
+        self.assert_fails({"godot/field.gd": 'const S = preload("res://gone.tscn")\n'},
+                          "godot/field.gd:1: path not found: godot/gone.tscn")
+
+    def test_a_missing_root_file(self):
+        self.assert_fails({"lib.rs": "// pinned in .python-version and pyproject.toml\n"},
+                          "lib.rs:1: file name matches no file: .python-version",
+                          "lib.rs:1: file name matches no file: pyproject.toml")
+
     def test_a_stale_exempt_entry(self):
         self.write({"tests/test_x.py": "# writes scratch.md\n"})
         self.git("add", "-A")
@@ -222,6 +251,33 @@ class AcceptedCases(RepoCase):
         # tests/test_check_docs.py is exempt as a whole in EXEMPT; the table
         # is not verified here, since this is not the checker's own tree.
         self.assert_passes({"tests/test_check_docs.py": "NAME = 'docs/gone.md'\n"})
+
+    def test_climbing_crate_resource_and_root_paths_that_exist(self):
+        self.assert_passes({
+            ".godot-version": "4.7.1\n",
+            "rust-toolchain.toml": "[toolchain]\n",
+            "tools/t.gd": "extends Node\n",
+            "godot/field.tscn": "[gd_scene]\n",
+            "godot/main.gd": 'const A = "res://field.tscn"\nconst B = "res://../tools/t.gd"\n',
+            "rust/c/Cargo.toml": "[package]\n",
+            "rust/c/routes/main.json": "{}\n",
+            "rust/c/tests/t.rs": (
+                'const R: &str = concat!(\n    env!("CARGO_MANIFEST_DIR"),\n    "/routes/main.json"\n);\n'
+                'const P: &str = "../../runtime-pack/battle";\n'
+                'const D: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/a.md");\n'
+                "// .godot-version and rust-toolchain.toml\n"),
+            "tool.py": "OUTSIDE = '../outside-the-repository'\n",
+        })
+
+    def test_a_crate_relative_spelling_of_an_ignored_output(self):
+        self.write({".gitignore": "/home\n/build\n"})
+        self.assert_passes({"rust/c/Cargo.toml": "[package]\n",
+                            "rust/c/src/lib.rs": "// leaves the dump under `rust/c/build/`\n"})
+
+    def test_a_crate_relative_output_the_root_does_not_ignore(self):
+        self.assert_fails({"rust/c/Cargo.toml": "[package]\n",
+                           "rust/c/src/lib.rs": "// leaves the dump under `rust/c/build/`\n"},
+                          "rust/c/src/lib.rs:1: path not found: rust/c/build")
 
     def test_a_path_resolves_beside_the_file_that_names_it(self):
         self.assert_passes({"docs/battle/b.md": "# B\n\nsee `../a.md` and `c.md`\n",

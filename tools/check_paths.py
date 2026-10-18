@@ -20,9 +20,16 @@ fails on:
   template (`oracle/states/{name}.json`, `tools/native/*.gd`) is checked up to
   its last whole directory, and a range of siblings
   (`docs/scenes/03_A.md..11_B.md`) is checked at both ends;
+- a climbing path (`../battle/BATTLE_RULES.md`, `../../runtime-pack`), read
+  beside its file and from its crate; one that climbs out of the repository
+  is not checked;
+- a path built on a Rust crate's directory, `concat!(env!("CARGO_MANIFEST_DIR"),
+  "/routes/main.json")` or `...(env!("CARGO_MANIFEST_DIR")).join("../x")`,
+  on one line or several, and a Godot `res://` path, read from `godot/`;
 - a bare file name (`native_alshline.gd`, `RUNNER_LOG.md`,
-  `battle/BATTLE_RULES.md`) ending in `.md`, `.gd`, `.rs` or `.py` that resolves
-  nowhere as above and that no file of the change ends with;
+  `battle/BATTLE_RULES.md`, `rust-toolchain.toml`) ending in `.md`, `.gd`,
+  `.rs`, `.py` or `.toml`, or a hyphenated dotfile name (`.godot-version`),
+  that resolves nowhere as above and that no file of the change ends with;
 - a section of a Markdown file that the file does not have. `path.md#anchor`
   must be a heading's slug, slugged as `check_docs` slugs it. A quoted name
   after the path, `` `path.md` "Heading" ``, `` `path.md`'s "Heading" ``,
@@ -37,7 +44,15 @@ A file that no longer exists is cited by its commit instead: `RUNNER_LOG
 (commit 0faa91b^)` names the text `git show 0faa91b^:<path>` prints.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
-evidence") and passes, as in `check_docs`. Some sources name paths outside
+evidence") and passes, as in `check_docs`; so does a crate-relative spelling of
+an ignored root path (`rust/psiv-core/build/x`: a test run from the crate's
+directory writes the root's `build/x` there).
+
+What it does not read, so a stale reference there still passes: a section
+cited without quotes (`§ Root` alone, or `section 10`); JSON outside the
+campaign routes; `.toml`, `.cfg`, `.yml` and other configuration files as
+sources; a path assembled at run time from pieces (`ROOT / "docs" / name`);
+and a quoted section name wrapped across lines of a string literal. Some sources name paths outside
 the change on purpose: a test that builds a throwaway repository, or a file of
 the disassembly clone. Those are listed in `EXEMPT`, file by file and with the
 reason, and an entry that no longer matches its file is itself a problem, so
@@ -71,7 +86,7 @@ SOURCE_PATTERNS = ("*.rs", "*.gd", "*.py", "*.sh", "*.c", "*.h", "*.md",
 PATH_PREFIXES = (".github", "docs", "godot", "oracle", "psiv_tools", "rust", "tests", "tools")
 
 #: The extensions a bare file name is recognized by.
-BARE_EXTENSIONS = ("md", "gd", "rs", "py")
+BARE_EXTENSIONS = ("md", "gd", "rs", "py", "toml")
 
 #: Sources that name paths outside the change on purpose. A value of None exempts the
 #: whole file; a set exempts those exact tokens only. Each token must still
@@ -89,7 +104,8 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_feature_map.py": None,
     "tests/test_size_guard.py": None,
     "tests/test_extract_stamp.py": frozenset({"a.py", "b.py", "unused.py", "sub/__init__.py",
-                                              "sub/c.py"}),
+                                              "sub/c.py", "../precious.txt",
+                                              "../outside.json"}),
     "tests/test_route_abilities.py": frozenset({"scene.md", "parent.rs", "child.rs"}),
     "tests/test_oracle_host_binary.py": frozenset({"oracle/new_launcher.py", "new_launcher.py"}),
     # Scripts and test modules the test writes and names in captured output.
@@ -129,6 +145,21 @@ _BARE_RE = re.compile(
     _START
     + r"(?P<path>[\w.-]+(?:/[\w.-]+)*\.(?:" + "|".join(BARE_EXTENSIONS) + r"))(?![\w])"
     + r"(?:#(?P<anchor>[\w-]+))?"
+)
+#: A hyphenated dotfile name, `.godot-version`: the root's pin files.
+_DOTFILE_RE = re.compile(_START + r"(?P<path>\.[a-z]\w*(?:-\w+)+)(?![\w.-])")
+#: A path that climbs first, `../battle/BATTLE_RULES.md`, `../../runtime-pack`.
+_PARENT_RE = re.compile(
+    _START + r"(?P<path>(?:\.\./)+[\w.-]+(?:/[\w.-]+)*)(?P<after>[{*<%\[$]?)"
+    + r"(?:#(?P<anchor>[\w-]+))?"
+)
+#: A Godot resource path, `res://field.tscn`; `res://` is the `godot/` directory.
+_RES_RE = re.compile(r"\bres://(?P<path>[\w./-]*[\w])(?P<after>[{*<%\[$]?)")
+#: A Rust path built on the crate's directory, on one line or several:
+#: `concat!(env!("CARGO_MANIFEST_DIR"), "/routes/main.json")` and
+#: `Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack")`.
+_MANIFEST_RE = re.compile(
+    r'env!\(\s*"CARGO_MANIFEST_DIR"\s*\)\s*\)?\s*(?:,|\.join\()\s*"(?P<path>[^"\n]*)"'
 )
 #: A range of sibling files, `docs/scenes/03_A.md..11_B.md`; `../` is a parent.
 _RANGE_RE = re.compile(r"\.\.(?!/)")
@@ -199,18 +230,46 @@ class Tree:
                 or f"**{anchor}" in self.text(path))
 
 
-def _resolve(tree: Tree, source: str, path: str) -> str | None:
-    """The file of the change `path` names from `source`, or None."""
+def _candidates(tree: Tree, source: str, path: str, kind: str) -> list[str]:
+    """The repository paths `path` may name from `source`, in resolution order:
+    beside `source` (a Markdown link's way), from the root, and, inside a Rust
+    crate, from the crate (cargo runs a crate's tests from its directory). A
+    climbing path (`../x`) is read beside its file and from its crate only, and
+    a "root" path (`res://`, `CARGO_MANIFEST_DIR`) is already from the root.
+    Spellings that climb out of the repository are dropped."""
     path = path.rstrip("/")
-    beside = os.path.normpath(os.path.join(os.path.dirname(source), path))
-    if tree.exists(beside):
-        return beside
-    if tree.exists(path):
-        return path
-    crate = _crate_root(source, tree.crates)
-    if crate and tree.exists(f"{crate}/{path}"):
-        return f"{crate}/{path}"
-    return None
+    if kind == "root":
+        found = [os.path.normpath(path)]
+    else:
+        found = [os.path.normpath(os.path.join(os.path.dirname(source), path))]
+        if kind != "parent":
+            found.append(os.path.normpath(path))
+        crate = _crate_root(source, tree.crates)
+        if crate:
+            found.append(os.path.normpath(f"{crate}/{path}"))
+    unique = []
+    for candidate in found:
+        if candidate != ".." and not candidate.startswith("../") and candidate not in unique:
+            unique.append(candidate)
+    return unique
+
+
+def _resolve(tree: Tree, candidates: list[str]) -> str | None:
+    """The first of `candidates` that names a file or directory of the change."""
+    return next((path for path in candidates if path == "." or tree.exists(path)), None)
+
+
+def _ignore_spellings(tree: Tree, candidates: list[str]) -> list[str]:
+    """The paths whose being ignored makes `candidates` a local input: each
+    candidate, and for one inside a crate, its crate-relative rest read from
+    the root (`rust/psiv-core/build/x` is where a test run from the crate puts
+    the root's ignored `build/x`)."""
+    found = list(candidates)
+    for candidate in candidates:
+        crate = _crate_root(candidate, tree.crates)
+        if crate:
+            found.append(candidate[len(crate) + 1:])
+    return found
 
 
 def _lines(source: str, text: str):
@@ -272,8 +331,10 @@ def scan(tree: Tree, sources: Iterable[str],
          exempt_table: dict[str, frozenset[str] | None]) -> tuple[list[Reference], int]:
     """Every reference `sources` make, as `(source, line, path, anchor, kind)`.
 
-    `kind` is "path" for a repository path, "bare" for a bare file name and
-    "heading" for a quoted section name, whose text is in `anchor`. The count
+    `kind` is "path" for a repository path, "bare" for a bare file name or a
+    dotfile, "parent" for a climbing path, "root" for a path already read from
+    the root (`res://`, `CARGO_MANIFEST_DIR`) and "heading" for a quoted
+    section name, whose text is in `anchor`. The count
     is of the paths and file names read; quoted sections are not counted.
     """
     found: list[Reference] = []
@@ -286,7 +347,38 @@ def scan(tree: Tree, sources: Iterable[str],
             text = (tree.root / source).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        if source.endswith(".rs"):
+            crate = _crate_root(source, tree.crates)
+            for match in _MANIFEST_RE.finditer(text):
+                # Read here, and blanked so the line scan does not read it again.
+                start, end = match.span("path")
+                text = text[:start] + " " * (end - start) + text[end:]
+                if crate and match["path"].strip("/") and match["path"] not in exempt:
+                    count += 1
+                    found.append((source, text.count("\n", 0, start) + 1,
+                                  f"{crate}/{match['path'].lstrip('/')}", None, "root"))
         for number, line in _lines(source, text):
+            for match in _PARENT_RE.finditer(line):
+                path = match["path"]
+                if path in exempt:
+                    continue
+                if match["after"]:
+                    path = path.rsplit("/", 1)[0]
+                count += 1
+                found.append((source, number, path, match["anchor"], "parent"))
+            for match in _RES_RE.finditer(line):
+                path = f"godot/{match['path']}"
+                if match["after"]:
+                    path = path.rsplit("/", 1)[0]
+                if match.group(0) in exempt:
+                    continue
+                count += 1
+                found.append((source, number, path, None, "root"))
+            for match in _DOTFILE_RE.finditer(line):
+                if match["path"] in exempt:
+                    continue
+                count += 1
+                found.append((source, number, match["path"], None, "bare"))
             for match in _PREFIXED_RE.finditer(line):
                 first, *rest = _RANGE_RE.split(match["path"].rstrip("."))
                 paths = [first] + [f"{first.rsplit('/', 1)[0]}/{last}" for last in rest]
@@ -300,7 +392,8 @@ def scan(tree: Tree, sources: Iterable[str],
                     found.append((source, number, path, anchor, "path"))
             for match in _BARE_RE.finditer(line):
                 path = match["path"]
-                if path.startswith(tuple(p + "/" for p in PATH_PREFIXES)) or path in exempt:
+                if (path.startswith(tuple(p + "/" for p in PATH_PREFIXES) + ("../",))
+                        or path in exempt):
                     continue
                 count += 1
                 found.append((source, number, path, match["anchor"], "bare"))
@@ -339,24 +432,27 @@ def check(root: Path | str = Path("."),
 
     unresolved = []
     for source, line, path, anchor, kind in references:
-        target = _resolve(tree, source, path)
-        if target is None and kind != "path":
+        candidates = _candidates(tree, source, path, kind)
+        if not candidates:
+            continue  # it climbs out of the repository
+        target = _resolve(tree, candidates)
+        if target is None and kind in ("bare", "heading"):
             target = tree.suffix_match(path)
         if target is None and kind == "heading":
             continue  # the same text's path or file name reports the missing file
         if target is None:
-            unresolved.append((source, line, path, anchor, kind))
+            unresolved.append((source, line, path, kind, _ignore_spellings(tree, candidates)))
             continue
         if anchor and target.endswith(".md"):
             if not tree.names_section(target, anchor, quoted=kind == "heading"):
                 shown = f'"{anchor}"' if kind == "heading" else f"#{anchor}"
                 problems.append(f"{source}:{line}: missing heading anchor: {target} {shown}")
 
-    ignored = ignored_paths((path for _, _, path, _, _ in unresolved), root)
-    for source, line, path, anchor, kind in unresolved:
-        if path.rstrip("/") in ignored:
+    ignored = ignored_paths((path for *_, spellings in unresolved for path in spellings), root)
+    for source, line, path, kind, spellings in unresolved:
+        if ignored.intersection(spellings):
             continue
-        what = "file name matches no file" if kind != "path" else "path not found"
+        what = "file name matches no file" if kind == "bare" else "path not found"
         problems.append(f"{source}:{line}: {what}: {path}")
     return problems, count
 

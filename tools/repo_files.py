@@ -73,8 +73,8 @@ def ignored_paths(paths: Iterable[str], root: Path | str = Path(".")) -> set[str
     for a path beyond one ("is beyond a symbolic link") and fails the whole
     question. A directory-only pattern (`oracle/frames/`) matches a path that
     does not exist only when it is spelled with a trailing slash, so both
-    spellings are asked, one at a time for the same reason. A path outside the
-    repository (`../x`) is never ignored.
+    spellings are asked, one at a time for the same reason. A path that climbs
+    out of the repository is never ignored.
     """
     root = Path(root)
     answers: dict[str, bool] = {}
