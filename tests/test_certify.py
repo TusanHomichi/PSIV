@@ -399,6 +399,26 @@ class XvfbDisplayTest(unittest.TestCase):
             self.assertNotEqual(names[0], names[1])
 
 
+class CaptureEnvironmentTest(unittest.TestCase):
+    """`capture` runs Godot with the run root's pack, whatever the caller set."""
+
+    def test_a_caller_set_pack_does_not_reach_the_capture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory)
+            project = receipt / "run-root" / "godot-1"
+            ran = {}
+
+            def run(command, env, **_):
+                ran["command"], ran["env"] = command, env
+                return mock.Mock(returncode=0)
+
+            with mock.patch.dict(os.environ, {"PSIV_RUNTIME_PACK": "/caller/pack"}), \
+                    mock.patch.object(certify.subprocess, "run", run):
+                certify.capture("title", {}, 60, receipt, ":7", project, godot=Path("godot"))
+        self.assertEqual(ran["env"]["PSIV_RUNTIME_PACK"], str(receipt / "run-root/runtime-pack"))
+        self.assertEqual(ran["command"][ran["command"].index("--path") + 1], str(project))
+
+
 class MainLocksTest(unittest.TestCase):
     """`main` takes the extension class for the build, then one godot slot per
     worker for the captures, and refuses more workers than slots up front."""

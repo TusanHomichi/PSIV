@@ -66,7 +66,8 @@ from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import GodotError, create_run_root, resolve as resolve_godot  # noqa: E402
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root,  # noqa: E402
+                   resolve as resolve_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -335,7 +336,10 @@ def capture(name, env, tick, receipt, display, project, godot):
     full_env = {**{k: v for k, v in os.environ.items() if k != "XAUTHORITY"},
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
-                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
+                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env,
+                # The run root's pack, resolved once: a caller's override would
+                # win over `res://../runtime-pack` in the game (lib.rs `ready`).
+                "PSIV_RUNTIME_PACK": str(project.parent / RUN_ROOT_PACK)}
     command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", str(project), "--quit-after", str(tick + QUIT_MARGIN)]
