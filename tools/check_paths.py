@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that tracked code names only repository paths that exist (issue #114).
+r"""Check that tracked code names only repository paths that exist (issue #114).
 
 Run from the repository root:
 
@@ -41,7 +41,7 @@ fails on:
   of Markdown.
 
 In Python, a regular expression's escaped dot is read as a dot, so
-`r"tools/godot\.py"` names `tools/godot.py`.
+`r"tools/godot\.py"` and `"tools/godot\\.py"` name `tools/godot.py`.
 
 A file that no longer exists is cited by its commit instead: `RUNNER_LOG
 (commit 0faa91b^)` names the text `git show 0faa91b^:<path>` prints.
@@ -356,9 +356,9 @@ def scan(tree: Tree, sources: Iterable[str],
                                   f"{crate}/{match['path'].lstrip('/')}", None, "root"))
         for number, line in _lines(source, text):
             if source.endswith(".py"):
-                # A regular expression's escaped dot (`r"tools/godot\.py"`) names
-                # the same path as the plain one.
-                line = line.replace("\\.", ".")
+                # A regular expression's escaped dot names the same path as the
+                # plain one, raw (`r"tools/godot\.py"`) or not (`"tools/godot\\.py"`).
+                line = re.sub(r"\\+\.", ".", line)
             for match in _PARENT_RE.finditer(line):
                 path = match["path"]
                 if path in exempt:

@@ -285,7 +285,8 @@ class AcceptedCases(RepoCase):
 
     def test_an_escaped_dot_path_to_a_file_that_exists(self):
         self.assert_passes({"tools/godot.py": "# the resolver\n",
-                            "tools/t.py": 'PATTERN = re.compile(r"python3 tools/godot\\.py prepare")\n'})
+                            "tools/t.py": 'PATTERN = re.compile(r"python3 tools/godot\\.py prepare")\n'
+                                          'PLAIN = "tools/godot\\\\.py"\n'})
 
     def test_a_path_resolves_beside_the_file_that_names_it(self):
         self.assert_passes({"docs/battle/b.md": "# B\n\nsee `../a.md` and `c.md`\n",
