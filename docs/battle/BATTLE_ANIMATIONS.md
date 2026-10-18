@@ -245,15 +245,16 @@ xvfb-run -a "$PSIV_GODOT" \
 
 ## Verification
 
-Run one cargo process at a time; this laptop has OOM-killed a five-wide
-workspace build.
+Run cargo through the [heavy-run lock](../DEVELOPMENT.md#heavy-run-lock), which
+sizes each job's memory class; this laptop once OOM-killed a five-wide workspace
+build run outside it.
 
 ```text
 PYTHONPATH=. python3 -m unittest tests.test_battle_animations tests.test_battle_pack tests.test_battle_art_pack
 PYTHONPATH=. python3 -m unittest discover -s tests
-CARGO_BUILD_JOBS=2 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-CARGO_BUILD_JOBS=2 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml --workspace
+cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
 PYTHONPATH=. python3 -m psiv_tools pack "Phantasy Star IV (USA).md" runtime-pack
 ```
 

@@ -323,8 +323,7 @@ directory, foreign report, missing save), the per-chapter receipts, a
 divergence's first byte, a driver pass that hides a differing chapter, and the
 probe summaries.
 
-**Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
---test-threads=1` runs the planner and validator suites and
+**Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign` runs the planner and validator suites and
 `rust/psiv-campaign/tests/runner.rs`: chapter one twice gives identical tapes, digests and saves;
 a tape replays to its digest, also from a chapter save; a wrong object index,
 an expectation that cannot hold, an unreachable cell and a spent budget each
@@ -336,5 +335,5 @@ those hashes, and that a split refuses a halted report, a foreign tape and an
 existing output. The
 whole route is `#[ignore]`d:
 `cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
-runner -- --ignored --test-threads=1`. Cases that need the pack skip with a
+runner -- --ignored`. Cases that need the pack skip with a
 message when it is absent.

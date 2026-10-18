@@ -16,6 +16,7 @@ reader needs; the rest is verbatim.
 import contextlib
 import fcntl
 import io
+import itertools
 import json
 import os
 import subprocess
@@ -27,9 +28,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
-                        command_slug, gate_lock, main, parse_counts, quick_unittest,
-                        run_gate)
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM,
+                        SLOW_PYTHON_MODULES, GateRefused, available_cores, cargo_parallelism,
+                        command_slug, cpu_mhz, gate_environment, gate_lock, load_1m, main,
+                        parse_counts, quick_unittest, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -304,7 +306,70 @@ class GateRunCase(unittest.TestCase):
             log = self.root / record["log"]
             self.assertTrue(log.is_file(), record["log"])
             self.assertIn("ok", log.read_text())
+            if cpu_mhz() is not None:  # Linux: a sample before the command can finish
+                self.assertGreaterEqual(record["cpu_mhz"]["samples"], 1)
+                self.assertLessEqual(record["cpu_mhz"]["min"], record["cpu_mhz"]["max"])
+        self.assertEqual(receipt["cpu_count"], available_cores())
+        expected = cargo_parallelism(available_cores())
+        self.assertEqual((receipt["cargo_build_jobs"], receipt["rust_test_threads"]),
+                         (expected, expected))
         self.assertTrue((self.root / "second.txt").is_file())
+
+    def run_sampled(self, loads, samples):
+        """One command that exits only after the gate has taken `samples` load samples.
+
+        The command waits on a file the patched `load_1m` writes at its
+        `samples`th call, so the sample count is set by the test, not by how
+        fast the host runs (a fixed sleep took fewer samples under load). Each
+        call returns the next value of `loads`. The command gives up after 60 s.
+        """
+        release = self.root / "sampled"
+        calls = itertools.count(1)
+
+        def load():
+            if next(calls) == samples:
+                release.write_text("")
+            return next(loads)
+
+        waiter = ("import os, sys, time; deadline = time.monotonic() + 60\n"
+                  f"while not os.path.exists({str(release)!r}):\n"
+                  "    time.sleep(0.01)\n"
+                  "    if time.monotonic() > deadline: sys.exit('never released')\n")
+        script = self.root / "waiter"
+        script.write_text(waiter)
+        with mock.patch("tools.gate.CPU_SAMPLE_S", 0.01), \
+                mock.patch("tools.gate.cpu_mhz", return_value=2300.0), \
+                mock.patch("tools.gate.load_1m", side_effect=load):
+            return self.run_quiet([f"python3 {script}"])[0]
+
+    def test_the_clock_is_sampled_while_a_command_runs(self):
+        """A longer command gets one sample per CPU_SAMPLE_S, not one in all."""
+        loads = itertools.chain([1.0, 9.5], itertools.repeat(2.0))
+        record = self.run_sampled(loads, samples=20)["commands"][0]
+        self.assertEqual(record["exit_code"], 0)
+        self.assertEqual(record["cpu_mhz"]["mean"], 2300)
+        self.assertGreaterEqual(record["cpu_mhz"]["samples"], 20)
+        self.assertEqual(record["load_1m_max"], 9.5)  # the highest, not the first or last
+
+    def test_commands_see_the_capped_cargo_environment(self):
+        """What a command's cargo reads, end to end, on a 16- and a 4-core host."""
+        echo = f'echo "$CARGO_BUILD_JOBS $RUST_TEST_THREADS" > {self.root / "seen"}'
+        for cores, expected in ((16, "8 8"), (4, "4 4")):
+            with mock.patch("tools.gate.available_cores", return_value=cores), \
+                    mock.patch.dict(os.environ, {"CARGO_BUILD_JOBS": "1"}):
+                receipt, _ = self.run_quiet([echo])
+            self.assertEqual((self.root / "seen").read_text().strip(), expected)
+            self.assertEqual(receipt["cargo_build_jobs"], int(expected.split()[0]))
+
+    def test_negative_control_a_finite_load_supply_runs_out(self):
+        """The pre-fix form: a fixed list of loads, shorter than the samples taken.
+
+        A list sized for one host's speed ran out when the command ran longer;
+        here the command outlives three values, so `next` raises in the gate's
+        sampling loop, which kills the command and re-raises.
+        """
+        with self.assertRaises(StopIteration):
+            self.run_sampled(iter([1.0, 9.5, 2.0]), samples=10)
 
     def test_a_failure_is_recorded_and_later_commands_still_run(self):
         commands = [fake_step("first", marker="first.txt"),
@@ -645,6 +710,58 @@ class QuickUnittestCase(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn("Ran 2 tests", output)
         self.assertIn("slow module ran", output)
+
+
+class ParallelismCase(unittest.TestCase):
+    """Cargo gets cargo's defaults only up to the measured 8 jobs and threads (#157)."""
+
+    def test_more_cores_than_measured_are_capped(self):
+        self.assertEqual(cargo_parallelism(16), 8)
+
+    def test_fewer_cores_than_measured_use_them_all(self):
+        self.assertEqual(cargo_parallelism(4), 4)
+
+    def test_the_cap_is_the_measured_eight(self):
+        # 8: the jobs of the cold build measured at 4,979 MB (docs/DEVELOPMENT.md table).
+        self.assertEqual(GATE_MEASURED_PARALLELISM, 8)
+        self.assertEqual(cargo_parallelism(8), 8)
+        self.assertEqual(cargo_parallelism(1), 1)
+
+    def test_the_environment_overrides_a_callers_setting(self):
+        env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
+        self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
+        self.assertEqual(env["HOME"], "/h")
+
+
+class ClockCase(unittest.TestCase):
+    """`cpu_mhz` reads /proc/cpuinfo's per-core clocks, `load_1m` /proc/loadavg.
+
+    A missing reading is None, not 0.
+    """
+
+    def read(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cpuinfo"
+            if text is not None:
+                path.write_text(text)
+            return cpu_mhz(path)
+
+    def test_the_mean_over_every_core(self):
+        # Hand-written, in /proc/cpuinfo's layout: two cores at 2000 and 3000 MHz.
+        text = ("processor\t: 0\ncpu MHz\t\t: 2000.000\n\n"
+                "processor\t: 1\ncpu MHz\t\t: 3000.000\n")
+        self.assertEqual(self.read(text), 2500.0)
+
+    def test_negative_control_no_clock_lines_or_no_file_is_none(self):
+        self.assertIsNone(self.read("processor\t: 0\nmodel name\t: x\n"))
+        self.assertIsNone(self.read(None))
+
+    def test_the_load_is_loadavgs_first_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "loadavg"
+            path.write_text("10.11 7.50 4.97 3/1200 1126765\n")  # hand-written, /proc layout
+            self.assertEqual(load_1m(path), 10.11)
+            self.assertIsNone(load_1m(Path(tmp) / "absent"))
 
 
 class NotARepositoryCase(unittest.TestCase):

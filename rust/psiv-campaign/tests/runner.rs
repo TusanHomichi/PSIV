@@ -6,7 +6,7 @@
 //! seconds in a debug build. The whole route from New Game is `#[ignore]`d:
 //!
 //! ```text
-//! cargo test --release -p psiv-campaign --test runner -- --ignored --test-threads=1
+//! cargo test --release -p psiv-campaign --test runner -- --ignored
 //! ```
 //!
 //! Cases that need the pack skip with a message when `runtime-pack` is absent,

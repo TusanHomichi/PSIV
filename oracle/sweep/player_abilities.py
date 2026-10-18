@@ -156,13 +156,12 @@ def fresh_engine(pack: pathlib.Path, output: pathlib.Path) -> list[dict]:
     import os
     output.parent.mkdir(parents=True, exist_ok=True)
     command = ["cargo", "test", "--manifest-path", str(ROOT / "rust/Cargo.toml"),
-               "-p", "psiv-runtime", "--lib", "player_ability_dispatch_inventory",
-               "--", "--test-threads=1"]
+               "-p", "psiv-runtime", "--lib", "player_ability_dispatch_inventory"]
     # A renamed/missing test can make Cargo succeed with zero selected tests.
     # Never let an older output masquerade as this invocation's inventory.
     with tempfile.TemporaryDirectory(prefix="player-inventory-", dir=output.parent) as directory:
         fresh = pathlib.Path(directory) / "inventory.json"
-        env = dict(os.environ, CARGO_BUILD_JOBS="2", PSIV_PLAYER_PACK=str(pack.resolve()),
+        env = dict(os.environ, PSIV_PLAYER_PACK=str(pack.resolve()),
                    PSIV_PLAYER_INVENTORY=str(fresh.resolve()))
         run = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
         output.with_suffix(".log").write_text(run.stdout + run.stderr)
