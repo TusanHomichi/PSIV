@@ -92,9 +92,11 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
         .map(|item| format!("{}:{}", item.id, item.name))
         .collect();
     let _ = writeln!(out, "inventory {}", items.join(", "));
-    let set: Vec<String> = (0..FlagBank::Event.capacity())
-        .filter(|id| runtime.game().is_set(Flag::event(*id)))
-        .map(|id| format!("{id:#x}"))
+    let set: Vec<String> = runtime
+        .game()
+        .set_flags()
+        .filter(|flag| flag.bank == FlagBank::Event)
+        .map(|flag| format!("{:#x}", flag.id))
         .collect();
     let _ = writeln!(out, "event flags {}", set.join(" "));
     Ok(out)
@@ -114,12 +116,6 @@ pub fn save_position(
     let runtime = session.runtime();
     let cell = crate::driver::standing_cell(runtime);
     let game = runtime.game();
-    // Every bank to its capacity (`FlagBank::capacity`, the RAM map's one
-    // owner of the sizes).
-    let flags = [FlagBank::Event, FlagBank::Temp, FlagBank::Town]
-        .into_iter()
-        .flat_map(|bank| (0..bank.capacity()).map(move |id| Flag { bank, id }))
-        .filter(|flag| game.is_set(*flag))
-        .collect();
+    let flags = game.set_flags().collect();
     Ok((runtime.map_id().0, cell, flags))
 }

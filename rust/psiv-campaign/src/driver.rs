@@ -362,7 +362,6 @@ impl Driver {
         self.battle_view.as_ref()
     }
 
-    /// Adds a line to the event ring.
     /// A controller's decision (a carry-off, a refuge, a camp action, a cure):
     /// noted like an event, and kept for the chapter's entry in `report.json`
     /// so a proof needs no code reading.

@@ -636,15 +636,7 @@ fn unreachable_halt(map: u16, target: Cell, why: &str) -> Halt {
 /// Every flag the game holds set, for a planner that must see the same maps
 /// the runtime built.
 fn set_flags(runtime: &Runtime) -> Vec<Flag> {
-    let game = runtime.game();
-    let events = (0..512).map(Flag::event);
-    let temps = (0..256).map(Flag::temp);
-    let towns = (0..128).map(Flag::town);
-    events
-        .chain(temps)
-        .chain(towns)
-        .filter(|flag| game.is_set(*flag))
-        .collect()
+    runtime.game().set_flags().collect()
 }
 
 #[cfg(test)]
