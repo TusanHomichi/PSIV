@@ -22,11 +22,13 @@ is scanned, and fenced code blocks and inline code are skipped as content:
 - no document is a run record (issue #119). Runs, receipts and task graphs
   live in commits, issues and pull requests (`docs/AGENT_WORKFLOW.md`), so the
   checker refuses the shapes the deleted records had: a file named or titled
-  as a ledger, receipt, journal, history or archive (a word of its name or
-  title is one of `RECORD_WORDS`: `LANE_LEDGER.md`, "Native playability -
-  evidence ledger", "Implementation archive"), or as a run log ("log" beside
-  a `RUN_WORDS` word: `RUNNER_LOG_KURAN.md`, "Runner log"; a document about
-  the game's message log, `MESSAGE_LOG.md`, is research and passes); a title
+  as a ledger, receipt, journal or archive (a word of its name or title is
+  one of `RECORD_WORDS`: `LANE_LEDGER.md`, "Native playability - evidence
+  ledger", "Implementation archive"), as a run log ("log" beside a
+  `RUN_WORDS` word: `RUNNER_LOG_KURAN.md`, "Runner log"; a document about the
+  game's message log, `MESSAGE_LOG.md`, is research and passes) or as a work
+  history ("history" beside a `WORK_WORDS` word: `IMPLEMENTATION_HISTORY`,
+  "Lane history"; a lore document, "The history of Algo", passes); a title
   carrying a date ("Dispatch tiers (2026-08-15)"); a table with
   `DATED_ROWS_LIMIT` or more rows that open with a date (`| 2026-09-23 |
   lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
@@ -37,7 +39,10 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   Research documents pass: a dated heading or a dated
   chronology entry (`## 2026-10-03 - Rounds that open no party command
   window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
-  allowed;
+  allowed. A known limit: a record written as prose under a neutral title,
+  with dated bold paragraphs (`**BioPlant checkpoint (2026-09-23):** ...`, as
+  in BIOPLANT_NATIVE (commit 0faa91b^)), passes, because a rule against dated
+  paragraphs would refuse research notes too;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
@@ -112,11 +117,16 @@ COMMAND_FENCE_LANGS = frozenset({"bash", "sh", "shell", "console"})
 #: case) that name a run record: a receipt ledger, a journal, a history or an
 #: archive (issue #119).
 RECORD_WORDS = frozenset({"RUNLOG", "JOURNAL", "LEDGER", "LEDGERS", "RECEIPT", "RECEIPTS",
-                          "HISTORY", "ARCHIVE", "ARCHIVED"})
+                          "ARCHIVE", "ARCHIVED"})
 #: "Log" names a run record only beside a word for a run or a lane (`RUNNER_LOG`,
 #: "Run log"): the game has a message log, and a document about it is research.
 LOG_WORDS = frozenset({"LOG", "LOGS"})
 RUN_WORDS = frozenset({"RUN", "RUNS", "RUNNER", "LANE", "LANES"})
+#: "History" names a run record only beside a word for the work
+#: (`IMPLEMENTATION_HISTORY`, "Lane history"): the game's world has a history,
+#: and a lore document about it is research.
+HISTORY_WORDS = frozenset({"HISTORY", "HISTORIES"})
+WORK_WORDS = RUN_WORDS | frozenset({"IMPLEMENTATION", "INTEGRATION"})
 #: A date in a document's title marks it a dated record ("Dispatch tiers (2026-08-15)").
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 #: Rows opening with a date that make a table a dated receipt ledger.
@@ -379,6 +389,8 @@ def record_words(text: str) -> list[str]:
     found = words & RECORD_WORDS
     if words & RUN_WORDS:
         found |= words & LOG_WORDS
+    if words & WORK_WORDS:
+        found |= words & HISTORY_WORDS
     return sorted(found)
 
 

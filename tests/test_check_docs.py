@@ -454,6 +454,8 @@ class RunRecords(RepoCase):
         for title, word in (("# Runner log: the Zelan arc", "log"),
                             ("# Lane receipts", "receipts"),
                             ("# Implementation history", "history"),
+                            ("# Lane and integration history", "history"),
+                            ("# Run histories", "histories"),
                             ("# Field journal", "journal")):
             with self.subTest(title=title):
                 code, out = self.check({"docs/notes.md": lines("", title, "", "Text.")})
@@ -465,11 +467,13 @@ class RunRecords(RepoCase):
         self.assertEqual(code, 1, out)
         self.assertIn("docs/tiers.md:1: dated title (2026-08-15)", out)
 
-    def test_a_message_log_document_passes(self):
+    def test_message_log_and_lore_history_documents_pass(self):
         code, out = self.check({
             "docs/battle/MESSAGE_LOG.md": lines("# The battle message log", "",
                                                 "## Log lines", "", "Each line is a window."),
             "docs/scenes/LOG_WINDOW.md": lines("# Log window"),
+            "docs/scenes/ALGO_HISTORY.md": lines("# The history of Algo", "",
+                                                 "The thousand-year cycle."),
         })
         self.assertEqual(code, 0, out)
 
