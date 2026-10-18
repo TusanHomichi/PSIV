@@ -218,6 +218,10 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--expect-cell", help="x,y in the endpoint's cell grid")
     command.add_argument("--pack", type=Path, default=ROOT / "runtime-pack")
     command.add_argument("--out", type=Path, required=True)
+    command.add_argument("--library", type=Path,
+                         help="the built extension to snapshot (default: the checkout's debug "
+                              "library); verify_native_route's CONTINUE probes pass one "
+                              "snapshot so every probe runs the same library")
     command.add_argument("--timeout", type=int, default=600)
     command.add_argument("--checkpoints", type=Path,
                          help="JSON list of {frame, label, expect_save}: compare the slot "
@@ -289,7 +293,8 @@ def replay(args: argparse.Namespace) -> int:
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     try:
-        run_root = create_run_root(out / "run-root", pack=pack, source=ROOT)
+        run_root = create_run_root(out / "run-root", pack=pack, source=ROOT,
+                                   library=args.library)
     except GodotError as error:
         print(f"native tape: {error}")
         return 1

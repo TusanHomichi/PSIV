@@ -48,8 +48,10 @@ import time
 
 try:  # imported as `tools.verify_native_route` by tests
     from tools import verify_native_tape
+    from tools.godot import GodotError, create_run_root
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_route.py`
     import verify_native_tape
+    from godot import GodotError, create_run_root
 
 
 FNV_OFFSET = 0xCBF29CE484222325
@@ -161,7 +163,7 @@ def summary_table(receipts: list[dict]) -> str:
 
 
 def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Path,
-                   timeout: int) -> dict:
+                   timeout: int, library: Path) -> dict:
     """One fresh Godot process loads the chapter's save through the ordinary
     title CONTINUE (a zero-pad save-start tape) and must re-encode it to the
     same bytes. This is the persistence evidence each retired driver began
@@ -177,13 +179,15 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
     code = verify_native_tape.main([
         "--tape", str(tape), "--from-save", str(chapter["save"]),
         "--expect-save", str(chapter["save"]), "--pack", str(pack),
-        "--out", str(probe_dir / "native"), "--timeout", str(timeout)])
+        "--out", str(probe_dir / "native"), "--timeout", str(timeout),
+        "--library", str(library)])
     receipt_path = probe_dir / "native" / "receipt.json"
     receipt = json.loads(receipt_path.read_text()) if receipt_path.is_file() else {}
     return {"chapter": label, "pass": bool(code == 0 and receipt.get("pass")),
             "wall_s": round(time.monotonic() - started, 3),
             "save_sha256": receipt.get("source_sha256_before"),
             "snapshot_sha256": receipt.get("snapshot_sha256"),
+            "library_sha256": (receipt.get("run_root") or {}).get("library_sha256"),
             "source_unchanged": receipt.get("source_sha256_before")
             == receipt.get("source_sha256_after"),
             "receipt": str(receipt_path)}
@@ -191,11 +195,29 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
 
 def run_continue_probes(chapters: list[dict], out: Path, campaign_bin: Path, pack: Path,
                         timeout: int) -> int:
-    results = [continue_probe(chapter, out / "continue" / f"{chapter['index']:02d}-{chapter['id']}",
-                              campaign_bin, pack, timeout) for chapter in chapters]
-    passed = all(item["pass"] and item.get("source_unchanged", False) for item in results)
+    """Every probe runs one library: the run root made here snapshots the
+    checkout's once, and each probe's own run root copies that snapshot, so a
+    build during the probes cannot give later chapters another library."""
+    try:
+        run_root = create_run_root(out / "run-root", pack=pack)
+    except GodotError as error:
+        print(f"native route: REFUSED: {error}")
+        return 1
+    try:
+        results = [continue_probe(chapter,
+                                  out / "continue" / f"{chapter['index']:02d}-{chapter['id']}",
+                                  campaign_bin, pack, timeout, run_root.library)
+                   for chapter in chapters]
+    finally:
+        run_root.release()
+    one_library = all(item.get("library_sha256") == run_root.library_sha256
+                      for item in results if "error" not in item)
+    passed = one_library and all(item["pass"] and item.get("source_unchanged", False)
+                                 for item in results)
     (out / "continue-summary.json").write_text(json.dumps(
-        {"version": RECEIPT_VERSION, "pass": passed, "chapters": results},
+        {"version": RECEIPT_VERSION, "pass": passed, "chapters": results,
+         "library_sha256": run_root.library_sha256, "one_library": one_library,
+         "run_root": run_root.record},
         indent=2, sort_keys=True) + "\n")
     print(f"native route: CONTINUE probes {'PASS' if passed else 'FAIL'}; "
           f"{sum(1 for item in results if item['pass'])}/{len(results)} chapter saves load and "
