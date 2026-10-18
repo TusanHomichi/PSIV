@@ -221,16 +221,17 @@ impl Driver {
         let mut stalled = 0;
         let mut first = via_warp;
         let start_map = self.map();
-        let loads_before = self.map_loads(map);
+        let watch = ArrivalWatch {
+            map,
+            loads_before: self.map_loads(map),
+        };
         for _ in 0..REPLAN_LIMIT {
             let settled = self.settle_at(true, true)?;
             let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
-            // Scenes that ended after this objective's own load of `map`;
-            // one that ended earlier, on the way, does not count.
-            let after_load = (self.map_loads(map) > loads_before)
-                .then(|| self.scenes_since_load(map).unwrap_or(0));
-            if here.0 != map && after_load.is_some_and(|scenes| scenes > 0) {
+            let now = self.arrival_counters(map);
+            let after_load = watch.scenes_after_load(now);
+            if watch.carried_off(now, here.0) {
                 // `map` loaded and a scene carried the party off it. Only an
                 // objective that says so ends here; any other would walk back
                 // into a map whose scene has already run.
@@ -546,6 +547,56 @@ fn progress(stalled: &mut u32, before: (u16, Cell), after: (u16, Cell)) -> Res<u
     Ok(*stalled)
 }
 
+/// What a `go_to_map` keeps of its start, to tell that its target loaded and
+/// a scene that ended after that load moved the party off it.
+#[derive(Debug, Clone, Copy)]
+struct ArrivalWatch {
+    /// The target map.
+    map: u16,
+    /// How many times the target had loaded when the objective began.
+    loads_before: u64,
+}
+
+/// The driver's counters for the target, read on one settle.
+#[derive(Debug, Clone, Copy)]
+struct ArrivalCounters {
+    /// The target's loads so far.
+    loads: u64,
+    /// Every scene ended so far.
+    scenes_ended: u64,
+    /// `scenes_ended` as it stood at the target's latest load.
+    scenes_at_last_load: Option<u64>,
+}
+
+impl ArrivalWatch {
+    /// The scenes that ended after this objective's own load of the target,
+    /// or `None` when it has not loaded since the objective began. A scene
+    /// that ended on the way, before the load, does not count.
+    fn scenes_after_load(&self, now: ArrivalCounters) -> Option<u64> {
+        (now.loads > self.loads_before)
+            .then(|| now.scenes_ended - now.scenes_at_last_load.unwrap_or(now.scenes_ended))
+    }
+
+    /// The target loaded and a scene that ended after the load left the party
+    /// on `here`, another map.
+    fn carried_off(&self, now: ArrivalCounters, here: u16) -> bool {
+        here != self.map && self.scenes_after_load(now).is_some_and(|scenes| scenes > 0)
+    }
+}
+
+impl Driver {
+    fn arrival_counters(&self, map: u16) -> ArrivalCounters {
+        let scenes_ended = self.scenes_ended();
+        ArrivalCounters {
+            loads: self.map_loads(map),
+            scenes_ended,
+            scenes_at_last_load: self
+                .scenes_since_load(map)
+                .map(|since| scenes_ended - since),
+        }
+    }
+}
+
 /// The halt of an `arrival_scene` objective whose party stands on its target
 /// with control back: the load ran no scene, or the scene it ran left the
 /// party there (with a menu or a prompt open, or none).
@@ -594,4 +645,59 @@ fn set_flags(runtime: &Runtime) -> Vec<Flag> {
         .chain(towns)
         .filter(|flag| game.is_set(*flag))
         .collect()
+}
+
+#[cfg(test)]
+mod arrival_tests {
+    use super::{ArrivalCounters, ArrivalWatch};
+
+    const TARGET: u16 = 0xD4;
+    const ELSEWHERE: u16 = 0xBF;
+
+    fn watch() -> ArrivalWatch {
+        ArrivalWatch {
+            map: TARGET,
+            loads_before: 0,
+        }
+    }
+
+    /// The Reunion: the target loads with no scene ended, a scene ends after
+    /// the load and the party stands elsewhere.
+    #[test]
+    fn a_scene_after_the_load_carries_the_party_off() {
+        let now = ArrivalCounters {
+            loads: 1,
+            scenes_ended: 1,
+            scenes_at_last_load: Some(0),
+        };
+        assert_eq!(watch().scenes_after_load(now), Some(1));
+        assert!(watch().carried_off(now, ELSEWHERE));
+        assert!(!watch().carried_off(now, TARGET));
+    }
+
+    /// A scene ended on the way, before the target's load, and nothing ran
+    /// after it: the party being elsewhere is no scene's doing, and counting
+    /// from the objective's start would call it carried off.
+    #[test]
+    fn a_scene_before_the_load_is_not_the_arrival_scene() {
+        let now = ArrivalCounters {
+            loads: 1,
+            scenes_ended: 1,
+            scenes_at_last_load: Some(1),
+        };
+        assert_eq!(watch().scenes_after_load(now), Some(0));
+        assert!(!watch().carried_off(now, ELSEWHERE));
+    }
+
+    /// No load of the target since the objective began: nothing to judge.
+    #[test]
+    fn without_the_load_there_is_no_verdict() {
+        let now = ArrivalCounters {
+            loads: 0,
+            scenes_ended: 3,
+            scenes_at_last_load: None,
+        };
+        assert_eq!(watch().scenes_after_load(now), None);
+        assert!(!watch().carried_off(now, ELSEWHERE));
+    }
 }
