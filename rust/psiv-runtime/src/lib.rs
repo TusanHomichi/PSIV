@@ -38,6 +38,9 @@ mod field_status_tests;
 mod geometry;
 mod item_action;
 mod map_change;
+mod map_load_adjust;
+pub use map_change::LoadedMap;
+pub use map_load_adjust::{FieldLoad, adjust_field_load};
 mod new_game;
 mod pad;
 mod progression;
@@ -61,7 +64,7 @@ pub mod tools;
 mod travel;
 #[cfg(test)]
 mod travel_tests;
-pub use travel::{CampTravelMenu, ESCAPIPE, HINAS, RYUKA, TELEPIPE};
+pub use travel::{CampTravelMenu, ESCAPIPE, HINAS, RYUKA, TELEPIPE, start_cell};
 mod vehicle;
 mod view;
 pub use bridge::{BridgeError, field_map, field_map_entered, field_map_patched};

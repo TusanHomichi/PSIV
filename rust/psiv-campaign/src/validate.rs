@@ -246,12 +246,29 @@ impl<'a> Run<'a> {
                 })
             }
             Objective::StepOnto { map, cell } => self.step_onto(*map, cell.cell()),
-            Objective::GoToMap { map, via_warp } => {
+            Objective::GoToMap {
+                map,
+                via_warp,
+                arrival_scene,
+            } => {
                 self.require_map(*map)?;
-                self.go_to_map(*map, *via_warp)
+                self.go_to_map(*map, *via_warp)?;
+                if *arrival_scene {
+                    // The scene the load starts moves the party: where it ends
+                    // is the next `expect`'s claim.
+                    self.pos = None;
+                }
+                Ok(())
             }
-            Objective::Wait { frames } => {
+            Objective::Wait { frames, opens } => {
                 if (1..=MAX_WAIT_FRAMES).contains(frames) {
+                    if !opens.is_empty() {
+                        let here = self.here("wait with opens")?;
+                        self.opened
+                            .entry(here.map)
+                            .or_default()
+                            .extend(opens.iter().map(|c| c.cell()));
+                    }
                     Ok(())
                 } else {
                     Err(format!(
@@ -290,7 +307,7 @@ impl<'a> Run<'a> {
                 self.require_map(landing.map)?;
                 self.move_to(Position {
                     map: landing.map,
-                    cell: Cell::new(landing.start_x / 2, landing.start_y / 2 + 1),
+                    cell: psiv_runtime::start_cell(landing.start_x, landing.start_y),
                 });
                 Ok(())
             }

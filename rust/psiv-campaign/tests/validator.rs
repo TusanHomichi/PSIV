@@ -33,9 +33,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"garuberk-dark-force-2"));
+    assert_eq!(ids.last(), Some(&"reunion"));
     assert_eq!(
-        ids[ids.len() - 15..],
+        ids[ids.len() - 31..],
         [
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
@@ -51,7 +51,23 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "dezolis-eclipse-torch",
             "garuberk-tower-first-eye",
             "garuberk-tower-second-eye",
-            "garuberk-dark-force-2"
+            "garuberk-dark-force-2",
+            "meese-supplies",
+            "gumbious-bishop",
+            "mota-training",
+            "seth-island",
+            "island-cave",
+            "soldiers-temple",
+            "aero-prism-dark-force-3",
+            "le-roof-meeting",
+            "strength-tower-top",
+            "de-vars",
+            "courage-tower-top",
+            "sa-lews",
+            "le-roof-again",
+            "before-elsydeon-cave",
+            "elsydeon",
+            "reunion"
         ][..]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -466,10 +482,15 @@ fn the_kuran_chapters_reject_a_missing_door_and_a_bad_world() {
 
 /// The Esper Mansion's door guards stand on the door row until the
 /// conversation sends them away: drop the `talk`'s `opens` and the chapter that
-/// walks through is rejected naming the hall; the inner guards likewise.
+/// walks through is rejected naming the hall; the inner guards likewise, and
+/// on the second visit the `wait` that lets them step aside.
 #[test]
 fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
-    let shut = mutate(&main_text(), "\"opens\": [[32, 36], [33, 36]], ", "");
+    let shut = mutate(
+        &main_text(),
+        "\"opens\": [[32, 36], [33, 36]], \"note\": \"object 0",
+        "\"note\": \"object 0",
+    );
     let Some(report) = run(&shut) else { return };
     let error = report
         .errors
@@ -477,10 +498,30 @@ fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
         .find(|e| e.chapter == "esper-mansion")
         .unwrap_or_else(|| panic!("the shut door is rejected: {:?}", report.errors));
     assert!(error.reason.contains("0x167"), "{}", error.reason);
-    let inner = mutate(&main_text(), "\"opens\": [[47, 20], [48, 20]], ", "");
+    let inner = mutate(
+        &main_text(),
+        "\"npc\": 3, \"opens\": [[47, 20], [48, 20]], ",
+        "\"npc\": 3, ",
+    );
     let report = run(&inner).unwrap();
     assert!(
         report.errors.iter().any(|e| e.chapter == "esper-mansion"),
+        "{:?}",
+        report.errors
+    );
+    // On the second visit $96 is set and the inner guards step aside with no
+    // talk: the `wait`'s own `opens` is what lets the walk past them plan.
+    let unopened = mutate(
+        &main_text(),
+        "{\"do\": \"wait\", \"frames\": 90, \"opens\": [[47, 20], [48, 20]], ",
+        "{\"do\": \"wait\", \"frames\": 90, ",
+    );
+    let report = run(&unopened).unwrap();
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.chapter == "before-elsydeon-cave" && e.objective == Some(13)),
         "{:?}",
         report.errors
     );
@@ -518,4 +559,60 @@ fn wait_is_bounded_and_a_scene_menu_board_validates() {
     );
     let shipped = run(&main_text()).unwrap();
     assert!(shipped.errors.is_empty(), "{:?}", shipped.errors);
+}
+
+/// `arrival_scene` leaves the position unknown: the scene the load starts
+/// moves the party, so a walk after it needs an `expect` that pins the map.
+/// The Gumbious B2 arrival marked so, with its `expect` keeping only the
+/// parked vehicle (no map, no cell), is rejected at the next walk; unmarked it
+/// validates (the negative control).
+#[test]
+fn an_arrival_scene_needs_an_expect_before_the_next_walk() {
+    let pin = "{\"do\": \"expect\", \"map\": 356, \"cell\": [30, 35], \"vehicle\": 0, \"note\": \"the map load parked the Ice Digger\"},";
+    let unpinned = mutate(&main_text(), pin, "{\"do\": \"expect\", \"vehicle\": 0},");
+    let Some(report) = run(&unpinned) else { return };
+    assert!(
+        !report.errors.iter().any(|e| e.chapter == "gumbious-bishop"),
+        "a plain arrival keeps the position: {:?}",
+        report.errors
+    );
+    let marked = mutate(
+        &unpinned,
+        "{\"do\": \"go_to_map\", \"map\": 356, ",
+        "{\"do\": \"go_to_map\", \"map\": 356, \"arrival_scene\": true, ",
+    );
+    let report = run(&marked).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "gumbious-bishop")
+        .unwrap_or_else(|| panic!("the walk after the scene is rejected: {:?}", report.errors));
+    assert_eq!(error.objective, Some(4), "{error}");
+    assert!(
+        error.reason.contains("needs a known map"),
+        "{}",
+        error.reason
+    );
+}
+
+/// The flight's landing is the runtime's: `board` to the Air Castle lands on
+/// (63,54) (`psiv_runtime::start_cell` of the landing row's start words, the
+/// cell jut-outfit's expect names after its flight), so a `step_onto` of
+/// that very cell is the cell the party stands on, and rejected.
+#[test]
+fn the_flight_lands_where_the_runtime_lands() {
+    let board = "{\"do\": \"board\", \"step\": \"up\", \"to\": 5, \"note\": \"row 19 fires Cutscene_InsideSpaceship; the Air Castle is World_Index 5 ($DC mask with $99 set)\"},";
+    let text = mutate(
+        &main_text(),
+        board,
+        &format!("{board}\n        {{\"do\": \"step_onto\", \"map\": 369, \"cell\": [63, 54]}},"),
+    );
+    let Some(report) = run(&text) else { return };
+    assert!(
+        report.errors.iter().any(|e| e.chapter == "jut-outfit"
+            && e.reason.contains("ends in a step onto (63,54)")
+            && e.reason.contains("where the party stands")),
+        "{:?}",
+        report.errors
+    );
 }

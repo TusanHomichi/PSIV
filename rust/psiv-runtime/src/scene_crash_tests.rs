@@ -74,7 +74,7 @@ fn crash_landing_writes_five_live_bg_frames_before_flag_and_reload() {
     for tick in 0..10_000 {
         for event in checked_tick(&mut rt, Input::Neutral) {
             if let RuntimeEvent::MapChanged { map, .. } = event {
-                loads.push(map.0);
+                loads.push(map.id().0);
                 if loads.len() == 2 {
                     assert!(
                         rt.game.is_clear(Flag::event(0x85)),

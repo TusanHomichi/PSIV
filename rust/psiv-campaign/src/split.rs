@@ -138,6 +138,7 @@ pub fn report_chapters(
             "battles": chapter.battles,
             "save": chapter.save.display().to_string(),
             "save_fnv": format!("{:016x}", fnv1a64(&bytes)),
+            "decisions": chapter.decisions,
         }));
     }
     Ok(Value::Array(list))

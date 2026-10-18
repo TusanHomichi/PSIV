@@ -150,6 +150,9 @@ pub enum FlagBank {
 }
 
 impl FlagBank {
+    /// The three banks, in the order the RAM map lays them out.
+    pub const ALL: [FlagBank; 3] = [FlagBank::Event, FlagBank::Temp, FlagBank::Town];
+
     /// How many flags the bank can hold, from the RAM map.
     #[must_use]
     pub const fn capacity(self) -> u16 {
@@ -720,6 +723,16 @@ impl GameState {
     #[must_use]
     pub fn is_clear(&self, flag: Flag) -> bool {
         !self.is_set(flag)
+    }
+
+    /// Every set flag, bank by bank ([`FlagBank::ALL`]) and id by id, each
+    /// bank walked to its [`FlagBank::capacity`]: the one enumeration a
+    /// planner, a save inspector or a debug dump reads.
+    pub fn set_flags(&self) -> impl Iterator<Item = Flag> + '_ {
+        FlagBank::ALL
+            .into_iter()
+            .flat_map(|bank| (0..bank.capacity()).map(move |id| Flag { bank, id }))
+            .filter(|flag| self.is_set(*flag))
     }
 
     /// Sets `flag`.

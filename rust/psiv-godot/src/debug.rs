@@ -237,8 +237,8 @@ impl Field {
             "inventory": rt.game().inventory().slots().as_slice(),
             "loot": rt.loot_state().map(|loot| format!("{:?}", loot.outcome)),
             "chests": rt.map().chests().iter().map(|chest| serde_json::json!({"flag":chest.flag,"claimed":rt.game().chest_is_open(chest),"cell":[chest.cell.x,chest.cell.y],"open":rt.map().chest_is_open_at_slot(chest.object_slot(rt.map().chest_slot_base()))})).collect::<Vec<_>>(),
-            "flags": (0..0x200).filter(|id| rt.game().is_set(psiv_core::Flag::event(*id))).collect::<Vec<_>>(),
-            "temp_flags": (0..0x100).filter(|id| rt.game().is_set(psiv_core::Flag::temp(*id))).collect::<Vec<_>>(),
+            "flags": rt.game().set_flags().filter(|f| f.bank == psiv_core::FlagBank::Event).map(|f| f.id).collect::<Vec<_>>(),
+            "temp_flags": rt.game().set_flags().filter(|f| f.bank == psiv_core::FlagBank::Temp).map(|f| f.id).collect::<Vec<_>>(),
             "battle": self.battle_screen.as_ref().filter(|_| self.battle_presentation_active()).map(|screen| screen.bind().debug_menu()),
         });
         GString::from(state.to_string().as_str())

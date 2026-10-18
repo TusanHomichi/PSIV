@@ -86,10 +86,7 @@ fn entering_the_valley_with_rune_starts_his_scene_before_another_step() {
         if events.iter().any(|e| {
             matches!(
                 e,
-                RuntimeEvent::MapChanged {
-                    map: MapId(0xD8),
-                    ..
-                }
+                RuntimeEvent::MapChanged { map, .. } if map.id() == MapId(0xD8)
             )
         }) {
             entered = true;

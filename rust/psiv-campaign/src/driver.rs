@@ -8,7 +8,7 @@
 //! faulting frame into a [`Halt`]. It reads the runtime through its read-only
 //! views and never calls a mutator.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 
 use psiv_core::{Cell, Direction};
@@ -160,6 +160,12 @@ pub struct Driver {
     routed: Vec<Routed>,
     areas: Vec<(u32, u16)>,
     scenes_ended: u64,
+    /// The controllers' decisions since [`Driver::take_decisions`] last
+    /// drained them, each `f<frame>: <line>`: what a chapter's report keeps.
+    decisions: Vec<String>,
+    /// How many times each map has loaded (`RuntimeEvent::MapChanged`), and
+    /// [`Driver::scenes_ended`] as it stood at the latest of those loads.
+    map_loads: HashMap<u16, (u64, u64)>,
     battles: Vec<BattleRecord>,
     in_battle: bool,
     /// Where the route's `save` objectives write, or `None` while replaying
@@ -225,6 +231,8 @@ impl Driver {
             routed: Vec::new(),
             areas: Vec::new(),
             scenes_ended: 0,
+            decisions: Vec::new(),
+            map_loads: HashMap::new(),
             battles: Vec::new(),
             in_battle: false,
             scratch,
@@ -325,6 +333,23 @@ impl Driver {
         self.scenes_ended
     }
 
+    /// How many times `map` has loaded since the run began: a walk reads it
+    /// to tell that it arrived on a map a scene then carried the party off.
+    #[must_use]
+    pub fn map_loads(&self, map: u16) -> u64 {
+        self.map_loads.get(&map).map_or(0, |&(loads, _)| loads)
+    }
+
+    /// The scenes that have ended since `map` last loaded, or `None` when it
+    /// never has: what a `go_to_map` with `arrival_scene` asks of its target,
+    /// so a scene that ended before the load does not count.
+    #[must_use]
+    pub fn scenes_since_load(&self, map: u16) -> Option<u64> {
+        self.map_loads
+            .get(&map)
+            .map(|&(_, at)| self.scenes_ended - at)
+    }
+
     /// Forgets the routed windows and areas, at the start of an objective.
     pub fn clear_routed(&mut self) {
         self.routed.clear();
@@ -337,7 +362,28 @@ impl Driver {
         self.battle_view.as_ref()
     }
 
-    /// Adds a line to the event ring.
+    /// A controller's decision (a carry-off, a refuge, a camp action, a cure):
+    /// noted like an event, and kept for the chapter's entry in `report.json`
+    /// so a proof needs no code reading.
+    pub fn decide(&mut self, line: impl Into<String>) {
+        let line: String = line.into();
+        self.decisions.push(format!("f{}: {line}", self.frames()));
+        self.note(line);
+    }
+
+    /// The decisions not yet drained: the halted chapter's.
+    #[must_use]
+    pub fn pending_decisions(&self) -> &[String] {
+        &self.decisions
+    }
+
+    /// The decisions since the last call, oldest first.
+    pub fn take_decisions(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.decisions)
+    }
+
+    /// Notes `line` in the ring of recent events a halt report carries (and
+    /// the trace): events, not decisions; see [`Driver::decide`].
     pub fn note(&mut self, line: impl Into<String>) {
         let mut line: String = line.into();
         if line.chars().count() > EVENT_WIDTH {
@@ -458,6 +504,10 @@ impl Driver {
                     self.areas.push((*area, *event));
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
+                RuntimeEvent::MapChanged { map, .. } => {
+                    let entry = self.map_loads.entry(map.id().0).or_default();
+                    *entry = (entry.0 + 1, self.scenes_ended);
+                }
                 other if is_scene_fault(other, scene_began, self.is_doorway_row(other)) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }

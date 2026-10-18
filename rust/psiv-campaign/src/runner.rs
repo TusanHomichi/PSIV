@@ -51,6 +51,8 @@ pub struct ChapterSummary {
     /// The scripted (event) battles fought in the chapter, in order, each with
     /// the party as it ended.
     pub event_battles: Vec<BattleRecord>,
+    /// The controllers' decisions in the chapter ([`Driver::decide`]).
+    pub decisions: Vec<String>,
 }
 
 /// What a run produced.
@@ -201,7 +203,7 @@ fn play_chapter(
         }
         driver.set_budget(budget_for(&step.objective));
         driver.clear_routed();
-        driver.note(format!("objective #{at} {kind} begins"));
+        driver.decide(format!("objective #{at} {kind} begins"));
         execute(driver, memory, &step.objective).map_err(|halt| Failure {
             index: at,
             kind: kind.clone(),
@@ -235,6 +237,7 @@ fn play_chapter(
             .filter(|b| b.kind == "event")
             .cloned()
             .collect(),
+        decisions: driver.take_decisions(),
     })
 }
 
@@ -280,6 +283,7 @@ fn report_of(driver: &Driver, chapter: &Chapter, index: usize, failure: &Failure
     if let Value::Object(state) = driver.snapshot() {
         report.extend(state);
     }
+    report.insert("decisions".into(), json!(driver.pending_decisions()));
     report.insert(
         "battles".into(),
         json!(

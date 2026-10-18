@@ -20,7 +20,7 @@ pub struct Memory {
 pub fn budget_for(objective: &Objective) -> u64 {
     match objective {
         Objective::GoTo { .. } | Objective::GoToMap { .. } | Objective::StepOnto { .. } => 120_000,
-        Objective::Wait { frames } => u64::from(*frames) + 20_000,
+        Objective::Wait { frames, .. } => u64::from(*frames) + 20_000,
         Objective::Talk { .. }
         | Objective::Answer { .. }
         | Objective::Interact { .. }
@@ -53,9 +53,18 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
     match objective {
         Objective::GoTo { map, cell } => driver.go_to(*map, cell.cell()),
         Objective::StepOnto { map, cell } => driver.step_onto(*map, cell.cell()),
-        Objective::GoToMap { map, via_warp } => driver.go_to_map(*map, *via_warp),
+        Objective::GoToMap {
+            map,
+            via_warp,
+            arrival_scene: false,
+        } => driver.go_to_map(*map, *via_warp),
+        Objective::GoToMap {
+            map,
+            via_warp,
+            arrival_scene: true,
+        } => driver.go_to_map_scene(*map, *via_warp),
         Objective::Talk { npc, .. } => driver.talk(*npc as usize).map(|_| ()),
-        Objective::Wait { frames } => {
+        Objective::Wait { frames, .. } => {
             driver.settle(false)?;
             driver.neutral(*frames)?;
             driver.settle(false).map(|_| ())

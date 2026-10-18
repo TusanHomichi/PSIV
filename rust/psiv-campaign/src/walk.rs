@@ -80,7 +80,7 @@ impl Driver {
                 // A scene fired on the way and carried the party off the map:
                 // the story took the party, and what it left is the next
                 // objective's to assert.
-                self.note(format!(
+                self.decide(format!(
                     "go_to ({},{}): a scene took the party to map {:#x}",
                     target.x, target.y, here.0
                 ));
@@ -200,16 +200,65 @@ impl Driver {
     ///
     /// As [`Driver::go_to`].
     pub fn go_to_map(&mut self, map: u16, via_warp: Option<u32>) -> Res {
+        self.go_to_map_with(map, via_warp, false)
+    }
+
+    /// As [`Driver::go_to_map`] for a map whose load starts a scene that
+    /// carries the party off it (the Reunion on the Dezo Spaceport,
+    /// `RunEvent_Reunion` firing on the arrival): the objective is met once
+    /// `map` has loaded and a scene that ended after that load has left the
+    /// party on another map, and the next objective asserts that place.
+    ///
+    /// # Errors
+    ///
+    /// As [`Driver::go_to_map`], and [`HaltKind::UnexpectedState`] when the
+    /// party arrives on `map` and no scene after its load takes it off.
+    pub fn go_to_map_scene(&mut self, map: u16, via_warp: Option<u32>) -> Res {
+        self.go_to_map_with(map, via_warp, true)
+    }
+
+    fn go_to_map_with(&mut self, map: u16, via_warp: Option<u32>, arrival_scene: bool) -> Res {
         let mut stalled = 0;
         let mut first = via_warp;
         let start_map = self.map();
+        let watch = ArrivalWatch {
+            map,
+            loads_before: self.map_loads(map),
+        };
         for _ in 0..REPLAN_LIMIT {
             let settled = self.settle_at(true, true)?;
             let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
+            let now = self.arrival_counters(map);
+            let after_load = watch.scenes_after_load(now);
+            if watch.carried_off(now, here.0) {
+                // `map` loaded and a scene carried the party off it. Only an
+                // objective that says so ends here; any other would walk back
+                // into a map whose scene has already run.
+                if !arrival_scene {
+                    return Err(Halt::new(
+                        HaltKind::UnexpectedState,
+                        format!(
+                            "map {map:#x} loaded and a scene took the party to map {:#x}: \
+                             the go_to_map needs arrival_scene",
+                            here.0
+                        ),
+                    ));
+                }
+                self.decide(format!(
+                    "go_to_map {map:#x}: a scene took the party to map {:#x}",
+                    here.0
+                ));
+                return Ok(());
+            }
+            let arrived = here.0 == map;
+            if arrived && arrival_scene {
+                // Control is back on `map` itself: no scene took the party off.
+                return Err(stayed_on_arrival(map, after_load, settled));
+            }
             if settled == Settled::Menu {
                 // The same for the ship's menu a scene opens on arrival.
-                if here.0 == map {
+                if arrived {
                     return Ok(());
                 }
                 return Err(Halt::new(
@@ -221,7 +270,7 @@ impl Driver {
                 // A scene that fires on arrival and asks a question (a house
                 // that offers a rest) has delivered the party: the prompt is
                 // the next objective's to answer.
-                if here.0 == map {
+                if arrived {
                     return Ok(());
                 }
                 return Err(unanswered_prompt());
@@ -231,7 +280,7 @@ impl Driver {
             }
             let steps = match first {
                 Some(index) => self.via_warp_steps(index)?,
-                None if here.0 == map => return Ok(()),
+                None if arrived => return Ok(()),
                 None => self.first_leg(Target::Map(map))?,
             };
             self.walk(&steps)?;
@@ -286,7 +335,7 @@ impl Driver {
     pub fn patrol(&mut self, map: u16, a: Cell, b: Cell, until: &Until, refuge: &[Step]) -> Res {
         loop {
             if !refuge.is_empty() && self.needs_refuge() {
-                self.note("patrol: the party cannot train on, taking the refuge");
+                self.decide("patrol: the party cannot train on, taking the refuge");
                 let mut memory = Memory::default();
                 for step in refuge {
                     execute(self, &mut memory, &step.objective)?;
@@ -498,6 +547,78 @@ fn progress(stalled: &mut u32, before: (u16, Cell), after: (u16, Cell)) -> Res<u
     Ok(*stalled)
 }
 
+/// What a `go_to_map` keeps of its start, to tell that its target loaded and
+/// a scene that ended after that load moved the party off it.
+#[derive(Debug, Clone, Copy)]
+struct ArrivalWatch {
+    /// The target map.
+    map: u16,
+    /// How many times the target had loaded when the objective began.
+    loads_before: u64,
+}
+
+/// The driver's counters for the target, read on one settle.
+#[derive(Debug, Clone, Copy)]
+struct ArrivalCounters {
+    /// The target's loads so far.
+    loads: u64,
+    /// Every scene ended so far.
+    scenes_ended: u64,
+    /// `scenes_ended` as it stood at the target's latest load.
+    scenes_at_last_load: Option<u64>,
+}
+
+impl ArrivalWatch {
+    /// The scenes that ended after this objective's own load of the target,
+    /// or `None` when it has not loaded since the objective began. A scene
+    /// that ended on the way, before the load, does not count.
+    fn scenes_after_load(&self, now: ArrivalCounters) -> Option<u64> {
+        (now.loads > self.loads_before)
+            .then(|| now.scenes_ended - now.scenes_at_last_load.unwrap_or(now.scenes_ended))
+    }
+
+    /// The target loaded and a scene that ended after the load left the party
+    /// on `here`, another map.
+    fn carried_off(&self, now: ArrivalCounters, here: u16) -> bool {
+        here != self.map && self.scenes_after_load(now).is_some_and(|scenes| scenes > 0)
+    }
+}
+
+impl Driver {
+    fn arrival_counters(&self, map: u16) -> ArrivalCounters {
+        let scenes_ended = self.scenes_ended();
+        ArrivalCounters {
+            loads: self.map_loads(map),
+            scenes_ended,
+            scenes_at_last_load: self
+                .scenes_since_load(map)
+                .map(|since| scenes_ended - since),
+        }
+    }
+}
+
+/// The halt of an `arrival_scene` objective whose party stands on its target
+/// with control back: the load ran no scene, or the scene it ran left the
+/// party there (with a menu or a prompt open, or none).
+fn stayed_on_arrival(map: u16, after_load: Option<u64>, settled: Settled) -> Halt {
+    let what = match after_load {
+        Some(0) | None => "no scene ran after its load".to_owned(),
+        Some(scenes) => format!("{scenes} scene(s) ran after its load and left the party there"),
+    };
+    let window = match settled {
+        Settled::Menu => ", with the ship's destination menu open",
+        Settled::Choice => ", with a prompt open",
+        Settled::Idle => "",
+    };
+    Halt::new(
+        HaltKind::UnexpectedState,
+        format!(
+            "go_to_map {map:#x} with arrival_scene: the party stayed on the map ({what}{window}); \
+             drop arrival_scene or name the map the scene leads to"
+        ),
+    )
+}
+
 fn unanswered_prompt() -> Halt {
     Halt::new(
         HaltKind::UnexpectedState,
@@ -515,13 +636,63 @@ fn unreachable_halt(map: u16, target: Cell, why: &str) -> Halt {
 /// Every flag the game holds set, for a planner that must see the same maps
 /// the runtime built.
 fn set_flags(runtime: &Runtime) -> Vec<Flag> {
-    let game = runtime.game();
-    let events = (0..512).map(Flag::event);
-    let temps = (0..256).map(Flag::temp);
-    let towns = (0..128).map(Flag::town);
-    events
-        .chain(temps)
-        .chain(towns)
-        .filter(|flag| game.is_set(*flag))
-        .collect()
+    runtime.game().set_flags().collect()
+}
+
+#[cfg(test)]
+mod arrival_tests {
+    use super::{ArrivalCounters, ArrivalWatch};
+
+    const TARGET: u16 = 0xD4;
+    const ELSEWHERE: u16 = 0xBF;
+
+    fn watch() -> ArrivalWatch {
+        ArrivalWatch {
+            map: TARGET,
+            loads_before: 0,
+        }
+    }
+
+    /// The Reunion: the target loads with no scene ended, a scene ends after
+    /// the load and the party stands elsewhere.
+    #[test]
+    fn a_scene_after_the_load_carries_the_party_off() {
+        let now = ArrivalCounters {
+            loads: 1,
+            scenes_ended: 1,
+            scenes_at_last_load: Some(0),
+        };
+        assert_eq!(watch().scenes_after_load(now), Some(1));
+        assert!(watch().carried_off(now, ELSEWHERE));
+        assert!(!watch().carried_off(now, TARGET));
+    }
+
+    /// A scene ended on the way, before the target's load, and nothing ran
+    /// after it: the party being elsewhere is no scene's doing, and counting
+    /// from the objective's start would call it carried off.
+    #[test]
+    fn a_scene_before_the_load_is_not_the_arrival_scene() {
+        let now = ArrivalCounters {
+            loads: 1,
+            scenes_ended: 1,
+            scenes_at_last_load: Some(1),
+        };
+        assert!(
+            !watch().carried_off(now, ELSEWHERE),
+            "false success: a scene that ended before the load counted as the carry-off"
+        );
+        assert_eq!(watch().scenes_after_load(now), Some(0));
+    }
+
+    /// No load of the target since the objective began: nothing to judge.
+    #[test]
+    fn without_the_load_there_is_no_verdict() {
+        let now = ArrivalCounters {
+            loads: 0,
+            scenes_ended: 3,
+            scenes_at_last_load: None,
+        };
+        assert_eq!(watch().scenes_after_load(now), None);
+        assert!(!watch().carried_off(now, ELSEWHERE));
+    }
 }

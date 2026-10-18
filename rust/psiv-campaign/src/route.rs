@@ -42,9 +42,9 @@
 //! | --- | --- | --- |
 //! | `go_to` | `map`, `cell` | stand on `cell` of `map`, crossing warps if needed |
 //! | `step_onto` | `map`, `cell` | take the one step onto `cell`, where a map trigger starts a scene: a warp footprint (the scene wins before the warp fires, `RunEvents` runs first) or any other trigger cell; halts when the warp fires instead, or the party stands on the cell and no scene ran; the position is unknown until a later `expect` pins it |
-//! | `go_to_map` | `map`, optional `via_warp` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record) |
+//! | `go_to_map` | `map`, optional `via_warp`, optional `arrival_scene` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record); `arrival_scene` ends the objective only when `map` has loaded and a scene that ended after the load carried the party to another map; a marked objective whose party stays on `map` halts |
 //! | `talk` | `npc`, optional `opens` | face and talk to object `npc` (index in the current map's object list); `opens` lists the cells an object stands on that the conversation sends away, for planning |
-//! | `wait` | `frames` | press nothing for `frames` frames (1 to 600) while the field runs |
+//! | `wait` | `frames`, optional `opens` | press nothing for `frames` frames (1 to 600) while the field runs; `opens` lists the cells objects the field moves by itself (guards a flag sends aside) clear, for planning |
 //! | `answer` | `yes` | answer an open Yes/No prompt |
 //! | `interact` | `cell`, `face`, optional `opens` | stand on `cell`, face `up`/`down`/`left`/`right`, press confirm (doors, elevators, interaction areas); `opens` lists the cells that become walkable, for planning (collision 0, and any object standing on them is taken to move off: Tyler's grave blocks) |
 //! | `open_chest` | `chest` | open chest `chest` of the current map (record index) |
@@ -314,6 +314,13 @@ pub enum Objective {
         /// Force the first warp (index in the current map's record).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         via_warp: Option<u32>,
+        /// The map's load starts a scene that carries the party off it (the
+        /// Reunion on the Dezo Spaceport): the objective is met when a scene
+        /// that ended after the map's load has left the party on another map,
+        /// and halts when the party stays; the position is unknown until a
+        /// later `expect`.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        arrival_scene: bool,
     },
     /// Talk to an object of the current map.
     Talk {
@@ -332,6 +339,10 @@ pub enum Objective {
     Wait {
         /// Frames to let pass, 1 to 600.
         frames: u32,
+        /// Cells the objects that move during the wait leave, for planning,
+        /// as for a `talk`. The runner needs nothing: it walks the live map.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        opens: Vec<Xy>,
     },
     /// Answer an open Yes/No prompt.
     Answer {

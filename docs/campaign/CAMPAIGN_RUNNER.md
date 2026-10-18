@@ -16,7 +16,9 @@ A route is an ordered list of chapters following the story order in
 [docs/scenes](../scenes/README.md). Each chapter holds objectives the runner
 resolves into pad input:
 
-- reach a map and cell, path-finding across the pack's warp graph, on foot or
+- reach a map and cell, path-finding across the pack's warp graph (each hop
+  lands where `GameMode_LoadFieldMap`'s four story redirects send it, the same
+  `psiv_runtime::adjust_field_load` the field loader applies), on foot or
   in the vehicle the party rides (a mounted party moves two cells a press over
   the terrain its machine crosses, `psiv_core::can_enter`; the route says so
   with `"vehicle": N` in an `expect` and ends it with `dismount`);
@@ -36,10 +38,20 @@ resolves into pad input:
   because a `go_to` plans again from where the scene leaves the party and fires
   the trigger a second time; it halts when the party stands on the cell and no
   scene ran;
+- `go_to_map` with `arrival_scene` onto a map whose load starts a scene that
+  carries the party off it (`Cutscene_Reunion` on the Dezo spaceport): the
+  objective ends only when the map has loaded and a scene that ended after
+  that load has left the party on another map, and the next `expect` says
+  where. A scene that ended before the load does not count, and a marked
+  objective whose party stays on the map (no scene, or one that leaves it
+  there with a menu or prompt open) halts. An unmarked `go_to_map` that a
+  scene carries off its map halts instead of walking back. `plan --from-save FILE` plans from a chapter
+  save's position and event, temp and town flags;
 - `wait` frames while the field runs (an object a scene sent walking, the
   Esper Mansion's guards, finishes before the next walk is planned around it),
   and `opens` on a `talk` for the cells such a conversation clears, as on an
-  `interact`; `board` without a `step` answers the destination menu a scene
+  `interact`, or on a `wait` for the cells objects the field moves by itself
+  clear (the inner guards once `$96` is set); `board` without a `step` answers the destination menu a scene
   opens by itself (`Cutscene_FindingAirCastle`);
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
@@ -76,7 +88,9 @@ about half a second; a debug build is an order of magnitude slower and plays
 chapter one in three seconds.
 
 A completed run's `--report` file lists its chapters (route position, id,
-frames, battles, save path and the FNV-1a 64 of the chapter save) beside the
+frames, battles, save path, the FNV-1a 64 of the chapter save and the
+controllers' `decisions`, each `f<frame>: <line>`: an objective beginning, a
+scene carrying the party off, a patrol's refuge, a camp action, a cure) beside the
 final digest and the frame count; a halted run's report is the halt report
 below. `split-tape <run.tape> <report.json> <out-dir>` cuts the run's tape at
 those frames into one `NN-id.tape` per chapter through the shared tape codec:
@@ -168,8 +182,8 @@ continue from. The report is JSON: `chapter`, `objective_index`,
 `objective_kind`, `objective`, `halt {kind, detail}`, `frame`, `map`, `cell`,
 `facing`, `mode`, `party` (HP, TP, level, status), `money`, the last 50 runtime
 `events`, `surroundings` (the collision values around the party),
-`nearby_warps`, `view` (the open dialogue, shop, camp, battle or chest) and the
-`battles` fought. `PSIV_CAMPAIGN_TRACE=1` prints every event and every battle
+`nearby_warps`, `view` (the open dialogue, shop, camp, battle or chest), the
+`battles` fought and the halted chapter's `decisions`. `PSIV_CAMPAIGN_TRACE=1` prints every event and every battle
 decision to stderr as the run goes.
 
 **Tape, saves and replay.** The tape is every frame's pad byte, run-length
