@@ -252,14 +252,20 @@ A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
 it relinks the GDExtension library that a Godot run in the same checkout maps,
 and the mapped-extension checks run once, before the lock, so only exclusion
 keeps every Godot run out until the build ends. `heavy_lock.py run` enforces
-it: a cargo `build`, `test`, `run` or `bench` that can compile `psiv-godot`
-(`-p psiv-godot`, `--workspace` or `--all` without `--exclude psiv-godot`, or
-no `-p` at the workspace root or in `rust/psiv-godot`), seen through `env`
-and wrapper prefixes and `bash -c` scripts, is refused in every shared class
-with exit 2 naming `--class exclusive`; a `bash -c` script it cannot read is
-refused the same way. `cargo check` and `cargo clippy` stay in `build`.
-`can_relink_extension` in `tools/heavy_lock_extension.py` owns that decision;
-a script file is not opened, so its author states its class.
+it, conservatively: in every shared class it refuses, with exit 2 naming
+`--class exclusive`, any cargo subcommand outside a non-linking allowlist
+(`check`, `clippy`, `fmt`, `doc`, `tree`, `metadata` and the like) whose
+package selection can reach `psiv-godot` (a `-p` name, glob or package-id spec
+matching it, `--workspace` or `--all` without an `--exclude` matching it, or no
+`-p` at the workspace root or in `rust/psiv-godot`). It reads through `env`,
+wrapper and shell prefixes and `bash -c` scripts, and refuses as unreadable
+what it cannot read with certainty: a script with command substitution, a
+subshell or a directory change it cannot follow, a plugin whose selection it
+cannot find, and any other command that names `cargo`. `can_relink_extension`
+in `tools/heavy_lock_extension.py` owns that decision. Known gap: a script file
+and `make` are not opened, so their author states their class; the
+per-checkout extension lock ([#144](https://github.com/TusanHomichi/PSIV/issues/144))
+is the structural fix.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
@@ -324,7 +330,8 @@ its note with `eprintln!`, which libtest captures when the test passes.
 Compilation,
 not the pack, sets a cargo invocation's memory: every test run alone is under
 300 MB, but `cargo test` compiles first (one crate's rebuild took
-`psiv-runtime`'s run to 2,214 MB), so every cargo invocation takes `build`.
+`psiv-runtime`'s run to 2,214 MB), so a cargo invocation takes `build` for its
+memory, unless it can compile `psiv-godot`: then it is exclusive (above).
 
 Transition: a holder started from a checkout older than the budget takes no
 units, so the budget counts only holders running the current
