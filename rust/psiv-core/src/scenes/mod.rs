@@ -35,7 +35,7 @@
 //! |---|---|---|---:|
 //! | `Cutscene_RajaSick` | `$8012` | `88_RetailBoundaries.md` | 54 |
 //! | `Cutscene_Rykros` | `$801B` | `88_RetailBoundaries.md` | 27 |
-//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 367 |
+//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 370 |
 //!
 //! These are kept beside the opening and next-arc registry because their
 //! retail bytes are deterministic presentation routines, while the remaining
@@ -225,6 +225,8 @@ pub static SCENES: &[Scene] = &[
     dezo_campaign::MEETING_KYRA,
     esper_events::ESPER_GUARD_PERMISSION,
     esper_events::PERSISTENT_ESPER_GUARDS,
+    esper_events::INNER_SANCT_GUARD,
+    esper_events::INNER_SANCT_GUARD_BEFORE_ELSYDEON,
     dezo_campaign::ECLIPSE_TORCH_USED,
     dezo_campaign::DARK_FORCE_2,
     dezo_campaign::LUTZ_REVELATION,
@@ -394,6 +396,8 @@ mod tests {
             ("Cutscene_MeetingKyra", 24),
             ("Event_EsperGuardPermission", 14),
             ("Event_PersistentEsperGuards", 6),
+            ("Event_InnerSanctGuard", 3),
+            ("Event_InnerSanctGuardBeforeElsydeon", 3),
             ("Event_EclipseTorchUsed", 28),
             ("Event_DarkForce2", 6),
             ("Cutscene_LutzRevelation", 30),
@@ -429,7 +433,7 @@ mod tests {
             ("Cutscene_ProfoundDarkness", 20),
             ("Cutscene_RajaSick", 54),
             ("Cutscene_Rykros", 27),
-            ("Cutscene_Ending", 367),
+            ("Cutscene_Ending", 370),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
@@ -645,6 +649,71 @@ mod tests {
                 scene.name
             );
         }
+    }
+
+    /// The frames a palette-tone loop's presentation record stands for, when
+    /// the op is one: `Pal_IncreaseTone` (`$58608`) and the tone flashes each
+    /// share their `dbra` loop with a `VInt_Prepare`, so the record says what
+    /// the palette does and the `WaitFrames` after it is the loop's frames.
+    fn tone_loop_frames(op: &SceneOp) -> Option<u16> {
+        match op {
+            SceneOp::Presentation {
+                op:
+                    crate::scene_presentation::PresentationOp::PaletteIncreaseTone { frames }
+                    | crate::scene_presentation::PresentationOp::PaletteToneFlash { frames, .. },
+            } => Some(*frames),
+            _ => None,
+        }
+    }
+
+    /// Every op index whose tone loop is not followed by its own frames.
+    fn tone_loops_without_their_frames(ops: &[SceneOp]) -> Vec<usize> {
+        ops.iter()
+            .enumerate()
+            .filter_map(|(i, op)| {
+                let frames = tone_loop_frames(op)?;
+                match ops.get(i + 1) {
+                    Some(SceneOp::WaitFrames { frames: waited }) if *waited == frames => None,
+                    _ => Some(i),
+                }
+            })
+            .collect()
+    }
+
+    /// The ending carried two `Pal_IncreaseTone` loops with no frames and one
+    /// with frames but no record, 120 frames short headless.
+    #[test]
+    fn every_palette_tone_loop_is_followed_by_its_frames() {
+        for scene in SCENES {
+            assert_eq!(
+                tone_loops_without_their_frames(scene.ops),
+                Vec::<usize>::new(),
+                "{}: a palette-tone loop without its WaitFrames",
+                scene.name
+            );
+        }
+    }
+
+    /// Negative control: a tone loop alone, or followed by the wrong count,
+    /// is reported at its index.
+    #[test]
+    fn a_tone_loop_without_its_frames_is_reported() {
+        use crate::scene_presentation::PresentationOp;
+        let tone = SceneOp::Presentation {
+            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+        };
+        assert_eq!(tone_loops_without_their_frames(&[tone]), vec![0]);
+        assert_eq!(
+            tone_loops_without_their_frames(&[
+                SceneOp::End,
+                tone,
+                SceneOp::WaitFrames { frames: 59 }
+            ]),
+            vec![1]
+        );
+        assert!(
+            tone_loops_without_their_frames(&[tone, SceneOp::WaitFrames { frames: 60 }]).is_empty()
+        );
     }
 
     #[test]

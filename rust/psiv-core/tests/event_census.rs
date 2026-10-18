@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 51;
+const ALLOWLIST_CEILING: usize = 49;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -124,8 +124,8 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x004E, "Event_DarkForce2", Disposition::Scene),
     (0x004F, "Event_EsperGuardPermission", Disposition::Scene),
     (0x0050, "Event_DarkForce3Defeated", Disposition::Scene),
-    (0x0051, "Event_InnerSanctGuard", Disposition::Allowlisted(83)),
-    (0x0052, "Event_InnerSanctGuardBeforeElsydeon", Disposition::Allowlisted(83)),
+    (0x0051, "Event_InnerSanctGuard", Disposition::Scene),
+    (0x0052, "Event_InnerSanctGuardBeforeElsydeon", Disposition::Scene),
     (0x0053, "Event_ReshelBattle", Disposition::Scene),
     (0x0054, "Event_ClmCenterForcedBattle", Disposition::Scene),
     (0x0055, "Event_ClmCenterAfterBattle", Disposition::Scene),
@@ -326,6 +326,28 @@ fn unregistering_a_scene_fails_the_guard_and_names_it() {
     let found = violations(&hide);
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].contains("Event_OutsideRajaTemple"), "{found:?}");
+}
+
+/// Negative control, the class form of the one above: every registered scene,
+/// hidden on its own, fails the guard with a message naming it.
+#[test]
+fn unregistering_any_scene_fails_the_guard_and_names_it() {
+    for scene in SCENES {
+        let hidden = scene.event.0;
+        let hide = |event: u16| {
+            if event == hidden {
+                None
+            } else {
+                registered(event)
+            }
+        };
+        let found = violations(&hide);
+        assert!(
+            found.iter().any(|f| f.contains(&format!("${hidden:04X}"))),
+            "hiding {} (${hidden:04X}) went unnoticed: {found:?}",
+            scene.name
+        );
+    }
 }
 
 /// Negative control: an allowlisted event whose scene lands must leave the

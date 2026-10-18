@@ -126,8 +126,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$004E` | `Event_DarkForce2` | map trigger $37 | GaruberkTower_Part7 | scene `Event_DarkForce2` |
 | `$004F` | `Event_EsperGuardPermission` | dialogue `$F6` | tree 20 entry 51, tree 21 entry 51 | scene `Event_EsperGuardPermission` |
 | `$0050` | `Event_DarkForce3Defeated` | map trigger $3C | Motavia, SoldiersTempleOutside | scene `Event_DarkForce3Defeated` |
-| `$0051` | `Event_InnerSanctGuard` | dialogue `$F6` | tree 20 entry 36 | allowlisted, #83 |
-| `$0052` | `Event_InnerSanctGuardBeforeElsydeon` | dialogue `$F6` | tree 20 entry 39 | allowlisted, #83 |
+| `$0051` | `Event_InnerSanctGuard` | dialogue `$F6` | tree 20 entry 36 | scene `Event_InnerSanctGuard` |
+| `$0052` | `Event_InnerSanctGuardBeforeElsydeon` | dialogue `$F6` | tree 20 entry 39 | scene `Event_InnerSanctGuardBeforeElsydeon` |
 | `$0053` | `Event_ReshelBattle` | map trigger $3D | Reshel1 | scene `Event_ReshelBattle` |
 | `$0054` | `Event_ClmCenterForcedBattle` | map trigger $3E | ClimCenter | scene `Event_ClmCenterForcedBattle` |
 | `$0055` | `Event_ClmCenterAfterBattle` | map trigger $3F | ClimCenter | scene `Event_ClmCenterAfterBattle` |
@@ -255,8 +255,8 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 38 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 11 |
-| | total | 51 |
+| #83 | Dezolis late arc | 9 |
+| | total | 49 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

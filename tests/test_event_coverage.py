@@ -144,6 +144,15 @@ class NegativeControl(unittest.TestCase):
         self.assertEqual(len(found), 1, found)
         self.assertIn("$0043 Event_OutsideRajaTemple", found[0])
 
+    def test_every_registered_scene_is_named_when_unregistered(self) -> None:
+        """The class form of the control above: no scene's row passes without it."""
+        for event, name in sorted(self.registry.items()):
+            with self.subTest(event=f"${event:04X}"):
+                registry = dict(self.registry)
+                del registry[event]
+                found = ec.problems(self.census, registry)
+                self.assertTrue(any(f"${event:04X} {name}" in f for f in found), found)
+
     def test_a_scene_removed_from_the_sources_is_named(self) -> None:
         sources = {p.name: p.read_text(encoding="utf-8") for p in ec.SCENES_DIR.glob("*.rs")}
         text = sources["dezolis_route.rs"]

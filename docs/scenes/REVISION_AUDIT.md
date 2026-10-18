@@ -104,6 +104,6 @@ the scene's start jump straight to the credits (`loc_79D0C`). The port's ending
 transcription has no input branch: it plays the whole ending. This is an
 affordance, not state — no flag, party, inventory or map edge depends on it —
 and adding it would mean a new held-button branch op and a second entry point
-into the ending's 367 ops. Recorded here rather than silently dropped, per
+into the ending's 370 ops. Recorded here rather than silently dropped, per
 `AGENTS.md`. The rest of the ending follows the revision-1 branch, verified
 above.

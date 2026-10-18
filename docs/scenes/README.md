@@ -164,6 +164,8 @@ and the port never transcribed.
 | `Event_SoldiersTempleCaveDialogue2` | `$9B` | [112](112_SoldiersTemple.md) | `$073892..$0738A3` |
 | `Event_SoldiersTempleReached` | `$9C` | [112](112_SoldiersTemple.md) | `$0738A4..$0738B5` |
 | `Event_AeroPrismFound` | `$9D` | [112](112_SoldiersTemple.md) | `$0738B6..$0738D1` |
+| `Event_InnerSanctGuard` | `$51` | [113](113_InnerSanctuaryGuard.md) | `$070A4E..$070A75` |
+| `Event_InnerSanctGuardBeforeElsydeon` | `$52` | [113](113_InnerSanctuaryGuard.md) | `$070A76..$070A9D` |
 
 ## Vahal Fort and Weapon Plant (S9)
 

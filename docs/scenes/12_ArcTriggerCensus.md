@@ -129,8 +129,8 @@ mistaken for missing pointer data.
 | `$4E` | `Event_DarkForce2` | `$070976..$0709A2` | [57](57_DarkForce2.md) |
 | `$4F` | `Event_EsperGuardPermission` | `$0709A2..$070A2A` | boundary [88](88_RetailBoundaries.md) |
 | `$50` | `Event_DarkForce3Defeated` | `$070A2A..$070A4E` | [62](62_DarkForce3Defeated.md) |
-| `$51` | `Event_InnerSanctGuard` | `$070A4E..$070A76` | boundary [88](88_RetailBoundaries.md) |
-| `$52` | `Event_InnerSanctGuardBeforeElsydeon` | `$070A76..$070A9E` | boundary [88](88_RetailBoundaries.md) |
+| `$51` | `Event_InnerSanctGuard` | `$070A4E..$070A76` | [113](113_InnerSanctuaryGuard.md) |
+| `$52` | `Event_InnerSanctGuardBeforeElsydeon` | `$070A76..$070A9E` | [113](113_InnerSanctuaryGuard.md) |
 | `$53` | `Event_ReshelBattle` | `$070A9E..$070ABC` | [63](63_ReshelBattle.md) |
 | `$54` | `Event_ClmCenterForcedBattle` | `$070ABC..$070ADA` | [64](64_ClmCenterForcedBattle.md) |
 | `$55` | `Event_ClmCenterAfterBattle` | `$070ADA..$070AEC` | [65](65_ClmCenterAfterBattle.md) |

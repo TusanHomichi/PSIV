@@ -219,3 +219,54 @@ fn the_monk_faces_the_leader_and_the_party_faces_down() {
         );
     }
 }
+
+/// The flags a log changed, in order.
+fn flag_writes(log: &[SceneEffect]) -> Vec<(Flag, bool)> {
+    log.iter()
+        .filter_map(|e| match e {
+            SceneEffect::FlagChanged { flag, value } => Some((*flag, *value)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `$070A4E..$070A75` and `$070A76..$070A9D` (`docs/scenes/113_InnerSanctuaryGuard.md`):
+/// `lea Field_Obj_Secondary, a4` / `move.w $6(Character_1), d0` / `bchg #2,
+/// d0` / `jsr Event_UpdateObjFacing`, then `moveq #entry, d0` / `jsr
+/// Event_GetAndRunDialogue` and the tail `jmp EventFlags_Set`. The literals
+/// are the cartridge's: entries `$35` and `$36`, flags `$A2` and `$A3`.
+#[test]
+fn the_inner_sanctuary_old_man_turns_speaks_and_sets_his_flag() {
+    for (event, entry, flag) in [(0x51_u16, 0x35_u16, 0xA2_u16), (0x52, 0x36, 0xA3)] {
+        for (leader, wanted) in [
+            (Direction::Up, Direction::Down),
+            (Direction::Down, Direction::Up),
+            (Direction::Left, Direction::Right),
+            (Direction::Right, Direction::Left),
+        ] {
+            let mut state = GameState::new();
+            let log = play(event, &mut state, leader);
+            let faced = log
+                .iter()
+                .position(|e| {
+                    *e == SceneEffect::ActorFaced {
+                        actor: ActorRef::Npc(0),
+                        facing: wanted,
+                    }
+                })
+                .unwrap_or_else(|| panic!("${event:02X}: object 0 faces {wanted:?}: {log:?}"));
+            let spoke = log
+                .iter()
+                .position(|e| matches!(e, SceneEffect::DialogueOpen(_)))
+                .expect("a line");
+            assert!(faced < spoke, "${event:02X} turns before it speaks");
+            assert_eq!(dialogues(&log), vec![entry], "${event:02X}");
+            assert_eq!(
+                flag_writes(&log),
+                vec![(Flag::event(flag), true)],
+                "${event:02X} sets only its flag"
+            );
+            assert!(dialogue_writes(&log).is_empty());
+        }
+    }
+}
