@@ -110,6 +110,8 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_oracle_host_binary.py": frozenset({"oracle/new_launcher.py", "new_launcher.py"}),
     # Another extension's entry the test writes into a throwaway project's index.
     "tests/test_godot.py": frozenset({"res://addons/other/other.gdextension"}),
+    # A cargo argv the lock's relink classifier reads; nothing is built there.
+    "tests/test_heavy_lock_extension.py": frozenset({"rust/x"}),
     # Scripts and test modules the test writes and names in captured output.
     "tests/test_certify.py": frozenset({"fake_xvfb.py"}),
     "tests/test_gate.py": frozenset({".../capture/gate_sample_fail.py",
