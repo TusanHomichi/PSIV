@@ -367,14 +367,21 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
     return RunRoot(root, tuple(made), snapshot, digest, record)
 
 
+#: What `create_run_root` puts in a run root besides its record: the project
+#: copies, the library snapshot's tree and the pack link.
+_RUN_ROOT_ENTRY = re.compile(r"\A(?:godot(?:-\d+)?|rust|" + re.escape(RUN_ROOT_PACK) + r")\Z")
+
+
 def remove_run_root(root: Path, keep_record: bool = False) -> None:
-    """Remove the run root at `root`, all of it or (`keep_record`) all but its
-    `run-root.json`. Refuses a directory that is not a run root."""
+    """Remove what `create_run_root` made at `root`: the projects, the library
+    snapshot and the pack link, and (unless `keep_record`) `run-root.json` and
+    the directory. Anything else in it is left, and then the directory too.
+    Refuses a directory that is not a run root."""
     root = Path(root)
     if not (root / RUN_ROOT_RECORD).is_file():
         raise GodotError(f"{root} is not a run root (no {RUN_ROOT_RECORD}); not removing it")
     for entry in root.iterdir():
-        if entry.name == RUN_ROOT_RECORD:
+        if not _RUN_ROOT_ENTRY.match(entry.name):
             continue
         if entry.is_dir() and not entry.is_symlink():
             # The library snapshot is read-only; its directory is not.
@@ -383,6 +390,10 @@ def remove_run_root(root: Path, keep_record: bool = False) -> None:
             entry.unlink()
     if not keep_record:
         (root / RUN_ROOT_RECORD).unlink()
+        left = sorted(entry.name for entry in root.iterdir())
+        if left:
+            raise GodotError(f"{root} holds files a run root does not make ({', '.join(left)}); "
+                             "removed the run root's own, left those")
         root.rmdir()
 
 

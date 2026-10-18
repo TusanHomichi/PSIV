@@ -205,6 +205,17 @@ class Refusals(Checkout):
         with self.assertRaises(godot.GodotError):
             godot.remove_run_root(self.dir / "run")
 
+    def test_release_removes_only_what_the_run_root_made(self):
+        made = self.create(projects=2)
+        (made.root / "native.json").write_text("evidence")
+        made.release()
+        self.assertEqual(sorted(entry.name for entry in made.root.iterdir()),
+                         ["native.json", godot.RUN_ROOT_RECORD])
+        with self.assertRaises(godot.GodotError) as caught:
+            godot.remove_run_root(made.root)
+        self.assertIn("native.json", str(caught.exception))
+        self.assertEqual((made.root / "native.json").read_text(), "evidence")
+
     def test_the_command_line_replaces_its_own_run_root(self):
         env = {**os.environ, "PYTHONPATH": str(ROOT)}
         command = ["python3", str(ROOT / "tools/godot.py"), "run-root", str(self.dir / "cli")]
