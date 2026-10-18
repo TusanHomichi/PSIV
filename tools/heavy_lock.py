@@ -3,7 +3,7 @@
 
     python3 tools/heavy_lock.py [--gate]          # print the lock path
     python3 tools/heavy_lock.py status            # print holders and waiters
-    python3 tools/heavy_lock.py run [--priority] [--class exclusive|godot] -- <cmd...>
+    python3 tools/heavy_lock.py run [--priority] --class CLASS -- <cmd...>
 
 Heavy runs are serialized by project rule across every worktree, so their locks
 must name one file for the whole repository, not one per checkout. Both locks
@@ -23,14 +23,20 @@ wrap the gate in `run`; a priority gate is `PSIV_LOCK_PRIORITY=1 python3
 tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
 lock rather than wait.
 
-The heavy lock has two classes. `exclusive` (cargo, the Python suite, the gate,
-pack builds) holds the lock file with LOCK_EX and runs alone. `godot` (one
-Godot/Xvfb run, about 350 MB) holds it with LOCK_SH plus one of
-`PSIV_GODOT_SLOTS` (default 3) slot files beside it, so several Godot runs
-share the machine and an exclusive holder excludes them all. The cap must be
-the same for every process: each holder writes its cap into its slot file, and
-a process that finds a held slot recording another cap refuses (exit 2) rather
-than overfill the machine.
+The heavy lock's classes are split by peak memory (the measured table is in
+docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, pack
+builds, which rewrite the runtime pack every run reads, and builds of the
+GDExtension) holds the lock file with LOCK_EX and runs alone. The
+shared classes hold it with LOCK_SH plus units of a machine memory budget,
+`PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
+beside it, taken all or none, `CLASS_UNITS` each: `build` (any cargo build,
+test or clippy run: compilation is its peak), `godot` (one Godot/Xvfb run, per
+slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot files) and `python` (the
+Python suite). So shared holders run side by side
+while their units fit, and an exclusive holder excludes them all. The slot cap
+and the budget must be the same for every process: each holder writes them
+into its slot and unit files, and a process that finds a held file recording
+another value refuses (exit 2) rather than overfill the machine.
 
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
@@ -45,12 +51,17 @@ holders and how many waiters (and priority waiters) are ahead, again whenever
 that changes.
 
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
-`run -- <cmd>` the one way to wrap a command in it. The holder exports
+`run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
+required: without one, `run` prints the classes and exits 2, so no command
+takes the whole machine by default. A command that can relink the GDExtension
+library (tools/heavy_lock_extension.py decides) is refused in every class but
+exclusive, also with exit 2. The holder exports
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
-descendant that asks for the same lock (certify under verify_candidate)
-proceeds without blocking on its own ancestor; an exclusive
-request under a godot holder is refused instead, because the holder never
-excluded anyone. A raw `flock(1)` wrapper sets no marker; a child that finds
+descendant that asks for the same lock (certify under an exclusive `run`)
+proceeds without blocking on its own ancestor; a request under a shared
+holder of another class (an exclusive run under godot, a build under python) is
+refused instead, because the holder neither excluded anyone nor reserved the
+request's units. A raw `flock(1)` wrapper sets no marker; a child that finds
 the lock held by one of its ancestors (by inode in /proc/locks) exits 2 naming
 the parent instead of waiting forever (`raw_flock_parent`).
 
@@ -72,20 +83,45 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+try:  # imported as `tools.heavy_lock` by tests and verifiers
+    from tools.heavy_lock_extension import can_relink_extension
+except ModuleNotFoundError:  # direct `python3 tools/heavy_lock.py`
+    from heavy_lock_extension import can_relink_extension
+
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
 HELD_CLASS_ENV = "PSIV_HEAVY_LOCK_CLASS"
 HELD_SLOTS_ENV = "PSIV_HEAVY_LOCK_SLOTS"
 PRIORITY_ENV = "PSIV_LOCK_PRIORITY"
 GODOT_SLOTS_ENV = "PSIV_GODOT_SLOTS"
+UNITS_ENV = "PSIV_LOCK_UNITS"
 HEAVY_LOCK_NAME = "continuation-heavy.lock"
 GATE_LOCK = Path("gate") / ".lock"
 EXIT_HELD_BY_PARENT = 2
 
 EXCLUSIVE = "exclusive"
 GODOT = "godot"
-LOCK_CLASSES = (EXCLUSIVE, GODOT)
+BUILD = "build"
+PYTHON = "python"
+LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, PYTHON)
+#: How /proc/locks shows a LOCK_SH holder that holds no slot or unit yet (a
+#: shared head between its flock and its grant).
+SHARED = "shared"
 DEFAULT_GODOT_SLOTS = 3
+#: Megabytes per budget unit, and the budget: 16 units are 8 GB of the 13.5 GB
+#: development host. The safety margin is the budget itself: the 5.5 GB it
+#: leaves covers the desktop, the agent sessions and unlocked headless runs,
+#: and any job that peaks above its measured RSS.
+UNIT_MB = 512
+DEFAULT_LOCK_UNITS = 16
+#: Units each shared holder takes (godot: per slot), one rule for every class:
+#: the fewest units that keep at least 15% of the holding above the class's
+#: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
+#: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
+#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a certify pair 418 MB
+#: (1, 18%), the Python suite 815 MB (2, 20%). Builds that compile psiv-godot
+#: are exclusive, so they do not size `build`.
+CLASS_UNITS = {BUILD: 7, GODOT: 1, PYTHON: 2}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
@@ -144,32 +180,93 @@ def godot_slots(environ=None):
     return value
 
 
-def lock_modes(path, proc_locks=Path("/proc/locks")):
-    """`[(pid, class)]` holding a lock on `path`'s inode, from /proc/locks:
-    a WRITE lock is `exclusive`, a READ lock `godot`.
+def lock_units(environ=None):
+    """The machine budget shared holders draw on: `PSIV_LOCK_UNITS` units of
+    `UNIT_MB`, default `DEFAULT_LOCK_UNITS`. A budget below one holder of the
+    largest shared class could never grant it, so it is refused."""
+    environ = os.environ if environ is None else environ
+    raw = environ.get(UNITS_ENV)
+    if not raw:
+        return DEFAULT_LOCK_UNITS
+    value = int(raw)
+    if value < max(CLASS_UNITS.values()):
+        raise ValueError(f"{UNITS_ENV}={raw!r}: need at least {max(CLASS_UNITS.values())} "
+                         "units, one holder of the largest shared class")
+    return value
+
+
+def _proc_locks(proc_locks):
+    """`[(pid, inode, is_write)]` for every held flock in /proc/locks.
 
     Matched by inode alone: on btrfs the device field names the superblock's
     device, not the file's `st_dev`. Waiters (`->` lines) are not holders.
     """
-    inode = os.stat(path).st_ino
-    found = []
     try:
         lines = Path(proc_locks).read_text().splitlines()
     except OSError:
-        return found
+        return []
+    held = []
     for line in lines:
         fields = line.split()
         if len(fields) < 6 or fields[1] == "->":
             continue
         try:
-            pid = int(fields[4])
-            line_inode = int(fields[5].rsplit(":", 1)[1])
+            held.append((int(fields[4]), int(fields[5].rsplit(":", 1)[1]),
+                         fields[3] == "WRITE"))
         except (ValueError, IndexError):
             continue
-        mode = EXCLUSIVE if fields[3] == "WRITE" else GODOT
-        if line_inode == inode and (pid, mode) not in found:
+    return held
+
+
+def _numbered(lock, kind):
+    """`{inode: path}` of `<lock>.<kind><index>` files (kind `godot` or `unit`)."""
+    prefix = Path(f"{lock}.{kind}")
+    found = {}
+    for path in prefix.parent.glob(prefix.name + "*"):
+        if path.name[len(prefix.name):].isdecimal():
+            try:
+                found[path.stat().st_ino] = path
+            except FileNotFoundError:
+                continue
+    return found
+
+
+def _recorded(path):
+    """`(cap, class)` a slot or unit file records (`<cap>` or `<cap> <class>`);
+    None for a field it does not hold."""
+    try:
+        fields = path.read_text(errors="replace").split()
+    except OSError:
+        return None, None
+    cap = int(fields[0]) if fields and fields[0].isdecimal() else None
+    return cap, fields[1] if len(fields) > 1 else None
+
+
+def lock_modes(path, proc_locks=Path("/proc/locks")):
+    """`[(pid, class)]` holding a lock on `path`'s inode, from /proc/locks: a
+    WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a
+    godot slot, else the class its budget units record, else `shared`."""
+    inode = os.stat(path).st_ino
+    held = _proc_locks(proc_locks)
+    slots, units = _numbered(path, GODOT), _numbered(path, "unit")
+    in_slots = {pid for pid, node, _ in held if node in slots}
+    unit_class = {pid: _recorded(units[node])[1] or SHARED
+                  for pid, node, _ in held if node in units}
+    found = []
+    for pid, node, write in held:
+        if node != inode:
+            continue
+        mode = EXCLUSIVE if write else GODOT if pid in in_slots \
+            else unit_class.get(pid, SHARED)
+        if (pid, mode) not in found:
             found.append((pid, mode))
     return found
+
+
+def units_in_use(path, proc_locks=Path("/proc/locks")):
+    """How many of `path`'s budget unit files are held now, from /proc/locks."""
+    units = _numbered(path, "unit")
+    return len({node for _, node, _ in _proc_locks(proc_locks) if node in units})
 
 
 def lock_holders(path, proc_locks=Path("/proc/locks")):
@@ -216,7 +313,8 @@ def raw_flock_parent(path=None, environ=None):
 def refuse_message(path, parent):
     """What a child of a raw `flock(1)` holder prints before exiting 2."""
     return (f"heavy lock {path} is already held by your parent pid {parent}; "
-            "use `python3 tools/heavy_lock.py run -- <command>` or run without a wrapper")
+            "use `python3 tools/heavy_lock.py run --class CLASS -- <command>` or run "
+            "without a wrapper")
 
 
 class _Queue:
@@ -280,7 +378,7 @@ def _unlink(path):
 
 
 #: A waiter's file in `<lock>.queue/`: rank, sequence, pid and class.
-ENTRY_RE = re.compile(r"^[01]-\d{12}-\d+-(?:exclusive|godot)$")
+ENTRY_RE = re.compile(r"^[01]-\d{12}-\d+-(?:" + "|".join(LOCK_CLASSES) + ")$")
 
 
 def _entry_key(name):
@@ -294,52 +392,98 @@ def _entry_pid(name):
 
 
 class SlotCapMismatch(RuntimeError):
-    """A godot slot is held by a process with a different `PSIV_GODOT_SLOTS`, so
-    together they could exceed either cap."""
+    """A godot slot or budget unit is held by a process with a different
+    `PSIV_GODOT_SLOTS` or `PSIV_LOCK_UNITS`, so together they could exceed
+    either cap."""
 
 
-def _check_slot_cap(lock, cap):
-    """Raise SlotCapMismatch when a held slot records a cap other than `cap`
-    (each holder writes its cap into its slot file), or sits at an index >= `cap`."""
-    prefix = Path(f"{lock}.godot")
+@dataclass(frozen=True)
+class _Need:
+    """What one grant takes beside the lock file: `slots` godot slot files out
+    of `cap`, and `units` budget unit files out of `budget`."""
+
+    lock_class: str
+    slots: int
+    cap: int
+    units: int
+    budget: int
+
+    @classmethod
+    def of(cls, lock_class, slots, cap, budget):
+        if lock_class == EXCLUSIVE:
+            return cls(lock_class, 0, cap, 0, budget)
+        slots = slots if lock_class == GODOT else 0
+        units = CLASS_UNITS[lock_class] * (slots if lock_class == GODOT else 1)
+        return cls(lock_class, slots, cap, units, budget)
+
+    def take(self, lock):
+        """Handles holding every slot and unit, or None (nothing held) when
+        they are not all free now. Never blocks; may raise SlotCapMismatch."""
+        slots = _take_files(lock, GODOT, self.slots, self.cap, GODOT_SLOTS_ENV)
+        if slots is None:
+            return None
+        units = None
+        try:
+            units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
+                                self.lock_class)
+        finally:
+            if units is None:  # no units, or a mismatch raised: give the slots back
+                for handle in slots:
+                    os.close(handle)
+        return None if units is None else slots + units
+
+
+def _check_cap(lock, kind, cap, env):
+    """Raise SlotCapMismatch when a held `<lock>.<kind>N` file records a cap
+    other than `cap` (each holder writes its cap into the files it takes), or
+    sits at an index >= `cap`."""
+    prefix = Path(f"{lock}.{kind}")
     for path in prefix.parent.glob(prefix.name + "*"):
         index = path.name[len(prefix.name):]
         if not index.isdecimal():
             continue
-        handle = os.open(path, os.O_RDWR)
+        try:
+            handle = os.open(path, os.O_RDWR)
+        except FileNotFoundError:
+            continue
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            recorded = os.pread(handle, 16, 0).decode(errors="replace").strip()
+            fields = os.pread(handle, 64, 0).decode(errors="replace").split()
+            recorded = fields[0] if fields else ""
             if int(index) >= cap or (recorded.isdecimal() and int(recorded) != cap):
                 theirs = recorded if recorded.isdecimal() else f"above {cap}"
+                what = "godot slot" if kind == GODOT else "budget unit"
                 raise SlotCapMismatch(
-                    f"heavy lock {lock}: godot slot {index} is held by a process with "
-                    f"{GODOT_SLOTS_ENV}={theirs}, this one has {cap}; every process must "
+                    f"heavy lock {lock}: {what} {index} is held by a process with "
+                    f"{env}={theirs}, this one has {cap}; every process must "
                     "use the same value") from None
         finally:
             os.close(handle)
 
 
-def _take_slots(lock, slots, cap):
-    """Handles holding `slots` free godot slot files of `lock`, each recording
-    `cap`, or None (nothing held) when fewer are free. Never blocks. Raises
-    SlotCapMismatch when a held slot was taken under a different cap."""
-    _check_slot_cap(lock, cap)
+def _take_files(lock, kind, count, cap, env, label=None):
+    """Handles holding `count` free `<lock>.<kind>N` files (N below `cap`), each
+    recording `cap` (and the holder's class `label`, for `status`), or None
+    (nothing held) when fewer are free: all or none. Never blocks. Raises
+    SlotCapMismatch when a held file records another cap."""
+    if count == 0:
+        return []
+    _check_cap(lock, kind, cap, env)
     held = []
     for index in range(cap):
-        if len(held) == slots:
+        if len(held) == count:
             break
-        handle = os.open(f"{lock}.godot{index}", os.O_RDWR | os.O_CREAT, 0o644)
+        handle = os.open(f"{lock}.{kind}{index}", os.O_RDWR | os.O_CREAT, 0o644)
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             os.close(handle)
         else:
             os.ftruncate(handle, 0)
-            os.pwrite(handle, str(cap).encode(), 0)
+            os.pwrite(handle, (f"{cap} {label}" if label else str(cap)).encode(), 0)
             held.append(handle)
-    if len(held) == slots:
+    if len(held) == count:
         return held
     for handle in held:
         os.close(handle)
@@ -350,20 +494,22 @@ def _main_mode(lock_class):
     return fcntl.LOCK_EX if lock_class == EXCLUSIVE else fcntl.LOCK_SH
 
 
-def _try_grant(lock, lock_class, slots, cap):
-    """The handles that hold `lock` in `lock_class` with `slots` godot slots, or
-    None (nothing held) when it is not free now. Never blocks."""
+def _try_grant(lock, need):
+    """The handles that hold `lock` in `need`'s class with its slots and units,
+    or None (nothing held) when that is not free now. Never blocks."""
     main = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
     try:
-        fcntl.flock(main, _main_mode(lock_class) | fcntl.LOCK_NB)
+        fcntl.flock(main, _main_mode(need.lock_class) | fcntl.LOCK_NB)
     except BlockingIOError:
         os.close(main)
         return None
-    taken = [] if lock_class == EXCLUSIVE else _take_slots(lock, slots, cap)
-    if taken is None:
-        os.close(main)
-        return None
-    return [main, *taken]
+    taken = None
+    try:
+        taken = need.take(lock)
+    finally:
+        if taken is None:  # not free, or a mismatch raised: give the lock file back
+            os.close(main)
+    return None if taken is None else [main, *taken]
 
 
 class _Blocker:
@@ -408,14 +554,16 @@ def _wait_line(lock, lock_class, priority, ahead):
             f"{urgent} of them priority; this waiter: {me}")
 
 
-def _acquire(lock, lock_class, slots, cap, priority, report):
+def _acquire(lock, need, priority, report):
     """Queue for `lock` and return the granting handles once this waiter is the
     head and the lock is free in its class.
 
     The head blocks in the kernel for the lock file in its class (`_Blocker`);
-    a godot head then takes its slots as they free. A waiter displaced from
-    the head (a priority waiter arrived) gives the lock file back at once.
+    a shared head then takes its slots and units as they free. A waiter
+    displaced from the head (a priority waiter arrived) gives the lock file
+    back at once.
     """
+    lock_class = need.lock_class
     queue = _Queue(lock)
     entry = None
     blocker = None
@@ -426,7 +574,7 @@ def _acquire(lock, lock_class, slots, cap, priority, report):
                 waiting = queue.entries()
                 if entry is None:
                     if not waiting:
-                        held = _try_grant(lock, lock_class, slots, cap)
+                        held = _try_grant(lock, need)
                         if held:
                             return held
                     parent = raw_flock_parent(lock, environ={})
@@ -442,8 +590,7 @@ def _acquire(lock, lock_class, slots, cap, priority, report):
                 elif not ahead:
                     blocker = blocker or _Blocker(lock, _main_mode(lock_class))
                     if blocker.done.is_set():
-                        taken = [] if lock_class == EXCLUSIVE else _take_slots(lock, slots,
-                                                                               cap)
+                        taken = need.take(lock)
                         if taken is not None:
                             queue.leave(entry)
                             entry = None
@@ -471,11 +618,12 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
     """Hold the heavy lock `path` (default: `heavy_lock_path()`) for the block,
     yielding a `Hold`.
 
-    `lock_class` is `exclusive` or `godot`; a godot hold takes `slots` slots
-    (1 to `PSIV_GODOT_SLOTS`). `priority` defaults to `PSIV_LOCK_PRIORITY=1`.
-    A no-op when this process already runs under a holder of the same file
-    (`PSIV_HEAVY_LOCK_HELD`), yielding that holder's class and slots; an
-    exclusive request under a godot holder exits 2. Otherwise it queues, takes
+    `lock_class` is `exclusive`, `godot` or `build`; a godot hold takes `slots`
+    slots (1 to `PSIV_GODOT_SLOTS`) and their units, a build hold its units.
+    `priority` defaults to `PSIV_LOCK_PRIORITY=1`. A no-op when this process
+    already runs under a holder of the same file (`PSIV_HEAVY_LOCK_HELD`) whose
+    class is exclusive or the same, yielding that holder's class and slots; a
+    request under a shared holder of another class exits 2. Otherwise it queues, takes
     the lock and exports the markers for the block's subprocesses. If an
     ancestor holds the lock without the marker (a raw `flock(1)` wrapper), it
     prints why and raises SystemExit(2) rather than wait on itself.
@@ -488,11 +636,14 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
     path.parent.mkdir(parents=True, exist_ok=True)
     resolved = str(path.resolve())
     cap = godot_slots(environ)
+    budget = lock_units(environ)
     if environ.get(HELD_ENV) == resolved:
         held_class = environ.get(HELD_CLASS_ENV) or EXCLUSIVE
-        if lock_class == EXCLUSIVE and held_class != EXCLUSIVE:
-            print(f"heavy lock {resolved}: an exclusive run was started under a godot-class "
-                  "holder, which excludes nobody; run it under an exclusive holder",
+        if held_class not in (EXCLUSIVE, lock_class):
+            article = "an" if lock_class == EXCLUSIVE else "a"
+            print(f"heavy lock {resolved}: {article} {lock_class} run was started under a "
+                  f"{held_class}-class holder, which excludes nobody and reserved no units "
+                  "for it; run it under an exclusive holder or on its own",
                   file=report, flush=True)
             raise SystemExit(EXIT_HELD_BY_PARENT)
         held_slots = int(environ.get(HELD_SLOTS_ENV) or cap)
@@ -500,14 +651,18 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
         return
     if lock_class == GODOT and not 1 <= slots <= cap:
         raise ValueError(f"{slots} godot slots requested; {GODOT_SLOTS_ENV} allows 1 to {cap}")
+    need = _Need.of(lock_class, slots, cap, budget)
+    if need.units > budget:
+        raise ValueError(f"{lock_class} with {slots} slot(s) needs {need.units} units; "
+                         f"{UNITS_ENV} is {budget}")
     if priority is None:
         priority = environ.get(PRIORITY_ENV) == "1"
     try:
-        held = _acquire(resolved, lock_class, slots, cap, priority, report)
+        held = _acquire(resolved, need, priority, report)
     except SlotCapMismatch as mismatch:
         print(mismatch, file=report, flush=True)
         raise SystemExit(EXIT_HELD_BY_PARENT) from None
-    granted = cap if lock_class == EXCLUSIVE else slots
+    granted = {EXCLUSIVE: cap, GODOT: slots}.get(lock_class, 0)
     markers = {HELD_ENV: resolved, HELD_CLASS_ENV: lock_class, HELD_SLOTS_ENV: str(granted)}
     previous = {key: environ.get(key) for key in markers}
     try:
@@ -535,10 +690,15 @@ def status(path=None, out=None):
     """Print the lock's holders and waiters, each with its pid and command line."""
     out = out or sys.stdout
     path = Path(path or heavy_lock_path())
-    print(f"heavy lock {path} (godot slots: {godot_slots()})", file=out)
+    budget = lock_units()
+    print(f"heavy lock {path} (godot slots: {godot_slots()}; budget: {budget} units of "
+          f"{UNIT_MB} MB; units per holder: "
+          + ", ".join(f"{name} {units}" for name, units in CLASS_UNITS.items()) + ")",
+          file=out)
     if not path.exists():
         print("holders: none", file=out)
         return
+    print(f"units in use: {units_in_use(path)} of {budget}", file=out)
     holders = lock_modes(path)
     print("holders:" + ("" if holders else " none"), file=out)
     for pid, mode in holders:
@@ -569,23 +729,45 @@ def run_parser():
         description="Run a command holding the heavy lock.")
     parser.add_argument("--priority", action="store_true",
                         help="go ahead of every normal waiter (speedup lanes, a yield)")
-    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES, default=EXCLUSIVE,
-                        help="exclusive (default: cargo, the Python suite, the gate, pack "
-                             "builds) or godot (one Godot/Xvfb run)")
+    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES,
+                        help="required; see CLASS_HELP")
     return parser
 
 
+#: What `run` prints when no class is given, one line per class.
+CLASS_HELP = {
+    EXCLUSIVE: "the whole machine: pack builds, builds or tests that compile psiv-godot",
+    BUILD: "any other cargo build, test or clippy run",
+    GODOT: "one Godot/Xvfb run",
+    PYTHON: "the Python suite, or part of it",
+}
+
+
+def class_usage():
+    """`run`'s usage line and one line per class with its units."""
+    lines = ["usage: python3 tools/heavy_lock.py run [--priority] --class CLASS "
+             "-- <command...>", "classes (docs/DEVELOPMENT.md, \"Heavy-run lock\"):"]
+    for name in LOCK_CLASSES:
+        units = "every unit" if name == EXCLUSIVE else f"{CLASS_UNITS[name]} unit(s)"
+        lines.append(f"  {name:<9} {units:<12} {CLASS_HELP[name]}")
+    return "\n".join(lines)
+
+
 def main(argv=None):
-    """Print a lock path or the lock's status, or `run -- <cmd>` under the heavy
-    lock (its exit code)."""
+    """Print a lock path or the lock's status, or `run --class CLASS -- <cmd>`
+    under the heavy lock (its exit code)."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["run"]:
         options, command = (argv[1:argv.index("--")], argv[argv.index("--") + 1:]) \
             if "--" in argv else ([], argv[1:])
         args = run_parser().parse_args(options)
-        if not command:
-            print("usage: python3 tools/heavy_lock.py run [--priority] "
-                  "[--class exclusive|godot] -- <command...>", file=sys.stderr)
+        if not command or args.lock_class is None:
+            print(class_usage(), file=sys.stderr)
+            return 2
+        relinks = None if args.lock_class == EXCLUSIVE else can_relink_extension(command)
+        if relinks:
+            print(f"heavy_lock run: refused --class {args.lock_class}: {relinks}",
+                  file=sys.stderr)
             return 2
         with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode
