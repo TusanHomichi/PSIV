@@ -7,7 +7,8 @@ Run from the repository root on a clean tree (the candidate). It runs, one at a
 time and in this order:
 
 1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`), holding the
-   shared heavy lock in the exclusive class;
+   shared heavy lock in the build class, so it runs beside Godot runs while
+   the memory budget allows (tools/heavy_lock.py);
 2. the campaign route, `psiv-campaign run rust/psiv-campaign/routes/main.json`,
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
@@ -15,12 +16,16 @@ time and in this order:
    chapter save finishes, or halts only where
    `rust/psiv-campaign/routes/resume_manifest.json` lists; its resumes are
    headless runs of about 40 MB, run in parallel, and take no heavy lock;
-4. `python3 tools/certify.py`, the certified pixel pairs, under the shared heavy
-   lock (`PSIV_HEAVY_LOCK`, default the main checkout's
-   `build/continuation-heavy.lock`, from tools/heavy_lock.py): Godot and Xvfb
-   runs from every worktree take that lock;
+4. `python3 tools/certify.py`, the certified pixel pairs; it takes the shared
+   heavy lock (`PSIV_HEAVY_LOCK`, default the main checkout's
+   `build/continuation-heavy.lock`, from tools/heavy_lock.py) itself, an
+   exclusive hold for its extension build and godot slots for its captures;
 5. `python3 tools/gate.py --wait`, the integration gate (it waits for a
-   running gate instead of refusing, and takes the heavy lock itself).
+   running gate instead of refusing, and takes the heavy lock itself, in the
+   exclusive class).
+
+`steps()` states each step's class: `build`, `OWN` (the step's entry point
+takes its own classes) or None (no lock); the receipt records it per step.
 
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
@@ -54,21 +59,27 @@ ROUTE = "rust/psiv-campaign/routes/main.json"
 CAMPAIGN = "rust/target/release/psiv-campaign"
 CANDIDATE_DIR = Path("build") / "candidate"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import (heavy_lock_path, hold_heavy_lock, raw_flock_parent,  # noqa: E402
-                        refuse_message)  # (shared by every worktree)
+from heavy_lock import (BUILD, heavy_lock_path, hold_heavy_lock,  # noqa: E402
+                        raw_flock_parent, refuse_message)  # (shared by every worktree)
+
+#: A step whose entry point takes the heavy lock itself, in its own classes:
+#: verify_candidate holds nothing around it, so the classes stay the step's.
+OWN = "own"
 
 
-def steps(out: Path) -> list[tuple[str, str, bool]]:
-    """`(name, command, needs the heavy lock)` for each step, in order."""
+def steps(out: Path) -> list[tuple[str, str, str | None]]:
+    """`(name, command, heavy-lock class)` for each step, in order: the class
+    this script holds around it, `OWN` when the step takes its own, or None
+    for a step that takes no lock (a headless run of about 40 MB)."""
     route = out / "route"
     return [
         ("build", "CARGO_BUILD_JOBS=2 cargo build --release --manifest-path "
-                  "rust/Cargo.toml -p psiv-campaign", True),
+                  "rust/Cargo.toml -p psiv-campaign", BUILD),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
-                  f"--report {route}/report.json", False),
-        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", False),
-        ("certify", "python3 tools/certify.py", True),
-        ("gate", "python3 tools/gate.py --wait", False),
+                  f"--report {route}/report.json", None),
+        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", None),
+        ("certify", "python3 tools/certify.py", OWN),
+        ("gate", "python3 tools/gate.py --wait", OWN),
     ]
 
 
@@ -77,13 +88,14 @@ def git(*args: str) -> str:
                           check=True).stdout.strip()
 
 
-def run_step(command: str, log: Path, lock: Path | None) -> int:
-    """Run one step with `bash -c`, its output in `log`; hold `lock` if given."""
+def run_step(command: str, log: Path, lock: Path | None, lock_class: str | None) -> int:
+    """Run one step with `bash -c`, its output in `log`; hold `lock` in
+    `lock_class` if both are given."""
     with open(log, "w") as handle:
-        if lock is None:
+        if lock is None or lock_class in (None, OWN):
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
-        with hold_heavy_lock(lock):
+        with hold_heavy_lock(lock, lock_class=lock_class):
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
 
@@ -172,11 +184,13 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     out.mkdir(parents=True)
 
     records = []
-    for name, command, heavy in steps(out):
+    for name, command, lock_class in steps(out):
         log = out / f"{name}.log"
         start = time.monotonic()
-        code = runner(command, log, lock if heavy else None)
-        records.append({"step": name, "command": command, "exit": code,
+        held = lock_class not in (None, OWN)
+        code = runner(command, log, lock if held else None, lock_class)
+        records.append({"step": name, "command": command, "lock_class": lock_class,
+                        "exit": code,
                         "seconds": round(time.monotonic() - start, 1), "log": str(log),
                         "receipt": named_receipt(log)})
         print(f"[{name}] exit {code} in {records[-1]['seconds']}s -> {log}", flush=True)

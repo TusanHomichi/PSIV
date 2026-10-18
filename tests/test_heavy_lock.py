@@ -15,7 +15,8 @@ exits 2, and an unrelated holder is waited for. `QueueCase` runs real
 `heavy_lock.py run` holders and waiters and asserts on the order in which they
 wrote to a shared file while holding the lock: a priority waiter goes first, the
 godot class shares the machine up to its cap, an exclusive holder excludes it,
-and a killed waiter does not block the queue.
+and a killed waiter does not block the queue. The memory budget's cases are
+in tests/test_heavy_lock_budget.py, on the same `LockProcesses` fixture.
 """
 import contextlib
 import fcntl
@@ -36,7 +37,7 @@ from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
 from tools.heavy_lock import (EXIT_HELD_BY_PARENT, GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV,
-                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, gate_lock_path,
+                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, UNITS_ENV, gate_lock_path,
                               heavy_lock_path, hold_heavy_lock, lock_holders, main_checkout,
                               raw_flock_parent)
 
@@ -73,7 +74,7 @@ time.sleep(120)
 
 
 LOCK_KEYS = (HEAVY_LOCK_ENV, HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV,
-             GODOT_SLOTS_ENV)
+             GODOT_SLOTS_ENV, UNITS_ENV)
 
 
 def clean_env():
@@ -143,10 +144,11 @@ class SharedLockCase(unittest.TestCase):
             self.assert_one_file(old_relative_default)
 
     def test_verify_candidate_takes_the_shared_lock(self):
-        """verify_candidate's build and certify steps hold the main checkout's heavy lock."""
+        """verify_candidate's build step holds the main checkout's heavy lock
+        (certify and the gate take it themselves)."""
         held = []
 
-        def runner(command, log, lock):
+        def runner(command, log, lock, lock_class):
             held.append(lock)
             return 0
 
@@ -161,7 +163,7 @@ class SharedLockCase(unittest.TestCase):
             finally:
                 os.chdir(cwd)
         locks = [lock for lock in held if lock is not None]
-        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"] * 2)  # build, certify
+        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"])  # build
 
     def test_a_gate_in_the_worktree_refuses_while_the_main_checkouts_gate_runs(self):
         lock_file = gate_lock_path(self.main)
@@ -231,7 +233,8 @@ class AcquireCase(unittest.TestCase):
 
     def test_run_exports_the_marker_and_a_nested_acquire_does_not_block(self):
         env = {**self.env, HEAVY_LOCK_ENV: str(self.lock)}
-        done = self.run_child(str(TOOLS / "heavy_lock.py"), "run", "--", sys.executable,
+        done = self.run_child(str(TOOLS / "heavy_lock.py"), "run", "--class", "exclusive",
+                              "--", sys.executable,
                               "-c", ACQUIRE_CHILD, str(self.lock), env=env)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.strip(), "acquired")
@@ -316,7 +319,12 @@ def read_until(stream, needle, timeout=TIMEOUT):
     return seen.decode()
 
 
-class QueueCase(unittest.TestCase):
+def with_class(flags):
+    """`flags` with `--class exclusive` added when they name no class."""
+    return flags if "--class" in flags else ("--class", "exclusive", *flags)
+
+
+class LockProcesses(unittest.TestCase):
     """Real holders and waiters on a temp lock. Each waiter appends its name to
     `self.order` while it holds the lock, so the file is the grant order."""
 
@@ -347,7 +355,7 @@ class QueueCase(unittest.TestCase):
 
     def waiter(self, name, *flags, env=None):
         """A `run` waiter that has printed its first waiting line (so it is queued)."""
-        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", *with_class(flags), "--",
                               sys.executable, "-c", APPEND, str(self.order), name], env)
         process.first_line = read_until(process.stderr, "\n")
         return process
@@ -364,6 +372,34 @@ class QueueCase(unittest.TestCase):
         for process in waiters:
             self.assertEqual(process.wait(timeout=TIMEOUT), 0)
         return self.granted()
+
+    def immediate(self, name, *flags, env=None):
+        """A `run` that must finish without waiting: (exit code, stderr)."""
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *with_class(flags), "--",
+             sys.executable, "-c", APPEND, str(self.order), name],
+            capture_output=True, text=True, timeout=TIMEOUT, env={**self.env, **(env or {})})
+        return done.returncode, done.stderr
+
+
+class QueueCase(LockProcesses):
+    """The queue, the godot class and the slot cap; see LockProcesses."""
+
+    def test_run_without_a_class_prints_the_classes_and_runs_nothing(self):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+             sys.executable, "-c", APPEND, str(self.order), "classless"],
+            capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
+        self.assertEqual(done.returncode, 2, done.stderr)
+        for name in heavy_lock_module.LOCK_CLASSES:
+            self.assertIn(f"  {name} ", done.stderr)
+        self.assertEqual(self.granted(), [])
+        self.assertFalse(self.lock.exists(), "nothing was taken")
+
+    def test_negative_control_the_same_run_with_a_class_runs(self):
+        code, stderr = self.immediate("classed", "--class", "exclusive")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(self.granted(), ["classed"])
 
     def acquisition_order(self, *second_flags, second_env=None):
         """Holder, then waiter `first`, then waiter `second`; release; the grant order."""
@@ -581,7 +617,7 @@ class QueueCase(unittest.TestCase):
 
     def test_a_godot_request_under_an_exclusive_holder_gets_every_slot(self):
         done = subprocess.run(
-            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "exclusive", "--",
              sys.executable, "-c", NESTED_REQUEST, str(self.lock), "godot"],
             capture_output=True, text=True, timeout=TIMEOUT,
             env={**self.env, GODOT_SLOTS_ENV: "4"})
@@ -595,7 +631,8 @@ class QueueCase(unittest.TestCase):
                               probe], capture_output=True, text=True, timeout=TIMEOUT,
                              env=self.env)
         self.assertEqual(raw.stdout.split(), [raw.stdout.split()[0]] * 2, raw.stderr)
-        marked = subprocess.run([sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+        marked = subprocess.run([sys.executable, str(TOOLS / "heavy_lock.py"), "run",
+                                 "--class", "exclusive", "--",
                                  sys.executable, "-c", probe, str(self.lock)],
                                 capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
         self.assertEqual(marked.stdout.strip(), "None")

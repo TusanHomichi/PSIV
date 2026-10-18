@@ -76,8 +76,9 @@ against source and fresh observations.
   for a new correctness check.
 - The gate's commands, prerequisites and coverage limits, and the shared lock
   that serializes heavy runs, are in [DEVELOPMENT.md](docs/DEVELOPMENT.md#run-checks).
-  Run Python, Rust and oracle heavy checks one at a time; parallel
-  pack-loading runs exhaust memory.
+  Run every heavy check through the
+  [heavy-run lock](docs/DEVELOPMENT.md#heavy-run-lock) in its class; the lock
+  decides what may run side by side within the machine's memory budget.
 - Freeze a reviewed candidate before expensive gates. Relevant code, tests or
   gate-input changes invalidate affected results. Preserve actual commands,
   revisions, hashes, timing, exit status, failures and skips; inspect raw evidence.

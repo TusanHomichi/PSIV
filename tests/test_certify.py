@@ -408,6 +408,8 @@ class MainLocksTest(unittest.TestCase):
         return code, out.getvalue()
 
     def test_the_build_is_exclusive_and_the_captures_hold_one_slot_per_worker(self):
+        """Exclusive, not build: a Godot run in this checkout must not map the
+        extension while cargo relinks it."""
         code, out = self.run_main(["--only", "title", "camp-root", "battle-0x88", "--jobs", "2"])
         self.assertEqual(code, 0, out)
         self.assertEqual(self.holds, [("exclusive", 1), ("godot", 2)])

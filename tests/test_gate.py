@@ -340,6 +340,82 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual((self.root / "marker.txt").read_text(),
                          str(self.root / "build" / "continuation-heavy.lock"))
 
+    def test_every_command_runs_in_the_exclusive_class_and_the_receipt_says_so(self):
+        probe = ("python3 -c \"import os; open('class.txt', 'a')"
+                 f".write(os.environ.get('{HELD_CLASS_ENV}', 'none') + '\\\\n')\"")
+        receipt, _ = self.run_quiet([probe, probe])
+        self.assertEqual(receipt["exit_code"], 0)
+        self.assertEqual((self.root / "class.txt").read_text().split(), ["exclusive"] * 2)
+        self.assertEqual(receipt["heavy_lock_class"], "exclusive")
+        self.assertEqual([record["lock_class"] for record in receipt["commands"]],
+                         ["exclusive"] * 2)
+        self.assertEqual(self.stored()["heavy_lock_class"], "exclusive")
+
+    def test_negative_control_a_gate_under_a_build_holder_is_refused(self):
+        """The class is real: under a holder that excludes nobody the gate's
+        exclusive request exits 2 and runs nothing."""
+        heavy = heavy_lock_path(self.root)
+        with mock.patch.dict(os.environ, {HELD_ENV: str(heavy.resolve()),
+                                          HELD_CLASS_ENV: "build"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out, \
+                self.assertRaises(SystemExit) as refused:
+            run_gate([fake_step("only", marker="ran.txt")], self.root, self.receipt_dir)
+        self.assertEqual(refused.exception.code, 2)
+        self.assertIn("an exclusive run was started under a build-class holder",
+                      out.getvalue())
+        self.assertFalse((self.root / "ran.txt").exists())
+
+    def gate_beside(self, lock_class):
+        """Start a `run --class lock_class` holder of the fixture's heavy lock,
+        then a gate; returns (whether the gate ran while the holder held, receipt)."""
+        heavy = heavy_lock_path(self.root)
+        heavy.parent.mkdir(parents=True, exist_ok=True)
+        holder = subprocess.Popen(
+            [sys.executable, str(REPO_ROOT / "tools" / "heavy_lock.py"), "run", "--class",
+             lock_class, "--", sys.executable, "-c",
+             'import sys; print("held", flush=True); sys.stdin.readline()'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+            env={**os.environ, HEAVY_LOCK_ENV: str(heavy)})
+        self.addCleanup(holder.wait, 30)
+        self.addCleanup(holder.stdout.close)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        outcome = {}
+        gate = threading.Thread(target=lambda: outcome.update(
+            receipt=run_gate([fake_step("only", marker="ran.txt")], self.root,
+                             self.receipt_dir, heavy_lock=heavy)))
+        with contextlib.redirect_stdout(io.StringIO()):
+            gate.start()
+            time.sleep(1.5)
+            ran_beside = (self.root / "ran.txt").exists()
+            holder.stdin.close()
+            gate.join(30)
+        return ran_beside, outcome["receipt"]
+
+    def test_the_gate_waits_for_a_python_suite_holder(self):
+        ran_beside, receipt = self.gate_beside("python")
+        self.assertFalse(ran_beside, "the gate is exclusive: it waits for every shared holder")
+        self.assertEqual(receipt["exit_code"], 0)
+
+    def test_negative_control_a_build_beside_the_python_holder_does_not_wait(self):
+        """The same shape with a shared request instead of the gate proceeds, so
+        the wait above is the gate's class."""
+        heavy = heavy_lock_path(self.root)
+        heavy.parent.mkdir(parents=True, exist_ok=True)
+        env = {**os.environ, HEAVY_LOCK_ENV: str(heavy)}
+        tool = str(REPO_ROOT / "tools" / "heavy_lock.py")
+        holder = subprocess.Popen(
+            [sys.executable, tool, "run", "--class", "python", "--", sys.executable, "-c",
+             'import sys; print("held", flush=True); sys.stdin.readline()'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(holder.wait, 30)
+        self.addCleanup(holder.stdout.close)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        done = subprocess.run([sys.executable, tool, "run", "--class", "build", "--", "true"],
+                              capture_output=True, text=True, timeout=30, env=env)
+        holder.stdin.close()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("waiting", done.stderr)
+
     def test_receipt_records_a_dirty_tree_and_its_paths(self):
         (self.root / "scratch.txt").write_text("uncommitted\n")
         receipt, _ = self.run_quiet([fake_step("only")])
