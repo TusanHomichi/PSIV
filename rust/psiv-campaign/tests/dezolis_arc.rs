@@ -1,5 +1,5 @@
 //! Gyuna's conversation and Tyler's grave, driven with pads from hand-built
-//! saves (lane S7).
+//! saves.
 //!
 //! The route's `dezolis-gyuna` and `dezolis-tyler-grave` chapters play both from
 //! New Game in the ignored whole-route test in `runner.rs`; these keep the two

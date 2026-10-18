@@ -1,4 +1,4 @@
-//! The damage arms after the Air Castle (lane A6): the Weapon Plant, Vahal Fort
+//! The damage arms after the Air Castle: the Weapon Plant, Vahal Fort
 //! and Climate Center machines, the towers' and The Edge's soldiers and
 //! casters, and the random enemies of Rykros, Island Cave and Garuberk Tower.
 //! The bosses are `endgame_bosses.rs`.

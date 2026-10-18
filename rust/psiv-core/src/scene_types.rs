@@ -25,7 +25,7 @@ pub enum ActorRef {
     PartyMember(usize),
     /// A field object by its index in [`FieldMap::npcs`].
     ///
-    /// Scene-lane proved these live at field-object RAM `$FFFFC300 + N*$40`,
+    /// These live at field-object RAM `$FFFFC300 + N*$40`,
     /// so "NPC index N" is an unambiguous handle into the current map.
     Npc(usize),
     /// A character, resolved to whichever field object currently holds them

@@ -43,7 +43,7 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 #: HakenLeft (86). The records - and so the enemies they seat, which no
 #: formation may seat at the start - are the extractor's
 #: (`psiv_tools.formations.INLINE_FORMATIONS`).
-#: Lane A6 adds the WorkerPods' COMBINE (`$FC`, `ps4.asm:27557`), FractOoze's
+#: The endgame stretch adds the WorkerPods' COMBINE (`$FC`, `ps4.asm:27557`), FractOoze's
 #: FISSION (`BattleObj_SlugFission`, 35062) and InfantWorm's NOTHING (`$398`,
 #: 45795).
 RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00",

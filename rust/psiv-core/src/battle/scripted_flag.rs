@@ -26,7 +26,7 @@
 //! roll into the damage registry; and Dark Force 2's ([`first_action`]):
 //! object `$83C` (`loc_3161C`, `ps4.asm:63924-64034`) decompresses the boss's
 //! plane, scrolls it in and ends the turn - no `UpdateRNGSeed2`, no request.
-//! Lane A6 read the other two (issue #62): Profound Darkness 1's `$864`
+//! The other two, read under issue #62: Profound Darkness 1's `$864`
 //! (`loc_30376`, `ps4.asm:62647`) is presentation only, and its later turns
 //! take the ordinary roll into the damage registry; the trees' `$808`
 //! (`loc_27706`, 52501) paralyzes the three trees (52551-52555). Only the first

@@ -1,4 +1,4 @@
-//! Constructed controls for lane A5's damage arms (`routes/air_castle.rs`).
+//! Constructed controls for the Air Castle damage arms (`routes/air_castle.rs`).
 //! No retail stat or ability record is transcribed here: the records carry the
 //! route's own effect byte and otherwise chosen numbers.
 
@@ -240,7 +240,7 @@ fn exactly_the_routes_whose_object_tests_the_caster_seal_are_sealable() {
         (123, 0x35),
         (124, 0x35),
         (125, 0x35),
-        // Lane A6: GIFOI's two objects test it too - TechUser's prelude
+        // Endgame stretch: GIFOI's two objects test it too - TechUser's prelude
         // `loc_21C30` (45257) for 101, DElmLars's `loc_291D2` (54387) for 124.
         (101, 0x48),
         (124, 0x48),

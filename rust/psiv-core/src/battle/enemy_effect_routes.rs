@@ -108,7 +108,7 @@ pub(super) const ROUTES: &[Route] = &[
         calls: Calls::TwiceLastDecides,
         ..route(131, 0x4C, Handler::SleepParalyze, 8)
     },
-    // Lane A6, after the Air Castle (`docs/battle/ENEMY_ABILITIES_ENDGAME.md`).
+    // After the Air Castle (`docs/battle/ENEMY_ABILITIES_ENDGAME.md`).
     // FLASH: EnemyAttack_ArmDrone's $194 (loc_1886C, ps4.asm:33905), one call
     // (33947), no request.
     route(43, 0x16, Handler::DexterityDown, 9),
