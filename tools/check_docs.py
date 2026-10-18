@@ -21,9 +21,13 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   turns a YAML record into text no tool can read;
 - no document is a run record (issue #119). Runs, receipts and task graphs
   live in commits, issues and pull requests (`docs/AGENT_WORKFLOW.md`), so the
-  checker refuses the three shapes the deleted records had: a file named as a
-  log, ledger or receipt (a word of its name is one of `RECORD_NAME_WORDS`:
-  `RUNNER_LOG_KURAN.md`, `LANE_LEDGER.md`); a table with
+  checker refuses the shapes the deleted records had: a file named or titled
+  as a ledger, receipt, journal, history or archive (a word of its name or
+  title is one of `RECORD_WORDS`: `LANE_LEDGER.md`, "Native playability -
+  evidence ledger", "Implementation archive"), or as a run log ("log" beside
+  a `RUN_WORDS` word: `RUNNER_LOG_KURAN.md`, "Runner log"; a document about
+  the game's message log, `MESSAGE_LOG.md`, is research and passes); a title
+  carrying a date ("Dispatch tiers (2026-08-15)"); a table with
   `DATED_ROWS_LIMIT` or more rows that open with a date (`| 2026-09-23 |
   lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
   in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
@@ -97,10 +101,17 @@ PATH_STRIPPED_PREFIXES = ("./", "$PWD/", "${PWD}/", '"$PWD/', '"${PWD}/')
 
 COMMAND_FENCE_LANGS = frozenset({"bash", "sh", "shell", "console"})
 
-#: Words of a file name (split on `_`, `-` and `.`, any case) that name a run
-#: record: a run log, a receipt ledger (issue #119).
-RECORD_NAME_WORDS = frozenset({"LOG", "LOGS", "RUNLOG", "JOURNAL", "LEDGER", "LEDGERS",
-                               "RECEIPT", "RECEIPTS"})
+#: Words of a file name or title (split on anything but letters and digits, any
+#: case) that name a run record: a receipt ledger, a journal, a history or an
+#: archive (issue #119).
+RECORD_WORDS = frozenset({"RUNLOG", "JOURNAL", "LEDGER", "LEDGERS", "RECEIPT", "RECEIPTS",
+                          "HISTORY", "ARCHIVE", "ARCHIVED"})
+#: "Log" names a run record only beside a word for a run or a lane (`RUNNER_LOG`,
+#: "Run log"): the game has a message log, and a document about it is research.
+LOG_WORDS = frozenset({"LOG", "LOGS"})
+RUN_WORDS = frozenset({"RUN", "RUNS", "RUNNER", "LANE", "LANES"})
+#: A date in a document's title marks it a dated record ("Dispatch tiers (2026-08-15)").
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 #: Rows opening with a date that make a table a dated receipt ledger.
 DATED_ROWS_LIMIT = 3
 DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
@@ -356,14 +367,54 @@ def check_yaml(name: str, line: int, body: list[str]) -> str | None:
     return None
 
 
+def record_words(text: str) -> list[str]:
+    """The words of `text` that name a run record, sorted; empty when none do."""
+    words = {word.upper() for word in re.split(r"[^A-Za-z0-9]+", text) if word}
+    found = words & RECORD_WORDS
+    if words & RUN_WORDS:
+        found |= words & LOG_WORDS
+    return sorted(found)
+
+
 def record_name_problem(name: str) -> str | None:
     """A message when the file `name` is named as a run record, else None."""
-    stem = Path(name).name.rsplit(".", 1)[0]
-    words = {word.upper() for word in re.split(r"[_.\-]+", stem) if word}
-    found = sorted(words & RECORD_NAME_WORDS)
+    found = record_words(Path(name).name.rsplit(".", 1)[0])
     if found:
         return (f"{name}:1: run record file name ({found[0]}): runs and receipts "
                 "belong in commits, issues and pull requests")
+    return None
+
+
+def document_title(lines: list[str]) -> tuple[int, str] | None:
+    """`(line, text)` of the document's title: its first `#` heading, or, in a
+    document without one, its first non-blank line outside a fenced block (a
+    chapter of a split record opened with an italic "part of the ... ledger")."""
+    first = None
+    for index, text, info, _ in iter_fenced_lines(lines):
+        if info is not None or not text.strip():
+            continue
+        heading = HEADING_RE.match(text)
+        if heading and len(heading["hashes"]) == 1:
+            return index + 1, heading["text"] or ""
+        if first is None:
+            first = (index + 1, text)
+    return first
+
+
+def record_title_problem(name: str, lines: list[str]) -> str | None:
+    """A message when the document's title names it a run record or dates it."""
+    title = document_title(lines)
+    if title is None:
+        return None
+    line, text = title
+    found = record_words(text)
+    if found:
+        return (f"{name}:{line}: run record title ({found[0].lower()}): runs and receipts "
+                "belong in commits, issues and pull requests")
+    date = DATE_RE.search(text)
+    if date:
+        return (f"{name}:{line}: dated title ({date.group(0)}): a dated record belongs in "
+                "commits, issues and pull requests")
     return None
 
 
@@ -400,9 +451,9 @@ def check_tree() -> tuple[list[str], list[int]]:
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
-        message = record_name_problem(name)
-        if message:
-            problems.append(message)
+        for message in (record_name_problem(name), record_title_problem(name, lines)):
+            if message:
+                problems.append(message)
         for index, text in enumerate(lines):
             for path in host_home_paths(text):
                 problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")

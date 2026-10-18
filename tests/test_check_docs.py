@@ -13,8 +13,9 @@ The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
 controls (a missing link target, a missing anchor, a missing command path, an
 unmatched glob, a `yaml` block that does not parse, a host-absolute home
-path, and issue #119's run records: a log or ledger file name, a dated receipt
-table and a task-graph `yaml` block, each rejected by name and line) and positive cases that pin
+path, and issue #119's run records: a log or ledger file name or title, a dated
+title, every deleted record's name and title, a dated receipt table and a
+task-graph `yaml` block, each rejected by name and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -403,11 +404,74 @@ class RunRecords(RepoCase):
     """
 
     def test_a_run_log_file_name(self):
-        for name in ("docs/campaign/RUNNER_LOG_KURAN.md", "docs/run-log.md", "docs/logs.md"):
+        for name in ("docs/campaign/RUNNER_LOG_KURAN.md", "docs/run-log.md", "docs/LANE_LOGS.md"):
             with self.subTest(name=name):
                 code, out = self.check({name: lines("# Runs")})
                 self.assertEqual(code, 1, out)
                 self.assertIn(f"{name}:1: run record file name", out)
+
+    #: The deleted records, by name and first lines (`git show 0faa91b^:<path>`,
+    #: and `3ea02d7^` for the last two). Each must be refused by its name or title.
+    DELETED_RECORDS = {
+        "docs/campaign/NATIVE_PLAYABILITY.md": ["# Native playability — evidence ledger"],
+        "docs/campaign/PLAYABILITY_ACADEMY.md": [
+            "_Academy — part of the [native playability ledger](NATIVE_PLAYABILITY.md); "
+            "see the [documentation index](../README.md)._", "",
+            "## Native combat continuation"],
+        "docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md": [
+            "_Alshline and Zema — part of the [native playability ledger]"
+            "(NATIVE_PLAYABILITY.md); see the [documentation index](../README.md)._", "",
+            "## Connected Alshline progression"],
+        "docs/campaign/PLAYABILITY_FOUNDATIONS.md": [
+            "_Foundations and audit — part of the [native playability ledger]"
+            "(NATIVE_PLAYABILITY.md); see the [documentation index](../README.md)._", "",
+            "## Audit context"],
+        "docs/campaign/PLAYABILITY_HOLT_TONOE.md": [
+            "_Holt and Tonoe — part of the [native playability ledger](NATIVE_PLAYABILITY.md); "
+            "see the [documentation index](../README.md)._", "",
+            "## Field TECH and SKILL recovery"],
+        "docs/campaign/RUNNER_HALTS_EARLY.md": ["# Early runner halt receipts (H1–H16)"],
+        "docs/campaign/RUNNER_LOG_ZELAN.md": ["# Runner log: the Zelan arc (C4, M23)"],
+        "docs/campaign/AIEDO.md": ["# Aiedo arrival (`$54`) — campaign segment ledger"],
+        "docs/records/CLAUDE_LANES.md": ["# Claude Code lane ledger"],
+        "docs/records/WORKFLOW_SETUP.md": ["# Workflow setup ledger"],
+        "docs/records/REDSHIRT_BATTLE.md": ["# Redshirt battle-decision experiment (archived)"],
+        "docs/records/history/2026-08-14-origin.md": [
+            "# Origin conversation (recovered 2026-08-14)"],
+        "docs/DISPATCH.md": ["# Dispatch tiers (2026-08-15)"],
+        "docs/IMPLEMENTATION_HISTORY.md": ["# Implementation archive"],
+    }
+
+    def test_the_deleted_records_are_refused(self):
+        for name, body in self.DELETED_RECORDS.items():
+            with self.subTest(name=name):
+                code, out = self.check({name: lines(*body)})
+                self.assertEqual(code, 1, out)
+                self.assertRegex(out, rf"{re.escape(name)}:1: (run record (file name|title)"
+                                      r"|dated title)")
+
+    def test_a_record_title(self):
+        for title, word in (("# Runner log: the Zelan arc", "log"),
+                            ("# Lane receipts", "receipts"),
+                            ("# Implementation history", "history"),
+                            ("# Field journal", "journal")):
+            with self.subTest(title=title):
+                code, out = self.check({"docs/notes.md": lines("", title, "", "Text.")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"docs/notes.md:2: run record title ({word})", out)
+
+    def test_a_dated_title(self):
+        code, out = self.check({"docs/tiers.md": lines("# Dispatch tiers (2026-08-15)")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/tiers.md:1: dated title (2026-08-15)", out)
+
+    def test_a_message_log_document_passes(self):
+        code, out = self.check({
+            "docs/battle/MESSAGE_LOG.md": lines("# The battle message log", "",
+                                                "## Log lines", "", "Each line is a window."),
+            "docs/scenes/LOG_WINDOW.md": lines("# Log window"),
+        })
+        self.assertEqual(code, 0, out)
 
     def test_a_receipt_ledger_file_name(self):
         code, out = self.check({"docs/LANE_LEDGER.md": lines("# Lanes"),
