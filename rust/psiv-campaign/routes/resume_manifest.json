@@ -24,6 +24,28 @@
    "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
    "date": "2026-10-16",
    "note": "bioplant_survival RUNs every round whatever the escape odds; four failed runs in encounters 191 and 183 wipe the party"
+  },
+  {
+   "chapter": "elsydeon",
+   "objective": 2,
+   "objective_kind": "interact",
+   "kind": "scene_fault",
+   "battle": null,
+   "resumes": ["elsydeon"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
+   "date": "2026-10-17",
+   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:151963-151964, 151996-151997), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
+  },
+  {
+   "chapter": "reunion",
+   "objective": 4,
+   "objective_kind": "go_to_map",
+   "kind": "lost_battle",
+   "battle": "random",
+   "resumes": ["passage-to-zio-fort"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
+   "date": "2026-10-17",
+   "note": "run_then_win RUNs every round whatever the escape odds: the Ice Digger (960 HP) fails three runs from four PROTECTBITs (formation 129) on Dezolis and is destroyed, the class #138 records for bioplant_survival"
   }
  ]
 }
