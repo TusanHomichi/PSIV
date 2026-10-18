@@ -4,7 +4,7 @@
     python3 -m oracle.sweep.endgame --capture --extract --work build/a6-captures
     python3 -m oracle.sweep.endgame --capture --extract --only lightning
 
-The recipe for `docs/battle/ENEMY_ABILITIES_ENDGAME.md` (lane A6). The set of
+The recipe for `docs/battle/ENEMY_ABILITIES_ENDGAME.md`. The set of
 abilities the cases exist for is derived, not listed: `python3 -m
 oracle.sweep.route_abilities --stretch air-castle-ending`. The machinery is
 `oracle.sweep.forced_cases`; `<work>/scout.json` is the attack-policy scout and

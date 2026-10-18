@@ -83,7 +83,7 @@ fn a_garuberk_door_opens_takes_the_party_through_and_shuts_behind_it() {
         // `RunEvent_EnterGrbkTwDoor` starts owns that frame: `RunEvents` runs
         // before `RunMapTransitions` (`ps4.asm:116768-116773`), so the
         // `WarpUnmapped` the probe reports beside the scene is no fault (the
-        // runner's rule, RUNNER_LOG H24). Anything else stays one.
+        // runner's rule, RUNNER_LOG H24, commit 0faa91b^). Anything else stays one.
         let events = rt.tick(input);
         let door = events
             .iter()

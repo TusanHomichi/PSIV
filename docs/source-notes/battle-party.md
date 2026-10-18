@@ -59,22 +59,19 @@ has Alys and Chaz defend while Hahn uses Vision. At frame 26000, Chaz/Alys/
 Hahn dexterity is `13/21/13`, up from `5/13/5`; Hahn's uses fall from 5 to 4.
 Repeating with only Hahn's first name byte patched to `$1A` changes the
 results to `31/39/31`, a +26 buff. These are controlled RAM-patched oracle
-fixtures, not natural menu-input captures. The local receipts are
-`build/native-skills/{vision,renamed-vision}.ram` and the corresponding
-`oracle-*-vision.csv` logs.
+fixtures, not natural menu-input captures.
 
 The native fix gives Vision a constant +8 when its stat selector is zero.
 A mod that supplies another supported stat selector uses that stat instead.
-This follows the owner's existing obvious-bug policy in
-`docs/RUNTIME_DESIGN.md`; the original JSON remains unchanged.
+This follows the policy in
+[Deliberate fixes to retail battle bugs](README.md#deliberate-fixes-to-retail-battle-bugs); the original JSON remains unchanged.
 
 **RETAIL FINDINGS — VORTEX and EARTH.** A second patched command round uses
 Vortex on enemy 6, Earth on enemy 7, and Vision on the party. Enemy 6's HP is
 raised to 512 to expose separate hits. It drops once to 452 at frame 25181.
 Enemy 7 gains status `$08` at frame 25284 while retaining agility 6; both
 before and after, its HP is 25. Final remaining uses are Earth 2, Vortex 4,
-Vision 4. See `build/native-skills/oracle-skills.csv`, `oracle-changes.json`,
-and `skills.ram`. Vortex's three projectile sprites culminate in one damage
+Vision 4. Vortex's three projectile sprites culminate in one damage
 application; Earth's successful object timer sets sleep without the generic
 sleep object's agility reduction. `Battle_RestoreStatsAtTurnEnd` rolls once
 per occupied sleeping fighter, wakes on odd, restores modified agility, then
@@ -98,14 +95,14 @@ maximum HP 21: seal plus a transient sprite flag. Sol-Dew on a living human
 restores HP without curing ailments. Repair-Kit is disposable type 8,
 although several equipment activations reuse other item-effect dispatchers.
 All 160 item activation headers and disposal types were verified against
-the ROM; local evidence is in `build/native-items/`.
+the ROM.
 
 **PORT BUG — dormant Igglanova neighbors.** `EnemyInit_Igglanova`
 (`ps4.asm:18275`) destroys the adjacent fighter objects without clearing
 their cached stats. The old port counted and rendered those full-HP records
 as already present. A fresh, input-only retail Academy replay confirms the
 boss is initially alone (frame 40650), then grows right/left Xanafalgues
-(frames 41200/41850). See `build/native-fission/oracle-receipt.json`.
+(frames 41200/41850).
 
 **RETAIL FINDING — Fission uses cached neighbor identity.**
 `EnemyAI_EmptySpace` (`ps4.asm:23524`) uses one random parity draw only when
@@ -279,7 +276,7 @@ damage, and both targets resolve from the *second* pass's rolls),
 cartridge's 36-call shape. `engine_tests_replay.rs` counts both passes as
 modelled: Alys's swing's 36 calls, and on the verbatim stream the ledger's first
 divergence moves from f29489 to f29789 (the `$FFFFEEA8` ability re-roll).
-(Correction, later on 2026-09-24: lane P2b closed that divergence as well, so
+(Correction, later on 2026-09-24: the `$FFFFEEA8` re-roll closed that divergence as well, so
 both tapes 07 and 09 now replay on the verbatim stream; see
 [`BATTLE_ORACLE_REPLAY.md`](../oracle/BATTLE_ORACLE_REPLAY.md).)
 `docs/oracle/BATTLE_ORACLE_REPLAY.md` carries the updated tables.
@@ -298,9 +295,7 @@ seven new core tests, each on its count
 tests that ride the same shape (`a_multi_target_swing_rolls_both_hit_passes_then_damages_each`
 34 against 36, `a_multi_target_swing_can_never_crit`). The seventh,
 `an_unlisted_attacker_draws_one_pass`, passes in both states — that is what it is
-for. Restoring the pass gives 456 passed, 0 failed, 1 ignored. Logs:
-`build/lane-evidence/negative-control-second-pass-removed.txt` and
-`negative-control-restored.txt` (not committed; `build/` is ignored).
+for. Restoring the pass gives 456 passed, 0 failed, 1 ignored.
 
 ## The vehicle's own attack: command 6, three hit passes (2026-09-24)
 
@@ -489,9 +484,7 @@ a vehicle back on `Character_Attack`'s weapon check — the data-driven test fai
 exactly where the deleted entry said it would:
 `forced_53_desrtleach: the port diverges at f25026 (round 1, no-swing): the log
 has actor FighterId(1) resolving 1 target(s), the port no swing`. Restoring the
-dispatch gives 1 passed, 0 failed. Transcripts:
-`build/lane-evidence/03-negative-control.log` and
-`04-replay-after-restore.log` (not committed; `build/` is ignored).
+dispatch gives 1 passed, 0 failed.
 
 ### Correction, later on 2026-09-24: the pass count is per vehicle
 
@@ -529,8 +522,7 @@ in place that manifest is **empty** again and
 `every_fixture_replays_as_recorded` passes; with `hit_passes` forced back to 3
 it fails at `forced_53_icedigger`, f25026:
 `the log has FighterId(6): hit flag 00, damage Some(212), the port Normal with
-Some(214)`. Transcripts: `build/lane-evidence/10-negative-control-uniform-three.log`
-and `11-replay-after-restore.log` (not committed; `build/` is ignored).
+Some(214)`.
 
 ## The retarget scan: a swing whose commanded enemy has fallen (2026-09-25)
 
@@ -574,7 +566,7 @@ then swings at.
 
 Twelve Motavia formations were captured again with the `bcmd` RAM group
 (`python3 -m oracle.sweep --only 0x02,0x04,0x05,0x07,0x08,0x0B,0x0C,0x17,0x18,
-0x19,0x1B,0x1D --jobs 3`; receipts under `build/lane-evidence/sweep/`), and the
+0x19,0x1B,0x1D --jobs 3`), and the
 cells read the rule back:
 
 - `formation_02` f25665 — Chaz, `cmd1_target` 6, `current_target` `0006`: the
@@ -603,7 +595,7 @@ first living enemy and is kept by the same early return. A capture with no
 `bcmd` group (every fixture except the twelve) therefore replays as it did. The
 native game's own path was already right: the command menu's enemy picker
 returns `Command::AttackTarget` for the chosen slot
-(`rust/psiv-godot/src/battle/commands.rs`), so a played battle re-aims exactly
+(`rust/psiv-runtime/src/session/battle/menu/`), so a played battle re-aims exactly
 where the cartridge does.
 
 Unit tests in `rust/psiv-core/src/battle/action_retarget_tests.rs`: a kept aim
@@ -737,11 +729,7 @@ those tests fail —
 `a_non_damaging_technique_re_aims_by_the_smallest_deficit` on
 `left: Some(FighterId(7)), right: Some(FighterId(8))` (the old fallback's first
 living enemy), and `a_technique_tie_costs_one_draw_and_the_draw_picks_the_slot`
-on `left: 16, right: 17` for the tiebreak draw it never makes. Transcripts:
-`build/lane-evidence/negative-control-technique-tie.txt`,
-`build/lane-evidence/negative-control-technique-all.txt` and
-`build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
-ignored).
+on `left: 16, right: 17` for the tiebreak draw it never makes.
 
 **TRANSCRIBED FROM `ps4.asm`, NOT YET ORACLE-VERIFIED.** No capture shows this
 rule, and the tooling cannot yet take one:
@@ -766,7 +754,8 @@ rule, and the tooling cannot yet take one:
 * a committed fixture would also need the extractor to name the command kind and
   id (`$FFFF4146`'s two bytes are already logged as `current_command`) and
   `replay/build.rs`'s `orders` to build `Command::Technique` — both outside this
-  change's scope, and both are what a capture lane would extend.
+  change's scope, and both are what a technique capture would extend
+  ([#37](https://github.com/TusanHomichi/PSIV/issues/37)).
 
 The one oracle-shaped check available today is on the attack side and already
 passes: the twelve re-captured formations replay exactly with the

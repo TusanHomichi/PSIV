@@ -22,27 +22,19 @@ the same status clearing to a living recipient. Revived fighters use the
 existing same-round suppression and retargeting rules; no temporary sprite
 bit is written into their save record.
 
-`build/native-battle-recovery/core-tests.log` passes 227 battle tests.
-New tests cover original costs, no RNG, human/android boundaries, dead
-recipients, paid no-effect casts, partial/full revival, seal preservation,
-the AGI/DEX reset quirk and preservation of unrelated resources.
-`runtime-tests.log` passes the new real-record recovery battle/save test
-and the existing instant-death, item and technique integration tests.
+Battle tests cover the original costs, no RNG, human and android boundaries,
+dead recipients, paid no-effect casts, partial and full revival, seal
+preservation, the AGI/DEX reset quirk and preservation of unrelated resources; a
+runtime test runs a real-record recovery battle and save.
+`tools/native/native_battle_recovery.gd` plays the isolated recovery fixture
+(level-31 Raja, level-eight Chaz and Hahn, injured and statused on purpose)
+through normal menus: Raja spends exactly 55 TP, Chaz is cured, Hahn revives and
+reaches full HP through REGEN and keeps the tech seal for the rest of the fight
+(`Battle_LastMessage` clears bits 3 and 4 of every party slot on the way out,
+`andi.b #$E7, $16(a0)`, `ps4.asm:6366`). A fresh process loads its save through
+CONTINUE. It is not connected campaign progress.
 
-The isolated recovery fixture uses original level records for level-31
-Raja and level-eight Chaz/Hahn, then deliberately injures/statuses the
-recipients. Raja's REGEN is earned from the real level-31 row. This is not
-connected campaign progress. `build/native-battle-recovery/route/receipt.json`
-completes all four casts through normal Godot menus, victory and SAVE 2.
-Raja spends exactly 55 TP (204 to 149); Chaz is cured and Hahn revives,
-reaches full 55 HP through REGEN, and keeps tech seal for the rest of the
-fight (*corrected 2026-10-02:* the seal does not leave the battle with him -
-`Battle_LastMessage` clears bits 3 and 4 of every party slot on the way out,
-`andi.b #$E7, $16(a0)`, `ps4.asm:6366`; the receipt below predates that fix). A fresh process
-uses title CONTINUE 2 and re-saves after one normal step; only standing Y
-changes in the payload, and both source slots remain unchanged.
-
-Inspection of those captures exposed separate three-digit number and
-party-status layout defects. Their fix/proof is tracked in `../camp/PARTY_STATUS.md`.
+Three-digit numbers and the party-status layout are
+[PARTY_STATUS.md](../camp/PARTY_STATUS.md)'s.
 The original spell objects, sound delays and detailed reaction animation
 remain presentation work.

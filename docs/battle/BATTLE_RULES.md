@@ -1,4 +1,4 @@
-# Battle system: retail research
+# Battle rules
 
 Research began 2026-08-15. This document records cartridge routines and
 measurements. The battle engine is implemented; remaining gaps are GitHub
@@ -10,7 +10,7 @@ Method note: every retail address below was **verified against the cartridge**
 not by trusting the fork. Where a `if bugfixes=1` gate exists, the retail branch
 was confirmed from ROM bytes and is the one transcribed here.
 
-**Citation convention discovered while scouting, and it matters:** in
+**Citation convention, and it matters:** in
 `ps4.asm` the `loc_XXXXX` *labels* are retail addresses (`loc_266C` is at
 `0x00266C`, `loc_B716` at `0x00B716`, `loc_27F3BC` at `0x0027F3BC` — all
 byte-verified). The auto-generated `;0x0 (0x0000....)` *inline comments* are
@@ -59,6 +59,8 @@ animation objects.
 ---
 
 ## 2. The two RNGs — and the landmine
+
+The per-frame call schedule is measured in [BATTLE_MEASUREMENTS.md](BATTLE_MEASUREMENTS.md#rng).
 
 Two generators, one seed word. **This is the single biggest fidelity risk in
 the whole project.**
@@ -140,6 +142,8 @@ identical, not stream-identical". The oracle harness can still verify the
 ---
 
 ## 3. Turn order — `Battle_OrderTurns`, `ps4.asm:7723`
+
+Measured: [turn order versus agility](BATTLE_MEASUREMENTS.md#turn-order-versus-agility).
 
 `Battle_Turn_Order` at `$FFFFEFB0`, 9 entries × 4 bytes = `[fighter id .w][agility .w]`.
 
@@ -614,6 +618,8 @@ time. Multi-target enemy abilities override it to `$FFFF` (all) at execution.
 
 ## 8. Commands, escape, defend, macros
 
+Measured: [escape](BATTLE_MEASUREMENTS.md#escape) and [DEFEND](BATTLE_MEASUREMENTS.md#defend-and-the-physical_prop-clobber).
+
 `Battle_Command_Data` at `$FFFF410A`, 4 bytes per fighter:
 `[command][ability or item id][target index .w]`.
 
@@ -732,6 +738,8 @@ enemy count, bytes 5–6 group bitmasks, byte 7+ `(enemy id, position)` pairs,
 
 ## 10. Rewards and drops
 
+Measured: [rewards and the EXP divisor](BATTLE_MEASUREMENTS.md#rewards-and-the-exp-divisor).
+
 **Accumulation** — every enemy death (`loc_2D960`, retail `$0002D960`) adds the
 enemy record's `$60` (experience) to `$FFFF41CE` and `$62` (meseta) to
 `$FFFF41D0`, each **saturating at `$FFFF`**.
@@ -834,8 +842,8 @@ docs/source-notes/disassembly-discrepancies.md.
 ## 12. Worked example — one complete basic attack, real numbers
 
 The worked numerical example is preserved in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md). The current
-slice keeps the presentation boundary below as the main cross-lane contract.
+[`BATTLE_ATTACK_EXAMPLE.md`](BATTLE_ATTACK_EXAMPLE.md). The current
+slice keeps the presentation boundary below as the contract between rules and presentation.
 
 ---
 
@@ -907,8 +915,7 @@ neighbourhood. `EnemySpriteMappingsOffs` and `Battle_EnemySpritesJmpTbl`
 `Enemy_Sprites` at `$FFFFEA00` (16 slots); the decoded renderer applies those
 pieces as dynamic tile replacements over the body.
 
-### Enemy overlay decode (2026-08-15)
-
+### Enemy overlay decode
 The retail table is `EnemySpriteMappingsOffs` at **`0x010FCE`**, 153
 self-relative words. Its data starts at `0x011100`. Each selected block is:
 
@@ -965,9 +972,9 @@ given invented coordinates: ids **44–46, 50, 70–72, 139–140, and 152**.
 
 The original v1 sizing, proposed scope ladder and design-session questions
 are retired. Current work is tracked in [ROADMAP.md](../ROADMAP.md). The worked
-example and address tables remain in [the continuation](BATTLE_SCOUT_CONTINUATION.md).
+example and address tables remain in [the continuation](BATTLE_ATTACK_EXAMPLE.md).
 
 ## Appendix: verified retail addresses
 
 The full address table and battle RAM notes continue in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md).
+[`BATTLE_ATTACK_EXAMPLE.md`](BATTLE_ATTACK_EXAMPLE.md).

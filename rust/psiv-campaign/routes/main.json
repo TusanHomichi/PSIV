@@ -5,11 +5,11 @@
     {
       "id": "academy",
       "title": "Piata Academy: Alys, Hahn, Igglanova, back to Motavia",
-      "source": "rust/psiv-runtime/examples/academy_route.rs; tools/native/native_route.gd ACADEMY_ROUTE; docs/campaign/PLAYABILITY_ACADEMY.md; docs/scenes/03_AlysFound.md..11_PiataGuardsReprimand.md",
+      "source": "academy_route example (commit 2c936ed^); native_route (commit 138da9f^) ACADEMY_ROUTE; PLAYABILITY_ACADEMY (commit 0faa91b^); docs/scenes/03_AlysFound.md..11_PiataGuardsReprimand.md",
       "random_battle_policy": "attack_all",
       "objectives": [
-        {"do": "go_to", "map": 19, "cell": [38, 17], "note": "FindingAlys trigger fires on landing; academy_route.rs walk_to(38,17)"},
-        {"do": "expect", "flags_set": ["event:0x8"], "map": 19, "note": "Event_AlysFound sets $08 (academy_route.rs line asserting Flag::event(8))"},
+        {"do": "go_to", "map": 19, "cell": [38, 17], "note": "FindingAlys trigger fires on landing; academy_route example (commit 2c936ed^) walk_to(38,17)"},
+        {"do": "expect", "flags_set": ["event:0x8"], "map": 19, "note": "Event_AlysFound sets $08 (academy_route example (commit 2c936ed^) line asserting Flag::event(8))"},
         {"do": "go_to_map", "map": 20, "via_warp": 0, "note": "native leg: walk to (31,10) on map 0x13"},
         {"do": "go_to", "map": 20, "cell": [15, 16]},
         {"do": "talk", "npc": 0, "note": "principal: face Up, Action"},
@@ -18,13 +18,13 @@
         {"do": "go_to_map", "map": 17, "via_warp": 4, "note": "native leg: walk to (16,19) on map 0x13"},
         {"do": "go_to_map", "map": 18, "via_warp": 3, "note": "native leg: walk to (30,8) on map 0x11"},
         {"do": "go_to", "map": 18, "cell": [13, 18]},
-        {"do": "talk", "npc": 0, "note": "Hahn: face Up, Action; of objects [0, 1] in talk range the engine reaches object 0 (played, run R1-4, RUNNER_LOG.md)"},
+        {"do": "talk", "npc": 0, "note": "Hahn: face Up, Action; of objects [0, 1] in talk range the engine reaches object 0 (played, run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "expect", "flags_set": ["event:0xa"], "note": "Hahn joined sets $0A"},
         {"do": "go_to_map", "map": 21, "via_warp": 1, "note": "native leg: walk to (18,13) on map 0x12"},
         {"do": "go_to_map", "map": 22, "via_warp": 1, "note": "native leg: walk to (32,9) on map 0x15"},
         {"do": "go_to_map", "map": 23, "via_warp": 1, "note": "native leg: walk to (14,19) on map 0x16"},
         {"do": "go_to", "map": 23, "cell": [15, 11]},
-        {"do": "talk", "npc": 0, "note": "Igglanova: face Up, Action. The press reaches no object's dialogue: it starts interaction area 0 of map 23 (event 0x6B), and the scripted battle follows (played, run R1-4, RUNNER_LOG.md)"},
+        {"do": "talk", "npc": 0, "note": "Igglanova: face Up, Action. The press reaches no object's dialogue: it starts interaction area 0 of map 23 (event 0x6B), and the scripted battle follows (played, run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "fight_scripted", "note": "Igglanova (boss formation); RoundOrders from the policy"},
         {"do": "expect", "flags_set": ["event:0xb", "event:0xf"], "note": "$0B Igglanova defeated, $0F set after the conversation"},
         {"do": "go_to_map", "map": 22, "via_warp": 0, "note": "native leg: walk to (16,19) on map 0x17"},
@@ -48,7 +48,7 @@
     {
       "id": "holt",
       "title": "Mile, Zema, Birth Valley and Professor Holt",
-      "source": "tools/native/native_motavia.gd route; rust/psiv-runtime/examples/motavia_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native route through Holt\"; docs/scenes/13_ProfHolt.md",
+      "source": "native_motavia (commit 138da9f^) route; motavia_route example (commit 2c936ed^); PLAYABILITY_HOLT_TONOE (commit 0faa91b^) \"Connected native route through Holt\"; docs/scenes/13_ProfHolt.md",
       "random_battle_policy": "heal_then_attack",
       "objectives": [
         {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00; Mile first, as both source drivers do. RunEvent_MileSandWorm (ps4.asm:116449) is transcribed (#54): arrival at y $310 is outside its box, so no RNG draw and no event"},
@@ -58,7 +58,7 @@
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
         {"do": "go_to", "map": 44, "cell": [23, 17]},
         {"do": "talk", "npc": 5, "note": "petrified Holt: face Up, Action"},
-        {"do": "expect", "flags_set": ["event:0x10"], "map": 36, "cell": [30, 11], "note": "Event_ProfHolt writes Map_Start=($3C,$14) in 8-pixel units facing down on Zema (docs/scenes/13_ProfHolt.md:26): cell (30,10), and the port stands the party one row south, (30,11), as at first control; run R1-1 played it (RUNNER_LOG.md)"},
+        {"do": "expect", "flags_set": ["event:0x10"], "map": 36, "cell": [30, 11], "note": "Event_ProfHolt writes Map_Start=($3C,$14) in 8-pixel units facing down on Zema (docs/scenes/13_ProfHolt.md:26): cell (30,10), and the port stands the party one row south, (30,11), as at first control; run R1-1 played it (RUNNER_LOG (commit 0faa91b^))"},
         {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24; ledger: the ordinary save was at Motavia (99,83)"},
         {"do": "save", "slot": 0}
       ],
@@ -69,7 +69,7 @@
     {
       "id": "rune-dorin",
       "title": "Mile inn, Rune, the Valley Maze and Dorin at Tonoe",
-      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md; docs/campaign/RUNNER_LOG.md #70 full-route probe (ordinary RUN from Valley Maze random encounters keeps the party alive when the ambush gate shifts the encounter stream)",
+      "source": "native_tonoe (commit 138da9f^) route; tonoe_route example (commit 2c936ed^); PLAYABILITY_HOLT_TONOE (commit 0faa91b^) \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md; RUNNER_LOG (commit 0faa91b^) #70 full-route probe (ordinary RUN from Valley Maze random encounters keeps the party alive when the ambush gate shifts the encounter stream)",
       "random_battle_policy": "run_unless_boss",
       "objectives": [
         {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00"},
@@ -94,8 +94,8 @@
         {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "native leg: walk to (150,88) on map 0x00"},
         {"do": "go_to_map", "map": 67, "via_warp": 5, "note": "native leg: walk to (45,21) on map 0x41"},
         {"do": "go_to", "map": 67, "cell": [30, 32]},
-        {"do": "talk", "npc": 0, "note": "Dorin: face Up, Action; of objects [0, 5, 8] in talk range the engine reaches object 0 (played, run R1-4, RUNNER_LOG.md)"},
-        {"do": "answer", "yes": false, "note": "\"refining Titanium\" prompt (native_tonoe.gd choice_input; ledger NO)"},
+        {"do": "talk", "npc": 0, "note": "Dorin: face Up, Action; of objects [0, 5, 8] in talk range the engine reaches object 0 (played, run R1-4, RUNNER_LOG (commit 0faa91b^))"},
+        {"do": "answer", "yes": false, "note": "\"refining Titanium\" prompt (native_tonoe (commit 138da9f^) choice_input; ledger NO)"},
         {"do": "answer", "yes": false, "note": "\"blocked by a rock\" prompt (NO)"},
         {"do": "answer", "yes": true, "note": "\"Warrior\" prompt (YES)"},
         {"do": "expect", "flags_set": ["event:0x30"], "map": 67, "note": "Gryz joins and replaces Rune; flag $30"},
@@ -108,7 +108,7 @@
     {
       "id": "basement-training",
       "title": "Motavia plain outside Tonoe: training before the Alshline basement",
-      "source": "docs/campaign/RUNNER_LOG.md run R1-5 (H12); no native driver trains here",
+      "source": "RUNNER_LOG (commit 0faa91b^) run R1-5 (H12); no native driver trains here",
       "random_battle_policy": "train_with_inn",
       "objectives": [
         {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (30,40) on map 0x43"},
@@ -124,7 +124,7 @@
           {"do": "rest_inn", "face": "up", "note": "60 meseta; the party rests when a member falls or the healers run dry"},
           {"do": "go_to_map", "map": 65, "via_warp": 0},
           {"do": "go_to_map", "map": 0, "via_warp": 3}
-        ], "note": "the basement's fights take most of a level-3 member's HP in one round (RUNNER_LOG.md H12); the only ground reachable from Tonoe's gate without a warp is this strip, so the party trains on it to the level zema-training later reaches"},
+        ], "note": "the basement's fights take most of a level-3 member's HP in one round (RUNNER_LOG (commit 0faa91b^) H12); the only ground reachable from Tonoe's gate without a warp is this strip, so the party trains on it to the level zema-training later reaches"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -134,7 +134,7 @@
     {
       "id": "alshline",
       "title": "Tonoe inn, the storage door, the basement and the Alshline chest",
-      "source": "tools/native/native_alshline.gd route; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Alshline completion\"; docs/scenes/18_AlshlineFound.md, 19_Alshline.md",
+      "source": "native_alshline (commit 138da9f^) route; PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"Connected Alshline completion\"; docs/scenes/18_AlshlineFound.md, 19_Alshline.md",
       "random_battle_policy": "run_unless_boss",
       "objectives": [
         {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "Motavia to Tonoe (after basement-training; the native leg came from Dorin's map 0x43)"},
@@ -144,7 +144,7 @@
         {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (22,40) on map 0x46"},
         {"do": "go_to_map", "map": 66, "via_warp": 4, "note": "native leg: walk to (31,11) on map 0x41"},
         {"do": "go_to", "map": 66, "cell": [30, 28]},
-        {"do": "talk", "npc": 1, "note": "Gryz's storage door: face Up, Action; of objects [0, 1] in talk range the engine reaches object 1 (played in run R1-3, RUNNER_LOG.md)"},
+        {"do": "talk", "npc": 1, "note": "Gryz's storage door: face Up, Action; of objects [0, 1] in talk range the engine reaches object 1 (played in run R1-3, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "expect", "flags_set": ["event:0x31"], "note": "storage door opened, flag $31"},
         {"do": "go_to_map", "map": 71, "via_warp": 1, "note": "native leg: walk to (30,27) on map 0x42"},
         {"do": "go_to_map", "map": 72, "via_warp": 1, "note": "native leg: walk to (32,15) on map 0x47"},
@@ -167,7 +167,7 @@
     {
       "id": "zema-rescue",
       "title": "Back through the maze to Zema and Igglanova",
-      "source": "tools/native/native_zema_return.gd route; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Zema rescue and restart\"; docs/scenes/20_ZemaIgglanovaDefeated.md..23_ZemaOldManAfterMission.md",
+      "source": "native_zema_return (commit 138da9f^) route; PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"Connected Zema rescue and restart\"; docs/scenes/20_ZemaIgglanovaDefeated.md..23_ZemaOldManAfterMission.md",
       "random_battle_policy": "run_unless_boss",
       "objectives": [
         {"do": "go_to", "map": 65, "cell": [19, 42]},
@@ -197,7 +197,7 @@
     {
       "id": "zema-outfit",
       "title": "Zema inn, shops and equipment",
-      "source": "tools/native/native_zema_outfit.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Zema equipment and restart\"; docs/camp/SHOPS.md",
+      "source": "native_zema_outfit (commit 138da9f^); PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"Connected Zema equipment and restart\"; docs/camp/SHOPS.md",
       "random_battle_policy": "attack_all",
       "objectives": [
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
@@ -232,13 +232,13 @@
     {
       "id": "zema-training",
       "title": "Birth Valley B1 training and a paid rest",
-      "source": "tools/native/native_zema_training.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected BioPlant elevator checkpoint\"",
+      "source": "native_zema_training (commit 138da9f^); PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"Connected BioPlant elevator checkpoint\"",
       "random_battle_policy": "train_with_inn",
       "objectives": [
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
         {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
-        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 6, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; level 6 and 1180 meseta are the driver defaults (PSIV_TRAIN_LEVEL). Played: the condition holds after dozens of battles (RUNNER_LOG.md run R1-4); the runner cures the party between battles through the camp"},
+        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 6, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; level 6 and 1180 meseta are the driver defaults (PSIV_TRAIN_LEVEL). Played: the condition holds after dozens of battles (RUNNER_LOG (commit 0faa91b^) run R1-4); the runner cures the party between battles through the camp"},
         {"do": "go_to_map", "map": 43, "via_warp": 0, "note": "native leg: walk to (24,49) on map 0x2c"},
         {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (17,53) on map 0x2b"},
         {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},
@@ -255,7 +255,7 @@
     {
       "id": "zema-armour",
       "title": "Two CRBN-SUITs from the armoury",
-      "source": "tools/native/native_zema_armour.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected BioPlant elevator checkpoint\"",
+      "source": "native_zema_armour (commit 138da9f^); PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"Connected BioPlant elevator checkpoint\"",
       "random_battle_policy": "attack_all",
       "objectives": [
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
@@ -275,20 +275,20 @@
     {
       "id": "bioplant-elevators",
       "title": "Birth Valley door and the BioPlant elevators to $A7",
-      "source": "tools/native/native_bioplant.gd route and door/elevator handling; docs/campaign/BIOPLANT_NATIVE.md \"Source-backed implementation\" and \"Route and encounter census\"; docs/scenes/26_BioPlantAlarm.md",
+      "source": "native_bioplant (commit 138da9f^) route and door/elevator handling; BIOPLANT_NATIVE (commit 0faa91b^) \"Source-backed implementation\" and \"Route and encounter census\"; docs/scenes/26_BioPlantAlarm.md",
       "random_battle_policy": "bioplant_survival",
       "objectives": [
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
         {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
         {"do": "interact", "cell": [23, 16], "face": "up", "note": "Event_BioPlantDoorOpening: interaction rectangle (22..23,15); native door handler stands at (23,16)"},
-        {"do": "expect", "flags_set": ["temp:0"], "note": "the door event sets temporary flag 0 after its animation and the map-load effect keeps (22..23,15) open from it (docs/campaign/BIOPLANT_NATIVE.md); played: the flag is set (run R1-4)"},
+        {"do": "expect", "flags_set": ["temp:0"], "note": "the door event sets temporary flag 0 after its animation and the map-load effect keeps (22..23,15) open from it (BIOPLANT_NATIVE (commit 0faa91b^)); played: the flag is set (run R1-4)"},
         {"do": "go_to_map", "map": 162, "via_warp": 1, "note": "native leg: walk to (23,15) on map 0x2c"},
         {"do": "go_to_map", "map": 163, "via_warp": 1, "note": "native leg: walk to (32,21) on map 0xa2; alarm scene (event $12) runs on this map"},
         {"do": "go_to_map", "map": 164, "via_warp": 1, "note": "native leg: walk to (32,17) on map 0xa3"},
-        {"do": "interact", "cell": [32, 18], "face": "up", "opens": [[32, 17], [33, 17]], "note": "elevator door chunk written live by event $13. Played: the cells in opens are walkable (collision 1, map-change ground) once the scene ends, and stepping into them rides to the next map (run R1-4, RUNNER_LOG.md)"},
+        {"do": "interact", "cell": [32, 18], "face": "up", "opens": [[32, 17], [33, 17]], "note": "elevator door chunk written live by event $13. Played: the cells in opens are walkable (collision 1, map-change ground) once the scene ends, and stepping into them rides to the next map (run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "go_to_map", "map": 166, "via_warp": 1, "note": "native leg: walk to (32,17) on map 0xa4"},
-        {"do": "interact", "cell": [40, 44], "face": "up", "opens": [[40, 43], [41, 43]], "note": "elevator door chunk written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG.md)"},
+        {"do": "interact", "cell": [40, 44], "face": "up", "opens": [[40, 43], [41, 43]], "note": "elevator door chunk written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "go_to_map", "map": 167, "via_warp": 2, "note": "native leg: walk to (40,43) on map 0xa6"},
         {"do": "save", "slot": 0, "note": "native saved-map-0A7 at (68,66)"}
       ],
@@ -299,7 +299,7 @@
     {
       "id": "bioplant-order",
       "title": "Put Gryz in front",
-      "source": "docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"STATE/ORDER and the Gryz-leading checkpoint\"; tools/native/native_party_order.gd",
+      "source": "PLAYABILITY_ALSHLINE_ZEMA (commit 0faa91b^) \"STATE/ORDER and the Gryz-leading checkpoint\"; tools/native/native_party_order.gd",
       "random_battle_policy": "bioplant_survival",
       "objectives": [
         {"do": "reorder", "order": ["Gryz", "Alys", "Chaz", "Hahn"]},
@@ -312,19 +312,19 @@
     {
       "id": "bioplant-rika",
       "title": "Up the elevators to Rika and out to Motavia",
-      "source": "tools/native/native_bioplant.gd route; docs/campaign/BIOPLANT_NATIVE.md \"Connected Rika continuation\"; docs/scenes/30_MeetingRika.md",
+      "source": "native_bioplant (commit 138da9f^) route; BIOPLANT_NATIVE (commit 0faa91b^) \"Connected Rika continuation\"; docs/scenes/30_MeetingRika.md",
       "random_battle_policy": "bioplant_survival",
       "objectives": [
-        {"do": "interact", "cell": [70, 12], "face": "up", "opens": [[70, 11], [71, 11]], "note": "elevator door written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG.md)"},
+        {"do": "interact", "cell": [70, 12], "face": "up", "opens": [[70, 11], [71, 11]], "note": "elevator door written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "go_to_map", "map": 169, "via_warp": 2, "note": "native leg: walk to (70,11) on map 0xa7"},
         {"do": "go_to_map", "map": 170, "via_warp": 0, "note": "native leg: walk to (32,50) on map 0xa9"},
         {"do": "save", "slot": 0, "note": "native saved-map-0AA"},
-        {"do": "interact", "cell": [28, 28], "face": "up", "opens": [[28, 27], [29, 27]], "note": "elevator door written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG.md)"},
+        {"do": "interact", "cell": [28, 28], "face": "up", "opens": [[28, 27], [29, 27]], "note": "elevator door written live by event $13. Played: the cells in opens are walkable once the scene ends, and stepping into them rides (run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "go_to_map", "map": 171, "via_warp": 0, "note": "native leg: walk to (28,27) on map 0xaa"},
         {"do": "go_to_map", "map": 172, "via_warp": 1, "note": "native leg: walk to (24,23) on map 0xab"},
         {"do": "save", "slot": 0, "note": "native saved-map-0AC"},
         {"do": "go_to", "map": 172, "cell": [31, 27], "note": "Rika scene fires on arrival; the native leg finishes on flag $35 (dialogue moves the party), ~115 dialogue accepts"},
-        {"do": "expect", "flags_set": ["event:0x34", "event:0x35"], "map": 0, "cell": [99, 83], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "note": "docs/campaign/BIOPLANT_NATIVE.md: Motavia $00 (99,83), flags $34/$35, five members"},
+        {"do": "expect", "flags_set": ["event:0x34", "event:0x35"], "map": 0, "cell": [99, 83], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "note": "BIOPLANT_NATIVE (commit 0faa91b^): Motavia $00 (99,83), flags $34/$35, five members"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -334,7 +334,7 @@
     {
       "id": "north-bank",
       "title": "Zema rest and the northern crossing to (84,64)",
-      "source": "tools/native/native_post_rika.gd; docs/field/TRAVEL.md \"Post-Rika northern crossing\"; docs/campaign/AIEDO.md \"Inputs\"",
+      "source": "native_post_rika (commit 138da9f^); docs/field/TRAVEL.md \"The northern bridge after Rika joins\"; AIEDO (commit 0faa91b^) \"Inputs\"",
       "random_battle_policy": "attack_all",
       "objectives": [
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
@@ -347,7 +347,7 @@
         {"do": "go_to", "map": 0, "cell": [84, 67]},
         {"do": "go_to", "map": 0, "cell": [84, 65]},
         {"do": "go_to", "map": 0, "cell": [84, 64]},
-        {"do": "expect", "flags_set": ["event:0x35"], "map": 0, "cell": [84, 64], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "note": "north-bank checkpoint: Motavia (84,64), the five-member party, flag $35. The native checkpoint held 1129 meseta; the purse is what the battles on the way paid, not a rule, so it is no longer asserted (run R1-4, RUNNER_LOG.md)"},
+        {"do": "expect", "flags_set": ["event:0x35"], "map": 0, "cell": [84, 64], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "note": "north-bank checkpoint: Motavia (84,64), the five-member party, flag $35. The native checkpoint held 1129 meseta; the purse is what the battles on the way paid, not a rule, so it is no longer asserted (run R1-4, RUNNER_LOG (commit 0faa91b^))"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -357,11 +357,11 @@
     {
       "id": "aiedo",
       "title": "North bank to Aiedo",
-      "source": "docs/campaign/AIEDO.md sections 1-3 (route derived with oracle/route.py: one warp, record 0x100706 transition 7, 67 steps)",
+      "source": "AIEDO (commit 0faa91b^) sections 1-3 (route derived with oracle/route.py: one warp, record 0x100706 transition 7, 67 steps)",
       "random_battle_policy": "attack_all",
       "objectives": [
-        {"do": "go_to_map", "map": 84, "via_warp": 7, "note": "Motavia warp record 0x100706 (transition index 7) to Aiedo; arrival (47,83) facing up; ~1.4 random fights expected on the walk (AIEDO.md section 3)"},
-        {"do": "expect", "map": 84, "cell": [47, 83], "flags_set": ["event:0x35"], "note": "Aiedo arrival; no scene triggers on arrival (AIEDO.md section 2)"}
+        {"do": "go_to_map", "map": 84, "via_warp": 7, "note": "Motavia warp record 0x100706 (transition index 7) to Aiedo; arrival (47,83) facing up; ~1.4 random fights expected on the walk (AIEDO (commit 0faa91b^) section 3)"},
+        {"do": "expect", "map": 84, "cell": [47, 83], "flags_set": ["event:0x35"], "note": "Aiedo arrival; no scene triggers on arrival (AIEDO (commit 0faa91b^) section 2)"}
       ],
       "closing": [
         {"map": 84, "cell": [47, 83]}
@@ -370,7 +370,7 @@
     {
       "id": "aiedo-chaz-house",
       "title": "Aiedo: Chaz's house offers a rest",
-      "source": "docs/scenes/28_ChazHouse.md and 29_LeavingChazHouse.md (ChazHouse $5E lists RunEventsJmpTbl[$26], Aiedo $54 lists [$27]); docs/campaign/RUNNER_LOG.md H13 (the Aiedo inn is #39 and is not used)",
+      "source": "docs/scenes/28_ChazHouse.md and 29_LeavingChazHouse.md (ChazHouse $5E lists RunEventsJmpTbl[$26], Aiedo $54 lists [$27]); RUNNER_LOG (commit 0faa91b^) H13 (the Aiedo inn is #39 and is not used)",
       "random_battle_policy": "attack_all",
       "objectives": [
         {"do": "go_to_map", "map": 94, "via_warp": 10, "note": "Aiedo warp 10 at (22,37); Event_ChazHouse ($3B) fires on arrival with temp $18 clear and asks Yes/No; the walk ends with the prompt open"},
@@ -387,7 +387,7 @@
     {
       "id": "aiedo-training",
       "title": "Motavia plain outside Aiedo: training before the Zio Fort",
-      "source": "docs/campaign/RUNNER_LOG.md run C1-3 (H14): a level 8 to 11 party dies in the Zio Fort's first corridors; no native driver trains here",
+      "source": "RUNNER_LOG (commit 0faa91b^) run C1-3 (H14): a level 8 to 11 party dies in the Zio Fort's first corridors; no native driver trains here",
       "random_battle_policy": "train_with_inn",
       "objectives": [
         {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "Aiedo's south exit, arrival Motavia (36,61)"},
@@ -411,7 +411,7 @@
     {
       "id": "aiedo-shopping",
       "title": "Aiedo weapon shop: Crimson gear for Juza",
-      "source": "runtime-pack/shops.json (inventories 13 and 14, AiedoWeaponShop $5B); runtime-pack/battle/equipment.json (equippable_by); docs/campaign/RUNNER_LOG.md C1 findings (the party arrives with 21,832 meseta, Hahn has no weapon) and run C2-1 (Juza wipes a level 12 party in four rounds)",
+      "source": "runtime-pack/shops.json (inventories 13 and 14, AiedoWeaponShop $5B); runtime-pack/battle/equipment.json (equippable_by); RUNNER_LOG (commit 0faa91b^) C1 findings (the party arrives with 21,832 meseta, Hahn has no weapon) and run C2-1 (Juza wipes a level 12 party in four rounds)",
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 91, "note": "Aiedo weapon shop $5B"},
@@ -440,10 +440,10 @@
     {
       "id": "passage-to-zio-fort",
       "title": "Aiedo to the Zio Fort by the passageway and Kadary",
-      "source": "psiv-campaign plan --from-map 84 --from-cell 47,83 --to-map 130 --flag event:0x35 (the only chain: Aiedo, Motavia, Passageway Near Aiedo $DA, Passageway $81, $DB, Motavia, Kadary $68, Motavia, Zio Fort $82); docs/campaign/RUNNER_LOG.md H15",
+      "source": "psiv-campaign plan --from-map 84 --from-cell 47,83 --to-map 130 --flag event:0x35 (the only chain: Aiedo, Motavia, Passageway Near Aiedo $DA, Passageway $81, $DB, Motavia, Kadary $68, Motavia, Zio Fort $82); RUNNER_LOG (commit 0faa91b^) H15",
       "random_battle_policy": "run_unless_boss",
       "objectives": [
-        {"do": "go_to_map", "map": 130, "note": "run from every random encounter: the passageway's ZolSlugs use FUSION (ability 18), unsupported (RUNNER_LOG.md H15)"},
+        {"do": "go_to_map", "map": 130, "note": "run from every random encounter: the passageway's ZolSlugs use FUSION (ability 18), unsupported (RUNNER_LOG (commit 0faa91b^) H15)"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -470,13 +470,13 @@
     {
       "id": "zio-fort-juza",
       "title": "Zio Fort: Juza's battle",
-      "source": "docs/scenes/49_Juza.md and 50_JuzaDefeated.md (event $40: dialogue $48, set $41, event battle 3; trigger $2F sets $48 and opens the stairs); docs/campaign/RUNNER_LOG.md H16 (ZAN and FORCEFLASH, implemented by lane a1-damage)",
+      "source": "docs/scenes/49_Juza.md and 50_JuzaDefeated.md (event $40: dialogue $48, set $41, event battle 3; trigger $2F sets $48 and opens the stairs); RUNNER_LOG (commit 0faa91b^) H16 (ZAN and FORCEFLASH, implemented by lane a1-damage)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "talk", "npc": 0, "note": "Juza at (32,19); event $40 runs the fade, dialogue $48, sets $41 and starts event battle 3"},
         {"do": "fight_scripted", "note": "event battle 3: one JUZA, 1,523 HP"},
         {"do": "expect", "map": 135, "flags_set": ["event:0x41", "event:0x48"], "note": "49_Juza.md op 2; 50_JuzaDefeated.md op 5 (trigger $2F fires after the battle)"},
-        {"do": "go_to_map", "map": 136, "note": "out by the east door: the stairs' four cells stay shut on the live map until it is built again (RUNNER_LOG.md H19)"},
+        {"do": "go_to_map", "map": 136, "note": "out by the east door: the stairs' four cells stay shut on the live map until it is built again (RUNNER_LOG (commit 0faa91b^) H19)"},
         {"do": "go_to_map", "map": 135, "note": "and back in: the map is built with $41 and $48 set, so the stairs at (24..25,18..19) are open"},
         {"do": "save", "slot": 0}
       ],
@@ -487,7 +487,7 @@
     {
       "id": "zio-fort-demi",
       "title": "Zio Fort F3 and F4: the Demi rescue and Zio's first battle",
-      "source": "docs/scenes/31_DemiRescue.md (Zio Fort F4 $8B, RunEvent_SavingDemi $1C, leader Y exactly $170 = standing cell row 24, Zio $42 clear; sets $42, event battle 4) and 32_AlysWounded.md (RunEvent_AlysWounded $1D, Zio $42 set, Demi Joined $47 clear; sets $47); docs/scenes/12_ArcTriggerCensus.md",
+      "source": "docs/scenes/31_DemiRescue.md (Zio Fort F4 $8B, RunEvent_SavingDemi $1C, leader Y exactly $170 = standing cell row 24, Zio $42 clear; sets $42, event battle 4) and 32_AlysWounded.md (RunEvent_AlysWounded $1D, Zio $42 set, Demi Joined $47 clear; sets $47); docs/scenes/TRIGGER_CENSUS.md",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 138, "note": "ZioFort_F3, by the stairs Juza's defeat opened"},
@@ -503,7 +503,7 @@
     {
       "id": "krup-training",
       "title": "Motavia outside Krup: training before the Machine Center and the tower",
-      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG.md #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
+      "source": "RUNNER_LOG (commit 0faa91b^) run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG (commit 0faa91b^) #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
@@ -534,7 +534,7 @@
       "objectives": [
         {"do": "go_to", "map": 0, "cell": [115, 174], "note": "the grave opens when the leader's Y is $AD0 (standing cell row 174) inside x $710..$750"},
         {"do": "expect", "flags_set": ["event:0x43"], "note": "34_MachineCenterAppearing.md op 11"},
-        {"do": "go_to_map", "map": 57, "note": "into Krup and out again: the live overworld keeps its old collision until it is built again, and the Machine Center's door cells are only open on a map built with $43 set (RUNNER_LOG.md H19)"},
+        {"do": "go_to_map", "map": 57, "note": "into Krup and out again: the live overworld keeps its old collision until it is built again, and the Machine Center's door cells are only open on a map built with $43 set (RUNNER_LOG (commit 0faa91b^) H19)"},
         {"do": "go_to_map", "map": 0}
       ],
       "closing": [
@@ -564,14 +564,14 @@
     {
       "id": "ladea-tower-rune",
       "title": "Ladea Tower: the Land Rover to the tower, Rune rejoins on F2",
-      "source": "docs/scenes/35_RuneLadaeTower.md (Ladea Tower F2 $8E, RunEvent_RuneLadeaTower $19: Rune-again $62 clear and leader X >= $3C0 = column 60; Rune joins slot 5, sets $62); psiv-campaign plan --vehicle 1 from Motavia (109,153) (the Land Rover crosses the sand a person cannot: on foot the tower is not reachable)",
+      "source": "docs/scenes/35_RuneLadeaTower.md (Ladea Tower F2 $8E, RunEvent_RuneLadeaTower $19: Rune-again $62 clear and leader X >= $3C0 = column 60; Rune joins slot 5, sets $62); psiv-campaign plan --vehicle 1 from Motavia (109,153) (the Land Rover crosses the sand a person cannot: on foot the tower is not reachable)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 140, "note": "Ladea Tower $8C by Motavia warp 14, driving the Land Rover across the sand"},
         {"do": "expect", "map": 140, "vehicle": 0, "note": "the tower's map load parks the Land Rover (GameMode_LoadFieldMap, ps4.asm:107517): no dismount press is needed, and the tower's one-cell corridors are on foot"},
         {"do": "go_to_map", "map": 142, "note": "Ladea Tower F2 $8E, on foot"},
         {"do": "go_to_map", "map": 143, "note": "F3; the walk from the stairs crosses column 60, where Rune rejoins"},
-        {"do": "expect", "flags_set": ["event:0x62"], "note": "35_RuneLadaeTower.md op 8"}
+        {"do": "expect", "flags_set": ["event:0x62"], "note": "35_RuneLadeaTower.md op 8"}
       ],
       "closing": [
         {"vehicle": 0, "flags_set": ["event:0x62"]}
@@ -597,7 +597,7 @@
     {
       "id": "zio-fort-barrier",
       "title": "Zio Fort: the invisible barrier on the way to Nurvus",
-      "source": "docs/scenes/12_ArcTriggerCensus.md (Event_ZioFortBarrier $30, direct Zio Fort map-data path); reference/ps4disasm/ps4.asm Event_ZioFortBarrier (148155: tests After Alys Death $63 set, runs dialogue $44, sets ZioFortBarrier $64) and ZioFort $82 map effect entry $42 (BarrierBeam1-4 and the InvisibleBlock objects despawn when $64 is set); psiv-campaign plan --from-map 57 --from-cell 20,15 --to-map 130 --flag event:0x35",
+      "source": "docs/scenes/TRIGGER_CENSUS.md (Event_ZioFortBarrier $30, direct Zio Fort map-data path); reference/ps4disasm/ps4.asm Event_ZioFortBarrier (148155: tests After Alys Death $63 set, runs dialogue $44, sets ZioFortBarrier $64) and ZioFort $82 map effect entry $42 (BarrierBeam1-4 and the InvisibleBlock objects despawn when $64 is set); psiv-campaign plan --from-map 57 --from-cell 20,15 --to-map 130 --flag event:0x35",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 130, "note": "Zio Fort $82 by the passageway and Kadary, on foot (seven warps); the party runs from random encounters"},
@@ -657,7 +657,7 @@
     {
       "id": "mota-spaceport",
       "title": "Motavia: the new Mota Spaceport, the ship's destination menu and the flight to Zelan",
-      "source": "docs/scenes/41_InsideSpaceship.md (Mota Spaceport $BF, RunEvent_EnterSpaceship $21: leader X $1E0..$1F0 = columns 30..31, Y $120 = standing row 19, Event_Index $800D); docs/scenes/39_ZioDefeated.md (Event_MotaSpaceportAppearing sets $66); reference/ps4disasm/ps4.asm:115743 (RunEvent_EnterSpaceship); psiv-campaign plan --from-map 0 --from-cell 54,93 --to-map 191 --flag event:0x66; ps4.asm:133499 (loc_63BC4, the destination menu: AlysFound's mask $90 lists Zelan alone at the Mota Spaceport), :134593 (loc_64B5A, Zelan's landing row ($3E,$5A)); docs/campaign/RUNNER_LOG.md (H23, M23)",
+      "source": "docs/scenes/41_InsideSpaceship.md (Mota Spaceport $BF, RunEvent_EnterSpaceship $21: leader X $1E0..$1F0 = columns 30..31, Y $120 = standing row 19, Event_Index $800D); docs/scenes/39_ZioDefeated.md (Event_MotaSpaceportAppearing sets $66); reference/ps4disasm/ps4.asm:115743 (RunEvent_EnterSpaceship); psiv-campaign plan --from-map 0 --from-cell 54,93 --to-map 191 --flag event:0x66; ps4.asm:133499 (loc_63BC4, the destination menu: AlysFound's mask $90 lists Zelan alone at the Mota Spaceport), :134593 (loc_64B5A, Zelan's landing row ($3E,$5A)); RUNNER_LOG (commit 0faa91b^) (H23, M23)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "expect", "map": 0, "cell": [54, 93], "flags_set": ["event:0x66"], "note": "where Cutscene_ZioDefeated leaves the party (the checkpoint's inspect output); the spaceport has appeared on the live map"},
@@ -673,7 +673,7 @@
     {
       "id": "zelan-wren-canceller",
       "title": "Zelan: the elevator to F1, Wren joins and the Canceller chest",
-      "source": "docs/scenes/40_MeetingWren.md (Cutscene_MeetingWren $800C: Wren talked to on Zelan F1 $18E, sets EventFlag_WrenJoined $70, party slot after Rune); docs/campaign/RUNNER_LOG_ZELAN.md (C4 probe facts: Zelan $18D elevator interact from (30,18) up opening (30..31,17), F1 Wren at (31,13), chest 5 the Canceller at (49,49), chest flag $0B); runtime-pack/maps/18D_Zelan.json and 18E_Zelan_F1.json; ps4.asm:114507 (MapUpdate_ZelanCanceller sets $72 once $0B is set, run every field frame by RunMapUpdates)",
+      "source": "docs/scenes/40_MeetingWren.md (Cutscene_MeetingWren $800C: Wren talked to on Zelan F1 $18E, sets EventFlag_WrenJoined $70, party slot after Rune); RUNNER_LOG_ZELAN (commit 0faa91b^) (C4 probe facts: Zelan $18D elevator interact from (30,18) up opening (30..31,17), F1 Wren at (31,13), chest 5 the Canceller at (49,49), chest flag $0B); runtime-pack/maps/18D_Zelan.json and 18E_Zelan_F1.json; ps4.asm:114507 (MapUpdate_ZelanCanceller sets $72 once $0B is set, run every field frame by RunMapUpdates)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "expect", "map": 397, "cell": [31, 46], "note": "where the flight leaves the party"},
@@ -709,7 +709,7 @@
     {
       "id": "dezolis-first-control",
       "title": "Raja Temple: first control on Dezolis, to the foot of the temple's exit",
-      "source": "docs/scenes/43_CrashLanding.md (Cutscene_CrashLanding returns 1 at Raja Temple $14C with Raja joined $88; the next movement is player-controlled); runtime-pack/maps/14C_RajaTemple.json (warp 0 at (95..96,38) to Dezolis $001); docs/campaign/RUNNER_LOG_DEZOLIS.md (H28: the step through that warp lands on Dezolis (36,95) and fires RunEvent_OutsideRajaTemple $31, event $43, which has no scene, so the route stops at the foot of the exit); psiv-campaign plan --from-map 332 --from-cell 94,27 --to-map 332 --to-cell 95,37",
+      "source": "docs/scenes/43_CrashLanding.md (Cutscene_CrashLanding returns 1 at Raja Temple $14C with Raja joined $88; the next movement is player-controlled); runtime-pack/maps/14C_RajaTemple.json (warp 0 at (95..96,38) to Dezolis $001); RUNNER_LOG_DEZOLIS (commit 0faa91b^) (H28: the step through that warp lands on Dezolis (36,95) and fires RunEvent_OutsideRajaTemple $31, event $43, which has no scene, so the route stops at the foot of the exit); psiv-campaign plan --from-map 332 --from-cell 94,27 --to-map 332 --to-cell 95,37",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to", "map": 332, "cell": [95, 37], "note": "the party's first ordinary walk on Dezolis: south through the temple to the foot of its exit, the cell above warp 0 (95..96,38)"},
@@ -722,7 +722,7 @@
     {
       "id": "dezolis-outside-raja-temple",
       "title": "Raja Temple exit: Event_OutsideRajaTemple plays and control returns on Dezolis",
-      "source": "docs/scenes/91_OutsideRajaTemple.md (Event_OutsideRajaTemple $43: DialogueTree14 entry 6, then Snowstorm $80); runtime-pack/maps/14C_RajaTemple.json (warp 0 to Dezolis $001 at (36,95)); docs/campaign/RUNNER_LOG_DEZOLIS.md (H28, closed by the event census)",
+      "source": "docs/scenes/91_OutsideRajaTemple.md (Event_OutsideRajaTemple $43: DialogueTree14 entry 6, then Snowstorm $80); runtime-pack/maps/14C_RajaTemple.json (warp 0 to Dezolis $001 at (36,95)); RUNNER_LOG_DEZOLIS (commit 0faa91b^) (H28, closed by the event census)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 1, "via_warp": 0, "note": "the step through warp 0 lands on Dezolis (36,95); RunEvent_OutsideRajaTemple fires $43 on the first field frame there"},
@@ -771,7 +771,7 @@
     {
       "id": "dezolis-tyler-prepare",
       "title": "Tyler: silver armour and cures before Kuran",
-      "source": "runtime-pack/shops.json (Tyler weapon shop inventories 34 and 35, item shop 36); runtime-pack/maps/120_Tyler.json (warps 3, 4 and 7); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it)",
+      "source": "runtime-pack/shops.json (Tyler weapon shop inventories 34 and 35, item shop 36); runtime-pack/maps/120_Tyler.json (warps 3, 4 and 7); RUNNER_LOG_KURAN (commit 0faa91b^) (the Dark Force 1 loss that asks for it)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 288, "via_warp": 1, "note": "native leg: the Hangar's warp 1 (66..67,20) up the grave stairs, arriving in Tyler at (20,26)"},
@@ -812,7 +812,7 @@
     {
       "id": "dezolis-training",
       "title": "Dezolis: train outside the spaceport, with the Tyler inn for a refuge and a last night",
-      "source": "runtime-pack/battle/formations.json (encounter group 11 on the Dezolis position grid: 1,363 to 4,236 experience a battle); runtime-pack/shops.json (Tyler inn 13); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it)",
+      "source": "runtime-pack/battle/formations.json (encounter group 11 on the Dezolis position grid: 1,363 to 4,236 experience a battle); runtime-pack/shops.json (Tyler inn 13); RUNNER_LOG_KURAN (commit 0faa91b^) (the Dark Force 1 loss that asks for it)",
       "random_battle_policy": "attack_all",
       "objectives": [
         {"do": "patrol", "map": 1, "a": [9, 74], "b": [18, 70], "until": {"party_level_at_least": 38}, "refuge": [{"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"}, {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"}, {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"}, {"do": "rest_inn", "face": "up", "note": "550 meseta for five: HP and TP whole"}, {"do": "go_to_map", "map": 288, "note": "out of the inn"}, {"do": "go_to_map", "map": 1, "note": "out of Tyler to the Dezolis overworld"}], "note": "open ground by the spaceport door; Dezolis's cold wears the party down (the map's poison flag), the party policy attacks and cures, the camp cure spends TP and the inn gives both back"},
@@ -846,7 +846,7 @@
     {
       "id": "kuran-elevators",
       "title": "Kuran: the elevator chain from the landing to the third floor",
-      "source": "runtime-pack/maps/190_Kuran.json .. 198_Kuran_F3.json (warps, and event $13 interaction areas: the elevator doors, Event_ElevatorDoorOpening $13); a breadth-first search over the pack's collision grids, doors and warps (RUNNER_LOG_KURAN.md)",
+      "source": "runtime-pack/maps/190_Kuran.json .. 198_Kuran_F3.json (warps, and event $13 interaction areas: the elevator doors, Event_ElevatorDoorOpening $13); a breadth-first search over the pack's collision grids, doors and warps (RUNNER_LOG_KURAN (commit 0faa91b^))",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "interact", "cell": [30, 18], "face": "up", "opens": [[30, 17], [31, 17]], "note": "Kuran's elevator door, interaction area 0 (30..31,17)"},
@@ -1038,7 +1038,7 @@
     {
       "id": "air-castle-xe-athoul-room",
       "title": "The Air Castle: through the maze to the Xe-A-Thoul room",
-      "source": "runtime-pack/maps/171_AirCastle.json .. 184_AirCastleXeAThoulRoom.json (the warp chain to AirCastle_Part6 $170 warp 16 at (63,53), the only door into $184); RUNNER_LOG_ICEDIGGER.md H38 (the chapter as recorded, restored without its wait once lane A5 landed the walk's abilities)",
+      "source": "runtime-pack/maps/171_AirCastle.json .. 184_AirCastleXeAThoulRoom.json (the warp chain to AirCastle_Part6 $170 warp 16 at (63,53), the only door into $184); RUNNER_LOG_ICEDIGGER (commit 0faa91b^) H38 (the chapter as recorded, restored without its wait once lane A5 landed the walk's abilities)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 388, "note": "AirCastleXeAThoulRoom $184: the Air Castle's random battles are run from"},
@@ -1082,7 +1082,7 @@
     {
       "id": "jut-outfit",
       "title": "Back to Dezolis for Laconian arms and reflective armour at Jut",
-      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16, wipes the party in the gear it wore since Kuran); runtime-pack/shops.json (Jut weapon shop $13C, counters 65 and 66); runtime-pack/maps/136_Jut.json (Dezolis warp 5 at (120,74); Jut warp 9 into the shop); RunEvent_AirCstlEnterSpaceship (RunEventsJmpTbl[$24], ps4.asm:115795-115801: y = $370, cell row 56 below the landing) and RunEvent_EnterSpaceship ($21, ps4.asm:115743-115754: the Dezo spaceport's row 19 at x 30..31)",
+      "source": "RUNNER_LOG_AIRCASTLE (commit 0faa91b^) (Lashiec, event battle 16, wipes the party in the gear it wore since Kuran); runtime-pack/shops.json (Jut weapon shop $13C, counters 65 and 66); runtime-pack/maps/136_Jut.json (Dezolis warp 5 at (120,74); Jut warp 9 into the shop); RunEvent_AirCstlEnterSpaceship (RunEventsJmpTbl[$24], ps4.asm:115795-115801: y = $370, cell row 56 below the landing) and RunEvent_EnterSpaceship ($21, ps4.asm:115743-115754: the Dezo spaceport's row 19 at x 30..31)",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 369, "note": "back through the maze to the Air Castle's landing $171"},
@@ -1125,7 +1125,7 @@
     {
       "id": "air-castle-training",
       "title": "AirCastle_F1_Part9: training across the recovery tile before the inner floors",
-      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16: a balance loss with every member alive, the Jut gear on and the party full); docs/scenes/102_Recovery.md (the tile at (31..32,28..29) refills the party on every crossing); runtime-pack/maps/176_AirCastle_F1_Part9.json (random battles on, the warps on rows 22 and 35)",
+      "source": "RUNNER_LOG_AIRCASTLE (commit 0faa91b^) (Lashiec, event battle 16: a balance loss with every member alive, the Jut gear on and the party full); docs/scenes/102_Recovery.md (the tile at (31..32,28..29) refills the party on every crossing); runtime-pack/maps/176_AirCastle_F1_Part9.json (random battles on, the warps on rows 22 and 35)",
       "random_battle_policy": "fight_to_win",
       "objectives": [
         {"do": "go_to_map", "map": 374, "note": "AirCastle_F1_Part9 $176: AirCastle $171 warp 0, AirCastle_Part2 warp 1, AirCastle_Part3 warp 5, arriving (31,34)"},
@@ -1170,7 +1170,7 @@
     {
       "id": "jut-inn",
       "title": "Jut: a night at the inn after Lashiec",
-      "source": "the Lashiec fight leaves members fallen and Wren shut down (RUNNER_LOG_AIRCASTLE.md); runtime-pack/shops.json (JutInn $142, inn 17, keeper (28,34)); runtime-pack/maps/136_Jut.json (warp 14 into the inn); RecoverStats (ps4.asm:136503) clears every status byte",
+      "source": "the Lashiec fight leaves members fallen and Wren shut down (RUNNER_LOG_AIRCASTLE (commit 0faa91b^)); runtime-pack/shops.json (JutInn $142, inn 17, keeper (28,34)); runtime-pack/maps/136_Jut.json (warp 14 into the inn); RecoverStats (ps4.asm:136503) clears every status byte",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 1, "note": "out of the temple: Gumbious_F1, Gumbious, the entrance, Dezolis (125,71)"},

@@ -111,8 +111,8 @@ def assemble_dialogue_source(path: Path, charset: dict[str, int], symbols: dict[
     Nothing here is a general assembler: only `dc.b`, `dc.w` and a flat
     `if/else/endif` on a numeric option are accepted, and an unmappable
     character or an unexpected directive raises rather than being coerced --
-    `compress_script.py` silently substitutes a space for unknown characters,
-    and an oracle that does the same could hide a charset error.
+    `reference/ps4disasm/script/compress_script.py` silently substitutes a
+    space for unknown characters, and an oracle that does the same could hide a charset error.
     """
     out = bytearray()
     condition: list[tuple[bool, bool]] = []
@@ -149,7 +149,7 @@ def assemble_dialogue_source(path: Path, charset: dict[str, int], symbols: dict[
     if condition:
         raise AssertionError(f"{path.name}: unterminated if")
     if len(out) % 2:
-        out.append(0)  # compress_script.py pads the tree to an even length
+        out.append(0)  # the disassembly's compressor pads the tree to an even length
     return bytes(out)
 
 

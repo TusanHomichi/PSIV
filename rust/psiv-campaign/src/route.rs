@@ -15,7 +15,7 @@
 //!     {
 //!       "id": "academy-principal",
 //!       "title": "Meet the principal",
-//!       "source": "rust/psiv-runtime/examples/academy_route.rs",
+//!       "source": "docs/scenes/03_AlysFound.md",
 //!       "random_battle_policy": "attack_all",
 //!       "objectives": [
 //!         { "do": "go_to", "map": 19, "cell": [38, 17] },

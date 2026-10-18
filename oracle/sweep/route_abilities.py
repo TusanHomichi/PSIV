@@ -4,7 +4,7 @@
     python3 -m oracle.sweep.route_abilities --json       # the same, as JSON
     python3 -m oracle.sweep.route_abilities --stretch zelan-kuran
     python3 -m oracle.sweep.route_abilities --out build/route-set.json
-    python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ROUTE.md
+    python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ZELAN_TO_KURAN.md
     python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle \
         --update-doc docs/battle/ENEMY_ABILITIES_AIR_CASTLE.md
     python3 -m oracle.sweep.route_abilities --map-pattern '^(Zelan|Kuran)' \\
@@ -112,10 +112,10 @@ class Stretch:
 STRETCHES = {
     # Zelan through the sabotage, the crash landing, Raja Temple, Dezolis,
     # Tyler's grave, the Hangar and `Cutscene_Landale`, then the flight to
-    # Kuran and the three events behind it (docs/scenes/42-48). Kuran's own
-    # maps are the stretch's end: `Event_KuranArrival` (scene 45) is the trigger
-    # of `RunEventsJmpTbl[$2C]` on map `$190`, and the interior's encounters
-    # share its group.
+    # Kuran and the three events behind it (scene documents 42 to 48 under
+    # `docs/scenes/`). Kuran's own maps are the stretch's end:
+    # `Event_KuranArrival` (scene 45) is the trigger of `RunEventsJmpTbl[$2C]`
+    # on map `$190`, and the interior's encounters share its group.
     "zelan-kuran": Stretch(
         first_chapter="zelan-wren-canceller",
         last_chapter="kuran-dark-force-1",
@@ -126,7 +126,7 @@ STRETCHES = {
     ),
     # The route past Dark Force 1 (C7): Zelan F1 on the Ice Digger, Meese, the
     # carnivorous trees, the Esper Mansion, the Gumbious Temple and the flight to
-    # the Air Castle (docs/scenes/99-101). The route
+    # the Air Castle (scene documents 99 to 101 under `docs/scenes/`). The route
     # ends at the Air Castle's landing, because the walk on from it meets
     # abilities the engine does not run; the stretch covers that walk and the
     # fixed battles ahead, so the enemy-ability lane that closes them can read
@@ -150,7 +150,7 @@ STRETCHES = {
 }
 
 
-#: The scene documents of the game's last part, `docs/scenes/57` to `89`:
+#: The scene documents of the game's last part, `docs/scenes/`, 57 to 89:
 #: Dark Force 2 to the Ending. `88_RetailBoundaries.md` is the census of the
 #: retail surfaces beside the story chain and transcribes no scene, so it has
 #: no **Data** row; the battle it names (the Anger Tower's Alys fight) is the
@@ -161,12 +161,12 @@ ENDGAME_SCENE_DOCS = tuple(
     for path in sorted((ROOT / "docs" / "scenes").glob(f"{number}_*.md")))
 
 STRETCHES["air-castle-ending"] = Stretch(
-    # Everything after the Air Castle to the Ending (lane A6). The route file
+    # Everything after the Air Castle to the Ending. The route file
     # does not reach these maps yet, so the scope is the explicit kind: map
     # families and the scene documents 57-89. Each family is a dungeon whose
     # map event list (`generated/maps.json` `events`, indexes into
     # `RunEventsJmpTbl`, `ps4.asm:115011`) holds an event of those scenes, or
-    # a dungeon the owner's A6 scope names; the world maps the scenes load
+    # a dungeon the endgame scope names; the world maps the scenes load
     # (Motavia for Seth and Dark Force 3, Dezolis after Dark Force 2) come in
     # through the scene documents. Myst Vale (group 46) is left out: its only
     # events are the Musk Cats' interactions (`EventPtrs[$49]`/`[$4A]`,
@@ -188,7 +188,7 @@ STRETCHES["air-castle-ending"] = Stretch(
         (r"^Rykros$", "Rykros: Cutscene_Rykros once Dark Force 3 falls "
                       "(loc_64C1E, scene census 88)"),
         (r"^(VahalFort|WeaponPlant)", "Vahal Fort and the Weapon Plant "
-                                      "(named by the A6 scope)"),
+                                      "(scenes 110 and 111)"),
         (r"^(StrengthTower|CourageTower|AngerTower)",
          "the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys "
          "fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86)"),
@@ -209,7 +209,7 @@ STRETCHES["air-castle-ending"] = Stretch(
 #: (`--update-doc`); `tests/test_route_abilities.py` holds every one to its
 #: derivation.
 STRETCH_DOCS = {
-    "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md",
+    "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ZELAN_TO_KURAN.md",
     "dezolis-air-castle": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_AIR_CASTLE.md",
     "air-castle-ending": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ENDGAME.md",
 }

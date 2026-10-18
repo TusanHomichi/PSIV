@@ -29,7 +29,7 @@ The shape of one formation's run, and the reason for each part:
 * one shared scout cache: the base tape's own run is 36k frames and every
   capture needs the same facts from it, so it is warmed once and read after.
 
-`oracle/sweep_motavia.json` (or `--out`'s own name) is the record: per
+`<out>/sweep_motavia.json` is the record: per
 formation the group, the selector, the capture's hashes, the outcome, the
 rounds and the abilities observed, and the fixture's own hash - plus a summary
 census. `docs/oracle/BATTLE_ORACLE_SWEEP.md` is where the divergences that record

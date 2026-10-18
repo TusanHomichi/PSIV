@@ -186,6 +186,6 @@ Peter's memory and the scouting note.
    from row 16 produces zero frames of Alys motion; from row 17, exactly 16
    frames of step animation.*
 3. **`Event_AddMacro`'s side effects.** Not disassembled in this pass. It is the
-   party-join primitive shared with `Event_MeetingHahn`; the follower/render
-   half is core-lane's. Needs its own read before the interpreter can claim
+   party-join primitive shared with `Event_MeetingHahn`; its follower/render
+   half belongs to the field renderer. Needs its own read before the interpreter can claim
    party joins are complete.

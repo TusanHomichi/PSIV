@@ -1,7 +1,7 @@
 //! Shop counters, stock lists and inn rates: the pack's `shops.json`.
 //!
 //! The cartridge binds a shop to the shopkeeper's position (`docs/camp/SHOPS.md`,
-//! "Counters"): `Shop_FindCounter` (`0x065D12`) scans the eight-byte rows of
+//! "How a shop opens"): `Shop_FindCounter` (`0x065D12`) scans the eight-byte rows of
 //! `ShopCounters` for the map and the position of the object the party talked
 //! to. A row is a counter, an inn or a shop; a shop names one of the
 //! `ShopInventories` lists, an inn one of the eighteen rate words.

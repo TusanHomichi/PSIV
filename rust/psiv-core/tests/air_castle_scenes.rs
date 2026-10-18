@@ -1,4 +1,4 @@
-//! Scene outcomes on the Air Castle and Garuberk Tower stretch (lane C8):
+//! Scene outcomes on the Air Castle and Garuberk Tower stretch:
 //! each case runs the registered scene through `SceneRunner` and holds it to
 //! what the cartridge's routine does, cited per case (`docs/scenes/102_*` to
 //! `104_*`).

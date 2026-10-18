@@ -40,14 +40,10 @@ the inn/healing section.
 
 ## Revision-conditional ops
 
-The two `move.l #DialogueTree6, d0 / jsr (DialogueTreesToRAM).l` calls before
-dialogues `$2C` and `$2D` (`ps4.asm:154305`, `:154465`), and the tree-5 restore
-at `:154558`, all sit under `if revision>0`; this build is English
-(`revision = 1`), so all three run. The first two were missed until the campaign runner halted on the wrong
-dialogue tree — the
-Saya branch then read Krup Inn F1's bound tree 5, whose entries 44 to 46 are
-empty, and the resume after dialogue `$2C` had no cursor. See the
-[revision audit](REVISION_AUDIT.md).
+Three ops of this scene run only on `revision>0` builds, which the US retail
+cartridge is: two `DialogueTree6` loads and the tree-5 restore. They are listed
+in the [revision audit](REVISION_AUDIT.md#every-other-revision-conditional-op-in-a-transcribed-body).
+
 
 ## Verification
 

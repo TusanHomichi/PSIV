@@ -84,7 +84,7 @@ class Retail(unittest.TestCase):
                           for e in parsed["loc_1A2F4"]["enemies"]], [(1, 36, 0x14)])
         self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])
                           for e in parsed["loc_23D00"]["enemies"]], [(1, 87, 0x14)])
-        # Lane A6: the WorkerPods' COMBINE seats one LifeDeletr (27571-27572),
+        # Endgame stretch: the WorkerPods' COMBINE seats one LifeDeletr (27571-27572),
         # FractOoze's FISSION four JR.OOZE at 8, $10, $18, $20 (35075-35076),
         # InfantWorm's NOTHING one SandWorm (45818).
         self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])

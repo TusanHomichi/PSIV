@@ -39,7 +39,7 @@ delete NPC-Alys, hand slot 1 to field-Alys, `Event_AddMacro`, move camera.
 (Grand Cross's generator) has replaced retail scene code in this fork
 unconditionally. For those scenes the disassembly is *not* a map of retail;
 the cartridge bytes are the only source, and the fork tells us at most where
-the scene begins. Any transcription lane must disassemble retail bytes for
+the scene begins. A transcription must disassemble retail bytes for
 scene content and treat the fork's scene files as adversarial. (Dialogue tree
 17's wholesale rewrite was the same phenomenon on the data side.)
 

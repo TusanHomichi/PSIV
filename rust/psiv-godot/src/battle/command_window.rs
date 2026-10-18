@@ -125,7 +125,8 @@ pub(super) fn strip_cursor(tiles: &mut CommandTiles, menu: &CommandMenuView) -> 
     let x = (column + 1) * 8 + CURSOR_STEP * i32::from(strip.cursor);
     // The sprite table the VDP reads is DMA'd from the buffer a frame after the
     // object writes it, so the frame on screen is the one the clock had a tick
-    // ago (`docs/battle/BATTLE_COMMAND_UI.md`, "Cursor clock").
+    // ago (`docs/battle/BATTLE_COMMAND_UI.md`, "The per-character command strip", its
+    // cursor-lag row).
     let frame = ((strip.age - 1) / CURSOR_TICKS_PER_FRAME) as usize % 2;
     tiles.sprite_2x2(CURSOR_FRAME_TILES[frame], x, CURSOR_Y)
 }

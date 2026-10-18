@@ -364,7 +364,7 @@ fn the_land_rover_item_boards_and_the_next_map_load_parks_it() {
         return;
     }
     // The Machine Center has risen (flag `$43`), which is what opens its door
-    // cells for a freshly built map (`RUNNER_LOG.md` H19).
+    // cells for a freshly built map (the runner log's H19, commit 0faa91b^).
     let mut game = with_pack(0, &[ITEM_LAND_ROVER], 0);
     game.set(psiv_core::Flag::event(0x43)).unwrap();
     let mut player = Player::new(MACHINE_CENTER_DOOR, &game);

@@ -4,7 +4,7 @@ None of this needs the ROM. The rectangles are the fifteen routines' own
 arithmetic, so they are checkable against the disassembly by reading, and the
 ROM-backed half -- that retail records select only nine of the fifteen, and
 that every doorway's rectangle covers a map-change cell -- lives in
-`test_pack.py` where the pack is.
+`test_pack_maps.py` where the pack is.
 """
 
 import unittest

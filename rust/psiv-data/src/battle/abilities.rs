@@ -34,10 +34,10 @@ impl AbilitiesFile {
     ///
     /// Excludes anything whose effect id runs past `AbilityEffectsOffs`, which
     /// the cartridge would dispatch through an unbounded `TRAP #2` into
-    /// whatever follows the table. `docs/RUNTIME_DESIGN.md` "Battle bug policy"
-    /// ratifies rejecting those rather than reproducing the jump, and this is
-    /// where the rejection happens — a consumer that iterates this cannot pass
-    /// one on by accident.
+    /// whatever follows the table. `docs/source-notes/README.md` "Deliberate fixes
+    /// to retail battle bugs" ratifies rejecting those rather than reproducing
+    /// the jump, and this is where the rejection happens — a consumer that
+    /// iterates this cannot pass one on by accident.
     pub fn usable(&self) -> impl Iterator<Item = &Ability> {
         self.all().filter(|record| !record.effect_out_of_range)
     }

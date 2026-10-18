@@ -1,6 +1,6 @@
 //! Sprite construction for one battle: background, enemies, party.
 //!
-//! Lifted out of the single `battle/ui.rs` file with the S3 node. Every value
+//! Lifted out of the former single-file battle UI module (commit 25701a1). Every value
 //! here comes from the pack (art tables, formation positions, party sheets);
 //! nothing is decided.
 

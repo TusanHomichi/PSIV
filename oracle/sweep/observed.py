@@ -4,7 +4,7 @@
     python3 -m oracle.sweep.observed --dir arc_motavia
 
 A capture only proves an ability if the enemy used it, so the table of
-`docs/oracle/BATTLE_ORACLE_ZELAN.md` is not typed: this reads every committed
+`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10 is not typed: this reads every committed
 fixture of a directory and prints, per ability action, the fixture, the round,
 the frame the ability byte moved on, the fighter that cast it, the rolls the
 action drew, and the cells the log shows moving (status bits gained, battle

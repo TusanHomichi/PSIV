@@ -44,7 +44,7 @@
 //!
 //! The ledger entries — chains, citations, the captures that observed each
 //! pair — are `docs/battle/ENEMY_EFFECT_ABILITIES.md` and
-//! `docs/oracle/BATTLE_ORACLE_ARC.md`.
+//! `docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10.
 
 use super::stats::status;
 use super::technique::{TechniqueStat, stat};

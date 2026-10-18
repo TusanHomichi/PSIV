@@ -1,4 +1,4 @@
-//! The Mota Spaceport's boarding row, walked and flown with pads (lanes C4, M23).
+//! The Mota Spaceport's boarding row, walked and flown with pads.
 //!
 //! The boarding row is a type-1 collision cell whose job is an event, not a
 //! warp: the cartridge's `RunEvents` runs before `RunMapTransitions`

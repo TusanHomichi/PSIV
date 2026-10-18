@@ -12,8 +12,10 @@ lines it prints.
 The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
 controls (a missing link target, a missing anchor, a missing command path, an
-unmatched glob, a `yaml` block that does not parse and a host-absolute home
-path, each rejected by name and line) and positive cases that pin
+unmatched glob, a `yaml` block that does not parse, a host-absolute home
+path, and issue #119's run records: a log or ledger file name or title, a dated
+title, every deleted record's name and title, a dated receipt table and a
+task-graph `yaml` block, each rejected by name and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -38,7 +40,7 @@ CHECKER = ROOT / "tools" / "check_docs.py"
 SUMMARY_RE = re.compile(
     r"checked (?P<files>\d+) files, (?P<links>\d+) links, "
     r"(?P<anchors>\d+) anchors, (?P<paths>\d+) command paths, "
-    r"(?P<yaml>\d+) yaml blocks; "
+    r"(?P<yaml>\d+) yaml blocks, (?P<code>\d+) code paths; "
     r"(?P<problems>\d+) problem\(s\)"
 )
 
@@ -245,7 +247,7 @@ class NegativeControls(RepoCase):
         code, out = self.check({
             "docs/report.md": lines(
                 "# Report", "",
-                "Set GODOT=/home/alice/.local/bin/godot first.",
+                "Set TOOL=/home/alice/.local/bin/tool first.",
                 "```sh", "/Users/bob/bin/godot --path godot", "```",
             ),
         })
@@ -367,7 +369,7 @@ class AcceptedCases(RepoCase):
         code, out = self.check({
             "docs/report.md": lines(
                 "# Report", "",
-                "The default is `~/.local/bin/psiv-godot`, or $HOME/.local/bin.",
+                "The default is `~/.local/bin/psiv-tool`, or $HOME/.local/bin.",
                 "[site](https://example.invalid/home/alice/page)",
                 "See https://example.com/home/x for the page, and ~/home/a/b.",
             ),
@@ -395,6 +397,277 @@ class AcceptedCases(RepoCase):
         self.assertEqual(SUMMARY_RE.search(out)["paths"], "4", out)
 
 
+class RunRecords(RepoCase):
+    """Issue #119: no new run log, dated receipt ledger or task graph in a doc.
+
+    One negative control per class, and the research shapes that must pass.
+    """
+
+    def test_a_run_log_file_name(self):
+        for name in ("docs/campaign/RUNNER_LOG_KURAN.md", "docs/run-log.md", "docs/LANE_LOGS.md"):
+            with self.subTest(name=name):
+                code, out = self.check({name: lines("# Runs")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"{name}:1: run record file name", out)
+
+    #: The deleted records, by name and first lines (`git show 0faa91b^:<path>`,
+    #: and `3ea02d7^` for the last two). Each must be refused by its name or title.
+    DELETED_RECORDS = {
+        "docs/campaign/NATIVE_PLAYABILITY.md": ["# Native playability — evidence ledger"],
+        "docs/campaign/PLAYABILITY_ACADEMY.md": [
+            "_Academy — part of the [native playability ledger](NATIVE_PLAYABILITY.md); "
+            "see the [documentation index](../README.md)._", "",
+            "## Native combat continuation"],
+        "docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md": [
+            "_Alshline and Zema — part of the [native playability ledger]"
+            "(NATIVE_PLAYABILITY.md); see the [documentation index](../README.md)._", "",
+            "## Connected Alshline progression"],
+        "docs/campaign/PLAYABILITY_FOUNDATIONS.md": [
+            "_Foundations and audit — part of the [native playability ledger]"
+            "(NATIVE_PLAYABILITY.md); see the [documentation index](../README.md)._", "",
+            "## Audit context"],
+        "docs/campaign/PLAYABILITY_HOLT_TONOE.md": [
+            "_Holt and Tonoe — part of the [native playability ledger](NATIVE_PLAYABILITY.md); "
+            "see the [documentation index](../README.md)._", "",
+            "## Field TECH and SKILL recovery"],
+        "docs/campaign/RUNNER_HALTS_EARLY.md": ["# Early runner halt receipts (H1–H16)"],
+        "docs/campaign/RUNNER_LOG_ZELAN.md": ["# Runner log: the Zelan arc (C4, M23)"],
+        "docs/campaign/AIEDO.md": ["# Aiedo arrival (`$54`) — campaign segment ledger"],
+        "docs/records/CLAUDE_LANES.md": ["# Claude Code lane ledger"],
+        "docs/records/WORKFLOW_SETUP.md": ["# Workflow setup ledger"],
+        "docs/records/REDSHIRT_BATTLE.md": ["# Redshirt battle-decision experiment (archived)"],
+        "docs/records/history/2026-08-14-origin.md": [
+            "# Origin conversation (recovered 2026-08-14)"],
+        "docs/DISPATCH.md": ["# Dispatch tiers (2026-08-15)"],
+        "docs/IMPLEMENTATION_HISTORY.md": ["# Implementation archive"],
+    }
+
+    def test_the_deleted_records_are_refused(self):
+        for name, body in self.DELETED_RECORDS.items():
+            with self.subTest(name=name):
+                code, out = self.check({name: lines(*body)})
+                self.assertEqual(code, 1, out)
+                self.assertRegex(out, rf"{re.escape(name)}:1: (run record (file name|title)"
+                                      r"|dated title)")
+
+    def test_a_record_title(self):
+        for title, word in (("# Runner log: the Zelan arc", "log"),
+                            ("# Lane receipts", "receipts"),
+                            ("# Implementation history", "history"),
+                            ("# Lane and integration history", "history"),
+                            ("# Run histories", "histories"),
+                            ("# Field journal", "journal")):
+            with self.subTest(title=title):
+                code, out = self.check({"docs/notes.md": lines("", title, "", "Text.")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"docs/notes.md:2: run record title ({word})", out)
+
+    def test_a_dated_title(self):
+        code, out = self.check({"docs/tiers.md": lines("# Dispatch tiers (2026-08-15)")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/tiers.md:1: dated title (2026-08-15)", out)
+
+    def test_message_log_and_lore_history_documents_pass(self):
+        code, out = self.check({
+            "docs/battle/MESSAGE_LOG.md": lines("# The battle message log", "",
+                                                "## Log lines", "", "Each line is a window."),
+            "docs/scenes/LOG_WINDOW.md": lines("# Log window"),
+            "docs/scenes/ALGO_HISTORY.md": lines("# The history of Algo", "",
+                                                 "The thousand-year cycle."),
+        })
+        self.assertEqual(code, 0, out)
+
+    def test_a_receipt_ledger_file_name(self):
+        code, out = self.check({"docs/LANE_LEDGER.md": lines("# Lanes"),
+                                "docs/receipts.md": lines("# Receipts")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/LANE_LEDGER.md:1: run record file name (LEDGER)", out)
+        self.assertIn("docs/receipts.md:1: run record file name (RECEIPTS)", out)
+
+    def test_a_dated_receipt_table(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "",
+            "| date | lane | outcome |", "|---|---|---|",
+            "| 2026-09-23 | bake-D | accepted |",
+            "| 2026-09-24 | ab-F | accepted |",
+            "| 2026-09-24 | ab-G | sent back |",
+        )})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:5: dated receipt ledger (3 table rows open with a date)", out)
+
+    def test_a_task_graph_block(self):
+        graphs = {
+            "nodes": ["outcome: a route", "nodes:", "  - id: C1", "    state: ready"],
+            "depends_on": ["- id: C2", "  depends_on: [C1]"],
+            "next_action": ["plan:", "  next_action: C3"],
+        }
+        for key, body in graphs.items():
+            with self.subTest(key=key):
+                code, out = self.check({"docs/plan.md": lines("# Plan", "", "```yaml", *body, "```")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"docs/plan.md:3: yaml block is a task graph ({key})", out)
+
+    def test_a_run_evidence_path(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "Transcripts are in `build/lane-evidence/run.log`.",
+            "", "```bash", "ls build/x86-evidence/", "```")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: run evidence path (build/lane-evidence)", out)
+        self.assertIn("docs/notes.md:6: run evidence path (build/x86-evidence)", out)
+
+    def test_a_lane_name(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "",
+            # docs/field/CAMERA.md:165 before the #120 sweep.
+            "oracle-lane's camera columns: `leader - camera_FG` is exactly (152, 88) on",
+            "seated through battle-scout-lane's path; the render half is core-lane's.",
+            "Moved (lane A4), and lanes P88b and c9 agreed.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: lane name (oracle-lane's)", out)
+        self.assertIn("docs/notes.md:4: lane name (battle-scout-lane's)", out)
+        self.assertIn("docs/notes.md:4: lane name (core-lane's)", out)
+        self.assertIn("docs/notes.md:5: lane name (lane A4)", out)
+        self.assertIn("docs/notes.md:5: lane name (lanes P88b)", out)
+
+    def test_lane_as_a_word_passes(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "A lane is a branch and a worktree; each lane runs the fast gate.",
+            "The planner keeps one lane per road (`lane_of`), and the lanes merge in order.")})
+        self.assertEqual(code, 0, out)
+
+    def test_a_timestamped_receipt_directory(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "12/12 (receipt", "`build/certify/20261006T230810Z-1b01ee7/`).",
+            "Gate: build/gate/20261018T025426Z-3bddabae1a684f30c10fa66987de76700ddc308f.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:4: run evidence path "
+                      "(build/certify/20261006T230810Z-1b01ee7)", out)
+        self.assertIn("docs/notes.md:5: run evidence path (build/gate/20261018T025426Z-", out)
+
+    def test_an_archived_lane_build(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "The capture is in `build/lanes/p88b/forced/`.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: run evidence path (build/lanes)", out)
+
+    def test_where_receipts_go_passes(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "Each run writes `build/gate/<UTC stamp>-<sha>/` and",
+            "`build/certify/`; captures go to `build/forced/helex`, `build/lanesplit`.")})
+        self.assertEqual(code, 0, out)
+
+    def test_research_shapes_pass(self):
+        code, out = self.check({
+            "docs/source-notes/battle.md": lines(
+                "# Battle", "",
+                "## 2026-10-03 - Rounds that open no party command window", "",
+                "## 2026-09-24 - The vehicle's own attack", "",
+                "## 2026-09-12 - Battle items", "",
+                "| ability | captured |", "|---|---|",
+                "| VOL | 2026-10-15, three fixtures |",
+                "| 2026-09-23 | one dated row |",
+                "| 2026-09-24 | and a second |",
+                "", "```yaml", "formation: 0x1E1", "rounds: [1, 2]", "```",
+                "", "Captures go to `build/forced/helex` and `build/sweep`.",
+            ),
+            "CHANGELOG.md": lines("# Changes"),
+            "docs/CATALOG.md": lines("# Catalog"),
+        })
+        self.assertEqual(code, 0, out)
+
+
+class LaneNamesInCode(RepoCase):
+    """Issue #120 in code: a lane name in a comment or docstring is refused;
+    the same words in a string, an identifier or shell's `$#` are not."""
+
+    #: The lines 4d6d01e and the #120 sweep reworded, as they were.
+    OLD_LINES = {
+        "psiv_tools/map_effects/anchors.py": (
+            "#: `$F140` name is under review -- core-lane's map-load scout finds that bank\n",
+            59),
+        "tests/test_map_effects.py": (
+            'class TestFlagClears:\n    """Map-load flag clears, and the table core-lane '
+            'transcribed by hand."""\n', 553),
+        "tests/test_npc_commands.py": (
+            "def f():\n    # The NPC scene-lane traced: `moveq #1,d7` before the move call.\n"
+            "    return 1\n", 248),
+        "rust/psiv-core/src/battle/enemy_damage/routes/endgame.rs": (
+            "//! The damage arms after the Air Castle (lane A6): the Weapon Plant, Vahal Fort\n",
+            1),
+    }
+
+    def test_the_old_lines_are_refused(self):
+        files = {name: body for name, (body, _) in self.OLD_LINES.items()}
+        code, out = self.check({"README.md": lines("# R"), **files})
+        self.assertEqual(code, 1, out)
+        for name, found in (("psiv_tools/map_effects/anchors.py", "core-lane's"),
+                            ("tests/test_map_effects.py", "core-lane"),
+                            ("tests/test_npc_commands.py", "scene-lane"),
+                            ("rust/psiv-core/src/battle/enemy_damage/routes/endgame.rs",
+                             "lane A6")):
+            self.assertRegex(out, rf"{re.escape(name)}:\d+: lane name \({re.escape(found)}\)")
+
+    def test_every_comment_form(self):
+        code, out = self.check({
+            "README.md": lines("# R"),
+            "a.rs": lines("let x = 1; // lane A5 read it", "/* the C8-lane's",
+                          "   block */ let y = '\"'; // and lane S7"),
+            "b.gd": lines("var x = 1  # lane O1's capture"),
+            "c.sh": lines("#!/bin/bash", "echo hi  # lanes C4, M23"),
+        })
+        self.assertEqual(code, 1, out)
+        for where in ("a.rs:1: lane name (lane A5)", "a.rs:2: lane name (C8-lane's)",
+                      "a.rs:3: lane name (lane S7)", "b.gd:1: lane name (lane O1)",
+                      "c.sh:2: lane name (lanes C4)"):
+            self.assertIn(where, out)
+
+    def test_a_stale_exemption_is_reported(self):
+        from unittest import mock
+        from tools import check_docs
+        stale = {("tools/check_docs.py", "a line nobody wrote, lane A9")}
+        with mock.patch.object(check_docs, "LANE_NAME_EXEMPT",
+                               check_docs.LANE_NAME_EXEMPT | stale):
+            problems = check_docs.lane_name_problems(Path(check_docs.__file__).parents[1])
+        self.assertEqual(problems, ["tools/check_docs.py: LANE_NAME_EXEMPT matches no line "
+                                    "of tools/check_docs.py: a line nobody wrote, lane A9"])
+
+    def test_strings_identifiers_and_shell_counts_pass(self):
+        code, out = self.check({
+            "README.md": lines("# R"),
+            "a.py": lines("RESULT = 'include an out-of-lane ability'", "out_of_lane = 1"),
+            "b.rs": lines('const S: &str = "lane A6 // not a comment";'),
+            "c.sh": lines('echo "$# args, lane A6"', 'n=${#x}'),
+        })
+        self.assertEqual(code, 0, out)
+
+
+class PinnedVersions(RepoCase):
+    """Issue #133: a document points at a pin file instead of copying its version."""
+
+    PINS = {".godot-version": "4.7.1\n",
+            "rust-toolchain.toml": '[toolchain]\nchannel = "1.97.1"\n'}
+
+    def test_a_pinned_version_written_out(self):
+        code, out = self.check({**self.PINS, "README.md": lines(
+            "# Game", "", "| Godot | 4.7.1 | standard build |", "", "Rust 1.97.1 builds it.",
+            "", "```bash", "export PSIV_GODOT=/opt/engine/v4.7.1/bin/engine", "```")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("README.md:3: pinned version 4.7.1 written out: point at .godot-version", out)
+        self.assertIn("README.md:5: pinned version 1.97.1 written out: point at "
+                      "rust-toolchain.toml", out)
+        self.assertIn("README.md:8: pinned version 4.7.1 written out", out)
+
+    def test_other_versions_and_pointers_pass(self):
+        code, out = self.check({**self.PINS, "README.md": lines(
+            "# Game", "", "Godot is the version in `.godot-version`; 4.6.1 is refused,",
+            "and so are 4.7.10, 14.7.1 and 4.7.1.1; Rust is `rust-toolchain.toml`'s.")})
+        self.assertEqual(code, 0, out)
+
+    def test_without_pin_files_nothing_is_pinned(self):
+        code, out = self.check({"README.md": lines("# Game", "", "Godot 4.7.1 and Rust 1.97.1.")})
+        self.assertEqual(code, 0, out)
+
+
 class SummaryAndExit(RepoCase):
     """The summary line, the exit status and the root guard."""
 
@@ -408,7 +681,7 @@ class SummaryAndExit(RepoCase):
             ),
             "docs/notes.md": lines(
                 "# Notes", "## Notes", "",
-                "```yaml", "next_action: \"a quoted: colon\"", "evidence: [\"a\", \"b\"]", "```",
+                "```yaml", "note: \"a quoted: colon\"", "evidence: [\"a\", \"b\"]", "```",
                 "", "```yml", "also: [checked]", "```",
             ),
             "tests/test_one.py": lines("# a test"),

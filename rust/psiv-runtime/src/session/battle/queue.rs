@@ -66,7 +66,8 @@ mod tests {
     use psiv_core::battle::FighterId;
 
     /// The sound and animation sidecars stay keyed to the event that raises
-    /// them, in event order. Moved here from `psiv-godot/src/battle/sfx.rs`.
+    /// them, in event order. Moved here from the Godot
+    /// crate's battle sound module (commit 25701a1).
     #[test]
     fn queued_events_keep_their_sound_and_animation_sidecars_in_order() {
         let party = FighterId::new(1).expect("party fighter");

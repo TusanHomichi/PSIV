@@ -1,6 +1,6 @@
-# Battle system: scouting notes continuation
+# A worked basic attack
 
-This companion to [battle research](BATTLE_SCOUT.md) retains the worked
+This companion to [battle research](BATTLE_RULES.md) retains the worked
 numerical example and retail address tables. Obsolete v1 estimates and
 design-session questions have been removed. Use [runtime architecture](../RUNTIME_DESIGN.md)
 for the chosen RNG model and [the roadmap](../ROADMAP.md) for remaining work.

@@ -1,4 +1,4 @@
-//! The Air Castle stretch's damage arms (lane A5), from the worms and sabres of
+//! The Air Castle stretch's damage arms, from the worms and sabres of
 //! group 52 to the three fixed battles behind Xe-A-Thoul's room.
 //!
 //! GRA: EnemyAttack_DimensWorm (EnemyAttackOffs $49/$4A, ps4.asm:19280-

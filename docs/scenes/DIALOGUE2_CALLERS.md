@@ -44,7 +44,7 @@ second is the address in the US image, which is the authority. "Tree" is what
 `GetDialogueByID` indexes at the call: the tree the scene loads itself, or else
 the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 `dialogue_tree`, from the trigger census in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md)). Entry text is the first line in
+[trigger census](TRIGGER_CENSUS.md)). Entry text is the first line in
 `runtime-pack/dialogue/trees.json` for that tree and entry.
 
 | # | `ps4.asm` | Image `jsr` | Scene (event) | Entry | Tree at the call | Entry text | Port before | Port after |
@@ -76,8 +76,8 @@ Findings:
 - **Ten of ten window-variant mismatches (rows 1 to 10):** nine transcribed
   callers used the standard window, which destroys the panels the cartridge
   leaves up, and the tenth was the resume of row 1.
-- **One caller has no scene** (row 11, `Event_AngerTowerAlys`; rows 12 to 14 were
-  transcribed by the event census lane): its event is in the retail `EventPtrs`
+- **One caller has no scene** (row 11, `Event_AngerTowerAlys`; rows 12 to 14 are
+  transcribed): its event is in the retail `EventPtrs`
   table and fires from a dialogue `$F6` on Dezolis, but the port transcribes
   nothing for it, so it plays nothing. It is deliberately not hidden: the
   census lists it in `UNTRANSCRIBED` (`tests/test_dialogue2_callers.py`) and
@@ -93,13 +93,7 @@ Findings:
   campaign records, not of the Dialogue2 class; tracked by
   [#71](https://github.com/TusanHomichi/PSIV/issues/71).
 
-## Open-gap issue handoff (2026-10-03)
-
-An audit at `82eed831af88234feec8ab8b9322a9d2624de91f` inspected all 44
-open and closed GitHub issues. Open [#71](https://github.com/TusanHomichi/PSIV/issues/71)
-already names all four missing callers and the party-move discrepancy; no
-duplicate issue was filed. Its sibling-dialogue census work remains outside
-this closeout.
+## The uncovered callers' spans
 
 The local image matches the [accepted US ROM hash](../DEVELOPMENT.md#prepare-the-local-pack).
 `psiv_tools/newgame.py::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the

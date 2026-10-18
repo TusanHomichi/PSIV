@@ -134,7 +134,7 @@ producing pads from views only:
 `plan --vehicle N` prints a walking plan for a mounted party. Mounted walks and
 the validator's `vehicle` claim exist because Motavia's sand blocks a walker and
 the Land Rover crosses it: the Ladea Tower cannot be reached on foot from Krup
-(`tests/cli.rs::plan_vehicle_crosses_the_sand_to_the_tower`).
+(`rust/psiv-campaign/tests/cli.rs::plan_vehicle_crosses_the_sand_to_the_tower`).
 
 `field.rs` is the loop every controller calls first: it plays frames until the
 game hands control back, turning finished pages with Speak, acknowledging chest
@@ -148,7 +148,7 @@ each fighter as the engine holds it, and what each member's window would enable
 (`Runtime::window_techniques`, `window_skills`, `window_items`), valued with the
 engine's own formulas and rules. It returns an `Intent` and `battle.rs` presses
 the menus to it. The rules are in those modules' docs, their tests in
-`policy_plan_tests.rs` and `tests/party_policy.rs`. Losing is a halt; after a
+`policy_plan_tests.rs` and `rust/psiv-campaign/tests/party_policy.rs`. Losing is a halt; after a
 battle the camp cures the party (`recovery.rs`).
 
 **Battle ends.** `run` prints one line under its chapter for every scripted
@@ -164,8 +164,8 @@ run>` resumes the route from every chapter save of the run and fails on an
 unlisted halt or a stale entry; `--evaluate <check dir>` re-judges a finished
 check against an edited manifest. `tools/verify_candidate.py` runs it for every
 integration candidate ([DEVELOPMENT.md](../DEVELOPMENT.md#gate-and-coverage)).
-The training chapters keep the pre-P88b levels by the owner decision of
-2026-10-07; the manifest lists the halts the route still has.
+The training chapters keep their earlier levels (owner decision,
+2026-10-07); the manifest lists the halts the route still has.
 `python3 tools/route_sweep.py NAME --level CHAPTER=N` plays a variant of the
 route and summarizes its battle ends.
 
@@ -323,12 +323,12 @@ probe summaries.
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and
-`tests/runner.rs`: chapter one twice gives identical tapes, digests and saves;
+`rust/psiv-campaign/tests/runner.rs`: chapter one twice gives identical tapes, digests and saves;
 a tape replays to its digest, also from a chapter save; a wrong object index,
 an expectation that cannot hold, an unreachable cell and a spent budget each
-halt naming the objective; the exit statuses; `tests/spaceport.rs` walks onto the
+halt naming the objective; the exit statuses; `rust/psiv-campaign/tests/spaceport.rs` walks onto the
 Mota Spaceport's boarding row, whose scene must not halt on its type-1 cell;
-`tests/split.rs` checks that a completed report names its chapters with the
+`rust/psiv-campaign/tests/split.rs` checks that a completed report names its chapters with the
 hash of each save, that the cut tapes add up to the run's tape and chain through
 those hashes, and that a split refuses a halted report, a foreign tape and an
 existing output. The

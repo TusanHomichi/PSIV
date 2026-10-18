@@ -8,7 +8,7 @@
 //! Validation
 //!
 //! Always on, no lenient mode. A runtime that tolerates a broken pack stops
-//! being a test oracle for the cartridge (docs/RUNTIME_DESIGN.md, "Goal").
+//! being a test oracle for the cartridge (docs/RUNTIME_DESIGN.md, "Fidelity and original bugs").
 //! Every failure names the map and the field, down to the array index.
 //! ---------------------------------------------------------------------------
 

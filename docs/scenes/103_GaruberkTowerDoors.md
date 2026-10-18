@@ -66,6 +66,5 @@ The chunks the four tables write (`$30..$3E`) are carried in each tower map's sc
 (`garuberk_door_chunks`, `psiv_tools/map_patches.py`), which `write_scene_map_chunks` needs for
 their pixels and collision.
 
-## In the route (C8)
-
+## In the route
 `garuberk-tower` opens and walks through every door on the way to `GaruberkTower_Part7`.

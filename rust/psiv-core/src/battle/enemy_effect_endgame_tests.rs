@@ -1,4 +1,4 @@
-//! Lane A6's status and stat arms: SHIFT and SANER behind their guards, the
+//! The endgame stretch's status and stat arms: SHIFT and SANER behind their guards, the
 //! new handlers (`$09`, `$0C`, `$21`, `$27`), Radhin's random enemy pick,
 //! SPARK's android pick and CYANICBOMB's caster removal.
 //!

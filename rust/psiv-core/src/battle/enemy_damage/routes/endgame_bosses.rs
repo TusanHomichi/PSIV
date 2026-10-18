@@ -1,4 +1,4 @@
-//! The endgame bosses' damage arms (lane A6): De Vars, Sa Lews, Re Faze and
+//! The endgame bosses' damage arms: De Vars, Sa Lews, Re Faze and
 //! Profound Darkness's three forms.
 //!
 //! DISRUPTARM: EnemyAttack_DeVars (EnemyAttackOffs $78, ps4.asm:19327,

@@ -4,7 +4,8 @@
     python3 -m oracle.sweep.zelan --capture --work build/zelan
     python3 -m oracle.sweep.zelan --extract --work build/zelan
 
-The recipe for `docs/oracle/BATTLE_ORACLE_ZELAN.md`: one `python3 -m oracle.force
+The recipe for the Zelan route's captures (`docs/battle/ENEMY_EFFECT_ABILITIES.md`
+section 10): one `python3 -m oracle.force
 --durable` capture per entry (a formation, or with `event` an event battle's
 `Event_Battle_Index`), extracted by `python3 -m oracle.fixture` into
 `rust/psiv-core/src/battle/replay_fixtures/arc_zelan/` and finished with the

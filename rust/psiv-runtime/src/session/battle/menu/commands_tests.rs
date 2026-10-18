@@ -1,5 +1,5 @@
 //! The command window's own tests, ported from the Godot crate's
-//! `battle/commands_tests.rs` with the S3 node plus the pad-mapping tests the
+//! battle command tests (commit 25701a1) plus the pad-mapping tests the
 //! move made possible.
 
 use super::*;

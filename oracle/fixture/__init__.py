@@ -74,7 +74,7 @@ from .vehicle import VEHICLE_FIGHTER_ID, VEHICLE_HP_COLUMN, hp_columns, \
     vehicle_of
 
 #: The frame `--battle-*` defaults bracket: the first basement battle of tape
-#: 07, as `oracle/README.md` "Battle ground truth" records it.
+#: 07, as `docs/battle/BATTLE_MEASUREMENTS.md` "Battle ground truth" records it.
 BATTLE_FIRST = 24794
 BATTLE_LAST = 30428
 

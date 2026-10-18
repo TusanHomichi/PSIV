@@ -180,7 +180,7 @@ Stories that fly without the menu write `World_Index` and run `loc_64C1E`:
 `Cutscene_DarkForce1Defeated` (`:156396`, 3), `Cutscene_LashiecDefeated` (`:156940`, 1),
 `Cutscene_GumbiousBishop` (`:157065`, 0), `Cutscene_Reunion` (`:157791`, 0) and
 `Cutscene_CrashLanding` (`:155847`, 1). The first four carry `SetWorldIndex` now; the
-crash landing's write is the Dezolis lane's (`docs/scenes/43_CrashLanding.md`).
+crash landing's write is [43](43_CrashLanding.md)'s.
 The Landale writes none.
 
 ## Port
@@ -235,9 +235,9 @@ sleep or timing workaround.
 `ship-menu` retains clone tick **70**, oracle frame **7293** and SHA-256
 `af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`.
 The runtime's tick-30 event fixture verifies at tick 70: Choosing, both windows
-fully uploaded, cursor hidden and marker blink off. No tick changed. The lane
-cannot run X11; the orchestrator must rerun `python3 tools/certify.py --pair
-ship-menu`. A state-pin pass is not an image-parity pass.
+fully uploaded, cursor hidden and marker blink off. `python3 tools/certify.py
+--only ship-menu` is the image comparison; a state-pin pass is not an
+image-parity pass.
 
 ## Not modelled
 

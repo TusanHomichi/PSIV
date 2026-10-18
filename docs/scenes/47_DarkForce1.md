@@ -25,8 +25,7 @@ observable order. The following trigger `$32` dispatches `$8011` once the
 battle is resolved.
 
 
-## In the route (C6)
-
+## In the route
 `RunEvent_FindDarkForce` tests `curr_y_pos == $0D0` (`ps4.asm:115903-115913`):
 **row 14** of Kuran F3, any x, `$83` clear. The `kuran-dark-force-1` chapter
 walks to (30,14); the dialogue (entry 6) runs, `$83` is set and event battle 9

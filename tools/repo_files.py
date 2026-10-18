@@ -10,6 +10,11 @@ looks at the working tree as well:
 
     python3 -c "from tools.repo_files import repo_files; print(*repo_files())"
 
+Its other half is `ignored_paths`, the one answer to "is this path a local
+input Git ignores", which the documentation and code-path guards
+(tools/check_docs.py, tools/check_paths.py) ask about the paths they cannot
+resolve.
+
 Stdlib only, Python 3.
 """
 
@@ -57,3 +62,37 @@ def repo_files(root: Path | str = Path("."), patterns: Iterable[str] = ()) -> li
         )
     listed = {record for record in proc.stdout.split("\0") if record}
     return sorted(path for path in listed if os.path.lexists(root / path))
+
+
+def ignored_paths(paths: Iterable[str], root: Path | str = Path(".")) -> set[str]:
+    """The members of `paths` (repository-relative) that Git ignores at `root`,
+    themselves or through a parent directory.
+
+    A parent is asked first: in a checkout whose ignored input directories are
+    symbolic links (a lane worktree's `oracle/states`), Git refuses to answer
+    for a path beyond one ("is beyond a symbolic link") and fails the whole
+    question. A directory-only pattern (`oracle/frames/`) matches a path that
+    does not exist only when it is spelled with a trailing slash, so both
+    spellings are asked, one at a time for the same reason. A path that climbs
+    out of the repository is never ignored.
+    """
+    root = Path(root)
+    answers: dict[str, bool] = {}
+
+    def ignored(path: str) -> bool:
+        if path not in answers:
+            answers[path] = any(
+                subprocess.run(
+                    ["git", "check-ignore", "-q", spelling], cwd=root,
+                    capture_output=True, check=False,
+                ).returncode == 0
+                for spelling in (path, path + "/")
+            )
+        return answers[path]
+
+    found = set()
+    for path in set(paths):
+        parts = path.rstrip("/").split("/")
+        if any(ignored("/".join(parts[:end])) for end in range(1, len(parts) + 1)):
+            found.add(path)
+    return found

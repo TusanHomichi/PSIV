@@ -9,10 +9,9 @@ be extended pair by pair without repeating this reading. Nothing here changes
 code.
 
 **157 carrier/request readings**: the original 146 damage-route candidates
-(retaining later non-damage corrections as `other`), plus A3's conditional
-CHARGCNNON, two EXPLOSION carriers, BiterFly SUPERSONIC and DarkForce1 BURSTROC,
-the already implemented F3 Zio2 BLACK WAVE2 row missing from the table, and A5's
-conditional AIRSLASH (three sabres), THNDRBLAST and DarkForce2's SHDWBREATH.
+(retaining later non-damage corrections as `other`), plus the Zelan-to-Kuran
+route's conditional CHARGCNNON, two EXPLOSION carriers, BiterFly SUPERSONIC and
+DarkForce1 BURSTROC, Zio2's BLACK WAVE2, and the Air Castle's conditional AIRSLASH (three sabres), THNDRBLAST and DarkForce2's SHDWBREATH.
 **110 pairs** are now registered by `DAMAGE_SKILL_ROUTES`
 (`rust/psiv-core/src/battle/enemy_damage/routes/`); every registered table row
 is marked in its class column. Records come from the runtime pack, not copied
@@ -157,9 +156,9 @@ note says what runs instead.
 | 15 Fanbite | `$08` SPIRAL BLD | `EnemyAttack_Locusta` (`ps4.asm:23472`) — the nonzero-ability body of `tst.w ability(a4)` (line 23486); it is not an id test | `$A0` `BattleObj_LocustaSpiralBld` (`ps4.asm:29175`) | 1 × `move.w #$C, $2(a1)` at line 29278 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 15 Fanbite (`DAMAGE_SKILL_ROUTES`) |
 | 18 Servant | `$09` MOTRCANNON | `EnemyAttack_Slave` (`ps4.asm:23451`) — else arm, taken when the routine's tested ids do not match (test branch at line 23453) | `$AC` `BattleObj_SlaveMotrCannon` (`ps4.asm:28736`) + `$B0` `BattleObj_SlaveMotrCannon2` (`ps4.asm:28957`) | 1 × `move.w #$C, $2(a1)` at line 28921 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 26 LifeDeletr | `$0E` MICROMISSL | `.ability` (local label at line 23141) — `beq.s .micromissl` at line 23141 | `$80C` `BattleObj_LifeDeletrMicroMissl` (`ps4.asm:52229`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
-| 28 DragerDuel | `$0E` MICROMISSL | `EnemyAttack_BalDuel` (`ps4.asm:23316`) — `beq.s loc_10AD2` at line 23317; `loc_10AD2` (23325) writes `$FFFF` to `Current_Target_Index` | `$E8` `loc_378FC` (`ps4.asm:72007`) twice, the second mirrored; children `$EC`/`$F0` animate and flinch only | 1 × `move.w #$C, $2(a1)` at line 72120, written by both `$E8` in the same frame | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (lane A6), [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md). Corrected: the earlier "mixed chain" read a child id as `BattleObj_AbeFrogAtk`; no `loc_24B20` request is on this chain |
-| 29 JurafaDuel | `$0E` MICROMISSL | the same arm as DragerDuel's, also reached by JurafaDuel's conditional `$0E` (arm 2) | `$E8` `loc_378FC` (`ps4.asm:72007`) twice | 1 × `move.w #$C, $2(a1)` at line 72120 | all five party slots | `all-party` — **implemented** (lane A6), [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
-| 29 JurafaDuel | `$0F` FLAMLAUNCH | `EnemyAttack_BalDuel` (`ps4.asm:23316`) — `bgt.s loc_10B06` at line 23319 (`$0F` > `$0E`), arm at 23337 | `$E4` `loc_37704` (`ps4.asm:71820`) — not the zero arm's `$E0` `loc_374EA` | 1 × `move.w #$C, $2(a3)` at line 71974 | the stored target `$38(a4)` | `single` — **implemented** (lane A6), [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
+| 28 DragerDuel | `$0E` MICROMISSL | `EnemyAttack_BalDuel` (`ps4.asm:23316`) — `beq.s loc_10AD2` at line 23317; `loc_10AD2` (23325) writes `$FFFF` to `Current_Target_Index` | `$E8` `loc_378FC` (`ps4.asm:72007`) twice, the second mirrored; children `$EC`/`$F0` animate and flinch only | 1 × `move.w #$C, $2(a1)` at line 72120, written by both `$E8` in the same frame | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md). Corrected: the earlier "mixed chain" read a child id as `BattleObj_AbeFrogAtk`; no `loc_24B20` request is on this chain |
+| 29 JurafaDuel | `$0E` MICROMISSL | the same arm as DragerDuel's, also reached by JurafaDuel's conditional `$0E` (arm 2) | `$E8` `loc_378FC` (`ps4.asm:72007`) twice | 1 × `move.w #$C, $2(a1)` at line 72120 | all five party slots | `all-party` — **implemented**, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
+| 29 JurafaDuel | `$0F` FLAMLAUNCH | `EnemyAttack_BalDuel` (`ps4.asm:23316`) — `bgt.s loc_10B06` at line 23319 (`$0F` > `$0E`), arm at 23337 | `$E4` `loc_37704` (`ps4.asm:71820`) — not the zero arm's `$E0` `loc_374EA` | 1 × `move.w #$C, $2(a3)` at line 71974 | the stored target `$38(a4)` | `single` — **implemented**, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
 | 37 SnowSlug | `$13` CELL SPLIT | `loc_10644` (`ps4.asm:22959`) — `beq.s loc_106B0` at line 22960 | `$14C` `BattleObj_CellSplit` (`ps4.asm:35240`) + `$150` `BattleObj_CellSplit2` (`ps4.asm:35344`) + `$154` `BattleObj_CellSplit3` (`ps4.asm:35392`) + `$158` `BattleObj_CellSplit4` (`ps4.asm:35445`) + `$15C` `BattleObj_CellSplit5` (`ps4.asm:35493`) | 1 × `move.w #$C, $2(a3)` at line 35320 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 38 FractOoze | `$13` CELL SPLIT | `loc_10644` (`ps4.asm:22959`) — `beq.s loc_106B0` at line 22960 | `$14C` `BattleObj_CellSplit` (`ps4.asm:35240`) + `$150` `BattleObj_CellSplit2` (`ps4.asm:35344`) + `$154` `BattleObj_CellSplit3` (`ps4.asm:35392`) + `$158` `BattleObj_CellSplit4` (`ps4.asm:35445`) + `$15C` `BattleObj_CellSplit5` (`ps4.asm:35493`) | 1 × `move.w #$C, $2(a3)` at line 35320 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 137 FractOoze2 | `$13` CELL SPLIT | `loc_10644` (`ps4.asm:22959`) — `beq.s loc_106B0` at line 22960 | `$14C` `BattleObj_CellSplit` (`ps4.asm:35240`) + `$150` `BattleObj_CellSplit2` (`ps4.asm:35344`) + `$154` `BattleObj_CellSplit3` (`ps4.asm:35392`) + `$158` `BattleObj_CellSplit4` (`ps4.asm:35445`) + `$15C` `BattleObj_CellSplit5` (`ps4.asm:35493`) | 1 × `move.w #$C, $2(a3)` at line 35320 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`organic` family). |
@@ -180,14 +179,14 @@ note says what runs instead.
 | 83 Ripper | `$21` FIREBREATH | `loc_F372` (`ps4.asm:21603`) — `bne.s loc_F3B6` at line 21604 | `$34C` `loc_23D0A` (`ps4.asm:47507`) | 1 × `move.w #$C, $2(a3)` at line 47600 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `firebreath` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/firebreath.rs`); §3 records the reading, the capture and the replay. |
 | 84 BladeRight | `$21` FIREBREATH | `loc_F372` (`ps4.asm:21603`) — `bne.s loc_F3B6` at line 21604 | `$34C` `loc_23D0A` (`ps4.asm:47507`) | 1 × `move.w #$C, $2(a3)` at line 47600 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `firebreath` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/firebreath.rs`); §3 records the reading, the capture and the replay. |
 | 117 GyLaguiah | `$21` FIREBREATH | `loc_E2DC` (`ps4.asm:20527`) — `bne.s loc_E320` at line 20528 | `$780` `loc_2A01A` (`ps4.asm:55324`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `firebreath` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/firebreath.rs`); §3 records the reading, the capture and the replay. |
-| 133 ProfoundDarkness1 | `$21` FIREBREATH | `loc_D8BE` (`ps4.asm:19849`) — `bne.s loc_D8FE` at line 19850 | `$870` `loc_30022` (`ps4.asm:62419`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` — **not a row**: `EnemyAttack_ProfoundDarkness1` tests the scripted-battle flag `$FFFFEE87` first (line 19824) and clears the ability when it is set, a flag this port does not model. The arm below the gate is left to a lane that does (§3). |
+| 133 ProfoundDarkness1 | `$21` FIREBREATH | `loc_D8BE` (`ps4.asm:19849`) — `bne.s loc_D8FE` at line 19850 | `$870` `loc_30022` (`ps4.asm:62419`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` — a row of `routes/endgame_bosses.rs`: `EnemyAttack_ProfoundDarkness1` tests the scripted-battle flag `$FFFFEE87` first (line 19824) and spends its first action on object `$864` (`scripted_flag::first_action`); every later `$21` takes this arm. Captured in `replay_fixtures/endgame/profound_darkness*.json` from round 2. |
 | 60 CrminHeads | `$22` RAY BREATH | `loc_FE52` (`ps4.asm:22389`) — `bne.s loc_FE9E` at line 22390 | `$230` `loc_1628A` (`ps4.asm:31273`) + `$22C` `loc_16406` (`ps4.asm:31380`) | 1 × `move.w #$C, $2(a3)` at line 31453 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 61 BlindHeads | `$22` RAY BREATH | `loc_FE52` (`ps4.asm:22389`) — `bne.s loc_FE9E` at line 22390 | `$230` `loc_1628A` (`ps4.asm:31273`) + `$22C` `loc_16406` (`ps4.asm:31380`) | 1 × `move.w #$C, $2(a3)` at line 31453 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 118 LwAddmer | `$22` RAY BREATH | `loc_E320` (`ps4.asm:20544`) — `bne.s loc_E35E` at line 20545 | `$784` `loc_29EEE` (`ps4.asm:55243`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 133 ProfoundDarkness1 | `$22` RAY BREATH | `loc_D8FE` (`ps4.asm:19866`) — `bne.s loc_D93E` at line 19867 | `$878` `loc_2FE7C` (`ps4.asm:62296`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 142 Skytiara | `$23` SUPERSONIC | `loc_D5D4` (`ps4.asm:19663`) — `bne.s loc_D61E` at line 19664 | `$8C4` `BattleObj_OwlSupersonic` (`ps4.asm:68761`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`organic` family). |
-| 77 TechPlant | `$2A` RIMIT | `loc_F65E` (`ps4.asm:21822`) — `bne.s loc_F6C4` at line 21823 | `$2F8` `BattleObj_EnemyRimit` (`ps4.asm:38366`) + `$2F0` `BattleObj_AcidBreathChild` (`ps4.asm:38622`) | none | — | `other` — no `move.w #$C` request in the chain; `BattleObj_EnemyRimit` (`ps4.asm:38366`) spawns one effect child (`$2AC` `BattleObj_EnemyRimitChild` (`ps4.asm:48736`)) per affected slot and never writes a fighter routine. Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 115 Greneris | `$2A` RIMIT | `loc_E4C4` (`ps4.asm:20648`) — `bne.s loc_E516` at line 20649 | `$754` `loc_2ACD6` (`ps4.asm:56212`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2ACD6` (`ps4.asm:56212`) runs the effect pipeline (`Battle_Routine_2` = $27) and spawns effect children. Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
+| 77 TechPlant | `$2A` RIMIT | `loc_F65E` (`ps4.asm:21822`) — `bne.s loc_F6C4` at line 21823 | `$2F8` `BattleObj_EnemyRimit` (`ps4.asm:38366`) + `$2F0` `BattleObj_AcidBreathChild` (`ps4.asm:38622`) | none | — | `other` — no `move.w #$C` request in the chain; `BattleObj_EnemyRimit` (`ps4.asm:38366`) spawns one effect child (`$2AC` `BattleObj_EnemyRimitChild` (`ps4.asm:48736`)) per affected slot and never writes a fighter routine. Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 115 Greneris | `$2A` RIMIT | `loc_E4C4` (`ps4.asm:20648`) — `bne.s loc_E516` at line 20649 | `$754` `loc_2ACD6` (`ps4.asm:56212`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2ACD6` (`ps4.asm:56212`) runs the effect pipeline (`Battle_Routine_2` = $27) and spawns effect children. Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
 | 68 Rajago | `$2B` NEEDLE | `loc_FA1A` (`ps4.asm:22067`) — `bne.s loc_FA2A` at line 22068 | `$288` `BattleObj_Needle` (`ps4.asm:40740`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 69 BiterFly | `$2B` NEEDLE | `loc_FA1A` (`ps4.asm:22067`) — `bne.s loc_FA2A` at line 22068 | `$288` `BattleObj_Needle` (`ps4.asm:40740`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
 | 146 HungryMole | `$2B` NEEDLE | `loc_D56E` (`ps4.asm:19633`) — `bne.s loc_D59E` at line 19634 | `$8D4` `BattleObj_MoleNeedle` (`ps4.asm:68370`) | 1 × `move.w #$C, $2(a3)` at line 48529 (tail `loc_24B20` (`ps4.asm:48523`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`organic` family). |
@@ -197,9 +196,9 @@ note says what runs instead.
 | 101 DarkWitch | `$2E` GIWAT | `loc_EE0E` (`ps4.asm:21229`) — `bne.s loc_EE58` at line 21230 | `$3C4` `loc_21852` (`ps4.asm:45013`) | 1 × `move.w #$C, $2(a3)` at line 45310 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`motavia` family). |
 | 122 DElmLars | `$2E` GIWAT | `loc_DFBE` (`ps4.asm:20300`) — `bne.s loc_E008` at line 20301 | `$7B8` `loc_28F76` (`ps4.asm:54226`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`motavia` family). |
 | 123 XeAThoul | `$2E` GIWAT | `loc_DFBE` (`ps4.asm:20300`) — `bne.s loc_E008` at line 20301 | `$7B8` `loc_28F76` (`ps4.asm:54226`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` **DAMAGE_SKILL_ROUTES** (`motavia` family). |
-| 72 BloodSaber | `$2F` VOL | `loc_F93C` (`ps4.asm:22005`) — `bne.s loc_F986` at line 22006 | `$2C0` `loc_1D2F4` (`ps4.asm:39774`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_1D2F4` (`ps4.asm:39774`) and its children apply the effect only (a `move.w #5, $2(a3)` flinch is written by a child in the same block, line 39933). Effect byte `$02` (Death). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 88 SoldrFiend | `$2F` VOL | `loc_F1E2` (`ps4.asm:21484`) — `bne.s loc_F228` at line 21485 | `$374` `loc_23216` (`ps4.asm:46736`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_23216` (`ps4.asm:46736`) runs `GetEnemySkillEffectAndRange` and spawns one effect child per affected slot, one of which writes `move.w #5, $2(a3)` (line 46939). Effect byte `$02` (Death). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 115 Greneris | `$2F` VOL | `loc_E47A` (`ps4.asm:20630`) — `bne.s loc_E4C4` at line 20631 | `$74C` `loc_2AE8E` (`ps4.asm:56333`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2AE8E` (`ps4.asm:56333`) and its children (`loc_2AE0C`, `$2AC`) apply the effect only. Effect byte `$02` (Death) is applied by the effect handler. **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is the status-effect lane's (§3). |
+| 72 BloodSaber | `$2F` VOL | `loc_F93C` (`ps4.asm:22005`) — `bne.s loc_F986` at line 22006 | `$2C0` `loc_1D2F4` (`ps4.asm:39774`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_1D2F4` (`ps4.asm:39774`) and its children apply the effect only (a `move.w #5, $2(a3)` flinch is written by a child in the same block, line 39933). Effect byte `$02` (Death). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 88 SoldrFiend | `$2F` VOL | `loc_F1E2` (`ps4.asm:21484`) — `bne.s loc_F228` at line 21485 | `$374` `loc_23216` (`ps4.asm:46736`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_23216` (`ps4.asm:46736`) runs `GetEnemySkillEffectAndRange` and spawns one effect child per affected slot, one of which writes `move.w #5, $2(a3)` (line 46939). Effect byte `$02` (Death). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 115 Greneris | `$2F` VOL | `loc_E47A` (`ps4.asm:20630`) — `bne.s loc_E4C4` at line 20631 | `$74C` `loc_2AE8E` (`ps4.asm:56333`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2AE8E` (`ps4.asm:56333`) and its children (`loc_2AE0C`, `$2AC`) apply the effect only. Effect byte `$02` (Death) is applied by the effect handler. **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$02` (`AbilityEffect_Death`, `ps4.asm:9098`) is the whole turn — the handler is `enemy_effect`'s (§3). |
 | 134 ProfoundDarkness2 | `$30` DISTORTION | `loc_D774` (`ps4.asm:19766`) — `bne.s loc_D7B8` at line 19767 | `$890` `loc_2F1B2` (`ps4.asm:61394`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 73 DimensWorm | `$31` GRA | `loc_F7BE` (`ps4.asm:21909`) — else arm, taken when the routine's tested ids do not match (test branch at line 21909) | `$2E0` `loc_1C99C` (`ps4.asm:39050`) + `$2DC` `loc_1C73E` (`ps4.asm:38879`) + `$2D8` `loc_1C658` (`ps4.asm:38807`) | 1 × `move.w #$C, $2(a3)` at line 39021 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`air_castle` family). |
 | 74 OuterBeast | `$31` GRA | `loc_F7BE` (`ps4.asm:21909`) — else arm, taken when the routine's tested ids do not match (test branch at line 21909) | `$2E0` `loc_1C99C` (`ps4.asm:39050`) + `$2DC` `loc_1C73E` (`ps4.asm:38879`) + `$2D8` `loc_1C658` (`ps4.asm:38807`) | 1 × `move.w #$C, $2(a3)` at line 39021 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`air_castle` family). |
@@ -241,24 +240,24 @@ note says what runs instead.
 | 101 DarkWitch | `$48` GIFOI | `loc_ED7A` (`ps4.asm:21193`) — `bne.s loc_EDC4` at line 21194 | `$3B8` `loc_21960` (`ps4.asm:45087`) | 1 × `move.w #$C, $2(a3)` at line 45310 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 124 LeFawGan | `$48` GIFOI | `loc_DF74` (`ps4.asm:20282`) — `bne.s loc_DFBE` at line 20283 | `$7B4` `loc_2900E` (`ps4.asm:54263`) | 1 × `move.w #$C, $2(a3)` at line 48474 (tail `loc_24A6C` (`ps4.asm:48468`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 105 ShadMirage | `$4A` STAR DUST | `+` (line 21109) — `bne.s +` at line 21109 | `$3EC` `loc_20B96` (`ps4.asm:44101`) | 1 × `move.w #$C, $2(a3)` at line 44267 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
-| 106 Haunt | `$4C` EVIL EYE | `loc_EAC6` (`ps4.asm:21023`) — `bne.s loc_EB04` at line 21024 | `$700` `loc_2CB1C` (`ps4.asm:58346`) | none | — | `other` — no `move.w #$C` request in the chain; object `$700` = `loc_2CB1C` (`ps4.asm:58346`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 107 Spector | `$4C` EVIL EYE | `loc_EAC6` (`ps4.asm:21023`) — `bne.s loc_EB04` at line 21024 | `$700` `loc_2CB1C` (`ps4.asm:58346`) | none | — | `other` — no `move.w #$C` request in the chain; object `$700` = `loc_2CB1C` (`ps4.asm:58346`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 131 DarkForce2 | `$4C` EVIL EYE | `EnemyAttack_DarkForce2` (`ps4.asm:19970`) — ordinary dispatch; `$64` and `$65` are tested (`loc_DAA8`, `loc_DAEC`), the fall-through `loc_DB30` (`ps4.asm:20013`) is the arm `$4C` lands in | `$850` `loc_30DC0` (`ps4.asm:63323`) | none | — | `other` — no `move.w #$C` request in the chain; object `$850` = `loc_30DC0` (`ps4.asm:63323`) drives the effect pipeline and a child (`BattleObj_LifeDeletrMicroMissl2` (`ps4.asm:49043`)) writes `move.w #5, $2(a3)` (line 49057). The gated arm (`$FFFFEE87` set) clears the ability and loads `$83C` instead. **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
-| 135 ProfoundDarkness3 | `$4C` EVIL EYE | `loc_D660` (`ps4.asm:19699`) — `bne.s loc_D6A2` at line 19700 | `$8A4` `loc_2E524` (`ps4.asm:60482`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2E524` (`ps4.asm:60482`) spawns per-target effect objects (`$340`, `$314`, `$2AC`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is the status-effect lane's (§3). |
+| 106 Haunt | `$4C` EVIL EYE | `loc_EAC6` (`ps4.asm:21023`) — `bne.s loc_EB04` at line 21024 | `$700` `loc_2CB1C` (`ps4.asm:58346`) | none | — | `other` — no `move.w #$C` request in the chain; object `$700` = `loc_2CB1C` (`ps4.asm:58346`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 107 Spector | `$4C` EVIL EYE | `loc_EAC6` (`ps4.asm:21023`) — `bne.s loc_EB04` at line 21024 | `$700` `loc_2CB1C` (`ps4.asm:58346`) | none | — | `other` — no `move.w #$C` request in the chain; object `$700` = `loc_2CB1C` (`ps4.asm:58346`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 131 DarkForce2 | `$4C` EVIL EYE | `EnemyAttack_DarkForce2` (`ps4.asm:19970`) — ordinary dispatch; `$64` and `$65` are tested (`loc_DAA8`, `loc_DAEC`), the fall-through `loc_DB30` (`ps4.asm:20013`) is the arm `$4C` lands in | `$850` `loc_30DC0` (`ps4.asm:63323`) | none | — | `other` — no `move.w #$C` request in the chain; object `$850` = `loc_30DC0` (`ps4.asm:63323`) drives the effect pipeline and a child (`BattleObj_LifeDeletrMicroMissl2` (`ps4.asm:49043`)) writes `move.w #5, $2(a3)` (line 49057). The gated arm (`$FFFFEE87` set) clears the ability and loads `$83C` instead. **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
+| 135 ProfoundDarkness3 | `$4C` EVIL EYE | `loc_D660` (`ps4.asm:19699`) — `bne.s loc_D6A2` at line 19700 | `$8A4` `loc_2E524` (`ps4.asm:60482`) | none | — | `other` — no `move.w #$C` request in the chain; `loc_2E524` (`ps4.asm:60482`) spawns per-target effect objects (`$340`, `$314`, `$2AC`). Effect byte `$07` (SleepParalyze). **Not a damage route**: the chain makes no `move.w #$C` request, and effect `$07` (`AbilityEffect_SleepParalyze`, `ps4.asm:9154`) is the whole turn — the handler is `enemy_effect`'s (§3). |
 | 106 Haunt | `$4D` CORRSION | `loc_EB04` (`ps4.asm:21039`) — `bne.s loc_EB50` at line 21040 | `$704` `loc_2C98A` (`ps4.asm:58230`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 107 Spector | `$4D` CORRSION | `loc_EB04` (`ps4.asm:21039`) — `bne.s loc_EB50` at line 21040 | `$704` `loc_2C98A` (`ps4.asm:58230`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 111 ChaosSorcr | `$4D` CORRSION | `loc_E7EC` (`ps4.asm:20849`) — `bne.s loc_E83E` at line 20850 | `$720` `loc_2BED2` (`ps4.asm:57485`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 112 Illusionst | `$4D` CORRSION | `loc_E7EC` (`ps4.asm:20849`) — `bne.s loc_E83E` at line 20850 | `$720` `loc_2BED2` (`ps4.asm:57485`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 113 ImagioMage | `$4D` CORRSION | `loc_E7EC` (`ps4.asm:20849`) — `bne.s loc_E83E` at line 20850 | `$720` `loc_2BED2` (`ps4.asm:57485`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 132 DarkForce3 | `$4D` CORRSION | `loc_D9FE` (`ps4.asm:19934`) — `bne.s loc_DA48` at line 19935 | `$85C` `loc_308FA` (`ps4.asm:62998`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
-| 140 Zio2 | `$4D` CORRSION | `loc_D458` (`ps4.asm:19556`) — `bne.s loc_D498` at line 19562 | `$928` `loc_33646` (`ps4.asm:66537`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented (F3)**: `EnemyAttack_Zio2` scripts only its first action (the Magic Barrier, `$FFFFEE98` clear; `rust/psiv-core/src/battle/zio.rs`) and dispatches the rolled id from the second on, so the row is reached only past phase 0. Object `$928` = `loc_33646` (`ps4.asm:66537`) reaches the `loc_24BB6` exit: one hit on each of the five party slots (line 48575). **DAMAGE_SKILL_ROUTES** (`zio` family). |
+| 140 Zio2 | `$4D` CORRSION | `loc_D458` (`ps4.asm:19556`) — `bne.s loc_D498` at line 19562 | `$928` `loc_33646` (`ps4.asm:66537`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**: `EnemyAttack_Zio2` scripts only its first action (the Magic Barrier, `$FFFFEE98` clear; `rust/psiv-core/src/battle/zio.rs`) and dispatches the rolled id from the second on, so the row is reached only past phase 0. Object `$928` = `loc_33646` (`ps4.asm:66537`) reaches the `loc_24BB6` exit: one hit on each of the five party slots (line 48575). **DAMAGE_SKILL_ROUTES** (`zio` family). |
 | 108 Phantom | `$4F` HEWN | `loc_EB94` (`ps4.asm:21074`) — else arm, taken when the routine's tested ids do not match (test branch at line 21074) | `$70C` `loc_2C6E2` (`ps4.asm:58047`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
 | 111 ChaosSorcr | `$4F` HEWN | `loc_E926` (`ps4.asm:20923`) — `bne.s loc_E978` at line 20924 | `$730` `loc_2B6F8` (`ps4.asm:56987`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
 | 112 Illusionst | `$4F` HEWN | `loc_E926` (`ps4.asm:20923`) — `bne.s loc_E978` at line 20924 | `$730` `loc_2B6F8` (`ps4.asm:56987`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
 | 113 ImagioMage | `$4F` HEWN | `loc_E926` (`ps4.asm:20923`) — `bne.s loc_E978` at line 20924 | `$730` `loc_2B6F8` (`ps4.asm:56987`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
 | 121 SaLews | `$4F` HEWN | `loc_E136` (`ps4.asm:20414`) — `bne.s loc_E188` at line 20415 | `$798` `loc_299BE` (`ps4.asm:54905`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
 | 138 ChaosSorcr2 | `$4F` HEWN | `loc_E926` (`ps4.asm:20923`) — `bne.s loc_E978` at line 20924 | `$730` `loc_2B6F8` (`ps4.asm:56987`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` **DAMAGE_SKILL_ROUTES** (`techniques` family). |
-| 140 Zio2 | `$4F` HEWN | `loc_D498` (`ps4.asm:19570`) — else arm, taken when the routine's tested ids do not match (test branch at line 19570) | `$930` `loc_335A6` (`ps4.asm:66498`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — the fall-through arm (`loc_D498`, `ps4.asm:19570`; neither `$6C` nor `$4D`) loads object `$930` = `loc_335A6` (`ps4.asm:66498`), whose `loc_24BB6` exit requests one hit on each of the five party slots (line 48575). Only reached with the phase counter `$FFFFEE98` past zero; **implemented (F3)**. **DAMAGE_SKILL_ROUTES** (`zio` family). |
+| 140 Zio2 | `$4F` HEWN | `loc_D498` (`ps4.asm:19570`) — else arm, taken when the routine's tested ids do not match (test branch at line 19570) | `$930` `loc_335A6` (`ps4.asm:66498`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — the fall-through arm (`loc_D498`, `ps4.asm:19570`; neither `$6C` nor `$4D`) loads object `$930` = `loc_335A6` (`ps4.asm:66498`), whose `loc_24BB6` exit requests one hit on each of the five party slots (line 48575). Only reached with the phase counter `$FFFFEE98` past zero; **implemented**. **DAMAGE_SKILL_ROUTES** (`zio` family). |
 | 112 Illusionst | `$51` MINDBLST | `loc_E79A` (`ps4.asm:20830`) — `bne.s loc_E7EC` at line 20831 | `$71C` `loc_2C0D4` (`ps4.asm:57615`) | none | — | `other` — no `move.w #$C` request reachable from `loc_2C0D4` (`ps4.asm:57615`); the object runs `GetEnemySkillEffectAndRange` and spawns one effect child per affected slot. Effect byte `$07` (SleepParalyze) is applied by the effect handler. |
 | 113 ImagioMage | `$51` MINDBLST | `loc_E79A` (`ps4.asm:20830`) — `bne.s loc_E7EC` at line 20831 | `$71C` `loc_2C0D4` (`ps4.asm:57615`) | none | — | `other` — no `move.w #$C` request reachable from `loc_2C0D4` (`ps4.asm:57615`); the object runs `GetEnemySkillEffectAndRange` and spawns one effect child per affected slot. Effect byte `$07` (SleepParalyze) is applied by the effect handler. |
 | 132 DarkForce3 | `$51` MINDBLST | `loc_DA48` (`ps4.asm:19952`) — else arm, taken when the routine's tested ids do not match (test branch at line 19952) | `$860` `loc_30792` (`ps4.asm:62902`) | none | — | `other` — no `move.w #$C` request in the chain; object `$860` = `loc_30792` (`ps4.asm:62902`) drives the effect pipeline only. Effect byte `$07` (SleepParalyze). |
@@ -266,7 +265,7 @@ note says what runs instead.
 | 112 Illusionst | `$52` TANDLE | `loc_E9CC` (`ps4.asm:20961`) — else arm, taken when the routine's tested ids do not match (test branch at line 20961) | `$73C` `loc_2B23C` (`ps4.asm:56594`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 113 ImagioMage | `$52` TANDLE | `loc_E9CC` (`ps4.asm:20961`) — else arm, taken when the routine's tested ids do not match (test branch at line 20961) | `$73C` `loc_2B23C` (`ps4.asm:56594`) | 1 × `move.w #$C, $2(a3)` at line 57589 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 121 SaLews | `$52` TANDLE | `loc_E188` (`ps4.asm:20433`) — `bne.s loc_E1DC` at line 20434 | `$79C` `loc_29910` (`ps4.asm:54862`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
-| 113 ImagioMage | `$55` LEGEON | `loc_E978` (`ps4.asm:20942`) — `bne.s loc_E9CC` at line 20943; writes `$FFFF` | `$734` `loc_2B5FA` (`ps4.asm:56873`) and its child `$738` (`loc_2B3F4`, 56722, fixed burst tables, no call) | 1 × `move.w #$C, $2(a3)` at line 57589 (state 4 is `loc_2C03A` in retail revision 1; the revision-0 arm with its request at 56959 is the Japanese build's) | all five party slots | `all-party` — **implemented** (lane A6), [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md). Rune's `BattleObj_Legeon` (16 calls) is not on this chain |
+| 113 ImagioMage | `$55` LEGEON | `loc_E978` (`ps4.asm:20942`) — `bne.s loc_E9CC` at line 20943; writes `$FFFF` | `$734` `loc_2B5FA` (`ps4.asm:56873`) and its child `$738` (`loc_2B3F4`, 56722, fixed burst tables, no call) | 1 × `move.w #$C, $2(a3)` at line 57589 (state 4 is `loc_2C03A` in retail revision 1; the revision-0 arm with its request at 56959 is the Japanese build's) | all five party slots | `all-party` — **implemented**, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md). Rune's `BattleObj_Legeon` (16 calls) is not on this chain |
 | 114 Juza | `$56` FORCEFLASH | `loc_E6FE` (`ps4.asm:20783`) — else arm, taken when the routine's tested ids do not match (test branch at line 20783) | `$778` `loc_2A300` (`ps4.asm:55527`) | 1 × `move.w #$C, $2(a3)` at line 56426 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 115 Greneris | `$56` FORCEFLASH | `loc_E6FE` (`ps4.asm:20783`) — else arm, taken when the routine's tested ids do not match (test branch at line 20783) | `$778` `loc_2A300` (`ps4.asm:55527`) | 1 × `move.w #$C, $2(a3)` at line 56426 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
 | 116 Radhin | `$56` FORCEFLASH | `loc_E6FE` (`ps4.asm:20783`) — else arm, taken when the routine's tested ids do not match (test branch at line 20783) | `$778` `loc_2A300` (`ps4.asm:55527`) | 1 × `move.w #$C, $2(a3)` at line 56426 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented** (2026-10-02): `enemy_damage::resolve_damage_skill` for this carrier, from the `zio` family of `DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage/routes/zio.rs`); §3 records the reading, the capture and the replay. |
@@ -301,7 +300,7 @@ note says what runs instead.
 | 70 ShadowSabr, 71 FrostSaber, 72 BloodSaber | `$2C` AIRSLASH (conditional) | `loc_F85E` (`ps4.asm:21957`), the `$2C` test of `EnemyAttack_ShadowSabr` | `$29C` `loc_1DA46` (`ps4.asm:40262`) + `$2A0` `loc_1DB5C` (`ps4.asm:40342`) | `$2A0`'s state 8 (`loc_1DC0C`), line 40404 | all five party slots | `all-party` — **DAMAGE_SKILL_ROUTES** (`air_castle` family); one table row for the three carriers of the one arm. |
 | 123 XeAThoul | `$5C` THNDRBLAST (conditional) | `loc_E052` (`ps4.asm:20336`), `EnemyAttack_DElmLars`'s fall-through | `$7C0` `loc_28A76` (`ps4.asm:53888`) + `$7C4`/`$7C8` visual children | state 8 jumps to `loc_24BB6` (`ps4.asm:48562`), line 48575 | all five party slots, after `bset #1` (paralysis) on enemy slots 1-3 (lines 53955-53961) | `all-party` — **DAMAGE_SKILL_ROUTES** (`air_castle` family, `AllPartyParalyzingTrio`). |
 | 131 DarkForce2 | `$64` SHDWBREATH | `loc_DAA8` (`ps4.asm:19978`) — `bne.s loc_DAEC` at line 19980 | `$844` `loc_31378` (`ps4.asm:63744`) + `$3A0` visual children | state 8 jumps to `loc_24B20` (`ps4.asm:48523`), line 48529 | the stored target pointer `$38(a4)` | `single` — **DAMAGE_SKILL_ROUTES** (`air_castle` family); the ledger's earlier `scripted/custom` class was ProfoundDarkness1's unread arm, not this one. |
-| 140 Zio2 | `$6C` BLACK WAVE2 | post-barrier `EnemyAttack_Zio2` (`ps4.asm:19519`), `$6C` arm at lines 19545–19554 | `$92C` `BattleObj_BlackWave2` (`ps4.asm:66922`) | single-target `loc_24A6C` (`ps4.asm:48468`), line 48474 | stored party target | `single` — **DAMAGE_SKILL_ROUTES** (`zio` family, F3); previously documented only in the narrative below. |
+| 140 Zio2 | `$6C` BLACK WAVE2 | post-barrier `EnemyAttack_Zio2` (`ps4.asm:19519`), `$6C` arm at lines 19545–19554 | `$92C` `BattleObj_BlackWave2` (`ps4.asm:66922`) | single-target `loc_24A6C` (`ps4.asm:48468`), line 48474 | stored party target | `single` — **DAMAGE_SKILL_ROUTES** (`zio` family). |
 
 ## 3. Summary
 
@@ -315,9 +314,9 @@ note says what runs instead.
 
 `single` covers 74 of the 157 readings; AIRSLASH's three carriers share one
 table row and count three times in `all-party`. The four ACID BREATH pairs
-(75, 76, 85, 86) remain in the `acid` registry family. A3's three
-conditional request routes are included in the totals above; source-reading
-corrections remain visible instead of silently deleting older candidates.
+(75, 76, 85, 86) remain in the `acid` registry family. The three
+conditional request routes of the Zelan-to-Kuran route are included in the
+totals above; source-reading corrections stay visible as `other` rows.
 
 ### Map 000 Motavia (the next campaign's priority)
 
@@ -325,8 +324,8 @@ corrections remain visible instead of silently deleting older candidates.
 `000 Motavia`; the pairs below are the rows of this table whose ability has that
 map. §4 attributes maps per ability, so a listed pair is reachable from the map
 only if that carrier's formation is one Motavia's groups can roll — the carrier
-lists in §2 are repeated here so a later lane can narrow it per enemy when it
-touches a formation.
+lists in §2 are repeated here so a reader can narrow it per enemy for a
+formation.
 
 | ability | class(es) of its Motavia pairs | pairs |
 |---|---|---|
@@ -347,7 +346,7 @@ touches a formation.
 ACIDBREATH (`$33`) is implemented and §4 lists only unsupported rows, so it does
 not appear above even though FlattrPlnt is a Motavia enemy.
 
-### All-party rows read from the bytes (2026-09-24)
+### All-party rows read from the bytes
 
 The three `all-party` rows this class was written for — 15 Fanbite `$08` SPIRAL
 BLD, 80 SandWorm `$38` EARTHQUAKE and 149 KingRappy `$38` EARTHQUAKE — were read
@@ -400,7 +399,7 @@ The resolver implements exactly that: `DamageClass::AllParty` resolves each
 occupied, living party slot in slot order, one `Resolved` per slot, and
 `docs/source-notes/battle-enemy-abilities.md` has the change's own section.
 
-### The chain's own RNG calls, read for the `$38` pair (2026-09-25)
+### The chain's own RNG calls, read for the `$38` pair
 
 A row's `damage request(s)` column says what the chain writes and where; it does
 not say what the chain *takes off the RNG stream* on the way there, and for one
@@ -412,8 +411,7 @@ KingRappy's `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) shakes the camera
 from a fixed byte table (`loc_344AC` -> `loc_3451C`, lines 67554, 67590) and takes
 none. The 28 move every later roll in a battle, so they are modeled: the two rows
 below carry the fact, and the mechanism, the capture evidence and the census of
-the file's 43 `jsr (UpdateRNGSeed2).l` sites are in
-`docs/source-notes/battle-enemy-abilities.md`'s 2026-09-25 record.
+the file's 43 `jsr (UpdateRNGSeed2).l` sites follow them.
 
 | row | the chain's own `UpdateRNGSeed2` calls before its request |
 |---|---|
@@ -422,7 +420,7 @@ the file's 43 `jsr (UpdateRNGSeed2).l` sites are in
 
 The same reading was applied to every pair of the resolver's
 `DAMAGE_SKILL_ROUTES` table — the 30 it held when this was written, and the 16
-the Zio-arc lane added (2026-10-02, §3): no other proven pair's arm or object
+the Zio-arc rows added (§3): no other proven pair's arm or object
 chain owns a call site. The Zio-arc pairs' chains are the sharpest case of it:
 `loc_2AFB6` (`ps4.asm:56413`), the request ZAN and FORCEFLASH share, and
 `loc_2C03A` (`ps4.asm:57574`), CORRSION's, are pure writes, and the only
@@ -430,7 +428,218 @@ chain owns a call site. The Zio-arc pairs' chains are the sharpest case of it:
 (`loc_25100`, the random-enemy picker, whose only caller is the Shift object
 `loc_2AAEE`, line 56130).
 
-### Single rows re-read at the resolver gate (2026-09-24)
+The sweep's last divergence (`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4.4 W5) was
+`formation_3B` round 3: the log draws 126 calls in the round, the port 82, and
+the first thing the missing 28 move is SandWorm's `$38` damage (the log resolves
+241/223/265 on the three party slots, the port 276/247/237). The 28 are not a
+damage-route rule at all. They are `BattleObj_Earthquake`'s screen shake, and the
+mechanism, the count and the capture evidence are recorded here.
+
+#### The arm, and the object it loads
+
+`EnemyAttack_SandWorm` (`ps4.asm:21658`) dispatches on `$24(a4)`, the rolled
+ability. `loc_F4D4` (`ps4.asm:21710`) is the `$38` arm: `cmpi.w #$38, $24(a4)`
+(line 21711), then `move.w #$FFFF, (Current_Target_Index).l` (line 21713), a PLC
+load (line 21716) and `move.w #$330, (a1)` (line 21718) — the object id goes into
+the *attack object itself*, and the arm tail-calls `loc_D200` (`ps4.asm:19395`)
+to set its parent. `# $330` is the group-5 offset whose entry is
+`BattleObj_Earthquake` (`BattleObjsGroup5Ptrs` line 43704, object at
+`ps4.asm:47884`). `$37` is `loc_F48A`'s and everything else `loc_F4FA`'s, so the
+body belongs to `$38`.
+
+The object's state table is `loc_2427A` (`ps4.asm:47897`), indexed by `$14(a4)`
+in steps of 4: state 0 (`loc_2428A`, line 47902) winds up, state 4
+(`loc_24356`, line 47957) shakes, state 8 (`loc_243C8`, line 47992) flashes and
+makes the five-slot damage request, state 12 (`loc_243FC`, line 48008) follows
+through and clears itself. (The all-party record below and the route comment
+both cite the table as `ps4.asm:47901`, which is its fourth entry `bra.w
+loc_243FC`, not the label; corrected here against the source.)
+
+#### The 28 calls, instruction by instruction
+
+State 0 hands over to the shake at `loc_24308` (line 47935):
+
+```text
+    cmpi.b  #$1E, $11(a4)      ; ps4.asm:47940 - 30 frames of wind-up after the
+    bne.s   loc_2433E          ;   $6(a4) crack countdown has run out
+    move.w  #$8B00, (VDP_Control_Port).l
+    move.w  #4, $14(a4)        ; ps4.asm:47943 - state 4
+    move.b  #$3C, $11(a4)      ; ps4.asm:47944 - 60 shake frames
+    clr.b   $10(a4)            ; ps4.asm:47945 - the draw counter starts at 0
+```
+
+State 4's body is:
+
+```text
+loc_24356:
+    addq.b  #1, ($FFFFEEE2).w  ; ps4.asm:47958 - sound timer, 1 in 4 frames
+    andi.b  #3, ($FFFFEEE2).w
+    bne.s   loc_2436A
+    move.b  #SFXID_GraveOpening, (Sound_Index&$FFFFFF).l
+loc_2436A:
+    subq.b  #1, $11(a4)        ; ps4.asm:47963 - the shake's own countdown
+    bne.s   loc_2438E          ;   taken on every frame but the one that empties it
+    clr.l   (Camera_X_Pos_FG).w
+    clr.l   (Camera_X_Pos_BG).w
+    move.w  #8, $14(a4)        ; ps4.asm:47968 - state 8: the flash and the request
+    ...
+loc_2438E:
+    addq.b  #1, $10(a4)        ; ps4.asm:47973
+    andi.b  #3, $10(a4)        ; ps4.asm:47974 - two bits: a period of four
+    bne.s   loc_243C6          ;   every frame but the fourth returns here
+    jsr     (UpdateRNGSeed2).l ; ps4.asm:47976 -> Camera_X_Pos_FG
+    ...
+    jsr     (UpdateRNGSeed2).l ; ps4.asm:47983 -> Camera_X_Pos_BG
+```
+
+So the shake body runs on frames 1..59 of the sixty (the 60th empties `$11(a4)`
+and takes state 8 instead), `$10(a4)` walks `1,2,3,0,1,2,3,0,…`, and frames
+4, 8, 12 … 56 reach the two `jsr` calls: **fourteen frames, two calls each, 28
+calls in all**, every one of them before the request. The calls are a camera
+shake, not a decision: each value is masked with `#$1F`, given a sign by
+`btst #0` and stored in `Camera_X_Pos_FG` / `Camera_X_Pos_BG` — but they come off
+the shared `RNG_Seed` through the same `ror (RNG_Seed).w`, so they move every
+later roll in the battle.
+
+They are not conditional on anything the battle holds. `$6(a4)` (the crack
+countdown that gates the wind-up) belongs to state 0, and the harness object
+`loc_244D0` (`ps4.asm:48065`) that loads the three `$334` crack children runs
+without drawing; `loc_255FA`, `loc_25518`, `loc_256AE`, `PlaneMapToRAM` and
+`Battle_LoadObject` — everything else the chain calls — make no generator call at
+all (see the call-site census below). The frame count is a literal: 60 frames,
+28 calls, whatever the target count, the party's HP or the fight's outcome.
+
+#### What the capture shows
+
+The capture's RNG trace (`forced_3B_attack_rolls.csv`, from
+`python3 -m oracle.force --formation 0x3B`) holds exactly those calls. SandWorm's action opens at
+f26155 with one call, then:
+
+```text
+frame,call,pc,hv,frame_count,seed_before,roll,seed_after
+26541,0,0423A2,58AB,25595,3DA6C613,7F00,1ED3C613
+26541,1,0423A2,580F,25595,1ED3C613,9D37,8F69C613
+26545,0,0423A2,5C9A,25599,30D5C273,8FC4,986AC273
+26545,1,0423A2,5D03,25599,986AC273,2898,4C35C273
+...
+26593,0,0423A2,624E,25647,CC1CBEF3,FA61,660EBEF3
+26593,1,0423A2,6287,25647,660EBEF3,60A8,3307BEF3
+26599,0,0423A2,26F0,25653,316C2803,59B9,18B62803   <- the 48 damage calls
+```
+
+Two calls a frame, every fourth frame, from f26541 to f26593 — fourteen frames,
+28 calls, and the damage runs at f26599, 48 calls (16 per slot, three slots).
+The extractor's own labels (`oracle/fixture/roles.py`) read those 28 as
+`ability` + `ability_reroll` because it has no other shape for an enemy action's
+non-16-multiple frame; the routine they come from is the one above, and the
+frame spacing is what says so: f26541 - f26155 = 386 frames of wind-up, then 4
+frames a step to the last call at f26593, with the request six frames later
+(state 8's flash, which waits for `($FFFF416C)` — line 47993 sets it, line 48003
+waits on it). The round's tally follows: 13 order draws + 1 ability roll + 28 +
+48 + 2 + 17 + 17 = 126.
+
+#### The damage is the same rule, read 28 words late
+
+Both blocks run through `Battle_CalculateDamage` (`ps4.asm:17374`) with the same
+record (`01 05 09 00 06 01 00 00`, power byte 0), so the only difference is
+which sixteen words land in `S`:
+
+| slot | `S` (aligned) | raw | stored | `S` (28 words early) | raw | stored |
+|---|---|---|---|---|---|---|
+| 1 Alys (def 18) | 47 | 241 | 241 | 63 | 276 | 276 |
+| 2 Chaz (def 10) | 35 | 223 | 223 | 46 | 247 | 247 |
+| 3 Hahn (def 9) | 54 | 265 | 265 | 41 | 237 | 237 |
+
+`(((S + 8) * 279) >> 6) + 279) * 2 >> 2 - defence` in 16-bit words, element 1 =
+physical resolved to the target's factor 2. The log's own `damage` column for
+the round is 241/223/265 and the port's old numbers were 276/247/237 — the
+misaligned read, not a second rule in the route. The port's formula, its record
+read, its element factor and its slot order were already right; nothing in
+`Enemy_DamageCharacter` (`ps4.asm:3775`) changes.
+
+#### The census: which chain objects draw
+
+`jsr (UpdateRNGSeed2).l` appears at 43 call sites in the file. Mapped to the
+object that owns each (label to the next object-table entry):
+`BattleObj_SlaveMotrCannon` (28770), `loc_1C58E` (38778), `loc_1C73E` (38990),
+**`BattleObj_Earthquake` (47976, 47983)**, `loc_25032` (48981), `loc_27094`
+(52107), `loc_27C80` (52962, 52967), `loc_2DAC6` (59824, 59832, 59918),
+`loc_2DD5E` (59955, 59960), `loc_2DF4A` (60128), `loc_2E260` (60282),
+`loc_320C2` (64847), `BattleObj_Nazan` (73477, 73488), `BattleObj_NazanChild2`
+(73600), `BattleObj_GraChild` (73782), `BattleObj_GraChild2` (73811),
+`BattleObj_MegidChild` (73951, 73955), `BattleObj_Legeon` (75562, 75566),
+`BattleObj_PosiboltChild` (75958), `BattleObj_BlizzardChild` (80603) and
+`BattleObj_XBurstChild` (114422, 158017) — plus the non-object routines
+(`Enemy_TargetCharacter`, `Battle_CalculateChances`, `Battle_CalculateDamage`,
+`Battle_CalcHealing`, `Battle_RestoreStatsAtTurnEnd`, `Enemy_Attack`'s
+`loc_CFE6`, the encounter and item-drop draws), which the port models separately.
+
+Read against `DAMAGE_SKILL_ROUTES`' 30 pairs, `BattleObj_Earthquake` is the only
+chain object in the table that owns one: 80 SandWorm's `$38`. The thirteen
+sites outside object code are the battle's own consumers, which the port models
+where they belong: `Battle_CheckItemDrop` (4837, the post-victory drop),
+`Battle_OrderTurns` (7796, the round's order pass), `Enemy_TargetCharacter`
+(7979, the party-target draw), the retarget scan's two loops (8368, 8396),
+`Battle_RestoreStatsAtTurnEnd` (9810), `loc_7E8A` (11870, the encounter's
+formation draw), `Battle_CalculateChances` (17339), `Battle_CalculateDamage`
+(17381), `Battle_CalcHealing` (17416), `Enemy_Attack`'s `loc_CFE6` (19147, the
+ability roll and its re-roll) — and two that belong to arms no proven route
+takes: 47 Warren286's `$1D` arm (22632, `loc_101AC` drawing to pick between two
+candidate party slots; the proven `$1C` pair takes `loc_1006E`, line 22545, and
+never reaches it) and `EnemyAttack_Igglanova`'s empty-space choice (23537,
+`loc_10D32`, which draws only when the enemy's row has empty space on both
+sides). Neither of those arms is in the table, so no proven route's arm owns a
+call site either. In particular
+149 KingRappy's `$38` — the same ability, the same `AllParty` class — loads
+`BattleObj_KingRappyEarthquake` (`ps4.asm:67513`), whose state 4 (`loc_344AC`,
+line 67554) shakes the camera from the fixed byte table `loc_3451C` (line 67590)
+and calls nothing, so that route takes no such calls. The census is a walk of the
+file: call sites, their owning labels, each route object's region and the
+objects it loads, recursively.
+
+The rest of the object-owned sites are the same phenomenon in chains this
+table does not reach, and implementing one of them raises the same question: `loc_1C73E` (38990) is cited in `$31` GRA's own object list and
+`loc_1C58E` (38778) is its neighbour in group 4, `loc_25032` (48981),
+`loc_27094` (52107), `loc_27C80` (52962, 52967), `loc_2DAC6` (59824, 59832,
+59918), `loc_2DD5E` (59955, 59960), `loc_2DF4A` (60128), `loc_2E260` (60282) and
+`loc_320C2` (64847) are object-tail effects with no proven enemy arm, and
+`BattleObj_SlaveMotrCannon` (28770) belongs to `EnemyAttack_Slave` (23451),
+whose pairs are not in the table. `BattleObj_Nazan`/`NazanChild2`,
+`GraChild`, `GraChild2`, `MegidChild`, `Legeon`, `PosiboltChild`,
+`BlizzardChild` and `XBurstChild` are the same shape in chains loaded from
+`Battle_LoadAbilityAnim2` (`ps4.asm:79033`) and its neighbours — ability
+art, not enemy attack arms — which is a reading, not a claim about which side
+casts them.
+
+#### The port's change
+
+`enemy_damage::DamageRoute` gained a `draws: ObjectDraws` field:
+`ObjectDraws::None` (nothing in the chain calls the generator) or
+`ObjectDraws::EarthquakeShake`, whose count is
+`2 * ((EARTHQUAKE_SHAKE_FRAMES - 1) / EARTHQUAKE_SHAKE_PERIOD)` = `2 * (59 / 4)`
+= 28, so the literal 60 and the period 4 stay the citation they came from.
+`resolve_damage_skill` draws `route.draws.count()` after the ability roll and
+before the first `damage_one_target`, which is where the object makes them: the
+shake is state 4, the request is state 8. KingRappy's route is
+`ObjectDraws::None`, which is what keeps this a route's count rather than the
+ability's.
+
+Unit tests (`rust/psiv-core/src/battle/enemy_damage_all_party_tests.rs`):
+`earthquakes_shake_draws_twice_every_fourth_frame` (the three constants, 28 + 48
+draws for SandWorm against 48 for KingRappy and Fanbite),
+`the_shake_draws_sit_before_the_first_damage_run` (a stream whose first 28 words
+add nothing to `S` and whose next sixteen mask to 7 — slot 1 must read the
+maximum-roll number, not the mean one) and
+`the_shake_is_drawn_whatever_the_target_walk_finds` (28 + 16 with one slot
+living, 28 with none). The three helpers that used to pin 48 and 62 draws now
+add the route's own count.
+
+Negative control: with the draw loop removed, the replay of
+`sweep_motavia/formation_3B` diverges at f26155 (`round_rolls` 126 in the log
+against 82, `Normal with Some(276)`). With it, round 3 draws 126 on both sides
+with the log's 241/223/265 on slots 1-3, and every fixture replays exactly.
+
+### Single rows re-read at the resolver gate
 
 Every `single` pair above was read again from its own citations while the
 resolver's table was built — the `EnemyAttackOffs` entry, the arm, the object
@@ -442,7 +651,7 @@ for 82 Leviathan) are what settled the gate: the nibble picks the effect
 handler's range, effect `$01` is `AbilityEffect_None` (`ps4.asm:9092`) so the
 nibble multiplies nothing, and each chain still makes exactly one request in
 `loc_24B64`. The resolver required a proven no-op effect instead of the old
-`byte 2 == 8` check, initially `$01` (A3 also proves `$20`/`$23`/`$24`);
+`byte 2 == 8` check: `$01`, `$20`, `$23` and `$24`.
 `docs/source-notes/battle-enemy-abilities.md` has the change's own
 section.
 
@@ -457,10 +666,10 @@ line N" names the line of the *test* (`cmpi.w #$ID, $24(a4)` or
 lookup and the resistance test instead of those three reads. The resolver's
 table cites label lines and the request lines themselves.
 
-### The Zio-arc rows: FIREBREATH, ZAN, FORCEFLASH, CORRSION (2026-10-02)
+### The Zio-arc rows: FIREBREATH, ZAN, FORCEFLASH, CORRSION
 
-Sixteen of the rows above became `DAMAGE_SKILL_ROUTES` entries on 2026-10-02, for
-the abilities the campaign runner stopped on in Zio's fort and behind it.
+Sixteen of the rows above are the abilities of Zio's fort and the stretch
+behind it.
 Each was read again from its own
 citations before the row was added, and each was then captured from the
 cartridge and replayed through the fixture — the captures, their rounds and
@@ -512,11 +721,11 @@ all five party slots:
   `loc_24BB6` too (line 63018) — the same line 48575. Unlike DarkForce2's
   routine this one has no `$FFFFEE87` gate.
 
-Eleven `AllParty` rows with no object draws (ten before F3, plus 140 Zio2 `$4D`), and Zio2's `$4F` and the single-target `$6C` below.
+Eleven `AllParty` rows with no object draws (ten, plus 140 Zio2 `$4D`), and Zio2's `$4F` and the single-target `$6C` below.
 
-**One carrier is still left out, with its reason.** 133 ProfoundDarkness1 (`$21`) has its rolled id rewritten before any dispatch by the scripted-battle latch `$FFFFEE87` (`ps4.asm:19824`). That byte is not the shape of the Zio counter: it is a latch the boss init routines raise and the first attack of four routines lowers, and only its priority reader is modelled (`rust/psiv-core/src/battle/scripted_flag.rs`). The first-action objects (`$864` for this boss) are untraced, so a `$21` row would resolve an ability on a turn the cartridge may spend elsewhere; it stays on issue #62.
+**133 ProfoundDarkness1 (`$21`) is a row** of `routes/endgame_bosses.rs`. Its rolled id is rewritten before any dispatch by the scripted-battle latch `$FFFFEE87` (`ps4.asm:19824`). That byte is not the shape of the Zio counter: it is a latch the boss init routines raise and the first attack of four routines lowers. `rust/psiv-core/src/battle/scripted_flag.rs` models both: its reader and `first_action`, which spends the boss's first turn on object `$864`. Every later `$21` takes the arm below the gate, as `replay_fixtures/endgame/profound_darkness*.json` show from round 2; the test is `profound_darkness_1s_firebreath_is_one_single_target_request`.
 
-**140 Zio2 is closed (F3).** Its counter `$FFFFEE98` is modelled from all four writers and readers (`rust/psiv-core/src/battle/zio.rs`); its three rolled arms are rows in `routes/zio.rs`: `$4D` CORRSION and `$4F` HEWN (`AllParty`, tail `loc_24BB6`) and `$6C` BLACK WAVE2 (`Single`, tail `loc_24A6C`, chain `ps4.asm:66922-66949`, target kept).
+**140 Zio2 is routed.** Its counter `$FFFFEE98` is modelled from all four writers and readers (`rust/psiv-core/src/battle/zio.rs`); its three rolled arms are rows in `routes/zio.rs`: `$4D` CORRSION and `$4F` HEWN (`AllParty`, tail `loc_24BB6`) and `$6C` BLACK WAVE2 (`Single`, tail `loc_24A6C`, chain `ps4.asm:66922-66949`, target kept).
 
 **`$4C` EVIL EYE, `$2A` RIMIT and `$2F` VOL are not damage routes.** Their rows
 above already said `other`; the re-read confirmed it on every carrier and added
@@ -544,7 +753,7 @@ per family — so a reader looking for a row's family finds it by the ability it
 names; the completeness test in `enemy_damage_zio_tests.rs` asserts that every
 row is in exactly one family and that the four new abilities are all present.
 
-### A3 damage chains (2026-10-04)
+### The Zelan-to-Kuran damage chains
 
 The five new registry families are `flaeli`, `machines`, `organic`,
 `techniques` and `dark_force`: **44 additional carrier pairs**. Every family's
@@ -579,7 +788,7 @@ formula. Its source chain and core test are recorded, but its event battle's
 campaign evidence is bounded by the supplied route's actual reach; do not
 infer Kuran completion from a random Dominator PHONONMASR capture.
 
-### A5 damage chains (2026-10-06)
+### The Air Castle damage chains
 
 The `air_castle` family adds **17 carrier pairs**; its module cites every arm,
 object, request tail and call census, and
@@ -600,11 +809,11 @@ captures. Three things the earlier families did not need:
   family, ShadowSabr's `loc_1D5E2`, DElmLars's `loc_291D2`); a sealed caster's
   object ends the turn with no request. `DamageRoute::sealable` carries it for
   every registered pair whose arm reaches one: the six GIZAN carriers, and -
-  fixed as a class in the same lane - GIWAT (71, 77, 101, 122, 123), WAT and FOI
+  as a class - GIWAT (71, 77, 101, 122, 123), WAT and FOI
   (99, 100, 114), ZAN (100, 114) and FORCEFLASH (114, 115, 116). The census is
   pinned by `exactly_the_routes_whose_object_tests_the_caster_seal_are_sealable`.
 
-### A6 damage chains (2026-10-07)
+### The endgame damage chains
 
 The `endgame` and `endgame_bosses` families add **38 carrier pairs**, every
 damage pair left after the Air Castle; the modules cite every arm, object,
@@ -675,45 +884,37 @@ of them is a `damage` row in §2.
    candidates. Later readings reclassified non-damage chains as `other` and
    retained those rows for provenance; that historical set is not the current
    inventory's set of `damage` class IDs.
-2. A3 adds five keys absent from that census: `(40,$15)`, `(44,$18)`,
-   `(50,$18)`, `(69,$23)` and `(130,$63)`, plus the F3 `(140,$6C)` row previously described only in the narrative, for
+2. The Zelan-to-Kuran route adds five keys absent from that census: `(40,$15)`,
+   `(44,$18)`, `(50,$18)`, `(69,$23)` and `(130,$63)`, plus Zio2's `(140,$6C)`, for
    **152 unique table keys**.
    `oracle.sweep.route_abilities` enumerates the forward route's regular and
    conditional lists, vehicle groups and scene battles; the command, set and
-   input hashes are recorded in `ENEMY_ABILITIES_ROUTE.md` section 1.
+   input hashes are recorded in `ENEMY_ABILITIES_ZELAN_TO_KURAN.md` section 1.
 3. All **110 registry pairs** are marked in §2. The core registry completeness
-   test rejects duplicate keys, and the A3 carrier controls enumerate their
+   test rejects duplicate keys, and the route's carrier controls enumerate their
    source-read families independently of the production registry.
-4. A3's 16 random-encounter damage ability IDs each need a used-ability capture
-   and exact generic replay; event-only BURSTROC cannot use `oracle.force`
-   (#72). The per-ability evidence table and route limits live in §6 of the
-   inventory, not in a second independently-maintained receipt table here.
+4. The per-ability capture evidence and route limits are §6 of
+   [ENEMY_ABILITIES.md](ENEMY_ABILITIES.md), not a second table here.
 
 ### Citations, checked mechanically
 
 Every `ps4.asm:N` citation in this file was checked to point at a line where the
 named label begins. The check is a script: collect each `ps4.asm:N` and its
 backticked label, resolve the label in the disassembly, and compare. Result: all
-citations verified, no mismatches (see the run note below). Line-level references
+citations verified, no mismatches. Line-level references
 (the request lines, the mask lines) are written as "line N" without the
 `ps4.asm:` prefix, exactly as `ENEMY_ABILITIES.md` §1 does, so they are statements
 about a line, not label citations.
 
-### Run note
+### What the checks found
 
-The checks above ran from scripts kept out of the repository (`build/lane-scratch/`;
-`build/` is ignored): `report2.py` (arm/object/damage extraction), `check_pairs.py`
-(completeness, carrier sets, the Acid Breath class), `check_citations.py` (label
-citations) and `check_other.py` (a second, whole-region scan for every `other`
-row). Results at this revision:
-
-- pair set: 146 rows, 146 distinct keys, 0 missing and 0 extra against
-  `enemies.json`;
-- carrier re-derivation: 57 ids, 0 mismatches against `ENEMY_ABILITIES.md` §2;
-- citations: 0 mismatches over every `ps4.asm:N` / `ps4.constants.asm:N` citation;
-- `other` rows: 0 `move.w #$C, $2(aX)` writes in the whole code region of the
-  objects concerned;
-- Acid Breath: all four pairs `single`.
+The checks above are one-off scripts (arm, object and damage extraction;
+completeness, carrier sets and the Acid Breath class; label citations; a
+whole-region scan for every `other` row), not kept in the repository. They
+found: 146 pairs with 0 missing and 0 extra against `enemies.json`; 57 carrier
+ids with 0 mismatches against `ENEMY_ABILITIES.md` §2; 0 citation mismatches; 0
+`move.w #$C, $2(aX)` writes in the code regions of the `other` rows; and all
+four Acid Breath pairs `single`.
 
 ### Limits
 

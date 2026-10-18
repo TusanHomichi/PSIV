@@ -670,9 +670,9 @@ pub enum SceneOp {
     ///
     /// `Event_AlysFound` opens with `cmp.w $34(a3),d0` — Chaz's `curr_y_pos`
     /// against Alys's — to skip the alignment step when she is already level
-    /// with him. Scene-lane flagged this as the act's only *position* branch
-    /// and asked that [`SceneOp::BranchFlag`] not be silently widened to cover
-    /// it, so it gets its own op.
+    /// with him. This is the act's only *position* branch, and
+    /// [`SceneOp::BranchFlag`] is not widened to cover it, so it gets its own
+    /// op.
     BranchIfAligned {
         /// One actor.
         a: ActorRef,

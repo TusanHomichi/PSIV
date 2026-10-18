@@ -39,7 +39,6 @@ load, so leaving the mansion shuts the door again.
 runtime puts the id in the map's dialogue overrides, the table a map effect already feeds, so a
 map reload drops it as the object rebuild does in retail.
 
-## In the route (C7)
-
+## In the route
 The `esper-mansion-door` chapter talks to the left guard with the carnivorous trees fought
 (`$95` set, `$9E` clear): entry 1, flag `$1A`, the guards walk off the door row.

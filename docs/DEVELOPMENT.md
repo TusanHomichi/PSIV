@@ -2,17 +2,21 @@
 
 [Project overview](../README.md) · [Documentation index](README.md)
 
-For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
-[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
+This guide is developer setup and the checks. Playing needs less: the
+[quick start](../README.md#quick-start-linux) covers the ROM check, the
+prerequisites and the commands to build and start the game.
 
 ## Current environment
 
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
 (see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
-Godot version is **4.7.1**, with a 1280×800 viewport. Python 3.10 or newer;
-Rust with edition 2024. Supported platforms are a [roadmap](ROADMAP.md)
-decision.
+Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
+build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
+[`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
+reads that file and installs the toolchain on first use. Each file is the
+version's one owner, so a version bump is a one-line change there. Supported
+platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
@@ -23,14 +27,23 @@ documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 From the repository root:
 
 ```bash
-git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git clone https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git -C reference/ps4disasm checkout --detach 5d8dcb56943d2d9430b702950daab4436fb109e8
 ./oracle/build_core.sh
 python3 -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 ```
 
-`./oracle/build_core.sh` fetches the pinned emulation core into the ignored
-`oracle/gpgx-src/` (it needs `git`, GNU `patch` and a C toolchain).
+The disassembly is a research reference: the tests, the oracle and the
+documents cite it, and the pack does not read it. The commit above is the one
+the citations were checked against. `inspect` prints the ROM's verified SHA-256
+and refuses any other image; the ROM is an argument to both commands and can
+live anywhere.
+
+`./oracle/build_core.sh` fetches Genesis Plus GX at its pinned commit
+`2d7131c5efa606f649d36e1685a8ca47c24f31b3` into the ignored `oracle/gpgx-src/`,
+applies `oracle/patches/` and builds the oracle's core (it needs `git`, GNU
+`patch`, `make` and a C toolchain).
 `psiv-sound`'s build script compiles the core's sound-chip sources from there,
 so every Rust build that includes `psiv-godot` or the whole workspace needs it
 first.
@@ -69,22 +82,28 @@ Close any running PSIV/Godot instance before rebuilding its loaded extension.
 
 ```bash
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-PSIV_SAVE_DIR="$PWD/saves" godot --path godot
+python3 tools/godot.py prepare
+PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
-Here `godot` means your Godot executable. The explicit save directory makes
+`python3 tools/godot.py prepare` writes the project's extension index,
+`godot/.godot/extension_list.cfg`, which Godot's editor import would write and
+Git ignores; without it a fresh clone starts on a black screen ("Cannot get
+class 'Field'"). It does nothing once the index lists the game's extension. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
-`godot/run.sh` is a local convenience launcher with build/launch locking.
-It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
-the commands above let you use another executable path.
+`godot/run.sh` is a local convenience launcher with build/launch locking; it
+needs `rg` and `flock`.
 
-`PSIV_GODOT` names the Godot executable for the scripted tools
-(`tools/certify.py`, `tools/verify_native_tape.py`) and for the capture
-commands in the subsystem documents, which write it as `"$PSIV_GODOT"`. The
-tools default to `~/.local/bin/psiv-godot-4.7.1` when it is unset; set it once
-in your shell for the documents' commands.
+`PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
+is used. `tools/godot.py` is the one lookup: it prints the executable, or
+refuses one that does not report the version pinned in `.godot-version` or is
+not a `stable` build (`python3 tools/godot.py` checks your setup). `godot/run.sh`
+and `tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it, and the three that start the game run its
+`prepare` step first. The capture commands in the subsystem
+documents write it as `"$PSIV_GODOT"`; set it once in your shell.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
@@ -111,18 +130,33 @@ The keyboard and controller bindings are listed in the
 
 `tools/package/deploy-deck.sh` builds the release extension with
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), exports the Godot project's
-`Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
+symbol versions and the Deck refuses to load it), prepares the project
+(`python3 tools/godot.py prepare`), exports its `Linux-SteamDeck` preset to
+`build/deck/` (the full export log is `build/deck-export.log`; a failed export
+stops the script), stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
 executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
-It needs SSH key access to the Deck and, as written, `cargo-zigbuild` and
-Godot under `~/.local/bin`. On the Deck, add `~/psiv/psiv.x86_64` as a
-non-Steam game.
+It needs:
+
+- SSH key access to the Deck;
+- [zig](https://ziglang.org/) and `cargo-zigbuild` (`cargo install
+  cargo-zigbuild`), on `PATH` or under `~/.local/bin`, which the script adds;
+- the Godot that `tools/godot.py` resolves, with the Linux export templates of
+  the same version installed (the editor's Export Template Manager, or the
+  templates file from the [download archive](https://godotengine.org/download/archive/)).
+
+On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
+
+## Working with agents
+
+Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
+[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
 
 ## Run checks
 
-For the complete Python suite, place the supported image at the repository
-root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
+The complete Python suite reads the ROM from a fixed place: put the supported
+image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
+symbolic link; Git ignores it), and prepare the disassembly and the full pack.
 The battle-art emission tests also need the ignored indexed PNGs named by
 `oracle/fixtures/battle_animation_remainder.json` under
 `oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
