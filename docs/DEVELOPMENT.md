@@ -134,9 +134,16 @@ symbol versions and the Deck refuses to load it), exports the Godot project's
 `Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
 executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
-It needs SSH key access to the Deck, `cargo-zigbuild` under `~/.local/bin`, and
-the Godot that `tools/godot.py` resolves. On the Deck, add `~/psiv/psiv.x86_64` as a
-non-Steam game.
+It needs:
+
+- SSH key access to the Deck;
+- [zig](https://ziglang.org/) and `cargo-zigbuild` (`cargo install
+  cargo-zigbuild`), on `PATH` or under `~/.local/bin`, which the script adds;
+- the Godot that `tools/godot.py` resolves, with the Linux export templates of
+  the same version installed (the editor's Export Template Manager, or the
+  templates file from the [download archive](https://godotengine.org/download/archive/)).
+
+On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
 
 ## Working with agents
 

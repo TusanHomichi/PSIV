@@ -1,8 +1,8 @@
 #!/bin/bash
 # Package and push PSIV to a Steam Deck. Usage, from the repository root:
 # ./tools/package/deploy-deck.sh <deck-ip> [user]
-# The Deck user is almost always `deck`. Requires key auth (same setup as
-# MiraCraft's account). After the push: on the Deck, add
+# The Deck user is almost always `deck`. Requires SSH key authentication to
+# that user. After the push: on the Deck, add
 # ~/psiv/psiv.x86_64 as a non-Steam game (Desktop Mode > Steam > Add a Game),
 # or run it straight from Desktop Mode.
 set -e
