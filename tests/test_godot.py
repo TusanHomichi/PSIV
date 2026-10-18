@@ -6,7 +6,8 @@
 version `.godot-version` pins. Each case stands a small script in for Godot
 that prints what a real `godot --version` prints. The negative controls are a
 wrong version (a patch release, a two-digit patch that shares the pinned
-prefix, an older minor), a `PSIV_GODOT` that names nothing (which must not
+prefix, an older minor), the pinned version as a release candidate, beta,
+dev or unlabelled build, a `PSIV_GODOT` that names nothing (which must not
 fall back to PATH), no Godot anywhere, a Godot whose `--version` fails, and a
 malformed version file. The last cases pin that the launchers ask the resolver
 instead of naming a host path.
@@ -85,6 +86,16 @@ class NegativeControls(FakeGodot):
                 version = output.split(".stable")[0]
                 self.assert_refused({"PSIV_GODOT": str(named)},
                                     f"is Godot {version}; PSIV needs 4.7.1")
+
+    def test_a_build_that_is_not_stable_is_refused(self):
+        for output, status in (("4.7.1.rc1.official.x", "rc1"),
+                               ("4.7.1.beta2.custom_build.x", "beta2"),
+                               ("4.7.1.dev.custom_build", "dev"),
+                               ("4.7.1", "with no build status")):
+            with self.subTest(output=output):
+                named = self.fake("named/godot", output=output)
+                self.assert_refused({"PSIV_GODOT": str(named)},
+                                    f"is Godot 4.7.1 {status}; PSIV needs the stable 4.7.1 release")
 
     def test_a_variable_naming_nothing_does_not_fall_back(self):
         self.fake("bin/godot")

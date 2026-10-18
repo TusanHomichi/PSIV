@@ -7,8 +7,8 @@ prints the executable's path, or the reason there is none on stderr with exit
 status 1. `PSIV_GODOT` names the executable; when it is unset or empty, `godot`
 on `PATH` is used. Either way the executable must report the version that
 `.godot-version` at the repository root pins (`godot --version` prints
-`4.7.1.stable.official.<commit>`), so a different Godot is refused rather than
-run. That file is the one place the version is written: the shell launchers
+`4.7.1.stable.official.<commit>`) and be a `stable` build, so a different
+Godot, or a release candidate of the pinned one, is refused rather than run. That file is the one place the version is written: the shell launchers
 call this script and the Python tools import `resolve`, so changing the
 version is a one-line edit there.
 
@@ -54,21 +54,27 @@ def required_version(path: Path = VERSION_FILE) -> str:
     return text
 
 
-def reported_version(output: str) -> str | None:
-    """The version in `godot --version` output: its leading numeric fields.
+def reported_version(output: str) -> tuple[str, str] | None:
+    """The version and build status in `godot --version` output: its leading
+    numeric fields and the field after them.
 
-    `4.7.1.stable.official.a13da4feb` is 4.7.1; a `.0` patch release prints
-    as `4.7.stable...`, which is 4.7.
+    `4.7.1.stable.official.a13da4feb` is (4.7.1, stable); a `.0` patch release
+    prints as `4.7.stable...`, which is 4.7; a release candidate prints
+    `4.7.1.rc1.official...`, status `rc1`.
     """
     words = output.strip().split()
     if not words:
         return None
+    fields = words[0].split(".")
     numbers = []
-    for field in words[0].split("."):
+    for field in fields:
         if not field.isdigit():
             break
         numbers.append(field)
-    return ".".join(numbers) if len(numbers) >= 2 else None
+    if len(numbers) < 2:
+        return None
+    status = fields[len(numbers)] if len(fields) > len(numbers) else ""
+    return ".".join(numbers), status
 
 
 def same_version(left: str, right: str) -> bool:
@@ -110,9 +116,13 @@ def check(path: Path | None, version_file: Path = VERSION_FILE) -> Path:
                               timeout=VERSION_TIMEOUT, check=False)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise GodotError(f"cannot run {path} --version: {error}") from error
-    version = reported_version(proc.stdout)
-    if proc.returncode != 0 or version is None:
+    reported = reported_version(proc.stdout)
+    if proc.returncode != 0 or reported is None:
         raise GodotError(f"{path} --version reported no version (exit {proc.returncode})")
+    version, status = reported
+    if status != "stable":
+        raise GodotError(f"{path} is Godot {version} {status or 'with no build status'}; "
+                         f"PSIV needs the stable {required} release ({version_file.name})")
     if not same_version(version, required):
         raise GodotError(f"{path} is Godot {version}; PSIV needs {required} "
                          f"({version_file.name})")
