@@ -31,7 +31,7 @@ import sys
 sys.path.insert(0, {str(ROOT)!r})
 from tools import verify_candidate as vc
 
-def runner(command, log, lock):
+def runner(command, log, lock, lock_class):
     open(sys.argv[1], "a").write(log.stem + "\\n")
     return 0
 
@@ -52,7 +52,7 @@ def fake_runner(codes=None, digest="abc", chapters=("one", "two")):
     calls = []
     codes = codes or {}
 
-    def run(command, log, lock):
+    def run(command, log, lock, lock_class):
         name = log.stem
         calls.append((name, lock))
         text = ""
@@ -108,16 +108,19 @@ class Candidate(RepoCase):
         (path,) = Path("build/candidate").glob("*/receipt.json")
         return json.loads(path.read_text())
 
-    def test_all_steps_pass_in_order_and_the_build_and_certify_hold_the_lock(self):
+    def test_all_steps_pass_in_order_and_only_the_build_is_held_here(self):
         runner, calls = fake_runner()
         code, out = self.run_main(["--expect-digest", "abc", "--expect-chapters", "2"], runner)
         self.assertEqual(code, vc.EXIT_OK, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "certify", "gate"])
-        # The headless route and resumes take no lock; the gate takes its own.
+        # The headless route and resumes take no lock; certify and the gate
+        # take their own classes, so only the build is held from here.
         self.assertEqual([lock is not None for _, lock in calls],
-                         [True, False, False, True, False])
+                         [True, False, False, False, False])
         receipt = self.receipt()
+        self.assertEqual([step["lock_class"] for step in receipt["steps"]],
+                         ["build", None, None, "own", "own"])
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)
         self.assertEqual(receipt["route"]["frames"], 20)
@@ -195,7 +198,7 @@ class RawFlockParent(RepoCase):
 
 class BuildStepLock(RepoCase):
     """The build step's command really runs holding the heavy lock in the
-    exclusive class: each step's command is swapped for a probe that records
+    build class: each step's command is swapped for a probe that records
     the class marker its process sees, run through the real `run_step`."""
 
     def setUp(self):
@@ -213,9 +216,9 @@ class BuildStepLock(RepoCase):
     def seen_classes(self):
         seen = {}
 
-        def runner(command, log, lock):
+        def runner(command, log, lock, lock_class):
             probe = f'echo "class=${{{HELD_CLASS_ENV}:-none}}"'
-            code = vc.run_step(probe, log, lock)
+            code = vc.run_step(probe, log, lock, lock_class)
             seen[log.stem] = log.read_text().strip()
             return code
 
@@ -223,8 +226,12 @@ class BuildStepLock(RepoCase):
             vc.main([], runner=runner)
         return seen
 
-    def test_the_build_runs_in_the_exclusive_class(self):
-        self.assertEqual(self.seen_classes()["build"], "class=exclusive")
+    def test_the_build_runs_in_the_build_class(self):
+        self.assertEqual(self.seen_classes()["build"], "class=build")
+
+    def test_certify_and_the_gate_run_under_no_holder_and_take_their_own(self):
+        seen = self.seen_classes()
+        self.assertEqual((seen["certify"], seen["gate"]), ("class=none", "class=none"))
 
     def test_negative_control_the_headless_route_holds_nothing(self):
         self.assertEqual(self.seen_classes()["route"], "class=none")

@@ -265,8 +265,8 @@ longer hash to the report's `save_fnv`.
 # Once, in the worktree that will replay (never while a Godot process has the
 # extension loaded): an extension that replays at about 1,000 frames/s.
 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
-  python3 tools/heavy_lock.py run -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run -- \
+  python3 tools/heavy_lock.py run --class exclusive -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
+CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run --class build -- \
   cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
   --save-dir build/r2-route --tape build/r2-route/run.tape --report build/r2-route/report.json

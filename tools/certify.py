@@ -23,12 +23,16 @@ mapped (rebuilding or loading under a live Godot can crash it).
 
 Certify takes the shared heavy lock itself (tools/heavy_lock.py), so it needs
 no wrapper: the build in the exclusive class, then the captures holding one
-godot-class slot per worker. `--jobs N` (default min(3, the godot slot cap))
+godot-class slot per worker. The build stays exclusive although its memory
+would fit beside Godot runs: the mapped-extension refusal above is checked once,
+before the lock, so a Godot run in this checkout could map the library while
+cargo relinks it, and only exclusion keeps every Godot run out until the build
+ends. `--jobs N` (default min(3, the godot slot cap))
 runs the captures across N workers, longest first; each worker owns one Xvfb
 server for its life and each capture its own save directory and output files,
-so a pair's capture is the same bytes at any N. Under an exclusive holder (a
-candidate run) both steps are nested no-ops and N is capped by the slot cap;
-under a godot holder, by the slots it holds.
+so a pair's capture is the same bytes at any N. Under an exclusive holder both
+steps are nested no-ops and N is capped by the slot cap; under a godot holder
+(with `--no-build`: a build there is refused), by the slots it holds.
 """
 import argparse
 import ctypes
