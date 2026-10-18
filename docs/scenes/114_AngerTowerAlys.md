@@ -49,7 +49,8 @@ updates, as the loop does.
 
 Op 8 is a raw facing write (`move.w #0, $6(a4)`), which the port records as
 `Face`; the cartridge skips `Event_UpdateObjFacing`'s sprite refresh there, and
-the battle follows at once.
+the battle follows at once. The deviation is recorded in the
+[source notes](../source-notes/README.md#other-classified-records-in-the-chronology).
 
 ## Tests
 
