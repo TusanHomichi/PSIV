@@ -111,7 +111,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$003F` | `Event_DarkForce1` | map trigger $2E | Kuran_F3 | scene `Event_DarkForce1` |
 | `$0040` | `Event_Juza` | dialogue `$F6` | tree 13 entry 71 | scene `Event_Juza` |
 | `$0041` | `Event_JuzaDefeated` | map trigger $2F | ZioFortJuzaRoom | scene `Event_JuzaDefeated` |
-| `$0042` | `Event_SilenceTmDoorOpening` | interaction area $07 | LeRoofRoom | allowlisted, #83 |
+| `$0042` | `Event_SilenceTmDoorOpening` | interaction area $07 | LeRoofRoom | scene `Event_SilenceTmDoorOpening` |
 | `$0043` | `Event_OutsideRajaTemple` | map trigger $31 | Dezolis | scene `Event_OutsideRajaTemple` |
 | `$0044` | `Event_TylerGraveOpening` | dialogue `$F6` | tree 14 entry 35 | scene `Event_TylerGraveOpening` |
 | `$0045` | `Event_PersistentEsperGuards` | dialogue `$F6` | tree 20 entry 52, tree 21 entry 52 | scene `Event_PersistentEsperGuards` |
@@ -255,8 +255,8 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
 | #81 | Motavia side content | 38 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 8 |
-| | total | 47 |
+| #83 | Dezolis late arc | 7 |
+| | total | 46 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

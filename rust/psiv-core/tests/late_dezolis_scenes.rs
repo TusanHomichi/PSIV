@@ -654,3 +654,52 @@ fn with_elsydeon_the_barrier_breaks_and_sets_e0() {
     // Two lines answered at once, then the two forty-frame loops.
     assert!(ticks >= 80, "{ticks} ticks");
 }
+
+/// `loc_6FC5C`, typed from the US image (`$06FC5C..$06FC75`): five rows of a
+/// delay byte and four chunk ids, then `$FF`.
+const SILENCE_DOOR_TABLE: [u8; 26] = [
+    0x06, 0x54, 0x55, 0x5E, 0x5F, 0x06, 0x56, 0x57, 0x60, 0x61, 0x06, 0x58, 0x59, 0x62, 0x63, 0x06,
+    0x5A, 0x5B, 0x64, 0x65, 0x06, 0x5C, 0x5D, 0x66, 0x67, 0xFF,
+];
+
+/// `$06FBEE..$06FC75`: `SFXID_DoorOpened` (`$E2`), then each table row's four
+/// chunks into BG `(15,8)`, `(16,8)` (`a1`, `d2 = 8`) and `(15,9)`, `(16,9)`
+/// (`a2`, `d2 = 9`), each followed by `delay + 1` frames of
+/// `DMAPlane_B_VInt`. No flag, no dialogue.
+#[test]
+fn the_silence_temple_door_steps_open_by_retails_table() {
+    use psiv_core::SceneOp;
+    let mut state = GameState::new();
+    let log = play(0x42, &mut state, Direction::Up);
+    let mut wanted: Vec<SceneEffect> = vec![SceneEffect::Presentation {
+        op: SceneOp::PlaySound { id: 0xE2 },
+    }];
+    for row in SILENCE_DOOR_TABLE[..25].chunks(5) {
+        wanted.push(SceneEffect::MapChunksWritten {
+            chunks: vec![
+                (15, 8, u16::from(row[1])),
+                (16, 8, u16::from(row[2])),
+                (15, 9, u16::from(row[3])),
+                (16, 9, u16::from(row[4])),
+            ],
+        });
+        wanted.push(SceneEffect::Presentation {
+            op: SceneOp::WaitFrames {
+                frames: u16::from(row[0]) + 1,
+            },
+        });
+    }
+    let observed: Vec<SceneEffect> = log
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                SceneEffect::MapChunksWritten { .. } | SceneEffect::Presentation { .. }
+            )
+        })
+        .cloned()
+        .collect();
+    assert_eq!(observed, wanted);
+    assert!(flag_writes(&log).is_empty());
+    assert!(dialogues(&log).is_empty());
+}

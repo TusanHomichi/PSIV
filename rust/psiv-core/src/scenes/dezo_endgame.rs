@@ -611,6 +611,46 @@ pub static ANGER_TOWER_TOP: Scene = Scene {
     ],
 };
 
+/// `$0042`, `Event_SilenceTmDoorOpening`, `$06FBEE..$06FC75` (`ps4.asm:149200-149238`;
+/// record `docs/scenes/116_SilenceTmDoorOpening.md`): the door of Le Roof's ship
+/// in LeRoofRoom `$F0`, the map's one interaction area ((31..32,19), type 2,
+/// temp flag `$19`, parameter 7). `SFXID_DoorOpened`, then the table's five
+/// rows step the door open; its last row leaves the boarding row walkable,
+/// where `RunEvent_SilenceTmEnterSpaceship` (leader Y `$120`) waits.
+pub static SILENCE_TM_DOOR_OPENING: Scene = Scene {
+    name: "Event_SilenceTmDoorOpening",
+    event: EventIndex(0x0042),
+    ops: &[
+        SceneOp::PlaySound {
+            id: SFX_DOOR_OPENED,
+        },
+        // `loc_6FC5C`: per row two chunks into BG row 8 at `a1`
+        // (`GetMapLayoutOffset(d1=$F, d2=8, d3=1)`), two into row 9 at `a2`
+        // (`(d1=$F, d2=9, d3=1)`), `RefreshPlaneBG`, then the row's delay byte
+        // 6 as a `dbf` loop of `DMAPlane_B_VInt` (`$0416A6`): seven frames.
+        SceneOp::WriteMapChunks {
+            chunks: &[(15, 8, 0x54), (16, 8, 0x55), (15, 9, 0x5E), (16, 9, 0x5F)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(15, 8, 0x56), (16, 8, 0x57), (15, 9, 0x60), (16, 9, 0x61)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(15, 8, 0x58), (16, 8, 0x59), (15, 9, 0x62), (16, 9, 0x63)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(15, 8, 0x5A), (16, 8, 0x5B), (15, 9, 0x64), (16, 9, 0x65)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(15, 8, 0x5C), (16, 8, 0x5D), (15, 9, 0x66), (16, 9, 0x67)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+    ],
+};
+
 /// `$0062`, `Event_AngerTowerAlys`, `$07148A..$071579` (`ps4.asm:150697-150768`;
 /// record `docs/scenes/114_AngerTowerAlys.md`): tree 41 entry 15's `$F6`. The
 /// illusion (object 0) speaks, turns to Chaz, steps eight pixels at him while

@@ -42,6 +42,8 @@ table slot, whose address was checked against the image.
 | `Cutscene_ZioDefeated` `$800B` (via `Event_MotaSpaceportAppearing` `$07`) | `$06B808` | BG `(26,45)` ← `$3F` | **was dropped** → `WriteMapChunks` |
 | `Cutscene_CrashLanding` `$800F` | `$076E00` (called at `$076AE6`) | Raja Temple BG `(47,9),(48,9),(47,10),(48,10)` ← five frames ending `$56,$57,$5E,$5F` | `WriteMapChunks` ×5; raw `$50..$5F` atlas tiles, [retail decode](43_CrashLanding.md#live-layout-write-retail-correction-67) |
 | `Event_TylerGraveOpening` `$44` | `$06FCEE` | BG `(10,12)` ← `$47`, with the twelve grave objects drifting aside (`DriftNpcs`) | `WriteMapChunks` + `DriftNpcs`, [92](92_TylerGraveOpening.md) |
+| `Event_GaruberkTwDoorOpening1/2` `$35`,`$36`, `Event_GaruberkTwDoorEntered1/2` `$37`,`$38` | `$06F454`…`$06F83A` | tower door animations at the leader's live position | `WriteActorMapChunks`, [103](103_GaruberkTowerDoors.md) |
+| `Event_SilenceTmDoorOpening` `$42` | `$06FC04`, `$06FC16` | BG `(15,8),(16,8),(15,9),(16,9)` ← five rows of `loc_6FC5C`, ending `$5C,$5D,$66,$67` | `WriteMapChunks` ×5 (atlas tiles in the pack); [116](116_SilenceTmDoorOpening.md) |
 | `Event_VahFortMovingPlatform1..2` `$15`,`$16`, `Event_WpnPlntMovingPlatform1..4` `$17`-`$1A` | `$06C4C4`…`$06CD8A` (start and end writes) | two-chunk FG platform pairs, `$C0..$C3` vacated, `$CC,$CD` (collision 2) at the destination, around a 60-frame settle and an 80- or 112-frame ride | `WriteMapChunks` x2 per scene half; the six `SCENE_CHUNK_WRITES` rows put `$C0..$C3` in the two maps' atlases, [PLATFORMS_AND_BELTS](../field/PLATFORMS_AND_BELTS.md) |
 
 Several of these were transcribed as presentation or not at all, which is
@@ -54,11 +56,9 @@ had workarounds in it (`go_to_map` round trips); the rest were latent.
 | Owner | Site | Write | Why not |
 |---|---|---|---|
 | `Event_WreckageEngine` `$29` | `$06DD14` | one chunk | not transcribed |
-| `Event_GaruberkTwDoorOpening1/2` `$35`,`$36`, `Event_GaruberkTwDoorEntered1/2` `$37`,`$38` | `$06F454`…`$06F83A` | tower door animations | not transcribed |
-| `Event_SilenceTmDoorOpening` `$42` | `$06FC04`, `$06FC16` | two-chunk door | not transcribed (the file's next body after `Event_JuzaDefeated`) |
 
-The last three groups are the already-recorded direct bodies outside this
-slice ([12_ArcTriggerCensus](12_ArcTriggerCensus.md)); listing them here keeps
+The remaining row is an already-recorded direct body outside this
+slice ([12_ArcTriggerCensus](12_ArcTriggerCensus.md)); listing it here keeps
 the *class* visible: each is a live collision change, not decoration.
 
 ### Visual-only writes on a collision plane that is not read

@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 47;
+const ALLOWLIST_CEILING: usize = 46;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -109,7 +109,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x003F, "Event_DarkForce1", Disposition::Scene),
     (0x0040, "Event_Juza", Disposition::Scene),
     (0x0041, "Event_JuzaDefeated", Disposition::Scene),
-    (0x0042, "Event_SilenceTmDoorOpening", Disposition::Allowlisted(83)),
+    (0x0042, "Event_SilenceTmDoorOpening", Disposition::Scene),
     (0x0043, "Event_OutsideRajaTemple", Disposition::Scene),
     (0x0044, "Event_TylerGraveOpening", Disposition::Scene),
     (0x0045, "Event_PersistentEsperGuards", Disposition::Scene),
