@@ -618,6 +618,12 @@ fn with_elsydeon_the_barrier_breaks_and_sets_e0() {
     let mut state = GameState::new();
     state.set(Flag::event(0xD9)).unwrap();
     let (log, ticks) = play_enter_anger_tower(&mut state);
+    // Tick 1 opens line 6; tick 2 closes it and starts the first loop, whose
+    // `WaitFrames(40)` (the `moveq #$27` loop's forty `VInt_Prepare` frames)
+    // holds the scene through tick 41; tick 42 starts the second loop, held
+    // through tick 81; tick 82 resumes the text and tick 83 closes it, sets
+    // `$E0` and ends: 3 handshake ticks and the cartridge's 80 frames.
+    assert_eq!(ticks, 83);
     assert_eq!(dialogues(&log), vec![6]);
     assert_eq!(
         log.iter()
@@ -651,8 +657,6 @@ fn with_elsydeon_the_barrier_breaks_and_sets_e0() {
         ]
     );
     assert_eq!(flag_writes(&log), vec![(Flag::event(0xE0), true)]);
-    // Two lines answered at once, then the two forty-frame loops.
-    assert!(ticks >= 80, "{ticks} ticks");
 }
 
 /// `loc_6FC5C`, typed from the US image (`$06FC5C..$06FC75`): five rows of a
