@@ -234,6 +234,26 @@ fn an_expectation_that_cannot_hold_halts_at_that_objective() {
     );
 }
 
+/// Negative control: the route's last claim, the ending's final Start gate,
+/// fails anywhere the ending has not reached it.
+#[test]
+fn an_ending_gate_claim_before_the_ending_halts() {
+    if pack().is_none() {
+        return;
+    }
+    let text = mutate(
+        &main_text(),
+        "{\"do\": \"expect\", \"flags_set\": [\"event:0x8\"], \"map\": 19,",
+        "{\"do\": \"expect\", \"ending_gate\": true, \"flags_set\": [\"event:0x8\"], \"map\": 19,",
+    );
+    let result = run(&config(&text, "bad-ending-gate", Some("academy"), None)).unwrap();
+    let report = result.report.expect("a halt writes a report");
+    assert_eq!(report["objective_index"], 1);
+    assert_eq!(report["halt"]["kind"], "expect_failed");
+    let detail = report["halt"]["detail"].as_str().unwrap();
+    assert!(detail.contains("final Start gate is not up"), "{detail}");
+}
+
 /// Negative control: a target the planner cannot reach halts as unreachable.
 #[test]
 fn an_unreachable_target_halts_as_unreachable() {

@@ -115,3 +115,25 @@ pub static PERSISTENT_ESPER_GUARDS: Scene = Scene {
         set_flag(Flag::event(0x96)),
     ],
 };
+
+/// `$0051`, `Event_InnerSanctGuard`, retail `$070A4E..$070A75`
+/// (`ps4.asm:150114-150123`): the Inner Sanctuary's old man (map object 0)
+/// turns to the leader, speaks entry `$35` and sets
+/// `EventFlag_InnerSanctGuard1` (`$A2`). Tree 20 entry `$24` fires it while
+/// `$A2` is clear (its `$FA $A2 $01` chain).
+pub static INNER_SANCT_GUARD: Scene = Scene {
+    name: "Event_InnerSanctGuard",
+    event: EventIndex(0x0051),
+    ops: &[face_leader(0), standard(0x35), set_flag(Flag::event(0xA2))],
+};
+
+/// `$0052`, `Event_InnerSanctGuardBeforeElsydeon`, retail `$070A76..$070A9D`
+/// (`ps4.asm:150124-150133`): the same shape with entry `$36` and
+/// `EventFlag_InnerSanctGuard2` (`$A3`). Tree 20 entry `$27` fires it, reached
+/// from entry `$26`'s chain while Elsydeon `$D9` and `$A3` are clear and
+/// `$D7` is set.
+pub static INNER_SANCT_GUARD_BEFORE_ELSYDEON: Scene = Scene {
+    name: "Event_InnerSanctGuardBeforeElsydeon",
+    event: EventIndex(0x0052),
+    ops: &[face_leader(0), standard(0x36), set_flag(Flag::event(0xA3))],
+};

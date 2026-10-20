@@ -145,7 +145,7 @@ pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
     SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
-pub use scene_presentation::{CreditsPlane, PresentationAsset, PresentationOp};
+pub use scene_presentation::{CreditsPlane, PaletteHold, PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scenes::{
     DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,

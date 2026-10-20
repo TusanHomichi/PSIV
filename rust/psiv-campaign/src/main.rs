@@ -42,7 +42,8 @@ psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-
 psiv-campaign replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]\n  \
 psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
 psiv-campaign split-tape <run.tape> <report.json> <out-dir>\n  \
-psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>";
+psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>\n  \
+psiv-campaign probe <route.json> --chapter ID --from-save FILE --trials N [--spacing FRAMES] [--work-dir DIR] [--report OUT] [--pack DIR]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -53,6 +54,7 @@ fn main() -> ExitCode {
         Some("save-probe-tape") => return cmd_save_probe_tape(&args[1..]),
         Some("split-tape") => return run_cmd::cmd_split_tape(&args[1..]),
         Some("prefix-check") => return run_cmd::cmd_prefix_check(&args[1..]),
+        Some("probe") => return run_cmd::cmd_probe(&args[1..]),
         _ => {}
     }
     match run(&args) {

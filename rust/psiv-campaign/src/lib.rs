@@ -50,6 +50,7 @@ pub mod policy_estimate;
 pub mod policy_opening;
 pub mod policy_plan;
 pub mod prefix;
+pub mod probe;
 pub mod recovery;
 pub mod replay;
 pub mod route;

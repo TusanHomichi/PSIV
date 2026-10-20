@@ -33,9 +33,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"reunion"));
+    assert_eq!(ids.last(), Some(&"profound-darkness"));
     assert_eq!(
-        ids[ids.len() - 31..],
+        ids[ids.len() - 37..],
         [
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
@@ -67,7 +67,13 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "le-roof-again",
             "before-elsydeon-cave",
             "elsydeon",
-            "reunion"
+            "reunion",
+            "anger-tower-top",
+            "alys-illusion",
+            "rykros-departure",
+            "edge-training",
+            "the-edge",
+            "profound-darkness"
         ][..]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -614,5 +620,41 @@ fn the_flight_lands_where_the_runtime_lands() {
             && e.reason.contains("where the party stands")),
         "{:?}",
         report.errors
+    );
+}
+
+/// A scene's map load keeps the vehicle only when the scene set
+/// `Map_Load_Flags` bit 3, which a route cannot see, so after an
+/// `arrival_scene` (the reunion's load of the Dezo Spaceport, ridden in on the
+/// Ice Digger) the next walk needs an `expect` that names `vehicle`; it used to
+/// plan with the vehicle the route had last claimed.
+#[test]
+fn after_an_arrival_scene_the_next_walk_needs_the_vehicle_claimed() {
+    let pin = "{\"do\": \"expect\", \"map\": 191, \"cell\": [30, 28], \"vehicle\": 0, ";
+    let Some(report) = run(&main_text()) else {
+        return;
+    };
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    let unpinned = mutate(
+        &main_text(),
+        pin,
+        "{\"do\": \"expect\", \"map\": 191, \"cell\": [30, 28], ",
+    );
+    let report = run(&unpinned).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "anger-tower-top")
+        .unwrap_or_else(|| {
+            panic!(
+                "the walk after the reunion is rejected: {:?}",
+                report.errors
+            )
+        });
+    assert_eq!(error.objective, Some(1), "{error}");
+    assert!(
+        error.reason.contains("expect that names vehicle"),
+        "{}",
+        error.reason
     );
 }

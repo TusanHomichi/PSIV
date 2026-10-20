@@ -37,6 +37,7 @@ pub fn budget_for(objective: &Objective) -> u64 {
         | Objective::UseItem { .. }
         | Objective::Reorder { .. }
         | Objective::Dismount
+        | Objective::Restore
         | Objective::Save { .. } => 20_000,
         Objective::Patrol { .. } => 6_000_000,
         Objective::Expect(_) => 60_000,
@@ -100,6 +101,7 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
         }
         Objective::FightScripted => fight_scripted(driver, memory),
         Objective::Dismount => driver.dismount(),
+        Objective::Restore => driver.restore().map(|_| ()),
         Objective::Patrol {
             map,
             a,

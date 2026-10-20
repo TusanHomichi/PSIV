@@ -76,6 +76,12 @@ as one.
 - **CANDIDATE RETAIL BUG — invisible Academy Basement blockers.** The port
   treats invisible no-dialogue blockers as solid and silent; hardware
   confirmation remains pending.
+- **DEVIATION — `Event_AngerTowerAlys` (`$62`) op 8, the leader's facing.**
+  The cartridge writes Chaz's `facing_dir` raw (`move.w #0, $6(a4)` at
+  `$071558`) and does not call `Event_UpdateObjFacing`, so his sprite is not
+  refreshed; the port records it as `SceneOp::Face` down, which also turns
+  the sprite. Nothing shows it: battle `$18` starts on the same frame and the
+  field is rebuilt after it. Record [114](../scenes/114_AngerTowerAlys.md).
 
 ## Deliberate fixes to retail battle bugs
 

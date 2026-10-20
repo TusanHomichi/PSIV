@@ -203,6 +203,20 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         table=(0x76E58, 21),
     ),
     SceneChunkWrite(
+        scene="Event_SilenceTmDoorOpening",
+        map_id=0x0F0,
+        citation=(
+            "GetMapLayoutOffset(d1=$F, d2=9, d3=1) at $06FC04 and (d1=$F, d2=8, d3=1) at $06FC16 (BG); "
+            "the table loc_6FC5C ($06FC5C..$06FC75) is five rows of a delay byte and four chunk ids, "
+            "written by `move.b d1, (a1)` .. `move.b d4, $1(a2)` at $06FC34..$06FC3C"
+        ),
+        chunks=tuple(range(0x54, 0x68)),
+        checks=(
+            (0x6FC34, "12811342000114831544"),
+            (0x6FC5C, "0654555E5F06565760610658596263065A5B6465065C5D6667FF"),
+        ),
+    ),
+    SceneChunkWrite(
         scene="Event_TylerGraveOpening",
         map_id=0x120,
         citation="GetMapLayoutOffset(d1=$A, d2=$C, d3=1) at $06FCEE, `move.b #$47, (a1)` at $06FCF4",

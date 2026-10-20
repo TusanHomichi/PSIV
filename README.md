@@ -8,15 +8,18 @@ it and reads your controller. No emulator runs while you play, and the goal is
 the original game's behavior, quirks included.
 
 **How far it plays.** An automated playthrough, pressing the same buttons a
-player would, plays from New Game to the Reunion at the Dezo Spaceport, after
-the Elsydeon is found, and the native game replays it as far as the Air Castle. Every player technique and skill, and every
+player would, plays from New Game to the Ending's final gate headlessly, in 84
+chapters; the native game replays 62 of those chapters, through Garuberk
+Tower's Dark Force 2, and the replay of chapters 63 onward is still pending.
+Every player technique and skill, and every
 enemy ability up to Dark Force 2, is implemented from the cartridge's code; most
 of them are also captured on the cartridge and replayed against it, and the
 battle documents list the ones that are not
 ([player abilities](docs/battle/PLAYER_ABILITIES.md),
-[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). The rest of
-the story, from the Reunion to the Ending, is the open work before 1.0
-([#116](https://github.com/TusanHomichi/PSIV/issues/116)). Presentation (some
+[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). The remaining story work is
+that native replay and the Ending's final gate in Godot's shell
+([#116](https://github.com/TusanHomichi/PSIV/issues/116),
+[#170](https://github.com/TusanHomichi/PSIV/issues/170)). Presentation (some
 animations, whole-scene staging, audio timing) still differs from the original
 in places; the [known differences](#known-differences) are listed.
 

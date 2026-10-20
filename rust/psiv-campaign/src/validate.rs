@@ -100,8 +100,9 @@ struct Run<'a> {
     flags: BTreeSet<Flag>,
     /// Cells an `interact` opened, by map; dropped when the party leaves.
     opened: BTreeMap<u16, Vec<Cell>>,
-    /// How the party moves, as the route's `vehicle` assertions claim it.
-    mover: Mover,
+    /// How the party moves, as the route's `vehicle` assertions claim it;
+    /// `None` after a scene loaded a map, until an `expect` names `vehicle`.
+    mover: Option<Mover>,
 }
 
 impl<'a> Run<'a> {
@@ -114,7 +115,7 @@ impl<'a> Run<'a> {
             pos: None,
             flags: BTreeSet::new(),
             opened: BTreeMap::new(),
-            mover: Mover::Foot,
+            mover: Some(Mover::Foot),
         }
     }
 
@@ -192,11 +193,29 @@ impl<'a> Run<'a> {
         }
     }
 
+    /// How the party moves. A scene's map load (`RefreshMap`) keeps the
+    /// vehicle only when the scene set `Map_Load_Flags` bit 3, which the route
+    /// cannot see, so after an `arrival_scene` the next walk needs an `expect`
+    /// that names `vehicle`.
+    fn mover(&self) -> Result<Mover, String> {
+        self.mover.ok_or_else(|| {
+            "a scene loaded the map, so whether the party rides is unknown: pin it with an \
+             expect that names vehicle"
+                .to_owned()
+        })
+    }
+
+    /// The warp graph a walk plans on: the claimed flags, the opened cells
+    /// and the party's mover.
     fn graph(&self) -> Result<MapGraph<'a>, String> {
+        Ok(self.layout()?.with_mover(self.mover()?))
+    }
+
+    /// The same graph for questions that do not walk (is a cell on the map),
+    /// which hold whether the party rides or not.
+    fn layout(&self) -> Result<MapGraph<'a>, String> {
         let flags: Vec<Flag> = self.flags.iter().copied().collect();
-        let mut graph = MapGraph::new(self.data, &flags)
-            .map_err(|e| e.to_string())?
-            .with_mover(self.mover);
+        let mut graph = MapGraph::new(self.data, &flags).map_err(|e| e.to_string())?;
         for (map, cells) in &self.opened {
             graph.open_cells(*map, cells.clone());
         }
@@ -254,9 +273,10 @@ impl<'a> Run<'a> {
                 self.require_map(*map)?;
                 self.go_to_map(*map, *via_warp)?;
                 if *arrival_scene {
-                    // The scene the load starts moves the party: where it ends
-                    // is the next `expect`'s claim.
+                    // The scene the load starts moves the party: where it ends,
+                    // and whether it still rides, is the next `expect`'s claim.
                     self.pos = None;
+                    self.mover = None;
                 }
                 Ok(())
             }
@@ -294,9 +314,10 @@ impl<'a> Run<'a> {
                     ))
                 }
             }
-            Objective::Answer { .. } | Objective::RestInn { .. } | Objective::FightScripted => {
-                Ok(())
-            }
+            Objective::Answer { .. }
+            | Objective::RestInn { .. }
+            | Objective::FightScripted
+            | Objective::Restore => Ok(()),
             Objective::Board { to, .. } => {
                 self.here("board")?;
                 let world = crate::ship::world_of(to, self.data)?;
@@ -312,10 +333,10 @@ impl<'a> Run<'a> {
                 Ok(())
             }
             Objective::Dismount => {
-                if self.mover == Mover::Foot {
+                if self.mover()? == Mover::Foot {
                     return Err("dismount, and the route has the party on foot".into());
                 }
-                self.mover = Mover::Foot;
+                self.mover = Some(Mover::Foot);
                 Ok(())
             }
             Objective::Interact { cell, opens, .. } => {
@@ -467,9 +488,10 @@ impl<'a> Run<'a> {
         }
         let mut graph = self.graph()?;
         let field = graph.field_map(map).map_err(|e| plan_reason(&e))?;
-        let flood = Flood::for_mover(&field, from.cell, self.mover)
+        let mover = self.mover()?;
+        let flood = Flood::for_mover(&field, from.cell, mover)
             .map_err(|e| plan_reason(&PlanError::Cells(map, e)))?;
-        let plan = flood.onto_plan(&field, self.mover, cell).ok_or_else(|| {
+        let plan = flood.onto_plan(&field, mover, cell).ok_or_else(|| {
             format!(
                 "no walk from ({},{}) ends in a step onto ({},{}): the cell is where the \
                      party stands, or it cannot be reached without firing another warp",
@@ -529,7 +551,7 @@ impl<'a> Run<'a> {
         if let Some(map) = expect.map {
             self.require_map(map)?;
             if let Some(cell) = expect.cell {
-                let built = self.graph()?.field_map(map).map_err(|e| plan_reason(&e))?;
+                let built = self.layout()?.field_map(map).map_err(|e| plan_reason(&e))?;
                 if built.normalize(cell.cell()).is_none() {
                     return Err(format!(
                         "cell ({},{}) is off map {map:#05x}",
@@ -568,11 +590,11 @@ impl<'a> Run<'a> {
             if vehicle > psiv_core::VEHICLE_INDEX_MAX {
                 return Err(format!("vehicle {vehicle} is not 0 (on foot) or 1..=3"));
             }
-            self.mover = if vehicle == 0 {
+            self.mover = Some(if vehicle == 0 {
                 Mover::Foot
             } else {
                 Mover::Vehicle(vehicle)
-            };
+            });
         }
         for flag in &expect.flags_set {
             self.flags.insert(flag.0);

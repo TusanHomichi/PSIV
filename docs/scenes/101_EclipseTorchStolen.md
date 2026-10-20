@@ -17,8 +17,9 @@ tree 38 at `$070174`), which is why the tree-load census counts two.
 ## Retail transcription
 
 Object addresses are `$FFFFC300 + slot * $40`: `$C480` is object 6 (the monk), `$C500..$C640`
-objects 8 to 13, `$C680..$C740` objects 14 to 17. `Event_UpdateObjFacing` facing codes are 0 up, 4
-down, 8 left, 12 right. `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are both `Wait(n + 1)` here, as
+objects 8 to 13, `$C680..$C740` objects 14 to 17. `Event_UpdateObjFacing` facing codes are 0 down, 4
+up, 8 right, 12 left ([README](README.md#base-used-as-designed); the step table at `$071572`,
+indexed by the code halved, reads `(0,1)`, `(0,-1)`, `(1,0)`, `(-1,0)`). `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are both `Wait(n + 1)` here, as
 in [Zio Fort Barrier](90_ZioFortBarrier.md); the thieves' own step constants (`$20`) are not
 modelled (the objects are presentation only, as in the other Dezolis scenes), so the second
 group of `CreateFieldObject` records carries the figures' resting cells.
@@ -30,8 +31,8 @@ group of `CreateFieldObject` records carries the figures' resting cells.
 | 1 | `$06FE76..$06FE87` | `move.w $6(a3), d0 / bchg #2, d0 / jsr Event_UpdateObjFacing` on the monk | `FaceOppositeOf` |
 | 2 | `$06FE88..$06FE8F` | `moveq #$32, d0` / `jsr Event_GetAndRunDialogue` | `standard(0x32)` |
 | 3 | `$06FE90..$06FEA5` | `NemDecomp` of `$1B1D06` to tile `$36E` | `LoadArt` |
-| 4-5 | `$06FEA6..$06FEB9` | monk faces down; `DoMapUpdateLoop($1D)` | `Face`, `Wait(30)` |
-| 6-10 | `$06FEBA..$06FEF5` | `Character_1..5` face down (five `Event_UpdateObjFacing`) | `Face` x 5 |
+| 4-5 | `$06FEA6..$06FEB9` | monk faces up (`moveq #4, d0` at `$06FEAA`); `DoMapUpdateLoop($1D)` | `Face`, `Wait(30)`; the registry records `Down`, a transcription defect (see the open-question note below) |
+| 6-10 | `$06FEBA..$06FEF5` | `Character_1..5` face up (five `moveq #4, d0` / `Event_UpdateObjFacing`) | `Face` x 5; the registry records `Down`, the same defect |
 | 11 | `$06FEF6..$06FEFD` | `DoMapUpdateLoop($1D)` | `Wait(30)` |
 | 12 | `$06FEFE..$06FF05` | `Sound_Index := MusicID_TheBlackBlood ($A8)` | `PlaySound` |
 | 13 | `$06FF06..$06FF15` | `Event_MoveCamera` to (`$270`, `$F0`) at speed 1 | `MoveCamera` |
@@ -62,3 +63,12 @@ dialogue is one entry of tree 37, `$32`, and its three resumes: the monk refuses
 (entry), the Air Castle witches take it and challenge Lutz (first resume, after the figures
 appear), the monk laments and the party agrees to fetch it back (second, after the torch objects
 are cleared), and Rune explains the Air Castle and Lashiec (third, after the camera returns).
+
+## Open: the six facings
+
+The facing-code line above was wrong (it read 0 up, 4 down), and the transcription followed
+it: `ECLIPSE_TORCH_STOLEN` (`gumbious_events.rs`) faces the monk and the party `Down` where
+the bytes write 4, up. Correcting the ops changes the party's facing after the scene, so the
+route's pads from `gumbious-torch-stolen` on; it is recorded here and raised for its own lane
+rather than folded into a doc fix.
+

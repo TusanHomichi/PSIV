@@ -407,3 +407,26 @@ fn set_flags_walks_every_bank_to_its_capacity() {
     assert_eq!(state.set_flags().collect::<Vec<_>>(), want);
     assert_eq!(GameState::new().set_flags().count(), 0);
 }
+
+/// Each bank's capacity is the RAM map's size, as cartridge literals
+/// (`ps4.constants.asm:2362-2367`: `$F100..$F140` is 64 bytes of event and
+/// extended event bits, `$F140..$F160` 32 bytes of temp bits, `$F160..$F170`
+/// 16 bytes of town bits). `set_flags_walks_every_bank_to_its_capacity` sets
+/// each bank's last id, so it fails a capacity that shrinks; this fails one
+/// that grows (#160).
+#[test]
+fn every_bank_holds_exactly_the_ram_maps_bits() {
+    let ram_map: [(FlagBank, u16); 3] = [
+        (FlagBank::Event, (0xF140 - 0xF100) * 8),
+        (FlagBank::Temp, (0xF160 - 0xF140) * 8),
+        (FlagBank::Town, (0xF170 - 0xF160) * 8),
+    ];
+    assert_eq!(
+        ram_map.map(|(_, bits)| bits),
+        [512, 256, 128],
+        "the RAM map's bank sizes"
+    );
+    for (bank, bits) in ram_map {
+        assert_eq!(bank.capacity(), bits, "{bank:?}");
+    }
+}

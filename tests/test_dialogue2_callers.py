@@ -53,9 +53,7 @@ JSR_DIALOGUE2 = bytes.fromhex("4eb9") + DIALOGUE2.to_bytes(4, "big")
 
 # Callers whose scene is not in the registry: `jsr address` -> (label, event).
 # Event ids are the `EventPtrs` slots (`ps4.asm:120650..120720`).
-UNTRANSCRIBED = {
-    0x071538: ("Event_AngerTowerAlys", 0x62, 0x08),
-}
+UNTRANSCRIBED: dict[int, tuple[str, int, int]] = {}
 
 RETAINED_RE = re.compile(r"\bretained\(\s*(0x[0-9A-Fa-f]+|\d+)\s*\)")
 RESUME_RE = re.compile(r"SceneOp::RunDialogueResume\b")

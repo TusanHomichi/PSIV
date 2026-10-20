@@ -70,7 +70,7 @@ class EventCensus(unittest.TestCase):
         by_issue = {i: [e for e, (n, _) in ec.ALLOWLIST.items() if n == i] for i in ec.ISSUES}
         # #56 and #71 keep exactly what is still untranscribed of their lists.
         self.assertEqual(sorted(by_issue[56]), [0x96])
-        self.assertEqual(sorted(by_issue[71]), [0x62])
+        self.assertEqual(sorted(by_issue[71]), [])
 
     def test_the_census_sees_every_source_kind(self) -> None:
         kinds = {k for ev in self.census.events.values() for k in ev.kinds()}
@@ -143,6 +143,15 @@ class NegativeControl(unittest.TestCase):
         found = ec.problems(self.census, registry)
         self.assertEqual(len(found), 1, found)
         self.assertIn("$0043 Event_OutsideRajaTemple", found[0])
+
+    def test_every_registered_scene_is_named_when_unregistered(self) -> None:
+        """The class form of the control above: no scene's row passes without it."""
+        for event, name in sorted(self.registry.items()):
+            with self.subTest(event=f"${event:04X}"):
+                registry = dict(self.registry)
+                del registry[event]
+                found = ec.problems(self.census, registry)
+                self.assertTrue(any(f"${event:04X} {name}" in f for f in found), found)
 
     def test_a_scene_removed_from_the_sources_is_named(self) -> None:
         sources = {p.name: p.read_text(encoding="utf-8") for p in ec.SCENES_DIR.glob("*.rs")}
