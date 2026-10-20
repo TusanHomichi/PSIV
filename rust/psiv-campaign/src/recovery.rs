@@ -98,13 +98,15 @@ impl Driver {
     }
 
     /// The next fallen member a living one can revive, by the cheapest
-    /// reviving technique anyone can pay for.
+    /// reviving technique anyone can pay for. Androids are skipped: the camp
+    /// answers NO EFFECT to a revive on one (only a Repair Kit or an inn mends
+    /// it), so asking would halt the restore.
     fn next_revive(&self) -> Option<Cure> {
         let camp = self.runtime().camp_state();
-        let patient = camp
-            .party
-            .iter()
-            .find(|m| m.current_hp == 0 || m.status & status::DEAD != 0)?;
+        let patient = camp.party.iter().find(|m| {
+            (m.current_hp == 0 || m.status & status::DEAD != 0)
+                && !m.profession.eq_ignore_ascii_case("android")
+        })?;
         self.cheapest(EFFECT_REVIVE, &patient.name)
     }
 

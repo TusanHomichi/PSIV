@@ -65,7 +65,7 @@
    "kind": "lost_battle",
    "battle": "random",
    "resumes": ["kuran-dark-force-1", "meese-supplies"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/154",
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
    "date": "2026-10-18",
    "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; the probe of this chapter from rykros-departure's save completes 39 of 40 trials (Wilson 95% lower bound 0.871)"
   },
@@ -76,7 +76,7 @@
    "kind": "lost_battle",
    "battle": "event:26",
    "resumes": ["bioplant-elevators", "ladea-tower-psycho-wand", "zelan-sabotage", "jut-outfit"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/154",
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
    "date": "2026-10-18",
    "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the probe wins 97 of 100 (Wilson 95% lower bound 0.915), so some resumes' streams lose it"
   }

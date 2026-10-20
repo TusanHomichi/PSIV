@@ -24,19 +24,38 @@ const BELOW_GUMBIOUS: (u16, u16) = (125, 73);
 /// revive can be paid for. The late-arc flags keep an earlier trigger from
 /// firing on the first frame.
 fn party(chaz_tp: u16) -> Option<Session> {
+    party_of(chaz_tp, false)
+}
+
+/// As [`party`], with a fallen Wren (an android) ahead of Rika in party order.
+fn party_with_fallen_android(chaz_tp: u16) -> Option<Session> {
+    party_of(chaz_tp, true)
+}
+
+fn party_of(chaz_tp: u16, android: bool) -> Option<Session> {
     let set = pack()?;
     let initial = Session::start(set.data.clone())
         .with_battles(set.battle.clone())
         .field()
         .expect("the pack boots");
     let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
-    game.set_party([
-        Some(CharId(0)),
-        Some(CharId(5)),
-        Some(CharId(3)),
-        None,
-        None,
-    ]);
+    game.set_party(if android {
+        [
+            Some(CharId(0)),
+            Some(CharId(7)),
+            Some(CharId(5)),
+            Some(CharId(3)),
+            None,
+        ]
+    } else {
+        [
+            Some(CharId(0)),
+            Some(CharId(5)),
+            Some(CharId(3)),
+            None,
+            None,
+        ]
+    });
     for flag in [
         0x08, 0x66, 0x68, 0x70, 0x71, 0x72, 0x80, 0x81, 0x84, 0x85, 0x88,
     ] {
@@ -57,6 +76,12 @@ fn party(chaz_tp: u16) -> Option<Session> {
     rika.status |= status::DEAD;
     let rune = game.roster_mut().get_mut(CharId(3)).expect("Rune");
     rune.curr_hp = rune.max_hp / 2;
+    if android {
+        let wren = game.roster_mut().get_mut(CharId(7)).expect("Wren");
+        wren.curr_hp = 0;
+        wren.status |= status::DEAD;
+        wren.profession = psiv_core::battle::PROFESSION_ANDROID;
+    }
     Some(
         Session::start(set.data.clone())
             .with_battles(set.battle.clone())
@@ -124,4 +149,40 @@ fn a_caster_who_cannot_pay_for_rever_heals_but_does_not_revive() {
     assert_eq!(hp(&driver, "Rika").0, 0, "{decisions:?}");
     let (rune, rune_max) = hp(&driver, "Rune");
     assert_eq!(rune, rune_max, "the living are still cured: {decisions:?}");
+}
+
+#[test]
+fn restore_skips_a_fallen_android_instead_of_halting() {
+    // The camp answers NO EFFECT to REVER on an android; only an inn or a
+    // Repair Kit mends one. Wren is first in party order, ahead of Rika.
+    let Some(session) = party_with_fallen_android(100) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let profession = driver
+        .runtime()
+        .camp_state()
+        .party
+        .iter()
+        .find(|m| m.name == "Wren")
+        .expect("Wren is in the camp party")
+        .profession
+        .clone();
+    assert_eq!(profession.to_ascii_lowercase(), "android");
+    assert!(
+        driver.restore().expect("the camp casts"),
+        "Rika is revived and Rune cured"
+    );
+    let decisions = driver.take_decisions();
+    assert!(
+        decisions
+            .iter()
+            .any(|line| line.contains("casts technique 36") && line.contains("on Rika")),
+        "{decisions:?}"
+    );
+    assert!(
+        !decisions.iter().any(|line| line.contains("on Wren")),
+        "no revive is aimed at the android: {decisions:?}"
+    );
+    assert_eq!(hp(&driver, "Wren").0, 0, "{decisions:?}");
 }
