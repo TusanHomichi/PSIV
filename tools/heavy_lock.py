@@ -120,11 +120,12 @@ DEFAULT_LOCK_UNITS = 16
 #: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
 #: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a cold `cargo test
 #: --workspace --no-run` at 8 jobs 4,979 MB (`extension`: 12 units, 19%), a
-#: certify pair 418 MB (1, 18%), the Python suite 815 MB (2, 20%), a full pack
+#: certify pair 418 MB (1, 18%), the Python suite 926 MB in one process and
+#: 1,256 MB on four workers (3 units, 18%), a full pack
 #: build 129 MB (1, 75%). The
 #: opt-level-3 extension build (5,582 MB, 13 units) is exclusive, so it does
 #: not size `extension`.
-CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 2, PACK: 1}
+CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 3, PACK: 1}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
