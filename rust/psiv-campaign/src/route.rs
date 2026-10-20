@@ -264,6 +264,10 @@ pub struct Expectation {
     /// A minimum purse in meseta.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub money_at_least: Option<u32>,
+    /// The ending has written `Game_Cleared_Flag` (`$200035`) and the runtime
+    /// has latched it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub game_cleared: bool,
     /// The vehicle the party rides: `0` on foot, `1` Land Rover, `2` Ice
     /// Digger, `3` Hydrofoil. The validator plans every later walk for it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -285,6 +289,22 @@ pub struct Expectation {
     /// `SceneOp::WaitForStart`). The route's last claim.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ending_gate: bool,
+}
+
+/// A button a `press` objective presses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PressButton {
+    /// Genesis Start (`ButtonStart`, pad bit 7).
+    Start,
+}
+
+impl From<PressButton> for psiv_runtime::Button {
+    fn from(button: PressButton) -> Self {
+        match button {
+            PressButton::Start => Self::Start,
+        }
+    }
 }
 
 /// What a step asks of the runner.
@@ -353,6 +373,13 @@ pub enum Objective {
     Answer {
         /// True for Yes.
         yes: bool,
+    },
+    /// Press one pad button on a frame. The ending's final Start gate is the
+    /// only use: the session turns that press into the scene's continue input,
+    /// and retail writes `Game_Cleared_Flag` itself (`ps4.asm:159093-159099`).
+    Press {
+        /// The button to press.
+        button: PressButton,
     },
     /// Stand on a cell, face a direction and press confirm: doors, elevators
     /// and interaction areas.

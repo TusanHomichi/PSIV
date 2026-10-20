@@ -317,6 +317,7 @@ impl<'a> Run<'a> {
             Objective::Answer { .. }
             | Objective::RestInn { .. }
             | Objective::FightScripted
+            | Objective::Press { .. }
             | Objective::Restore => Ok(()),
             Objective::Board { to, .. } => {
                 self.here("board")?;

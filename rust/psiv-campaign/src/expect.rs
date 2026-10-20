@@ -112,6 +112,9 @@ impl Driver {
         if expect.ending_gate && !self.at_ending_gate() {
             misses.push("the ending's final Start gate is not up".to_owned());
         }
+        if expect.game_cleared && !runtime.game_cleared() {
+            misses.push("the ending has not written Game_Cleared_Flag".to_owned());
+        }
         if misses.is_empty() {
             Ok(())
         } else {

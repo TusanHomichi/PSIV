@@ -1689,10 +1689,11 @@
       "objectives": [
         {"do": "restore", "note": "revive the fallen and cure the party to full before the step"},
         {"do": "step_onto", "map": 264, "cell": [30, 23], "note": "the trigger row: Cutscene_ProfoundDarkness and event battle 26, then Cutscene_Ending on the field's return (RunEvent_Ending, $E8 set), played to its final Start gate"},
-        {"do": "expect", "map": 123, "flags_set": ["event:0xe8"], "ending_gate": true, "note": "the ending's last LoadMap ($07B, $07A13A) and its WaitForStart"}
+        {"do": "press", "button": "start", "note": "Start at the final gate: the session turns the press into the scene's continue input and retail writes Game_Cleared_Flag ($200035, ps4.asm:159093-159099)"},
+        {"do": "expect", "map": 123, "flags_set": ["event:0xe8"], "game_cleared": true, "note": "the ending's last LoadMap ($07B, $07A13A), its WaitForStart released and the cleared-game byte latched"}
       ],
       "closing": [
-        {"map": 123, "flags_set": ["event:0xe8"], "ending_gate": true}
+        {"map": 123, "flags_set": ["event:0xe8"], "game_cleared": true}
       ]
     }
   ]
