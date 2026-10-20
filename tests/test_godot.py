@@ -216,16 +216,18 @@ class Prepare(unittest.TestCase):
 #: root (which prepares its copies): at the start of a command or of a command
 #: substitution assigned to a variable, so not behind `#` or inside an
 #: `echo "..."`.
-SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*(?:\w+="?\$\()?python3 "?((?:\$HERE/)?tools/godot\.py)"? '
-                              r'(?:prepare|run-root)(?=[ \t]|$)')
+SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*(?:nohup[ \t]+)?(?:\w+="?\$\()?python3 '
+                              r'"?((?:\$HERE/)?tools/godot\.py)"? '
+                              r'(?:prepare|run-root|run)(?=[ \t]|$)')
 HEREDOC_RE = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
 
 
 def shell_prepares(text):
-    """True when a shell script runs `tools/godot.py prepare` or `run-root` as a command.
+    """True when a shell script runs `tools/godot.py prepare` or `run` as a command.
 
-    Here-document bodies are data, so they are dropped first; a comment or a
-    quoted string never starts its line with the command."""
+    `run` makes a run root, which prepares each project it copies, so it is the
+    launcher's prepare step. Here-document bodies are data, so they are dropped
+    first; a comment or a quoted string never starts its line with the command."""
     return bool(SHELL_PREPARE_RE.search(HEREDOC_RE.sub("", text)))
 
 

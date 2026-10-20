@@ -233,14 +233,16 @@ are under `oracle/fixtures/battle_animation_art/`.
 The live selector `PSIV_DEBUG_BATTLE=0x89` uses real formation `$0F7` from the
 pack (Slave + Worker Pod) and injects a deterministic attack-only timeline for
 the newly exact member. It does not mutate runtime battle state or alter scene,
-vehicle, save, or dialogue code (`$PSIV_GODOT` names the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says):
+vehicle, save, or dialogue code (`tools/godot.py` resolves the Godot
+executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game)
+says):
 
 ```text
 PSIV_DEBUG_BATTLE=0x89 \
 PSIV_DEBUG_SHOT=/tmp/psiv-newly-exact-battle.png \
 PSIV_DEBUG_SHOT_FRAME=108 \
-xvfb-run -a "$PSIV_GODOT" \
-  --path godot --audio-driver Dummy
+xvfb-run -a python3 tools/godot.py run -- \
+  --audio-driver Dummy
 ```
 
 ## Verification

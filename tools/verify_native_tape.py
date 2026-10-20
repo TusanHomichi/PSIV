@@ -29,18 +29,16 @@ try:  # imported as `tools.verify_native_tape` by tests
     from tools import native_rss
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
-    from tools.godot import (GodotError, check as check_godot, create_run_root,
-                             find as find_godot)
+    from tools.godot import GodotError, create_run_root, godot_command, require as require_godot
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     import native_rss
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
-    from godot import GodotError, check as check_godot, create_run_root, find as find_godot
+    from godot import GodotError, create_run_root, godot_command, require as require_godot
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GODOT = find_godot()  # tools/godot.py; replay() checks it before running it
 
 
 def sha256(path: Path) -> str:
@@ -262,7 +260,7 @@ def replay(args: argparse.Namespace) -> int:
     if not (pack / "manifest.json").is_file():
         parser().error(f"pack lacks manifest.json: {pack}")
     try:
-        check_godot(GODOT)
+        require_godot()
     except GodotError as error:
         parser().error(str(error))
     if args.timeout <= 0:
@@ -358,23 +356,28 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     })
     if args.drop_pad_at is not None:
         env["PSIV_TAPE_DROP_AT"] = str(args.drop_pad_at)
+    if args.render_capture:
+        prefix = ("xvfb-run", "-a")
+        flags = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
+                 "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
+    else:
+        prefix = ()
+        flags = ["--headless", "--disable-render-loop", "--audio-driver", "Dummy",
+                 "--fixed-fps", "60"]
+    try:
+        command = godot_command(run_root, *flags, "--log-file", str(godot_log), "--script",
+                                str(ROOT / "tools/native/native_tape.gd"), prefix=prefix)
+    except GodotError as error:
+        print(f"native tape: {error}")
+        return 1
     library = run_root.library
     code_paths = {"extension": library, "driver": ROOT / "tools/native/native_tape.gd",
-                  "verifier": Path(__file__), "godot": GODOT}
+                  "verifier": Path(__file__), "godot": Path(command[len(prefix)])}
     code_before = {name: file_identity(path) for name, path in code_paths.items()}
     git_before = source_identity()
     pack_manifest_before = sha256(pack / "manifest.json")
     tape_sha_before = sha256(tape)
     saves_before = checkpoint_save_hashes(checkpoints)
-    if args.render_capture:
-        command = ["xvfb-run", "-a", str(GODOT), "--display-driver", "x11",
-                   "--rendering-method", "gl_compatibility", "--rendering-driver", "opengl3",
-                   "--audio-driver", "Dummy", "--fixed-fps", "60"]
-    else:
-        command = [str(GODOT), "--headless", "--disable-render-loop",
-                   "--audio-driver", "Dummy", "--fixed-fps", "60"]
-    command.extend(["--log-file", str(godot_log), "--path", str(run_root.project), "--script",
-                    str(ROOT / "tools/native/native_tape.gd")])
     start = time.monotonic()
     started_at_utc = datetime.now(timezone.utc).isoformat()
     mapped = None

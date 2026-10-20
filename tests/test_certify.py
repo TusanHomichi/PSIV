@@ -283,12 +283,12 @@ class RunCapturesTest(unittest.TestCase):
         self.assertEqual(results, {})
 
     def test_the_capture_is_always_passed(self):
-        """`capture` needs the resolved Godot, so no default `take` could run."""
+        """`capture` needs the run root, so no default `take` could run."""
         parameters = inspect.signature(certify.run_captures).parameters
         self.assertIs(parameters["take"].default, inspect.Parameter.empty)
         self.assertIs(parameters["display"].default, inspect.Parameter.empty)
         self.assertIs(parameters["projects"].default, inspect.Parameter.empty)
-        self.assertIs(inspect.signature(certify.capture).parameters["godot"].default,
+        self.assertIs(inspect.signature(certify.capture).parameters["run_root"].default,
                       inspect.Parameter.empty)
 
     def test_no_more_workers_than_tasks(self):
@@ -414,7 +414,15 @@ class CaptureEnvironmentTest(unittest.TestCase):
 
             with mock.patch.dict(os.environ, {"PSIV_RUNTIME_PACK": "/caller/pack"}), \
                     mock.patch.object(certify.subprocess, "run", run):
-                certify.capture("title", {}, 60, receipt, ":7", project, godot=Path("godot"))
+                run_root = mock.Mock(root=receipt / "run-root",
+                                     projects=(receipt / "run-root/godot", project))
+
+                def command(root, *args, project, prefix):  # godot_command, unresolved
+                    self.assertIs(root, run_root)
+                    return [*prefix, "godot", "--path", str(project), *args]
+
+                with mock.patch.object(certify, "godot_command", command):
+                    certify.capture("title", {}, 60, receipt, ":7", project, run_root=run_root)
         self.assertEqual(ran["env"]["PSIV_RUNTIME_PACK"], str(receipt / "run-root/runtime-pack"))
         self.assertEqual(ran["command"][ran["command"].index("--path") + 1], str(project))
 
@@ -450,10 +458,9 @@ class MainLocksTest(unittest.TestCase):
                 results[name] = (frame, 0, 0.0)
             return results
 
-        def resolve():
+        def require():
             if isinstance(godot, Exception):
                 raise godot
-            return godot
 
         def run_root(root, projects, source):
             self.prepared.append((root, projects))
@@ -465,7 +472,7 @@ class MainLocksTest(unittest.TestCase):
 
         self.prepared = []
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
-                mock.patch.object(certify, "resolve_godot", resolve), \
+                mock.patch.object(certify, "require_godot", require), \
                 mock.patch.object(certify, "create_run_root", run_root), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify.subprocess, "run",
@@ -512,7 +519,7 @@ class MainLocksTest(unittest.TestCase):
         code, out = self.run_main(["--no-build", "--only", "title"], godot=Path("/x/godot"))
         self.assertEqual(code, 0, out)
         self.assertEqual(self.prepared, [(self.tmp / "receipt" / "run-root", 1)])
-        self.assertEqual(self.take.keywords, {"godot": Path("/x/godot")})
+        self.assertEqual(list(self.take.keywords), ["run_root"])
 
     def test_the_captures_run_from_one_run_root_with_a_project_per_worker(self):
         code, out = self.run_main(["--no-build", "--only", "title", "camp-root", "battle-0x88",

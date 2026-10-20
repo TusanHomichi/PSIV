@@ -23,8 +23,11 @@ Work on a copy, so the original stays one command away:
 ```bash
 cp -a runtime-pack my-mod-pack
 python3 tools/godot.py prepare
-PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
+PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 ```
+
+`run` inherits `PSIV_RUNTIME_PACK`, and the game prefers that override over the
+run root's link to the checkout's pack, so the copy above is the one that loads.
 
 **`pack` replaces.** Running `python3 -m psiv_tools pack` into a directory
 builds a new pack beside it and swaps it in whole: the directory becomes a
@@ -111,7 +114,7 @@ window reads "Professor! / Glad to see you in one piece!":
 
 ```bash
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
-  PSIV_DEBUG_EVENT=0x8007 "$(python3 tools/godot.py)" --path godot
+  PSIV_DEBUG_EVENT=0x8007 python3 tools/godot.py run
 ```
 
 A longer line takes longer to type out: the window draws one character every
@@ -138,7 +141,7 @@ names. With the edited pack both enemies start at 99 HP:
 ```bash
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" \
   PSIV_DEBUG_BATTLE=0x8a PSIV_DEBUG_STATE="$PWD/state.json" PSIV_DEBUG_SHOT_FRAME=200 \
-  "$(python3 tools/godot.py)" --path godot --quit-after 400
+  python3 tools/godot.py run -- --quit-after 400
 ```
 
 ```text

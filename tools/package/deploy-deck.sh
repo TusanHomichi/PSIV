@@ -13,7 +13,7 @@ DECK_USER="${2:-deck}"
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # The Godot that exports: PSIV_GODOT, else `godot` on PATH, at the pinned version.
-GODOT="$(python3 "$HERE/tools/godot.py")"
+python3 "$HERE/tools/godot.py" check
 
 # Always ship a current build: release lib, then export. The Deck runs
 # SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain
@@ -24,18 +24,18 @@ DECK_GLIBC="2.41"
 PATH="$HOME/.local/bin:$PATH" cargo zigbuild --release -p psiv-godot \
     --manifest-path "$HERE/rust/Cargo.toml" \
     --target "x86_64-unknown-linux-gnu.$DECK_GLIBC"
-# Export from a run root (tools/godot.py run-root): a prepared project copy
-# beside a snapshot of the library zigbuild just linked, as the release
-# library its psiv.gdextension names. The export ships exactly the library
-# run-root.json names by sha256, and the checkout's rust/target/release/ is
-# never overwritten. Godot refuses to export into a directory that does not
-# exist.
+# Export from a run root (tools/godot.py run), kept for the staging below: a
+# prepared project copy beside a snapshot of the library zigbuild just linked,
+# as the release library its psiv.gdextension names. The export ships exactly
+# the library run-root.json names by sha256, and the checkout's
+# rust/target/release/ is never overwritten. Godot refuses to export into a
+# directory that does not exist.
 DECK_ROOT="$HERE/build/deck-root"
-PROJECT="$(python3 "$HERE/tools/godot.py" run-root "$DECK_ROOT" --profile release \
-    --library "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" --replace)"
 mkdir -p "$HERE/build/deck"
-"$GODOT" --headless --path "$PROJECT" --export-release "Linux-SteamDeck" \
-    "$HERE/build/deck/psiv.x86_64" 2>&1 | tee "$HERE/build/deck-export.log" | tail -3
+python3 "$HERE/tools/godot.py" run --dir "$DECK_ROOT" --replace --keep --profile release \
+    --library "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" -- \
+    --headless --export-release "Linux-SteamDeck" "$HERE/build/deck/psiv.x86_64" \
+    2>&1 | tee "$HERE/build/deck-export.log" | tail -3
 
 STAGE="$HERE/build/deck-stage/psiv"
 rm -rf "$STAGE" && mkdir -p "$STAGE"

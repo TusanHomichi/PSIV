@@ -81,13 +81,20 @@ evidence depends on before regenerating it.
 ```bash
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 python3 tools/godot.py prepare
-PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
+PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 ```
 
-`python3 tools/godot.py prepare` writes the project's extension index,
+`python3 tools/godot.py run` starts the game from a run root: a prepared copy
+of the project beside a snapshot of the built library, removed when Godot
+exits (`--keep` keeps it, `--dir` names it, and arguments after `--` go to
+Godot).
+
+`python3 tools/godot.py prepare` writes the checkout project's extension index,
 `godot/.godot/extension_list.cfg`, which Godot's editor import would write and
-Git ignores; without it a fresh clone starts on a black screen ("Cannot get
-class 'Field'"). It does nothing once the index lists the game's extension. The explicit save directory makes
+Git ignores; without it the editor starts on a black screen ("Cannot get
+class 'Field'"). `run` prepares its own project copy, so this step is only
+needed to open the checkout in the editor. It does nothing once the index lists
+the game's extension. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
@@ -97,11 +104,13 @@ needs `rg` and `flock`.
 `PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
 is used. `tools/godot.py` is the one lookup: it prints the executable, or
 refuses one that does not report the version pinned in `.godot-version` or is
-not a `stable` build (`python3 tools/godot.py` checks your setup). `godot/run.sh`
-and `tools/package/deploy-deck.sh`, `tools/certify.py` and
-`tools/verify_native_tape.py` ask it, and the three that start the game run its
-`prepare` step first. The capture commands in the subsystem
-documents write it as `"$PSIV_GODOT"`; set it once in your shell.
+not a `stable` build (`python3 tools/godot.py check` checks your setup).
+`python3 tools/godot.py run [-- <godot arguments>]` is the one way to start
+the game: it resolves Godot and makes the run root, so a command never names
+the executable or a project path. `godot/run.sh`,
+`tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it too, and the ones that start the game run
+its `prepare` step first.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
@@ -307,8 +316,8 @@ The caller declares the class, and the lock trusts it. A wrong declaration, a
 `psiv-godot` build in `build`, costs memory headroom, not a crash: every Godot
 a repository tool starts runs from a run root with its own copy of the library
 (`create_run_root` in `tools/godot.py`), cargo replaces the checkout's library
-with a new file rather than rewriting it, and a non-editor Godot never re-reads
-a loaded extension. So an extension build shares the machine with Godot runs:
+with a new file rather than rewriting it (the linker, mold here, writes a new
+inode), and a non-editor Godot never re-reads a loaded extension. So an extension build shares the machine with Godot runs:
 12 units fit beside three Godot runs (15 of 16). What the one class costs: it is
 sized for its largest job, the cold workspace test build, so an incremental
 `cargo build -p psiv-godot` (3.6 GB) reserves 6 GB, and an extension build

@@ -65,9 +65,12 @@ against source and fresh observations.
 - Inspect a native driver's configuration before running it. Existing drivers
   can contain local paths, special fixtures or long campaign routes. Missing
   `build/` evidence on a fresh clone is expected; report that limitation.
-- Rebuilding the GDExtension during a Godot run is safe: repository tools run
-  Godot from a run root with its own library copy, and the editor reloads the
-  checkout's library on focus by design.
+- Rebuilding the GDExtension during a Godot run is safe: a relink writes a new
+  file and the mapped one survives (cargo uplifts the library, and the linker,
+  mold here, writes a new inode). Repository tools run Godot from a run root
+  with its own library copy, and the editor reloads the checkout's library on
+  focus by design. Never copy over a built library in place: that is the one
+  remaining crash.
 
 ## Verify the claim you intend to make
 

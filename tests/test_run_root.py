@@ -9,10 +9,10 @@ pin each against the way it can go wrong: a snapshot that a later in-place
 write to the built library reaches (a hard link does), a pack link that follows
 the checkout's link after a swap, workers sharing one project, a run root made
 over an existing directory, a removal that takes something other than a run
-root. The census reads every launcher for the old idiom, Godot's `--path` at
-the checkout's `godot/`, and requires a file that passes `--path` to create a
-run root; its negative controls are the launchers as they were written before
-run roots. With the pinned Godot and a built extension, the last case shows a
+root. The census reads every launcher whole (Python by its syntax tree) and
+allows a Godot command line only from `godot_command` in tools/godot.py; its
+negative controls are the launchers as they were before run roots and the
+launch forms review found a per-line census missed. With the pinned Godot and a built extension, the last case shows a
 real Godot mapping the run root's library, not the checkout's.
 """
 import hashlib
@@ -216,52 +216,120 @@ class Refusals(Checkout):
         self.assertIn("native.json", str(caught.exception))
         self.assertEqual((made.root / "native.json").read_text(), "evidence")
 
-    def test_the_command_line_replaces_its_own_run_root(self):
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-        command = ["python3", str(ROOT / "tools/godot.py"), "run-root", str(self.dir / "cli")]
-        # The tool snapshots the checkout it lives in, so it runs from ROOT;
-        # a fresh clone without a built library refuses, which is also a pass.
-        first = subprocess.run(command, capture_output=True, text=True, env=env, cwd=ROOT)
-        if first.returncode != 0:
-            self.assertIn("no built extension", first.stderr)
-            return
-        self.addCleanup(godot.remove_run_root, self.dir / "cli")
-        self.assertEqual(first.stdout.strip(), str(self.dir / "cli/godot"))
-        again = subprocess.run(command, capture_output=True, text=True, env=env, cwd=ROOT)
-        self.assertNotEqual(again.returncode, 0)  # never over an existing one
-        replaced = subprocess.run([*command, "--replace"], capture_output=True, text=True,
-                                  env=env, cwd=ROOT)
+    def test_the_command_line_runs_from_and_replaces_its_own_run_root(self):
+        """`run` makes a run root, keeps it only with `--keep`, takes over the
+        one it made with `--replace`, and removes a one-shot root when the
+        game exits. A stub stands in for Godot: the run root is the subject
+        here, and the real engine is the next case's subject."""
+        if not godot.library_path().is_file():
+            self.skipTest("no built extension to snapshot")
+        stub = self.dir / "godot-stub"
+        stub.write_text(f'#!/bin/sh\necho "{godot.required_version()}.stable.official.test"\n')
+        stub.chmod(0o755)
+        env = {**os.environ, "PYTHONPATH": str(ROOT), "PSIV_GODOT": str(stub)}
+        root = self.dir / "cli"
+        keep = ["python3", str(ROOT / "tools/godot.py"), "run", "--dir", str(root), "--keep"]
+        first = subprocess.run([*keep, "--", "--version"], capture_output=True, text=True,
+                               env=env, cwd=ROOT)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn(f"run root {root}", first.stderr)
+        self.assertTrue((root / "godot/project.godot").is_file())
+        self.addCleanup(godot.remove_run_root, root)
+        replaced = subprocess.run([*keep, "--replace", "--", "--version"], capture_output=True,
+                                  text=True, env=env, cwd=ROOT)
         self.assertEqual(replaced.returncode, 0, replaced.stderr)
+        gone = self.dir / "gone"
+        one_shot = ["python3", str(ROOT / "tools/godot.py"), "run", "--dir", str(gone),
+                    "--", "--version"]
+        removed = subprocess.run(one_shot, capture_output=True, text=True, env=env, cwd=ROOT)
+        self.assertEqual(removed.returncode, 0, removed.stderr)
+        self.assertFalse(gone.exists())
 
 
-#: Godot's `--path` at the checkout's own project: `godot`, `./godot`,
-#: `$HERE/godot` or `$PWD/godot` in a shell line, `"godot"`, `ROOT / "godot"`
-#: or the resolver's `PROJECT` in a Python argument list.
-OLD_PATH_RE = re.compile(
-    r"""--path["']?\s*[,=]?\s*(?:str\(\s*)?"""
-    r"""(?:(?:["']?\$\{?\w+\}?/)|(?:\w+\s*/\s*)|\./)?["']?godot\b(?![-.\w/])"""
-    r"""|--path["']?\s*[,=]?\s*(?:str\(\s*)?(?:godot\.)?PROJECT\b""")
-#: Godot's `--path` flag as a word, not `git rev-parse --path-format`.
-PATH_FLAG_RE = re.compile(r"--path(?![-\w])")
-#: Lines that use `--path` for something other than Godot: the oracle host
-#: binary's own flag.
-NOT_GODOT_RE = re.compile(r"""add_argument\(\s*["']--path["']|host_binary --path""")
-#: How a Python and a shell launcher make a run root.
-PY_RUN_ROOT_RE = re.compile(r"\bcreate_run_root\(")
-SH_RUN_ROOT_RE = re.compile(r"""tools/godot\.py"?\s+run-root\b""")
+#: The resolver's names that hand out the Godot executable. Only tools/godot.py
+#: uses them: every other launcher calls `godot_command` (or `require`).
+RESOLVER_NAMES = {"resolve", "find", "check", "ENV"}
+#: The subprocess and os calls that start a program.
+STARTERS = {"run", "Popen", "call", "check_call", "check_output", "execv", "execvp",
+            "execve", "execl", "execlp", "spawnv", "spawnvp"}
+
+
+def python_problems(name, text):
+    """What builds a Godot command line in the Python file `name` outside the
+    one builder: the resolver's names, Godot's `--path`, the project file, the
+    `PSIV_GODOT` variable, a program list or start call beginning with a bare
+    `godot`, or a start call whose `cwd` is a `godot` project."""
+    import ast
+    problems = []
+    tree = ast.parse(text)
+    # A tool's own `--path` flag (oracle/host_binary.py) is not Godot's.
+    own_flags = {id(arg) for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and getattr(node.func, "attr", None) == "add_argument" for arg in node.args}
+    for node in ast.walk(tree):
+        line = f"{name}:{getattr(node, 'lineno', '?')}"
+        if isinstance(node, ast.ImportFrom) and node.module in ("godot", "tools.godot"):
+            for alias in node.names:
+                if alias.name in RESOLVER_NAMES:
+                    problems.append(f"{line}: imports the resolver's {alias.name}")
+        elif isinstance(node, ast.Attribute) and node.attr in RESOLVER_NAMES \
+                and isinstance(node.value, ast.Name) and node.value.id == "godot":
+            problems.append(f"{line}: calls godot.{node.attr}")
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value == "--path" and id(node) not in own_flags:
+                problems.append(f"{line}: names Godot's --path")
+            elif "project.godot" in node.value:
+                problems.append(f"{line}: names a project.godot")
+            elif node.value == "PSIV_GODOT":
+                problems.append(f"{line}: reads PSIV_GODOT")
+        elif isinstance(node, (ast.List, ast.Tuple)) and node.elts \
+                and isinstance(node.elts[0], ast.Constant) and node.elts[0].value == "godot":
+            problems.append(f"{line}: a command beginning with a bare godot")
+        elif isinstance(node, ast.Call):
+            func = node.func
+            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if called not in STARTERS:
+                continue
+            for keyword in node.keywords:
+                if keyword.arg == "cwd" and "godot" in ast.unparse(keyword.value).replace(
+                        "godot_", "").replace("_godot", ""):
+                    problems.append(f"{line}: starts a program in a godot project (cwd=)")
+    return problems
+
+
+#: Shell text that builds a Godot command: the bare resolver (`$(python3
+#: tools/godot.py)` prints the executable), `PSIV_GODOT`, `--path`, a project
+#: file, or the word `godot` itself (a command, `cd godot`, `.../godot`).
+SHELL_RULES = (
+    (re.compile(r"""tools/godot\.py["']?(?=\s*(?:\)|$|[;&|>]))""", re.M),
+     "prints the Godot executable (bare tools/godot.py)"),
+    (re.compile(r"PSIV_GODOT"), "reads PSIV_GODOT"),
+    (re.compile(r"--path(?![-\w])(?!.*host_binary)"), "names Godot's --path"),
+    (re.compile(r"project\.godot"), "names a project.godot"),
+    (re.compile(r"""(?<![\w.$-])godot(?![\w.-])(?!/)"""), "names a bare godot"),
+)
+
+
+def shell_code(text):
+    """The shell text with comments dropped and continued lines joined."""
+    lines = [re.sub(r"(?:^|\s)#.*$", "", line) for line in text.splitlines()]
+    return re.sub(r"\\\n", " ", "\n".join(lines))
+
+
+def shell_problems(name, text):
+    code = shell_code(text)
+    problems = []
+    for number, line in enumerate(code.splitlines(), 1):
+        for rule, what in SHELL_RULES:
+            if rule.search(line) and not ("host_binary" in line and "--path" in what):
+                problems.append(f"{name}:{number}: {what}: {line.strip()}")
+    return problems
 
 
 def launcher_problems(name, text):
-    """What is wrong with how `text` (the file `name`) starts Godot."""
-    problems = [f"{name}:{number}: --path at the checkout's godot/: {line.strip()}"
-                for number, line in enumerate(text.splitlines(), 1)
-                if OLD_PATH_RE.search(line)]
-    passes_path = any(PATH_FLAG_RE.search(line) and not NOT_GODOT_RE.search(line)
-                      for line in text.splitlines())
-    makes_root = (PY_RUN_ROOT_RE if name.endswith(".py") else SH_RUN_ROOT_RE).search(text)
-    if passes_path and not makes_root and name != "tools/godot.py":
-        problems.append(f"{name}: passes Godot a --path without creating a run root")
-    return problems
+    """Whole-file census: Godot's command line is built only by tools/godot.py."""
+    if name == "tools/godot.py":
+        return []
+    return python_problems(name, text) if name.endswith(".py") else shell_problems(name, text)
 
 
 def launchers():
@@ -272,62 +340,73 @@ def launchers():
 
 class Census(unittest.TestCase):
 
-    def test_no_tool_starts_godot_at_the_checkout_project(self):
+    def test_only_the_builder_makes_a_godot_command_line(self):
         problems = [problem for name in launchers()
                     for problem in launcher_problems(name, (ROOT / name).read_text())]
         self.assertEqual(problems, [])
 
-    def test_the_census_reads_every_known_launcher(self):
-        """Not vacuous: the four launchers pass `--path` and make a run root."""
-        found = {name for name in launchers()
-                 if any(PATH_FLAG_RE.search(line) and not NOT_GODOT_RE.search(line)
-                        for line in (ROOT / name).read_text().splitlines())}
-        self.assertLessEqual({"tools/certify.py", "tools/verify_native_tape.py",
-                              "godot/run.sh", "tools/package/deploy-deck.sh"}, found)
+    def test_the_launchers_use_the_builder(self):
+        """Not vacuous: the four launchers go through tools/godot.py."""
+        for name, needle in (("tools/certify.py", "godot_command("),
+                             ("tools/verify_native_tape.py", "godot_command("),
+                             ("godot/run.sh", "tools/godot.py run"),
+                             ("tools/package/deploy-deck.sh", 'tools/godot.py" run')):
+            with self.subTest(name=name):
+                self.assertIn(needle, (ROOT / name).read_text())
 
-    OLD_LAUNCHERS = {
-        # The four launchers before run roots (main at 0b1e9bc).
-        "tools/certify.py": '               "--path", "godot", "--quit-after", '
-                            'str(tick + QUIT_MARGIN)]\ncreate_run_root(x)\n',
-        "tools/verify_native_tape.py": '    command.extend(["--log-file", str(godot_log), '
-                                       '"--path", "godot", "--script",\ncreate_run_root(x)\n',
-        "godot/run.sh": 'nohup "$psiv_godot" --path godot \\\n'
-                        'python3 tools/godot.py run-root build/play\n',
-        "tools/package/deploy-deck.sh": '"$GODOT" --headless --path "$HERE/godot" \\\n'
-                                        'python3 "$HERE/tools/godot.py" run-root x\n',
-        # Other spellings of the same project.
-        "tools/a.py": 'cmd = [godot, "--path", str(ROOT / "godot")]\ncreate_run_root(x)\n',
-        "tools/b.py": 'cmd = [godot, "--path", str(PROJECT)]\ncreate_run_root(x)\n',
-        "tools/c.sh": 'godot --path ./godot --quit-after 9\ntools/godot.py run-root x\n',
-        "tools/d.sh": 'godot --path="$PWD/godot"\ntools/godot.py run-root x\n',
+    #: The launch forms the review found the line census missed (2026-10-18),
+    #: and the launchers as they were before run roots.
+    ESCAPES = {
+        "tools/multi_line.py": 'from godot import resolve\n'
+                               'cmd = [str(resolve()),\n    "--path",\n    str(ROOT / "godot")]\n',
+        "tools/project_dir.py": 'from tools.godot import find\nPROJECT_DIR = ROOT / "godot"\n'
+                                'subprocess.run([find(), "--path", str(PROJECT_DIR)])\n',
+        "tools/cwd.py": 'import godot\nsubprocess.run([str(godot.resolve())], cwd=ROOT / "godot")\n',
+        "tools/cwd_bare.py": 'subprocess.Popen(["godot", "--headless"], cwd=ROOT / "godot")\n',
+        "tools/positional.py": 'subprocess.run([GODOT, str(ROOT / "godot/project.godot")])\n',
+        "tools/cd.sh": 'cd godot && godot --headless\n',
+        "tools/rev_parse.sh": '"$(python3 tools/godot.py)" \\\n'
+                              '  --path "$(git rev-parse --show-toplevel)/godot"\n',
+        "tools/positional.sh": '"$PSIV_GODOT" --headless "$PWD/godot/project.godot"\n',
+        "tools/certify_old.py": 'command = ["timeout", "9s", str(godot), "--path", "godot"]\n',
+        "tools/tape_old.py": 'from godot import find as find_godot\nGODOT = find_godot()\n',
+        "godot/run_old.sh": 'psiv_godot=$(python3 tools/godot.py) || exit 1\n'
+                            'nohup "$psiv_godot" --path godot &\n',
+        "tools/deploy_old.sh": 'GODOT="$(python3 "$HERE/tools/godot.py")"\n'
+                               '"$GODOT" --headless --path "$HERE/godot"\n',
     }
 
-    def test_negative_control_the_old_launchers_fail(self):
-        """Each old line fails even beside a run root it does not use."""
-        for name, text in self.OLD_LAUNCHERS.items():
+    def test_negative_control_every_escape_fails(self):
+        for name, text in self.ESCAPES.items():
             with self.subTest(name=name):
-                problems = launcher_problems(name, text)
-                self.assertEqual(len(problems), 1, problems)
-                self.assertIn("--path at the checkout's godot/", problems[0])
+                self.assertNotEqual(launcher_problems(name, text), [])
 
-    def test_negative_control_a_path_without_a_run_root_fails(self):
-        for name, text in (("tools/e.py", 'cmd = [godot, "--path", str(project_dir)]\n'),
-                           ("tools/f.sh", 'godot --path "$project" --headless\n')):
-            with self.subTest(name=name):
-                self.assertEqual(launcher_problems(name, text),
-                                 [f"{name}: passes Godot a --path without creating a run root"])
-
-    def test_the_host_binary_flag_and_run_root_projects_pass(self):
+    def test_the_builder_its_callers_and_other_path_flags_pass(self):
         for name, text in (
-                ("tools/j.py", 'git("rev-parse", "--path-format=absolute", "--git-common-dir")\n'),
                 ("oracle/x.py", 'parser.add_argument("--path", action="store_true")\n'),
                 ("oracle/x.sh", "BIN=$(python3 -m oracle.host_binary --path)\n"),
-                ("tools/g.py", 'create_run_root(x)\n[godot, "--path", str(run_root.project)]\n'),
-                ("tools/h.sh", 'p=$(python3 tools/godot.py run-root d)\ngodot --path "$p"\n'),
-                ("tools/i.py", 'create_run_root(x)\n["--path", str(project), "--script",'
-                               ' str(ROOT / "tools/native/native_tape.gd")]\n')):
+                ("tools/j.py", 'git("rev-parse", "--path-format=absolute", "--git-common-dir")\n'),
+                ("tools/g.py", 'from godot import godot_command, require\n'
+                               'command = godot_command(run_root, "--headless", prefix=("timeout", "9s"))\n'),
+                ("tools/h.sh", 'python3 tools/godot.py check || exit 1\n'
+                               'nohup python3 tools/godot.py run -- --headless &\n'),
+                ("tools/k.py", 'GODOT = "godot"  # a lock class name\nLOCK_CLASSES = (GODOT,)\n')):
             with self.subTest(name=name):
                 self.assertEqual(launcher_problems(name, text), [])
+
+
+def godot_slot(test):
+    """Hold a godot-class slot of the heavy lock for a case that starts a real
+    Godot (a context manager). Under the gate's exclusive hold, or a godot
+    holder, it takes nothing new; under a holder of another class (the Python
+    suite run as `heavy_lock.py run --class python`), which reserved no slot,
+    the case is skipped rather than run unaccounted."""
+    from tools.heavy_lock import EXCLUSIVE, GODOT, HELD_CLASS_ENV, HELD_ENV, hold_heavy_lock
+    held = os.environ.get(HELD_CLASS_ENV) if os.environ.get(HELD_ENV) else None
+    if held not in (None, EXCLUSIVE, GODOT):
+        test.skipTest(f"a real Godot needs a godot slot, and this {held}-class hold has none; "
+                      "the gate (exclusive) runs it")
+    return hold_heavy_lock(lock_class=GODOT)
 
 
 class RealGodot(unittest.TestCase):
@@ -335,7 +414,7 @@ class RealGodot(unittest.TestCase):
 
     def test_godot_maps_the_snapshot_not_the_checkout_library(self):
         try:
-            real = godot.resolve()
+            godot.require()
         except godot.GodotError as error:
             self.skipTest(f"no pinned Godot: {error}")
         if not godot.library_path().is_file():
@@ -345,9 +424,13 @@ class RealGodot(unittest.TestCase):
         made = godot.create_run_root(Path(tmp.name) / "run")
         saves = Path(tmp.name) / "saves"
         saves.mkdir()
+        slot = godot_slot(self)
+        slot.__enter__()
+        self.addCleanup(slot.__exit__, None, None, None)
         process = subprocess.Popen(
-            [str(real), "--headless", "--audio-driver", "Dummy", "--path", str(made.project),
-             "--quit-after", "100000"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            godot.godot_command(made, "--headless", "--audio-driver", "Dummy",
+                                "--quit-after", "100000"),
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env={**os.environ, "PSIV_SAVE_DIR": str(saves)})
         try:
             mapped = set()

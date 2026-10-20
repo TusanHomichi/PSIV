@@ -237,7 +237,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
             env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
                    "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
-                    mock.patch.object(verify_native_tape, "GODOT", godot), \
+                    mock.patch.dict(os.environ, {"PSIV_GODOT": str(godot)}), \
                     mock.patch.object(verify_native_tape, "mapped_extension_in_process_tree",
                                       side_effect=mapped), \
                     mock.patch.object(verify_native_tape, "source_identity",

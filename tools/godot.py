@@ -8,9 +8,10 @@ status 1. `PSIV_GODOT` names the executable; when it is unset or empty, `godot`
 on `PATH` is used. Either way the executable must report the version that
 `.godot-version` at the repository root pins (`godot --version` prints
 `4.7.1.stable.official.<commit>`) and be a `stable` build, so a different
-Godot, or a release candidate of the pinned one, is refused rather than run. That file is the one place the version is written: the shell launchers
-call this script and the Python tools import `resolve`, so changing the
-version is a one-line edit there.
+Godot, or a release candidate of the pinned one, is refused rather than run.
+That file is the one place the version is written, so changing the version is
+a one-line edit there. `python3 tools/godot.py check` checks the same without
+printing the path.
 
     python3 tools/godot.py prepare
 
@@ -30,11 +31,14 @@ from the import: the project has no assets to import, and the title, a battle
 and the camp menu capture identically from an index-only project and a fully
 imported one.
 
-    python3 tools/godot.py run-root DIR [--profile P] [--library FILE] [--replace]
+    python3 tools/godot.py run [--dir DIR [--replace]] [--keep] [--profile P]
+        [--library FILE] [-- <godot arguments>]
 
-creates a run root at DIR and prints the project path to pass to Godot's
-`--path`. Every Godot run a repository tool starts runs from one (`run_root`),
-never from the checkout's `godot/`, because the project loads its extension
+runs the game from a fresh run root (`create_run_root`), removed when Godot
+exits unless `--keep`; environment variables (`PSIV_SAVE_DIR`, the debug
+selectors) pass through. Every Godot run a repository tool starts, and every
+documented launch, runs from a run root, never from the checkout's `godot/`,
+and its command line comes from `godot_command`, the one argv builder, because the project loads its extension
 from `res://../rust/target/<profile>/libpsiv_godot.so`: from the checkout,
 that is the file every `cargo build` of psiv-godot relinks. A run root holds
 
@@ -56,7 +60,7 @@ loaded extension: Godot 4.7.1 enables extension reloading only with
 `--editor` (main/main.cpp, `set_extension_reloading_enabled`), and only the
 editor's focus-in calls `GDExtensionManager::reload_extensions`. The owner
 removes the bulk when the run ends (`RunRoot.release`), keeping
-`run-root.json`, the shell launchers on their next launch (`--replace`).
+`run-root.json`; `run` removes its run root when Godot exits.
 
 Stdlib only, Python 3.
 """
@@ -70,6 +74,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -397,43 +402,98 @@ def remove_run_root(root: Path, keep_record: bool = False) -> None:
         root.rmdir()
 
 
-def run_root_main(argv: list[str]) -> int:
-    """`run-root DIR`: create a run root and print its project path."""
-    parser = argparse.ArgumentParser(prog="python3 tools/godot.py run-root",
-                                     description="Create a run root and print its project.")
-    parser.add_argument("dir", type=Path)
+def require() -> None:
+    """Raise `GodotError` unless the pinned Godot resolves: a launcher's early
+    check, before it does any work. It returns nothing, since `godot_command`
+    resolves Godot itself."""
+    resolve()
+
+
+def godot_command(run_root: RunRoot, *args: str, project: Path | None = None,
+                  prefix: tuple[str, ...] = ()) -> list[str]:
+    """The one Godot command line a repository tool runs: `prefix`, the
+    resolved Godot, `--path` at one of `run_root`'s projects (default the
+    first), then `args`.
+
+    Godot is resolved here, so no launcher holds its path or builds its own
+    command: tests/test_run_root.py's census refuses any other code that
+    resolves Godot, names `--path` or a `godot` project, or starts a bare
+    `godot`. Raises `GodotError`."""
+    project = run_root.project if project is None else Path(project)
+    if project not in run_root.projects:
+        raise GodotError(f"{project} is not a project of the run root {run_root.root}")
+    return [*prefix, str(resolve()), "--path", str(project), *args]
+
+
+def run_main(argv: list[str]) -> int:
+    """`run`: Godot from a fresh run root, with the arguments after `--`."""
+    parser = argparse.ArgumentParser(
+        prog="python3 tools/godot.py run",
+        description="Run the game from a fresh run root: "
+                    "python3 tools/godot.py run [options] [-- <godot arguments>]")
+    parser.add_argument("--dir", type=Path,
+                        help="the run root (default: a new one under build/run-roots/)")
+    parser.add_argument("--replace", action="store_true",
+                        help="remove the run root already at --dir first")
+    parser.add_argument("--keep", action="store_true",
+                        help="keep the run root when Godot exits (default: remove it)")
     parser.add_argument("--profile", choices=PROFILES, default="debug")
     parser.add_argument("--library", type=Path,
                         help="the library to snapshot (default: rust/target/<profile>/)")
-    parser.add_argument("--replace", action="store_true",
-                        help="remove the run root already at DIR first")
-    args = parser.parse_args(argv)
+    own, godot_args = (argv[:argv.index("--")], argv[argv.index("--") + 1:]) \
+        if "--" in argv else (argv, [])
+    args = parser.parse_args(own)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    root = args.dir or ROOT / "build" / "run-roots" / f"{stamp}-{os.getpid()}"
     try:
-        if args.replace and args.dir.exists():
-            remove_run_root(args.dir)
-        made = create_run_root(args.dir, profile=args.profile, library=args.library)
+        if args.replace and root.exists():
+            remove_run_root(root)
+        made = create_run_root(root, profile=args.profile, library=args.library)
+        command = godot_command(made, *godot_args)
     except GodotError as error:
         print(f"godot: {error}", file=sys.stderr)
         return 1
-    print(f"godot: run root {made.root}, library sha256 {made.library_sha256} "
-          f"({made.record['library_copy']}, {made.record['created_s']} s)", file=sys.stderr)
-    print(made.project)
-    return 0
+    print(f"godot: run root {made.root}, library sha256 {made.library_sha256}", file=sys.stderr)
+    process = subprocess.Popen(command)
+
+    def forward(signum, _frame):  # Ctrl-C and a shell's TERM reach the game
+        try:
+            process.send_signal(signum)
+        except ProcessLookupError:  # the game exited first
+            pass
+
+    forwarded = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    previous = {number: signal.signal(number, forward) for number in forwarded}
+    code = 1
+    try:
+        code = process.wait()
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+        if not args.keep:
+            try:
+                remove_run_root(made.root)
+            except GodotError as error:  # the game's exit code still stands
+                print(f"godot: could not remove {made.root}: {error}", file=sys.stderr)
+    return code
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["run-root"]:
-        return run_root_main(argv[1:])
-    if argv not in ([], ["prepare"]):
-        print("usage: python3 tools/godot.py [prepare | run-root DIR ...]", file=sys.stderr)
+    if argv[:1] == ["run"]:
+        return run_main(argv[1:])
+    if argv not in ([], ["prepare"], ["check"]):
+        print("usage: python3 tools/godot.py [prepare | check | run [options] -- <args>]",
+              file=sys.stderr)
         return 2
     try:
         godot = resolve()
-        if argv:
+        if argv == ["prepare"]:
             ran = prepare()
             print(f"godot: {PROJECT.name}/ {'prepared' if ran else 'already prepared'}",
                   file=sys.stderr)
+        elif argv == ["check"]:
+            print(f"godot: {godot} is the pinned Godot", file=sys.stderr)
         else:
             print(godot)
     except GodotError as error:

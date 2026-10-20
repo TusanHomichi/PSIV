@@ -106,7 +106,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_STATE="$PWD/build/native-opening/state.json" \
   PSIV_DEBUG_SHOT="$PWD/build/native-opening/field.png" \
   PSIV_DEBUG_SHOT_FRAME=3360 \
-  godot --path godot \
+  python3 tools/godot.py run -- \
   --script "$PWD/tools/native/native_opening.gd" --display-driver x11 \
   --rendering-method gl_compatibility --audio-driver Dummy \
   --fixed-fps 60 --quit-after 3370 \

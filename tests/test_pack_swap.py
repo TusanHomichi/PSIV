@@ -292,14 +292,21 @@ class Ignored(unittest.TestCase):
         return subprocess.run(["git", "check-ignore", "--no-index", "-q", name],
                               cwd=ROOT).returncode == 0
 
-    def test_versions_staging_and_links_beside_runtime_pack_are_ignored(self):
+    def test_versions_staging_and_links_beside_any_pack_are_ignored(self):
         for name in (".runtime-pack.v20261018T114840029832Z-1549809",
-                     ".runtime-pack.build-1549809-0a1b2c3d", ".runtime-pack.link-1-0a1b2c3d"):
+                     ".runtime-pack.build-1549809-0a1b2c3d", ".runtime-pack.link-1-0a1b2c3d",
+                     ".my-mod-pack.v20261018T114840029832Z-1549809",
+                     ".my-mod-pack.build-1549809-0a1b2c3d",
+                     ".my-mod-pack.link-1549809-0a1b2c3d"):
             with self.subTest(name=name):
                 self.assertTrue(self.ignored(name))
 
-    def test_negative_control_a_name_outside_the_pattern_is_not_ignored(self):
-        self.assertFalse(self.ignored(".runtime-packs.v1"))
+    def test_negative_control_tracked_dotfiles_and_other_names_are_not_ignored(self):
+        for name in (".runtime-packs.v1", ".my-mod-pack.v2", ".gitignore", ".godot-version",
+                     ".github/ISSUE_TEMPLATE/bug.yml", ".github/pull_request_template.md",
+                     ".my-mod-pack.v20261018T114840029832Z", ".my-mod-pack.build-1-0a1b2c3"):
+            with self.subTest(name=name):
+                self.assertFalse(self.ignored(name))
 
 
 if __name__ == "__main__":

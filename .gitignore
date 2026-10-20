@@ -18,8 +18,13 @@ __pycache__/
 *.pyc
 .venv/
 /runtime-pack
-# A pack build's versions and staging beside it (psiv_tools/pack_swap.py).
-/.runtime-pack.*
+# A pack build's versions, links and staging beside any pack directory
+# (psiv_tools/pack_swap.py): .<name>.v<UTC stamp>-<pid>,
+# .<name>.build-<pid>-<hex> and .<name>.link-<pid>-<hex>. The shapes are
+# exact, so a tracked dotfile or an unrelated name is not ignored.
+.*.v[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]Z-[0-9]*
+.*.build-[0-9]*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
+.*.link-[0-9]*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
 /saves
 rust/target/
 godot/.godot/

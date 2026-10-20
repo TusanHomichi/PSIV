@@ -66,8 +66,8 @@ from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import (RUN_ROOT_PACK, GodotError, create_run_root,  # noqa: E402
-                   resolve as resolve_godot)
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
+                   require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -327,7 +327,7 @@ def xvfb_display(log):
             server.wait()
 
 
-def capture(name, env, tick, receipt, display, project, godot):
+def capture(name, env, tick, receipt, display, project, run_root):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
@@ -340,9 +340,9 @@ def capture(name, env, tick, receipt, display, project, godot):
                 # The run root's pack, resolved once: a caller's override would
                 # win over `res://../runtime-pack` in the game (lib.rs `ready`).
                 "PSIV_RUNTIME_PACK": str(project.parent / RUN_ROOT_PACK)}
-    command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
-               "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
-               "--path", str(project), "--quit-after", str(tick + QUIT_MARGIN)]
+    command = godot_command(run_root, "--log-file", str(receipt / f"{name}-godot.log"),
+                            *GODOT_FLAGS, "--quit-after", str(tick + QUIT_MARGIN),
+                            project=project, prefix=("timeout", f"{capture_timeout(tick)}s"))
     with open(receipt / f"{name}-run.log", "w") as handle:
         code = subprocess.run(command, env=full_env, stdout=handle,
                               stderr=subprocess.STDOUT).returncode
@@ -392,8 +392,8 @@ def run_captures(tasks, jobs, receipt, display, take, results=None, *, projects)
     Each worker owns one display from `display(log)` (`xvfb_display`) and one
     of `projects` (the run root's project copies, at least `jobs` of them) for
     its life. `take(name, env, tick, receipt, display, project)` makes one
-    capture: `capture` with the resolved Godot bound, which `main` passes; it
-    has no default, since `capture` alone cannot run without that Godot. When a capture
+    capture: `capture` with the run root bound, which `main` passes; it has no
+    default, since `capture` alone cannot run without that run root. When a capture
     raises or the wait is interrupted (Ctrl-C), the queued captures are
     cancelled, the running ones finish, and the exception propagates with
     `results` holding every capture that finished.
@@ -448,7 +448,7 @@ def main(argv=None):
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
     try:
-        godot = resolve_godot()
+        require_godot()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2
@@ -490,7 +490,7 @@ def main(argv=None):
         shots, interrupted = {}, None
         try:
             run_captures(tasks, jobs, receipt, xvfb_display,
-                         functools.partial(capture, godot=godot), results=shots,
+                         functools.partial(capture, run_root=run_root), results=shots,
                          projects=run_root.projects)
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop

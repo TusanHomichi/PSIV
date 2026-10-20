@@ -279,7 +279,7 @@ The final local checks for the sound slice were:
 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
 CARGO_BUILD_JOBS=2 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
 CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml --workspace
-timeout 30s env PSIV_DEBUG_BATTLE=0x88 godot --headless --audio-driver Dummy --path godot --quit-after 300
+timeout 30s env PSIV_DEBUG_BATTLE=0x88 python3 tools/godot.py run -- --headless --audio-driver Dummy --quit-after 300
 ```
 
 Results for this slice: Rust workspace green, clippy zero, and the sound
