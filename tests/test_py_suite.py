@@ -203,6 +203,19 @@ class RunCase(unittest.TestCase):
         self.assertIn("a worker process died", text)
         self.assertIn("test_killed", text.split("a worker process died")[1])
 
+    def test_a_killed_worker_names_every_unfinished_module(self):
+        """The killer first, more modules than workers: the modules queued
+        behind it never run, and each is named, not silently dropped."""
+        modules = {"killed": KILLED, "alpha": PASSING, "beta": PASSING,
+                   "zeta": PASSING}
+        with ThrowawaySuite(modules) as suite:
+            code, text, counts = suite.run(workers=1)
+        self.assertEqual(code, 1, text)
+        lost = text.split("a worker process died")[1]
+        for name in ("test_killed", "test_zeta"):
+            self.assertIn(name, lost)
+        self.assertEqual(counts["errors"], 2)
+
     def test_an_excluded_module_does_not_run(self):
         with ThrowawaySuite({"alpha": PASSING, "gamma": FAILING}) as suite:
             code, text, counts = suite.run(excluded={"test_gamma"})

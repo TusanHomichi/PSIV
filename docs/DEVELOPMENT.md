@@ -190,8 +190,9 @@ measured fastest count on the 8-thread, 4-core host: the full suite took 270 s
 in one process and 151, 117, 91, 92, 93 and 100 s on 2, 3, 4, 5, 6 and 8
 workers ([the table](#heavy-run-lock)); past the physical cores the extra
 fixtures and the shared cores cost more than a worker gains. On 4 workers the
-slowest module, `test_pack_maps` (about 50 s), and the CPU time all workers
-spend (355 s against 268 s in one process) are what is left. A test that fails
+slowest module, `test_pack_maps` (about 50 s), and the summed module seconds
+all workers spend (355 s against 268 s in one process, one-time fixtures and
+waits included) are what is left. A test that fails
 only beside another module is a defect to fix, as in the Rust suites. The gate
 runs every command with `CARGO_BUILD_JOBS` and
 `RUST_TEST_THREADS` set to the cores available, capped at 8
@@ -240,8 +241,9 @@ there. The fast tier is a commit check, not a gate result: integration still
 needs the full gate. It took 160 s on a warm target and 189 s after touching
 `psiv-core`, against 254 s and 291 s at one job and one thread (2026-10-18,
 receipts `20261018T090024Z` and `20261018T085042Z`). Its Python step then took
-154 s in one process and takes 56 s on 4 workers, with the same 1,593 tests and
-skip.
+154 s in one process and takes 56 s on 4 workers, with the same 1,593 tests
+(the gate's own step on 2026-10-20 took 80.954 s at mean 2,420 MHz and load
+7.67; 56 s is the isolated warm measurement).
 
 ### Gate and coverage
 
@@ -320,7 +322,7 @@ units fit:
 | `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), certify's extension build, and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads) and any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`) |
 | `build` | 7 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
-| `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
+| `python` | 3 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
 
 A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
 it relinks the GDExtension library that a Godot run in the same checkout maps,
@@ -364,7 +366,8 @@ mean and fastest-core live clock and the highest 1-minute load, and the
 exclusive hold keeps every other locked job off the machine while it runs.
 `build` is sized by the cold `cargo test --workspace --exclude psiv-godot
 --no-run` (2,964 MB in 7 units, 17% headroom), `godot` by a certify pair
-(418 MB in 1, 18%), `python` by the suite (815 MB in 2, 20%); jobs that
+(418 MB in 1, 18%), `python` by the suite (926 MB in one process and 1,256 MB
+on four workers; 3 units, 18%); jobs that
 compile `psiv-godot` are exclusive and do not size `build`. The budget is the
 machine's margin: 16 units leave about 5.5 GB outside the lock for the
 desktop, the agent sessions, unlocked headless runs and any job that peaks
@@ -405,15 +408,15 @@ the same way with `tools/tree_rss.py`, at `6da25cd` plus the suite runner:
 | the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
 | the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
-| the same, 1,822 tests, one process, #166, 2.5 GHz | 270 s | 926 MB | - | reads | `python` |
-| `tools/py_suite.py`, 2 workers, #166, 2.7 GHz | 151 s | 1,115 MB | - | reads | `exclusive` (the gate) |
-| the same, 3 workers, #166, 2.8 GHz | 117 s | 1,188 MB | - | reads | `exclusive` |
-| the same, 4 workers (the gate's), #166, 2.9 GHz | 91 s | 1,256 MB | - | reads | `exclusive` |
-| the same, 5 workers, #166, 2.8 GHz | 92 s | 1,347 MB | - | reads | `exclusive` |
-| the same, 6 workers, #166, 2.7 GHz | 93 s | 1,450 MB | - | reads | `exclusive` |
-| the same, 8 workers, #166, 2.6 GHz | 100 s | 1,639 MB | - | reads | `exclusive` |
-| the fast tier's Python step, one process (`--quick-unittest`, 1,593 tests), #166, 2.5 GHz | 154 s | 883 MB | - | reads | `exclusive` (the gate) |
-| `py_suite.py --fast`, 4 workers, #166, 2.9 GHz | 56 s | 1,197 MB | - | reads | `exclusive` (the gate) |
+| the same, 1,822 tests, one process, #166, 2.5 GHz, load 1.6 | 270 s | 926 MB | - | reads | `python` |
+| `tools/py_suite.py`, 2 workers, #166, 2.7 GHz, load 2.2 | 151 s | 1,115 MB | - | reads | `exclusive` (the gate) |
+| the same, 3 workers, #166, 2.8 GHz, load 4.9 | 117 s | 1,188 MB | - | reads | `exclusive` |
+| the same, 4 workers (the gate's), #166, 2.9 GHz, load 4.2 | 91 s | 1,256 MB | - | reads | `exclusive` |
+| the same, 5 workers, #166, 2.8 GHz, load 4.6 | 92 s | 1,347 MB | - | reads | `exclusive` |
+| the same, 6 workers, #166, 2.7 GHz, load 5.8 | 93 s | 1,450 MB | - | reads | `exclusive` |
+| the same, 8 workers, #166, 2.6 GHz, load 8.5 | 100 s | 1,639 MB | - | reads | `exclusive` |
+| the fast tier's Python step before the runner (`build/py-par/base-tools/gate.py --quick-unittest`, 1,593 tests), #166, 2.5 GHz | 154 s | 883 MB | - | reads | `exclusive` (the gate) |
+| `py_suite.py --fast`, 4 workers, #166, 2.9 GHz, load 2.9 | 56 s | 1,197 MB | - | reads | `exclusive` (the gate) |
 | a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |

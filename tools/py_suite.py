@@ -49,8 +49,11 @@ TOOLS_DIR = str(Path(__file__).resolve().parent)
 #: What discovery imports: `unittest discover`'s default pattern.
 PATTERN = "test*.py"
 
-#: Python test modules the fast tier leaves to the full gate: every module whose
-#: intrinsic time is 6 s or more. Intrinsic means measured in a process whose
+#: Python test modules the fast tier leaves to the full gate: the base gate's
+#: list, measured at 6 s or more. A module added here leaves the fast tier, so a
+#: later long module is a scheduling follow-up (#174), not an entry: the list
+#: also orders the pool's queue, and the two roles are not separate yet.
+#: Intrinsic means measured in a process whose
 #: one-time fixtures are already built -- the pack's map-independent sections
 #: (#130), the shared PackFixtureCase pack and the map table, ~13 s that the
 #: first module to need them pays in any process -- taking the lower of a forward
@@ -205,19 +208,17 @@ def status_line(totals):
     return f"{word} ({', '.join(infos)})" if infos else word
 
 
-def run_suite(start="tests", excluded=(), workers=None, stream=None, executor_factory=None):
+def run_suite(start="tests", excluded=(), workers=None, stream=None):
     """Run every discovered module of `start` not in `excluded`; return 0 when all passed.
 
     `stream` receives the report (default stderr, where unittest writes).
-    `executor_factory(workers, start, cwd)` builds the pool; tests pass one to
-    inject a failure.
     """
     stream = stream or sys.stderr
     start = str(Path(start).resolve())
     cwd = os.getcwd()
     names = schedule([name for name in discover_modules(start) if name not in excluded])
     workers = workers or worker_count(available_cores())
-    factory = executor_factory or _spawn_pool
+    factory = _spawn_pool
     totals = dict.fromkeys(("run", "failures", "errors", "skipped", "expected_failures",
                             "unexpected_successes"), 0)
     reports, lost = [], []

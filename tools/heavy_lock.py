@@ -119,9 +119,10 @@ DEFAULT_LOCK_UNITS = 16
 #: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
 #: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
 #: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a certify pair 418 MB
-#: (1, 18%), the Python suite 815 MB (2, 20%). Builds that compile psiv-godot
-#: are exclusive, so they do not size `build`.
-CLASS_UNITS = {BUILD: 7, GODOT: 1, PYTHON: 2}
+#: (1, 18%), the Python suite 926 MB in one process and 1,256 MB on four
+#: workers (3 units, 18%). Builds that compile psiv-godot are exclusive, so
+#: they do not size `build`.
+CLASS_UNITS = {BUILD: 7, GODOT: 1, PYTHON: 3}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 

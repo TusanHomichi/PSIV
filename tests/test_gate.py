@@ -690,6 +690,27 @@ class GateRunCase(unittest.TestCase):
         self.assertNotIn("gate FAILED", receipt["summary"])
 
 
+class ParallelismCase(unittest.TestCase):
+    """Cargo gets cargo's defaults only up to the measured 8 jobs and threads (#157)."""
+
+    def test_more_cores_than_measured_are_capped(self):
+        self.assertEqual(cargo_parallelism(16), 8)
+
+    def test_fewer_cores_than_measured_use_them_all(self):
+        self.assertEqual(cargo_parallelism(4), 4)
+
+    def test_the_cap_is_the_measured_eight(self):
+        # 8: the jobs of the cold build measured at 4,979 MB (docs/DEVELOPMENT.md table).
+        self.assertEqual(GATE_MEASURED_PARALLELISM, 8)
+        self.assertEqual(cargo_parallelism(8), 8)
+        self.assertEqual(cargo_parallelism(1), 1)
+
+    def test_the_environment_overrides_a_callers_setting(self):
+        env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
+        self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
+        self.assertEqual(env["HOME"], "/h")
+
+
 class NotARepositoryCase(unittest.TestCase):
     """A root git cannot describe still gets a receipt, saying why it could not."""
 
