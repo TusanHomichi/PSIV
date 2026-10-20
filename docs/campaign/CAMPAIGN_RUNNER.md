@@ -327,11 +327,13 @@ python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-nat
 python3 tools/verify_native_route.py \
   --run-dir build/r2-route --out build/r2-native-continue --continue-probes
 
-# Or a release extension passed explicitly (same flag on the probe run).
+# Or a release extension passed explicitly, on the replay and the probes.
 python3 tools/heavy_lock.py run --class exclusive -- \
   cargo build --release --manifest-path rust/Cargo.toml -p psiv-godot
 python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-native \
   --library rust/target/release/libpsiv_godot.so
+python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-native-continue \
+  --continue-probes --library rust/target/release/libpsiv_godot.so
 ```
 
 **Why one process, not one per chapter.** Replaying each chapter from the
@@ -346,8 +348,8 @@ checkpoints carry the chapter saves. `split-tape` is kept because the pieces
 add up to the tape, but no check replays one alone.
 
 **The extension build.** The plain debug extension replays chapter one
-(32,308 frames) in 359.7 s, 90 frames/s, which would take about eleven hours
-for the route. Sampling the process shows the time in the YM2612 core
+(32,308 frames) in 359.7 s, 90 frames/s, which would take about nineteen hours
+for the current 84-chapter route (6,260,544 frames). Sampling the process shows the time in the YM2612 core
 (`ym3438.c`, which `cc` compiles at -O0 in a dev profile) and in godot-rust's
 strict safeguards, not in the session. The same chapter takes 30.5 s, 1,059
 frames/s, with `CARGO_PROFILE_DEV_OPT_LEVEL=3` and debug assertions off. The

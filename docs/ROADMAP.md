@@ -28,8 +28,9 @@ The open items are the
 
 - [x] **The full campaign.** The headless route reaches the Ending, and the
   native game replays it in one continuous tape ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
-- [ ] **No memory leak** in long native sessions
-  ([#92](https://github.com/TusanHomichi/PSIV/issues/92)).
+- [x] **No memory leak** in long native sessions
+  ([#92](https://github.com/TusanHomichi/PSIV/issues/92), closed on its prefix
+  bracket; the whole-route replay did not re-run the RSS check).
 - [ ] **No untranscribed trigger scenes.** The event census allowlists reach
   zero ([#56](https://github.com/TusanHomichi/PSIV/issues/56),
   [#71](https://github.com/TusanHomichi/PSIV/issues/71),

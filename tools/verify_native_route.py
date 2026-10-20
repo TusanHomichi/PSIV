@@ -198,9 +198,9 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
 def run_continue_probes(chapters: list[dict], out: Path, campaign_bin: Path, pack: Path,
                         timeout: int, library: Path | None = None) -> int:
     """Every probe runs one library and one pack: the run root made here
-    snapshots the checkout's once, and each probe's own run root copies that
-    snapshot, so a build or a pack swap during the probes cannot give later
-    chapters another library or pack."""
+    snapshots the chosen library once, and each probe's own run root copies
+    that snapshot, so a build or a pack swap during the probes cannot give
+    later chapters another library or pack."""
     try:
         run_root = create_run_root(out / "run-root", pack=pack, library=library)
     except GodotError as error:
