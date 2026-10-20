@@ -258,9 +258,13 @@ pub static REFAZE: Scene = Scene {
         SceneOp::RunDialogueResume,
         SceneOp::BranchChoice {
             if_yes: 18,
-            if_no: 23,
+            if_no: 24,
         },
         SceneOp::Jump { to: 18 },
+        SceneOp::LearnTechnique {
+            character: 0,
+            technique: 0x10,
+        },
         SceneOp::PlaySound { id: 0xC0 },
         SceneOp::SetSavedMusic { id: MUSIC_TOWER },
         SceneOp::PlaySound { id: MUSIC_TOWER },

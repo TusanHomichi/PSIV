@@ -25,7 +25,8 @@ pub fn budget_for(objective: &Objective) -> u64 {
         | Objective::Answer { .. }
         | Objective::Interact { .. }
         | Objective::OpenChest { .. }
-        | Objective::FightScripted => 120_000,
+        | Objective::FightScripted
+        | Objective::Press { .. } => 120_000,
         // The flight alone is some 1,600 frames; the budget covers a walk onto
         // the row and a retry.
         Objective::Board { .. } => 40_000,
@@ -71,6 +72,12 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
             driver.settle(false).map(|_| ())
         }
         Objective::Answer { yes } => driver.answer(*yes).map(|_| ()),
+        // The step before left the ending at its gate; the press releases it
+        // and the scene runs its `Game_Cleared_Flag` write.
+        Objective::Press { button } => {
+            driver.settle(false)?;
+            driver.tap((*button).into()).map(|_| ())
+        }
         Objective::Interact { cell, face, .. } => {
             driver.interact(cell.cell(), face.direction()).map(|_| ())
         }

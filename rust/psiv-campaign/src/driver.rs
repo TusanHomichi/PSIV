@@ -174,9 +174,6 @@ pub struct Driver {
     scratch: Option<PathBuf>,
     policy: Option<Box<dyn Policy>>,
     recovery_due: bool,
-    /// The ending has reached its final Start gate (`SceneOp::WaitForStart`
-    /// presented): [`Driver::at_ending_gate`].
-    ending_gate: bool,
     trace: bool,
 }
 
@@ -241,7 +238,6 @@ impl Driver {
             scratch,
             policy: None,
             recovery_due: false,
-            ending_gate: false,
             trace: std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some(),
         }
     }
@@ -269,11 +265,11 @@ impl Driver {
         result
     }
 
-    /// Whether `Cutscene_Ending` waits at its final Start gate: the scene
-    /// presented `SceneOp::WaitForStart` and has not ended.
+    /// Whether `Cutscene_Ending` waits at its final Start gate: the runtime's
+    /// scene is blocked on `WaitForStart` (`ps4.asm:159093-159099`).
     #[must_use]
     pub fn at_ending_gate(&self) -> bool {
-        self.ending_gate && self.runtime().scene_active()
+        self.runtime().awaiting_ending_start()
     }
 
     /// Whether a battle ended and the camp has not yet cured the party; read
@@ -502,7 +498,6 @@ impl Driver {
                 RuntimeEvent::ScenePresentation {
                     op: psiv_core::SceneOp::WaitForStart,
                 } => {
-                    self.ending_gate = true;
                     self.note(format!("{event:?}"));
                     continue;
                 }
@@ -688,6 +683,7 @@ impl Driver {
             "mode": self.mode_name(),
             "party": self.party_json(),
             "money": runtime.game().money(),
+            "game_cleared": runtime.game_cleared(),
             "surroundings": self.surroundings(),
             "nearby_warps": self.nearby_warps(),
             "events": self.ring.iter().collect::<Vec<_>>(),

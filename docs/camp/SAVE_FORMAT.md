@@ -56,7 +56,16 @@ physical_byte = block_base + 1 + 2 * logical_byte_offset
 
 The common header is read/written from `SRAM_Buffer = $F000`; the signature,
 selected slot, and checksum table are at `$F002`, `$F012`, and `$F014`
-respectively (`ps4.constants.asm:2354-2360`). The payload begins at
+respectively (`ps4.constants.asm:2354-2360`). `Game_Cleared_Flag` is logical
+`$F01A` (physical `$200035`): the runtime latches it when `Cutscene_Ending`
+passes its final Start gate, the session writes the byte into every existing
+slot file at that moment (retail's own SRAM write, `ps4.asm:159099`), and the
+slot writer keeps it: within a save directory the byte is sticky across saves,
+as the one device header's is. A directory with no slot file has no header to
+write at the gate; its first save carries the latch. A fresh directory starts
+uncleared, the per-directory stand-in for `InitSRAM`. `$F01A` is the
+fourth checksum-table word, the reserved one no visible slot uses; the payload
+checksum does not cover the header. The payload begins at
 `Event_Flags = $F100` and ends at `$FB00`. `TransferToSRAM` copies exactly
 `#$280` longwords, or 0xA00 logical bytes, with `#$27F` as the DBF counter
 (`ps4.asm:134814-134850`).

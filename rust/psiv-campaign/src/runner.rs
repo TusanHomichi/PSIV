@@ -70,6 +70,9 @@ pub struct RunResult {
     pub chapters: Vec<ChapterSummary>,
     /// Every battle fought.
     pub battles: Vec<BattleRecord>,
+    /// Retail's `Game_Cleared_Flag` (`$200035`): true after the ending's Start
+    /// gate, and true again when the final save is loaded.
+    pub game_cleared: bool,
 }
 
 /// The directory a chapter's boundary save lives in: `NN-id` under the run's
@@ -165,6 +168,7 @@ pub fn run(config: &RunConfig) -> Result<RunResult, SetupError> {
         report,
         chapters,
         battles: driver.battles().to_vec(),
+        game_cleared: driver.runtime().game_cleared(),
     })
 }
 

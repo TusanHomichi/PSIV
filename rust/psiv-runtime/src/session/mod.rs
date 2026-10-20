@@ -330,6 +330,9 @@ pub struct Session {
     accept_blocked: bool,
     /// Last frame's pad: the menus' presses are the edges against it.
     prev_pad: Pad,
+    /// Whether the ending's cleared byte has been written to the store this
+    /// session: retail writes it once, the frame the gate passes.
+    game_cleared_written: bool,
     shop: Option<ShopView>,
     camp: Option<CampView>,
     /// The destination menu a scene's `SceneOp::DestinationMenu` opened
@@ -352,6 +355,29 @@ pub struct Session {
     mode: Mode,
 }
 
+/// The field's input for one frame.
+///
+/// While a scene runs the field gets `Neutral`: the story owns the party. The
+/// one exception is retail's final ending gate, which waits for a ButtonStart
+/// press (`btst #ButtonStart, (Joypad_Pressed).w`, `ps4.asm:159093-159099`);
+/// the session passes that press edge through as the scene's continue input,
+/// so a headless tape and a player make the same `Game_Cleared_Flag` write.
+fn scene_field_input(
+    scene_active: bool,
+    awaiting_ending_start: bool,
+    pad: Pad,
+    pressed: Pad,
+) -> Input {
+    if !scene_active {
+        return pad.field_input();
+    }
+    if awaiting_ending_start && pressed.held(crate::pad::Button::Start) {
+        Input::Action
+    } else {
+        Input::Neutral
+    }
+}
+
 impl Session {
     /// A session over `runtime`, ready for its first frame.
     ///
@@ -363,12 +389,14 @@ impl Session {
     }
 
     fn over(runtime: Runtime, save_store: Option<SaveStore>) -> Session {
+        let game_cleared_written = runtime.game_cleared();
         Session {
             runtime,
             save_store,
             battle_files: None,
             accept_blocked: false,
             prev_pad: Pad::NEUTRAL,
+            game_cleared_written,
             shop: None,
             camp: None,
             destination: None,
@@ -425,7 +453,7 @@ impl Session {
             // A menu handed the field to a scene: the field owns these frames
             // — the cartridge's windows are gone — until the scene ends and
             // the menu's resume runs (`menu_scene.rs`).
-            self.field_frame(pad)
+            self.field_frame(pad, pressed)
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {
             self.shop_frame(pad, pressed)
         } else if !self.runtime.dialogue_open()
@@ -433,7 +461,7 @@ impl Session {
         {
             frame
         } else {
-            self.field_frame(pad)
+            self.field_frame(pad, pressed)
         };
         frame.notice = notice;
         frame
@@ -490,7 +518,7 @@ impl Session {
     }
 
     /// The field, a scene and the message box.
-    fn field_frame(&mut self, pad: Pad) -> Frame {
+    fn field_frame(&mut self, pad: Pad, pressed: Pad) -> Frame {
         // The window's input half. The pad reaches the runtime every frame —
         // that latch is what makes a press read as fresh exactly once — and
         // with a window up the accept/choice press and the close are decided
@@ -514,13 +542,12 @@ impl Session {
             self.accept_blocked = true;
             Input::Neutral
         } else {
-            // While a scene runs the field gets Neutral: the story owns the
-            // party.
-            let mut input = if self.runtime.scene_active() {
-                Input::Neutral
-            } else {
-                pad.field_input()
-            };
+            let mut input = scene_field_input(
+                self.runtime.scene_active(),
+                self.runtime.awaiting_ending_start(),
+                pad,
+                pressed,
+            );
             // The press that dismissed a window stays swallowed until released
             // — otherwise the engine (whose press latch reset during the
             // Neutral starvation) reads the still-held key as fresh and
@@ -537,6 +564,22 @@ impl Session {
         };
         let events = self.runtime.tick(field_input);
         let (events, routed) = self.route(events);
+        // Retail writes `Game_Cleared_Flag` the frame the ending's Start gate
+        // passes (`ps4.asm:159099`). The session owns the store, so it makes
+        // that header write now rather than waiting for the next SAVE.
+        if self.runtime.game_cleared() && !self.game_cleared_written {
+            // No store, nothing to write. A refused write stays pending and is
+            // retried on the next frame rather than silently dropped.
+            match self.save_store.as_ref() {
+                None => self.game_cleared_written = true,
+                Some(store) => match store.mark_game_cleared() {
+                    Ok(()) => self.game_cleared_written = true,
+                    Err(error) => {
+                        eprintln!("save: game cleared, but the SRAM header write failed: {error}")
+                    }
+                },
+            }
+        }
         // A menu command's scene may have ended on this frame: the menu's own
         // resume (the Aiedo bill and its result line) runs on the same frame.
         self.resume_menu_scene(&events);
@@ -645,5 +688,56 @@ impl Session {
     #[must_use]
     pub fn runtime(&self) -> &Runtime {
         &self.runtime
+    }
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::*;
+    use crate::pad::Button;
+    use psiv_core::Direction;
+
+    fn pad(button: Button) -> Pad {
+        Pad::NEUTRAL.with(button)
+    }
+
+    #[test]
+    fn a_scene_gets_neutral_except_the_ending_gates_start_press() {
+        let down = pad(Button::Down);
+        let start = pad(Button::Start);
+        let speak = pad(Button::Speak);
+        let start_press = start.pressed(Pad::NEUTRAL);
+        let speak_press = speak.pressed(Pad::NEUTRAL);
+
+        // Outside a scene the field's own mapping runs.
+        assert_eq!(
+            scene_field_input(false, false, down, Pad::NEUTRAL),
+            Input::Direction(Direction::Down)
+        );
+        // A scene owns the party: not even Start or Speak leaks through unless
+        // the ending's gate is up.
+        assert_eq!(
+            scene_field_input(true, false, start, start_press),
+            Input::Neutral
+        );
+        assert_eq!(
+            scene_field_input(true, false, speak, speak_press),
+            Input::Neutral
+        );
+        // At the gate, only a Start press edge is the scene's continue input.
+        assert_eq!(
+            scene_field_input(true, true, start, start_press),
+            Input::Action
+        );
+        assert_eq!(
+            scene_field_input(true, true, start, Pad::NEUTRAL),
+            Input::Neutral,
+            "a held Start is not a new press"
+        );
+        assert_eq!(
+            scene_field_input(true, true, speak, speak_press),
+            Input::Neutral,
+            "retail waits for ButtonStart, not Speak"
+        );
     }
 }

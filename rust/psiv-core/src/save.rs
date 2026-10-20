@@ -37,6 +37,11 @@ pub const RETAIL_SLOT_FILE_BYTES: usize = RETAIL_HEADER_PHYSICAL_BYTES + RETAIL_
 const SIGNATURE_OFFSET: usize = 0x02;
 const SAVE_SLOT_OFFSET: usize = 0x12;
 const CHECKSUM_OFFSET: usize = 0x14;
+/// `Game_Cleared_Flag` in the common header, logical `$F01A` (physical
+/// `$200035`): `Cutscene_Ending` sets it after its final Start gate
+/// (`ps4.asm:159093-159099`). The checksum covers the payload only, so this
+/// byte is outside it, as retail's own `HW_Write_Mode` write is.
+const GAME_CLEARED_OFFSET: usize = 0x1A;
 // This is outside every retail header field currently addressed by the ROM.
 // It carries occupancy for the Rust snapshot's Option<Stats> seats.
 const RUST_ROSTER_MASK_OFFSET: usize = 0x20;
@@ -272,6 +277,30 @@ impl RetailSlot {
             && self.bytes[offset + 6] == !index
             && index < 0x80)
             .then_some(index)
+    }
+
+    /// Sets retail's `Game_Cleared_Flag` in the common header (`$200035`).
+    /// The retail byte is sticky — the only write is `ps4.asm:159099`, and only
+    /// `InitSRAM` zeroes the header — so this never writes 0.
+    #[must_use]
+    pub fn mark_game_cleared(mut self) -> Self {
+        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] |= 1;
+        self
+    }
+
+    /// Whether a slot file's header carries `Game_Cleared_Flag`, without
+    /// validating the payload: the store's sticky check over other slots.
+    #[must_use]
+    pub fn cleared_in_bytes(bytes: &[u8]) -> bool {
+        bytes.len() == RETAIL_SLOT_FILE_BYTES && bytes[GAME_CLEARED_OFFSET * 2 + 1] & 1 == 1
+    }
+
+    /// Reads retail's `Game_Cleared_Flag` from the common header (`$200035`).
+    /// A slot written before the flag existed reads false, which is what the
+    /// cartridge's zeroed common header holds.
+    #[must_use]
+    pub fn game_cleared(&self) -> bool {
+        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] & 1 != 0
     }
 
     /// Returns the checksum recorded in this slot's header.
@@ -774,6 +803,33 @@ mod tests {
             RetailSlot::from_bytes(&bytes, 0),
             Err(SaveError::ChecksumMismatch { slot: 0, .. })
         ));
+    }
+
+    #[test]
+    fn the_cleared_game_flag_round_trips_at_sram_200035() {
+        let save = RetailSave {
+            snapshot: mid_progress_state().snapshot(),
+            location: RetailLocation::default(),
+        };
+        let clear = RetailSlot::encode(&save, 0).unwrap().mark_game_cleared();
+        assert_eq!(clear.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 1);
+        assert!(clear.game_cleared());
+        // The payload and its checksum are untouched: a retail reader still
+        // validates the slot, and the flag rides in the common header.
+        let decoded = RetailSlot::from_bytes(clear.as_bytes(), 0).unwrap();
+        assert!(decoded.game_cleared());
+        assert_eq!(decoded.decode().unwrap(), save);
+        let uncleared = RetailSlot::encode(&save, 0).unwrap();
+        assert!(!uncleared.game_cleared());
+        assert_eq!(uncleared.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 0);
+        // Sticky: marking never clears an already-set byte.
+        assert!(
+            uncleared
+                .mark_game_cleared()
+                .mark_game_cleared()
+                .game_cleared()
+        );
+        assert!(RetailSlot::cleared_in_bytes(clear.as_bytes()));
     }
 
     #[test]

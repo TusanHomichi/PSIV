@@ -59,6 +59,46 @@ fn runtime_with_four_party_at(map: u16) -> Runtime {
     .expect("runtime with seeded party starts")
 }
 
+/// A runtime at `map` with the pack's own character records (not the synthetic
+/// party `runtime_with_four_party_at` seats) and battles enabled: the scene
+/// ops that write a roster record need a real one.
+fn runtime_with_pack_records_at(map: u16) -> Runtime {
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let initial = crate::Session::start(data.clone())
+        .field()
+        .expect("the pack boots");
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    for (slot, id) in [CharId(0), CharId(1), CharId(2), CharId(4)]
+        .into_iter()
+        .enumerate()
+    {
+        game.set_party_slot(slot, Some(id))
+            .expect("party slot exists");
+    }
+    if let Some(alys) = game.roster_mut().get_mut(CharId(0)) {
+        *alys.techniques.last_mut().expect("a technique slot") = 0;
+    }
+    let mut runtime = Runtime::from_save(
+        data,
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: map,
+                char_x: 0x1E0,
+                char_y: 0x120,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime with pack records starts");
+    runtime
+        .enable_battles(&BattleFiles::load(Path::new(PACK)).expect("battle files load"))
+        .expect("battles enable");
+    runtime
+}
+
 fn relocate_with_state(runtime: &Runtime, map: u16) -> Runtime {
     Runtime::from_save(
         runtime.data().clone(),
@@ -112,8 +152,15 @@ fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
+    let mut start_pressed = false;
     for _ in 0..50_000 {
-        let events = runtime.tick(Input::Neutral);
+        let input = if start_pressed {
+            start_pressed = false;
+            Input::Action
+        } else {
+            Input::Neutral
+        };
+        let events = runtime.tick(input);
         for item in &events {
             assert!(
                 !matches!(item, RuntimeEvent::SceneFaulted { .. }),
@@ -136,7 +183,7 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
                     op: SceneOp::WaitForStart
                 }
             ) {
-                runtime.ending_continue();
+                start_pressed = true;
             }
             assert!(
                 !matches!(item, RuntimeEvent::SceneBattleStarted { .. }),
@@ -545,4 +592,92 @@ fn the_zio_fort_barrier_walks_its_ring_and_opens_the_courtyard() {
     }
     assert_eq!(arrived, Some(psiv_core::MapId(0xD7)), "the courtyard opens");
     assert_eq!(runtime.state().cell(), Cell::new(32, 35));
+}
+
+#[test]
+fn refaze_grants_megid_only_on_the_yes_arm() {
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    // YES: the scene writes TechID_Megid into character 0's (Chaz's) last
+    // slot and returns.
+    let mut yes = runtime_with_pack_records_at(0x0FE);
+    assert!(yes.start_event(0x0063), "Event_ReFaze starts");
+    let mut ended = false;
+    for _ in 0..50_000 {
+        let events = yes.tick(Input::Neutral);
+        for item in &events {
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "Event_ReFaze faulted: {item:?}"
+            );
+            assert!(
+                !matches!(item, RuntimeEvent::SceneBattleStarted { .. }),
+                "the YES arm must not fight"
+            );
+            if matches!(item, RuntimeEvent::SceneChoiceRequested) {
+                yes.dialogue_choice(true);
+            }
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                yes.dialogue_closed();
+            }
+        }
+        if !yes.scene_active() {
+            ended = true;
+            break;
+        }
+    }
+    assert!(ended, "the YES arm returns");
+    assert_eq!(
+        yes.game()
+            .roster()
+            .get(CharId(0))
+            .expect("Chaz's record")
+            .techniques[15],
+        0x10,
+        "the YES arm writes Megid into the last technique slot"
+    );
+
+    // NO: the same scene reaches its event battle with the slot untouched.
+    let mut no = runtime_with_pack_records_at(0x0FE);
+    assert!(no.start_event(0x0063), "Event_ReFaze starts");
+    let mut fought = false;
+    for _ in 0..50_000 {
+        let events = no.tick(Input::Neutral);
+        for item in &events {
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "Event_ReFaze faulted: {item:?}"
+            );
+            if matches!(item, RuntimeEvent::SceneChoiceRequested) {
+                no.dialogue_choice(false);
+            }
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                no.dialogue_closed();
+            }
+            if matches!(item, RuntimeEvent::SceneBattleStarted { .. }) {
+                fought = true;
+            }
+        }
+        if fought {
+            break;
+        }
+    }
+    assert!(fought, "the NO arm fights event battle $19");
+    assert_eq!(
+        no.game()
+            .roster()
+            .get(CharId(0))
+            .expect("Chaz's record")
+            .techniques[15],
+        0,
+        "the NO arm leaves the last technique slot alone"
+    );
 }

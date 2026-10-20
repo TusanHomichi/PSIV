@@ -161,11 +161,13 @@ impl Runtime {
         }
     }
 
-    /// Releases the retail ending's final Start gate.
-    pub(crate) fn ending_continue(&mut self) {
-        if self.scene.is_some() {
-            self.scene_input = SceneInput::EndingContinue;
-        }
+    /// True while the ending waits for its final Start press, the state in
+    /// which the session passes a Start pad through as field input.
+    #[must_use]
+    pub fn awaiting_ending_start(&self) -> bool {
+        self.scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::awaiting_ending_start)
     }
 
     /// Returns whether the retail ending has latched the cleared-game state.

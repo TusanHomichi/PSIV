@@ -157,8 +157,15 @@ fn answer_ship_menu(runtime: &mut Runtime, item: &RuntimeEvent) {
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
+    let mut start_pressed = false;
     for _ in 0..50_000 {
-        let events = runtime.tick(Input::Neutral);
+        let input = if start_pressed {
+            start_pressed = false;
+            Input::Action
+        } else {
+            Input::Neutral
+        };
+        let events = runtime.tick(input);
         for item in &events {
             assert!(
                 !matches!(item, RuntimeEvent::SceneFaulted { .. }),
@@ -182,7 +189,9 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
                     op: SceneOp::WaitForStart
                 }
             ) {
-                runtime.ending_continue();
+                // The next frame presses Start; the session's input path turns
+                // that edge into the scene's continue input.
+                start_pressed = true;
             }
             assert!(
                 !matches!(item, RuntimeEvent::SceneBattleStarted { .. }),

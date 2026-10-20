@@ -117,6 +117,7 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
             "frames": result.tape.pads.len(),
             "chapters": chapters,
             "event_battles": event_battles,
+            "game_cleared": result.game_cleared,
         });
         write_file(Path::new(path), &report.to_string())?;
     }
@@ -173,8 +174,10 @@ fn replay_inner(args: &[String]) -> Result<ExitCode, String> {
         println!("fault at frame {frame}: {fault}");
     }
     println!(
-        "replayed {} frames; digest {}",
-        result.frames, result.digest
+        "replayed {} frames; digest {}; game cleared: {}",
+        result.frames,
+        result.digest,
+        if result.game_cleared { "yes" } else { "no" }
     );
     Ok(ExitCode::SUCCESS)
 }

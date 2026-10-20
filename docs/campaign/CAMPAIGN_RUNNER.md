@@ -60,10 +60,12 @@ resolves into pad input:
   to full, with whatever TP the party has (`recovery.rs`).
 
 Chapters end with their specified assertions on flags, party, map and
-inventory taken from the scene transcriptions. The route's last chapter ends at
-the ending's final Start gate (`Cutscene_Ending`'s `WaitForStart`,
-`docs/scenes/89_Ending.md`): the field loop stops there, and `expect`'s
-`ending_gate` claims it. The runner then writes a
+inventory taken from the scene transcriptions. The route's last chapter presses
+Start at the ending's final gate (`press`, `Cutscene_Ending`'s `WaitForStart`,
+`docs/scenes/89_Ending.md`): the session turns the press into the scene's
+continue input, and `expect`'s `game_cleared` claims the latched
+`Game_Cleared_Flag`. An `expect` may also check `ending_gate` where the run
+stops at the gate instead of pressing it. The runner then writes a
 read-only chapter checkpoint with `Runtime::save_slot`; that snapshot is not
 an ordinary SAVE input. Only chapters with an explicit `save` objective press
 camp STATE → SAVE. The Zio-defeat chapter does so after its scene and flags
@@ -135,7 +137,8 @@ producing pads from views only:
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes; a boarding item (the Ice Digger, `ItemAction_IceDigger`) closes the menu on the press that accepts it, so `use_item` waits the scene out instead of reading a page |
 | random and scripted battles | `battle.rs`, `policy.rs`, `policy_plan.rs`, `policy_value.rs`, `policy_estimate.rs`, `policy_board.rs`, `policy_board_read.rs`, `policy_opening.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
-| `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`) and the party's status bytes (`status_clear`) |
+| `press` | `exec.rs` | one pad button on a frame (`start`); the ending's final gate turns it into the scene's continue input |
+| `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`), the party's status bytes (`status_clear`) and the ending's gate or cleared byte (`ending_gate`, `game_cleared`) |
 
 The planner never walks onto a map-change cell that no warp covers (the
 engine's `WarpUnmapped`, which the runner halts on unless the cell is a doorway

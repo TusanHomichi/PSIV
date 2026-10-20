@@ -3,7 +3,9 @@
 //! It reads only the runtime's own views — the map, the standing cell and
 //! facing, the whole persistent [`psiv_core::StateSnapshot`] (flags, inventory,
 //! the eleven character records, party, purse) — so two runs that agree on it
-//! agree on everything the game would save and show at rest.
+//! agree on the game's state at rest. It does not hash the ending's
+//! `Game_Cleared_Flag` (a common-header byte outside the snapshot); the run
+//! report and the chapter save carry that separately.
 
 use psiv_runtime::Runtime;
 

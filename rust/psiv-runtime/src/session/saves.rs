@@ -132,6 +132,7 @@ impl Session {
                 .enable_battles(&files)
                 .map_err(|error| error.to_string())?;
         }
+        self.game_cleared_written = runtime.game_cleared();
         self.runtime = runtime;
         self.accept_blocked = false;
         self.prev_pad = Pad::NEUTRAL;
@@ -183,12 +184,6 @@ impl Session {
         self.battle_files = Some(files.clone());
         Ok(())
     }
-
-    /// Presses Start on the ending's final gate (`finish_cutscene_presentation`
-    /// is the shell's; the gate itself is the runtime's).
-    pub fn ending_continue(&mut self) {
-        self.runtime.ending_continue();
-    }
 }
 
 #[cfg(test)]
@@ -197,6 +192,95 @@ mod tests {
     use crate::RuntimeEvent;
     use crate::session::menu_scene::MenuScene;
     use std::path::Path;
+
+    #[test]
+    fn a_continue_of_a_cleared_save_reads_the_cleared_flag() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "psiv-cleared-continue-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+
+        // A save as the game writes it, then the ending's own header write.
+        let mut played = Session::start(data.clone())
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        played.runtime.game.set_money(100);
+        played.save_slot(0).expect("write the slot");
+        let path = SaveStore::new(&directory).directory().join("slot_1.sram");
+        let bytes = std::fs::read(&path).expect("read the slot");
+        let cleared = psiv_core::RetailSlot::from_bytes(&bytes, 0)
+            .expect("valid slot")
+            .mark_game_cleared();
+        std::fs::write(&path, cleared.as_bytes()).expect("write the cleared header");
+
+        // A fresh session's CONTINUE reads it back.
+        let mut resumed = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        resumed.continue_save(0).expect("CONTINUE loads the slot");
+        assert!(resumed.runtime().game_cleared());
+        assert_eq!(resumed.runtime().game().money(), 100);
+    }
+
+    #[test]
+    fn the_cleared_byte_is_written_by_the_store_and_kept_by_a_later_save() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("psiv-cleared-store-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+        let path = directory.join("slot_1.sram");
+        let byte = |path: &Path| std::fs::read(path).expect("read slot")[0x35] & 1;
+
+        let played = Session::start(data.clone())
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        played.save_slot(0).expect("write the slot");
+        assert_eq!(byte(&path), 0, "a fresh slot is uncleared");
+
+        // The ending's own write, without a SAVE.
+        SaveStore::new(&directory)
+            .mark_game_cleared()
+            .expect("mark the header");
+        assert_eq!(byte(&path), 1);
+
+        // A later save from a game whose latch is false keeps the byte.
+        let later = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        later.save_slot(0).expect("save over the cleared slot");
+        assert_eq!(byte(&path), 1, "the header byte is sticky");
+
+        // A directory with no slot file has no header to write: a no-op.
+        let empty = directory.join("empty");
+        std::fs::create_dir(&empty).expect("new empty directory");
+        SaveStore::new(&empty)
+            .mark_game_cleared()
+            .expect("no slot, no header, no error");
+    }
 
     #[test]
     fn start_and_continue_discard_an_old_inn_scene_handoff() {

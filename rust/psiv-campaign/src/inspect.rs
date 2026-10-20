@@ -26,11 +26,12 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "map {:#x} cell ({},{}) money {}",
+        "map {:#x} cell ({},{}) money {} game cleared {}",
         runtime.map_id().0,
         cell.x,
         cell.y,
-        camp.money
+        camp.money,
+        if runtime.game_cleared() { "yes" } else { "no" }
     );
     for member in &camp.party {
         let _ = writeln!(
