@@ -332,7 +332,10 @@ impl Runtime {
 
     /// The exact retail-shaped slot bytes the ordinary writer persists.
     /// Read-only: native replay compares a chapter boundary without performing
-    /// a SAVE action or introducing a second encoding path.
+    /// a SAVE action or introducing a second encoding path. It marks
+    /// `Game_Cleared_Flag` from this runtime's latch only; the device-wide
+    /// stickiness across a directory's slots belongs to [`Runtime::save_slot`],
+    /// the only caller that knows the other files.
     ///
     /// # Errors
     /// A slot outside the three visible rows or an unrepresentable position.

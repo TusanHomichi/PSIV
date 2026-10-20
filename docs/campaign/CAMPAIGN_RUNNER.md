@@ -137,7 +137,8 @@ producing pads from views only:
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes; a boarding item (the Ice Digger, `ItemAction_IceDigger`) closes the menu on the press that accepts it, so `use_item` waits the scene out instead of reading a page |
 | random and scripted battles | `battle.rs`, `policy.rs`, `policy_plan.rs`, `policy_value.rs`, `policy_estimate.rs`, `policy_board.rs`, `policy_board_read.rs`, `policy_opening.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
-| `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`) and the party's status bytes (`status_clear`) |
+| `press` | `exec.rs` | one pad button on a frame (`start`); the ending's final gate turns it into the scene's continue input |
+| `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`), the party's status bytes (`status_clear`) and the ending's gate or cleared byte (`ending_gate`, `game_cleared`) |
 
 The planner never walks onto a map-change cell that no warp covers (the
 engine's `WarpUnmapped`, which the runner halts on unless the cell is a doorway

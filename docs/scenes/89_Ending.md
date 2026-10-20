@@ -252,9 +252,10 @@ then latches `GameCleared`. The session owns the gate: a Start press while the
 scene waits there (`btst #ButtonStart, (Joypad_Pressed).w`, `ps4.asm:159093-159099`)
 becomes the scene's continue input, so the headless route's last chapter
 presses Start exactly as a player does and then claims `game_cleared`. The
-cleared byte rides the final save's common header (`$200035`, see
-[save format](../camp/SAVE_FORMAT.md)); a fresh process that CONTINUEs that
-save reads the cleared state again. The test also asserts `$E8`, Termi `$07B`
+session writes the cleared byte into the existing slots' common header at the
+gate (`$200035`, retail's own write, see [save format](../camp/SAVE_FORMAT.md)),
+and the final save carries it too; a fresh process that CONTINUEs that save
+reads the cleared state again. The test also asserts `$E8`, Termi `$07B`
 and the `$17E` panel, and never pretends that the credits are gameplay
 dialogue.
 

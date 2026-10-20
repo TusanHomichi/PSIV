@@ -568,11 +568,16 @@ impl Session {
         // passes (`ps4.asm:159099`). The session owns the store, so it makes
         // that header write now rather than waiting for the next SAVE.
         if self.runtime.game_cleared() && !self.game_cleared_written {
-            self.game_cleared_written = true;
-            if let Some(store) = self.save_store.as_ref()
-                && let Err(error) = store.mark_game_cleared()
-            {
-                eprintln!("save: game cleared, but the SRAM header write failed: {error}");
+            // No store, nothing to write. A refused write stays pending and is
+            // retried on the next frame rather than silently dropped.
+            match self.save_store.as_ref() {
+                None => self.game_cleared_written = true,
+                Some(store) => match store.mark_game_cleared() {
+                    Ok(()) => self.game_cleared_written = true,
+                    Err(error) => {
+                        eprintln!("save: game cleared, but the SRAM header write failed: {error}")
+                    }
+                },
             }
         }
         // A menu command's scene may have ended on this frame: the menu's own

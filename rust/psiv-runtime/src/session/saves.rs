@@ -236,6 +236,53 @@ mod tests {
     }
 
     #[test]
+    fn the_cleared_byte_is_written_by_the_store_and_kept_by_a_later_save() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("psiv-cleared-store-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+        let path = directory.join("slot_1.sram");
+        let byte = |path: &Path| std::fs::read(path).expect("read slot")[0x35] & 1;
+
+        let played = Session::start(data.clone())
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        played.save_slot(0).expect("write the slot");
+        assert_eq!(byte(&path), 0, "a fresh slot is uncleared");
+
+        // The ending's own write, without a SAVE.
+        SaveStore::new(&directory)
+            .mark_game_cleared()
+            .expect("mark the header");
+        assert_eq!(byte(&path), 1);
+
+        // A later save from a game whose latch is false keeps the byte.
+        let later = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        later.save_slot(0).expect("save over the cleared slot");
+        assert_eq!(byte(&path), 1, "the header byte is sticky");
+
+        // A directory with no slot file has no header to write: a no-op.
+        let empty = directory.join("empty");
+        std::fs::create_dir(&empty).expect("new empty directory");
+        SaveStore::new(&empty)
+            .mark_game_cleared()
+            .expect("no slot, no header, no error");
+    }
+
+    #[test]
     fn start_and_continue_discard_an_old_inn_scene_handoff() {
         let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
         if !pack.join("manifest.json").is_file() {
