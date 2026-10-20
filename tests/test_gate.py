@@ -4,9 +4,9 @@
 
 Hermetic and quick: every case builds a throwaway git repo in a temp directory
 and hands `run_gate` its own fake commands, so nothing here runs the real
-gate commands, cargo, or the game. The two guards get both halves: a held
-lock and a mapped extension must refuse the run (exit 2, nothing run), and each
-must let the same run through once the holder is gone.
+gate commands, cargo, or the game. The gate-lock guard gets both halves: a
+held lock must refuse the run (exit 2, nothing run) and let the same run
+through once the holder is gone. A mapped extension no longer refuses it.
 
 The parser samples in `CountParserCase` are captured output - the raw files are
 in build/lane-evidence/capture/ (`python3 -m unittest` on a three-test sample,
@@ -643,7 +643,10 @@ class GateRunCase(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertEqual(outcome["receipt"]["exit_code"], 0)
 
-    def test_a_loaded_extension_refuses_until_the_holder_exits(self):
+    def test_a_loaded_extension_does_not_refuse_the_gate(self):
+        """Run roots made the old refusal protect nothing (tools/godot.py):
+        a process mapping the checkout's library, the editor's case, leaves the
+        gate free to run and rebuild it."""
         extension = self.root / "rust" / "target" / "debug" / "libpsiv_godot.so"
         extension.parent.mkdir(parents=True)
         extension.write_bytes(b"\x7fELF gate fixture\n")
@@ -651,14 +654,9 @@ class GateRunCase(unittest.TestCase):
                                  stdout=subprocess.PIPE, text=True)
         self.addCleanup(self.stop, child)
         self.assertEqual(child.stdout.readline().strip(), "mapped")
-        with self.assertRaises(GateRefused) as caught:
-            self.run_quiet([fake_step("refused", marker="refused.txt")])
-        self.assertEqual(caught.exception.exit_code, 2)
-        self.assertIn(str(child.pid), str(caught.exception))
-        self.assertFalse((self.root / "refused.txt").exists())  # nothing ran
-        self.stop(child)
-        receipt, _ = self.run_quiet([fake_step("after")])  # the mapping is gone
+        receipt, _ = self.run_quiet([fake_step("ran", marker="ran.txt")])
         self.assertEqual(receipt["exit_code"], 0)
+        self.assertTrue((self.root / "ran.txt").exists())
 
     @staticmethod
     def stop(child):

@@ -207,14 +207,16 @@ class NativeTapeReceiptRss(unittest.TestCase):
     """`main` itself: a failing RSS verdict fails the receipt, everything else
     being a pass (Godot, the process map and Git are stood in for)."""
 
-    def run_main(self, rows, extra=(), probes=None):
+    def run_main(self, rows, extra=(), probes=None, maps_checkout=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             probe_save = root / "academy.sram"
             probe_save.write_bytes(b"probe save")
             extra = [str(probe_save) if arg == "PROBE" else arg for arg in extra]
-            (root / "godot/.godot").mkdir(parents=True)
-            (root / "godot/.godot/extension_list.cfg").write_text("res://psiv.gdextension\n")
+            # The run root copies the project's files as Git lists them.
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "godot").mkdir()
+            (root / "godot/project.godot").write_text("[application]\n")
             library = root / "rust/target/debug/libpsiv_godot.so"
             library.parent.mkdir(parents=True)
             library.write_bytes(b"extension")
@@ -228,13 +230,16 @@ class NativeTapeReceiptRss(unittest.TestCase):
             godot = root / "godot-bin"
             godot.write_text(FAKE_GODOT.format(python=sys.executable, version=required_version()))
             godot.chmod(0o755)
-            mapped = {"path": str(library.resolve()), "inode": library.stat().st_ino}
+            def mapped(pid, path):  # Godot maps the run root's snapshot
+                if maps_checkout:  # negative control: the checkout's own library
+                    path = library.resolve()
+                return {"path": str(path), "inode": path.stat().st_ino}
             env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
                    "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
-                    mock.patch.object(verify_native_tape, "GODOT", godot), \
+                    mock.patch.dict(os.environ, {"PSIV_GODOT": str(godot)}), \
                     mock.patch.object(verify_native_tape, "mapped_extension_in_process_tree",
-                                      return_value=mapped), \
+                                      side_effect=mapped), \
                     mock.patch.object(verify_native_tape, "source_identity",
                                       return_value={"head": "test"}), \
                     mock.patch.dict(os.environ, env), \
@@ -243,7 +248,28 @@ class NativeTapeReceiptRss(unittest.TestCase):
                     "--tape", str(tape), "--pack", str(pack), "--out", str(root / "out"),
                     "--timeout", "60", "--rss-every", "2500", *extra])
                 receipt = json.loads((root / "out/receipt.json").read_text())
+                receipt["_run_root_left"] = sorted(
+                    entry.name for entry in (root / "out/run-root").iterdir())
         return code, receipt
+
+    def test_the_replay_runs_from_a_run_root_and_records_its_library(self):
+        code, receipt = self.run_main([(300, 100, 10, 1)] * 6)
+        self.assertEqual(code, 0)
+        run_root = receipt["run_root"]
+        self.assertEqual(run_root["library_sha256"], hashlib.sha256(b"extension").hexdigest())
+        command = receipt["command"]
+        self.assertEqual(command[command.index("--path") + 1], run_root["projects"][0])
+        self.assertEqual(receipt["effective_psiv_env"]["PSIV_RUNTIME_PACK"], run_root["pack"])
+        self.assertEqual(receipt["code_identity_before"]["extension"]["path"],
+                         run_root["library"])
+        # The owner keeps the record and drops the bulk once the run ends.
+        self.assertEqual(receipt["_run_root_left"], ["run-root.json"])
+
+    def test_negative_control_godot_mapping_the_checkout_library_fails(self):
+        code, receipt = self.run_main([(300, 100, 10, 1)] * 6, maps_checkout=True)
+        self.assertEqual(code, 1)
+        self.assertIs(receipt["mapped_library_matches_preflight"], False)
+        self.assertIs(receipt["pass"], False)
 
     def test_a_flat_run_passes_and_a_failing_rss_verdict_fails_the_receipt(self):
         bound = ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16", "--rss-probe-save", "PROBE")

@@ -150,9 +150,13 @@ def main() -> int:
             print(f"Wrote {len(written)} composed PNGs to {args.output}")
         elif args.command == "pack":
             from .pack import PackError, build_pack
+            from .pack_swap import PackSwapError, install_atomically
             try:
-                manifest = build_pack(data, args.output, map_ids=args.map_ids)
-            except PackError as exc:
+                # Built beside the output and swapped in whole (#145): a
+                # reader sees the old pack or the new one, never half of one.
+                manifest = install_atomically(
+                    args.output, lambda staging: build_pack(data, staging, map_ids=args.map_ids))
+            except (PackError, PackSwapError) as exc:
                 parser.error(str(exc))
             print(f"Packed {manifest['map_count']} maps to {args.output}")
             print(

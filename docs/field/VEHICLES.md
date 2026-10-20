@@ -426,16 +426,17 @@ natural random encounter happened at a chosen frame.
 
 ## Verification status
 
-Headless debug boots (`$PSIV_GODOT` names the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says; the binary exits successfully and
-reaches the field/battle surface):
+Headless debug boots (`tools/godot.py` resolves the Godot executable, as the
+[development guide](../DEVELOPMENT.md#launch-the-native-game) says; the binary
+exits successfully and reaches the field/battle surface):
 
 ```sh
 env PSIV_DEBUG_VEHICLE=2 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  "$PSIV_GODOT" --headless --audio-driver Dummy \
-  --path godot --quit-after 120
+  python3 tools/godot.py run -- --headless --audio-driver Dummy \
+  --quit-after 120
 env PSIV_DEBUG_VEHICLE=3 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  "$PSIV_GODOT" --headless --audio-driver Dummy \
-  --path godot --quit-after 120
+  python3 tools/godot.py run -- --headless --audio-driver Dummy \
+  --quit-after 120
 ```
 
 For visual integration, run the same command under

@@ -110,16 +110,16 @@ title hold. The oracle reference is
 The deterministic clone tick is **480** with `PSIV_DEBUG_TITLE_SHOT=1` — the
 title's own 480th frame, which is 279 frames into the reveal's 300 (node S5
 moved that clock into the session and pins it in
-`rust/psiv-runtime/tests/session_title.rs`; `$PSIV_GODOT` names the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says):
+`rust/psiv-runtime/tests/session_title.rs`; `tools/godot.py` resolves the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says):
 
 ```sh
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_TITLE_SHOT=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-480.png \
   PSIV_DEBUG_SHOT_FRAME=480 \
-  timeout 180s "$PSIV_GODOT" --log-file /tmp/psiv-title-godot.log \
+  timeout 180s python3 tools/godot.py run -- --log-file /tmp/psiv-title-godot.log \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
-  --path godot --quit-after 300000 \
+  --quit-after 300000 \
   > /tmp/psiv-title-xvfb-480.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-title-xvfb-480.png oracle/frames/title/frame_450.png

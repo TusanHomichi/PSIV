@@ -69,7 +69,7 @@ python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 export PSIV_GODOT=/path/to/godot
 python3 tools/godot.py prepare
-PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
+PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 ```
 
 1. `./oracle/build_core.sh` fetches the pinned Genesis Plus GX sources into
@@ -83,8 +83,9 @@ PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
    the wrong version or a build that is not `stable` is refused, with the
    reason) and writes the project's extension index (`godot/.godot/`, which Git
    ignores), which a fresh clone needs before the game's classes load.
-5. The last line starts the game; `python3 tools/godot.py` prints the Godot
-   executable it found.
+5. The last line starts the game from a run root: a copy of the project beside
+   a snapshot of the library just built, removed when the game exits. Godot
+   arguments go after `--` (`python3 tools/godot.py run -- --help`).
 
 Saves go to the directory `PSIV_SAVE_DIR` names. Load with the title screen's
 CONTINUE, and save from the camp menu's STATE, then SAVE, as on the cartridge.
