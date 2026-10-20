@@ -651,7 +651,7 @@ pub static SILENCE_TM_DOOR_OPENING: Scene = Scene {
     ],
 };
 
-/// `$0062`, `Event_AngerTowerAlys`, `$07148A..$071579` (`ps4.asm:150697-150768`;
+/// `$0062`, `Event_AngerTowerAlys`, `$07148A..$071579` (`ps4.asm:150697-150763`;
 /// record `docs/scenes/114_AngerTowerAlys.md`): tree 41 entry 15's `$F6`. The
 /// illusion (object 0) speaks, turns to Chaz, steps eight pixels at him while
 /// he backs off sixteen and steps eight more, then the retained line 8, Alys

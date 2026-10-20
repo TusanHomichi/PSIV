@@ -8,7 +8,8 @@
 ## Clone audit
 
 The body was read from the US image through its `EventPtrs` slot and every
-instruction word matches `ps4.asm:150697-150768`; the table bytes at `$071572`
+instruction word matches `ps4.asm:150697-150763` (body to the `rts` at
+150760, table 150761-150763); the table bytes at `$071572`
 are `00 01 00 FF 01 00 FF 00`, the clone's `loc_71572` rows. No `revision`
 conditional, no `DialogueTreesToRAM`: both lines are entries of the map's tree.
 

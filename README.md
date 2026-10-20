@@ -9,9 +9,9 @@ the original game's behavior, quirks included.
 
 **How far it plays.** An automated playthrough, pressing the same buttons a
 player would, plays from New Game to the Ending's final gate headlessly, in 84
-chapters; the native game replays that route as far as the Air Castle, and the
-native replay of chapters 63 onward is still pending. Every player technique
-and skill, and every
+chapters; the native game replays 62 of those chapters, through Garuberk
+Tower's Dark Force 2, and the replay of chapters 63 onward is still pending.
+Every player technique and skill, and every
 enemy ability up to Dark Force 2, is implemented from the cartridge's code; most
 of them are also captured on the cartridge and replayed against it, and the
 battle documents list the ones that are not
