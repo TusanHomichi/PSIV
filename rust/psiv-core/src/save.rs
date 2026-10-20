@@ -280,10 +280,19 @@ impl RetailSlot {
     }
 
     /// Sets retail's `Game_Cleared_Flag` in the common header (`$200035`).
+    /// The retail byte is sticky — the only write is `ps4.asm:159099`, and only
+    /// `InitSRAM` zeroes the header — so this never writes 0.
     #[must_use]
-    pub fn with_game_cleared(mut self, cleared: bool) -> Self {
-        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] = u8::from(cleared);
+    pub fn mark_game_cleared(mut self) -> Self {
+        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] |= 1;
         self
+    }
+
+    /// Whether a slot file's header carries `Game_Cleared_Flag`, without
+    /// validating the payload: the store's sticky check over other slots.
+    #[must_use]
+    pub fn cleared_in_bytes(bytes: &[u8]) -> bool {
+        bytes.len() == RETAIL_SLOT_FILE_BYTES && bytes[GAME_CLEARED_OFFSET * 2 + 1] & 1 == 1
     }
 
     /// Reads retail's `Game_Cleared_Flag` from the common header (`$200035`).
@@ -802,9 +811,7 @@ mod tests {
             snapshot: mid_progress_state().snapshot(),
             location: RetailLocation::default(),
         };
-        let clear = RetailSlot::encode(&save, 0)
-            .unwrap()
-            .with_game_cleared(true);
+        let clear = RetailSlot::encode(&save, 0).unwrap().mark_game_cleared();
         assert_eq!(clear.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 1);
         assert!(clear.game_cleared());
         // The payload and its checksum are untouched: a retail reader still
@@ -815,6 +822,14 @@ mod tests {
         let uncleared = RetailSlot::encode(&save, 0).unwrap();
         assert!(!uncleared.game_cleared());
         assert_eq!(uncleared.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 0);
+        // Sticky: marking never clears an already-set byte.
+        assert!(
+            uncleared
+                .mark_game_cleared()
+                .mark_game_cleared()
+                .game_cleared()
+        );
+        assert!(RetailSlot::cleared_in_bytes(clear.as_bytes()));
     }
 
     #[test]

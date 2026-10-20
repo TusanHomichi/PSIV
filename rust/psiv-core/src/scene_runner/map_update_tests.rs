@@ -64,6 +64,33 @@ fn the_ending_start_gate_is_released_only_by_the_ending_continue_input() {
 }
 
 #[test]
+fn learn_technique_faults_on_a_character_seat_that_does_not_exist() {
+    let map = FieldMap::new(
+        crate::MapId(3),
+        crate::CollisionGrid::filled(2, 2, 0).unwrap(),
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    let mut state = GameState::new();
+    let mut runner = SceneRunner::new(
+        &[SceneOp::LearnTechnique {
+            character: 5,
+            technique: 0x10,
+        }],
+        vec![],
+        StepFrames::default(),
+    );
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, SceneEffect::Faulted(SceneFault::BadWrite))),
+        "{effects:?}"
+    );
+}
+
+#[test]
 fn actor_arrival_and_camera_completion_still_own_their_last_update_frame() {
     use crate::{DialogueId, DialogueSource, DialogueWindow, Direction};
     let map = FieldMap::new(

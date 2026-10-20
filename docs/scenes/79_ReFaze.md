@@ -15,7 +15,7 @@ alternative is excluded. ROM range: `$07157A..$07175A` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-14 | `$07157A..$0716B7` | dialogue `$09`, facing/waits, palette fade, object `$2C0`, fire breath; the resume dialogue's YES branch writes `TechID_Megid` into the last technique slot (`lea (Character_Stats).w,a0; move.b #TechID_Megid, techs+15(a0)`, US image `$07167C..$071685`) | actor/presentation/SFX; the grant is `LearnTechnique { character: 0, technique: 0x10 }` |
-| 15-22 | `$0716B8..$07173B` | the YES path brightens and restores the palette, plays and saves the Tower music, sets `$FFFFED52` (the variable fade's mode) to 2 for `Pal_VariableFadeToPal2` and sets `$E1` | choice/flag |
-| 23-25 | `$07173C..$071759` | the NO path sets `$E1`, event battle `$19`, return `1` | choice/battle |
+| 0-17 | `$07157A..$07167B` | dialogue `$09`, facing/waits, palette fade, object `$2C0`, fire breath, the resume dialogue and the choice (`tst.b (Yes_No_Option).w; beq.w loc_7173C`) | actor/presentation/SFX, choice |
+| 18-23 | `$07167C..$07173B` | the YES path writes `TechID_Megid` into the last technique slot (`lea (Character_Stats).w,a0; move.b #TechID_Megid, techs+15(a0)`, US image `$07167C..$071685`), brightens and restores the palette, plays and saves the Tower music, sets `$FFFFED52` to 2 for `Pal_VariableFadeToPal2` and sets `$E1`, then returns `0` | `LearnTechnique { character: 0, technique: 0x10 }`, choice/flag |
+| 24-26 | `$07173C..$071759` | the NO path sets `$E1`, event battle `$19`, return `1` | choice/battle |
 

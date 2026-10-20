@@ -600,7 +600,8 @@ fn refaze_grants_megid_only_on_the_yes_arm() {
         eprintln!("runtime pack not present; skipping");
         return;
     }
-    // YES: the scene writes TechID_Megid into Alys's last slot and returns.
+    // YES: the scene writes TechID_Megid into character 0's (Chaz's) last
+    // slot and returns.
     let mut yes = runtime_with_pack_records_at(0x0FE);
     assert!(yes.start_event(0x0063), "Event_ReFaze starts");
     let mut ended = false;
@@ -635,7 +636,7 @@ fn refaze_grants_megid_only_on_the_yes_arm() {
         yes.game()
             .roster()
             .get(CharId(0))
-            .expect("Alys's record")
+            .expect("Chaz's record")
             .techniques[15],
         0x10,
         "the YES arm writes Megid into the last technique slot"
@@ -674,7 +675,7 @@ fn refaze_grants_megid_only_on_the_yes_arm() {
         no.game()
             .roster()
             .get(CharId(0))
-            .expect("Alys's record")
+            .expect("Chaz's record")
             .techniques[15],
         0,
         "the NO arm leaves the last technique slot alone"

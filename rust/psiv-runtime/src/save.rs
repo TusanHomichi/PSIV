@@ -301,6 +301,26 @@ impl SaveStore {
     pub fn erase(&self, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         Runtime::erase_slot(&self.directory, slot)
     }
+
+    /// Writes retail's `Game_Cleared_Flag` into the common header of every
+    /// slot file that exists, when `Cutscene_Ending` latches it: retail's own
+    /// SRAM write at `ps4.asm:159099`, without waiting for a SAVE. A
+    /// directory with no slot files writes nothing.
+    pub(crate) fn mark_game_cleared(&self) -> Result<(), RuntimeSaveError> {
+        for slot in 0..psiv_core::RETAIL_SLOT_COUNT {
+            let path = Runtime::slot_path(&self.directory, slot)?;
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let Ok(encoded) = RetailSlot::from_bytes(&bytes, slot) else {
+                continue;
+            };
+            if !encoded.game_cleared() {
+                std::fs::write(&path, encoded.mark_game_cleared().as_bytes())?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Runtime {
@@ -332,9 +352,11 @@ impl Runtime {
                 char_y,
             },
         };
-        let encoded = RetailSlot::encode(&save, slot)?
-            .with_dungeon_exit(self.dungeon_exit_index)
-            .with_game_cleared(self.game_cleared);
+        let mut encoded =
+            RetailSlot::encode(&save, slot)?.with_dungeon_exit(self.dungeon_exit_index);
+        if self.game_cleared {
+            encoded = encoded.mark_game_cleared();
+        }
         Ok(encoded.as_bytes().to_vec())
     }
 
@@ -351,10 +373,28 @@ impl Runtime {
     /// save this way — but cannot change it.
     pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
-        let bytes = self.slot_bytes(slot)?;
+        let mut bytes = self.slot_bytes(slot)?;
+        // `Game_Cleared_Flag` is a common-header byte: sticky across every
+        // slot, as the one device's header is (only InitSRAM clears it).
+        if !self.game_cleared && Self::directory_game_cleared(directory) {
+            bytes = RetailSlot::from_bytes(&bytes, slot)?
+                .mark_game_cleared()
+                .as_bytes()
+                .to_vec();
+        }
         std::fs::create_dir_all(directory)?;
         std::fs::write(&path, bytes)?;
         Ok(path)
+    }
+
+    /// Whether any slot file in `directory` carries the cleared-game byte.
+    fn directory_game_cleared(directory: &Path) -> bool {
+        (0..psiv_core::RETAIL_SLOT_COUNT).any(|slot| {
+            Self::slot_path(directory, slot)
+                .ok()
+                .and_then(|path| std::fs::read(path).ok())
+                .is_some_and(|bytes| RetailSlot::cleared_in_bytes(&bytes))
+        })
     }
 
     /// Loads a slot and constructs the same runtime seam the title continue

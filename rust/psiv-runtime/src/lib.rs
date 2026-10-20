@@ -162,8 +162,10 @@ pub struct Runtime {
     /// end clears. With it up, a high-bit cutscene's dialogue takes the panel
     /// layout and the shell hides the field sprites.
     scene_panel_sprites: bool,
-    /// Volatile end-of-game latch set by the retail ending after Start.
-    /// This is presentation state, not save data.
+    /// The retail ending's cleared-game flag, latched when `Cutscene_Ending`
+    /// passes its final Start gate. `psiv_core` models the same byte in the
+    /// common SRAM header (`$200035`): the session writes it at the latch and
+    /// the slot writer carries it, so a CONTINUE of the final save reads it.
     game_cleared: bool,
     game_over: bool,
     field_status: field_status::FieldStatus,

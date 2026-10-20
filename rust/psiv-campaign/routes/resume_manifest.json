@@ -9,43 +9,13 @@
    "objective_kind": "step_onto",
    "kind": "lost_battle",
    "battle": "event:14",
-   "resumes": ["aiedo-chaz-house", "zio-fort-approach"],
+   "resumes": [
+    "aiedo-chaz-house",
+    "zio-fort-approach"
+   ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/107",
    "date": "2026-10-16",
    "note": "Xe-A-Thoul (event battle 14) defeats the party: 2 of the resumes that reach him"
-  },
-  {
-   "chapter": "bioplant-rika",
-   "objective": 2,
-   "objective_kind": "go_to_map",
-   "kind": "lost_battle",
-   "battle": "random",
-   "resumes": ["holt", "zema-outfit"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
-   "date": "2026-10-16",
-   "note": "bioplant_survival RUNs every round whatever the escape odds; four failed runs in encounters 191 and 183 wipe the party"
-  },
-  {
-   "chapter": "elsydeon",
-   "objective": 2,
-   "objective_kind": "interact",
-   "kind": "scene_fault",
-   "battle": null,
-   "resumes": ["elsydeon"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
-   "date": "2026-10-17",
-   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave (ps4.asm:157427) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:157451-157452; restored by Cutscene_Elsydeon, :157468, at :157747-157748), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
-  },
-  {
-   "chapter": "reunion",
-   "objective": 4,
-   "objective_kind": "go_to_map",
-   "kind": "lost_battle",
-   "battle": "random",
-   "resumes": ["passage-to-zio-fort"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
-   "date": "2026-10-17",
-   "note": "run_then_win RUNs every round whatever the escape odds: the Ice Digger (960 HP) fails three runs from four PROTECTBITs (formation 129) on Dezolis and is destroyed, the class #138 records for bioplant_survival"
   },
   {
    "chapter": "alys-illusion",
@@ -53,10 +23,26 @@
    "objective_kind": "step_onto",
    "kind": "scene_fault",
    "battle": null,
-   "resumes": ["alys-illusion"],
+   "resumes": [
+    "alys-illusion"
+   ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
    "date": "2026-10-18",
    "note": "Event_AngerTowerExitTop restores the party slots Event_AngerTowerTop (ps4.asm:151963) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58; restored at :151996), RAM outside the SRAM payload; a fresh process resumed from the anger-tower-top save has none, and the restore faults (BadWrite), as the elsydeon entry does"
+  },
+  {
+   "chapter": "bioplant-rika",
+   "objective": 2,
+   "objective_kind": "go_to_map",
+   "kind": "lost_battle",
+   "battle": "random",
+   "resumes": [
+    "holt",
+    "zema-outfit"
+   ],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
+   "date": "2026-10-16",
+   "note": "bioplant_survival RUNs every round whatever the escape odds; four failed runs in encounters 191 and 183 wipe the party"
   },
   {
    "chapter": "edge-training",
@@ -64,10 +50,28 @@
    "objective_kind": "patrol",
    "kind": "lost_battle",
    "battle": "random",
-   "resumes": ["kuran-dark-force-1", "meese-supplies"],
+   "resumes": [
+    "meese-supplies",
+    "motavia-machine-center",
+    "soldiers-temple",
+    "zio-fort-barrier"
+   ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
-   "date": "2026-10-18",
-   "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; the probe of this chapter from rykros-departure's save completes 39 of 40 trials (Wilson 95% lower bound 0.871)"
+   "date": "2026-10-20",
+   "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; since #173's Megid grant the probe of this chapter from rykros-departure's save completes 40 of 40 trials (Wilson 95% lower bound 0.912), so these streams are the ones the training itself loses"
+  },
+  {
+   "chapter": "elsydeon",
+   "objective": 2,
+   "objective_kind": "interact",
+   "kind": "scene_fault",
+   "battle": null,
+   "resumes": [
+    "elsydeon"
+   ],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
+   "date": "2026-10-17",
+   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave (ps4.asm:157427) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:157451-157452; restored by Cutscene_Elsydeon, :157468, at :157747-157748), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
   },
   {
    "chapter": "profound-darkness",
@@ -75,10 +79,32 @@
    "objective_kind": "step_onto",
    "kind": "lost_battle",
    "battle": "event:26",
-   "resumes": ["bioplant-elevators", "ladea-tower-psycho-wand", "zelan-sabotage", "jut-outfit"],
+   "resumes": [
+    "aiedo-training",
+    "before-elsydeon-cave",
+    "kuran-dark-force-1",
+    "machine-center-control-key",
+    "mota-training",
+    "north-bank",
+    "seth-island",
+    "zelan-wren-canceller"
+   ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
-   "date": "2026-10-18",
-   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the probe wins 97 of 100 (Wilson 95% lower bound 0.915), so some resumes' streams lose it"
+   "date": "2026-10-20",
+   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: since #173's Megid grant the probe wins 35 of 40 (Wilson 95% lower bound 0.738), so more resumes' streams lose it; the policy's Megid valuation is #178 and the residual losses are #171"
+  },
+  {
+   "chapter": "reunion",
+   "objective": 4,
+   "objective_kind": "go_to_map",
+   "kind": "lost_battle",
+   "battle": "random",
+   "resumes": [
+    "passage-to-zio-fort"
+   ],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
+   "date": "2026-10-17",
+   "note": "run_then_win RUNs every round whatever the escape odds: the Ice Digger (960 HP) fails three runs from four PROTECTBITs (formation 129) on Dezolis and is destroyed, the class #138 records for bioplant_survival"
   }
  ]
 }

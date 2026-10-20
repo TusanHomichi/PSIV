@@ -60,10 +60,12 @@ resolves into pad input:
   to full, with whatever TP the party has (`recovery.rs`).
 
 Chapters end with their specified assertions on flags, party, map and
-inventory taken from the scene transcriptions. The route's last chapter ends at
-the ending's final Start gate (`Cutscene_Ending`'s `WaitForStart`,
-`docs/scenes/89_Ending.md`): the field loop stops there, and `expect`'s
-`ending_gate` claims it. The runner then writes a
+inventory taken from the scene transcriptions. The route's last chapter presses
+Start at the ending's final gate (`press`, `Cutscene_Ending`'s `WaitForStart`,
+`docs/scenes/89_Ending.md`): the session turns the press into the scene's
+continue input, and `expect`'s `game_cleared` claims the latched
+`Game_Cleared_Flag`. An `expect` may also check `ending_gate` where the run
+stops at the gate instead of pressing it. The runner then writes a
 read-only chapter checkpoint with `Runtime::save_slot`; that snapshot is not
 an ordinary SAVE input. Only chapters with an explicit `save` objective press
 camp STATE → SAVE. The Zio-defeat chapter does so after its scene and flags

@@ -60,7 +60,8 @@
 //! | `board` | optional `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens (without `step`, wait for the menu a scene opens by itself), move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
 //! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
-//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle`, `items_held`, `items_absent`, `status_clear`, `ending_gate` | halt unless all hold |
+//! | `press` | `button` (`start`) | press one pad button on a frame: the ending's final gate turns it into the scene's continue input |
+//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle`, `items_held`, `items_absent`, `status_clear`, `ending_gate`, `game_cleared` | halt unless all hold |
 //!
 //! Names and ids: an item, technique or member is either its number or its
 //! cartridge display name (`"RES"`, `"Chaz"`), compared case-insensitively. A
@@ -286,7 +287,8 @@ pub struct Expectation {
     pub status_clear: bool,
     /// The ending's final Start gate is up: `Cutscene_Ending` has run its
     /// story and credits and waits on `ButtonStart` (`$07A228..$07A25A`,
-    /// `SceneOp::WaitForStart`). The route's last claim.
+    /// `SceneOp::WaitForStart`). A route that stops at the gate claims this;
+    /// one that presses Start claims `game_cleared` instead.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ending_gate: bool,
 }
