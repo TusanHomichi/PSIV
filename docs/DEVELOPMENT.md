@@ -249,9 +249,10 @@ there. The fast tier is a commit check, not a gate result: integration still
 needs the full gate. It took 160 s on a warm target and 189 s after touching
 `psiv-core`, against 254 s and 291 s at one job and one thread (2026-10-18,
 receipts `20261018T090024Z` and `20261018T085042Z`). Its Python step then took
-154 s in one process and takes 56 s on 4 workers, with the same 1,593 tests
-(the gate's own step on 2026-10-20 took 80.954 s at mean 2,420 MHz and load
-7.67; 56 s is the isolated warm measurement).
+154 s in one process and takes 56 s on 4 workers, with the same tests (the
+gate's own step on 2026-10-20 ran 1,593 in 80.954 s at 2,420 MHz and load
+7.67; the merged head after #175/#176 ran 1,645 in 72.1 s at 2,649 MHz; 56 s
+is the isolated warm measurement).
 
 ### Gate and coverage
 
@@ -357,8 +358,8 @@ versions across a swap.
 and exits 2, so no command takes the whole machine by default.
 
 An exclusive holder excludes every shared holder and they exclude it. A cargo
-run, two Godot runs and a Python suite fit together (11 units); a second cargo
-run then waits (18), and two cargo runs fit with one Godot run (15). The entry points in the
+run, two Godot runs and a Python suite fit together (12 units); a second cargo
+run then waits (19), and two cargo runs fit with one Godot run (15). The entry points in the
 table take their class themselves: never wrap them. A headless
 `psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
 `PSIV_LOCK_UNITS` must be the same for every process: each holder records them
