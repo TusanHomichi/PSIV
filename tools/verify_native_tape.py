@@ -2,7 +2,10 @@
 
 The replay holds one godot-class slot of the shared heavy lock
 (tools/heavy_lock.py) itself, so no wrapper is needed; under a holder it is a
-no-op. Tape parsing and its FNV save-start check live in psiv-runtime's
+no-op. Godot runs from a run root in the output directory (tools/godot.py
+`create_run_root`): a snapshot of the built extension and the pack resolved
+once, so a build may relink the checkout's library while the replay lasts, and
+the receipt names the library it ran by sha256. Tape parsing and its FNV save-start check live in psiv-runtime's
 TapeFeed; this launcher does neither. Every invocation creates a fresh save
 directory and retains raw logs/receipts.
 """
@@ -26,17 +29,16 @@ try:  # imported as `tools.verify_native_tape` by tests
     from tools import native_rss
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
-    from tools.godot import GodotError, check as check_godot, find as find_godot, prepare
+    from tools.godot import GodotError, create_run_root, godot_command, require as require_godot
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     import native_rss
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
-    from godot import GodotError, check as check_godot, find as find_godot, prepare
+    from godot import GodotError, create_run_root, godot_command, require as require_godot
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GODOT = find_godot()  # tools/godot.py; replay() checks it before running it
 
 
 def sha256(path: Path) -> str:
@@ -214,6 +216,10 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--expect-cell", help="x,y in the endpoint's cell grid")
     command.add_argument("--pack", type=Path, default=ROOT / "runtime-pack")
     command.add_argument("--out", type=Path, required=True)
+    command.add_argument("--library", type=Path,
+                         help="the built extension to snapshot (default: the checkout's debug "
+                              "library); verify_native_route's CONTINUE probes pass one "
+                              "snapshot so every probe runs the same library")
     command.add_argument("--timeout", type=int, default=600)
     command.add_argument("--checkpoints", type=Path,
                          help="JSON list of {frame, label, expect_save}: compare the slot "
@@ -254,7 +260,7 @@ def replay(args: argparse.Namespace) -> int:
     if not (pack / "manifest.json").is_file():
         parser().error(f"pack lacks manifest.json: {pack}")
     try:
-        check_godot(GODOT)
+        require_godot()
     except GodotError as error:
         parser().error(str(error))
     if args.timeout <= 0:
@@ -284,6 +290,23 @@ def replay(args: argparse.Namespace) -> int:
             parser().error("--expect-cell is decimal x,y")
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    try:
+        run_root = create_run_root(out / "run-root", pack=pack, source=ROOT,
+                                   library=args.library)
+    except GodotError as error:
+        print(f"native tape: {error}")
+        return 1
+    try:
+        return replay_from(args, run_root, tape, source, expected, written, pack,
+                           probe_save, checkpoints, out)
+    finally:
+        # The receipt keeps run-root.json (the library's sha256), not the copy.
+        run_root.release()
+
+
+def replay_from(args, run_root, tape, source, expected, written, pack, probe_save,
+                checkpoints, out) -> int:
+    """The replay itself, from `run_root`; `replay` checked its arguments."""
     saves = out / "saves"
     saves.mkdir()
     native_report = out / "native.json"
@@ -304,7 +327,8 @@ def replay(args: argparse.Namespace) -> int:
     env = {key: value for key, value in os.environ.items()
            if not key.startswith("PSIV_")}
     env.update({
-        "PSIV_RUNTIME_PACK": str(pack),
+        # The run root's link to the pack's real path, resolved once.
+        "PSIV_RUNTIME_PACK": str(run_root.pack),
         "PSIV_SAVE_DIR": str(saves),
         "PSIV_NATIVE_TAPE": "1",
         "PSIV_DEBUG_ROUTE": "1",  # endpoint observation only
@@ -332,31 +356,28 @@ def replay(args: argparse.Namespace) -> int:
     })
     if args.drop_pad_at is not None:
         env["PSIV_TAPE_DROP_AT"] = str(args.drop_pad_at)
-    # A fresh checkout has no Godot extension index (tools/godot.py `prepare`).
+    if args.render_capture:
+        prefix = ("xvfb-run", "-a")
+        flags = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
+                 "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
+    else:
+        prefix = ()
+        flags = ["--headless", "--disable-render-loop", "--audio-driver", "Dummy",
+                 "--fixed-fps", "60"]
     try:
-        prepared_now = prepare(ROOT / "godot")
+        command = godot_command(run_root, *flags, "--log-file", str(godot_log), "--script",
+                                str(ROOT / "tools/native/native_tape.gd"), prefix=prefix)
     except GodotError as error:
         print(f"native tape: {error}")
         return 1
-    library = ROOT / "rust/target/debug/libpsiv_godot.so"
-    if not library.is_file():
-        parser().error(f"native extension is missing: {library}; build it before replay")
+    library = run_root.library
     code_paths = {"extension": library, "driver": ROOT / "tools/native/native_tape.gd",
-                  "verifier": Path(__file__), "godot": GODOT}
+                  "verifier": Path(__file__), "godot": Path(command[len(prefix)])}
     code_before = {name: file_identity(path) for name, path in code_paths.items()}
     git_before = source_identity()
     pack_manifest_before = sha256(pack / "manifest.json")
     tape_sha_before = sha256(tape)
     saves_before = checkpoint_save_hashes(checkpoints)
-    if args.render_capture:
-        command = ["xvfb-run", "-a", str(GODOT), "--display-driver", "x11",
-                   "--rendering-method", "gl_compatibility", "--rendering-driver", "opengl3",
-                   "--audio-driver", "Dummy", "--fixed-fps", "60"]
-    else:
-        command = [str(GODOT), "--headless", "--disable-render-loop",
-                   "--audio-driver", "Dummy", "--fixed-fps", "60"]
-    command.extend(["--log-file", str(godot_log), "--path", "godot", "--script",
-                    str(ROOT / "tools/native/native_tape.gd")])
     start = time.monotonic()
     started_at_utc = datetime.now(timezone.utc).isoformat()
     mapped = None
@@ -411,7 +432,7 @@ def replay(args: argparse.Namespace) -> int:
         "tape_sha256_before": tape_sha_before,
         "effective_psiv_env": {key: env[key] for key in sorted(env) if key.startswith("PSIV_")},
         "removed_inherited_psiv_keys": removed_psiv_keys,
-        "godot_project_prepared": prepared_now,
+        "run_root": run_root.record,
         "tape": str(tape), "tape_sha256": tape_sha_after,
         "source_save": str(source) if source else None,
         "source_sha256_before": source_before, "source_sha256_after": source_after,

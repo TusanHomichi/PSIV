@@ -13,7 +13,7 @@ DECK_USER="${2:-deck}"
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # The Godot that exports: PSIV_GODOT, else `godot` on PATH, at the pinned version.
-GODOT="$(python3 "$HERE/tools/godot.py")"
+python3 "$HERE/tools/godot.py" check
 
 # Always ship a current build: release lib, then export. The Deck runs
 # SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain
@@ -24,20 +24,25 @@ DECK_GLIBC="2.41"
 PATH="$HOME/.local/bin:$PATH" cargo zigbuild --release -p psiv-godot \
     --manifest-path "$HERE/rust/Cargo.toml" \
     --target "x86_64-unknown-linux-gnu.$DECK_GLIBC"
-cp "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" \
-   "$HERE/rust/target/release/libpsiv_godot.so"
-# A fresh clone's project has no extension index until it is prepared, and
-# Godot refuses to export into a directory that does not exist.
-python3 "$HERE/tools/godot.py" prepare
+# Export from a run root (tools/godot.py run), kept for the staging below: a
+# prepared project copy beside a snapshot of the library zigbuild just linked,
+# as the release library its psiv.gdextension names. The export ships exactly
+# the library run-root.json names by sha256, and the checkout's
+# rust/target/release/ is never overwritten. Godot refuses to export into a
+# directory that does not exist.
+DECK_ROOT="$HERE/build/deck-root"
 mkdir -p "$HERE/build/deck"
-"$GODOT" --headless --path "$HERE/godot" \
-    --export-release "Linux-SteamDeck" 2>&1 | tee "$HERE/build/deck-export.log" | tail -3
+python3 "$HERE/tools/godot.py" run --dir "$DECK_ROOT" --replace --keep --profile release \
+    --library "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" -- \
+    --headless --export-release "Linux-SteamDeck" "$HERE/build/deck/psiv.x86_64" \
+    2>&1 | tee "$HERE/build/deck-export.log" | tail -3
 
 STAGE="$HERE/build/deck-stage/psiv"
 rm -rf "$STAGE" && mkdir -p "$STAGE"
 cp "$HERE/build/deck/psiv.x86_64" "$STAGE/"
 cp "$HERE/build/deck/"*.so "$STAGE/" 2>/dev/null || true
-cp -r "$HERE/runtime-pack" "$STAGE/runtime-pack"
+# The pack the run root resolved once, so the Deck gets one pack version.
+cp -rL "$DECK_ROOT/runtime-pack" "$STAGE/runtime-pack"
 
 echo "staged $(du -sh "$STAGE" | cut -f1); pushing to $DECK_USER@$DECK_IP:~/psiv"
 rsync -az --delete --info=progress2 "$STAGE/" "$DECK_USER@$DECK_IP:psiv/"

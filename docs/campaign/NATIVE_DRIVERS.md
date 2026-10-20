@@ -93,8 +93,8 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 ### Running the opening capture
 
 `native_opening.gd` needs the local pack, Godot and Xvfb, and runs with every
-other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `godot` is your Godot
-executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
+other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `tools/godot.py`
+resolves the Godot executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
 
 ```sh
 cargo build -p psiv-godot --manifest-path rust/Cargo.toml
@@ -106,7 +106,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_STATE="$PWD/build/native-opening/state.json" \
   PSIV_DEBUG_SHOT="$PWD/build/native-opening/field.png" \
   PSIV_DEBUG_SHOT_FRAME=3360 \
-  godot --path godot \
+  python3 tools/godot.py run -- \
   --script "$PWD/tools/native/native_opening.gd" --display-driver x11 \
   --rendering-method gl_compatibility --audio-driver Dummy \
   --fixed-fps 60 --quit-after 3370 \

@@ -78,18 +78,23 @@ evidence depends on before regenerating it.
 
 ## Launch the native game
 
-Close any running PSIV/Godot instance before rebuilding its loaded extension.
-
 ```bash
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 python3 tools/godot.py prepare
-PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
+PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 ```
 
-`python3 tools/godot.py prepare` writes the project's extension index,
+`python3 tools/godot.py run` starts the game from a run root: a prepared copy
+of the project beside a snapshot of the built library, removed when Godot
+exits (`--keep` keeps it, `--dir` names it, and arguments after `--` go to
+Godot).
+
+`python3 tools/godot.py prepare` writes the checkout project's extension index,
 `godot/.godot/extension_list.cfg`, which Godot's editor import would write and
-Git ignores; without it a fresh clone starts on a black screen ("Cannot get
-class 'Field'"). It does nothing once the index lists the game's extension. The explicit save directory makes
+Git ignores; without it the editor starts on a black screen ("Cannot get
+class 'Field'"). `run` prepares its own project copy, so this step is only
+needed to open the checkout in the editor. It does nothing once the index lists
+the game's extension. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
@@ -99,11 +104,13 @@ needs `rg` and `flock`.
 `PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
 is used. `tools/godot.py` is the one lookup: it prints the executable, or
 refuses one that does not report the version pinned in `.godot-version` or is
-not a `stable` build (`python3 tools/godot.py` checks your setup). `godot/run.sh`
-and `tools/package/deploy-deck.sh`, `tools/certify.py` and
-`tools/verify_native_tape.py` ask it, and the three that start the game run its
-`prepare` step first. The capture commands in the subsystem
-documents write it as `"$PSIV_GODOT"`; set it once in your shell.
+not a `stable` build (`python3 tools/godot.py check` checks your setup).
+`python3 tools/godot.py run [-- <godot arguments>]` is the one way to start
+the game: it resolves Godot and makes the run root, so a command never names
+the executable or a project path. `godot/run.sh`,
+`tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it too, and the ones that start the game run
+its `prepare` step first.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
@@ -130,8 +137,9 @@ The keyboard and controller bindings are listed in the
 
 `tools/package/deploy-deck.sh` builds the release extension with
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), prepares the project
-(`python3 tools/godot.py prepare`), exports its `Linux-SteamDeck` preset to
+symbol versions and the Deck refuses to load it), makes a run root whose
+project is prepared (`python3 tools/godot.py run`), exports its
+`Linux-SteamDeck` preset from it to
 `build/deck/` (the full export log is `build/deck-export.log`; a failed export
 stops the script), stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
@@ -240,9 +248,7 @@ highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
 sampled every second; the heavy lock does not exclude unlocked headless runs,
 so a slow step is read beside its load), log path and parsed counts. Report a gate
 result from that receipt, not from a retyped summary. The gate refuses to start
-(exit 2, nothing run) while another gate holds the gate lock or while a
-process has the debug PSIV extension mapped
-(`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
+(exit 2, nothing run) while another gate holds the gate lock;
 `--wait` waits for the running gate instead of refusing, naming its holder
 once, and `--list` prints the commands without running them. The gate takes
 the gate lock and then the [heavy-run lock](#heavy-run-lock) itself, in the
@@ -300,29 +306,33 @@ units fit:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
-| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), certify's extension build, and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads) and any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`) |
-| `build` | 7 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, the opt-level-3 extension build of the [native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay) |
+| `build` | 7 units | a cargo invocation that does not compile `psiv-godot` (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
+| `extension` | 12 units | a dev cargo invocation that compiles `psiv-godot` (`-p psiv-godot`, `--workspace` build, test or clippy, or no `-p` at the workspace root): certify's build and `heavy_lock.py run --class extension -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
+| `pack` | 1 unit | a pack build: `heavy_lock.py run --class pack -- python3 -m psiv_tools pack ...` |
 
-A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
-it relinks the GDExtension library that a Godot run in the same checkout maps,
-and the mapped-extension checks run once, before the lock, so only exclusion
-keeps every Godot run out until the build ends. `heavy_lock.py run` enforces
-it, conservatively: in every shared class it refuses, with exit 2 naming
-`--class exclusive`, any cargo subcommand outside a non-linking allowlist
-(`check`, `clippy`, `fmt`, `doc`, `tree`, `metadata` and the like) whose
-package selection can reach `psiv-godot` (a `-p` name, glob or package-id spec
-matching it, `--workspace` or `--all` without an `--exclude` matching it, or no
-`-p` at the workspace root or in `rust/psiv-godot`). It reads through `env`,
-wrapper and shell prefixes and `bash -c` scripts, and refuses as unreadable
-what it cannot read with certainty: a script with command substitution, a
-subshell or a directory change it cannot follow, a plugin whose selection it
-cannot find, and any other command that names `cargo`. `can_relink_extension`
-in `tools/heavy_lock_extension.py` owns that decision. Known gap: a script file
-and `make` are not opened, so their author states their class; the
-per-checkout extension lock ([#144](https://github.com/TusanHomichi/PSIV/issues/144))
-is the structural fix.
+The caller declares the class, and the lock trusts it. A wrong declaration, a
+`psiv-godot` build in `build`, costs memory headroom, not a crash: every Godot
+a repository tool starts runs from a run root with its own copy of the library
+(`create_run_root` in `tools/godot.py`), cargo replaces the checkout's library
+with a new file rather than rewriting it (the linker, mold here, writes a new
+inode), and a non-editor Godot never re-reads a loaded extension. So an extension build shares the machine with Godot runs:
+12 units fit beside three Godot runs (15 of 16). What the one class costs: it is
+sized for its largest job, the cold workspace test build, so an incremental
+`cargo build -p psiv-godot` (3.6 GB) reserves 6 GB, and an extension build
+waits for any `build` holder (12 + 7) and for a second extension build.
+
+A pack build shares the machine with the runs that read the pack:
+`psiv_tools pack` builds into a sibling directory and swaps it in whole
+(`psiv_tools/pack_swap.py`), so a reader sees the old pack or the new one,
+never a half-written one, and a killed build leaves the old pack in place.
+`runtime-pack` becomes a link to the newest of three kept versions,
+`.runtime-pack.v<UTC stamp>-<pid>` beside it. A reader that must see one
+version for its whole run resolves the link once, as a run root and the game
+do; one that reopens `runtime-pack/...` file by file can mix two complete
+versions across a swap.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
@@ -340,9 +350,10 @@ One sizing rule holds for every class: its units are the fewest that keep at
 least 15% of the holding above its largest measured peak process-tree RSS,
 ceil(peak / (0.85 × 512 MB)), the RSS summed over every process of the job.
 `build` is sized by the cold `cargo test --workspace --exclude psiv-godot
---no-run` (2,964 MB in 7 units, 17% headroom), `godot` by a certify pair
-(418 MB in 1, 18%), `python` by the suite (815 MB in 2, 20%); jobs that
-compile `psiv-godot` are exclusive and do not size `build`. The budget is the
+--no-run` (2,964 MB in 7 units, 17% headroom), `extension` by the cold
+`cargo test --workspace --no-run` at 8 jobs (4,979 MB in 12, 19%), `godot` by a certify pair
+(418 MB in 1, 18%), `python` by the suite (815 MB in 2, 20%); the opt-level-3
+extension build (5,582 MB, 13 units) is exclusive and sizes nothing. The budget is the
 machine's margin: 16 units leave about 5.5 GB outside the lock for the
 desktop, the agent sessions, unlocked headless runs and any job that peaks
 above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
@@ -357,15 +368,15 @@ uncapped (boosting to 3.9 GHz); each names its mean live clock
 | --- | ---: | ---: | ---: | --- | --- |
 | `cargo build --release -p psiv-campaign`, cold target, default jobs | 49 s | 1,073 MB | 633 MB | - | `build` |
 | the same, after touching `psiv-core` | 45 s | 1,060 MB | 629 MB | - | `build` |
-| `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `exclusive` (relinks the extension) |
-| the same, 0.1 s | 93 s | 3,608 MB | 3,591 MB | - | `exclusive` |
+| `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `extension` |
+| the same, 0.1 s | 93 s | 3,608 MB | 3,591 MB | - | `extension` |
 | the opt-level-3 extension build ([native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)), `CARGO_BUILD_JOBS=2`, cold, 0.1 s | 380 s | 4,817 MB | 3,018 MB | - | `exclusive` |
 | the same at default jobs, cold, 0.1 s | 264 s | 5,582 MB | 4,140 MB | - | `exclusive` |
-| `cargo build --workspace` (dev), cold, 0.1 s | 87 s | 3,523 MB | 3,496 MB | - | `exclusive` (compiles `psiv-godot`) |
+| `cargo build --workspace` (dev), cold, 0.1 s | 87 s | 3,523 MB | 3,496 MB | - | `extension` (compiles `psiv-godot`) |
 | `cargo test --workspace --exclude psiv-godot --no-run`, cold, 0.1 s | 255 s | **2,964 MB** | 900 MB | - | `build` (sizes it) |
 | `cargo clippy --workspace --all-targets`, cold, 0.1 s | 90 s | 2,560 MB | 1,984 MB | - | `build` |
 | `cargo build --release -p psiv-campaign`, cold, 0.1 s | 92 s | 974 MB | 627 MB | - | `build` |
-| `cargo test --workspace --no-run`, cold, default jobs (8), #157, 2.8 GHz | 191 s | **4,979 MB** | - | - | `exclusive` (the gate's peak) |
+| `cargo test --workspace --no-run`, cold, default jobs (8), #157, 2.8 GHz | 191 s | **4,979 MB** | - | - | `exclusive` in the gate (its peak); `extension` outside it (sizes it) |
 | the same, `CARGO_BUILD_JOBS=4`, #157, 2.6 GHz | 216 s | 3,999 MB | - | - | `exclusive` |
 | the same, `CARGO_BUILD_JOBS=1`, #157, 2.5 GHz | 583 s | 2,824 MB | - | - | `exclusive` |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
@@ -373,7 +384,7 @@ uncapped (boosting to 3.9 GHz); each names its mean live clock
 | `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | reads | `build` |
 | `cargo test -p psiv-runtime`, built | 69 s | 102 MB | 123 MB | reads | `build` |
 | `cargo test -p psiv-sound`, built | 1 s | 36 MB | 77 MB | none | `build` |
-| `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | reads | `exclusive` (compiles `psiv-godot`) |
+| `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | reads | `extension` (compiles `psiv-godot`) |
 | `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | reads | `build` |
 | the workspace `cargo test --test-threads=1`, built (the gate before #157) | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
 | the gate's workspace `cargo test`, built, default threads (8), #157, 2.7 GHz | 47 s | 364 MB | - | reads | `exclusive` (the gate) |
@@ -381,7 +392,7 @@ uncapped (boosting to 3.9 GHz); each names its mean live clock
 | the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
 | the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
-| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
+| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `pack` (sizes it) |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |
 
@@ -397,7 +408,7 @@ Compilation,
 not the pack, sets a cargo invocation's memory: every test run alone is under
 300 MB, but `cargo test` compiles first (one crate's rebuild took
 `psiv-runtime`'s run to 2,214 MB), so a cargo invocation takes `build` for its
-memory, unless it can compile `psiv-godot`: then it is exclusive (above).
+memory, unless it can compile `psiv-godot`: then it takes `extension` (above).
 
 Transition: a holder started from a checkout older than the budget takes no
 units, so the budget counts only holders running the current
