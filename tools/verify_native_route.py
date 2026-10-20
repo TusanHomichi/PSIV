@@ -196,13 +196,13 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
 
 
 def run_continue_probes(chapters: list[dict], out: Path, campaign_bin: Path, pack: Path,
-                        timeout: int) -> int:
+                        timeout: int, library: Path | None = None) -> int:
     """Every probe runs one library and one pack: the run root made here
-    snapshots the checkout's once, and each probe's own run root copies that
-    snapshot, so a build or a pack swap during the probes cannot give later
-    chapters another library or pack."""
+    snapshots the chosen library once, and each probe's own run root copies
+    that snapshot, so a build or a pack swap during the probes cannot give
+    later chapters another library or pack."""
     try:
-        run_root = create_run_root(out / "run-root", pack=pack)
+        run_root = create_run_root(out / "run-root", pack=pack, library=library)
     except GodotError as error:
         print(f"native route: REFUSED: {error}")
         return 1
@@ -256,6 +256,10 @@ def parser() -> argparse.ArgumentParser:
                          help="instead of the replay, load every chapter save in its own fresh "
                               "Godot process through the ordinary title CONTINUE and require "
                               "the snapshot to re-encode the same bytes")
+    command.add_argument("--library", type=Path,
+                         help="the built extension to replay or probe with (default: the "
+                              "checkout's debug library); an opt-level-3 build replays the "
+                              "whole route in hours rather than a day")
     command.add_argument("--campaign-bin", type=Path,
                          default=verify_native_tape.ROOT / "rust/target/release/psiv-campaign",
                          help="the psiv-campaign binary that cuts the probe tapes")
@@ -296,7 +300,7 @@ def verify_route(args: argparse.Namespace) -> int:
                   "`cargo build --release -p psiv-campaign`")
             return 1
         return run_continue_probes(chapters, out, args.campaign_bin.resolve(),
-                                   args.pack, args.timeout)
+                                   args.pack, args.timeout, args.library)
     checkpoints = out / "checkpoints.json"
     checkpoints.write_text(json.dumps(checkpoint_list(chapters), indent=2) + "\n")
     full_run = len(chapters) == chapters_in_run
@@ -304,6 +308,8 @@ def verify_route(args: argparse.Namespace) -> int:
     tape_args = ["--tape", str(tape), "--pack", str(args.pack), "--out", str(out / "native-tape"),
                  "--timeout", str(args.timeout), "--checkpoints", str(checkpoints),
                  "--expect-save", str(chapters[-1]["save"])]
+    if args.library is not None:
+        tape_args += ["--library", str(args.library)]
     if not full_run:
         tape_args += ["--stop-at", str(chapters[-1]["end_frame"])]
     elif final_pad_save.is_file():

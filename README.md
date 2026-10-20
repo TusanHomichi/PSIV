@@ -10,17 +10,14 @@ the original game's behavior, quirks included.
 **How far it plays.** An automated playthrough, pressing the same buttons a
 player would, plays from New Game to the Ending's final gate headlessly, in 84
 chapters, including the ending's final Start press that clears the game; the
-native game replays 62 of those chapters, through Garuberk Tower's Dark Force
-2, and the replay of chapters 63 onward is still pending.
+native game replays all 84 of them, from New Game to the Ending, in one
+continuous tape (84/84 chapter saves match byte for byte).
 Every player technique and skill, and every
 enemy ability up to Dark Force 2, is implemented from the cartridge's code; most
 of them are also captured on the cartridge and replayed against it, and the
 battle documents list the ones that are not
 ([player abilities](docs/battle/PLAYER_ABILITIES.md),
-[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). The remaining story work is
-that native replay and the Ending's final gate in Godot's shell
-([#116](https://github.com/TusanHomichi/PSIV/issues/116),
-[#170](https://github.com/TusanHomichi/PSIV/issues/170)). Presentation (some
+[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). Presentation (some
 animations, whole-scene staging, audio timing) still differs from the original
 in places; the [known differences](#known-differences) are listed.
 

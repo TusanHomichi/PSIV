@@ -294,15 +294,17 @@ class ContinueProbes(unittest.TestCase):
             return 0 if ok else 1
         return run
 
-    def fake_run_root(self, root, pack):
+    def fake_run_root(self, root, pack, library=None):
         self.run_roots.append(root)
+        self.library_requested = library
         return mock.Mock(library=root / "rust/target/debug/libpsiv_godot.so",
                          library_sha256=self.SNAPSHOT,
                          pack=root / "runtime-pack",
                          record={"root": str(root), "pack": str(root / "runtime-pack"),
                                  "pack_sha256": self.PACK})
 
-    def run_probes(self, root: Path, results, cutter_code=0, libraries=None, packs=None):
+    def run_probes(self, root: Path, results, cutter_code=0, libraries=None, packs=None,
+                   library=None):
         run = write_run(root)
         binary = root / "psiv-campaign"
         binary.write_text("stub")
@@ -315,9 +317,21 @@ class ContinueProbes(unittest.TestCase):
                 mock.patch.object(route, "create_run_root", self.fake_run_root), \
                 mock.patch.object(route.subprocess, "run", cut), \
                 contextlib.redirect_stdout(io.StringIO()):
-            code = route.main(["--run-dir", str(run), "--out", str(out), "--continue-probes",
-                               "--campaign-bin", str(binary)])
+            argv = ["--run-dir", str(run), "--out", str(out), "--continue-probes",
+                    "--campaign-bin", str(binary)]
+            if library is not None:
+                argv += ["--library", str(library)]
+            code = route.main(argv)
         return code, out, cut
+
+    def test_the_library_flag_reaches_the_probe_run_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory) / "libpsiv_godot.so"
+            library.write_text("stub")
+            code, _, _ = self.run_probes(Path(directory), [(True, True)] * 3,
+                                         library=library)
+            self.assertEqual(code, 0)
+            self.assertEqual(self.library_requested, library)
 
     def test_every_chapter_save_must_load_and_reencode_identically(self):
         with tempfile.TemporaryDirectory() as directory:
