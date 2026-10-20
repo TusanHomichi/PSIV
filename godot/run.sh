@@ -27,5 +27,22 @@ cargo build -p psiv-godot --manifest-path rust/Cargo.toml
 # /tmp where the comparison loop can write them reliably.
 nohup python3 tools/godot.py run -- \
     --log-file /tmp/psiv-godot.log > /tmp/psiv-run.log 2>&1 &
-echo $! > /tmp/psiv.pid
-echo "launched (pid $!)"
+pid=$!
+echo "$pid" > /tmp/psiv.pid
+# The run root is made before Godot starts and its path is the first line of
+# the log: report success only once it exists, as the old foreground launch did.
+launched=
+for _ in $(seq 50); do
+    if grep -q ': run root ' /tmp/psiv-run.log 2>/dev/null; then
+        launched=1
+        break
+    fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.2
+done
+if [ -z "$launched" ]; then
+    echo "PSIV failed to start:" >&2
+    cat /tmp/psiv-run.log >&2
+    exit 1
+fi
+echo "launched (pid $pid)"

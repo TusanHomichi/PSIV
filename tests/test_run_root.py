@@ -139,6 +139,24 @@ class PackLink(Checkout):
         self.assertEqual((self.source / "runtime-pack/manifest.json").read_text(), "v2")
         self.assertEqual((made.pack / "manifest.json").read_text(), "v1")
 
+    def test_a_real_directory_pack_is_copied_not_followed(self):
+        """A checkout's pack is a real directory until its first atomic swap,
+        and the swap turns that path into a link to the new version; the run
+        root copies the bytes, so it keeps the version it started with."""
+        (self.source / "runtime-pack").unlink()
+        (self.source / "runtime-pack").mkdir()
+        (self.source / "runtime-pack/manifest.json").write_text("legacy")
+        made = self.create()
+        record = json.loads((made.root / godot.RUN_ROOT_RECORD).read_text())
+        self.assertEqual(record["pack_copy"], "hardlink")
+        self.assertEqual(record["pack_sha256"], sha256(b"legacy"))
+        self.assertEqual((self.source / "runtime-pack/manifest.json").stat().st_ino,
+                         (made.pack / "manifest.json").stat().st_ino)
+        (self.source / "runtime-pack").rename(self.dir / "old-pack")
+        (self.source / "runtime-pack").symlink_to(self.packs / "v2")
+        self.assertEqual((self.source / "runtime-pack/manifest.json").read_text(), "v2")
+        self.assertEqual((made.pack / "manifest.json").read_text(), "legacy")
+
     def test_negative_control_a_link_to_the_checkout_link_follows_the_swap(self):
         stale = self.dir / "stale"
         stale.symlink_to(self.source / "runtime-pack")
@@ -200,7 +218,7 @@ class Refusals(Checkout):
 
     def test_negative_control_a_half_root_without_its_record_is_refused(self):
         """What a failure left before the record came first: a directory that
-        `remove_run_root`, and so `run-root --replace`, refuses."""
+        `remove_run_root`, and so `run --replace`, refuses."""
         (self.dir / "run/rust/target/debug").mkdir(parents=True)
         with self.assertRaises(godot.GodotError):
             godot.remove_run_root(self.dir / "run")
@@ -215,6 +233,29 @@ class Refusals(Checkout):
             godot.remove_run_root(made.root)
         self.assertIn("native.json", str(caught.exception))
         self.assertEqual((made.root / "native.json").read_text(), "evidence")
+
+    def test_a_foreign_file_keeps_the_record_so_a_retry_can_remove_it(self):
+        """The record is what makes a directory a run root: a refused removal
+        of a foreign file must leave it, or `run --replace` cannot retry."""
+        made = self.create()
+        (made.root / "native.json").write_text("evidence")
+        with self.assertRaises(godot.GodotError) as caught:
+            godot.remove_run_root(made.root)
+        self.assertIn("native.json", str(caught.exception))
+        self.assertTrue((made.root / godot.RUN_ROOT_RECORD).is_file())
+        (made.root / "native.json").unlink()
+        godot.remove_run_root(made.root)
+        self.assertFalse(made.root.exists())
+
+    def test_a_missing_godot_leaves_no_run_root(self):
+        env = {**os.environ, "PYTHONPATH": str(ROOT), "PSIV_GODOT": str(self.dir / "no-godot")}
+        root = self.dir / "cli"
+        result = subprocess.run(["python3", str(ROOT / "tools/godot.py"), "run",
+                                 "--dir", str(root)], capture_output=True, text=True,
+                                env=env, cwd=ROOT)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no-godot", result.stderr)
+        self.assertFalse(root.exists())
 
     def test_the_command_line_runs_from_and_replaces_its_own_run_root(self):
         """`run` makes a run root, keeps it only with `--keep`, takes over the
@@ -251,20 +292,33 @@ class Refusals(Checkout):
 RESOLVER_NAMES = {"resolve", "find", "check", "ENV"}
 #: The subprocess and os calls that start a program.
 STARTERS = {"run", "Popen", "call", "check_call", "check_output", "execv", "execvp",
-            "execve", "execl", "execlp", "spawnv", "spawnvp"}
+            "execve", "execl", "execlp", "spawnv", "spawnvp", "system", "popen"}
+#: Godot's `--path` flag as a word, not `git rev-parse --path-format`.
+PATH_FLAG_RE = re.compile(r"--path(?![-\w])")
+#: The word `godot` as a command or path element, not `godot_argv` or `psiv_godot`.
+GODOT_WORD_RE = re.compile(r"(?<![\w.$-])godot(?![\w.-])")
 
 
 def python_problems(name, text):
     """What builds a Godot command line in the Python file `name` outside the
     one builder: the resolver's names, Godot's `--path`, the project file, the
-    `PSIV_GODOT` variable, a program list or start call beginning with a bare
-    `godot`, or a start call whose `cwd` is a `godot` project."""
+    `PSIV_GODOT` variable, a program list beginning with a bare `godot`, a
+    start call given a shell command that names `godot` or `--path`, a
+    `which("godot")` lookup, or a start call whose `cwd` is a `godot` project."""
     import ast
     problems = []
     tree = ast.parse(text)
     # A tool's own `--path` flag (oracle/host_binary.py) is not Godot's.
     own_flags = {id(arg) for node in ast.walk(tree) if isinstance(node, ast.Call)
                  and getattr(node.func, "attr", None) == "add_argument" for arg in node.args}
+    # A docstring is prose, like a comment: a tool's own help says `--path`.
+    docstrings = {id(block.value)
+                  for node in ast.walk(tree)
+                  if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                       ast.AsyncFunctionDef))
+                  for block in node.body[:1]
+                  if isinstance(block, ast.Expr) and isinstance(block.value, ast.Constant)
+                  and isinstance(block.value.value, str)}
     for node in ast.walk(tree):
         line = f"{name}:{getattr(node, 'lineno', '?')}"
         if isinstance(node, ast.ImportFrom) and node.module in ("godot", "tools.godot"):
@@ -275,7 +329,7 @@ def python_problems(name, text):
                 and isinstance(node.value, ast.Name) and node.value.id == "godot":
             problems.append(f"{line}: calls godot.{node.attr}")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if node.value == "--path" and id(node) not in own_flags:
+            if PATH_FLAG_RE.search(node.value) and id(node) not in own_flags | docstrings:
                 problems.append(f"{line}: names Godot's --path")
             elif "project.godot" in node.value:
                 problems.append(f"{line}: names a project.godot")
@@ -287,8 +341,18 @@ def python_problems(name, text):
         elif isinstance(node, ast.Call):
             func = node.func
             called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if called == "which" and node.args and isinstance(node.args[0], ast.Constant) \
+                    and node.args[0].value == "godot":
+                problems.append(f"{line}: looks up a bare godot")
+                continue
             if called not in STARTERS:
                 continue
+            for argument in node.args:
+                if isinstance(argument, ast.Constant) and isinstance(argument.value, str) \
+                        and (GODOT_WORD_RE.search(argument.value)
+                             or PATH_FLAG_RE.search(argument.value)):
+                    problems.append(f"{line}: starts a command naming godot")
+                    break
             for keyword in node.keywords:
                 if keyword.arg == "cwd" and "godot" in ast.unparse(keyword.value).replace(
                         "godot_", "").replace("_godot", ""):
@@ -374,6 +438,12 @@ class Census(unittest.TestCase):
                             'nohup "$psiv_godot" --path godot &\n',
         "tools/deploy_old.sh": 'GODOT="$(python3 "$HERE/tools/godot.py")"\n'
                                '"$GODOT" --headless --path "$HERE/godot"\n',
+        # A command built as one shell string, through os.system or through a
+        # `which` lookup, all missed by the per-line census.
+        "tools/shell_string.py": 'subprocess.run("godot --headless --path godot", shell=True)\n',
+        "tools/os_system.py": 'import os\nos.system("godot --headless --path godot")\n',
+        "tools/which.py": 'import shutil, subprocess\n'
+                           'subprocess.run([shutil.which("godot"), "--headless"])\n',
     }
 
     def test_negative_control_every_escape_fails(self):
@@ -390,7 +460,8 @@ class Census(unittest.TestCase):
                                'command = godot_command(run_root, "--headless", prefix=("timeout", "9s"))\n'),
                 ("tools/h.sh", 'python3 tools/godot.py check || exit 1\n'
                                'nohup python3 tools/godot.py run -- --headless &\n'),
-                ("tools/k.py", 'GODOT = "godot"  # a lock class name\nLOCK_CLASSES = (GODOT,)\n')):
+                ("tools/k.py", 'GODOT = "godot"  # a lock class name\nLOCK_CLASSES = (GODOT,)\n'),
+                ("tools/git.py", 'subprocess.run(["git", "rev-parse", "--path-format=absolute"])\n')):
             with self.subTest(name=name):
                 self.assertEqual(launcher_problems(name, text), [])
 

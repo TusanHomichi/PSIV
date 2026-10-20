@@ -82,14 +82,25 @@ def _remove(path: Path) -> None:
 
 def remove_abandoned(output: Path) -> list[str]:
     """Remove the staging directories and links that a build of `output`
-    killed part-way left beside it; returns their names."""
+    killed part-way left beside it; returns their names.
+
+    A real directory under a `.link-` name is the old pack between the
+    exchange and its rename (a build killed in that window); it is renamed to
+    a version, stamped by its mtime so it sorts where it belongs, not deleted.
+    """
     building, _, linking = _names(output)
     removed = []
     for entry in sorted(output.parent.iterdir()):
         match = building.match(entry.name) or linking.match(entry.name)
-        if match and not _alive(int(match.group(1))):
+        if not match or _alive(int(match.group(1))):
+            continue
+        if linking.match(entry.name) and entry.is_dir() and not entry.is_symlink():
+            stamp = datetime.fromtimestamp(entry.stat().st_mtime, timezone.utc).strftime(
+                "%Y%m%dT%H%M%S%fZ")
+            entry.rename(output.parent / f".{output.name}.v{stamp}-{match.group(1)}")
+        else:
             _remove(entry)
-            removed.append(entry.name)
+        removed.append(entry.name)
     return removed
 
 

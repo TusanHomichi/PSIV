@@ -93,8 +93,8 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 ### Running the opening capture
 
 `native_opening.gd` needs the local pack, Godot and Xvfb, and runs with every
-other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `godot` is your Godot
-executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
+other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `tools/godot.py`
+resolves the Godot executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
 
 ```sh
 cargo build -p psiv-godot --manifest-path rust/Cargo.toml

@@ -188,6 +188,7 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
             "save_sha256": receipt.get("source_sha256_before"),
             "snapshot_sha256": receipt.get("snapshot_sha256"),
             "library_sha256": (receipt.get("run_root") or {}).get("library_sha256"),
+            "pack_sha256": (receipt.get("run_root") or {}).get("pack_sha256"),
             "source_unchanged": receipt.get("source_sha256_before")
             == receipt.get("source_sha256_after"),
             "receipt": str(receipt_path)}
@@ -195,28 +196,33 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
 
 def run_continue_probes(chapters: list[dict], out: Path, campaign_bin: Path, pack: Path,
                         timeout: int) -> int:
-    """Every probe runs one library: the run root made here snapshots the
-    checkout's once, and each probe's own run root copies that snapshot, so a
-    build during the probes cannot give later chapters another library."""
+    """Every probe runs one library and one pack: the run root made here
+    snapshots the checkout's once, and each probe's own run root copies that
+    snapshot, so a build or a pack swap during the probes cannot give later
+    chapters another library or pack."""
     try:
         run_root = create_run_root(out / "run-root", pack=pack)
     except GodotError as error:
         print(f"native route: REFUSED: {error}")
         return 1
+    pinned = run_root.pack if run_root.record.get("pack") else pack
     try:
         results = [continue_probe(chapter,
                                   out / "continue" / f"{chapter['index']:02d}-{chapter['id']}",
-                                  campaign_bin, pack, timeout, run_root.library)
+                                  campaign_bin, pinned, timeout, run_root.library)
                    for chapter in chapters]
     finally:
         run_root.release()
     one_library = all(item.get("library_sha256") == run_root.library_sha256
                       for item in results if "error" not in item)
-    passed = one_library and all(item["pass"] and item.get("source_unchanged", False)
-                                 for item in results)
+    one_pack = all(item.get("pack_sha256") == run_root.record.get("pack_sha256")
+                   for item in results if "error" not in item)
+    passed = one_library and one_pack and all(
+        item["pass"] and item.get("source_unchanged", False) for item in results)
     (out / "continue-summary.json").write_text(json.dumps(
         {"version": RECEIPT_VERSION, "pass": passed, "chapters": results,
          "library_sha256": run_root.library_sha256, "one_library": one_library,
+         "pack_sha256": run_root.record.get("pack_sha256"), "one_pack": one_pack,
          "run_root": run_root.record},
         indent=2, sort_keys=True) + "\n")
     print(f"native route: CONTINUE probes {'PASS' if passed else 'FAIL'}; "

@@ -276,6 +276,20 @@ def snapshot_file(source: Path, target: Path) -> str:
             return "copy"
 
 
+def snapshot_tree(source: Path, target: Path) -> str:
+    """Copy the directory tree `source` to the new `target`, hard-linking its
+    files where the filesystem allows, else copying them. Hard links survive
+    the source version directory's prune, so the snapshot reads the bytes it
+    saw. Returns "hardlink" or "copy"."""
+    try:
+        shutil.copytree(source, target, copy_function=os.link)
+        return "hardlink"
+    except OSError:
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.copytree(source, target, copy_function=shutil.copy2)
+        return "copy"
+
+
 @dataclass(frozen=True)
 class RunRoot:
     """A run root `create_run_root` made; `projects[0]` is the one a single
@@ -333,7 +347,7 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
         raise GodotError(f"cannot create the run root {root}: {error}") from error
     try:
         # A record first, so a run root that fails part-way is still one that
-        # `remove_run_root` (and `run-root --replace`) will remove.
+        # `remove_run_root` (and `run --replace`) will remove.
         (root / RUN_ROOT_RECORD).write_text(json.dumps({"root": str(root),
                                                         "incomplete": True}) + "\n")
         snapshot = library_path(root, profile)
@@ -343,10 +357,23 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
                        | stat.S_IROTH | stat.S_IXOTH)
         digest = sha256(snapshot)
         pack_source = source / RUN_ROOT_PACK if pack is None else Path(pack)
-        pack_target = (os.path.realpath(pack_source)
-                       if pack is not None or pack_source.exists() else None)
-        if pack_target is not None:
-            (root / RUN_ROOT_PACK).symlink_to(pack_target, target_is_directory=True)
+        pack_target = None
+        pack_copy = None
+        pack_sha = None
+        if pack is not None or pack_source.exists():
+            manifest = pack_source / "manifest.json"
+            pack_sha = sha256(manifest) if manifest.is_file() else None
+            pack_target = os.path.realpath(pack_source)
+            if pack_source.is_symlink() or not pack_source.is_dir():
+                # A link to the current version (the atomic swap's output):
+                # resolved once, so a later swap cannot change what this run
+                # reads.
+                (root / RUN_ROOT_PACK).symlink_to(pack_target, target_is_directory=True)
+                pack_copy = "link"
+            else:
+                # A real directory becomes a link on its next atomic swap; a
+                # hard-link copy pins the bytes that exist now.
+                pack_copy = snapshot_tree(pack_source, root / RUN_ROOT_PACK)
         made = []
         for index in range(projects):
             project = root / ("godot" if index == 0 else f"godot-{index}")
@@ -366,7 +393,8 @@ def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
         "profile": profile, "library": str(snapshot), "library_sha256": digest,
         "library_source": str(built), "library_copy": method,
         "pack": str(root / RUN_ROOT_PACK) if pack_target else None,
-        "pack_target": pack_target, "created_s": round(time.monotonic() - started, 3),
+        "pack_target": pack_target, "pack_copy": pack_copy, "pack_sha256": pack_sha,
+        "created_s": round(time.monotonic() - started, 3),
     }
     (root / RUN_ROOT_RECORD).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return RunRoot(root, tuple(made), snapshot, digest, record)
@@ -394,11 +422,12 @@ def remove_run_root(root: Path, keep_record: bool = False) -> None:
         else:
             entry.unlink()
     if not keep_record:
-        (root / RUN_ROOT_RECORD).unlink()
-        left = sorted(entry.name for entry in root.iterdir())
+        left = sorted(entry.name for entry in root.iterdir()
+                      if entry.name != RUN_ROOT_RECORD)
         if left:
             raise GodotError(f"{root} holds files a run root does not make ({', '.join(left)}); "
-                             "removed the run root's own, left those")
+                             "removed the run root's own, left those and its record")
+        (root / RUN_ROOT_RECORD).unlink()
         root.rmdir()
 
 
@@ -446,6 +475,7 @@ def run_main(argv: list[str]) -> int:
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     root = args.dir or ROOT / "build" / "run-roots" / f"{stamp}-{os.getpid()}"
     try:
+        require()  # before the copy: a missing Godot must leave no run root
         if args.replace and root.exists():
             remove_run_root(root)
         made = create_run_root(root, profile=args.profile, library=args.library)
@@ -454,7 +484,13 @@ def run_main(argv: list[str]) -> int:
         print(f"godot: {error}", file=sys.stderr)
         return 1
     print(f"godot: run root {made.root}, library sha256 {made.library_sha256}", file=sys.stderr)
-    process = subprocess.Popen(command)
+    try:
+        process = subprocess.Popen(command)
+    except OSError as error:
+        if not args.keep:
+            remove_run_root(made.root)
+        print(f"godot: cannot start {command[0]}: {error}", file=sys.stderr)
+        return 1
 
     def forward(signum, _frame):  # Ctrl-C and a shell's TERM reach the game
         try:

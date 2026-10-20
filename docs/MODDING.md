@@ -21,7 +21,7 @@ In this order:
 Work on a copy, so the original stays one command away:
 
 ```bash
-cp -a runtime-pack my-mod-pack
+cp -rL runtime-pack my-mod-pack
 python3 tools/godot.py prepare
 PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 ```

@@ -277,6 +277,18 @@ class StaleLinks(Scratch):
         self.install(f"v{KEEP_VERSIONS}")  # one swap past the kept window
         self.assertIsNone(consistent(resolved))
 
+    def test_a_build_killed_between_exchange_and_rename_keeps_the_old_pack(self):
+        """After the exchange the `.link-` name holds the old real directory;
+        cleanup keeps it as a version rather than deleting the only copy."""
+        self.install("v0")
+        stale = self.dir / f".runtime-pack.link-{self.dead_pid()}-0badc0de"
+        stale.mkdir()
+        (stale / "manifest.json").write_text("v0")
+        removed = pack_swap.remove_abandoned(self.output)
+        self.assertFalse(stale.exists())
+        self.assertEqual(removed, [stale.name])
+        self.assertIn("v0", [consistent(version) for version in pack_swap.versions(self.output)])
+
     @staticmethod
     def dead_pid():
         child = subprocess.Popen([sys.executable, "-c", "pass"])

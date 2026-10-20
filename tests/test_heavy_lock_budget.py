@@ -261,7 +261,7 @@ class BudgetCase(LockProcesses):
 
     def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
         """The gate takes exclusive: nothing shares the machine with it."""
-        for lock_class in (BUILD, GODOT, PYTHON):
+        for lock_class in (BUILD, GODOT, PYTHON, PACK):
             holder = self.holder()
             waiter = self.waiter(lock_class, "--class", lock_class)
             self.assertIn(f"held by pid {holder.pid} (exclusive)", waiter.first_line)
@@ -272,11 +272,11 @@ class BudgetCase(LockProcesses):
             self.assertIn(f"held by pid {shared.pid} ({lock_class})", exclusive.first_line)
             self.release(shared)
             self.assertEqual(exclusive.wait(timeout=TIMEOUT), 0)
-        self.assertEqual(self.granted(), [step for name in (BUILD, GODOT, PYTHON)
+        self.assertEqual(self.granted(), [step for name in (BUILD, GODOT, PYTHON, PACK)
                                           for step in (name, f"exclusive-after-{name}")])
 
     def test_negative_control_with_no_holder_each_shared_class_starts_at_once(self):
-        for lock_class in (BUILD, GODOT, PYTHON):
+        for lock_class in (BUILD, GODOT, PYTHON, PACK):
             code, stderr = self.immediate(lock_class, "--class", lock_class)
             self.assertEqual(code, 0, stderr)
             self.assertNotIn("waiting", stderr)
