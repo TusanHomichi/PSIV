@@ -8,7 +8,7 @@ use super::{Blocked, SceneRunner, pixel_cell};
 use crate::scene::{
     ActorRef, Axis, DialogueId, DialogueSource, SceneEffect, SceneFault, SceneOp, ScriptedActor,
 };
-use crate::state::{GameState, PARTY_SLOTS};
+use crate::state::{CharId, GameState, PARTY_SLOTS};
 
 impl SceneRunner {
     /// Spend a runtime-resolved setup/refresh interval before the next op.
@@ -542,6 +542,25 @@ impl SceneRunner {
                     return Some(SceneFault::BadWrite);
                 }
                 effects.push(SceneEffect::FlagChanged { flag, value });
+                self.pc += 1;
+            }
+            SceneOp::LearnTechnique {
+                character,
+                technique,
+            } => {
+                let who = CharId(character);
+                let written = state.roster_mut().get_mut(who).is_some_and(|member| {
+                    if let Some(slot) = member.techniques.last_mut() {
+                        *slot = technique;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                if !written {
+                    return Some(SceneFault::BadWrite);
+                }
+                effects.push(SceneEffect::RosterChanged { who });
                 self.pc += 1;
             }
             SceneOp::JoinParty { slot, who } => {

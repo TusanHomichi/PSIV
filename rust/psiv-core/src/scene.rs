@@ -369,6 +369,17 @@ pub enum SceneOp {
         /// The value to write.
         value: bool,
     },
+    /// Write a technique into a character record's last slot (`techs+15`):
+    /// `Event_ReFaze`'s YES arm does `lea (Character_Stats).w,a0; move.b
+    /// #TechID_Megid, techs+15(a0)` (`ps4.asm:150817-150826`; the US image at
+    /// `$07167C` is `41 f8 f5 00 11 7c 00 10 00 61`). It overwrites whatever
+    /// is there, as the fork's own comment notes.
+    LearnTechnique {
+        /// Character record index (`Character_Stats` + index * `$80`).
+        character: u8,
+        /// Technique id (`TechID_*`).
+        technique: u8,
+    },
     /// Put a character in a party slot.
     JoinParty {
         /// Which slot, 0-based.
