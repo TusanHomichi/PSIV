@@ -19,6 +19,7 @@ index lists every topic file.
 | [disassembly-discrepancies.md](disassembly-discrepancies.md) | Where the fork's annotations and the retail bytes disagree, and the dated retail-bug chronology | A dated record, correction or retraction |
 | [battle-enemy-abilities.md](battle-enemy-abilities.md) | Enemy damage skills, their targeting arms and measured routes | A dated enemy-ability record |
 | [battle-party.md](battle-party.md) | Party actions, items, rewards, battle entry/exit and the attack passes | A dated party or battle-flow record |
+| [saved-char-id-mem.md](saved-char-id-mem.md) | The `Saved_Char_ID_Mem` party bridge: retail's work-RAM window, the boot clear, and the native save field that fixes it | A new observation or a changed deviation |
 
 ## Retail bug ledger index
 

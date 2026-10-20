@@ -18,19 +18,6 @@
    "note": "Xe-A-Thoul (event battle 14) defeats the party: 2 of the resumes that reach him"
   },
   {
-   "chapter": "alys-illusion",
-   "objective": 3,
-   "objective_kind": "step_onto",
-   "kind": "scene_fault",
-   "battle": null,
-   "resumes": [
-    "alys-illusion"
-   ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
-   "date": "2026-10-18",
-   "note": "Event_AngerTowerExitTop restores the party slots Event_AngerTowerTop (ps4.asm:151963) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58; restored at :151996), RAM outside the SRAM payload; a fresh process resumed from the anger-tower-top save has none, and the restore faults (BadWrite), as the elsydeon entry does"
-  },
-  {
    "chapter": "bioplant-rika",
    "objective": 2,
    "objective_kind": "go_to_map",
@@ -59,19 +46,6 @@
    "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
    "date": "2026-10-20",
    "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; since #173's Megid grant the probe of this chapter from rykros-departure's save completes 40 of 40 trials (Wilson 95% lower bound 0.912), so these streams are the ones the training itself loses"
-  },
-  {
-   "chapter": "elsydeon",
-   "objective": 2,
-   "objective_kind": "interact",
-   "kind": "scene_fault",
-   "battle": null,
-   "resumes": [
-    "elsydeon"
-   ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/148",
-   "date": "2026-10-17",
-   "note": "Cutscene_Elsydeon restores the party slots Cutscene_BeforeElsydeonCave (ps4.asm:157427) saved in Saved_Char_ID_Mem_1..5 ($FFFFED54..58, ps4.asm:157451-157452; restored by Cutscene_Elsydeon, :157468, at :157747-157748), RAM outside the SRAM payload; a fresh process resumed from the before-elsydeon-cave save has none, and the restore faults (BadWrite)"
   },
   {
    "chapter": "profound-darkness",

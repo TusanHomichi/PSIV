@@ -19,6 +19,10 @@ is excluded. ROM range: `$0784B6..$078584` exclusive end.
 | 9-13 | `$07853B..$07856D` | save party slots, retain Chaz only, recover stats, set `$D8` | transient party/flag |
 | 14-15 | `$07856E..$078583` | load Inner Sanctuary B1 at `($3C,$32)`, return | map |
 
-`SavePartySlots` is the transient retail `Saved_Char_ID_Mem_1/_5` bridge. It
-does not enter `StateSnapshot` or save serialization.
+`SavePartySlots` is the retail `Saved_Char_ID_Mem_1/_5` bridge. It does not
+enter `StateSnapshot`, but the native save carries it while it is pending
+(`$F024..$F02B`, [save format](../camp/SAVE_FORMAT.md),
+[source note](../source-notes/saved-char-id-mem.md)): retail keeps it in work
+RAM, which boot clears, so a save between this scene and `Elsydeon` would
+otherwise restore five Chaz slots.
 

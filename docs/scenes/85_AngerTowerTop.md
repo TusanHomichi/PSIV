@@ -17,4 +17,6 @@ excluded. ROM range: `$0721CC..$072262` exclusive end.
 |---:|---|---|---|
 | 0-5 | `$0721CC..$07222C` | save party slots, retain Chaz, recover, stairs/fade, load Anger Tower F2 | transient party/map |
 | 6-11 | `$07222D..$072261` | camera movement, fade/music, waits | camera/music |
-
+The parked slots are retail's `Saved_Char_ID_Mem_1..5` bridge; the native save
+carries it while it is pending ([save format](../camp/SAVE_FORMAT.md)), so a
+CONTINUE between this scene and `AngerTowerExitTop` restores them.
