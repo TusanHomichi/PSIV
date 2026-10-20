@@ -283,6 +283,44 @@ mod tests {
     }
 
     #[test]
+    fn a_continue_keeps_the_saved_party_bridge() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("psiv-saved-party-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+        let bridge = [
+            Some(psiv_core::CharId(0)),
+            Some(psiv_core::CharId(1)),
+            Some(psiv_core::CharId(2)),
+            None,
+            None,
+        ];
+
+        let mut played = Session::start(data.clone())
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        played.runtime.saved_party_slots = Some(bridge);
+        played.save_slot(0).expect("write the slot");
+
+        let mut resumed = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        resumed.continue_save(0).expect("CONTINUE loads the slot");
+        assert_eq!(resumed.runtime().saved_party_slots, Some(bridge));
+    }
+
+    #[test]
     fn start_and_continue_discard_an_old_inn_scene_handoff() {
         let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
         if !pack.join("manifest.json").is_file() {
