@@ -91,7 +91,7 @@
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
    "date": "2026-10-20",
-   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: since #173's Megid grant the probe wins 35 of 40 (Wilson 95% lower bound 0.738), so more resumes' streams lose it; the policy's Megid valuation is #178 and the residual losses are #171"
+   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the same-save 100-trial probes after #173's Megid grant win 92/100 with Megid and 97/100 without (Wilson 95% lower bounds 0.850 and 0.915), a difference within sampling with the same early-wipe class, so these resume losses are #171's, not a Megid valuation defect (#178 closed as premise-corrected)"
   },
   {
    "chapter": "reunion",

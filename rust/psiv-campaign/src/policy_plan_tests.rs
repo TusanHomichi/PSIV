@@ -16,6 +16,8 @@ use crate::policy_estimate::{HP, damage, max_damage, min_damage};
 
 const FIRE: u8 = 3;
 const WATER: u8 = 5;
+/// Element 9, brose: the element BROSE's death effect carries.
+const BROSE: u8 = 9;
 /// A one-handed sword whose swing is physical (element 1).
 const SWORD: u8 = 1;
 
@@ -179,6 +181,37 @@ fn tech_id(intent: &Intent) -> Option<u8> {
         Intent::Technique { id, .. } => Some(*id),
         _ => None,
     }
+}
+
+/// A death effect the enemy is immune to cannot land, so the valuer must not
+/// choose it while an affordable damage spell is on the table. Negative
+/// control: the same board with the immunity removed and the death spell
+/// lands, where it is worth the enemy's whole remaining HP and must win.
+#[test]
+fn a_death_spell_the_enemy_is_immune_to_is_not_chosen() {
+    let abilities = vec![
+        technique(17, 2, 1, 48, BROSE, 16, &[6]),
+        technique(1, 1, 1, 40, FIRE, 4, &[6]),
+    ];
+    let normal = with(foe(50), |s| {
+        s.element_props[usize::from(BROSE - 1)] = 2;
+    });
+    let chosen = scripted().decide(&board(vec![chaz()], vec![normal], abilities.clone()));
+    assert_eq!(
+        tech_id(&chosen),
+        Some(17),
+        "the death spell that lands is worth the whole enemy: {chosen:?}"
+    );
+
+    let immune = with(foe(50), |s| {
+        s.element_props[usize::from(BROSE - 1)] = 0;
+    });
+    let chosen = scripted().decide(&board(vec![chaz()], vec![immune], abilities));
+    assert_ne!(
+        tech_id(&chosen),
+        Some(17),
+        "an immune death spell is worth nothing: {chosen:?}"
+    );
 }
 
 /// FOI against a fire-weak enemy, WAT against a water-weak one: the element
