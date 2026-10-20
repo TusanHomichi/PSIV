@@ -307,7 +307,11 @@ to the receipt. `--until-chapter ID` replays the prefix that ends with a chapter
 (`PSIV_TAPE_STOP_AT`). The script writes one receipt per chapter
 (`chapters/NN-id.json`: frames, wall time, native snapshot SHA-256, match) and a
 `summary.json`/`summary.md`, and refuses a run directory whose chapter saves no
-longer hash to the report's `save_fnv`.
+longer hash to the report's `save_fnv`. Pass `--library` with the checkout's
+opt-level-3 build (`cargo build --release -p psiv-godot`): the default debug
+library replays the route at roughly a fifth of that rate (measured: ~170
+frames/s debug, ~855 frames/s opt-level 3 on the 8-core laptop), which is the
+difference between ten hours and two.
 
 ```bash
 # Once, in the worktree that will replay: an extension that replays at about

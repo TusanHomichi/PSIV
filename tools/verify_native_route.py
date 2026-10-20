@@ -256,6 +256,10 @@ def parser() -> argparse.ArgumentParser:
                          help="instead of the replay, load every chapter save in its own fresh "
                               "Godot process through the ordinary title CONTINUE and require "
                               "the snapshot to re-encode the same bytes")
+    command.add_argument("--library", type=Path,
+                         help="the built extension to replay with (default: the checkout's "
+                              "debug library); the opt-level-3 release build is what makes the "
+                              "whole route an hour rather than a day")
     command.add_argument("--campaign-bin", type=Path,
                          default=verify_native_tape.ROOT / "rust/target/release/psiv-campaign",
                          help="the psiv-campaign binary that cuts the probe tapes")
@@ -304,6 +308,8 @@ def verify_route(args: argparse.Namespace) -> int:
     tape_args = ["--tape", str(tape), "--pack", str(args.pack), "--out", str(out / "native-tape"),
                  "--timeout", str(args.timeout), "--checkpoints", str(checkpoints),
                  "--expect-save", str(chapters[-1]["save"])]
+    if args.library is not None:
+        tape_args += ["--library", str(args.library)]
     if not full_run:
         tape_args += ["--stop-at", str(chapters[-1]["end_frame"])]
     elif final_pad_save.is_file():
