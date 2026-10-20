@@ -18,21 +18,21 @@ The debug extension is rebuilt first by default, so a capture always comes from
 the checked-out sources; `--no-build` skips that only when the caller has just
 built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
-selected pair is 0.000000. Refuses while a process has the debug extension
-mapped (rebuilding or loading under a live Godot can crash it).
+selected pair is 0.000000.
 
 Certify takes the shared heavy lock itself (tools/heavy_lock.py), so it needs
-no wrapper: the build in the exclusive class, then the captures holding one
-godot-class slot per worker. The build stays exclusive although its memory
-would fit beside Godot runs: the mapped-extension refusal above is checked once,
-before the lock, so a Godot run in this checkout could map the library while
-cargo relinks it, and only exclusion keeps every Godot run out until the build
-ends. `--jobs N` (default min(3, the godot slot cap))
+no wrapper: the build in the extension class, then the captures holding one
+godot-class slot per worker. `--jobs N` (default min(3, the godot slot cap))
 runs the captures across N workers, longest first; each worker owns one Xvfb
 server for its life and each capture its own save directory and output files,
 so a pair's capture is the same bytes at any N. Under an exclusive holder both
 steps are nested no-ops and N is capped by the slot cap; under a godot holder
 (with `--no-build`: a build there is refused), by the slots it holds.
+
+The captures run from one run root in the receipt directory
+(tools/godot.py `create_run_root`): one snapshot of the built extension that
+every worker loads, and one project copy per worker, so no capture maps the
+checkout's library and `certify.json` names the library by sha256.
 """
 import argparse
 import ctypes
@@ -54,9 +54,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gate import (EXTENSION_PATH, display_path, git_info, loaded_extension_pids,  # noqa: E402
-                  utc_stamp)
-from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_lock  # noqa: E402
+from gate import display_path, git_info, utc_stamp  # noqa: E402
+from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E402
+                        hold_heavy_lock)
 
 # `oracle` is a package of the repository root, not of `tools/`, so the root
 # goes on the path too. The one thing this module takes from there is the host
@@ -66,7 +66,8 @@ from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import GodotError, prepare as prepare_godot, resolve as resolve_godot  # noqa: E402
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
+                   require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -326,7 +327,7 @@ def xvfb_display(log):
             server.wait()
 
 
-def capture(name, env, tick, receipt, display, godot):
+def capture(name, env, tick, receipt, display, project, run_root):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
@@ -335,10 +336,13 @@ def capture(name, env, tick, receipt, display, godot):
     full_env = {**{k: v for k, v in os.environ.items() if k != "XAUTHORITY"},
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
-                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
-               "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
-               "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
+                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env,
+                # The run root's pack, resolved once: a caller's override would
+                # win over `res://../runtime-pack` in the game (lib.rs `ready`).
+                "PSIV_RUNTIME_PACK": str(project.parent / RUN_ROOT_PACK)}
+    command = godot_command(run_root, "--log-file", str(receipt / f"{name}-godot.log"),
+                            *GODOT_FLAGS, "--quit-after", str(tick + QUIT_MARGIN),
+                            project=project, prefix=("timeout", f"{capture_timeout(tick)}s"))
     with open(receipt / f"{name}-run.log", "w") as handle:
         code = subprocess.run(command, env=full_env, stdout=handle,
                               stderr=subprocess.STDOUT).returncode
@@ -381,24 +385,28 @@ def job_count(requested, cap):
     return requested
 
 
-def run_captures(tasks, jobs, receipt, display, take, results=None):
+def run_captures(tasks, jobs, receipt, display, take, results=None, *, projects):
     """Capture every `(name, env, tick)` task across `jobs` workers, longest
     tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
 
-    Each worker owns one display from `display(log)` (`xvfb_display`) for its
-    life. `take(name, env, tick, receipt, display)` makes one capture: `capture`
-    with the resolved Godot bound, which `main` passes; it has no default, since
-    `capture` alone cannot run without that Godot. When a capture
+    Each worker owns one display from `display(log)` (`xvfb_display`) and one
+    of `projects` (the run root's project copies, at least `jobs` of them) for
+    its life. `take(name, env, tick, receipt, display, project)` makes one
+    capture: `capture` with the run root bound, which `main` passes; it has no
+    default, since `capture` alone cannot run without that run root. When a capture
     raises or the wait is interrupted (Ctrl-C), the queued captures are
     cancelled, the running ones finish, and the exception propagates with
     `results` holding every capture that finished.
     """
     jobs = min(jobs, len(tasks))
-    displays = queue.Queue()
+    if len(projects) < jobs:
+        raise ValueError(f"{jobs} workers need {jobs} projects, not {len(projects)}")
+    workers = queue.Queue()
     results = {} if results is None else results
     with ExitStack() as stack:
         for worker in range(jobs):
-            displays.put(stack.enter_context(display(receipt / f"xvfb-{worker}.log")))
+            workers.put((stack.enter_context(display(receipt / f"xvfb-{worker}.log")),
+                         projects[worker]))
 
         stop = threading.Event()  # set by the first failure; a worker checks it first
 
@@ -406,16 +414,16 @@ def run_captures(tasks, jobs, receipt, display, take, results=None):
             if stop.is_set():
                 return
             name, env, tick = task
-            screen = displays.get()
+            screen, project = workers.get()
             try:
                 start = time.monotonic()
-                shot, code = take(name, env, tick, receipt, screen)
+                shot, code = take(name, env, tick, receipt, screen, project)
                 results[name] = (shot, code, round(time.monotonic() - start, 1))
             except BaseException:
                 stop.set()
                 raise
             finally:
-                displays.put(screen)
+                workers.put((screen, project))
 
         ordered = sorted(tasks, key=lambda task: -task[2])
         pool = ThreadPoolExecutor(max_workers=max(jobs, 1))
@@ -440,7 +448,7 @@ def main(argv=None):
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
     try:
-        godot = resolve_godot()
+        require_godot()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2
@@ -449,12 +457,8 @@ def main(argv=None):
     except ValueError as error:
         print(f"certify: refused, {error}")
         return 2
-    users = loaded_extension_pids(root / EXTENSION_PATH)
-    if users:
-        print(f"certify: refused, {EXTENSION_PATH} is mapped by PIDs {users}; close Godot first")
-        return 3
     if not args.no_build:
-        with hold_heavy_lock(lock_class=EXCLUSIVE):
+        with hold_heavy_lock(lock_class=EXTENSION):
             built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
                                     "rust/Cargo.toml"])
         if built.returncode != 0:
@@ -467,11 +471,13 @@ def main(argv=None):
         print(f"certify: {len(pairs)} pairs on {jobs} worker(s), "
               f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
               f"{hold.path}", flush=True)
-        try:  # a fresh clone's project has no extension index yet
-            prepare_godot(root / "godot")
+        try:  # one library snapshot, one prepared project per worker
+            run_root = create_run_root(receipt / "run-root", projects=jobs, source=root)
         except GodotError as error:
             print(f"certify: refused, {error}")
             return 2
+        print(f"certify: run root {display_path(run_root.root, root)}, library sha256 "
+              f"{run_root.library_sha256} ({run_root.record['created_s']} s)", flush=True)
         started = time.monotonic()
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
@@ -484,9 +490,12 @@ def main(argv=None):
         shots, interrupted = {}, None
         try:
             run_captures(tasks, jobs, receipt, xvfb_display,
-                         functools.partial(capture, godot=godot), results=shots)
+                         functools.partial(capture, run_root=run_root), results=shots,
+                         projects=run_root.projects)
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop
+        finally:
+            run_root.release()  # certify.json keeps its record
         timing = {"oracle_s": round(prepared - started, 1),
                   "capture_s": round(time.monotonic() - prepared, 1)}
     results = []
@@ -509,7 +518,8 @@ def main(argv=None):
               f"rmse={record.get('rmse')} {error or ''}".rstrip(), flush=True)
     stopped = None if interrupted is None else f"{type(interrupted).__name__}: {interrupted}"
     (receipt / "certify.json").write_text(json.dumps(
-        {**info, "jobs": jobs, **timing, "interrupted": stopped, "pairs": results},
+        {**info, "jobs": jobs, **timing, "interrupted": stopped, "run_root": run_root.record,
+         "pairs": results},
         indent=2) + "\n")
     if interrupted is not None:
         print(f"certify: interrupted ({stopped}); {len(shots)}/{len(tasks)} captures finished; "

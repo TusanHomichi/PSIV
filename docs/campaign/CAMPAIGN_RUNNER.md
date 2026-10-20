@@ -307,8 +307,8 @@ to the receipt. `--until-chapter ID` replays the prefix that ends with a chapter
 longer hash to the report's `save_fnv`.
 
 ```bash
-# Once, in the worktree that will replay (never while a Godot process has the
-# extension loaded): an extension that replays at about 1,000 frames/s.
+# Once, in the worktree that will replay: an extension that replays at about
+# 1,000 frames/s. Its peak (5.6 GB) makes it exclusive.
 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
   python3 tools/heavy_lock.py run --class exclusive -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run --class build -- \
@@ -339,8 +339,10 @@ for the route. Sampling the process shows the time in the YM2612 core
 strict safeguards, not in the session. The same chapter takes 30.5 s, 1,059
 frames/s, with `CARGO_PROFILE_DEV_OPT_LEVEL=3` and debug assertions off. The
 library lands at the path the `.gdextension` names, so a later plain
-`cargo build -p psiv-godot` replaces it with the slow one again; the receipt
-records the library's SHA-256 and the mapped path and inode. Debug assertions are
+`cargo build -p psiv-godot` replaces it with the slow one again. The replay
+runs from a run root holding a copy of it (`create_run_root` in
+`tools/godot.py`), so a build during the replay does not touch it; the
+receipt records the copy's SHA-256 and the mapped path and inode. Debug assertions are
 off in this build and on in the Rust suites.
 
 The tape replay runs headless with the render loop off: it exercises input,

@@ -268,30 +268,51 @@ class ContinueProbes(unittest.TestCase):
     """`--continue-probes` against stand-ins for the probe-tape cutter and the
     tape driver, which need a built binary and Godot."""
 
-    @staticmethod
-    def fake_driver(results):
+    SNAPSHOT = "5" * 64
+    PACK = "7" * 64
+
+    def fake_driver(self, results, libraries=None, packs=None):
         outcomes = iter(results)
+        shas = iter(libraries or [])
+        pack_shas = iter(packs or [])
+        self.libraries_passed = []
+        self.packs_passed = []
 
         def run(argv):
             options = dict(zip(argv[::2], argv[1::2]))
+            self.libraries_passed.append(options["--library"])
+            self.packs_passed.append(options["--pack"])
             out = Path(options["--out"])
             out.mkdir(parents=True)
             ok, unchanged = next(outcomes)
             (out / "receipt.json").write_text(json.dumps({
                 "pass": ok, "source_sha256_before": "aa",
                 "source_sha256_after": "aa" if unchanged else "bb",
-                "snapshot_sha256": "aa" if ok else "cc"}))
+                "snapshot_sha256": "aa" if ok else "cc",
+                "pack_manifest_sha256_before": next(pack_shas, self.PACK),
+                "run_root": {"library_sha256": next(shas, self.SNAPSHOT)}}))
             return 0 if ok else 1
         return run
 
-    def run_probes(self, root: Path, results, cutter_code=0):
+    def fake_run_root(self, root, pack):
+        self.run_roots.append(root)
+        return mock.Mock(library=root / "rust/target/debug/libpsiv_godot.so",
+                         library_sha256=self.SNAPSHOT,
+                         pack=root / "runtime-pack",
+                         record={"root": str(root), "pack": str(root / "runtime-pack"),
+                                 "pack_sha256": self.PACK})
+
+    def run_probes(self, root: Path, results, cutter_code=0, libraries=None, packs=None):
         run = write_run(root)
         binary = root / "psiv-campaign"
         binary.write_text("stub")
         out = root / "out"
         cut = mock.Mock(return_value=mock.Mock(returncode=cutter_code, stderr="no save",
                                                stdout=""))
-        with mock.patch.object(route.verify_native_tape, "main", self.fake_driver(results)), \
+        self.run_roots = []
+        with mock.patch.object(route.verify_native_tape, "main",
+                               self.fake_driver(results, libraries, packs)), \
+                mock.patch.object(route, "create_run_root", self.fake_run_root), \
                 mock.patch.object(route.subprocess, "run", cut), \
                 contextlib.redirect_stdout(io.StringIO()):
             code = route.main(["--run-dir", str(run), "--out", str(out), "--continue-probes",
@@ -309,6 +330,46 @@ class ContinueProbes(unittest.TestCase):
         self.assertEqual(cut.call_count, 3)
         self.assertEqual(cut.call_args.args[0][1], "save-probe-tape")
         self.assertEqual(cut.call_args.args[0][-1], "0", "a zero-pad probe: load only")
+
+    def test_every_probe_snapshots_the_one_run_root_library(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory), [(True, True)] * 3)
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 0)
+        self.assertEqual(self.run_roots, [out / "run-root"])
+        self.assertEqual(set(self.libraries_passed),
+                         {str(out / "run-root/rust/target/debug/libpsiv_godot.so")})
+        self.assertEqual(len(self.libraries_passed), 3)
+        self.assertTrue(summary["one_library"])
+        self.assertEqual(summary["library_sha256"], self.SNAPSHOT)
+
+    def test_negative_control_probes_that_ran_different_libraries_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory), [(True, True)] * 3,
+                                           libraries=[self.SNAPSHOT, "6" * 64, self.SNAPSHOT])
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 1)
+        self.assertFalse(summary["one_library"])
+        self.assertFalse(summary["pass"])
+
+    def test_every_probe_reads_the_one_pinned_pack(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory), [(True, True)] * 3)
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 0)
+        self.assertEqual(set(self.packs_passed),
+                         {str(out / "run-root/runtime-pack")})
+        self.assertTrue(summary["one_pack"])
+        self.assertEqual(summary["pack_sha256"], self.PACK)
+
+    def test_negative_control_probes_that_read_different_packs_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory), [(True, True)] * 3,
+                                           packs=[self.PACK, "8" * 64, self.PACK])
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 1)
+        self.assertFalse(summary["one_pack"])
+        self.assertFalse(summary["pass"])
 
     def test_one_save_that_does_not_reencode_fails_the_run(self):
         with tempfile.TemporaryDirectory() as directory:
