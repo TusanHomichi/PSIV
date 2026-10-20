@@ -17,10 +17,7 @@ enemy ability up to Dark Force 2, is implemented from the cartridge's code; most
 of them are also captured on the cartridge and replayed against it, and the
 battle documents list the ones that are not
 ([player abilities](docs/battle/PLAYER_ABILITIES.md),
-[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). The remaining story work is
-that native replay and the Ending's final gate in Godot's shell
-([#116](https://github.com/TusanHomichi/PSIV/issues/116),
-[#170](https://github.com/TusanHomichi/PSIV/issues/170)). Presentation (some
+[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). Presentation (some
 animations, whole-scene staging, audio timing) still differs from the original
 in places; the [known differences](#known-differences) are listed.
 

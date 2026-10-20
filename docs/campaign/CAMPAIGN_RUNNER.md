@@ -307,11 +307,11 @@ to the receipt. `--until-chapter ID` replays the prefix that ends with a chapter
 (`PSIV_TAPE_STOP_AT`). The script writes one receipt per chapter
 (`chapters/NN-id.json`: frames, wall time, native snapshot SHA-256, match) and a
 `summary.json`/`summary.md`, and refuses a run directory whose chapter saves no
-longer hash to the report's `save_fnv`. Pass `--library` with the checkout's
-opt-level-3 build (`cargo build --release -p psiv-godot`): the default debug
-library replays the route at roughly a fifth of that rate (measured: ~170
-frames/s debug, ~855 frames/s opt-level 3 on the 8-core laptop), which is the
-difference between ten hours and two.
+longer hash to the report's `save_fnv`. Pass `--library` with an
+opt-level-3 extension to replay the route in hours rather than a day (the
+extension-build paragraph below measures the plain debug build at 90 frames/s;
+the release build replayed the full 84-chapter route at 730 frames/s, 8,575.7 s
+for 6,260,544 frames). The flag reaches `--continue-probes` too.
 
 ```bash
 # Once, in the worktree that will replay: an extension that replays at about
@@ -326,6 +326,12 @@ rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
 python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-native
 python3 tools/verify_native_route.py \
   --run-dir build/r2-route --out build/r2-native-continue --continue-probes
+
+# Or a release extension passed explicitly (same flag on the probe run).
+python3 tools/heavy_lock.py run --class exclusive -- \
+  cargo build --release --manifest-path rust/Cargo.toml -p psiv-godot
+python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-native \
+  --library rust/target/release/libpsiv_godot.so
 ```
 
 **Why one process, not one per chapter.** Replaying each chapter from the
