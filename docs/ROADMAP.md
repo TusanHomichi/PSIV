@@ -26,8 +26,8 @@ Post PSIV publicly, let people play and mod it, then maintain it.
 The open items are the
 [`v1.0-blocker` issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker).
 
-- [ ] **The full campaign.** The headless route reaches the Ending, and the
-  native game replays it ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
+- [x] **The full campaign.** The headless route reaches the Ending, and the
+  native game replays it in one continuous tape ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
 - [ ] **No memory leak** in long native sessions
   ([#92](https://github.com/TusanHomichi/PSIV/issues/92)).
 - [ ] **No untranscribed trigger scenes.** The event census allowlists reach
