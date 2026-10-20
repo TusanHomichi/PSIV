@@ -289,8 +289,8 @@ class ContinueProbes(unittest.TestCase):
                 "pass": ok, "source_sha256_before": "aa",
                 "source_sha256_after": "aa" if unchanged else "bb",
                 "snapshot_sha256": "aa" if ok else "cc",
-                "run_root": {"library_sha256": next(shas, self.SNAPSHOT),
-                             "pack_sha256": next(pack_shas, self.PACK)}}))
+                "pack_manifest_sha256_before": next(pack_shas, self.PACK),
+                "run_root": {"library_sha256": next(shas, self.SNAPSHOT)}}))
             return 0 if ok else 1
         return run
 

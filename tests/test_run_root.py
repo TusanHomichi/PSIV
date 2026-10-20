@@ -157,6 +157,26 @@ class PackLink(Checkout):
         self.assertEqual((self.source / "runtime-pack/manifest.json").read_text(), "v2")
         self.assertEqual((made.pack / "manifest.json").read_text(), "legacy")
 
+    def test_the_record_hashes_the_pack_that_was_copied(self):
+        """A swap between choosing the source and copying it must not leave a
+        record naming a pack the copy does not hold."""
+        (self.source / "runtime-pack").unlink()
+        (self.source / "runtime-pack").mkdir()
+        (self.source / "runtime-pack/manifest.json").write_text("legacy")
+        real = godot.snapshot_tree
+
+        def swap_then_copy(source, target):
+            (self.source / "runtime-pack").rename(self.dir / "old")
+            (self.source / "runtime-pack").mkdir()
+            (self.source / "runtime-pack/manifest.json").write_text("new-version")
+            return real(self.source / "runtime-pack", target)
+
+        with mock.patch.object(godot, "snapshot_tree", swap_then_copy):
+            made = self.create()
+        record = json.loads((made.root / godot.RUN_ROOT_RECORD).read_text())
+        self.assertEqual((made.pack / "manifest.json").read_text(), "new-version")
+        self.assertEqual(record["pack_sha256"], sha256(b"new-version"))
+
     def test_negative_control_a_link_to_the_checkout_link_follows_the_swap(self):
         stale = self.dir / "stale"
         stale.symlink_to(self.source / "runtime-pack")
@@ -336,7 +356,9 @@ def python_problems(name, text):
             elif node.value == "PSIV_GODOT":
                 problems.append(f"{line}: reads PSIV_GODOT")
         elif isinstance(node, (ast.List, ast.Tuple)) and node.elts \
-                and isinstance(node.elts[0], ast.Constant) and node.elts[0].value == "godot":
+                and isinstance(node.elts[0], ast.Constant) \
+                and isinstance(node.elts[0].value, str) \
+                and os.path.basename(node.elts[0].value) == "godot":
             problems.append(f"{line}: a command beginning with a bare godot")
         elif isinstance(node, ast.Call):
             func = node.func
@@ -444,6 +466,7 @@ class Census(unittest.TestCase):
         "tools/os_system.py": 'import os\nos.system("godot --headless --path godot")\n',
         "tools/which.py": 'import shutil, subprocess\n'
                            'subprocess.run([shutil.which("godot"), "--headless"])\n',
+        "tools/absolute.py": 'subprocess.run(["/usr/bin/godot", "--headless"])\n',
     }
 
     def test_negative_control_every_escape_fails(self):

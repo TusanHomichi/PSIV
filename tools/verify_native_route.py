@@ -188,7 +188,8 @@ def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Pat
             "save_sha256": receipt.get("source_sha256_before"),
             "snapshot_sha256": receipt.get("snapshot_sha256"),
             "library_sha256": (receipt.get("run_root") or {}).get("library_sha256"),
-            "pack_sha256": (receipt.get("run_root") or {}).get("pack_sha256"),
+            # The tape's own read of the pack it ran with, not the record's.
+            "pack_sha256": receipt.get("pack_manifest_sha256_before"),
             "source_unchanged": receipt.get("source_sha256_before")
             == receipt.get("source_sha256_after"),
             "receipt": str(receipt_path)}
