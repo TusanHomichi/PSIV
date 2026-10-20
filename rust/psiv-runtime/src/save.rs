@@ -332,7 +332,9 @@ impl Runtime {
                 char_y,
             },
         };
-        let encoded = RetailSlot::encode(&save, slot)?.with_dungeon_exit(self.dungeon_exit_index);
+        let encoded = RetailSlot::encode(&save, slot)?
+            .with_dungeon_exit(self.dungeon_exit_index)
+            .with_game_cleared(self.game_cleared);
         Ok(encoded.as_bytes().to_vec())
     }
 
@@ -427,6 +429,7 @@ pub(super) fn slot_runtime(
 ) -> Result<Runtime, RuntimeSaveError> {
     let encoded = RetailSlot::from_bytes(bytes, slot)?;
     let mut runtime = Runtime::from_save(data.clone(), encoded.decode()?, step_frames)?;
+    runtime.game_cleared = encoded.game_cleared();
     // Positive map bytes and explicit place-entry selectors already
     // reconstruct the exit. Only inherited maps need native metadata.
     if runtime

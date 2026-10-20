@@ -26,6 +26,9 @@ pub struct ReplayResult {
     /// that halted ends its tape on the frame that faulted, and replaying it
     /// reproduces that frame.
     pub faults: Vec<(usize, String)>,
+    /// Retail's `Game_Cleared_Flag` (`$200035`), as the loaded save or the
+    /// replayed scene left it.
+    pub game_cleared: bool,
 }
 
 /// Replays `tape` over the pack in `pack`.
@@ -96,5 +99,6 @@ pub fn replay_observing(
         frames: driver.frames(),
         digest: Digest::of(driver.runtime(), driver.frames()),
         faults,
+        game_cleared: driver.runtime().game_cleared(),
     })
 }
