@@ -183,12 +183,6 @@ impl Session {
         self.battle_files = Some(files.clone());
         Ok(())
     }
-
-    /// Presses Start on the ending's final gate (`finish_cutscene_presentation`
-    /// is the shell's; the gate itself is the runtime's).
-    pub fn ending_continue(&mut self) {
-        self.runtime.ending_continue();
-    }
 }
 
 #[cfg(test)]

@@ -30,6 +30,40 @@ fn retail_waits_dispatch_updates_but_vint_and_ending_start_waits_do_not() {
 }
 
 #[test]
+fn the_ending_start_gate_is_released_only_by_the_ending_continue_input() {
+    let map = FieldMap::new(
+        crate::MapId(3),
+        crate::CollisionGrid::filled(2, 2, 0).unwrap(),
+        vec![],
+        vec![],
+    )
+    .unwrap();
+    let mut state = GameState::new();
+    let mut runner = SceneRunner::new(
+        &[SceneOp::WaitForStart, SceneOp::End],
+        vec![],
+        StepFrames::default(),
+    );
+    runner.tick(&map, &mut state, SceneInput::None);
+    assert!(runner.awaiting_ending_start());
+    for input in [
+        SceneInput::None,
+        SceneInput::DialogueClosed,
+        SceneInput::Choice(true),
+        SceneInput::CameraArrived,
+    ] {
+        runner.tick(&map, &mut state, input);
+        assert!(
+            runner.awaiting_ending_start(),
+            "{input:?} must not release the ending's Start gate"
+        );
+    }
+    runner.tick(&map, &mut state, SceneInput::EndingContinue);
+    assert!(!runner.awaiting_ending_start());
+    assert!(runner.is_finished());
+}
+
+#[test]
 fn actor_arrival_and_camera_completion_still_own_their_last_update_frame() {
     use crate::{DialogueId, DialogueSource, DialogueWindow, Direction};
     let map = FieldMap::new(

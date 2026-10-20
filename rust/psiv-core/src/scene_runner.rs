@@ -147,6 +147,13 @@ impl SceneRunner {
         self.blocked == Blocked::Camera
     }
 
+    /// Whether `Cutscene_Ending` waits at its final Start gate: `WaitForStart`
+    /// presented and not yet released.
+    #[must_use]
+    pub fn awaiting_ending_start(&self) -> bool {
+        self.blocked == Blocked::EndingContinue
+    }
+
     /// Motion-loop frames update the map before testing arrival, including
     /// the final frame that unblocks into dialogue or ends the scene
     /// (ps4.asm:121117-121146,121484-121514).

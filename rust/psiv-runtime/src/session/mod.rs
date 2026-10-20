@@ -425,7 +425,7 @@ impl Session {
             // A menu handed the field to a scene: the field owns these frames
             // — the cartridge's windows are gone — until the scene ends and
             // the menu's resume runs (`menu_scene.rs`).
-            self.field_frame(pad)
+            self.field_frame(pad, pressed)
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {
             self.shop_frame(pad, pressed)
         } else if !self.runtime.dialogue_open()
@@ -433,7 +433,7 @@ impl Session {
         {
             frame
         } else {
-            self.field_frame(pad)
+            self.field_frame(pad, pressed)
         };
         frame.notice = notice;
         frame
@@ -490,7 +490,7 @@ impl Session {
     }
 
     /// The field, a scene and the message box.
-    fn field_frame(&mut self, pad: Pad) -> Frame {
+    fn field_frame(&mut self, pad: Pad, pressed: Pad) -> Frame {
         // The window's input half. The pad reaches the runtime every frame —
         // that latch is what makes a press read as fresh exactly once — and
         // with a window up the accept/choice press and the close are decided
@@ -515,9 +515,17 @@ impl Session {
             Input::Neutral
         } else {
             // While a scene runs the field gets Neutral: the story owns the
-            // party.
+            // party. The one exception is retail's final ending gate, which
+            // waits for a ButtonStart press (`btst #ButtonStart,
+            // (Joypad_Pressed).w`, ps4.asm:159093-159099): the session passes
+            // that edge through as the scene's continue input, so a headless
+            // tape and a player reach the same `Game_Cleared_Flag` write.
             let mut input = if self.runtime.scene_active() {
-                Input::Neutral
+                if self.runtime.awaiting_ending_start() && pressed.held(crate::pad::Button::Start) {
+                    Input::Action
+                } else {
+                    Input::Neutral
+                }
             } else {
                 pad.field_input()
             };

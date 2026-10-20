@@ -24,7 +24,6 @@ pub(crate) struct PresentationState {
     loaded_art: BTreeMap<(u32, u16), u64>,
     pub(super) current_dialogue_tree: Option<u32>,
     dialogue_trees: BTreeMap<u32, u8>,
-    pub(super) ending_waiting_for_start: bool,
     pub(super) op_count: u64,
 }
 
@@ -56,7 +55,6 @@ impl PresentationState {
         self.hidden_characters.clear();
         self.loaded_art.clear();
         self.current_dialogue_tree = None;
-        self.ending_waiting_for_start = false;
         self.scene_music_retained = false;
     }
 

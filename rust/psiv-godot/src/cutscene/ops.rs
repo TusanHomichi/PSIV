@@ -4,7 +4,6 @@
 //! each op onto the layer, the audio surface and the shell's own state, in the
 //! order the runtime emitted it. It advances no scene and sets no scene flag.
 
-use godot::classes::Input;
 use godot::prelude::*;
 use psiv_core::{PresentationOp, SceneOp};
 
@@ -98,7 +97,6 @@ impl Field {
                 godot_print!("scene wait-frames: {frames}");
             }
             SceneOp::WaitForStart => {
-                self.presentation.ending_waiting_for_start = true;
                 godot_print!("scene waiting for ending Start input");
             }
             SceneOp::MarkGameCleared => {
@@ -287,14 +285,8 @@ impl Field {
     }
 
     pub(crate) fn tick_cutscene_presentation(&mut self) {
-        if self.presentation.ending_waiting_for_start
-            && Input::singleton().is_action_just_pressed("ui_accept")
-        {
-            self.presentation.ending_waiting_for_start = false;
-            if let Some(session) = self.session.as_mut() {
-                session.ending_continue();
-            }
-        }
+        // The session owns the ending's Start gate: the pad's Start edge is
+        // part of the frame it sends, and the shell only draws the result.
         self.presentation.advance_objects();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().tick();
