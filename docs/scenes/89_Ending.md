@@ -248,9 +248,15 @@ scroller is equivalent to the retail plane map loops.
 | `$07A25A` | write `Game_Cleared_Flag` at `$200035` to 1, set mode `$03`, run palette variable fade out, jump main loop | `MarkGameCleared`, final fade, `End` |
 
 The runtime therefore proves both edges: it exposes `WaitForStart` and only
-then latches `GameCleared`. The headless test releases that gate explicitly,
-asserts `$E8`, Termi `$07B`, the `$17E` panel and `game_cleared()`, and never
-pretends that the credits are gameplay dialogue.
+then latches `GameCleared`. The session owns the gate: a Start press while the
+scene waits there (`btst #ButtonStart, (Joypad_Pressed).w`, `ps4.asm:159093-159099`)
+becomes the scene's continue input, so the headless route's last chapter
+presses Start exactly as a player does and then claims `game_cleared`. The
+cleared byte rides the final save's common header (`$200035`, see
+[save format](../camp/SAVE_FORMAT.md)); a fresh process that CONTINUEs that
+save reads the cleared state again. The test also asserts `$E8`, Termi `$07B`
+and the `$17E` panel, and never pretends that the credits are gameplay
+dialogue.
 
 ## Census
 
