@@ -244,3 +244,45 @@ fn a_mounted_landing_on_a_doorway_footprint_fires_its_warp() {
     assert_eq!(plan.end, Cell::new(4, 1));
     assert_eq!(plan.fires, Some(0));
 }
+
+/// A map-change cell no warp covers (`1` below, no record) is the engine's
+/// `WarpUnmapped`, which the runner halts on: a walk goes around it, so a
+/// goal beyond it takes the long way, and only a `step_onto` ends on it.
+#[test]
+fn an_unmapped_map_change_cell_is_walked_around_and_only_stepped_onto() {
+    // Row 1, column 1 is collision 1 with no warp; the direct path from (1,0)
+    // to (1,2) crosses it.
+    let rows = ["000", "010", "000"];
+    let m = map(&rows, vec![], vec![]);
+    let start = Cell::new(1, 0);
+    let plan = plan_cells(&m, start, Goal::Cell(Cell::new(1, 2))).unwrap();
+    assert_eq!(
+        plan.steps.len(),
+        4,
+        "around the cell, not through it: {plan:?}"
+    );
+    let flood = Flood::new(&m, start).unwrap();
+    assert!(!flood.reaches(Cell::new(1, 1)), "never walked onto");
+    let onto = flood
+        .onto_plan(&m, Mover::Foot, Cell::new(1, 1))
+        .expect("a step_onto may end on it");
+    assert_eq!(onto.steps, [Direction::Down]);
+    assert_eq!(onto.fires, None);
+}
+
+/// The exception both the runner and the planner make: an unmapped doorway
+/// cell beside a warp footprint (the `AirCastle_F1` row the cartridge keeps
+/// in the normal table one row on) is walked as before.
+#[test]
+fn an_unmapped_doorway_row_beside_a_warp_is_walked_through() {
+    let rows = ["000", "010", "000"];
+    let warp = ground_warp(CellRect::new(1, 2, 1, 1), 9);
+    let m = map(&rows, vec![warp], vec![]);
+    let flood = Flood::new(&m, Cell::new(1, 0)).unwrap();
+    assert!(
+        flood.reaches(Cell::new(1, 1)),
+        "beside the footprint at (1,2)"
+    );
+    assert!(psiv_campaign::cell_plan::borders_warp(&m, Cell::new(1, 1)));
+    assert!(!psiv_campaign::cell_plan::borders_warp(&m, Cell::new(0, 0)));
+}

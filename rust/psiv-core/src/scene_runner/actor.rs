@@ -4,7 +4,7 @@
 //! type is re-exported from there, so `psiv_core::ScriptedActor` is unchanged.
 
 use crate::field::StepFrames;
-use crate::geom::{Cell, Direction};
+use crate::geom::{CELL_PIXELS, Cell, Direction};
 use crate::map::FieldMap;
 use crate::scene::ActorRef;
 
@@ -61,6 +61,20 @@ impl ScriptedActor {
         self.target = None;
         self.step = None;
         self.slide = (0, 0);
+    }
+
+    /// Moves the actor by whole pixels outside a walk: the displacement
+    /// accumulates in [`ScriptedActor::slide`] and rolls over into the cell
+    /// whenever it crosses a cell boundary, so `cell` stays the cell the
+    /// object stands in and the slide its offset into it.
+    pub(crate) fn slide_by(&mut self, dx: i32, dy: i32) {
+        let x = self.slide.0 + dx;
+        let y = self.slide.1 + dy;
+        self.slide = (x.rem_euclid(CELL_PIXELS), y.rem_euclid(CELL_PIXELS));
+        let column = i32::from(self.cell.x) + x.div_euclid(CELL_PIXELS);
+        let row = i32::from(self.cell.y) + y.div_euclid(CELL_PIXELS);
+        let clamp = |v: i32| v.clamp(0, i32::from(u16::MAX)) as u16;
+        self.cell = Cell::new(clamp(column), clamp(row));
     }
 
     /// Whether it still has walking to do.

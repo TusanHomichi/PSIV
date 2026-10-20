@@ -84,6 +84,8 @@ pub struct SceneRunner {
     drifted: Vec<(usize, (i32, i32))>,
     /// The `DriftNpcs` in progress.
     drift: Option<drift::DriftRun>,
+    /// The `StepObjectAlongFacing` in progress.
+    step: Option<drift::StepRun>,
     /// The byte under `Saved_Dialogue_Addr` as of the last dialogue the
     /// runtime closed (`BranchIfSavedDialogueByte`).
     dialogue_stop_byte: Option<u8>,
@@ -119,6 +121,7 @@ impl SceneRunner {
             npc_pixels: Vec::new(),
             drifted: Vec::new(),
             drift: None,
+            step: None,
             dialogue_stop_byte: None,
             ride: None,
             belt: None,
@@ -168,6 +171,7 @@ impl SceneRunner {
                         op,
                         SceneOp::Wait { .. }
                             | SceneOp::DriftNpcs { .. }
+                            | SceneOp::StepObjectAlongFacing { .. }
                             | SceneOp::RidePlatform { .. }
                     )
                 }),
@@ -215,6 +219,7 @@ impl SceneRunner {
         // Object indices belong to one map's list.
         self.drifted.clear();
         self.drift = None;
+        self.step = None;
     }
 
     /// Reconciles the cast with a party change **without** touching live
@@ -313,6 +318,7 @@ impl SceneRunner {
         }
         self.tick_follow_chain();
         self.tick_drift(&mut effects);
+        self.tick_step(&mut effects);
         self.tick_ride();
         self.end_belt_if_arrived();
 

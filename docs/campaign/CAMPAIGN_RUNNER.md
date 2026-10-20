@@ -54,10 +54,16 @@ resolves into pad input:
   clear (the inner guards once `$96` is set); `board` without a `step` answers the destination menu a scene
   opens by itself (`Cutscene_FindingAirCastle`);
 - fight scripted battles; random battles use a policy that issues commands
-  through the battle menu with the same pad input a player would use.
+  through the battle menu with the same pad input a player would use;
+- `restore` the party through the camp before a boss: the fallen are raised
+  with a reviving technique (battle effect 21, `REVER`) and the living cured
+  to full, with whatever TP the party has (`recovery.rs`).
 
 Chapters end with their specified assertions on flags, party, map and
-inventory taken from the scene transcriptions. The runner then writes a
+inventory taken from the scene transcriptions. The route's last chapter ends at
+the ending's final Start gate (`Cutscene_Ending`'s `WaitForStart`,
+`docs/scenes/89_Ending.md`): the field loop stops there, and `expect`'s
+`ending_gate` claims it. The runner then writes a
 read-only chapter checkpoint with `Runtime::save_slot`; that snapshot is not
 an ordinary SAVE input. Only chapters with an explicit `save` objective press
 camp STATE → SAVE. The Zio-defeat chapter does so after its scene and flags
@@ -131,6 +137,15 @@ producing pads from views only:
 | random and scripted battles | `battle.rs`, `policy.rs`, `policy_plan.rs`, `policy_value.rs`, `policy_estimate.rs`, `policy_board.rs`, `policy_board_read.rs`, `policy_opening.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
 | `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`) and the party's status bytes (`status_clear`) |
 
+The planner never walks onto a map-change cell that no warp covers (the
+engine's `WarpUnmapped`, which the runner halts on unless the cell is a doorway
+row, `cell_plan::borders_warp`, one predicate for both); only a `step_onto` may
+end on one, where a trigger answers the step (`RunEvent_ProfoundDarkness` on
+`TheEdge_Part9`'s row 23). The validator forgets whether the party rides when
+an `arrival_scene` loads a map (a scene's `RefreshMap` keeps the vehicle only
+with `Map_Load_Flags` bit 3), so the next walk needs an `expect` that names
+`vehicle`.
+
 `plan --vehicle N` prints a walking plan for a mounted party. Mounted walks and
 the validator's `vehicle` claim exist because Motavia's sand blocks a walker and
 the Land Rover crosses it: the Ladea Tower cannot be reached on foot from Krup
@@ -202,6 +217,22 @@ through the runtime's own views: the question a route author asks of every
 chapter save. A save loaded mid-route restarts the frame counter and RNG, so a
 `--from-chapter` run is the same game from there but not the same frames as the
 full run; only the full run from New Game is the route's evidence.
+
+### Boss-margin probe
+
+`probe <route> --chapter ID --from-save FILE --trials N [--spacing FRAMES]
+[--work-dir DIR] [--report OUT] [--pack DIR]` plays one chapter from the save
+its predecessor ended on, `N` times, each in a fresh session through the run
+loop's own chapter play (the same controllers, policy and recovery). Trial `i`
+first stands still for `i * spacing` frames: the cartridge stirs its seed word
+every frame (`UpdateRNGSeed` in the VInt handler), so each trial meets the
+chapter on another stream, with no seam into the runtime. The default spacing,
+65,536 frames, keeps the trials' windows of the one LCG sequence apart for an
+attempt of up to some 65,000 frames. A defeat counts as a loss, any other halt
+is reported apart, and the summary gives the wins over the fought trials with
+a Wilson 95% lower bound (`src/probe.rs`). A training chapter's target is
+chosen from such a table and the table goes in the chapter's `source`
+(`edge-training`; #154).
 
 ### Native tape replay
 

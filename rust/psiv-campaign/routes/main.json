@@ -1597,6 +1597,103 @@
       "closing": [
         {"map": 191, "cell": [30, 28], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd9", "event:0xda"]}
       ]
+    },
+    {
+      "id": "anger-tower-top",
+      "title": "Rykros and the Anger Tower: Event_EnterAngerTower and Event_AngerTowerTop",
+      "source": "docs/scenes/115_EnterAngerTower.md (Event_EnterAngerTower $99: RunEvent_EnterAngerTower, map trigger $56 on the load of AngerTower $FC while $E0 is clear; Elsydeon $D9 set, so the barrier breaks and $E0 is set); docs/scenes/85_AngerTowerTop.md (Event_AngerTowerTop $69: RunEventsJmpTbl[$51], $E4 clear at x $1C0..$1D0, y $250..$260 on AngerTower_F1 $FD; Chaz alone on AngerTower_F2 $FE)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "expect", "map": 191, "cell": [30, 28], "vehicle": 0, "note": "Cutscene_Reunion's reload of the Mota Spaceport leaves the party on foot: the Ice Digger the reunion chapter rode stays on Dezolis"},
+        {"do": "go_to", "map": 191, "cell": [30, 20]},
+        {"do": "board", "step": "up", "to": 2, "note": "RunEvent_EnterSpaceship; Rykros, World_Index 2: the landing in LeRoofRoom $F0"},
+        {"do": "expect", "map": 240},
+        {"do": "go_to_map", "map": 252, "note": "LeRoofRoom, the Silence Temple, Rykros warp 3 into AngerTower $FC: Event_EnterAngerTower runs on the load (dialogue 6, the barrier, $E0)"},
+        {"do": "expect", "map": 252, "cell": [31, 49], "flags_set": ["event:0xe0"], "note": "$E0 from Event_EnterAngerTower's Elsydeon arm; the party stays at the door"},
+        {"do": "go_to_map", "map": 253, "via_warp": 1, "note": "AngerTower warp 1 (24..25,44..45) into AngerTower_F1 $FD (25,45): the west half, which holds the stairs; warp 2 lands in the east half"},
+        {"do": "step_onto", "map": 253, "cell": [29, 39], "note": "a trigger cell: leader x $1D0 (cell 29), y $260 (row 39), inside x $1C0..$1D0, y $250..$260; also a cell of AngerTower_F1's warp 2 (28..29,38..39), entered from the east as the stairs are, and the scene wins over the warp"},
+        {"do": "expect", "map": 254, "cell": [28, 39], "party": ["Chaz"], "note": "Event_AngerTowerTop saves the party slots, keeps Chaz, recovers him and loads AngerTower_F2 $FE at start $38,$4C (cell 28, row 39)"}
+      ],
+      "closing": [
+        {"map": 254, "cell": [28, 39], "party": ["Chaz"], "flags_set": ["event:0xe0"]}
+      ]
+    },
+    {
+      "id": "alys-illusion",
+      "title": "Anger Tower F2: Event_AngerTowerAlys, Event_ReFaze and Event_AngerTowerExitTop",
+      "source": "docs/scenes/114_AngerTowerAlys.md (Event_AngerTowerAlys $62: DialogueTree41 entry 15, the illusion AlysAngerTower, object 0 of AngerTower_F2 $FE, dialogue 15; Alys Fight $E4, Chaz set at $1F0,$1F0, event battle $18); docs/scenes/79_ReFaze.md (Event_ReFaze $63: RunEventsJmpTbl[$4E], $E4 set and $E1 clear; the YES answer learns Megid and sets $E1); docs/scenes/86_AngerTowerExitTop.md (Event_AngerTowerExitTop $6A: RunEventsJmpTbl[$52], $E7 clear at x $1A0..$1B0, y $260; the saved party restored, AngerTower_F1 $FD, $E7 set because $E1 is)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "talk", "npc": 0, "note": "dialogue 15 is $F6 $00 $62: Event_AngerTowerAlys; the talk's settle fights event battle 24 ($18), Chaz alone against the illusion, and stops at Re-Faze's prompt on the reload"},
+        {"do": "answer", "yes": true, "note": "Event_ReFaze runs on the reload: YES learns Megid and sets $E1, NO sets $E1 and fights battle $19"},
+        {"do": "expect", "map": 254, "cell": [31, 32], "party": ["Chaz"], "flags_set": ["event:0xe4", "event:0xe1"], "note": "$E4 from the illusion, $E1 from Re-Faze; Chaz where the illusion set him, $1F0,$1F0 (cell 31, row 32)"},
+        {"do": "step_onto", "map": 254, "cell": [27, 39], "note": "a trigger cell: leader x $1B0 (cell 27), y $260 (row 39), inside x $1A0..$1B0; also a cell of AngerTower_F2's warp 0 (26..27,39), and the scene wins over the warp"},
+        {"do": "expect", "map": 253, "cell": [28, 37], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe7"], "note": "Event_AngerTowerExitTop restores the saved party slots, loads AngerTower_F1 at start $38,$48 (cell 28, row 37) and sets $E7 ($E1 is set)"}
+      ],
+      "closing": [
+        {"map": 253, "cell": [28, 37], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe1", "event:0xe4", "event:0xe7"]}
+      ]
+    },
+    {
+      "id": "rykros-departure",
+      "title": "Off Rykros: Le Roof's ship door and the flight to Motavia",
+      "source": "docs/scenes/116_SilenceTmDoorOpening.md (Event_SilenceTmDoorOpening $42: LeRoofRoom $F0 interaction area 0, the ship door); docs/scenes/41_InsideSpaceship.md (Cutscene_InsideSpaceship $800D: RunEvent_SilenceTmEnterSpaceship, RunEventsJmpTbl[$25], leader Y $120 in LeRoofRoom; the destination menu's Motavia row)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 240, "note": "AngerTower_F1, AngerTower, Rykros, the Silence Temple and back into LeRoofRoom"},
+        {"do": "go_to", "map": 240, "cell": [31, 20], "note": "below the door of Le Roof's ship: LeRoofRoom's interaction area (31..32,19), type 2, temp flag $19, parameter 7"},
+        {"do": "interact", "cell": [31, 20], "face": "up", "opens": [[31, 19], [32, 19]], "note": "Event_SilenceTmDoorOpening ($42): the door's five chunk rows; the last leaves (31,19) and (32,19) at collision 1, the boarding row"},
+        {"do": "board", "step": "up", "to": 0, "note": "the menu's row for World_Index 0, Motavia: the landing in the Mota Spaceport"},
+        {"do": "expect", "map": 191, "cell": [30, 21], "vehicle": 0, "note": "the Motavia landing row of the flight table: the Mota Spaceport"}
+      ],
+      "closing": [
+        {"map": 191, "cell": [30, 21], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe7"]}
+      ]
+    },
+    {
+      "id": "edge-training",
+      "title": "The Edge's first hall: training for the Profound Darkness",
+      "source": "the boss-margin probe (#154; psiv-campaign probe, rust/psiv-campaign/src/probe.rs) of profound-darkness from the-edge's save after this chapter at each level, the trials spaced 65,536 frames apart: level 52 (no member below), 15 of 40 won, Wilson 95% lower bound 0.242; level 55, 29 of 40, 0.572; level 58, 89 of 100, 0.814; level 61, 97 of 100, 0.915; level 64, 98 of 100, 0.930. Without this chapter (Rune and Wren at 46) 0 of 20. Level 61 is the knee: three levels more cost some 162,000 frames for 0.015 of bound. The training frames from rykros-departure's save were 285,326 to level 52, 414,414 to 55, 549,361 to 58, 692,340 to 61 and 854,610 to 64. The Edge $100 (random battles, the boss's own monsters) with the Mota Spaceport's recovery cells as the refuge (docs/scenes/102_Recovery.md)",
+      "random_battle_policy": "fight_to_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 256, "note": "Mota Spaceport, Motavia, warp 26-28 into the Edge $100 (30,50)"},
+        {"do": "patrol", "map": 256, "a": [30, 48], "b": [30, 41], "until": {"party_level_at_least": 61}, "refuge": [{"do": "go_to_map", "map": 191, "note": "the Edge warp 0 to Motavia (57,112), then Motavia warp 22 into the Mota Spaceport"}, {"do": "go_to", "map": 191, "cell": [34, 40], "note": "below the recovery cells"}, {"do": "go_to", "map": 191, "cell": [34, 38], "note": "RecoverStats: HP, TP, skill uses, the fallen raised"}, {"do": "go_to_map", "map": 256, "note": "back into the Edge"}], "note": "the corridor below the Edge's first stairs; Rune and Wren (L46) are the members the condition waits for"},
+        {"do": "go_to_map", "map": 191, "note": "back to the Mota Spaceport, where the-edge starts"},
+        {"do": "expect", "map": 191, "vehicle": 0}
+      ],
+      "closing": [
+        {"map": 191, "party": ["Chaz", "Rika", "Rune", "Wren"]}
+      ]
+    },
+    {
+      "id": "the-edge",
+      "title": "The Edge: from the Mota Spaceport to TheEdge_Part9",
+      "source": "docs/scenes/102_Recovery.md (the Mota Spaceport's recovery cells); runtime-pack/maps/000_Motavia.json warps 26-28 into TheEdge $100 (the overworld patch on EventFlag_Reunion $DA); runtime-pack/maps/100_TheEdge.json..108_TheEdge_Part9.json",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 191, "cell": [34, 40], "note": "below the Mota Spaceport's recovery cells (34..35,38..39)"},
+        {"do": "go_to", "map": 191, "cell": [34, 38], "note": "Event_Recovery: RecoverStats refills HP, TP and skill uses and raises the fallen (docs/scenes/102_Recovery.md)"},
+        {"do": "expect", "map": 191, "cell": [34, 38], "status_clear": true, "note": "full party, no status"},
+        {"do": "go_to_map", "map": 264, "note": "Motavia, warp 26-28 into the Edge $100, and its parts $101..$108"},
+        {"do": "go_to", "map": 264, "cell": [30, 24], "note": "one row below RunEvent_ProfoundDarkness's row 23 (collision 1, no warp: the trigger's)"}
+      ],
+      "closing": [
+        {"map": 264, "cell": [30, 24], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe7"]}
+      ]
+    },
+    {
+      "id": "profound-darkness",
+      "title": "TheEdge_Part9: Cutscene_ProfoundDarkness, the last battle and Cutscene_Ending",
+      "source": "docs/scenes/87_ProfoundDarkness.md (Cutscene_ProfoundDarkness $8020: RunEvent_ProfoundDarkness, RunEventsJmpTbl[$53], $E8 clear at leader y $160 (row 23, collision 1 with no warp) on TheEdge_Part9 $108; event battle 26); docs/scenes/89_Ending.md (Cutscene_Ending $8021: RunEvent_Ending, RunEventsJmpTbl[$54], $E8 set, on the field's return from the battle; Termi $07B and the final Start gate)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "restore", "note": "revive the fallen and cure the party to full before the step"},
+        {"do": "step_onto", "map": 264, "cell": [30, 23], "note": "the trigger row: Cutscene_ProfoundDarkness and event battle 26, then Cutscene_Ending on the field's return (RunEvent_Ending, $E8 set), played to its final Start gate"},
+        {"do": "expect", "map": 123, "flags_set": ["event:0xe8"], "ending_gate": true, "note": "the ending's last LoadMap ($07B, $07A13A) and its WaitForStart"}
+      ],
+      "closing": [
+        {"map": 123, "flags_set": ["event:0xe8"], "ending_gate": true}
+      ]
     }
   ]
 }

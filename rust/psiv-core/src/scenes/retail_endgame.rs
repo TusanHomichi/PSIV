@@ -231,7 +231,10 @@ pub static RYKROS: Scene = Scene {
             },
         },
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 30 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 30,
+                hold: None,
+            },
         },
         SceneOp::WaitFrames { frames: 30 },
         SceneOp::PlaySound {
@@ -279,6 +282,14 @@ pub static ENDING: Scene = Scene {
             window: DialogueWindow::EndingIntro,
         },
         SceneOp::DmaPlanes,
+        // $078F9C..$078FAD: `moveq #$3B, d7` / `jsr Pal_IncreaseTone` / `jsr
+        // VInt_Prepare` / `dbra`: sixty frames, the tone and its frames.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
+        },
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
             op: PresentationOp::WindowDestroy { render_mode: 2 },
@@ -800,9 +811,14 @@ pub static ENDING: Scene = Scene {
             },
         },
         SceneOp::PlaySound { id: SOUND_STOP_ALL },
+        // $079BD2..$079BE3: the same sixty-frame loop.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         },
+        SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
             op: PresentationOp::ClearRamWords {
                 destination_ram: 0xFFFF_FB80,
@@ -901,9 +917,14 @@ pub static ENDING: Scene = Scene {
                 steps: 14,
             },
         },
+        // $07A0FA..$07A10B: the same sixty-frame loop.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteIncreaseTone { frames: 60 },
+            op: PresentationOp::PaletteIncreaseTone {
+                frames: 60,
+                hold: None,
+            },
         },
+        SceneOp::WaitFrames { frames: 60 },
         SceneOp::LoadMap {
             map: 0x07B,
             prev_map: 0xFFFF,

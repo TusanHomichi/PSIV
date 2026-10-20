@@ -765,6 +765,22 @@ pub enum SceneOp {
         /// Loop iterations, including the final DBRA iteration.
         frames: u16,
     },
+    /// `Event_StepObject` (`$5A99E`) along an object's own facing, the way
+    /// `Event_AngerTowerAlys` (`$0714A8..$071535`) builds its steps: the
+    /// object's `facing_dir` (`$6`) halved indexes the byte pairs at
+    /// `loc_71572`, one whole pixel per frame down, up, right or left
+    /// ([`crate::Direction::delta`]), and `neg.w` on both when `backwards`.
+    /// Each frame is `FieldObj_UpdatePosition`, `RunMapUpdates` and
+    /// `VInt_Prepare`; the scene blocks for `frames`, and a party member's
+    /// motion is its scripted actor's, so the camera follows a stepping leader.
+    StepObjectAlongFacing {
+        /// The object stepped (`a4`).
+        actor: ActorRef,
+        /// Step against the facing instead of along it.
+        backwards: bool,
+        /// Loop iterations, already the `dbra` count plus one.
+        frames: u16,
+    },
     /// Animate a temporary field object. These are the small effect objects
     /// the cartridge places outside the ordinary map-NPC list for Flaeli,
     /// Saya and Igglanova's fusion sequence. The runtime carries the literal

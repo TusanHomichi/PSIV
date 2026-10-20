@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `retail_endgame.rs`, `ENDING` (367 typed ops).
+- **Data:** `retail_endgame.rs`, `ENDING` (370 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -28,7 +28,7 @@ a separate presentation routine. The first bytes make that boundary explicit:
 | `$078F62` | `Pal_FadeIn` | `FadeIn` |
 | `$078F68..$078F90` | fetch dialogue entry `$09`, create the window, run `RunText3` | `RunDialogue(9, EndingIntro)` |
 | `$078F96` | `DMAPlane_A_VInt` | `DmaPlanes` |
-| `$078F9C..$078FA8` | `Pal_IncreaseTone` / VInt loop, raw `#$3B` | `WaitFrames(60)` plus the presentation fade |
+| `$078F9C..$078FAD` | `Pal_IncreaseTone` / VInt loop, raw `#$3B` | `PaletteIncreaseTone(60)`, then `WaitFrames(60)` |
 | `$078FAE..$078FCC` | clear panel counter; destroy the optional portrait window and the text window | `WindowDestroy` |
 | `$078FD6` | `Map_LoadChunks` from the current map chunk pointer | `ReloadMapChunks` |
 | `$078FDC..$078FE2` | raw `#$77` `VInt_PrepareLoop` | `WaitFrames(120)` |
@@ -204,7 +204,7 @@ wait word.
 
 The final story panel `$17E` uses palette mode 5 while its dialogue resumes;
 the source then switches to mode `$0F`, stops music (`$FE`), raises the palette
-for 60 frames, clears the palette scratch and both planes, and draws the four
+for 60 frames (`$079BD2..$079BE3`: `PaletteIncreaseTone(60)`, then `WaitFrames(60)`), clears the palette scratch and both planes, and draws the four
 staff entries. Those are separate typed operations, not an inferred “fade to
 credits.”
 
@@ -228,7 +228,7 @@ renderer, not a bitmap placeholder:
 | `$079F26..$079FCE` | stage 2: terminal `$400`, FG step `$2000`, BG step `$1000`, source `$FFFF2000`, Plane A, commands `$07A522` | `EndingCreditsStage(2)` |
 | `$079FAE..$07A086` | stage 3: terminal `$480`, same camera steps/source/plane, commands `$07A548` | `EndingCreditsStage(3)` |
 | `$07A0A6..$07A0FA` | fourteen palette steps: eight-word primary table `$07A274`, then two-word late table `$07A2A0` | `EndingCreditsPaletteRamp` |
-| `$07A0FC..$07A102` | palette increase-tone loop, raw `$3B` | `PaletteIncreaseTone(60)` |
+| `$07A0FA..$07A10B` | palette increase-tone loop, raw `$3B` | `PaletteIncreaseTone(60)`, then `WaitFrames(60)` |
 
 The typed stage records retain the terminal counters, camera increments, RAM
 source and command-table addresses. They do not claim that a generic sprite
@@ -254,7 +254,7 @@ pretends that the credits are gameplay dialogue.
 
 ## Census
 
-The ending's transcription is 367 ops, and its 50 post-battle panels are
+The ending's transcription is 370 ops, and its 50 post-battle panels are
 among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and

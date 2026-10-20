@@ -9,6 +9,7 @@ use std::process::ExitCode;
 
 use psiv_campaign::driver::MemberAtEnd;
 use psiv_campaign::prefix::check_prefix;
+use psiv_campaign::probe::{Outcome, ProbeConfig, probe};
 use psiv_campaign::replay::replay_observing;
 use psiv_campaign::route::Route;
 use psiv_campaign::runner::{RunConfig, run};
@@ -304,4 +305,93 @@ fn write_file(path: &Path, text: &str) -> Result<(), String> {
             .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
     }
     std::fs::write(path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))
+}
+
+/// The probe's default spacing between trials' streams, in frames. An idle
+/// field frame stirs the seed twice, so 65,536 frames put trials 131,072 draws
+/// apart; the final battle with the ending is some 40,000 frames, at most two
+/// draws each plus the battle's own rolls, so the windows do not overlap
+/// (`probe.rs`).
+const DEFAULT_PROBE_SPACING: u64 = 65_536;
+
+/// `probe <route> --chapter ID --from-save FILE --trials N [--spacing FRAMES]
+/// [--work-dir DIR] [--report OUT] [--pack DIR]`: the boss-margin probe
+/// (#154). Exit 0 when it ran (whatever the win rate), 1 on bad input.
+pub fn cmd_probe(args: &[String]) -> ExitCode {
+    match probe_inner(args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn probe_inner(args: &[String]) -> Result<(), String> {
+    let args = Args::parse(args)?;
+    let [path] = args.positional.as_slice() else {
+        return Err(super::USAGE.to_owned());
+    };
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
+    let route = Route::parse(&text).map_err(|e| format!("{path}: {e}"))?;
+    let number = |name: &str, default: Option<u64>| -> Result<u64, String> {
+        match args.one(name) {
+            Some(v) => v.parse().map_err(|_| format!("--{name} must be a number")),
+            None => default.ok_or_else(|| format!("--{name} is required")),
+        }
+    };
+    let chapter = args
+        .one("chapter")
+        .ok_or("--chapter is required")?
+        .to_owned();
+    let save = PathBuf::from(args.one("from-save").ok_or("--from-save is required")?);
+    let trials = u32::try_from(number("trials", None)?).map_err(|_| "--trials is too large")?;
+    let config = ProbeConfig {
+        route,
+        pack: pack_dir(&args),
+        work_dir: PathBuf::from(
+            args.one("work-dir")
+                .map_or_else(|| format!("build/probe/{chapter}"), str::to_owned),
+        ),
+        chapter,
+        save,
+        trials,
+        spacing: number("spacing", Some(DEFAULT_PROBE_SPACING))?,
+    };
+    let result = probe(&config).map_err(|e| e.to_string())?;
+    let mut rows = Vec::new();
+    for (index, trial) in result.trials.iter().enumerate() {
+        let outcome = match &trial.outcome {
+            Outcome::Won => "won".to_owned(),
+            Outcome::Lost => "lost".to_owned(),
+            Outcome::Halted(why) => format!("halted: {why}"),
+        };
+        println!(
+            "trial {index:3}: lead {:7} frames, {:7} frames, {outcome}",
+            trial.lead, trial.frames
+        );
+        rows.push(serde_json::json!({
+            "trial": index, "lead": trial.lead, "frames": trial.frames, "outcome": outcome,
+        }));
+    }
+    let lower = result.wilson_lower_ppm();
+    println!(
+        "{} trials: {} won, {} lost, {} halted; win rate {}/{}, Wilson 95% lower bound 0.{:03}",
+        result.trials.len(),
+        result.wins(),
+        result.losses(),
+        result.halted(),
+        result.wins(),
+        result.wins() + result.losses(),
+        lower / 1000
+    );
+    if let Some(out) = args.one("report") {
+        let report = serde_json::json!({
+            "chapter": config.chapter, "save": config.save.display().to_string(),
+            "spacing": config.spacing, "trials": rows, "wins": result.wins(),
+            "losses": result.losses(), "halted": result.halted(), "wilson_lower_95_ppm": lower,
+        });
+        write_file(Path::new(out), &report.to_string())?;
+    }
+    Ok(())
 }

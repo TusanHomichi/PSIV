@@ -3,7 +3,9 @@
 //! Two vocabulary additions the Tyler's Grave opening (`Event_TylerGraveOpening`,
 //! `docs/scenes/92_TylerGraveOpening.md`) needs and no earlier scene did:
 //! a branch on an object's pixel coordinate against a literal, and
-//! `DoMainUpdatesLoop` over objects that carry step constants.
+//! `DoMainUpdatesLoop` over objects that carry step constants. The Anger
+//! Tower's Alys (`docs/scenes/114_AngerTowerAlys.md`) adds a third:
+//! `Event_StepObject` along a live facing, party leader included.
 
 use super::SceneRunner;
 use crate::geom::CELL_PIXELS;
@@ -71,6 +73,16 @@ struct Drifter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DriftRun {
     drifters: Vec<Drifter>,
+    remaining: u16,
+}
+
+/// A running [`SceneOp::StepObjectAlongFacing`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct StepRun {
+    actor: ActorRef,
+    /// Whole pixels per frame: the facing table's bytes, `swap`ped into the
+    /// integer word of a 16.16 step constant.
+    step: (i32, i32),
     remaining: u16,
 }
 
@@ -144,18 +156,19 @@ impl SceneRunner {
         let Some(run) = self.drift.as_mut() else {
             return;
         };
+        let mut moved = Vec::with_capacity(run.drifters.len());
         for drifter in &mut run.drifters {
             drifter.x += i64::from(drifter.drift.step_x);
             drifter.y += i64::from(drifter.drift.step_y);
             let at = ((drifter.x >> 16) as i32, (drifter.y >> 16) as i32);
             let npc = drifter.drift.npc;
-            match self.drifted.iter_mut().find(|(index, _)| *index == npc) {
-                Some(entry) => entry.1 = at,
-                None => self.drifted.push((npc, at)),
-            }
-            if let Some(slot) = self.npc_pixels.get_mut(npc) {
-                *slot = at;
-            }
+            moved.push((npc, at));
+        }
+        run.remaining -= 1;
+        if run.remaining == 0 {
+            self.drift = None;
+        }
+        for (npc, at) in moved {
             if let Some(actor) = self
                 .actors
                 .iter_mut()
@@ -163,19 +176,75 @@ impl SceneRunner {
             {
                 actor.cell = super::pixel_cell(at.0, at.1);
             }
-            effects.push(SceneEffect::Presentation {
-                op: SceneOp::Presentation {
-                    op: PresentationOp::NpcPixelPosition {
-                        npc,
-                        x: at.0,
-                        y: at.1,
-                    },
-                },
-            });
+            self.record_npc_pixel(npc, at, effects);
         }
+    }
+
+    /// A map object's new whole-pixel position: the overlay coordinate
+    /// branches read, and the per-frame `NpcPixelPosition` the runtime writes
+    /// to the field map.
+    fn record_npc_pixel(&mut self, npc: usize, at: (i32, i32), effects: &mut Vec<SceneEffect>) {
+        match self.drifted.iter_mut().find(|(index, _)| *index == npc) {
+            Some(entry) => entry.1 = at,
+            None => self.drifted.push((npc, at)),
+        }
+        if let Some(slot) = self.npc_pixels.get_mut(npc) {
+            *slot = at;
+        }
+        effects.push(SceneEffect::Presentation {
+            op: SceneOp::Presentation {
+                op: PresentationOp::NpcPixelPosition {
+                    npc,
+                    x: at.0,
+                    y: at.1,
+                },
+            },
+        });
+    }
+
+    /// Starts a [`SceneOp::StepObjectAlongFacing`] and runs its first frame:
+    /// the step is read from the actor's facing as the op starts
+    /// (`move.w $6(a4), d2` before the loop), and the loop's first iteration
+    /// is the scene's first blocked frame.
+    pub(super) fn start_step(
+        &mut self,
+        actor: ActorRef,
+        backwards: bool,
+        frames: u16,
+        effects: &mut Vec<SceneEffect>,
+    ) {
+        let Some(facing) = self.actor(actor).map(|found| found.facing) else {
+            return;
+        };
+        let (dx, dy) = facing.delta();
+        let sign = if backwards { -1 } else { 1 };
+        self.step = (frames > 0).then_some(StepRun {
+            actor,
+            step: (dx * sign, dy * sign),
+            remaining: frames,
+        });
+        self.tick_step(effects);
+    }
+
+    /// One `Event_StepObject` iteration: the stepped object moves one step
+    /// in whole pixels. A map object's position is reported like a drift's.
+    pub(super) fn tick_step(&mut self, effects: &mut Vec<SceneEffect>) {
+        let Some(run) = self.step.as_mut() else {
+            return;
+        };
+        let (actor, (dx, dy)) = (run.actor, run.step);
         run.remaining -= 1;
         if run.remaining == 0 {
-            self.drift = None;
+            self.step = None;
+        }
+        let Some(stepped) = self.actor_mut(actor) else {
+            return;
+        };
+        stepped.slide_by(dx, dy);
+        let origin = PixelPos::from_cell(stepped.cell);
+        let at = (origin.x + stepped.slide.0, origin.y + stepped.slide.1);
+        if let ActorRef::Npc(npc) = actor {
+            self.record_npc_pixel(npc, at, effects);
         }
     }
 

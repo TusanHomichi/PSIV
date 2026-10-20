@@ -220,10 +220,21 @@ pub enum PresentationOp {
         /// Corrected frame count.
         frames: u16,
     },
-    /// Run the retail `Pal_IncreaseTone`/`VInt_Prepare` loop.
+    /// What the retail `Pal_IncreaseTone` (`$58608`) / `VInt_Prepare` loop
+    /// does to the palette: for `frames` VBlanks, on each frame whose
+    /// `Main_Frame_Count & 3` is zero, every one of the 64 `Palette_Table_Buffer`
+    /// words not already `$EEE` steps one tone per component toward white
+    /// (each capped at `$E`). The record describes the palette only; the
+    /// frames themselves are the scene's following [`crate::SceneOp::WaitFrames`]
+    /// (`VInt_Prepare` with no map update), which the registry guard
+    /// `every_palette_tone_loop_is_followed_by_its_frames` holds it to.
     PaletteIncreaseTone {
-        /// Corrected loop count.
+        /// Corrected loop count (the `dbra` count plus one): how many frames
+        /// the tone steps over, not frames this record spends.
         frames: u16,
+        /// A palette range the loop rewrites from ROM after every tone step,
+        /// before the frame's `VInt_Prepare`, so it never brightens.
+        hold: Option<PaletteHold>,
     },
     /// `Event_Recovery`'s flash (`loc_6D3BA` and `loc_6D40A`, `ps4.asm:146867-146934`,
     /// ROM `$06D3BA..$06D467`): for `frames` VBlanks, on each frame whose
@@ -424,6 +435,19 @@ pub enum PresentationOp {
         /// `loc_58666` lightning/update iterations.
         lightning_frames: u8,
     },
+}
+
+/// The `trap #1` copy a tone loop makes each frame after `Pal_IncreaseTone`
+/// (`$58608`): `Event_EnterAngerTower`'s `lea Pal_Init_Line_3, a0` / `lea
+/// Palette_Line_3, a1` / `move.w #$F, d7` / `trap #1` (`$07383A..$073849`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaletteHold {
+    /// The ROM table the words are copied from.
+    pub source_rom_addr: u32,
+    /// The `Palette_Table_Buffer` address they are copied to.
+    pub destination_ram: u32,
+    /// Words copied (`trap #1` copies `d7 + 1`).
+    pub words: u8,
 }
 
 /// Plane selected by a credits scroll stage.

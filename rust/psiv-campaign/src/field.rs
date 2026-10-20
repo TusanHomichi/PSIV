@@ -28,6 +28,10 @@ pub enum Settled {
     Choice,
     /// The ship's destination menu is open.
     Menu,
+    /// `Cutscene_Ending` waits at its final Start gate (`SceneOp::WaitForStart`):
+    /// the end of the route. The scene stays active, and nothing a later
+    /// objective presses walks the party.
+    EndingGate,
 }
 
 impl Driver {
@@ -140,6 +144,9 @@ impl Driver {
                     || crate::driver::is_stepping(runtime)
                     || runtime.loot_state().is_some()
             };
+            if busy && self.at_ending_gate() && self.runtime().scene_active() {
+                return Ok(Settled::EndingGate);
+            }
             if busy {
                 quiet = 0;
                 self.tick(psiv_runtime::Pad::NEUTRAL)?;
