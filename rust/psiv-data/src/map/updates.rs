@@ -166,7 +166,9 @@ pub enum UpdateProgram {
         /// Disabled at and below this unsigned word.
         y_max: u16,
     },
-    /// Exact input that the native runtime does not yet represent (#41).
+    /// Input the runtime does not represent: a known routine whose required
+    /// native buffer/subsystem is absent. The decoder reports it rather than
+    /// guessing its effect.
     Unsupported {
         /// The absent retail buffer/subsystem.
         missing: String,

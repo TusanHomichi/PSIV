@@ -16,11 +16,14 @@ time and in this order:
    chapter save finishes, or halts only where
    `rust/psiv-campaign/routes/resume_manifest.json` lists; its resumes are
    headless runs of about 40 MB, run in parallel, and take no heavy lock;
-4. `python3 tools/certify.py`, the certified pixel pairs; it takes the shared
+4. `python3 tools/check_issue_refs.py` (with `gh` authenticated): a statement
+   that still defers to a CLOSED issue fails; a history mention is not a
+   deferral, and without `gh` the step reports skipped;
+5. `python3 tools/certify.py`, the certified pixel pairs; it takes the shared
    heavy lock (`PSIV_HEAVY_LOCK`, default the main checkout's
    `build/continuation-heavy.lock`, from tools/heavy_lock.py) itself, an
    exclusive hold for its extension build and godot slots for its captures;
-5. `python3 tools/gate.py --wait`, the integration gate (it waits for a
+6. `python3 tools/gate.py --wait`, the integration gate (it waits for a
    running gate instead of refusing, and takes the heavy lock itself, in the
    exclusive class).
 
@@ -78,6 +81,7 @@ def steps(out: Path) -> list[tuple[str, str, str | None]]:
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", None),
         ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", None),
+        ("issue-refs", f"python3 tools/check_issue_refs.py --cache {out / 'issue-states.json'}", None),
         ("certify", "python3 tools/certify.py", OWN),
         ("gate", "python3 tools/gate.py --wait", OWN),
     ]

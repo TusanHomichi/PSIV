@@ -484,9 +484,9 @@ Still open:
    receives the Land Rover and `ladea-tower-rune` drives it to the tower;
    `dezolis-ice-digger` boards the Ice Digger
    (`rust/psiv-campaign/routes/main.json`). The Hydrofoil's leg comes after
-   Dark Force 2, with the rest of the route to the Ending
-   ([#116](https://github.com/TusanHomichi/PSIV/issues/116)). Tape 29 remains the oracle fixture for mounted movement,
-   dismount refusal and mounted battle entry.
+   Dark Force 2; the route's later chapters carry it and replay through the
+   Ending. Tape 29 remains the oracle fixture for mounted movement, dismount
+   refusal and mounted battle entry.
 2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen in
    retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
    screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
