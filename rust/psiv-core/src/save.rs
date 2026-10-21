@@ -17,9 +17,11 @@ use core::fmt;
 
 use crate::battle::{StatPair, StatTriple, Stats};
 use crate::{
-    INVENTORY_SLOTS, MacroCommand, MacroRecord, PARTY_SLOTS, StateSnapshot, VEHICLE_RECORD_BYTES,
-    VehicleRecord,
+    CharId, INVENTORY_SLOTS, MacroCommand, MacroRecord, PARTY_SLOTS, StateSnapshot,
+    VEHICLE_RECORD_BYTES, VehicleRecord,
 };
+
+mod native;
 
 /// The number of save files exposed by the retail title and save menu.
 pub const RETAIL_SLOT_COUNT: usize = 3;
@@ -48,6 +50,14 @@ const RUST_ROSTER_MASK_OFFSET: usize = 0x20;
 // A native-only marker and complemented byte in unused common-header space.
 // The cartridge never saves ED51; native restart preserves inherited exits.
 const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
+// The transient `Saved_Char_ID_Mem_1..5` bridge (`$FFFFED54..58`) a sleep
+// scene parks the party in. Retail keeps it in work RAM, which the boot code
+// clears (`ClrRAMLoop`, ps4.asm:240-242), so a SAVE taken between the Elsydeon
+// cave (or Anger Tower top) scenes and a power-cycle CONTINUE restore a
+// corrupt party. This native header field carries the five slots with the
+// save; `None` writes nothing, so every other save keeps the retail zeroes.
+// The field starts after the dungeon exit's `$F022..$F025`.
+const RUST_SAVED_PARTY_OFFSET: usize = 0x26;
 const LOCATION_WORLD_OFFSET: usize = 0x300;
 const LOCATION_MAP_2_OFFSET: usize = 0x302;
 const LOCATION_MAP_OFFSET: usize = 0x304;
@@ -254,53 +264,6 @@ impl RetailSlot {
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; RETAIL_SLOT_FILE_BYTES] {
         &self.bytes
-    }
-
-    /// Preserve the live dungeon exit in the native header extension. Retail
-    /// payload bytes and their checksum stay unchanged; old slots omit it.
-    pub fn with_dungeon_exit(mut self, index: u8) -> Self {
-        let offset = RUST_DUNGEON_EXIT_OFFSET * 2 + 1;
-        for (i, byte) in [b'T', b'R', index, !index].into_iter().enumerate() {
-            self.bytes[offset + i * 2] = byte;
-        }
-        self
-    }
-
-    /// Read a valid native dungeon-exit extension. Missing or damaged metadata
-    /// falls back to the ordinary map-entry table; it never invents an exit.
-    #[must_use]
-    pub fn dungeon_exit(&self) -> Option<u8> {
-        let offset = RUST_DUNGEON_EXIT_OFFSET * 2 + 1;
-        let index = self.bytes[offset + 4];
-        (self.bytes[offset] == b'T'
-            && self.bytes[offset + 2] == b'R'
-            && self.bytes[offset + 6] == !index
-            && index < 0x80)
-            .then_some(index)
-    }
-
-    /// Sets retail's `Game_Cleared_Flag` in the common header (`$200035`).
-    /// The retail byte is sticky — the only write is `ps4.asm:159099`, and only
-    /// `InitSRAM` zeroes the header — so this never writes 0.
-    #[must_use]
-    pub fn mark_game_cleared(mut self) -> Self {
-        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] |= 1;
-        self
-    }
-
-    /// Whether a slot file's header carries `Game_Cleared_Flag`, without
-    /// validating the payload: the store's sticky check over other slots.
-    #[must_use]
-    pub fn cleared_in_bytes(bytes: &[u8]) -> bool {
-        bytes.len() == RETAIL_SLOT_FILE_BYTES && bytes[GAME_CLEARED_OFFSET * 2 + 1] & 1 == 1
-    }
-
-    /// Reads retail's `Game_Cleared_Flag` from the common header (`$200035`).
-    /// A slot written before the flag existed reads false, which is what the
-    /// cartridge's zeroed common header holds.
-    #[must_use]
-    pub fn game_cleared(&self) -> bool {
-        self.bytes[GAME_CLEARED_OFFSET * 2 + 1] & 1 != 0
     }
 
     /// Returns the checksum recorded in this slot's header.
@@ -803,6 +766,78 @@ mod tests {
             RetailSlot::from_bytes(&bytes, 0),
             Err(SaveError::ChecksumMismatch { slot: 0, .. })
         ));
+    }
+
+    #[test]
+    fn the_saved_party_bridge_round_trips_in_the_native_header() {
+        let save = RetailSave {
+            snapshot: mid_progress_state().snapshot(),
+            location: RetailLocation::default(),
+        };
+        let bridge = [
+            Some(CharId(0)),
+            Some(CharId(1)),
+            Some(CharId(2)),
+            None,
+            None,
+        ];
+        let encoded = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_saved_party_slots(Some(bridge));
+        assert_eq!(encoded.saved_party_slots(), Some(bridge));
+        // The payload and its checksum are untouched.
+        assert_eq!(
+            RetailSlot::from_bytes(encoded.as_bytes(), 0)
+                .unwrap()
+                .decode()
+                .unwrap(),
+            save
+        );
+        // The exact layout: `P`, `S`, the five slots at the interleaved stride,
+        // and the complement of their sum.
+        let offset = RUST_SAVED_PARTY_OFFSET * 2 + 1;
+        assert_eq!(&encoded.as_bytes()[offset..offset + 2], b"P\0");
+        assert_eq!(encoded.as_bytes()[offset + 2], b'S');
+        let slots: Vec<u8> = (0..5)
+            .map(|index| encoded.as_bytes()[offset + 4 + index * 2])
+            .collect();
+        assert_eq!(slots, vec![0, 1, 2, 0xFF, 0xFF]);
+        let sum = slots.iter().fold(0_u8, |sum, byte| sum.wrapping_add(*byte));
+        assert_eq!(encoded.as_bytes()[offset + 14], !sum);
+        // It coexists with the dungeon exit just before it.
+        let both = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_dungeon_exit(7)
+            .with_saved_party_slots(Some(bridge));
+        assert_eq!(both.dungeon_exit(), Some(7));
+        assert_eq!(both.saved_party_slots(), Some(bridge));
+        // No bridge pending: nothing is written.
+        let plain = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_saved_party_slots(None);
+        assert_eq!(plain.saved_party_slots(), None);
+        assert_eq!(plain.as_bytes()[offset], 0);
+        // An all-empty bridge writes nothing and reads None, so the writer
+        // never produces a field the reader refuses.
+        let empty = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_saved_party_slots(Some([None; 5]));
+        assert_eq!(empty.as_bytes()[offset], 0);
+        assert_eq!(empty.saved_party_slots(), None);
+        // A retail save's zeroed header has no marker: None.
+        let mut retail = encoded.as_bytes().to_vec();
+        retail[offset..=offset + 14].fill(0);
+        assert_eq!(
+            RetailSlot::from_bytes(&retail, 0)
+                .unwrap()
+                .saved_party_slots(),
+            None
+        );
+        // A damaged bridge is refused rather than guessed.
+        let mut damaged = encoded.as_bytes().to_vec();
+        damaged[offset + 4] ^= 0xFF;
+        let damaged = RetailSlot::from_bytes(&damaged, 0).unwrap();
+        assert_eq!(damaged.saved_party_slots(), None);
     }
 
     #[test]

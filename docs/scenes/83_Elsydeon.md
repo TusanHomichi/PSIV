@@ -25,3 +25,8 @@ is excluded. ROM range: `$078584..$078A7C` exclusive end.
 
 One op runs only on `revision>0` builds, which the US retail cartridge is: the
 `SFXID_Deban` sound before the `$12B` panel. It is listed in the [revision audit](REVISION_AUDIT.md#every-other-revision-conditional-op-in-a-transcribed-body).
+
+The restored slots are the retail `Saved_Char_ID_Mem_1..5` bridge; the
+[native save carries it](../camp/SAVE_FORMAT.md) while it is pending, so a
+CONTINUE between the two scenes restores the parked party
+([source note](../source-notes/saved-char-id-mem.md)).

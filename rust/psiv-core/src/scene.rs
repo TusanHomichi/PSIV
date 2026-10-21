@@ -400,8 +400,10 @@ pub enum SceneOp {
     /// Copy the five party slots to retail's transient `Saved_Char_ID_Mem`.
     ///
     /// These bytes bridge separate scene dispatches (the Elsydeon cave and
-    /// the Anger Tower top). They are scene/runtime state, not save-file
-    /// state, so the save serializer deliberately never sees them.
+    /// the Anger Tower top). They are scene/runtime state, not
+    /// `StateSnapshot`, but a save taken while they are pending carries them
+    /// in the native header (`$F026..$F02D`), so a CONTINUE between the two
+    /// scenes restores the parked party.
     SavePartySlots,
     /// Restore the slots captured by [`SceneOp::SavePartySlots`].
     RestorePartySlots,
