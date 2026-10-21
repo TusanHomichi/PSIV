@@ -29,7 +29,7 @@ reference window is a whole completed route:
     psiv-campaign run rust/psiv-campaign/routes/main.json \
         --save-dir RUN --tape RUN/run.tape --report RUN/report.json
     verify_native_route.py --run-dir RUN --out OUT \
-        --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 16
+        --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 8
 
 `--continue-probes` is the other half: it loads each chapter save in a fresh
 Godot process through the ordinary title CONTINUE and requires the snapshot to

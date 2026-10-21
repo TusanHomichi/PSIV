@@ -23,8 +23,9 @@ import json
 import unittest
 from pathlib import Path
 
-from tools.native_rss import (FLOOR_FRAMES, GAP_LIMIT_FRAMES, PROBE_SAMPLES,
-                               PROBE_SETTLE_FRAMES, cadence_error, rss_verdict)
+from tools.native_rss import (DEFAULT_OBJECT_BOUND, FLOOR_FRAMES, GAP_LIMIT_FRAMES,
+                               PROBE_SAMPLES, PROBE_SETTLE_FRAMES, ROUTE_BOUND_MB,
+                               cadence_error, rss_verdict)
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAPTER14 = ROOT / "tests" / "native_rss_chapter14.json"
@@ -470,6 +471,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
             # The cache grew by exactly the object growth.
             item["cache_objects"] = 200 + (row[2] - 3000)
             item["cache_bytes"] = 0
+            item["cache_per_texture"] = 2
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["objects"]["growth"], 0)
@@ -484,6 +486,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         for item, objects, bytes_ in zip(recorded, caches, cache_bytes):
             item["cache_objects"] = objects
             item["cache_bytes"] = bytes_
+            item["cache_per_texture"] = 2
         return recorded
 
     def test_a_partial_cache_still_leaves_the_residual_leak(self):
@@ -492,7 +495,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         recorded = self.cached(rows, [200 + 20 * i for i in range(10)], [0] * 10)
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertFalse(verdict["objects"]["pass"], verdict)
-        self.assertGreater(verdict["objects"]["growth"], 256)
+        self.assertGreater(verdict["objects"]["growth"], 64)
         self.assertTrue(verdict["objects"]["outside_caches"])
 
     def test_a_mixed_sample_set_fails_rather_than_judging_raw(self):
@@ -501,6 +504,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         # The second sample is the first past warm-up, so it is in the field.
         recorded[1]["cache_objects"] = 200
         recorded[1]["cache_bytes"] = 0
+        recorded[1]["cache_per_texture"] = 2
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertFalse(verdict["pass"])
         self.assertIn("lack the named cache", verdict["reason"])
@@ -528,9 +532,87 @@ class NamedCachesInTheFloors(unittest.TestCase):
         self.assertTrue(verdict["objects"]["outside_caches"])
         self.assertTrue(verdict["godot_static"]["outside_caches"])
         self.assertEqual(verdict["object_drift"]["drift"], 0.0)
+        self.assertTrue(verdict["object_drift"]["outside_caches"])
+        self.assertTrue(verdict["static_drift"]["outside_caches"])
+
+    def test_a_basis_mismatch_fails(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_per_texture"] = 3
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("basis", verdict["reason"])
+
+    def test_a_boolean_cache_count_fails(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_objects"] = True
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("not an integer", verdict["reason"])
+
+    def test_cache_bytes_larger_than_static_memory_fail(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_bytes"] = int(recorded[1]["static_kb"] * 1024) + 1
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("exceed", verdict["reason"])
 
 
 if __name__ == "__main__":
     unittest.main()
 
 
+class TheMeasuredBounds(unittest.TestCase):
+    """#155: the bounds are the full route's measured no-leak values, so the
+    constants and the exact boundary are pinned here."""
+
+    def test_the_constants_are_the_measured_ones(self):
+        self.assertEqual(ROUTE_BOUND_MB, 8.0)
+        self.assertEqual(DEFAULT_OBJECT_BOUND, 64)
+
+    def test_the_static_bound_is_the_constant(self):
+        for rise, expected in ((8.0, True), (8.5, False)):
+            rows = [(250, 100, 3000, 1)] * 3 + [(250 + rise, 100 + rise, 3000, 1)] * 6
+            verdict = rss_verdict(samples(*rows), WARMUP, ROUTE_BOUND_MB,
+                                  DEFAULT_OBJECT_BOUND,
+                                  probes=bracket(start_static=100 + rise,
+                                                 end_static=100 + rise))
+            self.assertEqual(verdict["godot_static"]["pass"], expected, rise)
+            self.assertEqual(verdict["pass"], expected, rise)
+
+    def test_the_object_bound_is_the_constant(self):
+        for rise, expected in ((64, True), (65, False)):
+            rows = [(250, 100, 3000, 1)] * 3 + [(250, 100, 3000 + rise, 1)] * 6
+            verdict = rss_verdict(samples(*rows), WARMUP, ROUTE_BOUND_MB,
+                                  DEFAULT_OBJECT_BOUND, probes=bracket())
+            self.assertEqual(verdict["objects"]["pass"], expected, rise)
+
+
+class TheCacheBasis(unittest.TestCase):
+    """The samples, the start probe and the end probe must share the basis the
+    subtraction uses; a mismatch fails rather than masking a leak."""
+
+    def cached(self):
+        rows = [(250, 100, 3000 + 60 * i, 1) for i in range(10)]
+        recorded = samples(*rows)
+        for item in recorded:
+            item["cache_objects"] = 200
+            item["cache_bytes"] = 0
+            item["cache_per_texture"] = 2
+        return recorded
+
+    def test_the_probes_bases_must_match(self):
+        probes = bracket()
+        probes["end"]["objects_per_texture"] = 3
+        verdict = rss_verdict(self.cached(), WARMUP, 16, probes=probes)
+        self.assertFalse(verdict["pass"])
+        self.assertIn("bases differ", verdict["reason"])
+
+    def test_a_non_integer_sample_basis_fails_with_a_reason(self):
+        recorded = self.cached()
+        recorded[1]["cache_per_texture"] = [2]
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("basis", verdict["reason"])

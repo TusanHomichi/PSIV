@@ -233,8 +233,10 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--rss-bound-mb", type=float,
                          help="fail when memory grows more than this past warm-up (needs "
                               "--rss-every; see rss_verdict for what is measured)")
-    command.add_argument("--rss-object-bound", type=int, default=256,
-                         help="Godot object-count bound (tools/native_rss.py)")
+    command.add_argument("--rss-object-bound", type=int,
+                         default=native_rss.DEFAULT_OBJECT_BOUND,
+                         help="Godot object-count bound outside the named caches "
+                              "(tools/native_rss.py; measured default)")
     command.add_argument("--rss-probe-save", type=Path,
                          help="the save the memory bracket loads through the title's CONTINUE "
                               "before and after the tape (copied into the isolated slot "
