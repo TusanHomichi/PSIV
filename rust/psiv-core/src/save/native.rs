@@ -30,6 +30,9 @@ impl RetailSlot {
         let Some(slots) = slots else {
             return self;
         };
+        if slots.iter().all(Option::is_none) {
+            return self;
+        }
         let offset = RUST_SAVED_PARTY_OFFSET * 2 + 1;
         let bytes = slots.map(|slot| slot.map_or(CharId::EMPTY, |id| id.0));
         self.bytes[offset] = b'P';

@@ -233,9 +233,11 @@ pub struct Runtime {
     /// It is not saved, and each load routine consumes it the way the
     /// cartridge's tail does (`rust/psiv-runtime/src/map_change.rs`).
     map_load_flags: u8,
-    /// Retail's transient `Saved_Char_ID_Mem_1/_5` bridge. It is deliberately
-    /// outside `GameState` and SRAM: scenes use it between dispatches, while
-    /// the cartridge never exposes it as an ordinary save field.
+    /// Retail's transient `Saved_Char_ID_Mem_1/_5` bridge. It is outside
+    /// `GameState` and the SRAM payload: scenes use it between dispatches.
+    /// `slot_bytes` carries it in the native header while it is pending and
+    /// `slot_runtime` reads it back, so a CONTINUE between the scenes restores
+    /// the parked party.
     saved_party_slots: Option<[Option<CharId>; PARTY_SLOTS]>,
     /// An `Event_MoveCamera` pan in flight: target camera position in pixels
     /// and speed in px/frame. Ticked every frame until arrival, scene or not,

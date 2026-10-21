@@ -393,7 +393,7 @@ by the new records rather than hidden in runtime-specific scene names.
 `PanelCreate` and `PanelDestroy` carry the full retail panel word, not a byte;
 Dezo panels such as `$10D`, `$13F` and `$18F` are the proof cases. The saved
 party bridge is deliberately absent from `StateSnapshot`; the native save
-carries it while it is pending (`$F024..$F02B`), because retail's work RAM is
+carries it while it is pending (`$F026..$F02D`), because retail's work RAM is
 cleared at boot and a save between the scenes would otherwise restore five
 Chaz slots. The headless arc test asserts the party, flags,
 inventory, vehicles and equipment at each state-bearing edge.

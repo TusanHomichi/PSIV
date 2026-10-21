@@ -56,7 +56,8 @@ const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
 // cave (or Anger Tower top) scenes and a power-cycle CONTINUE restore a
 // corrupt party. This native header field carries the five slots with the
 // save; `None` writes nothing, so every other save keeps the retail zeroes.
-const RUST_SAVED_PARTY_OFFSET: usize = 0x24;
+// The field starts after the dungeon exit's `$F022..$F025`.
+const RUST_SAVED_PARTY_OFFSET: usize = 0x26;
 const LOCATION_WORLD_OFFSET: usize = 0x300;
 const LOCATION_MAP_2_OFFSET: usize = 0x302;
 const LOCATION_MAP_OFFSET: usize = 0x304;
@@ -792,16 +793,49 @@ mod tests {
                 .unwrap(),
             save
         );
-        // No bridge pending: nothing is written; a retail save's zeroed header
-        // reads None too.
+        // The exact layout: `P`, `S`, the five slots at the interleaved stride,
+        // and the complement of their sum.
+        let offset = RUST_SAVED_PARTY_OFFSET * 2 + 1;
+        assert_eq!(&encoded.as_bytes()[offset..offset + 2], b"P\0");
+        assert_eq!(encoded.as_bytes()[offset + 2], b'S');
+        let slots: Vec<u8> = (0..5)
+            .map(|index| encoded.as_bytes()[offset + 4 + index * 2])
+            .collect();
+        assert_eq!(slots, vec![0, 1, 2, 0xFF, 0xFF]);
+        let sum = slots.iter().fold(0_u8, |sum, byte| sum.wrapping_add(*byte));
+        assert_eq!(encoded.as_bytes()[offset + 14], !sum);
+        // It coexists with the dungeon exit just before it.
+        let both = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_dungeon_exit(7)
+            .with_saved_party_slots(Some(bridge));
+        assert_eq!(both.dungeon_exit(), Some(7));
+        assert_eq!(both.saved_party_slots(), Some(bridge));
+        // No bridge pending: nothing is written.
         let plain = RetailSlot::encode(&save, 0)
             .unwrap()
             .with_saved_party_slots(None);
         assert_eq!(plain.saved_party_slots(), None);
-        assert_eq!(plain.as_bytes()[RUST_SAVED_PARTY_OFFSET * 2 + 1], 0);
+        assert_eq!(plain.as_bytes()[offset], 0);
+        // An all-empty bridge writes nothing and reads None, so the writer
+        // never produces a field the reader refuses.
+        let empty = RetailSlot::encode(&save, 0)
+            .unwrap()
+            .with_saved_party_slots(Some([None; 5]));
+        assert_eq!(empty.as_bytes()[offset], 0);
+        assert_eq!(empty.saved_party_slots(), None);
+        // A retail save's zeroed header has no marker: None.
+        let mut retail = encoded.as_bytes().to_vec();
+        retail[offset..=offset + 14].fill(0);
+        assert_eq!(
+            RetailSlot::from_bytes(&retail, 0)
+                .unwrap()
+                .saved_party_slots(),
+            None
+        );
         // A damaged bridge is refused rather than guessed.
         let mut damaged = encoded.as_bytes().to_vec();
-        damaged[RUST_SAVED_PARTY_OFFSET * 2 + 1 + 4] ^= 0xFF;
+        damaged[offset + 4] ^= 0xFF;
         let damaged = RetailSlot::from_bytes(&damaged, 0).unwrap();
         assert_eq!(damaged.saved_party_slots(), None);
     }

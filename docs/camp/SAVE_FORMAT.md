@@ -68,7 +68,7 @@ fourth checksum-table word, the reserved one no visible slot uses; the payload
 checksum does not cover the header.
 
 The transient `Saved_Char_ID_Mem_1..5` bridge (`$FFFFED54..58`) is carried in
-native header space too: `$F024..$F02B` holds `P`, `S`, the five parked party
+native header space too, after the dungeon exit: `$F026..$F02D` holds `P`, `S`, the five parked party
 slots (`0..10`, `$FF` empty) and the complement of their sum, written only by a
 SAVE taken while a sleep scene has the party parked (the Elsydeon cave, the
 Anger Tower top). Every other save leaves the bytes zero, and a retail save —

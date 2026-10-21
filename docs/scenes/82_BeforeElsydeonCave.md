@@ -21,7 +21,7 @@ is excluded. ROM range: `$0784B6..$078584` exclusive end.
 
 `SavePartySlots` is the retail `Saved_Char_ID_Mem_1/_5` bridge. It does not
 enter `StateSnapshot`, but the native save carries it while it is pending
-(`$F024..$F02B`, [save format](../camp/SAVE_FORMAT.md),
+(`$F026..$F02D`, [save format](../camp/SAVE_FORMAT.md),
 [source note](../source-notes/saved-char-id-mem.md)): retail keeps it in work
 RAM, which boot clears, so a save between this scene and `Elsydeon` would
 otherwise restore five Chaz slots.

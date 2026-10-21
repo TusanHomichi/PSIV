@@ -8,11 +8,11 @@ between `Cutscene_BeforeElsydeonCave` and `Cutscene_Elsydeon`
 ## What retail does
 
 - `Cutscene_BeforeElsydeonCave` (`ps4.asm:157427`) copies the live party slots
-  into `Saved_Char_ID_Mem_1..5` (`:157451-157455`: one longword plus slot 5),
-  then writes `#(CharID_Chaz<<24)|$FFFFFF` and `#$FF` into the live slots, so
-  the scene continues with Chaz alone.
+  into `Saved_Char_ID_Mem_1..5` (`:157451-157452`: one longword plus slot 5),
+  then writes `#(CharID_Chaz<<24)|$FFFFFF` and `#$FF` into the live slots
+  (`:157453-157454`), so the scene continues with Chaz alone.
 - `Cutscene_Elsydeon` (`:157468`) copies the five bytes back into the party
-  slots (`:157747-157749`). `Event_AngerTowerTop` and
+  slots (`:157747-157748`). `Event_AngerTowerTop` and
   `Event_AngerTowerExitTop` do the same, which is why #148 covers both scenes.
 - The bridge lives in work RAM, outside the SRAM payload: `TransferToSRAM`
   copies `$F100..$FB00` only ([save format](../camp/SAVE_FORMAT.md);
@@ -25,10 +25,13 @@ between `Cutscene_BeforeElsydeonCave` and `Cutscene_Elsydeon`
   `ps4.asm:120885`, counts to `$FF`). The field's zeroed bytes restore as
   **five Chaz slots** — a corrupted party, not a sensible one.
 - The cartridge oracle run (save between the scenes, power-cycle, CONTINUE,
-  capture the five slots before and after) was not performed in this checkout:
-  the repository holds the disassembly and the built packs, but no emulator or
-  ROM harness. The static reading fixes the outcome above; a future oracle run
-  should be recorded here.
+  capture the five slots before and after) was not performed. The harness
+  exists and is tracked (`oracle/`, the Genesis Plus GX host with
+  `--load-sram`/`--dump-ram`, `oracle/README.md`), and the ROM is local; what
+  does not exist is a tape or savestate that starts between these scenes and
+  reaches `Cutscene_Elsydeon`, and authoring one was outside this fix. The
+  static reading above (boot clear → zeroed bridge → five Chaz slots) fixes the
+  outcome; a future oracle run should be recorded here.
 
 ## The port's deviation
 
@@ -42,7 +45,7 @@ A SAVE is reachable between the scenes: both leave the player on the field
 with the camp menu, so a player can save there and power off. Retail then
 corrupts the party. The port now **deliberately fixes** that window: every SAVE
 taken while the bridge is pending carries the five slots in the common header's
-unused native space (`$F024..$F02B`: `P`, `S`, the five slot bytes, the
+header space after the dungeon exit (`$F026..$F02D`: `P`, `S`, the five slot bytes, the
 complement of their sum — [save format](../camp/SAVE_FORMAT.md)). A CONTINUE
 between the scenes restores the parked party. Saves outside the bridge write
 nothing (the header keeps retail's zeroes); a retail save has no marker, reads
