@@ -287,7 +287,13 @@ every chapter save and fails on any halt
 `rust/psiv-campaign/routes/resume_manifest.json` does not list (each entry an
 issue link and a date) and on a listed halt that no longer occurs
 ([the rule](campaign/CAMPAIGN_RUNNER.md#the-runner); its headless resumes run in
-parallel and take no lock); then certify, which takes the shared heavy lock
+parallel and take no lock); then the closed-issue deferral check,
+`python3 tools/check_issue_refs.py --cache <receipt dir>/issue-states.json`,
+which asks `gh` for the issue states in one cached call and fails on a
+statement that still defers to a closed issue (an `until #N` or `tracked in #N`
+sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
+deferral phrase and is not reported, and without `gh` it reports skipped rather
+than passed; then certify, which takes the shared heavy lock
 itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a

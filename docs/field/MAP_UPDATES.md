@@ -1,6 +1,8 @@
 # Per-frame map updates
 
-Tracking: [Issue #41](https://github.com/TusanHomichi/PSIV/issues/41).
+The dispatcher is implemented: the extractor decodes the tables and the runtime
+applies them; the routines the runtime cannot represent yet are listed under
+[missing modeled inputs](#missing-modeled-inputs).
 
 The retail `RunMapUpdates` dispatcher is `$05493A`; its `MapUpdateJmpTbl`
 is `$054972`, 64 `bra.w` entries. Every real map carries an ordered byte
@@ -201,7 +203,7 @@ recoloring is not claimed by these composed-map captures.
 
 `psiv-data` rejects malformed recipes/table bounds and missing 64-word palette
 shadows when updates are present. Legacy packs with no key retain their old
-behavior. A new pack is required to enable #41.
+behavior. A new pack is required to enable the map updates.
 
 ## Verification and fixture limits
 
