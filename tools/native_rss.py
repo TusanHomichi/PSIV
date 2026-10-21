@@ -28,10 +28,12 @@ first, so the bracket judges only what nothing names.
 
 Between the probes, the samples taken on the open field (`activity ==
 "field"`) are compared per map across visits, as a diagnostic that still fails
-on a breach. Even there a map refresh can briefly hold two copies of the map's
-images (n92 map 208, +20.3 MB for one sample at 2,500-frame cadence), so each
-map's field samples are judged on floors: the minimum over the last
-`FLOOR_FRAMES` frames of field time observed on that map. A persistent leak
+on a breach. Each sample's named caches are subtracted first, as the probes'
+are, so a cache that fills on first use (the field sprite-sheet cache grows
+with the route) is not read as a leak. Even there a map refresh can briefly
+hold two copies of the map's images (n92 map 208, +20.3 MB for one sample at
+2,500-frame cadence), so each map's field samples are judged on floors: the
+minimum over the last `FLOOR_FRAMES` frames of field time observed on that map. A persistent leak
 raises every later floor; a field transient shorter than the window cannot
 raise any. A route's brief late visits leave stretches no map's floors can see
 (`coverage_gaps`); the bracket covers them, so coverage is reported.
@@ -379,7 +381,10 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     - `godot_static`: on each map, the highest field floor (`map_floors`) may
       not exceed the map's first floor by more than `bound_mb`: a breach is a
       leak signal mid-run, though a map floored nowhere cannot breach.
-    - `objects`: the same for Godot's object count, bounded by `object_bound`.
+    - `objects`: the same for Godot's object count outside the named caches,
+      bounded by `object_bound`. Each sample's cache objects are subtracted
+      first, so a cache filling on first use is not read as a leak; samples
+      recorded before the driver counted caches are judged raw.
 
     Reported, with `within_bound`/`within_limit` for the reader:
 
@@ -430,7 +435,14 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     rust_growth = peak_rust["rust_kb"] - baseline["rust_kb"]
     field = [item for item in measured if item["activity"] == FIELD]
     floors, short = map_floors(field, window, "static_kb")
-    object_floors, _ = map_floors(field, window, "objects")
+    # The named caches fill on first use by design; the per-map object floors
+    # judge what nothing names, as the bracket probes subtract them. Samples
+    # recorded before the driver counted caches carry none and are judged raw.
+    named = bool(field) and all("cache_objects" in item for item in field)
+    if named:
+        for item in field:
+            item["objects_unnamed"] = max(0, item["objects"] - item["cache_objects"])
+    object_floors, _ = map_floors(field, window, "objects_unnamed" if named else "objects")
     maps = growth(floors, object_floors, window, mb)
     unjudged = {str(map_id): f"{count} field sample(s) past warm-up, fewer than {window}"
                 for map_id, count in short.items()}

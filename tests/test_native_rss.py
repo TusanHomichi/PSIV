@@ -456,3 +456,28 @@ class Inputs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NamedCachesInTheFloors(unittest.TestCase):
+    """The per-map object floors judge growth outside the named caches, the
+    way the bracket probes do: a cache that fills on first use (the field
+    sprite-sheet cache grows with the route) is not a leak."""
+
+    def rows(self, count=10, step=60):
+        # One map, objects climbing 60 per sample; 300 over the window.
+        return [(250, 100, 3000 + index * step, 1) for index in range(count)]
+
+    def test_a_filling_named_cache_is_not_a_leak(self):
+        rows = self.rows()
+        recorded = samples(*rows)
+        for item, row in zip(recorded, rows):
+            # The cache grew by exactly the object growth.
+            item["cache_objects"] = 200 + (row[2] - 3000)
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertEqual(verdict["objects"]["growth"], 0)
+
+    def test_the_same_growth_without_cache_counts_fails(self):
+        verdict = rss_verdict(samples(*self.rows()), WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["objects"]["pass"], verdict)
+        self.assertEqual(verdict["objects"]["growth"], 300)
