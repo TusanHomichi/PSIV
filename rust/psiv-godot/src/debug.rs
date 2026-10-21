@@ -128,6 +128,7 @@ impl Field {
     /// The shell's first-use caches by name (`named_caches.rs`), as JSON:
     /// `{name: {entries, objects, bytes, ceiling}}`. Empty unless
     /// `PSIV_NATIVE_TAPE=1`.
+    /// JSON: `{name: {entries, textures, nodes, other_objects, bytes, ceiling}}`.
     pub(super) fn named_caches_probe(&self) -> GString {
         if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
             return GString::new();

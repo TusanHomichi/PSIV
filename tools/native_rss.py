@@ -28,10 +28,12 @@ first, so the bracket judges only what nothing names.
 
 Between the probes, the samples taken on the open field (`activity ==
 "field"`) are compared per map across visits, as a diagnostic that still fails
-on a breach. Even there a map refresh can briefly hold two copies of the map's
-images (n92 map 208, +20.3 MB for one sample at 2,500-frame cadence), so each
-map's field samples are judged on floors: the minimum over the last
-`FLOOR_FRAMES` frames of field time observed on that map. A persistent leak
+on a breach. Each sample's named caches are subtracted first, as the probes'
+are, so a cache that fills on first use (the field sprite-sheet cache grows
+with the route) is not read as a leak. Even there a map refresh can briefly
+hold two copies of the map's images (n92 map 208, +20.3 MB for one sample at
+2,500-frame cadence), so each map's field samples are judged on floors: the
+minimum over the last `FLOOR_FRAMES` frames of field time observed on that map. A persistent leak
 raises every later floor; a field transient shorter than the window cannot
 raise any. A route's brief late visits leave stretches no map's floors can see
 (`coverage_gaps`); the bracket covers them, so coverage is reported.
@@ -379,7 +381,10 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     - `godot_static`: on each map, the highest field floor (`map_floors`) may
       not exceed the map's first floor by more than `bound_mb`: a breach is a
       leak signal mid-run, though a map floored nowhere cannot breach.
-    - `objects`: the same for Godot's object count, bounded by `object_bound`.
+    - `objects`: the same for Godot's object count outside the named caches,
+      bounded by `object_bound`. Each sample's cache objects are subtracted
+      first, so a cache filling on first use is not read as a leak; samples
+      recorded before the driver counted caches are judged raw.
 
     Reported, with `within_bound`/`within_limit` for the reader:
 
@@ -429,8 +434,31 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     peak_rust = max(measured, key=lambda item: item["rust_kb"])
     rust_growth = peak_rust["rust_kb"] - baseline["rust_kb"]
     field = [item for item in measured if item["activity"] == FIELD]
-    floors, short = map_floors(field, window, "static_kb")
-    object_floors, _ = map_floors(field, window, "objects")
+    # The named caches fill on first use by design; the per-map floors judge
+    # what nothing names, as the bracket probes subtract objects and bytes.
+    # Samples recorded before the driver counted caches carry none and are
+    # judged raw; a mixed set is a driver fault, not a judgement.
+    present = [item for item in field if "cache_objects" in item or "cache_bytes" in item]
+    if present and len(present) != len(field):
+        verdict.update({"pass": False,
+                        "reason": "some field samples lack the named cache counts"})
+        return verdict
+    named = bool(field) and len(present) == len(field)
+    if named:
+        for item in field:
+            if (not isinstance(item.get("cache_objects"), int)
+                    or not isinstance(item.get("cache_bytes"), int)):
+                verdict.update({"pass": False,
+                                "reason": "a named cache count is not an integer"})
+                return verdict
+            item["objects_unnamed"] = item["objects"] - item["cache_objects"]
+            item["static_unnamed_kb"] = item["static_kb"] - item["cache_bytes"] / 1024
+            if item["objects_unnamed"] < 0 or item["static_unnamed_kb"] < 0:
+                verdict.update({"pass": False,
+                                "reason": "a sample's named caches exceed its objects or static memory"})
+                return verdict
+    floors, short = map_floors(field, window, "static_unnamed_kb" if named else "static_kb")
+    object_floors, _ = map_floors(field, window, "objects_unnamed" if named else "objects")
     maps = growth(floors, object_floors, window, mb)
     unjudged = {str(map_id): f"{count} field sample(s) past warm-up, fewer than {window}"
                 for map_id, count in short.items()}
@@ -468,11 +496,12 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         "godot_static": {"worst_map": worst_static[0],
                          "growth_mb": worst_static[1]["static_growth_mb"],
                          "floor_frame": worst_static[1]["static_peak_floor_frame"],
-                         "maps_judged": len(maps),
+                         "maps_judged": len(maps), "outside_caches": named,
                          "pass": all(value["static_growth_mb"] <= bound_mb
                                      for value in maps.values())},
         "objects": {"worst_map": worst_objects[0], "growth": worst_objects[1]["object_growth"],
                     "floor_frame": worst_objects[1]["object_peak_floor_frame"],
+                    "outside_caches": named,
                     "pass": all(value["object_growth"] <= object_bound
                                 for value in maps.values())},
         "static_drift": {"floors_pooled": static_pooled,

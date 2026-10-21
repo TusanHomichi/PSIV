@@ -29,6 +29,9 @@ var replay_started_ms := 0
 # process's VmRSS is recorded, so a long replay shows whether memory stays flat.
 var rss_every := 0
 var rss_samples: Array = []
+# One texture's object count, measured once by `_objects_per_texture`; the
+# per-sample named-cache objects are computed from it.
+var per_texture_cached := 0
 # The memory bracket (#92, tools/native_rss.py): before the tape and after it,
 # in this same process, the probe save in PSIV_TAPE_PROBE_SLOT is loaded
 # through the title's CONTINUE, left to settle on the open field and sampled.
@@ -277,6 +280,27 @@ func _objects_per_texture() -> int:
     texture = null
     return per_texture
 
+# The shell's named caches and pools, as Godot objects and bytes: each cache's
+# textures (one object each in this engine) plus its nodes and other objects.
+# The verdict subtracts both from every sample, as the bracket probes do, so a
+# cache filling on first use is not read as a leak. Empty when the accessor is
+# unavailable; that fails the verdict on the probe, not silently here.
+func _cache_totals() -> Dictionary:
+    if per_texture_cached <= 0:
+        per_texture_cached = _objects_per_texture()
+    var caches = JSON.parse_string(str(game.debug_named_caches()))
+    if typeof(caches) != TYPE_DICTIONARY:
+        return {}
+    var objects := 0
+    var bytes := 0
+    for cache in caches.values():
+        if typeof(cache) != TYPE_DICTIONARY:
+            return {}
+        objects += int(cache.get("textures", 0)) * per_texture_cached \
+                + int(cache.get("nodes", 0)) + int(cache.get("other_objects", 0))
+        bytes += int(cache.get("bytes", 0))
+    return {"objects": objects, "bytes": bytes, "per_texture": per_texture_cached}
+
 # The extension's counted heap (rust_heap.rs): live bytes, live allocations,
 # allocations ever made. Left out when the accessor is unavailable, which
 # fails the verdict.
@@ -437,6 +461,11 @@ func _sample_rss() -> void:
             "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
             "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))}
     _add_rust_heap(sample)
+    var caches := _cache_totals()
+    if not caches.is_empty():
+        sample["cache_objects"] = caches["objects"]
+        sample["cache_bytes"] = caches["bytes"]
+        sample["cache_per_texture"] = caches["per_texture"]
     var state = JSON.parse_string(str(game.debug_play_state()))
     if typeof(state) == TYPE_DICTIONARY and state.has("map") and state["map"] != null:
         sample["map"] = int(state["map"])

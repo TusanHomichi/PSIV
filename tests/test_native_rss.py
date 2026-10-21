@@ -454,5 +454,83 @@ class Inputs(unittest.TestCase):
             self.assertIn("unreadable", verdict["reason"])
 
 
+class NamedCachesInTheFloors(unittest.TestCase):
+    """The per-map object floors judge growth outside the named caches, the
+    way the bracket probes do: a cache that fills on first use (the field
+    sprite-sheet cache grows with the route) is not a leak."""
+
+    def rows(self, count=10, step=60):
+        # One map, objects climbing 60 per sample; 300 over the window.
+        return [(250, 100, 3000 + index * step, 1) for index in range(count)]
+
+    def test_a_filling_named_cache_is_not_a_leak(self):
+        rows = self.rows()
+        recorded = samples(*rows)
+        for item, row in zip(recorded, rows):
+            # The cache grew by exactly the object growth.
+            item["cache_objects"] = 200 + (row[2] - 3000)
+            item["cache_bytes"] = 0
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertEqual(verdict["objects"]["growth"], 0)
+
+    def test_the_same_growth_without_cache_counts_fails(self):
+        verdict = rss_verdict(samples(*self.rows()), WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["objects"]["pass"], verdict)
+        self.assertEqual(verdict["objects"]["growth"], 300)
+
+    def cached(self, rows, caches, cache_bytes):
+        recorded = samples(*rows)
+        for item, objects, bytes_ in zip(recorded, caches, cache_bytes):
+            item["cache_objects"] = objects
+            item["cache_bytes"] = bytes_
+        return recorded
+
+    def test_a_partial_cache_still_leaves_the_residual_leak(self):
+        # Objects climb 100/sample; the cache 20/sample: 400 over the floors.
+        rows = self.rows(count=10, step=100)
+        recorded = self.cached(rows, [200 + 20 * i for i in range(10)], [0] * 10)
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["objects"]["pass"], verdict)
+        self.assertGreater(verdict["objects"]["growth"], 256)
+        self.assertTrue(verdict["objects"]["outside_caches"])
+
+    def test_a_mixed_sample_set_fails_rather_than_judging_raw(self):
+        rows = self.rows()
+        recorded = samples(*rows)
+        # The second sample is the first past warm-up, so it is in the field.
+        recorded[1]["cache_objects"] = 200
+        recorded[1]["cache_bytes"] = 0
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("lack the named cache", verdict["reason"])
+
+    def test_caches_larger_than_the_objects_fail(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [3000 + 2000 * i for i in range(10)], [0] * 10)
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("exceed", verdict["reason"])
+
+    def test_the_static_floors_subtract_the_cache_bytes(self):
+        # Static climbs 10 MB/sample (raw would fail); the cache holds it all.
+        rows = [(100 + 10 * i + 150, 100 + 10 * i, 3000, 1) for i in range(10)]
+        recorded = self.cached(rows, [200] * 10, [10 * i * 1024 * 1024 for i in range(10)])
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertEqual(verdict["godot_static"]["growth_mb"], 0.0)
+        self.assertTrue(verdict["godot_static"]["outside_caches"])
+
+    def test_the_positive_case_labels_both_floors_outside_caches(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200 + (row[2] - 3000) for row in rows], [0] * 10)
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertTrue(verdict["objects"]["outside_caches"])
+        self.assertTrue(verdict["godot_static"]["outside_caches"])
+        self.assertEqual(verdict["object_drift"]["drift"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
