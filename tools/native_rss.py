@@ -48,12 +48,16 @@ and 5,434 battles, 6,260,544 frames, replayed natively with no leak measured:
 live Rust bytes +0.2 MB (slope 0.0), Godot static outside the named caches
 +4.4 MB at the bracket and +4.0 MB at the worst per-map floor, objects outside
 the caches +6 at the bracket and +3 per map, object drift 0.1. The bound
-(`--rss-bound-mb`, `DEFAULT_BOUND_MB` = 8) leaves about twice the worst
-measured static growth and catches a leak of about 1.5 KB of live Rust bytes
-or static memory per battle (about 100 KB per chapter); `DEFAULT_OBJECT_BOUND`
-= 64 leaves about ten times the measured residual and catches one object
-leaked per 85 battles. Over a one-chapter smoke the same bounds only catch
-leaks dozens of times larger, so the full route is the check that closes #92.
+(`--rss-bound-mb`, `ROUTE_BOUND_MB` = 8) leaves about twice the worst
+measured static growth. Over the route's 5,434 battles the 8 MB bound is
+about 1.5 KB per battle; past the measured 4.4 MB static bracket the headroom
+is 3.6 MB, about 0.66 KB per battle. Static is the binding term: the live-Rust
+term's measured growth is 0.2 MB (slope 0.0), forty times inside the shared
+bound, and its per-sample variation is what the `rust_heap` slope check adds.
+`DEFAULT_OBJECT_BOUND` = 64 leaves about ten times the measured residual and
+catches one object leaked per 85 battles; the old 256 over 5,434 battles was
+one per 21. Over a one-chapter smoke the same bounds only catch leaks dozens
+of times larger, so the full route is the check that closes #92.
 Both are measured on a route with no leak (#155); a future host whose
 no-leak variation exceeds them should widen them with its own measurement.
 
@@ -70,11 +74,11 @@ import math
 # stands for one `--rss-every` interval, so a window is
 # FLOOR_FRAMES / cadence consecutive field samples on the map). Measured on
 # n92's whole route with activity tags recovered from a headless replay
-# (2026-10-16): every field excursion larger than 12 MB lasts one 2,500-frame
-# sample (map 208's map-refresh +20.3 MB); excursions of 5 to 12 MB last up to
-# 27,500 frames (overworld states) and survive any window short enough to
-# judge brief visits, under the 16 MB bound. 10,000 frames is four times the
-# longest excursion that approaches the bound.
+# (2026-10-16): a map refresh is a one-sample transient (map 208's +20.3 MB at
+# 2,500-frame cadence), so a 4-sample window floors over it. Longer overworld
+# state changes are why a map is compared only with itself; the full route's
+# worst outside-cache static floor is 4.0 MB against the 8 MB bound, and its
+# named-cache growth is subtracted before the floor.
 FLOOR_FRAMES = 10_000
 
 # The longest stretch of the window (head, between two compared spans, or
@@ -277,19 +281,21 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     if any(cache is None for cache in caches):
         return None, "a sample without its named caches"
     per_texture = probe.get("objects_per_texture")
-    if not isinstance(per_texture, int) or per_texture < 1:
+    if type(per_texture) is not int or per_texture < 1:
         return None, "no measured objects per texture"
     for item_caches in caches:
         for cache in item_caches.values():
             cache["objects"] = (cache["textures"] * per_texture + cache["nodes"]
                                 + cache["other_objects"])
     floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS + ("orphan_nodes",)}
-    floor["objects_outside_caches"] = min(
-        item["objects"] - sum(cache["objects"] for cache in item_caches.values())
-        for item, item_caches in zip(samples, caches))
-    floor["static_outside_caches_kb"] = min(
-        item["static_kb"] - sum(cache["bytes"] for cache in item_caches.values()) / 1024
-        for item, item_caches in zip(samples, caches))
+    outside = [item["objects"] - sum(cache["objects"] for cache in item_caches.values())
+               for item, item_caches in zip(samples, caches)]
+    outside_kb = [item["static_kb"] - sum(cache["bytes"] for cache in item_caches.values()) / 1024
+                  for item, item_caches in zip(samples, caches)]
+    if any(value < 0 for value in outside) or any(value < 0 for value in outside_kb):
+        return None, "a probe's named caches exceed its objects or static memory"
+    floor["objects_outside_caches"] = min(outside)
+    floor["static_outside_caches_kb"] = min(outside_kb)
     floor["rust_live_kb"] = min(item["rust_live_bytes"] for item in samples) / 1024
     # Reported only: what RSS holds beyond Godot's static memory and the live
     # Rust heap (the allocators' retained pages, stacks, mapped code).
@@ -363,9 +369,11 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
         and all(cache["pass"] for cache in caches.values())}
 
 
-#: The static/Rust-growth bound over a whole route, in MB: twice the worst
-#: measured no-leak static growth on the full 84-chapter route (#155).
-DEFAULT_BOUND_MB = 8.0
+#: The static/Rust-growth bound over a whole route, in MB: about twice the
+#: worst measured no-leak static growth on the full 84-chapter route (#155).
+#: Static is the binding term; the live-Rust term's measured 0.2 MB sits far
+#: inside it (see the module note).
+ROUTE_BOUND_MB = 8.0
 #: Objects outside the named caches: ten times the measured no-leak residual
 #: (6 at the bracket, 3 per map) on the full route (#155).
 DEFAULT_OBJECT_BOUND = 64
@@ -470,15 +478,21 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                                 "reason": "a sample's named caches exceed its objects or static memory"})
                 return verdict
     if named:
-        probe_basis = None
-        if isinstance(probes, dict) and isinstance(probes.get("start"), dict):
-            probe_basis = probes["start"].get("objects_per_texture")
-        basis = {item.get("cache_per_texture") for item in field}
-        if isinstance(probe_basis, int) and basis != {probe_basis}:
+        start = (probes or {}).get("start") if isinstance(probes, dict) else None
+        end = (probes or {}).get("end") if isinstance(probes, dict) else None
+        start_basis = start.get("objects_per_texture") if isinstance(start, dict) else None
+        end_basis = end.get("objects_per_texture") if isinstance(end, dict) else None
+        if (type(start_basis) is int and type(end_basis) is int
+                and start_basis != end_basis):
+            verdict.update({"pass": False,
+                            "reason": f"the probes' cache bases differ ({start_basis} vs {end_basis})"})
+            return verdict
+        probe_basis = start_basis if type(start_basis) is int else end_basis
+        basis = [item.get("cache_per_texture") for item in field]
+        if type(probe_basis) is int and any(value != probe_basis for value in basis):
             verdict.update({
                 "pass": False,
-                "reason": f"the per-sample cache basis {sorted(str(value) for value in basis)} "
-                          f"differs from the probe's {probe_basis}"})
+                "reason": f"a sample's cache basis differs from the probe's {probe_basis}: {basis}"})
             return verdict
     floors, short = map_floors(field, window, "static_unnamed_kb" if named else "static_kb")
     object_floors, _ = map_floors(field, window, "objects_unnamed" if named else "objects")
