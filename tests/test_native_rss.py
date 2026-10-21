@@ -470,6 +470,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
             # The cache grew by exactly the object growth.
             item["cache_objects"] = 200 + (row[2] - 3000)
             item["cache_bytes"] = 0
+            item["cache_per_texture"] = 2
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["objects"]["growth"], 0)
@@ -484,6 +485,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         for item, objects, bytes_ in zip(recorded, caches, cache_bytes):
             item["cache_objects"] = objects
             item["cache_bytes"] = bytes_
+            item["cache_per_texture"] = 2
         return recorded
 
     def test_a_partial_cache_still_leaves_the_residual_leak(self):
@@ -492,7 +494,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         recorded = self.cached(rows, [200 + 20 * i for i in range(10)], [0] * 10)
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertFalse(verdict["objects"]["pass"], verdict)
-        self.assertGreater(verdict["objects"]["growth"], 256)
+        self.assertGreater(verdict["objects"]["growth"], 64)
         self.assertTrue(verdict["objects"]["outside_caches"])
 
     def test_a_mixed_sample_set_fails_rather_than_judging_raw(self):
@@ -501,6 +503,7 @@ class NamedCachesInTheFloors(unittest.TestCase):
         # The second sample is the first past warm-up, so it is in the field.
         recorded[1]["cache_objects"] = 200
         recorded[1]["cache_bytes"] = 0
+        recorded[1]["cache_per_texture"] = 2
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertFalse(verdict["pass"])
         self.assertIn("lack the named cache", verdict["reason"])
@@ -528,9 +531,33 @@ class NamedCachesInTheFloors(unittest.TestCase):
         self.assertTrue(verdict["objects"]["outside_caches"])
         self.assertTrue(verdict["godot_static"]["outside_caches"])
         self.assertEqual(verdict["object_drift"]["drift"], 0.0)
+        self.assertTrue(verdict["object_drift"]["outside_caches"])
+        self.assertTrue(verdict["static_drift"]["outside_caches"])
+
+    def test_a_basis_mismatch_fails(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_per_texture"] = 3
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("basis", verdict["reason"])
+
+    def test_a_boolean_cache_count_fails(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_objects"] = True
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("not an integer", verdict["reason"])
+
+    def test_cache_bytes_larger_than_static_memory_fail(self):
+        rows = self.rows()
+        recorded = self.cached(rows, [200] * 10, [0] * 10)
+        recorded[1]["cache_bytes"] = int(recorded[1]["static_kb"] * 1024) + 1
+        verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
+        self.assertFalse(verdict["pass"])
+        self.assertIn("exceed", verdict["reason"])
 
 
 if __name__ == "__main__":
     unittest.main()
-
-

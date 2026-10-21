@@ -43,15 +43,19 @@ allocator (`rust/psiv-godot/src/rust_heap.rs`, always on) reports live Rust
 bytes. RSS minus Godot static is reported as an unjudged residual, because
 the system allocator keeps freed pages.
 
-What the bounds mean, in events. The campaign route is about 3,800 battles
-and 62 chapters. 16 MB (`--rss-bound-mb`) over a whole route catches a leak
-of about 4 KB of live Rust bytes or of Godot static memory per battle (about
-260 KB per chapter); 256 objects catches one object leaked per 15 battles (4
-per chapter). Over a one-chapter smoke the same bounds only catch leaks
-dozens of times larger, so the full route is the check that closes #92. Both
-bounds are provisional: the object bound tightens once a full replay reports
-its residual outside the named caches, and the live-Rust bound once it reports
-how much live bytes vary on a route with no leak (#92).
+What the bounds mean, in events. The full route (2026-10-21) is 84 chapters
+and 5,434 battles, 6,260,544 frames, replayed natively with no leak measured:
+live Rust bytes +0.2 MB (slope 0.0), Godot static outside the named caches
++4.4 MB at the bracket and +4.0 MB at the worst per-map floor, objects outside
+the caches +6 at the bracket and +3 per map, object drift 0.1. The bound
+(`--rss-bound-mb`, `DEFAULT_BOUND_MB` = 8) leaves about twice the worst
+measured static growth and catches a leak of about 1.5 KB of live Rust bytes
+or static memory per battle (about 100 KB per chapter); `DEFAULT_OBJECT_BOUND`
+= 64 leaves about ten times the measured residual and catches one object
+leaked per 85 battles. Over a one-chapter smoke the same bounds only catch
+leaks dozens of times larger, so the full route is the check that closes #92.
+Both are measured on a route with no leak (#155); a future host whose
+no-leak variation exceeds them should widen them with its own measurement.
 
 Godot reports static memory only in debug builds (`MEMORY_STATIC` is 0 under
 a release template, which would make the static terms meaningless), so the
@@ -359,8 +363,16 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
         and all(cache["pass"] for cache in caches.values())}
 
 
+#: The static/Rust-growth bound over a whole route, in MB: twice the worst
+#: measured no-leak static growth on the full 84-chapter route (#155).
+DEFAULT_BOUND_MB = 8.0
+#: Objects outside the named caches: ten times the measured no-leak residual
+#: (6 at the bracket, 3 per map) on the full route (#155).
+DEFAULT_OBJECT_BOUND = 64
+
+
 def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
-                object_bound: int = 256, floor_frames: int = FLOOR_FRAMES,
+                object_bound: int = DEFAULT_OBJECT_BOUND, floor_frames: int = FLOOR_FRAMES,
                 gap_limit_frames: int = GAP_LIMIT_FRAMES, probes: dict | None = None) -> dict:
     """Memory after warm-up stays bounded (#92). Four parts are judged over the
     window from the first sample at or past `warmup_frames` to the last, and
@@ -446,8 +458,8 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
     named = bool(field) and len(present) == len(field)
     if named:
         for item in field:
-            if (not isinstance(item.get("cache_objects"), int)
-                    or not isinstance(item.get("cache_bytes"), int)):
+            if (type(item.get("cache_objects")) is not int
+                    or type(item.get("cache_bytes")) is not int):
                 verdict.update({"pass": False,
                                 "reason": "a named cache count is not an integer"})
                 return verdict
@@ -457,6 +469,17 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                 verdict.update({"pass": False,
                                 "reason": "a sample's named caches exceed its objects or static memory"})
                 return verdict
+    if named:
+        probe_basis = None
+        if isinstance(probes, dict) and isinstance(probes.get("start"), dict):
+            probe_basis = probes["start"].get("objects_per_texture")
+        basis = {item.get("cache_per_texture") for item in field}
+        if isinstance(probe_basis, int) and basis != {probe_basis}:
+            verdict.update({
+                "pass": False,
+                "reason": f"the per-sample cache basis {sorted(str(value) for value in basis)} "
+                          f"differs from the probe's {probe_basis}"})
+            return verdict
     floors, short = map_floors(field, window, "static_unnamed_kb" if named else "static_kb")
     object_floors, _ = map_floors(field, window, "objects_unnamed" if named else "objects")
     maps = growth(floors, object_floors, window, mb)
@@ -504,13 +527,13 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                     "outside_caches": named,
                     "pass": all(value["object_growth"] <= object_bound
                                 for value in maps.values())},
-        "static_drift": {"floors_pooled": static_pooled,
+        "static_drift": {"floors_pooled": static_pooled, "outside_caches": named,
                          "rate_kb_per_kframe": round(static_rate * 1000, 2)
                          if static_rate is not None else None,
                          "drift_mb": mb(static_drift) if static_drift is not None else None,
                          "within_bound": static_drift is not None
                          and static_drift / 1024 <= bound_mb},
-        "object_drift": {"floors_pooled": object_pooled,
+        "object_drift": {"floors_pooled": object_pooled, "outside_caches": named,
                          "rate_per_kframe": round(object_rate * 1000, 3)
                          if object_rate is not None else None,
                          "drift": round(object_drift, 1) if object_drift is not None else None,
