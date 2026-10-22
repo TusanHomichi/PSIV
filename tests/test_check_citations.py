@@ -170,6 +170,18 @@ class Citations(unittest.TestCase):
         self.assertIn(f"{ASM}:4-999oops is not a line citation", mismatches[0])
         self.assertIn("Routine is at line 1-3, not ps4.asm:4-5", mismatches[1])
 
+    def test_a_citation_must_be_its_whole_token(self):
+        # Every malformed tail fails, compact ones included; a range split
+        # across lines fails; an open end and a full stop are read.
+        bad = ["4-abc", "4..abc", "4/999oops", "4-"]
+        compact = ":" + "999oops"  # split, so this file's own scan passes it
+        doc = "".join(f"{{asm}}:{tail}\n" for tail in bad) + f"{{asm}}:4+ and `{compact}`.\n"
+        mismatches, summary = self.check(doc + "See {asm}:4.\n")
+        self.assertEqual([m.split(": ", 1)[1] for m in mismatches],
+                         [f"{ASM}:{tail} is not a line citation" for tail in bad]
+                         + [f"{compact} is not a line citation"])
+        self.assertIn("5 mismatch(es)", summary)
+
     def test_a_dotted_range_is_read_whole(self):
         mismatches, _ = self.check("`Other` ({asm}:4..6)\n`Routine`, {asm}:1..3\n")
         self.assertEqual(len(mismatches), 1)

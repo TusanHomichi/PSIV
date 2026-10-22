@@ -452,8 +452,8 @@ exactly once in the image and immediately after the listing's lines for them:
 3F 4E 40` (the battle-load wipe) at `$006A38`.
 
 The save path does not touch it. `TransferToSRAM` writes a fixed block -
-`Event_Flags` through `Vehicle_Stats`, `$27F+1` longwords, `ps4.asm:134830-
-134849` - and that block starts at `$FFFFF100` (`constants:2362`) and ends at
+`Event_Flags` through `Vehicle_Stats`, `$27F+1` longwords,
+`ps4.asm:134830-134849` - and that block starts at `$FFFFF100` (`constants:2362`) and ends at
 `$FFFFFAFF`. `$FFFFEEA8` is below it, so the word is neither saved nor restored
 and a continue starts from whatever the boot clear left, which is zero. That
 reading is from the bytes rather than from a measurement: the tapes here never

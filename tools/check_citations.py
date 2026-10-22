@@ -68,7 +68,7 @@ END = rf"(?!\w|{RANGE}\d)"
 #: space, a backtick, a bracket, a comma or a semicolon. The compact form
 #: counts only in a file that also cites `ps4.asm:N`, so a `:12` elsewhere is
 #: not read as one. A number runs to a non-word character, so a hex address
-#: after `ps4.asm:` is never read as its leading digits (`MALFORMED`); a full
+#: after `ps4.asm:` is never read as its leading digits (`TOKEN`); a full
 #: citation may end in grep's colon (`ps4.asm:N: <the line>`).
 CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(\d+))?"
                       rf"{END}(?(full)|(?!:))")
@@ -80,10 +80,18 @@ CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(
 #: is not read as one.
 CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?{END}(?!:)"
                           r"(?=`|\s*[,/;)\]]|\s*$)")
-#: `ps4.asm:` then a digit that does not start a citation: a ROM address or a
-#: separator the grammar lacks. A failure, so a form
-#: the check cannot read is never passed over as its prefix.
-MALFORMED = re.compile(r"ps4\.asm:(\d[^\s`),;]*)")
+#: The token a citation is read from: `ps4.asm:` (or, in a citing file, the
+#: compact `:`) then everything up to a space, a backtick, a bracket, a comma
+#: or a semicolon.
+TOKEN = re.compile(r"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d[^\s`),;\"'\]}]*)")
+#: The whole of a token the check reads: a line or a range, a slash list
+#: (`358/561`), an open end (`N+`, the table from N on) and a sentence's full
+#: stop, or grep's colon after `ps4.asm:N`. A range split across two lines
+#: (`N-` then `M`) is not one: write it on one line.
+#: Any other token (a ROM address, `N-abc`, `N/999oops`) fails, so a form
+#: the check cannot read is never passed over as its leading number.
+ITEM = rf"\d+(?:{RANGE}\d+)?(?:/\d{{3,}}(?:{RANGE}\d+)?)*"
+WELL_FORMED = {True: re.compile(rf"{ITEM}\+?[.:]?"), False: re.compile(rf"{ITEM}\+?\.?")}
 
 #: A citation may carry the disassembly's path (`reference/ps4disasm/ps4.asm:N`);
 #: `\b` keeps the path from starting inside the label before it.
@@ -192,10 +200,9 @@ def run(root: Path = Path("."), disasm: Path | None = None,
         if "ps4.asm:" not in text:
             continue
         for number, line in enumerate(text.splitlines(), start=1):
-            read = {cite.start() for cite in CITATION.finditer(line)}
-            for odd in MALFORMED.finditer(line):
-                if odd.start() not in read:
-                    mismatches.append(f"{path}:{number}: ps4.asm:{odd.group(1)} is not a "
+            for token in TOKEN.finditer(line):
+                if not WELL_FORMED[bool(token["full"])].fullmatch(token.group(2)):
+                    mismatches.append(f"{path}:{number}: {token.group(0)} is not a "
                                       f"line citation")
             for start, end, cite in cited(line):
                 citations += 1
