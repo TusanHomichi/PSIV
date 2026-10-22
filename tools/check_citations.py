@@ -80,6 +80,10 @@ CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(
 #: is not read as one.
 CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?{END}(?!:)"
                           r"(?=`|\s*[,/;)\]]|\s*$)")
+#: A comma list item where a continuation would be, but with a tail the
+#: grammar does not read (`N,999oops` after `ps4.asm:`): it fails like a
+#: malformed token.
+BAD_CONTINUATION = re.compile(rf"`?\s*,\s*`?(\d{{3,}}(?:{RANGE}\d*)?[A-Za-z_][^\s`),;\]]*)")
 #: The token a citation is read from: `ps4.asm:` (or, in a citing file, the
 #: compact `:`) then everything up to a space, a backtick, a bracket, a comma
 #: or a semicolon.
@@ -156,7 +160,8 @@ def paired_label(line: str, citation: re.Match) -> str | None:
 def cited(line: str):
     """`(start, end, citation)` for each citation on `line`, in order; the
     citation is the match a label pairs with, None for a bare continuation,
-    which is checked against the line count but has no label beside it."""
+    which is checked against the line count but has no label beside it. A
+    malformed continuation is `(None, its text, None)`."""
     for cite in CITATION.finditer(line):
         start = int(cite.group(2))
         yield start, int(cite.group(3)) if cite.group(3) else start, cite
@@ -165,6 +170,8 @@ def cited(line: str):
             start = int(more.group(1))
             yield start, int(more.group(2)) if more.group(2) else start, None
             position = more.end()
+        if bad := BAD_CONTINUATION.match(line, position):
+            yield None, bad.group(1), None
 
 
 def text_of(path: Path) -> str | None:
@@ -205,6 +212,9 @@ def run(root: Path = Path("."), disasm: Path | None = None,
                     mismatches.append(f"{path}:{number}: {token.group(0)} is not a "
                                       f"line citation")
             for start, end, cite in cited(line):
+                if start is None:
+                    mismatches.append(f"{path}:{number}: {end} is not a line citation")
+                    continue
                 citations += 1
                 if start < 1 or end > lines_total or start > end:
                     mismatches.append(f"{path}:{number}: ps4.asm:{start}-{end} is past the "
