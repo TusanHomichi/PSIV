@@ -216,7 +216,7 @@ pub struct SkillEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StripView {
     /// `Battle_Total_Comd_Input`: the acting fighter's slot minus one. It
-    /// picks the window's column (`loc_17A4`, `ps4.asm:2410`).
+    /// picks the window's column (`loc_17A4`, `ps4.asm:2397-2398`).
     pub slot: u8,
     /// Which of ATTACK, TECH, SKILL, ITEM, DEFEND have an icon. The routine
     /// leaves the cell blank when the actor has nothing to put there

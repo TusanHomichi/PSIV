@@ -67,6 +67,11 @@ GDScript, Python, shell, C, a campaign route or Markdown prose and inline code
 names and the tree does not have. It runs here so both gate tiers carry it
 without a command of their own.
 
+Retail citations are checked here for the same reason: `tools/check_citations.py`
+(issue #158) reads every `ps4.asm:N` against the local disassembly when it is
+present - the line exists, and a label named beside it opens or uses that line -
+and prints its own summary line, `citations: skipped` on a clone without it.
+
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
 ROM, `reference/`, generated packs, saves and captures live outside Git, so a
@@ -676,6 +681,12 @@ def main() -> int:
         from check_paths import check as check_code_paths
     code_problems, code_paths = check_code_paths(root)
     problems += code_problems
+    try:
+        from tools.check_citations import run as check_citations
+    except ModuleNotFoundError:
+        from check_citations import run as check_citations
+    citation_problems, citations = check_citations(root)
+    problems += citation_problems
     for problem in problems:
         print(problem)
     files, links, anchors, paths, yaml_blocks = counts
@@ -683,6 +694,7 @@ def main() -> int:
         f"checked {files} files, {links} links, {anchors} anchors, {paths} command paths, "
         f"{yaml_blocks} yaml blocks, {code_paths} code paths"
     )
+    print(citations)
     print(f"{summary}; {len(problems)} problem(s)")
     return 1 if problems else 0
 

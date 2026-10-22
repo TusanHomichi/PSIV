@@ -122,7 +122,7 @@ calls the **effect handler** once per fighter the chosen handler selects — and
 these records' handler is `$01`, `AbilityEffect_None` (`ps4.asm:9092`), a bare
 `rts`. The nibble therefore multiplies nothing, while the HP change comes from
 one place only: the arm's object writing `move.w #$C, $2(target)`
-(`Fighter_TakeDamage`, `ps4.asm:1033`), which for an enemy actor reaches
+(`Fighter_TakeDamage`, `ps4.asm:3564`, routine `$C` at `ps4.asm:1045`), which for an enemy actor reaches
 `Enemy_DamageCharacter` (`ps4.asm:3775`) and reads the actor's own ability slot
 plus the record. That is why 25 nibble-8 records and 33 nibble-9 records are both
 `single` when their chains make one request, and why the gate is now the traced

@@ -494,7 +494,7 @@ MAPPINGS: list[dict[str, Any]] = [
         "art": "ArtNem_TitleScrollingTextBG",
         "art_vram_tile": 0x010,
         "palette": "Pal_TitleScrollingText",
-        "source": "TitleRoutine_ScrollingText, ps4.asm:87195",
+        "source": "TitleRoutine_ScrollingText via loc_42F02, ps4.asm:87195",
         "note": (
             "the disassembly's binclude is 684 bytes; only the first 336 are the "
             "Enigma stream, the rest is sprite-mapping data"

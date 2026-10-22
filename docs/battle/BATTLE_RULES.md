@@ -355,7 +355,7 @@ loc_2750:
 **Techniques take a different door** (`loc_281E`, `ps4.asm:4024`): they skip the
 byte-1 lookup entirely and hard-wire `d1 = mental_battle(actor)`. Byte 1 of a
 technique record is its **TP cost**, consumed separately by
-`CharTech_CheckTPCost` (`ps4.asm:14197`, `lea (TechniqueData-7)` — i.e. byte 1).
+`CharTech_CheckTPCost` (`ps4.asm:14198`, `lea (TechniqueData-7)` — i.e. byte 1).
 Items use `loc_2842`: `d1 = item byte 1` (the item's own power).
 
 This exactly matches the field names the extractor already emits

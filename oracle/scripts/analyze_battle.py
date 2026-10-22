@@ -22,7 +22,7 @@ BATTLE_ROUTINE = {
     0x20: 'loc_684A', 0x22: 'loc_68C0',
 }
 
-# Game_Mode_Index values, from GameModePtrs (ps4.asm:418).
+# Game_Mode_Index values, from GameModePtrs (ps4.asm:419).
 GAME_MODE = {0x00: 'Sega', 0x04: 'Title', 0x08: 'LoadFieldMap',
              0x0C: 'Field', 0x10: 'LoadBattle', 0x14: 'Battle',
              0x18: 'VInt_Prepare'}

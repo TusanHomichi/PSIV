@@ -25,7 +25,7 @@ hack's alternate story. The actual-ROM pointer pair is `$07607E..$07658A`
 | 21-27 | `$0764A5..$0764E9` | resume dialogue; set Chaos Sorcerer `$71`; saved Red Alert; map flags `$88` | resume/flags/music |
 | 28-33 | `$0764EA..$076589` | event battle index `8`; routine-exit return | `StartBattle(8)`, return |
 
-The cancel branch at `loc_764F8` (`ps4.asm:155546`) lands on `loc_64B5A`'s row for the
+The cancel branch at `loc_764F8` (`ps4.asm:155708`) lands on `loc_64B5A`'s row for the
 current map and returns `0`: ops 34 and 35 (`LoadFlightMap { Return }`, `Return`),
 reached by `DestinationMenu`'s `cancel_skip`. The menu is the shared one
 ([Inside the spaceship](41_InsideSpaceship.md)); its mask `$08` lists Kuran alone,

@@ -1,7 +1,7 @@
 """Character_Command_Data, as written by the cartridge's own menus.
 
 Command bytes: ATTACK/TECH/SKILL/ITEM/DEFEND = 1..5
-(Battle_PickedCommandsOffs and loc_16C6, ps4.asm:2225-2232, 2312-2321).
+(Battle_PickedCommandsOffs, ps4.asm:2225-2230; loc_16C6, ps4.asm:2312-2321).
 The current word is copied only after the actor passes its status check
 (loc_57C4, ps4.asm:8045-8055). It also identifies actions that draw no RNG.
 """

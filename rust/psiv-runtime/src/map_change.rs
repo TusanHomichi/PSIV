@@ -130,7 +130,7 @@ pub(super) fn adjusted_map_music(map: MapId, raw: u8, game: &GameState, saved: u
 impl Runtime {
     /// Applies the cartridge's flag test to the live vehicle and consumes the
     /// bits, as the load routine's tail does. Returns whether bit 7 was set:
-    /// a field load then skips its `Pal_FadeIn` (`ps4.asm:107628`).
+    /// a field load then skips its `Pal_FadeIn` (`ps4.asm:107628-107630`).
     fn apply_map_load_flags(&mut self, kind: MapLoad) -> bool {
         let skip_fade = self.map_load_flags & LOAD_FLAG_SKIP_FADE != 0;
         let spare = match kind {

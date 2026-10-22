@@ -42,16 +42,16 @@ the renderer rebuilds each body with the replacement tiles at the retail
 
 | fact | value | source |
 | --- | --- | --- |
-| window | 16x4 cells at plane row 17, column 3, 15, 9, 9, 15 by `Battle_Total_Comd_Input` (fighter slot - 1) | `loc_17A4` `ps4.asm:2410`; plane dump of frame 25134 |
+| window | 16x4 cells at plane row 17, column 3, 15, 9, 9, 15 by `Battle_Total_Comd_Input` (fighter slot - 1) | `loc_17A4` `ps4.asm:2397-2398`; plane dump of frame 25134 |
 | icons | window-local columns 1, 4, 7, 10, 13 of row 1; ATTACK only when a hand holds a weapon, TECH/SKILL/ITEM only when their list is non-empty, DEFEND always | `ps4.asm:2108-2160` |
 | icon words | `BattleTiles_*Icon` `$E15E..$E17A` (CRAM line 3, priority) | `ps4.asm:11258` |
 | cursor | Left/Right through `Battle_UpdateCursor` (`ps4.asm:70646`), wrapping over five icons; Up/Down are not tested | `ps4.asm:2192-2212` |
 | cursor sprite | 2x2 at x = first icon x + 24 * index, y 156, tile `$17C` then `$180`, six ticks each | `ps4.asm:70465`, `70494`; SAT of frames 25080-25160 |
 | cursor lag | the VDP reads the sprite table a frame after the object writes it, so the frame on screen is the one the clock had a tick ago | video 25134 shows RAM state 25133 |
-| other bodies | the plane clears the party rows as the window opens and draws only the acting body | `loc_E4C`, `loc_E64`, `loc_EB6` (`ps4.asm:1499-1503`) |
+| other bodies | the plane clears the party rows as the window opens and draws only the acting body | `loc_E4C` (`ps4.asm:1509`), `loc_E64` (`ps4.asm:1525`), `loc_EB6` (`ps4.asm:1552`) |
 
 Cancel from a list window reopens the strip on the icon that opened it
-(`Battle_BackFromTechs`, `ps4.asm:2777`) and clears that member's command byte.
+(`Battle_BackFromTechs`, `ps4.asm:2792-2804`) and clears that member's command byte.
 
 ## The technique, skill and item windows (#51)
 
@@ -79,7 +79,7 @@ SHIFT 7, FOI 3).
 
 ### Not modelled, named
 
-- Windows open over 6-8 frames (`Battle_CreateWindow`, `ps4.asm:1625`: two cells
+- Windows open over 6-8 frames (`Battle_CreateWindow`, `ps4.asm:1657`: two cells
   a frame); the port's windows appear whole. The red cursor's timers do not
   run during that growth in the cartridge.
 - `Battle_Char_Comd_Index`, `Battle_Tech_Index` and `Battle_Skill_Index` are
@@ -91,7 +91,7 @@ SHIFT 7, FOI 3).
 - The skill and item windows are decoded from their routines and drawn by the
   same code, but no oracle frame certifies them.
 - Target selection is the cartridge's sprite cursor over the enemies or party
-  (`Battle_PickTargetEnemy`, `ps4.asm:1200`); the port keeps its one-list page.
+  (`Battle_PickTargetEnemy`, `ps4.asm:1216`); the port keeps its one-list page.
 
 A sealed member **can** choose a technique, as in the cartridge: the window
 refuses an entry on TP alone (`Battle_FillTechList` sets the sign bit,
@@ -119,7 +119,7 @@ pane's icon and ink from the member's status byte and command byte
 The icon replaces the command byte, and a status icon whose status has gone
 reads back as no command. Icons are always drawn on CRAM line 3; only the name,
 HP/TP labels and numbers change ink: index 15 of line 0/1/2/3 is `$02CE`,
-`$0CC4`, `$062E`, `$0EEE` (`loc_7654`, `ps4.asm:11205`). The command byte is 0
+`$0CC4`, `$062E`, `$0EEE` (`loc_7654`, `ps4.asm:11227-11239`). The command byte is 0
 none, 1-5 attack, tech, skill, item, defend; 9 an empty seat. The runtime owns
 the decision (`session/battle/panes.rs`); a round's end clears the table
 (`loc_5BAE`, `ps4.asm:8419`).
@@ -185,7 +185,7 @@ presentation of the target's `Character_Targeted` routine.
 ## The art comes from the pack
 
 The icon and cursor tiles are the two Nemesis streams `loc_7382` loads
-(`ps4.asm:10975`): 30 tiles at ROM `$27D860` to VRAM tile `$15E`, 8 at `$27DA70`
+(`ps4.asm:10978-10986`): 30 tiles at ROM `$27D860` to VRAM tile `$15E`, 8 at `$27DA70`
 to `$17C`. `loc_7634` copies 15 words from ROM `$76A4` (`loc_76A4`,
 `ps4.asm:11213-11250`) into CRAM line 3, indices 1-15. The extractor writes
 both the CRAM-index rows and that palette into `battle/art/command_ui.json`,

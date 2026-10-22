@@ -3,7 +3,7 @@
     PYTHONPATH=. python3 -m unittest tests.test_dialogue2_callers -v
 
 `Event_ZioNurvus` ends its presentation with `moveq #$B, d0 / jsr
-Event_GetAndRunDialogue2` (`ps4.asm:148622`). The port transcribed that as a
+Event_GetAndRunDialogue2` (`ps4.asm:148622-148623`). The port transcribed that as a
 `RunDialogueResume`, which reopens `Saved_Dialogue_Addr`: in play that is
 whatever dialogue ran last (the Zio Fort barrier's `$45`, so the resume opened
 `$46` and its text fired event 0), and after a load there is nothing to resume

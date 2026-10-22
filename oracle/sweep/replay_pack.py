@@ -38,7 +38,7 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 
 
 #: The inline formation an enemy's own arm reloads the side from, by the
-#: enemy whose arm it is: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) for the
+#: enemy whose arm it is: Fusion (`BattleObj_Fusion`'s `loc_1A2B8`, `ps4.asm:35832`) for the
 #: Zol slug (34), COMBINE (`loc_23C84`, `ps4.asm:47491`) for BladeRight (84) and
 #: HakenLeft (86). The records - and so the enemies they seat, which no
 #: formation may seat at the start - are the extractor's

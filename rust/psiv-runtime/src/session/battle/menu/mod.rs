@@ -26,10 +26,10 @@
 //!
 //! # What an empty row does
 //!
-//! `Battle_TechCommand` (`ps4.asm:2318`), `Battle_SkillCommand`
-//! (`ps4.asm:2336`) and `Battle_ItemCommand` (`ps4.asm:2355`) each return
+//! `Battle_TechCommand` (`ps4.asm:2326`), `Battle_SkillCommand`
+//! (`ps4.asm:2345`) and `Battle_ItemCommand` (`ps4.asm:2364`) each return
 //! without changing the routine when their list is empty, and
-//! `Battle_AttackCommand` (`ps4.asm:2233`) falls out at `loc_1682` when
+//! `Battle_AttackCommand` (`ps4.asm:2235`) falls out at `loc_1682` when
 //! neither hand holds a weapon. This port keeps the row-level rule it has
 //! always had — a disabled row ignores the accept — and leaves the unarmed
 //! attack to the engine's own `TurnSkipped::Unarmed`, which the cartridge
@@ -72,7 +72,7 @@ pub(crate) enum TopChoice {
 /// with the wrap `Battle_UpdateRedCursor2` implements, `ButtonSpeak|ButtonCamp`
 /// accept, and there is no cancel at all — a player must choose a row. The
 /// mounted surface's window is the same one with different rows
-/// (`Battle_VehMainOptions`, `ps4.asm:2003`): ATTAC, OPTIN, RUN.
+/// (`Battle_VehMainOptions`, `ps4.asm:2036`): ATTAC, OPTIN, RUN.
 pub(crate) fn top_input(cursor: &mut usize, vehicle: bool, previous: Pad, pad: Pad) -> TopChoice {
     const ROWS: usize = 3;
     if pad.is_pressed(previous, Button::Up) {

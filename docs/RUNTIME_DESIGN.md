@@ -169,7 +169,7 @@ damage block, the party strip, the enemies with their visibility, the beat and
 its progress, plus the retail sound cues the frame raised — and Godot draws it,
 deciding nothing. The buttons are the cartridge's own where its routines name
 them (`Battle_MainOptions`, `Battle_CharCommand`, the tech/skill/item windows,
-`Battle_VehSkills`; `ps4.asm:1123` onward), and the per-character window's
+`Battle_VehSkills`; dispatched from `RunBattleRoutines2`, `ps4.asm:1123`), and the per-character window's
 one-list layout keeps the shell's four-direction mapping with that difference
 recorded in `session/battle/menu/`.
 

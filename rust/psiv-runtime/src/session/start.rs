@@ -140,7 +140,7 @@ impl Start {
         self
     }
 
-    /// Retail's power-on (`MainGameProgram`, `ps4.asm:86190`): a game at the
+    /// Retail's power-on (`MainGameProgram`, `ps4.asm:349`): a game at the
     /// pack's own first control, with the title owning the frames from the
     /// first one.
     ///

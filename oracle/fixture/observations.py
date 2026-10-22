@@ -151,8 +151,9 @@ def round_frames(log, first, last):
 def round_tail_frames(log, first, last):
     """Frames that execute loc_5366's round-wide restoration, not a turn.
 
-    BattleRoutines index $1C invokes loc_5366, which sets the routine to 6
-    before Battle_RestoreStatsAtTurnEnd (ps4.asm:7539,7596-7602). The sampled
+    BattleRoutines index $1C (ps4.asm:7539) invokes
+    loc_5366 (ps4.asm:7596-7602), which sets the routine to 6 before
+    Battle_RestoreStatsAtTurnEnd (ps4.asm:9792). The sampled
     $1C -> 6 transition therefore includes wake RNG, even when the final
     queue entry was skipped and battle_actor still names that sleeper.
     """

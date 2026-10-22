@@ -166,7 +166,7 @@ const LANDING: [(u16, u16, u16); 6] = [
     (AIR_CASTLE, 0x7E, 0x6A),
 ];
 
-/// The maps whose takeoff is the long one (`loc_64568`, `ps4.asm:133670-133674`
+/// The maps whose takeoff is the long one (`loc_64568`, `ps4.asm:133678-133685`
 /// picks it for exactly these two; every other map takes `loc_6488A`).
 pub const SPACEPORT_MAPS: [u16; 2] = [MOTA_SPACEPORT, DEZO_SPACEPORT];
 

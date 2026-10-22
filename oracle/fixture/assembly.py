@@ -204,7 +204,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
         if side_of(actor) == "party" and record["kind"] in ("technique", "item"):
             # These damage objects do not execute loc_B6A2's hit pass.
             # Stale flags are not verdicts; the observed damage is a normal
-            # damage resolution (Character_DamageEnemy, ps4.asm:3986-4054).
+            # damage resolution (Character_DamageEnemy, ps4.asm:3910, and the
+            # branches it takes from loc_27D4, ps4.asm:3988-4054).
             for target in record["targets"]:
                 target["hit"] = "00" if target["damage"] is not None else "FF"
         if enemy_readings.ability_was_cleared(log, record):

@@ -24,7 +24,7 @@
 //! closes the whole menu (`DestroyAllWindows`, the same lines). A result line is
 //! dismissed by any of `Cancel|Speak|Camp|Start` (`Win_ItemUsedMsgMain`,
 //! `ps4.asm:123286`). The chest windows confirm on Speak or Camp and back out on
-//! Cancel with no Start (`FieldRoutine_ItemFound`, `ps4.asm:137584-137599`; its
+//! Cancel with no Start (`FieldRoutine_ItemFound`'s `loc_66F68`, `ps4.asm:137582-137599`; its
 //! result lines `ps4.asm:137478`). The routines were read at those
 //! representatives; every other camp page uses the same rule and is not
 //! individually verified: STATUS, ORDER, SAVE, the town list, the ability

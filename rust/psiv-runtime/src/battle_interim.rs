@@ -197,7 +197,7 @@ fn battle_sound_events(
                 event_index,
                 id: 0xD5,
             }),
-            // FLODBREATH `$3F`: BattleObj_FlodBreath (`ps4.asm:46343`) and
+            // FLODBREATH `$3F`: BattleObj_FlodBreath's loc_22C96 (`ps4.asm:46343`) and
             // loc_22A90 (`ps4.asm:46220`) write MoleAttack as their wind-up
             // starts, then EnemyAttack4 (`ps4.asm:46366`, `ps4.asm:46234`)
             // before the damage phase — the same pair of cues for all three
@@ -207,8 +207,8 @@ fn battle_sound_events(
                 id: 0xD5,
             }),
             // WAT `$40`: all five carriers' chains write MoleAttack as the
-            // wind-up starts (`ps4.asm:46002` BattleObj_EnemyWat,
-            // `ps4.asm:45056` loc_218D6, `ps4.asm:56445` loc_2B006).
+            // wind-up starts (BattleObj_EnemyWat's loc_22772 `ps4.asm:46002`,
+            // loc_218D6 `ps4.asm:45056`, loc_2B006 `ps4.asm:56445`).
             //
             // BattleObj_EnemyWat's second cue, TechCast at `ps4.asm:46016`, is
             // left unmapped: loc_218D6 and loc_2B006 write nothing there, a
@@ -219,7 +219,7 @@ fn battle_sound_events(
                 id: 0xD5,
             }),
             // FOI `$44`: both chains write MoleAttack at the wind-up
-            // (`ps4.asm:45238` loc_21BF0, `ps4.asm:56485` loc_2B08E) and
+            // (loc_21BF0 `ps4.asm:45238`, loc_2B08E `ps4.asm:56485`) and
             // TechCast when the request phase starts (`ps4.asm:45261`,
             // `ps4.asm:56509`).
             BattleEvent::EnemySkillUsed { skill: 68, .. } => sounds.push(BattleSoundEvent {

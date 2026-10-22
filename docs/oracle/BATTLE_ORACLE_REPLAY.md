@@ -185,8 +185,8 @@ and only one of them reproduces what it records:
 The jitter is `loc_5528`'s jitter loop: `lsr.w #1, d1` on the queue's highest
 agility as the divisor (`ps4.asm:7792`), one `UpdateRNGSeed2` per entry
 (`ps4.asm:7796`) and `divu.w d1, d0` (`ps4.asm:7797`) with the remainder added
-to that entry's ordering agility (`ps4.asm:7801`). The damages are `loc_266C` ->
-`Battle_CalculateDamage` (`ps4.asm:3750`, `ps4.asm:17374`) with the attack,
+to that entry's ordering agility (`ps4.asm:7801`). The damages are `loc_266C` (`ps4.asm:3750`) ->
+`Battle_CalculateDamage` (`ps4.asm:17374`) with the attack,
 defence and element factor the log carries (`Character_DamageEnemy`,
 `ps4.asm:3910`, `loc_27A4`, `ps4.asm:3963`). Nine turn-order addends and six
 damage numbers, all of them reproduced by the high half and none of them by the

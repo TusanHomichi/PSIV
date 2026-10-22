@@ -881,8 +881,8 @@ fn motavia_all_party_abilities_resolve_in_their_real_formations() {
 }
 
 /// The wind-up sound each all-party chain writes into `Sound_Index`:
-/// `SFXID_Slasher` `$B7` for `BattleObj_LocustaSpiralBld` (`ps4.asm:29206`),
-/// `SFXID_GraveOpening` `$DD` for `BattleObj_Earthquake` (`ps4.asm:47917`).
+/// `SFXID_Slasher` `$B7` for `BattleObj_LocustaSpiralBld` (`loc_145DE`, `ps4.asm:29206`),
+/// `SFXID_GraveOpening` `$DD` for `BattleObj_Earthquake` (`loc_242AA`, `ps4.asm:47917`).
 fn wind_up_sound(skill: u8) -> u8 {
     match skill {
         8 => 0xB7,

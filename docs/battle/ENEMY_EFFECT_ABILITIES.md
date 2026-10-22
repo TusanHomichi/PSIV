@@ -355,7 +355,7 @@ tails, so the turn is the effect and nothing else.
 `Battle_DoAttackEffect` never runs the attack rider for that turn, for two
 reasons: it returns at `tst.b ($FFFFEE82).w` / `bne.w loc_5DDA`
 (`ps4.asm:8554`), the flag phase 1 set, and, decisively, at `tst.w $24(a0)` /
-`bne.w loc_5DD2` (`ps4.asm:8576`) for any nonzero ability, which
+`bne.w loc_5DD2` (`ps4.asm:8577-8578`) for any nonzero ability, which
 `roll_enemy_ability` mirrors by returning before `resolve_attack`.
 
 **THREAD.** Record `$10` at `0x2833E4` is effect `$06`, STR against live AGI,
@@ -432,7 +432,7 @@ THREAD's and DORAN's.
 Record 20 `1E 00 2C 00 00 00 00 00` has the effect byte of the two Fission
 records, and its object ends the same way: `$1CC` (`loc_1879A`,
 `ps4.asm:33852`) finishes with `clr.w (a4) / movea.l $7C(a4), a1 /
-jmp loc_14CBE` (`ps4.asm:33846-33850`) - the refill of the neighbour slot
+jmp loc_14CBE` (`ps4.asm:33898-33902`) - the refill of the neighbour slot
 `EnemyAI_EmptySpace` named, after an alarm in front of it (`$198`,
 `loc_185EC`, `ps4.asm:33725`). 45 CommndBall's init is `EnemyInit_Tower`
 (`ps4.asm:18243`), which clears the objects beside it like Igglanova's does, so

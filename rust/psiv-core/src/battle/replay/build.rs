@@ -280,8 +280,8 @@ pub(crate) fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls
     }
     // A formation seats every enemy its table names, but the init routines of
     // Igglanova, Guilgenova, Tower and CommndBall clear the objects beside
-    // them (`EnemyInit_Igglanova` / `EnemyInit_Tower`, `ps4.asm:18275`,
-    // `18243`): the log still holds those slots' records, and the first
+    // them (`EnemyInit_Igglanova`, `ps4.asm:18275`, and `EnemyInit_Tower`,
+    // `ps4.asm:18243`): the log still holds those slots' records, and the first
     // round's queue is what says the slot is not fighting.
     let first_queue = fixture.rounds.first().map(|round| &round.order);
     let clears_neighbours = |enemy_id: u16| matches!(enemy_id, 12 | 13 | 39 | 45);

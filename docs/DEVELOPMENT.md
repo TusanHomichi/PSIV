@@ -172,7 +172,9 @@ frame is an emission error. Preserve a verified local copy, or reproduce the
 frames from the named oracle captures using the renderer documented in
 [battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
 do not commit the ROM-derived PNGs.
-The documentation check needs no local inputs. From the root:
+The documentation check needs no local inputs; with the disassembly present
+it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
+and prints `citations: skipped` without it. From the root:
 
 ```bash
 python3 tools/check_docs.py

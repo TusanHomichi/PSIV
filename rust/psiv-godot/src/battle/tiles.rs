@@ -2,7 +2,7 @@
 //!
 //! The window and font art come from the pack's dialogue PNGs
 //! ([`super::chrome`]). The command icons and the cursor sprite are the two
-//! Nemesis streams `loc_7382` loads (`ps4.asm:10975`), which the extractor
+//! Nemesis streams `loc_7382` loads (`ps4.asm:10978`), which the extractor
 //! writes to `battle/art/command_ui.json` and `psiv-data` parses
 //! ([`psiv_data::CommandUiArt`]). Every plane word that names one of those tiles
 //! draws through here: tile index from the low eleven bits, flips from bits 11

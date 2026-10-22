@@ -176,7 +176,7 @@ pub(super) fn resolve_skill(
         super::player_animation::skill_before_damage(id, rolls);
     }
     for target in targets {
-        // `loc_27D4` / `loc_2836` (`ps4.asm:3989` and `4031`): a skill sets bit 1
+        // `loc_27D4` (`ps4.asm:3988`) / `loc_2836` (`ps4.asm:4031`): a skill sets bit 1
         // on the enemy it reaches — and bit 4 with it when the command covered
         // the whole side. The skill arm sets no bit 2: that is the technique
         // and combo arm only.

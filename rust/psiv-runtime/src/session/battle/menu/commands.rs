@@ -19,7 +19,7 @@ use super::super::view::{
 use super::{accept_pressed, list_step};
 
 /// Rows per list-window page: four entries at `$100`-byte spacing
-/// (`Battle_OpenTechs`, `ps4.asm:2506`).
+/// (`Battle_OpenTechs`'s `loc_18F2`, `ps4.asm:2499-2511`).
 const PAGE_ROWS: usize = 4;
 
 /// The per-character command window: rows, pages, targets and reservations.
@@ -409,7 +409,7 @@ impl CommandsMenu {
                 self.cursor = 0;
                 self.open_actor();
             }
-            // `Battle_BackFromTechs` (`ps4.asm:2777`) and its twins reopen the
+            // `Battle_BackFromTechs` (`ps4.asm:2792`) and its twins reopen the
             // strip with `Battle_Char_Comd_Index` untouched, so the cursor is
             // still on the icon that opened the list.
             MenuPage::Techniques | MenuPage::Skills | MenuPage::Items => {

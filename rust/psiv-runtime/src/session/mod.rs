@@ -38,7 +38,8 @@
 //!
 //! # The front door
 //!
-//! Retail powers on into the title (`MainGameProgram`, `ps4.asm:86190`), so a
+//! Retail powers on into the title (`MainGameProgram`, `ps4.asm:349`;
+//! `GameMode_Title`, `ps4.asm:86206`), so a
 //! session that starts at the front door is put there by the shell
 //! ([`Session::start_title`]), and START, CONTINUE and ERASE DATA complete
 //! here: the title's own module owns the rows, the slot rules and the erase
