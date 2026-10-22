@@ -5,7 +5,8 @@
 
 The disassembly is a local input (`reference/ps4disasm/ps4.asm`); on a public
 clone the check says it was skipped and passes. When it is present, every
-citation in the change's text files is read:
+citation in the change's text files (every readable file without a NUL
+byte, whatever its suffix) is read:
 
 - `ps4.asm:N` and `ps4.asm:N-M` must name existing lines (`1..line count`);
 - where a label is named beside the citation (the forms in use: a backticked
@@ -111,6 +112,19 @@ def paired_label(line: str, citation: re.Match) -> str | None:
     return None
 
 
+def text_of(path: Path) -> str | None:
+    """A file's text, or None for a binary file (one holding a NUL byte) or one
+    that cannot be read, such as a dangling link: every text file of the
+    change is scanned, C, patches and tapes included, whatever its suffix."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if b"\0" in data:
+        return None
+    return data.decode("utf-8", errors="replace")
+
+
 def run(root: Path = Path("."), disasm: Path | None = None,
         files: list[str] | None = None) -> tuple[list[str], str]:
     """`(mismatch lines, summary)` for the change at `root`; an absent
@@ -125,10 +139,9 @@ def run(root: Path = Path("."), disasm: Path | None = None,
     mismatches = []
     for name in (files if files is not None else repo_files(root)):
         path = Path(name)
-        if path.suffix not in {".md", ".rs", ".json", ".py", ".toml", ".yml", ".yaml",
-                               ".gd", ".sh", ".txt", ".tscn", ".gdextension"}:
+        text = text_of(root / path)
+        if text is None:
             continue
-        text = (root / path).read_text(errors="replace")
         for number, line in enumerate(text.splitlines(), start=1):
             for cite in CITATION.finditer(line):
                 citations += 1

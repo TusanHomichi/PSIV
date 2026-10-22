@@ -156,7 +156,7 @@ static void bucket_add(struct pc_bucket *buckets, int *count, unsigned pc)
 	buckets[smallest].count++;
 }
 
-/* UpdateRNGSeed, ps4.asm:86066-86092, transcribed the same way oracle/checks.py
+/* UpdateRNGSeed, ps4.asm:86070-86092, transcribed the same way oracle/checks.py
  * does it (an all-zero low word is replaced by the cartridge's constant, the
  * longword is multiplied by 41 with 32-bit wrap, and the new value is the
  * product's low word with its word sum in the high half). Both files have to

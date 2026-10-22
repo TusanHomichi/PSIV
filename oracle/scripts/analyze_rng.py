@@ -2,7 +2,7 @@
 """Classify each frame of an oracle log by how many RNG calls it made.
 
 PSIV keeps one seed at $FFFFEF0C and updates it with UpdateRNGSeed
-(ps4.asm:86066), transcribed below. Predicting that function forward from a
+(ps4.asm:86070), transcribed below. Predicting that function forward from a
 frame's seed and counting how many applications land on the next frame's seed
 gives the number of times the game called the generator during that frame.
 That turns the log into a behavioural census of RNG consumers without needing
@@ -16,7 +16,7 @@ M32 = 0xFFFFFFFF
 
 
 def update_rng_seed(seed):
-    """UpdateRNGSeed, ps4.asm:86066-86092.
+    """UpdateRNGSeed, ps4.asm:86070-86092.
 
     Substitutes a fixed constant when the low word is zero, multiplies the
     longword by 41, then stores (low+high of the product) in the high word and

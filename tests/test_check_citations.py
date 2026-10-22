@@ -121,6 +121,19 @@ class Citations(unittest.TestCase):
         mismatches, _ = self.check("`Routine` (`{asm}:1`) and `Other` (`{asm}:4`)\n")
         self.assertEqual(mismatches, [])
 
+    def test_every_text_file_is_read_whatever_its_suffix(self):
+        # A C comment and a tape comment are citations too; a binary file and
+        # a dangling link are passed over, not a crash.
+        self.check("")
+        (self.root / "trace.c").write_text(f"/* Other, {ASM}:3 */\n")
+        (self.root / "run.tape").write_text(f"# Other ({ASM}:3)\n")
+        (self.root / "art.bin").write_bytes(f"\0Other, {ASM}:3".encode())
+        (self.root / "AGENTS.md").symlink_to(self.root / "SECURITY.md")  # dangling
+        mismatches, summary = run(self.root, files=["trace.c", "run.tape", "art.bin",
+                                                    "AGENTS.md"])
+        self.assertEqual(len(mismatches), 2)
+        self.assertIn("2 citation(s)", summary)
+
 
 if __name__ == "__main__":
     unittest.main()
