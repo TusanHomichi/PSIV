@@ -175,10 +175,12 @@ class Citations(unittest.TestCase):
         # across lines fails; an open end and a full stop are read.
         bad = ["4-abc", "4..abc", "4/999oops", "4-"]
         mismatches, _ = self.check("{asm}:4,999oops and {asm}:4, `101-9x`\n"
-                                   "{asm}:4,999- and {asm}:4 / 999oops\n")
+                                   "{asm}:4,999- and {asm}:4 / 999oops\n"
+                                   "{asm}:1,99oops and {asm}:1,99\n")
         self.assertEqual([m.split(": ", 1)[1] for m in mismatches],
                          [f"{tail} is not a line citation"
-                          for tail in ("999oops", "101-9x", "999-", "999oops")])
+                          for tail in ("999oops", "101-9x", "999-", "999oops", "99oops")]
+                         + ["ps4.asm:99-99 is past the disassembly's 5 lines"])
         compact = ":" + "999oops"  # split, so this file's own scan passes it
         doc = "".join(f"{{asm}}:{tail}\n" for tail in bad) + f"{{asm}}:4+ and `{compact}`.\n"
         mismatches, summary = self.check(doc + "See {asm}:4.\n")
