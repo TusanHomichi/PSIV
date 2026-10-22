@@ -53,13 +53,16 @@ LOCAL = re.compile(r"^loc_[0-9A-Fa-f]+$|Loop$")
 SEPARATOR = re.compile(r"^;\s*[-=]{10,}")
 CITATION = re.compile(r"ps4\.asm:(\d+)(?:-(\d+))?")
 
+#: A citation may carry the disassembly's path (`reference/ps4disasm/ps4.asm:N`);
+#: `\b` keeps the path from starting inside the label before it.
+DIR = r"(?:\b[\w.-]+/)*"
 #: The label-beside-citation forms, tried in order on the citation's line.
 #: The label is group 1 and the line (or the range's end) the other groups.
 PAIRS = (
     # `loc_5366`, ps4.asm:7596   —  `Label`; `ps4.asm:N` / Label, ps4.asm:N
-    re.compile(r"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*[,;]?\s*`?ps4\.asm:(\d+)(?:-(\d+))?"),
-    # Label (ps4.asm:N) / `Label` (`ps4.asm:N`)
-    re.compile(r"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\(\s*`?ps4\.asm:(\d+)(?:-(\d+))?"),
+    re.compile(rf"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*[,;]?\s*`?{DIR}ps4\.asm:(\d+)(?:-(\d+))?"),
+    # Label (ps4.asm:N) / `Label` (`reference/ps4disasm/ps4.asm:N`)
+    re.compile(rf"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\(\s*`?{DIR}ps4\.asm:(\d+)(?:-(\d+))?"),
     # ps4.asm:N (Label)
     re.compile(r"ps4\.asm:(\d+)(?:-(\d+))?`?\s*\(\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\)"),
     # Label, :N

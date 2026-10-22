@@ -121,6 +121,13 @@ class Citations(unittest.TestCase):
         mismatches, _ = self.check("`Routine` (`{asm}:1`) and `Other` (`{asm}:4`)\n")
         self.assertEqual(mismatches, [])
 
+    def test_a_citation_with_the_disassembly_path_is_paired(self):
+        path = "reference/ps4disasm/" + ASM
+        mismatches, summary = self.check(f"`Other` (`{path}:5`)\n`Other`, {path}:3\n")
+        self.assertIn("1 label-verified", summary)
+        self.assertEqual(len(mismatches), 1)
+        self.assertIn("Other is at line 4-5, not ps4.asm:3-3", mismatches[0])
+
     def test_every_text_file_is_read_whatever_its_suffix(self):
         # A C comment and a tape comment are citations too; a binary file and
         # a dangling link are passed over, not a crash.
