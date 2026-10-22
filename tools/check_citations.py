@@ -79,11 +79,13 @@ CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(
 #: citation (`ps4.asm:19206`, 153 entries; `Cutscene_Reunion` (`:157791`, 0))
 #: is not read as one.
 CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?{END}(?!:)"
-                          r"(?=`|\s*[,/;)\]]|\s*$)")
-#: A comma list item where a continuation would be, but with a tail the
-#: grammar does not read (`N,999oops` after `ps4.asm:`): it fails like a
-#: malformed token.
-BAD_CONTINUATION = re.compile(rf"`?\s*,\s*`?(\d{{3,}}(?:{RANGE}\d*)?[A-Za-z_][^\s`),;\]]*)")
+                          r"(?=[`\"']|\s*[,/;)\]}]|\.?\s*$|\.\s)")
+#: A list item where a continuation would be, but with a tail the grammar does
+#: not read (`N,999oops`, `N,999-`, `N / 999x` after `ps4.asm:`): it fails
+#: like a malformed token. An item with no tail (`N, 153 entries`) is prose;
+#: a bare `N/M` is inside one token, which `TOKEN` checks.
+BAD_CONTINUATION = re.compile(r"(?:`?\s*,|`\s*/|\s+/|/(?=[\s`]))\s*`?"
+                              r"(\d{3,}[^\s`),;\"'\]}]+)")
 #: The token a citation is read from: `ps4.asm:` (or, in a citing file, the
 #: compact `:`) then everything up to a space, a backtick, a bracket, a comma
 #: or a semicolon.

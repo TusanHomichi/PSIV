@@ -174,9 +174,11 @@ class Citations(unittest.TestCase):
         # Every malformed tail fails, compact ones included; a range split
         # across lines fails; an open end and a full stop are read.
         bad = ["4-abc", "4..abc", "4/999oops", "4-"]
-        mismatches, _ = self.check("{asm}:4,999oops and {asm}:4, `101-9x`\n")
+        mismatches, _ = self.check("{asm}:4,999oops and {asm}:4, `101-9x`\n"
+                                   "{asm}:4,999- and {asm}:4 / 999oops\n")
         self.assertEqual([m.split(": ", 1)[1] for m in mismatches],
-                         ["999oops is not a line citation", "101-9x is not a line citation"])
+                         [f"{tail} is not a line citation"
+                          for tail in ("999oops", "101-9x", "999-", "999oops")])
         compact = ":" + "999oops"  # split, so this file's own scan passes it
         doc = "".join(f"{{asm}}:{tail}\n" for tail in bad) + f"{{asm}}:4+ and `{compact}`.\n"
         mismatches, summary = self.check(doc + "See {asm}:4.\n")
