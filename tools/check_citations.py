@@ -11,8 +11,9 @@ byte, whatever its suffix) is read:
 - `ps4.asm:N` and `ps4.asm:N-M` (or `N–M`, `N..M`) must name existing lines
   (`1..line count`), as must the compact `:N` that follows one in the same
   file (`ps4.asm:N` and `:M`; `Label`, `:N`) and a bare offset continuing a
-  citation's list (`ps4.asm:N,M`; `ps4.asm:N`, `M`; `ps4.asm:N/M`), which has
-  no label;
+  citation's list (`ps4.asm:N,M`; `ps4.asm:N/M`; `ps4.asm:N`, `M` with M of
+  three digits or more, since a short number after a space is a count:
+  `ps4.asm:N`, 20 entries), which has no label;
 - where a label is named beside the citation (the forms in use: a backticked
   label then the citation, `Label (ps4.asm:N)`, `ps4.asm:N (Label)`,
   `Label, :N`), the citation must sit inside the routine the label opens or
