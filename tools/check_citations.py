@@ -8,7 +8,9 @@ clone the check says it was skipped and passes. When it is present, every
 citation in the change's text files (every readable file without a NUL
 byte, whatever its suffix) is read:
 
-- `ps4.asm:N` and `ps4.asm:N-M` must name existing lines (`1..line count`);
+- `ps4.asm:N` and `ps4.asm:N-M` (or `N..M`) must name existing lines
+  (`1..line count`), as must the compact `:N` that follows one in the same
+  file (`ps4.asm:N` and `:M`; `Label`, `:N`);
 - where a label is named beside the citation (the forms in use: a backticked
   label then the citation, `Label (ps4.asm:N)`, `ps4.asm:N (Label)`,
   `Label, :N`), the citation must sit inside the routine the label opens or
@@ -16,8 +18,8 @@ byte, whatever its suffix) is read:
   `jsr`). A routine runs from its label to the next separator comment or the
   next label that is not a branch target inside it (`labels`). A citation that
   neither defines nor uses the label beside it is a mismatch;
-- a citation without a neighbouring label is counted unverified, not failed:
-  the count is printed and can only shrink.
+- a citation without a neighbouring label is counted unverified, not failed;
+  the count is printed.
 
 The label beside a citation is the word right before it, so prose puts each
 label next to its own line, `` `A` (`ps4.asm:N`) and `B` (`ps4.asm:M`) ``;
@@ -51,24 +53,30 @@ LABEL = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
 LOCAL = re.compile(r"^loc_[0-9A-Fa-f]+$|Loop$")
 #: The comment rule the disassembly puts between routines.
 SEPARATOR = re.compile(r"^;\s*[-=]{10,}")
-CITATION = re.compile(r"ps4\.asm:(\d+)(?:-(\d+))?")
+#: A citation: `ps4.asm:N`, `ps4.asm:N-M` or `ps4.asm:N..M`, or the compact
+#: follow-on `:N` / `:N-M` (`ps4.asm:147452` and `:147483`; `loc_646DA`, `:134274-134292`)
+#: after a space, a backtick, a bracket, a comma or a semicolon. The compact
+#: form counts only in a file that also cites `ps4.asm:N`, so a `:12`
+#: elsewhere is not read as one.
+CITATION = re.compile(r"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:(?:-|\.\.)(\d+))?(?![\d:])")
 
 #: A citation may carry the disassembly's path (`reference/ps4disasm/ps4.asm:N`);
 #: `\b` keeps the path from starting inside the label before it.
-DIR = r"(?:\b[\w.-]+/)*"
-#: The label-beside-citation forms, tried in order on the citation's line.
-#: The label is group 1 and the line (or the range's end) the other groups.
+HEAD = r"(?:(?:\b[\w.-]+/)*ps4\.asm)?"
+#: A label before a citation: a whole word, so the `asm` of `ps4.asm:N` and a
+#: path segment are not read as one.
+NAME = r"(?<![\w./])([A-Za-z_][A-Za-z0-9_]*)"
+#: The label-beside-citation forms, tried in order on the citation's line. A
+#: form names a citation when its line number starts where the citation's does.
 PAIRS = (
-    # `loc_5366`, ps4.asm:7596   —  `Label`; `ps4.asm:N` / Label, ps4.asm:N
-    re.compile(rf"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*[,;]?\s*`?{DIR}ps4\.asm:(\d+)(?:-(\d+))?"),
+    # `loc_5366`, ps4.asm:7596  /  `Label`; `ps4.asm:N`  /  `Label`, `:N`
+    re.compile(rf"`?{NAME}`?\s*[,;]?\s*`?{HEAD}:(\d+)"),
     # Label (ps4.asm:N) / `Label` (`reference/ps4disasm/ps4.asm:N`)
-    re.compile(rf"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\(\s*`?{DIR}ps4\.asm:(\d+)(?:-(\d+))?"),
+    re.compile(rf"`?{NAME}`?\s*\(\s*`?{HEAD}:(\d+)"),
     # ps4.asm:N (Label)
-    re.compile(r"ps4\.asm:(\d+)(?:-(\d+))?`?\s*\(\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\)"),
-    # Label, :N
-    re.compile(r"`?([A-Za-z_][A-Za-z0-9_]*)`?\s*,\s*:(\d+)"),
+    re.compile(r"ps4\.asm:(\d+)(?:(?:-|\.\.)\d+)?`?\s*\(\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\)"),
 )
-#: The form whose label is the last group (after the citation).
+#: The form whose label comes after the citation.
 AFTER = 2
 
 
@@ -105,13 +113,10 @@ def labels(path: Path) -> dict[str, tuple[int, int]]:
 def paired_label(line: str, citation: re.Match) -> str | None:
     """The label named beside the citation on `line`, when the form names one."""
     for index, pattern in enumerate(PAIRS):
+        number, name = (1, 2) if index == AFTER else (2, 1)
         for match in pattern.finditer(line):
-            if index == AFTER:
-                line_start, line_end, name = match.group(1), match.group(2), match.group(3)
-            else:
-                line_start, line_end, name = match.group(2), match.group(3), match.group(1)
-            if line_start == citation.group(1) and line_end == citation.group(2):
-                return name
+            if match.start(number) == citation.start(2):
+                return match.group(name)
     return None
 
 
@@ -145,11 +150,13 @@ def run(root: Path = Path("."), disasm: Path | None = None,
         text = text_of(root / path)
         if text is None:
             continue
+        if "ps4.asm:" not in text:
+            continue
         for number, line in enumerate(text.splitlines(), start=1):
             for cite in CITATION.finditer(line):
                 citations += 1
-                start = int(cite.group(1))
-                end = int(cite.group(2)) if cite.group(2) else start
+                start = int(cite.group(2))
+                end = int(cite.group(3)) if cite.group(3) else start
                 if start < 1 or end > lines_total or start > end:
                     mismatches.append(f"{path}:{number}: ps4.asm:{start}-{end} is past the "
                                       f"disassembly's {lines_total} lines")

@@ -2,8 +2,8 @@
 
 Scope: `$FFFFED54..58` (`Saved_Char_ID_Mem_1..5`), the transient party bridge
 between `Cutscene_BeforeElsydeonCave` and `Cutscene_Elsydeon`
-(`ps4.asm:157427..157760`), and between `Event_AngerTowerTop` and
-`Event_AngerTowerExitTop` (`:151963..151997`). Index: [source notes](README.md).
+(`ps4.asm:157427..157760`), and between `Event_AngerTowerTop` (`:151962`) and
+`Event_AngerTowerExitTop` (`:151995`). Index: [source notes](README.md).
 
 ## What retail does
 

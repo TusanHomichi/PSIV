@@ -33,8 +33,9 @@ menu bodies are not treated as retail scene records. The text below is the
 | Cancel | `loc_63E5E` (`:133692-133726`) | windows destroyed, fade out, `Map_LoadChunks`, `Field_Map_Index_2 = $FFFF`, the map reloaded at `loc_64B5A`'s row for the current map, `Window_Option_Index` cleared, `moveq #0, d0 / rts` |
 | Speak, Camp | `:133616-133690` | `SFXID_Selection`, the prompt window cleared and typed over with "NAME will be" and "the destination." (three frames a character, one while a button is held), `Sound_StopSpcSFX`, a 60-frame wait, the windows destroyed, a fade out, **`World_Index` written from the row (`:133677`)**, then the takeoff: `loc_64568` when the map is the Mota or Dezo Spaceport (`:133669-133674`), else `loc_6488A` |
 
-The cursor is `FieldObj_RedCursor` (`:141817`): visible 16 frames, then hidden 26
-(`timer` `$19` at start and after every move, reloaded `$F`, plus `$A` when it goes
+The cursor is `FieldObj_RedCursor` (`:91856`), spawned by
+`InitWindowCursor` (`:141641`): visible 16 frames, then hidden 26 (`timer` `$19`
+at start and after every move, reloaded `$F` in `RedCursor_Main` (`:91868`), plus `$A` when it goes
 hidden). Speak or Camp stamps `$C6E8` over the row's box (`loc_69A32`,
 `:141805`), which is the pattern the visible cursor draws too.
 

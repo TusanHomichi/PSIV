@@ -235,7 +235,8 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// ```text
 /// menu              loc_63BC4               :133499-133666
-/// takeoff           loc_64568 / loc_6488A   :134167 / :134376
+/// takeoff           loc_64568               :134167
+///                   loc_6488A               :134376
 ///                   (the long takeoff is for the two spaceports only, :133667-133674)
 /// planet screen     loc_64C1E               :134644-134712
 /// transit, descent  loc_6472C..loc_64800    :134256-134322

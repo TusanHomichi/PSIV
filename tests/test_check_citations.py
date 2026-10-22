@@ -128,6 +128,30 @@ class Citations(unittest.TestCase):
         self.assertEqual(len(mismatches), 1)
         self.assertIn("Other is at line 4-5, not ps4.asm:3-3", mismatches[0])
 
+    def test_a_compact_citation_after_a_full_one_is_read(self):
+        # `:N` follows a full citation in the same file and pairs like one; a
+        # `:N` in a file with no full citation is not a citation.
+        mismatches, summary = self.check("`Routine` ({asm}:1) and `Other` (`:3`)\n"
+                                         "| `Other`, `:4-5` |\n")
+        self.assertEqual(summary, "citations: 3 citation(s), 2 label-verified, "
+                                  "0 use-site, 0 unverified, 1 mismatch(es)")
+        self.assertIn("Other is at line 4-5, not ps4.asm:3-3", mismatches[0])
+        _, summary = self.check("`Other` (`:3`) at 12:30\n")
+        self.assertEqual(summary, "citations: 0 citation(s), 0 label-verified, "
+                                  "0 use-site, 0 unverified, 0 mismatch(es)")
+
+    def test_a_dotted_range_is_read_whole(self):
+        mismatches, _ = self.check("`Other` ({asm}:4..6)\n`Routine`, {asm}:1..3\n")
+        self.assertEqual(len(mismatches), 1)
+        self.assertIn("ps4.asm:4-6 is past the disassembly's 5 lines", mismatches[0])
+
+    def test_the_asm_of_a_citation_is_not_its_label(self):
+        # Without a label beside it the citation is unverified, not read
+        # against a routine named `asm`.
+        mismatches, summary = self.check("see ({asm}:1)\n", DISASM + "asm:\n\trts\n")
+        self.assertEqual(mismatches, [])
+        self.assertIn("1 unverified", summary)
+
     def test_every_text_file_is_read_whatever_its_suffix(self):
         # A C comment and a tape comment are citations too; a binary file and
         # a dangling link are passed over, not a crash.
