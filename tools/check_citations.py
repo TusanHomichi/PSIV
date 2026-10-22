@@ -8,10 +8,11 @@ clone the check says it was skipped and passes. When it is present, every
 citation in the change's text files (every readable file without a NUL
 byte, whatever its suffix) is read:
 
-- `ps4.asm:N` and `ps4.asm:N-M` (or `N..M`) must name existing lines
+- `ps4.asm:N` and `ps4.asm:N-M` (or `N–M`, `N..M`) must name existing lines
   (`1..line count`), as must the compact `:N` that follows one in the same
   file (`ps4.asm:N` and `:M`; `Label`, `:N`) and a bare offset continuing a
-  citation's list (`ps4.asm:N,M`; `ps4.asm:N`, `M`), which has no label;
+  citation's list (`ps4.asm:N,M`; `ps4.asm:N`, `M`; `ps4.asm:N/M`), which has
+  no label;
 - where a label is named beside the citation (the forms in use: a backticked
   label then the citation, `Label (ps4.asm:N)`, `ps4.asm:N (Label)`,
   `Label, :N`), the citation must sit inside the routine the label opens or
@@ -20,7 +21,10 @@ byte, whatever its suffix) is read:
   next label that is not a branch target inside it (`labels`). A citation that
   neither defines nor uses the label beside it is a mismatch;
 - a citation without a neighbouring label is counted unverified, not failed;
-  the count is printed.
+  the count is printed;
+- `ps4.asm:` then a digit that is not a citation (a ROM address written
+  after it) fails: a citation is a line, and the check never reads a
+  form it lacks as its leading number.
 
 The label beside a citation is the word right before it, so prose puts each
 label next to its own line, `` `A` (`ps4.asm:N`) and `B` (`ps4.asm:M`) ``;
@@ -54,18 +58,29 @@ LABEL = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
 LOCAL = re.compile(r"^loc_[0-9A-Fa-f]+$|Loop$")
 #: The comment rule the disassembly puts between routines.
 SEPARATOR = re.compile(r"^;\s*[-=]{10,}")
-#: A citation: `ps4.asm:N`, `ps4.asm:N-M` or `ps4.asm:N..M`, or the compact
-#: follow-on `:N` / `:N-M` (`ps4.asm:147452` and `:147483`; `loc_646DA`, `:134274-134292`)
-#: after a space, a backtick, a bracket, a comma or a semicolon. The compact
-#: form counts only in a file that also cites `ps4.asm:N`, so a `:12`
-#: elsewhere is not read as one.
-CITATION = re.compile(r"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:(?:-|\.\.)(\d+))?(?![\d:])")
+#: The range forms in use: `N-M`, `N–M` (an en dash) and `N..M`.
+RANGE = r"(?:-|\u2013|\.\.)"
+#: A citation: `ps4.asm:N` or a range, or the compact follow-on `:N` / `:N-M`
+#: (`ps4.asm:147452` and `:147483`; `loc_646DA`, `:134274-134292`) after a
+#: space, a backtick, a bracket, a comma or a semicolon. The compact form
+#: counts only in a file that also cites `ps4.asm:N`, so a `:12` elsewhere is
+#: not read as one. A number runs to a non-word character, so a hex address
+#: after `ps4.asm:` is never read as its leading digits (`MALFORMED`); a full
+#: citation may end in grep's colon (`ps4.asm:N: <the line>`).
+CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(\d+))?"
+                      r"(?(full)(?!\w)|(?![\w:]))")
 #: A bare offset continuing a citation's list (`ps4.asm:11213-11217,11250`;
-#: `ps4.asm:2195`, `2598`). It must end the list item (a backtick, a comma, a
-#: semicolon, a bracket or the line's end follows) and have three digits or
-#: more, so a count or a value after a citation (`ps4.asm:19206`, 153 entries;
-#: `Cutscene_Reunion` (`:157791`, 0)) is not read as one.
-CONTINUATION = re.compile(r"`?\s*,\s*`?(\d{3,})(?:(?:-|\.\.)(\d+))?(?=`|\s*[,;)\]]|\s*$)")
+#: `ps4.asm:2195`, `2598`; `ps4.asm:358/561`). It must end the list item (a
+#: backtick, a comma, a slash, a semicolon, a bracket or the line's end
+#: follows) and have three digits or more, so a count or a value after a
+#: citation (`ps4.asm:19206`, 153 entries; `Cutscene_Reunion` (`:157791`, 0))
+#: is not read as one.
+CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?(?![\w:])"
+                          r"(?=`|\s*[,/;)\]]|\s*$)")
+#: `ps4.asm:` then a digit that does not start a citation: a ROM address or a
+#: separator the grammar lacks. A failure, so a form
+#: the check cannot read is never passed over as its prefix.
+MALFORMED = re.compile(r"ps4\.asm:(\d[^\s`),;]*)")
 
 #: A citation may carry the disassembly's path (`reference/ps4disasm/ps4.asm:N`);
 #: `\b` keeps the path from starting inside the label before it.
@@ -174,6 +189,11 @@ def run(root: Path = Path("."), disasm: Path | None = None,
         if "ps4.asm:" not in text:
             continue
         for number, line in enumerate(text.splitlines(), start=1):
+            read = {cite.start() for cite in CITATION.finditer(line)}
+            for odd in MALFORMED.finditer(line):
+                if odd.start() not in read:
+                    mismatches.append(f"{path}:{number}: ps4.asm:{odd.group(1)} is not a "
+                                      f"line citation")
             for start, end, cite in cited(line):
                 citations += 1
                 if start < 1 or end > lines_total or start > end:

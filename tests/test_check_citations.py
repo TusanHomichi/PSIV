@@ -150,6 +150,17 @@ class Citations(unittest.TestCase):
                                   "0 use-site, 4 unverified, 1 mismatch(es)")
         self.assertIn("ps4.asm:999-999 is past the disassembly's 205 lines", mismatches[0])
 
+    def test_every_separator_in_use_is_read_and_an_address_fails(self):
+        # An en dash range, a slash list and grep's trailing colon are read; a
+        # ROM address after the file name is not a line and fails.
+        big = DISASM + "\trts\n" * 200
+        mismatches, summary = self.check("`Other` ({asm}:4\u20135)\n{asm}:101/999\n"
+                                         "{asm}:3: rts\n{asm}:5D48\n", big)
+        self.assertEqual(summary, "citations: 4 citation(s), 1 label-verified, "
+                                  "0 use-site, 2 unverified, 2 mismatch(es)")
+        self.assertIn("ps4.asm:999-999 is past", mismatches[0])
+        self.assertIn(f"{ASM}:5D48 is not a line citation", mismatches[1])
+
     def test_a_dotted_range_is_read_whole(self):
         mismatches, _ = self.check("`Other` ({asm}:4..6)\n`Routine`, {asm}:1..3\n")
         self.assertEqual(len(mismatches), 1)

@@ -1856,7 +1856,7 @@
       "addr": "FFFF4142",
       "size": 2,
       "group": "battle",
-      "source": "acting fighter index; Battle_DoAttackEffect reads it at ps4.asm:5D48 (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
+      "source": "acting fighter index; Battle_DoAttackEffect (ps4.asm:8575, ROM $5D48) reads it (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
     },
     {
       "name": "current_target",
