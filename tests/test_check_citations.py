@@ -161,6 +161,15 @@ class Citations(unittest.TestCase):
         self.assertIn("ps4.asm:999-999 is past", mismatches[0])
         self.assertIn(f"{ASM}:5D48 is not a line citation", mismatches[1])
 
+    def test_a_malformed_range_end_fails_and_a_trailing_label_reads_a_dash(self):
+        # The range end is part of the citation: a typo in it is not passed
+        # over as the bare start, and `N–M (Label)` pairs like `N-M (Label)`.
+        mismatches, summary = self.check("{asm}:4-999oops\n{asm}:4\u20135 (Routine)\n")
+        self.assertEqual(summary, "citations: 1 citation(s), 0 label-verified, "
+                                  "0 use-site, 0 unverified, 2 mismatch(es)")
+        self.assertIn(f"{ASM}:4-999oops is not a line citation", mismatches[0])
+        self.assertIn("Routine is at line 1-3, not ps4.asm:4-5", mismatches[1])
+
     def test_a_dotted_range_is_read_whole(self):
         mismatches, _ = self.check("`Other` ({asm}:4..6)\n`Routine`, {asm}:1..3\n")
         self.assertEqual(len(mismatches), 1)

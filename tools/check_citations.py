@@ -60,6 +60,9 @@ LOCAL = re.compile(r"^loc_[0-9A-Fa-f]+$|Loop$")
 SEPARATOR = re.compile(r"^;\s*[-=]{10,}")
 #: The range forms in use: `N-M`, `N–M` (an en dash) and `N..M`.
 RANGE = r"(?:-|\u2013|\.\.)"
+#: What may not follow a number: a word character, or a range whose end is
+#: malformed (`N-Mx`), which would otherwise be read as the bare `N`.
+END = rf"(?!\w|{RANGE}\d)"
 #: A citation: `ps4.asm:N` or a range, or the compact follow-on `:N` / `:N-M`
 #: (`ps4.asm:147452` and `:147483`; `loc_646DA`, `:134274-134292`) after a
 #: space, a backtick, a bracket, a comma or a semicolon. The compact form
@@ -68,14 +71,14 @@ RANGE = r"(?:-|\u2013|\.\.)"
 #: after `ps4.asm:` is never read as its leading digits (`MALFORMED`); a full
 #: citation may end in grep's colon (`ps4.asm:N: <the line>`).
 CITATION = re.compile(rf"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:{RANGE}(\d+))?"
-                      r"(?(full)(?!\w)|(?![\w:]))")
+                      rf"{END}(?(full)|(?!:))")
 #: A bare offset continuing a citation's list (`ps4.asm:11213-11217,11250`;
 #: `ps4.asm:2195`, `2598`; `ps4.asm:358/561`). It must end the list item (a
 #: backtick, a comma, a slash, a semicolon, a bracket or the line's end
 #: follows) and have three digits or more, so a count or a value after a
 #: citation (`ps4.asm:19206`, 153 entries; `Cutscene_Reunion` (`:157791`, 0))
 #: is not read as one.
-CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?(?![\w:])"
+CONTINUATION = re.compile(rf"`?\s*[,/]\s*`?(\d{{3,}})(?:{RANGE}(\d+))?{END}(?!:)"
                           r"(?=`|\s*[,/;)\]]|\s*$)")
 #: `ps4.asm:` then a digit that does not start a citation: a ROM address or a
 #: separator the grammar lacks. A failure, so a form
@@ -96,7 +99,7 @@ PAIRS = (
     # Label (ps4.asm:N) / `Label` (`reference/ps4disasm/ps4.asm:N`)
     re.compile(rf"`?{NAME}`?\s*\(\s*`?{HEAD}:(\d+)"),
     # ps4.asm:N (Label)
-    re.compile(r"ps4\.asm:(\d+)(?:(?:-|\.\.)\d+)?`?\s*\(\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\)"),
+    re.compile(rf"ps4\.asm:(\d+)(?:{RANGE}\d+)?`?\s*\(\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\)"),
 )
 #: The form whose label comes after the citation.
 AFTER = 2
