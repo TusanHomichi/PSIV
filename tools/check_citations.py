@@ -10,7 +10,8 @@ byte, whatever its suffix) is read:
 
 - `ps4.asm:N` and `ps4.asm:N-M` (or `N..M`) must name existing lines
   (`1..line count`), as must the compact `:N` that follows one in the same
-  file (`ps4.asm:N` and `:M`; `Label`, `:N`);
+  file (`ps4.asm:N` and `:M`; `Label`, `:N`) and a bare offset continuing a
+  citation's list (`ps4.asm:N,M`; `ps4.asm:N`, `M`), which has no label;
 - where a label is named beside the citation (the forms in use: a backticked
   label then the citation, `Label (ps4.asm:N)`, `ps4.asm:N (Label)`,
   `Label, :N`), the citation must sit inside the routine the label opens or
@@ -59,6 +60,12 @@ SEPARATOR = re.compile(r"^;\s*[-=]{10,}")
 #: form counts only in a file that also cites `ps4.asm:N`, so a `:12`
 #: elsewhere is not read as one.
 CITATION = re.compile(r"(?:(?P<full>ps4\.asm)|(?<=[\s`(,;])|^):(\d+)(?:(?:-|\.\.)(\d+))?(?![\d:])")
+#: A bare offset continuing a citation's list (`ps4.asm:11213-11217,11250`;
+#: `ps4.asm:2195`, `2598`). It must end the list item (a backtick, a comma, a
+#: semicolon, a bracket or the line's end follows) and have three digits or
+#: more, so a count or a value after a citation (`ps4.asm:19206`, 153 entries;
+#: `Cutscene_Reunion` (`:157791`, 0)) is not read as one.
+CONTINUATION = re.compile(r"`?\s*,\s*`?(\d{3,})(?:(?:-|\.\.)(\d+))?(?=`|\s*[,;)\]]|\s*$)")
 
 #: A citation may carry the disassembly's path (`reference/ps4disasm/ps4.asm:N`);
 #: `\b` keeps the path from starting inside the label before it.
@@ -120,6 +127,20 @@ def paired_label(line: str, citation: re.Match) -> str | None:
     return None
 
 
+def cited(line: str):
+    """`(start, end, citation)` for each citation on `line`, in order; the
+    citation is the match a label pairs with, None for a bare continuation,
+    which is checked against the line count but has no label beside it."""
+    for cite in CITATION.finditer(line):
+        start = int(cite.group(2))
+        yield start, int(cite.group(3)) if cite.group(3) else start, cite
+        position = cite.end()
+        while more := CONTINUATION.match(line, position):
+            start = int(more.group(1))
+            yield start, int(more.group(2)) if more.group(2) else start, None
+            position = more.end()
+
+
 def text_of(path: Path) -> str | None:
     """A file's text, or None for a binary file (one holding a NUL byte) or one
     that cannot be read, such as a dangling link: every text file of the
@@ -153,15 +174,13 @@ def run(root: Path = Path("."), disasm: Path | None = None,
         if "ps4.asm:" not in text:
             continue
         for number, line in enumerate(text.splitlines(), start=1):
-            for cite in CITATION.finditer(line):
+            for start, end, cite in cited(line):
                 citations += 1
-                start = int(cite.group(2))
-                end = int(cite.group(3)) if cite.group(3) else start
                 if start < 1 or end > lines_total or start > end:
                     mismatches.append(f"{path}:{number}: ps4.asm:{start}-{end} is past the "
                                       f"disassembly's {lines_total} lines")
                     continue
-                label = paired_label(line, cite)
+                label = cite and paired_label(line, cite)
                 if label is None or label not in bodies:
                     unverified += 1
                     continue
