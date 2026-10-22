@@ -30,8 +30,8 @@ from .rolls import DAMAGE_RUN, HIT_NOT_TARGETED
 
 #: The names whose attack route runs the close-range animation's `loc_B6A2`
 #: pass as well as `Character_Attack`'s own (`CharAttack_AlysKyra`,
-#: `ps4.asm:13958`; the mapping table's Alys/Kyra entries, `ps4.asm:13057-
-#: 13067`), by the name the fixture's party list carries. It is what says the
+#: `ps4.asm:13958`; the mapping table's Alys/Kyra entries,
+#: `ps4.asm:13057-13067`), by the name the fixture's party list carries. It is what says the
 #: two passes of one swing arrive in the *same* frame; every other fighter's
 #: passes arrive one per frame, which `hit_pass_labels` reads from the frames
 #: themselves.

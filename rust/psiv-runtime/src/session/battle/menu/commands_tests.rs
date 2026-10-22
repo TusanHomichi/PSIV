@@ -462,7 +462,7 @@ fn the_main_options_wrap_on_up_and_down_and_ignore_left_right() {
 }
 
 /// The mounted surface's main options are ATTAC / OPTIN / RUN
-/// (`Battle_VehMainOptions`, `ps4.asm:2003`; the routine table at
+/// (`Battle_VehMainOptions`, `ps4.asm:2036`; the routine table at
 /// `ps4.asm:2071`).
 #[test]
 fn the_mounted_main_options_open_the_skill_window_on_the_middle_row() {

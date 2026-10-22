@@ -2,7 +2,7 @@
 //!
 //! Ported from `psiv-godot/src/battle/` with the S3 node. What lived in the
 //! shell was a real game mode — `GameMode_Battle` (`ps4.asm:947`) with its own
-//! routine table (`BattleRoutines` `ps4.asm:7543`, `BattleRoutines2`
+//! routine table (`BattleRoutines` `ps4.asm:7524`, `BattleRoutines2`
 //! `ps4.asm:1138`) — and it made decisions the shell could not own: which
 //! actor answers, which commands are legal, when a beat ends, when the menu
 //! reopens, what the battle pays and when the field takes the frame back.

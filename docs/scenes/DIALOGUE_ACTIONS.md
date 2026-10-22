@@ -44,7 +44,7 @@ and do not occur in this corpus. The handler provenance is:
 `Panel_Create` itself is at `:144284`; `Panel_Destroy` is at `:144449`; and
 the word-id lookup is `Panel_GetData` at `:144570`. `Panel_GetData` uses the
 upper six bits to select one of seven pointer-table parts
-(`PanelPtrs`, `:144586-:144593`) and the lower six bits to select the 30-byte
+(`PanelPtrs`, `:144586-144593`) and the lower six bits to select the 30-byte
 record. The presentation pack now decodes the non-empty retail banks at:
 
 | Panel id range | Record base |

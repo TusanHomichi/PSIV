@@ -5,7 +5,7 @@
 # (starting map, starting position, starting party).
 #
 # Why the presses land where they do, all read out of the disassembly:
-#   f226   GameMode_Title begins (GameModePtrs, ps4.asm:418).
+#   f226   GameMode_Title begins (GameModePtrs, ps4.asm:419).
 #   f<400  TitleRoutine_FadingText is running; a START here skips the fade.
 #   f454+  TitleRoutine_PressStartButton polls Joypad_Pressed for START over
 #          a $233 = 563 frame window (ps4.asm, TitleRoutine_PressStartButton).

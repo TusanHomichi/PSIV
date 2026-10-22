@@ -1856,7 +1856,7 @@
       "addr": "FFFF4142",
       "size": 2,
       "group": "battle",
-      "source": "acting fighter index; Battle_DoAttackEffect reads it at ps4.asm:5D48 (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
+      "source": "acting fighter index; Battle_DoAttackEffect (ps4.asm:8575, ROM $5D48) reads it (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
     },
     {
       "name": "current_target",
@@ -5446,7 +5446,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 0 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 0 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb1",
@@ -5454,7 +5454,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 1 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 1 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb2",
@@ -5462,7 +5462,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 2 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 2 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb3",
@@ -5470,7 +5470,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 3 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 3 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb4",
@@ -5478,7 +5478,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 4 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 4 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb5",
@@ -5486,7 +5486,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 5 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 5 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb6",
@@ -5494,7 +5494,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 6 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 6 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "chestb7",
@@ -5502,7 +5502,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Chest_Flags byte 7 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+      "source": "Chest_Flags byte 7 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ChestFlags_Set, ps4.asm:116678"
     },
     {
       "name": "tempb0",

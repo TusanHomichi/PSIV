@@ -222,7 +222,7 @@ class TestEmittedFiles(unittest.TestCase):
                     self.assertEqual(list(chunks[b"tRNS"])[TRANSPARENT_INDEX], 0)
 
     def test_command_ui_art_is_the_two_nemesis_streams(self):
-        # `loc_7382` (`ps4.asm:10975`) decompresses 30 icon tiles to VRAM tile
+        # `loc_7382` (`ps4.asm:10978`) decompresses 30 icon tiles to VRAM tile
         # $15E and 8 cursor tiles to $17C. `loc_7634` copies 15 palette words
         # from `loc_76A4` into CRAM line 3 (`ps4.asm:11213-11217,11250`).
         art = json.loads((self.root / COMMAND_UI_ART_NAME).read_text())

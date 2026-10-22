@@ -29,7 +29,8 @@
 //! `Joypad_Held` and re-enters the list with no state change at all
 //! (`loc_43678`, `ps4.asm:87668-87674`), and a slot index that masks to 3 falls
 //! back to START instead of loading (`ps4.asm:87710-87716`). ERASE DATA walks
-//! the same list (`loc_437F8`, `ps4.asm:87746`; its own empty-row refusal
+//! the same list (`Title_EraseOption`, `ps4.asm:87746`, and
+//! `loc_437F8`, `ps4.asm:87759`; its own empty-row refusal
 //! `ps4.asm:87828-87833`), opens the ARE YOU SURE? windows (`ps4.asm:87908`)
 //! and erases through `loc_64DC0` (`ps4.asm:87937`) only when the cursor sits
 //! on the first row; every other answer backs out to the slot list
@@ -189,7 +190,7 @@ impl TitleMode {
         }
     }
 
-    /// The window the phase shows. `Title_NoSavedData` (`ps4.asm:87542`)
+    /// The window the phase shows. `Title_NoSavedData` (`ps4.asm:87545`)
     /// creates the one-row window when no slot holds a save.
     fn window(&self) -> TitleWindow {
         match self.phase {

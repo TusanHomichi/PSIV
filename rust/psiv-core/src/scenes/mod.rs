@@ -267,7 +267,8 @@ pub static SCENES: &[Scene] = &[
     retail_endgame::RYKROS,
     retail_endgame::ENDING,
     // The field menu's own events, not story beats: the three machines board
-    // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123419-123465`).
+    // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
+    // boarding actions, `ps4.asm:123419-123465`).
     vehicles::BOARDING_LAND_ROVER,
     vehicles::BOARDING_ICE_DIGGER,
     vehicles::BOARDING_HYDROFOIL,

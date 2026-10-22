@@ -448,7 +448,7 @@ the renderer cannot compute it.
 **Battle background index** (32 entries → 20 distinct) — already in
 `generated/planes.json` as `battle_backgrounds`; a runtime consumer needs the
 per-map and per-event-battle selectors from `Battle_BackgroundIndexes`
-(`ps4.asm:10219`) and `EventBattleBGIndexes` (`ps4.asm:10184`).
+(`ps4.asm:10219`) and `EventBattleBGIndexes` (`ps4.asm:10186`).
 
 **Battle speed** (5 rows) — trivial; a constant in the renderer is fine.
 

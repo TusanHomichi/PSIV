@@ -458,7 +458,7 @@ pub static ZIO_DEFEATED: Scene = Scene {
             chunks: &[(26, 45, 0x3F)],
         },
         // The routine's last act: `moveq #EventFlag_MotaSpaceport, d0 / jmp
-        // EventFlags_Set` (`ps4.asm:144825-144826`). It comes before the
+        // EventFlags_Set` (`ps4.asm:144834-144835`). It comes before the
         // cutscene's second `RefreshMap`, which therefore loads the map with
         // the `$66` page hook active; set only at the scene's end, that load
         // rebuilt the map without the door (collision type 1 at (52..53,

@@ -166,7 +166,7 @@ const LANDING: [(u16, u16, u16); 6] = [
     (AIR_CASTLE, 0x7E, 0x6A),
 ];
 
-/// The maps whose takeoff is the long one (`loc_64568`, `ps4.asm:133670-133674`
+/// The maps whose takeoff is the long one (`loc_64568`, `ps4.asm:133678-133685`
 /// picks it for exactly these two; every other map takes `loc_6488A`).
 pub const SPACEPORT_MAPS: [u16; 2] = [MOTA_SPACEPORT, DEZO_SPACEPORT];
 
@@ -235,7 +235,8 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// ```text
 /// menu              loc_63BC4               :133499-133666
-/// takeoff           loc_64568 / loc_6488A   :134167 / :134376
+/// takeoff           loc_64568               :134167
+///                   loc_6488A               :134376
 ///                   (the long takeoff is for the two spaceports only, :133667-133674)
 /// planet screen     loc_64C1E               :134644-134712
 /// transit, descent  loc_6472C..loc_64800    :134256-134322

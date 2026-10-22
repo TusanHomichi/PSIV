@@ -97,7 +97,7 @@ fn effect_is_none(effect: u8) -> bool {
 }
 
 /// What a proven route's object chain does with `move.w #$C`
-/// (`Fighter_TakeDamage`, `ps4.asm:1033`): how many requests it makes and
+/// (`Fighter_TakeDamage`, `ps4.asm:3564`): how many requests it makes and
 /// against whom.
 ///
 /// Record byte 2's low nibble is deliberately *not* the class. It selects the
@@ -121,8 +121,8 @@ enum DamageClass {
     /// Five requests, one per party slot, from a `moveq #4, dN` loop over
     /// `Obj_Fighters`: the shared tails `loc_24A9E` (`ps4.asm:48483`) and
     /// `loc_24BB6` (`ps4.asm:48562`), plus the objects that inline the same
-    /// loop — `BattleObj_LocustaSpiralBld` (`ps4.asm:29275-29280`),
-    /// `BattleObj_Earthquake` (`ps4.asm:47995-48000`), the Zio family's
+    /// loop — `BattleObj_LocustaSpiralBld` (`loc_146BE`, `ps4.asm:29275-29280`),
+    /// `BattleObj_Earthquake` (`loc_243C8`, `ps4.asm:47995-48000`), the Zio family's
     /// `loc_2AFB6` (`ps4.asm:56413-56431`, which both `$47` ZAN and `$56`
     /// FORCEFLASH jump into), TechMaster's `loc_21674`
     /// (`ps4.asm:44880-44898`) and CORRSION's `loc_2C03A`

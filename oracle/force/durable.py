@@ -20,8 +20,8 @@ battle shows Hahn's `$FFFFF60E` word going 21 -> 15 at f29872, mid-fight.
 The load does not overwrite them: `FillBattleStats` (`ps4.asm:11272-11290`)
 refreshes each character's `mod` -> `battle` copies and touches no HP cell, and
 `GameMode_LoadBattle` calls it once per battle (`ps4.asm:10005`) - before
-`Battle_SetupEnemyData` (`ps4.asm:10008`) and `loc_78EE`'s seating
-(`ps4.asm:10011`). The frame these run in is the frame the extractor samples
+`Battle_SetupEnemyData` (`ps4.asm:10015`) and `loc_78EE`'s seating
+(`ps4.asm:10018`). The frame these run in is the frame the extractor samples
 the battle's start state from: `oracle/fixture/observations.py`'s
 `enemies_loaded` returns the first frame whose enemy records are filled in,
 which is the load's own last frame, so the patch is placed there - the fighters

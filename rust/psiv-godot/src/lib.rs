@@ -421,7 +421,8 @@ impl INode2D for Field {
             configure_session(session, store.clone())
         } else {
             // The shell's own boot, through the runtime's constructors: retail
-            // powers on into the title (`MainGameProgram`, ps4.asm:86190), and
+            // powers on into the title (`MainGameProgram`, ps4.asm:349;
+            // `GameMode_Title`, ps4.asm:86206), and
             // a selector that must reach its surface now takes the same boot
             // with no front door. The run's configuration rides on the
             // constructor, because the title reads its slot rows and its

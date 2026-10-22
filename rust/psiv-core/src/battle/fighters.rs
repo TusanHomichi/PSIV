@@ -169,7 +169,7 @@ impl Fighter {
     }
 }
 
-/// Whether `enemy_id`'s death object ends in `loc_2D960` (`ps4.asm:59628`),
+/// Whether `enemy_id`'s death object ends in `loc_2D960` (`ps4.asm:59630`),
 /// which sets the death bit and pays the record's experience and meseta.
 /// `Enemy_Dead` (18416-18422) sends ids `$82`-`$87` to `loc_2D936`, whose table
 /// (59623) names `$81C`, `$840` and - for `$87` ProfoundDarkness3 - `$8B8`

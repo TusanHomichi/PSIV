@@ -231,7 +231,7 @@ impl Battle {
             ZioTurn::Nightmare => FirstZioAction::Nightmare,
             ZioTurn::BlackWaveExit | ZioTurn::BlackWaveKill => FirstZioAction::BlackWave,
         };
-        // Black Wave1 (`loc_D2F4`, `ps4.asm:19445-19460`) picks Alys by
+        // Black Wave1 (`loc_D2F4`, `ps4.asm:19465-19475`) picks Alys by
         // character identity (`cmpi.w #1, $12(a0)`) and falls back to the
         // first fighter; Black Wave3 keeps the target `Enemy_Attack` drew.
         let target = match arm.turn {

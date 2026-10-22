@@ -22,8 +22,8 @@ const STRIP_ROW: i32 = 17;
 const STRIP_WIDTH: i32 = 16;
 const STRIP_HEIGHT: i32 = 4;
 /// The icon words, four per icon in reading order (top-left, top-right,
-/// bottom-left, bottom-right): `BattleTiles_AttackIcon` through
-/// `BattleTiles_DefenseIcon` (`ps4.asm:11258`).
+/// bottom-left, bottom-right): `BattleTiles_AttackIcon` (`ps4.asm:11258`) through
+/// `BattleTiles_DefenseIcon` (`ps4.asm:11266`).
 pub(super) const ICON_WORDS: [[u16; 4]; 10] = [
     [0xE167, 0xE168, 0xE175, 0xE176],
     [0xE15E, 0xE15F, 0xE16E, 0xE16F],
@@ -47,7 +47,7 @@ const ICON_LOCAL_COLUMN: [i32; 5] = [1, 4, 7, 10, 13];
 const CURSOR_Y: i32 = 156;
 const CURSOR_STEP: i32 = 24;
 /// The cursor's two mapping frames toggle every six ticks
-/// (`Mappings_ComdCursor`, `ps4.asm:70494`): tile `$17C`, then `$180`.
+/// (`Mappings_ComdCursor`, `ps4.asm:70497`): tile `$17C`, then `$180`.
 const CURSOR_TICKS_PER_FRAME: u32 = 6;
 const CURSOR_FRAME_TILES: [u16; 2] = [CURSOR_FIRST_TILE, CURSOR_FIRST_TILE + 4];
 

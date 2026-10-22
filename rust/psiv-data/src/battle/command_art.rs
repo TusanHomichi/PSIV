@@ -1,6 +1,6 @@
 //! `battle/art/command_ui.json`: the battle's command icon and cursor tiles.
 //!
-//! `loc_7382` (`ps4.asm:10975`) decompresses two Nemesis streams into VRAM as a
+//! `loc_7382` (`ps4.asm:10978`) decompresses two Nemesis streams into VRAM as a
 //! battle loads: 30 icon tiles at ROM `$27D860` to tile `$15E` and 8 cursor
 //! sprite tiles at ROM `$27DA70` to tile `$17C`. The pack carries each tile as
 //! eight rows of eight CRAM indices. `loc_7634` copies `loc_76A4` to CRAM line

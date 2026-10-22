@@ -193,7 +193,7 @@ BACKGROUND_PNG_DIRECTORY = f"{ART_DIRECTORY}/backgrounds"
 BACKGROUND_ART_NAME = f"{ART_DIRECTORY}/backgrounds.json"
 
 # The battle command art: two Nemesis streams `loc_7382` decompresses into VRAM
-# when a battle loads (`ps4.asm:10975-10985`): the command and status icon
+# when a battle loads (`ps4.asm:10978-10986`): the command and status icon
 # tiles and the command-cursor sprite tiles. The pixels are CRAM indices; the
 # plane word or sprite attribute that draws a tile picks its palette line.
 COMMAND_UI_ART_NAME = f"{ART_DIRECTORY}/command_ui.json"
@@ -834,7 +834,7 @@ def build_command_ui(rom: bytes) -> dict[str, Any]:
         raise ValueError("command art palette at $76A4 runs past the ROM")
     return {
         "kind": "battle_command_ui_art",
-        "source": "loc_7382 (ps4.asm:10975): NemDecomp to VRAM $2BC0 and $2F80",
+        "source": "loc_7382 (ps4.asm:10978): NemDecomp to VRAM $2BC0 and $2F80",
         "palette_line_3": [
             int.from_bytes(palette_bytes[i:i + 2], "big")
             for i in range(0, len(palette_bytes), 2)

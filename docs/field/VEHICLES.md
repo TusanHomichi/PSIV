@@ -165,8 +165,10 @@ that parks the machine is not a dismount and keeps its own placement
 ## Field art and movement
 
 Retail's field vehicle object uses the Nemesis art at `loc_51A7A`
-(`ps4.asm:107728-107747`), the vehicle mapping tables at
-`ps4.asm:047EF4/047F04/047F14`, and palette selector `$60` (`CRAM` line 3).
+(`ps4.asm:107728-107747`), the vehicle mapping tables at ROM
+`$047EF4`/`$047F04`/`$047F14` (`SprMapsPtrs_LandRover` (`ps4.asm:94416`),
+`SprMapsPtrs_IceDigger` (`ps4.asm:94422`), `SprMapsPtrs_Hydrofoil`
+(`ps4.asm:94428`)), and palette selector `$60` (`CRAM` line 3).
 The pack emits the three decoded sheets and their mapping-defined sequences:
 
 | Selector | Nemesis art | Decoded bytes | Frames | Mapping table |
@@ -371,7 +373,8 @@ and entry oracle, not a CRAM-capture tape.
 2. `Battle_BackgroundIndexes`, 416 entries indexed by `Field_Map_Index`;
 3. on Motavia map `0`, the raw terrain chunk through `MotaBattleBGIndexes`.
 
-The Mota table is exactly 42 bytes at `ps4.asm:0586EC..058716`, not 43:
+The Mota table, `MotaBattleBGIndexes` (`ps4.asm:118181`), is exactly 42 bytes
+at ROM `$0586EC..$058716`, not 43:
 
 ```text
 0,3,3,3,3,1,1,1,3,3,0,1,0,1,0,1,0,3,0,3,0,3,0,

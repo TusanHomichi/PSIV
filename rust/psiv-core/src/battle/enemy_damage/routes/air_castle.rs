@@ -1,8 +1,8 @@
 //! The Air Castle stretch's damage arms, from the worms and sabres of
 //! group 52 to the three fixed battles behind Xe-A-Thoul's room.
 //!
-//! GRA: EnemyAttack_DimensWorm (EnemyAttackOffs $49/$4A, ps4.asm:19280-
-//! 19281) sends every id but 0 and $30 to loc_F7BE (21909-21931), which
+//! GRA: EnemyAttack_DimensWorm (EnemyAttackOffs $49/$4A,
+//! ps4.asm:19280-19281) sends every id but 0 and $30 to loc_F7BE (21909-21931), which
 //! clears Current_Target_Index and loads $2E0/$2DC/$2D8. $2DC's state 4
 //! (loc_1C920, 39010) writes #$C to the five Obj_Fighters slots at 39021
 //! once $2E0 has set $FFFFEE80 to $A; its sparks draw (`super::super::sparks`).

@@ -20,7 +20,7 @@ model yet (below); Godot draws the runtime-owned palette state.
 
 - `FieldRoutine_Controls` and `FieldRoutine_VehicleControls` call the table
   after `Field_UpdateObjects` and `AnimateTiles`, before the four camera commits,
-  tile refresh and VInt (`ps4.asm:116755-116842`). Scene, transition, battle or
+  tile refresh and VInt (both routines: `ps4.asm:116755-116842`). Scene, transition, battle or
   input dispatch takes an early return and skips the table on that frame.
 - Ordinary dialogue, camp, settings and shops do **not** dispatch it. The fork's
   added calls are inside `bugfixes=1` or `run_map_updates_during_dialog=1`, absent

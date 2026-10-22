@@ -243,7 +243,7 @@ Alys's or Kyra's Attack:
   `loc_A002` (`ps4.asm:15554`), `loc_A012` (`ps4.asm:15569`,
   `SkillObj_Vortex`), `SkillObj_Astral` (`ps4.asm:15575`),
   `SkillObj_Disrupt` (`ps4.asm:15593`), `loc_A95C` (`ps4.asm:16328`),
-  `loc_AD3C`/`loc_AD5C` (`ps4.asm:16622`, `16632`), `loc_AE4E`
+  `loc_AD3C` (`ps4.asm:16615`)/`loc_AD5C` (`ps4.asm:16627`), `loc_AE4E`
   (`ps4.asm:16712`), `loc_AF00` (`ps4.asm:16763`), `loc_B16A`
   (`ps4.asm:16980`), `loc_B2DE` (`ps4.asm:17103`) — one pass each, driven by the
   caster's skill or item object, never by the Attack command.
@@ -324,7 +324,7 @@ vehicle skill path the port already models in `battle/vehicle_skill.rs`.
 
 **The vehicle record has no equipment, and the attack never reads it.**
 `loc_77AE` (`ps4.asm:11295-11404`) is what builds `Vehicle_Stats` (`$FFFF4700`)
-from `VehicleData` (`ps4.asm:321154-321174`), 32 bytes per record
+from `VehicleData` (`ps4.asm:321152-321174`), 32 bytes per record
 (`lsl.w #5, d3`): the `curr_hp`/`max_hp` word (`$02E4`, `$03C0` and `$02A8` for
 the Land Rover, Ice Digger and Hydrofoil), strength / mental / agility /
 dexterity, one byte each written to the stat, its `_mod` and its `_battle`

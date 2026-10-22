@@ -185,8 +185,8 @@ and only one of them reproduces what it records:
 The jitter is `loc_5528`'s jitter loop: `lsr.w #1, d1` on the queue's highest
 agility as the divisor (`ps4.asm:7792`), one `UpdateRNGSeed2` per entry
 (`ps4.asm:7796`) and `divu.w d1, d0` (`ps4.asm:7797`) with the remainder added
-to that entry's ordering agility (`ps4.asm:7801`). The damages are `loc_266C` ->
-`Battle_CalculateDamage` (`ps4.asm:3750`, `ps4.asm:17374`) with the attack,
+to that entry's ordering agility (`ps4.asm:7801`). The damages are `loc_266C` (`ps4.asm:3750`) ->
+`Battle_CalculateDamage` (`ps4.asm:17374`) with the attack,
 defence and element factor the log carries (`Character_DamageEnemy`,
 `ps4.asm:3910`, `loc_27A4`, `ps4.asm:3963`). Nine turn-order addends and six
 damage numbers, all of them reproduced by the high half and none of them by the
@@ -452,8 +452,8 @@ exactly once in the image and immediately after the listing's lines for them:
 3F 4E 40` (the battle-load wipe) at `$006A38`.
 
 The save path does not touch it. `TransferToSRAM` writes a fixed block -
-`Event_Flags` through `Vehicle_Stats`, `$27F+1` longwords, `ps4.asm:134830-
-134849` - and that block starts at `$FFFFF100` (`constants:2362`) and ends at
+`Event_Flags` through `Vehicle_Stats`, `$27F+1` longwords,
+`ps4.asm:134830-134849` - and that block starts at `$FFFFF100` (`constants:2362`) and ends at
 `$FFFFFAFF`. `$FFFFEEA8` is below it, so the word is neither saved nor restored
 and a continue starts from whatever the boot clear left, which is zero. That
 reading is from the bytes rather than from a measurement: the tapes here never

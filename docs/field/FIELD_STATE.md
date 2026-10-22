@@ -234,7 +234,7 @@ five: nothing addresses the clone's `Temp_Event_Flags` at `$FFFFF156`, and the
 "TempEveFlags" calls dispatch through the door at `$FFFFF140`. Only the name on
 that door is wrong. Tape 17 measures the write.
 
-The prediction comes from `ChestFlags_Set` (`ps4.asm:116683`), whose bit
+The prediction comes from `ChestFlags_Set` (`ps4.asm:116678`), whose bit
 numbering inside a byte is **reversed**: `bset (7 - (id & 7)), (bank + (id >> 3))`.
 So `TempEveFlag_Xanafalgue = $13` = 19 must land at byte `19 >> 3` = 2 and bit
 `7 - (19 & 7)` = 4 — that is, **`$10` at `$FFFFF142`**.

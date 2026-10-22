@@ -5,7 +5,7 @@
 # (starting map, starting position, starting party).
 #
 # Why the presses land where they do, all read out of the disassembly:
-#   f226   GameMode_Title begins (GameModePtrs, ps4.asm:418).
+#   f226   GameMode_Title begins (GameModePtrs, ps4.asm:419).
 #   f<400  TitleRoutine_FadingText is running; a START here skips the fade.
 #   f454+  TitleRoutine_PressStartButton polls Joypad_Pressed for START over
 #          a $233 = 563 frame window (ps4.asm, TitleRoutine_PressStartButton).
@@ -135,7 +135,7 @@ end
 # TempEveFlag_Xanafalgue = $13 is set when the Xanafalgue runs away in the
 # Piata basement. Walking a short way into the basement reaches that trigger.
 #
-# The prediction, from ChestFlags_Set (ps4.asm:116683): flag id N sets bit
+# The prediction, from ChestFlags_Set (ps4.asm:116678): flag id N sets bit
 # (7 - (N & 7)) of bank byte (N >> 3), so id $13 = 19 lands at $F140 + 2 = 
 # $FFFFF142, mask $10. If the alias is real, chestb2 goes 00 -> 10 and every
 # byte of the $F156 bank stays 00.

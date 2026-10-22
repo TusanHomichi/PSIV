@@ -323,7 +323,7 @@ impl DestinationMode {
         (DestinationOutcome::Open, sound)
     }
 
-    /// `RedCursor_Main` (`ps4.asm:141836-141843`).
+    /// `RedCursor_Main` (`ps4.asm:91868-91876`).
     fn update_cursor_object(&mut self) {
         self.cursor_timer -= 1;
         if self.cursor_timer < 0 {
@@ -397,7 +397,7 @@ impl DestinationMode {
 }
 
 /// "NAME will be" and "the destination.": `loc_2AAA7A`'s name then
-/// `loc_2AAA60` (`ps4.asm:133778-133793`), the two lines `$FC` apart. A pack
+/// `loc_2AAA60` (`ps4.asm:133626-133643`), the two lines `$FC` apart. A pack
 /// without the screen types nothing.
 fn confirm_message(runtime: &Runtime, world: u8) -> Vec<char> {
     let Some(menu) = runtime.data().ship_menu() else {

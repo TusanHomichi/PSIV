@@ -163,7 +163,7 @@ fn heal_of(enemy: u16, skill: &EnemySkill) -> Option<Healed> {
         .map(|(_, _, healed)| *healed)
 }
 
-/// EnemyInit_Igglanova and EnemyInit_Tower (`ps4.asm:18275`, `18243`) clear the
+/// EnemyInit_Igglanova (`ps4.asm:18275`) and EnemyInit_Tower (`ps4.asm:18243`) clear the
 /// neighboring fighter objects: 12 Igglanova and 13 Guilgenova take the first,
 /// 39 Tower and 45 CommndBall the second. The port keeps their formation
 /// identity and stats ready for the refill. Position bit 7 is a palette
@@ -223,7 +223,7 @@ pub(super) fn initialize_enemies(roster: &mut Roster) {
 /// ([`EnemySkill::is_refill`]): the two Fission records, and `$14` WARNING of 45
 /// CommndBall (and 39 Tower), whose `$1CC` object (`loc_1879A`,
 /// `ps4.asm:33852`) finishes with `clr.w (a4) / movea.l $7C(a4), a1 /
-/// jmp loc_14CBE` (`ps4.asm:33846-33850`) after an alarm animation
+/// jmp loc_14CBE` (`ps4.asm:33898-33902`) after an alarm animation
 /// (`loc_185EC`, `ps4.asm:33725`). The captured fight
 /// (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10) shows it: round 1's queue holds the
 /// CommndBall alone - `EnemyInit_Tower` (`ps4.asm:18243`) cleared both

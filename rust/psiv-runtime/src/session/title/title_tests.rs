@@ -43,7 +43,7 @@ fn the_press_start_hold_opens_the_option_window_on_the_retail_frame() {
 }
 
 /// Negative control: a save-less card's option window is the single START
-/// row (`Title_NoSavedData`, `ps4.asm:87542`).
+/// row (`Title_NoSavedData`, `ps4.asm:87545`).
 #[test]
 fn the_save_less_option_window_accepts_its_one_row() {
     let mut title = title([false; 3]);

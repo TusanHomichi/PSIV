@@ -38,7 +38,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def cartridge_multiply(seed):
-    """UpdateRNGSeed (ps4.asm:86066) written out again, independently."""
+    """UpdateRNGSeed (ps4.asm:86070) written out again, independently."""
     d1 = 0x2A6D365B if seed & M16 == 0 else seed
     d1 = (d1 * 41) & M32  # d1*2, d1*2, +d1, <<3, +d1
     lo, hi = d1 & M16, (d1 >> 16) & M16
