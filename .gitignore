@@ -36,5 +36,7 @@ godot/.godot/
 /oracle/states
 /oracle/layouts
 /build
+# direnv's cache of the Nix dev shell (flake.nix, .envrc).
+/.direnv
 oracle/tmp_*
 oracle/fixtures/battle_animation_art/*.png
