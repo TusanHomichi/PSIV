@@ -22,6 +22,20 @@ The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
 documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 
+On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
+`.envrc`, enters a shell with all of these: Python with Pillow, NumPy and
+PyYAML, rustup, shellcheck, Xvfb with Mesa's software rasterizer, and the
+official Godot build that `.godot-version` pins, exported as `PSIV_GODOT`. That
+Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
+play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](../flake.nix) also
+holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
+the new zip's hash there (`tests/test_flake.py` fails until it does). The
+shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
+same pixels: until [#190](https://github.com/TusanHomichi/PSIV/issues/190) is
+fixed, three Python tests that pin PNG file hashes fail under it, and a pack
+built there has different `png_sha256` values and digest from one built on a
+zlib-ng host.
+
 ## Prepare the local pack
 
 From the repository root:
