@@ -2,5 +2,5 @@
 # rustup reads this file from the repository root and installs the toolchain on
 # first use. Change the version here, and only here.
 [toolchain]
-channel = "1.97.1"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
