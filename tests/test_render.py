@@ -137,7 +137,7 @@ class TestPiatasOverlay(unittest.TestCase):
         self.assertEqual(entry["priority_tiles"], 1068)
         self.assertEqual(
             entry["png_over_sha256"],
-            "c2b790e8d72b6183b5a965395ca96b471e47a4c54c83e1deb692b424fb62b40c",
+            "ae54424b64af7dbb1d60535baa012b6bcb61c06b22bd040d92eeb2170b88d4c8",
         )
 
         base = parse_png_chunks((self.root / entry["png"]).read_bytes())

@@ -1,10 +1,10 @@
 """ROM-backed shop portraits cover every counter and match the shared Baker."""
-import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
+from psiv_tools import png
 from psiv_tools.shop_portraits import emit_shop_portraits
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +24,7 @@ class ShopPortraitTests(unittest.TestCase):
             for row in portraits:
                 self.assertEqual(row['size_pixels'], [48, 48])
                 self.assertEqual(row['cram_line'], 2)
-                self.assertEqual(hashlib.sha256((root / row['png']).read_bytes()).hexdigest(), row['png_sha256'])
+                self.assertEqual(png.image_sha256((root / row['png']).read_bytes()), row['png_sha256'])
             for art, existing in [
                 ('0x29FC66', 'dialogue/portraits/12_Baker.png'),
                 ('0x29DE1E', 'presentation/portraits/shopkeeper_2.png'),

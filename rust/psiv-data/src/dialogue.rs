@@ -50,8 +50,9 @@ pub use trees::{
     WorldInteractionTrees,
 };
 
-/// Format version every file of the dialogue pack declares.
-pub const DIALOGUE_FORMAT_VERSION: u32 = 1;
+/// Format version every file of the dialogue pack declares: the pack's own,
+/// which the emitter stamps on dialogue files too.
+pub const DIALOGUE_FORMAT_VERSION: u32 = crate::manifest::PACK_FORMAT_VERSION;
 
 /// Characters on one line of the message window.
 ///

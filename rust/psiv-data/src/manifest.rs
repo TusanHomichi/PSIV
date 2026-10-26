@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Kept in step with `psiv_tools.pack.PACK_FORMAT_VERSION`, which moves
 /// whenever an emitted field changes meaning or disappears.
-pub const PACK_FORMAT_VERSION: u32 = 1;
+pub const PACK_FORMAT_VERSION: u32 = 2;
 
 /// The pack index.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,7 +112,8 @@ pub struct MapEntry {
     /// a check the filesystem is not lying about.
     #[serde(default)]
     pub json_sha256: Option<String>,
-    /// SHA-256 of the PNG as written.
+    /// `image_sha256` of the PNG: SHA-256 of what it decodes to (IHDR fields,
+    /// PLTE, tRNS and the unfiltered rows), not of its deflate bytes.
     #[serde(default)]
     pub png_sha256: Option<String>,
     /// Width in collision cells, repeated from the record so the inventory can
@@ -146,7 +147,7 @@ mod tests {
 
     fn manifest_text(extra_maps: &str) -> String {
         format!(
-            r#"{{"format_version": 1,
+            r#"{{"format_version": {PACK_FORMAT_VERSION},
                  "generator": "psiv_tools.pack",
                  "rom": {{"sha256": "{DIGEST}", "size_bytes": 3145728}},
                  "collision": {{"cell_pixels": 16, "blocking_types": [8, 9, 10, 11, 12]}},

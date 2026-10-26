@@ -819,7 +819,7 @@ def export_plane_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
             "cells": len(cells),
             "size": [columns * TILE_WIDTH, (len(cells) // columns) * TILE_HEIGHT],
             "palette": palette_name,
-            "sha256": hashlib.sha256(image).hexdigest(),
+            "sha256": png.image_sha256(image),
         })
 
     for spec in MAPPINGS:

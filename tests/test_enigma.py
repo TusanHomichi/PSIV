@@ -2,8 +2,10 @@ import hashlib
 import struct
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 
+from psiv_tools import png
 from psiv_tools.core import read_rom
 from psiv_tools.enigma import (
     FLAG_H_FLIP,
@@ -129,7 +131,8 @@ COMPOSED_BATTLE_SHA256 = {
     0x00: (512, 192, "f0b86a200e089b41c37867012db651d1b9822a3d22c8ce710107ce32f1f961c3"),
     0x02: (512, 192, "7a667d4a93abc7a3ada35ade5dc7bb431b02d829d2a4fefc0827021399e8ad10"),
 }
-MOTA_DESERT_PNG_SHA256 = "9d442ef62895a5a9a17e2061068728848f4234610ca62d7bf3fda42f32fe8209"
+# `png.image_sha256` of the export: what the PNG decodes to, not its bytes.
+MOTA_DESERT_IMAGE_SHA256 = "0faf4b8082d01ffb69808621b72f2228e4a27cb295921ebc00c3a1cd14ea023d"
 
 # Six of the call sites sit inside `if revision=0 ... else ... endif` in the
 # fork, which assembles the `revision=0` side. These are the base tiles that
@@ -882,7 +885,19 @@ class TestPlanesFromRom(unittest.TestCase):
             decode_cells(words), BATTLE_BG_COLUMNS, decode_tiles(art), cram,
             BATTLE_BG_ART_VRAM_TILE,
         )
-        self.assertEqual(hashlib.sha256(image).hexdigest(), MOTA_DESERT_PNG_SHA256)
+        self.assertEqual(png.image_sha256(image), MOTA_DESERT_IMAGE_SHA256)
+        # The pin names the pixels: another deflate of them still matches it,
+        # and one changed pixel (not a filter byte) does not.
+        idat = dict(parse_png_chunks(image))[b"IDAT"]
+        rows = bytearray(zlib.decompress(idat))
+        head, tail = image.index(b"IDAT") - 4, image.index(b"IDAT") + 8 + len(idat)
+        for flip, expect in ((0, self.assertEqual), (1, self.assertNotEqual)):
+            rows[len(rows) // 2 + 1] ^= flip
+            fast = zlib.compress(bytes(rows), 1)
+            other = (image[:head] + struct.pack(">I", len(fast)) + b"IDAT" + fast
+                     + struct.pack(">I", zlib.crc32(b"IDAT" + fast)) + image[tail:])
+            self.assertNotEqual(other, image)
+            expect(png.image_sha256(other), MOTA_DESERT_IMAGE_SHA256)
 
     def test_named_palettes_are_whole_cram_images(self):
         for label in ("Pal_TitleScreen", "Pal_TitleScrollingText", "Pal_TitleCharPortraits"):
@@ -900,7 +915,7 @@ class TestPlanesFromRom(unittest.TestCase):
             self.assertEqual(struct.unpack(">II", chunks[b"IHDR"][:8]), (112, 224))
             desert = by_label["MapEni_MotaDesertBattleBG_MotaDesert"]
             self.assertEqual(desert["size"], [512, 192])
-            self.assertEqual(desert["sha256"], MOTA_DESERT_PNG_SHA256)
+            self.assertEqual(desert["sha256"], MOTA_DESERT_IMAGE_SHA256)
 
     def test_extract_returns_no_pixels(self):
         """Same rule as gfx: metadata is committable, Sega's artwork is not."""

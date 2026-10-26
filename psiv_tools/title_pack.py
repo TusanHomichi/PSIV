@@ -213,7 +213,7 @@ def _decode_mapping_asset(
         mapping["note"] = spec["note"]
     return {
         "png": str(path.relative_to(path.parents[1])),
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "size_pixels": [spec["columns"] * 8, spec["rows"] * 8],
         "mapping": mapping,
         "art": art,
@@ -258,7 +258,7 @@ def _background(
         piece_key = label.removeprefix("MapEni_")
         pieces[piece_key] = {
             "png": str(piece_path.relative_to(root)),
-            "png_sha256": hashlib.sha256(piece_image).hexdigest(),
+            "png_sha256": png.image_sha256(piece_image),
             "size_pixels": [width, height],
             "mapping": {
                 **mapping,
@@ -298,7 +298,7 @@ def _background(
     path.write_bytes(image)
     return {
         "png": str(path.relative_to(root)),
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "size_pixels": [320, 224],
         "placements": placements,
         "source": "plane_b at title frame 401: left + bottom + right",

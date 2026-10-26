@@ -6,7 +6,6 @@ cover no map-change cell in the stored layout are exactly the five a
 type-1 cell. That is the thing the pack could not express before.
 """
 
-import hashlib
 import json
 import tempfile
 import unittest
@@ -16,6 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from psiv_tools import png
 from psiv_tools.core import read_rom
 from psiv_tools.layouts import ChunkTable, chunk_palette, collision_at, render_layout
 from psiv_tools.map_effects import extract_map_effects
@@ -422,7 +422,7 @@ class TestThePackedResolution(unittest.TestCase):
                 self.assertEqual(atlas["count"], len(written))
                 self.assertEqual(atlas["tile_pixels"], ATLAS_TILE_PIXELS)
                 image = (self.root / atlas["png"]).read_bytes()
-                self.assertEqual(atlas["png_sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual(atlas["png_sha256"], png.image_sha256(image))
                 for index, tile in enumerate(atlas["tiles"]):
                     self.assertEqual(tile["index"], index)
                     self.assertEqual(tile["x"], index * ATLAS_TILE_PIXELS)

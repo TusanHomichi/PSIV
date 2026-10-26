@@ -9,6 +9,9 @@ Compares files between two directory trees:
    as lines like: maps/013.json: $.npcs[3].interactable: true -> false
    (arrays element-wise; length mismatch as $.path.length: N -> M), then a
    remaining-differences count.
+   For a differing .png that decodes to the same image (`image_sha256`), it
+   says the encoding differs and the image does not: deflate bytes depend on
+   the host's zlib build.
 4) Exit codes:
    - 0: Identical packs (no differences)
    - 1: Differences found
@@ -18,7 +21,7 @@ Compares files between two directory trees:
 7) --self-test builds temporary fixtures, asserts behavior and exit codes,
    prints SELF-TEST OK, and exits 0.
 
-Stdlib-only, Python 3 with type hints.
+Stdlib and psiv_tools only, Python 3 with type hints.
 """
 
 from __future__ import annotations
@@ -29,10 +32,16 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+# `python3 tools/pack_diff.py` puts `tools/` on sys.path, not the repository.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from psiv_tools import png  # noqa: E402
 
 
 class _MissingSentinel:
@@ -115,6 +124,13 @@ def compute_sha256(file_path: Path) -> str:
         while chunk := f.read(65536):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def _same_image(path_a: Path, path_b: Path) -> bool:
+    try:
+        return png.image_sha256(path_a.read_bytes()) == png.image_sha256(path_b.read_bytes())
+    except (png.PngError, zlib.error):
+        return False
 
 
 class PackDiffResult:
@@ -206,6 +222,8 @@ def compare_packs(pack_a: Path, pack_b: Path) -> PackDiffResult:
                     json_diffs[rel_path] = diffs
                 except Exception as exc:
                     invalid_json_diffs[rel_path] = str(exc)
+            elif rel_path.lower().endswith(".png") and _same_image(path_a, path_b):
+                non_json_diffs[rel_path] = "encoding differs, same image (image_sha256 equal)"
             else:
                 non_json_diffs[rel_path] = f"binary/content differs (SHA-256: {sha_a[:8]}... -> {sha_b[:8]}...)"
 
@@ -359,6 +377,17 @@ def run_self_test() -> int:
         (pack1 / "sprites" / "diff.png").write_bytes(b"PNG_DATA_A_12345")
         (pack2 / "sprites" / "diff.png").write_bytes(b"PNG_DATA_B_67890")
 
+        # The same image, deflated at two levels
+        image = png.encode_indexed(2, 2, [0, 1, 1, 0], [(0, 0, 0), (255, 255, 255)])
+        start = image.index(b"IDAT") - 4
+        (length,) = struct.unpack(">I", image[start:start + 4])
+        stored = zlib.compress(zlib.decompress(image[start + 8:start + 8 + length]), 0)
+        restored = (image[:start] + struct.pack(">I", len(stored)) + b"IDAT" + stored
+                    + struct.pack(">I", zlib.crc32(b"IDAT" + stored))
+                    + image[start + 12 + length:])
+        (pack1 / "sprites" / "same.png").write_bytes(image)
+        (pack2 / "sprites" / "same.png").write_bytes(restored)
+
         # Whitespace/Formatting difference only
         fmt_data = {"test": [1, 2, 3]}
         (pack1 / "formatting.json").write_text(json.dumps(fmt_data, indent=2), encoding="utf-8")
@@ -382,8 +411,8 @@ def run_self_test() -> int:
             text=True,
         )
         assert proc_identical.returncode == 0, f"Expected exit code 0, got {proc_identical.returncode}\n{proc_identical.stderr}"
-        assert "Compared:       7" in proc_identical.stdout
-        assert "Identical:      7" in proc_identical.stdout
+        assert "Compared:       8" in proc_identical.stdout
+        assert "Identical:      8" in proc_identical.stdout
         assert "Differing:      0" in proc_identical.stdout
         assert "Only in A:      0" in proc_identical.stdout
         assert "Only in B:      0" in proc_identical.stdout
@@ -407,9 +436,10 @@ def run_self_test() -> int:
         assert "many_diffs.json: ... and 5 more differences" in proc_diff.stdout
         assert "formatting.json: formatting/whitespace differs" in proc_diff.stdout
         assert "sprites/diff.png: binary/content differs" in proc_diff.stdout
-        assert "Compared:       6" in proc_diff.stdout
+        assert "sprites/same.png: encoding differs, same image" in proc_diff.stdout
+        assert "Compared:       7" in proc_diff.stdout
         assert "Identical:      2" in proc_diff.stdout
-        assert "Differing:      4" in proc_diff.stdout
+        assert "Differing:      5" in proc_diff.stdout
         assert "Only in A:      1" in proc_diff.stdout
         assert "Only in B:      1" in proc_diff.stdout
 
