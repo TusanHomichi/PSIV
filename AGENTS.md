@@ -145,6 +145,13 @@ authorized integration (a PR, under [pull requests](#pull-requests)) and owned
 cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.
 
+## Private
+
+The ROM and everything derived from it (packs, extracted tables, graphics,
+text and audio, oracle frames, captures and fixture PNGs), `reference/`, saves,
+and third-party sources such as `oracle/gpgx-src/`. How to keep them out of
+Git and safe: [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
+
 ## Pull requests
 
 Open PRs ready for review, never as drafts, and leave them to the steward: it
@@ -155,7 +162,8 @@ why it's wrong, then resolve the thread. A PR touching a one-way path
 (secrets, migrations, CODEOWNERS) gets a judgment first: it lands unless it
 can't be undone or is the owner's to decide.
 
-PSIV's CI is the `gate` status: once the reviews are clean, the steward has
+PSIV's CI is the hosted `flake` check, which needs no local input, and the
+`gate` status: once the reviews are clean, the steward has
 the full gate run on the PR's head on the machine that holds the local inputs
 ([gate and coverage](docs/DEVELOPMENT.md#gate-and-coverage)). The review bots
 never see the local inputs or the tracked paths derived from the cartridge: the

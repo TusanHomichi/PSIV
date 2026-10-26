@@ -1,0 +1,15 @@
+# The gate is the flake: CI runs `nix flake check`, through burrow's shared
+# workflow, on a hosted runner (a public repo's PRs never reach the machine).
+# It covers the part of the gate that needs no ROM or other local input
+# (docs/DEVELOPMENT.md#gate-and-coverage). The shared workflow is pinned to a
+# commit (burrow main, 2026-10-26), and Renovate keeps the pin current.
+name: flake
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    uses: FieldmouseWorks/burrow/.github/workflows/flake-check.yml@9d847ff704b0f004ab6e44fceb58cdacc88b5fd4 # main
