@@ -105,7 +105,7 @@ impl Field {
                 );
                 let mut tree = self
                     .base()
-                    .get_tree()
+                    .get_tree_or_null()
                     .expect("Field::ready runs in the scene tree");
                 tree.quit_ex().exit_code(1).done();
                 return;

@@ -188,7 +188,7 @@ impl EnemyAnimation {
     }
 
     fn rebuild(&mut self) -> Option<()> {
-        let mut image = self.base.duplicate()?.try_cast::<Image>().ok()?;
+        let mut image = self.base.duplicate_resource();
         for piece in &self.pieces {
             let frame = piece.frames.get(piece.frame).unwrap_or(&piece.initial);
             for placement in &piece.placements {
