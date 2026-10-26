@@ -156,7 +156,7 @@ why it's wrong, then resolve the thread. A PR touching a one-way path
 can't be undone or is the owner's to decide.
 
 PSIV's CI is the `gate` status: once the reviews are clean, the steward has
-the fast gate run on the PR's head on the machine that holds the local inputs
+the full gate run on the PR's head on the machine that holds the local inputs
 ([gate and coverage](docs/DEVELOPMENT.md#gate-and-coverage)). The review bots
 never see the local inputs or the tracked paths derived from the cartridge; a
 PR that changes those is judged by an agent on that machine instead.
