@@ -83,10 +83,10 @@ sandbox confer no project authority.
 | --- | --- |
 | Scope | Assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
 | Local setup | Use documented prerequisites or isolated local dependencies before declaring a tool unavailable. Do not modify unrelated system configuration. |
-| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and merging them once the full gate is green, plus issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
+| Git and remote writes | On 2026-10-01 the owner granted committing, pushing branches, opening PRs and issue filing; reuse it without asking again. Remote inspection is allowed. Since 2026-10-26 (owner, moving PSIV into the shared pipeline) merging is the steward's: an agent opens the PR and leaves it to the steward ([AGENTS.md](../AGENTS.md#pull-requests)), and never merges itself. |
 | Cleanup | Remove only owned disposable outputs and processes and, when integration includes it, owned task branches and worktrees. Retain evidence, source saves and other people's work. No broad cleanup. |
 | Deployment and publication | Releases, deployment and asset distribution have no standing grant. |
-| Paid services | No paid model service is authorized in PSIV; a live batch needs a new explicit assignment. |
+| Paid services | The review bots the steward asks on every PR (owner, 2026-10-26). Nothing else: a live batch needs a new explicit assignment. |
 | Protected inputs | Owned by [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence); no task grant relaxes them. |
 | Effort | Owner, 2026-09-23: "Continue scoped repairs until it passes, with no fixed cycle limit." This applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints, expand scope, or grant publication or spending authority. |
 | Continuation | During an assigned outcome, continue ready authorized steps through its agreed endpoint without repeated approval requests. |
@@ -171,9 +171,11 @@ Claim a speedup only from comparable completed measurements.
 ## Review, integration and procedure changes
 
 Review both the diff and the behavior, label self-review versus independent
-review, and resolve material findings before acceptance. Once permitted,
-continue through PR, merge, verification on the integrated `main` revision and
-owned cleanup; a candidate's earlier result is not a pass on `main`. If
+review, and resolve material findings before acceptance. A PR's independent
+review is the steward's review bots; fix or answer every finding
+([AGENTS.md](../AGENTS.md#pull-requests)). Once permitted, continue through the
+PR, verification on the integrated `main` revision once the steward has merged
+it, and owned cleanup; a candidate's earlier result is not a pass on `main`. If
 integration was not requested, leave a verified local result and report that
 boundary.
 

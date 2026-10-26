@@ -273,6 +273,11 @@ is the isolated warm measurement).
 ### Gate and coverage
 
 PSIV has no hosted CI yet ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
+On a pull request, the `gate` commit status stands in for it: once the review
+bots are clean on a head, the steward has an agent on the machine that holds
+the local inputs run `python3 tools/gate.py --fast --wait` on that exact commit,
+in its own worktree with the inputs linked in, and record the verdict. A gate
+missing an input is partial, and a partial gate is recorded as a failure.
 The gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
