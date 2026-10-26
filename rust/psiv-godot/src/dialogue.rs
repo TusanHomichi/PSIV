@@ -243,7 +243,9 @@ impl DialogueWindow {
         self.choice_view = choice::ChoiceView::build(pack_dir, set);
         match WindowView::build(pack_dir, set) {
             Some(view) => self.view = Some(view),
-            None => godot_error!("dialogue: window or font art failed to load from {pack_dir}"),
+            None => {
+                godot_error!("dialogue: window or font art failed to load from {pack_dir}");
+            }
         }
     }
 
@@ -460,10 +462,12 @@ impl DialogueWindow {
             Some(texture) => {
                 self.portraits.insert(id, texture);
             }
-            None => godot_error!(
-                "dialogue: portrait art {}/{png} failed to load",
-                self.pack_dir
-            ),
+            None => {
+                godot_error!(
+                    "dialogue: portrait art {}/{png} failed to load",
+                    self.pack_dir
+                );
+            }
         }
     }
 }

@@ -92,7 +92,9 @@ impl Field {
                                         blits.len()
                                     );
                                 }
-                                None => godot_error!("could not load patch atlas {atlas_path}"),
+                                None => {
+                                    godot_error!("could not load patch atlas {atlas_path}");
+                                }
                             }
                         }
                         if let Some(texture) = ImageTexture::create_from_image(&image)
@@ -107,10 +109,14 @@ impl Field {
                             self.presentation.set_vram_blanked(false);
                         }
                     }
-                    None => godot_error!("could not load map image {path}"),
+                    None => {
+                        godot_error!("could not load map image {path}");
+                    }
                 }
             }
-            None => godot_error!("map {id:#05x} has no png declared in the pack"),
+            None => {
+                godot_error!("map {id:#05x} has no png declared in the pack");
+            }
         }
 
         // The priority overlay: absent on the 22 maps with no priority tiles.
@@ -160,10 +166,14 @@ impl Field {
                                     install_palette_material(sprite, indexed.is_some());
                                     sprite.set_visible(true);
                                 }
-                                None => godot_error!("could not texture overlay {path}"),
+                                None => {
+                                    godot_error!("could not texture overlay {path}");
+                                }
                             }
                         }
-                        None => godot_error!("could not load overlay {path}"),
+                        None => {
+                            godot_error!("could not load overlay {path}");
+                        }
                     }
                 }
                 None => sprite.set_visible(false),
