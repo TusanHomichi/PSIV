@@ -52,7 +52,9 @@ small or a check failed. Exceptions require an explicit owner instruction or an
 actually unavailable route, reported honestly. Workers own their outcomes
 through acceptance, including relevant checks, repair, evidence and closeout.
 The orchestrator independently reviews the result and remains accountable for
-integration, without taking over implementation. Review compact receipts with
+integration up to the PR, without taking over implementation; the PR's review
+bots and the merge are the steward's
+([AGENTS.md](../AGENTS.md#pull-requests)). Review compact receipts with
 proportionate spot checks of the diff and raw artifacts; do not duplicate a
 worker's investigation or rerun a passing check without a concrete cause.
 Verify substantive helper results independently, including rejected output.
@@ -83,7 +85,7 @@ sandbox confer no project authority.
 | --- | --- |
 | Scope | Assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
 | Local setup | Use documented prerequisites or isolated local dependencies before declaring a tool unavailable. Do not modify unrelated system configuration. |
-| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. Since 2026-10-26 (owner, moving PSIV into the shared pipeline) any assigned PSIV task may push its branch and open its PR, and merging is the steward's, once the full gate is green on the PR's head: an agent opens the PR and leaves it to the steward ([AGENTS.md](../AGENTS.md#pull-requests)), and never merges itself. |
+| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. Since 2026-10-26 (owner, moving PSIV into the shared pipeline) any assigned PSIV task may commit, push its branch and open its PR, and merging is the steward's, once the full gate is green on the PR's head: an agent opens the PR and leaves it to the steward ([AGENTS.md](../AGENTS.md#pull-requests)), and never merges itself. |
 | Cleanup | Remove only owned disposable outputs and processes and, when integration includes it, owned task branches and worktrees. Retain evidence, source saves and other people's work. No broad cleanup. |
 | Deployment and publication | Releases, deployment and asset distribution have no standing grant. |
 | Paid services | The review bots the steward asks on every PR (owner, 2026-10-26). Nothing else: a live batch needs a new explicit assignment. |

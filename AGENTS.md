@@ -140,9 +140,9 @@ Put the result, checks and evidence in the PR; update a document only when the
 behavior, commands or retail findings it describes changed, and the README or
 roadmap when a release item closes. Continue ready authorized tasks without
 asking again. Before a requested commit,
-ensure writers are idle and inspect the staged list/diff. Finish by opening the
-PR ([pull requests](#pull-requests)) and through owned cleanup; preserve
-unrelated work and evidence.
+ensure writers are idle and inspect the staged list/diff. Finish through any
+authorized integration (a PR, under [pull requests](#pull-requests)) and owned
+cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.
 
 ## Pull requests
@@ -158,8 +158,9 @@ can't be undone or is the owner's to decide.
 PSIV's CI is the `gate` status: once the reviews are clean, the steward has
 the full gate run on the PR's head on the machine that holds the local inputs
 ([gate and coverage](docs/DEVELOPMENT.md#gate-and-coverage)). The review bots
-never see the local inputs or the tracked paths derived from the cartridge; a
-PR that changes those is judged by an agent on that machine instead.
+never see the local inputs or the tracked paths derived from the cartridge: the
+steward leaves them out of the snapshot and diff the bots read, and a PR that
+changes those is judged by an agent on that machine instead.
 
 ## Code Review Rules
 
