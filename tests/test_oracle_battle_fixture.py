@@ -384,8 +384,8 @@ class FixtureAssembly(FixtureTest):
                 if trace_roll is not None:
                     row["roll"] = f"{trace_roll:04X}"
                 elif column is not None:
-                    row["roll"] = f"{column(self.HV + frame, self.FRAME_COUNT,
-                                            self.SEED):04X}"
+                    roll = column(self.HV + frame, self.FRAME_COUNT, self.SEED)
+                    row["roll"] = f"{roll:04X}"
                 trace.append(row)
         log_rows = [
             Row(frame=9),

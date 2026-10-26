@@ -124,8 +124,8 @@ class Fixture:
         """Rewrite a row so it starts from `seed` and stays self-consistent."""
         entry = self.find(frame, index)
         entry["seed_before"] = f"{seed:08X}"
-        entry["roll"] = f"{cartridge_roll(int(entry['hv'], 16), int(
-            entry['frame_count']), seed):04X}"
+        roll = cartridge_roll(int(entry['hv'], 16), int(entry['frame_count']), seed)
+        entry["roll"] = f"{roll:04X}"
         entry["seed_after"] = f"{ror_high(seed):08X}"
         entry.update(changes)
         return self
@@ -152,9 +152,9 @@ class Fixture:
     def low_word_rolls(self):
         """Every row's roll column as the pre-fix host wrote it: low half."""
         for entry in self.rows:
-            entry["roll"] = f"{low_word_roll(
-                int(entry['hv'], 16), int(entry['frame_count']),
-                int(entry['seed_before'], 16)):04X}"
+            roll = low_word_roll(int(entry['hv'], 16), int(entry['frame_count']),
+                                 int(entry['seed_before'], 16))
+            entry["roll"] = f"{roll:04X}"
         return self
 
     def drop_log_frame(self, frame):
@@ -376,8 +376,9 @@ class TestCheckRejects(TraceCase):
     def test_the_low_word_column_is_rejected_at_the_row_that_uses_it(self):
         fixture = self.fixture()
         entry = fixture.find(51, 1)
-        entry["roll"] = f"{low_word_roll(int(entry['hv'], 16), int(
-            entry['frame_count']), int(entry['seed_before'], 16)):04X}"
+        roll = low_word_roll(int(entry['hv'], 16), int(entry['frame_count']),
+                             int(entry['seed_before'], 16))
+        entry["roll"] = f"{roll:04X}"
         status, out = self.run_check(fixture)
         self.assertEqual(status, 1)
         self.assertIn("f51 call 1: roll", out)

@@ -24,7 +24,7 @@ documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 
 On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 `.envrc`, enters a shell with all of these: Python with Pillow, NumPy and
-PyYAML, rustup, shellcheck, Xvfb with Mesa's software rasterizer, and the
+PyYAML (and ruff), the Rust toolchain `rust-toolchain.toml` pins, shellcheck, Xvfb with Mesa's software rasterizer, and the
 official Godot build that `.godot-version` pins, exported as `PSIV_GODOT`. That
 Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
 play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](../flake.nix) also
@@ -272,8 +272,18 @@ is the isolated warm measurement).
 
 ### Gate and coverage
 
-PSIV has no hosted CI yet ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-The gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
+Hosted CI (`.github/workflows/flake.yml`) runs `nix flake check` on every pull
+request and push to `main`: the part of the gate that needs no local input, in
+the Nix sandbox from the tracked tree alone. That is `tools/check_docs.py`
+(citations skipped), `cargo fmt --check`, strict Clippy and the Rust workspace
+tests except those that load `runtime-pack` (listed by name in `packTests` in
+`flake.nix`), plus ruff's syntax and undefined-name rules over the Python; the Rust
+build fetches the Genesis Plus GX sound core at the commit
+`oracle/build_core.sh` pins. The Python suite, which reads the ROM, the
+disassembly and the pack, does not run there, and no ROM or derived asset
+reaches the runner. The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15)
+(the ROM-free Python tests, Windows and macOS runners, a Godot smoke) is open.
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was

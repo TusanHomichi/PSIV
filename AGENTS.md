@@ -5,6 +5,42 @@ cartridge behavior, document deliberate deviations, and keep the unmodified
 game playable without an editor or agent service. The release bar and
 platforms are in [the roadmap](docs/ROADMAP.md).
 
+<!-- house:rules v1 begin. Copied from FieldmouseWorks/burrow house/rules.md, verbatim. Change it there, not here: burrow's house sync rewrites everything between these markers. -->
+## House rules
+
+These hold in every repo. This file's own sections add to them and win where
+they say something more specific.
+
+- Fix the whole cause. No workarounds, shims, fallbacks or half-migrations:
+  when you replace something, delete the old path in the same change.
+- One fact, one home. Each rule or fact lives in one place; link to it instead
+  of restating it.
+- Before you edit, say what done looks like and how it will be checked. Simple
+  work gets a short plan, not a ceremony.
+- Report only the checks you actually ran, and what they said. Skipped,
+  unavailable or "should pass" is never a pass. Keep local and CI results
+  apart.
+- A new check comes with proof that it fails on the bug it's for.
+- Touching a file over about 1,000 lines? Split it in that change.
+- The code is the memory. When something goes wrong, make the code, a type, a
+  test or a check stop it happening again; a new rule in AGENTS.md is the last
+  resort. Say in the PR which one you did.
+- Keep going on work you were asked to do. Don't stop to ask again for what's
+  already been asked for.
+- Never commit what the repo keeps private: secrets, tokens, personal data, and
+  anything listed under this file's "Private" section.
+- `Closes #N` only when the issue is fully done; otherwise `Refs #N`.
+- Tracked files never name a model. Which model does what is the machine's
+  business, and model names go stale in weeks.
+
+### Commits
+
+Subjects are `area: plain sentence`, where the area is the module, directory or
+tool the change is about: `autoland: merge only the head that was checked`.
+Lowercase after the colon, no trailing period, no `feat:`/`fix:` prefixes. The
+body, when there is one, says why.
+<!-- house:rules end -->
+
 ## Start here
 
 Check applicable instructions (including `AGENTS.override.md`),
@@ -107,3 +143,41 @@ asking again. Before a requested commit,
 ensure writers are idle and inspect the staged list/diff. Finish through any
 authorized integration and owned cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.
+
+## Private
+
+The ROM and everything derived from it (packs, extracted tables, graphics,
+text and audio, oracle frames, captures and fixture PNGs), `reference/`, saves,
+and third-party sources such as `oracle/gpgx-src/`. How to keep them out of
+Git and safe: [Protect local inputs and evidence](#protect-local-inputs-and-evidence).
+
+## Pull requests
+
+Open PRs ready for review, never as drafts, and leave them to the steward: it
+asks the review bot for a review, and once the bot finds nothing on your head,
+every review thread is resolved and CI is green, it merges the PR. Fix or
+answer every finding: push the fix and reply with the commit, or reply with
+why it's wrong, then resolve the thread. A PR touching a one-way path
+(secrets, migrations, CODEOWNERS) gets a judgment first: it lands unless it
+can't be undone or is the owner's to decide.
+
+## Code Review Rules
+
+For reviewers, the review bot included. Flag as P1:
+
+- a change that makes a check pass without fixing the thing it checks
+- tests or checks weakened, skipped or deleted to get green
+- secrets, tokens or personal data in the diff or the logs it adds
+- behavior changed beyond what the PR says it does
+- ROM-derived content in the diff: byte or hex runs, extracted tables, text,
+  graphics or audio, or a path under a local input (see Private above)
+- a retail rule changed without a `ps4.asm` citation, or a deliberate
+  deviation not recorded in `docs/source-notes/README.md`
+- a retail integer width, signedness, flag bank, ordering or RNG step changed,
+  or overflow checks or debug assertions turned off in a profile
+- a game rule implemented in Godot or a test driver instead of the layer
+  `docs/RUNTIME_DESIGN.md` assigns it
+- a claim of parity or campaign progress its evidence does not prove: a state
+  test offered as visual parity, an isolated fixture as a connected route
+- a heavy run started outside the heavy-run lock, or a driver that can write
+  saves without an explicit `PSIV_SAVE_DIR`
