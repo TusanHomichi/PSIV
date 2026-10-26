@@ -102,9 +102,10 @@ class TestManifest(PackFixtureCase):
                 stem = f"{entry['id']:03X}_{entry['symbol']}"
                 self.assertEqual(entry["json"], f"{MAPS_DIRECTORY}/{stem}.json")
                 self.assertEqual(entry["png"], f"{MAPS_DIRECTORY}/{stem}.png")
-                for key, name in (("json_sha256", "json"), ("png_sha256", "png")):
-                    blob = (self.root / entry[name]).read_bytes()
-                    self.assertEqual(entry[key], hashlib.sha256(blob).hexdigest())
+                blob = (self.root / entry["json"]).read_bytes()
+                self.assertEqual(entry["json_sha256"], hashlib.sha256(blob).hexdigest())
+                blob = (self.root / entry["png"]).read_bytes()
+                self.assertEqual(entry["png_sha256"], png.image_sha256(blob))
                 # `png_over` is null for a map with no priority tiles, and then
                 # there is deliberately no file to hash.
                 if entry["png_over"] is None:
@@ -113,7 +114,7 @@ class TestManifest(PackFixtureCase):
                 else:
                     self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/{stem}_over.png")
                     blob = (self.root / entry["png_over"]).read_bytes()
-                    self.assertEqual(entry["png_over_sha256"], hashlib.sha256(blob).hexdigest())
+                    self.assertEqual(entry["png_over_sha256"], png.image_sha256(blob))
                     self.assertGreater(entry["priority_tiles"], 0)
                 self.assertEqual(
                     self.maps[entry["id"]]["png_over"], entry["png_over"]

@@ -4,7 +4,6 @@ The previous census called it a Dezolis write and treated +$40 as X+64.
 The actual map load at $076820 and the 64-wide map header forbid both.
 """
 
-import hashlib
 import json
 import tempfile
 import unittest
@@ -12,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from psiv_tools import png
 from psiv_tools.core import read_rom
 from psiv_tools.layouts import chunk_palette
 from psiv_tools.map_patches import MapPatchError, scene_patch_chunks
@@ -102,7 +102,7 @@ class TestPackedCrashLanding(unittest.TestCase):
         self.assertEqual([t["chunk_id"] for t in atlas["tiles"]], list(range(0x50, 0x60)))
         for kind in ("png", "png_over"):
             image = (self.root / atlas[kind]).read_bytes()
-            self.assertEqual(hashlib.sha256(image).hexdigest(), atlas[kind + "_sha256"])
+            self.assertEqual(png.image_sha256(image), atlas[kind + "_sha256"])
             with Image.open(self.root / atlas[kind]) as decoded:
                 self.assertEqual(decoded.size, (16 * 32, 32))
         # The initial lower-left roof is solid; final both lower chunks solid.

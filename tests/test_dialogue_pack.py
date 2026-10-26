@@ -71,8 +71,9 @@ ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 PINNED_TREE = 1
 PINNED_ENTRY = 4
 
-# `ArtNem_ChazDialPortrait`, decompressed and composed six tiles across.
-CHAZ_PORTRAIT_SHA = "5ce6bd10f11e60cfac0e83c8cd421c8bda9c7e31c43be9c3962fcc115c1f9d00"
+# `ArtNem_ChazDialPortrait`, decompressed and composed six tiles across
+# (`png.image_sha256`).
+CHAZ_PORTRAIT_SHA = "3b6c7336193bd73def0a107c8775e263779386d1280ae0ca329c1081aed8733b"
 
 
 def parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
@@ -475,7 +476,7 @@ class TestDialoguePack(unittest.TestCase):
         width, height, rows, chunks = png_pixels(image)
         self.assertEqual((width, height), (GLYPH_COUNT * GLYPH_WIDTH, GLYPH_HEIGHT))
         self.assertEqual(
-            hashlib.sha256(image).hexdigest(), self.font["png_sha256"]
+            png.image_sha256(image), self.font["png_sha256"]
         )
         # Two colours and nothing else: `ParseText` only ever writes $E or $F.
         self.assertEqual({value for row in rows for value in row}, {0xE, 0xF})
@@ -629,7 +630,7 @@ class TestDialoguePack(unittest.TestCase):
         image = (self.root / WINDOW_PNG_NAME).read_bytes()
         width, height, rows, chunks = png_pixels(image)
         self.assertEqual((width, height), (WINDOW_ART_TILES * TILE_PIXELS, TILE_PIXELS))
-        self.assertEqual(hashlib.sha256(image).hexdigest(), self.window["png_sha256"])
+        self.assertEqual(png.image_sha256(image), self.window["png_sha256"])
         self.assertEqual(
             self.window["png_sha256"], self.fragment["chrome"]["png_sha256"]
         )
@@ -734,7 +735,7 @@ class TestDialoguePack(unittest.TestCase):
         )
         for entry in self.portraits["portraits"]:
             image = (self.root / entry["png"]).read_bytes()
-            self.assertEqual(hashlib.sha256(image).hexdigest(), entry["png_sha256"])
+            self.assertEqual(png.image_sha256(image), entry["png_sha256"])
             width, height, _, chunks = png_pixels(image)
             self.assertEqual((width, height), (48, 48))
             self.assertEqual(chunks[b"tRNS"][0], 0)
@@ -838,7 +839,9 @@ class TestDialoguePack(unittest.TestCase):
             (fragment["portraits"]["path"], fragment["portraits"]["sha256"]),
         ):
             data = (self.root / path).read_bytes()
-            self.assertEqual(hashlib.sha256(data).hexdigest(), sha, path)
+            digest = (png.image_sha256(data) if path.endswith(".png")
+                      else hashlib.sha256(data).hexdigest())
+            self.assertEqual(digest, sha, path)
         self.assertEqual(fragment["trees"]["tree_count"], 43)
         self.assertEqual(fragment["portraits"]["count"], 39)
         written = sorted(

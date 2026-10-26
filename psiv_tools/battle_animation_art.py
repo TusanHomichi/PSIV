@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import struct
 import zlib
 from pathlib import Path
@@ -219,7 +218,7 @@ def _emit_oracle_receipt_art(
                 f"oracle:{receipt['routine_offset']}:frame{frame_index:02d}"
             ),
             "png": relative,
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "duration": duration,
         })
     entry.update({
@@ -331,7 +330,7 @@ def emit_enemy_attack_art(
                 "index": frame_index,
                 "mapping_rom_offset": record["rom_offset"],
                 "png": relative,
-                "png_sha256": hashlib.sha256(image).hexdigest(),
+                "png_sha256": png.image_sha256(image),
                 "duration": durations[frame_index],
             })
         entry.update({

@@ -1,7 +1,6 @@
 """Decode the eight portraits selected by the retail shop pointer tables."""
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +38,7 @@ def emit_shop_portraits(rom: bytes, root: Path) -> list[dict[str, Any]]:
         (root / relative).write_bytes(image)
         records.append({
             "art": f"0x{address:06X}", "png": relative,
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "source_consumed": consumed, "mapping": "0x2A2B36",
             "size_pixels": [width, height], "cram_line": 2,
         })

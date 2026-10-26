@@ -4,7 +4,6 @@
 `interactable` answer every NPC carries.
 """
 
-import hashlib
 import json
 import tempfile
 import unittest
@@ -58,7 +57,7 @@ class TestSpriteSheets(PackFixtureCase):
             with self.subTest(symbol=sheet["id"]):
                 self.assertEqual(sheet["png"], f"{PARTY_SPRITES_DIRECTORY}/{sheet['id']}.png")
                 image = (self.root / sheet["png"]).read_bytes()
-                self.assertEqual(sheet["png_sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual(sheet["png_sha256"], png.image_sha256(image))
                 self.assertEqual(
                     png_size(image),
                     (sheet["frame_width"] * sheet["frame_count"], sheet["frame_height"]),

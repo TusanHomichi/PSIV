@@ -7,7 +7,6 @@ own window table.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -209,7 +208,7 @@ def window_json_document(
         "format_version": DIALOGUE_FORMAT_VERSION,
         "kind": "dialogue_window",
         "png": WINDOW_PNG_NAME,
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "source": {
             "label": "ArtNem_WindowTiles",
             "rom_offset": f"0x{WINDOW_ART_ROM_OFFSET:06X}",
