@@ -83,7 +83,7 @@ sandbox confer no project authority.
 | --- | --- |
 | Scope | Assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
 | Local setup | Use documented prerequisites or isolated local dependencies before declaring a tool unavailable. Do not modify unrelated system configuration. |
-| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and issue filing; reuse it without asking again. Remote inspection is allowed. Since 2026-10-26 (owner, moving PSIV into the shared pipeline) merging is the steward's, once the full gate is green on the PR's head: an agent opens the PR and leaves it to the steward ([AGENTS.md](../AGENTS.md#pull-requests)), and never merges itself. |
+| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. Since 2026-10-26 (owner, moving PSIV into the shared pipeline) merging is the steward's, once the full gate is green on the PR's head: an agent opens the PR and leaves it to the steward ([AGENTS.md](../AGENTS.md#pull-requests)), and never merges itself. |
 | Cleanup | Remove only owned disposable outputs and processes and, when integration includes it, owned task branches and worktrees. Retain evidence, source saves and other people's work. No broad cleanup. |
 | Deployment and publication | Releases, deployment and asset distribution have no standing grant. |
 | Paid services | The review bots the steward asks on every PR (owner, 2026-10-26). Nothing else: a live batch needs a new explicit assignment. |
