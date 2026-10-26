@@ -80,10 +80,14 @@ impl BattleScreen {
                     }
                     match ImageTexture::create_from_image(&image) {
                         Some(texture) => node.set_texture(&texture),
-                        None => godot_error!("battle background texture creation failed: {full}"),
+                        None => {
+                            godot_error!("battle background texture creation failed: {full}");
+                        }
                     }
                 }
-                None => godot_error!("battle background image failed to load: {full}"),
+                None => {
+                    godot_error!("battle background image failed to load: {full}");
+                }
             }
         }
         self.base_mut().add_child(&node);

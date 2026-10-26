@@ -123,8 +123,8 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_player_abilities.py": frozenset({"ledger.md"}),
     "tools/verify_native_route.py": frozenset({"summary.md"}),
     "docs/campaign/CAMPAIGN_RUNNER.md": frozenset({"summary.md"}),
-    # The optional, untracked local override the agent guidance reads, and the
-    # house block's source, a file of burrow (its marker line, kept verbatim).
+    # The optional, untracked local override the agent guidance reads, and
+    # the house block's source file, in FieldmouseWorks/burrow.
     "AGENTS.md": frozenset({"AGENTS.override.md", "house/rules.md"}),
     "docs/AGENT_WORKFLOW.md": frozenset({"AGENTS.override.md"}),
     "rust/psiv-core/src/battle/replay/stream.rs": frozenset({"state.md"}),

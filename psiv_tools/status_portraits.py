@@ -1,7 +1,6 @@
 """The eleven STATUS portraits: Nemesis art and the original 10x10 maps."""
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 from . import gfx, planes, png
@@ -37,7 +36,7 @@ def emit_status_portraits(rom: bytes, root: Path) -> list[dict]:
         relative = f"battle/status_portraits/{character:02x}.png"
         (root / relative).write_bytes(image)
         records.append({
-            "png": relative, "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png": relative, "png_sha256": png.image_sha256(image),
             "art": f"0x{art:06X}", "mapping": f"0x{mapping:06X}",
             "source_consumed": consumed, "size_pixels": [width, height],
             "screen_pixels": [24, 16], "cram_line": 2,

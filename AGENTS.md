@@ -141,7 +141,8 @@ behavior, commands or retail findings it describes changed, and the README or
 roadmap when a release item closes. Continue ready authorized tasks without
 asking again. Before a requested commit,
 ensure writers are idle and inspect the staged list/diff. Finish through any
-authorized integration and owned cleanup; preserve unrelated work and evidence.
+authorized integration (a PR, under [pull requests](#pull-requests)) and owned
+cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.
 
 ## Private
@@ -161,6 +162,14 @@ why it's wrong, then resolve the thread. A PR touching a one-way path
 (secrets, migrations, CODEOWNERS) gets a judgment first: it lands unless it
 can't be undone or is the owner's to decide.
 
+PSIV's CI is the hosted `flake` check, which needs no local input, and the
+`gate` status: once the reviews are clean, the steward has
+the full gate run on the PR's head on the machine that holds the local inputs
+([gate and coverage](docs/DEVELOPMENT.md#gate-and-coverage)). The review bots
+never see the local inputs or the tracked paths derived from the cartridge: the
+steward leaves them out of the snapshot and diff the bots read, and a PR that
+changes those is judged by an agent on that machine instead.
+
 ## Code Review Rules
 
 For reviewers, the review bot included. Flag as P1:
@@ -169,15 +178,17 @@ For reviewers, the review bot included. Flag as P1:
 - tests or checks weakened, skipped or deleted to get green
 - secrets, tokens or personal data in the diff or the logs it adds
 - behavior changed beyond what the PR says it does
-- ROM-derived content in the diff: byte or hex runs, extracted tables, text,
-  graphics or audio, or a path under a local input (see Private above)
-- a retail rule changed without a `ps4.asm` citation, or a deliberate
-  deviation not recorded in `docs/source-notes/README.md`
-- a retail integer width, signedness, flag bank, ordering or RNG step changed,
-  or overflow checks or debug assertions turned off in a profile
-- a game rule implemented in Godot or a test driver instead of the layer
-  `docs/RUNTIME_DESIGN.md` assigns it
-- a claim of parity or campaign progress its evidence does not prove: a state
-  test offered as visual parity, an isolated fixture as a connected route
-- a heavy run started outside the heavy-run lock, or a driver that can write
-  saves without an explicit `PSIV_SAVE_DIR`
+- cartridge content committed: ROM bytes, extracted art, sound, text or
+  tables, saves or captures, or a `.gitignore` entry for a local input
+  loosened ([#149](https://github.com/TusanHomichi/PSIV/issues/149) is moving
+  the ones already tracked out)
+- a game rule without its retail basis (a disassembly symbol or ROM offset), or
+  a deliberate difference from the cartridge not recorded in
+  [the source notes](docs/source-notes/README.md)
+- retail integer widths, signedness, flag banks, ordering or RNG semantics
+  changed without new evidence
+- a rule duplicated in Godot or a test driver instead of the layer
+  [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md#data-and-runtime-layers) assigns it
+- evidence edited to pass: a capture, receipt, digest or a halt added to the
+  resume manifest without its issue
+- a native run that can write a save without its own `PSIV_SAVE_DIR`

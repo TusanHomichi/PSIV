@@ -134,7 +134,7 @@ def font_json(
         "format_version": DIALOGUE_FORMAT_VERSION,
         "kind": "dialogue_font",
         "png": FONT_PNG_NAME,
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "charset": "dialogue",
         "charset_source": "script/charset.asm",
         "source": {
@@ -255,7 +255,7 @@ def emit_scroll_arrow(
     (root / SCROLL_ARROW_PNG_NAME).write_bytes(image)
     return {
         "png": SCROLL_ARROW_PNG_NAME,
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "width": SCROLL_ARROW_WIDTH,
         "height": SCROLL_ARROW_HEIGHT,
         "screen_x": 0x188 - 128,
@@ -355,7 +355,7 @@ def emit_portraits(
             "id_hex": f"0x{index:02X}",
             "symbol": entry["symbol"],
             "png": f"{PORTRAITS_DIRECTORY}/{name}",
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "duplicate_of": first_by_offset.get(offset),
             "art": {
                 "label": art["label"],

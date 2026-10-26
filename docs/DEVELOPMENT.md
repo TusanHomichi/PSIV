@@ -31,10 +31,9 @@ play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](.
 holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
 the new zip's hash there (`tests/test_flake.py` fails until it does). The
 shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
-same pixels: until [#190](https://github.com/TusanHomichi/PSIV/issues/190) is
-fixed, three Python tests that pin PNG file hashes fail under it, and a pack
-built there has different `png_sha256` values and digest from one built on a
-zlib-ng host.
+same pixels. That changes no digest: every hash that names an image, in the
+tests and in the pack's `png_sha256` fields, is `image_sha256` from
+[`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
 ## Prepare the local pack
 
@@ -283,6 +282,12 @@ build fetches the Genesis Plus GX sound core at the commit
 disassembly and the pack, does not run there, and no ROM or derived asset
 reaches the runner. The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15)
 (the ROM-free Python tests, Windows and macOS runners, a Godot smoke) is open.
+On a pull request, the `gate` commit status adds the rest: once the review
+bots are clean on a head, the steward has an agent on the machine that holds
+the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
+exact commit, in its own worktree with the inputs linked in, and record the
+verdict; the steward merges only once it is green. A gate missing an input is
+partial, and a partial gate is recorded as a failure.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
@@ -512,9 +517,11 @@ before the build.
 
 A lane iterates on `python3 tools/gate.py --fast` and the focused checks for
 its change; it does not run the full gate or `verify_candidate.py` on its
-branch. Those run once per integration candidate, after every reviewed lane
-has merged, on the fastest merged process: speedup lanes merge first, so the
-others verify on the faster tools. A failing candidate is bisected by its
+branch. The full gate runs on its PR's head before the steward merges it
+([gate and coverage](#gate-and-coverage)). `verify_candidate.py` runs once per
+integration candidate, after every reviewed lane has merged, on the fastest
+merged process: speedup lanes merge first, so the others verify on the faster
+tools. A failing candidate is bisected by its
 merge commits, each verified on the same process.
 
 ### File size
