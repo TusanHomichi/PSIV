@@ -81,7 +81,9 @@ impl ShopWindow {
                     godot_error!("shop: window/font art failed to load from {pack_dir}");
                 }
             }
-            Err(error) => godot_error!("shop: dialogue art failed to load: {error}"),
+            Err(error) => {
+                godot_error!("shop: dialogue art failed to load: {error}");
+            }
         }
     }
 

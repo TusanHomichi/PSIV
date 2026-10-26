@@ -240,7 +240,9 @@ impl BattleScreen {
                     godot_error!("battle: dialogue chrome/font art failed to load");
                 }
             }
-            Err(error) => godot_error!("battle: dialogue pack failed to load: {error}"),
+            Err(error) => {
+                godot_error!("battle: dialogue pack failed to load: {error}");
+            }
         }
     }
 

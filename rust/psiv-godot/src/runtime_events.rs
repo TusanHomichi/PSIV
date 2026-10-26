@@ -180,7 +180,9 @@ impl Field {
                 }
                 DialogueSignal::Action(action) => self.dispatch_dialogue_action(action),
                 DialogueSignal::Log(line) => godot_print!("dialogue: {line}"),
-                DialogueSignal::Fault(line) => godot_error!("dialogue: {line}"),
+                DialogueSignal::Fault(line) => {
+                    godot_error!("dialogue: {line}");
+                }
             }
         }
     }

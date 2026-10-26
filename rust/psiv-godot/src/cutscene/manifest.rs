@@ -139,7 +139,9 @@ impl SceneAssets {
                     };
                     let bytes = palette.raw_hex.as_bytes();
                     let words: Vec<u16> = bytes
-                        .chunks_exact(4)
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
                         .filter_map(|chunk| {
                             let word = std::str::from_utf8(chunk).ok()?;
                             u16::from_str_radix(word, 16).ok()
@@ -221,7 +223,9 @@ impl SceneAssets {
                     }
                 }
             }
-            None => godot_warn!("scene panel manifest missing: {}", manifest_path.display()),
+            None => {
+                godot_warn!("scene panel manifest missing: {}", manifest_path.display());
+            }
         }
 
         let background = format!("{pack_dir}/presentation/opening_background.png");
