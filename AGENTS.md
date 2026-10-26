@@ -5,6 +5,42 @@ cartridge behavior, document deliberate deviations, and keep the unmodified
 game playable without an editor or agent service. The release bar and
 platforms are in [the roadmap](docs/ROADMAP.md).
 
+<!-- house:rules v1 begin. Copied from FieldmouseWorks/burrow house/rules.md, verbatim. Change it there, not here: burrow's house sync rewrites everything between these markers. -->
+## House rules
+
+These hold in every repo. This file's own sections add to them and win where
+they say something more specific.
+
+- Fix the whole cause. No workarounds, shims, fallbacks or half-migrations:
+  when you replace something, delete the old path in the same change.
+- One fact, one home. Each rule or fact lives in one place; link to it instead
+  of restating it.
+- Before you edit, say what done looks like and how it will be checked. Simple
+  work gets a short plan, not a ceremony.
+- Report only the checks you actually ran, and what they said. Skipped,
+  unavailable or "should pass" is never a pass. Keep local and CI results
+  apart.
+- A new check comes with proof that it fails on the bug it's for.
+- Touching a file over about 1,000 lines? Split it in that change.
+- The code is the memory. When something goes wrong, make the code, a type, a
+  test or a check stop it happening again; a new rule in AGENTS.md is the last
+  resort. Say in the PR which one you did.
+- Keep going on work you were asked to do. Don't stop to ask again for what's
+  already been asked for.
+- Never commit what the repo keeps private: secrets, tokens, personal data, and
+  anything listed under this file's "Private" section.
+- `Closes #N` only when the issue is fully done; otherwise `Refs #N`.
+- Tracked files never name a model. Which model does what is the machine's
+  business, and model names go stale in weeks.
+
+### Commits
+
+Subjects are `area: plain sentence`, where the area is the module, directory or
+tool the change is about: `autoland: merge only the head that was checked`.
+Lowercase after the colon, no trailing period, no `feat:`/`fix:` prefixes. The
+body, when there is one, says why.
+<!-- house:rules end -->
+
 ## Start here
 
 Check applicable instructions (including `AGENTS.override.md`),
@@ -105,5 +141,46 @@ behavior, commands or retail findings it describes changed, and the README or
 roadmap when a release item closes. Continue ready authorized tasks without
 asking again. Before a requested commit,
 ensure writers are idle and inspect the staged list/diff. Finish through any
-authorized integration and owned cleanup; preserve unrelated work and evidence.
+authorized integration (a PR, under [pull requests](#pull-requests)) and owned
+cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.
+
+## Pull requests
+
+Open PRs ready for review, never as drafts, and leave them to the steward: it
+asks the review bot for a review, and once the bot finds nothing on your head,
+every review thread is resolved and CI is green, it merges the PR. Fix or
+answer every finding: push the fix and reply with the commit, or reply with
+why it's wrong, then resolve the thread. A PR touching a one-way path
+(secrets, migrations, CODEOWNERS) gets a judgment first: it lands unless it
+can't be undone or is the owner's to decide.
+
+PSIV's CI is the `gate` status: once the reviews are clean, the steward has
+the full gate run on the PR's head on the machine that holds the local inputs
+([gate and coverage](docs/DEVELOPMENT.md#gate-and-coverage)). The review bots
+never see the local inputs or the tracked paths derived from the cartridge: the
+steward leaves them out of the snapshot and diff the bots read, and a PR that
+changes those is judged by an agent on that machine instead.
+
+## Code Review Rules
+
+For reviewers, the review bot included. Flag as P1:
+
+- a change that makes a check pass without fixing the thing it checks
+- tests or checks weakened, skipped or deleted to get green
+- secrets, tokens or personal data in the diff or the logs it adds
+- behavior changed beyond what the PR says it does
+- cartridge content committed: ROM bytes, extracted art, sound, text or
+  tables, saves or captures, or a `.gitignore` entry for a local input
+  loosened ([#149](https://github.com/TusanHomichi/PSIV/issues/149) is moving
+  the ones already tracked out)
+- a game rule without its retail basis (a disassembly symbol or ROM offset), or
+  a deliberate difference from the cartridge not recorded in
+  [the source notes](docs/source-notes/README.md)
+- retail integer widths, signedness, flag banks, ordering or RNG semantics
+  changed without new evidence
+- a rule duplicated in Godot or a test driver instead of the layer
+  [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md#data-and-runtime-layers) assigns it
+- evidence edited to pass: a capture, receipt, digest or a halt added to the
+  resume manifest without its issue
+- a native run that can write a save without its own `PSIV_SAVE_DIR`
