@@ -121,10 +121,11 @@ class TestManifest(PackFixtureCase):
                 )
 
     def test_every_emitted_json_carries_the_same_format_version(self):
-        # The version moved to 1 when field sprites landed. `psiv-data` refuses
-        # a pack it does not know, so a file that forgets to stamp it is a file
+        # The version moved to 1 when field sprites landed and to 2 when the
+        # png*_sha256 fields became image digests (#194). `psiv-data` refuses a
+        # pack it does not know, so a file that forgets to stamp it is a file
         # the runtime cannot check.
-        self.assertEqual(PACK_FORMAT_VERSION, 1)
+        self.assertEqual(PACK_FORMAT_VERSION, 2)
         for name in (MANIFEST_NAME, PARTY_SPRITES_NAME, NPC_SPRITES_NAME, VEHICLE_SPRITES_NAME):
             with self.subTest(file=name):
                 payload = json.loads((self.root / name).read_text())

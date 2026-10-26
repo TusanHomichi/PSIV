@@ -286,7 +286,7 @@ fn actions_are_named_not_numbered() {
 // ---------------------------------------------------------------------------
 
 const FONT: &str = r#"{
-  "format_version": 1,
+  "format_version": 2,
   "png": "dialogue/font.png",
   "by_char": {" ": 0, "A": 1, "H": 8, "i": 35},
   "glyphs": [
@@ -300,7 +300,7 @@ const FONT: &str = r#"{
 }"#;
 
 const PORTRAITS: &str = r#"{
-  "format_version": 1,
+  "format_version": 2,
   "count": 1,
   "portraits": [
     {"id": 1, "symbol": "Chaz", "png": "dialogue/portraits/01_Chaz.png", "duplicate_of": null}
@@ -320,7 +320,7 @@ fn window_json() -> String {
     };
     format!(
         r#"{{
-  "format_version": 1,
+  "format_version": 2,
   "png": "dialogue/window.png",
   "geometry": {{
     "border_cells": 1, "cell_pixels": 8, "shadow": false,
@@ -363,7 +363,7 @@ fn window_json() -> String {
 /// One tree, two entries: a portrait plus a page, and an empty entry.
 fn trees_json() -> String {
     r#"{
-  "format_version": 1,
+  "format_version": 2,
   "tree_count": 1,
   "entry_count": 2,
   "window": {
@@ -597,13 +597,13 @@ fn a_third_line_in_one_window_stops_the_load() {
 fn a_wrong_format_version_stops_the_load() {
     let error = load_fixture(
         "dialogue_version",
-        &trees_json().replace(r#""format_version": 1"#, r#""format_version": 2"#),
+        &trees_json().replace(r#""format_version": 2"#, r#""format_version": 3"#),
         FONT,
         &window_json(),
         PORTRAITS,
     )
-    .expect_err("version 2 is not this build's format");
-    assert!(error.to_string().contains("format version 2"), "{error}");
+    .expect_err("version 3 is not this build's format");
+    assert!(error.to_string().contains("format version 3"), "{error}");
 }
 
 #[test]

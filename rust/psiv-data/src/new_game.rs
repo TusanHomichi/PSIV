@@ -5,6 +5,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::DataError;
+use crate::manifest::PACK_FORMAT_VERSION;
 
 /// ROM-derived state before `Event_GameStart` runs. Loaded from the existing
 /// `game_start.json`; the manifest summary describes a later point in time.
@@ -92,10 +93,11 @@ impl NewGame {
             manifest: expected.to_owned(),
             record: actual,
         };
-        if file.format_version != 1 || file.kind != "game_start" {
+        // `psiv_tools.pack` stamps this file with the pack's version.
+        if file.format_version != PACK_FORMAT_VERSION || file.kind != "game_start" {
             return Err(mismatch(
                 "kind/version",
-                "game_start/1",
+                &format!("game_start/{PACK_FORMAT_VERSION}"),
                 format!("{}/{}", file.kind, file.format_version),
             ));
         }
