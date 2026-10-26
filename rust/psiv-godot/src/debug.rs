@@ -314,7 +314,9 @@ impl Field {
                         self.start_random_battle(id);
                     }
                 }
-                Err(_) => godot_error!("debug battle selector {formation} is not hex"),
+                Err(_) => {
+                    godot_error!("debug battle selector {formation} is not hex");
+                }
             }
         }
         if self.anim_tick == 30
@@ -383,7 +385,9 @@ impl Field {
                         godot_error!("debug event {value} has no transcribed scene");
                     }
                 }
-                Err(_) => godot_error!("debug event {value} is not a hexadecimal event id"),
+                Err(_) => {
+                    godot_error!("debug event {value} is not a hexadecimal event id");
+                }
             }
         }
         // Field/camp receipts retain the historical pre-drive capture point.
@@ -440,7 +444,9 @@ impl Field {
         });
         match std::fs::write(&path, format!("{report:#}\n")) {
             Ok(()) => godot_print!("debug: runtime state -> {path}"),
-            Err(error) => godot_error!("debug: runtime state failed: {error}"),
+            Err(error) => {
+                godot_error!("debug: runtime state failed: {error}");
+            }
         }
     }
 

@@ -525,7 +525,9 @@ impl INode2D for Field {
                 &set,
                 session.runtime().data().ship_menu().cloned(),
             ),
-            Err(e) => godot_error!("destination menu pack failed to load: {e}"),
+            Err(e) => {
+                godot_error!("destination menu pack failed to load: {e}");
+            }
         }
         self.base_mut().add_child(&destination);
         self.destination = Some(destination);
@@ -533,7 +535,9 @@ impl INode2D for Field {
         let mut camp = CampMenu::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
             Ok(set) => camp.bind_mut().configure(&self.pack_dir, set),
-            Err(e) => godot_error!("camp menu pack failed to load: {e}"),
+            Err(e) => {
+                godot_error!("camp menu pack failed to load: {e}");
+            }
         }
         self.base_mut().add_child(&camp);
         self.camp_menu = Some(camp);
@@ -544,7 +548,9 @@ impl INode2D for Field {
         let mut cutscene_layer = CutsceneLayer::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
             Ok(set) => cutscene_layer.bind_mut().configure(&self.pack_dir, &set),
-            Err(e) => godot_error!("scene presentation pack failed to load: {e}"),
+            Err(e) => {
+                godot_error!("scene presentation pack failed to load: {e}");
+            }
         }
         self.base_mut().add_child(&cutscene_layer);
         self.cutscene_layer = Some(cutscene_layer);

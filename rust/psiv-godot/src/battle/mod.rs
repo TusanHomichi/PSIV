@@ -105,7 +105,7 @@ impl Field {
                 );
                 let mut tree = self
                     .base()
-                    .get_tree()
+                    .get_tree_or_null()
                     .expect("Field::ready runs in the scene tree");
                 tree.quit_ex().exit_code(1).done();
                 return;
@@ -114,10 +114,12 @@ impl Field {
         match BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
             Ok(files) => match session.enable_battles(&files) {
                 Ok(()) => self.battle_files = Some(files),
-                Err(error) => godot_error!("battle pack failed to enable: {error}"),
+                Err(error) => {
+                    godot_error!("battle pack failed to enable: {error}");
+                }
             },
             Err(error) => {
-                godot_error!("battle pack failed to load from {}: {error}", self.pack_dir)
+                godot_error!("battle pack failed to load from {}: {error}", self.pack_dir);
             }
         }
 

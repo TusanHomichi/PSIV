@@ -603,7 +603,7 @@ fn press_start_cycle(image: &Gd<Image>) -> Option<Vec<Gd<ImageTexture>>> {
     const BASE_PROMPT: (u8, u8, u8) = (238, 238, 65);
     let mut textures = Vec::with_capacity(PRESS_START_PALETTE.len());
     for word in PRESS_START_PALETTE {
-        let mut frame = image.duplicate()?.try_cast::<Image>().ok()?;
+        let mut frame = image.duplicate_resource();
         let color = title_cram_color(word);
         for y in 0..frame.get_height() {
             for x in 0..frame.get_width() {

@@ -51,11 +51,15 @@ impl CutsceneLayer {
             Some(decoded) if decoded.len() >= usize::from(words) => {
                 godot_print!("scene palette loaded: {words} words from {rom_addr:#08x}");
             }
-            Some(decoded) => godot_error!(
-                "scene palette {rom_addr:#08x} has {} words, requested {words}",
-                decoded.len()
-            ),
-            None => godot_error!("scene palette {rom_addr:#08x} is not in the runtime pack"),
+            Some(decoded) => {
+                godot_error!(
+                    "scene palette {rom_addr:#08x} has {} words, requested {words}",
+                    decoded.len()
+                );
+            }
+            None => {
+                godot_error!("scene palette {rom_addr:#08x} is not in the runtime pack");
+            }
         }
     }
 
