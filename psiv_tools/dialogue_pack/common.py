@@ -14,7 +14,7 @@ from typing import Any
 #: Tracks `psiv_tools.pack.PACK_FORMAT_VERSION`. It is repeated rather than
 #: imported because `pack` imports this module, not the other way round; the
 #: test suite asserts the two are equal.
-DIALOGUE_FORMAT_VERSION = 1
+DIALOGUE_FORMAT_VERSION = 2
 
 DIALOGUE_DIRECTORY = "dialogue"
 PORTRAITS_DIRECTORY = f"{DIALOGUE_DIRECTORY}/portraits"

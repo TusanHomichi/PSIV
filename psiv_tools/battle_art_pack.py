@@ -336,7 +336,7 @@ def build_enemies(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]:
             "id": record["id"],
             "symbol": record["symbol"],
             "png": path,
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "record_offset": f"0x{record['record_offset']:06X}",
             # The record stores a half-width; `loc_10ED4` doubles it with
             # `add.w d1,d1` before drawing, so `width_cells` is the drawn grid
@@ -511,7 +511,7 @@ def build_characters(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]:
                 "label": labels[pose["pose"]] if pose["pose"] < len(labels) else None,
                 "label_source": POSE_LABEL_SOURCE,
                 "png": path,
-                "png_sha256": hashlib.sha256(image).hexdigest(),
+                "png_sha256": png.image_sha256(image),
                 "mapping_rom_offset": f"0x{pose['mapping_offset']:06X}",
                 "mapping_consumed": consumed,
                 "cell_count": len(words),
@@ -732,7 +732,7 @@ def build_backgrounds(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]
             "symbol": symbol,
             "art_symbol": art_symbol,
             "png": path,
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "width_cells": columns,
             "height_cells": rows,
             "width_pixels": columns * 8,

@@ -13,4 +13,10 @@ from __future__ import annotations
 #: no existing key changed meaning for. `interactable` on every NPC entry and
 #: the `field_objects` table in `sprites/npcs.json` join on the same reasoning:
 #: both are new keys, and nothing that was already emitted reads differently.
-PACK_FORMAT_VERSION = 1
+#:
+#: 2 -- every `png*_sha256` (`png_sha256`, `png_over_sha256`,
+#: `initial_png_sha256`) is `psiv_tools.png.image_sha256`, the digest of what
+#: the PNG decodes to, where version 1 hashed the file's deflate bytes (#194).
+#: The sections with their own version (dialogue, title) keep it: this one is
+#: checked first, so a version 1 pack is refused before any section is read.
+PACK_FORMAT_VERSION = 2

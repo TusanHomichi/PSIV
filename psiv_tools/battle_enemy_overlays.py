@@ -609,7 +609,7 @@ def emit_enemy_overlays(
             total_bytes += len(initial)
             png_count += 1
             piece_entry["initial_png"] = f"{OVERLAY_ART_DIRECTORY}/{initial_name}"
-            piece_entry["initial_png_sha256"] = hashlib.sha256(initial).hexdigest()
+            piece_entry["initial_png_sha256"] = png.image_sha256(initial)
             frames: list[dict[str, Any]] = []
             for frame, source_pattern in enumerate(piece.source_patterns):
                 image = render_overlay_piece_frame(data, enemy, piece, source_pattern)
@@ -623,7 +623,7 @@ def emit_enemy_overlays(
                     "duration": piece.durations[frame],
                     "duration_ticks": piece.durations[frame] + 1,
                     "png": f"{OVERLAY_ART_DIRECTORY}/{name}",
-                    "png_sha256": hashlib.sha256(image).hexdigest(),
+                    "png_sha256": png.image_sha256(image),
                 })
             piece_entry["frames"] = frames
     return payload, total_bytes, png_count

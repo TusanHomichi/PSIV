@@ -78,7 +78,6 @@ is still emitted so blitting can clear stale above-sprites pixels.
 
 from __future__ import annotations
 
-import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any, Sequence
@@ -691,10 +690,10 @@ def atlas_json(
     """The atlas as a map record carries it."""
     return {
         "png": base_png,
-        "png_sha256": hashlib.sha256(base_image).hexdigest(),
+        "png_sha256": png.image_sha256(base_image),
         "png_over": over_png,
         "png_over_sha256": (
-            hashlib.sha256(over_image).hexdigest() if over_image is not None else None
+            png.image_sha256(over_image) if over_image is not None else None
         ),
         "tile_pixels": ATLAS_TILE_PIXELS,
         "count": len(entries),

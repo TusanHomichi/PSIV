@@ -514,7 +514,7 @@ def _write_art_preview(
     output.write_bytes(png.encode_indexed(width, height, pixels, palette, transparent=(0,)))
     return {
         "png": f"presentation/load_art/{output.name}",
-        "png_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+        "png_sha256": png.image_sha256(output.read_bytes()),
         "size_pixels": [width, height],
         "tile_count": len(tiles),
         "preview_palette_line": 3,
@@ -735,7 +735,7 @@ def _emit_generic_portrait(rom: bytes, root: Path) -> dict[str, Any]:
     return {
         "id": "shopkeeper_2",
         "png": "presentation/portraits/shopkeeper_2.png",
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "size_pixels": [width, height],
         "art": f"0x{SHOPKEEPER_PORTRAIT_ART:06X}",
         "art_consumed": consumed,
