@@ -14,7 +14,6 @@ palettes is genuinely two different pictures, so the palette is part of the key.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Sequence
@@ -107,7 +106,7 @@ def sheet_json(sheet: Sheet, path: str, image: bytes) -> dict[str, Any]:
     """
     return {
         "png": path,
-        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_sha256": png.image_sha256(image),
         "frame_width": sheet.box.width,
         "frame_height": sheet.box.height,
         "frame_count": sheet.frame_count,

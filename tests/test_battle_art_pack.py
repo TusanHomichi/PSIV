@@ -192,7 +192,7 @@ class TestEmittedFiles(unittest.TestCase):
                 for frame in entry["frames"]:
                     image = (self.root / frame["png"]).read_bytes()
                     self.assertEqual(
-                        frame["png_sha256"], hashlib.sha256(image).hexdigest()
+                        frame["png_sha256"], png.image_sha256(image)
                     )
         worker = by_id[24]
         self.assertTrue(any(source["field"] == "attack_plc" for source in worker["art"]))
@@ -322,7 +322,7 @@ class TestEnemyBodies(unittest.TestCase):
                 image = (self.root / entry["png"]).read_bytes()
                 width, height, _ = png_pixels(image)
                 self.assertEqual((width, height), (entry["width_pixels"], entry["height_pixels"]))
-                self.assertEqual(entry["png_sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual(entry["png_sha256"], png.image_sha256(image))
 
     def test_no_body_pixel_reaches_the_line_dependent_colour(self):
         # The whole line-agnostic claim in one assertion: index 15 is the only
@@ -431,7 +431,7 @@ class TestCharacterPoses(unittest.TestCase):
             for pose in entry["poses"]:
                 with self.subTest(symbol=entry["symbol"], pose=pose["pose"]):
                     image = (self.root / pose["png"]).read_bytes()
-                    self.assertEqual(pose["png_sha256"], hashlib.sha256(image).hexdigest())
+                    self.assertEqual(pose["png_sha256"], png.image_sha256(image))
                     width, height, _ = png_pixels(image)
                     self.assertEqual((width, height), (48, 48))
                     self.assertTrue(pose["png"].startswith(CHARACTER_PNG_DIRECTORY))
@@ -483,7 +483,7 @@ class TestBackgrounds(unittest.TestCase):
         for entry in self.entries:
             with self.subTest(symbol=entry["symbol"]):
                 image = (self.root / entry["png"]).read_bytes()
-                self.assertEqual(entry["png_sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual(entry["png_sha256"], png.image_sha256(image))
                 self.assertEqual(png_pixels(image)[:2], (512, 192))
                 self.assertTrue(entry["png"].startswith(BACKGROUND_PNG_DIRECTORY))
 

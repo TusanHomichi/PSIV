@@ -31,10 +31,9 @@ play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](.
 holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
 the new zip's hash there (`tests/test_flake.py` fails until it does). The
 shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
-same pixels: until [#190](https://github.com/TusanHomichi/PSIV/issues/190) is
-fixed, three Python tests that pin PNG file hashes fail under it, and a pack
-built there has different `png_sha256` values and digest from one built on a
-zlib-ng host.
+same pixels. That changes no digest: every hash that names an image, in the
+tests and in the pack's `png_sha256` fields, is `image_sha256` from
+[`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
 ## Prepare the local pack
 

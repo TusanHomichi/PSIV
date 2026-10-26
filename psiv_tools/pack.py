@@ -48,7 +48,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from . import decode_cache, pack_sections
+from . import decode_cache, pack_sections, png
 from .gfx import palette_rgb
 from .layouts import (
     BLOCKING_COLLISION_TYPES,
@@ -251,8 +251,8 @@ def layout_variants(rom: bytes, record: dict[str, Any], decoded, replacements,
         "planes": changed,
         "png": png_name,
         "png_over": over_name,
-        "png_sha256": hashlib.sha256(image).hexdigest(),
-        "png_over_sha256": (hashlib.sha256(overlay_image).hexdigest()
+        "png_sha256": png.image_sha256(image),
+        "png_over_sha256": (png.image_sha256(overlay_image)
                             if overlay_image is not None else None),
         "priority_tiles": sum(priority_counts["tiles"].values()),
         "unloaded_patterns": unloaded_patterns(variant),
@@ -579,9 +579,9 @@ def build_pack(
             "png": png_name,
             "png_over": png_over_name,
             "json_sha256": json_sha,
-            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_sha256": png.image_sha256(image),
             "png_over_sha256": (
-                hashlib.sha256(overlay_image).hexdigest()
+                png.image_sha256(overlay_image)
                 if overlay_image is not None else None
             ),
             "priority_tiles": sum(priority_counts["tiles"].values()),

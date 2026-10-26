@@ -102,9 +102,10 @@ class TestManifest(PackFixtureCase):
                 stem = f"{entry['id']:03X}_{entry['symbol']}"
                 self.assertEqual(entry["json"], f"{MAPS_DIRECTORY}/{stem}.json")
                 self.assertEqual(entry["png"], f"{MAPS_DIRECTORY}/{stem}.png")
-                for key, name in (("json_sha256", "json"), ("png_sha256", "png")):
-                    blob = (self.root / entry[name]).read_bytes()
-                    self.assertEqual(entry[key], hashlib.sha256(blob).hexdigest())
+                blob = (self.root / entry["json"]).read_bytes()
+                self.assertEqual(entry["json_sha256"], hashlib.sha256(blob).hexdigest())
+                blob = (self.root / entry["png"]).read_bytes()
+                self.assertEqual(entry["png_sha256"], png.image_sha256(blob))
                 # `png_over` is null for a map with no priority tiles, and then
                 # there is deliberately no file to hash.
                 if entry["png_over"] is None:
@@ -113,17 +114,18 @@ class TestManifest(PackFixtureCase):
                 else:
                     self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/{stem}_over.png")
                     blob = (self.root / entry["png_over"]).read_bytes()
-                    self.assertEqual(entry["png_over_sha256"], hashlib.sha256(blob).hexdigest())
+                    self.assertEqual(entry["png_over_sha256"], png.image_sha256(blob))
                     self.assertGreater(entry["priority_tiles"], 0)
                 self.assertEqual(
                     self.maps[entry["id"]]["png_over"], entry["png_over"]
                 )
 
     def test_every_emitted_json_carries_the_same_format_version(self):
-        # The version moved to 1 when field sprites landed. `psiv-data` refuses
-        # a pack it does not know, so a file that forgets to stamp it is a file
+        # The version moved to 1 when field sprites landed and to 2 when the
+        # png*_sha256 fields became image digests (#194). `psiv-data` refuses a
+        # pack it does not know, so a file that forgets to stamp it is a file
         # the runtime cannot check.
-        self.assertEqual(PACK_FORMAT_VERSION, 1)
+        self.assertEqual(PACK_FORMAT_VERSION, 2)
         for name in (MANIFEST_NAME, PARTY_SPRITES_NAME, NPC_SPRITES_NAME, VEHICLE_SPRITES_NAME):
             with self.subTest(file=name):
                 payload = json.loads((self.root / name).read_text())

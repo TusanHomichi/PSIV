@@ -7,7 +7,6 @@ fragment is relative to the pack root, so the fragment drops straight into
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +88,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
     menu_width, menu_height, menu_pixels = compose_sheet(menu_tiles, 16)
     menu_image = png.encode_indexed(menu_width, menu_height, menu_pixels, list(palette))
     (root / MENU_FONT_PNG_NAME).write_bytes(menu_image)
-    menu_sha = hashlib.sha256(menu_image).hexdigest()
+    menu_sha = png.image_sha256(menu_image)
 
     portraits, portrait_bytes = emit_portraits(rom_bytes, root, palette)
     portraits_sha = write_json(root / PORTRAITS_NAME, portraits)
