@@ -159,7 +159,9 @@ class HalfWritten(Scratch):
         # A reader held off the CPU across KEEP_VERSIONS swaps loses the
         # version it resolved to pruning, a missing file and not a mix (the
         # module's documented limit), so pruning, tested above, is off here.
-        self.enterContext(mock.patch.object(pack_swap, "prune"))
+        no_prune = mock.patch.object(pack_swap, "prune")
+        no_prune.start()
+        self.addCleanup(no_prune.stop)
         self.install("v1")
         stop = threading.Event()
         seen = set()

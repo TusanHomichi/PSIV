@@ -343,7 +343,9 @@ class XvfbOrphanTest(unittest.TestCase):
     leave its X servers running."""
 
     def run_owner(self, mode):
-        tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        tmp = Path(scratch.name)
         fake = tmp / "fake_xvfb.py"
         fake.write_text(FAKE_XVFB)
         pid_file = tmp / "xvfb.pid"
