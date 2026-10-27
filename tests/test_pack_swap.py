@@ -156,6 +156,10 @@ class HalfWritten(Scratch):
         self.assertIsNone(self.read_during_build(build_in_place=True))
 
     def test_a_reader_polling_through_a_whole_build_never_sees_a_mix(self):
+        # A reader held off the CPU across KEEP_VERSIONS swaps loses the
+        # version it resolved to pruning, a missing file and not a mix (the
+        # module's documented limit), so pruning, tested above, is off here.
+        self.enterContext(mock.patch.object(pack_swap, "prune"))
         self.install("v1")
         stop = threading.Event()
         seen = set()
