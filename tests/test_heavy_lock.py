@@ -486,11 +486,13 @@ class QueueCase(LockProcesses):
         holder = self.holder()
         first = self.waiter("first")
         second = self.waiter("second")
+        blocked = False
         for _ in range(150):  # bounded: 30 s for the head's blocker to enter flock(2)
-            if first.pid in self.kernel_waiters():
+            blocked = first.pid in self.kernel_waiters()
+            if blocked:  # a later read may skip it (#204), so this one counts
                 break
             time.sleep(0.2)
-        self.assertIn(first.pid, self.kernel_waiters())
+        self.assertTrue(blocked, "the head never blocked in flock(2)")
         self.assertNotIn(second.pid, self.kernel_waiters(), "only the head blocks")
         self.release(holder)
         self.assertEqual(self.finish(first, second), ["first", "second"])

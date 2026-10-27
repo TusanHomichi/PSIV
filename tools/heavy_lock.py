@@ -65,7 +65,7 @@ proceeds without blocking on its own ancestor; a request under a shared
 holder of another class (an exclusive run under godot, a build under python) is
 refused instead, because the holder neither excluded anyone nor reserved the
 request's units. A raw `flock(1)` wrapper sets no marker; a child that finds
-the lock held by one of its ancestors (by inode in /proc/locks) exits 2 naming
+the lock held by one of its ancestors (by inode, from /proc) exits 2 naming
 the parent instead of waiting forever (`raw_flock_parent`).
 
 A directory git cannot describe (a fixture, an exported tree) falls back to its
@@ -199,19 +199,18 @@ def lock_units(environ=None):
     return value
 
 
-def _proc_locks(proc_locks):
-    """`[(pid, inode, is_write)]` for every held flock in /proc/locks.
+def _parse_lock_lines(lines, prefix=""):
+    """`[(pid, inode, is_write)]` for the held flocks among /proc lock lines
+    (`<prefix>1: FLOCK  ADVISORY  WRITE <pid> <maj>:<min>:<inode> 0 EOF`).
 
     Matched by inode alone: on btrfs the device field names the superblock's
     device, not the file's `st_dev`. Waiters (`->` lines) are not holders.
     """
-    try:
-        lines = Path(proc_locks).read_text().splitlines()
-    except OSError:
-        return []
     held = []
     for line in lines:
-        fields = line.split()
+        if not line.startswith(prefix):
+            continue
+        fields = line[len(prefix):].split()
         if len(fields) < 6 or fields[1] == "->":
             continue
         try:
@@ -220,6 +219,53 @@ def _proc_locks(proc_locks):
         except (ValueError, IndexError):
             continue
     return held
+
+
+def _fdinfo_locks(lock):
+    """`[(pid, inode, is_write)]` for every flock held through an fd, of a
+    process this user can read, on `lock` or a file named after it.
+
+    The walks over /proc and /proc/<pid>/fd go by pid and fd number, and one
+    fd's fdinfo is printed in one read, so a lock held for the whole scan is
+    always found. An fd is matched by its link text, which never touches the
+    file, so a hung mount elsewhere cannot stall the scan.
+    """
+    prefix = os.path.realpath(lock)
+    held = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdecimal():
+            continue
+        try:
+            fds = os.listdir(f"/proc/{pid}/fd")
+        except OSError:  # gone, or another user's
+            continue
+        for fd in fds:
+            try:
+                if not os.readlink(f"/proc/{pid}/fd/{fd}").startswith(prefix):
+                    continue
+                lines = Path(f"/proc/{pid}/fdinfo/{fd}").read_text().splitlines()
+            except OSError:  # closed since the listing
+                continue
+            held += _parse_lock_lines(lines, "lock:")
+    return held
+
+
+def _held_locks(lock, proc_locks):
+    """`[(pid, inode, is_write)]` holding a flock: every one on `lock` and the
+    files named after it (`_fdinfo_locks`), plus what `proc_locks` shows.
+
+    /proc/locks alone misses held locks: it is printed a page per read(2),
+    each from a fresh walk of the kernel's lock list to the reader's position,
+    so a lock released earlier in the list between two reads shifts held ones
+    past that position unseen (#204: 11 of 12 units, with other tests taking
+    and dropping locks). It still names holders whose fds this user cannot
+    read; a lock released mid-scan may appear in one source and not the other.
+    """
+    try:
+        lines = Path(proc_locks).read_text().splitlines()
+    except OSError:
+        lines = []
+    return list(dict.fromkeys(_fdinfo_locks(lock) + _parse_lock_lines(lines)))
 
 
 def _numbered(lock, kind):
@@ -247,11 +293,11 @@ def _recorded(path):
 
 
 def lock_modes(path, proc_locks=Path("/proc/locks")):
-    """`[(pid, class)]` holding a lock on `path`'s inode, from /proc/locks: a
+    """`[(pid, class)]` holding a lock on `path`'s inode (see `_held_locks`): a
     WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a
     godot slot, else the class its budget units record, else `shared`."""
     inode = os.stat(path).st_ino
-    held = _proc_locks(proc_locks)
+    held = _held_locks(path, proc_locks)
     slots, units = _numbered(path, GODOT), _numbered(path, "unit")
     in_slots = {pid for pid, node, _ in held if node in slots}
     unit_class = {pid: _recorded(units[node])[1] or SHARED
@@ -268,13 +314,13 @@ def lock_modes(path, proc_locks=Path("/proc/locks")):
 
 
 def units_in_use(path, proc_locks=Path("/proc/locks")):
-    """How many of `path`'s budget unit files are held now, from /proc/locks."""
+    """How many of `path`'s budget unit files are held now (see `_held_locks`)."""
     units = _numbered(path, "unit")
-    return len({node for _, node, _ in _proc_locks(proc_locks) if node in units})
+    return len({node for _, node, _ in _held_locks(path, proc_locks) if node in units})
 
 
 def lock_holders(path, proc_locks=Path("/proc/locks")):
-    """PIDs holding a lock on `path`'s inode, from /proc/locks (see `lock_modes`)."""
+    """PIDs holding a lock on `path`'s inode (see `lock_modes`)."""
     pids = []
     for pid, _ in lock_modes(path, proc_locks):
         if pid not in pids:
