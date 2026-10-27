@@ -23,7 +23,7 @@ import time
 import unittest
 from unittest import mock
 
-from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses
+from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses, read_until
 from tools import heavy_lock as heavy_lock_module
 from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, PACK, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
@@ -52,6 +52,21 @@ def overfilling_take_files(lock, kind, count, cap, env, label=None):
         else:
             held.append(handle)
     return held
+
+
+#: A process that takes and drops flocks on 40 files of its own, without end:
+#: the other tests and tools a loaded gate runs beside a count.
+CHURN = """
+import fcntl, os, sys
+paths = [os.path.join(sys.argv[1], f"churn{os.getpid()}-{index}") for index in range(40)]
+print("churning", flush=True)
+while True:
+    handles = [os.open(path, os.O_RDWR | os.O_CREAT) for path in paths]
+    for handle in handles:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+    for handle in handles:
+        os.close(handle)
+"""
 
 
 class BudgetCase(LockProcesses):
@@ -212,6 +227,34 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.granted(), [], "a second cargo run would exceed the budget")
         self.release(holders[0])
         self.assertEqual(self.finish(second), ["second-cargo"])
+
+    def counts_under_churn(self, seconds, until_short=False):
+        """`units_in_use` read again and again for `seconds` while 12 units are
+        held steady and four processes take and drop other flocks (#204)."""
+        held = 12
+        units = heavy_lock_module._take_files(str(self.lock), "unit", held, 16, UNITS_ENV,
+                                              BUILD)
+        self.addCleanup(lambda: [os.close(handle) for handle in units])
+        for _ in range(4):
+            read_until(self.spawn(["-c", CHURN, str(self.lock.parent)]).stdout, "churning")
+        counts = []
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            counts.append(units_in_use(self.lock))
+            if until_short and counts[-1] < held:
+                break
+        return held, counts
+
+    def test_units_held_steady_are_all_counted_while_other_locks_churn(self):
+        held, counts = self.counts_under_churn(3)
+        self.assertEqual(set(counts), {held}, f"{len(counts)} reads")
+
+    def test_negative_control_proc_locks_alone_misses_held_units_under_churn(self):
+        """/proc/locks is printed a page per read; a lock dropped earlier in
+        the list between two reads hides a held one."""
+        with mock.patch.object(heavy_lock_module, "_fdinfo_locks", lambda lock: []):
+            held, counts = self.counts_under_churn(20, until_short=True)
+        self.assertLess(min(counts), held, f"{len(counts)} reads, none short")
 
     def test_negative_control_a_budget_one_unit_short_makes_the_suite_wait(self):
         # The extension class: a budget is never below the largest class.
