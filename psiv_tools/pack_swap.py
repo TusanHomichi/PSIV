@@ -39,8 +39,10 @@ gone, and any `.<name>.link-*` left between steps 3's link and its rename.
 After a swap the newest `KEEP_VERSIONS` versions are kept (the current one and
 the ones before it, which a run that resolved them earlier may still be
 reading) and older ones are removed; the version `<output>` names is never
-removed. A run that outlives `KEEP_VERSIONS` swaps loses its pack, and fails
-loudly on a missing file rather than reading a mix.
+removed, nor one another build that is still running made and has yet to
+install, so two builds of one output never delete each other's work. A run
+that outlives `KEEP_VERSIONS` swaps loses its pack, and fails loudly on a
+missing file rather than reading a mix.
 
 Stdlib only, Python 3; Linux (`renameat2`), macOS (`renamex_np`) and
 Windows.
@@ -88,7 +90,7 @@ class PackSwapError(RuntimeError):
 def _names(output: Path) -> tuple[re.Pattern, re.Pattern, re.Pattern]:
     name = re.escape(output.name)
     return (re.compile(rf"\A\.{name}\.build-(\d+)-[0-9a-f]+\Z"),
-            re.compile(rf"\A\.{name}\.v\d{{8}}T\d{{12}}Z-\d+\Z"),
+            re.compile(rf"\A\.{name}\.v\d{{8}}T\d{{12}}Z-(\d+)\Z"),
             re.compile(rf"\A\.{name}\.link-(\d+)-[0-9a-f]+\Z"))
 
 
@@ -257,11 +259,18 @@ def _replace_directory(output: Path, version: Path, old: Path) -> None:
 
 def prune(output: Path, keep: int = KEEP_VERSIONS) -> list[str]:
     """Remove all but the newest `keep` versions of `output`, never the one
-    `output` names; returns the removed names."""
+    `output` names nor one another live process made (a concurrent build
+    between its version and its install); returns the removed names."""
     current = os.path.realpath(output)
+    _, version, _ = _names(output)
     installed = versions(output)
+
+    def pending(path: Path) -> bool:
+        pid = int(version.match(path.name).group(1))
+        return pid != os.getpid() and _alive(pid)
+
     old = [path for path in installed[:max(0, len(installed) - keep)]
-           if os.path.realpath(path) != current]
+           if os.path.realpath(path) != current and not pending(path)]
     for path in old:
         shutil.rmtree(path)
     return [path.name for path in old]

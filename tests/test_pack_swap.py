@@ -73,7 +73,8 @@ class Scratch(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(prefix="pack-swap-")
         self.addCleanup(tmp.cleanup)
-        self.dir = Path(tmp.name)
+        # Resolved, as `realpath` reports it: macOS's temp dir is a link.
+        self.dir = Path(tmp.name).resolve()
         self.output = self.dir / "runtime-pack"
 
     def install(self, version, pause=None):
@@ -263,6 +264,49 @@ class DirectoryOutput(Scratch):
         self.assertEqual(consistent(self.output), "v2")
 
 
+class ConcurrentBuilds(Scratch):
+    """Two builds of one output: one installs while the other has made its
+    version and not yet installed it."""
+
+    def other_builders_version(self):
+        """A complete version named for a live process that is not this one,
+        as a concurrent build leaves it between its rename and its install."""
+        version = self.dir / f".runtime-pack.v20991231T235959000000Z-{os.getppid()}"
+        write_pack(version, "theirs")
+        return version
+
+    def install_beside_a_pending_version(self):
+        theirs = self.other_builders_version()
+        self.install("mine")
+        self.assertTrue(theirs.is_dir(), "the other build's version was pruned")
+        link = self.dir / ".runtime-pack.link-1-0a1b2c3d"
+        if pack_swap.LINKS:
+            pack_swap._link(self.output, theirs, link, self.dir / "unused")
+        else:
+            pack_swap._replace_directory(self.output, theirs, link)
+        self.assertEqual(consistent(self.output), "theirs")
+
+    def test_the_other_build_still_installs_its_version(self):
+        self.install_beside_a_pending_version()
+
+    def test_the_other_build_still_installs_its_version_in_directory_mode(self):
+        with mock.patch.object(pack_swap, "LINKS", False):
+            self.install_beside_a_pending_version()
+
+    def test_negative_control_pruning_without_the_check_deletes_it(self):
+        with mock.patch.object(pack_swap, "LINKS", False), \
+                mock.patch.object(pack_swap, "_alive", return_value=False):
+            with self.assertRaises(AssertionError):
+                self.install_beside_a_pending_version()
+
+    def test_a_dead_builders_version_is_still_pruned(self):
+        stale = self.dir / f".runtime-pack.v20000101T000000000000Z-{StaleLinks.dead_pid()}"
+        write_pack(stale, "stale")
+        with mock.patch.object(pack_swap, "LINKS", False):
+            self.install("v1")
+        self.assertFalse(stale.exists())
+
+
 class RefusedLinks(Scratch):
     """Where links need a privilege (Windows without developer mode), only the
     directory mode installs a pack."""
@@ -405,13 +449,15 @@ class StaleLinks(Scratch):
         """After the exchange the `.link-` name holds the old real directory;
         cleanup keeps it as a version rather than deleting the only copy."""
         self.install("v0")
-        stale = self.dir / f".runtime-pack.link-{self.dead_pid()}-0badc0de"
-        stale.mkdir()
-        (stale / "manifest.json").write_text("v0")
+        dead = self.dead_pid()
+        stale = self.dir / f".runtime-pack.link-{dead}-0badc0de"
+        write_pack(stale, "stale")
         removed = pack_swap.remove_abandoned(self.output)
         self.assertFalse(stale.exists())
         self.assertEqual(removed, [stale.name])
-        self.assertIn("v0", [consistent(version) for version in pack_swap.versions(self.output)])
+        recovered = [version for version in pack_swap.versions(self.output)
+                     if version.name.endswith(f"-{dead}")]
+        self.assertEqual([consistent(version) for version in recovered], ["stale"])
 
     @staticmethod
     def dead_pid():
