@@ -138,7 +138,11 @@ TAPE25_START_HELD = (range(401, 405), range(605, 609))
 # tape 25. Keyed by the routine the game entered and the game frame (VInt)
 # within it after which the lag falls; 0 is the frames before the routine's
 # first wait completes. `GameMode_Sega`'s 10 include power-on and
-# `MainGameProgram`'s set-up.
+# `MainGameProgram`'s set-up. The table is tape-25-specific: tape 25 presses
+# START before `TitleRoutine_FadingText` draws any text, so it holds none of the
+# lag text drawing causes (about 135 frames on a run that idles 1,500 frames).
+# `run_title_boot` accepts other START inputs, but with this table their
+# palettes are right per game frame, not per tape frame.
 TITLE_LAG_FRAMES: dict[str, dict[int, int]] = {
     "GameMode_Sega": {0: 10, 1: 4},
     "TitleRoutine_FadingText": {0: 49, 1: 2},
@@ -246,6 +250,9 @@ class _TitleBoot:
 
     def palette_at(self, frame: int) -> tuple[int, ...]:
         k = bisect.bisect_right(self.vint_frames, frame) - 1
+        # `enter_menu` appends the menu's palette as a final state, so every
+        # frame past the last modelled VInt holds it (the no-save menu writes
+        # no palette word); this guard only fires if that append is removed.
         if k >= len(self.states):
             raise TitleCycleError(f"frame {frame} is past the modelled title routines")
         return self.states[k]

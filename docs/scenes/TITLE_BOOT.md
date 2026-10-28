@@ -81,9 +81,15 @@ to one frame, so the test also checks that the prompt runs 93 frames behind
 the tape, `title.rs`'s `TITLE_MAIN_FRAME_OFFSET`. Against the oracle's
 per-frame log of tape 25 the model reproduces every frame whose game frame
 finished before the next VInt (580 of 688; the rest are mid-routine lag
-frames), and on a variant that idles 1,500 frames before START it reproduces
-all 1,548 settled game frames it models, including the text fades tape 25
-skips.
+frames). On a variant that idles 1,500 frames before START, with START
+aligned by game frame (game frames 1352 and 1528, from that run's own VInt
+frames) rather than tape frame, it reproduces all 1,548 settled game frames it
+models, including the text fades tape 25 skips. Driven by tape frame
+(1501-1504 and 1705-1708) with the committed `TITLE_LAG_FRAMES` it does not:
+175 of 1,595 game frames differ from game frame 1352 on, because that run
+lags about 135 frames once text drawing starts, while the table's
+`TitleRoutine_FadingText` entry has none past the 49 and 2 of its loads. The lag table is tape-25-specific: tape 25's START comes before any
+text is drawn, so it measures none of the text-drawing lag.
 
 ## Art extraction and pack surface
 
