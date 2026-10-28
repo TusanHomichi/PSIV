@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use godot::classes::{
-    Camera2D, ColorRect, INode2D, Node2D, ProjectSettings, Sprite2D, notify::CanvasItemNotification,
+    Camera2D, ColorRect, INode2D, Node2D, Sprite2D, notify::CanvasItemNotification,
 };
 use godot::prelude::*;
 
@@ -23,7 +23,9 @@ mod field_map;
 mod field_status;
 mod field_visuals;
 mod input;
+mod install;
 mod named_caches;
+mod pack_setup;
 mod red_palette;
 mod runtime_events;
 mod rust_heap;
@@ -351,35 +353,27 @@ impl INode2D for Field {
         // Characters sort by their feet line, like the hardware's sprite
         // ordering: standing north of an NPC puts you behind them.
         self.base_mut().set_y_sort_enabled(true);
-        // An explicit local pack selects every loader below, including battle
-        // art. Otherwise an exported build looks beside the executable and
-        // the dev tree uses the repo-root runtime-pack.
-        let override_dir = std::env::var_os("PSIV_RUNTIME_PACK").map(std::path::PathBuf::from);
-        let exe_side = godot::classes::Os::singleton()
-            .get_executable_path()
-            .to_string();
-        let exe_dir = std::path::Path::new(&exe_side)
-            .parent()
-            .map(|p| p.join("runtime-pack"));
-        let dev = ProjectSettings::singleton()
-            .globalize_path("res://../runtime-pack")
-            .to_string();
-        let selected = override_dir
-            .clone()
-            .or_else(|| exe_dir.filter(|p| p.join("manifest.json").is_file()))
-            .unwrap_or_else(|| std::path::PathBuf::from(dev));
+        // One pack selects every loader below, including battle art: an
+        // installed game's in its user data folder, a checkout's own, or the
+        // one PSIV_RUNTIME_PACK names (`install.rs`).
+        let install = install::Install::current();
+        let (selected, overridden) = install::pack_directory(&install);
         self.pack_dir = selected
             .canonicalize()
             .unwrap_or(selected)
             .to_string_lossy()
             .into_owned();
-        if override_dir.is_some() {
+        if overridden {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
-        let data = match GameData::load(std::path::Path::new(&self.pack_dir)) {
+        let pack = std::path::PathBuf::from(&self.pack_dir);
+        let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {
                 godot_error!("runtime pack failed to load from {}: {e}", self.pack_dir);
+                let problem = pack.join("manifest.json").exists().then(|| e.to_string());
+                let setup = pack_setup::PackSetup::create(install, pack, overridden, problem);
+                self.base_mut().add_child(&setup);
                 return;
             }
         };

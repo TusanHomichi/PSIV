@@ -143,8 +143,8 @@ def read_rom(path: str | Path, *, require_known_build: bool = True) -> bytes:
         sha = hashlib.sha256(data).hexdigest()
         if sha != EXPECTED_SHA256:
             raise RomError(
-                "Unsupported ROM build. This PoC intentionally accepts only the verified US retail image "
-                f"({EXPECTED_SHA256}); got {sha}."
+                f"{path.name} is not the US retail ROM PSIV builds from: its SHA-256 is {sha}, "
+                f"and PSIV needs {EXPECTED_SHA256}."
             )
     return data
 
