@@ -394,3 +394,45 @@ fn install_replaces_and_keeps_object_order() {
     set.remove(0);
     assert!(set.get(0).is_none());
 }
+
+#[test]
+fn a_bespoke_step_draws_back_from_its_destination_at_its_own_speed() {
+    let kind = scene_routine_kind(0xBC).unwrap();
+    let frames = i32::from(kind.speed().frames());
+    let mut map = map_with_npc(Cell::new(2, 4));
+    let mut set = BespokeSet::build(&map, &[]).unwrap();
+    set.install(0, kind);
+    // Negative control: at rest the actor draws on its cell.
+    assert_eq!(set.get(0).unwrap().render_offset_16ths(), (0, 0));
+    let mut rolls = SliceRolls::new(&[]);
+    let mut offsets = Vec::new();
+    for _ in 0..frames {
+        set.tick_one_for_npc(
+            0,
+            &mut map,
+            &mut rolls,
+            context(&[], BespokeFlags::default(), 0),
+        );
+        offsets.push(set.get(0).unwrap().render_offset_16ths());
+    }
+    // The object commits to the cell above on the step's first frame, and
+    // the drawn offset runs from below it back to zero, one even share of
+    // the cell per frame.
+    assert_eq!(map.npcs()[0].cell, Cell::new(2, 3));
+    let expected: Vec<(i32, i32)> = (1..=frames)
+        .map(|n| {
+            let travelled = (-n * crate::field::SUBCELL_UNITS).div_euclid(frames);
+            if n == frames {
+                (0, 0)
+            } else {
+                (0, travelled + crate::field::SUBCELL_UNITS)
+            }
+        })
+        .collect();
+    assert_eq!(offsets, expected);
+    assert!(
+        offsets
+            .windows(2)
+            .all(|w| w[1].1 < w[0].1 || w[1] == (0, 0))
+    );
+}

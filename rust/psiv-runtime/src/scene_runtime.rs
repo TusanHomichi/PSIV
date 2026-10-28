@@ -216,11 +216,7 @@ impl Runtime {
             }
         };
         let mut events = Vec::new();
-        if let Some(npc) = self
-            .scene
-            .as_ref()
-            .and_then(psiv_core::SceneRunner::running_object_routine)
-        {
+        if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
         let Some(runner) = self.scene.as_mut() else {

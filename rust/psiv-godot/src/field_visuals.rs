@@ -25,7 +25,7 @@ impl Field {
         let state = runtime.state();
         let cell = state.cell();
         let offset = state.render_offset_16ths();
-        let scene_actors: Vec<psiv_core::ScriptedActor> = runtime.scene_actors().to_vec();
+        let scene_actors: Vec<psiv_core::ScriptedActor> = runtime.scene_actor_draws();
         let party_visible: Vec<bool> = rt_party_visibility(runtime, &self.presentation);
         let scene_sprites_visible = self
             .presentation
@@ -198,33 +198,22 @@ impl Field {
             node.set_position(view.draw_pos(draw.cell, draw.offset));
         }
 
-        // Static NPCs replay their idle sequence in place; wanderers are
-        // placed and animated from the engine — cell, facing and step offset
-        // all live there, so the picture can't desync from the collision.
-        struct WanderView {
-            index: usize,
-            facing: Direction,
-            stepping: bool,
-            offset: (i32, i32),
-            npc_offset: (i32, i32),
-            cell: (u16, u16),
-        }
-        let wander_states: Vec<WanderView> = self
+        // Static NPCs replay their idle sequence in place; objects a field
+        // routine moves (wanderers, bespoke routines, a scene's
+        // RunObjectRoutine) are placed and animated from the engine — cell,
+        // facing and step offset all live there, so the picture can't desync
+        // from the collision.
+        let motions: Vec<psiv_runtime::ObjectMotion> = self
+            .runtime()
+            .map(psiv_runtime::Runtime::object_motions)
+            .unwrap_or_default();
+        let npc_offsets: Vec<(i32, i32)> = self
             .runtime()
             .map(|rt| {
-                rt.wanderers()
+                rt.map()
+                    .npcs()
                     .iter()
-                    .filter_map(|w| {
-                        let npc = rt.map().npcs().get(w.npc_index())?;
-                        Some(WanderView {
-                            index: w.npc_index(),
-                            facing: npc.facing,
-                            stepping: w.is_stepping(),
-                            offset: w.render_offset_16ths(),
-                            npc_offset: (i32::from(npc.offset.x), i32::from(npc.offset.y)),
-                            cell: (npc.cell.x, npc.cell.y),
-                        })
-                    })
+                    .map(|npc| (i32::from(npc.offset.x), i32::from(npc.offset.y)))
                     .collect()
             })
             .unwrap_or_default();
@@ -232,24 +221,25 @@ impl Field {
             let Some(view) = self.sheet_views.get(&entry.sheet) else {
                 continue;
             };
-            let wander = wander_states.iter().find(|w| w.index == entry.index);
-            match wander {
+            let motion = motions.iter().find(|m| m.npc_index == entry.index);
+            match motion {
                 Some(w) => {
                     let kind = if w.stepping { "walk" } else { "idle" };
                     let name = sequence_name(kind, w.facing);
+                    let npc_offset = npc_offsets.get(w.npc_index).copied().unwrap_or((0, 0));
                     // Not every sheet animates every way; frame 0 is the
                     // sheet's own fallback, same as the cartridge's art.
                     let frame = camp_receipt_frame(entry.index, &entry.sheet)
                         .unwrap_or_else(|| view.frame_at(&name, self.anim_tick));
                     view.apply(&mut entry.node, frame);
                     let x = entry.base.0
-                        + (i32::from(w.cell.0) - entry.spawn.0) * 16
-                        + w.npc_offset.0
-                        + w.offset.0;
+                        + (i32::from(w.cell.x) - entry.spawn.0) * 16
+                        + npc_offset.0
+                        + w.offset_16ths.0;
                     let y = entry.base.1
-                        + (i32::from(w.cell.1) - entry.spawn.1) * 16
-                        + w.npc_offset.1
-                        + w.offset.1;
+                        + (i32::from(w.cell.y) - entry.spawn.1) * 16
+                        + npc_offset.1
+                        + w.offset_16ths.1;
                     entry.node.set_position(Vector2::new(
                         (x - view.origin_x) as f32,
                         (y - view.origin_y

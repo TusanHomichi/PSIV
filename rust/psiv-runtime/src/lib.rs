@@ -93,6 +93,7 @@ pub use session::{
     battle_dwell_frames, camp_fixture, scene_fixture,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
+pub use view::ObjectMotion;
 
 use bridge::char_id_by_symbol;
 

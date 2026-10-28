@@ -346,6 +346,20 @@ impl BespokeActor {
         ((dx * n).div_euclid(frames), (dy * n).div_euclid(frames))
     }
 
+    /// Sub-cell displacement in sixteenths, for the renderer: measured back
+    /// from the destination cell the object committed to when the step
+    /// started, as [`crate::Wanderer::render_offset_16ths`] measures it.
+    #[must_use]
+    pub fn render_offset_16ths(&self) -> (i32, i32) {
+        let Some(step) = self.step else { return (0, 0) };
+        let (tx, ty) = self.travelled_px();
+        let (dx, dy) = step.dir.delta();
+        (
+            tx - dx * crate::field::SUBCELL_UNITS,
+            ty - dy * crate::field::SUBCELL_UNITS,
+        )
+    }
+
     /// The cartridge's remaining step-duration words.
     #[must_use]
     pub fn step_durations(&self) -> (u16, u16) {

@@ -62,6 +62,11 @@ street, and the port keeps the cartridge's behaviour.
   party and object gate, because the cleared bit 3 turns `loc_4A316` off. The
   [wander record](../field/NPC_WANDER.md#bespoke-completion-wave-8) lists it with the other
   bespoke classes.
+- The renderer draws him from the routine. `Runtime::object_motions` places every object a field
+  routine steps (wanderers and moving bespoke actors, this one included) at its live cell,
+  facing and step interpolation, at the routine's own speed. `Runtime::scene_actor_draws` is the
+  scene's cast without the object the wait is on, so the cast's copy, frozen where the scene
+  started, does not draw over him. When his slot clears, the inactive object's sprite hides.
 
 ### `Event_AiedoManSavings`
 
@@ -94,5 +99,9 @@ turns to the party, and the text resumes.
     nothing written, in about 900 frames. The talk has a 3,000-frame budget. With the walk
     command zeroed, the talk spends that budget and halts, because the man never leaves. The
     control after Zio (`$42` set) reads entry 8, and he stays.
+  - `the_admirer_draws_his_routine_walk`: every frame of the wait, the cast's draws leave him
+    out and `object_motions` places him facing up in his column. His drawn height only falls,
+    steps interpolate between cells, each cell takes `Selector2`'s step length, and the cleared
+    slot draws nothing.
   - `the_man_looking_for_his_savings_turns_to_the_party`: he ends facing the leader, and nothing
     is written.
