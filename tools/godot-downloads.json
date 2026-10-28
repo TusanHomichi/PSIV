@@ -1,0 +1,12 @@
+{
+  "4.7.1": {
+    "editor": {
+      "file": "Godot_v4.7.1-stable_linux.x86_64.zip",
+      "sha512": "4ccdab7a48eeccbe8819a2fc1f6262f8d72065d98601bcb3743fcbd7ebd39f373758a788ee3293a05ec5b2c48538266c437404312e372225cd2df273945a2de9"
+    },
+    "templates": {
+      "file": "Godot_v4.7.1-stable_export_templates.tpz",
+      "sha512": "afcc83d8d3d298038f19c58744a0d660fa75dd4baa33cb55d1011bb2565a2a8c2381728924564cb909e37c205a23f21b521b23bd057993afd43ae4da0b2f9d47"
+    }
+  }
+}

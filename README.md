@@ -40,16 +40,10 @@ PSIV runs from a source checkout until the release package lands
 **You bring the ROM.** PSIV builds the game's graphics, sound, maps, text and
 data tables from a ROM image of the US retail release that you supply, and does
 not distribute them; what the repository does hold from the game is listed
-under [license](#license-and-third-party-code). Check yours before you start; the SHA-256 must be exactly this
-one:
-
-```console
-$ sha256sum "Phantasy Star IV (USA).md"
-511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a  Phantasy Star IV (USA).md
-```
-
-(`.md` is the Mega Drive ROM extension, not Markdown.) The pack builder checks
-the same hash and refuses any other image.
+under [license](#license-and-third-party-code). Check yours against the
+SHA-256 in the [player's guide](docs/PLAYING.md#the-rom) before you start; the
+pack builder checks the same hash and refuses any other image. (`.md` is the
+Mega Drive ROM extension, not Markdown.)
 
 **Prerequisites**
 
@@ -88,8 +82,8 @@ PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
    a snapshot of the library just built, removed when the game exits. Godot
    arguments go after `--` (`python3 tools/godot.py run -- --help`).
 
-Saves go to the directory `PSIV_SAVE_DIR` names. Load with the title screen's
-CONTINUE, and save from the camp menu's STATE, then SAVE, as on the cartridge.
+Saves go to the directory `PSIV_SAVE_DIR` names. Saving, loading and the
+controls are in the [player's guide](docs/PLAYING.md).
 
 **On the Steam Deck**, build the pack on a Linux PC as above, then run
 `tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
@@ -100,16 +94,6 @@ are in the developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-fo
 
 The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:
 the tests, the oracle and the checks a change runs.
-
-### Controls
-
-| Action | Keyboard | Controller |
-| --- | --- | --- |
-| Move, menu selection | Arrow keys or WASD | D-pad or left stick |
-| Confirm, talk | Enter, Space or Z | A (bottom face button) |
-| Cancel | Escape or X | B (right face button) |
-| Camp menu | C | X (left face button) |
-| Start | Tab | Start |
 
 ## Known differences
 
