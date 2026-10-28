@@ -524,9 +524,9 @@ mod tests {
     #[test]
     fn an_engine_options_value_is_never_the_rom() {
         for option in VALUE_OPTIONS {
-            let arguments = [option, "tool.gd"].map(String::from);
+            let arguments = [option, "value"].map(String::from);
             assert_eq!(command_line_rom(&arguments, &[]), None, "{option}");
-            let arguments = [option, "tool.gd", "/roms/game.md"].map(String::from);
+            let arguments = [option, "value", "/roms/game.md"].map(String::from);
             assert_eq!(
                 command_line_rom(&arguments, &[]),
                 Some(PathBuf::from("/roms/game.md")),
