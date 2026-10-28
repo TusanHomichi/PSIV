@@ -794,6 +794,7 @@ def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object
     (root / "presentation" / "panels.json").write_text(
         json.dumps(manifest, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     return manifest
 

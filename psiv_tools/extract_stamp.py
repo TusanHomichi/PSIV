@@ -310,7 +310,8 @@ def finish_table_export(directory: str | Path, metadata: dict[str, Any],
     _remove_listed(directory, sorted(name for name in previous - set(files)
                                      if "/" not in name and "\\" not in name and name.endswith(".json")))
     document = {**metadata, METADATA_KEY: {**table_stamp(), "files": files}}
-    (directory / METADATA_FILE).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    (directory / METADATA_FILE).write_text(json.dumps(document, indent=2) + "\n",
+                                           encoding="utf-8", newline="\n")
 
 
 def begin_png_export(directory: str | Path) -> None:
@@ -359,7 +360,7 @@ def write_png_stamp(directory: str | Path, kind: str, written: Iterable[str | Pa
         if relative is not None and (directory / relative).is_file():
             files[name] = digest((directory / relative).read_bytes())
     stamp_path.write_text(json.dumps({**source_stamp(kind), "files": files}, indent=2) + "\n",
-                          encoding="utf-8")
+                          encoding="utf-8", newline="\n")
     return stamp_path
 
 

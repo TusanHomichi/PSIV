@@ -280,8 +280,11 @@ tests except those that load `runtime-pack` (listed by name in `packTests` in
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset
-reaches the runner. The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15)
-(the ROM-free Python tests, Windows and macOS runners, a Godot smoke) is open.
+reaches the runner. When the pack builder changes, hosted CI also runs its
+portability tests (the atomic swap and the text-file census) on Windows and
+macOS (`.github/workflows/platforms.yml`), since players build the pack there.
+The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
+ROM-free Python tests, a Godot smoke) is open.
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
@@ -389,7 +392,9 @@ never a half-written one, and a killed build leaves the old pack in place.
 `.runtime-pack.v<UTC stamp>-<pid>` beside it. A reader that must see one
 version for its whole run resolves the link once, as a run root and the game
 do; one that reopens `runtime-pack/...` file by file can mix two complete
-versions across a swap.
+versions across a swap. On Windows, where an ordinary user cannot make the
+link, `runtime-pack` stays a real directory that the swap renames aside and
+replaces, and no older version is kept.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.

@@ -10,14 +10,20 @@ control that runs the old way (a build into the output in place, a reader that
 reopens the output per file, no cleanup) and shows the failure:
 
 - a half-written pack: a reader during a build;
-- a killed build: SIGKILL part-way, in a child process;
+- a killed build: killed part-way (SIGKILL; TerminateProcess on Windows), in a
+  child process;
 - a reader spanning a swap: one that resolved the output once;
 - a stale symbolic link: an output link naming a version that is gone, and the
   link and staging directory a killed build left.
+
+Where the output is a link (Linux, macOS) every case runs; on Windows, where it
+stays a real directory, the cases that rely on the link are skipped and
+`DirectoryOutput` covers that mode. `DirectoryOutput` runs on every system, so
+the gate checks the Windows mode on Linux, and the `platforms` workflow runs
+this module on macOS and Windows.
 """
 import json
 import os
-import signal
 import subprocess
 import sys
 import tempfile
@@ -31,6 +37,10 @@ from psiv_tools.pack_swap import KEEP_VERSIONS, PackSwapError, install_atomicall
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [f"part{n}.json" for n in range(6)]
+
+#: A case about the output being a link to its version.
+links = unittest.skipUnless(pack_swap.LINKS, "the output is a real directory here "
+                            "(DirectoryOutput covers that mode)")
 
 
 def write_pack(directory, version, pause=None):
@@ -72,6 +82,7 @@ class Scratch(unittest.TestCase):
 
 class Install(Scratch):
 
+    @links
     def test_the_output_becomes_a_link_to_a_complete_version(self):
         self.assertEqual(self.install("v1"), "v1")
         self.assertTrue(self.output.is_symlink())
@@ -82,6 +93,7 @@ class Install(Scratch):
         self.assertEqual([entry.name for entry in self.dir.iterdir()
                           if ".build-" in entry.name or ".link-" in entry.name], [])
 
+    @links
     def test_a_real_directory_is_exchanged_and_kept_as_the_older_version(self):
         write_pack(self.output, "legacy")
         self.install("v1")
@@ -91,6 +103,7 @@ class Install(Scratch):
         self.assertEqual(consistent(older), "legacy")
         self.assertEqual(os.path.realpath(self.output), str(newer))
 
+    @links
     def test_a_link_to_a_pack_elsewhere_is_replaced_and_that_pack_untouched(self):
         shared = self.dir / "shared-pack"
         write_pack(shared, "shared")
@@ -100,6 +113,7 @@ class Install(Scratch):
         self.assertEqual(consistent(shared), "shared")
         self.assertEqual(pack_swap.versions(self.output)[0].parent, self.dir)
 
+    @links
     def test_a_failing_build_leaves_the_output_and_no_staging(self):
         self.install("v1")
 
@@ -119,6 +133,7 @@ class Install(Scratch):
             self.install("v1")
         self.assertEqual(self.output.read_text(), "not a pack")
 
+    @links
     def test_old_versions_are_pruned_but_never_the_current_one(self):
         for n in range(KEEP_VERSIONS + 2):
             self.install(f"v{n}")
@@ -155,6 +170,7 @@ class HalfWritten(Scratch):
     def test_negative_control_an_in_place_build_shows_a_half_written_pack(self):
         self.assertIsNone(self.read_during_build(build_in_place=True))
 
+    @links
     def test_a_reader_polling_through_a_whole_build_never_sees_a_mix(self):
         # A reader held off the CPU across KEEP_VERSIONS swaps loses the
         # version it resolved to pruning, a missing file and not a mix (the
@@ -179,6 +195,104 @@ class HalfWritten(Scratch):
             stop.set()
             reader.join()
         self.assertNotIn(None, seen)
+
+
+class DirectoryOutput(Scratch):
+    """Windows' mode: the output stays a real directory, replaced by renames.
+
+    Runs on every system, with `LINKS` off where links work."""
+
+    def setUp(self):
+        super().setUp()
+        mode = mock.patch.object(pack_swap, "LINKS", False)
+        mode.start()
+        self.addCleanup(mode.stop)
+
+    def leftovers(self):
+        return sorted(entry.name for entry in self.dir.iterdir() if entry != self.output)
+
+    def test_the_output_stays_a_real_directory_holding_the_newest_pack(self):
+        self.install("v1")
+        self.install("v2")
+        self.assertTrue(self.output.is_dir())
+        self.assertFalse(self.output.is_symlink())
+        self.assertEqual(consistent(self.output), "v2")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_failing_build_leaves_the_old_directory(self):
+        self.install("v1")
+
+        def failing(directory):
+            write_pack(directory, "v2", pause=lambda: 1 / 0)
+
+        with self.assertRaises(ZeroDivisionError):
+            install_atomically(self.output, failing)
+        self.assertEqual(consistent(self.output), "v1")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_refused_rename_puts_the_old_directory_back(self):
+        self.install("v1")
+        rename = os.rename
+
+        def refuse_the_new_version(source, target):
+            if Path(target) == self.output and ".v" in Path(source).name:
+                raise PermissionError("in use")
+            rename(source, target)
+
+        with mock.patch.object(pack_swap.os, "rename", refuse_the_new_version):
+            with self.assertRaises(PermissionError):
+                self.install("v2")
+        self.assertEqual(consistent(self.output), "v1")
+        self.assertEqual([name for name in self.leftovers() if ".link-" in name], [])
+        self.install("v3")  # the stranded version is pruned by the next build
+        self.assertEqual(consistent(self.output), "v3")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_build_killed_between_the_renames_is_cleaned_up_by_the_next(self):
+        self.install("v0")
+        os.rename(self.output, self.dir / f".runtime-pack.link-{StaleLinks.dead_pid()}-0badc0de")
+        self.install("v1")
+        self.assertEqual(consistent(self.output), "v1")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_reader_during_a_build_sees_the_old_pack_whole(self):
+        self.install("v1")
+        seen = []
+        self.install("v2", pause=lambda: seen.append(consistent(self.output)))
+        self.assertEqual(seen, ["v1"])
+        self.assertEqual(consistent(self.output), "v2")
+
+
+class RefusedLinks(Scratch):
+    """Where links need a privilege (Windows without developer mode), only the
+    directory mode installs a pack."""
+
+    def install_without_links(self, links):
+        refused = OSError(1314, "A required privilege is not held by the client")
+        with mock.patch.object(pack_swap, "LINKS", links), \
+                mock.patch.object(Path, "symlink_to", side_effect=refused):
+            return self.install("v1")
+
+    def test_the_directory_mode_installs_without_a_link(self):
+        self.assertEqual(self.install_without_links(links=False), "v1")
+        self.assertEqual(consistent(self.output), "v1")
+
+    def test_negative_control_the_link_mode_fails_there(self):
+        with self.assertRaises(OSError):
+            self.install_without_links(links=True)
+        self.assertFalse(os.path.lexists(self.output))
+
+
+class Liveness(unittest.TestCase):
+    """A staging directory's builder is looked up without /proc, which macOS
+    and Windows lack."""
+
+    def test_a_live_process_is_alive_without_proc(self):
+        with mock.patch.object(Path, "exists", return_value=False):
+            self.assertTrue(pack_swap._alive(os.getppid()))
+
+    def test_an_exited_process_is_not(self):
+        self.assertFalse(pack_swap._alive(StaleLinks.dead_pid()))
 
 
 #: A child that builds into the output, half-way, then waits to be killed.
@@ -211,7 +325,7 @@ class KilledBuild(Scratch):
                                  stdout=subprocess.PIPE, text=True)
         self.addCleanup(lambda: child.poll() is None and child.kill())
         self.assertEqual(child.stdout.readline().strip(), "half")
-        child.send_signal(signal.SIGKILL)
+        child.kill()
         child.wait(timeout=30)
         child.stdout.close()
 
@@ -235,6 +349,7 @@ class KilledBuild(Scratch):
         self.assertTrue(live.is_dir())
 
 
+@links
 class SpanningReader(Scratch):
     """A reader that reads the pack's files one by one while a swap lands."""
 
@@ -258,6 +373,7 @@ class SpanningReader(Scratch):
 
 class StaleLinks(Scratch):
 
+    @links
     def test_a_dangling_output_and_a_killed_builds_link_are_repaired(self):
         self.output.symlink_to(".runtime-pack.v20260101T000000000000Z-1")  # gone
         dead = self.dead_pid()
@@ -267,6 +383,7 @@ class StaleLinks(Scratch):
         self.assertEqual(consistent(self.output), "v1")
         self.assertFalse(os.path.lexists(stale))
 
+    @links
     def test_negative_control_without_the_cleanup_the_stale_link_stays(self):
         stale = self.dir / f".runtime-pack.link-{self.dead_pid()}-0badc0de"
         stale.symlink_to("nowhere")
@@ -274,6 +391,7 @@ class StaleLinks(Scratch):
             self.install("v1")
         self.assertTrue(os.path.lexists(stale))
 
+    @links
     def test_a_reader_that_resolved_a_kept_version_keeps_reading_it(self):
         self.install("v0")
         resolved = os.path.realpath(self.output)
