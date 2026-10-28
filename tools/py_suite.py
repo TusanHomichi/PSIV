@@ -26,11 +26,11 @@ or a crash in the interpreter) fails the step: every module it had not
 finished is reported by name and counted as one error, never dropped. Exit 0
 when every test passed, 1 otherwise.
 
-Under burrow's flaky step, which sets FLAKY_QUARANTINE and FLAKY_REPORT
-(docs/DEVELOPMENT.md, "Flaky tests"), a failed test runs once more, and one
-that passes then is flaky; a quarantined test doesn't, and its failure is
-reported. Neither fails the step. Unless both are set, and neither is empty, every failure
-does.
+Under burrow's flaky step, which sets FLAKY_EXPIRED and FLAKY_REPORT
+(docs/DEVELOPMENT.md, "Flaky tests"), a failed test runs once more, unless
+its quarantine has run out, and one that passes then is flaky: it's reported,
+and fails nothing. Unless both are set, and neither is empty, every failure
+fails the step.
 
 Stdlib only, Python 3.
 """
@@ -206,19 +206,19 @@ def run_again(name):
 
 
 def settle_flakes(failed, totals, workers, factory, start, cwd, stream):
-    """burrow's flaky step: with FLAKY_QUARANTINE and FLAKY_REPORT both set, each failed test
-    that isn't quarantined runs once more, on a pool of its own. One that passes is flaky, and a
-    quarantined one's failure is quarantined: either goes in the report and leaves `totals`, so
-    it fails nothing. The report names the test alone, never its output, which can quote the
-    cartridge. Without either, nothing changes: the step always sets both."""
-    path, out = os.environ.get("FLAKY_QUARANTINE"), os.environ.get("FLAKY_REPORT")
+    """burrow's flaky step: with FLAKY_EXPIRED and FLAKY_REPORT both set, each failed test runs
+    once more, on a pool of its own, unless FLAKY_EXPIRED names it: its quarantine has run out.
+    One that passes is flaky: it goes in the report and leaves `totals`, so it fails nothing. The
+    report names the test alone, never its output, which can quote the cartridge. Without either,
+    nothing changes: the step always sets both."""
+    path, out = os.environ.get("FLAKY_EXPIRED"), os.environ.get("FLAKY_REPORT")
     if not path or not out:
         return
-    held = set(Path(path).read_text().split())
+    expired = set(Path(path).read_text().split())
     counts = {}
     for name, kind in failed:
         counts.setdefault(name, {"failures": 0, "errors": 0})[kind] += 1
-    again = [name for name in counts if name not in held and FLAKY_ID.fullmatch(name)]
+    again = [name for name in counts if name not in expired and FLAKY_ID.fullmatch(name)]
     passed = set()
     if again:
         with factory(min(workers, len(again)), start, cwd) as pool:
@@ -230,15 +230,15 @@ def settle_flakes(failed, totals, workers, factory, start, cwd, stream):
                 except Exception:  # noqa: BLE001 - a try that can't run didn't pass
                     pass
     for name in counts:
-        outcome = "quarantined" if name in held else "flaky" if name in passed else None
-        if outcome is None:
+        if name in expired:
+            stream.write(f"py_suite: {name}'s quarantine has run out, so it had no second try\n")
+        if name not in passed:
             continue
         for kind, n in counts[name].items():
             totals[kind] -= n
         with open(out, "a") as report:
-            report.write(json.dumps({"test": name, "outcome": outcome}) + "\n")
-        said = "failed, then passed when it ran again" if outcome == "flaky" else "failed, and is quarantined"
-        stream.write(f"py_suite: {name} {said}: its failures above fail nothing\n")
+            report.write(json.dumps({"test": name}) + "\n")
+        stream.write(f"py_suite: {name} failed, then passed when it ran again: its failures above fail nothing\n")
 
 
 class _Lines(io.StringIO):

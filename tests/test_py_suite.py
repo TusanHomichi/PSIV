@@ -129,13 +129,17 @@ SKIPS_AGAIN = """
                     self.skipTest("skipped on its second try")
                 self.fail("the first try fails")
 """
-#: A failing test that happens to be named test_case, as a subtest's attribute is.
+#: A flaky test that happens to be named test_case, as a subtest's attribute is.
 NAMED_TEST_CASE = """
     import unittest
+    from pathlib import Path
 
     class Case(unittest.TestCase):
         def test_case(self):
-            self.fail("an ordinary test")
+            tried = Path(__file__).with_name("tried")
+            if not tried.exists():
+                tried.write_text("once")
+                self.fail("an ordinary test")
 """
 #: Fails in one subtest every time.
 SUBTEST_FAILS = """
@@ -185,12 +189,13 @@ class ThrowawaySuite:
         return completed.returncode, parse_unittest(completed.stderr)
 
 
-    def flaky(self, quarantined=()):
-        """`run` under burrow's flaky step: (exit code, report text, counts, its report's entries)."""
-        (self.start / "quarantine").write_text("".join(f"{name}\n" for name in quarantined))
+    def flaky(self, expired=()):
+        """`run` under burrow's flaky step, with `expired` the tests whose quarantine has run out:
+        (exit code, report text, counts, its report's entries)."""
+        (self.start / "expired").write_text("".join(f"{name}\n" for name in expired))
         report = self.start / "report.jsonl"
         report.write_text("")
-        code, text, counts = self.run(flaky={"FLAKY_QUARANTINE": str(self.start / "quarantine"),
+        code, text, counts = self.run(flaky={"FLAKY_EXPIRED": str(self.start / "expired"),
                                              "FLAKY_REPORT": str(report)})
         return code, text, counts, [json.loads(line) for line in report.read_text().splitlines()]
 
@@ -348,7 +353,8 @@ class FlakyCase(unittest.TestCase):
         self.assertEqual(code, 0, text)
         self.assertEqual(counts, {"tests_run": 4, "failures": 0, "errors": 0, "skipped": 0,
                                   "status": "OK"})
-        self.assertEqual(entries, [{"test": "test_wobbly.Case.test_wobbles", "outcome": "flaky"}])
+        # Its name alone: a test's output never reaches the report.
+        self.assertEqual(entries, [{"test": "test_wobbly.Case.test_wobbles"}])
         self.assertIn("test_wobbly.Case.test_wobbles failed, then passed when it ran again", text)
 
     def test_negative_control_without_the_step_the_same_failure_fails(self):
@@ -359,13 +365,13 @@ class FlakyCase(unittest.TestCase):
 
     def test_without_both_variables_nothing_changes(self):
         with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
-            (suite.start / "quarantine").write_text("")
+            (suite.start / "expired").write_text("")
             report = suite.start / "report.jsonl"
             report.write_text("")
             for flaky in ({"FLAKY_REPORT": str(report)},
-                          {"FLAKY_REPORT": str(report), "FLAKY_QUARANTINE": ""},
-                          {"FLAKY_QUARANTINE": str(suite.start / "quarantine")},
-                          {"FLAKY_QUARANTINE": str(suite.start / "quarantine"), "FLAKY_REPORT": ""}):
+                          {"FLAKY_REPORT": str(report), "FLAKY_EXPIRED": ""},
+                          {"FLAKY_EXPIRED": str(suite.start / "expired")},
+                          {"FLAKY_EXPIRED": str(suite.start / "expired"), "FLAKY_REPORT": ""}):
                 with self.subTest(flaky=flaky):
                     for tried in suite.start.rglob("tried"):
                         tried.unlink()  # its first try again
@@ -380,19 +386,14 @@ class FlakyCase(unittest.TestCase):
         self.assertEqual(code, 1, text)
         self.assertEqual((counts["failures"], entries), (2, []))
 
-    def test_a_quarantined_test_runs_once_and_its_failure_fails_nothing(self):
-        with ThrowawaySuite({"alpha": PASSING, "gamma": FAILING, "sub": SUBTEST_FAILS}) as suite:
-            code, text, counts, entries = suite.flaky(
-                quarantined=["test_gamma.Case.test_fails", "test_gamma.Case.test_errors",
-                             "test_sub.Case.test_cases"])
-        self.assertEqual(code, 0, text)
-        self.assertEqual((counts["failures"], counts["errors"], counts["status"]), (0, 0, "OK"))
-        self.assertEqual(sorted(e["test"] for e in entries),
-                         ["test_gamma.Case.test_errors", "test_gamma.Case.test_fails",
-                          "test_sub.Case.test_cases"])
-        self.assertEqual({e["outcome"] for e in entries}, {"quarantined"})
-        # Names alone: a test's output never reaches the report.
-        self.assertTrue(all(set(e) == {"test", "outcome"} for e in entries))
+    def test_negative_control_a_test_whose_quarantine_ran_out_gets_no_second_try(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            code, text, counts, entries = suite.flaky(expired=["test_wobbly.Case.test_wobbles"])
+        self.assertEqual(code, 1, text)
+        self.assertEqual((counts["failures"], entries), (1, []))
+        self.assertIn("test_wobbly.Case.test_wobbles's quarantine has run out, so it had no second try",
+                      text)
+        self.assertNotIn("ran again", text)
 
     def test_a_retry_that_skips_did_not_pass(self):
         with ThrowawaySuite({"skips": SKIPS_AGAIN}) as suite:
@@ -404,9 +405,10 @@ class FlakyCase(unittest.TestCase):
         with ThrowawaySuite({"named": NAMED_TEST_CASE}) as suite:
             code, text, counts = suite.run()
             self.assertEqual((code, counts["failures"]), (1, 1), text)
-            code, text, counts, entries = suite.flaky(quarantined=["test_named.Case.test_case"])
+            (suite.start / "tried").unlink()  # its first try again
+            code, text, counts, entries = suite.flaky()
         self.assertEqual(code, 0, text)
-        self.assertEqual(entries, [{"test": "test_named.Case.test_case", "outcome": "quarantined"}])
+        self.assertEqual(entries, [{"test": "test_named.Case.test_case"}])
 
     def test_a_module_that_cannot_import_is_not_tried_again_and_still_fails(self):
         with ThrowawaySuite({"alpha": PASSING, "broken": BROKEN_IMPORT}) as suite:

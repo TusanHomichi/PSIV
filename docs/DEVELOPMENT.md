@@ -534,15 +534,16 @@ merge commits, each verified on the same process.
 A pull request's full gate runs under
 [burrow's flaky step](https://github.com/FieldmouseWorks/burrow/blob/main/docs/flaky-tests.md):
 the steward's agent runs `flaky run TusanHomichi/PSIV -- python3 tools/gate.py --wait`. That reads
-the quarantine (the open issues titled `flaky: TEST`, labelled `flaky`) into the file
-`FLAKY_QUARANTINE` names, and files what the gate appended to `FLAKY_REPORT`. Under it the Python
-suite (`tools/py_suite.py`) settles each failed test:
+the quarantine (the open issues titled `flaky: TEST`, labelled `flaky`), writes the tests whose
+quarantine has run out to the file `FLAKY_EXPIRED` names, and files what the gate appended to
+`FLAKY_REPORT`. Under it the Python suite (`tools/py_suite.py`) settles each failed test:
 
-- One that isn't quarantined runs once more, on a fresh pool. If it passes, it's flaky: its
-  failure fails nothing, and its issue opens, which quarantines it. A Claude job looks for the
-  cause, and the fix's pull request says `Closes #N`, which lifts the quarantine when it merges.
-- A quarantined test isn't run again. Its failure fails nothing, and is noted on its issue.
-- A test that fails both times fails the step.
+- It runs once more, on a fresh pool. If it passes, it's flaky: its failure fails nothing, and
+  it's noted on its issue, or opens one, which quarantines it. A Claude job looks for the cause,
+  and the fix's pull request says `Closes #N`, which lifts the quarantine when it merges.
+- A test that fails both times fails the step, quarantined or not.
+- Two days after its issue opened, a quarantine runs out: until the issue closes, the test gets
+  no second try, and its failure fails the step.
 
 The report names each test and nothing else: a test's output can quote the cartridge. The Rust
 tests aren't covered: a `cargo test` failure fails the step, as before. Without the step's two
