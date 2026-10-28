@@ -29,7 +29,8 @@ when every test passed, 1 otherwise.
 Under burrow's flaky step, which sets FLAKY_QUARANTINE and FLAKY_REPORT
 (docs/DEVELOPMENT.md, "Flaky tests"), a failed test runs once more, and one
 that passes then is flaky; a quarantined test doesn't, and its failure is
-reported. Neither fails the step. Without FLAKY_REPORT every failure does.
+reported. Neither fails the step. Unless both are set, and neither is empty, every failure
+does.
 
 Stdlib only, Python 3.
 """
@@ -205,14 +206,15 @@ def run_again(name):
 
 
 def settle_flakes(failed, totals, workers, factory, start, cwd, stream):
-    """burrow's flaky step: with FLAKY_REPORT set, each failed test that isn't quarantined runs
-    once more, on a pool of its own. One that passes is flaky, and a quarantined one's failure
-    is quarantined: either goes in the report and leaves `totals`, so it fails nothing. The
-    report names the test alone, never its output, which can quote the cartridge."""
-    if not os.environ.get("FLAKY_REPORT"):
+    """burrow's flaky step: with FLAKY_QUARANTINE and FLAKY_REPORT both set, each failed test
+    that isn't quarantined runs once more, on a pool of its own. One that passes is flaky, and a
+    quarantined one's failure is quarantined: either goes in the report and leaves `totals`, so
+    it fails nothing. The report names the test alone, never its output, which can quote the
+    cartridge. Without either, nothing changes: the step always sets both."""
+    path, out = os.environ.get("FLAKY_QUARANTINE"), os.environ.get("FLAKY_REPORT")
+    if not path or not out:
         return
-    path = os.environ.get("FLAKY_QUARANTINE")
-    held = set(Path(path).read_text().split()) if path else set()
+    held = set(Path(path).read_text().split())
     counts = {}
     for name, kind in failed:
         counts.setdefault(name, {"failures": 0, "errors": 0})[kind] += 1
@@ -233,7 +235,7 @@ def settle_flakes(failed, totals, workers, factory, start, cwd, stream):
             continue
         for kind, n in counts[name].items():
             totals[kind] -= n
-        with open(os.environ["FLAKY_REPORT"], "a") as report:
+        with open(out, "a") as report:
             report.write(json.dumps({"test": name, "outcome": outcome}) + "\n")
         said = "failed, then passed when it ran again" if outcome == "flaky" else "failed, and is quarantined"
         stream.write(f"py_suite: {name} {said}: its failures above fail nothing\n")

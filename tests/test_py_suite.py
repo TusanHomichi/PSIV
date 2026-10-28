@@ -357,6 +357,23 @@ class FlakyCase(unittest.TestCase):
         self.assertEqual(code, 1, text)
         self.assertEqual(counts["failures"], 1)
 
+    def test_without_both_variables_nothing_changes(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            (suite.start / "quarantine").write_text("")
+            report = suite.start / "report.jsonl"
+            report.write_text("")
+            for flaky in ({"FLAKY_REPORT": str(report)},
+                          {"FLAKY_REPORT": str(report), "FLAKY_QUARANTINE": ""},
+                          {"FLAKY_QUARANTINE": str(suite.start / "quarantine")},
+                          {"FLAKY_QUARANTINE": str(suite.start / "quarantine"), "FLAKY_REPORT": ""}):
+                with self.subTest(flaky=flaky):
+                    for tried in suite.start.rglob("tried"):
+                        tried.unlink()  # its first try again
+                    code, text, counts = suite.run(flaky=flaky)
+                    self.assertEqual((code, counts["failures"]), (1, 1), text)
+                    self.assertEqual(report.read_text(), "")
+                    self.assertNotIn("ran again", text)
+
     def test_negative_control_a_test_that_fails_again_fails_the_step(self):
         with ThrowawaySuite({"only": ASSERTION_ONLY, "sub": SUBTEST_FAILS}) as suite:
             code, text, counts, entries = suite.flaky()
