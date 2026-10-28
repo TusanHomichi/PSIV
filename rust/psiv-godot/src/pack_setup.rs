@@ -19,6 +19,7 @@
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Instant;
@@ -67,16 +68,44 @@ pub(crate) fn progress(lines: &[String]) -> Option<(usize, usize, &str)> {
     })
 }
 
-/// The ROM named on the game's command line: the first argument Godot leaves
-/// to the game (`OS.get_cmdline_args`, which holds none of the engine's own
-/// switches) that is not a switch itself. Dropping a file on the game's
+/// The engine options whose value follows them and stays in
+/// `OS.get_cmdline_args()` in a release build: Godot's `Main::start` reads
+/// them there and an exported game then ignores them. Every other engine
+/// option, and its value, is gone from that list by then.
+const VALUE_OPTIONS: [&str; 3] = ["-s", "--script", "--main-loop"];
+
+/// The ROM named on the game's command line. `arguments` is what Godot
+/// leaves in `OS.get_cmdline_args()`, where the ROM is the first argument
+/// that is neither a switch nor the value of one of [`VALUE_OPTIONS`] (as
+/// Godot reads its own positional argument): dropping a file on the game's
 /// executable, or opening one with it, starts the game this way.
-pub(crate) fn command_line_rom(arguments: &[String]) -> Option<PathBuf> {
-    arguments
-        .iter()
-        .find(|argument| !argument.is_empty() && !argument.starts_with('-'))
+/// `user_arguments` is `OS.get_cmdline_user_args()`, what follows `--` or
+/// `++`, where any argument that is not a switch is the ROM.
+pub(crate) fn command_line_rom(arguments: &[String], user_arguments: &[String]) -> Option<PathBuf> {
+    let mut engine = arguments.iter();
+    let mut positional = None;
+    while let Some(argument) = engine.next() {
+        if VALUE_OPTIONS.contains(&argument.as_str()) {
+            engine.next();
+        } else if !argument.is_empty() && !argument.starts_with('-') {
+            positional = Some(argument);
+            break;
+        }
+    }
+    positional
+        .or_else(|| {
+            user_arguments
+                .iter()
+                .find(|argument| !argument.is_empty() && !argument.starts_with('-'))
+        })
         .map(PathBuf::from)
 }
+
+/// Whether this process has taken its command line's ROM: the first setup
+/// screen builds from it, and one shown again (that build's pack failed to
+/// load, or the player cancelled) waits for the player instead of building
+/// from it again.
+static COMMAND_LINE_TAKEN: AtomicBool = AtomicBool::new(false);
 
 /// Windows: start the builder without a console window of its own.
 #[cfg(windows)]
@@ -332,14 +361,20 @@ impl ICanvasLayer for PackSetup {
             "pack setup: no usable runtime pack at {}; asking for the ROM",
             self.pack.display()
         );
-        if installed {
-            let arguments: Vec<String> = Os::singleton()
-                .get_cmdline_args()
-                .as_slice()
-                .iter()
-                .map(GString::to_string)
-                .collect();
-            if let Some(rom) = command_line_rom(&arguments) {
+        if installed && !COMMAND_LINE_TAKEN.swap(true, Ordering::Relaxed) {
+            let os = Os::singleton();
+            let strings = |arguments: PackedStringArray| -> Vec<String> {
+                arguments
+                    .as_slice()
+                    .iter()
+                    .map(GString::to_string)
+                    .collect()
+            };
+            let rom = command_line_rom(
+                &strings(os.get_cmdline_args()),
+                &strings(os.get_cmdline_user_args()),
+            );
+            if let Some(rom) = rom {
                 self.start(rom);
             }
         }
@@ -431,7 +466,11 @@ impl PackSetup {
                 }
                 if succeeded {
                     self.show("Built. Starting the game...");
-                    self.base().get_tree().reload_current_scene();
+                    // The reload removes this screen at once, which calls its
+                    // `exit_tree` while `poll` still holds `&mut self`; the
+                    // `base_mut` guard is what lets gdext take that call.
+                    let base = self.base_mut();
+                    base.get_tree().reload_current_scene();
                 } else {
                     self.show(&format!("The build failed:\n{}", failure(&lines)));
                     if let Some(choose) = self.choose.as_mut() {
@@ -475,11 +514,35 @@ mod tests {
     fn a_rom_on_the_command_line_is_its_first_argument_that_is_not_a_switch() {
         let arguments = ["--verbose", "", "/roms/Game (USA).md", "/other.md"].map(String::from);
         assert_eq!(
-            command_line_rom(&arguments),
+            command_line_rom(&arguments, &[]),
             Some(PathBuf::from("/roms/Game (USA).md"))
         );
-        assert_eq!(command_line_rom(&["--verbose".to_owned()]), None);
-        assert_eq!(command_line_rom(&[]), None);
+        assert_eq!(command_line_rom(&["--verbose".to_owned()], &[]), None);
+        assert_eq!(command_line_rom(&[], &[]), None);
+    }
+
+    #[test]
+    fn an_engine_options_value_is_never_the_rom() {
+        for option in VALUE_OPTIONS {
+            let arguments = [option, "tool.gd"].map(String::from);
+            assert_eq!(command_line_rom(&arguments, &[]), None, "{option}");
+            let arguments = [option, "tool.gd", "/roms/game.md"].map(String::from);
+            assert_eq!(
+                command_line_rom(&arguments, &[]),
+                Some(PathBuf::from("/roms/game.md")),
+                "{option}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_rom_after_the_user_argument_marker_counts() {
+        let user = ["--fullscreen", "/roms/game.md"].map(String::from);
+        assert_eq!(
+            command_line_rom(&[], &user),
+            Some(PathBuf::from("/roms/game.md"))
+        );
+        assert_eq!(command_line_rom(&[], &["--fullscreen".to_owned()]), None);
     }
 
     #[test]

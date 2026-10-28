@@ -103,6 +103,27 @@ pub(crate) fn pack_directory(install: &Install) -> (PathBuf, bool) {
     )
 }
 
+/// Where a run reads the pack it selected, and where a rebuild writes it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PackPaths {
+    /// The selection resolved once, so a build swapping a new version in
+    /// while the run reads cannot mix two versions.
+    pub(crate) read: PathBuf,
+    /// The selection itself: the builder swaps the new pack in under this
+    /// name, never writing into the version it names, which other runs may
+    /// be reading.
+    pub(crate) rebuild: PathBuf,
+}
+
+impl PackPaths {
+    pub(crate) fn of(selected: PathBuf) -> Self {
+        Self {
+            read: selected.canonicalize().unwrap_or_else(|_| selected.clone()),
+            rebuild: selected,
+        }
+    }
+}
+
 /// The command that builds the pack at `pack` from the ROM at `rom`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BuilderCommand {
@@ -180,6 +201,60 @@ mod tests {
         Install::Checkout {
             root: PathBuf::from("/src/PSIV"),
         }
+    }
+
+    /// A fresh directory under the system's temporary one.
+    fn scratch(name: &str) -> PathBuf {
+        let directory =
+            std::env::temp_dir().join(format!("psiv-install-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("scratch directory");
+        directory
+            .canonicalize()
+            .expect("scratch directory resolves")
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_linked_pack_is_read_from_its_version_and_rebuilt_under_its_link() {
+        let directory = scratch("linked");
+        let version = directory.join(".runtime-pack.v1");
+        std::fs::create_dir(&version).expect("version");
+        let link = directory.join("runtime-pack");
+        std::os::unix::fs::symlink(".runtime-pack.v1", &link).expect("link");
+        assert_eq!(
+            PackPaths::of(link.clone()),
+            PackPaths {
+                read: version,
+                rebuild: link.clone()
+            }
+        );
+        let dangling = directory.join("gone");
+        std::os::unix::fs::symlink(".runtime-pack.v0", &dangling).expect("dangling link");
+        assert_eq!(
+            PackPaths::of(dangling.clone()),
+            PackPaths {
+                read: dangling.clone(),
+                rebuild: dangling
+            }
+        );
+        std::fs::remove_dir_all(directory).expect("cleanup");
+    }
+
+    #[test]
+    fn a_missing_or_real_pack_is_read_and_rebuilt_where_it_is() {
+        let directory = scratch("plain");
+        let missing = directory.join("runtime-pack");
+        assert_eq!(PackPaths::of(missing.clone()).read, missing);
+        std::fs::create_dir(&missing).expect("pack");
+        assert_eq!(
+            PackPaths::of(missing.clone()),
+            PackPaths {
+                read: missing.clone(),
+                rebuild: missing
+            }
+        );
+        std::fs::remove_dir_all(directory).expect("cleanup");
     }
 
     #[test]

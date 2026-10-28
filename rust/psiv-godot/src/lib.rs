@@ -358,11 +358,8 @@ impl INode2D for Field {
         // one PSIV_RUNTIME_PACK names (`install.rs`).
         let install = install::Install::current();
         let (selected, overridden) = install::pack_directory(&install);
-        self.pack_dir = selected
-            .canonicalize()
-            .unwrap_or(selected)
-            .to_string_lossy()
-            .into_owned();
+        let paths = install::PackPaths::of(selected);
+        self.pack_dir = paths.read.to_string_lossy().into_owned();
         if overridden {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
@@ -372,7 +369,8 @@ impl INode2D for Field {
             Err(e) => {
                 godot_error!("runtime pack failed to load from {}: {e}", self.pack_dir);
                 let problem = pack.join("manifest.json").exists().then(|| e.to_string());
-                let setup = pack_setup::PackSetup::create(install, pack, overridden, problem);
+                let setup =
+                    pack_setup::PackSetup::create(install, paths.rebuild, overridden, problem);
                 self.base_mut().add_child(&setup);
                 return;
             }
