@@ -3,7 +3,9 @@
 A pack builder that quietly reads an ignored file (an emulator capture, a
 local layout dump) works on the machine that has the file and nowhere else,
 and its output silently depends on evidence nobody can rebuild. This guard
-copies only what `git ls-files` lists into a scratch tree, adds the ROM, runs
+copies only the files of the change (`tools/repo_files.py`: every tracked
+file plus any unignored new one, never an ignored input) into a scratch tree,
+adds the ROM, runs
 the normal entry point (`python3 -m psiv_tools pack ROM OUT`) and records every
 file the builder process opens. It fails, naming each path, when the builder
 opens anything other than:
@@ -47,6 +49,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+
+from tools.repo_files import repo_files
 
 REPO = Path(__file__).resolve().parents[1]
 ROM_NAME = "Phantasy Star IV (USA).md"
@@ -120,12 +124,9 @@ runpy.run_module("psiv_tools", run_name="__main__", alter_sys=True)
 
 
 def tracked_files(repo: Path = REPO) -> list[str]:
-    """Every path `git ls-files` lists, repository-relative."""
-    result = subprocess.run(
-        ["git", "-C", str(repo), "ls-files", "-z"],
-        check=True, capture_output=True,
-    )
-    return [name for name in result.stdout.decode().split("\0") if name]
+    """The files of the change, repository-relative (the one owner of that
+    list is `tools/repo_files.py`); an ignored local input is never one."""
+    return repo_files(repo)
 
 
 def copy_tracked_tree(repo: Path, names: list[str], tree: Path) -> None:
@@ -224,7 +225,7 @@ def _have_git_checkout() -> bool:
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
-@unittest.skipUnless(_have_git_checkout(), "needs a git checkout for `git ls-files`")
+@unittest.skipUnless(_have_git_checkout(), "needs a git checkout to list its files")
 class TestPackInputs(unittest.TestCase):
 
     def setUp(self):
