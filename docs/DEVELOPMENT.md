@@ -178,13 +178,10 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
-The battle-art emission tests also need the ignored indexed PNGs named by
-`oracle/fixtures/battle_animation_remainder.json` under
-`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
-frame is an emission error. Preserve a verified local copy, or reproduce the
-frames from the named oracle captures using the renderer documented in
-[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
-do not commit the ROM-derived PNGs.
+The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
+rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
+names) are oracle evidence only: no pack input reads them, and the one test
+that compares them skips without them. Do not commit the ROM-derived PNGs.
 `tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
 tracked tree plus the ROM and fails, naming each path, when the builder opens
 or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
