@@ -356,7 +356,8 @@ class CleanupAfterCommit(Scratch):
         for index in range(KEEP_VERSIONS):
             self.install(f"v{index}")
         with mock.patch.object(pack_swap.shutil, "rmtree", side_effect=PermissionError("held")):
-            with self.assertWarnsRegex(pack_swap.PackSwapWarning, "pruning old versions failed"):
+            # Pruning, and on Windows also removing the replaced directory.
+            with self.assertWarnsRegex(pack_swap.PackSwapWarning, "^installed, but "):
                 self.assertEqual(self.install("new"), "new")
         self.assertEqual(consistent(self.output), "new")
 
