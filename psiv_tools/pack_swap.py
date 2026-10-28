@@ -39,8 +39,8 @@ gone, and any `.<name>.link-*` left between steps 3's link and its rename.
 After a swap the newest `KEEP_VERSIONS` versions are kept (the current one and
 the ones before it, which a run that resolved them earlier may still be
 reading) and older ones are removed; the version `<output>` names is never
-removed, nor one another build that is still running made and has yet to
-install, so two builds of one output never delete each other's work. A run
+removed, nor one another build that is still running (another process, or
+another thread of this one) made and has yet to install, so two builds of one output never delete each other's work. A run
 that outlives `KEEP_VERSIONS` swaps loses its pack, and fails loudly on a
 missing file rather than reading a mix.
 
@@ -56,6 +56,7 @@ import re
 import secrets
 import shutil
 import sys
+import threading
 import warnings
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -82,6 +83,13 @@ AT_FDCWD = -100
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 STILL_ACTIVE = 259
 ERROR_ACCESS_DENIED = 5
+
+
+#: The versions installs in this process have made and not yet installed.
+#: Their names carry this process's id, so liveness cannot tell them from
+#: finished ones; `prune` reads this instead.
+_pending: set[str] = set()
+_pending_lock = threading.Lock()
 
 
 class PackSwapError(RuntimeError):
@@ -215,22 +223,33 @@ def install_atomically(output: Path, build: Callable[[Path], T]) -> T:
     token = f"{os.getpid()}-{secrets.token_hex(4)}"
     staging = parent / f".{output.name}.build-{token}"
     staging.mkdir()
+    version = None
     try:
         result = build(staging)
         version = parent / f".{output.name}.v{_stamp()}-{os.getpid()}"
+        # Registered before the version exists, so no prune sees it
+        # unprotected; released once `output` names it (or the install failed).
+        with _pending_lock:
+            _pending.add(str(version))
         os.rename(staging, version)
     except BaseException:
+        with _pending_lock:
+            _pending.discard(str(version))
         if staging.exists():
             shutil.rmtree(staging)
         raise
     link = parent / f".{output.name}.link-{token}"
     # The commit point is inside each: an exception means `output` is as it
     # was; after it, a cleanup failure is a PackSwapWarning, not an error.
-    if LINKS:
-        problems = _link(output, version, link,
-                         parent / f".{output.name}.v{before}-{os.getpid()}")
-    else:
-        problems = _replace_directory(output, version, link)
+    try:
+        if LINKS:
+            problems = _link(output, version, link,
+                             parent / f".{output.name}.v{before}-{os.getpid()}")
+        else:
+            problems = _replace_directory(output, version, link)
+    finally:
+        with _pending_lock:
+            _pending.discard(str(version))
     try:
         prune(output, keep=KEEP_VERSIONS if LINKS else 0)
     except OSError as error:
@@ -286,18 +305,24 @@ def _replace_directory(output: Path, version: Path, old: Path) -> list[str]:
 
 def prune(output: Path, keep: int = KEEP_VERSIONS) -> list[str]:
     """Remove all but the newest `keep` versions of `output`, never the one
-    `output` names nor one another live process made (a concurrent build
-    between its version and its install); returns the removed names."""
+    `output` names, nor one a concurrent build (another live process, or an
+    install in this one) made and has yet to install; returns the removed
+    names."""
     _, version, _ = _names(output)
     installed = versions(output)
     removed = []
     for path in installed[:max(0, len(installed) - keep)]:
         pid = int(version.match(path.name).group(1))
-        if pid != os.getpid() and _alive(pid):
-            continue  # another build's version, perhaps not yet installed
-        # Read after the liveness check: only a version's own build installs
-        # it, so once that build is gone `output` already names it if it ever
-        # will. A snapshot from before the loop could be stale by now.
+        if pid == os.getpid():
+            with _pending_lock:
+                building = str(path.absolute()) in _pending
+        else:
+            building = _alive(pid)
+        if building:
+            continue  # a build's version, perhaps not yet installed
+        # Read after the check: only a version's own build installs it, and
+        # it is pending until that install commits, so once it is not,
+        # `output` already names it if it ever will. A snapshot from before the loop could be stale by now.
         if os.path.realpath(path) == os.path.realpath(output):
             continue
         shutil.rmtree(path)

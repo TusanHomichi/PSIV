@@ -18,17 +18,55 @@
 //! A failed or killed build never touches `<output>`. The next build removes
 //! a `.build-` or `.link-` entry whose process is gone, and pruning never
 //! removes the version `<output>` names, nor one a live process made and has
-//! yet to install.
+//! yet to install, nor one another install in this process has yet to
+//! install ([`PENDING`]).
 
 use std::hash::{BuildHasher as _, Hasher as _};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::PackError;
 
 /// Versions kept after a swap: the current one and the two before it.
 pub const KEEP_VERSIONS: usize = 3;
+
+/// The versions installs in this process have made and not yet installed.
+/// Their names carry this process's id, so liveness cannot tell them from
+/// finished ones; pruning reads this instead.
+static PENDING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// A version in [`PENDING`] until dropped, after its install committed or
+/// failed.
+struct Pending(PathBuf);
+
+impl Pending {
+    fn register(version: PathBuf) -> Self {
+        PENDING
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(version.clone());
+        Pending(version)
+    }
+}
+
+impl Drop for Pending {
+    fn drop(&mut self) {
+        PENDING
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|path| path != &self.0);
+    }
+}
+
+fn pending(version: &Path) -> bool {
+    let version = std::path::absolute(version).unwrap_or_else(|_| version.to_owned());
+    PENDING
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .contains(&version)
+}
 
 /// Whether `<output>` is a symbolic link to its version, or (Windows) the
 /// real directory.
@@ -251,7 +289,8 @@ pub fn versions(output: &Path) -> Result<Vec<PathBuf>, PackError> {
 }
 
 /// Remove all but the newest `keep` versions of `output`, never the one
-/// `output` names nor one another live process made; returns their names.
+/// `output` names, nor one another live process made, nor one an install in
+/// this process has yet to install; returns their names.
 pub fn prune(output: &Path, keep: usize) -> Result<Vec<String>, PackError> {
     prune_with(output, keep, alive)
 }
@@ -273,12 +312,17 @@ fn prune_with(
             .unwrap_or_default()
             .to_owned();
         let pid = classify(&name, &entry_name).map_or(0, |(_, pid)| pid);
-        if pid != std::process::id() && alive(pid) {
-            continue; // another build's version, perhaps not yet installed
+        let building = if pid == std::process::id() {
+            pending(path)
+        } else {
+            alive(pid)
+        };
+        if building {
+            continue; // a build's version, perhaps not yet installed
         }
-        // Read after the liveness check: only a version's own build installs
-        // it, so once that build is gone, `output` already names it if it
-        // ever will. A snapshot from before the loop could be stale by now.
+        // Read after the check: only a version's own build installs it, and
+        // it is pending until that install commits, so once it is not,
+        // `output` already names it if it ever will. A snapshot from before the loop could be stale by now.
         let current = std::fs::canonicalize(output).ok();
         if std::fs::canonicalize(path).ok() == current {
             continue;
@@ -321,6 +365,16 @@ pub fn install_atomically<T>(
     output: &Path,
     build: impl FnOnce(&Path) -> Result<T, PackError>,
 ) -> Result<Installed<T>, PackError> {
+    install_with(output, build, || {})
+}
+
+/// [`install_atomically`], calling `before_commit` between making the
+/// version and installing it, so a test can run other installs there.
+fn install_with<T>(
+    output: &Path,
+    build: impl FnOnce(&Path) -> Result<T, PackError>,
+    before_commit: impl FnOnce(),
+) -> Result<Installed<T>, PackError> {
     let output = std::path::absolute(output).map_err(|e| io_error("resolve", output, e))?;
     let name = name_of(&output)?;
     let parent = output
@@ -344,8 +398,11 @@ pub fn install_atomically<T>(
     let mut guard = Staging(Some(&staging));
     let result = build(&staging)?;
     let version = parent.join(format!(".{name}.v{}-{pid}", stamp()));
+    // Registered before the version exists, so no prune sees it unprotected.
+    let pending = Pending::register(version.clone());
     std::fs::rename(&staging, &version).map_err(|e| io_error("rename", &staging, e))?;
     guard.0 = None;
+    before_commit();
     let link = parent.join(format!(".{name}.link-{token}"));
     // The commit point is inside each: an error is returned only before it.
     let mut warnings = if LINKS {
@@ -358,6 +415,8 @@ pub fn install_atomically<T>(
     } else {
         replace_directory(&output, &version, &link)?
     };
+    // Committed: `output` names the version, which protects it from here.
+    drop(pending);
     if let Err(error) = prune(&output, if LINKS { KEEP_VERSIONS } else { 0 }) {
         warnings.push(format!(
             "installed, but pruning old versions failed: {error}"
@@ -686,6 +745,101 @@ mod tests {
                 std::fs::canonicalize(&late).unwrap()
             );
         }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn prune_spares_a_version_pending_in_this_process() {
+        // One install paused between its version and its commit while
+        // others in this process installed and pruned: its version must
+        // survive, and it installs it (#225 review).
+        let root = scratch("pending");
+        let output = root.join("pack");
+        let installed = install_with(
+            &output,
+            |dir| write_marker(dir, "paused"),
+            || {
+                for i in 0..=KEEP_VERSIONS {
+                    install_atomically(&output, |dir| write_marker(dir, &i.to_string())).unwrap();
+                }
+            },
+        )
+        .unwrap();
+        assert!(installed.warnings.is_empty(), "{:?}", installed.warnings);
+        assert_eq!(
+            std::fs::read_to_string(output.join("marker")).unwrap(),
+            "paused"
+        );
+        // Once committed it is current, and the next installs prune it.
+        for i in 0..KEEP_VERSIONS {
+            install_atomically(&output, |dir| write_marker(dir, &i.to_string())).unwrap();
+        }
+        let expected = if LINKS { KEEP_VERSIONS } else { 0 };
+        assert_eq!(versions(&output).unwrap().len(), expected);
+        assert!(
+            PENDING
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|p| !p.starts_with(&root))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn prune_removes_this_process_version_once_not_pending() {
+        // Negative control: the same version, not registered, is pruned.
+        let root = scratch("unpending");
+        let output = root.join("pack");
+        for i in 0..KEEP_VERSIONS {
+            install_atomically(&output, |dir| write_marker(dir, &i.to_string())).unwrap();
+        }
+        let own = root.join(format!(
+            ".pack.v20000101T000000000000Z-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&own).unwrap();
+        let held = Pending::register(own.clone());
+        prune_with(&output, 0, |_| false).unwrap();
+        assert!(own.exists(), "a pending version was pruned");
+        drop(held);
+        prune_with(&output, 0, |_| false).unwrap();
+        assert!(!own.exists(), "a finished version of this process survived");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replacing_a_directory_warns_when_the_old_one_stays() {
+        // The directory install (Windows) commits at its second rename; an
+        // old directory it cannot remove after that is a warning.
+        use std::os::unix::fs::PermissionsExt as _;
+        let root = scratch("replace");
+        let output = root.join("pack");
+        std::fs::create_dir_all(output.join("locked")).unwrap();
+        std::fs::write(output.join("locked").join("f"), "").unwrap();
+        std::fs::set_permissions(
+            output.join("locked"),
+            std::fs::Permissions::from_mode(0o555),
+        )
+        .unwrap();
+        let version = root.join(".pack.v20000101T000000000000Z-1");
+        std::fs::create_dir_all(&version).unwrap();
+        write_marker(&version, "new").unwrap();
+        let old = root.join(".pack.link-1-ab");
+        let warned = replace_directory(&output, &version, &old).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(output.join("marker")).unwrap(),
+            "new"
+        );
+        if old.exists() {
+            assert!(
+                warned.iter().any(|w| w.starts_with("installed, but")),
+                "{warned:?}"
+            );
+            std::fs::set_permissions(old.join("locked"), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        } // else privileged: nothing to warn about
         std::fs::remove_dir_all(&root).unwrap();
     }
 
