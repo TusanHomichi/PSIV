@@ -13,6 +13,10 @@ use psiv_runtime::Session;
 const AIEDO_PRISON: u16 = 0x05C;
 const ROCKY_HOUSE: u16 = 0x065;
 const UZO_HOUSE_3: u16 = 0x0E4;
+const AIEDO_HOUSE_3: u16 = 0x060;
+const AIEDO: u16 = 0x054;
+/// The admirer on Aiedo's street (object 5, `$FFFFC440`, dialogue 7).
+const ADMIRER: usize = 5;
 
 /// The guard, `Field_Obj_Secondary`.
 const GUARD: usize = 0;
@@ -148,4 +152,62 @@ fn rockys_owner_asks_for_the_dog() {
     let mut driver = Driver::new(session, None);
     driver.talk(OWNER).expect("the owner speaks");
     assert!(!flag(&driver, 0x1F));
+}
+
+/// `AiedoHouse3`'s man (object 0, routine `loc_48F36`, facing down at
+/// (26,28)) fires `Event_AiedoManSavings` on every talk: talked to from the
+/// right, he ends facing the party.
+#[test]
+fn the_man_looking_for_his_savings_turns_to_the_party() {
+    let Some(session) = party_at(AIEDO_HOUSE_3, 27, 30, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let scenes = driver.scenes_ended();
+    let flags = driver.runtime().game().snapshot();
+    driver.talk(0).expect("he speaks");
+    assert_eq!(driver.scenes_ended(), scenes + 1, "the scene ran");
+    let leader = psiv_campaign::driver::standing_cell(driver.runtime());
+    let man = driver.runtime().map().npcs()[0].cell;
+    let facing = driver.runtime().map().npcs()[0].facing;
+    assert_eq!(
+        man.neighbor(facing),
+        Some(leader),
+        "object 0 faces the leader at {leader:?}"
+    );
+    assert_eq!(driver.runtime().game().snapshot(), flags, "nothing written");
+}
+
+/// Before Zio (`$42` clear) the man on Aiedo's street flatters Alys and runs
+/// off north (`Event_AiedoManCrushOnAlys`): the scene ends with his slot
+/// cleared and nothing else written. Once Zio has been fought, entry 7's
+/// `$FA $42 $01` reads entry 8 instead and he stays.
+#[test]
+fn the_admirer_runs_off_the_screen() {
+    let Some(session) = party_at(AIEDO, 47, 77, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let flags = driver.runtime().game().snapshot();
+    let scenes = driver.scenes_ended();
+    // About 900 frames with the text; a man who never leaves the screen
+    // would hold the scene for good, so the talk is bounded.
+    driver.set_budget(3_000);
+    driver.talk(ADMIRER).expect("he speaks and runs");
+    assert_eq!(driver.scenes_ended(), scenes + 1, "the scene ran out");
+    assert!(
+        !driver.runtime().map().npcs()[ADMIRER].active,
+        "his slot is clear"
+    );
+    assert_eq!(driver.runtime().game().snapshot(), flags, "nothing written");
+
+    // Negative control: after Zio.
+    let Some(session) = party_at(AIEDO, 47, 77, 0, &[0x42]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let scenes = driver.scenes_ended();
+    driver.talk(ADMIRER).expect("he only talks");
+    assert_eq!(driver.scenes_ended(), scenes, "no scene");
+    assert!(driver.runtime().map().npcs()[ADMIRER].active);
 }

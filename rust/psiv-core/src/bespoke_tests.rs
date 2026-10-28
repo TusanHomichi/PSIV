@@ -298,3 +298,99 @@ fn a_looping_pattern_restarts_on_its_terminator() {
         "right, left, and round again: {visits:?}"
     );
 }
+
+#[test]
+fn the_departing_routine_is_loc_489d6s_walk_up() {
+    // `$BC`: `d0 = 1`, `d7 = 2`, `$3C..$3F` = `$20 $20 $10 $10`.
+    assert_eq!(
+        scene_routine_kind(0xBC),
+        Some(BespokeKind::Departing {
+            command: 1,
+            speed: WanderSpeed::Selector2,
+            leash: Leash {
+                x_max: 0x20,
+                y_max: 0x20,
+                x: 0x10,
+                y: 0x10,
+            },
+        })
+    );
+    // Negative control: a routine no transcribed scene writes.
+    assert_eq!(scene_routine_kind(0x3C), None);
+}
+
+#[test]
+fn a_departing_object_walks_through_the_party_but_not_a_wall() {
+    let kind = scene_routine_kind(0xBC).unwrap();
+    // The party stands on the cell above: `bclr #3, $2(a4)` turns
+    // `loc_4A316` off, so the step is taken.
+    let mut map = map_with_npc(Cell::new(2, 4));
+    let mut set = BespokeSet::build(&map, &[]).unwrap();
+    set.install(0, kind);
+    let mut rolls = SliceRolls::new(&[]);
+    let party = [Cell::new(2, 3)];
+    set.tick_one_for_npc(
+        0,
+        &mut map,
+        &mut rolls,
+        context(&party, BespokeFlags::default(), 0),
+    );
+    assert_eq!(map.npcs()[0].cell, Cell::new(2, 3));
+    assert_eq!(map.npcs()[0].facing, Direction::Up);
+    assert_eq!(set.get(0).unwrap().leash().y, 0x0F);
+
+    // A fixed walker with the same command stops for the party.
+    let mut map = map_with_npc(Cell::new(2, 4));
+    let fixed = BespokeKind::Fixed {
+        command: 1,
+        speed: WanderSpeed::Selector2,
+        leash: kind.leash(),
+    };
+    let mut set = BespokeSet::build(&map, &[(0, fixed)]).unwrap();
+    set.tick_one_for_npc(
+        0,
+        &mut map,
+        &mut rolls,
+        context(&party, BespokeFlags::default(), 0),
+    );
+    assert_eq!(map.npcs()[0].cell, Cell::new(2, 4));
+
+    // Terrain still stops a departing object: the US build's
+    // `FieldObj_NPCMove` checks collision, so it stands against a wall.
+    let mut grid = CollisionGrid::filled(8, 8, 0).unwrap();
+    // Raw `$8`, `CollisionType::Solid`.
+    grid.set(Cell::new(2, 3), 0x8).unwrap();
+    let mut map = FieldMap::new(
+        MapId(0),
+        grid,
+        vec![],
+        vec![Npc::new(NpcId(0), Cell::new(2, 4), Direction::Down)],
+    )
+    .unwrap();
+    let mut set = BespokeSet::build(&map, &[]).unwrap();
+    set.install(0, kind);
+    set.tick_one_for_npc(
+        0,
+        &mut map,
+        &mut rolls,
+        context(&[], BespokeFlags::default(), 0),
+    );
+    assert_eq!(map.npcs()[0].cell, Cell::new(2, 4));
+    assert_eq!(map.npcs()[0].facing, Direction::Up);
+}
+
+#[test]
+fn install_replaces_and_keeps_object_order() {
+    let map = map_with_object_pair();
+    let mut set = BespokeSet::build(&map, &[(1, BespokeKind::StaticAnimation)]).unwrap();
+    set.install(0, scene_routine_kind(0xBC).unwrap());
+    set.install(1, scene_routine_kind(0xBC).unwrap());
+    let order: Vec<usize> = set.actors().iter().map(BespokeActor::npc_index).collect();
+    assert_eq!(order, vec![0, 1]);
+    assert!(matches!(
+        set.get(1).unwrap().kind(),
+        BespokeKind::Departing { .. }
+    ));
+    set.remove(0);
+    assert!(set.get(0).is_none());
+}

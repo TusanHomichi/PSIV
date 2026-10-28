@@ -170,7 +170,7 @@ and the port never transcribed.
 | `Event_InnerSanctGuardBeforeElsydeon` | `$52` | [113](113_InnerSanctuaryGuard.md) | `$070A76..$070A9D` |
 
 ## Aiedo and the Hunter's Guild
-Issue #81's Aiedo events: Rocky's owner and the guild's bail quest, from hand-built saves
+Issue #81's Aiedo events: Rocky's owner, the guild's bail quest and two townsmen, from hand-built saves
 (`rust/psiv-campaign/tests/aiedo_side.rs`), since the route does not take the guild's jobs.
 
 | Scene | Event | Doc | Retail bytes |
@@ -180,6 +180,8 @@ Issue #81's Aiedo events: Rocky's owner and the guild's bail quest, from hand-bu
 | `Event_GirlsBail` | `$81` | [121](121_AiedoBailQuest.md) | `$072C54..$072C79` |
 | `Event_PayingGirlsBail` | `$82` | [121](121_AiedoBailQuest.md#event_payinggirlsbail) | `$072C7A..$072CDB` |
 | `Event_GirlsBailedOut` | `$83` | [121](121_AiedoBailQuest.md#event_girlsbailedout) | `$072CDC..$072D43` |
+| `Event_AiedoManCrushOnAlys` | `$0E` | [122](122_AiedoManEvents.md) | `$06BE78..$06BEE7` |
+| `Event_AiedoManSavings` | `$22` | [122](122_AiedoManEvents.md#event_aiedomansavings) | `$06D468..$06D4A5` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not

@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 41;
+const ALLOWLIST_CEILING: usize = 39;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -57,7 +57,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x000B, "Event_BoardingHydrofoil", Disposition::Scene),
     (0x000C, "Event_BasementContainers", Disposition::Scene),
     (0x000D, "Event_MeetingSaya", Disposition::Scene),
-    (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Allowlisted(81)),
+    (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Scene),
     (0x000F, "Event_SuspicionOnPrincipal", Disposition::Scene),
     (0x0010, "Event_GettingOffVehicle", Disposition::Allowlisted(81)),
     (0x0011, "Event_DezoSpaceportAppearing", Disposition::InsideScene(0x8010)),
@@ -77,7 +77,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x001F, "Event_ConveyorBeltRight", Disposition::Scene),
     (0x0020, "Event_ConveyorBeltLeft", Disposition::Scene),
     (0x0021, "Event_Recovery", Disposition::Scene),
-    (0x0022, "Event_AiedoManSavings", Disposition::Allowlisted(81)),
+    (0x0022, "Event_AiedoManSavings", Disposition::Scene),
     (0x0023, "Event_GirlsSneakingOut", Disposition::Scene),
     (0x0024, "Event_FaintingPriest", Disposition::Allowlisted(81)),
     (0x0025, "Event_AfterIgglanova", Disposition::Scene),

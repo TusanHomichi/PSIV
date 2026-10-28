@@ -216,6 +216,13 @@ impl Runtime {
             }
         };
         let mut events = Vec::new();
+        if let Some(npc) = self
+            .scene
+            .as_ref()
+            .and_then(psiv_core::SceneRunner::running_object_routine)
+        {
+            self.tick_scene_object(npc, &mut events);
+        }
         let Some(runner) = self.scene.as_mut() else {
             return events;
         };
@@ -377,6 +384,21 @@ impl Runtime {
                     };
                 }
             },
+            SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
+                self.wander.remove(npc_index);
+                if let Some(kind) = psiv_core::scene_routine_kind(routine) {
+                    self.bespoke.install(npc_index, kind);
+                } else {
+                    // A routine no scene table names would hold the scene
+                    // forever; clear the slot so it ends, and say so.
+                    self.bespoke.remove(npc_index);
+                    let _ = self.map.set_npc_active(npc_index, false);
+                    events.push(RuntimeEvent::NpcsDespawned {
+                        first: npc_index,
+                        count: 1,
+                    });
+                }
+            }
             SceneEffect::NpcDespawned { npc_index, count } => {
                 for i in npc_index..npc_index + count {
                     let _ = self.map.set_npc_active(i, false);

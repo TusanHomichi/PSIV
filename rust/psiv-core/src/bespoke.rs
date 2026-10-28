@@ -176,6 +176,19 @@ pub enum BespokeKind {
         /// Initial `$3C..$3F` boundary bytes.
         leash: Leash,
     },
+    /// A fixed command with no party or object gate (the routine clears
+    /// `render_flags` bit 3, which `loc_4A316` tests first), whose object
+    /// clears its own slot the first frame `FieldObj_OnScreenTest` rejects
+    /// it. A scene installs it ([`scene_routine_kind`]); the runtime, which
+    /// owns the camera, does the clear.
+    Departing {
+        /// Raw command before `loc_4A150` (`1=up, 2=down, 3=left, 4=right`).
+        command: u8,
+        /// `FieldObj_UpdateStepDuration` selector.
+        speed: WanderSpeed,
+        /// Initial `$3C..$3F` boundary bytes.
+        leash: Leash,
+    },
     /// No movement while clear, then a random helper after the flag.
     FlaggedRandom {
         /// Branch flag.
@@ -198,6 +211,7 @@ impl BespokeKind {
             | BespokeKind::SceneDriven
             | BespokeKind::PresentationOnly => Leash::ZERO,
             BespokeKind::Fixed { leash, .. }
+            | BespokeKind::Departing { leash, .. }
             | BespokeKind::Pattern { leash, .. }
             | BespokeKind::Random { leash, .. }
             | BespokeKind::Follow { leash, .. }
@@ -215,6 +229,7 @@ impl BespokeKind {
             | BespokeKind::SceneDriven
             | BespokeKind::PresentationOnly => WanderSpeed::Selector0,
             BespokeKind::Fixed { speed, .. }
+            | BespokeKind::Departing { speed, .. }
             | BespokeKind::Pattern { speed, .. }
             | BespokeKind::Random { speed, .. }
             | BespokeKind::Follow { speed, .. }
@@ -230,6 +245,7 @@ impl BespokeKind {
         matches!(
             self,
             BespokeKind::Fixed { .. }
+                | BespokeKind::Departing { .. }
                 | BespokeKind::Pattern { .. }
                 | BespokeKind::Random { .. }
                 | BespokeKind::Follow { .. }
@@ -379,6 +395,24 @@ impl BespokeSet {
         Ok(BespokeSet { actors })
     }
 
+    /// Gives object `npc_index` the routine `kind`, replacing whatever ran it
+    /// (a scene's `move.w #routine, (a4)`); the actor starts as its routine's
+    /// init leaves it.
+    pub fn install(&mut self, npc_index: usize, kind: BespokeKind) {
+        self.remove(npc_index);
+        let at = self
+            .actors
+            .iter()
+            .position(|actor| actor.npc_index > npc_index)
+            .unwrap_or(self.actors.len());
+        self.actors.insert(at, BespokeActor::new(npc_index, kind));
+    }
+
+    /// Drops object `npc_index`'s actor, if it has one.
+    pub fn remove(&mut self, npc_index: usize) {
+        self.actors.retain(|actor| actor.npc_index != npc_index);
+    }
+
     /// Actors in cartridge object order.
     #[must_use]
     pub fn actors(&self) -> &[BespokeActor] {
@@ -470,9 +504,11 @@ impl BespokeSet {
         let Some(to) = map.neighbor(from, dir) else {
             return;
         };
+        let objects_gate = !matches!(actor.kind, BespokeKind::Departing { .. });
         if map.grid().is_blocking(to)
-            || context.party.contains(&to)
-            || map.npc_at(to).is_some_and(|npc| npc.cell != from)
+            || objects_gate
+                && (context.party.contains(&to)
+                    || map.npc_at(to).is_some_and(|npc| npc.cell != from))
         {
             return;
         }
@@ -497,7 +533,7 @@ impl BespokeSet {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
             | BespokeKind::PresentationOnly => 0,
-            BespokeKind::Fixed { command, .. } => command,
+            BespokeKind::Fixed { command, .. } | BespokeKind::Departing { command, .. } => command,
             BespokeKind::Pattern { commands, .. } => self.next_pattern(index, commands),
             BespokeKind::Random { kind, .. } => self.next_random(index, kind, rolls, context),
             BespokeKind::Follow { target, .. } => {
@@ -773,6 +809,31 @@ pub const PATTERN_ESPER_GUARD: &[u8] = &[3, 2, LATCH];
 /// (`cmpi.w #$8268, -$40(a4)` / `#$826C`), so it steps right where the first
 /// steps left.
 pub const PATTERN_ESPER_GUARD_SECOND: &[u8] = &[4, 2, LATCH];
+
+/// The routine a scene's `move.w #routine, (a4)` installs, by its
+/// `FieldObjectsJmpTbl` offset, for the routines a transcribed scene writes.
+///
+/// `$BC` is `loc_489D6` (`ps4.asm:95479`): init `$3C = $20`, `$3D = $20`,
+/// `$3E = $10`, `$3F = $10` and `bclr #3, $2(a4)`, then each on-screen frame
+/// `FieldObj_NPCMove` with `d0 = 1` (up) and `d7 = 2` (the third speed table);
+/// off screen it clears its own slot. The US build has no `bugfixes`, so the
+/// move is the collision-checking `FieldObj_NPCMove`.
+#[must_use]
+pub const fn scene_routine_kind(routine: u16) -> Option<BespokeKind> {
+    match routine {
+        0xBC => Some(BespokeKind::Departing {
+            command: 1,
+            speed: WanderSpeed::Selector2,
+            leash: Leash {
+                x_max: 0x20,
+                y_max: 0x20,
+                x: 0x10,
+                y: 0x10,
+            },
+        }),
+        _ => None,
+    }
+}
 
 #[cfg(test)]
 #[path = "bespoke_tests.rs"]

@@ -1,8 +1,20 @@
 //! The scene runner: executing a [`SceneOp`] list deterministically.
 //!
 //! Split from `scene.rs`, which owns the vocabulary; this file owns the
-//! machine. See that module's docs for how blocking works and why scripted
-//! actor motion reuses the ordinary movement model.
+//! machine. Why scripted actor motion reuses the ordinary movement model is in
+//! `scene_runner/actor.rs`.
+//!
+//! # Blocking
+//!
+//! The runner executes ops until it reaches one that blocks — a wait, a
+//! dialogue, a choice, or the end. Everything non-blocking in between runs in
+//! the same tick, which is what makes a "set three flags and move the camera"
+//! run of ops take one tick rather than three.
+//!
+//! Dialogue is the interesting one: the runner emits
+//! [`SceneEffect::DialogueOpen`] and then stops advancing until the runtime
+//! reports the window closed with [`SceneInput::DialogueClosed`]. The engine
+//! neither draws nor times the window; it only knows the script is waiting.
 
 use crate::error::MapError;
 use crate::field::StepFrames;
@@ -45,6 +57,8 @@ enum Blocked {
     Battle,
     Map,
     Camera,
+    /// A `RunObjectRoutine` object still on the map.
+    ObjectRoutine(usize),
     /// A conveyor op waiting for the end of its tick, when the layout scan
     /// turns it into a walk.
     Belt,
@@ -188,6 +202,17 @@ impl SceneRunner {
                 }),
             Blocked::Actor(_) | Blocked::Camera => true,
             _ => false,
+        }
+    }
+
+    /// The map object a [`SceneOp::RunObjectRoutine`] is running, while the
+    /// scene waits for it to clear its slot. The runtime ticks that object
+    /// (and only it) each frame.
+    #[must_use]
+    pub fn running_object_routine(&self) -> Option<usize> {
+        match self.blocked {
+            Blocked::ObjectRoutine(npc) => Some(npc),
+            _ => None,
         }
     }
 
@@ -340,6 +365,11 @@ impl SceneRunner {
         self.tick_ride();
         self.end_belt_if_arrived();
 
+        if let Blocked::ObjectRoutine(npc) = self.blocked
+            && !map.npcs().get(npc).is_some_and(|object| object.active)
+        {
+            self.blocked = Blocked::No;
+        }
         self.unblock(input);
         self.run(state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);

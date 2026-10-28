@@ -2,6 +2,17 @@
 //!
 //! Split from `scene.rs` (the 1,000-line rule) when the vocabulary grew; the
 //! type is re-exported from there, so `psiv_core::ScriptedActor` is unchanged.
+//!
+//! # Actor motion is the same movement model as everything else
+//!
+//! A scripted walk is not a special animation: the cartridge's
+//! `Event_MoveSingleObject` / `Event_MoveCharacters` set an object's
+//! `dest_x_pos`/`dest_y_pos` and then call the ordinary object update until
+//! `curr == dest`. The object's direction comes from `FieldObj_GetAutoInput`
+//! (`ps4.asm:93232`), which compares current against destination one axis at a
+//! time — X first unless `Char_Move_Flags` bit 1 is set. So a scene actor
+//! walks in whole cell-steps at the same rate as the party, and turns to face
+//! the way it walks. [`ScriptedActor`] is exactly that.
 
 use crate::field::StepFrames;
 use crate::geom::{CELL_PIXELS, Cell, Direction};
