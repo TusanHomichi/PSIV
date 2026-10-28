@@ -555,7 +555,6 @@ negative-control rules are owned there. A recipe batch uses the same driver:
 python3 -m oracle.sweep.player_capture --cases build/player/cases.json \
   --scout build/scripted/scout.json --out build/player/captures \
   --fixtures rust/psiv-core/src/battle/replay_fixtures/player
-python3 -m oracle.sweep.replay_pack
 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
   --lib every_fixture_replays_as_recorded
 ```
@@ -592,13 +591,14 @@ changing it earlier can change the HV roll and select another formation.
 additional observations. The pilot freezes an ordinary tape, which the stock,
 self-building host captures and verifies twice with the existing RNG checker.
 The pilot is not the final evidence host. Extraction records each actual command,
-its concrete item copy, inventory and end-of-round HP/TP/form/MDEF state;
-`oracle.sweep.replay_pack` mirrors only the decoded definitions those commands need.
+its concrete item copy, inventory and end-of-round HP/TP/form/MDEF state; the
+replay reads the decoded definitions those commands need from the local runtime
+pack.
 
 ### Sweeping a region: `python3 -m oracle.sweep`
 
 `python3 -m oracle.sweep` runs `oracle.force` over a region's whole formation
-list (committed as `oracle/sweep/motavia_formations.json`) and extracts a
+list (computed from the local pack; `--list` writes it under `build/`) and extracts a
 fixture for each, three captures at a time, resuming where it stopped;
 `--reextract DIR` re-extracts an existing sweep without the emulator.
 [`BATTLE_ORACLE_SWEEP.md`](../docs/oracle/BATTLE_ORACLE_SWEEP.md) owns the

@@ -97,12 +97,11 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
     files
 }
 
-/// The directory's own data files: the manifest, and the swept records
-/// [`super::pack`] reads (`oracle/sweep/replay_pack.py`). Everything else
+/// The directory's own data file, the manifest. Everything else
 /// under the directory is a fixture - a file that is not one fails the walk
 /// with the extractor's own parse error, which is the honest way to find out.
 fn not_a_fixture(name: &std::ffi::OsStr) -> bool {
-    name == "divergences.json" || name == "motavia_pack.json"
+    name == "divergences.json"
 }
 
 fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
@@ -141,7 +140,9 @@ fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>)
 #[test]
 fn every_fixture_replays_as_recorded() {
     let (manifest, manifest_path) = manifest();
-    let data = pack::data();
+    let Some(data) = pack::data() else {
+        return;
+    };
     let files = fixture_files();
     let mut checked = 0;
     for (name, path) in &files {
@@ -154,7 +155,7 @@ fn every_fixture_replays_as_recorded() {
             "{name}: the fixture records the capture's trace"
         );
 
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(&fixture, data);
         let finding = &replay.finding;
         let entry = manifest.fixtures.get(name);
         match (finding, entry) {
@@ -269,7 +270,9 @@ fn every_fixture_replays_as_recorded() {
 #[test]
 fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
     let text = include_str!("../replay_fixtures/siren386_126_magic.json");
-    let data = pack::data();
+    let Some(data) = pack::data() else {
+        return;
+    };
     let mut captured = fixture(text);
     let barrier = captured
         .rounds
@@ -284,7 +287,7 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
         .find(|(_, field, _, _)| field == "mdfs_bat")
         .expect("observed battle MDEF change");
     stat.3 += 1;
-    let replay = replay_inner(&captured, &data);
+    let replay = replay_inner(&captured, data);
     assert!(
         matches!(
             replay.finding,
@@ -304,7 +307,7 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
         .find(|command| command.command == "technique")
         .expect("observed FOI command");
     command.command = "defend".into();
-    let rejected = std::panic::catch_unwind(|| replay_inner(&captured, &data));
+    let rejected = std::panic::catch_unwind(|| replay_inner(&captured, data));
     assert!(
         rejected.is_err() || rejected.unwrap().finding.is_some(),
         "a wrong command must not replay as the captured technique"
@@ -341,14 +344,16 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
 fn dump_manifest_entries() {
     let dump_path = manifest_dump_path();
     let (manifest, manifest_path) = manifest();
-    let data = pack::data();
+    let Some(data) = pack::data() else {
+        return;
+    };
     let files = fixture_files();
     let mut lines: Vec<String> = Vec::new();
     for (name, path) in &files {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
         let fixture = fixture(&text);
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(&fixture, data);
         let Some(finding) = &replay.finding else {
             continue;
         };

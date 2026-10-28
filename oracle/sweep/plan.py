@@ -93,7 +93,11 @@ def list_formations(pack: Pack) -> list[Formation]:
 
 def write_list(path: pathlib.Path, formations: list[Formation],
                source: dict) -> None:
-    """The committed list: what the sweep captures, and where the ids came from."""
+    """The list: what the sweep captures, and where the ids came from.
+
+    It is computed from the local pack on every run and written under `build/`;
+    a copy of it is a table of the cartridge's ids, so none is tracked (#149).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
         "source": source,
