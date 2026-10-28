@@ -192,14 +192,16 @@ def run_module(name):
 
 def test_id(test):
     """The id of the test a failure belongs to: a subtest's is its test's."""
-    return getattr(test, "test_case", test).id()
+    return (test.test_case if isinstance(test, unittest.case._SubTest) else test).id()
 
 
 def run_again(name):
-    """Run the test `name` (its id) once more in this worker: whether it passed."""
+    """Run the test `name` (its id) once more in this worker: whether it passed. A skip, in
+    its body, its setUp or a subtest, is no pass, and nor is an expected failure."""
     result = unittest.TestResult()
     unittest.TestLoader().loadTestsFromName(name)(result)
-    return result.testsRun > 0 and result.wasSuccessful()
+    return (result.testsRun > 0 and result.wasSuccessful() and not result.skipped
+            and not result.expectedFailures and not result.unexpectedSuccesses)
 
 
 def settle_flakes(failed, totals, workers, factory, start, cwd, stream):

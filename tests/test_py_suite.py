@@ -93,6 +93,50 @@ FLAKY_ONCE = """
         def test_steady(self):
             pass
 """
+#: Each test fails its first try and skips the next, in its body, its setUp or a subtest: a
+#: skip is no pass.
+SKIPS_AGAIN = """
+    import unittest
+    from pathlib import Path
+
+    def first(name):
+        tried = Path(__file__).with_name("tried-" + name)
+        if tried.exists():
+            return False
+        tried.write_text("once")
+        return True
+
+    class Body(unittest.TestCase):
+        def test_skips(self):
+            if not first("body"):
+                self.skipTest("skipped on its second try")
+            self.fail("the first try fails")
+
+    class Setup(unittest.TestCase):
+        def setUp(self):
+            if Path(__file__).with_name("tried-setup").exists():
+                self.skipTest("skipped on its second try")
+
+        def test_skips(self):
+            first("setup")
+            self.fail("the first try fails")
+
+    class Sub(unittest.TestCase):
+        def test_skips(self):
+            again = not first("sub")
+            with self.subTest(n=1):
+                if again:
+                    self.skipTest("skipped on its second try")
+                self.fail("the first try fails")
+"""
+#: A failing test that happens to be named test_case, as a subtest's attribute is.
+NAMED_TEST_CASE = """
+    import unittest
+
+    class Case(unittest.TestCase):
+        def test_case(self):
+            self.fail("an ordinary test")
+"""
 #: Fails in one subtest every time.
 SUBTEST_FAILS = """
     import unittest
@@ -332,6 +376,20 @@ class FlakyCase(unittest.TestCase):
         self.assertEqual({e["outcome"] for e in entries}, {"quarantined"})
         # Names alone: a test's output never reaches the report.
         self.assertTrue(all(set(e) == {"test", "outcome"} for e in entries))
+
+    def test_a_retry_that_skips_did_not_pass(self):
+        with ThrowawaySuite({"skips": SKIPS_AGAIN}) as suite:
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual(code, 1, text)
+        self.assertEqual((counts["failures"], entries), (3, []))
+
+    def test_a_test_named_test_case_keeps_its_own_id(self):
+        with ThrowawaySuite({"named": NAMED_TEST_CASE}) as suite:
+            code, text, counts = suite.run()
+            self.assertEqual((code, counts["failures"]), (1, 1), text)
+            code, text, counts, entries = suite.flaky(quarantined=["test_named.Case.test_case"])
+        self.assertEqual(code, 0, text)
+        self.assertEqual(entries, [{"test": "test_named.Case.test_case", "outcome": "quarantined"}])
 
     def test_a_module_that_cannot_import_is_not_tried_again_and_still_fails(self):
         with ThrowawaySuite({"alpha": PASSING, "broken": BROKEN_IMPORT}) as suite:
