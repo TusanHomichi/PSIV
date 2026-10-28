@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 46;
+const ALLOWLIST_CEILING: usize = 41;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -160,7 +160,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0072, "Event_RanchOwnerAfterBattle", Disposition::Allowlisted(81)),
     (0x0073, "Event_RockyFound", Disposition::Allowlisted(81)),
     (0x0074, "Event_CatchingRocky", Disposition::Allowlisted(81)),
-    (0x0075, "Event_RockyOwner", Disposition::Allowlisted(81)),
+    (0x0075, "Event_RockyOwner", Disposition::Scene),
     (0x0076, "Event_PiataDormOwner", Disposition::Allowlisted(81)),
     (0x0077, "Event_MissingStudentFound", Disposition::Allowlisted(81)),
     (0x0078, "Event_OldManNearMissingStudent", Disposition::Allowlisted(81)),
@@ -171,10 +171,10 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x007D, "Event_FractOozeFound", Disposition::Scene),
     (0x007E, "Event_TallasRescued", Disposition::Allowlisted(81)),
     (0x007F, "Event_LostGirlsMother", Disposition::Allowlisted(81)),
-    (0x0080, "Event_GirlPrison", Disposition::Allowlisted(81)),
-    (0x0081, "Event_GirlsBail", Disposition::Allowlisted(81)),
-    (0x0082, "Event_PayingGirlsBail", Disposition::Allowlisted(81)),
-    (0x0083, "Event_GirlsBailedOut", Disposition::Allowlisted(81)),
+    (0x0080, "Event_GirlPrison", Disposition::Scene),
+    (0x0081, "Event_GirlsBail", Disposition::Scene),
+    (0x0082, "Event_PayingGirlsBail", Disposition::Scene),
+    (0x0083, "Event_GirlsBailedOut", Disposition::Scene),
     (0x0084, "Event_DyingBoyFather", Disposition::Allowlisted(81)),
     (0x0085, "Event_FatherAfterBoyRecovery", Disposition::Allowlisted(81)),
     (0x0086, "Event_DyingBoy", Disposition::Allowlisted(81)),

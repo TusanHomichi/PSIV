@@ -162,7 +162,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
 | `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | allowlisted, #81 |
 | `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | allowlisted, #81 |
-| `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | allowlisted, #81 |
+| `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | scene `Event_RockyOwner` |
 | `$0076` | `Event_PiataDormOwner` | dialogue `$F6` | tree 2 entry 89 | allowlisted, #81 |
 | `$0077` | `Event_MissingStudentFound` | dialogue `$F6` | tree 9 entry 75 | allowlisted, #81 |
 | `$0078` | `Event_OldManNearMissingStudent` | dialogue `$F6` | tree 9 entry 78 | allowlisted, #81 |
@@ -173,10 +173,10 @@ cartridge keeps no other route to the field event dispatcher.
 | `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | scene `Event_FractOozeFound` |
 | `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | allowlisted, #81 |
 | `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | allowlisted, #81 |
-| `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | allowlisted, #81 |
-| `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | allowlisted, #81 |
-| `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | allowlisted, #81 |
-| `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | allowlisted, #81 |
+| `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | scene `Event_GirlPrison` |
+| `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
+| `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | scene `Event_PayingGirlsBail` |
+| `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
 | `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | allowlisted, #81 |
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | allowlisted, #81 |
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 38 |
+| #81 | Motavia side content | 33 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 46 |
+| | total | 41 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

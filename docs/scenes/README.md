@@ -169,6 +169,18 @@ and the port never transcribed.
 | `Event_InnerSanctGuard` | `$51` | [113](113_InnerSanctuaryGuard.md) | `$070A4E..$070A75` |
 | `Event_InnerSanctGuardBeforeElsydeon` | `$52` | [113](113_InnerSanctuaryGuard.md) | `$070A76..$070A9D` |
 
+## Aiedo and the Hunter's Guild
+Issue #81's Aiedo events: Rocky's owner and the guild's bail quest, from hand-built saves
+(`rust/psiv-campaign/tests/aiedo_side.rs`), since the route does not take the guild's jobs.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_RockyOwner` | `$75` | [120](120_RockyOwner.md) | `$072872..$072897` |
+| `Event_GirlPrison` | `$80` | [121](121_AiedoBailQuest.md) | `$072C2E..$072C53` |
+| `Event_GirlsBail` | `$81` | [121](121_AiedoBailQuest.md) | `$072C54..$072C79` |
+| `Event_PayingGirlsBail` | `$82` | [121](121_AiedoBailQuest.md#event_payinggirlsbail) | `$072C7A..$072CDB` |
+| `Event_GirlsBailedOut` | `$83` | [121](121_AiedoBailQuest.md#event_girlsbailedout) | `$072CDC..$072D43` |
+
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
 reach the fort yet, so these are state tests, not campaign evidence). The story

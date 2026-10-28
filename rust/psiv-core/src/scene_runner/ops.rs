@@ -6,7 +6,8 @@
 
 use super::{Blocked, SceneRunner, pixel_cell};
 use crate::scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, SceneEffect, SceneFault, SceneOp, ScriptedActor,
+    ActorRef, Axis, DialogueId, DialogueSource, SavedByte, SceneEffect, SceneFault, SceneOp,
+    ScriptedActor,
 };
 use crate::state::{CharId, GameState, PARTY_SLOTS};
 
@@ -114,6 +115,30 @@ impl SceneRunner {
                     total: state.money(),
                 });
                 self.pc += 1;
+            }
+            SceneOp::SubtractMoney { amount } => {
+                state.set_money(state.money().wrapping_sub(amount));
+                effects.push(SceneEffect::MoneyChanged {
+                    total: state.money(),
+                });
+                self.pc += 1;
+            }
+            SceneOp::BranchIfMoneyBelow {
+                amount,
+                if_below,
+                if_not,
+            } => {
+                // `bmi` on the longword difference: the sign bit, as the
+                // cartridge reads it.
+                let target = if state.money().wrapping_sub(amount) & 0x8000_0000 != 0 {
+                    if_below
+                } else {
+                    if_not
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
             }
             SceneOp::SetVehicleIndex { index } => {
                 state.set_vehicle_index(index);
@@ -717,11 +742,16 @@ impl SceneRunner {
                 self.pc = target;
             }
             SceneOp::BranchIfSavedDialogueByte {
+                at,
                 value,
                 if_equal,
                 if_not,
             } => {
-                let target = if self.dialogue_stop_byte == Some(value) {
+                let byte = match at {
+                    SavedByte::Next => self.dialogue_stop_byte,
+                    SavedByte::Last => self.dialogue_last_byte,
+                };
+                let target = if byte == Some(value) {
                     if_equal
                 } else {
                     if_not

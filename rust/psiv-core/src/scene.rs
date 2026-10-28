@@ -37,7 +37,8 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneEffect, SceneFault,
+    SceneInput,
 };
 
 /// How many ops one tick may execute before the runner assumes the script is
@@ -244,7 +245,13 @@ pub enum SceneOp {
     /// text would run next: the continuation after an `$F7`, or the first byte
     /// of the next entry after a terminator. The runtime reports it when the
     /// dialogue closes; with no dialogue run yet nothing is equal.
+    ///
+    /// `at` picks the displacement: `(a0)` reads that byte, `-$2(a0)`
+    /// (`Event_PayingGirlsBail`, `$072CC2`) the one before the `$F7` or
+    /// terminator that stopped the text, the last byte the text ran.
     BranchIfSavedDialogueByte {
+        /// Which byte around the saved address.
+        at: SavedByte,
         /// The literal.
         value: u8,
         /// Op index taken when the byte equals it.
@@ -575,6 +582,24 @@ pub enum SceneOp {
     AddMoney {
         /// How much.
         amount: u32,
+    },
+    /// Take from the purse, unchecked: `subi.l #amount, (Current_Money).w`
+    /// (`Event_PayingGirlsBail`, `$072CCA`), after a [`SceneOp::BranchIfMoneyBelow`].
+    SubtractMoney {
+        /// How much.
+        amount: u32,
+    },
+    /// Branch on the purse against a literal: `move.l (Current_Money).w, d0 /
+    /// subi.l #amount, d0 / bmi` (`Event_PayingGirlsBail`, `$072C82`): the
+    /// branch reads the sign bit of the longword difference, which for any
+    /// purse below `$80000000` is a below-the-literal test.
+    BranchIfMoneyBelow {
+        /// The literal.
+        amount: u32,
+        /// Op index taken when the difference is negative.
+        if_below: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
     },
     /// Hand control to a battle (`Event_Battle_Index` + the routine-exit bit).
     StartBattle {

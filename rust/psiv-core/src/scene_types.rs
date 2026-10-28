@@ -312,3 +312,14 @@ pub enum SceneFault {
     /// (or ran with no layout to read) before the belt's chunks ended.
     NoLayout,
 }
+
+/// Which byte around `Saved_Dialogue_Addr` a
+/// [`SceneOp::BranchIfSavedDialogueByte`] reads after `popdlg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SavedByte {
+    /// `(a0)`: the first byte the text would run next.
+    Next,
+    /// `-$2(a0)`: the byte before the `$F7` or terminator the text stopped
+    /// on, the last one it ran.
+    Last,
+}

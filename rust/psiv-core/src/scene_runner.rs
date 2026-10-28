@@ -89,6 +89,9 @@ pub struct SceneRunner {
     /// The byte under `Saved_Dialogue_Addr` as of the last dialogue the
     /// runtime closed (`BranchIfSavedDialogueByte`).
     dialogue_stop_byte: Option<u8>,
+    /// The byte two before it, the last the text ran
+    /// (`SavedByte::Last`).
+    dialogue_last_byte: Option<u8>,
     /// The `RidePlatform` in progress.
     ride: Option<mechanics::RideRun>,
     /// The `ConveyorRide` in progress.
@@ -123,6 +126,7 @@ impl SceneRunner {
             drift: None,
             step: None,
             dialogue_stop_byte: None,
+            dialogue_last_byte: None,
             ride: None,
             belt: None,
         }
@@ -194,6 +198,13 @@ impl SceneRunner {
     /// the stop was past the tree's last entry).
     pub fn set_dialogue_stop_byte(&mut self, byte: Option<u8>) {
         self.dialogue_stop_byte = byte;
+    }
+
+    /// Records the byte at `-$2(a0)` after the same `popdlg`: the one before
+    /// the `$F7` or terminator the text stopped on. `None` when no dialogue
+    /// has run.
+    pub fn set_dialogue_last_byte(&mut self, byte: Option<u8>) {
+        self.dialogue_last_byte = byte;
     }
 
     /// Window routine used by the last dialogue open or named resume.

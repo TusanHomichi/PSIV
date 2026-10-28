@@ -65,12 +65,15 @@ impl Runtime {
         cast
     }
 
-    /// Hands the running scene the byte under `Saved_Dialogue_Addr` that the
-    /// dialogue just closed on (`BranchIfSavedDialogueByte`).
+    /// Hands the running scene the bytes at `(a0)` and `-$2(a0)` around
+    /// `Saved_Dialogue_Addr` that the dialogue just closed on
+    /// (`BranchIfSavedDialogueByte`).
     fn sync_dialogue_stop_byte(&mut self) {
         let byte = self.dialogue.stop_byte();
+        let last = self.dialogue.last_byte();
         if let Some(runner) = self.scene.as_mut() {
             runner.set_dialogue_stop_byte(byte);
+            runner.set_dialogue_last_byte(last);
         }
     }
 
