@@ -529,6 +529,25 @@ merged process: speedup lanes merge first, so the others verify on the faster
 tools. A failing candidate is bisected by its
 merge commits, each verified on the same process.
 
+### Flaky tests
+
+A pull request's full gate runs under
+[burrow's flaky step](https://github.com/FieldmouseWorks/burrow/blob/main/docs/flaky-tests.md):
+the steward's agent runs `flaky run TusanHomichi/PSIV -- python3 tools/gate.py --wait`. That reads
+the quarantine (the open issues titled `flaky: TEST`, labelled `flaky`) into the file
+`FLAKY_QUARANTINE` names, and files what the gate appended to `FLAKY_REPORT`. Under it the Python
+suite (`tools/py_suite.py`) settles each failed test:
+
+- One that isn't quarantined runs once more, on a fresh pool. If it passes, it's flaky: its
+  failure fails nothing, and its issue opens, which quarantines it. A Claude job looks for the
+  cause, and the fix's pull request says `Closes #N`, which lifts the quarantine when it merges.
+- A quarantined test isn't run again. Its failure fails nothing, and is noted on its issue.
+- A test that fails both times fails the step.
+
+The report names each test and nothing else: a test's output can quote the cartridge. The Rust
+tests aren't covered: a `cargo test` failure fails the step, as before. Without the step's two
+variables (a lane's own runs, `--fast`), every failure fails.
+
 ### File size
 
 Source files stay under 1,000 lines. A change that touches a file over the limit
