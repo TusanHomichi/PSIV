@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "0w4c854yd04e4wpje3x4kjx1vd",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 206,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/206",
+  "summary": "house: the Pull requests section as burrow's house block",
+  "task": "FieldmouseWorks/burrow#87",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01QzLmB1pT9Tck6N9Vf13a9M"
+  },
+  "landing": {
+    "revision": "32d69c851d23d12a6af837492915e1d01d3fa78f5b1ff82620ed9f6ab13a7993",
+    "before": "4fcdc572581530e722dabb724e04d6c8abb726d2",
+    "after": "9f732b55047b85e5eb3265788401b18f19d77f9d",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793167243757
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40630700746/job/122626128732"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/206#pullrequestreview-5677702448"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
