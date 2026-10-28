@@ -185,6 +185,10 @@ frame is an emission error. Preserve a verified local copy, or reproduce the
 frames from the named oracle captures using the renderer documented in
 [battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
 do not commit the ROM-derived PNGs.
+`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
+tracked tree plus the ROM and fails, naming each path, when the builder opens
+or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
+files, the interpreter's own files and its output (#214).
 The documentation check needs no local inputs; with the disassembly present
 it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
 and prints `citations: skipped` without it. From the root:
