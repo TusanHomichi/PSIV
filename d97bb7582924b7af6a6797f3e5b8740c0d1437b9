@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "50hbnngfsg5kf6nf27f7f4ccds",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 209,
+  "url": "https://github.com/tusanhomichi/psiv/pull/209",
+  "summary": "Lock file maintenance (nix)",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "8764e30714e6dfe43c405ef52e74f21161a6b638ce521a5344a9edff26438bda",
+    "before": "db7ea99fea1f0b257bd4f6f34cfd679449751c62",
+    "after": "d97bb7582924b7af6a6797f3e5b8740c0d1437b9",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793182966004
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "renovate/stability-days",
+      "result": "pass",
+      "source": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40668994407/job/122750680631"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
