@@ -1,0 +1,210 @@
+"""Cases for tools/pack_parity.py, the gate's psiv-pack parity step (#216).
+
+    PYTHONPATH=. python3 -m unittest tests.test_pack_parity -v
+
+Hermetic: synthetic packs in temp directories and stand-in programs, no ROM,
+no cargo. Every way the step can be fooled gets a negative control: a
+differing byte, a differing pixel, a missing, extra or unclaimed file, a claim
+the Python pack lacks, a link, a refusal worded differently, and malformed
+progress output.
+"""
+import hashlib
+import os
+import stat
+import sys
+import tempfile
+import unittest
+import zlib
+from pathlib import Path
+
+from psiv_tools.core import EXPECTED_SHA256, RomError, read_rom, wrong_rom_message
+from psiv_tools.png import encode_indexed
+from tools import pack_parity
+from tools.pack_parity import FIXTURE, check_progress, check_wrong_rom, compare, fixture_text
+
+PALETTE = [(0, 0, 0), (255, 255, 255)]
+#: What `check_wrong_rom` writes as the wrong ROM: 1 KiB of zeros.
+ZEROS_SHA = hashlib.sha256(bytes(0x400)).hexdigest()
+
+
+def recompressed(png: bytes, level: int) -> bytes:
+    """The same image with its IDAT deflated at another level."""
+    out, pos = bytearray(png[:8]), 8
+    while pos < len(png):
+        length = int.from_bytes(png[pos:pos + 4], "big")
+        kind, payload = png[pos + 4:pos + 8], png[pos + 8:pos + 8 + length]
+        if kind == b"IDAT":
+            payload = zlib.compress(zlib.decompress(payload), level)
+        out += len(payload).to_bytes(4, "big") + kind + payload
+        out += (zlib.crc32(kind + payload) & 0xFFFFFFFF).to_bytes(4, "big")
+        pos += 12 + length
+    return bytes(out)
+
+
+class FixtureCase(unittest.TestCase):
+    def test_committed_fixture_is_what_python_writes(self):
+        self.assertEqual(FIXTURE.read_text(encoding="utf-8"), fixture_text(),
+                         "run python3 tools/pack_parity.py --write-fixtures")
+
+    def test_fixture_covers_escapes_floats_and_order(self):
+        text = fixture_text()
+        for needle in ("\\\\ud83d\\\\ude00", "\\\\u007f", "1e-05", "1e+16", "Infinity"):
+            self.assertIn(needle, text)
+
+
+class CompareCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="psiv-pack-parity-")
+        root = Path(self.tmp.name)
+        self.rust, self.python = root / "rust", root / "python"
+        image = encode_indexed(4, 2, bytes([0, 1, 1, 0, 1, 0, 0, 1]), PALETTE, [0])
+        for pack in (self.rust, self.python):
+            (pack / "sec").mkdir(parents=True)
+            (pack / "sec" / "a.json").write_bytes(b'{\n  "a": 1\n}\n')
+            (pack / "sec" / "b.bin").write_bytes(bytes(range(16)))
+            (pack / "sec" / "c.png").write_bytes(image)
+            (pack / "one.json").write_bytes(b"{}\n")
+        (self.python / "unclaimed.json").write_bytes(b"{}\n")
+        self.claims = ["sec", "one.json"]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def problems(self):
+        return compare(self.rust, self.python, self.claims)[0]
+
+    def test_identical_claimed_paths_match(self):
+        self.assertEqual(compare(self.rust, self.python, self.claims), ([], 4))
+
+    def test_png_with_another_deflate_matches(self):
+        path = self.rust / "sec" / "c.png"
+        other = recompressed(path.read_bytes(), 1)
+        self.assertNotEqual(other, path.read_bytes())
+        path.write_bytes(other)
+        self.assertEqual(self.problems(), [])
+
+    def test_png_with_another_pixel_fails(self):
+        (self.rust / "sec" / "c.png").write_bytes(
+            encode_indexed(4, 2, bytes([0, 1, 1, 0, 1, 0, 1, 1]), PALETTE, [0]))
+        self.assertEqual(self.problems(), ["sec/c.png: the decoded image differs"])
+
+    def test_png_with_another_transparency_fails(self):
+        (self.rust / "sec" / "c.png").write_bytes(
+            encode_indexed(4, 2, bytes([0, 1, 1, 0, 1, 0, 0, 1]), PALETTE, []))
+        self.assertEqual(self.problems(), ["sec/c.png: the decoded image differs"])
+
+    def test_unreadable_png_fails(self):
+        (self.rust / "sec" / "c.png").write_bytes(b"not a png")
+        self.assertTrue(self.problems()[0].startswith("sec/c.png: not a readable PNG"))
+
+    def test_json_byte_fails(self):
+        (self.rust / "sec" / "a.json").write_bytes(b'{\n  "a": 2\n}\n')
+        self.assertEqual(self.problems(), ["sec/a.json: bytes differ from offset 9 "
+                                           "(13 bytes against 13)"])
+
+    def test_trailing_newline_fails(self):
+        (self.rust / "one.json").write_bytes(b"{}")
+        self.assertEqual(self.problems(), ["one.json: bytes differ from offset 2 "
+                                           "(2 bytes against 3)"])
+
+    def test_missing_file_fails(self):
+        (self.rust / "sec" / "b.bin").unlink()
+        self.assertEqual(self.problems(), ["sec/b.bin: missing from psiv-pack's pack"])
+
+    def test_extra_file_under_a_claim_fails(self):
+        (self.rust / "sec" / "d.bin").write_bytes(b"")
+        self.assertEqual(self.problems(),
+                         ["sec/d.bin: psiv-pack wrote it, the Python pack has none"])
+
+    def test_file_outside_the_claims_fails(self):
+        (self.rust / "secret.json").write_bytes(b"{}\n")
+        self.assertEqual(self.problems(), ["secret.json: psiv-pack wrote it outside its claims"])
+
+    def test_claim_prefix_is_a_path_not_a_string(self):
+        (self.rust / "sec2").mkdir()
+        (self.rust / "sec2" / "x.json").write_bytes(b"{}\n")
+        self.assertIn("sec2/x.json: psiv-pack wrote it outside its claims", self.problems())
+
+    def test_claim_the_python_pack_lacks_fails(self):
+        self.claims.append("nowhere")
+        self.assertEqual(self.problems(), ["claim nowhere: the Python pack has no such path"])
+
+    def test_link_fails(self):
+        (self.rust / "sec" / "b.bin").unlink()
+        os.symlink(self.python / "sec" / "b.bin", self.rust / "sec" / "b.bin")
+        self.assertEqual(self.problems(), ["sec/b.bin: psiv-pack wrote a symbolic link"])
+
+
+class ProgressCase(unittest.TestCase):
+    def test_one_line_per_section_then_installed(self):
+        out = "progress 1/2 sound\nprogress 2/2 maps\ninstalled runtime-pack\n"
+        self.assertEqual(check_progress(out, 2), [])
+        self.assertEqual(check_progress("installed runtime-pack\n", 0), [])
+
+    def test_bad_progress_fails(self):
+        for out in ("progress 1/2 sound\nprogress 2/2 maps\n",  # never installed
+                    "progress 1/2 sound\ninstalled p\n",  # a section unreported
+                    "progress 1/3 sound\nprogress 2/3 maps\ninstalled p\n",  # wrong total
+                    "progress 2/2 sound\nprogress 1/2 maps\ninstalled p\n",  # out of order
+                    "progress 1/2 sound\nsound done\nprogress 2/2 maps\ninstalled p\n",
+                    ""):
+            with self.subTest(out=out):
+                self.assertNotEqual(check_progress(out, 2), [])
+
+
+class WrongRomCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="psiv-pack-parity-rom-")
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def stand_in(self, message, code=2):
+        """A program that refuses the way `psiv-pack` would, saying `message`."""
+        path = self.root / "stand-in"
+        path.write_text(f"#!{sys.executable}\nimport sys\n"
+                        f"print('psiv-pack: error: ' + {message!r}.format(sys.argv[1]),"
+                        f" file=sys.stderr)\nsys.exit({code})\n", encoding="utf-8")
+        path.chmod(path.stat().st_mode | stat.S_IXUSR)
+        return path
+
+    def test_python_wording(self):
+        rom = self.root / "zeros"
+        rom.write_bytes(bytes(0x400))
+        with self.assertRaises(RomError) as raised:
+            read_rom(rom)
+        message = str(raised.exception)
+        self.assertEqual(message, wrong_rom_message(rom, ZEROS_SHA))
+        self.assertTrue(message.startswith(f"{rom} is not the US retail ROM PSIV builds from: "))
+        self.assertTrue(message.endswith(f", expected {EXPECTED_SHA256}"))
+
+    def test_a_tiny_file_is_refused_in_the_same_words(self):
+        rom = self.root / "tiny"
+        rom.write_bytes(b"x")
+        with self.assertRaisesRegex(RomError, "is not the US retail ROM PSIV builds from"):
+            read_rom(rom)
+
+    def test_same_wording_passes(self):
+        binary = self.stand_in(wrong_rom_message("{}", ZEROS_SHA))
+        self.assertEqual(check_wrong_rom(binary, self.root), [])
+
+    def test_other_wording_fails(self):
+        binary = self.stand_in("{} is not a ROM I know")
+        problems = check_wrong_rom(binary, self.root)
+        self.assertEqual(len(problems), 1)
+        self.assertTrue(problems[0].startswith("wrong ROM: psiv-pack says"))
+
+    def test_accepting_a_wrong_rom_fails(self):
+        binary = self.stand_in(wrong_rom_message("{}", ZEROS_SHA), code=0)
+        self.assertEqual(check_wrong_rom(binary, self.root), ["wrong ROM: psiv-pack exited 0"])
+
+
+class CommandLineCase(unittest.TestCase):
+    def test_missing_rom_is_a_failed_step(self):
+        with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-cli-") as tmp:
+            self.assertEqual(pack_parity.main(["--rom", str(Path(tmp) / "absent")]), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
