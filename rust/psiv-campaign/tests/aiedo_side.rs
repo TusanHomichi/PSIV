@@ -22,7 +22,8 @@ const SISTER: usize = 1;
 const OWNER: usize = 1;
 
 /// A Chaz/Alys party in Aiedo (`World_Index` 0) on `map` at `(x, y)`, with
-/// `money` meseta and the event flags `flags`.
+/// `money` meseta and the event flags `flags`: before Zio (`$42` clear), while
+/// Alys travels with Chaz.
 fn party_at(map: u16, x: u16, y: u16, money: u32, flags: &[u16]) -> Option<Session> {
     let set = pack()?;
     let initial = Session::start(set.data.clone())
@@ -31,9 +32,7 @@ fn party_at(map: u16, x: u16, y: u16, money: u32, flags: &[u16]) -> Option<Sessi
         .expect("the pack boots");
     let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
     game.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
-    // Alys found and back in Aiedo ($42, tree 11's greeting), so the town's
-    // first-visit text does not run.
-    for flag in [0x42].iter().chain(flags) {
+    for flag in flags {
         game.set(Flag::event(*flag)).expect("flag in range");
     }
     game.set_money(money);
