@@ -582,8 +582,10 @@ class _Blocker:
 
     The queue's head waits in the kernel, as a raw `flock(1)` waiter does, so
     it is woken with them when the holder releases instead of losing every
-    such race between two polls. The handle is the caller's once `done` is set;
-    `abandon()` gives it up, now or as soon as the flock returns.
+    such race between two polls. `done` is set when the flock returns or fails;
+    `grant()` then hands over the handle, or raises the flock's error with the
+    handle already closed. `abandon()` gives the handle up, now or as soon as
+    the flock returns.
     """
 
     def __init__(self, lock, mode):
@@ -591,28 +593,43 @@ class _Blocker:
         self.done = threading.Event()
         self._guard = threading.Lock()
         self._abandoned = False
+        self._error = None
         threading.Thread(target=self._wait, args=(mode,), daemon=True).start()
 
     def _wait(self, mode):
-        fcntl.flock(self.handle, mode)
+        try:
+            fcntl.flock(self.handle, mode)
+        except OSError as exc:  # ENOLCK, say: the waiter must hear it, not wait forever
+            error = exc
+        else:
+            error = None
         with self._guard:
-            if self._abandoned:
+            self._error = error
+            if self._abandoned or error is not None:
                 os.close(self.handle)
-            else:
+            if not self._abandoned:
                 self.done.set()
+
+    def grant(self):
+        """The handle holding the lock, once `done` is set; raises the flock's
+        error instead when it failed."""
+        if self._error is not None:
+            raise self._error
+        return self.handle
 
     def abandon(self):
         with self._guard:
-            if self.done.is_set():
-                os.close(self.handle)
-            else:
+            if not self.done.is_set():
                 self._abandoned = True
+            elif self._error is None:
+                os.close(self.handle)
 
 
 def wait_reporting(lock, mode, report):
     """Block until this process holds `lock` in flock `mode`, waiting in the
     kernel (`_Blocker`), and print `_still_line` every `WAIT_REPORT_S` until
-    then. Returns the holding handle, which the caller closes."""
+    then. Returns the holding handle, which the caller closes; raises when the
+    flock fails."""
     began = time.monotonic()
     blocker = _Blocker(lock, mode)
     try:
@@ -621,7 +638,7 @@ def wait_reporting(lock, mode, report):
     except BaseException:
         blocker.abandon()
         raise
-    return blocker.handle
+    return blocker.grant()
 
 
 _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
@@ -706,11 +723,12 @@ def _acquire(lock, need, rank, report):
                 elif not ahead:
                     blocker = blocker or _Blocker(lock, _main_mode(lock_class))
                     if blocker.done.is_set():
+                        main = blocker.grant()
                         taken = need.take(lock)
                         if taken is not None:
                             queue.leave(entry)
                             entry = None
-                            held, blocker = [blocker.handle, *taken], None
+                            held, blocker = [main, *taken], None
                             return held
                 line = _wait_line(lock, lock_class, rank, ahead)
             now = time.monotonic()

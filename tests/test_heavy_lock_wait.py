@@ -11,10 +11,15 @@ gate rank and the fast tier below it. `StillWaitingCase` waits in-process with
 a short `WAIT_REPORT_S`: a heavy-lock waiter and a gate waiting for the gate
 lock with `--wait` each print a line saying how long they have waited and the
 holder's pid, class, age and command line; with the period longer than the
-wait (the negative control), neither prints one.
+wait (the negative control), neither prints one. `FlockErrorCase` fails the
+blocking flock with ENOLCK: the heavy-lock queue head and the gate waiting for
+the gate lock each raise it, leave no descriptor open and no queue entry behind,
+instead of waiting forever.
 """
 
 import contextlib
+import errno
+import fcntl
 import io
 import os
 import subprocess
@@ -215,6 +220,77 @@ class StillWaitingCase(unittest.TestCase):
         duration = heavy_lock_module._duration
         self.assertEqual([duration(s) for s in (None, 0.4, 59, 60, 3599, 3600, 7500)],
                          ["?", "0 s", "59 s", "1 min", "59 min", "1 h 00 min", "2 h 05 min"])
+
+
+def failing_flock(lock):
+    """Patch `fcntl.flock` so a blocking lock request on `lock` fails with
+    ENOLCK, as an exhausted lock table makes it; every other call is real."""
+    real = fcntl.flock
+
+    def flock(fd, operation):
+        blocking = operation & (fcntl.LOCK_SH | fcntl.LOCK_EX) and not operation & fcntl.LOCK_NB
+        if blocking and os.readlink(f"/proc/self/fd/{fd}") == str(lock):
+            raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+        return real(fd, operation)
+
+    return mock.patch.object(fcntl, "flock", flock)
+
+
+class FlockErrorCase(unittest.TestCase):
+    """A blocking flock that fails reaches the waiter as an error, never a wait."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name).resolve()
+
+    def failed(self, lock, wait):
+        """Hold `lock` from another process, run `wait()` with the blocking
+        flock on it failing, and return the error it raised. The wait must end
+        within TIMEOUT with every descriptor it opened closed."""
+        holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(lock)],
+                                  stdout=subprocess.PIPE, text=True, env=clean_env())
+        self.addCleanup(stop, holder)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        fds = set(os.listdir("/proc/self/fd"))
+        raised = []
+
+        def run():
+            try:
+                wait()
+            except OSError as exc:
+                raised.append(exc)
+
+        with failing_flock(lock), contextlib.redirect_stdout(io.StringIO()):
+            thread = threading.Thread(target=run, daemon=True)  # a hang must not hold the run
+            thread.start()
+            thread.join(timeout=TIMEOUT)
+        self.assertFalse(thread.is_alive(), "a failed flock must end the wait")
+        self.assertEqual([exc.errno for exc in raised], [errno.ENOLCK])
+        self.assertEqual(set(os.listdir("/proc/self/fd")), fds, "a descriptor leaked")
+        return raised[0]
+
+    def test_the_heavy_lock_queue_head_raises_and_leaves_the_queue(self):
+        lock = self.dir / "build" / "continuation-heavy.lock"
+        lock.parent.mkdir()
+
+        def wait():
+            with hold_heavy_lock(lock, environ=clean_env(), report=io.StringIO()):
+                self.fail("granted the lock with the flock failing")
+
+        self.failed(lock, wait)
+        queue = Path(f"{lock}.queue")
+        self.assertEqual([name for name in os.listdir(queue) if ENTRY_RE.match(name)], [])
+
+    def test_a_gate_waiting_for_the_gate_lock_raises(self):
+        lock = gate_lock_path(self.dir)
+        lock.parent.mkdir(parents=True)
+
+        def wait():
+            with gate_lock(lock, wait=True):
+                self.fail("took the gate lock with the flock failing")
+
+        self.failed(lock, wait)
 
 
 if __name__ == "__main__":
