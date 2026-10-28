@@ -30,9 +30,11 @@ The settled Plane B frame is byte-equal to the concatenation of the retail
 (8x28 cells at screen x=6) is emitted as `titlebarbgtoppart.png` and is used
 for the sparse transfer surface before the settled background arrives.
 
-`oracle/layouts/title/palette_cycle.json` preserves all four 16-word CRAM
-lines at every captured frame plus changed-entry indexes. This is the numeric
-fade/cycling evidence; it is not inferred from a screenshot.
+`oracle/layouts/title/palette_cycle.json` preserves all four 16-word
+`Palette_Table_Buffer` lines at every captured frame plus changed-entry
+indexes. It is oracle evidence only: the pack derives the same words from the
+ROM (below), and `tests/test_title_boot.py` compares the two when the capture
+is present.
 
 The sampled animation is: Sega fade/logo through frame 200, the narrow title
 background transfer at frames 300-401, settled logo and subtitle at frame 450,
@@ -40,18 +42,48 @@ Press Start/copyright from frame 500, and the no-save menu after acceptance.
 Godot keeps the same decoded phase boundaries and uses the existing 3x camera;
 the title frame is letterboxed with black outside the retail 320x224 surface.
 
-The per-frame CRAM replay is now emitted, not merely recorded. The pack carries
-16 captured frame states (25 through 650) and re-encodes all 7 indexed title
-surfaces against the captured 64 CRAM words: background, transfer, and the five
-title assets. `title/palette_cycle.json` remains the numeric source record;
-`title/replay/frame_<N>/` is the runtime surface set for the sampled fade and
-background phases. The Press Start prompt is the exception: retail's
+The per-frame CRAM replay is emitted, not merely recorded. The pack carries
+16 frame states at tape 25's sampled frames (25 through 650) and re-encodes
+all 7 indexed title surfaces against their 64 CRAM words: background,
+transfer, and the five title assets. `title/palette_cycle.json` is the numeric
+record; `title/replay/frame_<N>/` is the runtime surface set for the sampled
+fade and background phases. The Press Start prompt is the exception: retail's
 `DoPressStartButtonCyclingPal` updates its palette entry every four
 `Main_Frame_Count` frames through the 32-word table at
 `ps4.asm:87014-87065`. `title.rs` generates those 32 prompt textures and
 selects the calibrated main-frame phase, so the prompt fades through the
 retail dark/red/orange cycle instead of staying on the last sparse replay
 sample.
+
+`title_pack.derive_palette_cycle` computes those words from the cartridge, one
+game frame (VInt) at a time from power-on, reading each table, immediate and
+loop count from its US retail instruction (`m68k.expect` pins every opcode):
+`GameMode_Sega`'s blue fill and `$B3`-frame loop, `DoSegaPaletteCycling`
+(ps4.asm:84349-84426, its 5-call timer and the `loc_411B8`/`loc_411C0`/
+`loc_411C8` tables), `loc_410E2`, `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl`
+(ps4.asm:85897-85980), `Pal_TitleScreen` with entries 31 and 47 blacked
+(ps4.asm:86255-86327), `TitleRoutine_FadingText`'s scroll counter and
+`RunTitleFadingText` (ps4.asm:86333-86918), the whitened text entries of
+`loc_427DA`, `DoPressStartButtonCyclingPal`, and `Pal_Init_Line_3` from
+`loc_42C90`. START is read from tape 25 (frames 401-404 and 605-608) at each
+VInt, as `ReadJoypads` does. The model follows only the paths tape 25 takes
+and raises on any other (the fading text running out, the prompt timing out).
+
+Lag frames are the one measured input. A frame whose VInt finds `VInt_Flag`
+clear advances neither `Main_Frame_Count` nor the palette, because the 68000 is
+still decompressing art or the DMA queue overran blanking; that is cycle
+timing the routines' frame logic cannot express. `TITLE_LAG_FRAMES` records
+them per routine from the oracle's per-frame `main_frame_count` on tape 25:
+10 before the first VInt and 4 for the Sega logo load, 49 and 2 for the
+title art and map loads, 28 across the START reveal and 16 across the menu
+dissolve. The capture samples the prompt too sparsely to pin the title's lag
+to one frame, so the test also checks that the prompt runs 93 frames behind
+the tape, `title.rs`'s `TITLE_MAIN_FRAME_OFFSET`. Against the oracle's
+per-frame log of tape 25 the model reproduces every frame whose game frame
+finished before the next VInt (580 of 688; the rest are mid-routine lag
+frames), and on a variant that idles 1,500 frames before START it reproduces
+all 1,548 settled game frames it models, including the text fades tape 25
+skips.
 
 ## Art extraction and pack surface
 
