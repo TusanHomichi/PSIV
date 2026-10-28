@@ -17,7 +17,8 @@ release and checks it against the Python builder from the same ROM:
    content: zlib implementations deflate alike rows differently,
    `psiv_tools/png.py`). A claim the Python pack lacks fails, and so does a
    file `psiv-pack` writes outside its claims. With no claims, the Python
-   build is skipped and only `psiv-pack`'s own run is checked.
+   build is skipped, and the output is still checked: it must be an
+   installed directory holding no link and nothing outside the claims.
 3. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
    section, then `installed <pack>`, exit 0. Its wall time is printed with
    the CPU clock and load, the number each port PR records.
@@ -81,20 +82,30 @@ def _under(relative: str, claim: str) -> bool:
     return relative == claim or relative.startswith(claim.rstrip("/") + "/")
 
 
+def check_output(rust_root: Path, claims: list[str]) -> list[str]:
+    """`psiv-pack`'s installed output on its own: a directory, holding no
+    link and no file outside its claims. Checked on every run, claims or
+    none."""
+    if not rust_root.is_dir():
+        return [f"psiv-pack left no pack directory at {rust_root.name}"]
+    problems = []
+    for relative, path in _files(rust_root).items():
+        if path.is_symlink():
+            problems.append(f"{relative}: psiv-pack wrote a symbolic link")
+        elif not any(_under(relative, claim) for claim in claims):
+            problems.append(f"{relative}: psiv-pack wrote it outside its claims")
+    return problems
+
+
 def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list[str], int]:
     """The differences between the two packs under `claims`, and how many
     claimed files matched. Empty problems is parity."""
-    problems = []
+    problems = check_output(rust_root, claims)
     rust = _files(rust_root)
     python = _files(python_root)
     for claim in claims:
         if not (python_root / claim).exists():
             problems.append(f"claim {claim}: the Python pack has no such path")
-    for relative, path in rust.items():
-        if path.is_symlink():
-            problems.append(f"{relative}: psiv-pack wrote a symbolic link")
-        elif not any(_under(relative, claim) for claim in claims):
-            problems.append(f"{relative}: psiv-pack wrote it outside its claims")
     claimed = sorted({relative for relative in [*rust, *python]
                       if any(_under(relative, claim) for claim in claims)})
     matched = 0
@@ -289,6 +300,8 @@ def run_parity(rom: Path, keep: Path | None) -> int:
                   f"{_clock()})", flush=True)
             if rust.returncode != 0:
                 problems.append(f"psiv-pack exited {rust.returncode}: {rust.stderr.strip()}")
+            elif not claims:
+                problems += check_output(scratch / "rust", claims)
             problems += check_progress(rust.stdout, len(sections))
             matched = 0
             if claims:

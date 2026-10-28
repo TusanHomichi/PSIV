@@ -307,6 +307,66 @@ class ConcurrentBuilds(Scratch):
         self.assertFalse(stale.exists())
 
 
+class PruneRace(Scratch):
+    """A build that made an old version, paused, then installed it and exited
+    while another build pruned: the pruner must not delete what the output
+    names by then (#225 review)."""
+
+    def late_version(self):
+        for index in range(KEEP_VERSIONS):
+            self.install(f"v{index}")
+        # Oldest by name, so the next prune considers it.
+        late = self.dir / f".runtime-pack.v20000101T000000000000Z-{StaleLinks.dead_pid()}"
+        write_pack(late, "late")
+        return late
+
+    def installs_then_exits(self, late):
+        def alive(pid):
+            if pid == int(late.name.rsplit("-", 1)[1]):
+                link = self.dir / ".runtime-pack.link-1-0a1b2c3d"
+                pack_swap._link(self.output, late, link, self.dir / "unused")
+            return False
+        return alive
+
+    @links
+    def test_the_newly_current_version_survives(self):
+        late = self.late_version()
+        with mock.patch.object(pack_swap, "_alive", self.installs_then_exits(late)):
+            pack_swap.prune(self.output)
+        self.assertTrue(late.is_dir())
+        self.assertEqual(consistent(self.output), "late")
+
+    @links
+    def test_negative_control_a_snapshot_taken_first_deletes_it(self):
+        late = self.late_version()
+        snapshot = os.path.realpath(self.output)
+        real = os.path.realpath
+        with mock.patch.object(pack_swap, "_alive", self.installs_then_exits(late)), \
+                mock.patch.object(pack_swap.os.path, "realpath",
+                                  lambda p: snapshot if Path(p) == self.output else real(p)):
+            pack_swap.prune(self.output)
+        self.assertFalse(late.exists())
+
+
+class CleanupAfterCommit(Scratch):
+    """A failure after the output names the new pack is a warning, not an
+    error that claims the output is unchanged (#225 review)."""
+
+    def test_a_pruning_failure_warns_and_the_pack_is_installed(self):
+        for index in range(KEEP_VERSIONS):
+            self.install(f"v{index}")
+        with mock.patch.object(pack_swap.shutil, "rmtree", side_effect=PermissionError("held")):
+            with self.assertWarnsRegex(pack_swap.PackSwapWarning, "pruning old versions failed"):
+                self.assertEqual(self.install("new"), "new")
+        self.assertEqual(consistent(self.output), "new")
+
+    def test_negative_control_a_failure_before_the_commit_is_an_error(self):
+        self.install("old")
+        with self.assertRaises(RuntimeError):
+            install_atomically(self.output, lambda d: (_ for _ in ()).throw(RuntimeError("x")))
+        self.assertEqual(consistent(self.output), "old")
+
+
 class RefusedLinks(Scratch):
     """Where links need a privilege (Windows without developer mode), only the
     directory mode installs a pack."""

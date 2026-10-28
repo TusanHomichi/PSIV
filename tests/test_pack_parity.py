@@ -20,7 +20,8 @@ from pathlib import Path
 from psiv_tools.core import EXPECTED_SHA256, RomError, read_rom, wrong_rom_message
 from psiv_tools.png import encode_indexed
 from tools import pack_parity
-from tools.pack_parity import FIXTURE, check_progress, check_wrong_rom, compare, fixture_text
+from tools.pack_parity import (FIXTURE, check_output, check_progress, check_wrong_rom, compare,
+                               fixture_text)
 
 PALETTE = [(0, 0, 0), (255, 255, 255)]
 #: What `check_wrong_rom` writes as the wrong ROM: 1 KiB of zeros.
@@ -133,6 +134,30 @@ class CompareCase(unittest.TestCase):
         (self.rust / "sec" / "b.bin").unlink()
         os.symlink(self.python / "sec" / "b.bin", self.rust / "sec" / "b.bin")
         self.assertEqual(self.problems(), ["sec/b.bin: psiv-pack wrote a symbolic link"])
+
+
+class NoClaimsCase(unittest.TestCase):
+    """With nothing claimed the Python build is skipped, not the output check."""
+
+    def test_an_empty_installed_pack_passes(self):
+        with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-none-") as tmp:
+            (Path(tmp) / "rust").mkdir()
+            self.assertEqual(check_output(Path(tmp) / "rust", []), [])
+
+    def test_any_file_or_link_fails(self):
+        with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-none-") as tmp:
+            rust = Path(tmp) / "rust"
+            (rust / "sec").mkdir(parents=True)
+            (rust / "sec" / "a.json").write_bytes(b"{}\n")
+            os.symlink("a.json", rust / "sec" / "b.json")
+            self.assertEqual(check_output(rust, []),
+                             ["sec/a.json: psiv-pack wrote it outside its claims",
+                              "sec/b.json: psiv-pack wrote a symbolic link"])
+
+    def test_no_output_fails(self):
+        with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-none-") as tmp:
+            self.assertEqual(check_output(Path(tmp) / "rust", []),
+                             ["psiv-pack left no pack directory at rust"])
 
 
 class ProgressCase(unittest.TestCase):

@@ -253,8 +253,17 @@ pub fn versions(output: &Path) -> Result<Vec<PathBuf>, PackError> {
 /// Remove all but the newest `keep` versions of `output`, never the one
 /// `output` names nor one another live process made; returns their names.
 pub fn prune(output: &Path, keep: usize) -> Result<Vec<String>, PackError> {
+    prune_with(output, keep, alive)
+}
+
+/// [`prune`] with the liveness check given, so a test can stand in for a
+/// concurrent build.
+fn prune_with(
+    output: &Path,
+    keep: usize,
+    alive: impl Fn(u32) -> bool,
+) -> Result<Vec<String>, PackError> {
     let name = name_of(output)?;
-    let current = std::fs::canonicalize(output).ok();
     let installed = versions(output)?;
     let mut removed = Vec::new();
     for path in &installed[..installed.len().saturating_sub(keep)] {
@@ -264,8 +273,14 @@ pub fn prune(output: &Path, keep: usize) -> Result<Vec<String>, PackError> {
             .unwrap_or_default()
             .to_owned();
         let pid = classify(&name, &entry_name).map_or(0, |(_, pid)| pid);
-        let pending = pid != std::process::id() && alive(pid);
-        if pending || std::fs::canonicalize(path).ok() == current {
+        if pid != std::process::id() && alive(pid) {
+            continue; // another build's version, perhaps not yet installed
+        }
+        // Read after the liveness check: only a version's own build installs
+        // it, so once that build is gone, `output` already names it if it
+        // ever will. A snapshot from before the loop could be stale by now.
+        let current = std::fs::canonicalize(output).ok();
+        if std::fs::canonicalize(path).ok() == current {
             continue;
         }
         std::fs::remove_dir_all(path).map_err(|e| io_error("remove", path, e))?;
@@ -287,14 +302,25 @@ impl Drop for Staging<'_> {
     }
 }
 
+/// What an install returns: the build's value, and what went wrong in the
+/// cleanup after `output` already named the new pack (keeping or removing
+/// the old one, pruning). Those are warnings, not failures: the pack is
+/// installed, and the next build removes or keeps what was left.
+#[derive(Debug)]
+pub struct Installed<T> {
+    pub value: T,
+    pub warnings: Vec<String>,
+}
+
 /// Run `build(staging)` into a new sibling directory of `output`, then make
-/// `output` name it in one atomic step; returns what `build` returned. On
-/// any failure, a panic included, `output` is untouched and the staging
-/// directory is removed.
+/// `output` name it in one atomic step. An error means `output` is
+/// untouched: on any failure before that step, a panic included, the
+/// staging directory is removed. After it, nothing is an error
+/// ([`Installed::warnings`]).
 pub fn install_atomically<T>(
     output: &Path,
     build: impl FnOnce(&Path) -> Result<T, PackError>,
-) -> Result<T, PackError> {
+) -> Result<Installed<T>, PackError> {
     let output = std::path::absolute(output).map_err(|e| io_error("resolve", output, e))?;
     let name = name_of(&output)?;
     let parent = output
@@ -321,42 +347,70 @@ pub fn install_atomically<T>(
     std::fs::rename(&staging, &version).map_err(|e| io_error("rename", &staging, e))?;
     guard.0 = None;
     let link = parent.join(format!(".{name}.link-{token}"));
-    if LINKS {
+    // The commit point is inside each: an error is returned only before it.
+    let mut warnings = if LINKS {
         link_to(
             &output,
             &version,
             &link,
             &parent.join(format!(".{name}.v{before}-{pid}")),
-        )?;
-        prune(&output, KEEP_VERSIONS)?;
+        )?
     } else {
-        replace_directory(&output, &version, &link)?;
-        prune(&output, 0)?;
+        replace_directory(&output, &version, &link)?
+    };
+    if let Err(error) = prune(&output, if LINKS { KEEP_VERSIONS } else { 0 }) {
+        warnings.push(format!(
+            "installed, but pruning old versions failed: {error}"
+        ));
     }
-    Ok(result)
+    Ok(Installed {
+        value: result,
+        warnings,
+    })
 }
 
 /// Make `output` a link to `version` through the new link `link`; a real
-/// directory at `output` is kept as the version `kept`.
+/// directory at `output` is kept as the version `kept`. Committed once the
+/// exchange or the rename succeeds; keeping the old directory after that
+/// can only warn (it stays under the `.link-` name, which the next build
+/// turns into a version).
 #[cfg(unix)]
-fn link_to(output: &Path, version: &Path, link: &Path, kept: &Path) -> Result<(), PackError> {
+fn link_to(
+    output: &Path,
+    version: &Path,
+    link: &Path,
+    kept: &Path,
+) -> Result<Vec<String>, PackError> {
     let target = version.file_name().expect("a version has a name");
     std::os::unix::fs::symlink(target, link).map_err(|e| io_error("link", link, e))?;
-    let swapped = if output.is_dir() && !is_symlink(output) {
-        // `link` is the old real directory after this.
-        exchange(link, output)
-            .and_then(|()| std::fs::rename(link, kept).map_err(|e| io_error("rename", link, e)))
+    let committed = if output.is_dir() && !is_symlink(output) {
+        exchange(link, output).map(|()| true)
     } else {
-        std::fs::rename(link, output).map_err(|e| io_error("replace", output, e))
+        std::fs::rename(link, output)
+            .map(|()| false)
+            .map_err(|e| io_error("replace", output, e))
     };
-    if swapped.is_err() && is_symlink(link) {
-        let _ = std::fs::remove_file(link);
+    match committed {
+        Err(error) => {
+            if is_symlink(link) {
+                let _ = std::fs::remove_file(link);
+            }
+            Err(error)
+        }
+        // `link` is the old real directory now.
+        Ok(true) => Ok(match std::fs::rename(link, kept) {
+            Ok(()) => Vec::new(),
+            Err(e) => vec![format!(
+                "installed, but the old pack stays at {}: {e}",
+                link.display()
+            )],
+        }),
+        Ok(false) => Ok(Vec::new()),
     }
-    swapped
 }
 
 #[cfg(not(unix))]
-fn link_to(_: &Path, _: &Path, _: &Path, _: &Path) -> Result<(), PackError> {
+fn link_to(_: &Path, _: &Path, _: &Path, _: &Path) -> Result<Vec<String>, PackError> {
     unreachable!("LINKS is false off unix")
 }
 
@@ -418,7 +472,7 @@ fn exchange(_: &Path, second: &Path) -> Result<(), PackError> {
 
 /// Rename `version` to `output`, moving a directory already there to `old`
 /// first and removing it after.
-fn replace_directory(output: &Path, version: &Path, old: &Path) -> Result<(), PackError> {
+fn replace_directory(output: &Path, version: &Path, old: &Path) -> Result<Vec<String>, PackError> {
     if lexists(output) {
         std::fs::rename(output, old).map_err(|e| io_error("rename", output, e))?;
     }
@@ -428,10 +482,13 @@ fn replace_directory(output: &Path, version: &Path, old: &Path) -> Result<(), Pa
         }
         return Err(io_error("rename", version, error));
     }
-    if lexists(old) {
-        remove(old)?;
+    // Committed: removing the old directory can only warn.
+    if lexists(old)
+        && let Err(error) = remove(old)
+    {
+        return Ok(vec![format!("installed, but {error}")]);
     }
-    Ok(())
+    Ok(Vec::new())
 }
 
 #[cfg(test)]
@@ -595,6 +652,81 @@ mod tests {
             root.join(format!(".pack.v20000101T000000000000Z-{live}"))
                 .exists()
         );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn prune_rereads_the_current_version_after_a_build_ends() {
+        // Another build made an old version, paused, then installed it and
+        // exited while this prune ran: pruning must not delete what
+        // `output` names by then.
+        let root = scratch("race");
+        let output = root.join("pack");
+        let other = 4_194_305u32;
+        for _ in 0..KEEP_VERSIONS {
+            install_atomically(&output, |dir| write_marker(dir, "x")).unwrap();
+        }
+        // Oldest by name, so the next prune considers it.
+        let late = root.join(format!(".pack.v20000101T000000000000Z-{other}"));
+        std::fs::create_dir_all(&late).unwrap();
+        let installs_then_exits = |pid: u32| {
+            if pid == other && LINKS {
+                let link = root.join(".pack.link-1-ab");
+                #[cfg(unix)]
+                std::os::unix::fs::symlink(late.file_name().unwrap(), &link).unwrap();
+                std::fs::rename(&link, &output).unwrap();
+            }
+            false
+        };
+        prune_with(&output, KEEP_VERSIONS, installs_then_exits).unwrap();
+        if LINKS {
+            assert!(late.exists(), "the newly current version survives");
+            assert_eq!(
+                std::fs::canonicalize(&output).unwrap(),
+                std::fs::canonicalize(&late).unwrap()
+            );
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_after_the_commit_point_warns() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let root = scratch("commit");
+        let output = root.join("pack");
+        install_atomically(&output, |dir| write_marker(dir, "1")).unwrap();
+        // An old version the pruner cannot empty: a read-only directory
+        // holding a file.
+        let stuck = root.join(".pack.v20000101T000000000000Z-1");
+        std::fs::create_dir_all(stuck.join("locked")).unwrap();
+        std::fs::write(stuck.join("locked").join("f"), "").unwrap();
+        std::fs::set_permissions(stuck.join("locked"), std::fs::Permissions::from_mode(0o555))
+            .unwrap();
+        // pid 1 is alive, so rename the version to a dead build's.
+        let dead = root.join(".pack.v20000101T000000000000Z-4194305");
+        std::fs::rename(&stuck, &dead).unwrap();
+        let mut warned = Vec::new();
+        for i in 0..KEEP_VERSIONS {
+            let installed =
+                install_atomically(&output, |dir| write_marker(dir, &i.to_string())).unwrap();
+            warned.extend(installed.warnings);
+        }
+        let privileged = std::fs::remove_dir_all(dead.join("locked")).is_ok() && warned.is_empty();
+        if !privileged {
+            assert!(
+                warned
+                    .iter()
+                    .any(|w| w.starts_with("installed, but pruning")),
+                "{warned:?}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(output.join("marker")).unwrap(),
+                (KEEP_VERSIONS - 1).to_string()
+            );
+        }
+        let _ =
+            std::fs::set_permissions(dead.join("locked"), std::fs::Permissions::from_mode(0o755));
         std::fs::remove_dir_all(&root).unwrap();
     }
 

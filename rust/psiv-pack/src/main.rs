@@ -18,7 +18,7 @@ fn run(args: &[String]) -> Result<(), PackError> {
         [rom, pack] if !rom.starts_with("--") && !pack.starts_with("--") => {
             let rom = Rom::read(Path::new(rom))?;
             let stdout = std::io::stdout();
-            install::install_atomically(Path::new(pack), |root| {
+            let installed = install::install_atomically(Path::new(pack), |root| {
                 build_sections(
                     &rom,
                     root,
@@ -31,6 +31,9 @@ fn run(args: &[String]) -> Result<(), PackError> {
                     },
                 )
             })?;
+            for warning in installed.warnings {
+                eprintln!("psiv-pack: warning: {warning}");
+            }
             println!("installed {pack}");
             Ok(())
         }

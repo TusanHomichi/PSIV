@@ -56,6 +56,7 @@ import re
 import secrets
 import shutil
 import sys
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -85,6 +86,12 @@ ERROR_ACCESS_DENIED = 5
 
 class PackSwapError(RuntimeError):
     """The pack could not be installed; `<output>` is unchanged."""
+
+
+class PackSwapWarning(UserWarning):
+    """The pack is installed, but the cleanup after it failed (keeping or
+    removing the old pack, pruning); the next build removes or keeps what
+    was left."""
 
 
 def _names(output: Path) -> tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -217,34 +224,50 @@ def install_atomically(output: Path, build: Callable[[Path], T]) -> T:
             shutil.rmtree(staging)
         raise
     link = parent / f".{output.name}.link-{token}"
+    # The commit point is inside each: an exception means `output` is as it
+    # was; after it, a cleanup failure is a PackSwapWarning, not an error.
     if LINKS:
-        _link(output, version, link, parent / f".{output.name}.v{before}-{os.getpid()}")
-        prune(output)
+        problems = _link(output, version, link,
+                         parent / f".{output.name}.v{before}-{os.getpid()}")
     else:
-        _replace_directory(output, version, link)
-        prune(output, keep=0)
+        problems = _replace_directory(output, version, link)
+    try:
+        prune(output, keep=KEEP_VERSIONS if LINKS else 0)
+    except OSError as error:
+        problems.append(f"installed, but pruning old versions failed: {error}")
+    for problem in problems:
+        warnings.warn(problem, PackSwapWarning, stacklevel=2)
     return result
 
 
-def _link(output: Path, version: Path, link: Path, kept: Path) -> None:
+def _link(output: Path, version: Path, link: Path, kept: Path) -> list[str]:
     """Make `output` a link to `version`, through the new link `link`; a real
-    directory at `output` is kept as the version `kept`."""
+    directory at `output` is kept as the version `kept`. Returns the cleanup
+    problems after the commit point (the old directory then stays under the
+    `.link-` name, which the next build turns into a version)."""
     link.symlink_to(version.name, target_is_directory=True)
     try:
-        if output.is_dir() and not output.is_symlink():
+        exchanged = output.is_dir() and not output.is_symlink()
+        if exchanged:
             _exchange(link, output)  # `link` is now the old real directory
-            os.rename(link, kept)
         else:
             os.replace(link, output)
     except BaseException:
         if link.is_symlink():
             link.unlink()
         raise
+    if exchanged:
+        try:
+            os.rename(link, kept)
+        except OSError as error:
+            return [f"installed, but the old pack stays at {link}: {error}"]
+    return []
 
 
-def _replace_directory(output: Path, version: Path, old: Path) -> None:
+def _replace_directory(output: Path, version: Path, old: Path) -> list[str]:
     """Rename `version` to `output`, moving a directory already there to `old`
-    first and removing it after."""
+    first and removing it after; returns the cleanup problems after the
+    commit point."""
     if os.path.lexists(output):
         os.rename(output, old)
     try:
@@ -254,23 +277,29 @@ def _replace_directory(output: Path, version: Path, old: Path) -> None:
             os.rename(old, output)
         raise
     if os.path.lexists(old):
-        _remove(old)
+        try:
+            _remove(old)
+        except OSError as error:
+            return [f"installed, but cannot remove the old pack at {old}: {error}"]
+    return []
 
 
 def prune(output: Path, keep: int = KEEP_VERSIONS) -> list[str]:
     """Remove all but the newest `keep` versions of `output`, never the one
     `output` names nor one another live process made (a concurrent build
     between its version and its install); returns the removed names."""
-    current = os.path.realpath(output)
     _, version, _ = _names(output)
     installed = versions(output)
-
-    def pending(path: Path) -> bool:
+    removed = []
+    for path in installed[:max(0, len(installed) - keep)]:
         pid = int(version.match(path.name).group(1))
-        return pid != os.getpid() and _alive(pid)
-
-    old = [path for path in installed[:max(0, len(installed) - keep)]
-           if os.path.realpath(path) != current and not pending(path)]
-    for path in old:
+        if pid != os.getpid() and _alive(pid):
+            continue  # another build's version, perhaps not yet installed
+        # Read after the liveness check: only a version's own build installs
+        # it, so once that build is gone `output` already names it if it ever
+        # will. A snapshot from before the loop could be stale by now.
+        if os.path.realpath(path) == os.path.realpath(output):
+            continue
         shutil.rmtree(path)
-    return [path.name for path in old]
+        removed.append(path.name)
+    return removed

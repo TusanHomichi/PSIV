@@ -18,7 +18,9 @@
 //!   then `installed <pack>` once the pack is in place;
 //! - stderr: `psiv-pack: error: <message>` and exit status 2 on any failure,
 //!   with `<pack>` left as it was. A wrong ROM is refused in the Python
-//!   builder's words ([`rom::wrong_rom`]).
+//!   builder's words ([`rom::wrong_rom`]). A problem in the cleanup after the
+//!   new pack is in place is a `psiv-pack: warning: ...` line on stderr, and
+//!   the exit status stays 0.
 //!
 //! `psiv-pack --claims` prints the sections and the pack-relative paths each
 //! claims, as JSON ([`claims`]): a path names a file, or a directory and
