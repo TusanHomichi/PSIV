@@ -1,0 +1,41 @@
+{
+  "conary": "note v1",
+  "change": "4txsgjwgxsvfv08dtzv1d3d9mw",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 213,
+  "url": "https://github.com/tusanhomichi/psiv/pull/213",
+  "summary": "Update FieldmouseWorks/burrow digest to 5a244cc",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "36e9cc58e7a8030068a87202a99100e8d454c23ab483f4a1e0af35645095e144",
+    "before": "137672efa25ef941e726ecb0be020e0655a739e7",
+    "after": "5a1b8306d41c58268b8901e648af21c9297b3ec1",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793217051815
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40750699244/job/123036284007"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
