@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "6re4tbky3cev8stmfsm16tbcb4",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 200,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/200",
+  "summary": "Hold pruning off in the polling pack-swap test",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "88b0638bccec59e28e19e3ee5dd00c5bc31a53ddfaf08621cc34ce3eabf25886",
+    "before": "2e6d16fbc36418dfa117369a44904a7df589415b",
+    "after": "4666d548c40dfdadbbe50249239cfff2cd1df784",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143417452
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40468321610/job/122069036734"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/200#pullrequestreview-5663638721"
+    }
+  ]
+}

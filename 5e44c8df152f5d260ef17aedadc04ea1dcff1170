@@ -1,0 +1,41 @@
+{
+  "conary": "note v1",
+  "change": "6nkan6t714h98demdx577a8zxy",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 187,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/187",
+  "summary": "Update dependency rust to v1.99.1",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "50a61d459d3e88f40ea4f2e7562156c3c03382d27eabe41a31a2bbf54278bd1f",
+    "before": "4ff9283a67d1c8fb42295b207d250b7ac36cb0b3",
+    "after": "5e44c8df152f5d260ef17aedadc04ea1dcff1170",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143400254
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "deepseek",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/187#pullrequestreview-5648941099"
+    }
+  ]
+}

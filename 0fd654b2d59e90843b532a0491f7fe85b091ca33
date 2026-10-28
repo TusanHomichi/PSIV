@@ -1,0 +1,53 @@
+{
+  "conary": "note v1",
+  "change": "6xymdwy7vgj5appy1rmss4rn2r",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 203,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/203",
+  "summary": "ci: grant the shared gate what it needs to attest its result",
+  "task": "FieldmouseWorks/Conary#15",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyDYaKnE7mRRMdYCFVC"
+  },
+  "landing": {
+    "revision": "74d83a15d4600190db07b92ea2e3e3df826fd46ab47c979bc94142e5ae6efc9a",
+    "before": "f29b3f608072298c6e228483ba2cb24340e9db95",
+    "after": "0fd654b2d59e90843b532a0491f7fe85b091ca33",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143959543
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40598145051/job/122519205081"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "fail",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/203#pullrequestreview-5675536649"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}

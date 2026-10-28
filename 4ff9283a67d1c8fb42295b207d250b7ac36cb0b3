@@ -1,0 +1,41 @@
+{
+  "conary": "note v1",
+  "change": "6t67etmrfp7srj5b1cs82af1k7",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 195,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/195",
+  "summary": "Name images by what they decode to, not their deflate bytes (#194)",
+  "task": "TusanHomichi/PSIV#194",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "c84a3c2405b5b93332f3cf1753b6413bdf99f2711d9280b971797c237cbd5523",
+    "before": "1b3f0b8cf24875cd6b6e22530cb55dbddee6e91d",
+    "after": "4ff9283a67d1c8fb42295b207d250b7ac36cb0b3",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143392831
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "deepseek",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/195#pullrequestreview-5648808597"
+    }
+  ]
+}

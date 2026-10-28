@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "4mb2pvt5p2rnfyppjm43nbgcxh",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 196,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/196",
+  "summary": "ci: run the ROM-free gate through the flake on every PR",
+  "task": "TusanHomichi/PSIV#15",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "27c0bf72a9ffb70a00696e4097771b63f912c7172c62cdb0655de5aa40f62bd4",
+    "before": "e632b6088bc3287cde2642bed34db2d817d64264",
+    "after": "be16763b8b2dcab9b7e88aa6314b0bc2b9346493",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143407604
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40294092164/job/121475814740"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "deepseek",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/196#pullrequestreview-5649504487"
+    }
+  ]
+}

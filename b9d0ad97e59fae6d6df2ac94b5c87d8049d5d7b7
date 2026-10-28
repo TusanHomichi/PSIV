@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "7rkmvy50n7c9v3hcaq4yc1zcya",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 188,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/188",
+  "summary": "Update Rust crates",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "ca8068b4908d691fc25b472bc69fb5534c380b929698580316823a50002a061e",
+    "before": "5e44c8df152f5d260ef17aedadc04ea1dcff1170",
+    "after": "b9d0ad97e59fae6d6df2ac94b5c87d8049d5d7b7",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143396582
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "fail",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "deepseek",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/188#pullrequestreview-5648954788"
+    }
+  ]
+}

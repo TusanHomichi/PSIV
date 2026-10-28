@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "6c862xsf2c9t3arpmw1skqerac",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 193,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/193",
+  "summary": "agents: hand PRs to the steward, with the full gate on remi as the merge check",
+  "task": "https://claude.ai/code/project/chan_01Ad4f4oDXfFTCEzLHzMTD8q?thread=cmsg_01Ad4f4oDXfFTCEzLHzMTD8qTKNHjcQpfB7Kr8dRByK81V",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01Wh8DYzuPvs2YbGJbrP7mjL"
+  },
+  "landing": {
+    "revision": "5dfce9e6b4fa79325b3c88839a0bec93df690eb6c6a3efbb4c87db2b5ab41dbc",
+    "before": "b9d0ad97e59fae6d6df2ac94b5c87d8049d5d7b7",
+    "after": "e632b6088bc3287cde2642bed34db2d817d64264",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143404109
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/193#pullrequestreview-5649208674"
+    },
+    {
+      "kind": "review",
+      "check": "deepseek",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/193#pullrequestreview-5649216340"
+    }
+  ]
+}

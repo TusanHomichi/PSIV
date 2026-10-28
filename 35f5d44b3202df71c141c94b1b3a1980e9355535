@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "5axj0dzn32djcg431ag6ej34z8",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 197,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/197",
+  "summary": "Update Rust crate cc to v1.10.0",
+  "task": null,
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "7c1d65f187e9a1615b8aa0b5d9a51d8db0184417e990e6ba21719cbc011cd14c",
+    "before": "be16763b8b2dcab9b7e88aa6314b0bc2b9346493",
+    "after": "35f5d44b3202df71c141c94b1b3a1980e9355535",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793143410809
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40295656532/job/121480956738"
+    },
+    {
+      "kind": "ci",
+      "check": "renovate/stability-days",
+      "result": "pass",
+      "source": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
