@@ -35,10 +35,13 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
+pub mod field_maps;
 pub mod install;
 pub mod json;
 pub mod png;
 pub mod rom;
+pub mod sound;
+mod sound_defs;
 
 pub use rom::Rom;
 
@@ -73,7 +76,11 @@ pub struct Section {
 }
 
 /// The sections `psiv-pack` builds, in the order #216 ports them.
-pub const SECTIONS: &[Section] = &[];
+pub const SECTIONS: &[Section] = &[Section {
+    name: "sound",
+    claims: &["sound"],
+    build: sound::build,
+}];
 
 /// What `psiv-pack --claims` prints: `{"sections": [{"name": ..., "claims":
 /// [...]}, ...]}`, every section in order with the paths it writes.
@@ -272,7 +279,7 @@ mod tests {
     #[test]
     fn no_sections_build_nothing() {
         let root = scratch("empty");
-        build_sections(&rom(), &root, SECTIONS, 4, |_, _, _| panic!("no section")).unwrap();
+        build_sections(&rom(), &root, &[], 4, |_, _, _| panic!("no section")).unwrap();
         assert!(!root.exists());
     }
 }

@@ -54,7 +54,7 @@ accepts.
 | Maps: collision, warps, objects, chests, music | `maps/<id>_<symbol>.json`, with the rendered planes in `maps/<id>_<symbol>.png` and `_over.png` | `rust/psiv-data/src/map.rs` |
 | The new-game state | `game_start.json` | `rust/psiv-data/src/new_game.rs` |
 | Sprites | `sprites/` (`party.json`, `npcs.json`, `vehicles.json` and the sheets) | `rust/psiv-data/src/sprites.rs` |
-| Music and sound effects | `sound/` | `rust/psiv-data/src/sound.rs` |
+| Music and sound effects | `sound/` | `rust/psiv-data/src/sound/schema.rs` (the files), `rust/psiv-data/src/sound.rs` (loading) |
 
 `manifest.json` lists every map file and the ROM the pack came from; the
 loader checks it before anything else. The extractor's other output,

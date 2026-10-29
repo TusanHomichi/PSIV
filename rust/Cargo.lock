@@ -293,6 +293,8 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "libc",
+ "psiv-data",
+ "serde",
  "serde_json",
  "sha2",
 ]
