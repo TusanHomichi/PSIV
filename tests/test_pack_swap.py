@@ -355,7 +355,9 @@ class PendingInThisProcess(Scratch):
     so liveness cannot protect it; it must survive and be installed (#225
     review)."""
 
-    def paused_install(self, links):
+    def paused_install(self, links, output=None):
+        """`output`: the paused install's spelling of the output; the others
+        use `self.output`."""
         real = pack_swap._link if links else pack_swap._replace_directory
         name = "_link" if links else "_replace_directory"
         paused = []
@@ -369,7 +371,9 @@ class PendingInThisProcess(Scratch):
             return real(output, version, *rest)
         with mock.patch.object(pack_swap, "LINKS", links), \
                 mock.patch.object(pack_swap, name, commit):
-            self.assertEqual(self.install("paused"), "paused")
+            paused_output = self.output if output is None else output
+            self.assertEqual(install_atomically(paused_output, lambda d: write_pack(d, "paused")),
+                             "paused")
         self.assertEqual(consistent(self.output), "paused")
         self.assertFalse(pack_swap._pending, pack_swap._pending)
 
@@ -379,6 +383,27 @@ class PendingInThisProcess(Scratch):
 
     def test_the_paused_version_survives_and_installs_in_directory_mode(self):
         self.paused_install(links=False)
+
+    def test_the_paused_version_survives_spelled_through_dotdot(self):
+        (self.dir / "sub").mkdir()
+        self.paused_install(pack_swap.LINKS, output=self.dir / "sub" / ".." / self.output.name)
+
+    def test_the_paused_version_survives_spelled_relative(self):
+        self.paused_install(pack_swap.LINKS, output=Path(os.path.relpath(self.output)))
+
+    @links
+    def test_the_paused_version_survives_spelled_through_a_linked_parent(self):
+        alias = self.dir.parent / f"{self.dir.name}-alias"
+        alias.symlink_to(self.dir, target_is_directory=True)
+        self.addCleanup(alias.unlink)
+        self.paused_install(True, output=alias / self.output.name)
+
+    def test_negative_control_a_spelling_key_misses_the_alias(self):
+        (self.dir / "sub").mkdir()
+        with mock.patch.object(pack_swap, "_pending_key", lambda v: str(v.absolute())):
+            with self.assertRaises((AssertionError, OSError)):
+                self.paused_install(pack_swap.LINKS,
+                                    output=self.dir / "sub" / ".." / self.output.name)
 
     def test_negative_control_without_the_registry_it_is_pruned(self):
         with mock.patch.object(pack_swap, "_pending", mock.MagicMock()) as pending:

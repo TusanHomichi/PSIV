@@ -32,40 +32,81 @@ use crate::PackError;
 /// Versions kept after a swap: the current one and the two before it.
 pub const KEEP_VERSIONS: usize = 3;
 
-/// The versions installs in this process have made and not yet installed.
-/// Their names carry this process's id, so liveness cannot tell them from
-/// finished ones; pruning reads this instead.
-static PENDING: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+/// The versions installs in this process have made and not yet installed,
+/// by [`pending_key`]. Their names carry this process's id, so liveness
+/// cannot tell them from finished ones; pruning reads this instead.
+static PENDING: Mutex<Vec<PendingKey>> = Mutex::new(Vec::new());
+
+/// A version's identity whichever spelling reached it: its existing parent
+/// directory's identity and its own name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PendingKey {
+    parent: DirId,
+    name: std::ffi::OsString,
+}
+
+/// A directory's identity: device and inode on unix; on Windows the path
+/// the system resolves it to (links, `..`, short names and case resolved).
+/// A spelling only when neither can be read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum DirId {
+    #[cfg(unix)]
+    Inode(u64, u64),
+    Path(PathBuf),
+}
+
+fn dir_id(dir: &Path) -> DirId {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        if let Ok(meta) = std::fs::metadata(dir) {
+            return DirId::Inode(meta.dev(), meta.ino());
+        }
+    }
+    DirId::Path(
+        std::fs::canonicalize(dir)
+            .or_else(|_| std::path::absolute(dir))
+            .unwrap_or_else(|_| dir.to_owned()),
+    )
+}
+
+fn pending_key(version: &Path) -> PendingKey {
+    PendingKey {
+        parent: dir_id(version.parent().unwrap_or(Path::new("."))),
+        name: version.file_name().unwrap_or_default().to_owned(),
+    }
+}
 
 /// A version in [`PENDING`] until dropped, after its install committed or
 /// failed.
-struct Pending(PathBuf);
+struct Pending(PendingKey);
 
 impl Pending {
-    fn register(version: PathBuf) -> Self {
+    fn register(version: &Path) -> Self {
+        let key = pending_key(version);
         PENDING
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(version.clone());
-        Pending(version)
+            .push(key.clone());
+        Pending(key)
     }
 }
 
 impl Drop for Pending {
     fn drop(&mut self) {
-        PENDING
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .retain(|path| path != &self.0);
+        let mut pending = PENDING.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(at) = pending.iter().position(|key| key == &self.0) {
+            pending.swap_remove(at);
+        }
     }
 }
 
 fn pending(version: &Path) -> bool {
-    let version = std::path::absolute(version).unwrap_or_else(|_| version.to_owned());
+    let key = pending_key(version);
     PENDING
         .lock()
         .unwrap_or_else(|e| e.into_inner())
-        .contains(&version)
+        .contains(&key)
 }
 
 /// Whether `<output>` is a symbolic link to its version, or (Windows) the
@@ -399,7 +440,7 @@ fn install_with<T>(
     let result = build(&staging)?;
     let version = parent.join(format!(".{name}.v{}-{pid}", stamp()));
     // Registered before the version exists, so no prune sees it unprotected.
-    let pending = Pending::register(version.clone());
+    let pending = Pending::register(&version);
     std::fs::rename(&staging, &version).map_err(|e| io_error("rename", &staging, e))?;
     guard.0 = None;
     before_commit();
@@ -776,13 +817,61 @@ mod tests {
         }
         let expected = if LINKS { KEEP_VERSIONS } else { 0 };
         assert_eq!(versions(&output).unwrap().len(), expected);
-        assert!(
-            PENDING
-                .lock()
-                .unwrap()
-                .iter()
-                .all(|p| !p.starts_with(&root))
+        let here = dir_id(&root);
+        assert!(PENDING.lock().unwrap().iter().all(|key| key.parent != here));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// One install paused under `spelling` while others used `output`.
+    fn paused_under(root: &Path, output: &Path, spelling: &Path) {
+        let installed = install_with(
+            spelling,
+            |dir| write_marker(dir, "paused"),
+            || {
+                for i in 0..=KEEP_VERSIONS {
+                    install_atomically(output, |dir| write_marker(dir, &i.to_string())).unwrap();
+                }
+            },
+        )
+        .unwrap();
+        assert!(installed.warnings.is_empty(), "{:?}", installed.warnings);
+        assert_eq!(
+            std::fs::read_to_string(output.join("marker")).unwrap(),
+            "paused"
         );
+        let here = dir_id(root);
+        assert!(PENDING.lock().unwrap().iter().all(|key| key.parent != here));
+    }
+
+    #[test]
+    fn a_pending_version_is_protected_under_any_spelling() {
+        // #225 review: the registry matched spellings, so `sub/../pack`
+        // paused beside `pack` lost its version.
+        let root = scratch("spelling");
+        let output = root.join("pack");
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        paused_under(&root, &output, &root.join("sub").join("..").join("pack"));
+        #[cfg(unix)]
+        {
+            let alias = scratch("spelling-alias");
+            std::os::unix::fs::symlink(&root, &alias).unwrap();
+            paused_under(&root, &output, &alias.join("pack"));
+            std::fs::remove_file(&alias).unwrap();
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn spellings_of_one_directory_share_a_key() {
+        let root = scratch("key");
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        let plain = pending_key(&root.join(".pack.v1"));
+        assert_eq!(
+            pending_key(&root.join("sub").join("..").join(".pack.v1")),
+            plain
+        );
+        assert_ne!(pending_key(&root.join("sub").join(".pack.v1")), plain);
+        assert_ne!(pending_key(&root.join(".pack.v2")), plain);
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -799,7 +888,7 @@ mod tests {
             std::process::id()
         ));
         std::fs::create_dir_all(&own).unwrap();
-        let held = Pending::register(own.clone());
+        let held = Pending::register(&own);
         prune_with(&output, 0, |_| false).unwrap();
         assert!(own.exists(), "a pending version was pruned");
         drop(held);

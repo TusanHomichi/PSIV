@@ -85,11 +85,20 @@ STILL_ACTIVE = 259
 ERROR_ACCESS_DENIED = 5
 
 
-#: The versions installs in this process have made and not yet installed.
-#: Their names carry this process's id, so liveness cannot tell them from
-#: finished ones; `prune` reads this instead.
-_pending: set[str] = set()
+#: The versions installs in this process have made and not yet installed,
+#: by `_pending_key`. Their names carry this process's id, so liveness cannot
+#: tell them from finished ones; `prune` reads this instead.
+_pending: set[tuple[int, int, str]] = set()
 _pending_lock = threading.Lock()
+
+
+def _pending_key(version: Path) -> tuple[int, int, str]:
+    """A version's identity whichever spelling reached it: its existing
+    parent directory's device and inode, and its own name. Relative and
+    absolute paths, `..`, a linked parent and a platform's aliases (case,
+    short names) all give the same parent identity."""
+    parent = os.stat(version.parent)
+    return (parent.st_dev, parent.st_ino, version.name)
 
 
 class PackSwapError(RuntimeError):
@@ -223,18 +232,19 @@ def install_atomically(output: Path, build: Callable[[Path], T]) -> T:
     token = f"{os.getpid()}-{secrets.token_hex(4)}"
     staging = parent / f".{output.name}.build-{token}"
     staging.mkdir()
-    version = None
+    key = None
     try:
         result = build(staging)
         version = parent / f".{output.name}.v{_stamp()}-{os.getpid()}"
         # Registered before the version exists, so no prune sees it
         # unprotected; released once `output` names it (or the install failed).
+        key = _pending_key(version)
         with _pending_lock:
-            _pending.add(str(version))
+            _pending.add(key)
         os.rename(staging, version)
     except BaseException:
         with _pending_lock:
-            _pending.discard(str(version))
+            _pending.discard(key)
         if staging.exists():
             shutil.rmtree(staging)
         raise
@@ -249,7 +259,7 @@ def install_atomically(output: Path, build: Callable[[Path], T]) -> T:
             problems = _replace_directory(output, version, link)
     finally:
         with _pending_lock:
-            _pending.discard(str(version))
+            _pending.discard(key)
     try:
         prune(output, keep=KEEP_VERSIONS if LINKS else 0)
     except OSError as error:
@@ -315,7 +325,7 @@ def prune(output: Path, keep: int = KEEP_VERSIONS) -> list[str]:
         pid = int(version.match(path.name).group(1))
         if pid == os.getpid():
             with _pending_lock:
-                building = str(path.absolute()) in _pending
+                building = _pending_key(path) in _pending
         else:
             building = _alive(pid)
         if building:
