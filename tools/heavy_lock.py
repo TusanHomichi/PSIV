@@ -58,7 +58,11 @@ ahead, again whenever that changes, and every `WAIT_REPORT_S` while nothing
 does, a line says how long it has waited and each holder's class, age and
 command line (`wait_reporting` does the same for any flock, such as the gate
 lock), so a job runner that stops a job gone quiet sees it waiting, and on
-whom.
+whom. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
+of a job) also gets a file there for each wait, held flocked and saying what
+it waits for (`runner_wait`): the runner doesn't count time spent waiting in
+line against the job's time limit, and a file whose waiter died is no
+longer held, so it stops counting at once.
 
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
@@ -81,13 +85,14 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import itertools
 import os
 import re
 import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -98,6 +103,8 @@ HELD_SLOTS_ENV = "PSIV_HEAVY_LOCK_SLOTS"
 PRIORITY_ENV = "PSIV_LOCK_PRIORITY"
 GODOT_SLOTS_ENV = "PSIV_GODOT_SLOTS"
 UNITS_ENV = "PSIV_LOCK_UNITS"
+#: A job runner's directory for the waits of the job it runs (`runner_wait`).
+RUNNER_WAIT_ENV = "PROJ_WAIT_DIR"
 HEAVY_LOCK_NAME = "continuation-heavy.lock"
 GATE_LOCK = Path("gate") / ".lock"
 EXIT_HELD_BY_PARENT = 2
@@ -625,20 +632,57 @@ class _Blocker:
                 os.close(self.handle)
 
 
-def wait_reporting(lock, mode, report):
+#: Tells this process's wait files apart (`runner_wait`).
+_RUNNER_WAITS = itertools.count()
+
+
+@contextmanager
+def runner_wait(what, environ=None):
+    """For the block, a file in the job runner's wait directory
+    (`RUNNER_WAIT_ENV` in `environ`, default os.environ) whose line says
+    `what` this process waits for, held flocked: the runner's clock stands
+    still meanwhile, and once nobody holds the file (this process died) it no
+    longer counts. A no-op without the variable, or when the file can't be
+    made: the wait goes on either way. Never a path in `what`: the runner may
+    show it outside the machine."""
+    environ = os.environ if environ is None else environ
+    folder = environ.get(RUNNER_WAIT_ENV)
+    path = handle = None
+    if folder:
+        path = Path(folder) / f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}"
+        try:
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            os.write(handle, f"{what}\n".encode())
+        except OSError:
+            if handle is not None:
+                os.close(handle)
+                handle = None
+            path.unlink(missing_ok=True)
+    try:
+        yield
+    finally:
+        if handle is not None:
+            path.unlink(missing_ok=True)
+            os.close(handle)
+
+
+def wait_reporting(lock, mode, report, what, environ=None):
     """Block until this process holds `lock` in flock `mode`, waiting in the
     kernel (`_Blocker`), and print `_still_line` every `WAIT_REPORT_S` until
-    then. Returns the holding handle, which the caller closes; raises when the
-    flock fails."""
+    then, telling a job runner it waits for `what` (`runner_wait`). Returns
+    the holding handle, which the caller closes; raises when the flock
+    fails."""
     began = time.monotonic()
-    blocker = _Blocker(lock, mode)
-    try:
-        while not blocker.done.wait(WAIT_REPORT_S):
-            print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
-    except BaseException:
-        blocker.abandon()
-        raise
-    return blocker.grant()
+    with runner_wait(what, environ):
+        blocker = _Blocker(lock, mode)
+        try:
+            while not blocker.done.wait(WAIT_REPORT_S):
+                print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
+        except BaseException:
+            blocker.abandon()
+            raise
+        return blocker.grant()
 
 
 _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
@@ -685,7 +729,7 @@ def _duration(seconds):
     return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
 
 
-def _acquire(lock, need, rank, report):
+def _acquire(lock, need, rank, report, environ):
     """Queue for `lock` and return the granting handles once this waiter is the
     head and the lock is free in its class.
 
@@ -693,7 +737,8 @@ def _acquire(lock, need, rank, report):
     a shared head then takes its slots and units as they free. A waiter
     displaced from the head (a priority waiter arrived) gives the lock file
     back at once. Prints `_wait_line` whenever it changes, and `_still_line`
-    after every `WAIT_REPORT_S` it has not.
+    after every `WAIT_REPORT_S` it has not. From joining the queue until it
+    leaves, a job runner hears it waits (`runner_wait`).
     """
     lock_class = need.lock_class
     queue = _Queue(lock)
@@ -701,6 +746,7 @@ def _acquire(lock, need, rank, report):
     blocker = None
     shown = None
     began = reported = time.monotonic()
+    waits = ExitStack()
     try:
         while True:
             with queue.locked():
@@ -715,6 +761,8 @@ def _acquire(lock, need, rank, report):
                         print(refuse_message(lock, parent), file=report, flush=True)
                         raise SystemExit(EXIT_HELD_BY_PARENT)
                     entry = queue.join(rank, lock_class, waiting)
+                    waits.enter_context(runner_wait(f"PSIV's heavy-run lock ({lock_class} class)",
+                                                    environ))
                     waiting = queue.entries()
                 ahead = waiting[:waiting.index(entry[0])]
                 if ahead and blocker is not None:
@@ -748,6 +796,7 @@ def _acquire(lock, need, rank, report):
         if entry is not None:
             with queue.locked():  # a scan never sees a half-removed entry
                 queue.leave(entry)
+        waits.close()
 
 
 @contextmanager
@@ -798,7 +847,7 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
         priority = environ.get(PRIORITY_ENV) == "1"
     rank = GATE_RANK if gate else PRIORITY_RANK if priority else NORMAL_RANK
     try:
-        held = _acquire(resolved, need, rank, report)
+        held = _acquire(resolved, need, rank, report, environ)
     except SlotCapMismatch as mismatch:
         print(mismatch, file=report, flush=True)
         raise SystemExit(EXIT_HELD_BY_PARENT) from None
