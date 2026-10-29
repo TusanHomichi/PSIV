@@ -18,6 +18,7 @@ const FRAMES: u8 = 8;
 fn open_map() -> FieldMap {
     map_with(
         &[
+            // A synthetic 8x8 map with nothing in it.
             "........", "........", "........", "........", "........", "........", "........",
             "........",
         ],
@@ -522,6 +523,7 @@ fn a_party_replays_identically() {
             .collect()
     }
 
+    // A synthetic map.
     #[rustfmt::skip]
     let rows = [
         "..D.....",

@@ -43,6 +43,7 @@ from psiv_tools.battle_art_pack import (
     CHARACTER_PNG_DIRECTORY,
     ENEMY_ART_NAME,
     COMMAND_UI_ART_NAME,
+    DAMAGE_DIGIT_ART_NAME,
     ENEMY_ATTACK_ART_NAME,
     ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
@@ -204,6 +205,7 @@ class TestEmittedFiles(unittest.TestCase):
             ("characters", CHARACTER_ART_NAME),
             ("backgrounds", BACKGROUND_ART_NAME),
             ("command_ui", COMMAND_UI_ART_NAME),
+            ("damage_digits", DAMAGE_DIGIT_ART_NAME),
         ):
             with self.subTest(key=key):
                 blob = (self.root / name).read_bytes()
@@ -318,6 +320,35 @@ class TestEmittedFiles(unittest.TestCase):
             [int.from_bytes(cram[i:i + 2], "big") for i in range(0x62, 0x80, 2)],
         )
 
+    def test_damage_digit_art_is_the_battle_setup_stream(self):
+        # The battle setup decompresses 28 tiles to VRAM $BC80, tile $5E4
+        # (`ps4.asm:10007-10009`); the damage numbers are drawn from them.
+        art = json.loads((self.root / DAMAGE_DIGIT_ART_NAME).read_text())
+        self.assertEqual(art["format_version"], PACK_VERSION)
+        self.assertEqual(art["tile_count"], 28)
+        self.assertEqual(
+            [(s["name"], s["rom_offset"], s["tile_count"], s["first_vram_tile"])
+             for s in art["streams"]],
+            [("digits", "0x27D778", 28, 0x5E4)],
+        )
+        tiles = {t["vram_tile"]: t["rows"] for t in art["tiles"]}
+        self.assertEqual(sorted(tiles), list(range(0x5E4, 0x600)))
+        for rows in tiles.values():
+            self.assertEqual([len(row) for row in rows], [8] * 8)
+
+    @unittest.skipUnless(COMMAND_ORACLE_STATE.is_file(), "local oracle VDP state absent")
+    def test_damage_digit_art_matches_oracle_vram(self):
+        # The same battle-loaded frame holds the damage-number tiles.
+        art = json.loads((self.root / DAMAGE_DIGIT_ART_NAME).read_text())
+        vram = bytes.fromhex(
+            json.loads(COMMAND_ORACLE_STATE.read_text())["regions"]["vdp_vram"]["bytes_hex"])
+        for tile in art["tiles"]:
+            at = tile["vram_tile"] * 32
+            self.assertEqual(
+                bytes.fromhex("".join(tile["rows"])), vram[at:at + 32],
+                f"VRAM tile ${tile['vram_tile']:X}",
+            )
+
     def test_json_is_canonical_and_newline_terminated(self):
         for name in (
             ENEMY_ART_NAME,
@@ -326,6 +357,7 @@ class TestEmittedFiles(unittest.TestCase):
             CHARACTER_ART_NAME,
             BACKGROUND_ART_NAME,
             COMMAND_UI_ART_NAME,
+            DAMAGE_DIGIT_ART_NAME,
         ):
             with self.subTest(file=name):
                 text = (self.root / name).read_text()

@@ -202,6 +202,11 @@ COMMAND_UI_STREAMS = (
     ("icons", 0x27D860, 30, 0x15E),
     ("cursor", 0x27DA70, 8, 0x17C),
 )
+# The damage-number tiles: one Nemesis stream decompressed to VRAM $BC80
+# (tile $5E4) as a battle is set up (`ps4.asm:10007-10009`). The battle draws
+# its damage numbers from these patterns. CRAM indices, as above.
+DAMAGE_DIGIT_ART_NAME = f"{ART_DIRECTORY}/damage_digits.json"
+DAMAGE_DIGIT_STREAM = ("digits", 0x27D778, 28, 0x5E4)
 # `loc_7634` copies fifteen words from `loc_76A4` into CRAM line 3,
 # beginning at index 1 (`ps4.asm:11213-11217,11250`). Index 0 is transparent.
 COMMAND_UI_PALETTE_OFFSET = 0x76A4
@@ -792,8 +797,9 @@ def build_backgrounds(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]
 # ---------------------------------------------------------------------------
 # Emission
 # ---------------------------------------------------------------------------
-def build_command_ui(rom: bytes) -> dict[str, Any]:
-    """The command icon and cursor tiles as CRAM-index rows, keyed by VRAM tile.
+def _stream_tiles(rom: bytes, name: str, offset: int, count: int,
+                  first_tile: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """One Nemesis stream's description and its tiles as CRAM-index rows.
 
     Each tile is eight strings of eight hex digits, one digit per pixel, the
     order the VDP reads a 4bpp pattern. A stream that does not decompress to
@@ -801,32 +807,41 @@ def build_command_ui(rom: bytes) -> dict[str, Any]:
     """
     from .nemesis import decompress
 
+    data, consumed = decompress(rom, offset)
+    if len(data) != count * 32:
+        raise ValueError(
+            f"battle art stream {name} at ${offset:X} holds {len(data) // 32} "
+            f"tiles, expected {count}"
+        )
+    stream = {
+        "name": name,
+        "rom_offset": f"0x{offset:X}",
+        "compressed_bytes": consumed,
+        "tile_count": count,
+        "first_vram_tile": first_tile,
+    }
+    tiles = []
+    for index in range(count):
+        tile = data[index * 32:(index + 1) * 32]
+        rows = [
+            "".join(
+                f"{(tile[row * 4 + column // 2] >> (4 if column % 2 == 0 else 0)) & 15:X}"
+                for column in range(8)
+            )
+            for row in range(8)
+        ]
+        tiles.append({"vram_tile": first_tile + index, "rows": rows})
+    return stream, tiles
+
+
+def build_command_ui(rom: bytes) -> dict[str, Any]:
+    """The command icon and cursor tiles as CRAM-index rows, keyed by VRAM tile."""
     streams = []
     tiles = []
     for name, offset, count, first_tile in COMMAND_UI_STREAMS:
-        data, consumed = decompress(rom, offset)
-        if len(data) != count * 32:
-            raise ValueError(
-                f"command art stream {name} at ${offset:X} holds {len(data) // 32} "
-                f"tiles, expected {count}"
-            )
-        streams.append({
-            "name": name,
-            "rom_offset": f"0x{offset:X}",
-            "compressed_bytes": consumed,
-            "tile_count": count,
-            "first_vram_tile": first_tile,
-        })
-        for index in range(count):
-            tile = data[index * 32:(index + 1) * 32]
-            rows = [
-                "".join(
-                    f"{(tile[row * 4 + column // 2] >> (4 if column % 2 == 0 else 0)) & 15:X}"
-                    for column in range(8)
-                )
-                for row in range(8)
-            ]
-            tiles.append({"vram_tile": first_tile + index, "rows": rows})
+        stream, stream_tiles = _stream_tiles(rom, name, offset, count, first_tile)
+        streams.append(stream)
+        tiles.extend(stream_tiles)
     palette_bytes = rom[
         COMMAND_UI_PALETTE_OFFSET:COMMAND_UI_PALETTE_OFFSET + 2 * COMMAND_UI_PALETTE_WORDS
     ]
@@ -840,6 +855,18 @@ def build_command_ui(rom: bytes) -> dict[str, Any]:
             for i in range(0, len(palette_bytes), 2)
         ],
         "streams": streams,
+        "tile_count": len(tiles),
+        "tiles": tiles,
+    }
+
+
+def build_damage_digits(rom: bytes) -> dict[str, Any]:
+    """The damage-number tiles as CRAM-index rows, keyed by VRAM tile."""
+    stream, tiles = _stream_tiles(rom, *DAMAGE_DIGIT_STREAM)
+    return {
+        "kind": "battle_damage_digit_art",
+        "source": "ps4.asm:10007-10009: NemDecomp to VRAM $BC80",
+        "streams": [stream],
         "tile_count": len(tiles),
         "tiles": tiles,
     }
@@ -863,6 +890,8 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
     background_sha = _write(directory, BACKGROUND_ART_NAME, backgrounds, version)
     command_ui = build_command_ui(rom)
     command_ui_sha = _write(directory, COMMAND_UI_ART_NAME, command_ui, version)
+    damage_digits = build_damage_digits(rom)
+    damage_digits_sha = _write(directory, DAMAGE_DIGIT_ART_NAME, damage_digits, version)
 
     complete = sum(1 for entry in enemies["enemies"] if entry["body_complete"])
     holed = len(enemies["enemies"]) - complete
@@ -912,6 +941,12 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
                 "count": command_ui["tile_count"],
                 "png_count": 0,
             },
+            "damage_digits": {
+                "file": DAMAGE_DIGIT_ART_NAME,
+                "sha256": damage_digits_sha,
+                "count": damage_digits["tile_count"],
+                "png_count": 0,
+            },
             "enemy_attacks": {
                 "file": ENEMY_ATTACK_ART_NAME,
                 "sha256": attack_sha,
@@ -940,6 +975,7 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
                 enemies["palette_layout"]["body_color_indices_used"]
             ),
             "command_ui_tiles": command_ui["tile_count"],
+            "damage_digit_tiles": damage_digits["tile_count"],
             "characters": characters["count"],
             "poses": characters["pose_count"],
             "poses_per_character": {

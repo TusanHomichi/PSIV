@@ -106,38 +106,7 @@ impl CommandUiArt {
                 "index 15 is zero".into(),
             ));
         }
-        let mut seen = BTreeSet::new();
-        for tile in &self.tiles {
-            if !(FIRST_TILE..=LAST_TILE).contains(&tile.vram_tile) {
-                return Err(invalid(
-                    "tiles",
-                    format!("every VRAM tile ${FIRST_TILE:X}..${LAST_TILE:X}"),
-                    format!("out-of-range ${:X}", tile.vram_tile),
-                ));
-            }
-            if !seen.insert(tile.vram_tile) {
-                return Err(invalid(
-                    "tiles",
-                    "unique vram_tile".into(),
-                    format!("${:X} appears twice", tile.vram_tile),
-                ));
-            }
-            if tile.pixels().is_none() {
-                return Err(invalid(
-                    "tiles",
-                    "eight rows of eight hex digits".into(),
-                    format!("${:X}", tile.vram_tile),
-                ));
-            }
-        }
-        if let Some(missing) = (FIRST_TILE..=LAST_TILE).find(|tile| !seen.contains(tile)) {
-            return Err(invalid(
-                "tiles",
-                format!("every VRAM tile ${FIRST_TILE:X}..${LAST_TILE:X}"),
-                format!("missing ${missing:X}"),
-            ));
-        }
-        Ok(())
+        validate_tiles(path, &self.tiles, FIRST_TILE, LAST_TILE)
     }
 
     /// The pattern the cartridge loads to `vram_tile`, as CRAM indices.
@@ -148,6 +117,50 @@ impl CommandUiArt {
             .find(|tile| tile.vram_tile == vram_tile)
             .and_then(CommandUiTile::pixels)
     }
+}
+
+/// Every VRAM tile `first..=last` exactly once, each eight rows of eight hex
+/// digits: the shape every tile file of `battle/art/` shares.
+pub(super) fn validate_tiles(
+    path: &Path,
+    tiles: &[CommandUiTile],
+    first: u16,
+    last: u16,
+) -> Result<(), DataError> {
+    let invalid = |manifest: String, record: String| DataError::ManifestMismatch {
+        path: path.to_path_buf(),
+        field: "tiles",
+        manifest,
+        record,
+    };
+    let mut seen = BTreeSet::new();
+    for tile in tiles {
+        if !(first..=last).contains(&tile.vram_tile) {
+            return Err(invalid(
+                format!("every VRAM tile ${first:X}..${last:X}"),
+                format!("out-of-range ${:X}", tile.vram_tile),
+            ));
+        }
+        if !seen.insert(tile.vram_tile) {
+            return Err(invalid(
+                "unique vram_tile".into(),
+                format!("${:X} appears twice", tile.vram_tile),
+            ));
+        }
+        if tile.pixels().is_none() {
+            return Err(invalid(
+                "eight rows of eight hex digits".into(),
+                format!("${:X}", tile.vram_tile),
+            ));
+        }
+    }
+    if let Some(missing) = (first..=last).find(|tile| !seen.contains(tile)) {
+        return Err(invalid(
+            format!("every VRAM tile ${first:X}..${last:X}"),
+            format!("missing ${missing:X}"),
+        ));
+    }
+    Ok(())
 }
 
 impl CommandUiTile {

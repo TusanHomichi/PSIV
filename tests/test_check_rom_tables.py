@@ -14,8 +14,8 @@ import unittest
 from pathlib import Path
 
 from tools import check_rom_tables
-from tools.check_rom_tables import (RECORD_WINDOW, REMOVED_BLOBS, STATS, TABLE_RECORDS,
-                                    blob_id, run)
+from tools.check_rom_tables import (MARKER_LINES, RECORD_WINDOW, REMOVED_BLOBS, STATS,
+                                    TABLE_RECORDS, blob_id, run, tiles_in)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -108,6 +108,51 @@ class Guard(unittest.TestCase):
         self.assertEqual(blob_id(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
         self.assertEqual(blob_id(b"hello\n"), "ce013625030ba8dba906f756967f9e9ca394464a")
         self.assertTrue(all(len(blob) == 40 for blob in REMOVED_BLOBS))
+
+
+#: A synthetic 8x8 pattern, one row per literal.
+ROWS = ["KKKKKKKK", "KQQQQQQK", "KQZZZZQK", "KQZKKZQK",
+        "KQZKKZQK", "KQZZZZQK", "KQQQQQQK", "KKKKKKKK"]
+
+
+def literal_block(rows, quote='"', per_line=1):
+    lines = [", ".join(f"{quote}{row}{quote}" for row in rows[i:i + per_line])
+             for i in range(0, len(rows), per_line)]
+    return "let rows = [\n" + ",\n".join(f"    {line}" for line in lines) + ",\n];\n"
+
+
+class Tiles(unittest.TestCase):
+    def test_a_pixel_string_tile_fails(self):
+        for quote, per_line in (('"', 1), ('"', 7), ("'", 4)):
+            with self.subTest(quote=quote, per_line=per_line):
+                self.assertEqual(tiles_in(literal_block(ROWS, quote, per_line)), [2])
+
+    def test_nine_tiles_are_nine_problems(self):
+        text = "".join(literal_block(ROWS) for _ in range(9))
+        self.assertEqual(len(tiles_in(text)), 9)
+
+    def test_a_synthetic_picture_says_so(self):
+        marked = "// A synthetic map.\n" + literal_block(ROWS)
+        self.assertEqual(tiles_in(marked), [])
+        far = "// A synthetic map.\n" + "\n" * MARKER_LINES + literal_block(ROWS)
+        self.assertEqual(len(tiles_in(far)), 1, "a marker past the window does not count")
+
+    def test_shapes_that_are_not_a_tile_pass(self):
+        self.assertEqual(tiles_in(literal_block(ROWS[:7])), [], "seven rows")
+        spaced = [row[:3] + " " + row[4:] for row in ROWS]
+        self.assertEqual(tiles_in(literal_block(spaced)), [], "a space is text")
+        apart = "\n".join(f'check("{row}");' for row in ROWS)
+        self.assertEqual(tiles_in(apart), [], "rows separated by code")
+        long = [row + "K" for row in ROWS]
+        self.assertEqual(tiles_in(literal_block(long)), [], "nine columns")
+
+    def test_the_tree_scan_reports_the_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "art.rs").write_text("fn f() {}\n" + literal_block(ROWS))
+            problems, _ = run(root, root / "none", ["art.rs"])
+        self.assertEqual(len(problems), 1, problems)
+        self.assertTrue(problems[0].startswith("art.rs:3: an 8x8 tile"), problems)
 
 
 class RealPack(unittest.TestCase):

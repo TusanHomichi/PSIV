@@ -33,7 +33,7 @@ fn input_script(seed: u32, length: usize) -> Vec<Input> {
 /// deliberately unmapped) and NPCs, so a long script hits every branch.
 fn cluttered_map() -> FieldMap {
     // Kept one row per line: the map is a picture, and reading it as one is the
-    // whole point of the ASCII fixtures.
+    // whole point of the ASCII fixtures. The map is synthetic.
     #[rustfmt::skip]
     let rows = [
         "..D..#..",
