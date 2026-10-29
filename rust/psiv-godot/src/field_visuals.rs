@@ -232,14 +232,8 @@ impl Field {
                     let frame = camp_receipt_frame(entry.index, &entry.sheet)
                         .unwrap_or_else(|| view.frame_at(&name, self.anim_tick));
                     view.apply(&mut entry.node, frame);
-                    let x = entry.base.0
-                        + (i32::from(w.cell.x) - entry.spawn.0) * 16
-                        + npc_offset.0
-                        + w.offset_16ths.0;
-                    let y = entry.base.1
-                        + (i32::from(w.cell.y) - entry.spawn.1) * 16
-                        + npc_offset.1
-                        + w.offset_16ths.1;
+                    let (x, y) =
+                        super::view::motion_pixel_position(w.cell, npc_offset, w.offset_16ths);
                     entry.node.set_position(Vector2::new(
                         (x - view.origin_x) as f32,
                         (y - view.origin_y

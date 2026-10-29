@@ -269,11 +269,8 @@ impl Field {
                 .runtime()
                 .and_then(|rt| rt.map().npcs().get(draw.index))
                 .map(|npc| (npc.cell, (i32::from(npc.offset.x), i32::from(npc.offset.y))));
-            let (base, spawn) = live.map_or(((draw.x, draw.y), (0, 0)), |(cell, offset)| {
-                (
-                    npc_pixel_position(cell, offset),
-                    (i32::from(cell.x), i32::from(cell.y)),
-                )
+            let base = live.map_or((draw.x, draw.y), |(cell, offset)| {
+                npc_pixel_position(cell, offset)
             });
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
@@ -296,7 +293,6 @@ impl Field {
                 idle: draw.idle,
                 index: draw.index,
                 base,
-                spawn,
             });
         }
     }
