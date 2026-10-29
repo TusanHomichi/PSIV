@@ -15,13 +15,17 @@ uncommitted changes under the keyed paths (and not one with changes
 elsewhere) and the main checkout, also from main's copy read on stdin, as the
 steward runs it. `LinkCase` repoints a stale link to a cached input and keeps
 a worktree's own directory. `PruneCase` removes only unused, unlocked
-entries and abandoned staging. `BuildCommandCase` checks the command and lock
-class each build runs under.
+entries and abandoned staging, judging each under its entry's lock.
+`ReadOnlyCase` shows a built entry refuses writes through the link and an
+in-place `regenerate` replaces the link instead. `FramesCase` keys the pack on
+the attack frames a worktree has. `BuildCommandCase` checks the command and
+lock class each build runs under.
 """
 
 import fcntl
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,8 +36,8 @@ from pathlib import Path
 from unittest import mock
 
 from tools import local_inputs
-from tools.local_inputs import (CACHE_DIR, ENTRIES, ROM_NAME, USED_FILE, Refused, build_with_lock,
-                                link, prune)
+from tools.local_inputs import (CACHE_DIR, ENTRIES, ROM_NAME, USED_FILE, BuildFailed, Refused,
+                                build_with_lock, link, prune)
 
 TOOL = Path(__file__).resolve().parents[1] / "tools" / "local_inputs.py"
 TIMEOUT = 30
@@ -59,8 +63,9 @@ class Builds:
     through the link: a read under `generated/` is `tests/test_extract_stamp.py`'s
     to refuse, and these entries are only stand-ins."""
 
-    def __init__(self, gate=None, started=None):
+    def __init__(self, gate=None, started=None, contents=False):
         self.calls = []
+        self.contents = contents
         self.builders = {}
         self.lock = threading.Lock()
         self.gate = gate
@@ -76,6 +81,9 @@ class Builds:
         if self.gate is not None:
             self.gate.wait(TIMEOUT)
         output.mkdir(parents=True)
+        if self.contents:
+            (output / "tables").mkdir()
+            (output / "tables" / "table.json").write_text("{}\n")
 
     def names(self):
         return sorted(name for name, _ in self.calls)
@@ -267,26 +275,164 @@ class LinkCase(ScratchCase):
 
 
 class PruneCase(ScratchCase):
-    def test_only_unused_unlocked_entries_and_abandoned_staging_go(self):
-        self.cache.mkdir(parents=True)
-        now = time.time()
-        old = now - local_inputs.PRUNE_AFTER_S - 60
-        for name, used in (("generated-old", old), ("generated-recent", now),
-                           ("runtime-pack-locked", old), ("runtime-pack-kept", old)):
+    def entries(self, **used):
+        """Entries under the cache, each last used at the given time."""
+        self.cache.mkdir(parents=True, exist_ok=True)
+        for name, when in used.items():
+            name = name.replace("_", "-")
             (self.cache / name).mkdir()
             (self.cache / name / USED_FILE).touch()
-            os.utime(self.cache / name / USED_FILE, (used, used))
-        dead = subprocess.Popen([sys.executable, "-c", "pass"])
-        dead.wait()
-        (self.cache / f".generated-x.build-{dead.pid}").mkdir()
-        (self.cache / f".generated-y.build-{os.getpid()}").mkdir()
-        with open(self.cache / ".runtime-pack-locked.lock", "w") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
-            removed = prune(self.cache, keep=self.cache / "runtime-pack-kept", now=now)
-        self.assertEqual(sorted(removed), [f".generated-x.build-{dead.pid}", "generated-old"])
+            os.utime(self.cache / name / USED_FILE, (when, when))
+
+    def held(self, label):
+        """Hold `label`'s entry lock, as a build or a reuse does."""
+        handle = open(self.cache / f".{label}.lock", "w")
+        self.addCleanup(handle.close)
+        fcntl.flock(handle, fcntl.LOCK_EX)
+
+    def test_only_unused_unlocked_entries_and_abandoned_staging_go(self):
+        now = time.time()
+        old = now - local_inputs.PRUNE_AFTER_S - 60
+        self.entries(generated_old=old, generated_recent=now, runtime_pack_locked=old,
+                     runtime_pack_kept=old)
+        (self.cache / ".generated-x.build-1").mkdir()
+        (self.cache / ".generated-y.build-2").mkdir()
+        (self.cache / ".generated-z.removing-3").mkdir()
+        self.held("runtime-pack-locked")
+        self.held("generated-y")
+        removed = prune(self.cache, keep=self.cache / "runtime-pack-kept", now=now)
+        self.assertEqual(sorted(removed), [".generated-x.build-1", ".generated-z.removing-3",
+                                           "generated-old"])
         self.assertEqual(sorted(p.name for p in self.cache.iterdir() if p.is_dir()),
-                         [f".generated-y.build-{os.getpid()}", "generated-recent",
-                          "runtime-pack-kept", "runtime-pack-locked"])
+                         [".generated-y.build-2", "generated-recent", "runtime-pack-kept",
+                          "runtime-pack-locked"])
+
+    def test_a_use_before_the_lock_is_taken_keeps_the_entry(self):
+        # A reuse that refreshes `used` and releases the lock just before the
+        # pruner takes it: the age has to be read under the lock.
+        now = time.time()
+        self.entries(generated_old=now - local_inputs.PRUNE_AFTER_S - 60)
+        take = local_inputs._try_lock
+
+        def reused_first(path):
+            os.utime(self.cache / "generated-old" / USED_FILE, (now, now))
+            return take(path)
+
+        with mock.patch.object(local_inputs, "_try_lock", reused_first):
+            removed = prune(self.cache, keep=self.cache / "kept", now=now)
+        self.assertEqual(removed, [])
+        self.assertTrue((self.cache / "generated-old").is_dir())
+
+    def test_an_entry_another_pruner_removed_is_passed_over(self):
+        now = time.time()
+        self.entries(generated_old=now - local_inputs.PRUNE_AFTER_S - 60)
+        take = local_inputs._try_lock
+
+        def removed_first(path):
+            shutil.rmtree(self.cache / "generated-old", ignore_errors=True)
+            return take(path)
+
+        with mock.patch.object(local_inputs, "_try_lock", removed_first):
+            self.assertEqual(prune(self.cache, keep=self.cache / "kept", now=now), [])
+
+    def test_a_built_read_only_entry_is_removed(self):
+        builds = Builds()
+        worktree = self.worktree("first")
+        link(worktree, build=builds)
+        entry = self.entry_of(worktree, "generated")
+        os.utime(entry / USED_FILE, (0, 0))
+        removed = prune(self.cache, keep=self.entry_of(worktree, "runtime-pack"))
+        self.assertEqual(removed, [entry.name])
+        self.assertFalse(os.path.lexists(entry))
+
+
+class ReadOnlyCase(ScratchCase):
+    def test_an_entry_is_read_only_once_built(self):
+        worktree = self.worktree("first")
+        link(worktree, build=Builds(contents=True))
+        for name in ("generated", "runtime-pack"):
+            for path in [worktree / name, *(worktree / name).rglob("*")]:
+                with self.subTest(path=path):
+                    self.assertFalse(path.stat().st_mode & 0o222, path)
+
+    @unittest.skipIf(os.geteuid() == 0, "root writes through any permission")
+    def test_a_write_through_the_link_is_refused(self):
+        worktree = self.worktree("first")
+        link(worktree, build=Builds(contents=True))
+        entry = self.entry_of(worktree, "generated")
+        before = sorted(p.name for p in (entry / "generated").rglob("*"))
+        for relative in ("new.json", "tables/new.json", "tables/table.json"):
+            with self.subTest(relative=relative), self.assertRaises(PermissionError):
+                (worktree / "generated" / relative).write_text("overwritten\n")
+        self.assertEqual(sorted(p.name for p in (entry / "generated").rglob("*")), before)
+
+    def test_regenerate_in_place_replaces_the_link_and_leaves_the_entry(self):
+        from psiv_tools import __main__ as cli
+        from psiv_tools import battle_art, gfx, planes
+
+        worktree = self.worktree("first")
+        link(worktree, build=Builds(contents=True))
+        entry = self.entry_of(worktree, "generated")
+        before = sorted(p.name for p in (entry / "generated").rglob("*"))
+
+        def extract(_data, output):
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "rebuilt.json").write_text("{}\n")
+
+        with mock.patch.object(cli, "_extract", extract), \
+                mock.patch.object(gfx, "export_art_pngs", lambda _data, _out: []), \
+                mock.patch.object(planes, "export_plane_pngs", lambda _data, _out: []), \
+                mock.patch.object(battle_art, "export_battle_art_pngs", lambda _data, _out: []), \
+                mock.patch("builtins.print"):
+            cli._regenerate(b"", worktree / "generated")
+        self.assertFalse((worktree / "generated").is_symlink())
+        self.assertTrue((worktree / "generated" / "rebuilt.json").is_file())
+        self.assertEqual(sorted(p.name for p in (entry / "generated").rglob("*")), before)
+
+
+class FramesCase(ScratchCase):
+    """The pack copies the ignored attack frames, so their contents key it."""
+
+    FRAMES = Path("oracle") / "fixtures" / "battle_animation_art"
+
+    def test_negative_control_a_worktrees_own_frame_gets_its_own_pack(self):
+        builds = Builds()
+        linked = self.worktree("linked")
+        link(linked, build=builds)
+        own = self.worktree("own")
+        (own / self.FRAMES).mkdir(parents=True, exist_ok=True)
+        (own / self.FRAMES / "frame.png").write_bytes(b"another png")
+        link(own, build=builds)
+        self.assertEqual(builds.calls[2:], [("runtime-pack", "own")])
+        self.assertNotEqual(self.entry_of(linked, "runtime-pack"), self.entry_of(own, "runtime-pack"))
+        self.assertEqual(self.entry_of(linked, "generated"), self.entry_of(own, "generated"))
+
+    def test_a_frame_changed_added_or_removed_in_the_main_checkout_rebuilds_the_pack(self):
+        builds = Builds()
+        link(self.worktree("before"), build=builds)
+        changes = {
+            "changed": lambda: (self.main / self.FRAMES / "frame.png").write_bytes(b"new png"),
+            "added": lambda: (self.main / self.FRAMES / "frame2.png").write_bytes(b"png 2"),
+            "removed": lambda: (self.main / self.FRAMES / "frame.png").unlink(),
+        }
+        for change, apply in changes.items():
+            with self.subTest(change=change):
+                apply()
+                link(self.worktree(change), build=builds)
+                self.assertEqual(builds.calls[-1], ("runtime-pack", change))
+        self.assertEqual(builds.names().count("generated"), 1)
+
+    def test_inputs_that_change_during_the_build_cache_nothing(self):
+        def changing(entry, worktree, rom, output):
+            output.mkdir(parents=True)
+            if entry.name == "runtime-pack":
+                (self.main / self.FRAMES / "frame.png").write_bytes(b"changed mid-build")
+
+        worktree = self.worktree("first")
+        with self.assertRaisesRegex(BuildFailed, "changed during the build"):
+            link(worktree, build=changing)
+        self.assertEqual([p.name for p in self.cache.iterdir() if p.is_dir()],
+                         [self.entry_of(worktree, "generated").name])
 
 
 class BuildCommandCase(ScratchCase):

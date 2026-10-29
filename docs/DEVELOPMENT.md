@@ -192,12 +192,16 @@ checkout has, except `generated/` and `runtime-pack`, which belong to a
 commit's extractor rather than to the main checkout. Those two link to a
 shared cache under the main checkout's `build/inputs/`, one entry per version
 of what builds them (the Git trees of `psiv_tools/` and, for the pack,
-`oracle/fixtures/`, and the ROM). The first worktree that needs an entry builds
-it under the heavy-run lock; any other worktree that needs it meanwhile waits
-and then links the same one. So a gate job or lane on a new extractor builds
-the pack once, not once per job. A worktree with uncommitted changes under
-those paths has no entry and is refused: build both in place there
-([Prepare the local pack](#prepare-the-local-pack)). The steward's gate job
+`oracle/fixtures/` and the attack frames above, and the ROM). The first
+worktree that needs an entry builds it under the heavy-run lock; any other
+worktree that needs it meanwhile waits and then links the same one. So a gate
+job or lane on a new extractor builds the pack once, not once per job. An entry
+is read-only once built, so nothing can change it under another job. A
+worktree with uncommitted changes under those paths has no entry and is
+refused: build both in place there
+([Prepare the local pack](#prepare-the-local-pack)); `regenerate` and `pack`
+replace a link at their output with the worktree's own directory rather than
+write through it. The steward's gate job
 runs main's copy (`git show origin/main:tools/local_inputs.py | python3 - link`),
 so a commit from before it still gets the cache.
 
