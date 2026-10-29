@@ -30,13 +30,15 @@ does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
 run, and inside it the heavy lock in `GATE_LOCK_CLASS`, exclusive, through
 `hold_heavy_lock` for every command (the gate's receipt is a timed,
 reproducible run, so nothing shares the machine with it; the receipt names the class at the top and on each command; a run under
-`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there, and
-`PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
+`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there; the
+full gate queues ahead of every other waiter, so a pull request's gate never waits behind
+queued lane work, and `PSIV_LOCK_PRIORITY=1` queues the fast tier as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
 wait would hold the heavy lock while waiting for the gate lock.
 Another gate holding the gate lock refuses the run with exit 2 and nothing
 run (a second gate exits at once instead of racing it; `--wait` waits for it
-instead, naming the holder once). A Godot that has the checkout's
+instead, naming the holder, and says how long it has waited every
+heavy_lock `WAIT_REPORT_S`). A Godot that has the checkout's
 `rust/target/debug/libpsiv_godot.so` mapped does not: cargo replaces that file
 with a new one rather than writing it in place, a non-editor Godot never
 re-reads it, the editor reloads it on focus by design, and every Godot a
@@ -66,7 +68,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from heavy_lock import (EXCLUSIVE, HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
-                        hold_heavy_lock, lock_holders)
+                        hold_heavy_lock, lock_holders, wait_reporting)
 from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
 EXIT_OK = 0
@@ -266,8 +268,9 @@ def git_info(root):
 def gate_lock(lock_file, wait=False):
     """Hold `lock_file` exclusively for the run.
 
-    When someone else holds it: refuse (GateRefused), or with `wait` print one
-    line naming the holder and block until it is free.
+    When someone else holds it: refuse (GateRefused), or with `wait` print a
+    line naming the holder and block until it is free, saying how long it has
+    waited and on whom every `WAIT_REPORT_S` (heavy_lock's `wait_reporting`).
     """
     lock_file = Path(lock_file)
     lock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -283,10 +286,13 @@ def gate_lock(lock_file, wait=False):
                     f"({exc.strerror or exc}); heavy runs are serialized one at a time"
                 ) from exc
             print(f"gate: waiting for {lock_file} held by pid {holders}", flush=True)
-            fcntl.flock(handle, fcntl.LOCK_EX)
+            os.close(handle)
+            handle = None
+            handle = wait_reporting(lock_file, fcntl.LOCK_EX, sys.stdout)
         yield handle
     finally:
-        os.close(handle)
+        if handle is not None:
+            os.close(handle)
 
 
 
@@ -408,7 +414,8 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     # lock order (heavy_lock's docstring) and can deadlock: refuse instead.
     nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())
     with gate_lock(lock_file, wait and not nested), \
-            hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS):
+            hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS,
+                            gate=tier == "full"):
         info = git_info(root)
         started = datetime.now(timezone.utc)
         receipt_dir.mkdir(parents=True, exist_ok=True)
