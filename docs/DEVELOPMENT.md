@@ -195,6 +195,7 @@ PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+python3 tools/pack_parity.py
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
@@ -245,6 +246,25 @@ distinction with the result.
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
 
+The last step, `tools/pack_parity.py`, holds `psiv-pack`, the Rust pack
+builder that replaces `python3 -m psiv_tools pack` at 1.0
+([#216](https://github.com/TusanHomichi/PSIV/issues/216)), to the Python
+builder. It builds `psiv-pack` in release, runs both builders on a file that is
+not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
+a section (`psiv-pack --claims` lists each section's paths), builds both packs
+from the ROM: every claimed JSON or binary file must be byte-identical, every
+PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
+claims. It prints `psiv-pack`'s wall time beside the load and clock, the number
+a port PR records. Until the switch the Python builder stays the pack everything
+uses, so a PR that edits a section `psiv-pack` already claims changes both
+builders alike: the gate fails on the Python change alone. Find whether a
+section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
+psiv-pack -- --claims`; `python3 tools/pack_parity.py --keep <dir>` keeps both
+packs for a look at a difference. A change to `psiv_tools/png.py` or to how
+the builder writes JSON also reruns `python3 tools/pack_parity.py
+--write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
+read (`tests/test_pack_parity.py` fails while they are stale).
+
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix
 `-fast`):
@@ -291,7 +311,7 @@ the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
 exact commit, in its own worktree with the inputs linked in, and record the
 verdict; the steward merges only once it is green. A gate missing an input is
 partial, and a partial gate is recorded as a failure.
-The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was

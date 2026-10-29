@@ -80,6 +80,7 @@ GATE_COMMANDS = [
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "python3 tools/pack_parity.py",
 ]
 
 #: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's

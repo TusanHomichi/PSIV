@@ -24,6 +24,7 @@ this module on macOS and Windows.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -305,6 +306,176 @@ class ConcurrentBuilds(Scratch):
         with mock.patch.object(pack_swap, "LINKS", False):
             self.install("v1")
         self.assertFalse(stale.exists())
+
+
+class PruneRace(Scratch):
+    """A build that made an old version, paused, then installed it and exited
+    while another build pruned: the pruner must not delete what the output
+    names by then (#225 review)."""
+
+    def late_version(self):
+        for index in range(KEEP_VERSIONS):
+            self.install(f"v{index}")
+        # Oldest by name, so the next prune considers it.
+        late = self.dir / f".runtime-pack.v20000101T000000000000Z-{StaleLinks.dead_pid()}"
+        write_pack(late, "late")
+        return late
+
+    def installs_then_exits(self, late):
+        def alive(pid):
+            if pid == int(late.name.rsplit("-", 1)[1]):
+                link = self.dir / ".runtime-pack.link-1-0a1b2c3d"
+                pack_swap._link(self.output, late, link, self.dir / "unused")
+            return False
+        return alive
+
+    @links
+    def test_the_newly_current_version_survives(self):
+        late = self.late_version()
+        with mock.patch.object(pack_swap, "_alive", self.installs_then_exits(late)):
+            pack_swap.prune(self.output)
+        self.assertTrue(late.is_dir())
+        self.assertEqual(consistent(self.output), "late")
+
+    @links
+    def test_negative_control_a_snapshot_taken_first_deletes_it(self):
+        late = self.late_version()
+        snapshot = os.path.realpath(self.output)
+        real = os.path.realpath
+        with mock.patch.object(pack_swap, "_alive", self.installs_then_exits(late)), \
+                mock.patch.object(pack_swap.os.path, "realpath",
+                                  lambda p: snapshot if Path(p) == self.output else real(p)):
+            pack_swap.prune(self.output)
+        self.assertFalse(late.exists())
+
+
+class PendingInThisProcess(Scratch):
+    """An install paused between its version and its commit while others in
+    this process installed and pruned: its version carries this process's id,
+    so liveness cannot protect it; it must survive and be installed (#225
+    review)."""
+
+    def paused_install(self, links, output=None):
+        """`output`: the paused install's spelling of the output; the others
+        use `self.output`."""
+        real = pack_swap._link if links else pack_swap._replace_directory
+        name = "_link" if links else "_replace_directory"
+        paused = []
+
+        def commit(output, version, *rest):
+            if not paused:
+                paused.append(version)
+                for index in range(KEEP_VERSIONS + 1):
+                    self.install(f"other{index}")
+                self.assertTrue(version.is_dir(), "the paused version was pruned")
+            return real(output, version, *rest)
+        with mock.patch.object(pack_swap, "LINKS", links), \
+                mock.patch.object(pack_swap, name, commit):
+            paused_output = self.output if output is None else output
+            self.assertEqual(install_atomically(paused_output, lambda d: write_pack(d, "paused")),
+                             "paused")
+        self.assertEqual(consistent(self.output), "paused")
+        self.assertFalse(pack_swap._pending, pack_swap._pending)
+
+    @links
+    def test_the_paused_version_survives_and_installs(self):
+        self.paused_install(links=True)
+
+    def test_the_paused_version_survives_and_installs_in_directory_mode(self):
+        self.paused_install(links=False)
+
+    def test_the_paused_version_survives_spelled_through_dotdot(self):
+        (self.dir / "sub").mkdir()
+        self.paused_install(pack_swap.LINKS, output=self.dir / "sub" / ".." / self.output.name)
+
+    def test_the_paused_version_survives_spelled_relative(self):
+        # Relative to the scratch directory itself: on Windows a path from
+        # the checkout's drive to the temp directory's cannot be relative.
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self.dir)
+        self.paused_install(pack_swap.LINKS, output=Path(self.output.name))
+
+    @links
+    def test_the_paused_version_survives_spelled_through_a_linked_parent(self):
+        alias = self.dir.parent / f"{self.dir.name}-alias"
+        alias.symlink_to(self.dir, target_is_directory=True)
+        self.addCleanup(alias.unlink)
+        self.paused_install(True, output=alias / self.output.name)
+
+    def test_negative_control_a_spelling_key_misses_the_alias(self):
+        (self.dir / "sub").mkdir()
+        with mock.patch.object(pack_swap, "_pending_key", lambda v: str(v.absolute())):
+            with self.assertRaises((AssertionError, OSError)):
+                self.paused_install(pack_swap.LINKS,
+                                    output=self.dir / "sub" / ".." / self.output.name)
+
+    def test_negative_control_without_the_registry_it_is_pruned(self):
+        with mock.patch.object(pack_swap, "_pending", mock.MagicMock()) as pending:
+            pending.__contains__.return_value = False
+            with self.assertRaises((AssertionError, OSError)):
+                self.paused_install(links=False)
+
+    def test_a_finished_version_of_this_process_is_still_pruned(self):
+        for index in range(KEEP_VERSIONS + 1):
+            self.install(f"v{index}")
+        expected = KEEP_VERSIONS if pack_swap.LINKS else 0
+        self.assertEqual(len(pack_swap.versions(self.output)), expected)
+
+
+class CleanupAfterCommit(Scratch):
+    """A failure after the output names the new pack is a warning, not an
+    error that claims the output is unchanged (#225 review)."""
+
+    def prune_fails_on(self, stuck):
+        """`shutil.rmtree` refusing only `stuck`, the one pruning candidate."""
+        real = shutil.rmtree
+
+        def rmtree(path, *args, **kwargs):
+            if Path(path) == stuck:
+                raise PermissionError("held")
+            return real(path, *args, **kwargs)
+        return mock.patch.object(pack_swap.shutil, "rmtree", rmtree)
+
+    def stuck_version(self):
+        stuck = self.dir / f".runtime-pack.v20000101T000000000000Z-{StaleLinks.dead_pid()}"
+        write_pack(stuck, "stuck")
+        return stuck
+
+    def pruning_failure_warns(self):
+        for index in range(KEEP_VERSIONS):
+            self.install(f"v{index}")
+        stuck = self.stuck_version()
+        with self.prune_fails_on(stuck):
+            with self.assertWarnsRegex(pack_swap.PackSwapWarning,
+                                       "pruning old versions failed") as caught:
+                self.assertEqual(self.install("new"), "new")
+        self.assertEqual(len(caught.warnings), 1, [str(w.message) for w in caught.warnings])
+        self.assertEqual(consistent(self.output), "new")
+        self.assertTrue(stuck.is_dir())
+
+    @links
+    def test_a_pruning_failure_warns_and_the_pack_is_installed(self):
+        self.pruning_failure_warns()
+
+    def test_a_pruning_failure_warns_in_directory_mode(self):
+        with mock.patch.object(pack_swap, "LINKS", False):
+            self.pruning_failure_warns()
+
+    def test_an_old_directory_left_behind_warns_in_directory_mode(self):
+        with mock.patch.object(pack_swap, "LINKS", False):
+            self.install("old")
+            with mock.patch.object(pack_swap.shutil, "rmtree",
+                                   side_effect=PermissionError("held")):
+                with self.assertWarnsRegex(pack_swap.PackSwapWarning,
+                                           "cannot remove the old pack"):
+                    self.assertEqual(self.install("new"), "new")
+        self.assertEqual(consistent(self.output), "new")
+
+    def test_negative_control_a_failure_before_the_commit_is_an_error(self):
+        self.install("old")
+        with self.assertRaises(RuntimeError):
+            install_atomically(self.output, lambda d: (_ for _ in ()).throw(RuntimeError("x")))
+        self.assertEqual(consistent(self.output), "old")
 
 
 class RefusedLinks(Scratch):
