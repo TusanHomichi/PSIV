@@ -128,7 +128,7 @@ How to read a row:
 | Feature | Owning paths | Player reach | Focused test | Ledger |
 | --- | --- | --- | --- | --- |
 | Sound driver, sequence playback and chip output | `rust/psiv-sound/src/driver.rs`, `rust/psiv-sound/src/sequence.rs`, `rust/psiv-sound/src/commands.rs`, `rust/psiv-sound/src/fm.rs`, `rust/psiv-sound/src/psg.rs`, `rust/psiv-sound/src/dac.rs`, `rust/psiv-sound/src/trace.rs`, `rust/psiv-sound/build.rs` | Music and effects play through the ported driver as screens and commands change | `cargo test --manifest-path rust/Cargo.toml -p psiv-sound --lib` | [The sound driver](sound/SOUND_DRIVER.md) |
-| Sound extraction and pack records | `psiv_tools/sound.py`, `psiv_tools/sound_defs.py`, `rust/psiv-pack/src/sound.rs`, `rust/psiv-pack/src/sound_defs.rs`, `rust/psiv-data/src/sound.rs`, `rust/psiv-data/src/sound/schema.rs` | The music and effects in the native build come from the extracted cartridge records | `PYTHONPATH=. python3 -m unittest tests.test_sound` | [Sound extraction](sound/SOUND_EXTRACTION.md) |
+| Sound extraction and pack records | `psiv_tools/sound.py`, `psiv_tools/sound_defs.py`, `rust/psiv-pack/src/sound/`, `rust/psiv-pack/src/sound_defs.rs`, `rust/psiv-data/src/sound.rs`, `rust/psiv-data/src/sound/schema.rs` | The music and effects in the native build come from the extracted cartridge records | `PYTHONPATH=. python3 -m unittest tests.test_sound` | [Sound extraction](sound/SOUND_EXTRACTION.md) |
 
 ## data and extraction — ROM readers, pack and pack validation
 
