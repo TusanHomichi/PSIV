@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "7s34fg0y5xxfb7zjs36czdwt51",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 218,
+  "url": "https://github.com/tusanhomichi/psiv/pull/218",
+  "summary": "Aiedo: Rocky's owner and the bail quest ($75, $80-$83)",
+  "task": "tusanhomichi/psiv#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "3f87a28d31b459df7e0547e2b92ccb00f561def328c52c68616b33c91f910fb9",
+    "before": "a985ad9e37cbdf16a07985d59e638e74fee9edb4",
+    "after": "789b3735a9eab9873cd87f177393cf4ebcb1922f",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793313488401
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/218#pullrequestreview-5700591430"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40903530114/job/123551970784"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "3jv7wavs97hx03wc5gmw48hvrt",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 229,
+  "url": "https://github.com/tusanhomichi/psiv/pull/229",
+  "summary": "py_suite: try a failed test once more under the flaky step",
+  "task": "tusanhomichi/psiv#200",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyD4kk2UcvMu9XenQvC"
+  },
+  "landing": {
+    "revision": "927b20b8f226383a94056a1fc8740c7c38eeb675e64687615a222a678bf03b81",
+    "before": "def1d148d1ca61672a0df20a83986f328ebb6365",
+    "after": "2a033b00c293802fe3e30a7438a9df68a8cf4606",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793313493957
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40825676010/job/123288045268"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/229#pullrequestreview-5693888635"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
