@@ -67,8 +67,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import (EXCLUSIVE, HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
-                        hold_heavy_lock, lock_holders, wait_reporting)
+from heavy_lock import (EXCLUSIVE, HELD_ENV, RUNNER_WAIT_ENV, gate_lock_path,  # noqa: E402
+                        heavy_lock_path, hold_heavy_lock, lock_holders, wait_reporting)
 from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
 EXIT_OK = 0
@@ -288,7 +288,8 @@ def gate_lock(lock_file, wait=False):
             print(f"gate: waiting for {lock_file} held by pid {holders}", flush=True)
             os.close(handle)
             handle = None
-            handle = wait_reporting(lock_file, fcntl.LOCK_EX, sys.stdout)
+            handle = wait_reporting(lock_file, fcntl.LOCK_EX, sys.stdout,
+                                    "PSIV's gate lock, while another gate runs")
         yield handle
     finally:
         if handle is not None:
@@ -319,13 +320,17 @@ def cargo_parallelism(cores):
 
 
 def gate_environment(environ, cores):
-    """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`.
+    """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`,
+    and without a job runner's wait directory (`RUNNER_WAIT_ENV`).
 
     Set, not defaulted: a caller's own `CARGO_BUILD_JOBS=1` would make the run
-    a different measurement from the one the receipt describes.
+    a different measurement from the one the receipt describes. The gate's
+    commands run under its locks, so any wait in them (a test's own holder)
+    is the gate's work, never a wait in line its runner should stop counting.
     """
     count = str(cargo_parallelism(cores))
-    return {**environ, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
+    kept = {key: value for key, value in environ.items() if key != RUNNER_WAIT_ENV}
+    return {**kept, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
 
 
 def _run_command(command, index, total, root, receipt_dir, env=None):

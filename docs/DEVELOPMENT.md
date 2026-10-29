@@ -451,6 +451,14 @@ table take their class themselves: never wrap them. A headless
 in its slot and unit files, and a process that finds a held file recording
 another value refuses with exit 2.
 
+A waiter, for the heavy lock or a gate for the gate lock, also tells a job
+runner that sets `PROJ_WAIT_DIR` that it is waiting in line, so the wait
+doesn't count against the job's time limit. That is how a gate proof on the
+machine can wait out a long lane run without being stopped. The steward's
+proof jobs run under burrow's proj, which sets it, and `runner_wait` in
+`tools/heavy_lock.py` owns how. The gate's own commands don't get it: any
+waiting inside them is the gate's work.
+
 One sizing rule holds for every class: its units are the fewest that keep at
 least 15% of the holding above its largest measured peak process-tree RSS,
 ceil(peak / (0.85 × 512 MB)), the RSS summed over every process of the job.
