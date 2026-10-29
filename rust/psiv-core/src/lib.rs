@@ -109,7 +109,7 @@ pub use bespoke::{
     BespokeActor, BespokeContext, BespokeFlag, BespokeFlags, BespokeKind, BespokeRandom,
     BespokeSet, FollowTarget, PATTERN_48F36, PATTERN_49128, PATTERN_ESPER_GUARD,
     PATTERN_ESPER_GUARD_SECOND, PATTERN_MUSK_GUARD, PATTERN_TYPE5, PATTERN_TYPE17, PATTERN_TYPE35,
-    PATTERN_TYPE36,
+    PATTERN_TYPE36, scene_routine_kind,
 };
 pub use camera::{
     Camera, CameraBounds, CameraEdges, CameraGates, CameraPlane, Driver, HOME_X, HOME_Y, ONE_PIXEL,
@@ -142,8 +142,8 @@ pub use save::{
     RetailSave, RetailSlot, SaveError,
 };
 pub use scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
-    SceneFault, SceneInput, SceneOp, ScriptedActor,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SavedByte,
+    SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
 pub use scene_presentation::{CreditsPlane, PaletteHold, PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};

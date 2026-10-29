@@ -1,9 +1,10 @@
-//! `stop_byte`: the byte under `Saved_Dialogue_Addr` when a dialogue stops.
+//! `stop_byte`: the byte under `Saved_Dialogue_Addr` when a dialogue stops,
+//! and `last_byte`, the one two before it.
 //!
 //! Retail data throughout, so each case skips with a message when the local
 //! pack is absent.
 
-use super::{segment_byte, stop_byte_at};
+use super::{last_byte_at, segment_byte, segment_last_byte, stop_byte_at};
 use crate::dialogue::{DialogueRunner, DialogueSignal};
 use crate::pad::{Button, Pad};
 use psiv_core::GameState;
@@ -77,6 +78,71 @@ fn every_entry_opens_on_the_byte_its_segments_give() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn every_entry_closes_on_the_byte_its_segments_give() {
+    // `-$2(a0)` after a terminator is the entry's last byte before its `$FF`.
+    let Some(set) = pack() else {
+        return;
+    };
+    let mut wrong = Vec::new();
+    let mut previous = None;
+    for (tree, id, bytes) in raw_entries() {
+        let entry = set.entry(tree, id).expect("the pack has the entry");
+        let rebuilt = last_byte_at(&set, tree, id, entry.segments.len(), false);
+        let actual = match bytes.last() {
+            Some(&byte) => Some(byte),
+            // An empty entry: the byte before its terminator is the previous
+            // entry's.
+            None => (previous == Some(tree)).then_some(0xFF),
+        };
+        if rebuilt != actual {
+            wrong.push(format!(
+                "tree {tree} entry {id}: rebuilt {rebuilt:?}, raw {actual:?}"
+            ));
+        }
+        previous = Some(tree);
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn every_f7_closes_on_the_byte_before_it() {
+    // `-$2(a0)` after an `$F7` is the byte the text ran just before it.
+    let Some(set) = pack() else {
+        return;
+    };
+    let mut checked = 0;
+    for (tree, id, bytes) in raw_entries() {
+        let entry = set.entry(tree, id).expect("the pack has the entry");
+        let closes = entry.segments.iter().enumerate().filter(
+            |(_, segment)| matches!(segment, psiv_data::Segment::Control(c) if c.code() == 0xF7),
+        );
+        let raw_closes = bytes.iter().enumerate().filter(|&(_, &b)| b == 0xF7);
+        for ((index, _), (at, _)) in closes.zip(raw_closes) {
+            let expected = at.checked_sub(1).map_or(0xFF, |before| bytes[before]);
+            assert_eq!(
+                last_byte_at(&set, tree, id, index + 1, true),
+                Some(expected),
+                "tree {tree} entry {id} close at segment {index}"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "retail text has `$F7` closes");
+}
+
+#[test]
+fn a_control_closes_on_its_last_operand() {
+    // Negative control for the rebuild: a `$FA` check's last byte is its
+    // entry operand, not its code.
+    let Some(set) = pack() else {
+        return;
+    };
+    let entry = set.entry(11, 0x52).unwrap();
+    assert_eq!(segment_last_byte(&set, &entry.segments[0]), Some(0x01));
+    assert_eq!(segment_byte(&set, &entry.segments[0]), Some(0xFA));
 }
 
 #[test]
@@ -195,4 +261,37 @@ fn the_storm_answer_ends_elsewhere_too() {
         return;
     };
     assert_ne!(stop, Some(0x35));
+}
+
+fn bail(answer: bool, covered: bool) -> Option<(Option<u8>, Option<u8>)> {
+    let set = pack()?;
+    let mut runner = DialogueRunner::with_pack(set);
+    let mut game = GameState::new();
+    if covered {
+        game.set(psiv_core::Flag::event(0x7F)).unwrap();
+    }
+    assert!(runner.open_scene_entry(11, 0x51, false, &game));
+    play(&mut runner, &mut game, &[answer]);
+    Some((runner.last_byte(), runner.stop_byte()))
+}
+
+#[test]
+fn a_covered_bail_ends_on_the_exclamation_mark_before_its_terminator() {
+    // `Event_PayingGirlsBail`'s `cmpi.b #$3A, -$2(a0)`: YES jumps to entry
+    // `$52`, whose `$FA $7F $01` takes a covered purse on to `$53`, the one
+    // that ends on `!`.
+    let Some((last, _)) = bail(true, true) else {
+        return;
+    };
+    assert_eq!(last, Some(0x3A));
+}
+
+#[test]
+fn an_uncovered_bail_or_a_no_ends_on_a_period() {
+    for (answer, covered) in [(true, false), (false, true), (false, false)] {
+        let Some((last, _)) = bail(answer, covered) else {
+            return;
+        };
+        assert_eq!(last, Some(0x35), "answer {answer}, covered {covered}");
+    }
 }

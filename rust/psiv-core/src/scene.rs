@@ -7,28 +7,9 @@
 //! despawns. This module implements that vocabulary once as [`SceneOp`] and
 //! runs sequences of it deterministically.
 //!
-//! # Actor motion is the same movement model as everything else
-//!
-//! A scripted walk is not a special animation: the cartridge's
-//! `Event_MoveSingleObject` / `Event_MoveCharacters` set an object's
-//! `dest_x_pos`/`dest_y_pos` and then call the ordinary object update until
-//! `curr == dest`. The object's direction comes from `FieldObj_GetAutoInput`
-//! (`ps4.asm:93232`), which compares current against destination one axis at a
-//! time — X first unless `Char_Move_Flags` bit 1 is set. So a scene actor
-//! walks in whole cell-steps at the same rate as the party, and turns to face
-//! the way it walks. [`ScriptedActor`] is exactly that.
-//!
-//! # Blocking
-//!
-//! The runner executes ops until it reaches one that blocks — a wait, a
-//! dialogue, a choice, or the end. Everything non-blocking in between runs in
-//! the same tick, which is what makes a "set three flags and move the camera"
-//! run of ops take one tick rather than three.
-//!
-//! Dialogue is the interesting one: the runner emits
-//! [`SceneEffect::DialogueOpen`] and then stops advancing until the runtime
-//! reports the window closed with [`SceneInput::DialogueClosed`]. The engine
-//! neither draws nor times the window; it only knows the script is waiting.
+//! How the runner blocks lives with the machine (`scene_runner.rs`), and why
+//! scripted actor motion reuses the ordinary movement model with the actor
+//! (`scene_runner/actor.rs`).
 
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
@@ -37,7 +18,8 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneEffect, SceneFault,
+    SceneInput,
 };
 
 /// How many ops one tick may execute before the runner assumes the script is
@@ -244,7 +226,13 @@ pub enum SceneOp {
     /// text would run next: the continuation after an `$F7`, or the first byte
     /// of the next entry after a terminator. The runtime reports it when the
     /// dialogue closes; with no dialogue run yet nothing is equal.
+    ///
+    /// `at` picks the displacement: `(a0)` reads that byte, `-$2(a0)`
+    /// (`Event_PayingGirlsBail`, `$072CC2`) the one before the `$F7` or
+    /// terminator that stopped the text, the last byte the text ran.
     BranchIfSavedDialogueByte {
+        /// Which byte around the saved address.
+        at: SavedByte,
         /// The literal.
         value: u8,
         /// Op index taken when the byte equals it.
@@ -454,6 +442,20 @@ pub enum SceneOp {
         /// How many consecutive objects the block clear covers.
         count: usize,
     },
+    /// Give a map object a new `FieldObjectsJmpTbl` routine (`move.w
+    /// #routine, (a4)`) and run that one object a frame at a time (`jsr` the
+    /// routine, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare`)
+    /// until the routine clears its own slot (`tst.w (a4) / bne`):
+    /// `Event_AiedoManCrushOnAlys` at `$06BE96`. No other object moves
+    /// meanwhile. The runtime runs the routine
+    /// ([`crate::scene_routine_kind`]); the runner blocks until the
+    /// object is gone from the map.
+    RunObjectRoutine {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
     /// Write a field object's `dialogue_id` (`$14(a4)`): the line it speaks
     /// the next time it is talked to. The guards at the Esper Mansion door are
     /// the first user: `Event_EsperGuardPermission` writes `1` or `2` into
@@ -575,6 +577,24 @@ pub enum SceneOp {
     AddMoney {
         /// How much.
         amount: u32,
+    },
+    /// Take from the purse, unchecked: `subi.l #amount, (Current_Money).w`
+    /// (`Event_PayingGirlsBail`, `$072CCA`), after a [`SceneOp::BranchIfMoneyBelow`].
+    SubtractMoney {
+        /// How much.
+        amount: u32,
+    },
+    /// Branch on the purse against a literal: `move.l (Current_Money).w, d0 /
+    /// subi.l #amount, d0 / bmi` (`Event_PayingGirlsBail`, `$072C82`): the
+    /// branch reads the sign bit of the longword difference, which for any
+    /// purse below `$80000000` is a below-the-literal test.
+    BranchIfMoneyBelow {
+        /// The literal.
+        amount: u32,
+        /// Op index taken when the difference is negative.
+        if_below: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
     },
     /// Hand control to a battle (`Event_Battle_Index` + the routine-exit bit).
     StartBattle {

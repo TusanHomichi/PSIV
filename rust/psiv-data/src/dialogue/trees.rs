@@ -366,6 +366,23 @@ impl Ctrl {
         }
     }
 
+    /// The operand bytes that followed the code.
+    #[must_use]
+    pub fn operands(&self) -> &[u8] {
+        match self {
+            Ctrl::Action { operands, .. }
+            | Ctrl::KeepNpcFacing { operands, .. }
+            | Ctrl::Portrait { operands, .. }
+            | Ctrl::YesNo { operands, .. }
+            | Ctrl::Event { operands, .. }
+            | Ctrl::Close { operands, .. }
+            | Ctrl::Delay { operands, .. }
+            | Ctrl::FlagCheck { operands, .. }
+            | Ctrl::Newline { operands, .. }
+            | Ctrl::Wait { operands, .. } => operands,
+        }
+    }
+
     /// The code byte `TextCtrlCodesJmpTbl` reaches this handler from.
     #[must_use]
     pub const fn expected_code(&self) -> u8 {

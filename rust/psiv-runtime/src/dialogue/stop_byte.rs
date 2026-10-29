@@ -1,4 +1,5 @@
-//! The byte under `Saved_Dialogue_Addr` after a dialogue closes.
+//! The byte under `Saved_Dialogue_Addr` after a dialogue closes, and the one
+//! two before it.
 //!
 //! `Event_Gyuna` ends with `popdlg` and `cmpi.b #$35, (a0)`
 //! (`$070C9A..$070CA6`): it reads whatever the text engine stored when the
@@ -21,6 +22,12 @@
 //! those would read differently, and
 //! `tests::every_entry_opens_on_the_byte_its_segments_give` holds the rebuild
 //! to the pack's own `raw_hex` for every entry.
+//!
+//! `Event_PayingGirlsBail` reads `-$2(a0)` instead (`cmpi.b #$3A, -$2(a0)`,
+//! `$072CC2`): `a0 - 1` is the `$F7` or terminator, so the byte is the last
+//! one the text ran, a glyph or a control's last operand.
+//! `tests::every_entry_closes_on_the_byte_its_segments_give` holds that
+//! rebuild to `raw_hex` too.
 
 use super::DialogueRunner;
 use psiv_data::{DialogueSet, Segment};
@@ -66,6 +73,44 @@ pub(super) fn stop_byte_at(
     }
 }
 
+/// The last byte `segment` was decoded from: a text run's last glyph, or a
+/// control's last operand (its code when it takes none).
+pub(super) fn segment_last_byte(set: &DialogueSet, segment: &Segment) -> Option<u8> {
+    match segment {
+        Segment::Control(ctrl) => Some(ctrl.operands().last().copied().unwrap_or(ctrl.code())),
+        Segment::Text(run) => {
+            let last = run.chars().next_back()?;
+            set.font.by_char.get(&last).copied()
+        }
+    }
+}
+
+/// The byte at `-$2(a0)` after the same stop as [`stop_byte_at`]: `a0 - 1` is
+/// the `$F7` or terminator that stopped the text, so this is the byte before
+/// it, the last one the text ran. An `$F7` or an empty entry at the very start
+/// of an entry has the previous entry's terminator there.
+pub(super) fn last_byte_at(
+    set: &DialogueSet,
+    tree: u8,
+    entry_id: u16,
+    index: usize,
+    at_close: bool,
+) -> Option<u8> {
+    let entry = set.entry(tree, entry_id)?;
+    // The segments before the stopping byte: up to the `$F7` (the segment
+    // before `index`), or the whole entry before its terminator.
+    let ran = if at_close {
+        index.checked_sub(1)?
+    } else {
+        entry.segments.len()
+    };
+    match ran.checked_sub(1) {
+        Some(last) => segment_last_byte(set, entry.segments.get(last)?),
+        None if entry_id > 0 => Some(TERMINATOR),
+        None => None,
+    }
+}
+
 impl DialogueRunner {
     /// Records where the flow about to be dropped (or already suspended)
     /// stopped. Called by `close_window`, the one place every close passes.
@@ -82,6 +127,7 @@ impl DialogueRunner {
             return;
         };
         self.stop_byte = stop_byte_at(set, tree, entry_id, index, at_close);
+        self.last_byte = last_byte_at(set, tree, entry_id, index, at_close);
     }
 
     /// The byte under the saved dialogue address after the last dialogue that
@@ -89,6 +135,13 @@ impl DialogueRunner {
     #[must_use]
     pub(crate) fn stop_byte(&self) -> Option<u8> {
         self.stop_byte
+    }
+
+    /// The byte at `-$2(a0)` after the same stop, which `popdlg` / `cmpi.b
+    /// #n, -$2(a0)` reads (`Event_PayingGirlsBail`).
+    #[must_use]
+    pub(crate) fn last_byte(&self) -> Option<u8> {
+        self.last_byte
     }
 }
 
