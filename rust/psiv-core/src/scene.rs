@@ -456,6 +456,18 @@ pub enum SceneOp {
         /// The routine's `FieldObjectsJmpTbl` offset.
         routine: u16,
     },
+    /// Give a map object a new `FieldObjectsJmpTbl` routine (`move.w
+    /// #routine, (a4)`) and carry on: the routine runs with every other
+    /// object from the next field frame. `Event_StrippersAppearing` turns the
+    /// strip club's customer into `$34C` this way (`$0735AE`). The runtime
+    /// installs [`crate::scene_routine_kind`]; unlike
+    /// [`SceneOp::RunObjectRoutine`] nothing waits on the object.
+    SetObjectRoutine {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
     /// Write a field object's `dialogue_id` (`$14(a4)`): the line it speaks
     /// the next time it is talked to. The guards at the Esper Mansion door are
     /// the first user: `Event_EsperGuardPermission` writes `1` or `2` into

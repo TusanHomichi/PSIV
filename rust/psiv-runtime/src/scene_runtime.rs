@@ -395,6 +395,18 @@ impl Runtime {
                     });
                 }
             }
+            // `move.w #routine, (a4)` with the scene carrying on: the routine
+            // word is the object's id from now on (the visibility test and
+            // the renderer read it), and its routine runs with the others.
+            SceneEffect::ObjectRoutineSet { npc_index, routine } => {
+                self.wander.remove(npc_index);
+                let _ = self.map.set_npc_id(npc_index, psiv_core::NpcId(routine));
+                if let Some(kind) = psiv_core::scene_routine_kind(routine) {
+                    self.bespoke.install(npc_index, kind);
+                } else {
+                    self.bespoke.remove(npc_index);
+                }
+            }
             SceneEffect::NpcDespawned { npc_index, count } => {
                 for i in npc_index..npc_index + count {
                     let _ = self.map.set_npc_active(i, false);

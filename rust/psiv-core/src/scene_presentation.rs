@@ -147,6 +147,29 @@ pub enum PresentationOp {
         /// Destination Y in pixels.
         y: i32,
     },
+    /// Give a scene-created object a destination its routine walks to:
+    /// `FieldObj_GetAutoInput` closes the X gap first, then Y, one cell at a
+    /// time at the normal step (`$0200`, two pixels a frame). The scene's own
+    /// wait carries the frames; the object walks beside it.
+    WalkObject {
+        /// Field-object slot.
+        slot: usize,
+        /// Destination X in pixels.
+        x: i32,
+        /// Destination Y in pixels.
+        y: i32,
+    },
+    /// Give a scene-created object constant step words that its routine adds
+    /// every frame from now on (`FieldObj_UpdatePosition`), as
+    /// `FieldObj_StripperCoat` does with `$FFFE`/`$FFFF` in the high words.
+    DriftObject {
+        /// Field-object slot.
+        slot: usize,
+        /// Signed 16.16 X step per frame.
+        step_x: i32,
+        /// Signed 16.16 Y step per frame.
+        step_y: i32,
+    },
     /// Patch a dialogue record's portrait before opening it.
     SetDialoguePortrait {
         /// Dialogue entry whose record was patched.

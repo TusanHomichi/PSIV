@@ -193,8 +193,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | scene `Event_DominatorsDefeated` |
 | `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | scene `Event_WeaponPlantArrival` |
 | `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | allowlisted, #81 |
-| `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | allowlisted, #81 |
-| `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | allowlisted, #81 |
+| `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
+| `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
 | `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 31 |
+| #81 | Motavia side content | 29 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 39 |
+| | total | 37 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
