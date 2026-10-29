@@ -21,15 +21,20 @@ main checkout's `build/inputs/`, keyed by what builds them:
 The builders read nothing else that Git does not track: the other linked
 inputs (the oracle's captures, the disassembly, saves) are for the tests.
 
-A missing entry is built by the first worktree that needs it, with this
-commit's `psiv_tools` under the heavy-run lock, into a staging directory that
-is renamed into place only once the build succeeded. A second worktree that
-needs the same entry meanwhile waits on the entry's lock, saying so every
-`WAIT_REPORT_S`, and then links it: a stale pack is built once, not once per
-gate job. Each link records the use, under the entry's lock; an entry unused
-for `PRUNE_AFTER_S` is removed after the next build, under the same lock, so a
-use and a removal never cross. A worktree with uncommitted changes under the
-keyed paths has no key, so it is refused, and builds in place instead.
+A missing entry is built by the first worktree that needs it, under the
+heavy-run lock, into a staging directory that is renamed into place only once
+the build succeeded. The build reads a snapshot of exactly what the key names,
+copied into the staging directory first: the keyed trees checked out from Git
+(not the worktree's files, which can change while it runs), the attack frames
+and the ROM. A second worktree that needs the same entry meanwhile waits on
+the entry's lock, saying so every `WAIT_REPORT_S`, and then links it: a stale
+pack is built once, not once per gate job. Whatever it waited for, a job
+checks its inputs again once it holds the lock, and looks again under the new
+key if they changed. Each link records the use, under the entry's lock; an
+entry unused for `PRUNE_AFTER_S` is removed after the next build, under the
+same lock, so a use and a removal never cross. A worktree with uncommitted
+changes under the keyed paths has no key, so it is refused, and builds in place
+instead.
 
 An entry is read-only once built: every worktree that links it reads the same
 files, so a write through a link fails rather than changing another job's
@@ -41,7 +46,7 @@ The steward's gate job runs main's copy on any commit
 (`git show origin/main:tools/local_inputs.py | python3 - link`), so this file
 imports nothing from `tools/`; the builds go through the worktree's own
 `tools/heavy_lock.py`. Exit 0 linked, 1 a build failed (nothing cached), 2
-refused (nothing changed).
+refused (the message says why).
 """
 
 from __future__ import annotations
@@ -93,6 +98,9 @@ PRUNE_AFTER_S = 3 * 24 * 3600
 USED_FILE = "used"
 KEY_FILE = "key.json"
 
+#: How many times a job looks again when its inputs changed while it waited.
+ATTEMPTS = 3
+
 
 class Refused(Exception):
     """Nothing was linked; the message says why."""
@@ -113,18 +121,23 @@ class Entry:
     lock_class: str
     command: tuple[str, ...]
 
-    def key(self, worktree: Path, rom_sha256: str) -> dict:
+    def trees_at(self, worktree: Path) -> dict[str, str]:
+        """The Git tree id of each keyed path at the worktree's HEAD."""
+        return {tree: _git(worktree, "rev-parse", f"HEAD:{tree}") for tree in self.trees}
+
+    def key(self, trees: dict[str, str], root: Path, rom: Path) -> dict:
+        """The key of a build from `trees`, the ignored files under `root` and `rom`."""
         return {
             "format": KEY_FORMAT,
             "input": self.name,
-            "rom_sha256": rom_sha256,
-            "trees": {tree: _git(worktree, "rev-parse", f"HEAD:{tree}") for tree in self.trees},
-            "files": {pattern: files_digest(worktree, pattern) for pattern in self.files},
+            "rom_sha256": hashlib.sha256(rom.read_bytes()).hexdigest(),
+            "trees": trees,
+            "files": {pattern: files_digest(root, pattern) for pattern in self.files},
         }
 
 
 #: What each cached input is built from and by. The command's `{rom}` and
-#: `{output}` are filled in; it runs in the worktree, under the heavy lock.
+#: `{output}` are filled in; it runs in the snapshot, under the heavy lock.
 ENTRIES = (
     Entry("generated", ("psiv_tools",), (), "python",
           ("python3", "-m", "psiv_tools", "regenerate", "{rom}", "{output}")),
@@ -133,12 +146,12 @@ ENTRIES = (
 )
 
 
-def _git(cwd: Path, *args: str) -> str:
+def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
-                            check=False)
+                            env=env, check=False)
     if result.returncode != 0:
         raise Refused(f"git {' '.join(args)} failed in {cwd}: {result.stderr.strip()}")
-    return result.stdout.strip()
+    return result.stdout.rstrip("\n")  # a porcelain status line starts with a space
 
 
 def main_checkout(worktree: Path) -> Path:
@@ -159,11 +172,36 @@ def files_digest(worktree: Path, pattern: str) -> str:
     return hashlib.sha256(json.dumps(files).encode("utf-8")).hexdigest()
 
 
-def build_with_lock(entry: Entry, worktree: Path, rom: Path, output: Path) -> None:
-    """Build `entry` into `output` with the worktree's `psiv_tools`, under its heavy lock."""
-    command = [part.format(rom=rom, output=output) for part in entry.command]
-    subprocess.run([sys.executable, "tools/heavy_lock.py", "run", "--class", entry.lock_class,
-                    "--", *command], cwd=worktree, check=True)
+def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) -> None:
+    """Build `entry` into `output` from the snapshot `source` (its `psiv_tools`
+    is the one `python3 -m` finds there), under the worktree's heavy lock."""
+    command = [part.format(rom=source / ROM_NAME, output=output) for part in entry.command]
+    heavy_lock = worktree / "tools" / "heavy_lock.py"
+    lock = subprocess.run([sys.executable, str(heavy_lock)], cwd=worktree, capture_output=True,
+                          text=True, check=True).stdout.strip()
+    subprocess.run([sys.executable, str(heavy_lock), "run", "--class", entry.lock_class,
+                    "--", *command], cwd=source, env={**os.environ, "PSIV_HEAVY_LOCK": lock},
+                   check=True)
+
+
+def snapshot(entry: Entry, worktree: Path, trees: dict[str, str], rom: Path,
+             source: Path) -> None:
+    """Copy what `entry`'s key names into the new directory `source`: the keyed
+    trees checked out from Git by id, the worktree's ignored files and the ROM."""
+    index = source.with_name(source.name + ".index")
+    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+    try:
+        for tree, tree_id in trees.items():
+            _git(worktree, "read-tree", f"--prefix={tree}/", tree_id, env=env)
+        _git(worktree, "checkout-index", "--all", f"--prefix={source}/", env=env)
+    finally:
+        index.unlink(missing_ok=True)
+    for pattern in entry.files:
+        for path in sorted(worktree.glob(pattern)):
+            target = source / path.relative_to(worktree)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+    shutil.copyfile(rom, source / ROM_NAME)
 
 
 def _say(message: str) -> None:
@@ -231,44 +269,66 @@ def _remove(path: Path) -> None:
     shutil.rmtree(path)
 
 
-def ensure_entry(entry: Entry, worktree: Path, cache: Path, rom: Path, rom_sha256: str,
+def ensure_entry(entry: Entry, worktree: Path, cache: Path, rom: Path,
                  build: Callable[[Entry, Path, Path, Path], None] = build_with_lock) -> Path:
     """The entry directory for this commit's `entry`, built first if no job has."""
-    key = entry.key(worktree, rom_sha256)
-    label = f"{entry.name}-{key_digest(key)}"
-    directory = cache / label
     cache.mkdir(parents=True, exist_ok=True)
-    descriptor = _lock(cache / f".{label}.lock", label)
+    for _ in range(ATTEMPTS):
+        trees = entry.trees_at(worktree)
+        key = entry.key(trees, worktree, rom)
+        label = f"{entry.name}-{key_digest(key)}"
+        directory = cache / label
+        descriptor = _lock(cache / f".{label}.lock", label)
+        try:
+            # The worktree may have changed while this waited: check it again,
+            # holding the lock, before linking or building anything.
+            _refuse_dirty(worktree, entry.trees)
+            if entry.key(entry.trees_at(worktree), worktree, rom) != key:
+                _say(f"{entry.name}: its inputs changed while waiting for {label}; "
+                     "looking again")
+                continue
+            if directory.is_dir():
+                _say(f"{entry.name}: reusing {label}")
+            else:
+                _build(entry, worktree, rom, trees, key, directory, build)
+                prune(cache, keep=directory)
+            (directory / USED_FILE).touch()
+            return directory
+        finally:
+            os.close(descriptor)
+    raise BuildFailed(f"{entry.name}: its inputs changed {ATTEMPTS} times while waiting; "
+                      "nothing was linked")
+
+
+def _build(entry: Entry, worktree: Path, rom: Path, trees: dict[str, str], key: dict,
+           directory: Path, build: Callable[[Entry, Path, Path, Path], None]) -> None:
+    """Build `entry` from a snapshot of the inputs `key` names into a staging
+    directory, renamed to `directory` once it is read-only and holds its key;
+    on any failure nothing is left."""
+    staging = directory.with_name(f".{directory.name}.build-{os.getpid()}")
+    if staging.exists():
+        _remove(staging)
+    staging.mkdir()
+    started = time.monotonic()
+    _say(f"{entry.name}: building {directory.name} for this commit")
     try:
-        if directory.is_dir():
-            _say(f"{entry.name}: reusing {label}")
-        else:
-            staging = cache / f".{label}.build-{os.getpid()}"
-            if staging.exists():
-                _remove(staging)
-            staging.mkdir()
-            started = time.monotonic()
-            _say(f"{entry.name}: building {label} for this commit")
-            try:
-                build(entry, worktree, rom, staging / entry.name)
-                if entry.key(worktree, rom_sha256) != key:
-                    raise BuildFailed(f"{entry.name}: its inputs changed during the build, "
-                                      "so nothing was cached; run this again")
-                _freeze(staging)
-                (staging / KEY_FILE).write_text(json.dumps(key, indent=2, sort_keys=True) + "\n")
-                os.rename(staging, directory)
-            except BaseException:
-                try:
-                    _remove(staging)
-                except OSError:
-                    pass  # the next prune removes it: its lock is free once this returns
-                raise
-            _say(f"{entry.name}: built {label} in {_duration(time.monotonic() - started)}")
-            prune(cache, keep=directory)
-        (directory / USED_FILE).touch()
-    finally:
-        os.close(descriptor)
-    return directory
+        source = staging / "source"
+        snapshot(entry, worktree, trees, rom, source)
+        if entry.key(trees, source, source / ROM_NAME) != key:
+            raise BuildFailed(f"{entry.name}: its inputs changed while they were copied, "
+                              "so nothing was cached; run this again")
+        build(entry, worktree, source, staging / entry.name)
+        _remove(source)
+        _freeze(staging)
+        (staging / KEY_FILE).write_text(json.dumps(key, indent=2, sort_keys=True) + "\n")
+        os.rename(staging, directory)
+    except BaseException:
+        try:
+            _remove(staging)
+        except OSError:
+            pass  # the next prune removes it: its lock is free once this returns
+        raise
+    _say(f"{entry.name}: built {directory.name} in {_duration(time.monotonic() - started)}")
 
 
 def _last_use(entry: Path) -> float | None:
@@ -341,9 +401,15 @@ def _link(worktree: Path, relative: str, target: Path, repoint: bool = False) ->
     return True
 
 
-def _dirty(worktree: Path, trees: tuple[str, ...]) -> list[str]:
+def _refuse_dirty(worktree: Path, trees: tuple[str, ...]) -> None:
+    """Refuse a worktree with uncommitted changes under `trees`: no key names them."""
     status = _git(worktree, "status", "--porcelain", "--untracked-files=all", "--", *trees)
-    return [line[3:] for line in status.splitlines()]
+    dirty = [line[3:] for line in status.splitlines()]
+    if dirty:
+        raise Refused("uncommitted changes under the paths that key generated/ and runtime-pack "
+                      f"({', '.join(dirty[:5])}{', ...' if len(dirty) > 5 else ''}), so this "
+                      "tree has no cache entry. Commit them, or build both in place: "
+                      "docs/DEVELOPMENT.md, \"Prepare the local pack\"")
 
 
 def link(worktree: Path, build: Callable[[Entry, Path, Path, Path], None] = build_with_lock) -> None:
@@ -356,12 +422,7 @@ def link(worktree: Path, build: Callable[[Entry, Path, Path, Path], None] = buil
     if not rom.is_file():
         raise Refused(f"the main checkout has no ROM ({ROM_NAME}); generated/ and "
                       "runtime-pack cannot be built")
-    dirty = _dirty(worktree, tuple(sorted({tree for entry in ENTRIES for tree in entry.trees})))
-    if dirty:
-        raise Refused("uncommitted changes under the paths that key generated/ and runtime-pack "
-                      f"({', '.join(dirty[:5])}{', ...' if len(dirty) > 5 else ''}), so this "
-                      "tree has no cache entry. Commit them, or build both in place: "
-                      "docs/DEVELOPMENT.md, \"Prepare the local pack\"")
+    _refuse_dirty(worktree, tuple(sorted({tree for entry in ENTRIES for tree in entry.trees})))
 
     cached = {entry.name for entry in ENTRIES}
     for relative in LINKED_INPUTS:
@@ -379,10 +440,9 @@ def link(worktree: Path, build: Callable[[Entry, Path, Path, Path], None] = buil
             _say(f"{pattern}: {len(sources) - own} linked from the main checkout"
                  + (f", {own} kept" if own else ""))
 
-    rom_sha256 = hashlib.sha256(rom.read_bytes()).hexdigest()
     cache = main / CACHE_DIR
     for entry in ENTRIES:
-        directory = ensure_entry(entry, worktree, cache, rom, rom_sha256, build)
+        directory = ensure_entry(entry, worktree, cache, rom, build)
         if not _link(worktree, entry.name, directory / entry.name, repoint=True):
             _say(f"{entry.name}: kept this worktree's own (a directory, not a link); "
                  "remove it to use the shared one")

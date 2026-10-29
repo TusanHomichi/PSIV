@@ -193,10 +193,12 @@ commit's extractor rather than to the main checkout. Those two link to a
 shared cache under the main checkout's `build/inputs/`, one entry per version
 of what builds them (the Git trees of `psiv_tools/` and, for the pack,
 `oracle/fixtures/` and the attack frames above, and the ROM). The first
-worktree that needs an entry builds it under the heavy-run lock; any other
-worktree that needs it meanwhile waits and then links the same one. So a gate
-job or lane on a new extractor builds the pack once, not once per job. An entry
-is read-only once built, so nothing can change it under another job. A
+worktree that needs an entry builds it under the heavy-run lock, from a copy of
+exactly those inputs taken from Git and the main checkout; any other worktree
+that needs it meanwhile waits, checks its inputs again, and then links the
+same one. So a gate job or lane on a new extractor builds the pack once, not
+once per job. An entry is read-only once built, so nothing can change it under
+another job. A
 worktree with uncommitted changes under those paths has no entry and is
 refused: build both in place there
 ([Prepare the local pack](#prepare-the-local-pack)); `regenerate` and `pack`

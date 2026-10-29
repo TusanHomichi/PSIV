@@ -18,8 +18,11 @@ a worktree's own directory. `PruneCase` removes only unused, unlocked
 entries and abandoned staging, judging each under its entry's lock.
 `ReadOnlyCase` shows a built entry refuses writes through the link and an
 in-place `regenerate` replaces the link instead. `FramesCase` keys the pack on
-the attack frames a worktree has. `BuildCommandCase` checks the command and
-lock class each build runs under.
+the attack frames a worktree has. `SnapshotCase` shows a build reads a copy of
+what its key names, so an edit while it runs does not reach it, and
+`WaitCase` that a job checks its inputs again once it holds the lock.
+`BuildCommandCase` checks the command, directory and lock each build runs
+with.
 """
 
 import fcntl
@@ -36,11 +39,12 @@ from pathlib import Path
 from unittest import mock
 
 from tools import local_inputs
-from tools.local_inputs import (CACHE_DIR, ENTRIES, ROM_NAME, USED_FILE, BuildFailed, Refused,
-                                build_with_lock, link, prune)
+from tools.local_inputs import (CACHE_DIR, ENTRIES, ROM_NAME, USED_FILE, Refused, build_with_lock,
+                                link, prune)
 
 TOOL = Path(__file__).resolve().parents[1] / "tools" / "local_inputs.py"
 TIMEOUT = 30
+FRAMES = Path("oracle") / "fixtures" / "battle_animation_art"
 
 IGNORED = """/generated
 /runtime-pack
@@ -57,7 +61,8 @@ def git(cwd, *args):
 
 
 class Builds:
-    """A fake builder: records each build and which worktree built each entry.
+    """A fake builder: records each build, which worktree built each entry and
+    what it read from its snapshot (the extractor, the ROM and the frames).
 
     It keeps the record itself rather than writing a marker to read back
     through the link: a read under `generated/` is `tests/test_extract_stamp.py`'s
@@ -67,15 +72,22 @@ class Builds:
         self.calls = []
         self.contents = contents
         self.builders = {}
+        self.read = {}
         self.lock = threading.Lock()
         self.gate = gate
         self.started = started
 
-    def __call__(self, entry, worktree, rom, output):
+    def __call__(self, entry, worktree, source, output):
+        frames = source / FRAMES
+        read = {"extractor": (source / "psiv_tools" / "core.py").read_text(),
+                "rom": (source / ROM_NAME).read_bytes(),
+                "frames": {path.name: path.read_bytes() for path in sorted(frames.glob("*.png"))}}
         with self.lock:
             self.calls.append((entry.name, Path(worktree).name))
             # The staging directory, `.<label>.build-<pid>`, becomes the entry `<label>`.
-            self.builders[output.parent.name[1:].rpartition(".build-")[0]] = Path(worktree).name
+            label = output.parent.name[1:].rpartition(".build-")[0]
+            self.builders[label] = Path(worktree).name
+            self.read[label] = read
         if self.started is not None:
             self.started.set()
         if self.gate is not None:
@@ -91,6 +103,10 @@ class Builds:
     def builder(self, worktree, name):
         """The worktree whose build `worktree`'s `name` links to."""
         return self.builders[(Path(worktree) / name).resolve().parent.name]
+
+    def inputs(self, worktree, name):
+        """What the build `worktree`'s `name` links to read."""
+        return self.read[(Path(worktree) / name).resolve().parent.name]
 
 
 class ScratchCase(unittest.TestCase):
@@ -210,7 +226,7 @@ class ConcurrentCase(ScratchCase):
 
 class FailureCase(ScratchCase):
     def test_a_failed_build_caches_nothing(self):
-        def failing(entry, worktree, rom, output):
+        def failing(entry, worktree, source, output):
             output.mkdir(parents=True)
             raise subprocess.CalledProcessError(1, ["build"])
 
@@ -229,7 +245,7 @@ class RefusalCase(ScratchCase):
             with self.subTest(relative=relative):
                 worktree = self.worktree(f"dirty-{relative.replace('/', '-')}")
                 (worktree / relative).write_text("uncommitted\n")
-                with self.assertRaisesRegex(Refused, "uncommitted changes"):
+                with self.assertRaisesRegex(Refused, f"uncommitted changes .*\\({relative}\\)"):
                     link(worktree, build=Builds())
                 self.assertFalse(os.path.lexists(worktree / "reference"))
                 self.assertFalse(self.cache.exists())
@@ -393,7 +409,7 @@ class ReadOnlyCase(ScratchCase):
 class FramesCase(ScratchCase):
     """The pack copies the ignored attack frames, so their contents key it."""
 
-    FRAMES = Path("oracle") / "fixtures" / "battle_animation_art"
+    FRAMES = FRAMES
 
     def test_negative_control_a_worktrees_own_frame_gets_its_own_pack(self):
         builds = Builds()
@@ -422,37 +438,123 @@ class FramesCase(ScratchCase):
                 self.assertEqual(builds.calls[-1], ("runtime-pack", change))
         self.assertEqual(builds.names().count("generated"), 1)
 
-    def test_inputs_that_change_during_the_build_cache_nothing(self):
-        def changing(entry, worktree, rom, output):
-            output.mkdir(parents=True)
+    def test_a_frame_changed_during_the_build_reaches_only_the_next_key(self):
+        builds = Builds()
+
+        def changing(entry, worktree, source, output):
             if entry.name == "runtime-pack":
                 (self.main / self.FRAMES / "frame.png").write_bytes(b"changed mid-build")
+            builds(entry, worktree, source, output)
+
+        first = self.worktree("first")
+        link(first, build=changing)
+        self.assertEqual(builds.inputs(first, "runtime-pack")["frames"], {"frame.png": b"png"})
+        second = self.worktree("second")
+        link(second, build=builds)
+        self.assertEqual(builds.calls[-1], ("runtime-pack", "second"))
+        self.assertEqual(builds.inputs(second, "runtime-pack")["frames"],
+                         {"frame.png": b"changed mid-build"})
+
+
+class SnapshotCase(ScratchCase):
+    """A build reads a copy of what its key names, never the worktree's files."""
+
+    def test_an_edit_during_the_build_does_not_reach_it(self):
+        builds = Builds()
+
+        def editing(entry, worktree, source, output):
+            extractor = Path(worktree) / "psiv_tools" / "core.py"
+            committed = extractor.read_text()
+            extractor.write_text("EXTRACTOR = 'uncommitted'\n")
+            builds(entry, worktree, source, output)
+            extractor.write_text(committed)
 
         worktree = self.worktree("first")
-        with self.assertRaisesRegex(BuildFailed, "changed during the build"):
-            link(worktree, build=changing)
-        self.assertEqual([p.name for p in self.cache.iterdir() if p.is_dir()],
-                         [self.entry_of(worktree, "generated").name])
+        link(worktree, build=editing)
+        for name in ("generated", "runtime-pack"):
+            with self.subTest(name=name):
+                self.assertEqual(builds.inputs(worktree, name),
+                                 {"extractor": "EXTRACTOR = 1\n", "rom": b"not a cartridge",
+                                  "frames": {"frame.png": b"png"} if name == "runtime-pack"
+                                  else {}})
+                self.assertEqual(sorted(p.name for p in self.entry_of(worktree, name).iterdir()),
+                                 sorted([name, "key.json", USED_FILE]))
+
+
+class WaitCase(ScratchCase):
+    """Whatever a job waited for, it checks its inputs again holding the lock."""
+
+    def link_changing_while_waiting(self, worktree, name, change, builds):
+        """Link `worktree`, applying `change` while it waits for its first `name` entry."""
+        take = local_inputs._lock
+        pending = [change]
+
+        def waited(path, label):
+            if label.startswith(f"{name}-") and pending:
+                pending.pop()()
+            return take(path, label)
+
+        with mock.patch.object(local_inputs, "_lock", waited):
+            link(worktree, build=builds)
+
+    def test_frames_changed_while_waiting_are_not_served_the_old_pack(self):
+        builds = Builds()
+        link(self.worktree("first"), build=builds)
+        second = self.worktree("second")
+        self.link_changing_while_waiting(
+            second, "runtime-pack",
+            lambda: (self.main / FRAMES / "frame.png").write_bytes(b"new png"), builds)
+        self.assertEqual(builds.calls[-1], ("runtime-pack", "second"))
+        self.assertEqual(builds.inputs(second, "runtime-pack")["frames"], {"frame.png": b"new png"})
+
+    def test_a_head_moved_while_waiting_is_served_its_own_extract(self):
+        builds = Builds()
+        first = self.worktree("first")
+        link(first, build=builds)
+        newer = self.commit("psiv_tools/core.py", "EXTRACTOR = 2\n")
+        second = self.worktree("second", commit=git(first, "rev-parse", "HEAD"))
+        self.link_changing_while_waiting(
+            second, "generated", lambda: git(second, "checkout", "-q", "--detach", newer), builds)
+        self.assertEqual(builds.inputs(second, "generated")["extractor"], "EXTRACTOR = 2\n")
+
+    def test_an_edit_while_waiting_is_refused(self):
+        builds = Builds()
+        link(self.worktree("first"), build=builds)
+        second = self.worktree("second")
+        with self.assertRaisesRegex(Refused, "uncommitted changes"):
+            self.link_changing_while_waiting(
+                second, "generated",
+                lambda: (second / "psiv_tools" / "core.py").write_text("EXTRACTOR = 3\n"),
+                builds)
+        self.assertFalse(os.path.lexists(second / "generated"))
 
 
 class BuildCommandCase(ScratchCase):
-    def test_each_build_runs_the_worktrees_builder_under_its_heavy_lock(self):
+    def test_each_build_runs_in_its_snapshot_under_the_worktrees_heavy_lock(self):
+        # The worktree's heavy_lock.py prints the lock's path with no arguments
+        # and records each `run` with the directory and lock it ran with.
         worktree = self.worktree("first")
         (worktree / "tools").mkdir()
+        calls = self.scratch / "calls.json"
         (worktree / "tools" / "heavy_lock.py").write_text(
-            "import json, pathlib, sys\n"
-            "calls = pathlib.Path('calls.json')\n"
+            "import json, os, pathlib, sys\n"
+            "if len(sys.argv) == 1:\n"
+            "    print(pathlib.Path.cwd().name + '.lock')\n"
+            "    sys.exit(0)\n"
+            f"calls = pathlib.Path({str(calls)!r})\n"
             "seen = json.loads(calls.read_text()) if calls.exists() else []\n"
-            "calls.write_text(json.dumps(seen + [sys.argv[1:]]))\n")
-        rom, output = self.main / ROM_NAME, worktree / "out"
+            "calls.write_text(json.dumps(seen + [[pathlib.Path.cwd().name,\n"
+            "                                     os.environ['PSIV_HEAVY_LOCK'], sys.argv[1:]]]))\n")
+        source, output = self.scratch / "source", self.scratch / "out"
+        source.mkdir()
         for entry in ENTRIES:
-            build_with_lock(entry, worktree, rom, output)
-        calls = json.loads((worktree / "calls.json").read_text())
-        self.assertEqual(calls, [
-            ["run", "--class", "python", "--", "python3", "-m", "psiv_tools", "regenerate",
-             str(rom), str(output)],
-            ["run", "--class", "pack", "--", "python3", "-m", "psiv_tools", "pack",
-             str(rom), str(output)],
+            build_with_lock(entry, worktree, source, output)
+        rom = str(source / ROM_NAME)
+        self.assertEqual(json.loads(calls.read_text()), [
+            ["source", "first.lock", ["run", "--class", "python", "--", "python3", "-m",
+                                      "psiv_tools", "regenerate", rom, str(output)]],
+            ["source", "first.lock", ["run", "--class", "pack", "--", "python3", "-m",
+                                      "psiv_tools", "pack", rom, str(output)]],
         ])
 
 
