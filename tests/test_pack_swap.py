@@ -389,7 +389,11 @@ class PendingInThisProcess(Scratch):
         self.paused_install(pack_swap.LINKS, output=self.dir / "sub" / ".." / self.output.name)
 
     def test_the_paused_version_survives_spelled_relative(self):
-        self.paused_install(pack_swap.LINKS, output=Path(os.path.relpath(self.output)))
+        # Relative to the scratch directory itself: on Windows a path from
+        # the checkout's drive to the temp directory's cannot be relative.
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(self.dir)
+        self.paused_install(pack_swap.LINKS, output=Path(self.output.name))
 
     @links
     def test_the_paused_version_survives_spelled_through_a_linked_parent(self):
