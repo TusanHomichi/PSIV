@@ -9,9 +9,11 @@ waiters, and the negative control, the same waiter without it, keeps its place
 in arrival order. `GateTierCase` shows `run_gate` queues the full gate at the
 gate rank and the fast tier below it. `StillWaitingCase` waits in-process with
 a short `WAIT_REPORT_S`: a heavy-lock waiter and a gate waiting for the gate
-lock with `--wait` each print a line saying how long they have waited and the
-holder's pid, class, age and command line; with the period longer than the
-wait (the negative control), neither prints one. `FlockErrorCase` fails the
+lock with `--wait` each print lines saying how long they have waited and the
+holder's pid, class, age and command line (the holder lets go only once two
+have appeared, so a loaded host slows the case down rather than failing it);
+with the period longer than the wait (the negative control), neither prints
+one. `FlockErrorCase` fails the
 blocking flock with ENOLCK: the heavy-lock queue head and the gate waiting for
 the gate lock each raise it, leave no descriptor open and no queue entry behind,
 instead of waiting forever.
@@ -49,10 +51,12 @@ with hold_heavy_lock(sys.argv[1], gate=sys.argv[4] == "gate"):
     open(sys.argv[2], "a").write(sys.argv[3] + "\\n")
 """
 
-#: How long a waiter here waits before its holder lets go, and the short
-#: report period that must show at least two still-waiting lines in it.
+#: How long a negative control's holder holds after its waiter's first line,
+#: and the short report period whose still-waiting lines the positive cases
+#: wait for (up to TIMEOUT: a loaded host scans /proc slowly) before letting go.
 WAIT_S = 1.5
 SHORT_PERIOD_S = 0.4
+STILL_LINES = 2
 
 
 class GateRankCase(LockProcesses):
@@ -150,20 +154,32 @@ class StillWaitingCase(unittest.TestCase):
         self.assertEqual(holder.stdout.readline().strip(), "held")
         return holder
 
-    def wait_through(self, holder, wait):
-        """Run `wait()` in a thread, let `holder` go after WAIT_S, and return
-        what the wait printed."""
+    def wait_through(self, holder, wait, lines):
+        """Run `wait()` in a thread and return what it printed. Once the wait
+        has printed its first line, `holder` lets go when it has printed
+        `lines` still-waiting lines too, or WAIT_S later when `lines` is 0;
+        each wait for output gives up at TIMEOUT."""
         output = io.StringIO()
         thread = threading.Thread(target=wait, args=(output,))
         thread.start()
-        time.sleep(WAIT_S)
+        deadline = time.monotonic() + TIMEOUT
+
+        def printed(text, count):
+            while output.getvalue().count(text) < count and time.monotonic() < deadline:
+                time.sleep(0.05)
+
+        printed("waiting for ", 1)
+        if lines:
+            printed("\nstill waiting", lines)
+        else:
+            time.sleep(WAIT_S)
         self.assertTrue(thread.is_alive(), "the wait must block while the holder holds")
         stop(holder)
         thread.join(timeout=TIMEOUT)
         self.assertFalse(thread.is_alive())
         return output.getvalue()
 
-    def heavy_wait(self, period):
+    def heavy_wait(self, period, lines):
         lock = self.dir / "build" / "continuation-heavy.lock"
         lock.parent.mkdir()
         holder = self.hold(lock)
@@ -173,9 +189,9 @@ class StillWaitingCase(unittest.TestCase):
                 pass
 
         with mock.patch.object(heavy_lock_module, "WAIT_REPORT_S", period):
-            return lock, holder, self.wait_through(holder, wait)
+            return lock, holder, self.wait_through(holder, wait, lines)
 
-    def gate_wait(self, period):
+    def gate_wait(self, period, lines):
         lock = gate_lock_path(self.dir)
         lock.parent.mkdir(parents=True)
         holder = self.hold(lock)
@@ -186,33 +202,33 @@ class StillWaitingCase(unittest.TestCase):
 
         # gate.py imports heavy_lock as a top-level module: patch the one it calls.
         with mock.patch.dict(gate_module.wait_reporting.__globals__, WAIT_REPORT_S=period):
-            return lock, holder, self.wait_through(holder, wait)
+            return lock, holder, self.wait_through(holder, wait, lines)
 
     def assert_still_lines(self, lock, holder, output):
         lines = [line for line in output.splitlines() if line.startswith("still waiting")]
-        self.assertGreaterEqual(len(lines), 2, output)
+        self.assertGreaterEqual(len(lines), STILL_LINES, output)
         self.assertIn(f"still waiting for {lock} after ", lines[0])
         self.assertIn(f"held by pid {holder.pid} (exclusive, up ", lines[0])
         self.assertIn(" s): ", lines[0])
         self.assertIn("import fcntl, sys, time", lines[0])  # the holder's command line
 
     def test_a_heavy_lock_waiter_says_how_long_and_on_whom(self):
-        lock, holder, output = self.heavy_wait(SHORT_PERIOD_S)
+        lock, holder, output = self.heavy_wait(SHORT_PERIOD_S, STILL_LINES)
         self.assertIn(f"waiting for {lock} held by pid {holder.pid} (exclusive)", output)
         self.assert_still_lines(lock, holder, output)
 
     def test_negative_control_a_longer_period_prints_no_still_line(self):
-        lock, _, output = self.heavy_wait(TIMEOUT)
+        lock, _, output = self.heavy_wait(TIMEOUT, 0)
         self.assertIn(f"waiting for {lock}", output)
         self.assertNotIn("still waiting", output)
 
     def test_a_gate_waiting_for_the_gate_lock_says_how_long_and_on_whom(self):
-        lock, holder, output = self.gate_wait(SHORT_PERIOD_S)
+        lock, holder, output = self.gate_wait(SHORT_PERIOD_S, STILL_LINES)
         self.assertIn(f"gate: waiting for {lock} held by pid {holder.pid}", output)
         self.assert_still_lines(lock, holder, output)
 
     def test_negative_control_the_gate_lock_with_a_longer_period(self):
-        lock, _, output = self.gate_wait(TIMEOUT)
+        lock, _, output = self.gate_wait(TIMEOUT, 0)
         self.assertIn(f"gate: waiting for {lock}", output)
         self.assertNotIn("still waiting", output)
 
