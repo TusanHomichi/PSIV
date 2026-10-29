@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "6eczycw1bdckh4fh2h10ay3sam",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 230,
+  "url": "https://github.com/tusanhomichi/psiv/pull/230",
+  "summary": "heavy_lock: queue the full gate first and keep saying whom a waiter waits on",
+  "task": "https://claude.ai/code/project/chan_01Ad4f4oDXfFTCEzLHzMTD8q?thread=cmsg_01Ad4f4oDXfFTCEzLHzMTD8qTFRcqCkgxDyjt9PYnFoUBv",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyCvY8ZFkqfakd3Jzct"
+  },
+  "landing": {
+    "revision": "65611e9d3b55dc81a8e6f1ce7aacaeb8b5dc31f98c4cec3912a96dfa84366865",
+    "before": "c80abed6f406a2e4b6fd1878c1129fecbb4b3249",
+    "after": "e91f689e604a406a9b84034aaaec55dda24156f3",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793252601393
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/230#pullrequestreview-5692471697"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40811556412/job/123242806341"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
