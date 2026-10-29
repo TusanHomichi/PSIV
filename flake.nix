@@ -187,16 +187,25 @@
           });
         };
 
-      # The documentation check needs no local inputs; it skips the ps4.asm
-      # citations without the disassembly (docs/DEVELOPMENT.md#run-checks).
-      # It lists the change's files with git (tools/repo_files.py), so it
-      # runs in a fresh repository holding the tree.
+      # The documentation and size checks need no local inputs; the first
+      # skips the ps4.asm citations without the disassembly
+      # (docs/DEVELOPMENT.md#run-checks). Both list the change's files with
+      # git (tools/repo_files.py), so they run in a fresh repository holding
+      # the tree.
       docsCheck = pkgs: {
         docs = pkgs.runCommand "psiv-docs" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
           python3 tools/check_docs.py
+          touch $out
+        '';
+        # The 1,000-line rule (tools/size_guard.py).
+        size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          python3 tools/size_guard.py
           touch $out
         '';
       };
