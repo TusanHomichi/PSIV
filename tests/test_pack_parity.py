@@ -20,6 +20,7 @@ from pathlib import Path
 from psiv_tools.core import EXPECTED_SHA256, RomError, read_rom, wrong_rom_message
 from psiv_tools.png import encode_indexed
 from tools import pack_parity
+from tools.pack_parity import PROBES, compare_probe
 from tools.pack_parity import (FIXTURE, check_output, check_progress, check_wrong_rom, compare,
                                fixture_text)
 
@@ -158,6 +159,33 @@ class NoClaimsCase(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-none-") as tmp:
             self.assertEqual(check_output(Path(tmp) / "rust", []),
                              ["psiv-pack left no pack directory at rust"])
+
+
+class ProbeCase(unittest.TestCase):
+    """The probe comparison: the documents must be identical text."""
+
+    DOC = '{\n  "names": {\n    "a": 1\n  }\n}'
+
+    def test_identical_documents_pass(self):
+        self.assertEqual(compare_probe(self.DOC, self.DOC), [])
+
+    def test_a_changed_value_names_its_line(self):
+        problems = compare_probe(self.DOC, self.DOC.replace("1", "2"))
+        self.assertEqual(len(problems), 1)
+        self.assertTrue(problems[0].startswith("probe: line 3 differs"), problems)
+
+    def test_a_missing_tail_fails(self):
+        problems = compare_probe(self.DOC, self.DOC.rsplit("\n", 1)[0])
+        self.assertIn("<end>", problems[0])
+
+    def test_key_order_counts(self):
+        """The Rust writer sorts as json.dumps(sort_keys=True); an unsorted
+        document is a difference, not an equivalent."""
+        unsorted = '{\n  "b": 1,\n  "a": 2\n}'
+        self.assertNotEqual(compare_probe('{\n  "a": 2,\n  "b": 1\n}', unsorted), [])
+
+    def test_the_probes_are_named(self):
+        self.assertEqual(sorted(PROBES), ["cram", "names"])
 
 
 class ProgressCase(unittest.TestCase):

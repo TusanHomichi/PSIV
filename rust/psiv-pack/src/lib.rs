@@ -35,10 +35,13 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
+pub mod gfx;
 pub mod install;
 pub mod json;
+pub mod m68k;
 pub mod png;
 pub mod rom;
+pub mod text;
 
 pub use rom::Rom;
 

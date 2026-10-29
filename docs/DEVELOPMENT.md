@@ -254,7 +254,10 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. It prints `psiv-pack`'s wall time beside the load and clock, the number
+claims. A ported extractor that no claimed section writes yet is a probe:
+`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
+tool builds the same from the Python extractors, and the two must be the same
+text. It prints `psiv-pack`'s wall time beside the load and clock, the number
 a port PR records. Until the switch the Python builder stays the pack everything
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. Find whether a
