@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "6980ns4hg024x4n60ah25jbp36",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 237,
+  "url": "https://github.com/tusanhomichi/psiv/pull/237",
+  "summary": "heavy_lock: tell a job runner while a run waits in line",
+  "task": "FieldmouseWorks/remi#176",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyDhMu74PjVCmyWpXkF"
+  },
+  "landing": {
+    "revision": "d9ccead99b2092310d6c069480d2c04cbaa9e7b838451ca2052ed1b7efe3f27a",
+    "before": "92365abd5353aac0a2b779c5356732bf9de4ebf9",
+    "after": "be9a4f8032989db4446d469bd446eae1ec20c3d8",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793317829298
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/237#pullrequestreview-5700967414"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40907508833/job/123566191055"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
