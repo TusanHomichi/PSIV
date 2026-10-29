@@ -20,7 +20,7 @@ release and checks it against the Python builder from the same ROM:
    build is skipped, and the output is still checked: it must be an
    installed directory holding no link and nothing outside the claims.
 3. The decoders: every Nemesis, Kosinski and Enigma call a full Python build
-   makes is listed, by decoder, offset and arguments, in the census
+   attempts, refused ones included, is listed, by decoder, offset and arguments, in the census
    (`rust/psiv-pack/tests/fixtures/decode_census.json`, written by
    `--write-census`). Both decode every listed stream from the ROM; each
    output (by SHA-256) and consumed length must agree, and both must refuse
@@ -236,17 +236,28 @@ def fixture_text():
 # Decoders
 # ---------------------------------------------------------------------------
 def census_calls(rom: bytes) -> list[dict]:
-    """Every decompressor call a full Python build makes, as census entries:
-    the decoder and its arguments, never the bytes. Every call reads the ROM
-    itself; one that does not is an error, because the census could not name
-    its input."""
+    """Every decompressor call a full Python build attempts, as census
+    entries (`census_entries`)."""
     from psiv_tools import decode_cache, pack_sections
     from psiv_tools.pack import build_pack
     with pack_sections.fresh(), decode_cache.scope() as table, \
             tempfile.TemporaryDirectory(prefix="psiv-census-") as scratch:
         build_pack(rom, Path(scratch))
+    return census_entries(table, rom)
+
+
+def census_entries(table, rom: bytes) -> list[dict]:
+    """A decode table's decompressor calls as census entries: the decoder and
+    its arguments, never the bytes, one per distinct call. Every attempt is
+    listed, including one the decoder refused and its caller caught
+    (`battle_art._is_mapping` tells art from mappings that way), so both
+    builders must refuse it alike. A call that does not read the ROM itself is
+    an error, because the census could not name its input."""
+    if table.unkeyed:
+        raise ValueError(f"{table.unkeyed} decoder calls read a mutable buffer; "
+                         "the census can only name ROM offsets")
     calls = []
-    for name, data, *args in table.decodes:
+    for name, data, *args in table.attempts:
         if name not in DECODERS:
             continue
         if data is not rom and data != rom:
@@ -257,7 +268,7 @@ def census_calls(rom: bytes) -> list[dict]:
             entry.update(base_tile=args[1], max_words=args[2])
         calls.append(entry)
     return sorted(calls, key=lambda c: (c["decoder"], c["offset"], c.get("base_tile", 0),
-                                        c.get("max_words") or 0))
+                                        c.get("max_words") is not None, c.get("max_words") or 0))
 
 
 def python_decode(rom: bytes, call: dict) -> dict:

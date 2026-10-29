@@ -21,7 +21,7 @@ from pathlib import Path
 from psiv_tools.core import EXPECTED_SHA256, RomError, read_rom, wrong_rom_message
 from psiv_tools.png import encode_indexed
 from tools import pack_parity
-from tools.pack_parity import CENSUS, compare_decodes
+from tools.pack_parity import CENSUS, census_entries, compare_decodes
 from tools.pack_parity import (FIXTURE, check_output, check_progress, check_wrong_rom, compare,
                                fixture_text)
 
@@ -191,6 +191,50 @@ class DecodeCase(unittest.TestCase):
 
     def test_a_missing_result_fails(self):
         self.assertEqual(len(compare_decodes(self.CALLS, self.PYTHON, self.PYTHON[:1])), 1)
+
+    def test_the_census_lists_refused_calls_once_each(self):
+        from psiv_tools import enigma, nemesis
+        from psiv_tools.decode_cache import scope
+        # Byte 0 is past the end once the offset is 2, so both decoders refuse
+        # there; a caller catches the refusal, as battle_art._is_mapping does.
+        rom = bytes(2)
+        with scope() as table:
+            for _ in range(2):
+                for call in (lambda: nemesis.decompress(rom, 2),
+                             lambda: enigma.decompress(rom, 2, 0x10, 2048),
+                             lambda: enigma.decompress(rom, 2, 0x10, None),
+                             lambda: enigma.decompress(rom, 2, 0x20, 2048),
+                             lambda: enigma.decompress(rom, 2, 0x10)):
+                    with self.assertRaises(ValueError):
+                        call()
+        self.assertEqual(table.decodes, {}, "every call was refused")
+        self.assertEqual(census_entries(table, rom), [
+            {"decoder": "enigma", "offset": 2, "base_tile": 0x10, "max_words": None},
+            {"decoder": "enigma", "offset": 2, "base_tile": 0x10, "max_words": 2048},
+            {"decoder": "enigma", "offset": 2, "base_tile": 0x20, "max_words": 2048},
+            {"decoder": "nemesis", "offset": 2},
+        ])
+        # And both builders' refusals are compared like any result.
+        calls = census_entries(table, rom)
+        refused = [{"error": "x"}] * len(calls)
+        decoded = [{"consumed": 2, "sha256": "aa"}] + refused[1:]
+        self.assertEqual(compare_decodes(calls, refused, refused), [])
+        self.assertEqual(len(compare_decodes(calls, refused, decoded)), 1)
+
+    def test_the_census_refuses_inputs_it_cannot_name(self):
+        from psiv_tools import kosinski
+        from psiv_tools.decode_cache import scope
+        rom = bytes(4)
+        with scope() as table:
+            with self.assertRaises(ValueError):
+                kosinski.decompress(bytearray(rom), 8)
+        with self.assertRaisesRegex(ValueError, "mutable buffer"):
+            census_entries(table, rom)
+        with scope() as table:
+            with self.assertRaises(ValueError):
+                kosinski.decompress(rom[1:], 8)
+        with self.assertRaisesRegex(ValueError, "other than the ROM"):
+            census_entries(table, rom)
 
     def test_the_census_names_calls_only(self):
         census = json.loads(CENSUS.read_text(encoding="utf-8"))

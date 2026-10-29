@@ -1600,6 +1600,12 @@
       "base_tile": 0,
       "decoder": "enigma",
       "max_words": 2048,
+      "offset": 2457106
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
       "offset": 2458066
     },
     {
@@ -1625,6 +1631,12 @@
       "decoder": "enigma",
       "max_words": 2048,
       "offset": 2458154
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2459358
     },
     {
       "base_tile": 0,
