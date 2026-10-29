@@ -9,6 +9,7 @@ the Python pack lacks, a link, a refusal worded differently, and malformed
 progress output.
 """
 import hashlib
+import json
 import os
 import stat
 import sys
@@ -20,6 +21,7 @@ from pathlib import Path
 from psiv_tools.core import EXPECTED_SHA256, RomError, read_rom, wrong_rom_message
 from psiv_tools.png import encode_indexed
 from tools import pack_parity
+from tools.pack_parity import CENSUS, compare_decodes
 from tools.pack_parity import (FIXTURE, check_output, check_progress, check_wrong_rom, compare,
                                fixture_text)
 
@@ -158,6 +160,49 @@ class NoClaimsCase(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="psiv-pack-parity-none-") as tmp:
             self.assertEqual(check_output(Path(tmp) / "rust", []),
                              ["psiv-pack left no pack directory at rust"])
+
+
+class DecodeCase(unittest.TestCase):
+    """The decoder comparison and the committed census (no ROM needed)."""
+
+    CALLS = [{"decoder": "nemesis", "offset": 0x10},
+             {"decoder": "enigma", "offset": 0x20, "base_tile": 0x6400, "max_words": 2048}]
+    PYTHON = [{"consumed": 9, "sha256": "aa"}, {"consumed": 12, "sha256": "bb"}]
+
+    def test_matching_results_pass(self):
+        self.assertEqual(compare_decodes(self.CALLS, self.PYTHON, [dict(r) for r in self.PYTHON]), [])
+
+    def test_matching_refusals_pass(self):
+        refused = [{"error": "x"}, {"error": "y"}]
+        self.assertEqual(compare_decodes(self.CALLS, refused, [{"error": "other words"}] * 2), [])
+
+    def test_differences_fail(self):
+        cases = {
+            "output": [{"consumed": 9, "sha256": "ab"}, self.PYTHON[1]],
+            "consumed length": [{"consumed": 10, "sha256": "aa"}, self.PYTHON[1]],
+            "decoded it": [{"error": "refused"}, self.PYTHON[1]],
+        }
+        for what, rust in cases.items():
+            with self.subTest(what=what):
+                problems = compare_decodes(self.CALLS, self.PYTHON, rust)
+                self.assertEqual(len(problems), 1, problems)
+                self.assertTrue(problems[0].startswith("nemesis at 0x10: "), problems)
+                self.assertIn(what, problems[0])
+
+    def test_a_missing_result_fails(self):
+        self.assertEqual(len(compare_decodes(self.CALLS, self.PYTHON, self.PYTHON[:1])), 1)
+
+    def test_the_census_names_calls_only(self):
+        census = json.loads(CENSUS.read_text(encoding="utf-8"))
+        calls = census["calls"]
+        self.assertGreater(len(calls), 1000)
+        keys = {"nemesis": {"decoder", "offset"}, "kosinski": {"decoder", "offset"},
+                "enigma": {"decoder", "offset", "base_tile", "max_words"}}
+        for call in calls:
+            self.assertEqual(set(call), keys[call["decoder"]], call)
+            self.assertIsInstance(call["offset"], int)
+        frozen = [json.dumps(c, sort_keys=True) for c in calls]
+        self.assertEqual(len(frozen), len(set(frozen)), "a call is listed twice")
 
 
 class ProgressCase(unittest.TestCase):

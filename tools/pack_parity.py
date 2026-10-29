@@ -19,7 +19,13 @@ release and checks it against the Python builder from the same ROM:
    file `psiv-pack` writes outside its claims. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
    installed directory holding no link and nothing outside the claims.
-3. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
+3. The decoders: every Nemesis, Kosinski and Enigma call a full Python build
+   makes is listed, by decoder, offset and arguments, in the census
+   (`rust/psiv-pack/tests/fixtures/decode_census.json`, written by
+   `--write-census`). Both decode every listed stream from the ROM; each
+   output (by SHA-256) and consumed length must agree, and both must refuse
+   the same calls. psiv-pack's decode time is printed beside Python's.
+4. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
    section, then `installed <pack>`, exit 0. Its wall time is printed with
    the CPU clock and load, the number each port PR records.
 
@@ -37,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import random
@@ -60,7 +67,15 @@ from tree_rss import cpu_mhz, load_1m  # noqa: E402
 DEFAULT_ROM = ROOT / "Phantasy Star IV (USA).md"
 FIXTURE = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "harness.json"
 BINARY = ROOT / "rust" / "target" / "release" / ("psiv-pack.exe" if os.name == "nt" else "psiv-pack")
-CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack"]
+CENSUS = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "decode_census.json"
+CENSUS_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "decode_census")
+CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack",
+               "--bins", "--example", "decode_census"]
+#: The memoized decoders a census records, by `decode_cache` name. Any other
+#: memoized function in a build (a section's own cache) is not a decompressor.
+DECODERS = {"psiv_tools.nemesis.decompress": "nemesis",
+            "psiv_tools.kosinski.decompress": "kosinski",
+            "psiv_tools.enigma.decompress": "enigma"}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
 PROGRESS = re.compile(r"\Aprogress (\d+)/(\d+) (\S+)\Z")
@@ -218,6 +233,90 @@ def fixture_text():
 
 
 # ---------------------------------------------------------------------------
+# Decoders
+# ---------------------------------------------------------------------------
+def census_calls(rom: bytes) -> list[dict]:
+    """Every decompressor call a full Python build makes, as census entries:
+    the decoder and its arguments, never the bytes. Every call reads the ROM
+    itself; one that does not is an error, because the census could not name
+    its input."""
+    from psiv_tools import decode_cache, pack_sections
+    from psiv_tools.pack import build_pack
+    with pack_sections.fresh(), decode_cache.scope() as table, \
+            tempfile.TemporaryDirectory(prefix="psiv-census-") as scratch:
+        build_pack(rom, Path(scratch))
+    calls = []
+    for name, data, *args in table.decodes:
+        if name not in DECODERS:
+            continue
+        if data is not rom and data != rom:
+            raise ValueError(f"{name} decoded something other than the ROM; "
+                             "the census can only name ROM offsets")
+        entry = {"decoder": DECODERS[name], "offset": args[0]}
+        if DECODERS[name] == "enigma":
+            entry.update(base_tile=args[1], max_words=args[2])
+        calls.append(entry)
+    return sorted(calls, key=lambda c: (c["decoder"], c["offset"], c.get("base_tile", 0),
+                                        c.get("max_words") or 0))
+
+
+def python_decode(rom: bytes, call: dict) -> dict:
+    """One census call through the Python decoder: `{consumed, sha256}` of
+    the bytes it leaves in memory (Enigma's words big-endian), or `{error}`."""
+    from psiv_tools import enigma, kosinski, nemesis
+    try:
+        if call["decoder"] == "enigma":
+            words, consumed = enigma.decompress(rom, call["offset"], call["base_tile"],
+                                                call["max_words"])
+            out = enigma.words_to_bytes(words)
+        else:
+            module = nemesis if call["decoder"] == "nemesis" else kosinski
+            out, consumed = module.decompress(rom, call["offset"])
+    except ValueError as error:
+        return {"error": str(error)}
+    return {"consumed": consumed, "sha256": hashlib.sha256(out).hexdigest()}
+
+
+def compare_decodes(calls: list[dict], python: list[dict], rust: list[dict]) -> list[str]:
+    """The census calls whose Rust result differs from Python's. An error is
+    a result: both must refuse the same calls, though not in the same words."""
+    if len(rust) != len(calls) or len(python) != len(calls):
+        return [f"decode census: {len(calls)} calls, {len(python)} Python results, "
+                f"{len(rust)} psiv-pack results"]
+    problems = []
+    for call, ours, theirs in zip(calls, rust, python):
+        where = f"{call['decoder']} at 0x{call['offset']:X}"
+        if call["decoder"] == "enigma":
+            where += f" (base 0x{call['base_tile']:X}, max {call['max_words']})"
+        if ("error" in ours) != ("error" in theirs):
+            problems.append(f"{where}: psiv-pack {ours.get('error', 'decoded it')}, "
+                            f"Python {theirs.get('error', 'decoded it')}")
+        elif "error" not in ours and ours != theirs:
+            what = "consumed length" if ours["sha256"] == theirs["sha256"] else "output"
+            problems.append(f"{where}: the {what} differs")
+    return problems
+
+
+def check_decodes(rom_path: Path) -> list[str]:
+    """Decode the census with both builders and compare."""
+    census = json.loads(CENSUS.read_text(encoding="utf-8"))
+    calls = census["calls"]
+    rom = rom_path.read_bytes()
+    start = time.monotonic()
+    python = [python_decode(rom, call) for call in calls]
+    python_s = time.monotonic() - start
+    run = subprocess.run([str(CENSUS_BINARY), str(rom_path), str(CENSUS)], cwd=ROOT,
+                         capture_output=True, text=True)
+    if run.returncode != 0:
+        return [f"decode census: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
+    lines = [json.loads(line) for line in run.stdout.splitlines()]
+    seconds = lines.pop()["seconds"]
+    print(f"pack parity: decoded {len(calls)} census streams; psiv-pack {seconds:.3f} s, "
+          f"Python {python_s:.1f} s", flush=True)
+    return compare_decodes(calls, python, lines)
+
+
+# ---------------------------------------------------------------------------
 # The parity run
 # ---------------------------------------------------------------------------
 def _error_line(stderr: str, prefix: str) -> str | None:
@@ -291,6 +390,8 @@ def run_parity(rom: Path, keep: Path | None) -> int:
     try:
         problems = check_wrong_rom(BINARY, scratch)
         with hold_heavy_lock(lock_class=PACK):
+            problems += check_decodes(rom)
+        with hold_heavy_lock(lock_class=PACK):
             print(f"pack parity: psiv-pack, {_clock()}", flush=True)
             start = time.monotonic()
             rust = subprocess.run([str(BINARY), str(rom), str(scratch / "rust")], cwd=ROOT,
@@ -332,9 +433,21 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rom", type=Path, default=DEFAULT_ROM)
     parser.add_argument("--keep", type=Path, help="build into this directory and keep it")
+    parser.add_argument("--write-census", action="store_true",
+                        help=f"rewrite {CENSUS.relative_to(ROOT)} from a full Python build "
+                             "(needs the ROM) and exit")
     parser.add_argument("--write-fixtures", action="store_true",
                         help=f"rewrite {FIXTURE.relative_to(ROOT)} and exit")
     args = parser.parse_args(argv)
+    if args.write_census:
+        from psiv_tools.core import read_rom
+        with hold_heavy_lock(lock_class=PACK):
+            calls = census_calls(read_rom(args.rom))
+        CENSUS.write_text(json.dumps({"calls": calls, "source": "tools/pack_parity.py "
+                                      "--write-census"}, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8", newline="\n")
+        print(f"wrote {CENSUS.relative_to(ROOT)}: {len(calls)} calls")
+        return 0
     if args.write_fixtures:
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
         FIXTURE.write_text(fixture_text(), encoding="utf-8", newline="\n")
