@@ -120,11 +120,15 @@ class NativeTapeIdentityGuard(unittest.TestCase):
     def test_timeout_cleanup_kills_owned_child_not_only_shell(self):
         with tempfile.TemporaryDirectory() as directory:
             pid_file = Path(directory) / "child.pid"
+            # The pid is written beside the file and renamed into place: the
+            # file appears with its contents, never empty between its creation
+            # and the write.
             parent_code = (
                 "import pathlib, subprocess, sys, time; "
                 "child=subprocess.Popen([sys.executable, '-c', "
                 "'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)']); "
-                "pathlib.Path(sys.argv[1]).write_text(str(child.pid)); time.sleep(60)"
+                "staged=pathlib.Path(sys.argv[1] + '.tmp'); staged.write_text(str(child.pid)); "
+                "staged.replace(sys.argv[1]); time.sleep(60)"
             )
             parent = subprocess.Popen([sys.executable, "-c", parent_code,
                                        str(pid_file)], start_new_session=True)

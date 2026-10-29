@@ -186,6 +186,28 @@ frame is an emission error. Preserve a verified local copy, or reproduce the
 frames from the named oracle captures using the renderer documented in
 [battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
 do not commit the ROM-derived PNGs.
+
+A worktree takes these from the main checkout: in the worktree, run
+`python3 tools/local_inputs.py link`. It links each local input the main
+checkout has, except `generated/` and `runtime-pack`, which belong to a
+commit's extractor rather than to the main checkout. Those two link to a
+shared cache under the main checkout's `build/inputs/`, one entry per version
+of what builds them (the Git trees of `psiv_tools/` and, for the pack,
+`oracle/fixtures/` and the attack frames above, and the ROM). The first
+worktree that needs an entry builds it under the heavy-run lock, from a copy of
+exactly those inputs taken from Git and the main checkout; any other worktree
+that needs it meanwhile waits, checks its inputs again, and then links the
+same one. So a gate job or lane on a new extractor builds the pack once, not
+once per job. An entry is read-only once built, so nothing can change it under
+another job. A
+worktree with uncommitted changes under those paths has no entry and is
+refused: build both in place there
+([Prepare the local pack](#prepare-the-local-pack)); `regenerate` and `pack`
+replace a link at their output with the worktree's own directory rather than
+write through it. The steward's gate job
+runs main's copy (`git show origin/main:tools/local_inputs.py | python3 - link`),
+so a commit from before it still gets the cache.
+
 The documentation check needs no local inputs; with the disassembly present
 it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
 and prints `citations: skipped` without it. From the root:
@@ -309,8 +331,8 @@ ROM-free Python tests, a Godot smoke) is open.
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, in its own worktree with the inputs linked in, and record the
-verdict; the steward merges only once it is green. A gate missing an input is
+exact commit, in its own worktree with the inputs linked in by main's
+`tools/local_inputs.py` ([Run checks](#run-checks)), and record the verdict; the steward merges only once it is green. A gate missing an input is
 partial, and a partial gate is recorded as a failure.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
