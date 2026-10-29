@@ -43,7 +43,7 @@ def census(rom: bytes, pack: Path) -> dict[str, Any]:
         raise DialoguePackError("census requires all real retail maps")
     rows = []
     for entry in manifest["maps"]:
-        packed = json.loads((pack / entry["json"]).read_text())
+        packed = json.loads((pack / entry["json"]).read_text(encoding="utf-8"))
         source = source_maps[entry["id"]]
         compare_map(source, packed)
         areas = []
@@ -92,8 +92,9 @@ def main() -> None:
     parser.add_argument("--markdown", type=Path, required=True)
     args = parser.parse_args()
     result = census(args.rom.read_bytes(), args.pack)
-    args.json.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    args.markdown.write_text(markdown(result))
+    args.json.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
+                         encoding="utf-8", newline="\n")
+    args.markdown.write_text(markdown(result), encoding="utf-8", newline="\n")
     print(f"{result['map_count']} maps, {result['area_count']} type-0 areas on "
           f"{result['area_map_count']} maps, {result['differing_area_count']} differ")
 

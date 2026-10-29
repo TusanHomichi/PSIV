@@ -23,6 +23,15 @@ game itself canonicalizes the pack path when it starts) reads one version from
 start to finish. A reader that reopens `<output>/...` file by file across a
 swap can mix two complete versions; resolve once where that matters.
 
+Windows lets an ordinary user make a symbolic link only in developer mode, so
+there `<output>` stays a real directory: step 3 renames the old directory to
+the `.link-` name and the new version to `<output>`, two renames that never
+show a half-written pack but leave a moment with none, and then removes the
+old one. A reader holding a file of the old pack open can make the first
+rename fail, which leaves `<output>` as it was. A reader there has no version
+of its own to resolve to, so one that reopens `<output>/...` across a swap can
+mix two versions, and no older version is kept.
+
 A build that fails or is killed never touches `<output>`. Its staging
 directory is removed on failure; one a killed build left behind is removed by
 the next build, which removes any `.<name>.build-<pid>-*` whose process is
@@ -30,10 +39,13 @@ gone, and any `.<name>.link-*` left between steps 3's link and its rename.
 After a swap the newest `KEEP_VERSIONS` versions are kept (the current one and
 the ones before it, which a run that resolved them earlier may still be
 reading) and older ones are removed; the version `<output>` names is never
-removed. A run that outlives `KEEP_VERSIONS` swaps loses its pack, and fails
-loudly on a missing file rather than reading a mix.
+removed, nor one another build that is still running (another process, or
+another thread of this one) made and has yet to install, so two builds of one output never delete each other's work. A run
+that outlives `KEEP_VERSIONS` swaps loses its pack, and fails loudly on a
+missing file rather than reading a mix.
 
-Stdlib only, Python 3, Linux (`renameat2`, /proc).
+Stdlib only, Python 3; Linux (`renameat2`), macOS (`renamex_np`) and
+Windows.
 """
 
 from __future__ import annotations
@@ -43,6 +55,9 @@ import os
 import re
 import secrets
 import shutil
+import sys
+import threading
+import warnings
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,24 +68,90 @@ T = TypeVar("T")
 #: Versions kept after a swap: the current one and the two before it.
 KEEP_VERSIONS = 3
 
-#: renameat2's flag that swaps two names atomically (linux/fs.h).
+#: Whether `<output>` is a symbolic link to its version, or (Windows) the
+#: real directory.
+LINKS = os.name != "nt"
+
+#: renameat2's flag that swaps two names atomically (linux/fs.h), and
+#: renamex_np's (macOS sys/stdio.h).
 RENAME_EXCHANGE = 2
+RENAME_SWAP = 2
 AT_FDCWD = -100
+
+#: OpenProcess's right to read a process's exit code, and what it reads while
+#: the process runs (Windows).
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+STILL_ACTIVE = 259
+ERROR_ACCESS_DENIED = 5
+
+
+#: The versions installs in this process have made and not yet installed,
+#: by `_pending_key`. Their names carry this process's id, so liveness cannot
+#: tell them from finished ones; `prune` reads this instead.
+_pending: set[tuple[int, int, str]] = set()
+_pending_lock = threading.Lock()
+
+
+def _pending_key(version: Path) -> tuple[int, int, str]:
+    """A version's identity whichever spelling reached it: its existing
+    parent directory's device and inode, and its own name. Relative and
+    absolute paths, `..`, a linked parent and a platform's aliases (case,
+    short names) all give the same parent identity."""
+    parent = os.stat(version.parent)
+    return (parent.st_dev, parent.st_ino, version.name)
 
 
 class PackSwapError(RuntimeError):
     """The pack could not be installed; `<output>` is unchanged."""
 
 
+class PackSwapWarning(UserWarning):
+    """The pack is installed, but the cleanup after it failed (keeping or
+    removing the old pack, pruning); the next build removes or keeps what
+    was left."""
+
+
 def _names(output: Path) -> tuple[re.Pattern, re.Pattern, re.Pattern]:
     name = re.escape(output.name)
     return (re.compile(rf"\A\.{name}\.build-(\d+)-[0-9a-f]+\Z"),
-            re.compile(rf"\A\.{name}\.v\d{{8}}T\d{{12}}Z-\d+\Z"),
+            re.compile(rf"\A\.{name}\.v\d{{8}}T\d{{12}}Z-(\d+)\Z"),
             re.compile(rf"\A\.{name}\.link-(\d+)-[0-9a-f]+\Z"))
 
 
 def _alive(pid: int) -> bool:
-    return pid == os.getpid() or Path(f"/proc/{pid}").exists()
+    """True while process `pid` exists, whoever owns it."""
+    if pid == os.getpid():
+        return True
+    if os.name == "nt":
+        return _alive_windows(pid)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # another user's process
+        return True
+    return True
+
+
+def _alive_windows(pid: int) -> bool:
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        # Refused means it exists; any other error (no such process) means gone.
+        return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _remove(path: Path) -> None:
@@ -112,12 +193,17 @@ def versions(output: Path) -> list[Path]:
 
 def _exchange(first: Path, second: Path) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
-    renameat2 = getattr(libc, "renameat2", None)
-    if renameat2 is None:
-        raise PackSwapError("this C library has no renameat2; cannot swap a real "
+    name = "renamex_np" if sys.platform == "darwin" else "renameat2"
+    call = getattr(libc, name, None)
+    if call is None:
+        raise PackSwapError(f"this C library has no {name}; cannot swap a real "
                             f"directory at {second} atomically")
-    if renameat2(AT_FDCWD, os.fsencode(first), AT_FDCWD, os.fsencode(second),
-                 RENAME_EXCHANGE) != 0:
+    if sys.platform == "darwin":
+        failed = call(os.fsencode(first), os.fsencode(second), RENAME_SWAP) != 0
+    else:
+        failed = call(AT_FDCWD, os.fsencode(first), AT_FDCWD, os.fsencode(second),
+                      RENAME_EXCHANGE) != 0
+    if failed:
         error = ctypes.get_errno()
         raise PackSwapError(f"cannot exchange {first} and {second}: {os.strerror(error)}")
 
@@ -146,37 +232,109 @@ def install_atomically(output: Path, build: Callable[[Path], T]) -> T:
     token = f"{os.getpid()}-{secrets.token_hex(4)}"
     staging = parent / f".{output.name}.build-{token}"
     staging.mkdir()
+    key = None
     try:
         result = build(staging)
         version = parent / f".{output.name}.v{_stamp()}-{os.getpid()}"
+        # Registered before the version exists, so no prune sees it
+        # unprotected; released once `output` names it (or the install failed).
+        key = _pending_key(version)
+        with _pending_lock:
+            _pending.add(key)
         os.rename(staging, version)
     except BaseException:
+        with _pending_lock:
+            _pending.discard(key)
         if staging.exists():
             shutil.rmtree(staging)
         raise
     link = parent / f".{output.name}.link-{token}"
+    # The commit point is inside each: an exception means `output` is as it
+    # was; after it, a cleanup failure is a PackSwapWarning, not an error.
+    try:
+        if LINKS:
+            problems = _link(output, version, link,
+                             parent / f".{output.name}.v{before}-{os.getpid()}")
+        else:
+            problems = _replace_directory(output, version, link)
+    finally:
+        with _pending_lock:
+            _pending.discard(key)
+    try:
+        prune(output, keep=KEEP_VERSIONS if LINKS else 0)
+    except OSError as error:
+        problems.append(f"installed, but pruning old versions failed: {error}")
+    for problem in problems:
+        warnings.warn(problem, PackSwapWarning, stacklevel=2)
+    return result
+
+
+def _link(output: Path, version: Path, link: Path, kept: Path) -> list[str]:
+    """Make `output` a link to `version`, through the new link `link`; a real
+    directory at `output` is kept as the version `kept`. Returns the cleanup
+    problems after the commit point (the old directory then stays under the
+    `.link-` name, which the next build turns into a version)."""
     link.symlink_to(version.name, target_is_directory=True)
     try:
-        if output.is_dir() and not output.is_symlink():
+        exchanged = output.is_dir() and not output.is_symlink()
+        if exchanged:
             _exchange(link, output)  # `link` is now the old real directory
-            os.rename(link, parent / f".{output.name}.v{before}-{os.getpid()}")
         else:
             os.replace(link, output)
     except BaseException:
         if link.is_symlink():
             link.unlink()
         raise
-    prune(output)
-    return result
+    if exchanged:
+        try:
+            os.rename(link, kept)
+        except OSError as error:
+            return [f"installed, but the old pack stays at {link}: {error}"]
+    return []
+
+
+def _replace_directory(output: Path, version: Path, old: Path) -> list[str]:
+    """Rename `version` to `output`, moving a directory already there to `old`
+    first and removing it after; returns the cleanup problems after the
+    commit point."""
+    if os.path.lexists(output):
+        os.rename(output, old)
+    try:
+        os.rename(version, output)
+    except BaseException:
+        if os.path.lexists(old):
+            os.rename(old, output)
+        raise
+    if os.path.lexists(old):
+        try:
+            _remove(old)
+        except OSError as error:
+            return [f"installed, but cannot remove the old pack at {old}: {error}"]
+    return []
 
 
 def prune(output: Path, keep: int = KEEP_VERSIONS) -> list[str]:
     """Remove all but the newest `keep` versions of `output`, never the one
-    `output` names; returns the removed names."""
-    current = os.path.realpath(output)
+    `output` names, nor one a concurrent build (another live process, or an
+    install in this one) made and has yet to install; returns the removed
+    names."""
+    _, version, _ = _names(output)
     installed = versions(output)
-    old = [path for path in installed[:max(0, len(installed) - keep)]
-           if os.path.realpath(path) != current]
-    for path in old:
+    removed = []
+    for path in installed[:max(0, len(installed) - keep)]:
+        pid = int(version.match(path.name).group(1))
+        if pid == os.getpid():
+            with _pending_lock:
+                building = _pending_key(path) in _pending
+        else:
+            building = _alive(pid)
+        if building:
+            continue  # a build's version, perhaps not yet installed
+        # Read after the check: only a version's own build installs it, and
+        # it is pending until that install commits, so once it is not,
+        # `output` already names it if it ever will. A snapshot from before the loop could be stale by now.
+        if os.path.realpath(path) == os.path.realpath(output):
+            continue
         shutil.rmtree(path)
-    return [path.name for path in old]
+        removed.append(path.name)
+    return removed

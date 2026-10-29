@@ -1,0 +1,56 @@
+# Players build the runtime pack on their own machine, Windows and macOS
+# included, while the gate (tools/gate.py) runs on Linux. This runs the Python
+# tests about the pack builder's own portability on the other two: the atomic
+# swap (tests/test_pack_swap.py) and the text-file census
+# (tests/test_text_files.py), on the lowest Python pyproject.toml allows and a
+# current one; and the Rust builder's own tests (rust/psiv-pack, #216), with
+# the toolchain rust-toolchain.toml pins. They need no ROM. Actions are pinned
+# to commits.
+name: platforms
+on:
+  pull_request:
+    paths:
+      - "rust/psiv-pack/**"
+      - "rust/Cargo.lock"
+      - "psiv_tools/**"
+      - "tests/test_pack_swap.py"
+      - "tests/test_text_files.py"
+      - ".github/workflows/platforms.yml"
+  push:
+    branches: [main]
+    paths:
+      - "rust/psiv-pack/**"
+      - "rust/Cargo.lock"
+      - "psiv_tools/**"
+      - "tests/test_pack_swap.py"
+      - "tests/test_text_files.py"
+      - ".github/workflows/platforms.yml"
+permissions:
+  contents: read
+jobs:
+  pack-builder:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Pack builder portability tests
+        env:
+          PYTHONPATH: .
+        run: python -m unittest -v tests.test_pack_swap tests.test_text_files
+  psiv-pack:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: psiv-pack tests
+        run: cargo test --locked --manifest-path rust/Cargo.toml -p psiv-pack

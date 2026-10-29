@@ -195,6 +195,7 @@ PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+python3 tools/pack_parity.py
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
@@ -245,6 +246,25 @@ distinction with the result.
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
 
+The last step, `tools/pack_parity.py`, holds `psiv-pack`, the Rust pack
+builder that replaces `python3 -m psiv_tools pack` at 1.0
+([#216](https://github.com/TusanHomichi/PSIV/issues/216)), to the Python
+builder. It builds `psiv-pack` in release, runs both builders on a file that is
+not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
+a section (`psiv-pack --claims` lists each section's paths), builds both packs
+from the ROM: every claimed JSON or binary file must be byte-identical, every
+PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
+claims. It prints `psiv-pack`'s wall time beside the load and clock, the number
+a port PR records. Until the switch the Python builder stays the pack everything
+uses, so a PR that edits a section `psiv-pack` already claims changes both
+builders alike: the gate fails on the Python change alone. Find whether a
+section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
+psiv-pack -- --claims`; `python3 tools/pack_parity.py --keep <dir>` keeps both
+packs for a look at a difference. A change to `psiv_tools/png.py` or to how
+the builder writes JSON also reruns `python3 tools/pack_parity.py
+--write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
+read (`tests/test_pack_parity.py` fails while they are stale).
+
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix
 `-fast`):
@@ -280,15 +300,18 @@ tests except those that load `runtime-pack` (listed by name in `packTests` in
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset
-reaches the runner. The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15)
-(the ROM-free Python tests, Windows and macOS runners, a Godot smoke) is open.
+reaches the runner. When the pack builder changes, hosted CI also runs its
+portability tests (the atomic swap and the text-file census) on Windows and
+macOS (`.github/workflows/platforms.yml`), since players build the pack there.
+The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
+ROM-free Python tests, a Godot smoke) is open.
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
 exact commit, in its own worktree with the inputs linked in, and record the
 verdict; the steward merges only once it is green. A gate missing an input is
 partial, and a partial gate is recorded as a failure.
-The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
@@ -389,7 +412,9 @@ never a half-written one, and a killed build leaves the old pack in place.
 `.runtime-pack.v<UTC stamp>-<pid>` beside it. A reader that must see one
 version for its whole run resolves the link once, as a run root and the game
 do; one that reopens `runtime-pack/...` file by file can mix two complete
-versions across a swap.
+versions across a swap. On Windows, where an ordinary user cannot make the
+link, `runtime-pack` stays a real directory that the swap renames aside and
+replaces, and no older version is kept.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
@@ -491,18 +516,34 @@ holds the lock file itself. Merge main into a lane to bring it onto the budget.
 
 A gate takes the gate lock first and the heavy lock second, as every
 deployed gate does; the reverse order deadlocks against them. So never wrap the
-gate in `heavy_lock.py run`: a priority gate is `PSIV_LOCK_PRIORITY=1 python3
-tools/gate.py ...`, and a gate nested under a heavy holder refuses (exit 2,
-naming the holder) when the gate lock is busy instead of waiting.
+gate in `heavy_lock.py run`: the full gate queues first by itself (below), a
+priority fast tier is `PSIV_LOCK_PRIORITY=1 python3 tools/gate.py --fast`, and
+a gate nested under a heavy holder refuses (exit 2, naming the holder) when the
+gate lock is busy instead of waiting.
 
-Waiters queue in arrival order, and `--priority` (or `PSIV_LOCK_PRIORITY=1` for
-an entry point that takes the lock itself, such as the gate) puts a waiter
-ahead of every normal waiter, including earlier ones. A holder is never
-preempted. Speedup lanes, whose work makes later runs faster, and the yield
-that lets one go ahead use the flag; nothing else does. While waiting, a line
-names the holders and how many waiters, and priority waiters, are ahead.
-`python3 tools/heavy_lock.py status` prints the holders and waiters with each
-pid's command line.
+Waiters queue in arrival order, with two ranks ahead of the rest. The full
+gate (`tools/gate.py` without `--fast`), which a pull request waits on to
+merge, goes ahead of every other waiter. `--priority` (or `PSIV_LOCK_PRIORITY=1`
+for an entry point that takes the lock itself, such as the fast tier) puts a
+waiter ahead of every normal waiter, including earlier ones. A holder is never
+preempted, so a long run outside the gate (a native replay, a campaign) holds
+the machine from every gate until it ends: start one only when no gate is
+waiting (`status`). Speedup lanes, whose work makes later runs faster, and the
+yield that lets one go ahead use `--priority`; nothing else does. While
+waiting, a line names the holders and how many waiters (gates and priority
+waiters among them) are ahead, again whenever that changes, and every
+`WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
+holder's class, age and command line. A gate waiting for the gate lock with
+`--wait` reports the same way, so a job runner that stops a job gone quiet
+sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
+waiters with each pid's command line.
+
+Transition: a waiter started from a checkout older than the gate rank writes
+ranks 0 (priority) and 1 (normal) and ignores rank-2 entries. The current code
+reads its priority entries as gates and its normal entries as priority, and an
+old waiter may be granted ahead of a current normal waiter. Nobody waits
+forever and exclusion is unaffected. Merge main into a lane to bring it onto
+the ranks.
 
 The holder exports `PSIV_HEAVY_LOCK_HELD` and its class, so an entry point
 nested under an exclusive holder, or under a holder of its own class, takes

@@ -20,16 +20,16 @@ def digest(path: Path) -> str:
 
 def compare(accepted: Path, candidate: Path) -> dict:
     """Check every original file, map JSON field and manifest declaration."""
-    old = json.loads((accepted / "manifest.json").read_text())
-    new = json.loads((candidate / "manifest.json").read_text())
+    old = json.loads((accepted / "manifest.json").read_text(encoding="utf-8"))
+    new = json.loads((candidate / "manifest.json").read_text(encoding="utf-8"))
     original = {str(p.relative_to(accepted)) for p in accepted.rglob("*") if p.is_file()}
     current = {str(p.relative_to(candidate)) for p in candidate.rglob("*") if p.is_file()}
     errors = [f"removed {p}" for p in sorted(original - current)]
     maps = {entry["json"] for entry in old["maps"]}
     declared = set()
     for name in sorted(maps & current):
-        baseline = json.loads((accepted / name).read_text())
-        updated = json.loads((candidate / name).read_text())
+        baseline = json.loads((accepted / name).read_text(encoding="utf-8"))
+        updated = json.loads((candidate / name).read_text(encoding="utf-8"))
         if not MAP_ADDITIONS.intersection(updated):
             errors.append(f"map additions missing: {name}")
         for image in updated.get("map_update_images", {}).values():
@@ -72,7 +72,7 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     result = compare(args.accepted, args.candidate)
-    args.report.write_text(json.dumps(result, indent=2) + "\n")
+    args.report.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(result, indent=2))
     return 0 if result["passed"] else 1
 

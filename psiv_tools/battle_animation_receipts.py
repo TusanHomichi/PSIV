@@ -26,7 +26,7 @@ class BattleAnimationReceiptError(ValueError):
 def receipt_file() -> dict[str, Any]:
     if not RECEIPT_PATH.is_file():
         raise BattleAnimationReceiptError(f"missing oracle receipt: {RECEIPT_PATH}")
-    payload = json.loads(RECEIPT_PATH.read_text())
+    payload = json.loads(RECEIPT_PATH.read_text(encoding="utf-8"))
     if payload.get("format_version") != 1:
         raise BattleAnimationReceiptError("unsupported battle-animation receipt version")
     if payload.get("source", {}).get("grand_cross") != 0:
