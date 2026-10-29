@@ -8,9 +8,10 @@
 //! records `psiv_runtime::battle_data` builds the game's own battles from. The
 //! pack is built from the cartridge and never committed (#149), so without it
 //! the replay tests skip, saying so, and the hosted check skips them by name
-//! (`packTests` in `flake.nix`). The fixture supplies the *live* battle state
-//! the RAM log shows, the pack supplies the records, and [`super::start`] is
-//! where the two are held against each other.
+//! (`packTests` in `flake.nix`). The manifest dump tool does not skip: with no
+//! pack it fails and leaves the previous dump alone. The fixture supplies the
+//! *live* battle state the RAM log shows, the pack supplies the records, and
+//! [`super::start`] is where the two are held against each other.
 //!
 //! The three records below are transcribed for the forced captures' own tests:
 //!
@@ -30,34 +31,13 @@ use crate::battle::fixtures;
 use crate::battle::*;
 
 /// The hand-built fixtures' data and the runtime pack's records, or `None`
-/// (after saying why) when there is no pack to read.
+/// (after saying why) when there is no pack to read. Read once per test process.
 ///
-/// The pack's records are added first so the three hand-transcribed enemies
-/// below keep exactly the values their captures' tests were written against;
-/// both describe the same cartridge records. Read once per test process.
+/// This is the ordinary tests' skip path. A tool whose whole job is to read
+/// the pack - `dump_manifest_entries` - calls [`load`] and fails instead.
 pub(crate) fn data() -> Option<&'static BattleData> {
     static DATA: OnceLock<Option<BattleData>> = OnceLock::new();
-    let data = DATA
-        .get_or_init(|| {
-            let dir = pack_dir();
-            if !dir.join("battle/enemies.json").is_file() {
-                return None;
-            }
-            let pack = read_pack(&dir);
-            Some(
-                fixtures::data()
-                    .with_enemies(pack.enemies)
-                    .with_enemy_skills(pack.enemy_skills)
-                    .with_techniques(pack.techniques)
-                    .with_skills(pack.skills)
-                    .with_battle_items(pack.battle_items)
-                    .with_items(pack.equipment)
-                    .with_inline_formations(pack.inline_formations)
-                    .with_enemies([helex(), fanbite(), desrt_leach()])
-                    .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()]),
-            )
-        })
-        .as_ref();
+    let data = DATA.get_or_init(|| load(&pack_dir())).as_ref();
     if data.is_none() {
         eprintln!(
             "skipping: no runtime pack at {} (build one with `python -m psiv_tools pack`, \
@@ -68,8 +48,34 @@ pub(crate) fn data() -> Option<&'static BattleData> {
     data
 }
 
+/// The hand-built fixtures' data and the records of the pack at `dir`, or
+/// `None` when `dir` holds no pack (no `battle/enemies.json`). A pack that is
+/// there but unreadable or invalid panics, naming the file.
+///
+/// The pack's records are added first so the three hand-transcribed enemies
+/// below keep exactly the values their captures' tests were written against;
+/// both describe the same cartridge records.
+pub(super) fn load(dir: &Path) -> Option<BattleData> {
+    if !dir.join("battle/enemies.json").is_file() {
+        return None;
+    }
+    let pack = read_pack(dir);
+    Some(
+        fixtures::data()
+            .with_enemies(pack.enemies)
+            .with_enemy_skills(pack.enemy_skills)
+            .with_techniques(pack.techniques)
+            .with_skills(pack.skills)
+            .with_battle_items(pack.battle_items)
+            .with_items(pack.equipment)
+            .with_inline_formations(pack.inline_formations)
+            .with_enemies([helex(), fanbite(), desrt_leach()])
+            .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()]),
+    )
+}
+
 /// `PSIV_RUNTIME_PACK`, or the checkout's ignored `runtime-pack/`.
-fn pack_dir() -> PathBuf {
+pub(super) fn pack_dir() -> PathBuf {
     std::env::var_os("PSIV_RUNTIME_PACK").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack"),
         PathBuf::from,
