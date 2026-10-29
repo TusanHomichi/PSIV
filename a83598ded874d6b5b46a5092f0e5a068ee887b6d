@@ -1,0 +1,71 @@
+{
+  "conary": "note v1",
+  "change": "0f1pt21g7az2cgnf9xmjasvg57",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 223,
+  "url": "https://github.com/tusanhomichi/psiv/pull/223",
+  "summary": "Title: derive the palette cycle from the ROM (#214, part 1)",
+  "task": "tusanhomichi/psiv#214",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "2f5c7a10c806928aa30f95f70b167db509e5259b24182284410abe17d19056ad",
+    "before": "58d9752cdc6070b4c406a1c5f32bd889b39ec4e2",
+    "after": "a83598ded874d6b5b46a5092f0e5a068ee887b6d",
+    "by": {
+      "kind": "status",
+      "login": "TusanHomichi"
+    },
+    "at": 1793237414378
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40767164270/job/123094296560"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40767164270/job/123094296468"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40767164270/job/123094296440"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40767164270/job/123094296101"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/223#pullrequestreview-5689574993"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40767164986/job/123094298460"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
