@@ -1,0 +1,83 @@
+{
+  "conary": "note v1",
+  "change": "5gyzfzhk1n30d0nk4tzkkz3abb",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 239,
+  "url": "https://github.com/tusanhomichi/psiv/pull/239",
+  "summary": "local_inputs: build generated/ and the pack once per extractor and share them",
+  "task": "tusanhomichi/psiv#238",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyEhJU75zLscx2qcLdf"
+  },
+  "landing": {
+    "revision": "d6190065b68e700ab411171e640a6bff8ef7a8a6c264b08fc6edd083b4681f93",
+    "before": "2a033b00c293802fe3e30a7438a9df68a8cf4606",
+    "after": "92365abd5353aac0a2b779c5356732bf9de4ebf9",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793314139581
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717169129"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717168923"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717168804"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (macos-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717168791"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717168784"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (windows-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950538046/job/123717168546"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40950539274/job/123717172792"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/239#pullrequestreview-5704702990"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
