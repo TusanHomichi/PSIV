@@ -1,8 +1,9 @@
 """Local inputs stay ignored whether they are directories or symlinks.
 
-A `dir/` pattern matches only a directory. Lane worktrees symlink the local
-inputs in, so a trailing-slash pattern let `git add -A` stage the link; a
-committed self-referencing `oracle/gpgx-src` link then replaced the main
+A `dir/` pattern matches only a directory. Worktrees symlink the local
+inputs in (`tools/local_inputs.py`, which owns the list), so a trailing-slash
+pattern let `git add -A` stage the link; a committed self-referencing
+`oracle/gpgx-src` link then replaced the main
 checkout's real directory on checkout (2026-10-02). `git check-ignore` with a
 path that does not exist treats it as a file, which is exactly the symlink case.
 
@@ -12,15 +13,9 @@ import pathlib
 import subprocess
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+from tools.local_inputs import LINKED_INPUT_GLOBS, LINKED_INPUTS
 
-#: Every local input a lane or subagent may link into a worktree.
-LINKED_INPUTS = (
-    "runtime-pack", "reference", "generated", "saves", "build", "roms",
-    "oracle/gpgx-src", "oracle/core", "oracle/bin", "oracle/frames",
-    "oracle/states", "oracle/layouts", "oracle/logs",
-    "Phantasy Star IV (USA).md",
-)
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def ignored_as_file(path: str) -> bool:
@@ -34,6 +29,12 @@ def ignored_as_file(path: str) -> bool:
 class LinkedInputsAreIgnored(unittest.TestCase):
     def test_every_linked_input_is_ignored_as_a_symlink(self):
         for path in LINKED_INPUTS:
+            with self.subTest(path=path):
+                self.assertTrue(ignored_as_file(path), f"{path} would be staged as a symlink")
+
+    def test_every_linked_file_pattern_is_ignored(self):
+        for pattern in LINKED_INPUT_GLOBS:
+            path = pattern.replace("*", "any")
             with self.subTest(path=path):
                 self.assertTrue(ignored_as_file(path), f"{path} would be staged as a symlink")
 
