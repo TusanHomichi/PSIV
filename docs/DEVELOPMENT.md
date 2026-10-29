@@ -154,9 +154,10 @@ symbol versions and the Deck refuses to load it), makes a run root whose
 project is prepared (`python3 tools/godot.py run`), exports its
 `Linux-SteamDeck` preset from it to
 `build/deck/` (the full export log is `build/deck-export.log`; a failed export
-stops the script), stages the executable with a copy of
-`runtime-pack/` beside it (an exported build looks for the pack next to the
-executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
+stops the script), stages the executable, and copies it to `~/psiv` on the
+Deck with `rsync` over SSH. The pack goes to `~/.local/share/PSIV/runtime-pack`
+on the Deck, the user data folder where an exported build reads its pack and
+keeps its saves (`rust/psiv-godot/src/install.rs`).
 It needs:
 
 - SSH key access to the Deck;

@@ -33,7 +33,7 @@ impl Rom {
     pub fn verify(path: &Path, bytes: Vec<u8>) -> Result<Self, PackError> {
         let sha = hex(&Sha256::digest(&bytes));
         if sha != EXPECTED_SHA256 {
-            return Err(PackError(wrong_rom(&path.display().to_string(), &sha)));
+            return Err(PackError(wrong_rom(path, &sha)));
         }
         Ok(Rom { bytes })
     }
@@ -49,10 +49,16 @@ impl Rom {
     }
 }
 
-/// The refusal, worded as `psiv_tools.core.read_rom` words it.
-pub fn wrong_rom(path: &str, sha: &str) -> String {
+/// The refusal, worded as `psiv_tools.core.read_rom` words it. It names the
+/// file, not its path, which would put the player's folders on the setup
+/// screen and in every screenshot of it.
+pub fn wrong_rom(path: &Path, sha: &str) -> String {
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
     format!(
-        "{path} is not the US retail ROM PSIV builds from: its SHA-256 is {sha}, \
+        "{name} is not the US retail ROM PSIV builds from: its SHA-256 is {sha}, \
          expected {EXPECTED_SHA256}"
     )
 }
@@ -74,5 +80,22 @@ mod tests {
                  expected {EXPECTED_SHA256}"
             )
         );
+    }
+
+    #[test]
+    fn the_refusal_names_the_file_not_the_folders_it_is_in() {
+        let path = Path::new("home")
+            .join("player")
+            .join("Downloads")
+            .join("game.bin");
+        let error = Rom::verify(&path, vec![0; 0x400])
+            .err()
+            .expect("zeros are refused");
+        assert!(
+            error.0.starts_with("game.bin is not the US retail ROM"),
+            "{}",
+            error.0
+        );
+        assert!(!error.0.contains("player"), "{}", error.0);
     }
 }

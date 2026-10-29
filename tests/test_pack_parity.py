@@ -186,10 +186,12 @@ class WrongRomCase(unittest.TestCase):
         self.tmp.cleanup()
 
     def stand_in(self, message, code=2):
-        """A program that refuses the way `psiv-pack` would, saying `message`."""
+        """A program that refuses the way `psiv-pack` would, saying `message`
+        with the ROM's file name in place of `{}`."""
         path = self.root / "stand-in"
-        path.write_text(f"#!{sys.executable}\nimport sys\n"
-                        f"print('psiv-pack: error: ' + {message!r}.format(sys.argv[1]),"
+        path.write_text(f"#!{sys.executable}\nimport os, sys\n"
+                        f"print('psiv-pack: error: ' + {message!r}.format("
+                        "os.path.basename(sys.argv[1])),"
                         f" file=sys.stderr)\nsys.exit({code})\n", encoding="utf-8")
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
         return path
@@ -201,7 +203,8 @@ class WrongRomCase(unittest.TestCase):
             read_rom(rom)
         message = str(raised.exception)
         self.assertEqual(message, wrong_rom_message(rom, ZEROS_SHA))
-        self.assertTrue(message.startswith(f"{rom} is not the US retail ROM PSIV builds from: "))
+        self.assertTrue(message.startswith(f"{rom.name} is not the US retail ROM PSIV builds from: "))
+        self.assertNotIn(str(rom.parent), message)
         self.assertTrue(message.endswith(f", expected {EXPECTED_SHA256}"))
 
     def test_a_tiny_file_is_refused_in_the_same_words(self):

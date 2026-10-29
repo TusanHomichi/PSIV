@@ -41,9 +41,23 @@ STAGE="$HERE/build/deck-stage/psiv"
 rm -rf "$STAGE" && mkdir -p "$STAGE"
 cp "$HERE/build/deck/psiv.x86_64" "$STAGE/"
 cp "$HERE/build/deck/"*.so "$STAGE/" 2>/dev/null || true
-# The pack the run root resolved once, so the Deck gets one pack version.
-cp -rL "$DECK_ROOT/runtime-pack" "$STAGE/runtime-pack"
 
+# An exported build reads its pack and keeps its saves in its user data
+# folder (rust/psiv-godot/src/install.rs), ~/.local/share/PSIV on the Deck.
+# Saves a build before that kept in ~/psiv/saves move there first, since the
+# rsync below deletes what the stage lacks; if both exist, the old ones are
+# kept aside, stamped.
+ssh "$DECK_USER@$DECK_IP" 'set -e; mkdir -p ~/.local/share/PSIV
+    if [ -d ~/psiv/saves ]; then
+        if [ -e ~/.local/share/PSIV/saves ]; then
+            mv ~/psiv/saves ~/psiv-saves-$(date -u +%Y%m%dT%H%M%SZ)
+        else
+            mv ~/psiv/saves ~/.local/share/PSIV/saves
+        fi
+    fi'
 echo "staged $(du -sh "$STAGE" | cut -f1); pushing to $DECK_USER@$DECK_IP:~/psiv"
 rsync -az --delete --info=progress2 "$STAGE/" "$DECK_USER@$DECK_IP:psiv/"
+# The pack the run root resolved once, so the Deck gets one version.
+rsync -az --delete --info=progress2 "$DECK_ROOT/runtime-pack/" \
+    "$DECK_USER@$DECK_IP:.local/share/PSIV/runtime-pack/"
 ssh "$DECK_USER@$DECK_IP" 'chmod +x ~/psiv/psiv.x86_64 && echo "deployed: ~/psiv/psiv.x86_64"'
