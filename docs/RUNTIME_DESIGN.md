@@ -13,6 +13,7 @@ that pack; it does not run the emulator. The Cargo workspace has six crates:
 | --- | --- |
 | [psiv_tools](../psiv_tools/) | ROM decoding, extraction and pack generation in Python |
 | [psiv-data](../rust/psiv-data/) | Serde types, pack loading and validation |
+| [psiv-pack](../rust/psiv-pack/) | The Rust pack builder replacing `psiv_tools pack` at 1.0, ported a section at a time and held to the Python builder by the gate's parity step ([#216](https://github.com/TusanHomichi/PSIV/issues/216)) |
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |

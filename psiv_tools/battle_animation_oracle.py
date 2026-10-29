@@ -125,7 +125,7 @@ def _verify_capture(receipt: dict[str, Any], directory: Path) -> None:
         path = directory / f"frame_{frame}.json"
         if not path.is_file():
             raise BattleOracleRenderError(f"missing oracle state: {path}")
-        state = json.loads(path.read_text())
+        state = json.loads(path.read_text(encoding="utf-8"))
         sprite_hash.update(_region_bytes(state, "sprite_table", SPRITE_TABLE_BYTES))
         vram_hash.update(_region_bytes(state, "vdp_vram", VRAM_BYTES))
     if sprite_hash.hexdigest() != capture["sprite_table_sha256"]:
@@ -152,7 +152,7 @@ def render_receipt_art(
         prefix = receipt["routine_offset"].removeprefix("0x")
         for index, offset in enumerate(receipt["observed_offsets"]):
             frame = receipt["action_frame"] + offset
-            state = json.loads((directory / f"frame_{frame}.json").read_text())
+            state = json.loads((directory / f"frame_{frame}.json").read_text(encoding="utf-8"))
             image = render_state(state, rom, representative)
             (output / f"{prefix}_frame{index:02d}.png").write_bytes(image)
             count += 1

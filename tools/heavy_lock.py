@@ -19,9 +19,9 @@ answer identically:
 Lock order, everywhere: the gate lock first, then the heavy lock. Every
 deployed gate takes them in that order, so a process that took the heavy lock
 and then waited for the gate lock would deadlock against one of them. Never
-wrap the gate in `run`; a priority gate is `PSIV_LOCK_PRIORITY=1 python3
-tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
-lock rather than wait.
+wrap the gate in `run`: the full gate queues first by itself, a priority fast
+tier is `PSIV_LOCK_PRIORITY=1 python3 tools/gate.py --fast`, and a gate nested
+under a heavy holder refuses a busy gate lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
 docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole and
@@ -46,14 +46,19 @@ another value refuses (exit 2) rather than overfill the machine.
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
 waited for). Every grant is decided under `<lock>.mutex`, and only the head of
-the queue may take the lock, so the order is deterministic: priority waiters
-(`--priority`, or `PSIV_LOCK_PRIORITY=1` for code that calls
-`hold_heavy_lock`) before normal ones, each in arrival order. A holder is never
-preempted; the next grant goes to the head, which waits in flock(2) itself, so
-a release wakes it together with any raw `flock(1)` waiter instead of that
-waiter winning every race against a poll. While waiting, a line names the
-holders and how many waiters (and priority waiters) are ahead, again whenever
-that changes.
+the queue may take the lock, so the order is deterministic: a full gate
+(`tools/gate.py` without `--fast`, which holds the lock with `gate=True`)
+first, then priority waiters (`--priority`, or `PSIV_LOCK_PRIORITY=1` for code
+that calls `hold_heavy_lock`), then the rest, each in arrival order. A holder
+is never preempted; the next grant goes to the head, which waits in flock(2)
+itself, so a release wakes it together with any raw `flock(1)` waiter instead
+of that waiter winning every race against a poll. While waiting, a line names
+the holders and how many waiters (gates and priority waiters among them) are
+ahead, again whenever that changes, and every `WAIT_REPORT_S` while nothing
+does, a line says how long it has waited and each holder's class, age and
+command line (`wait_reporting` does the same for any flock, such as the gate
+lock), so a job runner that stops a job gone quiet sees it waiting, and on
+whom.
 
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
@@ -128,6 +133,15 @@ DEFAULT_LOCK_UNITS = 16
 CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 3, PACK: 1}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
+#: A queue entry's rank, the lowest served first: a full gate, which a pull
+#: request waits on to merge, then a priority waiter, then the rest.
+GATE_RANK, PRIORITY_RANK, NORMAL_RANK = 0, 1, 2
+#: Seconds between the lines a waiter prints while nothing about its wait
+#: changes. A job runner that stops a job whose output has gone quiet must see
+#: that it is waiting, and on whom.
+WAIT_REPORT_S = 60
+#: How much of a holder's command line a waiting line shows.
+COMMAND_CHARS = 160
 
 
 @dataclass(frozen=True)
@@ -405,10 +419,10 @@ class _Queue:
                 os.close(handle)
         return sorted(live, key=_entry_key)
 
-    def join(self, priority, lock_class, waiting):
-        """Enqueue this process behind `waiting`; returns (name, held handle)."""
+    def join(self, rank, lock_class, waiting):
+        """Enqueue this process at `rank` behind `waiting`; returns (name, held handle)."""
         seq = max((_entry_key(name)[1] for name in waiting), default=0) + 1
-        name = f"{0 if priority else 1}-{seq:012d}-{os.getpid()}-{lock_class}"
+        name = f"{rank}-{seq:012d}-{os.getpid()}-{lock_class}"
         handle = os.open(self.dir / name, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644)
         fcntl.flock(handle, fcntl.LOCK_EX)
         return name, handle
@@ -428,11 +442,12 @@ def _unlink(path):
 
 
 #: A waiter's file in `<lock>.queue/`: rank, sequence, pid and class.
-ENTRY_RE = re.compile(r"^[01]-\d{12}-\d+-(?:" + "|".join(LOCK_CLASSES) + ")$")
+ENTRY_RE = re.compile(rf"^[{GATE_RANK}-{NORMAL_RANK}]-\d{{12}}-\d+-(?:"
+                      + "|".join(LOCK_CLASSES) + ")$")
 
 
 def _entry_key(name):
-    """(rank, seq) of a queue entry: priority rank 0 first, then arrival."""
+    """(rank, seq) of a queue entry: the lowest rank first, then arrival."""
     rank, seq = name.split("-")[:2]
     return int(rank), int(seq)
 
@@ -567,8 +582,10 @@ class _Blocker:
 
     The queue's head waits in the kernel, as a raw `flock(1)` waiter does, so
     it is woken with them when the holder releases instead of losing every
-    such race between two polls. The handle is the caller's once `done` is set;
-    `abandon()` gives it up, now or as soon as the flock returns.
+    such race between two polls. `done` is set when the flock returns or fails;
+    `grant()` then hands over the handle, or raises the flock's error with the
+    handle already closed. `abandon()` gives the handle up, now or as soon as
+    the flock returns.
     """
 
     def __init__(self, lock, mode):
@@ -576,48 +593,114 @@ class _Blocker:
         self.done = threading.Event()
         self._guard = threading.Lock()
         self._abandoned = False
+        self._error = None
         threading.Thread(target=self._wait, args=(mode,), daemon=True).start()
 
     def _wait(self, mode):
-        fcntl.flock(self.handle, mode)
+        try:
+            fcntl.flock(self.handle, mode)
+        except OSError as exc:  # ENOLCK, say: the waiter must hear it, not wait forever
+            error = exc
+        else:
+            error = None
         with self._guard:
-            if self._abandoned:
+            self._error = error
+            if self._abandoned or error is not None:
                 os.close(self.handle)
-            else:
+            if not self._abandoned:
                 self.done.set()
+
+    def grant(self):
+        """The handle holding the lock, once `done` is set; raises the flock's
+        error instead when it failed."""
+        if self._error is not None:
+            raise self._error
+        return self.handle
 
     def abandon(self):
         with self._guard:
-            if self.done.is_set():
-                os.close(self.handle)
-            else:
+            if not self.done.is_set():
                 self._abandoned = True
+            elif self._error is None:
+                os.close(self.handle)
 
 
-def _wait_line(lock, lock_class, priority, ahead):
+def wait_reporting(lock, mode, report):
+    """Block until this process holds `lock` in flock `mode`, waiting in the
+    kernel (`_Blocker`), and print `_still_line` every `WAIT_REPORT_S` until
+    then. Returns the holding handle, which the caller closes; raises when the
+    flock fails."""
+    began = time.monotonic()
+    blocker = _Blocker(lock, mode)
+    try:
+        while not blocker.done.wait(WAIT_REPORT_S):
+            print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
+    except BaseException:
+        blocker.abandon()
+        raise
+    return blocker.grant()
+
+
+_RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
+
+
+def _wait_line(lock, lock_class, rank, ahead):
     """One "waiting for" line: the holders with their class, the queue ahead."""
     holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)
                         if pid != os.getpid()) or "none"  # a godot head holds it shared
-    urgent = sum(1 for name in ahead if _entry_key(name)[0] == 0)
-    me = f"{lock_class}, priority" if priority else lock_class
+    urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
+    gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
+    me = ", ".join([lock_class, *([_RANK_NAMES[rank]] if rank in _RANK_NAMES else [])])
     return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
-            f"{urgent} of them priority; this waiter: {me}")
+            f"{urgent} of them priority, {gates} gate(s); this waiter: {me}")
 
 
-def _acquire(lock, need, priority, report):
+def _still_line(lock, waited):
+    """The line a waiter repeats while its wait does not change: how long it has
+    waited, and each holder's class, age and command line (on one line)."""
+    holders = "; ".join(
+        f"pid {pid} ({mode}, up {_duration(_process_age(pid))}): "
+        f"{' '.join(_cmdline(pid).split())[:COMMAND_CHARS]}"
+        for pid, mode in lock_modes(lock) if pid != os.getpid())
+    return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
+
+
+def _process_age(pid):
+    """Seconds since `pid` started (/proc/<pid>/stat field 22), or None."""
+    try:
+        start = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19])
+        uptime = float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return max(0.0, uptime - start / os.sysconf("SC_CLK_TCK"))
+
+
+def _duration(seconds):
+    """`seconds` for a person: `40 s`, `12 min`, `2 h 05 min`; `?` for None."""
+    if seconds is None:
+        return "?"
+    if seconds < 60:
+        return f"{seconds:.0f} s"
+    minutes = int(seconds // 60)
+    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
+
+
+def _acquire(lock, need, rank, report):
     """Queue for `lock` and return the granting handles once this waiter is the
     head and the lock is free in its class.
 
     The head blocks in the kernel for the lock file in its class (`_Blocker`);
     a shared head then takes its slots and units as they free. A waiter
     displaced from the head (a priority waiter arrived) gives the lock file
-    back at once.
+    back at once. Prints `_wait_line` whenever it changes, and `_still_line`
+    after every `WAIT_REPORT_S` it has not.
     """
     lock_class = need.lock_class
     queue = _Queue(lock)
     entry = None
     blocker = None
     shown = None
+    began = reported = time.monotonic()
     try:
         while True:
             with queue.locked():
@@ -631,7 +714,7 @@ def _acquire(lock, need, priority, report):
                     if parent is not None:
                         print(refuse_message(lock, parent), file=report, flush=True)
                         raise SystemExit(EXIT_HELD_BY_PARENT)
-                    entry = queue.join(priority, lock_class, waiting)
+                    entry = queue.join(rank, lock_class, waiting)
                     waiting = queue.entries()
                 ahead = waiting[:waiting.index(entry[0])]
                 if ahead and blocker is not None:
@@ -640,16 +723,21 @@ def _acquire(lock, need, priority, report):
                 elif not ahead:
                     blocker = blocker or _Blocker(lock, _main_mode(lock_class))
                     if blocker.done.is_set():
+                        main = blocker.grant()
                         taken = need.take(lock)
                         if taken is not None:
                             queue.leave(entry)
                             entry = None
-                            held, blocker = [blocker.handle, *taken], None
+                            held, blocker = [main, *taken], None
                             return held
-                line = _wait_line(lock, lock_class, priority, ahead)
+                line = _wait_line(lock, lock_class, rank, ahead)
+            now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)
-                shown = line
+                shown, reported = line, now
+            elif now - reported >= WAIT_REPORT_S:
+                print(_still_line(lock, now - began), file=report, flush=True)
+                reported = now
             if blocker is not None and not blocker.done.is_set():
                 blocker.done.wait(POLL_S)
             else:
@@ -664,13 +752,14 @@ def _acquire(lock, need, priority, report):
 
 @contextmanager
 def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, slots=1,
-                    priority=None):
+                    priority=None, gate=False):
     """Hold the heavy lock `path` (default: `heavy_lock_path()`) for the block,
     yielding a `Hold`.
 
     `lock_class` is `exclusive`, `godot` or `build`; a godot hold takes `slots`
     slots (1 to `PSIV_GODOT_SLOTS`) and their units, a build hold its units.
-    `priority` defaults to `PSIV_LOCK_PRIORITY=1`. A no-op when this process
+    `gate` (a full gate) queues ahead of every other waiter; otherwise
+    `priority`, default `PSIV_LOCK_PRIORITY=1`, ahead of the rest. A no-op when this process
     already runs under a holder of the same file (`PSIV_HEAVY_LOCK_HELD`) whose
     class is exclusive or the same, yielding that holder's class and slots; a
     request under a shared holder of another class exits 2. Otherwise it queues, takes
@@ -707,8 +796,9 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
                          f"{UNITS_ENV} is {budget}")
     if priority is None:
         priority = environ.get(PRIORITY_ENV) == "1"
+    rank = GATE_RANK if gate else PRIORITY_RANK if priority else NORMAL_RANK
     try:
-        held = _acquire(resolved, need, priority, report)
+        held = _acquire(resolved, need, rank, report)
     except SlotCapMismatch as mismatch:
         print(mismatch, file=report, flush=True)
         raise SystemExit(EXIT_HELD_BY_PARENT) from None
@@ -759,8 +849,9 @@ def status(path=None, out=None):
     print("waiters:" + ("" if waiting else " none"), file=out)
     for name in waiting:
         pid = _entry_pid(name)
-        rank = "priority " if _entry_key(name)[0] == 0 else ""
-        print(f"  {pid} {rank}{name.split('-', 3)[3]}: {_cmdline(pid)}", file=out)
+        rank = _RANK_NAMES.get(_entry_key(name)[0])
+        print(f"  {pid} {rank + ' ' if rank else ''}{name.split('-', 3)[3]}: {_cmdline(pid)}",
+              file=out)
 
 
 def _git(cwd, *args):
