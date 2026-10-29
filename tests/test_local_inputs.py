@@ -53,10 +53,15 @@ def git(cwd, *args):
 
 
 class Builds:
-    """A fake builder: records each build and writes a marker into it."""
+    """A fake builder: records each build and which worktree built each entry.
+
+    It keeps the record itself rather than writing a marker to read back
+    through the link: a read under `generated/` is `tests/test_extract_stamp.py`'s
+    to refuse, and these entries are only stand-ins."""
 
     def __init__(self, gate=None, started=None):
         self.calls = []
+        self.builders = {}
         self.lock = threading.Lock()
         self.gate = gate
         self.started = started
@@ -64,15 +69,20 @@ class Builds:
     def __call__(self, entry, worktree, rom, output):
         with self.lock:
             self.calls.append((entry.name, Path(worktree).name))
+            # The staging directory, `.<label>.build-<pid>`, becomes the entry `<label>`.
+            self.builders[output.parent.name[1:].rpartition(".build-")[0]] = Path(worktree).name
         if self.started is not None:
             self.started.set()
         if self.gate is not None:
             self.gate.wait(TIMEOUT)
         output.mkdir(parents=True)
-        (output / "built-by").write_text(Path(worktree).name)
 
     def names(self):
         return sorted(name for name, _ in self.calls)
+
+    def builder(self, worktree, name):
+        """The worktree whose build `worktree`'s `name` links to."""
+        return self.builders[(Path(worktree) / name).resolve().parent.name]
 
 
 class ScratchCase(unittest.TestCase):
@@ -129,7 +139,7 @@ class SharedCacheCase(ScratchCase):
         for name in ("generated", "runtime-pack"):
             self.assertTrue((second / name).is_symlink())
             self.assertEqual(self.entry_of(first, name), self.entry_of(second, name))
-            self.assertEqual((second / name / "built-by").read_text(), "first")
+            self.assertEqual(builds.builder(second, name), "first")
             self.assertTrue((self.entry_of(second, name) / USED_FILE).is_file())
         self.assertEqual((second / "reference").resolve(), (self.main / "reference").resolve())
         frame = second / "oracle" / "fixtures" / "battle_animation_art" / "frame.png"
@@ -147,7 +157,7 @@ class SharedCacheCase(ScratchCase):
         self.assertEqual(builds.names(), ["generated", "generated", "runtime-pack", "runtime-pack"])
         for name in ("generated", "runtime-pack"):
             self.assertNotEqual(self.entry_of(old, name), self.entry_of(new, name))
-            self.assertEqual((new / name / "built-by").read_text(), "new")
+            self.assertEqual(builds.builder(new, name), "new")
 
     def test_a_changed_fixture_builds_only_the_pack(self):
         builds = Builds()
@@ -156,7 +166,7 @@ class SharedCacheCase(ScratchCase):
         new = self.worktree("new")
         link(new, build=builds)
         self.assertEqual(builds.calls[2:], [("runtime-pack", "new")])
-        self.assertEqual((new / "generated" / "built-by").read_text(), "old")
+        self.assertEqual(builds.builder(new, "generated"), "old")
 
 
 class ConcurrentCase(ScratchCase):
@@ -187,7 +197,7 @@ class ConcurrentCase(ScratchCase):
             two.join(TIMEOUT)
         self.assertEqual(errors, [])
         self.assertEqual(builds.names(), ["generated", "runtime-pack"])
-        self.assertEqual((second / "generated" / "built-by").read_text(), "first")
+        self.assertEqual(builds.builder(second, "generated"), "first")
 
 
 class FailureCase(ScratchCase):
@@ -248,8 +258,9 @@ class LinkCase(ScratchCase):
         (worktree / "generated").symlink_to(self.main / "generated")
         (worktree / "runtime-pack").mkdir()
         (worktree / "reference").mkdir()
-        link(worktree, build=Builds())
-        self.assertEqual((worktree / "generated" / "built-by").read_text(), "first")
+        builds = Builds()
+        link(worktree, build=builds)
+        self.assertEqual(builds.builder(worktree, "generated"), "first")
         self.assertFalse((worktree / "runtime-pack").is_symlink())
         self.assertFalse((worktree / "reference").is_symlink())
         self.assertTrue(any("runtime-pack: kept this worktree's own" in line for line in self.said))
