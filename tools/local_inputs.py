@@ -83,6 +83,9 @@ LINKED_INPUT_GLOBS = ("oracle/fixtures/battle_animation_art/*.png",)
 
 ROM_NAME = "Phantasy Star IV (USA).md"
 
+#: The heavy lock's path override, as `tools/heavy_lock.py` reads it.
+HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
+
 #: Bumped when what goes into a key changes.
 KEY_FORMAT = 1
 
@@ -174,14 +177,21 @@ def files_digest(worktree: Path, pattern: str) -> str:
 
 def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) -> None:
     """Build `entry` into `output` from the snapshot `source` (its `psiv_tools`
-    is the one `python3 -m` finds there), under the worktree's heavy lock."""
+    is the one `python3 -m` finds there), under the worktree's heavy lock.
+
+    The build runs in `source`, so the lock's path is fixed first, as an
+    absolute path: a relative `PSIV_HEAVY_LOCK` means the caller's directory,
+    and the default is the main checkout's, which `source` alone cannot name."""
     command = [part.format(rom=source / ROM_NAME, output=output) for part in entry.command]
     heavy_lock = worktree / "tools" / "heavy_lock.py"
-    lock = subprocess.run([sys.executable, str(heavy_lock)], cwd=worktree, capture_output=True,
-                          text=True, check=True).stdout.strip()
+    env = dict(os.environ)
+    if env.get(HEAVY_LOCK_ENV):
+        env[HEAVY_LOCK_ENV] = os.path.abspath(env[HEAVY_LOCK_ENV])
+    printed = subprocess.run([sys.executable, str(heavy_lock)], cwd=worktree, env=env,
+                             capture_output=True, text=True, check=True).stdout.strip()
+    env[HEAVY_LOCK_ENV] = str((worktree / printed).resolve())
     subprocess.run([sys.executable, str(heavy_lock), "run", "--class", entry.lock_class,
-                    "--", *command], cwd=source, env={**os.environ, "PSIV_HEAVY_LOCK": lock},
-                   check=True)
+                    "--", *command], cwd=source, env=env, check=True)
 
 
 def snapshot(entry: Entry, worktree: Path, trees: dict[str, str], rom: Path,

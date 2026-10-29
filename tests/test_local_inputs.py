@@ -530,32 +530,58 @@ class WaitCase(ScratchCase):
 
 
 class BuildCommandCase(ScratchCase):
-    def test_each_build_runs_in_its_snapshot_under_the_worktrees_heavy_lock(self):
+    def setUp(self):
+        super().setUp()
         # The worktree's heavy_lock.py prints the lock's path with no arguments
-        # and records each `run` with the directory and lock it ran with.
-        worktree = self.worktree("first")
-        (worktree / "tools").mkdir()
-        calls = self.scratch / "calls.json"
-        (worktree / "tools" / "heavy_lock.py").write_text(
+        # (the override, else a default relative to where it runs) and records
+        # each `run` with the directory and lock it ran with.
+        self.tree = self.worktree("first")
+        (self.tree / "tools").mkdir()
+        self.calls = self.scratch / "calls.json"
+        (self.tree / "tools" / "heavy_lock.py").write_text(
             "import json, os, pathlib, sys\n"
             "if len(sys.argv) == 1:\n"
-            "    print(pathlib.Path.cwd().name + '.lock')\n"
+            "    print(os.environ.get('PSIV_HEAVY_LOCK') or 'build/heavy.lock')\n"
             "    sys.exit(0)\n"
-            f"calls = pathlib.Path({str(calls)!r})\n"
+            f"calls = pathlib.Path({str(self.calls)!r})\n"
             "seen = json.loads(calls.read_text()) if calls.exists() else []\n"
             "calls.write_text(json.dumps(seen + [[pathlib.Path.cwd().name,\n"
             "                                     os.environ['PSIV_HEAVY_LOCK'], sys.argv[1:]]]))\n")
-        source, output = self.scratch / "source", self.scratch / "out"
-        source.mkdir()
+        self.source, self.output = self.scratch / "source", self.scratch / "out"
+        self.source.mkdir()
+
+    def runs(self):
         for entry in ENTRIES:
-            build_with_lock(entry, worktree, source, output)
-        rom = str(source / ROM_NAME)
-        self.assertEqual(json.loads(calls.read_text()), [
-            ["source", "first.lock", ["run", "--class", "python", "--", "python3", "-m",
-                                      "psiv_tools", "regenerate", rom, str(output)]],
-            ["source", "first.lock", ["run", "--class", "pack", "--", "python3", "-m",
-                                      "psiv_tools", "pack", rom, str(output)]],
+            build_with_lock(entry, self.tree, self.source, self.output)
+        return json.loads(self.calls.read_text())
+
+    def test_each_build_runs_in_its_snapshot_under_the_worktrees_heavy_lock(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("PSIV_HEAVY_LOCK", None)
+            runs = self.runs()
+        rom, lock = str(self.source / ROM_NAME), str((self.tree / "build" / "heavy.lock").resolve())
+        self.assertEqual(runs, [
+            ["source", lock, ["run", "--class", "python", "--", "python3", "-m", "psiv_tools",
+                              "regenerate", rom, str(self.output)]],
+            ["source", lock, ["run", "--class", "pack", "--", "python3", "-m", "psiv_tools",
+                              "pack", rom, str(self.output)]],
         ])
+
+    def test_an_override_keeps_naming_the_callers_lock_from_the_snapshot(self):
+        caller = self.scratch / "caller"
+        caller.mkdir()
+        for override, expected in (("/elsewhere/heavy.lock", "/elsewhere/heavy.lock"),
+                                   ("custom.lock", str((caller / "custom.lock").resolve()))):
+            with self.subTest(override=override), mock.patch.dict(
+                    os.environ, {"PSIV_HEAVY_LOCK": override}):
+                self.calls.unlink(missing_ok=True)
+                cwd = os.getcwd()
+                os.chdir(caller)
+                try:
+                    runs = self.runs()
+                finally:
+                    os.chdir(cwd)
+                self.assertEqual([lock for _, lock, _ in runs], [expected, expected])
 
 
 if __name__ == "__main__":
