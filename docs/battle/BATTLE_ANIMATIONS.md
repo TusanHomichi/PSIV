@@ -107,7 +107,9 @@ ROM for 121 records. The 16 receipt-backed routine bodies (32 records) ship
 no attack frames and are `deferred` in the art index (#214): their oracle
 captures are shared across bodies, so they are not each routine's art (the
 retail basis is in [source notes](../source-notes/README.md#other-recorded-deviations)).
-Godot keeps the body-flash fallback for them.
+Godot keeps the body-flash fallback for them;
+`python3 tools/verify_native_flash_attack.py` drives
+that fallback in a native battle and fails on an orphan or added node (#92).
 
 ### Movement fields
 

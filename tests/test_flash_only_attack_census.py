@@ -12,10 +12,11 @@ and `clear_attack` resets the tint.
 Since #214 the branch is reachable for exactly the 32 records whose routine
 bodies `oracle/fixtures/battle_animation_remainder.json` names: their art
 index entries are deferred with no frames. Any other record taking it fails
-here. No native run drives the branch yet; a `PSIV_DEBUG_BATTLE` check that
-attacks with one of these enemies and asserts no orphan node remains (the
-memory bracket's orphan check in tools/native_rss.py is the run-wide guard)
-is owed as a follow-up to #214.
+here. The native half is `tools/verify_native_flash_attack.py`: battles
+with two Locusta and with two Sand Newts (receipt enemies) whose repeated
+flash-only attacks and their cleanup must leave no orphan node and add no
+child to the body (the memory bracket's orphan check in tools/native_rss.py is the
+run-wide guard).
 """
 
 import json

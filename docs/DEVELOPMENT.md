@@ -349,7 +349,9 @@ statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
 than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
+itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
+which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
