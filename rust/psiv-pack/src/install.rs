@@ -955,18 +955,23 @@ mod tests {
                 install_atomically(&output, |dir| write_marker(dir, &i.to_string())).unwrap();
             warned.extend(installed.warnings);
         }
-        let privileged = std::fs::remove_dir_all(dead.join("locked")).is_ok() && warned.is_empty();
-        if !privileged {
+        // The install succeeded either way.
+        assert_eq!(
+            std::fs::read_to_string(output.join("marker")).unwrap(),
+            (KEEP_VERSIONS - 1).to_string()
+        );
+        // Read what happened rather than guess privilege: root (a cloud
+        // container) can empty the read-only directory, and then nothing
+        // is left to warn about.
+        if dead.exists() {
             assert!(
                 warned
                     .iter()
                     .any(|w| w.starts_with("installed, but pruning")),
                 "{warned:?}"
             );
-            assert_eq!(
-                std::fs::read_to_string(output.join("marker")).unwrap(),
-                (KEEP_VERSIONS - 1).to_string()
-            );
+        } else {
+            assert!(warned.is_empty(), "{warned:?}");
         }
         let _ =
             std::fs::set_permissions(dead.join("locked"), std::fs::Permissions::from_mode(0o755));
