@@ -92,7 +92,7 @@ import subprocess
 import sys
 import threading
 import time
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -643,8 +643,10 @@ def runner_wait(what, environ=None):
     `what` this process waits for, held flocked: the runner's clock stands
     still meanwhile, and once nobody holds the file (this process died) it no
     longer counts. A no-op without the variable, or when the file can't be
-    made: the wait goes on either way. Never a path in `what`: the runner may
-    show it outside the machine."""
+    made: the wait goes on either way. Telling is best-effort throughout: a
+    file it can't lock, write or remove neither stops the wait nor hides its
+    error, and its descriptor is closed whatever happens. Never a path in
+    `what`: the runner may show it outside the machine."""
     environ = os.environ if environ is None else environ
     folder = environ.get(RUNNER_WAIT_ENV)
     path = handle = None
@@ -655,16 +657,25 @@ def runner_wait(what, environ=None):
             fcntl.flock(handle, fcntl.LOCK_EX)
             os.write(handle, f"{what}\n".encode())
         except OSError:
-            if handle is not None:
-                os.close(handle)
-                handle = None
-            path.unlink(missing_ok=True)
+            _close_runner_wait(path, handle)
+            handle = None
     try:
         yield
     finally:
         if handle is not None:
+            _close_runner_wait(path, handle)
+
+
+def _close_runner_wait(path, handle):
+    """A wait file gone and its descriptor closed, as far as either can be:
+    one left behind, unheld, no longer counts."""
+    try:
+        with suppress(OSError):
             path.unlink(missing_ok=True)
-            os.close(handle)
+    finally:
+        if handle is not None:
+            with suppress(OSError):
+                os.close(handle)
 
 
 def wait_reporting(lock, mode, report, what, environ=None):

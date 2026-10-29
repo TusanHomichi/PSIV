@@ -65,13 +65,16 @@ class WaitDir(unittest.TestCase):
         return sorted(self.waits.iterdir())
 
     def one_file(self):
-        """The one wait file, once it is there (up to TIMEOUT)."""
+        """The one wait file, once its waiter holds it and has written its
+        whole line (up to TIMEOUT): a waiter makes the file before it locks
+        and writes it."""
         deadline = time.monotonic() + TIMEOUT
-        while not self.files():
-            self.assertLess(time.monotonic(), deadline, "no wait file appeared")
+        while True:
+            files = self.files()
+            if len(files) == 1 and held(files[0]) and files[0].read_text().endswith("\n"):
+                return files[0]
+            self.assertLess(time.monotonic(), deadline, f"no held wait file with its line: {files}")
             time.sleep(0.05)
-        [path] = self.files()
-        return path
 
 
 class RunnerWaitCase(WaitDir):
@@ -91,6 +94,24 @@ class RunnerWaitCase(WaitDir):
         with runner_wait("PSIV's gate lock", {RUNNER_WAIT_ENV: str(self.base / "gone")}):
             ran.append(True)
         self.assertEqual(ran, [True])
+
+    def test_a_file_it_cannot_lock_or_remove_does_not_stop_the_wait(self):
+        ran = []
+        with mock.patch("tools.heavy_lock.fcntl.flock", side_effect=OSError("no locks here")), \
+                mock.patch.object(Path, "unlink", side_effect=PermissionError("read-only")), \
+                runner_wait("PSIV's gate lock", {RUNNER_WAIT_ENV: str(self.waits)}):
+            ran.append(True)
+        self.assertEqual(ran, [True])
+
+    def test_a_file_it_cannot_remove_is_left_unheld_and_hides_no_error(self):
+        with mock.patch.object(Path, "unlink", side_effect=PermissionError("read-only")):
+            with runner_wait("PSIV's gate lock", {RUNNER_WAIT_ENV: str(self.waits)}):
+                pass
+            with self.assertRaisesRegex(ValueError, "the wait's own"), \
+                    runner_wait("PSIV's gate lock", {RUNNER_WAIT_ENV: str(self.waits)}):
+                raise ValueError("the wait's own")
+        self.assertEqual(len(self.files()), 2)
+        self.assertFalse(any(held(path) for path in self.files()))
 
 
 class LockWaitCase(WaitDir):
@@ -144,6 +165,25 @@ class LockWaitCase(WaitDir):
         with mock.patch.dict(os.environ, {RUNNER_WAIT_ENV: str(self.waits)}):
             self.assertEqual(self.wait_behind(holder, wait),
                              ("PSIV's gate lock, while another gate runs\n", True, []))
+
+    def test_a_wait_file_it_cannot_remove_strands_no_lock(self):
+        lock = self.heavy_lock()
+        holder = self.hold(lock)
+        ran = []
+
+        def wait():
+            with hold_heavy_lock(lock, environ={**clean_env(), RUNNER_WAIT_ENV: str(self.waits)},
+                                 report=io.StringIO()):
+                ran.append(True)
+
+        with mock.patch.object(Path, "unlink", side_effect=PermissionError("read-only")):
+            _, _, left = self.wait_behind(holder, wait)
+        self.assertEqual(ran, [True])
+        self.assertEqual(len(left), 1)
+        self.assertFalse(held(left[0]))
+        # And the lock it was granted went with the block: free again.
+        with hold_heavy_lock(lock, environ=clean_env(), report=io.StringIO()):
+            pass
 
     def test_negative_control_a_free_lock_is_no_wait(self):
         lock = self.heavy_lock()
