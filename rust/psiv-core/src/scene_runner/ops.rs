@@ -116,6 +116,11 @@ impl SceneRunner {
                 });
                 self.pc += 1;
             }
+            SceneOp::RunObjectRoutine { npc_index, routine } => {
+                effects.push(SceneEffect::ObjectRoutineStarted { npc_index, routine });
+                self.blocked = Blocked::ObjectRoutine(npc_index);
+                self.pc += 1;
+            }
             SceneOp::SubtractMoney { amount } => {
                 state.set_money(state.money().wrapping_sub(amount));
                 effects.push(SceneEffect::MoneyChanged {

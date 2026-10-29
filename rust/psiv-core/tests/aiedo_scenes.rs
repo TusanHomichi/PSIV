@@ -22,13 +22,14 @@ const PLAIN: Answers = Answers {
     last_byte: None,
 };
 
-/// The leader facing up from below two map objects, so a facing flip is
+/// The leader facing up from below three map objects, so a facing flip is
 /// visible.
 fn cast() -> Vec<ScriptedActor> {
     vec![
         ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(2, 3), Direction::Up),
         ScriptedActor::new(ActorRef::Npc(0), Cell::new(1, 1), Direction::Left),
         ScriptedActor::new(ActorRef::Npc(1), Cell::new(2, 1), Direction::Left),
+        ScriptedActor::new(ActorRef::Npc(5), Cell::new(3, 1), Direction::Left),
     ]
 }
 
@@ -40,7 +41,7 @@ fn play(event: u16, state: &mut GameState, answers: Answers) -> Vec<SceneEffect>
     let mut log: Vec<SceneEffect> = Vec::new();
     for _ in 0..200 {
         let input = match log.last() {
-            Some(SceneEffect::DialogueOpen(_)) => {
+            Some(SceneEffect::DialogueOpen(_) | SceneEffect::DialogueResume) => {
                 runner.set_dialogue_last_byte(answers.last_byte);
                 SceneInput::DialogueClosed
             }
@@ -221,4 +222,96 @@ fn the_bailed_out_sisters_are_taken_home_to_uzo() {
         .expect("object 0 turns");
     assert!(face_at > load_at);
     assert_eq!(faced(&log), vec![(ActorRef::Npc(0), Direction::Down)]);
+}
+
+/// `Event_AiedoManSavings`: entry `$3D` to its `$F7`, object 0 turns to the
+/// leader, the same text resumes, and the body reloads the map's chunks.
+#[test]
+fn the_man_turns_between_the_two_halves_of_his_line() {
+    let mut state = GameState::new();
+    let before = state.snapshot();
+    let log = play(0x22, &mut state, PLAIN);
+    let shape: Vec<&str> = log
+        .iter()
+        .filter_map(|e| match e {
+            SceneEffect::DialogueOpen(DialogueId(0x3D)) => Some("dialogue $3D"),
+            SceneEffect::ActorFaced {
+                actor: ActorRef::Npc(0),
+                facing: Direction::Down,
+            } => Some("object 0 faces down"),
+            SceneEffect::DialogueResume => Some("resume"),
+            SceneEffect::Presentation {
+                op:
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::ReloadMapChunks,
+                    },
+            } => Some("chunks"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        shape,
+        ["dialogue $3D", "object 0 faces down", "resume", "chunks"]
+    );
+    assert_eq!(state.snapshot(), before, "no flag, no money");
+}
+
+/// `Event_AiedoManCrushOnAlys`: object 5 turns, entry `$3C` runs to its
+/// `$F7`, his routine becomes `$BC` and the scene waits for him to be gone,
+/// then clears his slot and resumes the text.
+#[test]
+fn the_admirer_speaks_runs_off_and_the_party_answers() {
+    let mut state = GameState::new();
+    let log = play(0x0E, &mut state, PLAIN);
+    let shape: Vec<String> = log
+        .iter()
+        .filter_map(|e| match e {
+            SceneEffect::DialogueOpen(DialogueId(id)) => Some(format!("dialogue {id:#X}")),
+            SceneEffect::ActorFaced { actor, .. } => Some(format!("{actor:?} faced")),
+            SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
+                Some(format!("object {npc_index} routine {routine:#X}"))
+            }
+            SceneEffect::NpcDespawned { npc_index, count } => {
+                Some(format!("despawn {npc_index}+{count}"))
+            }
+            SceneEffect::DialogueResume => Some("resume".to_owned()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        shape,
+        [
+            "Npc(5) faced",
+            "dialogue 0x3C",
+            "object 5 routine 0xBC",
+            "despawn 5+1",
+            "resume",
+        ]
+    );
+}
+
+/// The wait holds while the object is on the map and lets go the tick after
+/// it clears its slot. Negative control: an object that never leaves keeps
+/// the scene waiting.
+#[test]
+fn the_scene_waits_until_the_object_has_cleared_its_slot() {
+    let scene = scene_for(EventIndex(0x0E)).unwrap();
+    let npcs: Vec<psiv_core::Npc> = (0..6)
+        .map(|i| psiv_core::Npc::new(psiv_core::NpcId(i), Cell::new(i, 0), Direction::Down))
+        .collect();
+    let mut map = map_with(&["......", "......", "......"], vec![], npcs);
+    let mut runner = SceneRunner::new(scene.ops, cast(), StepFrames::new(8).unwrap());
+    let mut state = GameState::new();
+    runner.tick(&map, &mut state, SceneInput::None);
+    runner.tick(&map, &mut state, SceneInput::DialogueClosed);
+    assert_eq!(runner.running_object_routine(), Some(5));
+    for _ in 0..100 {
+        let effects = runner.tick(&map, &mut state, SceneInput::None);
+        assert!(!effects.contains(&SceneEffect::DialogueResume));
+    }
+    assert_eq!(runner.running_object_routine(), Some(5), "still on the map");
+    map.set_npc_active(5, false).unwrap();
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    assert_eq!(runner.running_object_routine(), None);
+    assert!(effects.contains(&SceneEffect::DialogueResume));
 }

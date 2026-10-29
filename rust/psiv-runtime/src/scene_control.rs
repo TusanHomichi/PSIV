@@ -91,6 +91,33 @@ impl Runtime {
         self.scene.as_ref().map(|r| r.actors()).unwrap_or(&[])
     }
 
+    /// The object a running scene's `RunObjectRoutine` waits on, which its
+    /// routine (and only it) moves each frame.
+    #[must_use]
+    pub fn running_object_routine(&self) -> Option<usize> {
+        self.scene
+            .as_ref()
+            .and_then(SceneRunner::running_object_routine)
+    }
+
+    /// The scene actors the renderer places: the cast, less an object a
+    /// `RunObjectRoutine` handed to its routine. That object's routine moves
+    /// it ([`Runtime::object_motions`]), and the cast's copy, frozen where
+    /// the scene started, must not draw over it.
+    #[must_use]
+    pub fn scene_actor_draws(&self) -> Vec<ScriptedActor> {
+        let Some(runner) = self.scene.as_ref() else {
+            return Vec::new();
+        };
+        let routine = self.running_object_routine();
+        runner
+            .actors()
+            .iter()
+            .filter(|actor| routine.is_none_or(|npc| actor.actor != ActorRef::Npc(npc)))
+            .copied()
+            .collect()
+    }
+
     /// The step timing scene walks interpolate with.
     #[must_use]
     pub fn step_frames(&self) -> StepFrames {

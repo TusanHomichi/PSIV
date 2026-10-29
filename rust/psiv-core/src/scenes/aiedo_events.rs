@@ -1,12 +1,13 @@
-//! Aiedo's side events (issue #81): Rocky's owner and the Hunter's Guild bail
-//! quest, short bodies that face the leader, speak an entry of
-//! `DialogueTree11` and set the quest's flags.
+//! Aiedo's side events (issue #81): Rocky's owner, the Hunter's Guild bail
+//! quest and the townsfolk's own scenes, short bodies that face the leader and
+//! speak entries of `DialogueTree11`.
 //!
 //! Records are `docs/scenes/120_*` onward. Every body was read from the US
 //! image through its `EventPtrs` slot; the clone's labels are navigation only.
 
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp};
+use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -157,5 +158,59 @@ pub static GIRLS_BAILED_OUT: Scene = Scene {
         },
         SceneOp::FadeIn,
         standard(0x0A),
+    ],
+};
+
+/// `$0022`, `Event_AiedoManSavings`, retail `$06D468..$06D4A5`
+/// (`ps4.asm:146935-146948`): the man of `AiedoHouse3` (object 0) searches
+/// for his savings in entry `$3D` until its `$F7`, turns to the leader, and
+/// the text resumes where it closed (`popdlg` / `jsr Event_RunDialogue`,
+/// `$5AC6C`). The body then clears `Game_Mode_Routine` and reloads the map's
+/// chunks itself. Tree 11 entry `$18` (his dialogue id) is only
+/// `$F6 $00 $22`, so it runs on every talk and sets no flag.
+pub static AIEDO_MAN_SAVINGS: Scene = Scene {
+    name: "Event_AiedoManSavings",
+    event: EventIndex(0x0022),
+    ops: &[
+        standard(0x3D),
+        face_leader(0),
+        SceneOp::RunDialogueResume,
+        // `move.w #0, (Game_Mode_Routine).w / movea.l (Map_Chunk_Addr).w, a0 /
+        // jsr Map_LoadChunks`.
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
+    ],
+};
+
+/// `$000E`, `Event_AiedoManCrushOnAlys`, retail `$06BE78..$06BEE7`
+/// (`ps4.asm:145309-145337`, the US `grand_cross=0` body): the man on Aiedo's
+/// street (object 5, `$FFFFC440`) turns to the leader and flatters Alys in
+/// entry `$3C` until its `$F7`, then runs off: his routine becomes `$BC`
+/// (`loc_489D6`, a walk up that clears its own slot once off screen), and only
+/// he moves until he is gone. The `trap #0` clears his slot, and the party's
+/// reaction resumes the same text. Tree 11 entry 7 (his dialogue id) fires it
+/// while `EventFlag_Zio` (`$42`) is clear: `$FA $42 $01` sends a later party
+/// to entry 8.
+pub static AIEDO_MAN_CRUSH_ON_ALYS: Scene = Scene {
+    name: "Event_AiedoManCrushOnAlys",
+    event: EventIndex(0x000E),
+    ops: &[
+        face_leader(5),
+        standard(0x3C),
+        // `lea ($FFFFC440).w, a4 / move.w #$BC, (a4)` and `loc_6BE9E`.
+        SceneOp::RunObjectRoutine {
+            npc_index: 5,
+            routine: 0xBC,
+        },
+        // `lea ($FFFFC440).w, a0 / move.w #$F, d7 / trap #0`.
+        SceneOp::DespawnNpc {
+            npc_index: 5,
+            count: 1,
+        },
+        SceneOp::RunDialogueResume,
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
     ],
 };

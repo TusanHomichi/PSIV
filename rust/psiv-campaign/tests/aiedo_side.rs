@@ -7,12 +7,19 @@ mod common;
 
 use common::pack;
 use psiv_campaign::driver::Driver;
-use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
-use psiv_runtime::Session;
+use psiv_core::{
+    ActorRef, BespokeKind, CharId, Direction, Flag, GameState, RetailLocation, RetailSave,
+    WanderSpeed,
+};
+use psiv_runtime::{Button, Session};
 
 const AIEDO_PRISON: u16 = 0x05C;
 const ROCKY_HOUSE: u16 = 0x065;
 const UZO_HOUSE_3: u16 = 0x0E4;
+const AIEDO_HOUSE_3: u16 = 0x060;
+const AIEDO: u16 = 0x054;
+/// The admirer on Aiedo's street (object 5, `$FFFFC440`, dialogue 7).
+const ADMIRER: usize = 5;
 
 /// The guard, `Field_Obj_Secondary`.
 const GUARD: usize = 0;
@@ -148,4 +155,155 @@ fn rockys_owner_asks_for_the_dog() {
     let mut driver = Driver::new(session, None);
     driver.talk(OWNER).expect("the owner speaks");
     assert!(!flag(&driver, 0x1F));
+}
+
+/// `AiedoHouse3`'s man (object 0, routine `loc_48F36`, facing down at
+/// (26,28)) fires `Event_AiedoManSavings` on every talk: talked to from the
+/// right, he ends facing the party.
+#[test]
+fn the_man_looking_for_his_savings_turns_to_the_party() {
+    let Some(session) = party_at(AIEDO_HOUSE_3, 27, 30, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let scenes = driver.scenes_ended();
+    let flags = driver.runtime().game().snapshot();
+    driver.talk(0).expect("he speaks");
+    assert_eq!(driver.scenes_ended(), scenes + 1, "the scene ran");
+    let leader = psiv_campaign::driver::standing_cell(driver.runtime());
+    let man = driver.runtime().map().npcs()[0].cell;
+    let facing = driver.runtime().map().npcs()[0].facing;
+    assert_eq!(
+        man.neighbor(facing),
+        Some(leader),
+        "object 0 faces the leader at {leader:?}"
+    );
+    assert_eq!(driver.runtime().game().snapshot(), flags, "nothing written");
+}
+
+/// Before Zio (`$42` clear) the man on Aiedo's street flatters Alys and runs
+/// off north (`Event_AiedoManCrushOnAlys`): the scene ends with his slot
+/// cleared and nothing else written. Once Zio has been fought, entry 7's
+/// `$FA $42 $01` reads entry 8 instead and he stays.
+#[test]
+fn the_admirer_runs_off_the_screen() {
+    let Some(session) = party_at(AIEDO, 47, 77, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let flags = driver.runtime().game().snapshot();
+    let scenes = driver.scenes_ended();
+    // About 900 frames with the text; a man who never leaves the screen
+    // would hold the scene for good, so the talk is bounded.
+    driver.set_budget(3_000);
+    driver.talk(ADMIRER).expect("he speaks and runs");
+    assert_eq!(driver.scenes_ended(), scenes + 1, "the scene ran out");
+    assert!(
+        !driver.runtime().map().npcs()[ADMIRER].active,
+        "his slot is clear"
+    );
+    assert_eq!(driver.runtime().game().snapshot(), flags, "nothing written");
+
+    // Negative control: after Zio.
+    let Some(session) = party_at(AIEDO, 47, 77, 0, &[0x42]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let scenes = driver.scenes_ended();
+    driver.talk(ADMIRER).expect("he only talks");
+    assert_eq!(driver.scenes_ended(), scenes, "no scene");
+    assert!(driver.runtime().map().npcs()[ADMIRER].active);
+}
+
+/// While `Event_AiedoManCrushOnAlys` waits on his routine (`$BC`), the
+/// renderer's view of the admirer is the routine's: the scene's cast, frozen
+/// where the scene started, yields him to [`Runtime::object_motions`], which
+/// walks him up the street one cell per `WanderSpeed::Selector2` step with
+/// the step interpolated, facing up, until his cleared slot drops him.
+///
+/// [`Runtime::object_motions`]: psiv_runtime::Runtime::object_motions
+#[test]
+fn the_admirer_draws_his_routine_walk() {
+    let Some(session) = party_at(AIEDO, 47, 77, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.set_budget(3_000);
+    driver.talk_to(ADMIRER).expect("he speaks");
+    let start = driver.runtime().map().npcs()[ADMIRER].cell;
+    let mut drawn_y = Vec::new();
+    let mut cells = Vec::new();
+    while driver.runtime().scene_active() {
+        let runtime = driver.runtime();
+        if runtime.running_object_routine() == Some(ADMIRER) {
+            let cast = runtime.scene_actors();
+            let draws = runtime.scene_actor_draws();
+            assert!(
+                cast.iter().any(|a| a.actor == ActorRef::Npc(ADMIRER)),
+                "the cast still holds him"
+            );
+            assert!(
+                draws.iter().all(|a| a.actor != ActorRef::Npc(ADMIRER)),
+                "the frozen cast does not draw him"
+            );
+            assert_eq!(draws.len(), cast.len() - 1, "the rest of the cast draws");
+            let motions = runtime.object_motions();
+            if runtime.map().npcs()[ADMIRER].active {
+                let motion = motions
+                    .iter()
+                    .find(|m| m.npc_index == ADMIRER)
+                    .expect("his routine places him");
+                assert_eq!(motion.facing, Direction::Up);
+                assert_eq!(motion.cell.x, start.x, "straight up the street");
+                drawn_y.push(i32::from(motion.cell.y) * 16 + motion.offset_16ths.1);
+                cells.push(motion.cell);
+            } else {
+                assert!(motions.iter().all(|m| m.npc_index != ADMIRER));
+            }
+            driver.neutral(1).expect("the routine runs");
+        } else {
+            driver.tap(Button::Speak).expect("the text runs");
+        }
+    }
+    assert!(!driver.runtime().map().npcs()[ADMIRER].active, "slot clear");
+    assert!(
+        driver
+            .runtime()
+            .object_motions()
+            .iter()
+            .all(|m| m.npc_index != ADMIRER),
+        "a cleared slot draws nothing"
+    );
+    assert!(drawn_y.len() > 1, "the wait drew him");
+    assert!(
+        drawn_y.windows(2).all(|w| w[1] <= w[0]),
+        "he only walks up: {drawn_y:?}"
+    );
+    assert!(
+        drawn_y
+            .windows(2)
+            .any(|w| w[0] - w[1] > 0 && w[0] - w[1] < 16),
+        "steps interpolate: {drawn_y:?}"
+    );
+    // Every whole step between two cell changes lasts the routine's speed.
+    let changes: Vec<usize> = cells
+        .windows(2)
+        .enumerate()
+        .filter(|(_, w)| w[0] != w[1])
+        .map(|(i, _)| i + 1)
+        .collect();
+    assert!(changes.len() >= 2, "he walks several cells: {cells:?}");
+    let BespokeKind::Departing { speed, .. } =
+        psiv_core::scene_routine_kind(0xBC).expect("$BC is transcribed")
+    else {
+        panic!("$BC departs");
+    };
+    assert_eq!(speed, WanderSpeed::Selector2);
+    for pair in changes.windows(2) {
+        assert_eq!(
+            pair[1] - pair[0],
+            usize::from(speed.frames()),
+            "one cell per step at the routine's speed: {changes:?}"
+        );
+    }
 }

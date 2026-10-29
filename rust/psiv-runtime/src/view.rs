@@ -2,10 +2,28 @@
 //! the current map's record and render paths, and the live party and world
 //! objects.
 
-use psiv_core::{BespokeActor, FieldMap, FieldState, GameState, MapId, MemberView, Wanderer};
+use psiv_core::{
+    BespokeActor, Cell, Direction, FieldMap, FieldState, GameState, MapId, MemberView, Wanderer,
+};
 use psiv_data::GameData;
 
 use crate::{EffectOutcome, Runtime};
+
+/// A field object the engine moves, as the renderer places it: its committed
+/// cell, facing and the step still to draw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ObjectMotion {
+    /// The object's map slot.
+    pub npc_index: usize,
+    /// The cell it stands on or is stepping to.
+    pub cell: Cell,
+    /// The way it faces.
+    pub facing: Direction,
+    /// Whether a step is in progress.
+    pub stepping: bool,
+    /// Sub-cell displacement in sixteenths, back from `cell`.
+    pub offset_16ths: (i32, i32),
+}
 
 impl Runtime {
     /// Shared RNG longword, read-only, for source/draw-order receipts.
@@ -110,6 +128,50 @@ impl Runtime {
     #[must_use]
     pub fn wanderers(&self) -> &[Wanderer] {
         self.wander.wanderers()
+    }
+
+    /// Every active object a field routine moves (a wanderer, or a bespoke
+    /// actor whose routine steps, including one a scene's `RunObjectRoutine`
+    /// installed), in slot order, at its step's live interpolation and its
+    /// routine's own speed. The renderer places these from the engine, never
+    /// from the map layout or a scene's cast.
+    #[must_use]
+    pub fn object_motions(&self) -> Vec<ObjectMotion> {
+        let npcs = self.map.npcs();
+        let live = |index: usize| npcs.get(index).filter(|npc| npc.active);
+        let mut motions: Vec<ObjectMotion> = self
+            .wander
+            .wanderers()
+            .iter()
+            .filter_map(|w| {
+                let npc = live(w.npc_index())?;
+                Some(ObjectMotion {
+                    npc_index: w.npc_index(),
+                    cell: npc.cell,
+                    facing: npc.facing,
+                    stepping: w.is_stepping(),
+                    offset_16ths: w.render_offset_16ths(),
+                })
+            })
+            .chain(
+                self.bespoke
+                    .actors()
+                    .iter()
+                    .filter(|actor| actor.kind().reports_state())
+                    .filter_map(|actor| {
+                        let npc = live(actor.npc_index())?;
+                        Some(ObjectMotion {
+                            npc_index: actor.npc_index(),
+                            cell: npc.cell,
+                            facing: npc.facing,
+                            stepping: actor.is_stepping(),
+                            offset_16ths: actor.render_offset_16ths(),
+                        })
+                    }),
+            )
+            .collect();
+        motions.sort_by_key(|motion| motion.npc_index);
+        motions
     }
 
     /// The map's bespoke field-object actors, for renderer and replay state.

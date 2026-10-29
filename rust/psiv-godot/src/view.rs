@@ -15,16 +15,14 @@ use crate::CELL_PIXELS;
 
 /// One drawn NPC: its sprite node plus what the per-frame pass needs to
 /// place and animate it. `base` is the pack's pixel anchor (authoritative —
-/// 85 retail objects sit on half-cells) and `spawn` the engine cell it was
-/// built at; a wanderer's current position is `base + (cell - spawn) * 16`
-/// plus its step offset, which preserves half-cell anchors while cells move.
+/// 85 retail objects sit on half-cells). An object a routine moves is drawn
+/// from its live state instead ([`motion_pixel_position`]).
 pub(crate) struct NpcNode {
     pub(crate) node: Gd<Sprite2D>,
     pub(crate) sheet: String,
     pub(crate) idle: String,
     pub(crate) index: usize,
     pub(crate) base: (i32, i32),
-    pub(crate) spawn: (i32, i32),
 }
 
 /// Converts the runtime's live NPC cell/offset pair back to its pixel anchor.
@@ -35,6 +33,19 @@ pub(crate) fn npc_pixel_position(cell: Cell, offset: (i32, i32)) -> (i32, i32) {
         i32::from(cell.x) * CELL_PIXELS as i32 + offset.0,
         (i32::from(cell.y) - 1) * CELL_PIXELS as i32 + offset.1,
     )
+}
+
+/// Where an object a routine moves is drawn: its live cell and sub-cell
+/// anchor, as [`npc_pixel_position`], plus the step still to draw. The
+/// node's `base` already holds the anchor it was built with, so adding the
+/// anchor to `base` counted a half-cell object's offset twice.
+pub(crate) fn motion_pixel_position(
+    cell: Cell,
+    anchor: (i32, i32),
+    step_16ths: (i32, i32),
+) -> (i32, i32) {
+    let (x, y) = npc_pixel_position(cell, anchor);
+    (x + step_16ths.0, y + step_16ths.1)
 }
 
 /// Tape-22's top-center SAT entry is object 0, tile `0x287`, with palette
@@ -165,4 +176,31 @@ pub(crate) fn sequence_name(kind: &str, facing: Direction) -> String {
         Direction::Right => "right",
     };
     format!("{kind}_{dir}")
+}
+
+#[cfg(test)]
+mod tests {
+    use psiv_core::Cell;
+
+    use super::{motion_pixel_position, npc_pixel_position};
+
+    #[test]
+    fn a_moving_object_counts_its_half_cell_anchor_once() {
+        let cell = Cell::new(5, 9);
+        let anchor = (8, 0);
+        // At rest, the motion path draws where the node was built.
+        let built = npc_pixel_position(cell, anchor);
+        assert_eq!(motion_pixel_position(cell, anchor, (0, 0)), built);
+        // Negative control: the old base-plus-anchor sum is a half cell off.
+        assert_ne!((built.0 + anchor.0, built.1 + anchor.1), built);
+        // A step draws back from the committed cell.
+        assert_eq!(
+            motion_pixel_position(cell, anchor, (0, 6)),
+            (built.0, built.1 + 6)
+        );
+        assert_eq!(
+            motion_pixel_position(Cell::new(6, 9), anchor, (-16, 0)),
+            built
+        );
+    }
 }

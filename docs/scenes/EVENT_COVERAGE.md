@@ -59,7 +59,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$000B` | `Event_BoardingHydrofoil` | ItemAction_Hydrofoil: the ITEM menu boards the Hydrofoil |  | scene `Event_BoardingHydrofoil` |
 | `$000C` | `Event_BasementContainers` | map trigger $08 | AcademyBasement_B2 | scene `Event_BasementContainers` |
 | `$000D` | `Event_MeetingSaya` | map trigger $16 | KrupKindergarten | scene `Event_MeetingSaya` |
-| `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | allowlisted, #81 |
+| `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | scene `Event_AiedoManCrushOnAlys` |
 | `$000F` | `Event_SuspicionOnPrincipal` | map trigger $0A | PiataAcademy_F1 | scene `Event_SuspicionOnPrincipal` |
 | `$0010` | `Event_GettingOffVehicle` | field input: Cancel/Start-class press while on a vehicle (`loc_56084`) |  | allowlisted, #81 |
 | `$0011` | `Event_DezoSpaceportAppearing` | called from $8010 |  | inside the caller's scene (`$8010`) |
@@ -79,7 +79,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$001F` | `Event_ConveyorBeltRight` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltRight` |
 | `$0020` | `Event_ConveyorBeltLeft` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltLeft` |
 | `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | scene `Event_Recovery` |
-| `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | allowlisted, #81 |
+| `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | scene `Event_AiedoManSavings` |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
 | `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | allowlisted, #81 |
 | `$0025` | `Event_AfterIgglanova` | map trigger $13 | AcademyBasement_B2 | scene `Event_AfterIgglanova` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 33 |
+| #81 | Motavia side content | 31 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 41 |
+| | total | 39 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

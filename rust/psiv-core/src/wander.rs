@@ -567,6 +567,13 @@ impl WanderSet {
         Ok(())
     }
 
+    /// Drops object `npc_index` from the walkers: a scene gave it another
+    /// routine.
+    pub fn remove(&mut self, npc_index: usize) {
+        self.wanderers
+            .retain(|wanderer| wanderer.npc_index != npc_index);
+    }
+
     /// Advances every wanderer one frame.
     ///
     /// `visible` decides which objects are on camera. **Off-screen objects are
