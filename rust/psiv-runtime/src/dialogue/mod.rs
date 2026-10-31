@@ -127,6 +127,8 @@ pub struct DialogueRunner {
     /// The byte under the saved dialogue address after the last stop
     /// (`stop_byte.rs`).
     stop_byte: Option<u8>,
+    /// The byte two before it, the last the text ran (`stop_byte.rs`).
+    last_byte: Option<u8>,
 }
 
 impl Default for DialogueRunner {
@@ -155,6 +157,7 @@ impl DialogueRunner {
             cutscene_portrait: false,
             signals: Vec::new(),
             stop_byte: None,
+            last_byte: None,
         }
     }
 

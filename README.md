@@ -93,8 +93,9 @@ CONTINUE, and save from the camp menu's STATE, then SAVE, as on the cartridge.
 
 **On the Steam Deck**, build the pack on a Linux PC as above, then run
 `tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
-release, puts the pack beside it, and copies both to `~/psiv` on the Deck over
-SSH. On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. Its requirements
+release and copies it to `~/psiv` on the Deck over SSH, and the pack to
+`~/.local/share/PSIV`, where the installed game keeps its pack and saves. On
+the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. Its requirements
 are in the developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-for-the-steam-deck).
 
 The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:

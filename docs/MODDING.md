@@ -15,8 +15,14 @@ of its edits, never as pack files.
 In this order:
 
 1. the directory `PSIV_RUNTIME_PACK` names;
-2. `runtime-pack/` beside the game's executable (an exported build);
-3. `runtime-pack/` at the repository root (a source checkout).
+2. for an installed game (an exported build), `runtime-pack/` in its user data
+   folder: `~/.local/share/PSIV` on Linux and the Steam Deck,
+   `~/Library/Application Support/PSIV` on macOS, `%APPDATA%\PSIV` on Windows;
+3. for a source checkout, `runtime-pack/` at the repository root.
+
+When that directory holds no pack the game can load, it shows a setup screen
+that asks for the ROM and builds the pack there
+([`pack_setup.rs`](../rust/psiv-godot/src/pack_setup.rs)).
 
 Work on a copy, so the original stays one command away:
 
@@ -32,7 +38,9 @@ run root's link to the checkout's pack, so the copy above is the one that loads.
 **`pack` replaces.** Running `python3 -m psiv_tools pack` into a directory
 builds a new pack beside it and swaps it in whole: the directory becomes a
 link to the new version, and the previous versions, edits included, are kept
-as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them.
+as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them. On
+Windows the directory stays a real one and the previous version, edits
+included, is removed.
 Keep edits in a separate copy, as above.
 A loader that layers a mod over the original pack instead is planned after 1.0
 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).

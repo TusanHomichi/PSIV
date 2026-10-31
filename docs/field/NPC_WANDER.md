@@ -168,6 +168,7 @@ The implementation is deliberately split by what the routine actually does:
 | `FlaggedRandom` | `NPCType8` | no draw while `EventFlag_IgglanovaZema` is clear; `loc_49CEA` draws only after it is set |
 | `Follow` / `FlaggedFollow` | `NPCType6`, `NPCType7`, `FellowPenguin`, `loc_49192`, `loc_496C6` | relationship/object-target command, no RNG; FellowPenguin clears interaction bit 3 when joined |
 | `FlaggedPattern` | `EsperGuard`, `InnerEsperGuards`, `MuskCatGuard` | fixed pre-flag command, then the extracted literal route, which **latches** on its `$FF` (below); no RNG |
+| `Departing` | `loc_489D6` (`$BC`), installed by a scene rather than a map placement (`bespoke::scene_routine_kind`) | `Fixed`'s command with no party or object gate (its init clears `render_flags` bit 3, which `loc_4A316` tests first); the runtime clears its slot the first frame `FieldObj_OnScreenTest` rejects it ([122](../scenes/122_AiedoManEvents.md)); no RNG |
 
 **Terminators: loop or latch.** A pattern table ends in `$FF`. The looping routines
 (`loc_49FCE`, `ps4.asm:97101`) clear the cursor (`clr.w $1C(a4)`) and start over; the three guard

@@ -35,6 +35,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
+pub mod decode;
 pub mod field_maps;
 pub mod install;
 pub mod json;

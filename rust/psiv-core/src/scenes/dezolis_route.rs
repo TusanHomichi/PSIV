@@ -7,7 +7,9 @@
 //! listed, with an issue, in the census allowlist.
 
 use crate::geom::Direction;
-use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
+};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
 use crate::scene_runner::drift::{CoordCmp, NpcDrift};
@@ -280,6 +282,7 @@ pub static GYUNA: Scene = Scene {
         },
         // 4: `popdlg` / `cmpi.b #$35, (a0)` / `bne.b loc_70CB2` ($070C9A..$070CA6).
         SceneOp::BranchIfSavedDialogueByte {
+            at: SavedByte::Next,
             value: 0x35,
             if_equal: 5,
             if_not: 6,
