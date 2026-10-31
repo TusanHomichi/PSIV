@@ -336,6 +336,8 @@ portability tests (the atomic swap and the text-file census) on Windows and
 macOS (`.github/workflows/platforms.yml`), since players build the pack there.
 The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
 ROM-free Python tests, a Godot smoke) is open.
+Hosted CI also holds each pull request to the house rules a machine can read,
+its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
