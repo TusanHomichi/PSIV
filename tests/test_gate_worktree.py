@@ -10,9 +10,12 @@ linked input's target is left alone), the changed source is newer than the
 kept target dir and an unchanged one keeps its time, which is what lets cargo
 reuse the warm build safely. `LibraryCase` removes a Godot library a gate
 would otherwise test against. `CapCase` removes `rust/target` past the cap and
-keeps it under. `RefusalCase` leaves the main checkout, a lane's worktree and a
-plain directory as they are, also from main's copy read on stdin, as the
-steward runs it.
+keeps it at the cap, on a measurement it stubs: a file just written can show
+almost none of its blocks until the filesystem allocates them (on ZFS, seconds
+later), so measuring one here would race. `DiskBytesCase` measures what is
+settled: blocks rather than sizes, and links not followed. `RefusalCase`
+leaves the main checkout, a lane's worktree and a plain directory as they are,
+also from main's copy read on stdin, as the steward runs it.
 """
 
 import os
@@ -23,6 +26,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools import gate_worktree
 from tools.gate_worktree import LIBRARIES, TARGET, Refused, prepare
@@ -139,22 +143,47 @@ class LibraryCase(ScratchRepo):
 
 
 class CapCase(ScratchRepo):
-    def fill(self):
+    def prepare_measuring(self, used, cap):
         self.prepare(self.first)
-        blob = self.gate / TARGET / "debug" / "blob"
-        blob.parent.mkdir(parents=True)
-        blob.write_bytes(os.urandom(256 * 1024))
+        built = self.gate / TARGET / "debug" / "deps" / "libcore.rlib"
+        built.parent.mkdir(parents=True)
+        built.write_bytes(b"built")
+        with mock.patch.object(gate_worktree, "disk_bytes", return_value=used) as measured:
+            done = self.prepare(self.second, cap=cap)
+        measured.assert_called_once_with(self.gate / TARGET)
+        return done
 
     def test_removes_rust_target_past_the_cap(self):
-        self.fill()
-        done = self.prepare(self.second, cap=64 * 1024)
+        done = self.prepare_measuring(used=CAP + 1, cap=CAP)
         self.assertFalse((self.gate / TARGET).exists())
         self.assertTrue(any("over the" in line and "builds cold" in line for line in done), done)
 
-    def test_keeps_it_under_the_cap(self):
-        self.fill()
-        self.prepare(self.second, cap=CAP)
-        self.assertTrue((self.gate / TARGET / "debug" / "blob").is_file())
+    def test_keeps_it_at_the_cap(self):
+        done = self.prepare_measuring(used=CAP, cap=CAP)
+        self.assertTrue((self.gate / TARGET / "debug" / "deps" / "libcore.rlib").is_file())
+        self.assertTrue(any(line.startswith("kept rust/target") for line in done), done)
+
+
+class DiskBytesCase(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="gate-worktree-")
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+
+    def test_counts_blocks_not_sizes(self):
+        """A sparse file's size is all hole: none of it is on disk."""
+        with open(self.root / "sparse", "wb") as sparse:
+            sparse.truncate(CAP)
+        self.assertLess(gate_worktree.disk_bytes(self.root), 1 << 20)
+
+    def test_does_not_follow_links(self):
+        """Python's standard library has been on disk since it was installed,
+        so a link to it would count megabytes if it were followed."""
+        stdlib = Path(os.__file__).parent
+        self.assertGreater(gate_worktree.disk_bytes(stdlib), 1 << 20)
+        (self.root / "stdlib").symlink_to(stdlib, target_is_directory=True)
+        (self.root / "os.py").symlink_to(os.__file__)
+        self.assertLess(gate_worktree.disk_bytes(self.root), 1 << 20)
 
 
 class RefusalCase(ScratchRepo):
