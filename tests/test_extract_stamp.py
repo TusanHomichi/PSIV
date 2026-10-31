@@ -20,7 +20,7 @@ from unittest import mock
 
 from oracle.force.errors import ForceError
 from oracle.force.pack import Pack
-from oracle.sweep import coverage, replay_pack, route_abilities
+from oracle.sweep import coverage, route_abilities
 from psiv_tools import core, dialogue_census
 from psiv_tools import extract_stamp as stamp
 from psiv_tools.extract_stamp import StaleExtractError, load_table
@@ -443,10 +443,6 @@ class EveryReaderRefusesAStaleExtract(TempDirectory):
         with self.assertRaises(StaleExtractError):
             route_abilities.Data.load(self.directory)
 
-    def test_the_replay_pack_builder(self):
-        with self.assertRaises(StaleExtractError):
-            replay_pack.build(self.directory, self.root, self.root)
-
     def test_the_sweep_coverage_enemy_names(self):
         with self.assertRaises(StaleExtractError):
             coverage.enemy_names(self.directory / "enemies.json")
@@ -734,7 +730,7 @@ class NothingReadsGeneratedBare(unittest.TestCase):
     def test_the_scan_covers_the_readers(self):
         files = set(python_files())
         for reader in ("oracle/force/pack.py", "oracle/sweep/route_abilities.py",
-                       "oracle/sweep/replay_pack.py", "oracle/sweep/coverage.py",
+                       "oracle/sweep/coverage.py",
                        "oracle/sweep/player_abilities.py", "psiv_tools/dialogue_census.py"):
             self.assertIn(reader, files)
 

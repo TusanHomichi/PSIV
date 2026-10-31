@@ -210,7 +210,11 @@ so a commit from before it still gets the cache.
 
 The documentation check needs no local inputs; with the disassembly present
 it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
-and prints `citations: skipped` without it. From the root:
+and prints `citations: skipped` without it. With the runtime pack present it
+fails a file that copies the pack's battle tables (`tools/check_rom_tables.py`,
+[#149](https://github.com/TusanHomichi/PSIV/issues/149)), and says its record
+scan was skipped without one. The battle replay tests read their records from
+the same pack and skip without it. From the root:
 
 ```bash
 python3 tools/check_docs.py

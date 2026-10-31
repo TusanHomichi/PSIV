@@ -40,9 +40,10 @@ PY
 ```
 
 67 on foot and 16 in the vehicle tables, 83 in all and no overlap: the two sets
-are disjoint in the pack as it stands. The sweep computes exactly that, and the
-list is committed as [`oracle/sweep/motavia_formations.json`](../../oracle/sweep/motavia_formations.json)
-(`--list`, written by `oracle/sweep/plan.py`).
+are disjoint in the pack as it stands. The sweep computes exactly that from the
+local pack on every run, and `--list` writes it out (`oracle/sweep/plan.py`). The
+list is a table of the cartridge's ids, so it stays under the ignored `build/`
+(#149).
 
 ## 2. The method, and how to reproduce it
 
@@ -51,7 +52,7 @@ One command, from a checkout with the ROM linked in and the core built
 
 ```sh
 python3 -m oracle.sweep --out build/sweep --jobs 3 \
-    --list oracle/sweep/motavia_formations.json
+    --list build/sweep/motavia_formations.json
 ```
 
 Per formation that runs `python3 -m oracle.force` with two options this sweep

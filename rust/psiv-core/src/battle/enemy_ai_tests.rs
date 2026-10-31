@@ -156,8 +156,8 @@ fn only_the_two_arms_without_a_d1_leave_the_scan_running() {
 /// The pack's own records, where the whole 153-record space is on disk.
 ///
 /// The pack is Sega-derived and never committed (`psiv-data`'s
-/// `runtime_pack.rs` has the same gate), so a fresh clone skips this and the
-/// committed fixture census below still runs. Build one with
+/// `runtime_pack.rs` has the same gate, #149), so a fresh clone skips this.
+/// It reads every record, so it covers every enemy a replay fixture seats. Build one with
 /// `python -m psiv_tools pack <rom> runtime-pack/`, or point
 /// `PSIV_RUNTIME_PACK` at an existing one.
 #[test]
@@ -238,37 +238,6 @@ fn every_condition_id_the_pack_names_maps_to_an_arm() {
     assert!(
         !census.contains(&EnemyAiCondition::Unknown),
         "no record names $10"
-    );
-}
-
-/// The swept fixtures' records, which are committed and always present.
-#[test]
-fn every_condition_id_the_fixtures_name_maps_to_an_arm() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/battle/replay_fixtures/motavia_pack.json");
-    let text = std::fs::read_to_string(&path).expect("the swept pack is committed");
-    let parsed: serde_json::Value = serde_json::from_str(&text).expect("it parses");
-    let mut seen: Vec<EnemyAiCondition> = Vec::new();
-    let mut records = 0;
-    for enemy in parsed["enemies"].as_array().expect("an enemies array") {
-        records += 1;
-        for byte in enemy["condition_ids"].as_array().expect("four bytes") {
-            let condition = byte.as_u64().expect("a byte") as u8;
-            if condition == 0 {
-                continue;
-            }
-            let arm = EnemyAiCondition::from_id(condition).unwrap_or_else(|| {
-                panic!("condition {condition:#04X} is not an EnemyAIInstructionsOffs entry")
-            });
-            if !seen.contains(&arm) {
-                seen.push(arm);
-            }
-        }
-    }
-    assert!(records > 10, "the sweep's records are present");
-    assert!(
-        seen.iter().all(|arm| CONDITIONS.contains(arm)),
-        "every fixture id is a table entry: {seen:?}"
     );
 }
 

@@ -97,12 +97,11 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
     files
 }
 
-/// The directory's own data files: the manifest, and the swept records
-/// [`super::pack`] reads (`oracle/sweep/replay_pack.py`). Everything else
+/// The directory's own data file, the manifest. Everything else
 /// under the directory is a fixture - a file that is not one fails the walk
 /// with the extractor's own parse error, which is the honest way to find out.
 fn not_a_fixture(name: &std::ffi::OsStr) -> bool {
-    name == "divergences.json" || name == "motavia_pack.json"
+    name == "divergences.json"
 }
 
 fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
@@ -141,7 +140,9 @@ fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>)
 #[test]
 fn every_fixture_replays_as_recorded() {
     let (manifest, manifest_path) = manifest();
-    let data = pack::data();
+    let Some(data) = pack::data() else {
+        return;
+    };
     let files = fixture_files();
     let mut checked = 0;
     for (name, path) in &files {
@@ -154,7 +155,7 @@ fn every_fixture_replays_as_recorded() {
             "{name}: the fixture records the capture's trace"
         );
 
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(&fixture, data);
         let finding = &replay.finding;
         let entry = manifest.fixtures.get(name);
         match (finding, entry) {
@@ -269,7 +270,9 @@ fn every_fixture_replays_as_recorded() {
 #[test]
 fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
     let text = include_str!("../replay_fixtures/siren386_126_magic.json");
-    let data = pack::data();
+    let Some(data) = pack::data() else {
+        return;
+    };
     let mut captured = fixture(text);
     let barrier = captured
         .rounds
@@ -284,7 +287,7 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
         .find(|(_, field, _, _)| field == "mdfs_bat")
         .expect("observed battle MDEF change");
     stat.3 += 1;
-    let replay = replay_inner(&captured, &data);
+    let replay = replay_inner(&captured, data);
     assert!(
         matches!(
             replay.finding,
@@ -304,7 +307,7 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
         .find(|command| command.command == "technique")
         .expect("observed FOI command");
     command.command = "defend".into();
-    let rejected = std::panic::catch_unwind(|| replay_inner(&captured, &data));
+    let rejected = std::panic::catch_unwind(|| replay_inner(&captured, data));
     assert!(
         rejected.is_err() || rejected.unwrap().finding.is_some(),
         "a wrong command must not replay as the captured technique"
@@ -336,19 +339,39 @@ fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
 /// The one claim it does make is that a fixture's name is a line's own
 /// `fixture` field, and that every entry the manifest already carries still
 /// names a fixture that exists.
+///
+/// Unlike the tests above it does not skip without a runtime pack: a pass that
+/// wrote nothing would leave the previous dump for `manifest.py` to rebuild
+/// `divergences.json` from. A missing, unreadable or invalid pack fails the run
+/// before the dump is touched.
 #[test]
 #[ignore = "harvesting tool: writes the manifest entries a new directory needs"]
 fn dump_manifest_entries() {
     let dump_path = manifest_dump_path();
+    let written = write_manifest_entries(&dump_path, &pack::pack_dir());
+    println!("{written} finding(s) written to {}", dump_path.display());
+}
+
+/// The walk `dump_manifest_entries` runs, reading the pack at `pack_dir` and
+/// writing the dump to `dump_path`; returns how many findings it wrote.
+fn write_manifest_entries(dump_path: &Path, pack_dir: &Path) -> usize {
+    let data = &pack::load(pack_dir).unwrap_or_else(|| {
+        panic!(
+            "no runtime pack at {}: the manifest dump is read from it, so this tool \
+             fails rather than leave {} as it was (build one with \
+             `python -m psiv_tools pack`, or set PSIV_RUNTIME_PACK)",
+            pack_dir.display(),
+            dump_path.display()
+        )
+    });
     let (manifest, manifest_path) = manifest();
-    let data = pack::data();
     let files = fixture_files();
     let mut lines: Vec<String> = Vec::new();
     for (name, path) in &files {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
         let fixture = fixture(&text);
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(&fixture, data);
         let Some(finding) = &replay.finding else {
             continue;
         };
@@ -393,12 +416,8 @@ fn dump_manifest_entries() {
             manifest_path.display()
         );
     }
-    write_manifest_dump(&dump_path, &lines);
-    println!(
-        "{} finding(s) written to {}",
-        lines.len(),
-        dump_path.display()
-    );
+    write_manifest_dump(dump_path, &lines);
+    lines.len()
 }
 
 /// The environment variable `dump_manifest_entries` writes its dump to.
@@ -443,8 +462,9 @@ fn manifest_dump_path() -> PathBuf {
 
 /// Writes `lines` to `path`, one per line, creating the directory above it.
 ///
-/// All of them or none: the file is written in one go, so a run that fails
-/// halfway through the walk leaves the previous dump rather than a short one.
+/// All of them or none: the lines go to a sibling file that is then renamed
+/// over the dump, so a run that fails halfway through the walk, or halfway
+/// through the write, leaves the previous dump rather than a short one.
 /// No findings at all still writes a dump - an empty file is a tree whose every
 /// fixture replays exactly, which is what `oracle/sweep/manifest.py` builds the
 /// empty manifest from, while a *missing* dump is the error it reports.
@@ -460,7 +480,12 @@ fn write_manifest_dump(path: &Path, lines: &[String]) {
     if !lines.is_empty() {
         body.push('\n');
     }
-    std::fs::write(path, body)
+    let mut partial = path.as_os_str().to_owned();
+    partial.push(".partial");
+    let partial = PathBuf::from(partial);
+    std::fs::write(&partial, body)
+        .unwrap_or_else(|error| panic!("cannot write {}: {error}", partial.display()));
+    std::fs::rename(&partial, path)
         .unwrap_or_else(|error| panic!("cannot write {}: {error}", path.display()));
 }
 
@@ -482,5 +507,56 @@ fn an_empty_dump_is_still_written() {
         "",
         "an empty dump is an empty file, not a missing one"
     );
+    // A stale dump with findings is replaced by the fresh empty one, and the
+    // write leaves nothing beside it.
+    std::fs::write(&path, "{\"fixture\":\"stale\"}\n").expect("a stale dump is written");
+    write_manifest_dump(&path, &[]);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("the dump is still there"),
+        "",
+        "an empty result replaces a stale dump rather than keeping it"
+    );
+    assert_eq!(
+        std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+        1,
+        "the partial file is renamed over the dump, not left beside it"
+    );
+    std::fs::remove_dir_all(&dir).expect("the scratch directory goes away");
+}
+
+/// The dump tool fails, and leaves the previous dump as it was, for a pack
+/// that is missing, incomplete (a file it reads is absent) or invalid (a file
+/// that does not parse) - where the replay tests would skip or never get far.
+#[test]
+fn a_dump_without_a_good_pack_fails_and_keeps_the_previous_dump() {
+    let dir = std::env::temp_dir().join(format!("psiv-dump-bad-pack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let dump = dir.join("findings.jsonl");
+    let previous = "{\"fixture\":\"previous\"}\n";
+
+    let missing = dir.join("missing-pack");
+    let incomplete = dir.join("incomplete-pack");
+    std::fs::create_dir_all(incomplete.join("battle")).unwrap();
+    std::fs::write(incomplete.join("battle/enemies.json"), r#"{"enemies": []}"#).unwrap();
+    let invalid = dir.join("invalid-pack");
+    std::fs::create_dir_all(invalid.join("battle")).unwrap();
+    for name in ["enemies", "abilities", "equipment", "formations"] {
+        std::fs::write(invalid.join(format!("battle/{name}.json")), "not json").unwrap();
+    }
+
+    for (case, pack) in [
+        ("missing", &missing),
+        ("incomplete", &incomplete),
+        ("invalid", &invalid),
+    ] {
+        std::fs::write(&dump, previous).unwrap();
+        let result = std::panic::catch_unwind(|| write_manifest_entries(&dump, pack));
+        assert!(result.is_err(), "a {case} pack fails the dump");
+        assert_eq!(
+            std::fs::read_to_string(&dump).unwrap(),
+            previous,
+            "a {case} pack leaves the previous dump as it was"
+        );
+    }
     std::fs::remove_dir_all(&dir).expect("the scratch directory goes away");
 }
