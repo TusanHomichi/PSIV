@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import functools
 import hashlib
 import json
 import os
@@ -64,6 +65,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from heavy_lock import BUILD, PACK, hold_heavy_lock  # noqa: E402
+from psiv_tools import decode_cache  # noqa: E402
 from psiv_tools.png import encode_indexed, encode_rgb, image_sha256  # noqa: E402
 from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
@@ -92,9 +94,33 @@ def _probe_cram(rom: bytes):
     return [decode_color(word) for word in [*range(0x1000), 0xF000]]
 
 
+@functools.lru_cache(maxsize=1)
 def _probe_maps(rom: bytes):
     from psiv_tools.maps import extract_maps
     return extract_maps(rom)
+
+
+def _probe_layouts(rom: bytes):
+    """Every map with a layout section, as the pack decodes and renders it; a
+    render is held by its decoded image."""
+    from psiv_tools.layouts import chunk_palette, render_layout
+    from psiv_tools.pack_layouts import decode_layout_section, layout_spec, unloaded_patterns
+    from psiv_tools.render import priority_overlay
+    out = []
+    for record in _probe_maps(rom)["maps"]:
+        if record.get("is_null") or not record["layout"]["present"]:
+            continue
+        decoded, anomalies = decode_layout_section(rom, layout_spec(record))
+        palette = chunk_palette(rom, decoded.spec.palette)
+        image = render_layout(decoded.chunks, decoded.bg, decoded.patterns, palette,
+                              overlay=decoded.fg)
+        overlay, priority = priority_overlay(decoded, palette)
+        out.append({"id": record["id"], "layout": decoded.to_json(), "anomalies": anomalies,
+                    "unloaded_patterns": unloaded_patterns(decoded),
+                    "png_sha256": image_sha256(image),
+                    "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
+                    "priority": priority})
+    return out
 
 
 def _probe_warp_rects(rom: bytes):
@@ -112,8 +138,8 @@ def _probe_warp_rects(rom: bytes):
 
 #: The ported extractors no claimed section writes yet, by the key
 #: `examples/probe.rs` prints each under: the Python side of the probe.
-PROBES = {"cram": _probe_cram, "maps": _probe_maps, "names": _probe_names,
-          "warp_rects": _probe_warp_rects}
+PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "maps": _probe_maps,
+          "names": _probe_names, "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
 PROGRESS = re.compile(r"\Aprogress (\d+)/(\d+) (\S+)\Z")
@@ -384,8 +410,9 @@ def check_probes(rom_path: Path) -> list[str]:
     """Run every probe in both builders and compare the documents."""
     rom = rom_path.read_bytes()
     try:
-        python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
-                            indent=2, sort_keys=True)
+        with decode_cache.scope():
+            python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
+                                indent=2, sort_keys=True)
     except ValueError as error:
         return [f"probe: the Python extractors refused the ROM: {error}"]
     run = subprocess.run([str(PROBE_BINARY), str(rom_path)], cwd=ROOT, capture_output=True,
