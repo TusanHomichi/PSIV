@@ -706,6 +706,47 @@ pub fn extract_names(data: &[u8]) -> Result<Json, TextError> {
     Ok(names)
 }
 
+const DIALOGUE_REGION_START: usize = 0x1DF600;
+const DIALOGUE_TREE_COUNT: usize = 43;
+const DIALOGUE_BLOB_ALIGNMENT: usize = 16;
+
+/// One Kosinski dialogue tree of the region.
+pub struct TreeSpec {
+    pub tree: usize,
+    pub start: usize,
+    pub end: usize,
+    pub padding: usize,
+}
+
+/// `dialogue_tree_specs`: walk the region's 43 back-to-back streams. Each
+/// next blob starts on a 16-byte boundary, across padding that must be zero.
+pub fn dialogue_tree_specs(
+    data: &[u8],
+    decodes: &crate::decode::Decodes,
+) -> Result<Vec<TreeSpec>, crate::PackError> {
+    let mut specs = Vec::with_capacity(DIALOGUE_TREE_COUNT);
+    let mut offset = DIALOGUE_REGION_START;
+    for tree in 1..=DIALOGUE_TREE_COUNT {
+        let decoded = decodes.get(crate::decode::Call::Kosinski { offset })?;
+        let end = offset + decoded.consumed();
+        let padding = end.next_multiple_of(DIALOGUE_BLOB_ALIGNMENT) - end;
+        if data[end..end + padding].iter().any(|byte| *byte != 0) {
+            return Err(crate::PackError(format!(
+                "DialogueTree{tree} at 0x{offset:06X} is followed by non-zero padding at \
+                 0x{end:06X}"
+            )));
+        }
+        specs.push(TreeSpec {
+            tree,
+            start: offset,
+            end,
+            padding,
+        });
+        offset = end + padding;
+    }
+    Ok(specs)
+}
+
 /// `trim_tree_alignment`: drop the single zero the compressor appends to an
 /// odd-length tree (`...$FF $00`); anything else after the last terminator
 /// is an error. Returns the block and the bytes dropped.

@@ -92,9 +92,28 @@ def _probe_cram(rom: bytes):
     return [decode_color(word) for word in [*range(0x1000), 0xF000]]
 
 
+def _probe_maps(rom: bytes):
+    from psiv_tools.maps import extract_maps
+    return extract_maps(rom)
+
+
+def _probe_warp_rects(rom: bytes):
+    from psiv_tools.warps import PackError, warp_rect
+    rects = []
+    for range_id in range(16):
+        for x, y in ((0, 0), (3, 2), (40, 60), (200, 200)):
+            try:
+                rect = warp_rect(range_id, x, y, 64, 72)
+                rects.append(rect.to_json() if rect is not None else None)
+            except PackError as error:
+                rects.append(str(error))
+    return rects
+
+
 #: The ported extractors no claimed section writes yet, by the key
 #: `examples/probe.rs` prints each under: the Python side of the probe.
-PROBES = {"cram": _probe_cram, "names": _probe_names}
+PROBES = {"cram": _probe_cram, "maps": _probe_maps, "names": _probe_names,
+          "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
 PROGRESS = re.compile(r"\Aprogress (\d+)/(\d+) (\S+)\Z")
