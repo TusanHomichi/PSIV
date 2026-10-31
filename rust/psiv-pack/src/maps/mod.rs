@@ -1,13 +1,15 @@
 //! Field maps: the pointer table, the record grammar and encounter binding,
 //! the port of `psiv_tools/maps/` (#216, slice 3). [`extract_maps`] walks all
 //! 417 pointer-table entries. [`layouts`] decodes a record's layout section,
-//! and [`draw`] renders it. No claimed section writes these yet, so the gate
+//! [`overworld`] the two world maps' paged planes, and [`draw`] renders
+//! either. No claimed section writes these yet, so the gate
 //! holds them to Python as the `maps` and `layouts` probes
 //! (`examples/probe.rs`).
 
 pub mod draw;
 pub mod encounters;
 pub mod layouts;
+pub mod overworld;
 pub mod records;
 
 use std::collections::BTreeSet;
