@@ -7,7 +7,9 @@ issues, not documents.
 ## Play
 
 - [Project overview and quick start](../README.md): what PSIV is, how far it
-  plays, how to build and start it, the controls and the known differences.
+  plays, how to build and start it from source, and the known differences.
+- [Player's guide](PLAYING.md): the ROM, the downloads and their first run,
+  where the pack and saves live, and the controls.
 - [Roadmap](ROADMAP.md): the 1.0 bar, the platforms, and what comes after.
 - [Save format](camp/SAVE_FORMAT.md): where saves go and what they hold.
 
