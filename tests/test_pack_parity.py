@@ -187,7 +187,7 @@ class ProbeCase(unittest.TestCase):
         self.assertNotEqual(compare_probe('{\n  "a": 2,\n  "b": 1\n}', unsorted), [])
 
     def test_the_probes_are_named(self):
-        self.assertEqual(sorted(PROBES), ["cram", "maps", "names", "warp_rects"])
+        self.assertEqual(sorted(PROBES), ["cram", "layouts", "maps", "names", "warp_rects"])
 
 
 class DecodeCase(unittest.TestCase):
