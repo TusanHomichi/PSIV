@@ -12,20 +12,24 @@ reuse the warm build safely. `LibraryCase` removes a Godot library a gate
 would otherwise test against. `CapCase` removes `rust/target` past the cap and
 keeps it at the cap, on a measurement it stubs: a file just written can show
 almost none of its blocks until the filesystem allocates them (on ZFS, seconds
-later), so measuring one here would race. `DiskBytesCase` measures what is
-settled: blocks rather than sizes, and links not followed. `RefusalCase`
+later), so measuring one here would race. `DiskBytesCase` checks that
+`disk_bytes` counts blocks rather than sizes, on a sparse file, and leaves
+links unfollowed, on stat results it hands it, since what a link's target
+takes depends on the host and its timing. `RefusalCase`
 leaves the main checkout, a lane's worktree and a plain directory as they are,
 also from main's copy read on stdin, as the steward runs it.
 """
 
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from tools import gate_worktree
@@ -33,6 +37,7 @@ from tools.gate_worktree import LIBRARIES, TARGET, Refused, prepare
 
 TOOL = Path(__file__).resolve().parents[1] / "tools" / "gate_worktree.py"
 CAP = 1 << 30
+MIB = 1 << 20
 
 IGNORED = """/rust/target
 /generated
@@ -174,16 +179,32 @@ class DiskBytesCase(unittest.TestCase):
         """A sparse file's size is all hole: none of it is on disk."""
         with open(self.root / "sparse", "wb") as sparse:
             sparse.truncate(CAP)
-        self.assertLess(gate_worktree.disk_bytes(self.root), 1 << 20)
+        self.assertLess(gate_worktree.disk_bytes(self.root), MIB)
 
     def test_does_not_follow_links(self):
-        """Python's standard library has been on disk since it was installed,
-        so a link to it would count megabytes if it were followed."""
-        stdlib = Path(os.__file__).parent
-        self.assertGreater(gate_worktree.disk_bytes(stdlib), 1 << 20)
-        (self.root / "stdlib").symlink_to(stdlib, target_is_directory=True)
-        (self.root / "os.py").symlink_to(os.__file__)
-        self.assertLess(gate_worktree.disk_bytes(self.root), 1 << 20)
+        """Each file but a link is made to take 1 MiB, so a link followed to
+        the directory or file behind it would count that too."""
+        outside = self.root / "outside"
+        (outside / "inputs").mkdir(parents=True)
+        for name in ("a", "b", "c"):
+            (outside / "inputs" / name).write_bytes(b"input")
+        measured = self.root / "measured"
+        measured.mkdir()
+        (measured / "built").write_bytes(b"built")
+        (measured / "inputs").symlink_to(outside / "inputs", target_is_directory=True)
+        (measured / "library").symlink_to(outside / "inputs" / "a")
+
+        real_lstat = os.lstat
+
+        def lstat(path):
+            mode = real_lstat(path).st_mode
+            return SimpleNamespace(st_mode=mode, st_blocks=0 if stat.S_ISLNK(mode) else MIB // 512)
+
+        def followed(path):
+            return lstat(os.path.realpath(path))
+
+        with mock.patch.object(os, "lstat", lstat), mock.patch.object(os, "stat", followed):
+            self.assertEqual(gate_worktree.disk_bytes(measured), MIB)
 
 
 class RefusalCase(ScratchRepo):
