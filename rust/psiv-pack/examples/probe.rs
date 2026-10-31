@@ -9,20 +9,21 @@ use std::path::Path;
 use psiv_pack::Rom;
 use psiv_pack::decode::Decodes;
 use psiv_pack::json::{Json, dumps};
-use psiv_pack::maps::{ExtractedMaps, draw, layouts};
+use psiv_pack::maps::{ExtractedMaps, draw, layouts, overworld};
 use psiv_pack::png::image_sha256;
 
-/// Every map with a layout section, as the pack decodes and renders it. A
-/// render is held to Python by its decoded image.
+/// Every real map, as the pack decodes and renders it. A render is held to
+/// Python by its decoded image. For a world map, also its format facts, its
+/// patches, and for each cell a write touches the patches that open it.
 fn layouts(
     data: &[u8],
     decodes: &Decodes,
     maps: &ExtractedMaps,
 ) -> Result<Vec<Json>, psiv_pack::PackError> {
     let mut out = Vec::new();
-    for record in maps.real().filter(|record| record.layout.planes.is_some()) {
-        let (decoded, anomalies) =
-            layouts::decode_layout_section(data, decodes, layouts::layout_spec(record)?)?;
+    for record in maps.real() {
+        let section = overworld::decode_map_section(data, decodes, record)?;
+        let decoded = section.layout();
         let palette = layouts::chunk_palette(data, decoded.spec.palette)?;
         let image = draw::render_layout(
             &decoded.chunks,
@@ -31,20 +32,44 @@ fn layouts(
             &decoded.patterns,
             &palette,
         )?;
-        let (overlay, counts) = draw::priority_overlay(&decoded, &palette)?;
-        out.push(
-            Json::object()
-                .with("id", record.id)
-                .with("layout", decoded.to_json())
-                .with("anomalies", anomalies)
-                .with("unloaded_patterns", layouts::unloaded_patterns(&decoded)?)
-                .with("png_sha256", image_sha256(&image)?)
-                .with(
-                    "png_over_sha256",
-                    overlay.as_deref().map(image_sha256).transpose()?,
-                )
-                .with("priority", counts.to_json()),
-        );
+        let (overlay, counts) = draw::priority_overlay(decoded, &palette)?;
+        let mut entry = Json::object()
+            .with("id", record.id)
+            .with("layout", decoded.to_json())
+            .with("anomalies", section.anomalies().to_vec())
+            .with("unloaded_patterns", layouts::unloaded_patterns(decoded)?)
+            .with("png_sha256", image_sha256(&image)?)
+            .with(
+                "png_over_sha256",
+                overlay.as_deref().map(image_sha256).transpose()?,
+            )
+            .with("priority", counts.to_json());
+        if let Some(world) = section.overworld() {
+            let mut opening = Vec::new();
+            for write in world.patches.iter().flat_map(|patch| &patch.writes) {
+                let (x, y) = (write.chunk_x * 2, write.chunk_y * 2);
+                for i in 0..4 {
+                    let cell = (x + (i & 1), y + (i >> 1));
+                    let routines: Vec<String> = overworld::opening_patches(world, &[cell])?
+                        .iter()
+                        .map(|patch| format!("0x{:06X}", patch.routine))
+                        .collect();
+                    opening.push(routines);
+                }
+            }
+            entry.insert("overworld", world.to_json());
+            entry.insert(
+                "patches",
+                world
+                    .patches
+                    .iter()
+                    .map(overworld::LayoutPatch::to_json)
+                    .collect::<Vec<_>>(),
+            );
+            entry.insert("opening", opening);
+            entry.insert("code_sites", overworld::check_code_sites(data)?);
+        }
+        out.push(entry);
     }
     Ok(out)
 }

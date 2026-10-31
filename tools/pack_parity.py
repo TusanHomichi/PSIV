@@ -101,25 +101,36 @@ def _probe_maps(rom: bytes):
 
 
 def _probe_layouts(rom: bytes):
-    """Every map with a layout section, as the pack decodes and renders it; a
-    render is held by its decoded image."""
+    """Every real map, as the pack decodes and renders it; a render is held by
+    its decoded image. For a world map, also its format facts, its patches, and
+    for each cell a write touches the patches that open it."""
     from psiv_tools.layouts import chunk_palette, render_layout
-    from psiv_tools.pack_layouts import decode_layout_section, layout_spec, unloaded_patterns
+    from psiv_tools.overworld import check_code_sites, opening_patches
+    from psiv_tools.pack_layouts import decode_map_section, unloaded_patterns
     from psiv_tools.render import priority_overlay
     out = []
     for record in _probe_maps(rom)["maps"]:
-        if record.get("is_null") or not record["layout"]["present"]:
+        if record.get("is_null"):
             continue
-        decoded, anomalies = decode_layout_section(rom, layout_spec(record))
+        decoded, anomalies, overworld = decode_map_section(rom, record)
         palette = chunk_palette(rom, decoded.spec.palette)
         image = render_layout(decoded.chunks, decoded.bg, decoded.patterns, palette,
                               overlay=decoded.fg)
         overlay, priority = priority_overlay(decoded, palette)
-        out.append({"id": record["id"], "layout": decoded.to_json(), "anomalies": anomalies,
-                    "unloaded_patterns": unloaded_patterns(decoded),
-                    "png_sha256": image_sha256(image),
-                    "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
-                    "priority": priority})
+        entry = {"id": record["id"], "layout": decoded.to_json(), "anomalies": anomalies,
+                 "unloaded_patterns": unloaded_patterns(decoded),
+                 "png_sha256": image_sha256(image),
+                 "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
+                 "priority": priority}
+        if overworld is not None:
+            entry["overworld"] = overworld.to_json()
+            entry["patches"] = [patch.to_json() for patch in overworld.patches]
+            entry["opening"] = [
+                [f"0x{patch.routine:06X}" for patch in opening_patches(overworld, [
+                    (write.chunk_x * 2 + (i & 1), write.chunk_y * 2 + (i >> 1))])]
+                for patch in overworld.patches for write in patch.writes for i in range(4)]
+            entry["code_sites"] = check_code_sites(rom)
+        out.append(entry)
     return out
 
 

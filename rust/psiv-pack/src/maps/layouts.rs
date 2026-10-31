@@ -3,7 +3,7 @@
 //! which own the retail citations (#216, slice 3).
 //!
 //! The two world maps store no layout pointers, so [`layout_spec`] refuses
-//! them; their paged planes are the overworld port's. The checks that cannot
+//! them; their planes come from [`super::overworld`]. The checks that cannot
 //! fail in Rust are gone rather than ported: a layout cell is a `u8`, so it
 //! cannot name a chunk past [`MAX_CHUNKS`].
 
@@ -362,6 +362,25 @@ fn quadrant_collision(words: &[u16; CHUNK_WORDS], quadrant_x: usize, quadrant_y:
         })
 }
 
+/// `collision_at`: the collision type of one 16x16 cell, out of the asm's
+/// arithmetic.
+pub fn collision_at(
+    chunks: &ChunkTable,
+    layout: &Layout,
+    cell_x: usize,
+    cell_y: usize,
+) -> Result<u8, PackError> {
+    let (chunk_x, chunk_y) = (cell_x / COLLISION_CELL_TILES, cell_y / COLLISION_CELL_TILES);
+    if chunk_x >= layout.width_chunks || chunk_y >= layout.height_chunks {
+        return Err(PackError(format!(
+            "Chunk ({chunk_x}, {chunk_y}) is outside the {}x{} layout",
+            layout.width_chunks, layout.height_chunks
+        )));
+    }
+    let words = chunks.get(layout.chunk_at(chunk_x, chunk_y))?;
+    Ok(quadrant_collision(words, cell_x & 1, cell_y & 1))
+}
+
 /// `decode_collision`: which layout to pass is the map's `$FFFFEC24` byte.
 pub fn decode_collision(chunks: &ChunkTable, layout: &Layout) -> Result<CollisionGrid, PackError> {
     let width = layout.width_chunks * COLLISION_CELL_TILES;
@@ -556,8 +575,18 @@ pub fn layout_spec(record: &MapRecord) -> Result<MapLayoutSpec, PackError> {
             record.id, record.symbol
         )));
     };
+    Ok(spec_with_planes(record, layout_fg, layout_bg))
+}
+
+/// The spec a record describes, with its two plane addresses from whichever
+/// path it takes.
+pub(super) fn spec_with_planes(
+    record: &MapRecord,
+    layout_fg: usize,
+    layout_bg: usize,
+) -> MapLayoutSpec {
     let dimensions = &record.dimensions;
-    Ok(MapLayoutSpec {
+    MapLayoutSpec {
         chunk_blobs: record.chunks.pointers.clone(),
         layout_fg,
         layout_bg,
@@ -574,7 +603,7 @@ pub fn layout_spec(record: &MapRecord) -> Result<MapLayoutSpec, PackError> {
             .collect(),
         palette: record.palette.pointer,
         label: record.symbol,
-    })
+    }
 }
 
 /// The decoded layout section of one field map.

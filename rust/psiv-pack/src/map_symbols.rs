@@ -1,6 +1,26 @@
 //! `psiv_tools/symbols.py`: the disassembly's names for the map and field
-//! object ids. Symbols, not cartridge text. Generated from the Python tables,
-//! and held to them by the `maps` probe in `tools/pack_parity.py`.
+//! object ids and the overworld's event flags. Symbols, not cartridge text.
+//! Generated from the Python tables, and held to them by the `maps` and
+//! `layouts` probes in `tools/pack_parity.py`.
+
+/// `EVENT_FLAG_SYMBOLS`: the eight flags the overworld page hooks test.
+pub fn event_flag_symbol(flag: u16) -> Option<&'static str> {
+    EVENT_FLAG_SYMBOLS
+        .iter()
+        .find(|(id, _)| *id == flag)
+        .map(|(_, symbol)| *symbol)
+}
+
+const EVENT_FLAG_SYMBOLS: [(u16, &str); 8] = [
+    (0x34, "EventFlag_BioPlantEscape"),
+    (0x35, "EventFlag_RikaJoined"),
+    (0x43, "EventFlag_MachineCenter"),
+    (0x65, "EventFlag_ZioNurvus"),
+    (0x66, "EventFlag_MotaSpaceport"),
+    (0x82, "EventFlag_DezoSpaceport"),
+    (0x9E, "EventFlag_DarkForce2"),
+    (0xDA, "EventFlag_Reunion"),
+];
 
 /// `MapID_*`, by map id.
 pub const MAP_SYMBOLS: [&str; 417] = [
