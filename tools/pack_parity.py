@@ -19,15 +19,15 @@ release and checks it against the Python builder from the same ROM:
    file `psiv-pack` writes outside its claims. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
    installed directory holding no link and nothing outside the claims.
-3. The decoders: every Nemesis, Kosinski and Enigma call a full Python build
+3. The probes: ported extractors that no claimed section writes yet
+   (`examples/probe.rs`, `PROBES` here) print their records as one JSON
+   document, which must match the Python extractors' byte for byte.
+4. The decoders: every Nemesis, Kosinski and Enigma call a full Python build
    attempts, refused ones included, is listed, by decoder, offset and arguments, in the census
    (`rust/psiv-pack/tests/fixtures/decode_census.json`, written by
    `--write-census`). Both decode every listed stream from the ROM; each
    output (by SHA-256) and consumed length must agree, and both must refuse
    the same calls. psiv-pack's decode time is printed beside Python's.
-4. The probes: ported extractors that no claimed section writes yet
-   (`examples/probe.rs`, `PROBES` here) print their records as one JSON
-   document, which must match the Python extractors' byte for byte.
 5. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
    section, then `installed <pack>`, exit 0. Its wall time is printed with
    the CPU clock and load, the number each port PR records.
@@ -72,16 +72,16 @@ from tree_rss import cpu_mhz, load_1m  # noqa: E402
 DEFAULT_ROM = ROOT / "Phantasy Star IV (USA).md"
 FIXTURE = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "harness.json"
 BINARY = ROOT / "rust" / "target" / "release" / ("psiv-pack.exe" if os.name == "nt" else "psiv-pack")
+PROBE_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "probe")
 CENSUS = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "decode_census.json"
 CENSUS_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "decode_census")
 CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack",
-               "--bins", "--example", "decode_census", "--example", "probe"]
+               "--bins", "--example", "probe", "--example", "decode_census"]
 #: The memoized decoders a census records, by `decode_cache` name. Any other
 #: memoized function in a build (a section's own cache) is not a decompressor.
 DECODERS = {"psiv_tools.nemesis.decompress": "nemesis",
             "psiv_tools.kosinski.decompress": "kosinski",
             "psiv_tools.enigma.decompress": "enigma"}
-PROBE_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "probe")
 
 
 def _probe_names(rom: bytes):
@@ -297,6 +297,38 @@ def fixture_text():
 
 
 # ---------------------------------------------------------------------------
+# Probes
+# ---------------------------------------------------------------------------
+def compare_probe(python: str, rust: str) -> list[str]:
+    """The probe documents differ: name the first differing line."""
+    if python == rust:
+        return []
+    ours, theirs = rust.splitlines(), python.splitlines()
+    line = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b),
+                min(len(ours), len(theirs)))
+    shown = lambda lines: lines[line] if line < len(lines) else "<end>"  # noqa: E731
+    return [f"probe: line {line + 1} differs: psiv-pack {shown(ours)!r}, "
+            f"Python {shown(theirs)!r} ({len(ours)} lines against {len(theirs)})"]
+
+
+def check_probes(rom_path: Path) -> list[str]:
+    """Run every probe in both builders and compare the documents."""
+    rom = rom_path.read_bytes()
+    try:
+        with decode_cache.scope():
+            python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
+                                indent=2, sort_keys=True)
+    except ValueError as error:
+        return [f"probe: the Python extractors refused the ROM: {error}"]
+    run = subprocess.run([str(PROBE_BINARY), str(rom_path)], cwd=ROOT, capture_output=True,
+                         text=True, encoding="utf-8")
+    if run.returncode != 0:
+        return [f"probe: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
+    print(f"pack parity: probed {', '.join(PROBES)}", flush=True)
+    return compare_probe(python, run.stdout.rstrip("\n"))
+
+
+# ---------------------------------------------------------------------------
 # Decoders
 # ---------------------------------------------------------------------------
 def census_calls(rom: bytes) -> list[dict]:
@@ -389,38 +421,6 @@ def check_decodes(rom_path: Path) -> list[str]:
     print(f"pack parity: decoded {len(calls)} census streams; psiv-pack {seconds:.3f} s, "
           f"Python {python_s:.1f} s", flush=True)
     return compare_decodes(calls, python, lines)
-
-
-# ---------------------------------------------------------------------------
-# Probes
-# ---------------------------------------------------------------------------
-def compare_probe(python: str, rust: str) -> list[str]:
-    """The probe documents differ: name the first differing line."""
-    if python == rust:
-        return []
-    ours, theirs = rust.splitlines(), python.splitlines()
-    line = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b),
-                min(len(ours), len(theirs)))
-    shown = lambda lines: lines[line] if line < len(lines) else "<end>"  # noqa: E731
-    return [f"probe: line {line + 1} differs: psiv-pack {shown(ours)!r}, "
-            f"Python {shown(theirs)!r} ({len(ours)} lines against {len(theirs)})"]
-
-
-def check_probes(rom_path: Path) -> list[str]:
-    """Run every probe in both builders and compare the documents."""
-    rom = rom_path.read_bytes()
-    try:
-        with decode_cache.scope():
-            python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
-                                indent=2, sort_keys=True)
-    except ValueError as error:
-        return [f"probe: the Python extractors refused the ROM: {error}"]
-    run = subprocess.run([str(PROBE_BINARY), str(rom_path)], cwd=ROOT, capture_output=True,
-                         text=True, encoding="utf-8")
-    if run.returncode != 0:
-        return [f"probe: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
-    print(f"pack parity: probed {', '.join(PROBES)}", flush=True)
-    return compare_probe(python, run.stdout.rstrip("\n"))
 
 
 # ---------------------------------------------------------------------------

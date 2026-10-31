@@ -277,16 +277,16 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. It also decodes every Nemesis, Kosinski and Enigma call a full
+claims. A ported extractor that no claimed section writes yet is a probe:
+`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
+tool builds the same from the Python extractors, and the two must be the same
+text. It also decodes every Nemesis, Kosinski and Enigma call a full
 Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
 offsets and arguments only) with both decoders: outputs and consumed lengths
 must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
 tools/pack_parity.py --write-census` (a full build, about two minutes) so the
-census covers it. A ported extractor that no claimed section writes yet is a probe:
-`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
-tool builds the same from the Python extractors, and the two must be the same
-text. It prints `psiv-pack`'s wall time beside the load and clock, the number
-a port PR records. Until the switch the Python builder stays the pack everything
+census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
+the number a port PR records. Until the switch the Python builder stays the pack everything
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. Find whether a
 section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
@@ -336,11 +336,18 @@ portability tests (the atomic swap and the text-file census) on Windows and
 macOS (`.github/workflows/platforms.yml`), since players build the pack there.
 The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
 ROM-free Python tests, a Godot smoke) is open.
+Hosted CI also holds each pull request to the house rules a machine can read,
+its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, in its own worktree with the inputs linked in by main's
-`tools/local_inputs.py` ([Run checks](#run-checks)), and record the verdict; the steward merges only once it is green. A gate missing an input is
+exact commit, and record the verdict; the steward merges only once it is green.
+It runs in the one worktree the steward keeps for gates, which main's
+`tools/gate_worktree.py` moves to that commit with every untracked and ignored
+file gone but `rust/target`, so the gate's Rust build starts warm, and the
+inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
+Moving one worktree keeps cargo's file-time freshness sound, which a target
+dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
 partial, and a partial gate is recorded as a failure.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and

@@ -5,13 +5,18 @@
 # commit (burrow main, 2026-10-26), and Renovate keeps the pin current.
 name: flake
 on:
+  # `edited` for a PR retargeted onto another branch: the shared workflow's
+  # run counts only for the base it judged, so a new base needs a run.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 permissions:
   contents: read
 jobs:
   check:
+    # Of the edits, only a new base: a title or body changes nothing checked.
+    if: github.event.action != 'edited' || github.event.changes.base
     uses: FieldmouseWorks/burrow/.github/workflows/flake-check.yml@5a244ccf3f1884aadbe6c6e35806bcfee340ed56 # main
     # What the shared workflow needs to attest its result.
     permissions:
