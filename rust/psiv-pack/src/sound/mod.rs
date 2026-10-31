@@ -8,7 +8,7 @@
 //!
 //! The files are `psiv-data`'s [`schema`] types, the shape its loader reads.
 //! `map_usage_count` counts the field maps that select each music record,
-//! from [`crate::field_maps::music_ids`].
+//! from [`crate::maps::extract_maps`].
 
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::path::Path;
@@ -483,7 +483,9 @@ pub fn emit(rom: &[u8], map_music_ids: &[u8], root: &Path) -> Result<(), PackErr
 
 /// The section: every field map's music id, then `sound/`.
 pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
-    let ids = crate::field_maps::music_ids(rom.bytes())?;
+    let decodes = crate::decode::Decodes::new(rom.bytes());
+    let maps = crate::maps::extract_maps(rom.bytes(), &decodes)?;
+    let ids: Vec<u8> = maps.real().map(|record| record.music_id).collect();
     emit(rom.bytes(), &ids, root)
 }
 

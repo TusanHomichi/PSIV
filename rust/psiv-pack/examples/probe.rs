@@ -26,8 +26,26 @@ fn main() {
             .chain([0xF000])
             .map(|word| psiv_pack::gfx::Color::decode(word).to_json())
             .collect();
+        // Every XYRangeJmpTbl routine, plus one past it, at both clipped and
+        // unclipped coordinates.
+        let mut rects = Vec::new();
+        for range in 0..16u16 {
+            for (x, y) in [(0, 0), (3, 2), (40, 60), (200, 200)] {
+                let rect = psiv_pack::warps::warp_rect(range, x, y, 64, 72);
+                rects.push(match rect {
+                    Ok(rect) => rect.map(|r| r.to_json()).into(),
+                    Err(error) => Json::from(error.0),
+                });
+            }
+        }
+        let decodes = psiv_pack::decode::Decodes::new(rom.bytes());
         Ok(Json::object()
             .with("cram", cram)
+            .with(
+                "maps",
+                psiv_pack::maps::extract_maps(rom.bytes(), &decodes)?.to_json(rom.bytes()),
+            )
+            .with("warp_rects", rects)
             .with("names", psiv_pack::text::extract_names(rom.bytes())?))
     })();
     match result {
