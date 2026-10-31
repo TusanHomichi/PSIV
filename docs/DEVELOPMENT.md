@@ -341,8 +341,13 @@ its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, in its own worktree with the inputs linked in by main's
-`tools/local_inputs.py` ([Run checks](#run-checks)), and record the verdict; the steward merges only once it is green. A gate missing an input is
+exact commit, and record the verdict; the steward merges only once it is green.
+It runs in the one worktree the steward keeps for gates, which main's
+`tools/gate_worktree.py` moves to that commit with every untracked and ignored
+file gone but `rust/target`, so the gate's Rust build starts warm, and the
+inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
+Moving one worktree keeps cargo's file-time freshness sound, which a target
+dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
 partial, and a partial gate is recorded as a failure.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
