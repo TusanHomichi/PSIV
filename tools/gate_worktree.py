@@ -14,7 +14,9 @@ warm (docs/DEVELOPMENT.md, "Gate and coverage"):
   (`--force`) and cleaned of every untracked and ignored file but `rust/target`
   (`git clean -ffdx -e /rust/target/`): the last gate's linked inputs, which
   are links (the files behind them are left alone), and whatever it built in
-  place go, and `tools/local_inputs.py link` links this commit's;
+  place go, and `tools/local_inputs.py link` links this commit's; one that
+  can't be moved (a gate stopped mid-checkout leaves its index lock) is
+  deleted and added again;
 * the library a Godot run loads, `rust/target/<profile>/libpsiv_godot.so`
   (`LIBRARIES`), is removed: nothing in the gate builds it, and the Python
   suite, which runs before the gate's first cargo command, runs its Godot tests
@@ -113,23 +115,36 @@ def is_gate_worktree(repo: Path, path: Path) -> bool:
         return False
 
 
+def _add(repo: Path, worktree: Path, sha: str) -> None:
+    # --force: a gate worktree whose directory was deleted is still
+    # registered, and `add` would refuse its path.
+    _git(repo, "worktree", "add", "--force", "--detach", str(worktree), sha)
+    (_git_dir(worktree) / MARKER).write_text("the gate's kept worktree: tools/gate_worktree.py\n")
+
+
 def prepare(repo: Path, worktree: Path, commit: str, cap_bytes: int) -> list[str]:
     """Make `worktree` the gate's clean worktree of `repo` at `commit`; return what was done."""
     done = []
     sha = _git(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
     if not worktree.exists():
-        # --force: a gate worktree whose directory was deleted is still
-        # registered, and `add` would refuse its path.
-        _git(repo, "worktree", "add", "--force", "--detach", str(worktree), sha)
-        (_git_dir(worktree) / MARKER).write_text("the gate's kept worktree: tools/gate_worktree.py\n")
+        _add(repo, worktree, sha)
         done.append(f"added {worktree} at {sha[:12]}")
     else:
         if not is_gate_worktree(repo, worktree):
             raise Refused(f"{worktree} is not the gate's worktree of {repo} "
                           "(tools/gate_worktree.py adds it); it is left as it is")
-        _git(worktree, "checkout", "--quiet", "--detach", "--force", sha)
-        _git(worktree, "clean", "-ffdxq", "-e", f"/{TARGET.as_posix()}/")
-        done.append(f"moved {worktree} to {sha[:12]}, keeping only {TARGET.as_posix()}")
+        try:
+            _git(worktree, "checkout", "--quiet", "--detach", "--force", sha)
+            _git(worktree, "clean", "-ffdxq", "-e", f"/{TARGET.as_posix()}/")
+            done.append(f"moved {worktree} to {sha[:12]}, keeping only {TARGET.as_posix()}")
+        except GitFailed as error:
+            # A gate stopped mid-checkout (a newer head stops the last head's
+            # job) can leave its worktree unable to move, as with a stale
+            # index lock. It is the gate's own, so it is replaced, and that
+            # gate builds cold.
+            shutil.rmtree(worktree)
+            _add(repo, worktree, sha)
+            done.append(f"replaced {worktree} at {sha[:12]}: it could not be moved ({error})")
     for library in LIBRARIES:
         path = worktree / library
         if path.is_file() or path.is_symlink():

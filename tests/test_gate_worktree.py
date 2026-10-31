@@ -130,6 +130,21 @@ class MoveCase(ScratchRepo):
         self.assertEqual((self.gate / "rust/core/kept.rs").stat().st_mtime, past)
 
 
+class BrokenCase(ScratchRepo):
+    def test_replaces_a_worktree_a_killed_gate_left_unable_to_move(self):
+        """A gate stopped mid-checkout leaves its index lock behind, and every
+        later checkout there would fail on it."""
+        self.prepare(self.first)
+        (Path(git(self.gate, "rev-parse", "--absolute-git-dir")) / "index.lock").write_text("")
+
+        done = self.prepare(self.second)
+
+        self.assertEqual(git(self.gate, "rev-parse", "HEAD"), self.second)
+        self.assertEqual(git(self.gate, "status", "--porcelain", "--ignored"), "")
+        self.assertTrue(any(line.startswith("replaced ") for line in done), done)
+        self.assertTrue(gate_worktree.is_gate_worktree(self.repo, self.gate))
+
+
 class LibraryCase(ScratchRepo):
     def test_removes_the_godot_library_and_keeps_the_rest(self):
         self.prepare(self.first)
