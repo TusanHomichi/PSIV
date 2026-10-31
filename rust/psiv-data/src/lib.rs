@@ -50,7 +50,7 @@ mod map;
 mod new_game;
 mod ship_menu;
 mod shops;
-mod sound;
+pub mod sound;
 mod sprites;
 mod travel;
 
