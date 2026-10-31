@@ -55,10 +55,11 @@ executable bit.
     python3 tools/package/release.py smoke ARCHIVE --platform P
 
 unpacks the archive and starts the game in it as a player's first run does,
-headless, on the platform it is for. With no pack it must show the setup
-screen. Given a file that is not the ROM on its command line, it must run the
-`psiv-pack` beside it and show the builder's refusal. What a real ROM builds
-is the full gate's to prove, on the machine that holds one.
+headless, on the platform it is for, with a scratch save directory. With no
+pack it must show the setup screen. Given a file that is not the ROM on its
+command line, it must run the `psiv-pack` beside it and show the builder's
+refusal. Each run must also exit 0. What a real ROM builds is the full
+gate's to prove, on the machine that holds one.
 
 Stdlib only, Python 3. `tools/godot.py` is imported only where Godot runs,
 since it needs `fcntl`, which Windows lacks.
@@ -321,6 +322,8 @@ def export(libraries: Path, out: Path) -> dict[str, Path]:
 def _export(libraries: Path, out: Path) -> dict[str, Path]:
     from tools.godot import create_run_root, godot_command, library_path, remove_run_root, require
     require()
+    # Godot reads a relative export path from the project, in the run root.
+    out = out.resolve()
     linux = PLATFORMS["linux"]
     missing = [name for name in (platform.library for platform in PLATFORMS.values())
                if not (libraries / name).is_file()]
@@ -449,14 +452,15 @@ def unpack(archive: Path, into: Path) -> None:
             handle.extractall(into)
 
 
-def first_run_environment(home: Path) -> dict[str, str]:
+def first_run_environment(home: Path, saves: Path) -> dict[str, str]:
     """The environment of a player who has never run PSIV: an empty user
-    data folder on every platform (`install.rs`), and none of the variables
-    that point the game elsewhere."""
+    data folder on every platform (`install.rs`), none of the variables that
+    point the game elsewhere, and `saves` as its own save directory, as every
+    native run has (`save_dir.rs`)."""
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("PSIV_")}
     environment.update(XDG_DATA_HOME=str(home / "data"), APPDATA=str(home / "AppData"),
-                       HOME=str(home))
+                       HOME=str(home), PSIV_SAVE_DIR=str(saves))
     return environment
 
 
@@ -471,6 +475,8 @@ def smoke(archive: Path, platform: Platform) -> list[str]:
         not_the_rom.write_bytes(bytes(4096))
         home = scratch_path / "home"
         home.mkdir()
+        saves = scratch_path / "saves"
+        saves.mkdir()
         shown = []
         for step, extra, wanted in (
                 ("setup", [], [SETUP_SHOWN]),
@@ -478,14 +484,19 @@ def smoke(archive: Path, platform: Platform) -> list[str]:
                                                  f"{NOT_THE_ROM_NAME} {NOT_THE_ROM}"])):
             log = scratch_path / f"{step}.log"
             try:
-                subprocess.run([str(game), "--headless", "--max-fps", "60", "--quit-after",
-                                SMOKE_FRAMES[step], "--log-file", str(log), *extra],
-                               env=first_run_environment(home), capture_output=True,
-                               timeout=SMOKE_TIMEOUT, check=False)
+                result = subprocess.run(
+                    [str(game), "--headless", "--max-fps", "60", "--quit-after",
+                     SMOKE_FRAMES[step], "--log-file", str(log), *extra],
+                    env=first_run_environment(home, saves), capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=SMOKE_TIMEOUT, check=False)
             except subprocess.TimeoutExpired as error:
                 raise ReleaseError(f"the {step} run did not end in {SMOKE_TIMEOUT} s") from error
             lines = log.read_text(encoding="utf-8", errors="replace").splitlines() \
                 if log.is_file() else []
+            if result.returncode != 0:
+                output = (result.stdout + result.stderr).strip().splitlines()
+                raise ReleaseError(f"the {step} run exited {result.returncode}; it logged:\n"
+                                   + "\n".join(lines[-40:] + output[-40:]))
             missing = [text for text in wanted if not any(text in line for line in lines)]
             if missing:
                 raise ReleaseError(f"the {step} run never showed {missing}; it logged:\n"

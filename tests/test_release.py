@@ -15,7 +15,9 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -245,11 +247,107 @@ class PlatformsAgreeWithTheGameAndTheProject(unittest.TestCase):
     def test_the_records_script_prints_the_mark_export_reads(self):
         self.assertIn(f'"{release.RECORDS_MARK}"', release.GODOT_RECORDS_SCRIPT.read_text())
 
-    def test_a_first_run_sees_none_of_the_games_variables(self):
+    def test_a_first_run_sees_only_its_own_save_directory(self):
         with mock.patch.dict(os.environ, {"PSIV_RUNTIME_PACK": "/pack", "PSIV_SAVE_DIR": "/s"}):
-            environment = release.first_run_environment(pathlib.Path("/home/first"))
-        self.assertFalse([key for key in environment if key.startswith("PSIV_")])
+            environment = release.first_run_environment(pathlib.Path("/home/first"),
+                                                        pathlib.Path("/scratch/saves"))
+        self.assertEqual({key: value for key, value in environment.items()
+                          if key.startswith("PSIV_")},
+                         {"PSIV_SAVE_DIR": str(pathlib.Path("/scratch/saves"))})
         self.assertEqual(environment["APPDATA"], str(pathlib.Path("/home/first/AppData")))
+
+
+class ExportWritesWhereTheCallerAsked(unittest.TestCase):
+    """`export` with Godot stood in for: it writes each export where its
+    command line says, reading a relative path from the project, as Godot
+    does."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.libraries = self.dir / "libraries"
+        self.libraries.mkdir()
+        for platform in PLATFORMS.values():
+            (self.libraries / platform.library).write_bytes(b"\0")
+        self.project = self.dir / "run" / "godot"
+        self.commands = []
+        self.enterContext(mock.patch("tools.godot.require"))
+        self.enterContext(mock.patch("tools.godot.create_run_root", self.create_run_root))
+        self.enterContext(mock.patch("tools.godot.remove_run_root"))
+        self.enterContext(mock.patch("tools.godot.library_path",
+                                     lambda root, profile: root / "lib" / profile / "lib.so"))
+        self.enterContext(mock.patch("tools.godot.godot_command",
+                                     lambda made, *args: ["godot", *args]))
+        self.enterContext(mock.patch.object(release, "run", self.godot))
+        here = os.getcwd()
+        os.chdir(self.dir)
+        self.addCleanup(os.chdir, here)
+
+    def create_run_root(self, root, *, profile, library):
+        made = mock.Mock(root=root, library=root / "lib" / profile / library.name)
+        made.library.parent.mkdir(parents=True)
+        shutil.copy2(library, made.library)
+        return made
+
+    def godot(self, command):
+        self.commands.append(command)
+        if "--export-release" in command:
+            preset = command[command.index("--export-release") + 1]
+            platform, = [item for item in PLATFORMS.values() if item.preset == preset]
+            target = self.project / command[-1]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"\0")
+            if platform.name != "macos":
+                (target.parent / platform.library).write_bytes(b"\0")
+            return mock.Mock(stdout="")
+        return mock.Mock(stdout=f"{release.RECORDS_MARK}{{}}\n")
+
+    def test_a_relative_destination_is_written_where_the_caller_is(self):
+        exports = release.export(self.libraries, pathlib.Path("out"))
+        for name, platform in PLATFORMS.items():
+            with self.subTest(name):
+                self.assertEqual(exports[name], self.dir / "out" / name)
+                self.assertTrue((self.dir / "out" / name / platform.export).is_file())
+        self.assertTrue((self.dir / "out" / "godot.json").is_file())
+
+
+class SmokeNeedsACleanExit(unittest.TestCase):
+    """`smoke` with the game stood in for: it writes the lines a first run
+    logs, then exits with the code given."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        platform = PLATFORMS["linux"]
+        self.archive = tar_archive(self.dir / f"{platform.archive_name(VERSION)}.tar.gz",
+                                   release_files(platform))
+        self.environments = []
+        self.enterContext(mock.patch.dict(os.environ, {"PSIV_SAVE_DIR": "/developer/saves"}))
+
+    def game(self, code):
+        def run(command, *, env, **options):
+            self.environments.append(env)
+            log = pathlib.Path(command[command.index("--log-file") + 1])
+            log.write_text(f"{release.SETUP_SHOWN}x\n{release.BUILD_STARTED}x\n"
+                           f"{release.NOT_THE_ROM_NAME} {release.NOT_THE_ROM}\n")
+            return subprocess.CompletedProcess(command, code, "", "Segmentation fault\n")
+        return mock.patch.object(release.subprocess, "run", run)
+
+    def test_a_clean_exit_with_the_lines_passes(self):
+        with self.game(0):
+            shown = release.smoke(self.archive, PLATFORMS["linux"])
+        self.assertTrue(shown)
+
+    def test_a_crash_after_the_lines_fails(self):
+        with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11"):
+            release.smoke(self.archive, PLATFORMS["linux"])
+
+    def test_each_run_has_its_own_scratch_save_directory(self):
+        with self.game(0):
+            release.smoke(self.archive, PLATFORMS["linux"])
+        self.assertEqual(len(self.environments), 2)
+        for environment in self.environments:
+            saves = pathlib.Path(environment["PSIV_SAVE_DIR"])
+            self.assertEqual(saves.name, "saves")
+            self.assertEqual(saves.parent.name[:len("psiv-smoke-")], "psiv-smoke-")
 
 
 # --- notices ---------------------------------------------------------------
