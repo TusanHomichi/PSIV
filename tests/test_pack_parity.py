@@ -163,6 +163,33 @@ class NoClaimsCase(unittest.TestCase):
                              ["psiv-pack left no pack directory at rust"])
 
 
+class ProbeCase(unittest.TestCase):
+    """The probe comparison: the documents must be identical text."""
+
+    DOC = '{\n  "names": {\n    "a": 1\n  }\n}'
+
+    def test_identical_documents_pass(self):
+        self.assertEqual(compare_probe(self.DOC, self.DOC), [])
+
+    def test_a_changed_value_names_its_line(self):
+        problems = compare_probe(self.DOC, self.DOC.replace("1", "2"))
+        self.assertEqual(len(problems), 1)
+        self.assertTrue(problems[0].startswith("probe: line 3 differs"), problems)
+
+    def test_a_missing_tail_fails(self):
+        problems = compare_probe(self.DOC, self.DOC.rsplit("\n", 1)[0])
+        self.assertIn("<end>", problems[0])
+
+    def test_key_order_counts(self):
+        """The Rust writer sorts as json.dumps(sort_keys=True); an unsorted
+        document is a difference, not an equivalent."""
+        unsorted = '{\n  "b": 1,\n  "a": 2\n}'
+        self.assertNotEqual(compare_probe('{\n  "a": 2,\n  "b": 1\n}', unsorted), [])
+
+    def test_the_probes_are_named(self):
+        self.assertEqual(sorted(PROBES), ["cram", "layouts", "maps", "names", "warp_rects"])
+
+
 class DecodeCase(unittest.TestCase):
     """The decoder comparison and the committed census (no ROM needed)."""
 
@@ -248,31 +275,6 @@ class DecodeCase(unittest.TestCase):
             self.assertIsInstance(call["offset"], int)
         frozen = [json.dumps(c, sort_keys=True) for c in calls]
         self.assertEqual(len(frozen), len(set(frozen)), "a call is listed twice")
-class ProbeCase(unittest.TestCase):
-    """The probe comparison: the documents must be identical text."""
-
-    DOC = '{\n  "names": {\n    "a": 1\n  }\n}'
-
-    def test_identical_documents_pass(self):
-        self.assertEqual(compare_probe(self.DOC, self.DOC), [])
-
-    def test_a_changed_value_names_its_line(self):
-        problems = compare_probe(self.DOC, self.DOC.replace("1", "2"))
-        self.assertEqual(len(problems), 1)
-        self.assertTrue(problems[0].startswith("probe: line 3 differs"), problems)
-
-    def test_a_missing_tail_fails(self):
-        problems = compare_probe(self.DOC, self.DOC.rsplit("\n", 1)[0])
-        self.assertIn("<end>", problems[0])
-
-    def test_key_order_counts(self):
-        """The Rust writer sorts as json.dumps(sort_keys=True); an unsorted
-        document is a difference, not an equivalent."""
-        unsorted = '{\n  "b": 1,\n  "a": 2\n}'
-        self.assertNotEqual(compare_probe('{\n  "a": 2,\n  "b": 1\n}', unsorted), [])
-
-    def test_the_probes_are_named(self):
-        self.assertEqual(sorted(PROBES), ["cram", "layouts", "maps", "names", "warp_rects"])
 
 
 class ProgressCase(unittest.TestCase):

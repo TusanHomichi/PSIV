@@ -5,6 +5,7 @@
 # commit (burrow main, 2026-10-26), and Renovate keeps the pin current.
 name: flake
 on:
+  # A PR retargeted onto another branch runs from flake-retarget.yml.
   pull_request:
   push:
     branches: [main]
