@@ -101,6 +101,32 @@ class TestTheTable(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(table.results, {})
 
+    def test_every_call_is_an_attempt_refused_or_not(self):
+        @memoized()
+        def picky(data: bytes, offset: int = 0) -> bytes:
+            if offset:
+                raise ValueError("bad stream")
+            return data
+
+        with scope() as table:
+            picky(b"x")
+            picky(b"x", offset=0)
+            for _ in range(2):
+                try:
+                    picky(b"x", 1)
+                except ValueError:
+                    pass  # a caller that probes, as battle_art._is_mapping does
+        name = f"{picky.__module__}.{picky.__qualname__}"
+        self.assertEqual(list(table.attempts), [(name, b"x", 0), (name, b"x", 1)])
+        self.assertEqual(list(table.decodes), [(name, b"x", 0)])
+
+    def test_mutable_input_is_counted_unkeyed(self):
+        with scope() as table:
+            _echo(bytearray(b"abcd"))
+            _echo(memoryview(b"abcd"))
+        self.assertEqual(table.unkeyed, 2)
+        self.assertEqual(table.attempts, {})
+
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestTheRealDecoders(unittest.TestCase):
