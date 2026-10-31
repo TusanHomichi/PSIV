@@ -18,7 +18,7 @@
       # .godot-version fails here until its hash is added, so the shell never
       # runs a Godot nobody checked (tests/test_flake.py keeps the two in step).
       godotHashes = {
-        "4.7.1" = "sha256-x/8U/ShHLI1PGTBD3jAnjc9+UkGh3PdWawLiet2qM7o=";
+        "4.7.2" = "sha256-yt0yBOcoo10/E623/Q15AmNrefa5XEDCZetztsNTKeQ=";
       };
 
       godotFor = pkgs:
