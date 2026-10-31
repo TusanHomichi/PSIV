@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "0s4x2t3hx7cww97mp8mrsxc78c",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 249,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/249",
+  "summary": "ci: run the flake gate again when a PR's base changes",
+  "task": "https://claude.ai/code/project/chan_01Ad4f4oDXfFTCEzLHzMTD8q?thread=cmsg_01Ad4f4oDXfFTCEzLHzMTD8q44tUrWuRekRs3fR3f6j9A6",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyEnVW8sqvYR8o1Cd9h"
+  },
+  "landing": {
+    "revision": "e32b3296442402d01407a73bec480d61e1ed0861dfe314a046e9f2d10b263302",
+    "before": "be9a4f8032989db4446d469bd446eae1ec20c3d8",
+    "after": "fd4df45c6b244ba6db20affb42f48b1e74f59ea2",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793459681058
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41211944959/job/124568592032"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/249#pullrequestreview-5723418876"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
