@@ -3,12 +3,13 @@ commit with only its `rust/target` kept.
 
     PYTHONPATH=. python3 -m unittest tests.test_gate_worktree -v
 
-Each case makes a scratch repository with two commits that differ in one Rust
+Each worktree case makes a scratch repository with two commits that differ in one Rust
 source. `MoveCase` adds the worktree, then moves it: the tracked files are the
 new commit's, every untracked and ignored file but `rust/target` is gone (a
 linked input's target is left alone), the changed source is newer than the
 kept target dir and an unchanged one keeps its time, which is what lets cargo
-reuse the warm build safely. `LibraryCase` removes a Godot library a gate
+reuse the warm build safely. `BrokenCase` replaces a worktree a stopped gate
+left unable to move. `LibraryCase` removes a Godot library a gate
 would otherwise test against. `CapCase` removes `rust/target` past the cap and
 keeps it at the cap, on a measurement it stubs: a file just written can show
 almost none of its blocks until the filesystem allocates them (on ZFS, seconds
