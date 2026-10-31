@@ -43,6 +43,12 @@ class DecodeTable:
     decodes: dict[tuple[Any, ...], int] = field(default_factory=dict)
     #: Calls answered from `results`.
     hits: int = 0
+    #: Every key asked for, in first-asked order, recorded before the decoder
+    #: runs: a call the decoder refused (and its caller caught) is here too,
+    #: which `decodes` and `results` cannot show (#216's census reads it).
+    attempts: dict[tuple[Any, ...], None] = field(default_factory=dict)
+    #: Calls made inside the scope whose input could not be a key.
+    unkeyed: int = 0
 
 
 _active: list[DecodeTable] = []
@@ -105,13 +111,17 @@ def memoized(
         @functools.wraps(decoder)
         def wrapper(data: Any, *args: Any, **kwargs: Any) -> T:
             table = active()
-            if table is None or type(data) is not bytes:
+            if table is None:
+                return decoder(data, *args, **kwargs)
+            if type(data) is not bytes:
+                table.unkeyed += 1
                 return decoder(data, *args, **kwargs)
             # Bound with defaults, so `f(rom, 0)`, `f(rom, offset=0)` and
             # `f(rom)` are one key.
             bound = signature.bind(data, *args, **kwargs)
             bound.apply_defaults()
             key = (name, *bound.arguments.values())
+            table.attempts[key] = None
             try:
                 result = table.results[key]
             except KeyError:

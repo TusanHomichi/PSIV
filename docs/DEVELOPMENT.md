@@ -277,8 +277,13 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. It prints `psiv-pack`'s wall time beside the load and clock, the number
-a port PR records. Until the switch the Python builder stays the pack everything
+claims. It also decodes every Nemesis, Kosinski and Enigma call a full
+Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
+offsets and arguments only) with both decoders: outputs and consumed lengths
+must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
+tools/pack_parity.py --write-census` (a full build, about two minutes) so the
+census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
+the number a port PR records. Until the switch the Python builder stays the pack everything
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. Find whether a
 section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p

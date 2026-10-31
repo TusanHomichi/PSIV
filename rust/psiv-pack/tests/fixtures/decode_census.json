@@ -1,0 +1,9371 @@
+{
+  "calls": [
+    {
+      "base_tile": 16,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 267708
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 230,
+      "offset": 646520
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 230,
+      "offset": 646590
+    },
+    {
+      "base_tile": 33280,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 646716
+    },
+    {
+      "base_tile": 57856,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 646758
+    },
+    {
+      "base_tile": 41728,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 646796
+    },
+    {
+      "base_tile": 33792,
+      "decoder": "enigma",
+      "max_words": 91,
+      "offset": 646824
+    },
+    {
+      "base_tile": 33792,
+      "decoder": "enigma",
+      "max_words": 91,
+      "offset": 646858
+    },
+    {
+      "base_tile": 49806,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 646924
+    },
+    {
+      "base_tile": 57998,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 646968
+    },
+    {
+      "base_tile": 57998,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 647002
+    },
+    {
+      "base_tile": 57998,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 647030
+    },
+    {
+      "base_tile": 58135,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 647114
+    },
+    {
+      "base_tile": 58135,
+      "decoder": "enigma",
+      "max_words": 240,
+      "offset": 647136
+    },
+    {
+      "base_tile": 58135,
+      "decoder": "enigma",
+      "max_words": 156,
+      "offset": 647234
+    },
+    {
+      "base_tile": 58135,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 647280
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 208,
+      "offset": 647316
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 208,
+      "offset": 647404
+    },
+    {
+      "base_tile": 33280,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 647504
+    },
+    {
+      "base_tile": 33536,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 647522
+    },
+    {
+      "base_tile": 58368,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 647570
+    },
+    {
+      "base_tile": 58368,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 647586
+    },
+    {
+      "base_tile": 34048,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 647600
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 341,
+      "offset": 647620
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 341,
+      "offset": 647688
+    },
+    {
+      "base_tile": 33280,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 647822
+    },
+    {
+      "base_tile": 33536,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 647890
+    },
+    {
+      "base_tile": 41728,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 647922
+    },
+    {
+      "base_tile": 58112,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 647962
+    },
+    {
+      "base_tile": 58368,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 647972
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 261,
+      "offset": 647982
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 261,
+      "offset": 648058
+    },
+    {
+      "base_tile": 57856,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 648156
+    },
+    {
+      "base_tile": 41472,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 648196
+    },
+    {
+      "base_tile": 33280,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 648270
+    },
+    {
+      "base_tile": 41472,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 648316
+    },
+    {
+      "base_tile": 58112,
+      "decoder": "enigma",
+      "max_words": 190,
+      "offset": 648346
+    },
+    {
+      "base_tile": 33536,
+      "decoder": "enigma",
+      "max_words": 190,
+      "offset": 648390
+    },
+    {
+      "base_tile": 57694,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 648430
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 648448
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 648516
+    },
+    {
+      "base_tile": 32855,
+      "decoder": "enigma",
+      "max_words": 60,
+      "offset": 648562
+    },
+    {
+      "base_tile": 41047,
+      "decoder": "enigma",
+      "max_words": 60,
+      "offset": 648612
+    },
+    {
+      "base_tile": 57476,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648648
+    },
+    {
+      "base_tile": 41092,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648678
+    },
+    {
+      "base_tile": 57566,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648702
+    },
+    {
+      "base_tile": 41182,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648758
+    },
+    {
+      "base_tile": 57659,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648816
+    },
+    {
+      "base_tile": 41275,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 648846
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 286,
+      "offset": 648894
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 286,
+      "offset": 648970
+    },
+    {
+      "base_tile": 57659,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 649044
+    },
+    {
+      "base_tile": 41275,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 649066
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 649092
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 649124
+    },
+    {
+      "base_tile": 32852,
+      "decoder": "enigma",
+      "max_words": 260,
+      "offset": 649184
+    },
+    {
+      "base_tile": 41044,
+      "decoder": "enigma",
+      "max_words": 260,
+      "offset": 649260
+    },
+    {
+      "base_tile": 33045,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 649354
+    },
+    {
+      "base_tile": 41237,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 649396
+    },
+    {
+      "base_tile": 57744,
+      "decoder": "enigma",
+      "max_words": 160,
+      "offset": 649446
+    },
+    {
+      "base_tile": 41360,
+      "decoder": "enigma",
+      "max_words": 160,
+      "offset": 649490
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 104,
+      "offset": 649584
+    },
+    {
+      "base_tile": 32864,
+      "decoder": "enigma",
+      "max_words": 152,
+      "offset": 649626
+    },
+    {
+      "base_tile": 41056,
+      "decoder": "enigma",
+      "max_words": 152,
+      "offset": 649690
+    },
+    {
+      "base_tile": 49375,
+      "decoder": "enigma",
+      "max_words": 133,
+      "offset": 649784
+    },
+    {
+      "base_tile": 41183,
+      "decoder": "enigma",
+      "max_words": 133,
+      "offset": 649848
+    },
+    {
+      "base_tile": 33106,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 649930
+    },
+    {
+      "base_tile": 33168,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 649944
+    },
+    {
+      "base_tile": 33275,
+      "decoder": "enigma",
+      "max_words": 216,
+      "offset": 649972
+    },
+    {
+      "base_tile": 57851,
+      "decoder": "enigma",
+      "max_words": 216,
+      "offset": 650036
+    },
+    {
+      "base_tile": 50101,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 650078
+    },
+    {
+      "base_tile": 58293,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 650104
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 650128
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 650184
+    },
+    {
+      "base_tile": 49353,
+      "decoder": "enigma",
+      "max_words": 136,
+      "offset": 650270
+    },
+    {
+      "base_tile": 41161,
+      "decoder": "enigma",
+      "max_words": 136,
+      "offset": 650316
+    },
+    {
+      "base_tile": 41306,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 650378
+    },
+    {
+      "base_tile": 33193,
+      "decoder": "enigma",
+      "max_words": 135,
+      "offset": 650406
+    },
+    {
+      "base_tile": 41385,
+      "decoder": "enigma",
+      "max_words": 135,
+      "offset": 650452
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 280,
+      "offset": 650486
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 280,
+      "offset": 650586
+    },
+    {
+      "base_tile": 33059,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 650694
+    },
+    {
+      "base_tile": 41251,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 650776
+    },
+    {
+      "base_tile": 49586,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 650810
+    },
+    {
+      "base_tile": 41394,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 650848
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 221,
+      "offset": 650868
+    },
+    {
+      "base_tile": 41093,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 650926
+    },
+    {
+      "base_tile": 32901,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 650962
+    },
+    {
+      "base_tile": 41252,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 651004
+    },
+    {
+      "base_tile": 57689,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 651032
+    },
+    {
+      "base_tile": 57797,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 651046
+    },
+    {
+      "base_tile": 33221,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 651102
+    },
+    {
+      "base_tile": 57916,
+      "decoder": "enigma",
+      "max_words": 187,
+      "offset": 651146
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 391,
+      "offset": 651182
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 391,
+      "offset": 651264
+    },
+    {
+      "base_tile": 49452,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 651366
+    },
+    {
+      "base_tile": 41260,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 651412
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 195,
+      "offset": 651452
+    },
+    {
+      "base_tile": 49336,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 651490
+    },
+    {
+      "base_tile": 41144,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 651532
+    },
+    {
+      "base_tile": 33070,
+      "decoder": "enigma",
+      "max_words": 147,
+      "offset": 651596
+    },
+    {
+      "base_tile": 41262,
+      "decoder": "enigma",
+      "max_words": 147,
+      "offset": 651646
+    },
+    {
+      "base_tile": 57963,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 651690
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 336,
+      "offset": 651742
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 336,
+      "offset": 651866
+    },
+    {
+      "base_tile": 57581,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 781914
+    },
+    {
+      "base_tile": 41197,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 781932
+    },
+    {
+      "base_tile": 57862,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 782140
+    },
+    {
+      "base_tile": 32977,
+      "decoder": "enigma",
+      "max_words": 221,
+      "offset": 782188
+    },
+    {
+      "base_tile": 41169,
+      "decoder": "enigma",
+      "max_words": 221,
+      "offset": 782312
+    },
+    {
+      "base_tile": 49573,
+      "decoder": "enigma",
+      "max_words": 200,
+      "offset": 782376
+    },
+    {
+      "base_tile": 41381,
+      "decoder": "enigma",
+      "max_words": 200,
+      "offset": 782428
+    },
+    {
+      "base_tile": 33345,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 782462
+    },
+    {
+      "base_tile": 41537,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 782496
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 782514
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 782558
+    },
+    {
+      "base_tile": 32917,
+      "decoder": "enigma",
+      "max_words": 275,
+      "offset": 782602
+    },
+    {
+      "base_tile": 57744,
+      "decoder": "enigma",
+      "max_words": 184,
+      "offset": 782656
+    },
+    {
+      "base_tile": 41360,
+      "decoder": "enigma",
+      "max_words": 184,
+      "offset": 782716
+    },
+    {
+      "base_tile": 58313,
+      "decoder": "enigma",
+      "max_words": 165,
+      "offset": 782938
+    },
+    {
+      "base_tile": 58313,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 782996
+    },
+    {
+      "base_tile": 58313,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 783026
+    },
+    {
+      "base_tile": 58027,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 783086
+    },
+    {
+      "base_tile": 58012,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 783116
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 288,
+      "offset": 783150
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 288,
+      "offset": 783220
+    },
+    {
+      "base_tile": 57657,
+      "decoder": "enigma",
+      "max_words": 132,
+      "offset": 783322
+    },
+    {
+      "base_tile": 41273,
+      "decoder": "enigma",
+      "max_words": 132,
+      "offset": 783350
+    },
+    {
+      "base_tile": 57791,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 783394
+    },
+    {
+      "base_tile": 41407,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 783412
+    },
+    {
+      "base_tile": 41332,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 783676
+    },
+    {
+      "base_tile": 57716,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 783714
+    },
+    {
+      "base_tile": 41230,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 783740
+    },
+    {
+      "base_tile": 57614,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 783782
+    },
+    {
+      "base_tile": 32991,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 783916
+    },
+    {
+      "base_tile": 41304,
+      "decoder": "enigma",
+      "max_words": 77,
+      "offset": 784720
+    },
+    {
+      "base_tile": 33112,
+      "decoder": "enigma",
+      "max_words": 77,
+      "offset": 784776
+    },
+    {
+      "base_tile": 57449,
+      "decoder": "enigma",
+      "max_words": 136,
+      "offset": 784970
+    },
+    {
+      "base_tile": 32873,
+      "decoder": "enigma",
+      "max_words": 136,
+      "offset": 785032
+    },
+    {
+      "base_tile": 41163,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 785272
+    },
+    {
+      "base_tile": 57628,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 785314
+    },
+    {
+      "base_tile": 41501,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 785348
+    },
+    {
+      "base_tile": 57885,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 785446
+    },
+    {
+      "base_tile": 57476,
+      "decoder": "enigma",
+      "max_words": 152,
+      "offset": 785524
+    },
+    {
+      "base_tile": 32900,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 785540
+    },
+    {
+      "base_tile": 41073,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 785594
+    },
+    {
+      "base_tile": 57457,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 785630
+    },
+    {
+      "base_tile": 33078,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 785982
+    },
+    {
+      "base_tile": 58203,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 785982
+    },
+    {
+      "base_tile": 33173,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 786002
+    },
+    {
+      "base_tile": 41365,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 786030
+    },
+    {
+      "base_tile": 57749,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 786128
+    },
+    {
+      "base_tile": 33056,
+      "decoder": "enigma",
+      "max_words": 77,
+      "offset": 786312
+    },
+    {
+      "base_tile": 41426,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 786638
+    },
+    {
+      "base_tile": 57810,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 786674
+    },
+    {
+      "base_tile": 41228,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 849532
+    },
+    {
+      "base_tile": 33036,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 849568
+    },
+    {
+      "base_tile": 49562,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 849630
+    },
+    {
+      "base_tile": 57754,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 849686
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 849734
+    },
+    {
+      "base_tile": 49168,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 849758
+    },
+    {
+      "base_tile": 49281,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 849786
+    },
+    {
+      "base_tile": 57473,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 849828
+    },
+    {
+      "base_tile": 49409,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 849864
+    },
+    {
+      "base_tile": 57601,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 849916
+    },
+    {
+      "base_tile": 16,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1908978
+    },
+    {
+      "base_tile": 146,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909030
+    },
+    {
+      "base_tile": 8394,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909074
+    },
+    {
+      "base_tile": 16600,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909088
+    },
+    {
+      "base_tile": 24803,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909106
+    },
+    {
+      "base_tile": 24803,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909310
+    },
+    {
+      "base_tile": 24803,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909450
+    },
+    {
+      "base_tile": 24803,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1909612
+    },
+    {
+      "base_tile": 8208,
+      "decoder": "enigma",
+      "max_words": 640,
+      "offset": 1910206
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956744
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956850
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956862
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956870
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956882
+    },
+    {
+      "base_tile": 256,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956896
+    },
+    {
+      "base_tile": 8448,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 1956906
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2097616
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2102180
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2104798
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2113944
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2117796
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2120794
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2121456
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2125418
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2128758
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2131012
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2132366
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2134498
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2137710
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2140764
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2143274
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2145718
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2148312
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2151052
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2152528
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2154258
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2156748
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2157770
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2159064
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2163508
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2167698
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2170210
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2172170
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2177724
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2177788
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2179272
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2181776
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2183488
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2184738
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2187896
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2190430
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2195366
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2198182
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2200040
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2206182
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2209054
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2210984
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2213706
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2216104
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2223326
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2229090
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2234706
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2241344
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2244672
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2249460
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2288914
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2304418
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2314962
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2322108
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2324634
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2330090
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2334748
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2338652
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2346146
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2347888
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2351764
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2356128
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2358954
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2365106
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2368486
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2370188
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 4096,
+      "offset": 2372632
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2430382
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2430402
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431554
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431578
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431610
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431644
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431674
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2431712
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2435362
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2435384
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2435414
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2441178
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2441196
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2441224
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2450276
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2450294
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2450324
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2456280
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2456306
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2457106
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2458066
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2458086
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2458112
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2458140
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2458154
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2459358
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2460894
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2460918
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2460952
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2460988
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2461004
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2464742
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2464768
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2464798
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2464830
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466592
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466614
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466640
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466674
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466706
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466740
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466768
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2466806
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2469684
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2469706
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2500448
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2506726
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2513522
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2521740
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2529170
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2532556
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2534024
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2539110
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2544150
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2551186
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2556622
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2561566
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2566050
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2574508
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2580832
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2588102
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2591804
+    },
+    {
+      "base_tile": 0,
+      "decoder": "enigma",
+      "max_words": 2048,
+      "offset": 2600148
+    },
+    {
+      "base_tile": 41082,
+      "decoder": "enigma",
+      "max_words": 231,
+      "offset": 2850132
+    },
+    {
+      "base_tile": 49256,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 2850376
+    },
+    {
+      "base_tile": 41064,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 2850434
+    },
+    {
+      "base_tile": 33006,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2850518
+    },
+    {
+      "base_tile": 41198,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2850550
+    },
+    {
+      "base_tile": 49168,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 2850724
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 2850762
+    },
+    {
+      "base_tile": 41306,
+      "decoder": "enigma",
+      "max_words": 63,
+      "offset": 2850822
+    },
+    {
+      "base_tile": 41306,
+      "decoder": "enigma",
+      "max_words": 63,
+      "offset": 2850850
+    },
+    {
+      "base_tile": 57571,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 2850896
+    },
+    {
+      "base_tile": 41187,
+      "decoder": "enigma",
+      "max_words": 99,
+      "offset": 2850956
+    },
+    {
+      "base_tile": 57601,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 2851046
+    },
+    {
+      "base_tile": 41217,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 2851112
+    },
+    {
+      "base_tile": 57463,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 2851604
+    },
+    {
+      "base_tile": 41079,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 2851674
+    },
+    {
+      "base_tile": 32877,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2851732
+    },
+    {
+      "base_tile": 41069,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2851784
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 152,
+      "offset": 2851870
+    },
+    {
+      "base_tile": 57767,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2851938
+    },
+    {
+      "base_tile": 41383,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2851972
+    },
+    {
+      "base_tile": 57550,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 2852050
+    },
+    {
+      "base_tile": 32974,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 2852100
+    },
+    {
+      "base_tile": 57930,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2852146
+    },
+    {
+      "base_tile": 33354,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2852226
+    },
+    {
+      "base_tile": 32942,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2852450
+    },
+    {
+      "base_tile": 41134,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2852468
+    },
+    {
+      "base_tile": 57518,
+      "decoder": "enigma",
+      "max_words": 56,
+      "offset": 2852530
+    },
+    {
+      "base_tile": 41134,
+      "decoder": "enigma",
+      "max_words": 56,
+      "offset": 2852550
+    },
+    {
+      "base_tile": 57733,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 2852622
+    },
+    {
+      "base_tile": 49317,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 2852948
+    },
+    {
+      "base_tile": 41125,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 2852986
+    },
+    {
+      "base_tile": 49317,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2853080
+    },
+    {
+      "base_tile": 41125,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2853150
+    },
+    {
+      "base_tile": 49240,
+      "decoder": "enigma",
+      "max_words": 135,
+      "offset": 2853502
+    },
+    {
+      "base_tile": 32856,
+      "decoder": "enigma",
+      "max_words": 135,
+      "offset": 2853564
+    },
+    {
+      "base_tile": 32966,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 2853598
+    },
+    {
+      "base_tile": 49431,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 2853624
+    },
+    {
+      "base_tile": 33047,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 2853646
+    },
+    {
+      "base_tile": 49723,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2853760
+    },
+    {
+      "base_tile": 41531,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2853778
+    },
+    {
+      "base_tile": 33339,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 2853956
+    },
+    {
+      "base_tile": 41531,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 2854002
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 216,
+      "offset": 2854350
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 216,
+      "offset": 2854430
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 2854574
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 2854608
+    },
+    {
+      "base_tile": 57731,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 2968820
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 204,
+      "offset": 2968834
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 204,
+      "offset": 2968908
+    },
+    {
+      "base_tile": 32996,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2968998
+    },
+    {
+      "base_tile": 41188,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2969012
+    },
+    {
+      "base_tile": 49506,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 2969066
+    },
+    {
+      "base_tile": 41314,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 2969094
+    },
+    {
+      "base_tile": 49324,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2969132
+    },
+    {
+      "base_tile": 41132,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2969216
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 2969308
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 2969358
+    },
+    {
+      "base_tile": 57474,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 2969420
+    },
+    {
+      "base_tile": 41090,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 2969458
+    },
+    {
+      "base_tile": 33038,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2969520
+    },
+    {
+      "base_tile": 41230,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2969542
+    },
+    {
+      "base_tile": 32858,
+      "decoder": "enigma",
+      "max_words": 240,
+      "offset": 2969768
+    },
+    {
+      "base_tile": 41050,
+      "decoder": "enigma",
+      "max_words": 240,
+      "offset": 2969852
+    },
+    {
+      "base_tile": 33094,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2969950
+    },
+    {
+      "base_tile": 41286,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 2969980
+    },
+    {
+      "base_tile": 41068,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 2970224
+    },
+    {
+      "base_tile": 49168,
+      "decoder": "enigma",
+      "max_words": 144,
+      "offset": 2970422
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 144,
+      "offset": 2970478
+    },
+    {
+      "base_tile": 57498,
+      "decoder": "enigma",
+      "max_words": 165,
+      "offset": 2970518
+    },
+    {
+      "base_tile": 32922,
+      "decoder": "enigma",
+      "max_words": 165,
+      "offset": 2970598
+    },
+    {
+      "base_tile": 41114,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2970652
+    },
+    {
+      "base_tile": 32922,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2970684
+    },
+    {
+      "base_tile": 41114,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 2970734
+    },
+    {
+      "base_tile": 32922,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 2970790
+    },
+    {
+      "base_tile": 57498,
+      "decoder": "enigma",
+      "max_words": 78,
+      "offset": 2970876
+    },
+    {
+      "base_tile": 32922,
+      "decoder": "enigma",
+      "max_words": 78,
+      "offset": 2970918
+    },
+    {
+      "base_tile": 57885,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2970986
+    },
+    {
+      "base_tile": 49392,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 2971200
+    },
+    {
+      "base_tile": 33008,
+      "decoder": "enigma",
+      "max_words": 180,
+      "offset": 2971270
+    },
+    {
+      "base_tile": 32960,
+      "decoder": "enigma",
+      "max_words": 70,
+      "offset": 2971420
+    },
+    {
+      "base_tile": 41222,
+      "decoder": "enigma",
+      "max_words": 231,
+      "offset": 2971432
+    },
+    {
+      "base_tile": 33177,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 2971542
+    },
+    {
+      "base_tile": 33177,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 2971606
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 220,
+      "offset": 2971636
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 220,
+      "offset": 2971708
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 2971746
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 2971766
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2971824
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 105,
+      "offset": 2971884
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 162,
+      "offset": 2971938
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 162,
+      "offset": 2972072
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 2972158
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 168,
+      "offset": 2972250
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2972286
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2972366
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 2972576
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 2972654
+    },
+    {
+      "base_tile": 57360,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2972734
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2972806
+    },
+    {
+      "base_tile": 33073,
+      "decoder": "enigma",
+      "max_words": 110,
+      "offset": 2972992
+    },
+    {
+      "base_tile": 41265,
+      "decoder": "enigma",
+      "max_words": 110,
+      "offset": 2973030
+    },
+    {
+      "base_tile": 41356,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2973666
+    },
+    {
+      "base_tile": 33164,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 2973744
+    },
+    {
+      "base_tile": 41180,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 2973814
+    },
+    {
+      "base_tile": 57652,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 2973970
+    },
+    {
+      "base_tile": 41329,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2974364
+    },
+    {
+      "base_tile": 33137,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 2974410
+    },
+    {
+      "base_tile": 57713,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 2974424
+    },
+    {
+      "base_tile": 33137,
+      "decoder": "enigma",
+      "max_words": 126,
+      "offset": 2974466
+    },
+    {
+      "base_tile": 41329,
+      "decoder": "enigma",
+      "max_words": 102,
+      "offset": 2974508
+    },
+    {
+      "base_tile": 33137,
+      "decoder": "enigma",
+      "max_words": 102,
+      "offset": 2974560
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 140,
+      "offset": 3067880
+    },
+    {
+      "base_tile": 33368,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 3067894
+    },
+    {
+      "base_tile": 49814,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 3067920
+    },
+    {
+      "base_tile": 33430,
+      "decoder": "enigma",
+      "max_words": 130,
+      "offset": 3067976
+    },
+    {
+      "base_tile": 41776,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068078
+    },
+    {
+      "base_tile": 33584,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068120
+    },
+    {
+      "base_tile": 58160,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3068182
+    },
+    {
+      "base_tile": 33584,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3068244
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 203,
+      "offset": 3068322
+    },
+    {
+      "base_tile": 33071,
+      "decoder": "enigma",
+      "max_words": 66,
+      "offset": 3068456
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 154,
+      "offset": 3068468
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 154,
+      "offset": 3068502
+    },
+    {
+      "base_tile": 57600,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3068532
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3068566
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3068594
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3068624
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 3068656
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 108,
+      "offset": 3068704
+    },
+    {
+      "base_tile": 41607,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 3068732
+    },
+    {
+      "base_tile": 41607,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 3068800
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068888
+    },
+    {
+      "base_tile": 49509,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068888
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068978
+    },
+    {
+      "base_tile": 41317,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3068978
+    },
+    {
+      "base_tile": 49955,
+      "decoder": "enigma",
+      "max_words": 54,
+      "offset": 3069066
+    },
+    {
+      "base_tile": 41763,
+      "decoder": "enigma",
+      "max_words": 54,
+      "offset": 3069098
+    },
+    {
+      "base_tile": 58274,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3069128
+    },
+    {
+      "base_tile": 41890,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3069172
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 3069206
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 3069284
+    },
+    {
+      "base_tile": 41473,
+      "decoder": "enigma",
+      "max_words": 264,
+      "offset": 3069310
+    },
+    {
+      "base_tile": 33281,
+      "decoder": "enigma",
+      "max_words": 264,
+      "offset": 3069378
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 154,
+      "offset": 3069560
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 154,
+      "offset": 3069614
+    },
+    {
+      "base_tile": 58096,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3069734
+    },
+    {
+      "base_tile": 33520,
+      "decoder": "enigma",
+      "max_words": 112,
+      "offset": 3069796
+    },
+    {
+      "base_tile": 49816,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3069898
+    },
+    {
+      "base_tile": 33432,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3069932
+    },
+    {
+      "base_tile": 41372,
+      "decoder": "enigma",
+      "max_words": 198,
+      "offset": 3069952
+    },
+    {
+      "base_tile": 57756,
+      "decoder": "enigma",
+      "max_words": 198,
+      "offset": 3070058
+    },
+    {
+      "base_tile": 33099,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 3070106
+    },
+    {
+      "base_tile": 57675,
+      "decoder": "enigma",
+      "max_words": 84,
+      "offset": 3070156
+    },
+    {
+      "base_tile": 33099,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3070184
+    },
+    {
+      "base_tile": 57675,
+      "decoder": "enigma",
+      "max_words": 119,
+      "offset": 3070252
+    },
+    {
+      "base_tile": 49808,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3070290
+    },
+    {
+      "base_tile": 33424,
+      "decoder": "enigma",
+      "max_words": 96,
+      "offset": 3070352
+    },
+    {
+      "base_tile": 41367,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 3070376
+    },
+    {
+      "base_tile": 33175,
+      "decoder": "enigma",
+      "max_words": 100,
+      "offset": 3070416
+    },
+    {
+      "base_tile": 41367,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 3070474
+    },
+    {
+      "base_tile": 58000,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 3070474
+    },
+    {
+      "base_tile": 33175,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 3070508
+    },
+    {
+      "base_tile": 33424,
+      "decoder": "enigma",
+      "max_words": 98,
+      "offset": 3070508
+    },
+    {
+      "base_tile": 41757,
+      "decoder": "enigma",
+      "max_words": 64,
+      "offset": 3070578
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 264,
+      "offset": 3070588
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 144,
+      "offset": 3070654
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 144,
+      "offset": 3070684
+    },
+    {
+      "base_tile": 57708,
+      "decoder": "enigma",
+      "max_words": 48,
+      "offset": 3070738
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 48,
+      "offset": 3070756
+    },
+    {
+      "base_tile": 33132,
+      "decoder": "enigma",
+      "max_words": 48,
+      "offset": 3070756
+    },
+    {
+      "base_tile": 57768,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 3070780
+    },
+    {
+      "base_tile": 33192,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 3070802
+    },
+    {
+      "base_tile": 57768,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 3070832
+    },
+    {
+      "base_tile": 33192,
+      "decoder": "enigma",
+      "max_words": 90,
+      "offset": 3070886
+    },
+    {
+      "base_tile": 57768,
+      "decoder": "enigma",
+      "max_words": 102,
+      "offset": 3070910
+    },
+    {
+      "base_tile": 33192,
+      "decoder": "enigma",
+      "max_words": 102,
+      "offset": 3070976
+    },
+    {
+      "base_tile": 57660,
+      "decoder": "enigma",
+      "max_words": 195,
+      "offset": 3071008
+    },
+    {
+      "base_tile": 41276,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3071108
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 330,
+      "offset": 3071156
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 330,
+      "offset": 3071250
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 3071394
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 3071448
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 3071492
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 80,
+      "offset": 3071524
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3071548
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3071630
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 238,
+      "offset": 3071664
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 238,
+      "offset": 3071762
+    },
+    {
+      "base_tile": 49408,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3071872
+    },
+    {
+      "base_tile": 58096,
+      "decoder": "enigma",
+      "max_words": 143,
+      "offset": 3071954
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 3072006
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 3072062
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3072140
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3072170
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 3072230
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 150,
+      "offset": 3072274
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3072292
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3072334
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 209,
+      "offset": 3072362
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 209,
+      "offset": 3072508
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 171,
+      "offset": 3072758
+    },
+    {
+      "base_tile": 57600,
+      "decoder": "enigma",
+      "max_words": 171,
+      "offset": 3072832
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 3072880
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 120,
+      "offset": 3072914
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3072966
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073006
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 132,
+      "offset": 3073050
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 132,
+      "offset": 3073116
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073200
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073232
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 198,
+      "offset": 3073296
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 198,
+      "offset": 3073358
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073504
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073558
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073632
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073672
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 153,
+      "offset": 3073750
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 153,
+      "offset": 3073824
+    },
+    {
+      "base_tile": 33024,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073870
+    },
+    {
+      "base_tile": 41216,
+      "decoder": "enigma",
+      "max_words": 81,
+      "offset": 3073892
+    },
+    {
+      "base_tile": 58147,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 3083988
+    },
+    {
+      "base_tile": 33571,
+      "decoder": "enigma",
+      "max_words": 128,
+      "offset": 3084016
+    },
+    {
+      "base_tile": 57704,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 3084080
+    },
+    {
+      "base_tile": 33128,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 3084110
+    },
+    {
+      "base_tile": 57704,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3084160
+    },
+    {
+      "base_tile": 33128,
+      "decoder": "enigma",
+      "max_words": 88,
+      "offset": 3084210
+    },
+    {
+      "base_tile": 57704,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 3084292
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1050626
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1056002
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1060786
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1066210
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1071538
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1074594
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1113992
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1119528
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1125432
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1130328
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1132820
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1152720
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1162560
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1163904
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1163968
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1165320
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1171048
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1176744
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1190544
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1192832
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1193744
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1193904
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1194800
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1200112
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1204960
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1208378
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1211034
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1211178
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1211696
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1211792
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1213362
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1213490
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1216126
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1216238
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1216908
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1217004
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1217386
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1217466
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1218268
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1218332
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1218660
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1223412
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1228372
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1233732
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1237440
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1241920
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1242080
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1243756
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1243868
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245076
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245156
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245428
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245492
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245768
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1245848
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1246422
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1249128
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1250040
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1250136
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1251828
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1251908
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1253442
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1253490
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1253746
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1253810
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1254168
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1254232
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1254564
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1254692
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1255416
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1258848
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1259648
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1260400
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1260592
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1263334
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1263414
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1263734
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1263814
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1265118
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1265214
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1266682
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1266762
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1267100
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1267132
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1267404
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1267500
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1267750
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1272758
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1274038
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1275510
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1275702
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1278686
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1278814
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1279556
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1283610
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1284778
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1285018
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1288194
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1288290
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1288698
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1288842
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1289188
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1289316
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1289628
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1289708
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1291074
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1291170
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1291674
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1291754
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1292112
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1301022
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1301934
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1302030
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1302940
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1306316
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1307196
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1307564
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1308354
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1312542
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1312638
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1314946
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1315058
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1315356
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1315468
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1315782
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1315894
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1316186
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1316314
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1316644
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1321188
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1322452
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1324276
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1324356
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1324936
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1325064
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1325542
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1325670
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1326168
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1326312
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1326908
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1330780
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1331628
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1331772
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1332484
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1332564
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1332906
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1333002
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1333328
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1333424
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1333778
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1333842
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1334230
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1334310
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1334644
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1334740
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1335038
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1335150
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1335648
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1335760
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1336408
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1342572
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1343436
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1343900
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1345222
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1345270
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1345982
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1346030
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1346800
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1346896
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1347298
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1347362
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1348792
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1348872
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1352314
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1352378
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1352734
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1352798
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1354256
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1354320
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1355686
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1355750
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1356596
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1356708
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357094
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357158
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357474
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357538
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357866
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1357930
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1358232
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1358312
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1361292
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1361436
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1361916
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1361980
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1362342
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1362406
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1362702
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1362798
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1363110
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1363190
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1363722
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1370210
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1371042
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1371186
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1371874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1377234
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1381634
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1383124
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1387956
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1388212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1388826
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1388890
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389226
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389306
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389590
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389638
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389866
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1389930
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1390216
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1390280
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1390586
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1390682
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1390986
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1391034
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1391532
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1391612
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1391932
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1391996
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1392524
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1396284
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1397436
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1397564
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398186
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398282
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398570
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398634
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398862
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1398926
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1399232
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1399328
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1399738
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1399818
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1400104
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1400200
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1400504
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1400584
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1401062
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1406070
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1407222
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1407398
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1408166
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1408326
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1408596
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1408676
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1408942
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1409070
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1409388
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1409548
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1409882
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1409994
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1410228
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1414692
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1415140
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1416212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1422052
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1425348
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1430420
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1433278
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1437438
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1437502
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1438386
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1438434
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1438992
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1439712
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1440362
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1440426
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1440662
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1440742
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1441418
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1441498
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1441984
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1442032
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1442410
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1442602
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1443252
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1443348
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1443598
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1449310
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1451454
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1455838
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1456014
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1456696
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1457096
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1457636
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1458036
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1458596
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1458932
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1459390
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1459790
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1461414
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1461814
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1462116
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1466964
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1469936
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1475344
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1476144
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1476676
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1476740
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1477486
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1477518
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1477804
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1477836
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478102
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478134
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478362
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478394
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478712
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1478760
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1479112
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1484360
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1488680
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1494280
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1494344
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1494818
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1494882
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1495226
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1495322
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1495812
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1495860
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496108
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496172
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496528
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496576
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496856
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1496936
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1497282
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1497330
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1497648
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1497712
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1497994
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1502138
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1504506
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1506554
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1508250
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1511818
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1511898
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1512140
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1512360
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1512656
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1513300
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1513812
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1513964
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1514166
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1514390
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1514546
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1514776
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1515030
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1515280
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1515572
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1516212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1520532
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1523844
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1523876
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1524366
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1524462
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1524624
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1524996
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1525284
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1525416
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1525604
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1525808
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1526056
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1526250
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1526362
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1526600
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1529656
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1531336
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1534792
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1534824
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1535164
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1535400
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1535480
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1535740
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1539100
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1539132
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1539650
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1539922
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1540522
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1541012
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1541358
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1541684
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1541716
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1542212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1542260
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1543124
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1543588
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1544586
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1544842
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1545012
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1546852
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1549924
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1549956
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1550418
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1550818
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1551242
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1551950
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1552576
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1552624
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1553358
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1553758
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1554032
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1554464
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1554766
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1555138
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1556610
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1560194
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1563570
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1563826
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1564102
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1564278
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1564550
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1564998
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1565850
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1566250
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1566412
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1566476
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1566656
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1566882
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1567162
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1567194
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1567582
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1567854
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1567886
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1568172
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1573324
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1574684
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1574716
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1575538
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1575634
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1576128
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1576224
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1576574
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1576654
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1576936
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1577048
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1577432
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1577496
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1577778
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1577858
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1578330
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1578410
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1580740
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1580804
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581126
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581190
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581460
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581524
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581790
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1581854
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1582110
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1582174
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1583002
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1583258
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1584774
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1584902
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1585818
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1597498
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1598970
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1601610
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1601690
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1602032
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1602224
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1602916
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1603028
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1603634
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1603794
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1604282
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1604442
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1604942
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1605118
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1607816
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1607944
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1608294
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1608406
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1609022
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1609214
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1609718
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1609878
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1610378
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1610538
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1612338
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1612466
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1612816
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1612912
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1613534
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1613694
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1615062
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1615206
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1615546
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1627194
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1630906
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1631002
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1632120
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1632310
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1632674
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1632848
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1633266
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1633446
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1633762
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1634100
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1634762
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1642874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1650970
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1652698
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1652922
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1653750
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1663958
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1669016
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1672392
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1672472
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1672896
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1672944
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1673252
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1673316
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1673670
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1673734
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1674058
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1674122
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1674704
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1684356
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1686372
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1686596
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1687248
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1687328
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1687624
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1687688
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1687968
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1688032
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1688346
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1688394
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1688732
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1688812
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1689186
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1689250
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1689796
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1693026
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1694450
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1694626
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1695286
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1695350
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1695672
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1695736
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696032
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696096
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696420
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696500
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696862
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1696958
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1700206
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1700318
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1700838
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1700902
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1701646
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1707598
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1710334
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1710686
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1711638
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1711702
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1711994
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1712058
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1712358
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1712422
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1712758
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1712838
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713140
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713204
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713494
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713558
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1713938
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714238
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714302
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714534
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714582
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714848
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1714912
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1715224
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1715288
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1715552
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1715616
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1715976
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1725448
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1726456
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1729442
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1734258
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1734354
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1735022
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1737840
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1739568
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1739664
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1740212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1740260
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1740588
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1740636
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1740974
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1741038
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1741434
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1741498
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1741858
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1741922
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1742544
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1742608
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1743068
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1743148
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1743502
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1752488
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1754344
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1754584
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1755134
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1757934
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1759806
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1759854
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1760366
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1760414
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1760962
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1761042
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1761450
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1761514
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1761822
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1761886
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1762218
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1762282
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1762662
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1762726
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763058
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763122
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763414
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763478
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1763938
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1764292
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1764356
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1764702
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1767102
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1769390
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1769438
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1770678
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1770742
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1771088
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1771136
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1771500
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1771532
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1773216
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1773264
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1773588
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1773636
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1774098
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1774130
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1774408
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1774504
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1775334
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1775366
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1775760
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1775968
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1777986
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1778114
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1778588
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1778684
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1779060
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1779124
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1779552
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1779616
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1779878
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1789014
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1791510
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1791542
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1795666
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1795874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1796740
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1796820
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1797050
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1797114
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1798670
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1798878
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1799380
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1799444
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1799780
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1799828
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1800118
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1800214
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1801052
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1801116
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1801712
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1801776
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1802172
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1811628
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1812188
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1818456
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1822968
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1823160
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1824766
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1824846
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1826020
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1826052
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1826438
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1826566
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1827020
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1827164
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1827746
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1827874
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1828440
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1828504
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1828750
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1828846
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1829460
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1829556
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830162
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830226
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830520
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830568
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830816
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1830976
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1831772
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1831868
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1832254
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1832382
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1832826
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1832906
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1833270
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1833350
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1833724
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1833804
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1834274
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1834354
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1834932
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1834980
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1835322
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1835370
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1835724
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1835884
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1836534
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1836774
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837180
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837212
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837440
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837472
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837674
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1837882
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1838202
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1838394
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1838724
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1838932
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1839232
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1839424
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1839530
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1840970
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1841994
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1842138
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1842412
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1844252
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1847148
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1847308
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1848006
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1848326
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1849028
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1849604
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1849878
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1850518
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1850912
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1851222
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1851622
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1851920
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1853920
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1864800
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1866224
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1867744
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1869312
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1871248
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1871280
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1871738
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1871834
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1872570
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1873446
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1873622
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1874510
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1874590
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1875634
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1875762
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1876654
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1876702
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1877326
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1879760
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1879792
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1880090
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1883514
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1884682
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1884842
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1963520
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1966480
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1969056
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1972608
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1975936
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1979040
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1982272
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1986080
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1988416
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1991552
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1994720
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 1998160
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2001376
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2005488
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2009280
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2011552
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2013840
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2017392
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2020192
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2022560
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2025904
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2027824
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2030208
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2033184
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2035904
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2038480
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2040832
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2043376
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2046608
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2049392
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2051952
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2054768
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2056992
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2060688
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2064816
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2068512
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2069888
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2073728
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2075328
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2078224
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2081712
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2083104
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2086816
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2635500
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2637420
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2638524
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2639644
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2640780
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2641788
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2641948
+    },
+    {
+      "decoder": "kosinski",
+      "offset": 2642892
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 266704
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 505728
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 509426
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 512368
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 513730
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 514700
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 516838
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 518424
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 520630
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 522038
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 525108
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 526786
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 529644
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 530920
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 531640
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 533120
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 534154
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 534948
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 539656
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 541110
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 543100
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 544146
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 545258
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 549234
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 551592
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 553544
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 556016
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 557394
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 558522
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 559470
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 561354
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 562808
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 564158
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 568800
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 570774
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 571806
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 574646
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 576606
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 579006
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 580806
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 583254
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 585404
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 586392
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 587844
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 590390
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 594322
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 598014
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 600614
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 602318
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 604534
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 608600
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 610476
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 613198
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 615258
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 618006
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 618848
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 621244
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 622902
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 625540
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 630576
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 632350
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 635584
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 637764
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 640238
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 643412
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 657964
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 662596
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 665242
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 668520
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 671212
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 672186
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 674376
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 677740
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 684260
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 686320
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 688122
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 688886
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 690604
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 692638
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 697740
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 700012
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 706124
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 707032
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 711174
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 729502
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 734438
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 738564
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 739752
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 741450
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 743716
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 747104
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 752732
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 760450
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 761880
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 764140
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 767714
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 779104
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 788432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 791114
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 792626
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 794402
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 796530
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 802098
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 808272
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 810568
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 812290
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 818058
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 825982
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 832162
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 833270
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 841766
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 845744
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1132552
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1180760
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1182060
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1183116
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1184138
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1185280
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1186368
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1187500
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1207328
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1212342
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1213928
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1214970
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1216580
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1217818
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1235908
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1237000
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1242644
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1244208
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1247990
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1248548
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1251114
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1251326
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1251468
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1252250
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1258104
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1261324
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1262200
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1264070
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1265652
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1276328
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1277616
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1283204
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1286136
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1287234
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1289984
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1291548
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1295520
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1296826
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1298004
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1299530
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1300780
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1300984
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1311218
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1313006
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1314122
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1314510
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1335496
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1339272
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1340094
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1341354
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1345556
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1346478
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1347614
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1349132
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1353216
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1353928
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1354590
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1356184
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1356392
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1358878
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1360094
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1367770
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1368826
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1369836
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1382386
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1382788
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1391374
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1432420
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1433022
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1441022
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1442888
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1460072
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1469636
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1544304
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1552558
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1578980
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1579048
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1582466
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1582926
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1583888
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1605660
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1607058
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1611090
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1611998
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1614168
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1644426
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1644756
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1645550
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1646476
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1647484
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1648528
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1649708
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1668102
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1668694
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1678528
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1679818
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1681028
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1682438
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1690996
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1692142
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1697574
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1698784
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1700036
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1700772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1728312
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1737294
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1742338
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1751278
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1769922
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1771862
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1776584
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1776902
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1779376
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1791996
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1793194
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1794432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1796336
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1797410
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1800560
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1801520
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1852260
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1878142
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1885306
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1887914
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1888934
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1889136
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1889378
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1896946
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1924592
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1925772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1926190
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1927726
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1928136
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1933230
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 1935886
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2097152
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2097646
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2099594
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2100136
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2100518
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2102240
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2103162
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2104594
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2104846
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2108570
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2109504
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2109874
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2113970
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2116010
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2116356
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2117826
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2120086
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2120568
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2120832
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2121096
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2121478
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2122010
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2122526
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2123520
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2124320
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2125080
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2125260
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2127308
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2127834
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2127952
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2128614
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2128774
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2128824
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2129388
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2131046
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2131244
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2131840
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2132396
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2133286
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2133710
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2133830
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2134306
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2134592
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2134600
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2135542
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2137736
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2137782
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2139272
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2140826
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2140834
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2142422
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2143292
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2144102
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2144256
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2144674
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2145772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2146028
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2146696
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2147690
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2148354
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2148432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2149368
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2151078
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2151112
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2151920
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2152316
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2152560
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2152620
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2153584
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2153702
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2154096
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2154292
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2154590
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2155518
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2155666
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2155828
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2156776
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2156932
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2157610
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2157800
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2157888
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2158686
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2159094
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2159516
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2162892
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2163558
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2166144
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2166524
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2167902
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2168374
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2169858
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2170716
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2171020
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2172212
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2172644
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2173596
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2173974
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2174366
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2174650
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2174784
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2175916
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2176870
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2177026
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2177460
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2177780
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2177814
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2178926
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2179010
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2179114
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2179318
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2180232
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2180540
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2180786
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2181278
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2181796
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2181940
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2183006
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2183498
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2183890
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2184550
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2184780
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2186432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2186886
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2187922
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2188068
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2188796
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2189000
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2189266
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2189750
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2190074
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2190470
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2191686
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2192072
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2192772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2193974
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2195396
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2195972
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2196472
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2196554
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2197088
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2197194
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2197508
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2198208
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2198618
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2198854
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2199524
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2200064
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2201338
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2201616
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2201980
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2202284
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2202292
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2206210
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2206876
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2207482
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2207742
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2209076
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2209818
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2209826
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2210994
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2211582
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2213010
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2213180
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2213744
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2214256
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2214484
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2215560
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2215642
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2215650
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2216114
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2221890
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2223440
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2223568
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2225080
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2225522
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2225876
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2226208
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2227642
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2227796
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2229112
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2229612
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2234698
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2234716
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2236338
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2237996
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2240016
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2241396
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2241476
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2244454
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2244700
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2245396
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2246046
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2248296
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2249158
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2249494
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2249648
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2251590
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2264884
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2267062
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2267996
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2268350
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2268964
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2280344
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2284742
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2285314
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2292428
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2297912
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2297954
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2300004
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2304524
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2305908
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2310918
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2310988
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2315124
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2316294
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2316518
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2317922
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2318532
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2319284
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2322304
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2325088
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2327798
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2330082
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2330116
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2335270
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2336102
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2337062
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2337594
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2338730
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2341290
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2342322
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2342934
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2344494
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2344736
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2346138
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2346174
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2347880
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2347908
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2349288
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2351164
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2351810
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2352560
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2354430
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2354872
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2355262
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2355590
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2355926
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2356194
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2358836
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2358946
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2358994
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2362786
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2364772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2365166
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2366554
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2367308
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2368114
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2368514
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2368946
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2369040
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2370216
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2370460
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2372284
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2372624
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2372642
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2374502
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2375764
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2376076
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2376178
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2376592
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2376988
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2378994
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2379180
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2379506
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2380242
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2380668
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2381004
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2381668
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2382834
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2383088
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2384030
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2384574
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2384998
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2385180
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2385444
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2386000
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2387904
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2388432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2399694
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2400846
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2402204
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2404110
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2404458
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2406470
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2413992
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2414202
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2418342
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2418626
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2492864
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2501226
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2507510
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2514344
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2522762
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2529870
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2532998
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2534740
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2539570
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2544678
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2551668
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2557432
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2562204
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2566834
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2575426
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2581462
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2588686
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2592300
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2611296
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2611824
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2712352
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2714196
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2716068
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2717102
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2717300
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2717434
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2718048
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2719410
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2720872
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2721938
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2723328
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2724664
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2726104
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2727832
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2729240
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2730710
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2732326
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2735708
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2736396
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2737100
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2737696
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2738464
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2739136
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2739832
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2740580
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2741212
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2741910
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2742640
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2743230
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2743838
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2744484
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2745152
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2745718
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2746278
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2746972
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2747686
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2748350
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2749008
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2749652
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2750412
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2751046
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2751590
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2752252
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2752760
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2753346
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2753982
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2754620
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2755262
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2755902
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2756560
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2757350
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2757772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2758214
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2758914
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2759412
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2760146
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2761078
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2761714
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2762304
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2762970
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2763646
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2764858
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2823808
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2828670
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2830658
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2832044
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2836534
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2846444
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2856848
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2858230
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2861626
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2863860
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2865716
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2867544
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2869970
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2873268
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2877032
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2879930
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2889176
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2891604
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2899772
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2902576
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2908678
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2910156
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2912240
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2913198
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2923466
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2929716
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2951414
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2955056
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2957408
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2959624
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2979760
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2982596
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2983620
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2986832
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2990796
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2991610
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2992830
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2999906
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3003020
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3003808
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3005322
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3007342
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3010110
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3017166
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3020366
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3021372
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3022424
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3023990
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3024912
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3028000
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3030188
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3038684
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3040150
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3042818
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3051904
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3055728
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3059496
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3064238
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3075790
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3078158
+    }
+  ],
+  "source": "tools/pack_parity.py --write-census"
+}
