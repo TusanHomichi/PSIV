@@ -74,6 +74,22 @@ fn layouts(
     Ok(out)
 }
 
+/// `extract_map_effects`'s document, its per-map table as `[id, entries]`
+/// rows: JSON object keys would sort as text.
+fn map_effects(data: &[u8], maps: &ExtractedMaps) -> Result<Json, psiv_pack::PackError> {
+    let effects = psiv_pack::maps::effects::extract_map_effects(data, maps.real())?;
+    let per_map: Vec<Json> = effects
+        .per_map
+        .into_iter()
+        .map(|(id, entries)| Json::Array(vec![Json::from(id), Json::from(entries)]))
+        .collect();
+    Ok(Json::object()
+        .with("per_map", per_map)
+        .with("replacements", effects.replacements)
+        .with("dispatch_table", effects.dispatch_table)
+        .with("census", effects.census))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [rom] = args.as_slice() else {
@@ -108,6 +124,7 @@ fn main() {
         Ok(Json::object()
             .with("cram", cram)
             .with("layouts", layouts(rom.bytes(), &decodes, &maps)?)
+            .with("map_effects", map_effects(rom.bytes(), &maps)?)
             .with("maps", maps.to_json(rom.bytes()))
             .with("warp_rects", rects)
             .with("names", psiv_pack::text::extract_names(rom.bytes())?))
