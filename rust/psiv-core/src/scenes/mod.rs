@@ -50,6 +50,7 @@
 //! does not, so the transcriptions keep them apart. Both are `dbra` loops, so
 //! every count below is the corrected `d0 + 1`.
 
+pub(crate) mod aiedo_events;
 mod bioplant;
 pub(crate) mod census_events;
 mod conveyors;
@@ -266,6 +267,14 @@ pub static SCENES: &[Scene] = &[
     retail_endgame::RAJA_SICK,
     retail_endgame::RYKROS,
     retail_endgame::ENDING,
+    // Aiedo and the Hunter's Guild (#81).
+    aiedo_events::ROCKY_OWNER,
+    aiedo_events::GIRL_PRISON,
+    aiedo_events::GIRLS_BAIL,
+    aiedo_events::PAYING_GIRLS_BAIL,
+    aiedo_events::GIRLS_BAILED_OUT,
+    aiedo_events::AIEDO_MAN_SAVINGS,
+    aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -441,6 +450,13 @@ mod tests {
             ("Cutscene_RajaSick", 54),
             ("Cutscene_Rykros", 27),
             ("Cutscene_Ending", 370),
+            ("Event_RockyOwner", 3),
+            ("Event_GirlPrison", 3),
+            ("Event_GirlsBail", 3),
+            ("Event_PayingGirlsBail", 9),
+            ("Event_GirlsBailedOut", 8),
+            ("Event_AiedoManSavings", 4),
+            ("Event_AiedoManCrushOnAlys", 6),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
@@ -484,6 +500,9 @@ mod tests {
                         if_mounted,
                         if_on_foot,
                     } => vec![*if_mounted, *if_on_foot],
+                    SceneOp::BranchIfMoneyBelow {
+                        if_below, if_not, ..
+                    } => vec![*if_below, *if_not],
                     SceneOp::BranchIfActorGreater {
                         if_greater, if_not, ..
                     } => vec![*if_greater, *if_not],

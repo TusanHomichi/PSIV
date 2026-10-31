@@ -37,9 +37,9 @@ from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
 from tools.heavy_lock import (EXIT_HELD_BY_PARENT, GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV,
-                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, UNITS_ENV, gate_lock_path,
-                              heavy_lock_path, hold_heavy_lock, lock_holders, main_checkout,
-                              raw_flock_parent)
+                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, RUNNER_WAIT_ENV, UNITS_ENV,
+                              gate_lock_path, heavy_lock_path, hold_heavy_lock, lock_holders,
+                              main_checkout, raw_flock_parent)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS = REPO_ROOT / "tools"
@@ -74,11 +74,12 @@ time.sleep(120)
 
 
 LOCK_KEYS = (HEAVY_LOCK_ENV, HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV,
-             GODOT_SLOTS_ENV, UNITS_ENV)
+             GODOT_SLOTS_ENV, UNITS_ENV, RUNNER_WAIT_ENV)
 
 
 def clean_env():
-    """os.environ without the lock override, the held markers, priority or a slot cap."""
+    """os.environ without the lock override, the held markers, priority, a slot
+    cap or a job runner's wait directory (a test's waits aren't its runner's)."""
     return {key: value for key, value in os.environ.items() if key not in LOCK_KEYS}
 
 

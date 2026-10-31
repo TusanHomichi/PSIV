@@ -154,9 +154,10 @@ symbol versions and the Deck refuses to load it), makes a run root whose
 project is prepared (`python3 tools/godot.py run`), exports its
 `Linux-SteamDeck` preset from it to
 `build/deck/` (the full export log is `build/deck-export.log`; a failed export
-stops the script), stages the executable with a copy of
-`runtime-pack/` beside it (an exported build looks for the pack next to the
-executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
+stops the script), stages the executable, and copies it to `~/psiv` on the
+Deck with `rsync` over SSH. The pack goes to `~/.local/share/PSIV/runtime-pack`
+on the Deck, the user data folder where an exported build reads its pack and
+keeps its saves (`rust/psiv-godot/src/install.rs`).
 It needs:
 
 - SSH key access to the Deck;
@@ -185,6 +186,28 @@ frame is an emission error. Preserve a verified local copy, or reproduce the
 frames from the named oracle captures using the renderer documented in
 [battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
 do not commit the ROM-derived PNGs.
+
+A worktree takes these from the main checkout: in the worktree, run
+`python3 tools/local_inputs.py link`. It links each local input the main
+checkout has, except `generated/` and `runtime-pack`, which belong to a
+commit's extractor rather than to the main checkout. Those two link to a
+shared cache under the main checkout's `build/inputs/`, one entry per version
+of what builds them (the Git trees of `psiv_tools/` and, for the pack,
+`oracle/fixtures/` and the attack frames above, and the ROM). The first
+worktree that needs an entry builds it under the heavy-run lock, from a copy of
+exactly those inputs taken from Git and the main checkout; any other worktree
+that needs it meanwhile waits, checks its inputs again, and then links the
+same one. So a gate job or lane on a new extractor builds the pack once, not
+once per job. An entry is read-only once built, so nothing can change it under
+another job. A
+worktree with uncommitted changes under those paths has no entry and is
+refused: build both in place there
+([Prepare the local pack](#prepare-the-local-pack)); `regenerate` and `pack`
+replace a link at their output with the worktree's own directory rather than
+write through it. The steward's gate job
+runs main's copy (`git show origin/main:tools/local_inputs.py | python3 - link`),
+so a commit from before it still gets the cache.
+
 The documentation check needs no local inputs; with the disassembly present
 it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
 and prints `citations: skipped` without it. From the root:
@@ -257,8 +280,13 @@ PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
 claims. A ported extractor that no claimed section writes yet is a probe:
 `examples/probe.rs` prints its records as one JSON document, `PROBES` in the
 tool builds the same from the Python extractors, and the two must be the same
-text. It prints `psiv-pack`'s wall time beside the load and clock, the number
-a port PR records. Until the switch the Python builder stays the pack everything
+text. It also decodes every Nemesis, Kosinski and Enigma call a full
+Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
+offsets and arguments only) with both decoders: outputs and consumed lengths
+must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
+tools/pack_parity.py --write-census` (a full build, about two minutes) so the
+census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
+the number a port PR records. Until the switch the Python builder stays the pack everything
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. Find whether a
 section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
@@ -311,8 +339,8 @@ ROM-free Python tests, a Godot smoke) is open.
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward has an agent on the machine that holds
 the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, in its own worktree with the inputs linked in, and record the
-verdict; the steward merges only once it is green. A gate missing an input is
+exact commit, in its own worktree with the inputs linked in by main's
+`tools/local_inputs.py` ([Run checks](#run-checks)), and record the verdict; the steward merges only once it is green. A gate missing an input is
 partial, and a partial gate is recorded as a failure.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
@@ -430,6 +458,14 @@ table take their class themselves: never wrap them. A headless
 `PSIV_LOCK_UNITS` must be the same for every process: each holder records them
 in its slot and unit files, and a process that finds a held file recording
 another value refuses with exit 2.
+
+A waiter, for the heavy lock or a gate for the gate lock, also tells a job
+runner that sets `PROJ_WAIT_DIR` that it is waiting in line, so the wait
+doesn't count against the job's time limit. That is how a gate proof on the
+machine can wait out a long lane run without being stopped. The steward's
+proof jobs run under burrow's proj, which sets it, and `runner_wait` in
+`tools/heavy_lock.py` owns how. The gate's own commands don't get it: any
+waiting inside them is the gate's work.
 
 One sizing rule holds for every class: its units are the fewest that keep at
 least 15% of the holding above its largest measured peak process-tree RSS,
@@ -567,6 +603,26 @@ integration candidate, after every reviewed lane has merged, on the fastest
 merged process: speedup lanes merge first, so the others verify on the faster
 tools. A failing candidate is bisected by its
 merge commits, each verified on the same process.
+
+### Flaky tests
+
+A pull request's full gate runs under
+[burrow's flaky step](https://github.com/FieldmouseWorks/burrow/blob/main/docs/flaky-tests.md):
+the steward's agent runs `flaky run TusanHomichi/PSIV -- python3 tools/gate.py --wait`. That reads
+the quarantine (the open issues titled `flaky: TEST`, labelled `flaky`), writes the tests whose
+quarantine has run out to the file `FLAKY_EXPIRED` names, and files what the gate appended to
+`FLAKY_REPORT`. Under it the Python suite (`tools/py_suite.py`) settles each failed test:
+
+- It runs once more, on a fresh pool. If it passes, it's flaky: its failure fails nothing, and
+  it's noted on its issue, or opens one, which quarantines it. A Claude job looks for the cause,
+  and the fix's pull request says `Closes #N`, which lifts the quarantine when it merges.
+- A test that fails both times fails the step, quarantined or not.
+- Two days after its issue opened, a quarantine runs out: until the issue closes, the test gets
+  no second try, and its failure fails the step.
+
+The report names each test and nothing else: a test's output can quote the cartridge. The Rust
+tests aren't covered: a `cargo test` failure fails the step, as before. Without the step's two
+variables (a lane's own runs, `--fast`), every failure fails.
 
 ### File size
 

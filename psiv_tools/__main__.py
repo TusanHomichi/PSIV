@@ -37,7 +37,12 @@ def _regenerate(data: bytes, output: Path) -> None:
 
     The tables first (their `metadata.json` is written last), then each PNG
     directory; every step writes its own stamp (`psiv_tools/extract_stamp.py`).
+    A link at `output` names another checkout's copy or a shared, read-only
+    cache entry (`tools/local_inputs.py`): it is replaced by this checkout's
+    own directory, never written through, as `pack` replaces one.
     """
+    if output.is_symlink():
+        output.unlink()
     from . import decode_cache
     from .battle_art import export_battle_art_pngs
     from .gfx import export_art_pngs
