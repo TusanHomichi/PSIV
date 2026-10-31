@@ -1,0 +1,47 @@
+{
+  "conary": "note v1",
+  "change": "2py1n8av9s34vpvbk9n4hhm82a",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 251,
+  "url": "https://github.com/tusanhomichi/psiv/pull/251",
+  "summary": "gate_worktree: keep one worktree for gates so their Rust build starts warm",
+  "task": "TusanHomichi/PSIV#250",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyAqr3jHmyuiG2fMXZn"
+  },
+  "landing": {
+    "revision": "22f66a2ef3d20ce1f3041a6b13b21e62989a03bd1a7e544f4358d1c47e22bf5f",
+    "before": "218ec08d2617ee60030d8b1ea2e8ae37adac7bb0",
+    "after": "df81ef83b19e085100f3490c53ac339f9cc46369",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793479306286
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/251#pullrequestreview-5724766659"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41238189950/job/124646295060"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
