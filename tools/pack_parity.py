@@ -134,6 +134,15 @@ def _probe_layouts(rom: bytes):
     return out
 
 
+def _probe_map_effects(rom: bytes):
+    """`extract_map_effects`'s document, its per-map table as `[id, entries]`
+    rows: JSON object keys would sort as text on the Rust side."""
+    from psiv_tools.map_effects import extract_map_effects
+    effects = dict(extract_map_effects(rom, _probe_maps(rom)["maps"]))
+    effects["per_map"] = [[map_id, effects["per_map"][map_id]] for map_id in sorted(effects["per_map"])]
+    return effects
+
+
 def _probe_warp_rects(rom: bytes):
     from psiv_tools.warps import PackError, warp_rect
     rects = []
@@ -149,7 +158,8 @@ def _probe_warp_rects(rom: bytes):
 
 #: The ported extractors no claimed section writes yet, by the key
 #: `examples/probe.rs` prints each under: the Python side of the probe.
-PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "maps": _probe_maps,
+PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "map_effects": _probe_map_effects,
+          "maps": _probe_maps,
           "names": _probe_names, "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
