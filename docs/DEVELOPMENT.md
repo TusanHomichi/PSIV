@@ -277,7 +277,10 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. It also decodes every Nemesis, Kosinski and Enigma call a full
+claims. A ported extractor that no claimed section writes yet is a probe:
+`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
+tool builds the same from the Python extractors, and the two must be the same
+text. It also decodes every Nemesis, Kosinski and Enigma call a full
 Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
 offsets and arguments only) with both decoders: outputs and consumed lengths
 must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3

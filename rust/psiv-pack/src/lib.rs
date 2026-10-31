@@ -37,12 +37,15 @@ use std::sync::mpsc;
 
 pub mod decode;
 pub mod field_maps;
+pub mod gfx;
 pub mod install;
 pub mod json;
+pub mod m68k;
 pub mod png;
 pub mod rom;
 pub mod sound;
 mod sound_defs;
+pub mod text;
 
 pub use rom::Rom;
 
