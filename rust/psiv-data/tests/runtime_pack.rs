@@ -382,3 +382,21 @@ fn the_real_pack_carries_its_shops() {
     assert_eq!(monomate.buy_price, 20);
     assert_eq!(shops.listed_price(125), Some(20));
 }
+
+#[test]
+fn the_sound_files_load_through_their_schema() {
+    let Some(dir) = require_pack() else { return };
+    // `SoundFiles::load` reads the four files through `sound::schema`, the
+    // types `psiv-pack` writes them with.
+    let sound = psiv_data::SoundFiles::load(&dir).expect("sound/ should load");
+    assert_eq!(sound.music_records().count(), 52);
+    assert_eq!(sound.sfx_records().count(), 67 + 3);
+    assert_eq!(sound.volume_envelopes().len(), 10);
+    assert_eq!(sound.dac_samples().count(), 17);
+    assert!(
+        sound
+            .music_records()
+            .chain(sound.sfx_records())
+            .all(|record| !record.tracks.is_empty())
+    );
+}
