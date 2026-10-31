@@ -282,8 +282,11 @@ Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/
 offsets and arguments only) with both decoders: outputs and consumed lengths
 must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
 tools/pack_parity.py --write-census` (a full build, about two minutes) so the
-census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
-the number a port PR records. Until the switch the Python builder stays the pack everything
+census covers it. A ported extractor that no claimed section writes yet is a probe:
+`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
+tool builds the same from the Python extractors, and the two must be the same
+text. It prints `psiv-pack`'s wall time beside the load and clock, the number
+a port PR records. Until the switch the Python builder stays the pack everything
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. Find whether a
 section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p

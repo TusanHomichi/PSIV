@@ -25,7 +25,10 @@ release and checks it against the Python builder from the same ROM:
    `--write-census`). Both decode every listed stream from the ROM; each
    output (by SHA-256) and consumed length must agree, and both must refuse
    the same calls. psiv-pack's decode time is printed beside Python's.
-4. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
+4. The probes: ported extractors that no claimed section writes yet
+   (`examples/probe.rs`, `PROBES` here) print their records as one JSON
+   document, which must match the Python extractors' byte for byte.
+5. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
    section, then `installed <pack>`, exit 0. Its wall time is printed with
    the CPU clock and load, the number each port PR records.
 
@@ -70,12 +73,28 @@ BINARY = ROOT / "rust" / "target" / "release" / ("psiv-pack.exe" if os.name == "
 CENSUS = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "decode_census.json"
 CENSUS_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "decode_census")
 CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack",
-               "--bins", "--example", "decode_census"]
+               "--bins", "--example", "decode_census", "--example", "probe"]
 #: The memoized decoders a census records, by `decode_cache` name. Any other
 #: memoized function in a build (a section's own cache) is not a decompressor.
 DECODERS = {"psiv_tools.nemesis.decompress": "nemesis",
             "psiv_tools.kosinski.decompress": "kosinski",
             "psiv_tools.enigma.decompress": "enigma"}
+PROBE_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "probe")
+
+
+def _probe_names(rom: bytes):
+    from psiv_tools.text import extract_names
+    return extract_names(rom)
+
+
+def _probe_cram(rom: bytes):
+    from psiv_tools.gfx import decode_color
+    return [decode_color(word) for word in [*range(0x1000), 0xF000]]
+
+
+#: The ported extractors no claimed section writes yet, by the key
+#: `examples/probe.rs` prints each under: the Python side of the probe.
+PROBES = {"cram": _probe_cram, "names": _probe_names}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
 PROGRESS = re.compile(r"\Aprogress (\d+)/(\d+) (\S+)\Z")
@@ -328,6 +347,37 @@ def check_decodes(rom_path: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Probes
+# ---------------------------------------------------------------------------
+def compare_probe(python: str, rust: str) -> list[str]:
+    """The probe documents differ: name the first differing line."""
+    if python == rust:
+        return []
+    ours, theirs = rust.splitlines(), python.splitlines()
+    line = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b),
+                min(len(ours), len(theirs)))
+    shown = lambda lines: lines[line] if line < len(lines) else "<end>"  # noqa: E731
+    return [f"probe: line {line + 1} differs: psiv-pack {shown(ours)!r}, "
+            f"Python {shown(theirs)!r} ({len(ours)} lines against {len(theirs)})"]
+
+
+def check_probes(rom_path: Path) -> list[str]:
+    """Run every probe in both builders and compare the documents."""
+    rom = rom_path.read_bytes()
+    try:
+        python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
+                            indent=2, sort_keys=True)
+    except ValueError as error:
+        return [f"probe: the Python extractors refused the ROM: {error}"]
+    run = subprocess.run([str(PROBE_BINARY), str(rom_path)], cwd=ROOT, capture_output=True,
+                         text=True, encoding="utf-8")
+    if run.returncode != 0:
+        return [f"probe: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
+    print(f"pack parity: probed {', '.join(PROBES)}", flush=True)
+    return compare_probe(python, run.stdout.rstrip("\n"))
+
+
+# ---------------------------------------------------------------------------
 # The parity run
 # ---------------------------------------------------------------------------
 def _error_line(stderr: str, prefix: str) -> str | None:
@@ -400,6 +450,7 @@ def run_parity(rom: Path, keep: Path | None) -> int:
     scratch.mkdir(parents=True, exist_ok=True)
     try:
         problems = check_wrong_rom(BINARY, scratch)
+        problems += check_probes(rom)
         with hold_heavy_lock(lock_class=PACK):
             problems += check_decodes(rom)
         with hold_heavy_lock(lock_class=PACK):
