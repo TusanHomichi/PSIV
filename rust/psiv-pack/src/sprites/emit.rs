@@ -1,5 +1,5 @@
-//! The `sprites` section: `psiv_tools/sprites/emit.py`, `vehicle_pack.py`, and
-//! the part of `build_pack`'s map loop that registers sheets. A sheet is keyed by
+//! Writing `sprites/`: `psiv_tools/sprites/emit.py`, `vehicle_pack.py`, and the
+//! part of `build_pack`'s map loop that registers sheets. A sheet is keyed by
 //! content, so one NPC sheet serves whole towns and a palette makes a new sheet.
 //! Registration is in map order, because the first object to ask names the file.
 //!
@@ -27,9 +27,9 @@ use crate::json::Json;
 use crate::maps::effects::{Anchors, MapEffects};
 use crate::maps::layouts::{decode_tilesets, map_palette_rgb};
 use crate::maps::patches::resolve_palette_effects;
-use crate::maps::pictures::{MapInputs, map_inputs};
+use crate::maps::pictures::MapInputs;
 use crate::maps::records::MapRecord;
-use crate::{PackError, Rom, png};
+use crate::{PackError, png};
 
 const PARTY_DIRECTORY: &str = "sprites/party";
 const NPC_DIRECTORY: &str = "sprites/npcs";
@@ -607,12 +607,13 @@ fn write_sheet_file(root: &Path, name: &str, file: &SheetFile) -> Result<(), Pac
     crate::write_json(root, name, &Json::from(&value)).map(drop)
 }
 
-/// The section: every sheet and the three index files.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
-    let data = rom.bytes();
-    let decodes = Decodes::new(data);
-    let inputs = map_inputs(data, &decodes)?;
-    let field = field_sprites(data, &decodes, &inputs)?;
+/// Every sheet and the three index files.
+pub fn write_sprites(
+    data: &[u8],
+    decodes: &Decodes,
+    root: &Path,
+    field: &FieldSprites,
+) -> Result<(), PackError> {
     let party = emit_party(root, data, &field.routines)?;
     write_sheet_file(
         root,
@@ -649,7 +650,7 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
             "cannot extract vehicle sheets from an empty map selection".into(),
         ));
     };
-    let vehicles = vehicle_file(data, &decodes, root, base, &field.vehicle_variants)?;
+    let vehicles = vehicle_file(data, decodes, root, base, &field.vehicle_variants)?;
     write_sheet_file(root, VEHICLE_NAME, &vehicles)
 }
 

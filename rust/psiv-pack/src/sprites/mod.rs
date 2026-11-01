@@ -2,7 +2,7 @@
 //! package docstring is the transcription: mapping records and animation tables
 //! ([`records`]), `FieldObjectsJmpTbl`'s init blocks ([`objects`]), frames and
 //! sheets ([`compose`]), palettes, the party, a map's staged art, vehicles and
-//! chests ([`field`]), and the `sprites` section ([`emit`]).
+//! chests ([`field`]), and writing `sprites/` ([`emit`]).
 
 pub mod compose;
 pub mod emit;

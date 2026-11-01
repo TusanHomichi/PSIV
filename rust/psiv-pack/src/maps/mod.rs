@@ -4,14 +4,15 @@
 //! [`overworld`] the two world maps' paged planes, and [`draw`] renders
 //! either. [`effects`] decodes the routines that patch a map as it loads, and
 //! [`updates`] the ones that animate it. [`patches`] resolves a layout write
-//! into cells and an atlas tile, and [`pictures`] is the `map_pictures` section,
-//! which claims `maps/*.png`. The map JSON isn't claimed until the sprites are
-//! ported (slice 4), so the gate holds the rest to Python as the `maps`,
-//! `layouts`, `map_effects` and `map_updates` probes (`examples/probe.rs`).
+//! into cells and an atlas tile, [`pictures`] draws one map and is the `maps`
+//! section, and [`file`] writes one map's JSON. What only the manifest reads is
+//! still held to Python by the `maps`, `layouts`, `map_effects`, `map_updates`
+//! and `map_sprites` probes (`examples/probe.rs`).
 
 pub mod draw;
 pub mod effects;
 pub mod encounters;
+pub mod file;
 pub mod layouts;
 pub mod overworld;
 pub mod patches;
