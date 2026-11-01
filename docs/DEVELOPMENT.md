@@ -350,6 +350,9 @@ worktree the steward keeps for gates, under that worktree's lock: main's
 `tools/gate_worktree.py` moves it to that commit with every untracked and ignored
 file gone but `rust/target`, so the gate's Rust build starts warm, and the
 inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
+Each of those steps runs in a systemd scope of the user's manager named for
+the worktree, so nothing it starts outlives the lock, and running it by hand
+needs a user manager too (a desktop session has one).
 Moving one worktree keeps cargo's file-time freshness sound, which a target
 dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
 partial, and a partial gate is recorded as a failure: green takes the full

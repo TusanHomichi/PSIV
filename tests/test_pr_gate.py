@@ -10,6 +10,9 @@ main checkout's `build/` into the worktree, as the real one does. The commit
 under test carries copies of both tools that fail, so a run that passes ran
 main's. The gate is a stand-in too (`FAKE_GATE`): it writes the receipt a
 spec asks for under `build/gate/`, records where it ran, and exits as told.
+So are the user's systemd manager's two commands (`FAKE_SYSTEMD_RUN`,
+`FAKE_SYSTEMCTL`), which keep a scope by an environment variable its
+processes inherit, where systemd keeps one by its cgroup.
 
 `PassCase` runs the gate at the commit, in the kept worktree, and posts its
 receipt's rows. `VerdictCase` fails each way a gate falls short of a full,
@@ -18,8 +21,10 @@ asked for, never another run's. `MachineCase` passes a signal, a gate that
 can't start and an exit of 126 or more through, for a runner to try again.
 `StepCase` fails a run whose worktree or inputs couldn't be prepared, or
 whose commit isn't there, without running the gate. `LockCase` waits for
-the worktree's lock, and `StopCase` keeps it till everything a run started
-has stopped, however the run ends. `PostCase` keeps logs, paths and anything
+the worktree's lock, and `StopCase` keeps the worktree the run's till
+everything it started has stopped, however the run ends, and a machine with
+no user manager is a machine failure; `ScopeCase` binds a step's scope to the
+user unit a run is in. `PostCase` keeps logs, paths and anything
 else the receipt holds off the summary.
 """
 
@@ -60,18 +65,27 @@ BROKEN_TOOL = "import sys\nsys.exit(9)\n"
 #: main checkout's build/ran.json, then writes the receipt SPEC describes where
 #: tools/gate.py would: the directory PSIV_GATE_RECEIPT names, or (`old`, a gate
 #: from before it) one under build/gate/. With `hold`, it first starts a child
-#: (its pid in `child`) and waits for the file `hold` names; `mark` and `ended`
-#: name files it writes as it starts and ends.
+#: (its pid in `child`), and with `detach` another that keeps none of its
+#: descriptors, in a session of its own (its pid there), and waits for the file
+#: `hold` names; `me` gets its own pid, and `mark` and `ended` name files it
+#: writes as it starts and ends.
 FAKE_GATE = """import json, os, signal, subprocess, sys, time
 from pathlib import Path
 spec = json.loads(Path(sys.argv[1]).read_text())
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                       check=True).stdout.strip()
 Path("build/ran.json").write_text(json.dumps({"cwd": os.getcwd(), "head": head}))
+if spec.get("me"):
+    Path(spec["me"]).write_text(str(os.getpid()))
 if spec.get("mark"):
     Path(spec["mark"]).write_text(str(time.monotonic()))
 if spec.get("hold"):
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+    if spec.get("detach"):
+        # One that keeps none of the gate's descriptors, in a session of its own.
+        detached = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"],
+                                    start_new_session=True, close_fds=True)
+        Path(spec["detach"]).write_text(str(detached.pid))
     Path(spec["child"]).write_text(str(child.pid))
     deadline = time.monotonic() + 60
     while not Path(spec["hold"]).exists() and time.monotonic() < deadline:
@@ -103,6 +117,59 @@ if spec.get("write", True):
 if spec.get("ended"):
     Path(spec["ended"]).write_text(str(time.monotonic()))
 sys.exit(spec.get("exit", 0))
+"""
+
+
+#: systemd-run --scope, as the step runs it: refuses a scope still running,
+#: else marks the command as its (FAKE_SCOPE) and becomes it.
+FAKE_SYSTEMD_RUN = """import os, sys
+args = sys.argv[1:]
+split = args.index("--")
+unit = next(a.split("=", 1)[1] for a in args[:split] if a.startswith("--unit="))
+with open(os.environ["FAKE_SYSTEMD_LOG"], "a") as log:
+    log.write(" ".join(["run", *args[:split]]) + "\\n")
+for pid in os.listdir("/proc"):
+    try:
+        if pid.isdigit() and f"FAKE_SCOPE={unit}".encode() in open(f"/proc/{pid}/environ", "rb").read().split(b"\\0"):
+            sys.exit(f"Failed to start transient scope unit: Unit {unit} already exists.")
+    except OSError:
+        pass
+os.environ["FAKE_SCOPE"] = unit
+os.execvp(args[split + 1], args[split + 1:])
+"""
+
+#: systemctl --user stop and show, for a scope FAKE_SYSTEMD_RUN keeps: stop
+#: ends once every process of it has (SIGTERM, then SIGKILL).
+FAKE_SYSTEMCTL = """import os, signal, sys, time
+if os.environ.get("FAKE_NO_MANAGER"):
+    sys.exit("Failed to connect to bus: No medium found")
+verb, unit = sys.argv[2], sys.argv[-1]
+def members():
+    found = []
+    for pid in os.listdir("/proc"):
+        try:
+            if not pid.isdigit() or open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[0] == "Z":
+                continue
+            if f"FAKE_SCOPE={unit}".encode() in open(f"/proc/{pid}/environ", "rb").read().split(b"\\0"):
+                found.append(int(pid))
+        except OSError:
+            pass
+    return found
+if verb == "show":
+    print("active" if members() else "inactive")
+    sys.exit(0)
+with open(os.environ["FAKE_SYSTEMD_LOG"], "a") as log:
+    log.write(f"stop {unit} {len(members())}\\n")
+for signum in (signal.SIGTERM, signal.SIGKILL):
+    for pid in members():
+        try:
+            os.kill(pid, signum)
+        except OSError:
+            pass
+    deadline = time.monotonic() + 10
+    while members() and time.monotonic() < deadline:
+        time.sleep(0.05)
+sys.exit(0 if not members() else 1)
 """
 
 
@@ -140,6 +207,12 @@ class ScratchRepo(unittest.TestCase):
         self.fake = self.tmp / "fake_gate.py"
         self.fake.write_text(FAKE_GATE)
         self.summary_file = self.tmp / "summary.md"
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        for name, source in (("systemd-run", FAKE_SYSTEMD_RUN), ("systemctl", FAKE_SYSTEMCTL)):
+            (self.bin / name).write_text(f"#!{sys.executable}\n{source}")
+            (self.bin / name).chmod(0o755)
+        self.systemd_log = self.tmp / "systemd.log"
 
     def gate(self, **spec):
         """The stand-in gate's command for a spec."""
@@ -156,7 +229,8 @@ class ScratchRepo(unittest.TestCase):
         with open(source) as stdin:
             return subprocess.Popen(args, cwd=self.repo, stdin=stdin, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True,
-                                    env={**os.environ, **(env or {})})
+                                    env={**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}",
+                                         "FAKE_SYSTEMD_LOG": str(self.systemd_log), **(env or {})})
 
     def run_pr_gate(self, gate, **kwargs):
         """(exit, summary, output) of one run."""
@@ -364,6 +438,7 @@ class StopCase(ScratchRepo):
 
     def held(self, **spec):
         return self.gate(missing=[], hold=str(self.tmp / "release"), child=str(self.tmp / "child"),
+                         me=str(self.tmp / "gate-pid"),
                          mark=str(self.tmp / "started"), ended=str(self.tmp / "ended"), **spec)
 
     def lock_is_free(self):
@@ -377,42 +452,44 @@ class StopCase(ScratchRepo):
 
     def test_a_stopped_run_stops_its_gate_and_all_it_started_before_the_lock_goes(self):
         for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-            for name in ("started", "child", "ended"):
+            for name in ("started", "gate-pid", "child", "detached", "ended"):
                 (self.tmp / name).unlink(missing_ok=True)
-            process = self.start(self.held())
+            process = self.start(self.held(detach=str(self.tmp / "detached")))
             wait_for(self.tmp / "child")
-            gate = int(subprocess.run(["pgrep", "-f", str(self.fake)], capture_output=True,
-                                      text=True).stdout.split()[0])
-            child = int((self.tmp / "child").read_text())
+            gate = int((self.tmp / "gate-pid").read_text())
+            started = [gate, int((self.tmp / "child").read_text()), int((self.tmp / "detached").read_text())]
             process.send_signal(signum)
             output, _ = process.communicate(timeout=60)
             self.assertEqual(process.returncode, 128 + signum, output)
-            self.assertFalse(alive(gate) or alive(child), signum)
+            self.assertFalse(any(alive(pid) for pid in started), signum)
             self.assertFalse((self.tmp / "ended").exists())
             self.assertTrue(self.lock_is_free())
             self.assertIn(f"stopped by signal {int(signum)}", self.summary_file.read_text())
 
-    def test_a_run_killed_outright_leaves_its_gate_holding_the_lock_till_it_ends(self):
-        first = self.start(self.held())
+    def test_a_run_killed_outright_has_all_it_left_stopped_before_the_next_touches_the_worktree(self):
+        first = self.start(self.held(detach=str(self.tmp / "detached")))
         wait_for(self.tmp / "child")
+        wait_for(self.tmp / "detached")
+        gate = int((self.tmp / "gate-pid").read_text())
+        left = [gate, int((self.tmp / "child").read_text()), int((self.tmp / "detached").read_text())]
         first.kill()
         first.wait(timeout=60)
         # Its gate lives on, holding the other end of this.
         first.stdout.close()
-        self.assertFalse(self.lock_is_free())
-        second = self.start(self.gate(missing=[], mark=str(self.tmp / "second")),
-                            summary=self.tmp / "second.md")
-        time.sleep(1)
-        self.assertIsNone(second.poll())
-        self.assertFalse((self.tmp / "second").exists())
-        (self.tmp / "release").write_text("")
-        output, _ = second.communicate(timeout=120)
-        self.assertEqual(second.returncode, 0, output)
-        self.assertLess(float((self.tmp / "ended").read_text()), float((self.tmp / "second").read_text()))
+        self.assertTrue(all(alive(pid) for pid in left))
+        before = len(self.systemd_log.read_text().splitlines())
+        code, said, output = self.run_pr_gate(self.gate(missing=[], mark=str(self.tmp / "second")),
+                                              summary=self.tmp / "second.md")
+        self.assertEqual(code, 0, output)
+        self.assertFalse(any(alive(pid) for pid in left))
+        self.assertFalse((self.tmp / "ended").exists())
+        # The first thing the next run did, once it held the lock: stop what was left.
+        first_call = self.systemd_log.read_text().splitlines()[before]
+        self.assertTrue(first_call.startswith("stop ") and not first_call.endswith(" 0"), first_call)
 
     def test_a_stop_before_the_lock_is_a_stop_too(self):
         """A stop while it reads the commit, before any step: a git that waits."""
-        bin_dir = self.tmp / "bin"
+        bin_dir = self.tmp / "git-bin"
         bin_dir.mkdir()
         asked = self.tmp / "asked"
         real = shutil.which("git")
@@ -420,7 +497,7 @@ class StopCase(ScratchRepo):
             f'#!/bin/sh\ncase "$1" in rev-parse) : >{shlex.quote(str(asked))}; exec sleep 300;; esac\n'
             f'exec {shlex.quote(real)} "$@"\n')
         (bin_dir / "git").chmod(0o755)
-        process = self.start(self.gate(missing=[]), env={"PATH": f"{bin_dir}:{os.environ['PATH']}"})
+        process = self.start(self.gate(missing=[]), env={"PATH": f"{bin_dir}:{self.bin}:{os.environ['PATH']}"})
         wait_for(asked)
         process.send_signal(signal.SIGTERM)
         output, _ = process.communicate(timeout=60)
@@ -428,17 +505,40 @@ class StopCase(ScratchRepo):
         self.assertIn("stopped by signal 15", self.summary_file.read_text())
         self.assertIsNone(self.ran())
 
+    def test_no_user_manager_is_the_machine_failing(self):
+        code, said, output = self.run_pr_gate(self.gate(missing=[]), env={"FAKE_NO_MANAGER": "1"})
+        self.assertEqual(code, 126, output)
+        self.assertIn("no user systemd manager", said)
+        self.assertIsNone(self.ran())
+
     def test_whatever_a_step_left_running_is_stopped_before_the_next_step(self):
-        """A gate that exits leaving a process of its session behind."""
-        orphan = self.tmp / "orphan"
+        """A gate that exits leaving a process behind: one of its session, and
+        one of a session of its own that kept none of its descriptors."""
+        orphans = [self.tmp / "orphan", self.tmp / "detached"]
         script = self.tmp / "leave.py"
         script.write_text(
             "import subprocess, sys\n"
             "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'])\n"
-            f"open({str(orphan)!r}, 'w').write(str(child.pid))\n")
+            f"open({str(orphans[0])!r}, 'w').write(str(child.pid))\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'],\n"
+            "                         start_new_session=True, close_fds=True)\n"
+            f"open({str(orphans[1])!r}, 'w').write(str(child.pid))\n")
         code, said, output = self.run_pr_gate([sys.executable, str(script)])
         self.assertEqual(code, 1, output)
-        self.assertFalse(alive(int(orphan.read_text())))
+        self.assertFalse(any(alive(int(orphan.read_text())) for orphan in orphans))
+
+
+class ScopeCase(unittest.TestCase):
+    def test_a_steps_scope_stops_with_the_user_unit_it_runs_in(self):
+        from tools import pr_gate
+        with tempfile.TemporaryDirectory() as tmp:
+            cgroups = Path(tmp) / "cgroup"
+            cgroups.write_text("0::/user.slice/user-1001.slice/user@1001.service/app.slice/run-7.service\n")
+            self.assertEqual(pr_gate.caller_unit(cgroups), "run-7.service")
+            # A login session's scope is the system manager's: nothing to bind to.
+            cgroups.write_text("0::/user.slice/user-1001.slice/session-3.scope\n")
+            self.assertIsNone(pr_gate.caller_unit(cgroups))
+            self.assertIsNone(pr_gate.caller_unit(Path(tmp) / "none"))
 
 
 class PostCase(ScratchRepo):

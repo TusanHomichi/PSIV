@@ -21,11 +21,15 @@ other:
 4. that receipt is read back, and FILE gets a Markdown summary of it: each
    command's exit, duration and test counts.
 
-Each step runs in a session of its own, holding the lock's descriptor, so
-the lock is held until every process of it has stopped: a step's session
-still running when the step ends, or when this is stopped (SIGTERM, SIGINT,
-SIGHUP), is stopped too before the lock goes; and one killed outright leaves
-its step holding the lock till it ends.
+Each step runs in a systemd scope of the user's manager, one name for DIR
+(`psiv-pr-gate-HASH.scope`), so the kernel's cgroup holds every process it
+starts, whatever its process group, session or descriptors. When the step
+ends, or this is stopped (SIGTERM, SIGINT, SIGHUP), the scope is stopped,
+which waits till every process in it has (SIGTERM, then SIGKILL after
+GRACE_S), before the next step or the lock. A run killed outright leaves its
+scope; the next run on DIR stops it, once it holds the lock, before it
+touches DIR. A scope stops with the user unit this runs in, if it runs in
+one, as the steward's runs do.
 
 The summary never quotes a log, a path outside the repository, or anything
 taken from the cartridge: it is built from the receipt's command strings,
@@ -44,7 +48,8 @@ it wrote no full receipt for COMMIT where it was asked to (a `--fast` run,
 or a branch whose `tools/gate.py` is older than this, is a failure). A gate
 killed by a signal, or this stopped by one, exits 128 plus the signal, and
 one that can't start, or exits 126 or more itself, passes that through: the
-machine failing, not the commit, so a runner can try again. 2 for a call
+machine failing, not the commit, so a runner can try again; so does a
+machine with no user systemd manager to run steps in, exit 126. 2 for a call
 this can't read.
 """
 
@@ -52,8 +57,10 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -68,6 +75,9 @@ EXIT_USAGE = 2
 #: A gate that couldn't start, as a shell says it.
 EXIT_NOT_STARTED = 127
 
+#: No user systemd manager to run a step's scope in.
+EXIT_NO_MANAGER = 126
+
 #: The ref whose copies of the worktree and input tools run, whatever COMMIT is.
 TOOLS_FROM = "origin/main"
 
@@ -81,12 +91,16 @@ RECEIPT_ENV = "PSIV_GATE_RECEIPT"
 #: The signals that stop a run, its steps first.
 STOPS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
-#: Seconds a step's session has to end after SIGTERM, before SIGKILL.
+#: Seconds a step's scope has to end after SIGTERM, before SIGKILL.
 GRACE_S = 10
 
 
 class StepFailed(Exception):
     """A step before the gate failed; the message says which, fit to post."""
+
+
+class NoManager(Exception):
+    """The user's systemd manager can't run or stop a step's scope."""
 
 
 class Stopped(Exception):
@@ -117,43 +131,63 @@ def main_copy(here: Path, tool: str) -> str:
     return shown.stdout
 
 
-def _gone(group: int) -> bool:
-    """Whether nothing this may signal is left in the process group."""
+def scope_for(worktree: Path) -> str:
+    """The scope every step on worktree runs in, one at a time."""
+    return f"psiv-pr-gate-{hashlib.sha256(str(worktree).encode()).hexdigest()[:16]}.scope"
+
+
+def caller_unit(cgroups: Path = Path("/proc/self/cgroup")) -> str | None:
+    """The unit of the user's manager this runs in, if it runs in one."""
     try:
-        os.killpg(group, 0)
+        lines = cgroups.read_text().splitlines()
     except OSError:
-        return True
-    return False
+        return None
+    for line in lines:
+        if line.startswith("0::"):
+            parts = line[3:].split("/")
+            if (any(p.startswith("user@") and p.endswith(".service") for p in parts[:-1])
+                    and parts[-1].endswith((".service", ".scope"))):
+                return parts[-1]
+    return None
 
 
-def end_session(process: subprocess.Popen) -> None:
-    """Stop whatever of the step's session is left, and reap the step."""
-    for signum, wait in ((signal.SIGTERM, GRACE_S), (signal.SIGKILL, GRACE_S)):
-        try:
-            os.killpg(process.pid, signum)
-        except OSError:
-            break
-        deadline = time.monotonic() + wait
-        while time.monotonic() < deadline:
-            process.poll()
-            if process.returncode is not None and _gone(process.pid):
-                return
-            time.sleep(0.05)
-    process.wait()
+def stop_scope(scope: str) -> None:
+    """Stop the scope, if it's there, and wait till every process in it has
+    stopped (systemd's stop job ends only then)."""
+    subprocess.run(["systemctl", "--user", "stop", scope], capture_output=True, check=False)
+    shown = subprocess.run(["systemctl", "--user", "show", "--property=ActiveState", "--value", scope],
+                           capture_output=True, text=True, check=False)
+    if shown.returncode != 0 or shown.stdout.strip() not in ("inactive", "failed"):
+        raise NoManager(scope)
 
 
-def run_step(command: list[str], cwd: Path, lock: int, source: str | None = None,
+def startable(command: list[str], cwd: Path, env: dict[str, str] | None) -> bool:
+    """Whether command[0] is a program the step can start: systemd-run starts
+    it inside the scope, after its own start, so this says first."""
+    program = command[0]
+    if os.sep in program:
+        path = Path(program) if os.path.isabs(program) else cwd / program
+        return path.is_file() and os.access(path, os.X_OK)
+    return shutil.which(program, path=(env or os.environ).get("PATH")) is not None
+
+
+def run_step(command: list[str], cwd: Path, scope: str, source: str | None = None,
              env: dict[str, str] | None = None) -> int:
-    """COMMAND's exit in cwd (negative for a signal), in a session of its own that
-    holds the lock's descriptor, `source` on its stdin; its output passes through.
-    The session is stopped before this returns, however it returns."""
+    """COMMAND's exit in cwd (negative for a signal), in the scope, `source` on
+    its stdin; its output passes through. The scope is stopped before this
+    returns, however it returns."""
+    if not startable(command, cwd, env):
+        print(f"pr gate: {command[0]} couldn't start", flush=True)
+        return EXIT_NOT_STARTED
+    unit = caller_unit()
+    bind = [f"--property=BindsTo={unit}"] if unit else []
     try:
-        process = subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True,
-                                   pass_fds=(lock,), text=True,
+        process = subprocess.Popen(["systemd-run", "--user", "--scope", "--quiet", "--collect", f"--unit={scope}",
+                                    f"--property=TimeoutStopSec={GRACE_S}s", *bind, "--", *command],
+                                   cwd=cwd, env=env, text=True,
                                    stdin=subprocess.PIPE if source is not None else None)
     except OSError as error:
-        print(f"pr gate: {command[0]} couldn't start: {error.strerror}", flush=True)
-        return EXIT_NOT_STARTED
+        raise NoManager(error.strerror) from error
     try:
         if source is not None:
             try:
@@ -166,14 +200,15 @@ def run_step(command: list[str], cwd: Path, lock: int, source: str | None = None
         # A second stop waits till this one's cleanup is done.
         signal.pthread_sigmask(signal.SIG_BLOCK, STOPS)
         try:
-            end_session(process)
+            stop_scope(scope)
+            process.wait()
         finally:
             signal.pthread_sigmask(signal.SIG_UNBLOCK, STOPS)
 
 
-def run_main_copy(here: Path, cwd: Path, lock: int, tool: str, *args: str) -> int:
+def run_main_copy(here: Path, cwd: Path, scope: str, tool: str, *args: str) -> int:
     """main's copy of `tool`, run on stdin with `args` in cwd, as a step."""
-    return run_step([sys.executable, "-", *args], cwd, lock, source=main_copy(here, tool))
+    return run_step([sys.executable, "-", *args], cwd, scope, source=main_copy(here, tool))
 
 
 def read_receipt(path: Path, commit: str) -> dict | None:
@@ -257,17 +292,22 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
     with open(lock_path, "a") as lock:
         print(f"pr gate: waiting for {lock_path.name}", flush=True)
         fcntl.flock(lock, fcntl.LOCK_EX)
-        fd = lock.fileno()
+        scope = scope_for(worktree)
         try:
-            if run_main_copy(here, here, fd, "gate_worktree.py", str(worktree), full) != 0:
-                raise StepFailed("the gate's worktree couldn't be prepared")
-            if run_main_copy(here, worktree, fd, "local_inputs.py", "link") != 0:
-                raise StepFailed("the local inputs couldn't be prepared")
-        except StepFailed as error:
-            return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}")
-        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-        asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
-        gate_exit = run_step(gate, worktree, fd, env={**os.environ, RECEIPT_ENV: str(asked)})
+            # What a run killed outright left running.
+            stop_scope(scope)
+            try:
+                if run_main_copy(here, here, scope, "gate_worktree.py", str(worktree), full) != 0:
+                    raise StepFailed("the gate's worktree couldn't be prepared")
+                if run_main_copy(here, worktree, scope, "local_inputs.py", "link") != 0:
+                    raise StepFailed("the local inputs couldn't be prepared")
+            except StepFailed as error:
+                return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}")
+            stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+            asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
+            gate_exit = run_step(gate, worktree, scope, env={**os.environ, RECEIPT_ENV: str(asked)})
+        except NoManager:
+            return EXIT_NO_MANAGER, summary(full, None, "it couldn't run: no user systemd manager ran its steps")
         receipt = read_receipt(asked, full)
         code, verdict = judge(full, receipt, gate_exit)
         return code, summary(full, receipt, verdict)
