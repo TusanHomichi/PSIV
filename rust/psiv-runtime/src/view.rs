@@ -90,12 +90,20 @@ impl Runtime {
         }
     }
 
-    /// An object's live dialogue id: the map-effect override when one is
-    /// active, the record's own binding otherwise. The renderer's talk path
-    /// must use this, not the record directly — `object_dialogue` patches
-    /// are how clinics and story rooms change what a person says.
+    /// An object's live dialogue id: the line its own routine last wrote,
+    /// then the map-effect override when one is active, then the record's own
+    /// binding. The renderer's talk path must use this, not the record
+    /// directly — `object_dialogue` patches are how clinics and story rooms
+    /// change what a person says.
     #[must_use]
     pub fn npc_dialogue_id(&self, index: usize) -> Option<u16> {
+        if let Some(id) = self
+            .bespoke
+            .get(index)
+            .and_then(psiv_core::BespokeActor::dialogue_id)
+        {
+            return Some(id);
+        }
         if let Some(id) = self.effects.dialogue_overrides.get(&index) {
             return Some(*id);
         }

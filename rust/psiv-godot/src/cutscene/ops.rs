@@ -58,7 +58,7 @@ impl Field {
             // Camera ops are consumed by the runtime when it translates the
             // effect (the camera is simulation state, not presentation);
             // nothing to do here beyond acknowledging the op.
-            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } => {}
+            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } | SceneOp::PanCamera { .. } => {}
             SceneOp::LoadTitleImage { .. } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().begin_opening();
@@ -252,6 +252,17 @@ impl Field {
             }
             PresentationOp::SetObjectDestination { slot, x, y } => {
                 self.presentation.object_destination(slot, x, y);
+            }
+            PresentationOp::WalkObject { slot, x, y } => {
+                self.presentation.walk_object(slot, x, y);
+            }
+            PresentationOp::DriftObject {
+                slot,
+                step_x,
+                step_y,
+            } => {
+                self.presentation
+                    .step_field_object(slot, step_x, step_y, u16::MAX);
             }
             PresentationOp::FadeToRed { lines } => self.start_red_palette(lines, false),
             PresentationOp::FadeFromRed { lines } => self.start_red_palette(lines, true),

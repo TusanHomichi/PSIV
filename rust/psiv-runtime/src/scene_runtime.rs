@@ -228,9 +228,27 @@ impl Runtime {
         let live = &self.effects;
         let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
         let effects = runner.tick_with(&self.map, &mut self.game, scene_input, Some(&probe));
-        let finished = runner.is_finished();
+        let mut finished = runner.is_finished();
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
+        }
+        // A pan with no distance to go costs the cartridge no frame: the scene
+        // runs on within this one. Every other camera wait starts a glide.
+        while self.camera_glide.is_none()
+            && let Some(runner) = self
+                .scene
+                .as_mut()
+                .filter(|runner| runner.is_waiting_for_camera())
+        {
+            let record = self.data.map(psiv_data::MapId(self.map.id().0));
+            let live = &self.effects;
+            let probe =
+                |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+            let effects = runner.release_empty_pan(&self.map, &mut self.game, Some(&probe));
+            finished = runner.is_finished();
+            for effect in effects {
+                self.translate_scene_effect(effect, &mut events);
+            }
         }
         self.tick_scene_camera();
         if finished {
@@ -393,6 +411,18 @@ impl Runtime {
                         first: npc_index,
                         count: 1,
                     });
+                }
+            }
+            // `move.w #routine, (a4)` with the scene carrying on: the routine
+            // word is the object's id from now on (the visibility test and
+            // the renderer read it), and its routine runs with the others.
+            SceneEffect::ObjectRoutineSet { npc_index, routine } => {
+                self.wander.remove(npc_index);
+                let _ = self.map.set_npc_id(npc_index, psiv_core::NpcId(routine));
+                if let Some(kind) = psiv_core::scene_routine_kind(routine) {
+                    self.bespoke.install(npc_index, kind);
+                } else {
+                    self.bespoke.remove(npc_index);
                 }
             }
             SceneEffect::NpcDespawned { npc_index, count } => {
@@ -665,6 +695,21 @@ impl Runtime {
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::MoveCamera { x, y, speed } => {
                         self.scene_move_camera(x, y, i32::from(speed));
+                    }
+                    SceneOp::PanCamera { subject, speed } => {
+                        let at = match subject {
+                            psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),
+                            psiv_core::CameraSubject::Actor(actor) => self
+                                .scene
+                                .as_ref()
+                                .and_then(|runner| runner.actor(actor))
+                                .map(|walker| PixelPos::from_cell(walker.cell)),
+                        };
+                        // An actor the cast lacks has nowhere to pan to, and
+                        // with no glide the runner's wait releases at once.
+                        if let Some(at) = at {
+                            self.scene_pan_camera(at.x, at.y, i32::from(speed));
+                        }
                     }
                     // Bit 2 hands the camera to the scene (the opening's
                     // walk off the screen edge); the scripted-leader follow

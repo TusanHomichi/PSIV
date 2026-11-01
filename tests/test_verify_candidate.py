@@ -63,7 +63,7 @@ def fake_runner(codes=None, digest="abc", chapters=("one", "two")):
                 {"digest": digest, "result": "completed"}))
             (route / "run.tape").write_text("tape")
             text = "".join(f"chapter {c}: 10 frames, 0 battles\n" for c in chapters)
-        elif name in ("certify", "gate"):
+        elif name in ("certify", "flash-attack", "gate"):
             text = f"{name} done; receipt=build/{name}/x\n"
         elif name == "resume":
             text = "resume check: 9 of 9 resumes completed; summary=build/resume/x\n"
@@ -114,20 +114,21 @@ class Candidate(RepoCase):
         self.assertEqual(code, vc.EXIT_OK, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "gate"])
+                          "certify", "flash-attack", "gate"])
         # The headless route and resumes take no lock; certify and the gate
         # take their own classes, so only the build is held from here.
         self.assertEqual([lock is not None for _, lock in calls],
-                         [True, False, False, False, False, False])
+                         [True, False, False, False, False, False, False])
         receipt = self.receipt()
         self.assertEqual([step["lock_class"] for step in receipt["steps"]],
-                         ["build", None, None, None, "own", "own"])
+                         ["build", None, None, None, "own", "own", "own"])
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)
         self.assertEqual(receipt["route"]["frames"], 20)
         self.assertEqual(receipt["failures"], [])
         self.assertEqual(receipt["steps"][2]["receipt"], "build/resume/x")
-        self.assertEqual(receipt["steps"][5]["receipt"], "build/gate/x")
+        self.assertEqual(receipt["steps"][5]["receipt"], "build/flash-attack/x")
+        self.assertEqual(receipt["steps"][6]["receipt"], "build/gate/x")
 
     def test_a_digest_mismatch_fails(self):
         runner, _ = fake_runner(digest="def")
@@ -141,7 +142,7 @@ class Candidate(RepoCase):
         self.assertEqual(code, vc.EXIT_FAILED, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "gate"])
+                          "certify", "flash-attack", "gate"])
         self.assertIn("step certify exited 1", self.receipt()["failures"])
 
     def test_the_resume_check_runs_on_the_route_step_s_run_and_its_failure_fails(self):
@@ -150,7 +151,7 @@ class Candidate(RepoCase):
         self.assertEqual(code, vc.EXIT_FAILED, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "gate"])
+                          "certify", "flash-attack", "gate"])
         receipt = self.receipt()
         self.assertIn("step resume exited 1", receipt["failures"])
         route = Path(receipt["steps"][1]["log"]).parent / "route"

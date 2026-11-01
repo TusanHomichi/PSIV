@@ -39,7 +39,11 @@ pub(crate) struct TemporaryObject {
     pub(crate) destination: Option<(i32, i32)>,
     persistent: bool,
     motion: Option<ObjectMotion>,
+    walk: Option<(i32, i32)>,
 }
+
+/// The normal step, `$0200` in 16.16: two pixels a frame.
+const WALK_PIXELS: i32 = 2;
 
 #[derive(Debug, Clone, Copy)]
 struct ObjectMotion {
@@ -160,6 +164,7 @@ impl PresentationState {
                 destination: None,
                 persistent: false,
                 motion: None,
+                walk: None,
             },
         );
     }
@@ -168,6 +173,15 @@ impl PresentationState {
         if let Some(object) = self.temporary_objects.get_mut(&slot) {
             object.destination = Some((x, y));
             object.motion = None;
+        }
+    }
+
+    /// `FieldObj_GetAutoInput`'s walk: X first, then Y, at two pixels a
+    /// frame (the normal step, `$0200`).
+    pub(super) fn walk_object(&mut self, slot: usize, x: i32, y: i32) {
+        if let Some(object) = self.temporary_objects.get_mut(&slot) {
+            object.motion = None;
+            object.walk = Some((x, y));
         }
     }
 
@@ -218,6 +232,18 @@ impl PresentationState {
                     (motion.position.1 >> 16) as i32,
                 ));
                 motion.remaining -= 1;
+            }
+            if let (Some((tx, ty)), Some((x, y))) = (object.walk, object.destination) {
+                let toward =
+                    |from: i32, to: i32| from + (to - from).clamp(-WALK_PIXELS, WALK_PIXELS);
+                object.destination = Some(if x == tx {
+                    (x, toward(y, ty))
+                } else {
+                    (toward(x, tx), y)
+                });
+                if object.destination == Some((tx, ty)) {
+                    object.walk = None;
+                }
             }
             object.elapsed += 1;
         }
@@ -348,5 +374,40 @@ mod tests {
         assert!(!state.sprites_visible(cutscene, false));
         state.set_vram_blanked(false);
         assert!(state.sprites_visible(cutscene, false));
+    }
+
+    /// `FieldObj_GetAutoInput`'s order: the X gap closes first, then Y, two
+    /// pixels a frame, and the object stays where it stops.
+    #[test]
+    fn a_walking_object_closes_x_then_y_at_two_pixels_a_frame() {
+        let mut state = PresentationState::default();
+        state.create_field_object(1, 0x344, 0x3BA, 0x160, 0x190);
+        state.walk_object(1, 0x220, 0x210);
+        for _ in 0..96 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&1].destination,
+            Some((0x220, 0x190))
+        );
+        state.advance_objects();
+        assert_eq!(
+            state.temporary_objects[&1].destination,
+            Some((0x220, 0x192))
+        );
+        for _ in 0..63 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&1].destination,
+            Some((0x220, 0x210))
+        );
+        for _ in 0..10 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&1].destination,
+            Some((0x220, 0x210))
+        );
     }
 }

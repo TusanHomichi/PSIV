@@ -425,16 +425,13 @@ class TestGraphicsFromRom(unittest.TestCase):
         self.assertEqual(set(tiles[0]), {0xE, 0xF})
         rows = ["".join("#" if p == 0xF else "." for p in tiles[0][y * 8:y * 8 + 8])
                 for y in range(8)]
-        self.assertEqual(rows, [
-            "...#....",
-            "..###...",
-            ".##.##..",
-            "##...##.",
-            "##...##.",
-            "#######.",
-            "##...##.",
-            "........",
-        ])
+        # The glyph is cartridge art, so the test holds its digest, not its
+        # pixels (#149): the rows, joined by newlines, are a capital A.
+        self.assertEqual(
+            hashlib.sha256("\n".join(rows).encode()).hexdigest(),
+            "c2a1654303f0144a4f113f745a9d460009ce46627226fb58f75be25eb6f2f895",
+        )
+        self.assertEqual(rows[-1], "." * 8, "a blank baseline row")
         # 'I' is narrow, 'O' is a closed ring: both distinguish real glyphs
         # from a plausible-looking decode.
         letter_i = tiles[ord("I") - ord("A")]

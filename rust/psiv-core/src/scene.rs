@@ -456,6 +456,18 @@ pub enum SceneOp {
         /// The routine's `FieldObjectsJmpTbl` offset.
         routine: u16,
     },
+    /// Give a map object a new `FieldObjectsJmpTbl` routine (`move.w
+    /// #routine, (a4)`) and carry on: the routine runs with every other
+    /// object from the next field frame. `Event_StrippersAppearing` turns the
+    /// strip club's customer into `$34C` this way (`$0735AE`). The runtime
+    /// installs [`crate::scene_routine_kind`]; unlike
+    /// [`SceneOp::RunObjectRoutine`] nothing waits on the object.
+    SetObjectRoutine {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
     /// Write a field object's `dialogue_id` (`$14(a4)`): the line it speaks
     /// the next time it is talked to. The guards at the Esper Mansion door are
     /// the first user: `Event_EsperGuardPermission` writes `1` or `2` into
@@ -477,6 +489,15 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
+        /// Scroll speed.
+        speed: u16,
+    },
+    /// `Event_MoveCamera` as the cartridge runs it: X to its target, then Y,
+    /// and the scene waits for the arrival (`ps4.asm:121468`). The older
+    /// [`Self::MoveCamera`] and `CameraToActor` carry on at once (#267).
+    PanCamera {
+        /// What to frame.
+        subject: crate::scene_presentation::CameraSubject,
         /// Scroll speed.
         speed: u16,
     },
@@ -942,18 +963,8 @@ pub enum SceneOp {
         skill: u8,
     },
     /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
-    /// siblings): every frame the table's step word, sign-extended and shifted
-    /// into signed 16.16 pixels (`ext.l d0 / lsl.l #8, d0`), is added to the
-    /// platform object's `curr_y_pos` and, in the same frame, to `curr_y_pos`
-    /// and `dest_y_pos` of all five party objects, and to the camera step
-    /// counters; the loop ends when the platform object reaches its target.
-    /// The target is a whole number of frames away, so the op carries the
-    /// count. Blocks for `frames` ticks, running map updates each one.
-    ///
-    /// The party moves rigidly: the distance (`step_y * frames`) must be a
-    /// whole number of 16-pixel cells, or the scene faults. The platform's own
-    /// motion is announced to the renderer as a [`SceneOp::StepFieldObject`]
-    /// on `slot`.
+    /// siblings); the rules are at `scene_runner/mechanics.rs`. Blocks for
+    /// `frames` ticks.
     RidePlatform {
         /// The temporary platform object's slot (`Field_LoadObject`'s first
         /// free one).
@@ -963,17 +974,9 @@ pub enum SceneOp {
         /// Loop iterations.
         frames: u16,
     },
-    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`,
-    /// and its three siblings): from the leader's resting cell the party is
-    /// walked one cell at a time in `direction` at `FieldObj_Step_Offset` 0
-    /// (16 frames per cell) for as long as the live collision-plane chunk
-    /// under the leader (`GetChunkAndCollision`: chunk at `curr_x_pos`,
-    /// `curr_y_pos + $10`) lies in `first_chunk..=last_chunk`, tested on
-    /// every pixel of the step. The first test comes after one pixel, so the
-    /// leader always takes at least one step, and a step in flight when the
-    /// test fails is completed. Blocks until the leader arrives; the chunk
-    /// layout is read through [`crate::SceneRunner::tick_with`], and a runner
-    /// ticked without one faults.
+    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
+    /// its three siblings); the rules are at `scene_runner/mechanics.rs`.
+    /// Blocks until the leader arrives.
     ConveyorRide {
         /// The belt's direction.
         direction: Direction,

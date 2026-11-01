@@ -174,6 +174,14 @@ pub enum SceneEffect {
         /// The routine's `FieldObjectsJmpTbl` offset.
         routine: u16,
     },
+    /// A map object was given a new routine that runs on with the others
+    /// ([`SceneOp::SetObjectRoutine`]).
+    ObjectRoutineSet {
+        /// The object.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
     /// A flag changed.
     FlagChanged {
         /// Which flag.

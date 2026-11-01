@@ -815,6 +815,22 @@ impl FieldMap {
         Ok(())
     }
 
+    /// Writes an object's routine word (`move.w #routine, (a4)`), keeping its
+    /// index, cell and facing. The id is what the visibility test and the
+    /// renderer key on; a map reload rebuilds the object from its record.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when there is no such object.
+    pub fn set_npc_id(&mut self, index: usize, id: NpcId) -> Result<(), MapError> {
+        let count = self.npcs.len();
+        let Some(npc) = self.npcs.get_mut(index) else {
+            return Err(MapError::NpcIndexOutOfRange { index, count });
+        };
+        npc.id = id;
+        Ok(())
+    }
+
     /// Sets an object's bit-3 behaviour, keeping its index.
     ///
     /// Objects flip this at runtime: `FieldObj_FellowPenguin` clears its own

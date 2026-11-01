@@ -75,6 +75,7 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_rimit.gd` | RIMIT on a group, sleep and paralysis, paid TP | No policy casts it | Kept |
 | `native_battle_recovery.gd` | ANTI, RIMPA, REVER and REGEN cast in battle by an injured original-record party | Policies cure with the camp after a fight and with the healing technique they choose | Kept |
 | `native_enemy_attacks.gd` | DEFEND through COMD until Acid Breath runs, then a win | No policy defends | Kept |
+| `native_flash_attack.gd` + `verify_native_flash_attack.py` | Formations `$12` (Locusta) and `$13` (Sand Newt), two enemies each whose attack art #214 defers, against the battle-window fixture's tape 07 party: at least three flash-only attacks under DEFEND until every body is at rest, with no orphan node and no node added to an enemy body (#92) | No policy defends, and the tape reads no orphan count inside a battle | Kept |
 | `native_combat.gd` | A real battle from the debug selector: RES, FOI on a second enemy, GELUN, with captures of the technique list and target page | Policy choices only; no capture | Kept (capture observer) |
 | `native_skills.gd` | EARTH, VORTEX and VISION through the skill window, uses re-read after the round, with captures | As above | Kept (capture observer) |
 | `native_items.gd` | Dynamite on an enemy, Monomate on an ally, poison cure, item reservation, with captures | As above | Kept (capture observer) |

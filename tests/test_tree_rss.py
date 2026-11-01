@@ -3,9 +3,9 @@
     PYTHONPATH=. python3 -m unittest tests.test_tree_rss -v
 
 The tree case runs a real child that holds a known allocation, so it reads
-/proc and is Linux only; it takes about a second and 128 MB. The child holds
-its allocation until the sampler has read the tree HELD_SAMPLES times while it
-held it (a handshake through two files, not a sleep), so the case does not
+/proc and is Linux only; a run holds 128 MB and takes about a second idle. The
+child holds its allocation until the sampler has read the tree HELD_SAMPLES times
+while it held it (a handshake through two files, not a sleep), so the case does not
 depend on how many samples a loaded host fits into a fixed time (#232).
 """
 
@@ -16,6 +16,7 @@ import os
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -29,16 +30,26 @@ HELD_MB = 128
 #: Tree samples the sampler takes while the child holds its allocation.
 HELD_SAMPLES = 5
 
-#: A parent that starts one child; the child allocates HELD_MB, says so by
-#: creating argv[1], and holds it until argv[2] exists (60 s at most: exit 1).
+#: Seconds until an unreleased child gives up and exits nonzero: a broken sampler
+#: fails the case instead of hanging the gate. It bounds a failure, not a pass.
+GIVE_UP_S = 300
+
+#: The child allocates HELD_MB, says so by creating argv[1], and holds it until argv[2] exists.
+CHILD = textwrap.dedent(f"""
+    import pathlib, sys, time
+    held = b"x" * ({HELD_MB} * 1024 * 1024)
+    pathlib.Path(sys.argv[1]).touch()
+    deadline = time.monotonic() + {GIVE_UP_S}
+    while not pathlib.Path(sys.argv[2]).exists():
+        if time.monotonic() > deadline:
+            sys.exit("never released")
+        time.sleep(0.01)
+""")
+
+#: A parent that starts one child and exits with its code.
 PARENT = textwrap.dedent(f"""
     import subprocess, sys
-    child = ("import pathlib, sys, time; held = b'x' * ({HELD_MB} * 1024 * 1024); "
-             "pathlib.Path(sys.argv[1]).touch(); deadline = time.monotonic() + 60\\n"
-             "while not pathlib.Path(sys.argv[2]).exists():\\n"
-             "    if time.monotonic() > deadline: sys.exit(1)\\n"
-             "    time.sleep(0.01)")
-    sys.exit(subprocess.run([sys.executable, "-c", child, *sys.argv[1:]]).returncode)
+    sys.exit(subprocess.run([sys.executable, "-c", {CHILD!r}, *sys.argv[1:]]).returncode)
 """)
 
 
@@ -46,12 +57,13 @@ PARENT = textwrap.dedent(f"""
 class TreeCase(unittest.TestCase):
     """The peak counts a child's memory, which the parent's own RSS does not hold."""
 
-    def run_parent(self, descendants):
+    def run_parent(self, descendants, stall_s=0):
         """Measure PARENT; return the result and the readings taken while the child held.
 
         The sampler's own tree reads drive the handshake: each read after the
         child created `held` is recorded, and the HELD_SAMPLES-th creates
-        `release`, so those reads all fall inside the hold however slow the host.
+        `release`, so those reads all fall inside the hold however slow the host. `stall_s`
+        delays each read, as a loaded host does.
         """
         real_tree_rss_kb = tools.tree_rss.tree_rss_kb
         held_kb = []
@@ -60,6 +72,7 @@ class TreeCase(unittest.TestCase):
 
             @functools.wraps(real_tree_rss_kb)
             def sampling(*args, **kwargs):
+                time.sleep(stall_s)
                 # Checked before the read, so a /proc walk begun before the hold never counts.
                 during_hold = held.exists() and not release.exists()
                 kb = real_tree_rss_kb(*args, **kwargs)
@@ -75,8 +88,7 @@ class TreeCase(unittest.TestCase):
                                  stdout=log, descendants=descendants)
         return result, held_kb
 
-    def test_the_tree_peak_holds_the_childs_allocation(self):
-        result, held_kb = self.run_parent(descendants=True)
+    def assert_every_held_read_saw_the_allocation(self, result, held_kb):
         self.assertEqual(result["exit_code"], 0)
         self.assertEqual(len(held_kb), HELD_SAMPLES)
         for kb in held_kb:  # every read during the hold sees the allocation
@@ -84,6 +96,15 @@ class TreeCase(unittest.TestCase):
         self.assertGreaterEqual(result["peak_tree_rss_mb"], HELD_MB)
         self.assertLess(result["peak_tree_rss_mb"], HELD_MB + 100)  # two interpreters' worth
         self.assertGreaterEqual(result["tree_samples"], HELD_SAMPLES)
+
+    def test_the_tree_peak_holds_the_childs_allocation(self):
+        self.assert_every_held_read_saw_the_allocation(*self.run_parent(descendants=True))
+
+    def test_a_sampler_slower_than_the_interval_still_sees_the_allocation(self):
+        # 5x the interval per read: the old 1.5 s hold got 3 samples, failing `> 5` (#232).
+        stall_s = 5 * tools.tree_rss.DEFAULT_INTERVAL_S
+        self.assert_every_held_read_saw_the_allocation(
+            *self.run_parent(descendants=True, stall_s=stall_s))
 
     def test_negative_control_a_sampler_that_misses_children_reads_low(self):
         result, held_kb = self.run_parent(descendants=False)

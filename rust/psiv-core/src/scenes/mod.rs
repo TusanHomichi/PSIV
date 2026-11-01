@@ -72,6 +72,7 @@ pub(crate) mod post_zio_cutscenes;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
 pub(crate) mod soldiers_temple;
+pub(crate) mod strip_club;
 mod vahal_common;
 pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
@@ -275,6 +276,8 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::GIRLS_BAILED_OUT,
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
+    strip_club::STRIPPERS_APPEARING,
+    strip_club::EXITING_STRIP_CLUB,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -457,6 +460,8 @@ mod tests {
             ("Event_GirlsBailedOut", 8),
             ("Event_AiedoManSavings", 4),
             ("Event_AiedoManCrushOnAlys", 6),
+            ("Event_StrippersAppearing", 33),
+            ("Event_ExitingStripClub", 1),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

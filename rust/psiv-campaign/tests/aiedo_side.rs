@@ -307,3 +307,104 @@ fn the_admirer_draws_his_routine_walk() {
         );
     }
 }
+
+const STRIP_CLUB: u16 = 0x05A;
+const HUNTERS_GUILD: u16 = 0x057;
+/// `TempEveFlag_StrippersDance`.
+const STRIPPERS_DANCE: Flag = Flag::temp(0x1B);
+/// The customer, `Field_Obj_Secondary`.
+const CUSTOMER: usize = 0;
+
+/// Holds `direction` until the leader stands `cells` cells further on, or
+/// the frames run out.
+fn walk(driver: &mut Driver, direction: Direction, cells: u16) {
+    let start = psiv_campaign::driver::standing_cell(driver.runtime());
+    let (dx, dy) = direction.delta();
+    let goal = (
+        i32::from(start.x) + dx * i32::from(cells),
+        i32::from(start.y) + dy * i32::from(cells),
+    );
+    for _ in 0..u32::from(cells) * 40 {
+        let at = psiv_campaign::driver::standing_cell(driver.runtime());
+        if (i32::from(at.x), i32::from(at.y)) == goal
+            && !psiv_campaign::driver::is_stepping(driver.runtime())
+        {
+            return;
+        }
+        driver
+            .tick(psiv_campaign::driver::dir_pad(direction))
+            .expect("the walk");
+    }
+    panic!("the leader did not reach {goal:?} from {start:?}");
+}
+
+/// Stepping up to the stage (cell row 37, `y = $240`, x `$1E0..$270`, trigger `$79`) brings
+/// the dancers out (`Event_StrippersAppearing`): the customer takes routine
+/// `$34C`, which turns him up with line `$39` and back down with `$38` every
+/// 256 frames, and `TempEveFlag_StrippersDance` is set. Leaving through the
+/// guild clears it (`Event_ExitingStripClub`, trigger `$7A`).
+#[test]
+fn the_dancers_come_out_at_the_stage_and_leaving_resets_them() {
+    let Some(session) = party_at(STRIP_CLUB, 32, 40, 0, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let scenes = driver.scenes_ended();
+    let record_line = driver.runtime().npc_dialogue_id(CUSTOMER);
+    assert_eq!(
+        record_line,
+        Some(0x3B),
+        "the record's line before the dance"
+    );
+    walk(&mut driver, Direction::Up, 2);
+    assert!(
+        !driver.runtime().scene_active(),
+        "cell row 38 is below the trigger"
+    );
+    // One more step up: the trigger fires on row 37 and the scene runs.
+    driver.set_budget(2_000);
+    for _ in 0..1_000 {
+        if driver.scenes_ended() > scenes {
+            break;
+        }
+        let pad = if driver.runtime().scene_active() {
+            psiv_runtime::Pad::NEUTRAL
+        } else {
+            psiv_campaign::driver::dir_pad(Direction::Up)
+        };
+        driver.tick(pad).expect("the dance");
+    }
+    assert_eq!(driver.scenes_ended(), scenes + 1, "the scene ran");
+    assert!(driver.runtime().game().is_set(STRIPPERS_DANCE));
+    let customer = driver.runtime().map().npcs()[CUSTOMER];
+    assert_eq!(customer.id.0, 0x34C);
+    driver.neutral(1).expect("one field frame");
+    assert_eq!(
+        driver.runtime().map().npcs()[CUSTOMER].facing,
+        Direction::Up
+    );
+    assert_eq!(driver.runtime().npc_dialogue_id(CUSTOMER), Some(0x39));
+    driver.neutral(256).expect("his timer wraps");
+    assert_eq!(
+        driver.runtime().map().npcs()[CUSTOMER].facing,
+        Direction::Down
+    );
+    assert_eq!(driver.runtime().npc_dialogue_id(CUSTOMER), Some(0x38));
+
+    // Out through the doorway at (34..35, 46): down, right past the customer,
+    // down.
+    walk(&mut driver, Direction::Down, 6);
+    walk(&mut driver, Direction::Right, 2);
+    for _ in 0..400 {
+        if driver.runtime().map_id().0 == HUNTERS_GUILD
+            && !driver.runtime().game().is_set(STRIPPERS_DANCE)
+        {
+            break;
+        }
+        driver
+            .tick(psiv_campaign::driver::dir_pad(Direction::Down))
+            .expect("out to the guild");
+    }
+    assert_eq!(driver.runtime().map_id().0, HUNTERS_GUILD);
+    assert!(!driver.runtime().game().is_set(STRIPPERS_DANCE), "$95 ran");
+}

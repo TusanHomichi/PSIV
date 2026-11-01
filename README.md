@@ -138,16 +138,13 @@ What the repository does hold from the game:
   replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/` (party and
   enemy stats, random draws, damage, turn order; the records they replay
   against come from the local pack) and the oracle receipts under
-  `oracle/fixtures/`;
-- nine 8x8 tiles of the battle screen's damage numbers, copied from retail VRAM
-  tiles `$5E4`-`$5EA`, `$5EE` and `$5EF` as pixel strings in `damage_pattern`
-  (`rust/psiv-godot/src/battle/chrome.rs`), which the game draws its damage
-  numbers from.
+  `oracle/fixtures/`.
 
 The battle tables themselves (enemies, their abilities, formations, equipment
-and techniques) stay in the local pack: the replay tests read them from there
-and skip without it, and `tools/check_rom_tables.py` fails a change that copies
-them into the tree.
+and techniques) and the game's art stay in the local pack: the replay tests
+read the tables from there and skip without it, and `tools/check_rom_tables.py`
+fails a change that copies the tables, or a tile written as pixel strings, into
+the tree.
 
 Third-party code is fetched at build time, never committed:
 

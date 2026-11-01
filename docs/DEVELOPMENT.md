@@ -188,13 +188,14 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
-The battle-art emission tests also need the ignored indexed PNGs named by
-`oracle/fixtures/battle_animation_remainder.json` under
-`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
-frame is an emission error. Preserve a verified local copy, or reproduce the
-frames from the named oracle captures using the renderer documented in
-[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
-do not commit the ROM-derived PNGs.
+The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
+rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
+names) are oracle evidence only: no pack input reads them, and the one test
+that compares them skips without them. Do not commit the ROM-derived PNGs.
+`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
+tracked tree plus the ROM and fails, naming each path, when the builder opens
+or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
+files, the interpreter's own files and its output (#214).
 
 A worktree takes these from the main checkout: in the worktree, run
 `python3 tools/local_inputs.py link`. It links each local input the main
@@ -202,7 +203,7 @@ checkout has, except `generated/` and `runtime-pack`, which belong to a
 commit's extractor rather than to the main checkout. Those two link to a
 shared cache under the main checkout's `build/inputs/`, one entry per version
 of what builds them (the Git trees of `psiv_tools/` and, for the pack,
-`oracle/fixtures/` and the attack frames above, and the ROM). The first
+`oracle/fixtures/`, and the ROM). The first
 worktree that needs an entry builds it under the heavy-run lock, from a copy of
 exactly those inputs taken from Git and the main checkout; any other worktree
 that needs it meanwhile waits, checks its inputs again, and then links the
@@ -354,21 +355,31 @@ ROM-free Python tests, a Godot smoke) is open.
 Hosted CI also holds each pull request to the house rules a machine can read,
 its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
-bots are clean on a head, the steward has an agent on the machine that holds
-the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, and record the verdict; the steward merges only once it is green.
-It runs in the one worktree the steward keeps for gates, which main's
-`tools/gate_worktree.py` moves to that commit with every untracked and ignored
+bots are clean on a head, the steward runs main's `tools/pr_gate.py` on the
+machine that holds the local inputs, which runs the full gate,
+`python3 tools/gate.py --wait`, on that exact commit, and judges the receipt
+it wrote; the steward posts the summary it gives (each command's exit, time
+and test counts) and merges only once it is green. It runs in the one
+worktree the steward keeps for gates, under that worktree's lock: main's
+`tools/gate_worktree.py` moves it to that commit with every untracked and ignored
 file gone but `rust/target`, so the gate's Rust build starts warm, and the
 inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
+Each of those steps runs in a systemd scope of the user's manager named for
+the worktree, so nothing it starts outlives the lock, and running it by hand
+needs a user manager too (a desktop session has one).
 Moving one worktree keeps cargo's file-time freshness sound, which a target
 dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
-partial, and a partial gate is recorded as a failure.
+partial, and a partial gate is recorded as a failure: green takes the full
+tier, on a clean tree, with every command exiting 0 and no input missing.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
-`build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the cores it could use
+`build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
+names, which is how `tools/pr_gate.py` reads its own run's receipt and no
+other): the candidate SHA, whether the tree was
+dirty and its `git status --porcelain` paths, which inputs were missing
+(`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
+`tools/gate.py`), the cores it could use
 (`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
 command's string, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
@@ -401,7 +412,9 @@ statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
 than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
+itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
+which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
@@ -412,7 +425,7 @@ and is reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
-  them yields a partial gate, and the report says which inputs were absent;
+  them yields a partial gate, and the receipt's `missing_inputs` says which;
 - native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`,
   `tools/verify_native_tape.py`, `tools/verify_native_route.py`) and anything
   visual: their ledgers own those runs;
