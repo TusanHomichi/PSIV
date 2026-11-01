@@ -1,0 +1,119 @@
+{
+  "conary": "note v1",
+  "change": "7dxemven1wk15ky8emb66jb5av",
+  "repo": {
+    "owner": "TusanHomichi",
+    "name": "PSIV"
+  },
+  "pr": 259,
+  "url": "https://github.com/TusanHomichi/PSIV/pull/259",
+  "summary": "psiv-pack: claim the field sprites: party, NPCs, vehicles and chests (#216, slice 4)",
+  "task": "tusanhomichi/psiv#216",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "31c7092d4524e4d54e636d565169033bad66f1e2e6454c00b016b2f27708c991",
+    "before": "88ddcd8ffb5997e52279817646d6507f2f1ec80b",
+    "after": "cfe444c6dea4828f0552ae0af1101843f788319c",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793501119766
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726716232"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726716194"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (macos-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726716193"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726716110"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726715978"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496/job/124726715706"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#259)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#259)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#259)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#259)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#259)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284496"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (windows-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284516/job/124726716106"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/259#pullrequestreview-5726057813"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41265284785/job/124726716398"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
