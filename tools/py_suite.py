@@ -70,6 +70,7 @@ PATTERN = "test*.py"
 #: a module under tests/ (tests/test_py_suite.py checks), so a rename cannot leave
 #: a stale entry here.
 SLOW_PYTHON_MODULES = {
+    "test_pack_inputs": 44.3,
     "test_pack_maps": 37.1,
     "test_reload_frames": 32.0,
     "test_battle_art_pack": 14.7,

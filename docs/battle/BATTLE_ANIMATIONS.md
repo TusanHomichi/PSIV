@@ -102,13 +102,14 @@ silently treated as an enemy-bank hole. Across the per-enemy graph evidence,
 exactly. The duplicated load count is intentional because shared object
 graphs are recorded for each enemy record.
 
-Exact PNGs are emitted under `battle/art/enemy_attacks/`. All 153 records now
-have a receipt-backed frame surface; the 16 formerly deferred routine bodies
-use VRAM-rendered oracle fixtures rather than a guessed ROM mapping loop.
-Shared routine bodies are re-emitted with each target enemy's existing
-line-relative palette while preserving the oracle pixel indices; this keeps
-Godot's indexed recolour contract valid without widening or regenerating the
-color ramp in this wave.
+Exact PNGs are emitted under `battle/art/enemy_attacks/`, rendered from the
+ROM for 121 records. The 16 receipt-backed routine bodies (32 records) ship
+no attack frames and are `deferred` in the art index (#214): their oracle
+captures are shared across bodies, so they are not each routine's art (the
+retail basis is in [source notes](../source-notes/README.md#other-recorded-deviations)).
+Godot keeps the body-flash fallback for them;
+`python3 tools/verify_native_flash_attack.py` drives
+that fallback in a native battle and fails on an orphan or added node (#92).
 
 ### Movement fields
 
@@ -136,9 +137,11 @@ presentation clock behind static-analysis silence.
 
 ## Census
 
-Every enemy record's animation is exact: timed frame records, mapping and art
-composition and movement track for all 153 records, and 1,355 exact attack
-frames across the 153 enemies.
+`battle/enemy_animations.json` records timed frame records, composition and
+movement track as exact for all 153 records, the 32 receipt records through
+their observed clocks. The art index `battle/art/enemy_attacks.json` emits
+960 attack frames for 121 exact records; the 32 receipt records are deferred
+there with no frames (#214).
 
 Direct SFX is 153 exact, with no generic fallback. The routine classification
 census is:
@@ -148,10 +151,10 @@ census is:
 | `fixed_mapping` | 62 | 62 exact |
 | `variable_mapping` | 49 | 49 exact |
 | `selector_mapping` | 10 | 10 exact, including 19 hidden ticks |
-| `tile_upload_only` | 21 | 21 exact via observed sprite-table/VRAM receipts |
-| `state_machine_without_sprite_mapping` | 9 | 9 exact via observed sprite-table clocks |
-| `projectile_effect_graph` | 1 | ProtectBit exact via projectile/effect receipt |
-| `palette_or_plane_effect` | 1 | Seeker exact via CRAM/plane and sprite-table receipt |
+| `tile_upload_only` | 21 | observed clock only; art deferred |
+| `state_machine_without_sprite_mapping` | 9 | observed clock only; art deferred |
+| `projectile_effect_graph` | 1 | ProtectBit: observed clock only; art deferred |
+| `palette_or_plane_effect` | 1 | Seeker: observed clock only; art deferred |
 
 These are per-enemy counts. Shared routines account for the 16 receipt-backed
 routine bodies. The receipt fixture covers one representative per body and
@@ -176,9 +179,10 @@ applies the result to every enemy record sharing that retail routine.
 | `$00D998` | DarkForce3 (132) | 1 | PLC upload plus sprite table | f29946 |
 | `$00D526` | Prophallus (151) | 1 | state-machine sprite table | f29926 |
 
-The durable receipt and its VRAM-rendered frame sources are
-`oracle/fixtures/battle_animation_remainder.json` and
-`oracle/fixtures/battle_animation_art/`. Each dense capture records a
+The durable receipt is `oracle/fixtures/battle_animation_remainder.json`; the
+ignored indexed PNGs rendered from its captures,
+`oracle/fixtures/battle_animation_art/`, are oracle evidence only and no pack
+input (#214). Each dense capture records a
 sprite-table and VDP-VRAM SHA-256 over the entire sampled window; transition
 offsets are the first frame whose raw sprite-table bytes differ, and the
 durations are the resulting observed dwells. The fixture uses the one-enemy
@@ -187,10 +191,12 @@ keeps HP at `$7FFF`, and records the unchanged first-slot `Enemy_Positions`
 byte `$0E`; it does not patch ROM or runtime state. Each receipt records the
 sampled `sprite_table`/`vdp_vram` frame offsets, observed clock durations, and
 the formation-relative `origin_pixels` needed by the Godot local attack layer,
-so the presentation is a transcription of retail hardware state rather than a
-screen-space image accidentally placed at the enemy origin.
 `psiv_tools.battle_animation_oracle` verifies those hashes and follows the
-hardware SAT link chain when regenerating the indexed source PNGs.
+hardware SAT link chain when regenerating the evidence PNGs. Compared by pixel
+index, eight bodies' captures are one identical sequence and three more share
+a second; `tests/test_battle_art_pack.py` checks that when the PNGs are
+present. The captured sprite table is therefore the shared hit presentation
+(most likely the targeted party member), not each routine's attack art.
 
 ## Remaining genuine limits
 
@@ -205,18 +211,20 @@ line-1 words:
 0EA8 0C86 0864 0642 0220 0000 0600 0CC4
 ```
 
-The receipt-backed residuals are now exact as presentations, not merely PLC
-art uploads. ProtectBit's projectile/effect graph and Seeker's palette/plane
-effect retain their distinct presentation labels in the JSON and art index;
+The 16 receipt-backed bodies remain a genuine limit for art: their timing is
+the observed clock, but their frames wait on rendering each routine's own
+effect objects from the ROM. ProtectBit's projectile/effect graph and Seeker's
+palette/plane effect keep their distinct presentation labels in the JSON;
 they are not collapsed into ordinary enemy mapping classifications.
 
 ## Runtime contract and fixtures
 
 `BattleAnimationEvent` carries the full duration vector. Rust playback uses the
 cumulative vector for variable, selector, and oracle-observed clocks, while
-fixed records use a repeated vector. Exact composition uses a child `Sprite2D`;
-the receipt-backed PNGs are rendered from the oracle's live VDP VRAM. Hidden
-selector frames remain transparent attack frames, not flashes.
+fixed records use a repeated vector. Exact composition uses a child `Sprite2D`
+with frames rendered from the ROM; a record whose art is deferred keeps the
+body flash. Hidden selector frames remain transparent attack frames, not
+flashes.
 
 The unittest fixtures cover newly exact records from distinct decoder paths:
 
@@ -227,8 +235,9 @@ The unittest fixtures cover newly exact records from distinct decoder paths:
 
 The structural remainder fixture covers all 16 shared bodies, including the
 DarkForce1 formation/CRAM receipt. Its command and patch discipline are in
-`oracle/fixtures/battle_animation_remainder.json`; the generated PNG sources
-are under `oracle/fixtures/battle_animation_art/`.
+`oracle/fixtures/battle_animation_remainder.json`; the evidence PNGs rendered
+from its captures are under `oracle/fixtures/battle_animation_art/` and the
+pack never reads them.
 
 The live selector `PSIV_DEBUG_BATTLE=0x89` uses real formation `$0F7` from the
 pack (Slave + Worker Pod) and injects a deterministic attack-only timeline for
@@ -261,5 +270,5 @@ PYTHONPATH=. python3 -m psiv_tools pack "Phantasy Star IV (USA).md" runtime-pack
 ```
 
 The full-pack command is the final comparison: it must regenerate the battle
-animation JSON, attack-art index, 1355 exact PNG frames, and the manifest in the
+animation JSON, attack-art index, 960 exact PNG frames, and the manifest in the
 same deterministic pack layout.

@@ -196,13 +196,14 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
-The battle-art emission tests also need the ignored indexed PNGs named by
-`oracle/fixtures/battle_animation_remainder.json` under
-`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
-frame is an emission error. Preserve a verified local copy, or reproduce the
-frames from the named oracle captures using the renderer documented in
-[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
-do not commit the ROM-derived PNGs.
+The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
+rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
+names) are oracle evidence only: no pack input reads them, and the one test
+that compares them skips without them. Do not commit the ROM-derived PNGs.
+`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
+tracked tree plus the ROM and fails, naming each path, when the builder opens
+or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
+files, the interpreter's own files and its output (#214).
 
 A worktree takes these from the main checkout: in the worktree, run
 `python3 tools/local_inputs.py link`. It links each local input the main
@@ -210,7 +211,7 @@ checkout has, except `generated/` and `runtime-pack`, which belong to a
 commit's extractor rather than to the main checkout. Those two link to a
 shared cache under the main checkout's `build/inputs/`, one entry per version
 of what builds them (the Git trees of `psiv_tools/` and, for the pack,
-`oracle/fixtures/` and the attack frames above, and the ROM). The first
+`oracle/fixtures/`, and the ROM). The first
 worktree that needs an entry builds it under the heavy-run lock, from a copy of
 exactly those inputs taken from Git and the main checkout; any other worktree
 that needs it meanwhile waits, checks its inputs again, and then links the
@@ -409,7 +410,9 @@ statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
 than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
+itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
+which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
