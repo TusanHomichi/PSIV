@@ -56,8 +56,9 @@ mod travel;
 
 pub use battle::{
     AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt,
-    CommandUiTile, ELEMENT_SLOTS, EffectTable, EncounterGroup, EncounterGroups, EnemiesFile, Enemy,
-    EnemyAi, EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
+    CommandUiTile, DAMAGE_DIGIT_ART_PATH, DamageDigitArt, ELEMENT_SLOTS, EffectTable,
+    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
+    EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, Formation,
     FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId,
