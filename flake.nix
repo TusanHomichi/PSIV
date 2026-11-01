@@ -93,6 +93,10 @@
       # until it is listed, and a new test that needs the pack fails CI until
       # it skips on its own or is listed here.
       packTests = [
+        # rust/psiv-core/src/battle/replay/data.rs: these skip on their own
+        # without a pack (#149) and are listed so the check skips them by name.
+        "battle::engine::tests::replay::replay::data::barrier_capture_rejects_a_wrong_mdef_or_party_command"
+        "battle::engine::tests::replay::replay::data::every_fixture_replays_as_recorded"
         # rust/psiv-godot/src/audio.rs
         "audio::tests::debug_track_bank_contains_the_pack_path"
         "audio::tests::every_extracted_record_can_start_three_driver_ticks"
