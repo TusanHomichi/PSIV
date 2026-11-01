@@ -1,0 +1,155 @@
+{
+  "conary": "note v1",
+  "change": "5yy2p9t7e896c17h56zpa4h3z6",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 260,
+  "url": "https://github.com/tusanhomichi/psiv/pull/260",
+  "summary": "psiv-pack: claim the map files, as psiv-data's MapRecord (#216, slice 4b)",
+  "task": "TusanHomichi/PSIV#216",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "45a90147d27ec15a637e4be238375388459ca3c61de33a2506e904f3409dd59a",
+    "before": "7a0f250261da303e0520469826fed6129c8cf0a9",
+    "after": "05ec1759b1cdee3bba955950d8aca11f861c7694",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793504887198
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587618"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008/job/124737588653"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587696"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (macos-latest, 3.10)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587642"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587577"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606/job/124737587357"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966606"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#260)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268967008"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (windows-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587664"
+    },
+    {
+      "kind": "ci",
+      "check": "psiv-pack (macos-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966615/job/124737587638"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/260#pullrequestreview-5726237408"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41268966825/job/124737588257"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
