@@ -432,11 +432,10 @@ class Census(unittest.TestCase):
         self.assertEqual(problems, [])
 
     def test_the_launchers_use_the_builder(self):
-        """Not vacuous: the four launchers go through tools/godot.py."""
+        """Not vacuous: the three launchers go through tools/godot.py."""
         for name, needle in (("tools/certify.py", "godot_command("),
                              ("tools/verify_native_tape.py", "godot_command("),
-                             ("godot/run.sh", "tools/godot.py run"),
-                             ("tools/package/deploy-deck.sh", 'tools/godot.py" run')):
+                             ("godot/run.sh", "tools/godot.py run")):
             with self.subTest(name=name):
                 self.assertIn(needle, (ROOT / name).read_text())
 

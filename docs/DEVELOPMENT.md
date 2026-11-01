@@ -10,7 +10,7 @@ prerequisites and the commands to build and start the game.
 
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
-(see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
+(see [a build for the Steam Deck](#a-build-for-the-steam-deck)). The supported
 Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
 build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
 [`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
@@ -30,12 +30,14 @@ Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
 play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`tools/godot-downloads.json`](../tools/godot-downloads.json)
 holds the pinned release's downloads and Godot's published SHA-512 sums for
 them, the editor zip the shell runs and the export templates a release build
-uses. Renovate opens a PR when Godot releases ([`renovate.json`](../renovate.json));
-a bump of `.godot-version` also runs `python3 tools/godot.py pin`, which writes
-the new version's downloads there (`tests/test_flake.py` fails until it has). The
-shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
-same pixels. That changes no digest: every hash that names an image, in the
-tests and in the pack's `png_sha256` fields, is `image_sha256` from
+uses. Renovate opens a PR when Godot releases, held until the checks
+[#133](https://github.com/TusanHomichi/PSIV/issues/133) sets for a bump pass on
+it ([`renovate.json`](../renovate.json)); a bump of `.godot-version` also runs
+`python3 tools/godot.py pin`, which writes the new version's downloads there
+(`tests/test_flake.py` fails until it has). The shell's Python links stock
+zlib, whose PNG bytes differ from zlib-ng's for the same pixels. That changes
+no digest: every hash that names an image, in the tests and in the pack's
+`png_sha256` fields, is `image_sha256` from
 [`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
 ## Prepare the local pack
@@ -123,8 +125,7 @@ refuses one that does not report the version pinned in `.godot-version` or is
 not a `stable` build (`python3 tools/godot.py check` checks your setup).
 `python3 tools/godot.py run [-- <godot arguments>]` is the one way to start
 the game: it resolves Godot and makes the run root, so a command never names
-the executable or a project path. `godot/run.sh`,
-`tools/package/deploy-deck.sh`, `tools/certify.py` and
+the executable or a project path. `godot/run.sh`, `tools/certify.py` and
 `tools/verify_native_tape.py` ask it too, and the ones that start the game run
 its `prepare` step first.
 
@@ -145,32 +146,23 @@ The keyboard and controller bindings are listed in the
 [player's guide](PLAYING.md#controls); they come from the input map in
 [`godot/project.godot`](../godot/project.godot).
 
-### Package for the Steam Deck
+### A build for the Steam Deck
+
+The Deck runs the Linux release archive, installed the way the
+[player's guide](PLAYING.md#download-and-start) says. To try a branch there,
+run the release workflow on it and take its Linux archive:
 
 ```bash
-./tools/package/deploy-deck.sh <deck-address> [user]
+gh workflow run release.yml --ref <branch>
+gh run download <run-id> --name archive-linux
 ```
 
-`tools/package/deploy-deck.sh` builds the release extension with
-`cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), makes a run root whose
-project is prepared (`python3 tools/godot.py run`), exports its
-`Linux` preset from it to
-`build/deck/` (the full export log is `build/deck-export.log`; a failed export
-stops the script), stages the executable, and copies it to `~/psiv` on the
-Deck with `rsync` over SSH. The pack goes to `~/.local/share/PSIV/runtime-pack`
-on the Deck, the user data folder where an exported build reads its pack and
-keeps its saves (`rust/psiv-godot/src/install.rs`).
-It needs:
-
-- SSH key access to the Deck;
-- [zig](https://ziglang.org/) and `cargo-zigbuild` (`cargo install
-  cargo-zigbuild`), on `PATH` or under `~/.local/bin`, which the script adds;
-- the Godot that `tools/godot.py` resolves, with the Linux export templates of
-  the same version installed (the editor's Export Template Manager, or the
-  templates file from the [download archive](https://godotengine.org/download/archive/)).
-
-On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
+Unpack the archive on the Deck and start `psiv.x86_64`. It reads its pack and
+keeps its saves in `~/.local/share/PSIV`, so a pack there that suits this
+version is used as it is, and otherwise the setup screen asks for the ROM. The workflow builds Linux on the
+oldest Ubuntu runner GitHub offers, so the archive's glibc floor is below
+SteamOS's; a build on a newer distribution links newer symbol versions, and
+the Deck refuses to load its extension.
 
 ### Release archives
 

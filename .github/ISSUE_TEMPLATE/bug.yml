@@ -21,11 +21,11 @@ body:
       label: What the original does
       description: What the cartridge does at the same point, if you know.
   - type: input
-    id: commit
+    id: version
     attributes:
-      label: Commit
-      description: The output of `git rev-parse --short HEAD` in your checkout.
-      placeholder: "20a76de"
+      label: Version
+      description: The version in your download's name (`PSIV-1.0.0-linux-x86_64.tar.gz` is 1.0.0), or the output of `git rev-parse --short HEAD` in a source checkout.
+      placeholder: "1.0.0"
     validations:
       required: true
   - type: dropdown
@@ -44,7 +44,7 @@ body:
     id: rom
     attributes:
       label: ROM check
-      description: Does `sha256sum "Phantasy Star IV (USA).md"` print 511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a?
+      description: Does your ROM's SHA-256 match the one in the [player's guide](https://github.com/TusanHomichi/PSIV/blob/main/docs/PLAYING.md#the-rom)?
       placeholder: "yes"
     validations:
       required: true
@@ -52,4 +52,4 @@ body:
     id: save
     attributes:
       label: Save or steps to reproduce
-      description: A PSIV save file from your save directory reproduces most problems fastest; attach it, or list the steps.
+      description: A PSIV save file reproduces most problems fastest ([where your saves live](https://github.com/TusanHomichi/PSIV/blob/main/docs/PLAYING.md#where-your-pack-and-saves-live)); attach it, or list the steps.

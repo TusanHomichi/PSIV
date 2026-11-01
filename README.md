@@ -85,12 +85,10 @@ PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 Saves go to the directory `PSIV_SAVE_DIR` names. Saving, loading and the
 controls are in the [player's guide](docs/PLAYING.md).
 
-**On the Steam Deck**, build the pack on a Linux PC as above, then run
-`tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
-release and copies it to `~/psiv` on the Deck over SSH, and the pack to
-`~/.local/share/PSIV`, where the installed game keeps its pack and saves. On
-the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. Its requirements
-are in the developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-for-the-steam-deck).
+**On the Steam Deck**, run the Linux release archive, as the
+[player's guide](docs/PLAYING.md#download-and-start) describes. Until the first
+release, the developer guide says
+[how to get one built](docs/DEVELOPMENT.md#a-build-for-the-steam-deck).
 
 The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:
 the tests, the oracle and the checks a change runs.
