@@ -216,6 +216,7 @@ impl Runtime {
             }
         };
         let mut events = Vec::new();
+        self.tick_quake(&mut events);
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
@@ -351,7 +352,11 @@ impl Runtime {
         self.scene_input = SceneInput::MapLoaded;
     }
 
-    fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
+    pub(crate) fn translate_scene_effect(
+        &mut self,
+        effect: SceneEffect,
+        events: &mut Vec<RuntimeEvent>,
+    ) {
         match effect {
             SceneEffect::DialogueOpen(id) => {
                 self.dialogue_answer = None;
@@ -693,6 +698,9 @@ impl Runtime {
                     }
                     SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::Quake { frames, opening },
+                    } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
                     SceneOp::MoveCamera { x, y, speed } => {
                         self.scene_move_camera(x, y, i32::from(speed));
                     }
