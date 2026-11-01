@@ -25,8 +25,9 @@ change (`tools/repo_files.py`), whatever its suffix:
   which is how cartridge art was once transcribed into source. Art loads from
   the pack; a test that wants a picture of a decoded tile compares its digest.
   Every eight contiguous rows are one tile. A synthetic picture - an ASCII test
-  map - says so: a comment (in a file type `COMMENT_SYNTAX` knows; a string or
-  code saying the word does not count) containing `synthetic` within
+  map - says so: a comment (in a Rust or Python file, which are lexed; a string
+  or code saying the word does not count, and no other file type has markers)
+  containing `synthetic` within
   `MARKER_LINES` lines above a tile's first literal exempts that tile alone.
   This needs no local input.
 
@@ -40,10 +41,13 @@ from __future__ import annotations
 import argparse
 import collections
 import hashlib
+import io
 import json
 import os
 import re
 import sys
+import tokenize
+from collections.abc import Iterator
 from pathlib import Path
 
 try:  # imported as `tools.check_rom_tables` by tests and check_docs
@@ -91,25 +95,11 @@ TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
 #: How far above a tile its `synthetic` comment may be.
 MARKER_LINES = 3
 SYNTHETIC = re.compile(r"\bsynthetic\b", re.IGNORECASE)
-#: `//` and `/* */` comments among this family's strings: tokens read left to
-#: right, so a comment opener inside a string is string.
-SLASH_COMMENTS = re.compile(
-    r"""(?P<comment>//[^\n]*|/\*.*?(?:\*/|\Z))"""
-    r"""|\bb?r(?P<hashes>\#*)".*?"(?P=hashes)"""
-    r"""|"(?:\\.|[^"\\])*(?:"|\Z)"""
-    r"""|'(?:\\.|[^'\\\n])*'""",
-    re.DOTALL)
-#: `#` comments, opened at a line's start or after whitespace (`$#` is code).
-HASH_COMMENTS = re.compile(
-    r"""(?P<comment>(?<!\S)\#[^\n]*)"""
-    r"""|\"\"\".*?(?:\"\"\"|\Z)|\'\'\'.*?(?:\'\'\'|\Z)"""
-    r"""|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'""",
-    re.DOTALL)
-#: The comment syntax of a file by suffix, for reading a `synthetic` marker.
-COMMENT_SYNTAX = {
-    **dict.fromkeys((".rs", ".c", ".h", ".cpp", ".hpp", ".js", ".ts"), SLASH_COMMENTS),
-    **dict.fromkeys((".py", ".gd", ".sh", ".toml", ".yml", ".yaml", ".nix"), HASH_COMMENTS),
-}
+#: What the Rust lexer stops at: a comment, a string, or a character literal,
+#: whose exactly one character tells it from a lifetime (`'a`).
+RUST_TOKEN = re.compile(r"""//|/\*|\b[bc]?r(\#*)"|"|'(?:\\[^\n][^'\n]*|[^'\\\n])'""")
+RUST_BLOCK_EDGE = re.compile(r"/\*|\*/")
+RUST_STRING_END = re.compile(r'\\.|"', re.DOTALL)
 
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 NUMBER = re.compile(r"\d+")
@@ -183,18 +173,61 @@ def numbered_names(rows: list[str]) -> bool:
     )
 
 
+def rust_comments(text: str) -> Iterator[tuple[int, int]]:
+    """The spans of a Rust file's comments, block comments nesting."""
+    position = 0
+    while token := RUST_TOKEN.search(text, position):
+        position = token.end()
+        kind = token.group()
+        if kind == "//":
+            end = text.find("\n", position)
+            position = end if end >= 0 else len(text)
+            yield token.start(), position
+        elif kind == "/*":
+            depth = 1
+            while depth and (edge := RUST_BLOCK_EDGE.search(text, position)):
+                position = edge.end()
+                depth += 1 if edge.group() == "/*" else -1
+            if depth:
+                position = len(text)
+            yield token.start(), position
+        elif kind == '"':
+            while (end := RUST_STRING_END.search(text, position)) and end.group() != '"':
+                position = end.end()
+            if end is None:
+                return
+            position = end.end()
+        elif kind.endswith('"'):
+            end = text.find('"' + token.group(1), position)
+            if end < 0:
+                return
+            position = end + 1 + len(token.group(1))
+
+
+def python_comment_lines(text: str) -> list[tuple[int, str]]:
+    """`(line, comment)` for a Python file, none if it does not tokenize."""
+    try:
+        return [(token.start[0], token.string)
+                for token in tokenize.generate_tokens(io.StringIO(text).readline)
+                if token.type == tokenize.COMMENT]
+    except (tokenize.TokenError, SyntaxError):
+        return []
+
+
 def marker_lines(text: str, suffix: str) -> set[int]:
-    """The lines where a comment of a `suffix` file says `synthetic`. Strings,
-    identifiers and code do not count, and a file type without a known comment
-    syntax has no markers."""
-    tokens = COMMENT_SYNTAX.get(suffix)
-    if tokens is None or not SYNTHETIC.search(text):
+    """The lines where a comment says `synthetic`. Only Rust and Python, the
+    languages test maps are written in, are lexed; any other file has no
+    markers, since its comments cannot be told from its strings."""
+    if not SYNTHETIC.search(text):
+        return set()
+    if suffix == ".py":
+        return {line for line, comment in python_comment_lines(text)
+                if SYNTHETIC.search(comment)}
+    if suffix != ".rs":
         return set()
     found = set()
-    for token in tokens.finditer(text):
-        if token.lastgroup != "comment":
-            continue
-        for word in SYNTHETIC.finditer(text, token.start(), token.end()):
+    for start, end in rust_comments(text):
+        for word in SYNTHETIC.finditer(text, start, end):
             found.add(text.count("\n", 0, word.start()) + 1)
     return found
 

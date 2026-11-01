@@ -164,12 +164,21 @@ class Tiles(unittest.TestCase):
                       "let c = '\"'; let label = \"// synthetic\";",
                       'let label = r#"// synthetic"#;', 'let label = "\n// synthetic\n";',
                       'let label = r#"\n// synthetic\n"#;', "// nonsynthetic",
-                      '#[cfg(feature = "synthetic")]', "&'a str = \"// synthetic\";"):
+                      '#[cfg(feature = "synthetic")]', "&'a str = \"// synthetic\";",
+                      "const LABEL: &'static str = \"'// synthetic\";",
+                      "fn f<'a, 'b>(x: &'a str, y: &'b str) { g(\"'// synthetic\") }",
+                      "let c = '\\''; let s = \"// synthetic\";",
+                      "let c = b'\"'; let s = \"// synthetic\";",
+                      'let s = "\\"// synthetic";', 'let s = br##"x"#\n// synthetic\n"##;',
+                      'let s = "unterminated\n// synthetic\n',
+                      '/* /* */ " */ "// synthetic";'):
             with self.subTest(above=above):
                 self.assertEqual(len(tiles_in(f"{above}\n{tile}")), 1)
         for above in ("// A synthetic map.", "/// Synthetic.", "/* synthetic */",
                       "/*\n * A synthetic map.\n */", 'let label = "x"; // synthetic',
-                      "let c = '\"'; // synthetic", "fn f<'a>(x: &'a str) {} // synthetic"):
+                      "let c = '\"'; // synthetic", "fn f<'a>(x: &'a str) {} // synthetic",
+                      '/* /* nested */ synthetic */', "let c = '\\u{22}'; // synthetic",
+                      'let s = r#"a"b"#; // synthetic', "let r = 'r'; // synthetic"):
             with self.subTest(above=above):
                 self.assertEqual(tiles_in(f"{above}\n{tile}"), [])
         expired = "/* synthetic */\n" + "\n" * MARKER_LINES + tile
@@ -180,12 +189,27 @@ class Tiles(unittest.TestCase):
         self.assertEqual(tiles_in(f"# A synthetic map.\n{tile}", ".py"), [])
         self.assertEqual(tiles_in(f"x = 1  # synthetic\n{tile}", ".py"), [])
         for above in ("x = a // synthetic", 'x = "# synthetic"', '"""\n# synthetic\n"""',
-                      "'''\n# synthetic\n'''", "synthetic = 1"):
+                      "\'\'\'\n# synthetic\n\'\'\'", "synthetic = 1",
+                      '"""\\"""\n# synthetic\n"""', "\'\'\'\\\'\'\'\n# synthetic\n\'\'\'",
+                      'x = f"{y!r:# synthetic}"', 'x = "\\\n# synthetic"'):
             with self.subTest(above=above):
                 self.assertEqual(len(tiles_in(f"{above}\n{tile}", ".py")), 1)
+        self.assertEqual(len(tiles_in(f"# synthetic\n(\n{tile}", ".py")), 1,
+                         "a file that does not tokenize has no markers")
+        self.assertEqual(len(tiles_in(f"# synthetic\n{chr(10) * MARKER_LINES}{tile}", ".py")), 1,
+                         "an expired comment")
+        self.assertEqual(tiles_in(f"# synthetic\n{tile}# synthetic\n{tile}", ".py"), [])
         self.assertEqual(len(tiles_in(f"# synthetic\n{tile}", ".rs")), 1, "not Rust's comment")
-        self.assertEqual(len(tiles_in(f"echo $# synthetic\n{tile}", ".sh")), 1, "not a comment")
-        self.assertEqual(len(tiles_in(f"// synthetic\n{tile}", ".md")), 1, "no known syntax")
+        for suffix, above in ((".md", "// synthetic"), (".txt", "# synthetic"),
+                              (".js", "const a = `\n// synthetic\n`;"),
+                              (".ts", "// synthetic"),
+                              (".cpp", 'auto a = R"(\n// synthetic\n)";'),
+                              (".sh", "a='\n# synthetic\n'"), (".sh", "echo $# synthetic"),
+                              (".nix", "a = ''\n# synthetic\n'';"),
+                              (".yml", "a: |\n  # synthetic\n"), (".gd", "# synthetic")):
+            with self.subTest(suffix=suffix, above=above):
+                self.assertEqual(len(tiles_in(f"{above}\n{tile}", suffix)), 1,
+                                 "comments it cannot tell from strings are no markers")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "art.py").write_text(f"# synthetic\n{tile}")
