@@ -9,7 +9,7 @@ use std::path::Path;
 use psiv_pack::Rom;
 use psiv_pack::decode::Decodes;
 use psiv_pack::json::{Json, dumps};
-use psiv_pack::maps::{ExtractedMaps, draw, layouts, overworld, pictures};
+use psiv_pack::maps::{ExtractedMaps, draw, layouts, overworld, patches, pictures};
 use psiv_pack::png::image_sha256;
 
 /// Every real map, as the pack decodes and renders it. A render is held to
@@ -21,7 +21,6 @@ fn layouts(
     maps: &ExtractedMaps,
 ) -> Result<Vec<Json>, psiv_pack::PackError> {
     let effects = psiv_pack::maps::effects::extract_map_effects(data, maps.real())?;
-    let updates = psiv_pack::maps::updates::extract_map_updates(data, maps.real())?;
     let mut out = Vec::new();
     for record in maps.real() {
         let section = overworld::decode_map_section(data, decodes, record)?;
@@ -47,10 +46,21 @@ fn layouts(
             )
             .with("priority", counts.to_json())
             .with(
-                "pictures",
-                pictures_json(&pictures::map_pictures(
-                    data, decodes, record, &effects, &updates,
-                )?),
+                "patch_counts",
+                patches::resolve_map_effects(
+                    decoded,
+                    effects
+                        .per_map
+                        .get(&record.id)
+                        .map_or(&[][..], Vec::as_slice),
+                )?
+                .2
+                .to_json(),
+            )
+            .with("scene_chunks", patches::scene_patch_chunks(data, record)?)
+            .with(
+                "warp_anomalies",
+                psiv_pack::maps::file::warps(record, &decoded.collision)?.1,
             );
         if let Some(world) = section.overworld() {
             let mut opening = Vec::new();
@@ -82,27 +92,7 @@ fn layouts(
     Ok(out)
 }
 
-/// One map's picture JSON, as the map file will carry it.
-fn pictures_json(pictures: &pictures::Pictures) -> Json {
-    let images = pictures.update_images.as_ref().map(|names| {
-        let mut out = Json::object();
-        for (name, indexed) in names {
-            out.insert(name.as_str(), indexed.as_str());
-        }
-        out
-    });
-    Json::object()
-        .with("map_effects", pictures.map_effects.clone())
-        .with("patch_counts", pictures.patch_counts.to_json())
-        .with("overworld_patches", pictures.overworld_patches.clone())
-        .with("scene_chunks", pictures.scene_chunks.clone())
-        .with("variants", pictures.variants.clone())
-        .with("patch_tiles", pictures.patch_tiles.clone())
-        .with("update_images", images)
-}
-
-/// `build_pack`'s sprite work per map, as the map file and manifest will carry
-/// it. The sheets themselves are claimed.
+/// What `build_pack`'s sprite work hands the manifest, per map.
 fn map_sprites(data: &[u8], decodes: &Decodes) -> Result<Json, psiv_pack::PackError> {
     let inputs = pictures::map_inputs(data, decodes)?;
     let field = psiv_pack::sprites::emit::field_sprites(data, decodes, &inputs)?;
@@ -110,30 +100,9 @@ fn map_sprites(data: &[u8], decodes: &Decodes) -> Result<Json, psiv_pack::PackEr
         .maps
         .iter()
         .map(|map| {
-            let mut deferred = Vec::new();
-            for effect in &map.effects {
-                if let Json::Object(pairs) = effect
-                    && let Some((_, Json::Array(paths))) = pairs.iter().find(|(k, _)| k == "paths")
-                {
-                    for path in paths {
-                        if let Json::Object(fields) = path
-                            && let Some((_, found)) =
-                                fields.iter().find(|(k, _)| k == "deferred_effects")
-                        {
-                            deferred.push(found.clone());
-                        }
-                    }
-                }
-            }
             Json::object()
                 .with("id", map.id)
-                .with(
-                    "npcs",
-                    map.npcs.iter().map(|npc| npc.to_json()).collect::<Vec<_>>(),
-                )
                 .with("artless", map.artless.clone())
-                .with("chests", map.chests.clone())
-                .with("deferred_effects", deferred)
                 .with(
                     "palette_totals",
                     Json::object()

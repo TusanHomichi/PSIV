@@ -290,7 +290,7 @@ the number a port PR records. Until the switch the Python builder stays the pack
 uses, so a PR that edits a section `psiv-pack` already claims changes both
 builders alike: the gate fails on the Python change alone. A claim names a
 file, a directory, or with a `*` the matching files directly in a directory, so
-`maps/*.png` holds every map picture while the map JSON stays Python's. Find whether a
+a section can claim part of a directory Python still writes the rest of. Find whether a
 section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
 psiv-pack -- --claims`; `python3 tools/pack_parity.py --keep <dir>` keeps both
 packs for a look at a difference. A change to `psiv_tools/png.py` or to how

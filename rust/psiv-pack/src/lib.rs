@@ -93,14 +93,9 @@ pub const SECTIONS: &[Section] = &[
         build: sound::build,
     },
     Section {
-        name: "map_pictures",
-        claims: &["maps/*.png"],
+        name: "maps",
+        claims: &["maps", "sprites"],
         build: maps::pictures::build,
-    },
-    Section {
-        name: "sprites",
-        claims: &["sprites"],
-        build: sprites::emit::build,
     },
 ];
 

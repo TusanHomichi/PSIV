@@ -1,8 +1,8 @@
-//! The `map_pictures` section: every PNG under `maps/`, built from the ROM map
-//! by map, in parallel. One map's work is [`map_pictures`], the part of
-//! `psiv_tools/pack.py`'s map loop that makes pictures; its JSON goes to the map
-//! file once the sprites are ported (slice 4), and until then the gate holds it
-//! to Python as part of the `layouts` probe.
+//! The `maps` section: `maps/` and `sprites/`, built from the ROM. Sheets are
+//! registered first, in map order, because the first object to ask names a
+//! sheet's file. Then each map's pictures and file are built in parallel: one
+//! map's work is [`map_pictures`] and [`super::file::map_file`], which together
+//! are `psiv_tools/pack.py`'s map loop.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -13,10 +13,11 @@ use sha2::{Digest, Sha256};
 
 use super::draw::{priority_overlay, render_layout};
 use super::effects::{MapEffects, extract_map_effects, field, int, text};
+use super::file::map_file;
 use super::layouts::{
     Layout, MapLayout, Plane, decode_collision, map_palette_rgb, unloaded_patterns,
 };
-use super::overworld::decode_map_section;
+use super::overworld::{MapSection, decode_map_section};
 use super::patches::{
     PatchCounts, atlas_json, index_overworld_patches, index_writes, patch_atlas,
     resolve_map_effects, resolve_overworld_patches, scene_patch_chunks,
@@ -27,6 +28,7 @@ use super::{ExtractedMaps, extract_maps};
 use crate::decode::{Call, Decodes};
 use crate::json::Json;
 use crate::png::{self, hex};
+use crate::sprites::emit::{MapSprites, field_sprites, write_sprites};
 use crate::{PackError, Rom};
 
 /// A map's file stem.
@@ -193,15 +195,18 @@ fn needs_index_images(programs: &[Json]) -> bool {
 }
 
 /// One map's pictures, as `build_pack`'s loop makes them. The index images come
-/// last: they are every other picture with its palette rewritten.
+/// last: they are every other picture with its palette rewritten. `entries` is
+/// the map's effect list, with its palette effects on it.
+#[allow(clippy::too_many_arguments)]
 pub fn map_pictures(
     rom: &[u8],
     decodes: &Decodes,
     record: &MapRecord,
+    section: &MapSection,
     effects: &MapEffects,
+    entries: &[Json],
     updates: &MapUpdates,
 ) -> Result<Pictures, PackError> {
-    let section = decode_map_section(rom, decodes, record)?;
     let decoded = section.layout();
     let mut palette = map_palette_rgb(rom, decoded.spec.palette)?;
     palette.truncate(32);
@@ -235,10 +240,6 @@ pub fn map_pictures(
         &mut files,
     )?;
 
-    let entries = effects
-        .per_map
-        .get(&record.id)
-        .map_or(&[][..], Vec::as_slice);
     let (mut map_effects, written, patch_counts) = resolve_map_effects(decoded, entries)?;
     let (mut overworld_patches, composite_pairs) =
         resolve_overworld_patches(decoded, section.overworld())?;
@@ -319,13 +320,16 @@ pub fn map_inputs(rom: &[u8], decodes: &Decodes) -> Result<MapInputs, PackError>
     })
 }
 
-/// The section: every real map, on one thread per core. A failure stops further
-/// maps from starting and is returned once the running ones end.
+/// The section: sheets in map order, then every real map, on one thread per
+/// core. A failure stops further maps from starting and is returned once the
+/// running ones end.
 pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let data = rom.bytes();
     let decodes = Decodes::new(data);
     let inputs = map_inputs(data, &decodes)?;
-    let records: Vec<&MapRecord> = inputs.maps.real().collect();
+    let field = field_sprites(data, &decodes, &inputs)?;
+    write_sprites(data, &decodes, root, &field)?;
+    let records: Vec<(&MapRecord, &MapSprites)> = inputs.maps.real().zip(&field.maps).collect();
     let next = AtomicUsize::new(0);
     let stop = AtomicBool::new(false);
     let failure = Mutex::new(None);
@@ -334,17 +338,12 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         for _ in 0..workers {
             scope.spawn(|| {
                 while !stop.load(Ordering::Relaxed) {
-                    let Some(record) = records.get(next.fetch_add(1, Ordering::Relaxed)) else {
+                    let Some(&(record, sprites)) =
+                        records.get(next.fetch_add(1, Ordering::Relaxed))
+                    else {
                         break;
                     };
-                    let result =
-                        map_pictures(data, &decodes, record, &inputs.effects, &inputs.updates)
-                            .and_then(|pictures| {
-                                pictures.files.iter().try_for_each(|(name, image)| {
-                                    crate::write_file(root, name, image)
-                                })
-                            });
-                    if let Err(error) = result {
+                    if let Err(error) = write_map(data, &decodes, root, record, sprites, &inputs) {
                         stop.store(true, Ordering::Relaxed);
                         failure
                             .lock()
@@ -359,6 +358,37 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         .into_inner()
         .unwrap_or_else(PoisonError::into_inner)
         .map_or(Ok(()), Err)
+}
+
+/// One map's pictures and file.
+fn write_map(
+    data: &[u8],
+    decodes: &Decodes,
+    root: &Path,
+    record: &MapRecord,
+    sprites: &MapSprites,
+    inputs: &MapInputs,
+) -> Result<(), PackError> {
+    let section = decode_map_section(data, decodes, record)?;
+    let pictures = map_pictures(
+        data,
+        decodes,
+        record,
+        &section,
+        &inputs.effects,
+        &sprites.effects,
+        &inputs.updates,
+    )?;
+    for (name, image) in &pictures.files {
+        crate::write_file(root, name, image)?;
+    }
+    let programs = inputs
+        .updates
+        .per_map
+        .get(&record.id)
+        .map_or(&[][..], Vec::as_slice);
+    let (file, _anomalies) = map_file(data, record, &section, &pictures, sprites, programs)?;
+    crate::write_json(root, &format!("maps/{}.json", map_stem(record)), &file).map(drop)
 }
 
 #[cfg(test)]

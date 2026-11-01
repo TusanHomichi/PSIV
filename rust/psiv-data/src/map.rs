@@ -127,7 +127,7 @@ pub struct MapRecord {
     #[serde(default)]
     pub map_update_palette: Option<Vec<u16>>,
     /// Original PNG -> additive palette-index PNG (including variants/atlases).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub map_update_images: std::collections::BTreeMap<String, String>,
     /// Decoded whole-layout replacements referenced by `layout_replace`
     /// writes, shipped as first-class variants with their own collision.
@@ -145,12 +145,12 @@ pub struct MapRecord {
     pub patch_tiles: Option<PatchTiles>,
     /// Original overworld page-hook records. They are kept separate from
     /// `MapDataManager` and from their render/collision resolution below.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layout_patches: Vec<OverworldLayoutPatch>,
     /// Flag-selected, composed page-hook results for this full-map build.
     /// Retail also replays hooks when a page streams mid-map; this record does
     /// not claim to model a flag changing while the same map remains loaded.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overworld_patches: Option<Vec<OverworldPatch>>,
 }
 

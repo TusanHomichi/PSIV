@@ -160,6 +160,50 @@ impl From<serde_json::Value> for Json {
     }
 }
 
+impl From<&Json> for serde_json::Value {
+    fn from(value: &Json) -> Self {
+        use serde_json::Value;
+        match value {
+            Json::Null => Value::Null,
+            Json::Bool(b) => Value::Bool(*b),
+            Json::Int(i) => i64::try_from(*i)
+                .map(Value::from)
+                .or_else(|_| u64::try_from(*i).map(Value::from))
+                .unwrap_or(Value::Null),
+            Json::Float(f) => Value::from(*f),
+            Json::Str(s) => Value::String(s.clone()),
+            Json::Array(items) => Value::Array(items.iter().map(Value::from).collect()),
+            Json::Object(pairs) => Value::Object(
+                pairs
+                    .iter()
+                    .map(|(k, v)| (k.clone(), Value::from(v)))
+                    .collect(),
+            ),
+        }
+    }
+}
+
+/// Lay `over` on `base`: objects merge by key, arrays by position, and anything
+/// else is replaced. What a schema type doesn't carry goes on this way.
+pub fn overlay(base: &mut Json, over: &Json) {
+    match (base, over) {
+        (Json::Object(pairs), Json::Object(extra)) => {
+            for (key, value) in extra {
+                match pairs.iter_mut().find(|(k, _)| k == key) {
+                    Some((_, slot)) => overlay(slot, value),
+                    None => pairs.push((key.clone(), value.clone())),
+                }
+            }
+        }
+        (Json::Array(items), Json::Array(extra)) if items.len() == extra.len() => {
+            for (item, value) in items.iter_mut().zip(extra) {
+                overlay(item, value);
+            }
+        }
+        (slot, value) => *slot = value.clone(),
+    }
+}
+
 /// `json.dumps(value, indent=2, sort_keys=sort_keys)`.
 pub fn dumps(value: &Json, sort_keys: bool) -> String {
     let mut out = String::new();
@@ -312,6 +356,54 @@ pub fn float_repr(x: f64) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_overlay_merges_objects_and_arrays_and_replaces_the_rest() {
+        let mut base = Json::object()
+            .with("a", 1)
+            .with(
+                "list",
+                vec![Json::object().with("x", 1), Json::object().with("x", 2)],
+            )
+            .with("rows", vec![1, 2]);
+        let over = Json::object()
+            .with("b", 2)
+            .with("list", vec![Json::object().with("y", 3), Json::object()])
+            .with("rows", vec![9]);
+        overlay(&mut base, &over);
+        assert_eq!(
+            base,
+            Json::object()
+                .with("a", 1)
+                .with(
+                    "list",
+                    vec![
+                        Json::object().with("x", 1).with("y", 3),
+                        Json::object().with("x", 2)
+                    ]
+                )
+                .with("rows", vec![9])
+                .with("b", 2)
+        );
+    }
+
+    #[test]
+    fn json_round_trips_through_serde_json() {
+        let value = Json::object()
+            .with("n", -3)
+            .with("big", 1u64 << 40)
+            .with("s", "x")
+            .with("none", Json::Null)
+            .with("list", vec![true]);
+        assert_eq!(
+            Json::from(serde_json::Value::from(&value)),
+            value_sorted(&value)
+        );
+    }
+
+    fn value_sorted(value: &Json) -> Json {
+        Json::from(serde_json::Value::from(value))
+    }
+
     use super::*;
 
     #[test]
