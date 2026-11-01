@@ -25,10 +25,9 @@ change (`tools/repo_files.py`), whatever its suffix:
   which is how cartridge art was once transcribed into source. Art loads from
   the pack; a test that wants a picture of a decoded tile compares its digest.
   Every eight contiguous rows are one tile. A synthetic picture - an ASCII test
-  map - says so: a comment (in a Rust or Python file, which are lexed; a string
-  or code saying the word does not count, and no other file type has markers)
-  containing `synthetic` within
-  `MARKER_LINES` lines above a tile's first literal exempts that tile alone.
+  map - is listed here by the digest of its rows (`SYNTHETIC_TILES`), so it is
+  read in review once, and any other tile beside it still fails. No comment or
+  other text in a file can exempt a tile.
   This needs no local input.
 
 Only paths and counts are printed; the pack's names and values never leave the
@@ -41,13 +40,10 @@ from __future__ import annotations
 import argparse
 import collections
 import hashlib
-import io
 import json
 import os
 import re
 import sys
-import tokenize
-from collections.abc import Iterator
 from pathlib import Path
 
 try:  # imported as `tools.check_rom_tables` by tests and check_docs
@@ -92,14 +88,14 @@ TILE_LITERAL = re.compile(r""""([^"\\\n]{8})"|'([^'\\\n]{8})'""")
 NUMBERED_NAME = re.compile(r"([A-Za-z]+)\d+")
 #: What may sit between two rows of one tile.
 TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
-#: How far above a tile its `synthetic` comment may be.
-MARKER_LINES = 3
-SYNTHETIC = re.compile(r"\bsynthetic\b", re.IGNORECASE)
-#: What the Rust lexer stops at: a comment, a string, or a character literal,
-#: whose exactly one character tells it from a lifetime (`'a`).
-RUST_TOKEN = re.compile(r"""//|/\*|\b[bc]?r(\#*)"|"|'(?:\\[^\n][^'\n]*|[^'\\\n])'""")
-RUST_BLOCK_EDGE = re.compile(r"/\*|\*/")
-RUST_STRING_END = re.compile(r'\\.|"', re.DOTALL)
+#: The synthetic pictures the tree may hold, by `tile_digest`: test maps of walls
+#: and floor drawn by hand, with no cartridge content. Add one only after reading it.
+SYNTHETIC_TILES = frozenset({
+    "803c0b3ee2762eb85c668d8afcc88721340cb8b424bfa81f5854ca3ab47bedf0",  # rust/psiv-core/tests/determinism.rs
+    "8f1b5495421b4c544ca84a45b0a41cf17e44c1a5aa9241c784bfe8478dbe79b5",  # rust/psiv-core/tests/party.rs
+    "bd495137a8e5e6f5e6e59baa7f8f63c1e2dda165bd29ec4e6c3a197dbb1086f6",  # rust/psiv-core/tests/party.rs
+    "48b4104d901183f4a154e9ffcd97b9f569c648315ccc090f5687d0e5d4e20fb5",  # rust/psiv-core/tests/wrapping.rs
+})
 
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 NUMBER = re.compile(r"\d+")
@@ -173,70 +169,15 @@ def numbered_names(rows: list[str]) -> bool:
     )
 
 
-def rust_comments(text: str) -> Iterator[tuple[int, int]]:
-    """The spans of a Rust file's comments, block comments nesting."""
-    position = 0
-    while token := RUST_TOKEN.search(text, position):
-        position = token.end()
-        kind = token.group()
-        if kind == "//":
-            end = text.find("\n", position)
-            position = end if end >= 0 else len(text)
-            yield token.start(), position
-        elif kind == "/*":
-            depth = 1
-            while depth and (edge := RUST_BLOCK_EDGE.search(text, position)):
-                position = edge.end()
-                depth += 1 if edge.group() == "/*" else -1
-            if depth:
-                position = len(text)
-            yield token.start(), position
-        elif kind == '"':
-            while (end := RUST_STRING_END.search(text, position)) and end.group() != '"':
-                position = end.end()
-            if end is None:
-                return
-            position = end.end()
-        elif kind.endswith('"'):
-            end = text.find('"' + token.group(1), position)
-            if end < 0:
-                return
-            position = end + 1 + len(token.group(1))
+def tile_digest(rows: list[str]) -> str:
+    """What `SYNTHETIC_TILES` pins: exactly these eight rows, in order."""
+    return hashlib.sha256("\n".join(rows).encode()).hexdigest()
 
 
-def python_comment_lines(text: str) -> list[tuple[int, str]]:
-    """`(line, comment)` for a Python file, none if it does not tokenize."""
-    try:
-        return [(token.start[0], token.string)
-                for token in tokenize.generate_tokens(io.StringIO(text).readline)
-                if token.type == tokenize.COMMENT]
-    except (tokenize.TokenError, SyntaxError):
-        return []
-
-
-def marker_lines(text: str, suffix: str) -> set[int]:
-    """The lines where a comment says `synthetic`. Only Rust and Python, the
-    languages test maps are written in, are lexed; any other file has no
-    markers, since its comments cannot be told from its strings."""
-    if not SYNTHETIC.search(text):
-        return set()
-    if suffix == ".py":
-        return {line for line, comment in python_comment_lines(text)
-                if SYNTHETIC.search(comment)}
-    if suffix != ".rs":
-        return set()
-    found = set()
-    for start, end in rust_comments(text):
-        for word in SYNTHETIC.finditer(text, start, end):
-            found.add(text.count("\n", 0, word.start()) + 1)
-    return found
-
-
-def tiles_in(text: str, suffix: str = ".rs") -> list[int]:
-    """The first line of every pixel-string tile `text` holds, synthetic ones
+def tiles_in(text: str, allowed: frozenset[str] = SYNTHETIC_TILES) -> list[int]:
+    """The first line of every pixel-string tile `text` holds, those `allowed`
     excluded. Every eight contiguous rows are a tile of their own: an exempt
     one says nothing about the next."""
-    markers = None
     found = []
     start, previous = 0, None
     rows: list[str] = []
@@ -253,12 +194,8 @@ def tiles_in(text: str, suffix: str = ".rs") -> list[int]:
         previous = match.end()
         if len(rows) < 8:
             continue
-        if not numbered_names(rows):
-            if markers is None:
-                markers = marker_lines(text, suffix)
-            line = text.count("\n", 0, start) + 1
-            if not markers.intersection(range(line - MARKER_LINES, line + 1)):
-                found.append(line)
+        if not numbered_names(rows) and tile_digest(rows) not in allowed:
+            found.append(text.count("\n", 0, start) + 1)
         rows = []
     return found
 
@@ -291,10 +228,10 @@ def run(root: Path = Path("."), pack: Path | None = None,
         if b"\0" in data:
             continue
         text = data.decode("utf-8", errors="replace")
-        for line in tiles_in(text, path.suffix):
+        for line in tiles_in(text):
             problems.append(f"{name}:{line}: an 8x8 tile written as pixel strings (load art "
-                            f"from the pack, compare a digest, or mark a synthetic picture; "
-                            f"#149)")
+                            f"from the pack, or compare a digest; a synthetic picture goes in "
+                            f"SYNTHETIC_TILES; #149)")
         if records is None:
             continue
         scanned += 1

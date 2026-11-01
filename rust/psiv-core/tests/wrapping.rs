@@ -442,7 +442,6 @@ fn a_wrapping_map_replays_identically() {
             .collect()
     }
 
-    // A synthetic map.
     #[rustfmt::skip]
     let rows = [
         "..D.....",

@@ -14,8 +14,8 @@ import unittest
 from pathlib import Path
 
 from tools import check_rom_tables
-from tools.check_rom_tables import (MARKER_LINES, RECORD_WINDOW, REMOVED_BLOBS, STATS,
-                                    TABLE_RECORDS, blob_id, run, tiles_in)
+from tools.check_rom_tables import (RECORD_WINDOW, REMOVED_BLOBS, STATS, SYNTHETIC_TILES,
+                                    TABLE_RECORDS, blob_id, run, tile_digest, tiles_in)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -111,8 +111,7 @@ class Guard(unittest.TestCase):
 
 
 #: A synthetic 8x8 pattern, one row per literal.
-ROWS = ["KKKKKKKK", "KQQQQQQK", "KQZZZZQK", "KQZKKZQK",
-        "KQZKKZQK", "KQZZZZQK", "KQQQQQQK", "KKKKKKKK"]
+ROWS = "KKKKKKKK KQQQQQQK KQZZZZQK KQZKKZQK KQZKKZQK KQZZZZQK KQQQQQQK KKKKKKKK".split()
 
 
 def literal_block(rows, quote='"', per_line=1):
@@ -131,91 +130,41 @@ class Tiles(unittest.TestCase):
         text = "".join(literal_block(ROWS) for _ in range(9))
         self.assertEqual(len(tiles_in(text)), 9)
 
-    def test_a_synthetic_picture_says_so(self):
-        marked = "// A synthetic map.\n" + literal_block(ROWS)
-        self.assertEqual(tiles_in(marked), [])
-        far = "// A synthetic map.\n" + "\n" * MARKER_LINES + literal_block(ROWS)
-        self.assertEqual(len(tiles_in(far)), 1, "a marker past the window does not count")
+    def test_a_listed_picture_passes_and_only_it(self):
+        listed = frozenset({tile_digest(ROWS)})
+        self.assertEqual(tiles_in(literal_block(ROWS), listed), [])
+        changed = ROWS[:7] + ["KKKKKKKQ"]
+        self.assertEqual(len(tiles_in(literal_block(changed), listed)), 1, "one pixel changed")
+        self.assertEqual(len(tiles_in(literal_block(ROWS[1:] + ROWS[:1]), listed)), 1, "rows reordered")
 
-    def test_a_marker_exempts_one_tile(self):
-        marked = "// A synthetic map.\n"
-        self.assertEqual(tiles_in(marked + literal_block(ROWS + ROWS)), [11], "nested, one marker")
-        flat = ",\n".join(f'"{row}"' for row in ROWS + ROWS)
-        self.assertEqual(tiles_in(marked + flat), [10], "flat, one marker")
-        self.assertEqual(tiles_in(marked + literal_block(ROWS * 3)), [11, 19])
-        split = marked + literal_block(ROWS) + marked + literal_block(ROWS)
-        self.assertEqual(tiles_in(split), [], "each marked")
-        one_line = ", ".join(f'"{row}"' for row in ROWS)
-        self.assertEqual(tiles_in(f"{marked}{one_line},\n\n\n{one_line}\n"), [5],
-                         "the second tile's window ends short of the marker")
+    def test_a_listed_picture_exempts_itself_alone(self):
+        listed = frozenset({tile_digest(ROWS)})
+        other = ROWS[:7] + ["KKKKKKKQ"]
+        self.assertEqual(tiles_in(literal_block(ROWS + other), listed), [10], "nested")
+        flat = literal_block(ROWS + other, per_line=16)
+        self.assertEqual(tiles_in(flat, listed), [2], "flat")
+        self.assertEqual(tiles_in(literal_block(ROWS + ROWS), listed), [], "listed twice")
 
     def test_rows_after_an_exemption_are_still_read(self):
         names = [f"SYMBOL{n:02}" for n in range(1, 9)]
-        self.assertEqual(tiles_in(literal_block(names + ROWS)), [10], "after a name list")
-        self.assertEqual(tiles_in(literal_block(names * 2 + ROWS)), [18], "after two lists")
-        self.assertEqual(tiles_in(literal_block(ROWS + names)), [2], "before a name list")
-        self.assertEqual(tiles_in("// synthetic\n" + literal_block(ROWS + names + ROWS)), [19],
-                         "a marked tile, names, then an unmarked tile")
+        self.assertEqual(len(tiles_in(literal_block(names + ROWS))), 1, "after a list")
+        self.assertEqual(len(tiles_in(literal_block(names + names + ROWS))), 1, "after two")
+        self.assertEqual(len(tiles_in(literal_block(ROWS + names))), 1, "before a list")
+        listed = frozenset({tile_digest(ROWS)})
+        other = ROWS[:7] + ["KKKKKKKQ"]
+        self.assertEqual(tiles_in(literal_block(ROWS + names + other), listed), [18],
+                         "listed tile, names, then a tile that is not listed")
 
-    def test_only_a_comment_is_a_marker(self):
+    def test_no_text_in_the_file_exempts_a_tile(self):
         tile = literal_block(ROWS)
-        for above in ('let label = "synthetic";', 'let label = "// synthetic";',
-                      "let synthetic = 1;", "fn synthetic() {}", "synthetic();",
-                      "let c = '\"'; let label = \"// synthetic\";",
-                      'let label = r#"// synthetic"#;', 'let label = "\n// synthetic\n";',
-                      'let label = r#"\n// synthetic\n"#;', "// nonsynthetic",
-                      '#[cfg(feature = "synthetic")]', "&'a str = \"// synthetic\";",
-                      "const LABEL: &'static str = \"'// synthetic\";",
-                      "fn f<'a, 'b>(x: &'a str, y: &'b str) { g(\"'// synthetic\") }",
-                      "let c = '\\''; let s = \"// synthetic\";",
-                      "let c = b'\"'; let s = \"// synthetic\";",
-                      'let s = "\\"// synthetic";', 'let s = br##"x"#\n// synthetic\n"##;',
-                      'let s = "unterminated\n// synthetic\n',
-                      '/* /* */ " */ "// synthetic";'):
-            with self.subTest(above=above):
-                self.assertEqual(len(tiles_in(f"{above}\n{tile}")), 1)
-        for above in ("// A synthetic map.", "/// Synthetic.", "/* synthetic */",
-                      "/*\n * A synthetic map.\n */", 'let label = "x"; // synthetic',
-                      "let c = '\"'; // synthetic", "fn f<'a>(x: &'a str) {} // synthetic",
-                      '/* /* nested */ synthetic */', "let c = '\\u{22}'; // synthetic",
-                      'let s = r#"a"b"#; // synthetic', "let r = 'r'; // synthetic"):
-            with self.subTest(above=above):
-                self.assertEqual(tiles_in(f"{above}\n{tile}"), [])
-        expired = "/* synthetic */\n" + "\n" * MARKER_LINES + tile
-        self.assertEqual(len(tiles_in(expired)), 1, "an expired comment")
+        for above in ("// A synthetic map.", "/* synthetic */", "# synthetic",
+                      'let label = "// synthetic";', "const L: &'static str = \"'// synthetic\";",
+                      "`// synthetic`", tile_digest(ROWS)):
+            self.assertEqual(len(tiles_in(f"{above}\n{tile}")), 1, above)
 
-    def test_comment_syntax_follows_the_file_type(self):
-        tile = literal_block(ROWS)
-        self.assertEqual(tiles_in(f"# A synthetic map.\n{tile}", ".py"), [])
-        self.assertEqual(tiles_in(f"x = 1  # synthetic\n{tile}", ".py"), [])
-        for above in ("x = a // synthetic", 'x = "# synthetic"', '"""\n# synthetic\n"""',
-                      "\'\'\'\n# synthetic\n\'\'\'", "synthetic = 1",
-                      '"""\\"""\n# synthetic\n"""', "\'\'\'\\\'\'\'\n# synthetic\n\'\'\'",
-                      'x = f"{y!r:# synthetic}"', 'x = "\\\n# synthetic"'):
-            with self.subTest(above=above):
-                self.assertEqual(len(tiles_in(f"{above}\n{tile}", ".py")), 1)
-        self.assertEqual(len(tiles_in(f"# synthetic\n(\n{tile}", ".py")), 1,
-                         "a file that does not tokenize has no markers")
-        self.assertEqual(len(tiles_in(f"# synthetic\n{chr(10) * MARKER_LINES}{tile}", ".py")), 1,
-                         "an expired comment")
-        self.assertEqual(tiles_in(f"# synthetic\n{tile}# synthetic\n{tile}", ".py"), [])
-        self.assertEqual(len(tiles_in(f"# synthetic\n{tile}", ".rs")), 1, "not Rust's comment")
-        for suffix, above in ((".md", "// synthetic"), (".txt", "# synthetic"),
-                              (".js", "const a = `\n// synthetic\n`;"),
-                              (".ts", "// synthetic"),
-                              (".cpp", 'auto a = R"(\n// synthetic\n)";'),
-                              (".sh", "a='\n# synthetic\n'"), (".sh", "echo $# synthetic"),
-                              (".nix", "a = ''\n# synthetic\n'';"),
-                              (".yml", "a: |\n  # synthetic\n"), (".gd", "# synthetic")):
-            with self.subTest(suffix=suffix, above=above):
-                self.assertEqual(len(tiles_in(f"{above}\n{tile}", suffix)), 1,
-                                 "comments it cannot tell from strings are no markers")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "art.py").write_text(f"# synthetic\n{tile}")
-            (root / "art.rs").write_text(f"# synthetic\n{tile}")
-            self.assertEqual(run(root, root / "none", ["art.py"])[0], [])
-            self.assertEqual(len(run(root, root / "none", ["art.rs"])[0]), 1, "the scan's suffix")
+    def test_the_listed_pictures_are_digests(self):
+        for digest in SYNTHETIC_TILES:
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
     def test_a_numbered_name_list_is_not_a_tile(self):
         names = [f"SYMBOL{n:02}" for n in range(1, 9)]
