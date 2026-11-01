@@ -129,7 +129,39 @@ impl CampChrome {
         })
     }
 
+    /// The font with each colour of the `from` line swapped for the same
+    /// index of `to`: the same tiles on another palette line.
+    pub(crate) fn recoloured_font(
+        &self,
+        from: &[[u8; 3]],
+        to: &[[u8; 3]],
+    ) -> Option<Gd<ImageTexture>> {
+        let mut image = self.font.get_image()?;
+        for y in 0..image.get_height() {
+            for x in 0..image.get_width() {
+                let colour = image.get_pixel(x, y);
+                let rgb = [colour.r8(), colour.g8(), colour.b8()];
+                // Font art uses indices 1, 2, 14 and 15.
+                if let Some(index) = [15, 14, 2, 1].into_iter().find(|&i| from[i] == rgb) {
+                    let [r, g, b] = to[index];
+                    image.set_pixel(x, y, Color::from_rgba8(r, g, b, colour.a8()));
+                }
+            }
+        }
+        ImageTexture::create_from_image(&image)
+    }
+
     pub(crate) fn text(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
+        self.text_in(&self.font, text, cell)
+    }
+
+    /// [`CampChrome::text`] in a font from [`CampChrome::recoloured_font`].
+    pub(crate) fn text_in(
+        &self,
+        font: &Gd<ImageTexture>,
+        text: &str,
+        cell: (i32, i32),
+    ) -> Vec<Quad> {
         let mut quads = Vec::new();
         for (column, character) in text.chars().enumerate() {
             let dest_cell = (cell.0 + column as i32, cell.1);
@@ -157,7 +189,7 @@ impl CampChrome {
                 continue;
             };
             quads.push(Quad {
-                texture: self.font.clone(),
+                texture: font.clone(),
                 dest,
                 src: Rect2::new(*source, Vector2::new(CELL, CELL)),
             });

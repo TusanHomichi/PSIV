@@ -864,6 +864,23 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::Guild(guild) => {
+                if let Some(fault) = self.guild_op(guild, state, effects) {
+                    return Some(fault);
+                }
+            }
+            SceneOp::JobBoard(step) => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                use crate::scene::JobBoardStep as Step;
+                match step {
+                    Step::Hold => self.blocked = Blocked::JobBoardHold,
+                    Step::ShowList | Step::Choose | Step::Linger => {
+                        self.blocked = Blocked::JobBoard;
+                    }
+                    Step::Begin | Step::Boxes | Step::Close => {}
+                }
+            }
             SceneOp::DestinationMenu { .. } => {
                 // The pc stays on this op: the answer decides where the scene
                 // resumes (`unblock`), the way `BranchChoice`'s does. The

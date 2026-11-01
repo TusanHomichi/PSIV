@@ -28,6 +28,7 @@ pub(crate) mod actor;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
+mod guild;
 #[cfg(test)]
 mod map_update_tests;
 mod mechanics;
@@ -54,6 +55,9 @@ enum Blocked {
     EndingContinue,
     Choice,
     Destination,
+    JobBoard,
+    /// `DoMapUpdate_JoypadLoop`: the same wait, with map updates.
+    JobBoardHold,
     Battle,
     Map,
     Camera,
@@ -77,6 +81,12 @@ pub struct SceneRunner {
     party_slots: [Option<CharId>; PARTY_SLOTS],
     blocked: Blocked,
     dialogue_ended: bool,
+    /// The row the guild's board last answered; `None` is Cancel.
+    job_pick: Option<u8>,
+    /// The row `Event_HuntersGuild` is indexing.
+    guild_row: usize,
+    /// The pack's table, which the runtime hands over ([`SceneRunner::set_guild_jobs`]).
+    guild_jobs: Option<crate::scenes::hunters_guild::GuildJobs>,
     dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
     /// The retail follow chain: party followers trail the member ahead of
@@ -129,6 +139,9 @@ impl SceneRunner {
             actors: cast,
             party_slots: [None; PARTY_SLOTS],
             blocked: Blocked::No,
+            job_pick: None,
+            guild_row: 0,
+            guild_jobs: None,
             dialogue_ended: false,
             dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
@@ -219,9 +232,14 @@ impl SceneRunner {
                             | SceneOp::RidePlatform { .. }
                     )
                 }),
-            Blocked::Actor(_) | Blocked::Camera => true,
+            Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold => true,
             _ => false,
         }
+    }
+
+    /// Hands over the pack's table for `Event_HuntersGuild`.
+    pub fn set_guild_jobs(&mut self, jobs: crate::scenes::hunters_guild::GuildJobs) {
+        self.guild_jobs = Some(jobs);
     }
 
     /// The map object a [`SceneOp::RunObjectRoutine`] is running, while the
@@ -458,6 +476,15 @@ impl SceneRunner {
             Blocked::Destination => match input {
                 SceneInput::DestinationChosen | SceneInput::DestinationCancelled => Blocked::No,
                 _ => Blocked::Destination,
+            },
+            Blocked::JobBoardHold if input == SceneInput::JobBoardDone => Blocked::No,
+            Blocked::JobBoard => match input {
+                SceneInput::JobBoardDone => Blocked::No,
+                SceneInput::JobBoardPicked(row) => {
+                    self.job_pick = row;
+                    Blocked::No
+                }
+                _ => Blocked::JobBoard,
             },
             other => other,
         };

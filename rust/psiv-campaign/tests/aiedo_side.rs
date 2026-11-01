@@ -11,7 +11,7 @@ use psiv_core::{
     ActorRef, BespokeKind, CharId, Direction, Flag, GameState, RetailLocation, RetailSave,
     WanderSpeed,
 };
-use psiv_runtime::{Button, Session};
+use psiv_runtime::{Button, Pad, Session};
 
 const AIEDO_PRISON: u16 = 0x05C;
 const ROCKY_HOUSE: u16 = 0x065;
@@ -308,8 +308,206 @@ fn the_admirer_draws_his_routine_walk() {
     }
 }
 
-const STRIP_CLUB: u16 = 0x05A;
 const HUNTERS_GUILD: u16 = 0x057;
+/// Below the counter: interaction area 0 is the cell the leader faces from here.
+const RECEPTION: (u16, u16) = (29, 26);
+
+fn press(driver: &mut Driver, button: Button) {
+    driver.tick(Pad::new(button)).expect("a frame");
+    driver.neutral(1).expect("a frame");
+}
+
+fn guild_session(flags: &[u16]) -> Option<Driver> {
+    let session = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, flags)?;
+    let mut driver = Driver::new(session, None);
+    press(&mut driver, Button::Up);
+    Some(driver)
+}
+
+/// Speak until `done`, within a bound: each press pages the text.
+fn speak_until(driver: &mut Driver, done: impl Fn(&Driver) -> bool) {
+    for _ in 0..600 {
+        if done(driver) {
+            return;
+        }
+        press(driver, Button::Speak);
+        driver.neutral(6).expect("a frame");
+    }
+    panic!(
+        "no progress at the guild's counter: board {:?}, text {:?}, frames {}",
+        driver.session().job_board_view(),
+        driver.runtime().dialogue_view().map(|view| view.lines),
+        driver.frames()
+    );
+}
+
+fn cursor_is_up(driver: &Driver) -> bool {
+    driver
+        .session()
+        .job_board_view()
+        .is_some_and(|view| view.cursor_lit && !driver.runtime().dialogue_open())
+}
+
+/// The whole counter, on the pad: the welcome, the list, the cursor down to
+/// the second job, the offer and its YES, the wait for a last press.
+#[test]
+fn the_guild_takes_a_job_on_the_pad() {
+    let Some(mut driver) = guild_session(&[0x44]) else {
+        return;
+    };
+    speak_until(&mut driver, cursor_is_up);
+    let view = driver.session().job_board_view().unwrap().clone();
+    assert_eq!(view.rows.len(), 8);
+    assert!(view.rows[0].pending, "the first job's flag is not set");
+    assert!(!view.rows[1].pending, "the second job is offered");
+    press(&mut driver, Button::Down);
+    assert_eq!(driver.session().job_board_view().unwrap().cursor, 1);
+    press(&mut driver, Button::Speak);
+    assert_eq!(driver.session().job_board_view().unwrap().stamped, Some(1));
+    driver.answer(true).expect("YES");
+    assert!(flag(&driver, 0x1E), "EventFlag_TinkerbellsDog");
+    for _ in 0..200 {
+        if driver.session().job_board_view().is_none() {
+            break;
+        }
+        press(&mut driver, Button::Speak);
+    }
+    assert!(driver.session().job_board_view().is_none());
+    assert!(!driver.runtime().scene_active());
+}
+
+/// Cancel at the cursor: the goodbye, nothing taken. The text stays up with
+/// the window closed to the pad until the last press.
+#[test]
+fn cancel_at_the_guild_takes_nothing() {
+    let Some(mut driver) = guild_session(&[0x44]) else {
+        return;
+    };
+    speak_until(&mut driver, cursor_is_up);
+    press(&mut driver, Button::Cancel);
+    speak_until(&mut driver, |driver| {
+        driver.session().job_board_view().is_none()
+    });
+    assert!(!flag(&driver, 0x1E));
+}
+
+/// A job's reward, from the flags: the line and the money.
+#[test]
+fn the_guild_pays_a_finished_job() {
+    let Some(mut driver) = guild_session(&[0x1E, 0x24]) else {
+        return;
+    };
+    speak_until(&mut driver, |driver| flag(driver, 0x25));
+    assert_eq!(driver.runtime().game().money(), 3000);
+}
+
+/// Back to the title with the cursor up: the board and its retained text go.
+#[test]
+fn the_title_takes_the_board_down() {
+    let Some(mut session) = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, &[0x44]) else {
+        return;
+    };
+    let tap = |session: &mut Session, button| {
+        session.frame(Pad::new(button));
+        for _ in 0..7 {
+            session.frame(Pad::NEUTRAL);
+        }
+    };
+    tap(&mut session, Button::Up);
+    for _ in 0..600 {
+        if session.job_board_view().is_some_and(|view| view.cursor_lit) {
+            break;
+        }
+        tap(&mut session, Button::Speak);
+    }
+    assert!(session.job_board_view().is_some_and(|view| view.cursor_lit));
+    session.start_title();
+    assert!(session.job_board_view().is_none());
+    assert!(session.runtime().dialogue_view().is_none());
+}
+
+/// The welcome up to its last frame of text, the frame before it closes.
+fn welcome_ending() -> Option<Session> {
+    let mut session = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, &[0x44])?;
+    session.frame(Pad::new(Button::Up));
+    for _ in 0..7 {
+        session.frame(Pad::NEUTRAL);
+    }
+    session.frame(Pad::new(Button::Speak));
+    for _ in 0..6000 {
+        let Some(view) = session.runtime().dialogue_view() else {
+            session.frame(Pad::NEUTRAL);
+            continue;
+        };
+        if view.dismissable && view.page_end == Some(psiv_data::PageEnd::End) {
+            return Some(session);
+        }
+        let turn = view.dismissable && view.waiting;
+        session.frame(Pad::NEUTRAL);
+        if turn {
+            session.frame(Pad::new(Button::Speak));
+        }
+    }
+    panic!("the welcome never reached its last page");
+}
+
+fn hold_updates(session: &mut Session, entry: Pad) -> u64 {
+    let before = session.runtime().map_updates().calls;
+    session.frame(entry);
+    for _ in 0..80 {
+        if session
+            .job_board_view()
+            .is_some_and(|view| !view.rows.is_empty())
+        {
+            return session.runtime().map_updates().calls - before;
+        }
+        session.frame(Pad::NEUTRAL);
+    }
+    panic!("the Hold never ended");
+}
+
+/// The welcome's own `jsr DMAPlane_A_VInt` after `RunText` (`.showjobs`): the
+/// frame the text closes on runs no update and reads no pad, so the wait
+/// starts on the frame after it. `pad` is that frame's.
+fn past_the_welcomes_vint(pad: Pad) -> Option<Session> {
+    let mut session = welcome_ending()?;
+    let before = session.runtime().map_updates().calls;
+    session.frame(pad);
+    assert!(!session.runtime().dialogue_open(), "the text closed");
+    assert_eq!(session.runtime().map_updates().calls, before);
+    Some(session)
+}
+
+/// `DoMapUpdate_JoypadLoop(#$3B)` through the session: 60 updates on a
+/// timeout, the entry frame's among them.
+#[test]
+fn a_guild_hold_runs_sixty_map_updates() {
+    let Some(mut session) = past_the_welcomes_vint(Pad::NEUTRAL) else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::NEUTRAL), 60);
+}
+
+/// A press on the welcome's VInt frame is before the loop's test: the wait runs whole.
+#[test]
+fn a_press_on_the_welcomes_vint_does_not_end_the_guilds_hold() {
+    let Some(mut session) = past_the_welcomes_vint(Pad::new(Button::Start)) else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::NEUTRAL), 60);
+}
+
+/// The loop tests the pad before it updates: a press on the entry frame leaves
+/// with none.
+#[test]
+fn a_press_entering_a_guild_hold_runs_no_map_update() {
+    let Some(mut session) = past_the_welcomes_vint(Pad::NEUTRAL) else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::new(Button::Start)), 0);
+}
+
+const STRIP_CLUB: u16 = 0x05A;
 /// `TempEveFlag_StrippersDance`.
 const STRIPPERS_DANCE: Flag = Flag::temp(0x1B);
 /// The customer, `Field_Obj_Secondary`.

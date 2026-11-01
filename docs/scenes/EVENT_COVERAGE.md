@@ -147,7 +147,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0063` | `Event_ReFaze` | map trigger $4E | AngerTower_F2 | scene `Event_ReFaze` |
 | `$0064` | `Event_DeVarsDefeated` | map trigger $4B | StrengthTower_F4 | scene `Event_DeVarsDefeated` |
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
-| `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | allowlisted, #81 |
+| `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
 | `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | allowlisted, #83 |
 | `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 29 |
+| #81 | Motavia side content | 28 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 37 |
+| | total | 36 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

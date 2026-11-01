@@ -306,6 +306,7 @@ class TestManifest(PackFixtureCase):
                     "presentation",
                     "shops",
                     "ship_menu",
+                    "guild",
                 )
             )
             top_level = [f for f in first_files if len(f.parts) == 1]

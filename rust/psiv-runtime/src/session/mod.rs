@@ -117,6 +117,7 @@ mod debug_tests;
 mod destination;
 mod flight;
 mod game_over;
+mod job_board;
 mod menu_scene;
 mod notices;
 mod route;
@@ -135,6 +136,7 @@ pub use debug::{camp_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
 pub use flight::FlightView;
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
+pub use job_board::JobBoardView;
 pub use notices::FieldNoticeOpened;
 pub use start::{FALLBACK_SPAWN, Start};
 pub use title::{
@@ -155,6 +157,7 @@ pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 use battle::BattleMode;
 use destination::DestinationMode;
 use game_over::GameOverMode;
+use job_board::JobBoardMode;
 use menu_scene::MenuScene;
 use title::TitleMode;
 
@@ -339,6 +342,8 @@ pub struct Session {
     /// The destination menu a scene's `SceneOp::DestinationMenu` opened
     /// (`destination.rs`). `Some` means the menu owns the pad.
     destination: Option<DestinationMode>,
+    /// The Hunter's Guild list window its scene holds (`job_board.rs`).
+    job_board: Option<JobBoardMode>,
     flight: Option<FlightView>,
     /// The scene a menu command handed the field to, and the menu's resume for
     /// when it ends (`menu_scene.rs`). `Some` means the field owns the frames
@@ -401,6 +406,7 @@ impl Session {
             shop: None,
             camp: None,
             destination: None,
+            job_board: None,
             flight: None,
             menu_scene: None,
             scene_dialogue_autoclose: false,
@@ -450,6 +456,8 @@ impl Session {
             // A scene handed the frame to the ship's destination menu: it owns
             // the pad until the player answers (`destination.rs`).
             self.destination_frame(pad, pressed)
+        } else if self.job_board_waiting() {
+            self.job_board_frame(pressed)
         } else if self.menu_scene.is_some() {
             // A menu handed the field to a scene: the field owns these frames
             // — the cartridge's windows are gone — until the scene ends and
@@ -464,6 +472,7 @@ impl Session {
         } else {
             self.field_frame(pad, pressed)
         };
+        self.job_board_settle(pressed);
         frame.notice = notice;
         frame
     }
@@ -560,7 +569,9 @@ impl Session {
                     self.accept_blocked = false;
                 }
             }
-            self.runtime.set_field_suspended(false);
+            // The guild's windows park the field between its texts, so a Hold's
+            // first pass always reaches `job_board_settle`, which tests the pad.
+            self.runtime.set_field_suspended(self.job_board.is_some());
             input
         };
         let events = self.runtime.tick(field_input);

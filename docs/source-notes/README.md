@@ -141,6 +141,19 @@ agility and dexterity, and enemy paralysis clearing each turn.
   PNGs stay as oracle evidence only. `battle/enemy_animations.json` is
   unchanged.
 
+- `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
+  [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
+  `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
+  The list window and the text window each close with render bit 1: `loc_68888` restores two columns
+  a pass and `bchg #2` runs `DMAPlane_A_VInt` on alternate passes (`loc_688A8`). The portrait window,
+  there only if `$FFFFECA4` bit 0 was set, closes with render bit 0: one restore and no VInt. A window
+  `W` cells wide (its `WinGroup_Event` width byte plus one) spends `ceil(ceil(W / 2) / 2) + 1` VInts,
+  derived from the code and not measured on the oracle. Those frames read no pad and run no
+  `RunMapUpdates`, but each VInt also runs `UpdateRNGSeed` and increments `Main_Frame_Count`
+  (`ps4.asm:617,623`). So the field gets the pad back that many frames sooner, the windows do not
+  animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
+  behind the cartridge.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

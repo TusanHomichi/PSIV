@@ -140,6 +140,7 @@ impl Session {
         self.camp = None;
         self.menu_scene = None;
         self.destination = None;
+        self.job_board = None;
         self.notice_open = false;
         self.mode = Mode::Field;
         Ok(())

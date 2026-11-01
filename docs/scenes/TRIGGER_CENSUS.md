@@ -329,7 +329,7 @@ mistaken for missing pointer data.
 | `$63` | `Event_ReFaze` | `$07157A..$07175A` | [79](79_ReFaze.md) |
 | `$64` | `Event_DeVarsDefeated` | `$07175A..$071822` | [80](80_DeVarsDefeated.md) |
 | `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
-| `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | boundary [88](88_RetailBoundaries.md) |
+| `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | [124](124_HuntersGuild.md) |
 | `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | boundary [88](88_RetailBoundaries.md) |
 | `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | boundary [88](88_RetailBoundaries.md) |
 | `$69` | `Event_AngerTowerTop` | `$0721CC..$072262` | [85](85_AngerTowerTop.md) |
