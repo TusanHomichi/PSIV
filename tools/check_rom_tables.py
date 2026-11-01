@@ -24,8 +24,10 @@ change (`tools/repo_files.py`), whatever its suffix:
   only by commas, brackets and whitespace, are an 8x8 tile written as pixels,
   which is how cartridge art was once transcribed into source. Art loads from
   the pack; a test that wants a picture of a decoded tile compares its digest.
-  A synthetic picture - an ASCII test map - says so: a comment containing
-  `synthetic` within `MARKER_LINES` lines above its first literal exempts it.
+  Every eight contiguous rows are one tile. A synthetic picture - an ASCII test
+  map - says so: a comment (in a file type `COMMENT_SYNTAX` knows; a string or
+  code saying the word does not count) containing `synthetic` within
+  `MARKER_LINES` lines above a tile's first literal exempts that tile alone.
   This needs no local input.
 
 Only paths and counts are printed; the pack's names and values never leave the
@@ -88,6 +90,26 @@ NUMBERED_NAME = re.compile(r"([A-Za-z]+)\d+")
 TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
 #: How far above a tile its `synthetic` comment may be.
 MARKER_LINES = 3
+SYNTHETIC = re.compile(r"\bsynthetic\b", re.IGNORECASE)
+#: `//` and `/* */` comments among this family's strings: tokens read left to
+#: right, so a comment opener inside a string is string.
+SLASH_COMMENTS = re.compile(
+    r"""(?P<comment>//[^\n]*|/\*.*?(?:\*/|\Z))"""
+    r"""|\bb?r(?P<hashes>\#*)".*?"(?P=hashes)"""
+    r"""|"(?:\\.|[^"\\])*(?:"|\Z)"""
+    r"""|'(?:\\.|[^'\\\n])*'""",
+    re.DOTALL)
+#: `#` comments, opened at a line's start or after whitespace (`$#` is code).
+HASH_COMMENTS = re.compile(
+    r"""(?P<comment>(?<!\S)\#[^\n]*)"""
+    r"""|\"\"\".*?(?:\"\"\"|\Z)|\'\'\'.*?(?:\'\'\'|\Z)"""
+    r"""|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'""",
+    re.DOTALL)
+#: The comment syntax of a file by suffix, for reading a `synthetic` marker.
+COMMENT_SYNTAX = {
+    **dict.fromkeys((".rs", ".c", ".h", ".cpp", ".hpp", ".js", ".ts"), SLASH_COMMENTS),
+    **dict.fromkeys((".py", ".gd", ".sh", ".toml", ".yml", ".yaml", ".nix"), HASH_COMMENTS),
+}
 
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 NUMBER = re.compile(r"\d+")
@@ -161,31 +183,50 @@ def numbered_names(rows: list[str]) -> bool:
     )
 
 
-def tiles_in(text: str) -> list[int]:
+def marker_lines(text: str, suffix: str) -> set[int]:
+    """The lines where a comment of a `suffix` file says `synthetic`. Strings,
+    identifiers and code do not count, and a file type without a known comment
+    syntax has no markers."""
+    tokens = COMMENT_SYNTAX.get(suffix)
+    if tokens is None or not SYNTHETIC.search(text):
+        return set()
+    found = set()
+    for token in tokens.finditer(text):
+        if token.lastgroup != "comment":
+            continue
+        for word in SYNTHETIC.finditer(text, token.start(), token.end()):
+            found.add(text.count("\n", 0, word.start()) + 1)
+    return found
+
+
+def tiles_in(text: str, suffix: str = ".rs") -> list[int]:
     """The first line of every pixel-string tile `text` holds, synthetic ones
-    excluded."""
-    lines = text.splitlines()
+    excluded. Every eight contiguous rows are a tile of their own: an exempt
+    one says nothing about the next."""
+    markers = None
     found = []
-    run, start, previous = 0, 0, None
+    start, previous = 0, None
     rows: list[str] = []
     for match in TILE_LITERAL.finditer(text):
         row = match.group(1) or match.group(2)
         if " " in row or len(set(row)) > 16:
-            run, previous = 0, None
+            rows, previous = [], None
             continue
-        if run and TILE_SEPARATOR.fullmatch(text, previous, match.start()):
-            run += 1
-        else:
-            run, start, rows = 1, match.start(), []
+        if previous is None or not TILE_SEPARATOR.fullmatch(text, previous, match.start()):
+            rows = []
+        if not rows:
+            start = match.start()
         rows.append(row)
         previous = match.end()
-        if run == 8 and numbered_names(rows):
-            run, previous = 0, None
-        elif run == 8:
+        if len(rows) < 8:
+            continue
+        if not numbered_names(rows):
+            if markers is None:
+                markers = marker_lines(text, suffix)
             line = text.count("\n", 0, start) + 1
-            above = lines[max(0, line - 1 - MARKER_LINES):line]
-            if not any("synthetic" in text_line.lower() for text_line in above):
+            if not markers.intersection(range(line - MARKER_LINES, line + 1)):
                 found.append(line)
+        rows = []
     return found
 
 
@@ -217,7 +258,7 @@ def run(root: Path = Path("."), pack: Path | None = None,
         if b"\0" in data:
             continue
         text = data.decode("utf-8", errors="replace")
-        for line in tiles_in(text):
+        for line in tiles_in(text, path.suffix):
             problems.append(f"{name}:{line}: an 8x8 tile written as pixel strings (load art "
                             f"from the pack, compare a digest, or mark a synthetic picture; "
                             f"#149)")

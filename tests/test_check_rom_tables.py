@@ -137,6 +137,62 @@ class Tiles(unittest.TestCase):
         far = "// A synthetic map.\n" + "\n" * MARKER_LINES + literal_block(ROWS)
         self.assertEqual(len(tiles_in(far)), 1, "a marker past the window does not count")
 
+    def test_a_marker_exempts_one_tile(self):
+        marked = "// A synthetic map.\n"
+        self.assertEqual(tiles_in(marked + literal_block(ROWS + ROWS)), [11], "nested, one marker")
+        flat = ",\n".join(f'"{row}"' for row in ROWS + ROWS)
+        self.assertEqual(tiles_in(marked + flat), [10], "flat, one marker")
+        self.assertEqual(tiles_in(marked + literal_block(ROWS * 3)), [11, 19])
+        split = marked + literal_block(ROWS) + marked + literal_block(ROWS)
+        self.assertEqual(tiles_in(split), [], "each marked")
+        one_line = ", ".join(f'"{row}"' for row in ROWS)
+        self.assertEqual(tiles_in(f"{marked}{one_line},\n\n\n{one_line}\n"), [5],
+                         "the second tile's window ends short of the marker")
+
+    def test_rows_after_an_exemption_are_still_read(self):
+        names = [f"SYMBOL{n:02}" for n in range(1, 9)]
+        self.assertEqual(tiles_in(literal_block(names + ROWS)), [10], "after a name list")
+        self.assertEqual(tiles_in(literal_block(names * 2 + ROWS)), [18], "after two lists")
+        self.assertEqual(tiles_in(literal_block(ROWS + names)), [2], "before a name list")
+        self.assertEqual(tiles_in("// synthetic\n" + literal_block(ROWS + names + ROWS)), [19],
+                         "a marked tile, names, then an unmarked tile")
+
+    def test_only_a_comment_is_a_marker(self):
+        tile = literal_block(ROWS)
+        for above in ('let label = "synthetic";', 'let label = "// synthetic";',
+                      "let synthetic = 1;", "fn synthetic() {}", "synthetic();",
+                      "let c = '\"'; let label = \"// synthetic\";",
+                      'let label = r#"// synthetic"#;', 'let label = "\n// synthetic\n";',
+                      'let label = r#"\n// synthetic\n"#;', "// nonsynthetic",
+                      '#[cfg(feature = "synthetic")]', "&'a str = \"// synthetic\";"):
+            with self.subTest(above=above):
+                self.assertEqual(len(tiles_in(f"{above}\n{tile}")), 1)
+        for above in ("// A synthetic map.", "/// Synthetic.", "/* synthetic */",
+                      "/*\n * A synthetic map.\n */", 'let label = "x"; // synthetic',
+                      "let c = '\"'; // synthetic", "fn f<'a>(x: &'a str) {} // synthetic"):
+            with self.subTest(above=above):
+                self.assertEqual(tiles_in(f"{above}\n{tile}"), [])
+        expired = "/* synthetic */\n" + "\n" * MARKER_LINES + tile
+        self.assertEqual(len(tiles_in(expired)), 1, "an expired comment")
+
+    def test_comment_syntax_follows_the_file_type(self):
+        tile = literal_block(ROWS)
+        self.assertEqual(tiles_in(f"# A synthetic map.\n{tile}", ".py"), [])
+        self.assertEqual(tiles_in(f"x = 1  # synthetic\n{tile}", ".py"), [])
+        for above in ("x = a // synthetic", 'x = "# synthetic"', '"""\n# synthetic\n"""',
+                      "'''\n# synthetic\n'''", "synthetic = 1"):
+            with self.subTest(above=above):
+                self.assertEqual(len(tiles_in(f"{above}\n{tile}", ".py")), 1)
+        self.assertEqual(len(tiles_in(f"# synthetic\n{tile}", ".rs")), 1, "not Rust's comment")
+        self.assertEqual(len(tiles_in(f"echo $# synthetic\n{tile}", ".sh")), 1, "not a comment")
+        self.assertEqual(len(tiles_in(f"// synthetic\n{tile}", ".md")), 1, "no known syntax")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "art.py").write_text(f"# synthetic\n{tile}")
+            (root / "art.rs").write_text(f"# synthetic\n{tile}")
+            self.assertEqual(run(root, root / "none", ["art.py"])[0], [])
+            self.assertEqual(len(run(root, root / "none", ["art.rs"])[0]), 1, "the scan's suffix")
+
     def test_a_numbered_name_list_is_not_a_tile(self):
         names = [f"SYMBOL{n:02}" for n in range(1, 9)]
         self.assertEqual(tiles_in(literal_block(names)), [])
