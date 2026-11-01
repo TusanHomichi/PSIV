@@ -14,12 +14,14 @@
 
       # Read as tools/godot.py reads it: the one token, whitespace stripped.
       godotVersion = lib.trim (builtins.readFile ./.godot-version);
-      # The release zip's hash for each pinned version. A version bump in
-      # .godot-version fails here until its hash is added, so the shell never
-      # runs a Godot nobody checked (tests/test_flake.py keeps the two in step).
-      godotHashes = {
-        "4.7.1" = "sha256-x/8U/ShHLI1PGTBD3jAnjc9+UkGh3PdWawLiet2qM7o=";
-      };
+      # The official downloads of each Godot version, with Godot's published
+      # SHA-512 sums: the editor zip here, the export templates for the
+      # release workflow (tools/package/release.py). A version bump in
+      # .godot-version fails here until its downloads are added, so the shell
+      # never runs a Godot nobody checked (tests/test_flake.py keeps the two
+      # in step).
+      godotDownloads = (builtins.fromJSON (builtins.readFile ./tools/godot-downloads.json)).${godotVersion}
+        or (throw "flake.nix: add Godot ${godotVersion}'s downloads to tools/godot-downloads.json");
 
       godotFor = pkgs:
         let
@@ -43,9 +45,8 @@
             pname = "godot-official";
             version = godotVersion;
             src = pkgs.fetchurl {
-              url = "https://github.com/godotengine/godot/releases/download/${godotVersion}-stable/Godot_v${godotVersion}-stable_linux.x86_64.zip";
-              hash = godotHashes.${godotVersion}
-                or (throw "flake.nix: add the hash of Godot ${godotVersion}'s Linux zip to godotHashes");
+              url = "https://github.com/godotengine/godot/releases/download/${godotVersion}-stable/${godotDownloads.editor.file}";
+              sha512 = godotDownloads.editor.sha512;
             };
             nativeBuildInputs = [ pkgs.unzip pkgs.autoPatchelfHook pkgs.makeWrapper ];
             dontConfigure = true;
@@ -93,6 +94,10 @@
       # until it is listed, and a new test that needs the pack fails CI until
       # it skips on its own or is listed here.
       packTests = [
+        # rust/psiv-core/src/battle/replay/data.rs: these skip on their own
+        # without a pack (#149) and are listed so the check skips them by name.
+        "battle::engine::tests::replay::replay::data::barrier_capture_rejects_a_wrong_mdef_or_party_command"
+        "battle::engine::tests::replay::replay::data::every_fixture_replays_as_recorded"
         # rust/psiv-godot/src/audio.rs
         "audio::tests::debug_track_bank_contains_the_pack_path"
         "audio::tests::every_extracted_record_can_start_three_driver_ticks"

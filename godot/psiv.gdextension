@@ -6,3 +6,7 @@ reloadable = true
 [libraries]
 linux.debug.x86_64 = "res://../rust/target/debug/libpsiv_godot.so"
 linux.release.x86_64 = "res://../rust/target/release/libpsiv_godot.so"
+windows.debug.x86_64 = "res://../rust/target/debug/psiv_godot.dll"
+windows.release.x86_64 = "res://../rust/target/release/psiv_godot.dll"
+macos.debug = "res://../rust/target/debug/libpsiv_godot.dylib"
+macos.release = "res://../rust/target/release/libpsiv_godot.dylib"

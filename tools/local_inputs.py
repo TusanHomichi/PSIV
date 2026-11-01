@@ -5,7 +5,7 @@ and `runtime-pack` built once per extractor and shared.
     python3 tools/local_inputs.py link
 
 Run it anywhere in a worktree. Every local input the main checkout has
-(`LINKED_INPUTS`, and the ignored attack frames `LINKED_INPUT_GLOBS` names) is
+(`LINKED_INPUTS`, and the ignored evidence frames `LINKED_INPUT_GLOBS` names) is
 linked in where the worktree has none of its own. `generated/` and
 `runtime-pack` are not the main checkout's: they are functions of this
 commit's extractor, so they link to an entry of the shared cache under the
@@ -13,20 +13,20 @@ main checkout's `build/inputs/`, keyed by what builds them:
 
 * `generated-<key>`: the Git tree of `psiv_tools/` and the ROM's SHA-256, built
   with `python3 -m psiv_tools regenerate`.
-* `runtime-pack-<key>`: the trees of `psiv_tools/` and `oracle/fixtures/`, the
-  ROM's SHA-256 and the contents of the ignored attack frames the pack copies
-  (`oracle/fixtures/battle_animation_art/*.png`, as this worktree has them once
-  linked), built with `python3 -m psiv_tools pack`.
+* `runtime-pack-<key>`: the trees of `psiv_tools/` and `oracle/fixtures/` and
+  the ROM's SHA-256, built with `python3 -m psiv_tools pack`.
 
-The builders read nothing else that Git does not track: the other linked
-inputs (the oracle's captures, the disassembly, saves) are for the tests.
+The builders read nothing else that Git does not track
+(`tests/test_pack_inputs.py` fails if the pack does): the other linked inputs
+(the oracle's captures and evidence frames, the disassembly, saves) are for the
+tests.
 
 A missing entry is built by the first worktree that needs it, under the
 heavy-run lock, into a staging directory that is renamed into place only once
 the build succeeded. The build reads a snapshot of exactly what the key names,
 copied into the staging directory first: the keyed trees checked out from Git
-(not the worktree's files, which can change while it runs), the attack frames
-and the ROM. A second worktree that needs the same entry meanwhile waits on
+(not the worktree's files, which can change while it runs) and the ROM. A
+second worktree that needs the same entry meanwhile waits on
 the entry's lock, saying so every `WAIT_REPORT_S`, and then links it: a stale
 pack is built once, not once per gate job. Whatever it waited for, a job
 checks its inputs again once it holds the lock, and looks again under the new
@@ -87,7 +87,7 @@ ROM_NAME = "Phantasy Star IV (USA).md"
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 
 #: Bumped when what goes into a key changes.
-KEY_FORMAT = 1
+KEY_FORMAT = 2
 
 #: Where the entries live, under the main checkout.
 CACHE_DIR = Path("build") / "inputs"
@@ -116,11 +116,10 @@ class BuildFailed(Exception):
 @dataclass(frozen=True)
 class Entry:
     """One cached input: `name` is the worktree path it is linked as, built
-    from the Git `trees` and the ignored `files` (globs) it reads."""
+    from the Git `trees` it reads and the ROM."""
 
     name: str
     trees: tuple[str, ...]
-    files: tuple[str, ...]
     lock_class: str
     command: tuple[str, ...]
 
@@ -128,23 +127,22 @@ class Entry:
         """The Git tree id of each keyed path at the worktree's HEAD."""
         return {tree: _git(worktree, "rev-parse", f"HEAD:{tree}") for tree in self.trees}
 
-    def key(self, trees: dict[str, str], root: Path, rom: Path) -> dict:
-        """The key of a build from `trees`, the ignored files under `root` and `rom`."""
+    def key(self, trees: dict[str, str], rom: Path) -> dict:
+        """The key of a build from `trees` and `rom`."""
         return {
             "format": KEY_FORMAT,
             "input": self.name,
             "rom_sha256": hashlib.sha256(rom.read_bytes()).hexdigest(),
             "trees": trees,
-            "files": {pattern: files_digest(root, pattern) for pattern in self.files},
         }
 
 
 #: What each cached input is built from and by. The command's `{rom}` and
 #: `{output}` are filled in; it runs in the snapshot, under the heavy lock.
 ENTRIES = (
-    Entry("generated", ("psiv_tools",), (), "python",
+    Entry("generated", ("psiv_tools",), "python",
           ("python3", "-m", "psiv_tools", "regenerate", "{rom}", "{output}")),
-    Entry("runtime-pack", ("psiv_tools", "oracle/fixtures"), LINKED_INPUT_GLOBS, "pack",
+    Entry("runtime-pack", ("psiv_tools", "oracle/fixtures"), "pack",
           ("python3", "-m", "psiv_tools", "pack", "{rom}", "{output}")),
 )
 
@@ -167,14 +165,6 @@ def key_digest(key: dict) -> str:
     return hashlib.sha256(json.dumps(key, sort_keys=True).encode("utf-8")).hexdigest()[:24]
 
 
-def files_digest(worktree: Path, pattern: str) -> str:
-    """The names and contents of the worktree's files matching `pattern`,
-    read through any link: what a build there reads."""
-    files = [[str(path.relative_to(worktree)), hashlib.sha256(path.read_bytes()).hexdigest()]
-             for path in sorted(worktree.glob(pattern))]
-    return hashlib.sha256(json.dumps(files).encode("utf-8")).hexdigest()
-
-
 def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) -> None:
     """Build `entry` into `output` from the snapshot `source` (its `psiv_tools`
     is the one `python3 -m` finds there), under the worktree's heavy lock.
@@ -194,10 +184,9 @@ def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) ->
                     "--", *command], cwd=source, env=env, check=True)
 
 
-def snapshot(entry: Entry, worktree: Path, trees: dict[str, str], rom: Path,
-             source: Path) -> None:
+def snapshot(worktree: Path, trees: dict[str, str], rom: Path, source: Path) -> None:
     """Copy what `entry`'s key names into the new directory `source`: the keyed
-    trees checked out from Git by id, the worktree's ignored files and the ROM."""
+    trees checked out from Git by id and the ROM."""
     index = source.with_name(source.name + ".index")
     env = {**os.environ, "GIT_INDEX_FILE": str(index)}
     try:
@@ -206,11 +195,6 @@ def snapshot(entry: Entry, worktree: Path, trees: dict[str, str], rom: Path,
         _git(worktree, "checkout-index", "--all", f"--prefix={source}/", env=env)
     finally:
         index.unlink(missing_ok=True)
-    for pattern in entry.files:
-        for path in sorted(worktree.glob(pattern)):
-            target = source / path.relative_to(worktree)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, target)
     shutil.copyfile(rom, source / ROM_NAME)
 
 
@@ -285,7 +269,7 @@ def ensure_entry(entry: Entry, worktree: Path, cache: Path, rom: Path,
     cache.mkdir(parents=True, exist_ok=True)
     for _ in range(ATTEMPTS):
         trees = entry.trees_at(worktree)
-        key = entry.key(trees, worktree, rom)
+        key = entry.key(trees, rom)
         label = f"{entry.name}-{key_digest(key)}"
         directory = cache / label
         descriptor = _lock(cache / f".{label}.lock", label)
@@ -293,7 +277,7 @@ def ensure_entry(entry: Entry, worktree: Path, cache: Path, rom: Path,
             # The worktree may have changed while this waited: check it again,
             # holding the lock, before linking or building anything.
             _refuse_dirty(worktree, entry.trees)
-            if entry.key(entry.trees_at(worktree), worktree, rom) != key:
+            if entry.key(entry.trees_at(worktree), rom) != key:
                 _say(f"{entry.name}: its inputs changed while waiting for {label}; "
                      "looking again")
                 continue
@@ -323,8 +307,8 @@ def _build(entry: Entry, worktree: Path, rom: Path, trees: dict[str, str], key: 
     _say(f"{entry.name}: building {directory.name} for this commit")
     try:
         source = staging / "source"
-        snapshot(entry, worktree, trees, rom, source)
-        if entry.key(trees, source, source / ROM_NAME) != key:
+        snapshot(worktree, trees, rom, source)
+        if entry.key(trees, source / ROM_NAME) != key:
             raise BuildFailed(f"{entry.name}: its inputs changed while they were copied, "
                               "so nothing was cached; run this again")
         build(entry, worktree, source, staging / entry.name)

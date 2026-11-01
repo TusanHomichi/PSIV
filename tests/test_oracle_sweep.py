@@ -9,8 +9,7 @@ through - is replaced, so no emulator is started.
 
 The list is checked against a hand-built pack here; the real one's 83
 formations are computed from `generated/formation_indexes.json` and recorded in
-`sweep_motavia.json` (`oracle/sweep/motavia_formations.json` is the committed
-list).
+`sweep_motavia.json` (`--list` writes the list itself; it is never tracked, #149).
 
 `oracle/sweep/manifest.py` turns those fixtures' findings into the manifest the
 replay test reads, and its `load_dump` reads the dump `dump_manifest_entries`

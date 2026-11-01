@@ -110,7 +110,8 @@ accepted only when exactly one `lea (<offset>).l, a0` loads it), carried in
 `battle/formations.json` as `inline_formations` (`psiv-data`'s `InlineFormation`),
 installed by `encounters::battle_data` and looked up by label in
 `enemy_fusion.rs`; Fusion moved onto the same path, so no formation bytes are in
-the engine's source. The replay mirror gets them from `oracle.sweep.replay_pack`.
+the engine's source. The replay harness reads them from the same local pack
+(`rust/psiv-core/src/battle/replay/pack.rs`).
 
 COMBINE's arms clear `$24(a4)` before the object loads (`ps4.asm:21550`, `21621`),
 so no frame of the log holds `$3A`/`$3B`: the extractor files the turn as an

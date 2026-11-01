@@ -17,7 +17,6 @@ from oracle.sweep.player_chains import Chains
 from oracle.force.script import patch_state, party_state
 from oracle.force.script_menu import party_address, write_map
 from oracle.force import runs
-from oracle.sweep.replay_pack import party_records
 from oracle.fixture.roles import animation_hit_pass_actors
 
 
@@ -218,29 +217,6 @@ Event_Unrelated:
         case["characters"] = [5, 5, 7]
         with self.assertRaisesRegex(ValueError, "distinct character"):
             patches(case, raw, 9)
-
-    def test_replay_pack_includes_equipment_from_observed_party_records(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            runtime, fixtures = root / "runtime", root / "fixtures"
-            (runtime / "battle").mkdir(parents=True)
-            fixtures.mkdir()
-            (runtime / "battle/abilities.json").write_text(json.dumps(
-                {"techniques": [], "skills": [], "item_effects": []}))
-            names = ("strength", "mental", "agility", "dexterity", "attack", "defense", "magic_defense")
-            item = {"id": 206, "display_name": "SYNTHETIC", "type": {"id": 5},
-                    "element": {"id": 3}, "bonuses": dict.fromkeys(names, -1)}
-            (runtime / "battle/equipment.json").write_text(json.dumps({"items": [item]}))
-            record = [0] * 128
-            record[0x4C] = 206
-            (fixtures / "capture.json").write_text(json.dumps({"party": [{"record": record}]}))
-            result = party_records(runtime, fixtures)
-            self.assertEqual(result["equipment"], [{"id": 206, "name": "SYNTHETIC", "kind": 5,
-                                                    "element": 3, "bonuses": [-1] * 7}])
-            record[0x4D] = 207
-            (fixtures / "capture.json").write_text(json.dumps({"party": [{"record": record}]}))
-            with self.assertRaises(KeyError):
-                party_records(runtime, fixtures)
 
     def test_animation_hit_pass_keys_on_substituted_character_identity(self):
         party = [{"id": 1, "name": "ALYS", "character_id": 5},

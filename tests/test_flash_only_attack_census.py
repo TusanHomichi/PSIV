@@ -1,4 +1,4 @@
-"""No enemy attack in the runtime pack takes the flash-only presentation branch.
+"""Only the oracle-receipt enemies take the flash-only attack branch.
 
     PYTHONPATH=. python3 -m unittest tests.test_flash_only_attack_census -v
 
@@ -6,14 +6,17 @@
 attack on a sprite layer when the enemy has a usable sheet attack, and only
 tints the body otherwise: the flash-only branch. That branch once allocated a
 Sprite2D it never parented or freed, one orphan node per attack (#92). The fix
-is in the type (a flash-only attack holds no layer), but no native run
-exercises the branch, because today's pack never reaches it: every attack
-record has exact attack art whose frames match its timing.
+is in the type: the flash branch builds `layer: None` and allocates no node,
+and `clear_attack` resets the tint.
 
-If this test fails, the branch is reachable: some record would now flash only.
-Before relaxing it, add a native check that drives that enemy's attack through
-`PSIV_DEBUG_BATTLE` and asserts no orphan node remains (the memory bracket's
-orphan check in tools/native_rss.py is the run-wide guard).
+Since #214 the branch is reachable for exactly the 32 records whose routine
+bodies `oracle/fixtures/battle_animation_remainder.json` names: their art
+index entries are deferred with no frames. Any other record taking it fails
+here. The native half is `tools/verify_native_flash_attack.py`: battles
+with two Locusta and with two Sand Newts (receipt enemies) whose repeated
+flash-only attacks and their cleanup must leave no orphan node and add no
+child to the body (the memory bracket's orphan check in tools/native_rss.py is the
+run-wide guard).
 """
 
 import json
@@ -22,6 +25,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "runtime-pack"
+RECEIPTS = ROOT / "oracle/fixtures/battle_animation_remainder.json"
+
+
+def receipt_enemy_ids() -> set:
+    """Every enemy id a receipt body names: the records #214 defers."""
+    return {enemy_id
+            for receipt in json.loads(RECEIPTS.read_text())["receipts"]
+            for enemy_id in receipt["enemy_ids"]}
+
+
+def unexpected_flash_only(found: list, expected: set) -> list:
+    """The flash-only records outside `expected`, and the expected ids that
+    no longer take the branch, as one list of reasons (empty when exact)."""
+    ids = {enemy_id for enemy_id, _ in found}
+    return ([f"unexpected flash-only {item}" for item in found if item[0] not in expected]
+            + [f"expected flash-only id {enemy_id} has sheet art" for enemy_id in sorted(expected - ids)])
 
 
 def flash_only_attacks(animations: list, attacks: list, enemies: list) -> list:
@@ -58,7 +77,10 @@ class FlashOnlyAttackCensus(unittest.TestCase):
         found = flash_only_attacks(animations, load("battle/art/enemy_attacks.json", "enemies"),
                                    load("battle/art/enemies.json", "enemies"))
         self.assertGreater(len(animations), 0)
-        self.assertEqual(found, [], "the flash-only branch is reachable; see this module's docstring")
+        expected = receipt_enemy_ids()
+        self.assertEqual(len(expected), 32)
+        self.assertEqual(unexpected_flash_only(found, expected), [],
+                         "the flash-only branch set changed; see this module's docstring")
 
     def test_a_record_without_exact_attack_art_is_reported(self):
         # Negative control: one record whose attack art is not exact.
@@ -78,6 +100,17 @@ class FlashOnlyAttackCensus(unittest.TestCase):
         attacks[1]["frames"] = [{}]
         self.assertEqual(flash_only_attacks(animations, attacks, enemies),
                          [(7, "Synthetic"), (8, "Sheeted")])
+
+    def test_an_id_outside_the_receipt_set_is_reported(self):
+        # Negative control: a non-receipt id taking the branch fails, and so
+        # does a receipt id that stopped taking it.
+        found = [(4, "ProtectBit"), (2, "GunnerBit")]
+        self.assertEqual(unexpected_flash_only(found, {4, 7}),
+                         ["unexpected flash-only (2, 'GunnerBit')",
+                          "expected flash-only id 7 has sheet art"])
+        self.assertEqual(unexpected_flash_only([(4, "ProtectBit")], {4}), [])
+        # Gunner Bit (2) has its own ROM mapping art; it is not a receipt id.
+        self.assertNotIn(2, receipt_enemy_ids())
 
 
 if __name__ == "__main__":
