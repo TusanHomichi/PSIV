@@ -24,14 +24,14 @@ const BAIL: u32 = 50_000;
 const MUSIC_A_HAPPY_SETTLEMENT: u8 = 0x9E;
 
 /// `moveq #entry, d0 / jsr Event_GetAndRunDialogue` (`$5AC66`).
-const fn standard(entry: u16) -> SceneOp {
+pub(super) const fn standard(entry: u16) -> SceneOp {
     SceneOp::RunDialogue {
         source: DialogueSource::Entry(DialogueId(entry)),
         window: DialogueWindow::Standard,
     }
 }
 
-const fn set_flag(id: u16) -> SceneOp {
+pub(super) const fn set_flag(id: u16) -> SceneOp {
     SceneOp::SetFlag {
         flag: Flag::event(id),
         value: true,
@@ -41,7 +41,7 @@ const fn set_flag(id: u16) -> SceneOp {
 /// `lea (object).w, a4 / lea (Character_1).w, a3 / move.w $6(a3), d0 / bchg
 /// #2, d0 / jsr Event_UpdateObjFacing`: map object `npc` (RAM `$FFFFC300 +
 /// $40 * npc`) turns to face the party leader.
-const fn face_leader(npc: usize) -> SceneOp {
+pub(super) const fn face_leader(npc: usize) -> SceneOp {
     SceneOp::FaceOppositeOf {
         actor: ActorRef::Npc(npc),
         of: ActorRef::PartyMember(0),
