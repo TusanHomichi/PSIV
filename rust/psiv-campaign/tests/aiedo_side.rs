@@ -401,28 +401,27 @@ fn the_guild_pays_a_finished_job() {
     assert_eq!(driver.runtime().game().money(), 3000);
 }
 
-/// The scene's table against the bytes the pack read from the ROM.
+/// Back to the title with the cursor up: the board and its retained text go.
 #[test]
-fn the_guilds_table_matches_the_rom() {
-    let Some(set) = pack() else {
+fn the_title_takes_the_board_down() {
+    let Some(mut session) = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, &[0x44]) else {
         return;
     };
-    let guild = set.data.guild().expect("the pack has the board");
-    for (row, job) in psiv_core::GUILD_JOBS.iter().enumerate() {
-        assert_eq!(
-            guild.rows[row],
-            [
-                job.taken,
-                job.earned,
-                job.paid,
-                job.offer,
-                job.progress,
-                job.reward,
-                job.available,
-                job.closed
-            ],
-            "row {row}"
-        );
-        assert_eq!(guild.money[row], job.money, "row {row}");
+    let tap = |session: &mut Session, button| {
+        session.frame(Pad::new(button));
+        for _ in 0..7 {
+            session.frame(Pad::NEUTRAL);
+        }
+    };
+    tap(&mut session, Button::Up);
+    for _ in 0..600 {
+        if session.job_board_view().is_some_and(|view| view.cursor_lit) {
+            break;
+        }
+        tap(&mut session, Button::Speak);
     }
+    assert!(session.job_board_view().is_some_and(|view| view.cursor_lit));
+    session.start_title();
+    assert!(session.job_board_view().is_none());
+    assert!(session.runtime().dialogue_view().is_none());
 }

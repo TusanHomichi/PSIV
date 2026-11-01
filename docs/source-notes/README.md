@@ -117,6 +117,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   to the credits; the port plays the whole ending. Recorded in
   [REVISION_AUDIT.md](../scenes/REVISION_AUDIT.md#recorded-deviation-the-menu-button-credits-skip).
 
+- `Event_HuntersGuild`'s teardown (`$071D1A..$071D73`, [record](../scenes/124_HuntersGuild.md)): the
+  cartridge's three `Window_Destroy` calls and `Map_LoadChunks` spend frames with no pad read. The port
+  takes all three windows down on the press and ends the scene on that tick, so the field gets the
+  pad back those frames sooner and the windows do not animate shut. No state differs. The frame count
+  has not been measured on the oracle.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

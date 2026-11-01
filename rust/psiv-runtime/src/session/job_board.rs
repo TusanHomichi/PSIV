@@ -193,6 +193,12 @@ enum JobAnswer {
 }
 
 impl Session {
+    /// Drops the board and its retained text: the session is leaving the scene.
+    pub(super) fn reset_job_board(&mut self) {
+        self.job_board = None;
+        self.runtime.dialogue_board_text(false);
+    }
+
     /// A scene's [`psiv_core::SceneOp::JobBoard`].
     pub(super) fn job_board_step(&mut self, step: JobBoardStep) {
         match step {
@@ -206,15 +212,17 @@ impl Session {
                 self.runtime.set_field_suspended(false);
             }
             JobBoardStep::ShowList => {
-                let flags: Vec<JobRow> = (0..usize::from(JOBS))
-                    .map(|row| {
-                        job_row(row, |flag| {
-                            self.runtime
-                                .game()
-                                .is_set(psiv_core::Flag::event(u16::from(flag)))
+                let flags: Vec<JobRow> = self.runtime.guild_jobs().map_or_else(Vec::new, |jobs| {
+                    (0..usize::from(JOBS))
+                        .map(|row| {
+                            job_row(&jobs, row, |flag| {
+                                self.runtime
+                                    .game()
+                                    .is_set(psiv_core::Flag::event(u16::from(flag)))
+                            })
                         })
-                    })
-                    .collect();
+                        .collect()
+                });
                 if let Some(mode) = self.job_board.as_mut() {
                     mode.view.rows = flags;
                     mode.phase = Phase::Opening;
@@ -258,6 +266,7 @@ impl Session {
         let (answer, sound) = mode.frame(pressed);
         mode.view.cursor_lit = mode.phase == Phase::Choose && mode.cursor_visible;
         let answered = answer.is_some();
+        let holding = matches!(mode.phase, Phase::Hold(_));
         if let Some(answer) = answer {
             mode.phase = Phase::Idle;
             mode.view.cursor_lit = false;
@@ -268,8 +277,11 @@ impl Session {
         }
         // The scene is blocked on the board and the field parked behind the
         // windows; the tick spends the frame, and on the frame the board
-        // answers lets the scene take it.
-        self.runtime.set_field_suspended(!answered);
+        // answers lets the scene take it. The Hold is the one wait that runs
+        // map updates (`DoMapUpdate_JoypadLoop` calls `RunMapUpdates`, the
+        // other loops only `DMAPlane_A_VInt`): the scene's update gate is shut
+        // by a suspension, so it stays open there.
+        self.runtime.set_field_suspended(!answered && !holding);
         let events = self.runtime.tick(Input::Neutral);
         let (events, routed) = self.route(events);
         Frame {

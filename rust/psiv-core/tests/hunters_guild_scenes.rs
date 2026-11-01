@@ -5,12 +5,42 @@ mod common;
 
 use common::map_with;
 use psiv_core::{
-    ActorRef, Cell, Direction, EventIndex, Flag, GUILD_JOBS, GameState, GuildArrival, GuildChoice,
-    JobBoardStep, JobColour, JobRow, SCENES, SceneEffect, SceneInput, SceneOp, SceneRunner,
-    ScriptedActor, StepFrames, guild_choice, guild_dispatch, job_row, scene_for,
+    ActorRef, Cell, Direction, EventIndex, Flag, GameState, GuildArrival, GuildChoice, GuildJob,
+    GuildJobs, JobBoardStep, JobColour, JobRow, SCENES, SceneEffect, SceneInput, SceneOp,
+    SceneRunner, ScriptedActor, StepFrames, guild_choice, guild_dispatch, job_row, scene_for,
 };
 
 const ELSYDEON: u8 = 0xD9;
+
+/// A made-up table with the shape of the pack's: lines either side of the
+/// tree 27 boundary, and a reward of 50 on row 4.
+const fn synthetic(row: u8) -> GuildJob {
+    let flag = 0x40 + row * 5;
+    let line = 0x18 + row * 3;
+    GuildJob::from_row(
+        [
+            flag,
+            flag + 1,
+            flag + 2,
+            line,
+            line + 1,
+            line + 2,
+            flag + 3,
+            flag + 4,
+        ],
+        if row == 4 { 50 } else { row },
+    )
+}
+const JOBS: GuildJobs = [
+    synthetic(0),
+    synthetic(1),
+    synthetic(2),
+    synthetic(3),
+    synthetic(4),
+    synthetic(5),
+    synthetic(6),
+    synthetic(7),
+];
 
 fn set(flags: &[u8]) -> impl Fn(u8) -> bool + '_ {
     move |flag| flags.contains(&flag)
@@ -18,22 +48,22 @@ fn set(flags: &[u8]) -> impl Fn(u8) -> bool + '_ {
 
 #[test]
 fn nothing_taken_shows_the_board() {
-    assert_eq!(guild_dispatch(set(&[])), GuildArrival::Board);
+    assert_eq!(guild_dispatch(&JOBS, set(&[])), GuildArrival::Board);
 }
 
 #[test]
 fn a_taken_job_says_its_progress_until_earned_then_pays() {
-    for (row, job) in GUILD_JOBS.iter().enumerate() {
+    for (row, job) in JOBS.iter().enumerate() {
         assert_eq!(
-            guild_dispatch(set(&[job.taken])),
+            guild_dispatch(&JOBS, set(&[job.taken])),
             GuildArrival::InProgress(row)
         );
         assert_eq!(
-            guild_dispatch(set(&[job.taken, job.earned])),
+            guild_dispatch(&JOBS, set(&[job.taken, job.earned])),
             GuildArrival::Reward(row)
         );
         assert_eq!(
-            guild_dispatch(set(&[job.taken, job.earned, job.paid])),
+            guild_dispatch(&JOBS, set(&[job.taken, job.earned, job.paid])),
             GuildArrival::Board,
             "a paid job that was never offered or closed is not counted, and the board shows"
         );
@@ -43,71 +73,80 @@ fn a_taken_job_says_its_progress_until_earned_then_pays() {
 #[test]
 fn the_first_job_alone_retires_past_elsydeon() {
     assert_eq!(
-        guild_dispatch(set(&[GUILD_JOBS[0].taken, ELSYDEON])),
+        guild_dispatch(&JOBS, set(&[JOBS[0].taken, ELSYDEON])),
         GuildArrival::FirstJobRetired
     );
     assert_eq!(
-        guild_dispatch(set(&[GUILD_JOBS[1].taken, ELSYDEON])),
+        guild_dispatch(&JOBS, set(&[JOBS[1].taken, ELSYDEON])),
         GuildArrival::InProgress(1)
     );
 }
 
 #[test]
 fn the_earliest_open_row_decides() {
-    let (a, b) = (GUILD_JOBS[2], GUILD_JOBS[5]);
+    let (a, b) = (JOBS[2], JOBS[5]);
     assert_eq!(
-        guild_dispatch(set(&[a.taken, b.taken, b.earned])),
+        guild_dispatch(&JOBS, set(&[a.taken, b.taken, b.earned])),
         GuildArrival::InProgress(2)
     );
 }
 
 #[test]
 fn eight_paid_and_offered_jobs_leave_none_and_seven_do_not() {
-    let all: Vec<u8> = GUILD_JOBS
+    let all: Vec<u8> = JOBS
         .iter()
         .flat_map(|job| [job.taken, job.earned, job.paid, job.available])
         .collect();
-    assert_eq!(guild_dispatch(set(&all)), GuildArrival::NoJobsLeft);
-    let last = GUILD_JOBS[7];
+    assert_eq!(guild_dispatch(&JOBS, set(&all)), GuildArrival::NoJobsLeft);
+    let last = JOBS[7];
     let short: Vec<u8> = all
         .iter()
         .copied()
         .filter(|&flag| flag != last.taken)
         .collect();
-    assert_eq!(guild_dispatch(set(&short)), GuildArrival::Board);
+    assert_eq!(guild_dispatch(&JOBS, set(&short)), GuildArrival::Board);
 }
 
 #[test]
 fn a_picked_row_tests_paid_then_offered_then_closed() {
-    let job = GUILD_JOBS[7];
+    let job = JOBS[7];
     let row = 7;
-    assert_eq!(guild_choice(row, set(&[])), GuildChoice::NotYet);
-    assert_eq!(guild_choice(row, set(&[job.available])), GuildChoice::Offer);
+    assert_eq!(guild_choice(&JOBS, row, set(&[])), GuildChoice::NotYet);
     assert_eq!(
-        guild_choice(row, set(&[job.available, job.closed])),
+        guild_choice(&JOBS, row, set(&[job.available])),
+        GuildChoice::Offer
+    );
+    assert_eq!(
+        guild_choice(&JOBS, row, set(&[job.available, job.closed])),
         GuildChoice::Gone
     );
     assert_eq!(
-        guild_choice(row, set(&[job.paid])),
+        guild_choice(&JOBS, row, set(&[job.paid])),
         GuildChoice::AlreadyDone
     );
-    assert_eq!(guild_choice(row, set(&[job.closed])), GuildChoice::NotYet);
+    assert_eq!(
+        guild_choice(&JOBS, row, set(&[job.closed])),
+        GuildChoice::NotYet
+    );
 }
 
 #[test]
 fn rows_draw_in_the_lines_the_list_loop_writes() {
-    let job = GUILD_JOBS[0];
+    let job = JOBS[0];
     let row = |colour, pending| JobRow { colour, pending };
-    assert_eq!(job_row(0, set(&[])), row(JobColour::Closed, true));
+    assert_eq!(job_row(&JOBS, 0, set(&[])), row(JobColour::Closed, true));
     assert_eq!(
-        job_row(0, set(&[job.available])),
+        job_row(&JOBS, 0, set(&[job.available])),
         row(JobColour::Open, false)
     );
     assert_eq!(
-        job_row(0, set(&[job.available, job.closed])),
+        job_row(&JOBS, 0, set(&[job.available, job.closed])),
         row(JobColour::Closed, false)
     );
-    assert_eq!(job_row(0, set(&[job.paid])), row(JobColour::Done, false));
+    assert_eq!(
+        job_row(&JOBS, 0, set(&[job.paid])),
+        row(JobColour::Done, false)
+    );
 }
 
 /// Runs the scene, closing each dialogue and answering each board wait from
@@ -140,6 +179,7 @@ fn play(
         Direction::Up,
     )];
     let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
+    runner.set_guild_jobs(JOBS);
     let mut picks = picks.iter();
     let mut tree = 0x001F_1AD0;
     let mut lines = Vec::new();
@@ -182,7 +222,7 @@ fn play(
 
 #[test]
 fn the_progress_and_reward_legs_speak_and_pay() {
-    let job = GUILD_JOBS[4];
+    let job = JOBS[4];
     let (lines, steps, state) = run(&[job.taken], &[], true);
     assert_eq!(lines, [u16::from(job.progress)]);
     assert!(steps.is_empty());
@@ -196,7 +236,7 @@ fn the_progress_and_reward_legs_speak_and_pay() {
 
 #[test]
 fn the_first_jobs_retirement_clears_both_its_flags() {
-    let job = GUILD_JOBS[0];
+    let job = JOBS[0];
     let (lines, _, state) = run(&[job.taken, ELSYDEON], &[], true);
     assert_eq!(lines, [0x19]);
     assert!(!state.is_set(Flag::event(u16::from(job.taken))));
@@ -206,7 +246,7 @@ fn the_first_jobs_retirement_clears_both_its_flags() {
 
 #[test]
 fn no_jobs_left_is_one_line() {
-    let all: Vec<u8> = GUILD_JOBS
+    let all: Vec<u8> = JOBS
         .iter()
         .flat_map(|job| [job.taken, job.earned, job.paid, job.available])
         .collect();
@@ -235,7 +275,7 @@ fn cancel_says_goodbye_and_takes_nothing() {
 
 #[test]
 fn yes_takes_the_job_and_no_returns_to_the_prompt() {
-    let job = GUILD_JOBS[1];
+    let job = JOBS[1];
     let (lines, steps, state) = run(&[job.available], &[Some(1)], true);
     assert_eq!(lines, [0x0F, 0x10, u16::from(job.offer)]);
     assert!(state.is_set(Flag::event(u16::from(job.taken))));
@@ -253,11 +293,11 @@ fn yes_takes_the_job_and_no_returns_to_the_prompt() {
 #[test]
 fn refused_rows_speak_and_return_to_the_prompt() {
     let flags = [
-        GUILD_JOBS[1].paid,
-        GUILD_JOBS[0].available,
-        GUILD_JOBS[0].closed,
-        GUILD_JOBS[7].available,
-        GUILD_JOBS[7].closed,
+        JOBS[1].paid,
+        JOBS[0].available,
+        JOBS[0].closed,
+        JOBS[7].available,
+        JOBS[7].closed,
     ];
     // Row 1 paid; row 2 not offered; row 0's own line; row 7's.
     let (lines, _, _) = run(&flags, &[Some(1), Some(2), Some(0), Some(7), None], true);
@@ -275,7 +315,7 @@ fn refused_rows_speak_and_return_to_the_prompt() {
 fn every_rows_lines_read_the_tree_their_entry_picks() {
     const TREE_26: u32 = 0x001F_1AD0;
     const TREE_27: u32 = 0x001F_2400;
-    for (row, job) in GUILD_JOBS.iter().enumerate() {
+    for (row, job) in JOBS.iter().enumerate() {
         let picked = [Some(row as u8)];
         let legs = [
             (vec![job.taken], &[][..], job.progress),
@@ -295,6 +335,71 @@ fn every_rows_lines_read_the_tree_their_entry_picks() {
             assert_eq!(trees, TREE_26, "row {row}: tree 26 is back at the end");
         }
     }
+}
+
+/// `DoMapUpdate_JoypadLoop` runs the map updates; `.selectjobloop` does not.
+#[test]
+fn only_the_hold_runs_map_updates() {
+    let map = map_with(&["...."], vec![], vec![]);
+    let scene = scene_for(EventIndex(0x66)).unwrap();
+    let cast = vec![ScriptedActor::new(
+        ActorRef::PartyMember(0),
+        Cell::new(1, 0),
+        Direction::Up,
+    )];
+    let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
+    runner.set_guild_jobs(JOBS);
+    let mut state = GameState::new();
+    let mut input = SceneInput::None;
+    let mut seen = Vec::new();
+    for _ in 0..40 {
+        let effects = runner.tick(&map, &mut state, input);
+        input = SceneInput::None;
+        for effect in effects {
+            match effect {
+                SceneEffect::DialogueOpen(_) => input = SceneInput::DialogueEnded,
+                SceneEffect::Presentation {
+                    op: SceneOp::JobBoard { step },
+                } => match step {
+                    JobBoardStep::Hold | JobBoardStep::ShowList | JobBoardStep::Linger => {
+                        seen.push((step, runner.runs_map_updates()));
+                        input = SceneInput::JobBoardDone;
+                    }
+                    JobBoardStep::Choose => {
+                        seen.push((step, runner.runs_map_updates()));
+                        input = SceneInput::JobBoardPicked(None);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(
+        seen,
+        [
+            (JobBoardStep::Hold, true),
+            (JobBoardStep::ShowList, false),
+            (JobBoardStep::Choose, false),
+            (JobBoardStep::Linger, false),
+        ]
+    );
+}
+
+/// The scene cannot run on without the pack's table.
+#[test]
+fn no_table_is_a_fault() {
+    let map = map_with(&["...."], vec![], vec![]);
+    let scene = scene_for(EventIndex(0x66)).unwrap();
+    let mut runner = SceneRunner::new(scene.ops, vec![], StepFrames::new(8).unwrap());
+    let mut state = GameState::new();
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, SceneEffect::Faulted(_))),
+        "{effects:?}"
+    );
 }
 
 #[test]

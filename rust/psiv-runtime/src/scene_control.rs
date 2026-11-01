@@ -23,6 +23,13 @@ impl Runtime {
         self.install_runner(scene, event)
     }
 
+    /// The pack's `HuntersGuildData`, typed for the core's rules.
+    pub(crate) fn guild_jobs(&self) -> Option<psiv_core::GuildJobs> {
+        let guild = self.data.guild()?;
+        let job = |row: usize| psiv_core::GuildJob::from_row(guild.rows[row], guild.money[row]);
+        Some(std::array::from_fn(job))
+    }
+
     /// Starts `scene` as event `event`. The registry lookup above and a
     /// test's own scene share this one setup.
     pub(crate) fn install_runner(&mut self, scene: &'static Scene, event: EventIndex) -> bool {
@@ -30,9 +37,12 @@ impl Runtime {
         // The runner walks with the party's own step timing, so scripted-walk
         // interpolation (renderer, camera driver) shares one clock with field
         // walking.
-        let Ok(runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
+        let Ok(mut runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
             return false;
         };
+        if let Some(jobs) = self.guild_jobs() {
+            runner.set_guild_jobs(jobs);
+        }
         self.scene = Some(runner);
         self.boarding_body = None;
         self.scene_event = event;

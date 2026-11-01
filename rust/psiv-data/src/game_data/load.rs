@@ -71,7 +71,16 @@ impl GameData {
                 &data.manifest.rom.sha256,
             )?);
         }
-        if let Some(file) = &data.manifest.guild {
+        // Required: an older pack has no job board, so it is rebuilt, not run.
+        let Some(file) = &data.manifest.guild else {
+            return Err(DataError::ManifestMismatch {
+                path: pack_dir.join("manifest.json"),
+                field: "guild",
+                manifest: "absent; rebuild the pack".into(),
+                record: "guild/guild.json".into(),
+            });
+        };
+        {
             data.guild = Some(crate::GuildBoard::load(
                 pack_dir,
                 file,

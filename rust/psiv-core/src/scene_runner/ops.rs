@@ -860,18 +860,21 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::Guild(guild) => self.guild_op(guild, state, effects),
+            SceneOp::Guild(guild) => {
+                if let Some(fault) = self.guild_op(guild, state, effects) {
+                    return Some(fault);
+                }
+            }
             SceneOp::JobBoard { step } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
-                if matches!(
-                    step,
-                    crate::scene::JobBoardStep::Hold
-                        | crate::scene::JobBoardStep::ShowList
-                        | crate::scene::JobBoardStep::Choose
-                        | crate::scene::JobBoardStep::Linger
-                ) {
-                    self.blocked = Blocked::JobBoard;
+                use crate::scene::JobBoardStep as Step;
+                match step {
+                    Step::Hold => self.blocked = Blocked::JobBoardHold,
+                    Step::ShowList | Step::Choose | Step::Linger => {
+                        self.blocked = Blocked::JobBoard;
+                    }
+                    Step::Begin | Step::Boxes | Step::Close => {}
                 }
             }
             SceneOp::DestinationMenu { .. } => {

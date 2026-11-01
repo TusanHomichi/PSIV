@@ -2,8 +2,8 @@
 //! flags and the purse. The table and its rules are `scenes/hunters_guild.rs`.
 
 use super::{Blocked, SceneRunner};
-use crate::scene::{DialogueId, GuildOp, SceneEffect};
-use crate::scenes::hunters_guild::{GUILD_JOBS, TREE_27_FROM, choice_target, dispatch_target};
+use crate::scene::{DialogueId, GuildOp, SceneEffect, SceneFault};
+use crate::scenes::hunters_guild::{TREE_27_FROM, choice_target, dispatch_target};
 use crate::state::{Flag, GameState};
 
 fn flag(id: u8) -> Flag {
@@ -16,15 +16,18 @@ impl SceneRunner {
         op: GuildOp,
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
-    ) {
-        let job = GUILD_JOBS[self.guild_row];
+    ) -> Option<SceneFault> {
+        let Some(jobs) = self.guild_jobs else {
+            return Some(SceneFault::NoGuildTable);
+        };
+        let job = jobs[self.guild_row];
         match op {
             GuildOp::Dispatch => {
-                (self.pc, self.guild_row) = dispatch_target(|id| state.is_set(flag(id)));
+                (self.pc, self.guild_row) = dispatch_target(&jobs, |id| state.is_set(flag(id)));
             }
             GuildOp::BranchChoice => {
                 (self.pc, self.guild_row) =
-                    choice_target(self.job_pick, |id| state.is_set(flag(id)));
+                    choice_target(&jobs, self.job_pick, |id| state.is_set(flag(id)));
             }
             GuildOp::SkipTreeLoad { line, skip } => {
                 self.pc += 1;
@@ -40,14 +43,27 @@ impl SceneRunner {
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
             }
+            GuildOp::RetireFirst => {
+                for id in [jobs[0].taken, jobs[0].earned] {
+                    if state.write(flag(id), false).is_err() {
+                        return Some(SceneFault::BadWrite);
+                    }
+                    effects.push(SceneEffect::FlagChanged {
+                        flag: flag(id),
+                        value: false,
+                    });
+                }
+                self.pc += 1;
+            }
             GuildOp::SetTaken | GuildOp::SetPaid => {
                 let id = if op == GuildOp::SetTaken {
                     job.taken
                 } else {
                     job.paid
                 };
-                // Row flags are all event flags in range.
-                let _ = state.set(flag(id));
+                if state.write(flag(id), true).is_err() {
+                    return Some(SceneFault::BadWrite);
+                }
                 effects.push(SceneEffect::FlagChanged {
                     flag: flag(id),
                     value: true,
@@ -62,5 +78,6 @@ impl SceneRunner {
                 self.pc += 1;
             }
         }
+        None
     }
 }

@@ -134,6 +134,8 @@ pub enum GuildOp {
         /// Which.
         line: crate::scenes::hunters_guild::GuildLine,
     },
+    /// `.handlemiledead`: `EventFlags_Clear` on row 0's bytes 0 and 1.
+    RetireFirst,
     /// `EventFlags_Set` on byte 0.
     SetTaken,
     /// `EventFlags_Set` on byte 2.
@@ -343,6 +345,8 @@ pub enum SceneEffect {
 /// Why a scene stopped early.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneFault {
+    /// `Event_HuntersGuild` ran without the pack's table.
+    NoGuildTable,
     /// A jump or branch target was past the end of the scene.
     BadJump {
         /// The offending target.

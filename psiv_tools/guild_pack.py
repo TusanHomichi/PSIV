@@ -7,8 +7,8 @@ colour lines: `$C000` (line 2, `Pal_Init_Line_3`, the window font's own),
 open. Lines 1 and 3 are `HuntersGuild`'s map palette, so the colours belong to
 the pack, not to the source.
 
-The rows and the money are repeated here so a test can hold the scene's
-transcription (`psiv-core`, `scenes/hunters_guild.rs`) to these bytes.
+The rows and the money are the only copy the game reads: the scene's rules
+(`psiv-core`, `scenes/hunters_guild.rs`) take them from here.
 """
 
 from __future__ import annotations

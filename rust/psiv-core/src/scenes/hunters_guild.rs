@@ -10,7 +10,6 @@
 
 use crate::scene::{DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep, SceneOp};
 use crate::scene_runner::Scene;
-use crate::state::Flag;
 use crate::trigger::EventIndex;
 
 /// `DialogueTree26`, the guild map's own tree.
@@ -25,7 +24,7 @@ const SFX_SELECTION: u8 = 0xF3;
 const ELSYDEON: u8 = 0xD9;
 
 /// One row of `HuntersGuildData` (`$071D74`) and its `HuntersGuildMoneyTbl`
-/// byte. `psiv-campaign`'s `aiedo_side.rs` holds these to the pack's bytes.
+/// byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GuildJob {
     /// Set when the job is taken.
@@ -48,32 +47,28 @@ pub struct GuildJob {
     pub money: u8,
 }
 
-const fn job(row: [u8; 8], money: u8) -> GuildJob {
-    GuildJob {
-        taken: row[0],
-        earned: row[1],
-        paid: row[2],
-        offer: row[3],
-        progress: row[4],
-        reward: row[5],
-        available: row[6],
-        closed: row[7],
-        money,
+/// The table, top to bottom as the board lists it. The rows come from the
+/// pack (`guild/guild.json`), never from source.
+pub type GuildJobs = [GuildJob; JOBS];
+const JOBS: usize = 8;
+
+impl GuildJob {
+    /// A `HuntersGuildData` row and its money byte.
+    #[must_use]
+    pub const fn from_row(row: [u8; 8], money: u8) -> GuildJob {
+        GuildJob {
+            taken: row[0],
+            earned: row[1],
+            paid: row[2],
+            offer: row[3],
+            progress: row[4],
+            reward: row[5],
+            available: row[6],
+            closed: row[7],
+            money,
+        }
     }
 }
-
-/// The table, top to bottom as the board lists it.
-pub const GUILD_JOBS: [GuildJob; 8] = [
-    job([0x19, 0x1B, 0x1D, 0x14, 0x16, 0x18, 0x08, 0xD9], 5),
-    job([0x1E, 0x24, 0x25, 0x1A, 0x1C, 0x1E, 0x44, 0xEB], 2),
-    job([0x26, 0x2A, 0x2B, 0x1F, 0x21, 0x23, 0x65, 0xEB], 3),
-    job([0x2C, 0x2F, 0x3D, 0x24, 0x26, 0x27, 0x65, 0xEB], 5),
-    job([0x78, 0x7D, 0x7E, 0x28, 0x2A, 0x2C, 0xC0, 0xEB], 50),
-    job([0xA8, 0xAB, 0xAC, 0x2D, 0x2F, 0x30, 0xC0, 0xEB], 10),
-    job([0xAD, 0xAF, 0xB0, 0x31, 0x33, 0x34, 0xC0, 0xEB], 0),
-    job([0xB1, 0xB6, 0xB8, 0x35, 0x37, 0x39, 0xC0, 0xD9], 80),
-];
-const JOBS: usize = GUILD_JOBS.len();
 
 /// What the routine's opening loop (`.checkquestloop`) decided.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,11 +87,11 @@ pub enum GuildArrival {
 
 /// `.checkquestloop`: the first row that is taken decides, unless it is
 /// fully paid; a paid row counts when its `available` or `closed` flag is set.
-pub fn dispatch(is_set: impl Fn(u8) -> bool) -> GuildArrival {
+pub fn dispatch(jobs: &GuildJobs, is_set: impl Fn(u8) -> bool) -> GuildArrival {
     let mut completed = 0;
     let mut row = 0;
     while row < JOBS {
-        let job = GUILD_JOBS[row];
+        let job = jobs[row];
         if is_set(job.taken) {
             if !is_set(job.earned) {
                 return if row == 0 && is_set(ELSYDEON) {
@@ -135,8 +130,8 @@ pub enum GuildChoice {
 }
 
 /// `.selectjobselected`.
-pub fn choice(row: usize, is_set: impl Fn(u8) -> bool) -> GuildChoice {
-    let job = GUILD_JOBS[row];
+pub fn choice(jobs: &GuildJobs, row: usize, is_set: impl Fn(u8) -> bool) -> GuildChoice {
+    let job = jobs[row];
     if is_set(job.paid) {
         GuildChoice::AlreadyDone
     } else if !is_set(job.available) {
@@ -171,8 +166,8 @@ pub enum JobColour {
 /// `.loadjobtextloop`: a collected job keeps its name in `$A000` and skips the
 /// other tests; the two others write `$E000`, and only "not offered" swaps
 /// the name.
-pub fn job_row(row: usize, is_set: impl Fn(u8) -> bool) -> JobRow {
-    let job = GUILD_JOBS[row];
+pub fn job_row(jobs: &GuildJobs, row: usize, is_set: impl Fn(u8) -> bool) -> JobRow {
+    let job = jobs[row];
     if is_set(job.paid) {
         return JobRow {
             colour: JobColour::Done,
@@ -216,7 +211,7 @@ impl GuildLine {
 // Where each leg starts.
 const IN_PROGRESS: usize = 1;
 const RETIRED: usize = IN_PROGRESS + 5;
-const REWARD: usize = RETIRED + 6;
+const REWARD: usize = RETIRED + 5;
 const NO_JOBS: usize = REWARD + 7;
 const BOARD: usize = NO_JOBS + 2;
 const PROMPT: usize = BOARD + 5;
@@ -229,8 +224,8 @@ const FAREWELL: usize = OFFER + 8;
 const LINGER: usize = FAREWELL + 1;
 
 /// [`GuildOp::Dispatch`]'s target, and the row the leg reads.
-pub(crate) fn dispatch_target(is_set: impl Fn(u8) -> bool) -> (usize, usize) {
-    match dispatch(is_set) {
+pub(crate) fn dispatch_target(jobs: &GuildJobs, is_set: impl Fn(u8) -> bool) -> (usize, usize) {
+    match dispatch(jobs, is_set) {
         GuildArrival::InProgress(row) => (IN_PROGRESS, row),
         GuildArrival::FirstJobRetired => (RETIRED, 0),
         GuildArrival::Reward(row) => (REWARD, row),
@@ -240,12 +235,16 @@ pub(crate) fn dispatch_target(is_set: impl Fn(u8) -> bool) -> (usize, usize) {
 }
 
 /// [`GuildOp::BranchChoice`]'s target; `None` is Cancel.
-pub(crate) fn choice_target(row: Option<u8>, is_set: impl Fn(u8) -> bool) -> (usize, usize) {
+pub(crate) fn choice_target(
+    jobs: &GuildJobs,
+    row: Option<u8>,
+    is_set: impl Fn(u8) -> bool,
+) -> (usize, usize) {
     let Some(row) = row else {
         return (FAREWELL, 0);
     };
     let row = usize::from(row) % JOBS;
-    let target = match choice(row, is_set) {
+    let target = match choice(jobs, row, is_set) {
         GuildChoice::AlreadyDone => DONE_LINE,
         GuildChoice::NotYet => NOT_YET_LINE,
         // The first job's own line is entry `$19` of tree 26; the routine's
@@ -293,14 +292,7 @@ static OPS: &[SceneOp] = &[
     SceneOp::SetDialogueTree { rom_addr: TREE_27 },
     line(0x19),
     SceneOp::SetDialogueTree { rom_addr: TREE_26 },
-    SceneOp::SetFlag {
-        flag: Flag::event(GUILD_JOBS[0].taken as u16),
-        value: false,
-    },
-    SceneOp::SetFlag {
-        flag: Flag::event(GUILD_JOBS[0].earned as u16),
-        value: false,
-    },
+    SceneOp::Guild(GuildOp::RetireFirst),
     SceneOp::End,
     // `.finishquest`: the line, the flag, `mulu.w #1000` onto the purse.
     tree_test(GuildLine::Reward),

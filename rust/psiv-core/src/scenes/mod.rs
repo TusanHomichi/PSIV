@@ -459,7 +459,7 @@ mod tests {
             ("Event_GirlsBailedOut", 8),
             ("Event_AiedoManSavings", 4),
             ("Event_AiedoManCrushOnAlys", 6),
-            ("Event_HuntersGuild", 56),
+            ("Event_HuntersGuild", 55),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

@@ -431,6 +431,7 @@ impl Session {
     pub fn start_title(&mut self) -> TitleView {
         let slots = self.save_slots();
         let autostart = self.title_autostart;
+        self.reset_job_board();
         self.mode = Mode::Title(Box::new(TitleMode::new(slots, autostart)));
         match &self.mode {
             Mode::Title(mode) => mode.view(),
