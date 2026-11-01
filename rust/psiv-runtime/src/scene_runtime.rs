@@ -228,9 +228,27 @@ impl Runtime {
         let live = &self.effects;
         let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
         let effects = runner.tick_with(&self.map, &mut self.game, scene_input, Some(&probe));
-        let finished = runner.is_finished();
+        let mut finished = runner.is_finished();
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
+        }
+        // A pan with no distance to go costs the cartridge no frame: the scene
+        // runs on within this one. Every other camera wait starts a glide.
+        while self.camera_glide.is_none()
+            && let Some(runner) = self
+                .scene
+                .as_mut()
+                .filter(|runner| runner.is_waiting_for_camera())
+        {
+            let record = self.data.map(psiv_data::MapId(self.map.id().0));
+            let live = &self.effects;
+            let probe =
+                |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+            let effects = runner.release_empty_pan(&self.map, &mut self.game, Some(&probe));
+            finished = runner.is_finished();
+            for effect in effects {
+                self.translate_scene_effect(effect, &mut events);
+            }
         }
         self.tick_scene_camera();
         if finished {
@@ -687,8 +705,8 @@ impl Runtime {
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| PixelPos::from_cell(walker.cell)),
                         };
-                        // An actor the cast lacks has nowhere to pan to; the
-                        // runner's wait then releases on the next frame.
+                        // An actor the cast lacks has nowhere to pan to, and
+                        // with no glide the runner's wait releases at once.
                         if let Some(at) = at {
                             self.scene_pan_camera(at.x, at.y, i32::from(speed));
                         }

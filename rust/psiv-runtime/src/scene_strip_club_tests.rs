@@ -120,14 +120,14 @@ fn to_the_return_pan(rt: &mut Runtime, stage: (i32, i32)) {
 /// Runs the scene to the return pan's op, seating the camera at `seat` while
 /// the scene sits in the wait before it: a seat after the op would cancel the
 /// glide the op started.
-fn to_the_return_pan_seated_at(rt: &mut Runtime, seat: (i32, i32)) {
+fn to_the_return_pan_seated_at(rt: &mut Runtime, seat: (i32, i32)) -> Vec<SceneOp> {
     for _ in 0..2_000 {
         let ops = scene_frame(rt);
         if ops.iter().any(|op| created(op, 0x348)) {
             rt.set_camera(seat.0, seat.1);
         }
         if ops.iter().any(is_pan) {
-            return;
+            return ops;
         }
     }
     panic!("no return pan");
@@ -220,26 +220,27 @@ fn an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends() {
     assert!(ops.iter().any(|op| created(op, 0x35C)));
 }
 
-/// Both legs empty: the wait releases on the next frame instead of hanging,
-/// with nothing out of order. (The cartridge's routine takes no frame here;
-/// the record names the difference.)
+/// Both legs empty: both of the routine's loops exit before their first frame,
+/// so the scene runs on within the frame the pan's op ran, on both pans (the
+/// literal subject and the actor).
 #[test]
-fn a_pan_with_nothing_to_do_releases_on_the_next_frame() {
+fn a_pan_with_nothing_to_do_takes_no_frame() {
     let mut rt = party_below_the_stage(32);
     step_into_the_scene(&mut rt);
     let home = home_of(&rt);
     rt.set_camera(STAGE_VIEW.0, STAGE_VIEW.1);
-    loop {
-        if scene_frame(&mut rt).iter().any(is_pan) {
-            break;
+    let ops = loop {
+        let ops = scene_frame(&mut rt);
+        if ops.iter().any(is_pan) {
+            break ops;
         }
-    }
-    let ops = scene_frame(&mut rt);
+    };
     assert!(ops.iter().any(|op| created(op, 0x344)), "{ops:?}");
+    assert_eq!(view(&rt), STAGE_VIEW);
 
-    to_the_return_pan_seated_at(&mut rt, home);
+    // `WaitFrames(1)` follows the dancers: the scene is still running.
+    let ops = to_the_return_pan_seated_at(&mut rt, home);
     assert_eq!(view(&rt), home);
-    let ops = scene_frame(&mut rt);
     assert!(ops.iter().any(|op| created(op, 0x35C)), "{ops:?}");
     assert!(!rt.game().is_set(STRIPPERS_DANCE));
     assert!(rt.scene_active());

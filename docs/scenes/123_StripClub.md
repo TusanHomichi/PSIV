@@ -59,10 +59,8 @@ empty until it does. `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are `Wait(n
 Y, a pixel a frame at speed 1, with map updates and the objects running and the pad cleared. A
 leg already on its target takes no frames, so the strippers appear after exactly the outbound
 distance from wherever the leader stood, and the dancers and the flag after the return's.
-`SceneOp::PanCamera` is that routine. The port's one difference: a pan with nothing to do on
-either axis costs one frame (the runner learns of the arrival on its next tick), where the
-cartridge costs none. $94 cannot reach that, since the leader's `y` is `$240` and the stage's
-subject `$1C0`. Column `$220` has an empty X leg on both pans, and that leg costs nothing.
+`SceneOp::PanCamera` is that routine, and a pan with nothing to do on either axis takes no frame
+here either. Column `$220` has an empty X leg on both pans.
 
 **The walk.** `FieldObj_Stripper`'s init copies its position into `dest`, so the creation frame
 does not move it. `Event_MoveObjectStatic` then runs every object a frame at a time
