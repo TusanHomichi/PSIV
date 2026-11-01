@@ -47,6 +47,7 @@ pub mod png;
 pub mod rom;
 pub mod sound;
 mod sound_defs;
+pub mod sprites;
 pub mod text;
 pub mod warps;
 
@@ -95,6 +96,11 @@ pub const SECTIONS: &[Section] = &[
         name: "map_pictures",
         claims: &["maps/*.png"],
         build: maps::pictures::build,
+    },
+    Section {
+        name: "sprites",
+        claims: &["sprites"],
+        build: sprites::emit::build,
     },
 ];
 
