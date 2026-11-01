@@ -4,7 +4,7 @@
 //! directory and read it back, which is what covers the file reading and the
 //! format-version check that runs before any map is opened.
 
-use super::fixtures::{MapJson, SKIPPED_MOTAVIA, manifest_text};
+use super::fixtures::{DIGEST, MapJson, SKIPPED_MOTAVIA, manifest_text};
 use crate::error::DataError;
 use crate::{GameData, MapId, PACK_FORMAT_VERSION};
 
@@ -46,13 +46,15 @@ impl TempPack {
             r#"{{"format_version": {version}, "kind": "field_party", "sheet_count": 0, "sheets": []}}"#
         );
         let line = vec![[0u8, 0, 0]; 16];
+        let rows = vec![[1u8; 8]; 8];
+        let money = vec![1u8; 8];
         self.write(
             "guild/guild.json",
             &serde_json::json!({
                 "format_version": 1, "kind": "guild", "rom_sha256": DIGEST,
                 "window": {"id": 11, "width": 4, "height": 4, "x": 1, "y": 1},
                 "names": ["a", "b", "c", "d", "e", "f", "g", "h"], "pending": "p",
-                "rows": vec![[1u8; 8]; 8], "money": [1u8; 8],
+                "rows": rows, "money": money,
                 "font_line": line, "done_line": line, "closed_line": line,
             })
             .to_string(),
