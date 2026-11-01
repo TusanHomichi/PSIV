@@ -9,6 +9,11 @@
 # Our own changes live in oracle/patches and are applied to the checkout after
 # the pin is in place. Applying them again is a no-op, so re-running this
 # script on a tree that already carries them is safe.
+#
+# `oracle/build_core.sh --sources` only checks the pinned source out: the game's
+# own build compiles one file of it, Nuked OPN2's core/sound/ym3438.c
+# (rust/psiv-sound/build.rs), which the patches do not touch, so a release build
+# needs neither the patches nor the core (tools/package/release.py).
 set -euo pipefail
 cd "$(dirname "$(realpath "$0")")"
 
@@ -30,6 +35,10 @@ else
 	# fail loudly on any other revision).
 	echo "note: gpgx-src has no .git; the pinned commit $COMMIT cannot be" >&2
 	echo "note: verified for this tree, only that oracle/patches applies to it" >&2
+fi
+if [ "${1:-}" = --sources ]; then
+	echo "checked out Genesis Plus GX $COMMIT in gpgx-src"
+	exit 0
 fi
 
 command -v patch >/dev/null || {

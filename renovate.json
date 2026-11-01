@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The Godot release .godot-version pins. A bump also needs `python3 tools/godot.py pin`, which tests/test_flake.py asks for.",
+      "managerFilePatterns": ["/(^|/)\\.godot-version$/"],
+      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+(\\.\\d+)?)\\s*$"],
+      "depNameTemplate": "godot",
+      "packageNameTemplate": "godotengine/godot",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?<version>\\d+\\.\\d+(\\.\\d+)?)-stable$"
+    }
+  ]
+}

@@ -27,9 +27,12 @@ On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 PyYAML (and ruff), the Rust toolchain `rust-toolchain.toml` pins, shellcheck, Xvfb with Mesa's software rasterizer, and the
 official Godot build that `.godot-version` pins, exported as `PSIV_GODOT`. That
 Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
-play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](../flake.nix) also
-holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
-the new zip's hash there (`tests/test_flake.py` fails until it does). The
+play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`tools/godot-downloads.json`](../tools/godot-downloads.json)
+holds the pinned release's downloads and Godot's published SHA-512 sums for
+them, the editor zip the shell runs and the export templates a release build
+uses. Renovate opens a PR when Godot releases ([`renovate.json`](../renovate.json));
+a bump of `.godot-version` also runs `python3 tools/godot.py pin`, which writes
+the new version's downloads there (`tests/test_flake.py` fails until it has). The
 shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
 same pixels. That changes no digest: every hash that names an image, in the
 tests and in the pack's `png_sha256` fields, is `image_sha256` from
@@ -139,7 +142,7 @@ Which `tools/native/` drivers remain, and why, is in
 [native drivers](campaign/NATIVE_DRIVERS.md).
 
 The keyboard and controller bindings are listed in the
-[README](../README.md#controls); they come from the input map in
+[player's guide](PLAYING.md#controls); they come from the input map in
 [`godot/project.godot`](../godot/project.godot).
 
 ### Package for the Steam Deck
@@ -152,7 +155,7 @@ The keyboard and controller bindings are listed in the
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
 symbol versions and the Deck refuses to load it), makes a run root whose
 project is prepared (`python3 tools/godot.py run`), exports its
-`Linux-SteamDeck` preset from it to
+`Linux` preset from it to
 `build/deck/` (the full export log is `build/deck-export.log`; a failed export
 stops the script), stages the executable, and copies it to `~/psiv` on the
 Deck with `rsync` over SSH. The pack goes to `~/.local/share/PSIV/runtime-pack`
@@ -168,6 +171,20 @@ It needs:
   templates file from the [download archive](https://godotengine.org/download/archive/)).
 
 On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
+
+### Release archives
+
+Players download one archive per system, Linux, Windows and macOS, which the
+[player's guide](PLAYING.md) describes. The
+[release workflow](../.github/workflows/release.yml) builds them on GitHub's
+runners with [`tools/package/release.py`](../tools/package/release.py), whose
+docstring owns the steps: each system's extension and `psiv-pack`, the export
+of every platform from Linux, the
+[third-party notices](../tools/package/notices.py), and an archive per system
+that is checked for exactly the files a release holds and started headless,
+as a first run, on its own system. It runs on every pull request that touches
+the packaging, and pushing a version tag (`v1.0.0`) publishes the archives as
+that tag's GitHub release.
 
 ## Working with agents
 
