@@ -10,6 +10,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 /// One sprite-sheet index file (`sprites/party.json` or `sprites/npcs.json`).
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -26,8 +27,12 @@ pub struct SheetFile {
     /// Optional per-map vehicle palette variants. The base `sheets` remain the
     /// selector-addressed fallback; each variant names the same three vehicle
     /// slots and carries only the additional sheets required by its CRAM line.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub palette_variants: Vec<VehiclePaletteVariant>,
+    /// What the pack carries and the game doesn't read (`field_objects`,
+    /// `palette_source`): it has no typed home yet.
+    #[serde(flatten)]
+    pub research: Map<String, Value>,
 }
 
 /// One CRAM-line-3 vehicle palette used by one or more maps.
@@ -63,6 +68,10 @@ pub struct Sheet {
     pub origin_y: i32,
     /// Named animation sequences (`idle_down`, `walk_left`, ...).
     pub sequences: BTreeMap<String, Sequence>,
+    /// What the pack carries and the game doesn't read (the palette, mirrors,
+    /// art provenance, placements): it has no typed home yet.
+    #[serde(flatten)]
+    pub research: Map<String, Value>,
 }
 
 /// One animation sequence.
@@ -73,6 +82,9 @@ pub struct Sequence {
     /// Whether the sequence loops (all retail field sequences do).
     #[serde(rename = "loop", default)]
     pub looping: bool,
+    /// Where the cartridge's sequence table is, as `0x` hex; research only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence_offset: Option<String>,
 }
 
 /// One step of a sequence.
@@ -90,5 +102,27 @@ impl Sheet {
     #[must_use]
     pub fn sequence(&self, name: &str) -> Option<&Sequence> {
         self.sequences.get(name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn what_the_game_does_not_read_survives_a_round_trip() {
+        let text = r#"{"format_version":2,"kind":"field_party","sheet_count":1,
+            "field_objects":{"count":1},
+            "sheets":[{"id":"A","png":"a.png","frame_width":1,"frame_height":1,"frame_count":1,
+            "origin_x":0,"origin_y":0,"palette":{"cram_line":2},"mirrors":{},
+            "sequences":{"idle_down":{"frames":[{"index":0,"duration_ticks":1}],"loop":true,
+            "sequence_offset":"0x000001"}}}]}"#;
+        let file: SheetFile = serde_json::from_str(text).unwrap();
+        assert!(file.research.contains_key("field_objects"));
+        assert!(file.sheets[0].research.contains_key("palette"));
+        let back = serde_json::to_value(&file).unwrap();
+        assert_eq!(back, serde_json::from_str::<Value>(text).unwrap());
+        // A file with no variants writes none: only vehicles.json has the key.
+        assert!(back.get("palette_variants").is_none());
     }
 }

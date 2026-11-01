@@ -101,6 +101,53 @@ fn pictures_json(pictures: &pictures::Pictures) -> Json {
         .with("update_images", images)
 }
 
+/// `build_pack`'s sprite work per map, as the map file and manifest will carry
+/// it. The sheets themselves are claimed.
+fn map_sprites(data: &[u8], decodes: &Decodes) -> Result<Json, psiv_pack::PackError> {
+    let inputs = pictures::map_inputs(data, decodes)?;
+    let field = psiv_pack::sprites::emit::field_sprites(data, decodes, &inputs)?;
+    let per_map: Vec<Json> = field
+        .maps
+        .iter()
+        .map(|map| {
+            let mut deferred = Vec::new();
+            for effect in &map.effects {
+                if let Json::Object(pairs) = effect
+                    && let Some((_, Json::Array(paths))) = pairs.iter().find(|(k, _)| k == "paths")
+                {
+                    for path in paths {
+                        if let Json::Object(fields) = path
+                            && let Some((_, found)) =
+                                fields.iter().find(|(k, _)| k == "deferred_effects")
+                        {
+                            deferred.push(found.clone());
+                        }
+                    }
+                }
+            }
+            Json::object()
+                .with("id", map.id)
+                .with(
+                    "npcs",
+                    map.npcs.iter().map(|npc| npc.to_json()).collect::<Vec<_>>(),
+                )
+                .with("artless", map.artless.clone())
+                .with("chests", map.chests.clone())
+                .with("deferred_effects", deferred)
+                .with(
+                    "palette_totals",
+                    Json::object()
+                        .with("palette_copies", map.palette_counts[0])
+                        .with("alternate_sheets", map.palette_counts[1])
+                        .with("repainted_npcs", map.palette_counts[2]),
+                )
+        })
+        .collect();
+    Ok(Json::object()
+        .with("per_map", per_map)
+        .with("census", field.census.to_json()))
+}
+
 /// `extract_map_effects`'s document, its per-map table as `[id, entries]`
 /// rows: JSON object keys would sort as text.
 fn map_effects(data: &[u8], maps: &ExtractedMaps) -> Result<Json, psiv_pack::PackError> {
@@ -166,6 +213,7 @@ fn main() {
             .with("layouts", layouts(rom.bytes(), &decodes, &maps)?)
             .with("map_effects", map_effects(rom.bytes(), &maps)?)
             .with("map_updates", map_updates(rom.bytes(), &maps)?)
+            .with("map_sprites", map_sprites(rom.bytes(), &decodes)?)
             .with("maps", maps.to_json(rom.bytes()))
             .with("warp_rects", rects)
             .with("names", psiv_pack::text::extract_names(rom.bytes())?))

@@ -199,6 +199,46 @@ def _probe_map_updates(rom: bytes):
     return updates
 
 
+def _probe_map_sprites(rom: bytes):
+    """`build_pack`'s sprite work per map, as the map file and manifest will
+    carry it. The sheets themselves are claimed."""
+    import copy
+    from psiv_tools.chest_sprites import bind_chest_sprites
+    from psiv_tools.gfx import palette_rgb
+    from psiv_tools.layouts import decode_map_palette
+    from psiv_tools.map_effects import extract_map_effects
+    from psiv_tools.map_patches import resolve_palette_effects
+    from psiv_tools.pack_layouts import decode_map_section
+    from psiv_tools.pack_map_json import _treasure_chests
+    from psiv_tools.sprites import SpriteCensus, facing_table_extents, scan_field_objects
+    from psiv_tools.sprites.emit import NPC_SPRITES_DIRECTORY, SheetRegistry, resolve_map_sprites
+    maps = _probe_maps(rom)["maps"]
+    effects = extract_map_effects(rom, maps)
+    routines = scan_field_objects(rom)
+    extents = facing_table_extents(routines)
+    registry, census = SheetRegistry(NPC_SPRITES_DIRECTORY), SpriteCensus()
+    per_map = []
+    for record in maps:
+        if record.get("is_null"):
+            continue
+        decoded, _, _ = decode_map_section(rom, record)
+        sprites, artless = resolve_map_sprites(rom, record, decoded, routines, extents, registry, census)
+        palette = palette_rgb(decode_map_palette(rom, decoded.spec.palette))
+        map_effects = copy.deepcopy(effects["per_map"].get(record["id"], []))
+        totals = resolve_palette_effects(rom, record, decoded, map_effects, sprites, routines, extents,
+                                         registry, census, palette,
+                                         int(effects["census"]["jump_table"], 16))
+        chests = _treasure_chests(record)
+        bind_chest_sprites(rom, chests, palette, record["general_var"], registry)
+        per_map.append({"id": record["id"], "npcs": [meta.to_json() for meta in sprites],
+                        "artless": artless, "chests": [chest["sprite"] for chest in chests],
+                        "deferred_effects": [path["deferred_effects"] for effect in map_effects
+                                             for path in effect.get("paths", ())
+                                             if "deferred_effects" in path],
+                        "palette_totals": totals})
+    return {"per_map": per_map, "census": census.to_json()}
+
+
 def _probe_warp_rects(rom: bytes):
     from psiv_tools.warps import PackError, warp_rect
     rects = []
@@ -215,7 +255,7 @@ def _probe_warp_rects(rom: bytes):
 #: The ported extractors no claimed section writes yet, by the key
 #: `examples/probe.rs` prints each under: the Python side of the probe.
 PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "map_effects": _probe_map_effects,
-          "map_updates": _probe_map_updates, "maps": _probe_maps,
+          "map_sprites": _probe_map_sprites, "map_updates": _probe_map_updates, "maps": _probe_maps,
           "names": _probe_names, "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
