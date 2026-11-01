@@ -9,7 +9,10 @@ exclusive runs exclude them all; the units held never exceed the budget (the
 negative control overfills it with a grant that is not all-or-none); a waiting
 head is never passed by a smaller arrival; a failed or refused take gives back
 every handle; a killed holder's units come back; nesting across shared classes
-and a budget mismatch are refused. Each has a negative control.
+and a budget mismatch are refused. With no budget (the default) shared
+holders never wait on one another, an exclusive run still waits for them, each
+is named by its class, and a holder with a budget does not count them. Each
+has a negative control.
 """
 
 import fcntl
@@ -29,7 +32,8 @@ from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, PACK, EX
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
 
 
-#: A budget with room for exactly one build holder and one godot holder.
+#: The 13.5 GB development host's budget, which BudgetCase runs under.
+HOST_BUDGET = {UNITS_ENV: "16"}
 #: A budget that one extension build and one Godot run fill. A budget below
 #: the largest class is refused, so the tight-budget cases use that class.
 PAIR_BUDGET = {UNITS_ENV: str(CLASS_UNITS[EXTENSION] + CLASS_UNITS[GODOT])}
@@ -70,7 +74,12 @@ while True:
 
 
 class BudgetCase(LockProcesses):
-    """The build class and the unit budget; see LockProcesses."""
+    """The build class and the unit budget, the host's unless a case sets
+    another; see LockProcesses."""
+
+    def setUp(self):
+        super().setUp()
+        self.env.update(HOST_BUDGET)
 
     def test_a_build_runs_beside_a_godot_holder_without_waiting(self):
         godot = self.holder("godot")
@@ -83,7 +92,8 @@ class BudgetCase(LockProcesses):
                          sorted([(godot.pid, GODOT), (build.pid, BUILD)]))
         self.assertEqual(units_in_use(self.lock), CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD])
         out = io.StringIO()
-        heavy_lock_module.status(self.lock, out)
+        with mock.patch.dict(os.environ, HOST_BUDGET):
+            heavy_lock_module.status(self.lock, out)
         self.assertIn(f"{build.pid} build:", out.getvalue())
         self.assertIn(f"units in use: {CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD]} of",
                       out.getvalue())
@@ -218,7 +228,7 @@ class BudgetCase(LockProcesses):
         holders = self.mixed_holders()
         expected = CLASS_UNITS[BUILD] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON]
         self.assertEqual(units_in_use(self.lock), expected)
-        self.assertLessEqual(expected, lock_units({}))
+        self.assertLessEqual(expected, lock_units(HOST_BUDGET))
         self.assertEqual(sorted(lock_modes(self.lock)),
                          sorted(zip((h.pid for h in holders), (BUILD, GODOT, GODOT, PYTHON))))
         second = self.waiter("second-cargo", "--class", BUILD)
@@ -252,7 +262,7 @@ class BudgetCase(LockProcesses):
     def test_negative_control_proc_locks_alone_misses_held_units_under_churn(self):
         """/proc/locks is printed a page per read; a lock dropped earlier in
         the list between two reads hides a held one."""
-        with mock.patch.object(heavy_lock_module, "_fdinfo_locks", lambda lock: []):
+        with mock.patch.object(heavy_lock_module.flock_holders, "fdinfo_locks", lambda lock: []):
             held, counts = self.counts_under_churn(20, until_short=True)
         self.assertLess(min(counts), held, f"{len(counts)} reads, none short")
 
@@ -447,11 +457,101 @@ class BudgetCase(LockProcesses):
         self.assertEqual(code, 0, stderr)
         self.assertEqual(self.granted(), ["same"])
 
+    def test_with_no_budget_set_there_is_none(self):
+        self.assertIsNone(lock_units({}))
+        self.assertIsNone(lock_units({UNITS_ENV: ""}))
+
     def test_a_budget_below_the_largest_class_is_refused(self):
         with self.assertRaises(ValueError):
             lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()) - 1)})
         self.assertEqual(lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()))}),
                          max(CLASS_UNITS.values()))
+
+
+
+class NoBudgetCase(LockProcesses):
+    """No `PSIV_LOCK_UNITS`, the default: the lock holds no memory back.
+    LockProcesses' environment sets none."""
+
+    def test_shared_holders_never_wait_on_one_another(self):
+        holders = [self.holder(EXTENSION), self.holder(EXTENSION), self.holder(BUILD),
+                   self.holder(PYTHON)]
+        code, stderr = self.immediate("pack", "--class", PACK)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+        self.assertEqual(units_in_use(self.lock), 0)
+        self.assertEqual(sorted(lock_modes(self.lock)),
+                         sorted(zip((h.pid for h in holders),
+                                    (EXTENSION, EXTENSION, BUILD, PYTHON))))
+
+    def test_negative_control_under_the_host_budget_the_second_extension_build_waits(self):
+        first = self.holder(EXTENSION, HOST_BUDGET)
+        second = self.waiter("second-extension", "--class", EXTENSION, env=HOST_BUDGET)
+        self.assertIn(f"{first.pid} (extension)", second.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(first)
+        self.assertEqual(self.finish(second), ["second-extension"])
+
+    def test_an_exclusive_run_still_waits_for_a_shared_holder_named_by_its_class(self):
+        build = self.holder(BUILD)
+        exclusive = self.waiter("exclusive")
+        self.assertIn(f"held by pid {build.pid} (build)", exclusive.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(build)
+        self.assertEqual(self.finish(exclusive), ["exclusive"])
+
+    def test_negative_control_a_shared_flock_without_a_class_file_is_unnamed(self):
+        """The class in the line above comes from the class file: a bare
+        LOCK_SH holder, as a checkout older than the budget takes, is `shared`."""
+        handle = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
+        self.addCleanup(os.close, handle)
+        fcntl.flock(handle, fcntl.LOCK_SH)
+        self.assertEqual(lock_modes(self.lock), [(os.getpid(), "shared")])
+
+    def test_a_shared_grant_takes_one_class_file_and_gives_it_back(self):
+        need = heavy_lock_module._Need.of(EXTENSION, 1, 3, None)
+        self.assertEqual(need.units, 0)
+        first = heavy_lock_module._try_grant(str(self.lock), need)
+        second = heavy_lock_module._try_grant(str(self.lock), need)
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        files = sorted(path.name for path in self.lock.parent.glob(self.lock.name + ".*"))
+        self.assertEqual(files, [f"{self.lock.name}.class0", f"{self.lock.name}.class1"])
+        self.assertEqual((self.lock.parent / f"{self.lock.name}.class1").read_text(),
+                         "none extension")
+        for handle in first + second:
+            os.close(handle)
+        self.assertEqual(lock_modes(self.lock), [])
+        exclusive = heavy_lock_module._Need.of(EXCLUSIVE, 1, 3, None)
+        held = heavy_lock_module._try_grant(str(self.lock), exclusive)
+        self.assertEqual(len(held), 1, "an exclusive grant takes the lock file alone")
+        os.close(held[0])
+
+    def test_status_says_there_is_no_budget(self):
+        build = self.holder(BUILD)
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {UNITS_ENV: ""}):
+            heavy_lock_module.status(self.lock, out)
+        self.assertIn(f"budget: none ({UNITS_ENV} unset)", out.getvalue())
+        self.assertNotIn("units in use", out.getvalue())
+        self.assertIn(f"{build.pid} build:", out.getvalue())
+
+    def test_negative_control_status_under_a_budget_counts_units(self):
+        self.holder(BUILD, HOST_BUDGET)
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, HOST_BUDGET):
+            heavy_lock_module.status(self.lock, out)
+        self.assertIn(f"units in use: {CLASS_UNITS[BUILD]} of 16", out.getvalue())
+
+    def test_a_holder_with_a_budget_does_not_count_one_without(self):
+        """A checkout older than this default runs under the old budget of 16
+        beside current ones: its holders count only each other's units."""
+        self.holder(EXTENSION)
+        code, stderr = self.immediate("budgeted", "--class", EXTENSION, env=HOST_BUDGET)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
 
 
 if __name__ == "__main__":

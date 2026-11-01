@@ -244,13 +244,13 @@ only beside another module is a defect to fix, as in the Rust suites. The gate
 runs every command with `CARGO_BUILD_JOBS` and
 `RUST_TEST_THREADS` set to the cores available, capped at 8
 (`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
-Eight is the configuration measured to fit the exclusive class the gate holds:
-its largest peak, a cold `cargo test --workspace --no-run` at 8 jobs (4,979 MB
-tree RSS on the 8-core host, [the table](#heavy-run-lock)), leaves 39% of the
-class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
-suite peaks at 364 MB on 8 threads. Cargo's own defaults grow with the core
-count and the budget does not, so raising the cap takes a new measurement at
-the higher count. To repeat the gate's cargo steps by hand, set the same two
+Eight is the configuration measured to fit the 13.5 GB host's budget of 16
+units (8,192 MB): its largest peak, a cold `cargo test --workspace --no-run` at
+8 jobs (4,979 MB tree RSS on the 8-core host, [the table](#heavy-run-lock)),
+leaves 39% of it free, above the sizing rule's 15%, and the built suite peaks
+at 364 MB on 8 threads. Cargo's own defaults grow with the core count and that
+budget does not, so raising the cap takes a new measurement at the higher
+count. To repeat the gate's cargo steps by hand, set the same two
 variables. Tests in one binary run on
 parallel threads, so a test's scratch directory is keyed by process and by call
 (`tests/test_rust_temp_paths.py` checks every `temp_dir()`
@@ -419,10 +419,13 @@ evidence.
 Heavy runs share one machine, so every worktree takes one lock file,
 `<main checkout>/build/continuation-heavy.lock` (`PSIV_HEAVY_LOCK` overrides
 it), owned by `tools/heavy_lock.py`. Its classes are split by peak memory.
-The shared classes draw on one machine budget of `PSIV_LOCK_UNITS` units
-(default 16) of 512 MB, 8 GB of the 13.5 GB development host; each holder takes
-its class's units, all or none, so shared holders run side by side while their
-units fit:
+Shared holders run side by side, and only an exclusive holder holds them
+apart. A machine can set a memory budget, `PSIV_LOCK_UNITS` units of 512 MB:
+each shared holder then takes its class's units, all or none, so they run side
+by side while their units fit. No budget is the default, because a budget idles
+the memory it holds back while the kernel would share it; a machine that a full
+lane runs out of memory sets one, as the 13.5 GB development host sets 16
+(8 GB). The units, under a budget:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
@@ -439,7 +442,7 @@ a repository tool starts runs from a run root with its own copy of the library
 (`create_run_root` in `tools/godot.py`), cargo replaces the checkout's library
 with a new file rather than rewriting it (the linker, mold here, writes a new
 inode), and a non-editor Godot never re-reads a loaded extension. So an extension build shares the machine with Godot runs:
-12 units fit beside three Godot runs (15 of 16). What the one class costs: it is
+under the host's budget, 12 units fit beside three Godot runs (15 of 16). What the one class costs there: it is
 sized for its largest job, the cold workspace test build, so an incremental
 `cargo build -p psiv-godot` (3.6 GB) reserves 6 GB, and an extension build
 waits for any `build` holder (12 + 7) and for a second extension build.
@@ -459,14 +462,19 @@ replaces, and no older version is kept.
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
 
-An exclusive holder excludes every shared holder and they exclude it. A cargo
+An exclusive holder excludes every shared holder and they exclude it. Under
+the host's budget, a cargo
 run, two Godot runs and a Python suite fit together (12 units); a second cargo
 run then waits (19), and two cargo runs fit with one Godot run (15). The entry points in the
 table take their class themselves: never wrap them. A headless
 `psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
-`PSIV_LOCK_UNITS` must be the same for every process: each holder records them
-in its slot and unit files, and a process that finds a held file recording
-another value refuses with exit 2.
+`PSIV_LOCK_UNITS` must be the same for every process, so a machine sets them
+where every process inherits them (its login environment and its job
+runner's), not in one shell: each holder records them in its slot and unit
+files, and a process that finds a held file recording another value refuses
+with exit 2. A holder with no budget records its class in a class file
+(`<lock>.classN`) instead, for `status` and the waiting lines, and holders with
+a budget don't count it.
 
 A waiter, for the heavy lock or a gate for the gate lock, also tells a job
 runner that sets `PROJ_WAIT_DIR` that it is waiting in line, so the wait
@@ -490,10 +498,10 @@ exclusive hold keeps every other locked job off the machine while it runs.
 `cargo test --workspace --no-run` at 8 jobs (4,979 MB in 12, 19%), `godot` by a certify pair
 (418 MB in 1, 18%), `python` by the suite (926 MB in one process and 1,256 MB
 on four workers; 3 units, 18%); the opt-level-3
-extension build (5,582 MB, 13 units) is exclusive and sizes nothing. The budget is the
-machine's margin: 16 units leave about 5.5 GB outside the lock for the
-desktop, the agent sessions, unlocked headless runs and any job that peaks
-above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
+extension build (5,582 MB, 13 units) is exclusive and sizes nothing. On the
+13.5 GB host the budget is the margin: its 16 units leave about 5.5 GB outside
+the lock for the desktop, the agent sessions, unlocked headless runs and any
+job that peaks above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
 AC with the CPU capped at 2.3 GHz (`bios_limit` 2300000); `/usr/bin/time -v`
 reports the largest single process. Rows marked 0.1 s sampled the tree every
 0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`. Rows marked #157 were
@@ -558,9 +566,11 @@ not the pack, sets a cargo invocation's memory: every test run alone is under
 memory, unless it can compile `psiv-godot`: then it takes `extension` (above).
 
 Transition: a holder started from a checkout older than the budget takes no
-units, so the budget counts only holders running the current
-`tools/heavy_lock.py`; exclusion is unaffected, because every class still
-holds the lock file itself. Merge main into a lane to bring it onto the budget.
+units, and one older than no budget being the default takes them under 16
+when `PSIV_LOCK_UNITS` is unset, so a budget counts only the holders that
+share its setting; exclusion is unaffected, because every class still holds
+the lock file itself. Merge main into a lane to bring it onto the current
+lock.
 
 A gate takes the gate lock first and the heavy lock second, as every
 deployed gate does; the reverse order deadlocks against them. So never wrap the
