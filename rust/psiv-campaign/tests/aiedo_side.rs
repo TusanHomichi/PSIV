@@ -11,7 +11,7 @@ use psiv_core::{
     ActorRef, BespokeKind, CharId, Direction, Flag, GameState, RetailLocation, RetailSave,
     WanderSpeed,
 };
-use psiv_runtime::{Button, Session};
+use psiv_runtime::{Button, Pad, Session};
 
 const AIEDO_PRISON: u16 = 0x05C;
 const ROCKY_HOUSE: u16 = 0x065;
@@ -305,5 +305,124 @@ fn the_admirer_draws_his_routine_walk() {
             usize::from(speed.frames()),
             "one cell per step at the routine's speed: {changes:?}"
         );
+    }
+}
+
+const HUNTERS_GUILD: u16 = 0x057;
+/// Below the counter: interaction area 0 is the cell the leader faces from here.
+const RECEPTION: (u16, u16) = (29, 26);
+
+fn press(driver: &mut Driver, button: Button) {
+    driver.tick(Pad::new(button)).expect("a frame");
+    driver.neutral(1).expect("a frame");
+}
+
+fn guild_session(flags: &[u16]) -> Option<Driver> {
+    let session = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, flags)?;
+    let mut driver = Driver::new(session, None);
+    press(&mut driver, Button::Up);
+    Some(driver)
+}
+
+/// Speak until `done`, within a bound: each press pages the text.
+fn speak_until(driver: &mut Driver, done: impl Fn(&Driver) -> bool) {
+    for _ in 0..600 {
+        if done(driver) {
+            return;
+        }
+        press(driver, Button::Speak);
+        driver.neutral(6).expect("a frame");
+    }
+    panic!(
+        "no progress at the guild's counter: board {:?}, text {:?}, frames {}",
+        driver.session().job_board_view(),
+        driver.runtime().dialogue_view().map(|view| view.lines),
+        driver.frames()
+    );
+}
+
+fn cursor_is_up(driver: &Driver) -> bool {
+    driver
+        .session()
+        .job_board_view()
+        .is_some_and(|view| view.cursor_lit && !driver.runtime().dialogue_open())
+}
+
+/// The whole counter, on the pad: the welcome, the list, the cursor down to
+/// the second job, the offer and its YES, the wait for a last press.
+#[test]
+fn the_guild_takes_a_job_on_the_pad() {
+    let Some(mut driver) = guild_session(&[0x44]) else {
+        return;
+    };
+    speak_until(&mut driver, cursor_is_up);
+    let view = driver.session().job_board_view().unwrap().clone();
+    assert_eq!(view.rows.len(), 8);
+    assert!(view.rows[0].pending, "the first job's flag is not set");
+    assert!(!view.rows[1].pending, "the second job is offered");
+    press(&mut driver, Button::Down);
+    assert_eq!(driver.session().job_board_view().unwrap().cursor, 1);
+    press(&mut driver, Button::Speak);
+    assert_eq!(driver.session().job_board_view().unwrap().stamped, Some(1));
+    driver.answer(true).expect("YES");
+    assert!(flag(&driver, 0x1E), "EventFlag_TinkerbellsDog");
+    for _ in 0..200 {
+        if driver.session().job_board_view().is_none() {
+            break;
+        }
+        press(&mut driver, Button::Speak);
+    }
+    assert!(driver.session().job_board_view().is_none());
+    assert!(!driver.runtime().scene_active());
+}
+
+/// Cancel at the cursor: the goodbye, nothing taken. The text stays up with
+/// the window closed to the pad until the last press.
+#[test]
+fn cancel_at_the_guild_takes_nothing() {
+    let Some(mut driver) = guild_session(&[0x44]) else {
+        return;
+    };
+    speak_until(&mut driver, cursor_is_up);
+    press(&mut driver, Button::Cancel);
+    speak_until(&mut driver, |driver| {
+        driver.session().job_board_view().is_none()
+    });
+    assert!(!flag(&driver, 0x1E));
+}
+
+/// A job's reward, from the flags: the line and the money.
+#[test]
+fn the_guild_pays_a_finished_job() {
+    let Some(mut driver) = guild_session(&[0x1E, 0x24]) else {
+        return;
+    };
+    speak_until(&mut driver, |driver| flag(driver, 0x25));
+    assert_eq!(driver.runtime().game().money(), 3000);
+}
+
+/// The scene's table against the bytes the pack read from the ROM.
+#[test]
+fn the_guilds_table_matches_the_rom() {
+    let Some(set) = pack() else {
+        return;
+    };
+    let guild = set.data.guild().expect("the pack has the board");
+    for (row, job) in psiv_core::GUILD_JOBS.iter().enumerate() {
+        assert_eq!(
+            guild.rows[row],
+            [
+                job.taken,
+                job.earned,
+                job.paid,
+                job.offer,
+                job.progress,
+                job.reward,
+                job.available,
+                job.closed
+            ],
+            "row {row}"
+        );
+        assert_eq!(guild.money[row], job.money, "row {row}");
     }
 }

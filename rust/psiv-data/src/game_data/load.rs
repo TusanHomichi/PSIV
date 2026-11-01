@@ -71,6 +71,13 @@ impl GameData {
                 &data.manifest.rom.sha256,
             )?);
         }
+        if let Some(file) = &data.manifest.guild {
+            data.guild = Some(crate::GuildBoard::load(
+                pack_dir,
+                file,
+                &data.manifest.rom.sha256,
+            )?);
+        }
         if let Some(file) = &data.manifest.ship_menu {
             data.ship_menu = Some(crate::ShipMenu::load(
                 pack_dir,

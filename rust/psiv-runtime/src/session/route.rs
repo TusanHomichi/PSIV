@@ -94,6 +94,9 @@ impl Session {
                     self.open_destination(mask);
                     routed.push(Routed::DestinationMenu);
                 }
+                RuntimeEvent::ScenePresentation {
+                    op: psiv_core::SceneOp::JobBoard { step },
+                } => self.job_board_step(step),
                 RuntimeEvent::SceneChoiceRequested => {
                     self.runtime.open_scene_choice();
                     routed.push(Routed::SceneChoice);

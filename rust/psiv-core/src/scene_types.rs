@@ -109,6 +109,57 @@ pub enum SceneInput {
     DestinationChosen,
     /// The destination menu's player cancelled (`ps4.asm:133692`).
     DestinationCancelled,
+    /// The job board's wait ended.
+    JobBoardDone,
+    /// The job board's cursor picked a row; `None` is Cancel.
+    JobBoardPicked(Option<u8>),
+}
+
+/// `Event_HuntersGuild` on the row in `d1` (`scenes/hunters_guild.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GuildOp {
+    /// `.checkquestloop`: jump on the whole table and index a row.
+    Dispatch,
+    /// `.selectjobselected`: jump on, and index, the row the board picked.
+    BranchChoice,
+    /// `cmpi.b #$1F, d0 / bcs`: skip `skip` ops when the line stays in tree 26.
+    SkipTreeLoad {
+        /// Which of the row's lines.
+        line: crate::scenes::hunters_guild::GuildLine,
+        /// Ops skipped.
+        skip: u16,
+    },
+    /// `Event_GetAndRunDialogue` on the row's line.
+    RunLine {
+        /// Which.
+        line: crate::scenes::hunters_guild::GuildLine,
+    },
+    /// `EventFlags_Set` on byte 0.
+    SetTaken,
+    /// `EventFlags_Set` on byte 2.
+    SetPaid,
+    /// The row's money byte, times 1000, onto the purse.
+    AddReward,
+}
+
+/// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).
+/// `Hold`, `ShowList`, `Choose` and `Linger` block the scene.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum JobBoardStep {
+    /// The session takes the board on; the text window now stays up.
+    Begin,
+    /// `DoMapUpdate_JoypadLoop(#$3B)`: 60 frames or a press.
+    Hold,
+    /// `Window_Create(#$B)` and the rows.
+    ShowList,
+    /// `.loadjobcursorboxes`: the hollow boxes again.
+    Boxes,
+    /// `.selectjobloop`.
+    Choose,
+    /// `.terminateguildwindowloop`.
+    Linger,
+    /// `.terminateguildwindows`.
+    Close,
 }
 
 /// Something the runtime must act on.

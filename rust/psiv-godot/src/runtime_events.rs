@@ -365,6 +365,7 @@ impl Field {
         let stepped = self.process_events(frame.events);
         self.present_shop();
         self.present_destination();
+        self.present_job_board();
 
         // A battle this frame's events started: the runtime has already begun
         // it, so the shell builds the art, shows the stage and — for an

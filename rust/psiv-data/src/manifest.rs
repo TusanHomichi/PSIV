@@ -39,6 +39,9 @@ pub struct Manifest {
     /// Optional ROM-derived destination-menu screen (`ps4.asm:133499`).
     #[serde(default)]
     pub ship_menu: Option<crate::ShipMenuFile>,
+    /// The Hunter's Guild job board; absent in older packs.
+    #[serde(default)]
+    pub guild: Option<crate::GuildFile>,
     /// Every packed map, in id order.
     pub maps: Vec<MapEntry>,
     /// Maps deliberately not packed, and why: the `PtrMap_Null` placeholders

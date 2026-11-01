@@ -44,6 +44,7 @@ mod collision;
 mod dialogue;
 mod error;
 mod game_data;
+mod guild;
 mod ids;
 mod manifest;
 mod map;
@@ -74,6 +75,7 @@ pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCol
 pub use dialogue::*;
 pub use error::DataError;
 pub use game_data::GameData;
+pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
 pub use manifest::{
     GameStartFacing, GameStartMap, GameStartSummary, Manifest, MapEntry, PACK_FORMAT_VERSION,

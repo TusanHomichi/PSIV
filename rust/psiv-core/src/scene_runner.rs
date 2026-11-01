@@ -28,6 +28,7 @@ pub(crate) mod actor;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
+mod guild;
 #[cfg(test)]
 mod map_update_tests;
 mod mechanics;
@@ -54,6 +55,7 @@ enum Blocked {
     EndingContinue,
     Choice,
     Destination,
+    JobBoard,
     Battle,
     Map,
     Camera,
@@ -77,6 +79,10 @@ pub struct SceneRunner {
     party_slots: [Option<CharId>; PARTY_SLOTS],
     blocked: Blocked,
     dialogue_ended: bool,
+    /// The row the guild's board last answered; `None` is Cancel.
+    job_pick: Option<u8>,
+    /// The row `Event_HuntersGuild` is indexing.
+    guild_row: usize,
     dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
     /// The retail follow chain: party followers trail the member ahead of
@@ -129,6 +135,8 @@ impl SceneRunner {
             actors: cast,
             party_slots: [None; PARTY_SLOTS],
             blocked: Blocked::No,
+            job_pick: None,
+            guild_row: 0,
             dialogue_ended: false,
             dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
@@ -436,6 +444,14 @@ impl SceneRunner {
             Blocked::Destination => match input {
                 SceneInput::DestinationChosen | SceneInput::DestinationCancelled => Blocked::No,
                 _ => Blocked::Destination,
+            },
+            Blocked::JobBoard => match input {
+                SceneInput::JobBoardDone => Blocked::No,
+                SceneInput::JobBoardPicked(row) => {
+                    self.job_pick = row;
+                    Blocked::No
+                }
+                _ => Blocked::JobBoard,
             },
             other => other,
         };

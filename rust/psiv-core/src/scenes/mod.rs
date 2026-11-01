@@ -63,6 +63,7 @@ mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
+pub mod hunters_guild;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -275,6 +276,7 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::GIRLS_BAILED_OUT,
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
+    hunters_guild::HUNTERS_GUILD,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -457,6 +459,7 @@ mod tests {
             ("Event_GirlsBailedOut", 8),
             ("Event_AiedoManSavings", 4),
             ("Event_AiedoManCrushOnAlys", 6),
+            ("Event_HuntersGuild", 56),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
@@ -559,6 +562,7 @@ mod tests {
             ("Event_PersistentEsperGuards", 2),
             ("Event_EclipseTorchStolen", 2),
             ("Event_EclipseTorchUsed", 1),
+            ("Event_HuntersGuild", 10),
         ];
         for scene in SCENES {
             let ported = scene

@@ -252,6 +252,12 @@ impl Runtime {
         self.dialogue.open_status(lines, &self.game)
     }
 
+    /// While the guild's board is up, a text window closes by itself at its
+    /// terminator and its last page stays on screen (`session/job_board.rs`).
+    pub(crate) fn dialogue_board_text(&mut self, on: bool) {
+        self.dialogue.set_board_text(on);
+    }
+
     /// Closes the window without answering anything or telling the scene: the
     /// debug harness's instant-close path for scene dialogue.
     pub(crate) fn close_dialogue(&mut self) {

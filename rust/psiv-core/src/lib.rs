@@ -147,6 +147,11 @@ pub use scene::{
 };
 pub use scene_presentation::{CreditsPlane, PaletteHold, PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
+pub use scene_types::{GuildOp, JobBoardStep};
+pub use scenes::hunters_guild::{
+    GUILD_JOBS, GuildArrival, GuildChoice, GuildJob, GuildLine, JobColour, JobRow,
+    choice as guild_choice, dispatch as guild_dispatch, job_row,
+};
 pub use scenes::{
     DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,
     SCENES, SPACEPORT_MAPS, WORLD_AIR_CASTLE, WORLD_COUNT, WORLD_DEZOLIS, WORLD_KURAN,

@@ -24,6 +24,7 @@ mod field_status;
 mod field_visuals;
 mod input;
 mod install;
+mod job_board;
 mod named_caches;
 mod pack_setup;
 mod red_palette;
@@ -44,6 +45,7 @@ use cutscene::{CutsceneLayer, PresentationState};
 use destination::DestinationScreen;
 use dialogue::DialogueWindow;
 use input::requested_save_slot;
+use job_board::JobBoardScreen;
 use save_dir::save_directory;
 use shop::ShopWindow;
 use transitions::TransitionKind;
@@ -199,6 +201,7 @@ struct Field {
     status_presentation: field_status::StatusPresentation,
     shop: Option<Gd<ShopWindow>>,
     destination: Option<Gd<DestinationScreen>>,
+    job_board: Option<Gd<JobBoardScreen>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
     battle_screen: Option<Gd<BattleScreen>>,
@@ -315,6 +318,7 @@ impl INode2D for Field {
             status_presentation: field_status::StatusPresentation::default(),
             shop: None,
             destination: None,
+            job_board: None,
             camp_menu: None,
             title: None,
             battle_screen: None,
@@ -523,6 +527,20 @@ impl INode2D for Field {
         }
         self.base_mut().add_child(&destination);
         self.destination = Some(destination);
+
+        let mut job_board = JobBoardScreen::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => job_board.bind_mut().configure(
+                &self.pack_dir,
+                &set,
+                session.runtime().data().guild().cloned(),
+            ),
+            Err(e) => {
+                godot_error!("job board pack failed to load: {e}");
+            }
+        }
+        self.base_mut().add_child(&job_board);
+        self.job_board = Some(job_board);
 
         let mut camp = CampMenu::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {

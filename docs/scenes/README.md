@@ -182,6 +182,7 @@ Issue #81's Aiedo events: Rocky's owner, the guild's bail quest and two townsmen
 | `Event_GirlsBailedOut` | `$83` | [121](121_AiedoBailQuest.md#event_girlsbailedout) | `$072CDC..$072D43` |
 | `Event_AiedoManCrushOnAlys` | `$0E` | [122](122_AiedoManEvents.md) | `$06BE78..$06BEE7` |
 | `Event_AiedoManSavings` | `$22` | [122](122_AiedoManEvents.md#event_aiedomansavings) | `$06D468..$06D4A5` |
+| `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
