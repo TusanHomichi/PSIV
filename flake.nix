@@ -109,6 +109,10 @@
         "scene_map_tests::alarm_blocks_for_eight_stages_in_each_direction_before_dialogue"
         "scene_map_tests::birth_valley_door_animates_collision_then_warps_and_survives_reload"
         "scene_map_tests::elevators_open_ride_step_out_close_and_return_using_the_real_tables"
+        # rust/psiv-runtime/src/scene_strip_club_tests.rs
+        "scene_map_tests::strip_club::a_pan_with_nothing_to_do_takes_no_frame"
+        "scene_map_tests::strip_club::an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends"
+        "scene_map_tests::strip_club::both_pans_hold_the_scene_from_every_column_of_the_trigger_row"
         # rust/psiv-runtime/src/scene_vahal_tests.rs
         "scene_map_tests::vahal::belts_carry_the_party_to_the_first_cell_off_the_belt_and_the_terminal_flag_swaps_the_event"
         "scene_map_tests::vahal::the_dominators_aftermath_runs_from_its_trigger_with_the_real_party"
