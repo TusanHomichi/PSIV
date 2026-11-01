@@ -40,16 +40,10 @@ PSIV runs from a source checkout until the release package lands
 **You bring the ROM.** PSIV builds the game's graphics, sound, maps, text and
 data tables from a ROM image of the US retail release that you supply, and does
 not distribute them; what the repository does hold from the game is listed
-under [license](#license-and-third-party-code). Check yours before you start; the SHA-256 must be exactly this
-one:
-
-```console
-$ sha256sum "Phantasy Star IV (USA).md"
-511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a  Phantasy Star IV (USA).md
-```
-
-(`.md` is the Mega Drive ROM extension, not Markdown.) The pack builder checks
-the same hash and refuses any other image.
+under [license](#license-and-third-party-code). Check yours against the
+SHA-256 in the [player's guide](docs/PLAYING.md#the-rom) before you start; the
+pack builder checks the same hash and refuses any other image. (`.md` is the
+Mega Drive ROM extension, not Markdown.)
 
 **Prerequisites**
 
@@ -88,8 +82,8 @@ PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
    a snapshot of the library just built, removed when the game exits. Godot
    arguments go after `--` (`python3 tools/godot.py run -- --help`).
 
-Saves go to the directory `PSIV_SAVE_DIR` names. Load with the title screen's
-CONTINUE, and save from the camp menu's STATE, then SAVE, as on the cartridge.
+Saves go to the directory `PSIV_SAVE_DIR` names. Saving, loading and the
+controls are in the [player's guide](docs/PLAYING.md).
 
 **On the Steam Deck**, build the pack on a Linux PC as above, then run
 `tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
@@ -100,16 +94,6 @@ are in the developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-fo
 
 The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:
 the tests, the oracle and the checks a change runs.
-
-### Controls
-
-| Action | Keyboard | Controller |
-| --- | --- | --- |
-| Move, menu selection | Arrow keys or WASD | D-pad or left stick |
-| Confirm, talk | Enter, Space or Z | A (bottom face button) |
-| Cancel | Escape or X | B (right face button) |
-| Camp menu | C | X (left face button) |
-| Start | Tab | Start |
 
 ## Known differences
 
@@ -146,27 +130,26 @@ What the repository does hold from the game:
 - the game's rules and event scripts, rewritten in Rust from the disassembly,
   with the cartridge's own ids, flags, offsets and constants, and citations of
   the disassembly by symbol and line;
-- ids and addresses taken from the ROM and the disassembly:
-  `oracle/sweep/motavia_formations.json`
-  (the 83 formation ids of the Motavia encounter groups, from
-  `generated/formation_indexes.json`, ids only), the RAM addresses in
-  `oracle/ram_map.json`, and the map, shop, item and position ids the
+- ids and addresses taken from the ROM and the disassembly: the RAM addresses
+  in `oracle/ram_map.json`, and the map, shop, item and position ids the
   campaign route `rust/psiv-campaign/routes/main.json` names;
 - short byte signatures that identify ROM structures, in the extractor and its
   tests;
 - names, numbers and short quoted lines of dialogue in the documents and tests;
 - test fixtures that record game state observed in an emulator: the battle
   replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/` (party and
-  enemy stats, random draws, damage, turn order) and the oracle receipts under
+  enemy stats, random draws, damage, turn order; the records they replay
+  against come from the local pack) and the oracle receipts under
   `oracle/fixtures/`;
 - nine 8x8 tiles of the battle screen's damage numbers, copied from retail VRAM
   tiles `$5E4`-`$5EA`, `$5EE` and `$5EF` as pixel strings in `damage_pattern`
   (`rust/psiv-godot/src/battle/chrome.rs`), which the game draws its damage
-  numbers from;
-- one fixture that copies part of the ROM's battle tables (enemies, enemy
-  skills, formations, equipment and techniques),
-  `rust/psiv-core/src/battle/replay_fixtures/motavia_pack.json`, which
-  [#149](https://github.com/TusanHomichi/PSIV/issues/149) removes before 1.0.
+  numbers from.
+
+The battle tables themselves (enemies, their abilities, formations, equipment
+and techniques) stay in the local pack: the replay tests read them from there
+and skip without it, and `tools/check_rom_tables.py` fails a change that copies
+them into the tree.
 
 Third-party code is fetched at build time, never committed:
 
