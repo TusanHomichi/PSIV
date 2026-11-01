@@ -364,6 +364,7 @@ mod tests {
             at: None,
             object_index: Some(index),
             object_id: Some(56),
+            pixels: None,
             dialogue_id: Some(89),
             cell_x: None,
             cell_y: None,
