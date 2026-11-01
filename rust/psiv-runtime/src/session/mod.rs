@@ -569,7 +569,9 @@ impl Session {
                     self.accept_blocked = false;
                 }
             }
-            self.runtime.set_field_suspended(false);
+            // The guild's windows park the field between its texts, so a Hold's
+            // first pass always reaches `job_board_settle`, which tests the pad.
+            self.runtime.set_field_suspended(self.job_board.is_some());
             input
         };
         let events = self.runtime.tick(field_input);

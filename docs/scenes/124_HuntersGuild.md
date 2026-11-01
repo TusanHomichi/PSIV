@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0066` `Event_HuntersGuild` | `$0718E6..$071D73` code, `$071D74..$071E55` tables and names | `EventPtrs[$66]` at `$05A2B4 + $198` | `hunters_guild.rs`, `HUNTERS_GUILD` (55 ops); the list window in `session/job_board.rs` and `psiv-godot/src/job_board.rs`; `guild/guild.json` in the pack |
+| `$0066` `Event_HuntersGuild` | `$0718E6..$071D73` code, `$071D74..$071E55` tables and names | `EventPtrs[$66]` at `$05A2B4 + $198` | `hunters_guild.rs`, `HUNTERS_GUILD` (56 ops); the list window in `session/job_board.rs` and `psiv-godot/src/job_board.rs`; `guild/guild.json` in the pack |
 
 - **Trigger:** interaction area `$09` on `HuntersGuild` (`$057`), the cell in front of the
   counter (29, 25): the leader stands at (29, 26) facing up (`Interaction_EventIndexes`).
@@ -60,7 +60,7 @@ page drawn, open again without the slide, and keep the first entry's portrait.
 
 | Op | ROM | Retail | Scene |
 |---|---|---|---|
-| welcome | `$071A20..$071A65` | `$0F`, `SFXID_Selection`, `RunText`, `DoMapUpdate_JoypadLoop(#$3B)` | `PlaySound`, `JobBoard Begin`, `RunDialogue`, `JobBoard Hold` |
+| welcome | `$071A20..$071A65` | `$0F`, `SFXID_Selection`, `RunText`, `DMAPlane_A_VInt`, `DoMapUpdate_JoypadLoop(#$3B)` | `PlaySound`, `JobBoard Begin`, `RunDialogue`, `WaitFrames`, `JobBoard Hold` |
 | list | `$071A66..$071B09` | `Window_Create(#$B)` and `.loadjobtextloop` | `JobBoard ShowList` |
 | prompt | `$071B0A..$071B91` | `.loadjobcursorboxes`, `$10`, `InitWindowCursor`, `.selectjobloop` | `JobBoard Boxes`, `RunDialogue`, `JobBoard Choose`, `GuildOp::BranchChoice` |
 | goodbye | `$071B92..$071BBB` | `loc_69A32`'s solid box, `clr.w (a4)`, `$13` | the board stamps the row; `RunDialogue` |

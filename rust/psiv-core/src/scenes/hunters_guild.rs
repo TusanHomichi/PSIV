@@ -214,7 +214,7 @@ const RETIRED: usize = IN_PROGRESS + 5;
 const REWARD: usize = RETIRED + 5;
 const NO_JOBS: usize = REWARD + 7;
 const BOARD: usize = NO_JOBS + 2;
-const PROMPT: usize = BOARD + 5;
+const PROMPT: usize = BOARD + 6;
 const DONE_LINE: usize = PROMPT + 4;
 const NOT_YET_LINE: usize = DONE_LINE + 3;
 const FIRST_GONE_LINE: usize = NOT_YET_LINE + 3;
@@ -309,6 +309,8 @@ static OPS: &[SceneOp] = &[
     SceneOp::PlaySound { id: SFX_SELECTION },
     board(JobBoardStep::Begin),
     line(0x0F),
+    // `jsr DMAPlane_A_VInt`, this leg's alone: a frame with no update.
+    SceneOp::WaitFrames { frames: 1 },
     HOLD,
     board(JobBoardStep::ShowList),
     // `.loadjobcursorboxes`: the boxes, the prompt, the cursor.

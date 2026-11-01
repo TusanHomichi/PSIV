@@ -454,7 +454,6 @@ fn welcome_ending() -> Option<Session> {
 fn hold_updates(session: &mut Session, entry: Pad) -> u64 {
     let before = session.runtime().map_updates().calls;
     session.frame(entry);
-    assert!(!session.runtime().dialogue_open(), "the text closed");
     for _ in 0..80 {
         if session
             .job_board_view()
@@ -467,11 +466,32 @@ fn hold_updates(session: &mut Session, entry: Pad) -> u64 {
     panic!("the Hold never ended");
 }
 
+/// The welcome's own `jsr DMAPlane_A_VInt` after `RunText` (`.showjobs`): the
+/// frame the text closes on runs no update and reads no pad, so the wait
+/// starts on the frame after it. `pad` is that frame's.
+fn past_the_welcomes_vint(pad: Pad) -> Option<Session> {
+    let mut session = welcome_ending()?;
+    let before = session.runtime().map_updates().calls;
+    session.frame(pad);
+    assert!(!session.runtime().dialogue_open(), "the text closed");
+    assert_eq!(session.runtime().map_updates().calls, before);
+    Some(session)
+}
+
 /// `DoMapUpdate_JoypadLoop(#$3B)` through the session: 60 updates on a
 /// timeout, the entry frame's among them.
 #[test]
 fn a_guild_hold_runs_sixty_map_updates() {
-    let Some(mut session) = welcome_ending() else {
+    let Some(mut session) = past_the_welcomes_vint(Pad::NEUTRAL) else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::NEUTRAL), 60);
+}
+
+/// A press on the welcome's VInt frame is before the loop's test: the wait runs whole.
+#[test]
+fn a_press_on_the_welcomes_vint_does_not_end_the_guilds_hold() {
+    let Some(mut session) = past_the_welcomes_vint(Pad::new(Button::Start)) else {
         return;
     };
     assert_eq!(hold_updates(&mut session, Pad::NEUTRAL), 60);
@@ -481,7 +501,7 @@ fn a_guild_hold_runs_sixty_map_updates() {
 /// with none.
 #[test]
 fn a_press_entering_a_guild_hold_runs_no_map_update() {
-    let Some(mut session) = welcome_ending() else {
+    let Some(mut session) = past_the_welcomes_vint(Pad::NEUTRAL) else {
         return;
     };
     assert_eq!(hold_updates(&mut session, Pad::new(Button::Start)), 0);
