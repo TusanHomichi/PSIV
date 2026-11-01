@@ -17,6 +17,7 @@ pub(crate) fn title_bypassed() -> bool {
     requested_save_slot().is_some()
         || std::env::var_os("PSIV_DEBUG_BATTLE").is_some()
         || std::env::args().any(|argument| argument.starts_with("--psiv-debug-battle="))
+        || std::env::var_os("PSIV_DEBUG_BATTLE_WINDOW").is_some()
         || std::env::var_os("PSIV_DEBUG_VEHICLE").is_some()
         || std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").is_some()
         || std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")

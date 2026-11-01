@@ -129,6 +129,30 @@ impl EnemySprite {
         self.clear_attack();
     }
 
+    /// The attack this body is drawing now, for the native drivers
+    /// (`BattleScreen::debug_menu`): `attack` is `null` between attacks,
+    /// `"sheet"` while a sheet layer draws and `"flash"` while the body is only
+    /// tinted; `tint` is the body's `self_modulate` as 8-bit RGBA and
+    /// `children` its child count (a sheet layer is one child; the flash
+    /// branch adds none). `tools/verify_native_flash_attack.py` reads it.
+    pub(super) fn debug_attack(&self) -> serde_json::Value {
+        let attack = self.attack.as_ref().map(|attack| {
+            if attack.layer.is_some() {
+                "sheet"
+            } else {
+                "flash"
+            }
+        });
+        let tint = self.node.get_self_modulate();
+        serde_json::json!({
+            "fighter": self.fighter.get(),
+            "enemy_id": self.enemy_id,
+            "attack": attack,
+            "tint": [tint.r8(), tint.g8(), tint.b8(), tint.a8()],
+            "children": self.node.get_child_count(),
+        })
+    }
+
     pub(super) fn clear_attack(&mut self) {
         if let Some(mut layer) = self.attack.take().and_then(|attack| attack.layer) {
             layer.queue_free();

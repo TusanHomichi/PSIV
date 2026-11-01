@@ -352,7 +352,8 @@ impl BattleScreen {
     ///
     /// The shape is the one the drivers have always read: `ready`, `finishing`,
     /// `message`, the COMD cursor as `cursor`, and `menu` — `null` on the main
-    /// options, the command window's own lists otherwise.
+    /// options, the command window's own lists otherwise. `enemies` is each
+    /// enemy body's attack state (`EnemySprite::debug_attack`).
     pub(crate) fn debug_menu(&self) -> serde_json::Value {
         let view = self.view.as_ref();
         let message = view.map(|view| view.message.as_str()).unwrap_or("");
@@ -366,6 +367,11 @@ impl BattleScreen {
             "message": message,
             "cursor": cursor,
             "menu": menu,
+            "enemies": self
+                .enemy_nodes
+                .iter()
+                .map(EnemySprite::debug_attack)
+                .collect::<Vec<_>>(),
         })
     }
 

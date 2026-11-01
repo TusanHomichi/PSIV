@@ -15,9 +15,8 @@ of its edits, never as pack files.
 In this order:
 
 1. the directory `PSIV_RUNTIME_PACK` names;
-2. for an installed game (an exported build), `runtime-pack/` in its user data
-   folder: `~/.local/share/PSIV` on Linux and the Steam Deck,
-   `~/Library/Application Support/PSIV` on macOS, `%APPDATA%\PSIV` on Windows;
+2. for an installed game (an exported build), `runtime-pack/` in its
+   [user data folder](PLAYING.md#where-your-pack-and-saves-live);
 3. for a source checkout, `runtime-pack/` at the repository root.
 
 When that directory holds no pack the game can load, it shows a setup screen

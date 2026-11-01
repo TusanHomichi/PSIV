@@ -34,7 +34,7 @@ DECK_ROOT="$HERE/build/deck-root"
 mkdir -p "$HERE/build/deck"
 python3 "$HERE/tools/godot.py" run --dir "$DECK_ROOT" --replace --keep --profile release \
     --library "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" -- \
-    --headless --export-release "Linux-SteamDeck" "$HERE/build/deck/psiv.x86_64" \
+    --headless --export-release "Linux" "$HERE/build/deck/psiv.x86_64" \
     2>&1 | tee "$HERE/build/deck-export.log" | tail -3
 
 STAGE="$HERE/build/deck-stage/psiv"

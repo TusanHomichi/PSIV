@@ -17,8 +17,8 @@ steward runs it. `LinkCase` repoints a stale link to a cached input and keeps
 a worktree's own directory. `PruneCase` removes only unused, unlocked
 entries and abandoned staging, judging each under its entry's lock.
 `ReadOnlyCase` shows a built entry refuses writes through the link and an
-in-place `regenerate` replaces the link instead. `FramesCase` keys the pack on
-the attack frames a worktree has. `SnapshotCase` shows a build reads a copy of
+in-place `regenerate` replaces the link instead. `FramesCase` shows the pack's key
+and snapshot leave out the evidence frames it no longer reads. `SnapshotCase` shows a build reads a copy of
 what its key names, so an edit while it runs does not reach it, and
 `WaitCase` that a job checks its inputs again once it holds the lock.
 `BuildCommandCase` checks the command, directory and lock each build runs
@@ -62,7 +62,7 @@ def git(cwd, *args):
 
 class Builds:
     """A fake builder: records each build, which worktree built each entry and
-    what it read from its snapshot (the extractor, the ROM and the frames).
+    what it read from its snapshot (the extractor, the ROM and any frames).
 
     It keeps the record itself rather than writing a marker to read back
     through the link: a read under `generated/` is `tests/test_extract_stamp.py`'s
@@ -407,53 +407,43 @@ class ReadOnlyCase(ScratchCase):
 
 
 class FramesCase(ScratchCase):
-    """The pack copies the ignored attack frames, so their contents key it."""
+    """No pack input reads the ignored evidence frames (#214): a worktree still
+    links them for the tests, and they neither key nor reach a build."""
 
-    FRAMES = FRAMES
-
-    def test_negative_control_a_worktrees_own_frame_gets_its_own_pack(self):
+    def test_a_worktrees_own_frame_shares_the_pack(self):
         builds = Builds()
         linked = self.worktree("linked")
         link(linked, build=builds)
         own = self.worktree("own")
-        (own / self.FRAMES).mkdir(parents=True, exist_ok=True)
-        (own / self.FRAMES / "frame.png").write_bytes(b"another png")
+        (own / FRAMES).mkdir(parents=True, exist_ok=True)
+        (own / FRAMES / "frame.png").write_bytes(b"another png")
         link(own, build=builds)
-        self.assertEqual(builds.calls[2:], [("runtime-pack", "own")])
-        self.assertNotEqual(self.entry_of(linked, "runtime-pack"), self.entry_of(own, "runtime-pack"))
-        self.assertEqual(self.entry_of(linked, "generated"), self.entry_of(own, "generated"))
+        self.assertEqual(len(builds.calls), 2)
+        self.assertEqual(self.entry_of(linked, "runtime-pack"), self.entry_of(own, "runtime-pack"))
+        self.assertEqual((own / FRAMES / "frame.png").read_bytes(), b"another png")
 
-    def test_a_frame_changed_added_or_removed_in_the_main_checkout_rebuilds_the_pack(self):
+    def test_a_frame_changed_added_or_removed_in_the_main_checkout_builds_nothing(self):
         builds = Builds()
         link(self.worktree("before"), build=builds)
         changes = {
-            "changed": lambda: (self.main / self.FRAMES / "frame.png").write_bytes(b"new png"),
-            "added": lambda: (self.main / self.FRAMES / "frame2.png").write_bytes(b"png 2"),
-            "removed": lambda: (self.main / self.FRAMES / "frame.png").unlink(),
+            "changed": lambda: (self.main / FRAMES / "frame.png").write_bytes(b"new png"),
+            "added": lambda: (self.main / FRAMES / "frame2.png").write_bytes(b"png 2"),
+            "removed": lambda: (self.main / FRAMES / "frame.png").unlink(),
         }
         for change, apply in changes.items():
             with self.subTest(change=change):
                 apply()
                 link(self.worktree(change), build=builds)
-                self.assertEqual(builds.calls[-1], ("runtime-pack", change))
-        self.assertEqual(builds.names().count("generated"), 1)
+                self.assertEqual(len(builds.calls), 2)
 
-    def test_a_frame_changed_during_the_build_reaches_only_the_next_key(self):
+    def test_a_build_does_not_get_the_frames(self):
         builds = Builds()
-
-        def changing(entry, worktree, source, output):
-            if entry.name == "runtime-pack":
-                (self.main / self.FRAMES / "frame.png").write_bytes(b"changed mid-build")
-            builds(entry, worktree, source, output)
-
         first = self.worktree("first")
-        link(first, build=changing)
-        self.assertEqual(builds.inputs(first, "runtime-pack")["frames"], {"frame.png": b"png"})
-        second = self.worktree("second")
-        link(second, build=builds)
-        self.assertEqual(builds.calls[-1], ("runtime-pack", "second"))
-        self.assertEqual(builds.inputs(second, "runtime-pack")["frames"],
-                         {"frame.png": b"changed mid-build"})
+        link(first, build=builds)
+        self.assertTrue((first / FRAMES / "frame.png").is_file())
+        for name in ("generated", "runtime-pack"):
+            with self.subTest(name=name):
+                self.assertEqual(builds.inputs(first, name)["frames"], {})
 
 
 class SnapshotCase(ScratchCase):
@@ -475,8 +465,7 @@ class SnapshotCase(ScratchCase):
             with self.subTest(name=name):
                 self.assertEqual(builds.inputs(worktree, name),
                                  {"extractor": "EXTRACTOR = 1\n", "rom": b"not a cartridge",
-                                  "frames": {"frame.png": b"png"} if name == "runtime-pack"
-                                  else {}})
+                                  "frames": {}})
                 self.assertEqual(sorted(p.name for p in self.entry_of(worktree, name).iterdir()),
                                  sorted([name, "key.json", USED_FILE]))
 
@@ -496,16 +485,6 @@ class WaitCase(ScratchCase):
 
         with mock.patch.object(local_inputs, "_lock", waited):
             link(worktree, build=builds)
-
-    def test_frames_changed_while_waiting_are_not_served_the_old_pack(self):
-        builds = Builds()
-        link(self.worktree("first"), build=builds)
-        second = self.worktree("second")
-        self.link_changing_while_waiting(
-            second, "runtime-pack",
-            lambda: (self.main / FRAMES / "frame.png").write_bytes(b"new png"), builds)
-        self.assertEqual(builds.calls[-1], ("runtime-pack", "second"))
-        self.assertEqual(builds.inputs(second, "runtime-pack")["frames"], {"frame.png": b"new png"})
 
     def test_a_head_moved_while_waiting_is_served_its_own_extract(self):
         builds = Builds()

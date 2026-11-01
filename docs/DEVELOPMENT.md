@@ -27,9 +27,12 @@ On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 PyYAML (and ruff), the Rust toolchain `rust-toolchain.toml` pins, shellcheck, Xvfb with Mesa's software rasterizer, and the
 official Godot build that `.godot-version` pins, exported as `PSIV_GODOT`. That
 Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
-play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](../flake.nix) also
-holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
-the new zip's hash there (`tests/test_flake.py` fails until it does). The
+play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`tools/godot-downloads.json`](../tools/godot-downloads.json)
+holds the pinned release's downloads and Godot's published SHA-512 sums for
+them, the editor zip the shell runs and the export templates a release build
+uses. Renovate opens a PR when Godot releases ([`renovate.json`](../renovate.json));
+a bump of `.godot-version` also runs `python3 tools/godot.py pin`, which writes
+the new version's downloads there (`tests/test_flake.py` fails until it has). The
 shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
 same pixels. That changes no digest: every hash that names an image, in the
 tests and in the pack's `png_sha256` fields, is `image_sha256` from
@@ -139,7 +142,7 @@ Which `tools/native/` drivers remain, and why, is in
 [native drivers](campaign/NATIVE_DRIVERS.md).
 
 The keyboard and controller bindings are listed in the
-[README](../README.md#controls); they come from the input map in
+[player's guide](PLAYING.md#controls); they come from the input map in
 [`godot/project.godot`](../godot/project.godot).
 
 ### Package for the Steam Deck
@@ -152,7 +155,7 @@ The keyboard and controller bindings are listed in the
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
 symbol versions and the Deck refuses to load it), makes a run root whose
 project is prepared (`python3 tools/godot.py run`), exports its
-`Linux-SteamDeck` preset from it to
+`Linux` preset from it to
 `build/deck/` (the full export log is `build/deck-export.log`; a failed export
 stops the script), stages the executable, and copies it to `~/psiv` on the
 Deck with `rsync` over SSH. The pack goes to `~/.local/share/PSIV/runtime-pack`
@@ -169,6 +172,20 @@ It needs:
 
 On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
 
+### Release archives
+
+Players download one archive per system, Linux, Windows and macOS, which the
+[player's guide](PLAYING.md) describes. The
+[release workflow](../.github/workflows/release.yml) builds them on GitHub's
+runners with [`tools/package/release.py`](../tools/package/release.py), whose
+docstring owns the steps: each system's extension and `psiv-pack`, the export
+of every platform from Linux, the
+[third-party notices](../tools/package/notices.py), and an archive per system
+that is checked for exactly the files a release holds and started headless,
+as a first run, on its own system. It runs on every pull request that touches
+the packaging, and pushing a version tag (`v1.0.0`) publishes the archives as
+that tag's GitHub release.
+
 ## Working with agents
 
 Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
@@ -179,13 +196,14 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
-The battle-art emission tests also need the ignored indexed PNGs named by
-`oracle/fixtures/battle_animation_remainder.json` under
-`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
-frame is an emission error. Preserve a verified local copy, or reproduce the
-frames from the named oracle captures using the renderer documented in
-[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
-do not commit the ROM-derived PNGs.
+The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
+rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
+names) are oracle evidence only: no pack input reads them, and the one test
+that compares them skips without them. Do not commit the ROM-derived PNGs.
+`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
+tracked tree plus the ROM and fails, naming each path, when the builder opens
+or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
+files, the interpreter's own files and its output (#214).
 
 A worktree takes these from the main checkout: in the worktree, run
 `python3 tools/local_inputs.py link`. It links each local input the main
@@ -193,7 +211,7 @@ checkout has, except `generated/` and `runtime-pack`, which belong to a
 commit's extractor rather than to the main checkout. Those two link to a
 shared cache under the main checkout's `build/inputs/`, one entry per version
 of what builds them (the Git trees of `psiv_tools/` and, for the pack,
-`oracle/fixtures/` and the attack frames above, and the ROM). The first
+`oracle/fixtures/`, and the ROM). The first
 worktree that needs an entry builds it under the heavy-run lock, from a copy of
 exactly those inputs taken from Git and the main checkout; any other worktree
 that needs it meanwhile waits, checks its inputs again, and then links the
@@ -392,7 +410,9 @@ statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
 than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
+itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
+which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
