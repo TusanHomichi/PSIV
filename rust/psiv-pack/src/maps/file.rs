@@ -25,7 +25,7 @@ use super::records::{MapRecord, hex6, map_reference};
 use crate::PackError;
 use crate::json::{Json, overlay};
 use crate::m68k::w;
-use crate::map_symbols::{INTERACTION_EVENT_INDEXES, ITEM_SYMBOLS, MAP_SYMBOLS};
+use crate::map_symbols::{ITEM_SYMBOLS, MAP_SYMBOLS};
 use crate::sprites::emit::{MapSprites, NPC_NAME, NpcMetadata};
 use crate::sprites::records::FACINGS;
 use crate::warps::{Rect, STANDING_CELL_Y_OFFSET, interaction_rect, warp_rect, xy_range_name};
@@ -35,6 +35,10 @@ const FORMAT_VERSION: u32 = 2;
 const MAP_CHANGE_COLLISION_TYPE: u8 = 0x1;
 /// `Pal_Init_Line_3`, which `bind_updates` splices in as CRAM line 2.
 const PAL_INIT_LINE_3: usize = 0x296300;
+/// `Interaction_EventIndexes`: `Interaction_GetEvent` indexes these 32 words
+/// with an area's byte 9. Their high bit means what it means in `Event_Index`.
+const INTERACTION_EVENT_INDEXES: usize = 0x064F22;
+const INTERACTION_EVENT_COUNT: usize = 32;
 
 fn typed<T: DeserializeOwned>(value: &Json, what: &str) -> Result<T, PackError> {
     serde_json::from_value(Value::from(value))
@@ -163,8 +167,21 @@ pub fn warps(
     Ok((out, anomalies))
 }
 
+/// One word of `Interaction_EventIndexes`, read from the ROM.
+fn interaction_event_index(rom: &[u8], parameter: u8) -> Result<u16, PackError> {
+    let index = usize::from(parameter);
+    if index >= INTERACTION_EVENT_COUNT {
+        return Err(PackError(format!(
+            "it indexes Interaction_EventIndexes with ${parameter:02X}, outside the \
+             {INTERACTION_EVENT_COUNT}-entry table"
+        )));
+    }
+    Ok(w(rom, INTERACTION_EVENT_INDEXES + index * 2)?)
+}
+
 /// `_interaction_areas`: type 2 records also carry the indexed event word.
 fn interaction_areas(
+    rom: &[u8],
     record: &MapRecord,
     doc: &Json,
     grid: &CollisionGrid,
@@ -182,16 +199,15 @@ fn interaction_areas(
             grid.height as i32,
         )?;
         let event_index = if area.interaction_type == 2 {
-            let Some(event) = INTERACTION_EVENT_INDEXES.get(usize::from(area.parameter)) else {
-                return Err(PackError(format!(
-                    "interaction area at {} indexes Interaction_EventIndexes with ${:02X}, \
-                     outside the {}-entry table",
-                    hex6(entry.rom_offset),
-                    area.parameter,
-                    INTERACTION_EVENT_INDEXES.len()
-                )));
-            };
-            Some(*event)
+            interaction_event_index(rom, area.parameter)
+                .map_err(|error| {
+                    PackError(format!(
+                        "interaction area at {}: {}",
+                        hex6(entry.rom_offset),
+                        error.0
+                    ))
+                })
+                .map(Some)?
         } else {
             None
         };
@@ -432,7 +448,7 @@ pub fn map_file(
         dialogue_tree: record.dialogue.tree as u8,
         events: record.events.ids.clone(),
         warps,
-        interaction_areas: interaction_areas(record, &doc, grid)?,
+        interaction_areas: interaction_areas(rom, record, &doc, grid)?,
         npcs: npcs(record, &sprites.npcs)?,
         treasure_chests: treasure_chests(record, &sprites.chests)?,
         map_effects: typed(&map_effects_json, "the map effects")?,
@@ -513,6 +529,21 @@ mod tests {
         assert_eq!(facing(0xC).name, Some(Direction::Left));
         assert_eq!(facing(0x10).name, None);
         assert_eq!(facing(0x10).id, 0x10);
+    }
+
+    #[test]
+    fn an_event_index_keeps_its_high_bit_and_the_parameter_is_bounded() {
+        let mut rom = vec![0u8; INTERACTION_EVENT_INDEXES + 64];
+        rom[INTERACTION_EVENT_INDEXES + 62] = 0x80;
+        rom[INTERACTION_EVENT_INDEXES + 63] = 0x1E;
+        assert_eq!(interaction_event_index(&rom, 31).unwrap(), 0x801E);
+        assert_eq!(interaction_event_index(&rom, 0).unwrap(), 0);
+        let error = interaction_event_index(&rom, 32).unwrap_err();
+        assert!(
+            error.0.contains("outside the 32-entry table"),
+            "{}",
+            error.0
+        );
     }
 
     #[test]

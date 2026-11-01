@@ -107,10 +107,13 @@ def _probe_layouts(rom: bytes):
     its decoded image. For a world map, also its format facts, its patches, and
     for each cell a write touches the patches that open it."""
     from psiv_tools.layouts import chunk_palette, render_layout
+    from psiv_tools.map_effects import extract_map_effects
+    from psiv_tools.map_patches import resolve_map_effects, scene_patch_chunks
     from psiv_tools.overworld import check_code_sites, opening_patches
     from psiv_tools.pack_layouts import decode_map_section, unloaded_patterns
     from psiv_tools.pack_map_json import _warps
     from psiv_tools.render import priority_overlay
+    effects = extract_map_effects(rom, _probe_maps(rom)["maps"])
     out = []
     for record in _probe_maps(rom)["maps"]:
         if record.get("is_null"):
@@ -124,7 +127,11 @@ def _probe_layouts(rom: bytes):
                  "unloaded_patterns": unloaded_patterns(decoded),
                  "png_sha256": image_sha256(image),
                  "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
-                 "priority": priority, "warp_anomalies": _warps(record, decoded.collision)[1]}
+                 "priority": priority,
+                 "patch_counts": resolve_map_effects(
+                     decoded, effects["per_map"].get(record["id"], []))[2],
+                 "scene_chunks": scene_patch_chunks(rom, record),
+                 "warp_anomalies": _warps(record, decoded.collision)[1]}
         if overworld is not None:
             entry["overworld"] = overworld.to_json()
             entry["patches"] = [patch.to_json() for patch in overworld.patches]

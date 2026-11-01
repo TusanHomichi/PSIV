@@ -9,7 +9,7 @@ use std::path::Path;
 use psiv_pack::Rom;
 use psiv_pack::decode::Decodes;
 use psiv_pack::json::{Json, dumps};
-use psiv_pack::maps::{ExtractedMaps, draw, layouts, overworld, pictures};
+use psiv_pack::maps::{ExtractedMaps, draw, layouts, overworld, patches, pictures};
 use psiv_pack::png::image_sha256;
 
 /// Every real map, as the pack decodes and renders it. A render is held to
@@ -20,6 +20,7 @@ fn layouts(
     decodes: &Decodes,
     maps: &ExtractedMaps,
 ) -> Result<Vec<Json>, psiv_pack::PackError> {
+    let effects = psiv_pack::maps::effects::extract_map_effects(data, maps.real())?;
     let mut out = Vec::new();
     for record in maps.real() {
         let section = overworld::decode_map_section(data, decodes, record)?;
@@ -44,6 +45,19 @@ fn layouts(
                 overlay.as_deref().map(image_sha256).transpose()?,
             )
             .with("priority", counts.to_json())
+            .with(
+                "patch_counts",
+                patches::resolve_map_effects(
+                    decoded,
+                    effects
+                        .per_map
+                        .get(&record.id)
+                        .map_or(&[][..], Vec::as_slice),
+                )?
+                .2
+                .to_json(),
+            )
+            .with("scene_chunks", patches::scene_patch_chunks(data, record)?)
             .with(
                 "warp_anomalies",
                 psiv_pack::maps::file::warps(record, &decoded.collision)?.1,
