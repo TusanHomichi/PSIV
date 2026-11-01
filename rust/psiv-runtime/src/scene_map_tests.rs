@@ -8,6 +8,8 @@ mod crash;
 mod garuberk;
 #[path = "scene_landale_tests.rs"]
 mod landale;
+#[path = "scene_strip_club_tests.rs"]
+mod strip_club;
 #[path = "scene_vahal_tests.rs"]
 mod vahal;
 

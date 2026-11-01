@@ -338,7 +338,7 @@ fn walk(driver: &mut Driver, direction: Direction, cells: u16) {
     panic!("the leader did not reach {goal:?} from {start:?}");
 }
 
-/// Stepping up to the stage (row 36, x `$1E0..$270`, trigger `$79`) brings
+/// Stepping up to the stage (cell row 37, `y = $240`, x `$1E0..$270`, trigger `$79`) brings
 /// the dancers out (`Event_StrippersAppearing`): the customer takes routine
 /// `$34C`, which turns him up with line `$39` and back down with `$38` every
 /// 256 frames, and `TempEveFlag_StrippersDance` is set. Leaving through the
@@ -356,9 +356,12 @@ fn the_dancers_come_out_at_the_stage_and_leaving_resets_them() {
         Some(0x3B),
         "the record's line before the dance"
     );
-    walk(&mut driver, Direction::Up, 3);
-    assert_eq!(driver.scenes_ended(), scenes, "row 37 is below the trigger");
-    // One more step up: the trigger fires on row 36 and the scene runs.
+    walk(&mut driver, Direction::Up, 2);
+    assert!(
+        !driver.runtime().scene_active(),
+        "cell row 38 is below the trigger"
+    );
+    // One more step up: the trigger fires on row 37 and the scene runs.
     driver.set_budget(2_000);
     for _ in 0..1_000 {
         if driver.scenes_ended() > scenes {

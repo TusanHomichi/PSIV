@@ -678,6 +678,21 @@ impl Runtime {
                     SceneOp::MoveCamera { x, y, speed } => {
                         self.scene_move_camera(x, y, i32::from(speed));
                     }
+                    SceneOp::PanCamera { subject, speed } => {
+                        let at = match subject {
+                            psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),
+                            psiv_core::CameraSubject::Actor(actor) => self
+                                .scene
+                                .as_ref()
+                                .and_then(|runner| runner.actor(actor))
+                                .map(|walker| PixelPos::from_cell(walker.cell)),
+                        };
+                        // An actor the cast lacks has nowhere to pan to; the
+                        // runner's wait then releases on the next frame.
+                        if let Some(at) = at {
+                            self.scene_pan_camera(at.x, at.y, i32::from(speed));
+                        }
+                    }
                     // Bit 2 hands the camera to the scene (the opening's
                     // walk off the screen edge); the scripted-leader follow
                     // in `tick_scene_camera` honours it.

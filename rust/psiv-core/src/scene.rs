@@ -492,6 +492,15 @@ pub enum SceneOp {
         /// Scroll speed.
         speed: u16,
     },
+    /// `Event_MoveCamera` as the cartridge runs it: X to its target, then Y,
+    /// and the scene waits for the arrival (`ps4.asm:121468`). The older
+    /// [`Self::MoveCamera`] and `CameraToActor` carry on at once (#267).
+    PanCamera {
+        /// What to frame.
+        subject: crate::scene_presentation::CameraSubject,
+        /// Scroll speed.
+        speed: u16,
+    },
     /// Walk an actor to a pixel position — `Event_MoveCharacters` (`$5AA84`,
     /// the party, followers in tow) or `Event_MoveSingleObject` (`$5A9FC`).
     MoveActorTo {

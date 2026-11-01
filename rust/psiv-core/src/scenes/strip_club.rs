@@ -7,7 +7,7 @@
 //! navigation only.
 
 use crate::scene::{ActorRef, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -90,10 +90,10 @@ pub static STRIPPERS_APPEARING: Scene = Scene {
         SceneOp::PlaySound { id: STOP_MUSIC },
         SceneOp::Wait { ticks: 10 },
         SceneOp::PlayMusicIfSavedDifferent { id: MUSIC_PAO_PAO },
-        // 3: `Event_MoveCamera` to `($220,$1C0)`, speed 1.
-        SceneOp::MoveCamera {
-            x: 0x220,
-            y: 0x1C0,
+        // 3: `Event_MoveCamera` to `($220,$1C0)`, speed 1: the routine returns
+        // on arrival, so nothing walks until the stage is framed.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x220, y: 0x1C0 },
             speed: 1,
         },
         // 4-6: `$C340`, `$C380`, `$C3C0`.
@@ -136,12 +136,11 @@ pub static STRIPPERS_APPEARING: Scene = Scene {
             rom_addr: CUSTOMER_ART,
             tile: CUSTOMER_TILE,
         },
-        // 25: `Event_MoveCamera` to `Character_1`, speed 1.
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: ActorRef::PartyMember(0),
-                speed: 1,
-            },
+        // 25: `Event_MoveCamera` to `Character_1`, speed 1: the rest of the
+        // scene, and the player's control, wait for the view to come home.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(ActorRef::PartyMember(0)),
+            speed: 1,
         },
         // 26-29: `Field_Obj_Secondary` and objects 1 to 3 take new routines.
         SceneOp::SetObjectRoutine {

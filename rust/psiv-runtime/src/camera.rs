@@ -50,6 +50,12 @@ impl Runtime {
         self.scene_move_camera_ordered(x, y, 2, true);
     }
 
+    /// `SceneOp::PanCamera`: the routine as it stands, X then Y on the
+    /// twelve-bit short path. The runner waits for the arrival.
+    pub(crate) fn scene_pan_camera(&mut self, x: i32, y: i32, speed: i32) {
+        self.scene_move_camera_ordered(x, y, speed, true);
+    }
+
     fn scene_move_camera_ordered(&mut self, x: i32, y: i32, speed: i32, x_then_y: bool) {
         let target_x = x - psiv_core::HOME_X;
         let target_y = y - psiv_core::HOME_Y;

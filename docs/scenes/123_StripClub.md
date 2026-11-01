@@ -37,7 +37,7 @@ empty until it does. `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are `Wait(n
 |---:|---|---|---|
 | 0-1 | `$073440..$07344F` | `Sound_StopMusic` (`$FB`), `DoMapUpdateLoop(9)` | `PlaySound`, `Wait(10)` |
 | 2 | `$073450..$073467` | `cmpi.b #MusicID_PaoPao ($B0), Saved_Sound_Index`; when different, both bytes take it | `PlayMusicIfSavedDifferent` |
-| 3 | `$073468..$073477` | `Event_MoveCamera` to (`$220`, `$1C0`), speed 1 | `MoveCamera` |
+| 3 | `$073468..$073477` | `Event_MoveCamera` to (`$220`, `$1C0`), speed 1 | `PanCamera` |
 | 4-6 | `$073478..$0734AF` | objects 1 to 3 (`$C340`, `$C380`, `$C3C0`): routine `$344` at (`$160,$190`), (`$150,$190`), (`$170,$190`) | `CreateFieldObject` x 3, tile `$3BA` (the routine's `$16` word, the map's upload) |
 | 7-8 | `$0734B0..$0734CD` | `Field_UpdateObjects`, `Field_LoadSprites`, `Field_BuildSprites`, `RunMapUpdates`, `VInt_Prepare` | `RebuildSprites`, `WaitFrames(1)` |
 | 9-10 | `$0734CE..$0734ED` | `dest` (`$38`/`$3A`) of object 2 := (`$200,$1F0`), object 3 := (`$240,$1F0`) | `WalkObject` x 2 |
@@ -49,11 +49,20 @@ empty until it does. `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are `Wait(n
 | 22 | `$07356C..$073573` | `DoMainUpdatesLoop($59)` | `Wait(90)` |
 | 23 | `$073574..$073583` | `clr.w` the routine words of `$C400`, `$C440`, `$C480` | `DespawnNpc` 4, three objects |
 | 24 | `$073584..$073599` | `NemDecomp` of `$14A1CC` to tile `$372` | `LoadArt` |
-| 25 | `$07359A..$0735AD` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `CameraToActor` the leader |
+| 25 | `$07359A..$0735AD` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `PanCamera` the leader |
 | 26 | `$0735AE..$0735B5` | `Field_Obj_Secondary` routine := `$34C` | `SetObjectRoutine` object 0 |
 | 27-29 | `$0735B6..$0735C7` | objects 1 to 3 routines := `$35C`, `$360`, `$364` | `CreateFieldObject` x 3 at the spots they walked to |
 | 30-31 | `$0735C8..$0735E5` | the five-call rebuild | `RebuildSprites`, `WaitFrames(1)` |
 | 32 | `$0735E6..$0735ED` | `moveq #TempEveFlag_StrippersDance, d0` / `jmp TempEveFlags_Set` | `SetFlag` temp `$1B` |
+
+**The pans.** `Event_MoveCamera` (`ps4.asm:121468`) returns on arrival: X in its own loop, then
+Y, a pixel a frame at speed 1, with map updates and the objects running and the pad cleared. A
+leg already on its target takes no frames, so the strippers appear after exactly the outbound
+distance from wherever the leader stood, and the dancers and the flag after the return's.
+`SceneOp::PanCamera` is that routine. The port's one difference: a pan with nothing to do on
+either axis costs one frame (the runner learns of the arrival on its next tick), where the
+cartridge costs none. $94 cannot reach that, since the leader's `y` is `$240` and the stage's
+subject `$1C0`. Column `$220` has an empty X leg on both pans, and that leg costs nothing.
 
 **The walk.** `FieldObj_Stripper`'s init copies its position into `dest`, so the creation frame
 does not move it. `Event_MoveObjectStatic` then runs every object a frame at a time
@@ -102,8 +111,12 @@ for scene-created objects. The scene's own `Wait` carries a walk's frames.
   writes, the 160 + 60 frames from the walk to the coats (the wait read back from the ops'
   own coordinates), the clear of objects 4 to 6 and the flag. A second case clears the flag.
   `bespoke_tests.rs` checks the customer's turn and line at frames 0, 255, 256, 511 and 512.
-- Pad-driven: `rust/psiv-campaign/tests/aiedo_side.rs` walks a party up to the stage (row 37 does
-  not fire, row 36 does), checks the customer's routine, facing and line after the scene and
+- Runtime: `rust/psiv-runtime/src/scene_strip_club_tests.rs` plays $94 from every column of the
+  trigger row and checks each pan's boundaries: X before Y, the frame count, nothing created
+  until the stage is framed, no dancer or flag until the view is home, the scene (so the pad)
+  still running through the return, and empty legs on either pan.
+- Pad-driven: `rust/psiv-campaign/tests/aiedo_side.rs` walks a party up to the stage (cell row 38
+  does not fire, the step onto 37, `y = $240`, does), checks the customer's routine, facing and line after the scene and
   256 frames later, then walks out to the guild, where `$95` clears the flag.
 - Not yet drawn: the pack has no sheets for the stripper, coat and dancer routines or for the
   customer's new art, and the renderer drops a scene's created objects when the scene ends,

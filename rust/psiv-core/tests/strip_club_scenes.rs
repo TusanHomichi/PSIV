@@ -23,9 +23,11 @@ fn play(event: u16, state: &mut GameState) -> Vec<(usize, SceneEffect)> {
     let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
     let mut log = Vec::new();
     for tick in 0..1_000 {
-        let input = match log.last() {
-            Some((_, SceneEffect::MapRequested { .. })) => SceneInput::MapLoaded,
-            _ => SceneInput::None,
+        // The runtime's glide takes frames; here each pan arrives at once.
+        let input = if runner.is_waiting_for_camera() {
+            SceneInput::CameraArrived
+        } else {
+            SceneInput::None
         };
         for effect in runner.tick(&map, state, input) {
             log.push((tick, effect));
@@ -168,4 +170,62 @@ fn leaving_clears_the_flag_so_the_dance_repeats() {
     state.set(STRIPPERS_DANCE).unwrap();
     play(0x95, &mut state);
     assert!(!state.is_set(STRIPPERS_DANCE));
+}
+
+/// `Event_MoveCamera` returns on arrival, so neither pan lets the scene on:
+/// no number of frames releases it, only the arrival does.
+#[test]
+fn both_pans_hold_the_scene_until_the_camera_arrives() {
+    let map = map_with(&["....", "....", "....", "...."], vec![], vec![]);
+    let scene = scene_for(EventIndex(0x94)).unwrap();
+    let cast = vec![ScriptedActor::new(
+        ActorRef::PartyMember(0),
+        Cell::new(2, 3),
+        Direction::Up,
+    )];
+    let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
+    let mut state = GameState::new();
+    let mut seen = Vec::new();
+    let mut held = 0;
+    for _ in 0..2_000 {
+        if runner.is_finished() {
+            break;
+        }
+        let mut effects = runner.tick(&map, &mut state, SceneInput::None);
+        if runner.is_waiting_for_camera() {
+            held += 1;
+            seen.append(&mut effects);
+            for _ in 0..600 {
+                assert!(runner.tick(&map, &mut state, SceneInput::None).is_empty());
+                assert!(runner.is_waiting_for_camera());
+            }
+            let pans = seen
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        SceneEffect::Presentation {
+                            op: SceneOp::PanCamera { .. }
+                        }
+                    )
+                })
+                .count();
+            assert_eq!(pans, held, "the op that blocks is the pan");
+            assert!(!state.is_set(STRIPPERS_DANCE));
+            assert!(
+                !matches!(
+                    seen.last(),
+                    Some(SceneEffect::Presentation {
+                        op: SceneOp::CreateFieldObject { .. }
+                    })
+                ),
+                "the pan is the last thing written before the wait"
+            );
+            effects = runner.tick(&map, &mut state, SceneInput::CameraArrived);
+        }
+        seen.append(&mut effects);
+    }
+    assert!(runner.is_finished());
+    assert_eq!(held, 2, "the outbound pan and the return");
+    assert!(state.is_set(STRIPPERS_DANCE));
 }

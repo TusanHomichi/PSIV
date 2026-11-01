@@ -58,7 +58,7 @@ impl Field {
             // Camera ops are consumed by the runtime when it translates the
             // effect (the camera is simulation state, not presentation);
             // nothing to do here beyond acknowledging the op.
-            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } => {}
+            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } | SceneOp::PanCamera { .. } => {}
             SceneOp::LoadTitleImage { .. } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().begin_opening();

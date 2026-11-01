@@ -17,6 +17,20 @@ pub enum PresentationAsset {
     ShopkeeperDialPortrait2,
 }
 
+/// What a [`crate::SceneOp::PanCamera`] frames: `Event_MoveCamera`'s `d0`/`d1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraSubject {
+    /// Literal operands, in pixels.
+    At {
+        /// `d0`.
+        x: i32,
+        /// `d1`.
+        y: i32,
+    },
+    /// An object's live `$30`/`$34`, read when the op runs.
+    Actor(ActorRef),
+}
+
 /// One renderer-owned operation preserved by a scene transcription.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationOp {

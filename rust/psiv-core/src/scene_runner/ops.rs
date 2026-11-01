@@ -52,7 +52,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Map;
             }
-            SceneOp::FlightPan => {
+            SceneOp::FlightPan | SceneOp::PanCamera { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Camera;
