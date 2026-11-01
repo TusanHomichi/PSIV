@@ -129,6 +129,42 @@ class CompareCase(unittest.TestCase):
         (self.rust / "sec2" / "x.json").write_bytes(b"{}\n")
         self.assertIn("sec2/x.json: psiv-pack wrote it outside its claims", self.problems())
 
+    def test_a_starred_claim_names_files_directly_in_its_directory(self):
+        from tools.pack_parity import _under
+        self.assertTrue(_under("maps/a.png", "maps/*.png"))
+        self.assertFalse(_under("maps/a.json", "maps/*.png"))
+        self.assertFalse(_under("maps/sub/a.png", "maps/*.png"))
+        self.assertFalse(_under("other/a.png", "maps/*.png"))
+
+    def test_a_starred_claim_compares_only_what_it_matches(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            rust, python = Path(scratch) / "rust", Path(scratch) / "python"
+            for root in (rust, python):
+                (root / "maps").mkdir(parents=True)
+            image = encode_indexed(1, 1, bytes([0]), [(1, 2, 3)])
+            (rust / "maps" / "a.png").write_bytes(image)
+            (python / "maps" / "a.png").write_bytes(image)
+            # Python's JSON beside it is unclaimed, so it isn't missing.
+            (python / "maps" / "a.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(compare(rust, python, ["maps/*.png"]), ([], 1))
+            # A JSON psiv-pack writes there is outside the claim.
+            (rust / "maps" / "b.json").write_text("{}", encoding="utf-8")
+            problems, _ = compare(rust, python, ["maps/*.png"])
+            self.assertEqual(problems, ["maps/b.json: psiv-pack wrote it outside its claims"])
+            (rust / "maps" / "b.json").unlink()
+            # A picture Python has and psiv-pack doesn't is missing.
+            (python / "maps" / "c.png").write_bytes(image)
+            problems, _ = compare(rust, python, ["maps/*.png"])
+            self.assertEqual(problems, ["maps/c.png: missing from psiv-pack's pack"])
+            # A different picture under the claim fails.
+            (python / "maps" / "c.png").unlink()
+            (python / "maps" / "a.png").write_bytes(encode_indexed(1, 1, bytes([0]), [(9, 2, 3)]))
+            problems, _ = compare(rust, python, ["maps/*.png"])
+            self.assertEqual(problems, ["maps/a.png: the decoded image differs"])
+            # A star that matches nothing in the Python pack fails.
+            problems, _ = compare(rust, python, ["other/*.png"])
+            self.assertIn("claim other/*.png: the Python pack has no such path", problems)
+
     def test_claim_the_python_pack_lacks_fails(self):
         self.claims.append("nowhere")
         self.assertEqual(self.problems(), ["claim nowhere: the Python pack has no such path"])

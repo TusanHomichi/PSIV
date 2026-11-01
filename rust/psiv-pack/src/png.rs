@@ -128,6 +128,46 @@ pub fn encode_indexed(
     Ok(out)
 }
 
+/// `index_png`: an indexed PNG with its palette replaced by `(index, 0, 0)`,
+/// IDAT, dimensions and transparency preserved. The renderer samples the CRAM
+/// index from red, never guessing a slot from an RGB value.
+pub fn index_png(data: &[u8]) -> Result<Vec<u8>, PngError> {
+    if !data.starts_with(SIGNATURE) {
+        return Err(PngError("palette-index input is not a PNG".into()));
+    }
+    let mut out = Vec::with_capacity(data.len());
+    out.extend_from_slice(SIGNATURE);
+    let mut at = SIGNATURE.len();
+    let mut found = false;
+    while at < data.len() {
+        let truncated = || PngError("palette-index input is truncated".into());
+        let head: [u8; 4] = data
+            .get(at..at + 4)
+            .and_then(|bytes| bytes.try_into().ok())
+            .ok_or_else(truncated)?;
+        let size = u32::from_be_bytes(head) as usize;
+        let whole = data.get(at..at + size + 12).ok_or_else(truncated)?;
+        let kind = &whole[4..8];
+        if kind == b"IHDR" && whole.get(17) != Some(&COLOR_TYPE_INDEXED) {
+            return Err(PngError(
+                "palette-index input must be an indexed PNG".into(),
+            ));
+        }
+        if kind == b"PLTE" {
+            let palette: Vec<u8> = (0..size / 3).flat_map(|i| [i as u8, 0, 0]).collect();
+            chunk(&mut out, b"PLTE", &palette);
+            found = true;
+        } else {
+            out.extend_from_slice(whole);
+        }
+        at += size + 12;
+    }
+    if !found {
+        return Err(PngError("palette-index input has no palette".into()));
+    }
+    Ok(out)
+}
+
 /// An 8-bit-per-channel truecolour image; `pixels` is RGB triples.
 pub fn encode_rgb(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, PngError> {
     let mut out = Vec::with_capacity(pixels.len() / 2 + 128);
@@ -295,6 +335,37 @@ pub fn hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_index_image_changes_only_the_palette() {
+        let image = encode_indexed(2, 1, &[0, 1], &[[9, 9, 9], [8, 8, 8]], &[0]).unwrap();
+        let indexed = index_png(&image).unwrap();
+        assert_eq!(indexed.len(), image.len());
+        let palette = indexed
+            .windows(4)
+            .position(|window| window == b"PLTE")
+            .unwrap();
+        assert_eq!(indexed[palette + 4..palette + 10], [0, 0, 0, 1, 0, 0]);
+        // Every other byte but the PLTE CRC is the original's.
+        let skip = palette + 4..palette + 14;
+        for (at, (a, b)) in image.iter().zip(&indexed).enumerate() {
+            assert!(skip.contains(&at) || a == b, "byte {at}");
+        }
+        assert!(index_png(b"not a png").unwrap_err().0.contains("not a PNG"));
+        assert!(
+            index_png(&image[..image.len() - 2])
+                .unwrap_err()
+                .0
+                .contains("truncated")
+        );
+        let rgb = encode_rgb(1, 1, &[1, 2, 3]).unwrap();
+        assert!(
+            index_png(&rgb)
+                .unwrap_err()
+                .0
+                .contains("must be an indexed PNG")
+        );
+    }
+
     use super::*;
 
     #[test]

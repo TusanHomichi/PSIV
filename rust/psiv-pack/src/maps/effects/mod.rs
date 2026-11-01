@@ -247,28 +247,35 @@ pub struct MapEffects {
     pub census: Json,
 }
 
-fn field<'a>(value: &'a Json, key: &str) -> Option<&'a Json> {
+pub(super) fn field<'a>(value: &'a Json, key: &str) -> Option<&'a Json> {
     let Json::Object(pairs) = value else {
         return None;
     };
     pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v)
 }
 
-fn items<'a>(value: &'a Json, key: &str) -> &'a [Json] {
+pub(super) fn field_mut<'a>(value: &'a mut Json, key: &str) -> Option<&'a mut Json> {
+    let Json::Object(pairs) = value else {
+        return None;
+    };
+    pairs.iter_mut().find(|(k, _)| k == key).map(|(_, v)| v)
+}
+
+pub(super) fn items<'a>(value: &'a Json, key: &str) -> &'a [Json] {
     match field(value, key) {
         Some(Json::Array(items)) => items,
         _ => &[],
     }
 }
 
-fn text<'a>(value: &'a Json, key: &str) -> &'a str {
+pub(super) fn text<'a>(value: &'a Json, key: &str) -> &'a str {
     match field(value, key) {
         Some(Json::Str(text)) => text,
         _ => "",
     }
 }
 
-fn int(value: &Json, key: &str) -> Option<i128> {
+pub(super) fn int(value: &Json, key: &str) -> Option<i128> {
     match field(value, key) {
         Some(Json::Int(number)) => Some(*number),
         _ => None,

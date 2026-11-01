@@ -362,6 +362,12 @@ fn quadrant_collision(words: &[u16; CHUNK_WORDS], quadrant_x: usize, quadrant_y:
         })
 }
 
+/// `chunk_collision_cells`: the 2x2 collision one chunk definition imposes,
+/// top-left, top-right, bottom-left, bottom-right.
+pub fn chunk_collision_cells(words: &[u16; CHUNK_WORDS]) -> [u8; 4] {
+    [(0, 0), (1, 0), (0, 1), (1, 1)].map(|(qx, qy)| quadrant_collision(words, qx, qy))
+}
+
 /// `collision_at`: the collision type of one 16x16 cell, out of the asm's
 /// arithmetic.
 pub fn collision_at(
@@ -395,8 +401,7 @@ pub fn decode_collision(chunks: &ChunkTable, layout: &Layout) -> Result<Collisio
                 Some(cells) => cells,
                 None => {
                     let words = chunks.get(chunk_id)?;
-                    let cells = [(0, 0), (1, 0), (0, 1), (1, 1)]
-                        .map(|(qx, qy)| quadrant_collision(words, qx, qy));
+                    let cells = chunk_collision_cells(words);
                     quadrants[usize::from(chunk_id)] = Some(cells);
                     cells
                 }
@@ -528,6 +533,11 @@ pub fn decode_map_palette(rom: &[u8], offset: usize) -> Result<Vec<Color>, PackE
         )));
     }
     Ok(gfx::decode_palette(&rom[offset..end])?)
+}
+
+/// `palette_rgb(decode_map_palette(...))`: the map's 48 colours.
+pub fn map_palette_rgb(rom: &[u8], offset: usize) -> Result<Vec<[u8; 3]>, PackError> {
+    Ok(gfx::palette_rgb(&decode_map_palette(rom, offset)?))
 }
 
 /// `chunk_palette`: the 32 colours a chunk word can select. Chunk tiles reach

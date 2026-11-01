@@ -47,7 +47,7 @@ pub fn vdp_word(word: u16) -> u16 {
     word & VDP_WORD_MASK
 }
 
-fn priority(word: u16) -> bool {
+pub fn priority(word: u16) -> bool {
     word >> PRIORITY_BIT & 1 != 0
 }
 
