@@ -473,7 +473,7 @@ mod tests {
             ("Event_TallasMom", 3),
             ("Event_TallasMomAfterRescue", 3),
             ("Event_InsideMonsenHole", 2),
-            ("Event_TallasRescued", 15),
+            ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),

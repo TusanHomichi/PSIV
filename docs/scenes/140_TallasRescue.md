@@ -5,7 +5,7 @@
 | `$007A` `Event_TallasMom` | `$072AD0..$072AF5` inclusive, 38 bytes | `EventPtrs[$7A]` at `$05A2B4 + $1E8` | `monsen.rs`, `TALLAS_MOM` (3 ops) |
 | `$007B` `Event_TallasMomAfterRescue` | `$072AF6..$072B1B` inclusive, 38 bytes | `EventPtrs[$7B]` at `$05A2B4 + $1EC` | `monsen.rs`, `TALLAS_MOM_AFTER_RESCUE` (3 ops) |
 | `$007C` `Event_InsideMonsenHole` | `$072B1C..$072B2B` inclusive, 16 bytes | `EventPtrs[$7C]` at `$05A2B4 + $1F0` | `monsen.rs`, `INSIDE_MONSEN_HOLE` (2 ops) |
-| `$007E` `Event_TallasRescued` | `$072B52..$072C07` inclusive, 182 bytes | `EventPtrs[$7E]` at `$05A2B4 + $1F8` | `monsen.rs`, `TALLAS_RESCUED` (15 ops) |
+| `$007E` `Event_TallasRescued` | `$072B52..$072C07` inclusive, 182 bytes | `EventPtrs[$7E]` at `$05A2B4 + $1F8` | `monsen.rs`, `TALLAS_RESCUED` (14 ops) |
 
 - **Triggers:** `$7A` and `$7B` are dialogue `$F6`, `DialogueTree12` entries `$1C` and `$1E`, from
   the mother (`MonsenHouse4` `$078`, object 0, dialogue `$1A`). Entry `$1A`'s chain is `$FA $3D +6`,
