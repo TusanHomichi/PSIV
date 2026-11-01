@@ -19,16 +19,18 @@ answer identically:
 Lock order, everywhere: the gate lock first, then the heavy lock. Every
 deployed gate takes them in that order, so a process that took the heavy lock
 and then waited for the gate lock would deadlock against one of them. Never
-wrap the gate in `run`; a priority gate is `PSIV_LOCK_PRIORITY=1 python3
-tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
-lock rather than wait.
+wrap the gate in `run`: the full gate queues first by itself, a priority fast
+tier is `PSIV_LOCK_PRIORITY=1 python3 tools/gate.py --fast`, and a gate nested
+under a heavy holder refuses a busy gate lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
 docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole and
 the opt-level-3 extension build) holds the lock file with LOCK_EX and runs alone. The
-shared classes hold it with LOCK_SH plus units of a machine memory budget,
-`PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
-beside it, taken all or none, `CLASS_UNITS` each: `build` (a cargo build,
+shared classes hold it with LOCK_SH and side by side. A machine that sets a
+memory budget, `PSIV_LOCK_UNITS` unit files of `UNIT_MB` each beside it, has
+each shared holder take its class's `CLASS_UNITS`, all or none; with none set
+(the default) they take no units, so only an exclusive holder holds them
+apart. The shared classes: `build` (a cargo build,
 test or clippy run that does not compile psiv-godot: compilation is its peak),
 `extension` (one that does, in dev: `-p psiv-godot` or the workspace), `godot` (one
 Godot/Xvfb run, per slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot
@@ -38,22 +40,33 @@ exclusion). The caller declares the class and is
 trusted: a build in `build` that compiles psiv-godot costs memory headroom,
 never a crash, because every Godot a repository tool starts loads its own copy
 of the library (tools/godot.py `create_run_root`). So shared holders run side by side
-while their units fit, and an exclusive holder excludes them all. The slot cap
-and the budget must be the same for every process: each holder writes them
-into its slot and unit files, and a process that finds a held file recording
-another value refuses (exit 2) rather than overfill the machine.
+(under a budget, while their units fit), and an exclusive holder excludes them
+all. The slot cap and the budget must be the same for every process: each
+holder writes them into its slot and unit files, and a process that finds a
+held file recording another value refuses (exit 2) rather than overfill the
+machine. A process with no budget writes its class into a class file instead,
+for `status`, and holders with a budget do not count it.
 
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
 waited for). Every grant is decided under `<lock>.mutex`, and only the head of
-the queue may take the lock, so the order is deterministic: priority waiters
-(`--priority`, or `PSIV_LOCK_PRIORITY=1` for code that calls
-`hold_heavy_lock`) before normal ones, each in arrival order. A holder is never
-preempted; the next grant goes to the head, which waits in flock(2) itself, so
-a release wakes it together with any raw `flock(1)` waiter instead of that
-waiter winning every race against a poll. While waiting, a line names the
-holders and how many waiters (and priority waiters) are ahead, again whenever
-that changes.
+the queue may take the lock, so the order is deterministic: a full gate
+(`tools/gate.py` without `--fast`, which holds the lock with `gate=True`)
+first, then priority waiters (`--priority`, or `PSIV_LOCK_PRIORITY=1` for code
+that calls `hold_heavy_lock`), then the rest, each in arrival order. A holder
+is never preempted; the next grant goes to the head, which waits in flock(2)
+itself, so a release wakes it together with any raw `flock(1)` waiter instead
+of that waiter winning every race against a poll. While waiting, a line names
+the holders and how many waiters (gates and priority waiters among them) are
+ahead, again whenever that changes, and every `WAIT_REPORT_S` while nothing
+does, a line says how long it has waited and each holder's class, age and
+command line (`wait_reporting` does the same for any flock, such as the gate
+lock), so a job runner that stops a job gone quiet sees it waiting, and on
+whom. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
+of a job) also gets a file there for each wait, held flocked and saying what
+it waits for (`runner_wait`): the runner doesn't count time spent waiting in
+line against the job's time limit, and a file whose waiter died is no
+longer held, so it stops counting at once.
 
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
@@ -76,15 +89,19 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import itertools
 import os
 import re
 import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import flock_holders  # noqa: E402
 
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
@@ -93,6 +110,8 @@ HELD_SLOTS_ENV = "PSIV_HEAVY_LOCK_SLOTS"
 PRIORITY_ENV = "PSIV_LOCK_PRIORITY"
 GODOT_SLOTS_ENV = "PSIV_GODOT_SLOTS"
 UNITS_ENV = "PSIV_LOCK_UNITS"
+#: A job runner's directory for the waits of the job it runs (`runner_wait`).
+RUNNER_WAIT_ENV = "PROJ_WAIT_DIR"
 HEAVY_LOCK_NAME = "continuation-heavy.lock"
 GATE_LOCK = Path("gate") / ".lock"
 EXIT_HELD_BY_PARENT = 2
@@ -108,12 +127,18 @@ LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, EXTENSION, PYTHON, PACK)
 #: shared head between its flock and its grant).
 SHARED = "shared"
 DEFAULT_GODOT_SLOTS = 3
-#: Megabytes per budget unit, and the budget: 16 units are 8 GB of the 13.5 GB
-#: development host. The safety margin is the budget itself: the 5.5 GB it
-#: leaves covers the desktop, the agent sessions and unlocked headless runs,
-#: and any job that peaks above its measured RSS.
+#: Megabytes per budget unit. No budget is set by default: the kernel shares
+#: a machine's memory among its runs, and a budget idles whatever it holds
+#: back. A machine a full lane runs out of memory sets one: the 13.5 GB
+#: development host sets 16 units (8 GB), and the 5.5 GB that leaves covers
+#: the desktop, the agent sessions, unlocked headless runs and any job that
+#: peaks above its measured RSS.
 UNIT_MB = 512
-DEFAULT_LOCK_UNITS = 16
+#: The numbered files a shared holder takes with no budget: one each, recording
+#: its class, so `lock_modes` can name it. They hold no memory.
+CLASS_FILE = "class"
+#: What a class file records in place of a budget.
+NO_BUDGET = "none"
 #: Units each shared holder takes (godot: per slot), one rule for every class:
 #: the fewest units that keep at least 15% of the holding above the class's
 #: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
@@ -128,6 +153,15 @@ DEFAULT_LOCK_UNITS = 16
 CLASS_UNITS = {BUILD: 7, EXTENSION: 12, GODOT: 1, PYTHON: 3, PACK: 1}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
+#: A queue entry's rank, the lowest served first: a full gate, which a pull
+#: request waits on to merge, then a priority waiter, then the rest.
+GATE_RANK, PRIORITY_RANK, NORMAL_RANK = 0, 1, 2
+#: Seconds between the lines a waiter prints while nothing about its wait
+#: changes. A job runner that stops a job whose output has gone quiet must see
+#: that it is waiting, and on whom.
+WAIT_REPORT_S = 60
+#: How much of a holder's command line a waiting line shows.
+COMMAND_CHARS = 160
 
 
 @dataclass(frozen=True)
@@ -185,13 +219,13 @@ def godot_slots(environ=None):
 
 
 def lock_units(environ=None):
-    """The machine budget shared holders draw on: `PSIV_LOCK_UNITS` units of
-    `UNIT_MB`, default `DEFAULT_LOCK_UNITS`. A budget below one holder of the
-    largest shared class could never grant it, so it is refused."""
+    """The machine budget shared holders draw on, `PSIV_LOCK_UNITS` units of
+    `UNIT_MB`, or None when it is unset: no budget. A budget below one holder
+    of the largest shared class could never grant it, so it is refused."""
     environ = os.environ if environ is None else environ
     raw = environ.get(UNITS_ENV)
     if not raw:
-        return DEFAULT_LOCK_UNITS
+        return None
     value = int(raw)
     if value < max(CLASS_UNITS.values()):
         raise ValueError(f"{UNITS_ENV}={raw!r}: need at least {max(CLASS_UNITS.values())} "
@@ -199,77 +233,9 @@ def lock_units(environ=None):
     return value
 
 
-def _parse_lock_lines(lines, prefix=""):
-    """`[(pid, inode, is_write)]` for the held flocks among /proc lock lines
-    (`<prefix>1: FLOCK  ADVISORY  WRITE <pid> <maj>:<min>:<inode> 0 EOF`).
-
-    Matched by inode alone: on btrfs the device field names the superblock's
-    device, not the file's `st_dev`. Waiters (`->` lines) are not holders.
-    """
-    held = []
-    for line in lines:
-        if not line.startswith(prefix):
-            continue
-        fields = line[len(prefix):].split()
-        if len(fields) < 6 or fields[1] == "->":
-            continue
-        try:
-            held.append((int(fields[4]), int(fields[5].rsplit(":", 1)[1]),
-                         fields[3] == "WRITE"))
-        except (ValueError, IndexError):
-            continue
-    return held
-
-
-def _fdinfo_locks(lock):
-    """`[(pid, inode, is_write)]` for every flock held through an fd, of a
-    process this user can read, on `lock` or a file named after it.
-
-    The walks over /proc and /proc/<pid>/fd go by pid and fd number, and one
-    fd's fdinfo is printed in one read, so a lock held for the whole scan is
-    always found. An fd is matched by its link text, which never touches the
-    file, so a hung mount elsewhere cannot stall the scan.
-    """
-    prefix = os.path.realpath(lock)
-    held = []
-    for pid in os.listdir("/proc"):
-        if not pid.isdecimal():
-            continue
-        try:
-            fds = os.listdir(f"/proc/{pid}/fd")
-        except OSError:  # gone, or another user's
-            continue
-        for fd in fds:
-            try:
-                if not os.readlink(f"/proc/{pid}/fd/{fd}").startswith(prefix):
-                    continue
-                lines = Path(f"/proc/{pid}/fdinfo/{fd}").read_text().splitlines()
-            except OSError:  # closed since the listing
-                continue
-            held += _parse_lock_lines(lines, "lock:")
-    return held
-
-
-def _held_locks(lock, proc_locks):
-    """`[(pid, inode, is_write)]` holding a flock: every one on `lock` and the
-    files named after it (`_fdinfo_locks`), plus what `proc_locks` shows.
-
-    /proc/locks alone misses held locks: it is printed a page per read(2),
-    each from a fresh walk of the kernel's lock list to the reader's position,
-    so a lock released earlier in the list between two reads shifts held ones
-    past that position unseen (#204: 11 of 12 units, with other tests taking
-    and dropping locks). It still names holders whose fds this user cannot
-    read; a lock released mid-scan may appear in one source and not the other.
-    """
-    try:
-        lines = Path(proc_locks).read_text().splitlines()
-    except OSError:
-        lines = []
-    return list(dict.fromkeys(_fdinfo_locks(lock) + _parse_lock_lines(lines)))
-
-
 def _numbered(lock, kind):
-    """`{inode: path}` of `<lock>.<kind><index>` files (kind `godot` or `unit`)."""
+    """`{inode: path}` of `<lock>.<kind><index>` files (kind `godot`, `unit`
+    or `CLASS_FILE`)."""
     prefix = Path(f"{lock}.{kind}")
     found = {}
     for path in prefix.parent.glob(prefix.name + "*"):
@@ -282,8 +248,9 @@ def _numbered(lock, kind):
 
 
 def _recorded(path):
-    """`(cap, class)` a slot or unit file records (`<cap>` or `<cap> <class>`);
-    None for a field it does not hold."""
+    """`(cap, class)` a slot, unit or class file records (`<cap>` or `<cap>
+    <class>`; a class file's cap is `NO_BUDGET`); None for a field it does not
+    hold or a cap that is not a number."""
     try:
         fields = path.read_text(errors="replace").split()
     except OSError:
@@ -293,15 +260,17 @@ def _recorded(path):
 
 
 def lock_modes(path, proc_locks=Path("/proc/locks")):
-    """`[(pid, class)]` holding a lock on `path`'s inode (see `_held_locks`): a
-    WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a
-    godot slot, else the class its budget units record, else `shared`."""
+    """`[(pid, class)]` holding a lock on `path`'s inode (see
+    `flock_holders.held_locks`): a WRITE lock is `exclusive`; a READ lock is
+    `godot` when the pid holds a godot slot, else the class its budget units or
+    class file record, else `shared`."""
     inode = os.stat(path).st_ino
-    held = _held_locks(path, proc_locks)
-    slots, units = _numbered(path, GODOT), _numbered(path, "unit")
+    held = flock_holders.held_locks(path, proc_locks)
+    slots = _numbered(path, GODOT)
+    labelled = {**_numbered(path, "unit"), **_numbered(path, CLASS_FILE)}
     in_slots = {pid for pid, node, _ in held if node in slots}
-    unit_class = {pid: _recorded(units[node])[1] or SHARED
-                  for pid, node, _ in held if node in units}
+    unit_class = {pid: _recorded(labelled[node])[1] or SHARED
+                  for pid, node, _ in held if node in labelled}
     found = []
     for pid, node, write in held:
         if node != inode:
@@ -314,9 +283,11 @@ def lock_modes(path, proc_locks=Path("/proc/locks")):
 
 
 def units_in_use(path, proc_locks=Path("/proc/locks")):
-    """How many of `path`'s budget unit files are held now (see `_held_locks`)."""
+    """How many of `path`'s budget unit files are held now (see
+    `flock_holders.held_locks`)."""
     units = _numbered(path, "unit")
-    return len({node for _, node, _ in _held_locks(path, proc_locks) if node in units})
+    held = flock_holders.held_locks(path, proc_locks)
+    return len({node for _, node, _ in held if node in units})
 
 
 def lock_holders(path, proc_locks=Path("/proc/locks")):
@@ -405,10 +376,10 @@ class _Queue:
                 os.close(handle)
         return sorted(live, key=_entry_key)
 
-    def join(self, priority, lock_class, waiting):
-        """Enqueue this process behind `waiting`; returns (name, held handle)."""
+    def join(self, rank, lock_class, waiting):
+        """Enqueue this process at `rank` behind `waiting`; returns (name, held handle)."""
         seq = max((_entry_key(name)[1] for name in waiting), default=0) + 1
-        name = f"{0 if priority else 1}-{seq:012d}-{os.getpid()}-{lock_class}"
+        name = f"{rank}-{seq:012d}-{os.getpid()}-{lock_class}"
         handle = os.open(self.dir / name, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644)
         fcntl.flock(handle, fcntl.LOCK_EX)
         return name, handle
@@ -428,11 +399,12 @@ def _unlink(path):
 
 
 #: A waiter's file in `<lock>.queue/`: rank, sequence, pid and class.
-ENTRY_RE = re.compile(r"^[01]-\d{12}-\d+-(?:" + "|".join(LOCK_CLASSES) + ")$")
+ENTRY_RE = re.compile(rf"^[{GATE_RANK}-{NORMAL_RANK}]-\d{{12}}-\d+-(?:"
+                      + "|".join(LOCK_CLASSES) + ")$")
 
 
 def _entry_key(name):
-    """(rank, seq) of a queue entry: priority rank 0 first, then arrival."""
+    """(rank, seq) of a queue entry: the lowest rank first, then arrival."""
     rank, seq = name.split("-")[:2]
     return int(rank), int(seq)
 
@@ -450,32 +422,40 @@ class SlotCapMismatch(RuntimeError):
 @dataclass(frozen=True)
 class _Need:
     """What one grant takes beside the lock file: `slots` godot slot files out
-    of `cap`, and `units` budget unit files out of `budget`."""
+    of `cap`, and `units` budget unit files out of `budget`. With no budget
+    (`budget` None) a shared grant takes no units but one class file."""
 
     lock_class: str
     slots: int
     cap: int
     units: int
-    budget: int
+    budget: int | None
 
     @classmethod
     def of(cls, lock_class, slots, cap, budget):
         if lock_class == EXCLUSIVE:
             return cls(lock_class, 0, cap, 0, budget)
         slots = slots if lock_class == GODOT else 0
-        units = CLASS_UNITS[lock_class] * (slots if lock_class == GODOT else 1)
+        units = 0 if budget is None else \
+            CLASS_UNITS[lock_class] * (slots if lock_class == GODOT else 1)
         return cls(lock_class, slots, cap, units, budget)
 
     def take(self, lock):
-        """Handles holding every slot and unit, or None (nothing held) when
-        they are not all free now. Never blocks; may raise SlotCapMismatch."""
+        """Handles holding every slot and unit (or the class file), or None
+        (nothing held) when they are not all free now. Never blocks; may raise
+        SlotCapMismatch."""
         slots = _take_files(lock, GODOT, self.slots, self.cap, GODOT_SLOTS_ENV)
         if slots is None:
             return None
         units = None
         try:
-            units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
-                                self.lock_class)
+            if self.budget is not None:
+                units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
+                                    self.lock_class)
+            elif self.lock_class == EXCLUSIVE:
+                units = []
+            else:
+                units = [_take_class_file(lock, self.lock_class)]
         finally:
             if units is None:  # no units, or a mismatch raised: give the slots back
                 for handle in slots:
@@ -540,6 +520,22 @@ def _take_files(lock, kind, count, cap, env, label=None):
     return None
 
 
+def _take_class_file(lock, lock_class):
+    """A handle holding the first free `<lock>.<CLASS_FILE>N`, recording that
+    a holder of `lock_class` with no budget holds it. Never blocks: there is
+    always a free one past the held ones."""
+    for index in itertools.count():
+        handle = os.open(f"{lock}.{CLASS_FILE}{index}", os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(handle)
+            continue
+        os.ftruncate(handle, 0)
+        os.pwrite(handle, f"{NO_BUDGET} {lock_class}".encode(), 0)
+        return handle
+
+
 def _main_mode(lock_class):
     return fcntl.LOCK_EX if lock_class == EXCLUSIVE else fcntl.LOCK_SH
 
@@ -567,8 +563,10 @@ class _Blocker:
 
     The queue's head waits in the kernel, as a raw `flock(1)` waiter does, so
     it is woken with them when the holder releases instead of losing every
-    such race between two polls. The handle is the caller's once `done` is set;
-    `abandon()` gives it up, now or as soon as the flock returns.
+    such race between two polls. `done` is set when the flock returns or fails;
+    `grant()` then hands over the handle, or raises the flock's error with the
+    handle already closed. `abandon()` gives the handle up, now or as soon as
+    the flock returns.
     """
 
     def __init__(self, lock, mode):
@@ -576,48 +574,164 @@ class _Blocker:
         self.done = threading.Event()
         self._guard = threading.Lock()
         self._abandoned = False
+        self._error = None
         threading.Thread(target=self._wait, args=(mode,), daemon=True).start()
 
     def _wait(self, mode):
-        fcntl.flock(self.handle, mode)
+        try:
+            fcntl.flock(self.handle, mode)
+        except OSError as exc:  # ENOLCK, say: the waiter must hear it, not wait forever
+            error = exc
+        else:
+            error = None
         with self._guard:
-            if self._abandoned:
+            self._error = error
+            if self._abandoned or error is not None:
                 os.close(self.handle)
-            else:
+            if not self._abandoned:
                 self.done.set()
+
+    def grant(self):
+        """The handle holding the lock, once `done` is set; raises the flock's
+        error instead when it failed."""
+        if self._error is not None:
+            raise self._error
+        return self.handle
 
     def abandon(self):
         with self._guard:
-            if self.done.is_set():
-                os.close(self.handle)
-            else:
+            if not self.done.is_set():
                 self._abandoned = True
+            elif self._error is None:
+                os.close(self.handle)
 
 
-def _wait_line(lock, lock_class, priority, ahead):
+#: Tells this process's wait files apart (`runner_wait`).
+_RUNNER_WAITS = itertools.count()
+
+
+@contextmanager
+def runner_wait(what, environ=None):
+    """For the block, a file in the job runner's wait directory
+    (`RUNNER_WAIT_ENV` in `environ`, default os.environ) whose line says
+    `what` this process waits for, held flocked: the runner's clock stands
+    still meanwhile, and once nobody holds the file (this process died) it no
+    longer counts. A no-op without the variable, or when the file can't be
+    made: the wait goes on either way. Telling is best-effort throughout: a
+    file it can't lock, write or remove neither stops the wait nor hides its
+    error, and its descriptor is closed whatever happens. Never a path in
+    `what`: the runner may show it outside the machine."""
+    environ = os.environ if environ is None else environ
+    folder = environ.get(RUNNER_WAIT_ENV)
+    path = handle = None
+    if folder:
+        path = Path(folder) / f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}"
+        try:
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            os.write(handle, f"{what}\n".encode())
+        except OSError:
+            _close_runner_wait(path, handle)
+            handle = None
+    try:
+        yield
+    finally:
+        if handle is not None:
+            _close_runner_wait(path, handle)
+
+
+def _close_runner_wait(path, handle):
+    """A wait file gone and its descriptor closed, as far as either can be:
+    one left behind, unheld, no longer counts."""
+    try:
+        with suppress(OSError):
+            path.unlink(missing_ok=True)
+    finally:
+        if handle is not None:
+            with suppress(OSError):
+                os.close(handle)
+
+
+def wait_reporting(lock, mode, report, what, environ=None):
+    """Block until this process holds `lock` in flock `mode`, waiting in the
+    kernel (`_Blocker`), and print `_still_line` every `WAIT_REPORT_S` until
+    then, telling a job runner it waits for `what` (`runner_wait`). Returns
+    the holding handle, which the caller closes; raises when the flock
+    fails."""
+    began = time.monotonic()
+    with runner_wait(what, environ):
+        blocker = _Blocker(lock, mode)
+        try:
+            while not blocker.done.wait(WAIT_REPORT_S):
+                print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
+        except BaseException:
+            blocker.abandon()
+            raise
+        return blocker.grant()
+
+
+_RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
+
+
+def _wait_line(lock, lock_class, rank, ahead):
     """One "waiting for" line: the holders with their class, the queue ahead."""
     holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)
                         if pid != os.getpid()) or "none"  # a godot head holds it shared
-    urgent = sum(1 for name in ahead if _entry_key(name)[0] == 0)
-    me = f"{lock_class}, priority" if priority else lock_class
+    urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
+    gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
+    me = ", ".join([lock_class, *([_RANK_NAMES[rank]] if rank in _RANK_NAMES else [])])
     return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
-            f"{urgent} of them priority; this waiter: {me}")
+            f"{urgent} of them priority, {gates} gate(s); this waiter: {me}")
 
 
-def _acquire(lock, need, priority, report):
+def _still_line(lock, waited):
+    """The line a waiter repeats while its wait does not change: how long it has
+    waited, and each holder's class, age and command line (on one line)."""
+    holders = "; ".join(
+        f"pid {pid} ({mode}, up {_duration(_process_age(pid))}): "
+        f"{' '.join(_cmdline(pid).split())[:COMMAND_CHARS]}"
+        for pid, mode in lock_modes(lock) if pid != os.getpid())
+    return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
+
+
+def _process_age(pid):
+    """Seconds since `pid` started (/proc/<pid>/stat field 22), or None."""
+    try:
+        start = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19])
+        uptime = float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return max(0.0, uptime - start / os.sysconf("SC_CLK_TCK"))
+
+
+def _duration(seconds):
+    """`seconds` for a person: `40 s`, `12 min`, `2 h 05 min`; `?` for None."""
+    if seconds is None:
+        return "?"
+    if seconds < 60:
+        return f"{seconds:.0f} s"
+    minutes = int(seconds // 60)
+    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
+
+
+def _acquire(lock, need, rank, report, environ):
     """Queue for `lock` and return the granting handles once this waiter is the
     head and the lock is free in its class.
 
     The head blocks in the kernel for the lock file in its class (`_Blocker`);
     a shared head then takes its slots and units as they free. A waiter
     displaced from the head (a priority waiter arrived) gives the lock file
-    back at once.
+    back at once. Prints `_wait_line` whenever it changes, and `_still_line`
+    after every `WAIT_REPORT_S` it has not. From joining the queue until it
+    leaves, a job runner hears it waits (`runner_wait`).
     """
     lock_class = need.lock_class
     queue = _Queue(lock)
     entry = None
     blocker = None
     shown = None
+    began = reported = time.monotonic()
+    waits = ExitStack()
     try:
         while True:
             with queue.locked():
@@ -631,7 +745,9 @@ def _acquire(lock, need, priority, report):
                     if parent is not None:
                         print(refuse_message(lock, parent), file=report, flush=True)
                         raise SystemExit(EXIT_HELD_BY_PARENT)
-                    entry = queue.join(priority, lock_class, waiting)
+                    entry = queue.join(rank, lock_class, waiting)
+                    waits.enter_context(runner_wait(f"PSIV's heavy-run lock ({lock_class} class)",
+                                                    environ))
                     waiting = queue.entries()
                 ahead = waiting[:waiting.index(entry[0])]
                 if ahead and blocker is not None:
@@ -640,16 +756,21 @@ def _acquire(lock, need, priority, report):
                 elif not ahead:
                     blocker = blocker or _Blocker(lock, _main_mode(lock_class))
                     if blocker.done.is_set():
+                        main = blocker.grant()
                         taken = need.take(lock)
                         if taken is not None:
                             queue.leave(entry)
                             entry = None
-                            held, blocker = [blocker.handle, *taken], None
+                            held, blocker = [main, *taken], None
                             return held
-                line = _wait_line(lock, lock_class, priority, ahead)
+                line = _wait_line(lock, lock_class, rank, ahead)
+            now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)
-                shown = line
+                shown, reported = line, now
+            elif now - reported >= WAIT_REPORT_S:
+                print(_still_line(lock, now - began), file=report, flush=True)
+                reported = now
             if blocker is not None and not blocker.done.is_set():
                 blocker.done.wait(POLL_S)
             else:
@@ -660,17 +781,19 @@ def _acquire(lock, need, priority, report):
         if entry is not None:
             with queue.locked():  # a scan never sees a half-removed entry
                 queue.leave(entry)
+        waits.close()
 
 
 @contextmanager
 def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, slots=1,
-                    priority=None):
+                    priority=None, gate=False):
     """Hold the heavy lock `path` (default: `heavy_lock_path()`) for the block,
     yielding a `Hold`.
 
     `lock_class` is `exclusive`, `godot` or `build`; a godot hold takes `slots`
     slots (1 to `PSIV_GODOT_SLOTS`) and their units, a build hold its units.
-    `priority` defaults to `PSIV_LOCK_PRIORITY=1`. A no-op when this process
+    `gate` (a full gate) queues ahead of every other waiter; otherwise
+    `priority`, default `PSIV_LOCK_PRIORITY=1`, ahead of the rest. A no-op when this process
     already runs under a holder of the same file (`PSIV_HEAVY_LOCK_HELD`) whose
     class is exclusive or the same, yielding that holder's class and slots; a
     request under a shared holder of another class exits 2. Otherwise it queues, takes
@@ -702,13 +825,14 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
     if lock_class == GODOT and not 1 <= slots <= cap:
         raise ValueError(f"{slots} godot slots requested; {GODOT_SLOTS_ENV} allows 1 to {cap}")
     need = _Need.of(lock_class, slots, cap, budget)
-    if need.units > budget:
+    if budget is not None and need.units > budget:
         raise ValueError(f"{lock_class} with {slots} slot(s) needs {need.units} units; "
                          f"{UNITS_ENV} is {budget}")
     if priority is None:
         priority = environ.get(PRIORITY_ENV) == "1"
+    rank = GATE_RANK if gate else PRIORITY_RANK if priority else NORMAL_RANK
     try:
-        held = _acquire(resolved, need, priority, report)
+        held = _acquire(resolved, need, rank, report, environ)
     except SlotCapMismatch as mismatch:
         print(mismatch, file=report, flush=True)
         raise SystemExit(EXIT_HELD_BY_PARENT) from None
@@ -741,14 +865,15 @@ def status(path=None, out=None):
     out = out or sys.stdout
     path = Path(path or heavy_lock_path())
     budget = lock_units()
-    print(f"heavy lock {path} (godot slots: {godot_slots()}; budget: {budget} units of "
-          f"{UNIT_MB} MB; units per holder: "
-          + ", ".join(f"{name} {units}" for name, units in CLASS_UNITS.items()) + ")",
-          file=out)
+    shown = (f"none ({UNITS_ENV} unset)" if budget is None else
+             f"{budget} units of {UNIT_MB} MB; units per holder: "
+             + ", ".join(f"{name} {units}" for name, units in CLASS_UNITS.items()))
+    print(f"heavy lock {path} (godot slots: {godot_slots()}; budget: {shown})", file=out)
     if not path.exists():
         print("holders: none", file=out)
         return
-    print(f"units in use: {units_in_use(path)} of {budget}", file=out)
+    if budget is not None:
+        print(f"units in use: {units_in_use(path)} of {budget}", file=out)
     holders = lock_modes(path)
     print("holders:" + ("" if holders else " none"), file=out)
     for pid, mode in holders:
@@ -759,8 +884,9 @@ def status(path=None, out=None):
     print("waiters:" + ("" if waiting else " none"), file=out)
     for name in waiting:
         pid = _entry_pid(name)
-        rank = "priority " if _entry_key(name)[0] == 0 else ""
-        print(f"  {pid} {rank}{name.split('-', 3)[3]}: {_cmdline(pid)}", file=out)
+        rank = _RANK_NAMES.get(_entry_key(name)[0])
+        print(f"  {pid} {rank + ' ' if rank else ''}{name.split('-', 3)[3]}: {_cmdline(pid)}",
+              file=out)
 
 
 def _git(cwd, *args):

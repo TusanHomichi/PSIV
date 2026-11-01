@@ -59,7 +59,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$000B` | `Event_BoardingHydrofoil` | ItemAction_Hydrofoil: the ITEM menu boards the Hydrofoil |  | scene `Event_BoardingHydrofoil` |
 | `$000C` | `Event_BasementContainers` | map trigger $08 | AcademyBasement_B2 | scene `Event_BasementContainers` |
 | `$000D` | `Event_MeetingSaya` | map trigger $16 | KrupKindergarten | scene `Event_MeetingSaya` |
-| `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | allowlisted, #81 |
+| `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | scene `Event_AiedoManCrushOnAlys` |
 | `$000F` | `Event_SuspicionOnPrincipal` | map trigger $0A | PiataAcademy_F1 | scene `Event_SuspicionOnPrincipal` |
 | `$0010` | `Event_GettingOffVehicle` | field input: Cancel/Start-class press while on a vehicle (`loc_56084`) |  | allowlisted, #81 |
 | `$0011` | `Event_DezoSpaceportAppearing` | called from $8010 |  | inside the caller's scene (`$8010`) |
@@ -79,7 +79,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$001F` | `Event_ConveyorBeltRight` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltRight` |
 | `$0020` | `Event_ConveyorBeltLeft` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltLeft` |
 | `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | scene `Event_Recovery` |
-| `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | allowlisted, #81 |
+| `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | scene `Event_AiedoManSavings` |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
 | `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | allowlisted, #81 |
 | `$0025` | `Event_AfterIgglanova` | map trigger $13 | AcademyBasement_B2 | scene `Event_AfterIgglanova` |
@@ -147,7 +147,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0063` | `Event_ReFaze` | map trigger $4E | AngerTower_F2 | scene `Event_ReFaze` |
 | `$0064` | `Event_DeVarsDefeated` | map trigger $4B | StrengthTower_F4 | scene `Event_DeVarsDefeated` |
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
-| `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | allowlisted, #81 |
+| `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
 | `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | allowlisted, #83 |
 | `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
@@ -162,7 +162,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
 | `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | allowlisted, #81 |
 | `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | allowlisted, #81 |
-| `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | allowlisted, #81 |
+| `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | scene `Event_RockyOwner` |
 | `$0076` | `Event_PiataDormOwner` | dialogue `$F6` | tree 2 entry 89 | allowlisted, #81 |
 | `$0077` | `Event_MissingStudentFound` | dialogue `$F6` | tree 9 entry 75 | allowlisted, #81 |
 | `$0078` | `Event_OldManNearMissingStudent` | dialogue `$F6` | tree 9 entry 78 | allowlisted, #81 |
@@ -173,10 +173,10 @@ cartridge keeps no other route to the field event dispatcher.
 | `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | scene `Event_FractOozeFound` |
 | `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | allowlisted, #81 |
 | `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | allowlisted, #81 |
-| `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | allowlisted, #81 |
-| `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | allowlisted, #81 |
-| `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | allowlisted, #81 |
-| `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | allowlisted, #81 |
+| `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | scene `Event_GirlPrison` |
+| `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
+| `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | scene `Event_PayingGirlsBail` |
+| `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
 | `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | allowlisted, #81 |
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | allowlisted, #81 |
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
@@ -193,8 +193,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | scene `Event_DominatorsDefeated` |
 | `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | scene `Event_WeaponPlantArrival` |
 | `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | allowlisted, #81 |
-| `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | allowlisted, #81 |
-| `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | allowlisted, #81 |
+| `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
+| `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
 | `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 38 |
+| #81 | Motavia side content | 28 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 46 |
+| | total | 36 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

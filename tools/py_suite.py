@@ -26,6 +26,12 @@ or a crash in the interpreter) fails the step: every module it had not
 finished is reported by name and counted as one error, never dropped. Exit 0
 when every test passed, 1 otherwise.
 
+Under burrow's flaky step, which sets FLAKY_EXPIRED and FLAKY_REPORT
+(docs/DEVELOPMENT.md, "Flaky tests"), a failed test runs once more, unless
+its quarantine has run out, and one that passes then is flaky: it's reported,
+and fails nothing. Unless both are set, and neither is empty, every failure
+fails the step.
+
 Stdlib only, Python 3.
 """
 
@@ -34,7 +40,9 @@ from __future__ import annotations
 import argparse
 import importlib
 import io
+import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -62,6 +70,7 @@ PATTERN = "test*.py"
 #: a module under tests/ (tests/test_py_suite.py checks), so a rename cannot leave
 #: a stale entry here.
 SLOW_PYTHON_MODULES = {
+    "test_pack_inputs": 44.3,
     "test_pack_maps": 37.1,
     "test_reload_frames": 32.0,
     "test_battle_art_pack": 14.7,
@@ -80,6 +89,13 @@ SLOW_PYTHON_MODULES = {
 #: and 4 peaks lowest of the plateau (1,256 MB tree RSS against 1,639 MB at 8).
 #: A different host keeps 4 until it is measured again.
 PYTHON_MEASURED_WORKERS = 4
+
+
+#: A test id the flaky step takes
+#: (https://github.com/FieldmouseWorks/burrow/blob/main/docs/flaky-tests.md). A
+#: test's unittest id is one; a fixture's failure (`setUpClass (test_x.Case)`)
+#: names no test to run again, so it fails as before.
+FLAKY_ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:/@+=\-\[\]]{0,199}")
 
 
 def available_cores():
@@ -170,7 +186,60 @@ def run_module(name):
         "expected_failures": len(result.expectedFailures),
         "unexpected_successes": len(result.unexpectedSuccesses),
         "report": stream.getvalue(),
+        # Each failure's test, and what it counted as: the flaky step's to settle.
+        "failed": [[test_id(test), "failures"] for test, _ in result.failures]
+        + [[test_id(test), "errors"] for test, _ in result.errors],
     }
+
+
+def test_id(test):
+    """The id of the test a failure belongs to: a subtest's is its test's."""
+    return (test.test_case if isinstance(test, unittest.case._SubTest) else test).id()
+
+
+def run_again(name):
+    """Run the test `name` (its id) once more in this worker: whether it passed. A skip, in
+    its body, its setUp or a subtest, is no pass, and nor is an expected failure."""
+    result = unittest.TestResult()
+    unittest.TestLoader().loadTestsFromName(name)(result)
+    return (result.testsRun > 0 and result.wasSuccessful() and not result.skipped
+            and not result.expectedFailures and not result.unexpectedSuccesses)
+
+
+def settle_flakes(failed, totals, workers, factory, start, cwd, stream):
+    """burrow's flaky step: with FLAKY_EXPIRED and FLAKY_REPORT both set, each failed test runs
+    once more, on a pool of its own, unless FLAKY_EXPIRED names it: its quarantine has run out.
+    One that passes is flaky: it goes in the report and leaves `totals`, so it fails nothing. The
+    report names the test alone, never its output, which can quote the cartridge. Without either,
+    nothing changes: the step always sets both."""
+    path, out = os.environ.get("FLAKY_EXPIRED"), os.environ.get("FLAKY_REPORT")
+    if not path or not out:
+        return
+    expired = set(Path(path).read_text().split())
+    counts = {}
+    for name, kind in failed:
+        counts.setdefault(name, {"failures": 0, "errors": 0})[kind] += 1
+    again = [name for name in counts if name not in expired and FLAKY_ID.fullmatch(name)]
+    passed = set()
+    if again:
+        with factory(min(workers, len(again)), start, cwd) as pool:
+            futures = {pool.submit(run_again, name): name for name in again}
+            for future in as_completed(futures):
+                try:
+                    if future.result():
+                        passed.add(futures[future])
+                except Exception:  # noqa: BLE001 - a try that can't run didn't pass
+                    pass
+    for name in counts:
+        if name in expired:
+            stream.write(f"py_suite: {name}'s quarantine has run out, so it had no second try\n")
+        if name not in passed:
+            continue
+        for kind, n in counts[name].items():
+            totals[kind] -= n
+        with open(out, "a") as report:
+            report.write(json.dumps({"test": name}) + "\n")
+        stream.write(f"py_suite: {name} failed, then passed when it ran again: its failures above fail nothing\n")
 
 
 class _Lines(io.StringIO):
@@ -221,7 +290,7 @@ def run_suite(start="tests", excluded=(), workers=None, stream=None):
     factory = _spawn_pool
     totals = dict.fromkeys(("run", "failures", "errors", "skipped", "expected_failures",
                             "unexpected_successes"), 0)
-    reports, lost = [], []
+    reports, lost, failed = [], [], []
     started = time.monotonic()
     print(f"py_suite: {len(names)} modules on {workers} worker processes", file=stream, flush=True)
     with factory(workers, start, cwd) as pool:
@@ -235,12 +304,14 @@ def run_suite(start="tests", excluded=(), workers=None, stream=None):
                 continue
             for key in totals:
                 totals[key] += record[key]
+            failed.extend(record["failed"])
             if record["report"].strip():
                 reports.append(record["report"])
             print(f"py_suite: {name} {record['run']} tests {record['seconds']:.1f}s "
                   f"pid {record['pid']}", file=stream, flush=True)
     for report in reports:
         stream.write(report)
+    settle_flakes(failed, totals, workers, factory, start, cwd, stream)
     if lost:
         totals["errors"] += len(lost)
         stream.write("=" * 70 + "\n")

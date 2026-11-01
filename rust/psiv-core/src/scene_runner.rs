@@ -1,8 +1,20 @@
 //! The scene runner: executing a [`SceneOp`] list deterministically.
 //!
 //! Split from `scene.rs`, which owns the vocabulary; this file owns the
-//! machine. See that module's docs for how blocking works and why scripted
-//! actor motion reuses the ordinary movement model.
+//! machine. Why scripted actor motion reuses the ordinary movement model is in
+//! `scene_runner/actor.rs`.
+//!
+//! # Blocking
+//!
+//! The runner executes ops until it reaches one that blocks — a wait, a
+//! dialogue, a choice, or the end. Everything non-blocking in between runs in
+//! the same tick, which is what makes a "set three flags and move the camera"
+//! run of ops take one tick rather than three.
+//!
+//! Dialogue is the interesting one: the runner emits
+//! [`SceneEffect::DialogueOpen`] and then stops advancing until the runtime
+//! reports the window closed with [`SceneInput::DialogueClosed`]. The engine
+//! neither draws nor times the window; it only knows the script is waiting.
 
 use crate::error::MapError;
 use crate::field::StepFrames;
@@ -16,6 +28,7 @@ pub(crate) mod actor;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
+mod guild;
 #[cfg(test)]
 mod map_update_tests;
 mod mechanics;
@@ -42,9 +55,14 @@ enum Blocked {
     EndingContinue,
     Choice,
     Destination,
+    JobBoard,
+    /// `DoMapUpdate_JoypadLoop`: the same wait, with map updates.
+    JobBoardHold,
     Battle,
     Map,
     Camera,
+    /// A `RunObjectRoutine` object still on the map.
+    ObjectRoutine(usize),
     /// A conveyor op waiting for the end of its tick, when the layout scan
     /// turns it into a walk.
     Belt,
@@ -63,6 +81,12 @@ pub struct SceneRunner {
     party_slots: [Option<CharId>; PARTY_SLOTS],
     blocked: Blocked,
     dialogue_ended: bool,
+    /// The row the guild's board last answered; `None` is Cancel.
+    job_pick: Option<u8>,
+    /// The row `Event_HuntersGuild` is indexing.
+    guild_row: usize,
+    /// The pack's table, which the runtime hands over ([`SceneRunner::set_guild_jobs`]).
+    guild_jobs: Option<crate::scenes::hunters_guild::GuildJobs>,
     dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
     /// The retail follow chain: party followers trail the member ahead of
@@ -89,6 +113,9 @@ pub struct SceneRunner {
     /// The byte under `Saved_Dialogue_Addr` as of the last dialogue the
     /// runtime closed (`BranchIfSavedDialogueByte`).
     dialogue_stop_byte: Option<u8>,
+    /// The byte two before it, the last the text ran
+    /// (`SavedByte::Last`).
+    dialogue_last_byte: Option<u8>,
     /// The `RidePlatform` in progress.
     ride: Option<mechanics::RideRun>,
     /// The `ConveyorRide` in progress.
@@ -112,6 +139,9 @@ impl SceneRunner {
             actors: cast,
             party_slots: [None; PARTY_SLOTS],
             blocked: Blocked::No,
+            job_pick: None,
+            guild_row: 0,
+            guild_jobs: None,
             dialogue_ended: false,
             dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
@@ -123,6 +153,7 @@ impl SceneRunner {
             drift: None,
             step: None,
             dialogue_stop_byte: None,
+            dialogue_last_byte: None,
             ride: None,
             belt: None,
         }
@@ -139,6 +170,25 @@ impl SceneRunner {
     /// tick closes the scene out as for any finished one.
     pub fn abort(&mut self) {
         self.blocked = Blocked::Done;
+    }
+
+    /// Ends a camera wait within the frame, for a [`SceneOp::PanCamera`] whose
+    /// target the camera already stands on: `Event_MoveCamera` exits both its
+    /// loops before their first frame. Actors do not move again; the ops after
+    /// the pan run now.
+    pub fn release_empty_pan(
+        &mut self,
+        map: &FieldMap,
+        state: &mut GameState,
+        chunks: Option<&dyn Fn(PixelPos) -> Option<u16>>,
+    ) -> Vec<SceneEffect> {
+        let mut effects = Vec::new();
+        if self.blocked == Blocked::Camera {
+            self.blocked = Blocked::No;
+            self.run(state, &mut effects);
+            self.resolve_belt(map, chunks, &mut effects);
+        }
+        effects
     }
 
     /// Whether this boarding scene is waiting for the runtime's camera glide.
@@ -182,8 +232,24 @@ impl SceneRunner {
                             | SceneOp::RidePlatform { .. }
                     )
                 }),
-            Blocked::Actor(_) | Blocked::Camera => true,
+            Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold => true,
             _ => false,
+        }
+    }
+
+    /// Hands over the pack's table for `Event_HuntersGuild`.
+    pub fn set_guild_jobs(&mut self, jobs: crate::scenes::hunters_guild::GuildJobs) {
+        self.guild_jobs = Some(jobs);
+    }
+
+    /// The map object a [`SceneOp::RunObjectRoutine`] is running, while the
+    /// scene waits for it to clear its slot. The runtime ticks that object
+    /// (and only it) each frame.
+    #[must_use]
+    pub fn running_object_routine(&self) -> Option<usize> {
+        match self.blocked {
+            Blocked::ObjectRoutine(npc) => Some(npc),
+            _ => None,
         }
     }
 
@@ -194,6 +260,13 @@ impl SceneRunner {
     /// the stop was past the tree's last entry).
     pub fn set_dialogue_stop_byte(&mut self, byte: Option<u8>) {
         self.dialogue_stop_byte = byte;
+    }
+
+    /// Records the byte at `-$2(a0)` after the same `popdlg`: the one before
+    /// the `$F7` or terminator the text stopped on. `None` when no dialogue
+    /// has run.
+    pub fn set_dialogue_last_byte(&mut self, byte: Option<u8>) {
+        self.dialogue_last_byte = byte;
     }
 
     /// Window routine used by the last dialogue open or named resume.
@@ -297,6 +370,9 @@ impl SceneRunner {
     /// [`SceneOp::ConveyorRide`] reads it; a runner ticked through
     /// [`SceneRunner::tick`] has `None`, and that op faults with
     /// [`SceneFault::NoLayout`].
+    ///
+    /// [`Self::release_empty_pan`] is the same frame's second half when a pan
+    /// has no distance to go.
     pub fn tick_with(
         &mut self,
         map: &FieldMap,
@@ -329,6 +405,11 @@ impl SceneRunner {
         self.tick_ride();
         self.end_belt_if_arrived();
 
+        if let Blocked::ObjectRoutine(npc) = self.blocked
+            && !map.npcs().get(npc).is_some_and(|object| object.active)
+        {
+            self.blocked = Blocked::No;
+        }
         self.unblock(input);
         self.run(state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
@@ -395,6 +476,15 @@ impl SceneRunner {
             Blocked::Destination => match input {
                 SceneInput::DestinationChosen | SceneInput::DestinationCancelled => Blocked::No,
                 _ => Blocked::Destination,
+            },
+            Blocked::JobBoardHold if input == SceneInput::JobBoardDone => Blocked::No,
+            Blocked::JobBoard => match input {
+                SceneInput::JobBoardDone => Blocked::No,
+                SceneInput::JobBoardPicked(row) => {
+                    self.job_pick = row;
+                    Blocked::No
+                }
+                _ => Blocked::JobBoard,
             },
             other => other,
         };

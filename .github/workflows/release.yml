@@ -1,0 +1,174 @@
+# Builds PSIV's release archives for Linux, Windows and macOS with
+# tools/package/release.py, checks what each holds and starts each one's game
+# on its own system, and publishes them as a GitHub release when a version tag
+# (v1.0.0) is pushed. A pull request that touches the packaging runs the same
+# steps without publishing. Every step's details are in release.py's
+# docstring; actions are pinned to commits.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - ".godot-version"
+      - "docs/PLAYING.md"
+      - "godot/export_presets.cfg"
+      - "godot/project.godot"
+      - "godot/psiv.gdextension"
+      - "oracle/build_core.sh"
+      - "rust/Cargo.lock"
+      - "rust/psiv-godot/src/install.rs"
+      - "rust/psiv-godot/src/pack_setup.rs"
+      - "rust/psiv-pack/**"
+      - "tools/godot-downloads.json"
+      - "tools/godot.py"
+      - "tools/package/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest Linux runner, for the oldest glibc the binaries need.
+          - {platform: linux, os: ubuntu-22.04}
+          - {platform: windows, os: windows-latest}
+          - {platform: macos, os: macos-latest}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Fetch Nuked OPN2's source
+        run: ./oracle/build_core.sh --sources
+      - name: Add both macOS targets
+        if: matrix.platform == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build the extension and psiv-pack
+        run: python tools/package/release.py build --platform ${{ matrix.platform }} --out build/release/build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-${{ matrix.platform }}
+          path: build/release/build
+          retention-days: 1
+          if-no-files-found: error
+
+  export:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Fetch Nuked OPN2's source
+        run: ./oracle/build_core.sh --sources
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: build-*
+          path: build/release/build
+      - name: Gather each platform's extension
+        run: |
+          mkdir -p build/release/libraries
+          cp build/release/build/build-linux/libpsiv_godot.so \
+             build/release/build/build-windows/psiv_godot.dll \
+             build/release/build/build-macos/libpsiv_godot.dylib build/release/libraries/
+      - name: Install the pinned Godot and its export templates
+        run: |
+          godot=$(python tools/package/release.py install-godot --dir "$RUNNER_TEMP/godot" --cache "$RUNNER_TEMP/godot-downloads")
+          echo "PSIV_GODOT=$godot" >> "$GITHUB_ENV"
+      - name: Export every platform
+        run: python tools/package/release.py export --libraries build/release/libraries --out build/release/export
+      - name: Write the third-party notices
+        run: python tools/package/release.py notices --godot build/release/export/godot.json --out build/release/notices
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: export
+          path: build/release/export
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notices
+          path: build/release/notices
+          retention-days: 1
+          if-no-files-found: error
+
+  package:
+    needs: export
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux, os: ubuntu-22.04}
+          - {platform: windows, os: windows-latest}
+          - {platform: macos, os: macos-latest}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: build-${{ matrix.platform }}
+          path: build/release/build
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: export
+          path: build/release/export
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notices
+          path: build/release/notices
+      - name: Assemble the archive
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then version=${GITHUB_REF_NAME#v}; else version=dev-${GITHUB_SHA::12}; fi
+          archive=$(python tools/package/release.py assemble --platform ${{ matrix.platform }} \
+            --export build/release/export/${{ matrix.platform }} --build build/release/build \
+            --notices build/release/notices --version "$version" --out build/release/archives)
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - name: Check what it holds
+        run: python tools/package/release.py check "$ARCHIVE" --platform ${{ matrix.platform }}
+      - name: Start its game as a first run
+        run: python tools/package/release.py smoke "$ARCHIVE" --platform ${{ matrix.platform }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: archive-${{ matrix.platform }}
+          path: ${{ env.ARCHIVE }}
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+      - name: Write the checksums
+        run: cd dist && sha256sum PSIV-* > SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "PSIV ${GITHUB_REF_NAME#v}" \
+            --notes "Download the archive for your system and read the [player's guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/PLAYING.md). PSIV needs your own copy of the US Phantasy Star IV ROM, which it builds the game's graphics, sound, maps and text from."

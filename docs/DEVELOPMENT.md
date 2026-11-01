@@ -10,7 +10,7 @@ prerequisites and the commands to build and start the game.
 
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
-(see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
+(see [a build for the Steam Deck](#a-build-for-the-steam-deck)). The supported
 Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
 build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
 [`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
@@ -27,17 +27,22 @@ On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 PyYAML (and ruff), the Rust toolchain `rust-toolchain.toml` pins, shellcheck, Xvfb with Mesa's software rasterizer, and the
 official Godot build that `.godot-version` pins, exported as `PSIV_GODOT`. That
 Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
-play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`flake.nix`](../flake.nix) also
-holds the pinned release's download hash in `godotHashes`, so a Godot bump adds
-the new zip's hash there (`tests/test_flake.py` fails until it does). The
-shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
-same pixels. That changes no digest: every hash that names an image, in the
-tests and in the pack's `png_sha256` fields, is `image_sha256` from
+play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`tools/godot-downloads.json`](../tools/godot-downloads.json)
+holds the pinned release's downloads and Godot's published SHA-512 sums for
+them, the editor zip the shell runs and the export templates a release build
+uses. Renovate opens a PR when Godot releases, held until the checks
+[#133](https://github.com/TusanHomichi/PSIV/issues/133) sets for a bump pass on
+it ([`renovate.json`](../renovate.json)); a bump of `.godot-version` also runs
+`python3 tools/godot.py pin`, which writes the new version's downloads there
+(`tests/test_flake.py` fails until it has). The shell's Python links stock
+zlib, whose PNG bytes differ from zlib-ng's for the same pixels. That changes
+no digest: every hash that names an image, in the tests and in the pack's
+`png_sha256` fields, is `image_sha256` from
 [`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
 Godot patch releases are taken when they land. A bump changes
-`.godot-version` and adds the official Linux zip's hash to `godotHashes`, after
-checking the zip against the `SHA512-SUMS.txt` the release publishes; a new
+`.godot-version` and runs `python3 tools/godot.py pin`, which takes the
+downloads' sums from the `SHA512-SUMS.txt` the release publishes; a new
 minor version also moves gdext's `api-4-N` feature in
 [`rust/psiv-godot/Cargo.toml`](../rust/psiv-godot/Cargo.toml) and
 `compatibility_minimum` in [`godot/psiv.gdextension`](../godot/psiv.gdextension)
@@ -139,8 +144,7 @@ refuses one that does not report the version pinned in `.godot-version` or is
 not a `stable` build (`python3 tools/godot.py check` checks your setup).
 `python3 tools/godot.py run [-- <godot arguments>]` is the one way to start
 the game: it resolves Godot and makes the run root, so a command never names
-the executable or a project path. `godot/run.sh`,
-`tools/package/deploy-deck.sh`, `tools/certify.py` and
+the executable or a project path. `godot/run.sh`, `tools/certify.py` and
 `tools/verify_native_tape.py` ask it too, and the ones that start the game run
 its `prepare` step first.
 
@@ -158,34 +162,40 @@ Which `tools/native/` drivers remain, and why, is in
 [native drivers](campaign/NATIVE_DRIVERS.md).
 
 The keyboard and controller bindings are listed in the
-[README](../README.md#controls); they come from the input map in
+[player's guide](PLAYING.md#controls); they come from the input map in
 [`godot/project.godot`](../godot/project.godot).
 
-### Package for the Steam Deck
+### A build for the Steam Deck
+
+The Deck runs the Linux release archive, installed the way the
+[player's guide](PLAYING.md#download-and-start) says. To try a branch there,
+run the release workflow on it and take its Linux archive:
 
 ```bash
-./tools/package/deploy-deck.sh <deck-address> [user]
+gh workflow run release.yml --ref <branch>
+gh run download <run-id> --name archive-linux
 ```
 
-`tools/package/deploy-deck.sh` builds the release extension with
-`cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), makes a run root whose
-project is prepared (`python3 tools/godot.py run`), exports its
-`Linux-SteamDeck` preset from it to
-`build/deck/` (the full export log is `build/deck-export.log`; a failed export
-stops the script), stages the executable with a copy of
-`runtime-pack/` beside it (an exported build looks for the pack next to the
-executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
-It needs:
+Unpack the archive on the Deck and start `psiv.x86_64`. It reads its pack and
+keeps its saves in `~/.local/share/PSIV`, so a pack there that suits this
+version is used as it is, and otherwise the setup screen asks for the ROM. The workflow builds Linux on the
+oldest Ubuntu runner GitHub offers, so the archive's glibc floor is below
+SteamOS's; a build on a newer distribution links newer symbol versions, and
+the Deck refuses to load its extension.
 
-- SSH key access to the Deck;
-- [zig](https://ziglang.org/) and `cargo-zigbuild` (`cargo install
-  cargo-zigbuild`), on `PATH` or under `~/.local/bin`, which the script adds;
-- the Godot that `tools/godot.py` resolves, with the Linux export templates of
-  the same version installed (the editor's Export Template Manager, or the
-  templates file from the [download archive](https://godotengine.org/download/archive/)).
+### Release archives
 
-On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
+Players download one archive per system, Linux, Windows and macOS, which the
+[player's guide](PLAYING.md) describes. The
+[release workflow](../.github/workflows/release.yml) builds them on GitHub's
+runners with [`tools/package/release.py`](../tools/package/release.py), whose
+docstring owns the steps: each system's extension and `psiv-pack`, the export
+of every platform from Linux, the
+[third-party notices](../tools/package/notices.py), and an archive per system
+that is checked for exactly the files a release holds and started headless,
+as a first run, on its own system. It runs on every pull request that touches
+the packaging, and pushing a version tag (`v1.0.0`) publishes the archives as
+that tag's GitHub release.
 
 ## Working with agents
 
@@ -197,16 +207,43 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
-The battle-art emission tests also need the ignored indexed PNGs named by
-`oracle/fixtures/battle_animation_remainder.json` under
-`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
-frame is an emission error. Preserve a verified local copy, or reproduce the
-frames from the named oracle captures using the renderer documented in
-[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
-do not commit the ROM-derived PNGs.
+The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
+rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
+names) are oracle evidence only: no pack input reads them, and the one test
+that compares them skips without them. Do not commit the ROM-derived PNGs.
+`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
+tracked tree plus the ROM and fails, naming each path, when the builder opens
+or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
+files, the interpreter's own files and its output (#214).
+
+A worktree takes these from the main checkout: in the worktree, run
+`python3 tools/local_inputs.py link`. It links each local input the main
+checkout has, except `generated/` and `runtime-pack`, which belong to a
+commit's extractor rather than to the main checkout. Those two link to a
+shared cache under the main checkout's `build/inputs/`, one entry per version
+of what builds them (the Git trees of `psiv_tools/` and, for the pack,
+`oracle/fixtures/`, and the ROM). The first
+worktree that needs an entry builds it under the heavy-run lock, from a copy of
+exactly those inputs taken from Git and the main checkout; any other worktree
+that needs it meanwhile waits, checks its inputs again, and then links the
+same one. So a gate job or lane on a new extractor builds the pack once, not
+once per job. An entry is read-only once built, so nothing can change it under
+another job. A
+worktree with uncommitted changes under those paths has no entry and is
+refused: build both in place there
+([Prepare the local pack](#prepare-the-local-pack)); `regenerate` and `pack`
+replace a link at their output with the worktree's own directory rather than
+write through it. The steward's gate job
+runs main's copy (`git show origin/main:tools/local_inputs.py | python3 - link`),
+so a commit from before it still gets the cache.
+
 The documentation check needs no local inputs; with the disassembly present
 it also reads every `ps4.asm:N` citation against it (`tools/check_citations.py`)
-and prints `citations: skipped` without it. From the root:
+and prints `citations: skipped` without it. With the runtime pack present it
+fails a file that copies the pack's battle tables (`tools/check_rom_tables.py`,
+[#149](https://github.com/TusanHomichi/PSIV/issues/149)), and says its record
+scan was skipped without one. The battle replay tests read their records from
+the same pack and skip without it. From the root:
 
 ```bash
 python3 tools/check_docs.py
@@ -214,6 +251,7 @@ PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+python3 tools/pack_parity.py
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
@@ -239,13 +277,13 @@ only beside another module is a defect to fix, as in the Rust suites. The gate
 runs every command with `CARGO_BUILD_JOBS` and
 `RUST_TEST_THREADS` set to the cores available, capped at 8
 (`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
-Eight is the configuration measured to fit the exclusive class the gate holds:
-its largest peak, a cold `cargo test --workspace --no-run` at 8 jobs (4,979 MB
-tree RSS on the 8-core host, [the table](#heavy-run-lock)), leaves 39% of the
-class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
-suite peaks at 364 MB on 8 threads. Cargo's own defaults grow with the core
-count and the budget does not, so raising the cap takes a new measurement at
-the higher count. To repeat the gate's cargo steps by hand, set the same two
+Eight is the configuration measured to fit the 13.5 GB host's budget of 16
+units (8,192 MB): its largest peak, a cold `cargo test --workspace --no-run` at
+8 jobs (4,979 MB tree RSS on the 8-core host, [the table](#heavy-run-lock)),
+leaves 39% of it free, above the sizing rule's 15%, and the built suite peaks
+at 364 MB on 8 threads. Cargo's own defaults grow with the core count and that
+budget does not, so raising the cap takes a new measurement at the higher
+count. To repeat the gate's cargo steps by hand, set the same two
 variables. Tests in one binary run on
 parallel threads, so a test's scratch directory is keyed by process and by call
 (`tests/test_rust_temp_paths.py` checks every `temp_dir()`
@@ -263,6 +301,35 @@ distinction with the result.
 `build_pack` replays the map-independent sections an earlier build in the same
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
+
+The last step, `tools/pack_parity.py`, holds `psiv-pack`, the Rust pack
+builder that replaces `python3 -m psiv_tools pack` at 1.0
+([#216](https://github.com/TusanHomichi/PSIV/issues/216)), to the Python
+builder. It builds `psiv-pack` in release, runs both builders on a file that is
+not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
+a section (`psiv-pack --claims` lists each section's paths), builds both packs
+from the ROM: every claimed JSON or binary file must be byte-identical, every
+PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
+claims. A ported extractor that no claimed section writes yet is a probe:
+`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
+tool builds the same from the Python extractors, and the two must be the same
+text. It also decodes every Nemesis, Kosinski and Enigma call a full
+Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
+offsets and arguments only) with both decoders: outputs and consumed lengths
+must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
+tools/pack_parity.py --write-census` (a full build, about two minutes) so the
+census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
+the number a port PR records. Until the switch the Python builder stays the pack everything
+uses, so a PR that edits a section `psiv-pack` already claims changes both
+builders alike: the gate fails on the Python change alone. A claim names a
+file, a directory, or with a `*` the matching files directly in a directory, so
+a section can claim part of a directory Python still writes the rest of. Find whether a
+section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
+psiv-pack -- --claims`; `python3 tools/pack_parity.py --keep <dir>` keeps both
+packs for a look at a difference. A change to `psiv_tools/png.py` or to how
+the builder writes JSON also reruns `python3 tools/pack_parity.py
+--write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
+read (`tests/test_pack_parity.py` fails while they are stale).
 
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix
@@ -293,9 +360,9 @@ is the isolated warm measurement).
 Hosted CI (`.github/workflows/flake.yml`) runs `nix flake check` on every pull
 request and push to `main`: the part of the gate that needs no local input, in
 the Nix sandbox from the tracked tree alone. That is `tools/check_docs.py`
-(citations skipped), `cargo fmt --check`, strict Clippy and the Rust workspace
-tests except those that load `runtime-pack` (listed by name in `packTests` in
-`flake.nix`), plus ruff's syntax and undefined-name rules over the Python; the Rust
+(citations skipped), `tools/size_guard.py`, `cargo fmt --check`, strict Clippy
+and the Rust workspace tests except those that load `runtime-pack` (listed by
+name in `packTests` in `flake.nix`), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset
@@ -304,17 +371,34 @@ portability tests (the atomic swap and the text-file census) on Windows and
 macOS (`.github/workflows/platforms.yml`), since players build the pack there.
 The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
 ROM-free Python tests, a Godot smoke) is open.
+Hosted CI also holds each pull request to the house rules a machine can read,
+its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
-bots are clean on a head, the steward has an agent on the machine that holds
-the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, in its own worktree with the inputs linked in, and record the
-verdict; the steward merges only once it is green. A gate missing an input is
-partial, and a partial gate is recorded as a failure.
-The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
+bots are clean on a head, the steward runs main's `tools/pr_gate.py` on the
+machine that holds the local inputs, which runs the full gate,
+`python3 tools/gate.py --wait`, on that exact commit, and judges the receipt
+it wrote; the steward posts the summary it gives (each command's exit, time
+and test counts) and merges only once it is green. It runs in the one
+worktree the steward keeps for gates, under that worktree's lock: main's
+`tools/gate_worktree.py` moves it to that commit with every untracked and ignored
+file gone but `rust/target`, so the gate's Rust build starts warm, and the
+inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
+Each of those steps runs in a systemd scope of the user's manager named for
+the worktree, so nothing it starts outlives the lock, and running it by hand
+needs a user manager too (a desktop session has one).
+Moving one worktree keeps cargo's file-time freshness sound, which a target
+dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
+partial, and a partial gate is recorded as a failure: green takes the full
+tier, on a clean tree, with every command exiting 0 and no input missing.
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
-`build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the cores it could use
+`build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
+names, which is how `tools/pr_gate.py` reads its own run's receipt and no
+other): the candidate SHA, whether the tree was
+dirty and its `git status --porcelain` paths, which inputs were missing
+(`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
+`tools/gate.py`), the cores it could use
 (`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
 command's string, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
@@ -347,7 +431,9 @@ statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
 than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt under
+itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
+which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
@@ -358,7 +444,7 @@ and is reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
-  them yields a partial gate, and the report says which inputs were absent;
+  them yields a partial gate, and the receipt's `missing_inputs` says which;
 - native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`,
   `tools/verify_native_tape.py`, `tools/verify_native_route.py`) and anything
   visual: their ledgers own those runs;
@@ -378,10 +464,13 @@ evidence.
 Heavy runs share one machine, so every worktree takes one lock file,
 `<main checkout>/build/continuation-heavy.lock` (`PSIV_HEAVY_LOCK` overrides
 it), owned by `tools/heavy_lock.py`. Its classes are split by peak memory.
-The shared classes draw on one machine budget of `PSIV_LOCK_UNITS` units
-(default 16) of 512 MB, 8 GB of the 13.5 GB development host; each holder takes
-its class's units, all or none, so shared holders run side by side while their
-units fit:
+Shared holders run side by side, and only an exclusive holder holds them
+apart. A machine can set a memory budget, `PSIV_LOCK_UNITS` units of 512 MB:
+each shared holder then takes its class's units, all or none, so they run side
+by side while their units fit. No budget is the default, because a budget idles
+the memory it holds back while the kernel would share it; a machine that a full
+lane runs out of memory sets one, as the 13.5 GB development host sets 16
+(8 GB). The units, under a budget:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
@@ -398,7 +487,7 @@ a repository tool starts runs from a run root with its own copy of the library
 (`create_run_root` in `tools/godot.py`), cargo replaces the checkout's library
 with a new file rather than rewriting it (the linker, mold here, writes a new
 inode), and a non-editor Godot never re-reads a loaded extension. So an extension build shares the machine with Godot runs:
-12 units fit beside three Godot runs (15 of 16). What the one class costs: it is
+under the host's budget, 12 units fit beside three Godot runs (15 of 16). What the one class costs there: it is
 sized for its largest job, the cold workspace test build, so an incremental
 `cargo build -p psiv-godot` (3.6 GB) reserves 6 GB, and an extension build
 waits for any `build` holder (12 + 7) and for a second extension build.
@@ -418,14 +507,27 @@ replaces, and no older version is kept.
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.
 
-An exclusive holder excludes every shared holder and they exclude it. A cargo
+An exclusive holder excludes every shared holder and they exclude it. Under
+the host's budget, a cargo
 run, two Godot runs and a Python suite fit together (12 units); a second cargo
 run then waits (19), and two cargo runs fit with one Godot run (15). The entry points in the
 table take their class themselves: never wrap them. A headless
 `psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
-`PSIV_LOCK_UNITS` must be the same for every process: each holder records them
-in its slot and unit files, and a process that finds a held file recording
-another value refuses with exit 2.
+`PSIV_LOCK_UNITS` must be the same for every process, so a machine sets them
+where every process inherits them (its login environment and its job
+runner's), not in one shell: each holder records them in its slot and unit
+files, and a process that finds a held file recording another value refuses
+with exit 2. A holder with no budget records its class in a class file
+(`<lock>.classN`) instead, for `status` and the waiting lines, and holders with
+a budget don't count it.
+
+A waiter, for the heavy lock or a gate for the gate lock, also tells a job
+runner that sets `PROJ_WAIT_DIR` that it is waiting in line, so the wait
+doesn't count against the job's time limit. That is how a gate proof on the
+machine can wait out a long lane run without being stopped. The steward's
+proof jobs run under burrow's proj, which sets it, and `runner_wait` in
+`tools/heavy_lock.py` owns how. The gate's own commands don't get it: any
+waiting inside them is the gate's work.
 
 One sizing rule holds for every class: its units are the fewest that keep at
 least 15% of the holding above its largest measured peak process-tree RSS,
@@ -441,10 +543,10 @@ exclusive hold keeps every other locked job off the machine while it runs.
 `cargo test --workspace --no-run` at 8 jobs (4,979 MB in 12, 19%), `godot` by a certify pair
 (418 MB in 1, 18%), `python` by the suite (926 MB in one process and 1,256 MB
 on four workers; 3 units, 18%); the opt-level-3
-extension build (5,582 MB, 13 units) is exclusive and sizes nothing. The budget is the
-machine's margin: 16 units leave about 5.5 GB outside the lock for the
-desktop, the agent sessions, unlocked headless runs and any job that peaks
-above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
+extension build (5,582 MB, 13 units) is exclusive and sizes nothing. On the
+13.5 GB host the budget is the margin: its 16 units leave about 5.5 GB outside
+the lock for the desktop, the agent sessions, unlocked headless runs and any
+job that peaks above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
 AC with the CPU capped at 2.3 GHz (`bios_limit` 2300000); `/usr/bin/time -v`
 reports the largest single process. Rows marked 0.1 s sampled the tree every
 0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`. Rows marked #157 were
@@ -509,24 +611,42 @@ not the pack, sets a cargo invocation's memory: every test run alone is under
 memory, unless it can compile `psiv-godot`: then it takes `extension` (above).
 
 Transition: a holder started from a checkout older than the budget takes no
-units, so the budget counts only holders running the current
-`tools/heavy_lock.py`; exclusion is unaffected, because every class still
-holds the lock file itself. Merge main into a lane to bring it onto the budget.
+units, and one older than no budget being the default takes them under 16
+when `PSIV_LOCK_UNITS` is unset, so a budget counts only the holders that
+share its setting; exclusion is unaffected, because every class still holds
+the lock file itself. Merge main into a lane to bring it onto the current
+lock.
 
 A gate takes the gate lock first and the heavy lock second, as every
 deployed gate does; the reverse order deadlocks against them. So never wrap the
-gate in `heavy_lock.py run`: a priority gate is `PSIV_LOCK_PRIORITY=1 python3
-tools/gate.py ...`, and a gate nested under a heavy holder refuses (exit 2,
-naming the holder) when the gate lock is busy instead of waiting.
+gate in `heavy_lock.py run`: the full gate queues first by itself (below), a
+priority fast tier is `PSIV_LOCK_PRIORITY=1 python3 tools/gate.py --fast`, and
+a gate nested under a heavy holder refuses (exit 2, naming the holder) when the
+gate lock is busy instead of waiting.
 
-Waiters queue in arrival order, and `--priority` (or `PSIV_LOCK_PRIORITY=1` for
-an entry point that takes the lock itself, such as the gate) puts a waiter
-ahead of every normal waiter, including earlier ones. A holder is never
-preempted. Speedup lanes, whose work makes later runs faster, and the yield
-that lets one go ahead use the flag; nothing else does. While waiting, a line
-names the holders and how many waiters, and priority waiters, are ahead.
-`python3 tools/heavy_lock.py status` prints the holders and waiters with each
-pid's command line.
+Waiters queue in arrival order, with two ranks ahead of the rest. The full
+gate (`tools/gate.py` without `--fast`), which a pull request waits on to
+merge, goes ahead of every other waiter. `--priority` (or `PSIV_LOCK_PRIORITY=1`
+for an entry point that takes the lock itself, such as the fast tier) puts a
+waiter ahead of every normal waiter, including earlier ones. A holder is never
+preempted, so a long run outside the gate (a native replay, a campaign) holds
+the machine from every gate until it ends: start one only when no gate is
+waiting (`status`). Speedup lanes, whose work makes later runs faster, and the
+yield that lets one go ahead use `--priority`; nothing else does. While
+waiting, a line names the holders and how many waiters (gates and priority
+waiters among them) are ahead, again whenever that changes, and every
+`WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
+holder's class, age and command line. A gate waiting for the gate lock with
+`--wait` reports the same way, so a job runner that stops a job gone quiet
+sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
+waiters with each pid's command line.
+
+Transition: a waiter started from a checkout older than the gate rank writes
+ranks 0 (priority) and 1 (normal) and ignores rank-2 entries. The current code
+reads its priority entries as gates and its normal entries as priority, and an
+old waiter may be granted ahead of a current normal waiter. Nobody waits
+forever and exclusion is unaffected. Merge main into a lane to bring it onto
+the ranks.
 
 The holder exports `PSIV_HEAVY_LOCK_HELD` and its class, so an entry point
 nested under an exclusive holder, or under a holder of its own class, takes
@@ -547,6 +667,26 @@ integration candidate, after every reviewed lane has merged, on the fastest
 merged process: speedup lanes merge first, so the others verify on the faster
 tools. A failing candidate is bisected by its
 merge commits, each verified on the same process.
+
+### Flaky tests
+
+A pull request's full gate runs under
+[burrow's flaky step](https://github.com/FieldmouseWorks/burrow/blob/main/docs/flaky-tests.md):
+the steward's agent runs `flaky run TusanHomichi/PSIV -- python3 tools/gate.py --wait`. That reads
+the quarantine (the open issues titled `flaky: TEST`, labelled `flaky`), writes the tests whose
+quarantine has run out to the file `FLAKY_EXPIRED` names, and files what the gate appended to
+`FLAKY_REPORT`. Under it the Python suite (`tools/py_suite.py`) settles each failed test:
+
+- It runs once more, on a fresh pool. If it passes, it's flaky: its failure fails nothing, and
+  it's noted on its issue, or opens one, which quarantines it. A Claude job looks for the cause,
+  and the fix's pull request says `Closes #N`, which lifts the quarantine when it merges.
+- A test that fails both times fails the step, quarantined or not.
+- Two days after its issue opened, a quarantine runs out: until the issue closes, the test gets
+  no second try, and its failure fails the step.
+
+The report names each test and nothing else: a test's output can quote the cartridge. The Rust
+tests aren't covered: a `cargo test` failure fails the step, as before. Without the step's two
+variables (a lane's own runs, `--fast`), every failure fails.
 
 ### File size
 

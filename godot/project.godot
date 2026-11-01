@@ -4,6 +4,8 @@ config_version=5
 [application]
 config/name="PSIV"
 run/main_scene="res://field.tscn"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="PSIV"
 config/features=PackedStringArray("4.7")
 
 [display]
@@ -14,6 +16,7 @@ window/size/viewport_height=800
 
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 textures/canvas_textures/default_texture_filter=0
+textures/vram_compression/import_etc2_astc=true
 
 [input]
 

@@ -137,16 +137,23 @@ def hash_info(data: bytes) -> dict[str, str]:
 def read_rom(path: str | Path, *, require_known_build: bool = True) -> bytes:
     path = Path(path)
     data = path.read_bytes()
-    if len(data) < 0x200:
-        raise RomError("File is too small to contain a Mega Drive/Genesis header")
     if require_known_build:
         sha = hashlib.sha256(data).hexdigest()
         if sha != EXPECTED_SHA256:
-            raise RomError(
-                "Unsupported ROM build. This PoC intentionally accepts only the verified US retail image "
-                f"({EXPECTED_SHA256}); got {sha}."
-            )
+            raise RomError(wrong_rom_message(path, sha))
+    if len(data) < 0x200:
+        raise RomError("File is too small to contain a Mega Drive/Genesis header")
     return data
+
+
+def wrong_rom_message(path: str | Path, sha: str) -> str:
+    """The refusal the player sees for any other image. It names the file, not
+    its path, which would put the player's folders on the setup screen and in
+    every screenshot of it. `psiv-pack` words it the same
+    (rust/psiv-pack/src/rom.rs); `tools/pack_parity.py` compares them."""
+    name = Path(path).name or str(path)
+    return (f"{name} is not the US retail ROM PSIV builds from: its SHA-256 is {sha}, "
+            f"expected {EXPECTED_SHA256}")
 
 
 def inspect_rom(data: bytes) -> dict[str, Any]:

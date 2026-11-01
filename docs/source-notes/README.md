@@ -116,6 +116,43 @@ agility and dexterity, and enemy paralysis clearing each turn.
   (`ps4.asm:158029-158033`) lets a player holding Menu at the scene's start jump
   to the credits; the port plays the whole ending. Recorded in
   [REVISION_AUDIT.md](../scenes/REVISION_AUDIT.md#recorded-deviation-the-menu-button-credits-skip).
+- **The 16 oracle-receipt attack bodies ship no attack frames (#214).** The
+  pack used to copy the indexed PNGs rendered from the receipts in
+  `oracle/fixtures/battle_animation_remainder.json` as these bodies' attack
+  frames. Those frames are not the routines' own art. Compared by pixel index
+  (palette ignored), eight bodies (`$D526`, `$D998`, `$DCD2`, `$EFB2`,
+  `$F088`, `$FCCA`, `$10C7C`, `$10E7A`) capture one identical frame sequence,
+  three (`$E394`, `$F53C`, `$10AB4`) share a second, and `$E2BE` is the first
+  sequence with one frame repeated. The shared frames show a humanoid figure
+  with slash marks and tiles still missing mid-upload. That figure is most
+  likely the targeted party member reacting, not the enemy's attack. The routines
+  agree: `EnemyAttack_Prophallus` (`ps4.asm:19613`) only writes three palette
+  words and an object routine and jumps to `loc_D200` (`ps4.asm:19395`), and
+  after the `EnemyAttackOffs` dispatch the caller starts the target fighter's
+  own presentation (`ps4.asm:19174-19184`, `move.w #8, $2(a0)`). The four
+  unique sets (`$DE22`, `$E0EC`, `$ECDE`, `$10E38`) come from effect-object
+  state machines that stream art and place themselves by target and by the
+  ability chosen (`EnemyAttack_ProtectBit`, `ps4.asm:23637`, and
+  `BattleObj_ProtectBitAtk`, `ps4.asm:30592`), which a static render does not
+  reproduce. All 16 bodies therefore stay `deferred` in
+  `battle/art/enemy_attacks.json` with no frames, and Godot keeps its
+  body-flash fallback for them. Affected enemy ids: 4, 7, 14-16, 27-29, 56-58,
+  78, 79, 91, 92, 96-101, 114-119, 121, 127, 128, 132, 151. The receipts and
+  PNGs stay as oracle evidence only. `battle/enemy_animations.json` is
+  unchanged.
+
+- `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
+  [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
+  `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
+  The list window and the text window each close with render bit 1: `loc_68888` restores two columns
+  a pass and `bchg #2` runs `DMAPlane_A_VInt` on alternate passes (`loc_688A8`). The portrait window,
+  there only if `$FFFFECA4` bit 0 was set, closes with render bit 0: one restore and no VInt. A window
+  `W` cells wide (its `WinGroup_Event` width byte plus one) spends `ceil(ceil(W / 2) / 2) + 1` VInts,
+  derived from the code and not measured on the oracle. Those frames read no pad and run no
+  `RunMapUpdates`, but each VInt also runs `UpdateRNGSeed` and increments `Main_Frame_Count`
+  (`ps4.asm:617,623`). So the field gets the pad back that many frames sooner, the windows do not
+  animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
+  behind the cartridge.
 
 ## Public reverse-engineering references used
 

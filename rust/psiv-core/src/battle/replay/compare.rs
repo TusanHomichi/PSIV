@@ -293,7 +293,7 @@ fn effect_divergence(
             _ => None,
         });
         if let Some(enemy) = reloaded {
-            let data = super::pack::data();
+            let data = super::pack::data().expect("a replay runs on the runtime pack's records");
             let stats = Stats::from_enemy(data.enemy(enemy).expect("reloaded pack record"));
             let value = match field.as_str() {
                 "agi_bat" => u16::from(stats.agility.battle),

@@ -3,13 +3,16 @@
 //! This module stops at resolved cartridge data: raw track tails, local FM
 //! voices, retail PSG envelope bytes, and DAC sample banks. The sound crate
 //! owns interpretation and chip output; this crate owns the pack schema and
-//! file provenance.
+//! file provenance; [`schema`] is the files' shape, shared with the pack
+//! builder.
 
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-const SOUND_FORMAT_VERSION: u32 = 1;
+pub mod schema;
+
+pub use schema::SOUND_FORMAT_VERSION;
 
 /// The channel family named by an extracted track descriptor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -82,31 +85,27 @@ impl SoundFiles {
             }
             return Ok(Self::default());
         }
-        let index = read_json(&index_path)?;
-        check_version(&index, &index_path)?;
+        let _index: schema::IndexFile = read_file(&index_path)?;
 
-        let driver_path = root.join("driver.json");
-        let driver = read_json(&driver_path)?;
-        check_version(&driver, &driver_path)?;
-        let volume_envelopes = load_volume_envelopes(&root, &driver)?;
-        let dac_samples = load_dac_samples(&root, &driver)?;
+        let driver: schema::DriverFile = read_file(&root.join("driver.json"))?;
+        let volume_envelopes = load_volume_envelopes(&root, &driver.driver.envelopes)?;
+        let dac_samples = load_dac_samples(&root, &driver.driver.dac)?;
 
         let music_path = root.join("music.json");
-        let music_json = read_json(&music_path)?;
-        check_version(&music_json, &music_path)?;
+        let music_file: schema::MusicFile = read_file(&music_path)?;
         let mut music = BTreeMap::new();
-        for value in records(&music_json, &music_path, None)? {
-            let record = load_record(&root, value, false, &volume_envelopes)?;
+        for value in &music_file.records.records {
+            let tempo = value.header.tempo_reload.max(1);
+            let record = load_record(&root, value, value.header.tick_multiplier, tempo, false)?;
             insert_record(&mut music, record, &music_path)?;
         }
 
         let sfx_path = root.join("sfx.json");
-        let sfx_json = read_json(&sfx_path)?;
-        check_version(&sfx_json, &sfx_path)?;
+        let sfx_file: schema::SfxFile = read_file(&sfx_path)?;
         let mut sfx = BTreeMap::new();
-        for group in ["regular", "special"] {
-            for value in records(&sfx_json, &sfx_path, Some(group))? {
-                let record = load_record(&root, value, true, &volume_envelopes)?;
+        for group in [&sfx_file.records.regular, &sfx_file.records.special] {
+            for value in &group.records {
+                let record = load_record(&root, value, value.header.tick_multiplier, 1, true)?;
                 insert_record(&mut sfx, record, &sfx_path)?;
             }
         }
@@ -157,37 +156,25 @@ impl SoundFiles {
     }
 }
 
-fn load_record(
+fn load_record<H>(
     root: &Path,
-    value: &Value,
+    value: &schema::Record<H>,
+    tick_multiplier: u8,
+    tempo: u8,
     is_sfx: bool,
-    _volume_envelopes: &[Vec<u8>],
 ) -> Result<SoundRecord, crate::DataError> {
-    let id = u8_field(value, "id", root)?;
-    let symbol = string_field(value, "symbol", root)?.to_owned();
-    let header = object_field(value, "header", root)?;
-    let tempo = if is_sfx {
-        1
-    } else {
-        u8_field(header, "tempo_reload", root)?.max(1)
-    };
-    let tick_multiplier = u8_field(header, "tick_multiplier", root)?.max(1);
-    let record = object_field(value, "record", root)?;
-    let raw_file = string_field(record, "raw_file", root)?;
-    let raw_path = root.join(raw_file);
+    let tick_multiplier = tick_multiplier.max(1);
+    let raw_path = root.join(&value.record.raw_file);
     let raw = std::fs::read(&raw_path).map_err(|error| crate::DataError::io(&raw_path, error))?;
-    let voices = parse_voices(value, root)?;
-    let mut tracks = Vec::new();
-    let tracks_value = value
-        .get("tracks")
-        .and_then(Value::as_array)
-        .ok_or_else(|| sound_error(root.to_owned(), "record.tracks is not an array"))?;
-    for track in tracks_value {
-        tracks.push(load_track(track, &raw, tick_multiplier, is_sfx, root)?);
-    }
+    let voices = parse_voices(&value.voices, root)?;
+    let tracks = value
+        .tracks
+        .iter()
+        .map(|track| load_track(track, &raw, tick_multiplier, is_sfx, root))
+        .collect::<Result<_, _>>()?;
     Ok(SoundRecord {
-        id,
-        symbol,
+        id: value.id,
+        symbol: value.symbol.clone(),
         tempo,
         voices,
         tracks,
@@ -195,91 +182,75 @@ fn load_record(
 }
 
 fn load_track(
-    value: &Value,
+    value: &schema::Track,
     raw: &[u8],
     tick_multiplier: u8,
     is_sfx: bool,
     root: &Path,
 ) -> Result<SoundTrackRecord, crate::DataError> {
-    let kind_name = string_field(value, "kind", root)?;
-    let initial = object_field(value, "initial", root)?;
-    let source = object_field(value, "source", root)?;
-    let offset = usize_field(source, "record_relative_offset", root)?;
+    let initial = &value.initial;
+    let offset = value.source.record_relative_offset as usize;
     if offset >= raw.len() {
         return Err(sound_error(
             root.to_owned(),
             format!("track pointer {offset} is outside its raw record"),
         ));
     }
-    let index = u8_field(value, "index", root)?;
     let (kind, channel) = if is_sfx {
-        let channel_byte = u8_field(initial, "channel_byte", root)?;
+        let channel_byte = initial.channel_byte.ok_or_else(|| {
+            sound_error(root.to_owned(), "channel_byte is not an unsigned integer")
+        })?;
         if channel_byte & 0x80 != 0 {
             let channel = (channel_byte >> 5).saturating_sub(4);
             (SoundTrackKind::Psg, channel)
         } else {
             (SoundTrackKind::Fm, channel_byte)
         }
-    } else if kind_name == "psg" {
-        (SoundTrackKind::Psg, index)
-    } else if kind_name == "fm" {
-        (SoundTrackKind::Fm, index)
     } else {
-        return Err(sound_error(
-            root.to_owned(),
-            format!("unknown music track kind {kind_name:?}"),
-        ));
+        match value.kind {
+            schema::TrackFamily::Psg => (SoundTrackKind::Psg, value.index),
+            schema::TrackFamily::Fm => (SoundTrackKind::Fm, value.index),
+            schema::TrackFamily::Sfx => {
+                return Err(sound_error(
+                    root.to_owned(),
+                    "unknown music track kind \"sfx\"",
+                ));
+            }
+        }
     };
-    let initial_voice = value
-        .get("instruments_used")
-        .and_then(Value::as_array)
-        .and_then(|items| items.first())
-        .and_then(Value::as_u64)
-        .map(|value| value as u8);
+    let initial_voice = value.instruments_used.first().copied();
     let psg_envelope = initial
-        .get("volume_envelope")
-        .and_then(Value::as_u64)
+        .volume_envelope
         .and_then(|value| value.checked_sub(1))
-        .map(|value| value as usize);
-    let transpose = u8_field(initial, "transpose", root)? as i8;
-    let volume = u8_field(initial, "volume", root)? as i8;
-    let opcodes = value
-        .get("decode")
-        .and_then(|decode| decode.get("command_opcodes_seen"))
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str);
+        .map(usize::from);
     let dac = !is_sfx
         && kind == SoundTrackKind::Fm
-        && opcodes
-            .clone()
-            .any(|opcode| matches!(opcode, "0xE3" | "0xE4" | "0xED" | "0xEE" | "0xFA" | "0xFC"));
+        && value.decode.command_opcodes_seen.iter().any(|opcode| {
+            matches!(
+                opcode.as_str(),
+                "0xE3" | "0xE4" | "0xED" | "0xEE" | "0xFA" | "0xFC"
+            )
+        });
     Ok(SoundTrackRecord {
         kind,
         channel,
         bytes: raw.to_vec(),
         start_offset: offset,
         initial_voice,
-        initial_transpose: transpose,
-        initial_volume: volume,
+        initial_transpose: initial.transpose as i8,
+        initial_volume: initial.volume as i8,
         psg_envelope,
         tick_multiplier,
         dac,
     })
 }
 
-fn parse_voices(value: &Value, root: &Path) -> Result<Vec<Vec<u8>>, crate::DataError> {
-    let voices = value
-        .get("voices")
-        .and_then(Value::as_array)
-        .ok_or_else(|| sound_error(root.to_owned(), "record.voices is not an array"))?;
+fn parse_voices(voices: &[schema::Voice], root: &Path) -> Result<Vec<Vec<u8>>, crate::DataError> {
     voices
         .iter()
         .map(|voice| {
-            let raw_hex = string_field(voice, "raw_hex", root)?;
-            let bytes =
-                parse_hex(raw_hex).map_err(|message| sound_error(root.to_owned(), message))?;
+            let bytes = parse_hex(&voice.raw_hex)
+                .map_err(|message| sound_error(root.to_owned(), message))?;
             if bytes.len() != 25 {
                 return Err(sound_error(
                     root.to_owned(),
@@ -291,82 +262,50 @@ fn parse_voices(value: &Value, root: &Path) -> Result<Vec<Vec<u8>>, crate::DataE
         .collect()
 }
 
-fn load_volume_envelopes(root: &Path, driver: &Value) -> Result<Vec<Vec<u8>>, crate::DataError> {
-    let values = driver
-        .get("driver")
-        .and_then(|value| value.get("envelopes"))
-        .and_then(|value| value.get("volume"))
-        .and_then(Value::as_array)
-        .ok_or_else(|| sound_error(root.to_owned(), "driver.envelopes.volume is missing"))?;
-    let mut envelopes = vec![Vec::new(); values.len()];
+fn load_volume_envelopes(
+    root: &Path,
+    envelopes: &schema::Envelopes,
+) -> Result<Vec<Vec<u8>>, crate::DataError> {
+    let values = &envelopes.volume;
+    let mut loaded = vec![Vec::new(); values.len()];
     for value in values {
-        let index = usize_field(value, "index", root)?;
-        let path = root.join(string_field(value, "raw_file", root)?);
+        let index = value.index as usize;
+        let path = root.join(&value.raw_file);
         let bytes = std::fs::read(&path).map_err(|error| crate::DataError::io(&path, error))?;
-        if index >= envelopes.len() {
+        if index >= loaded.len() {
             return Err(sound_error(
                 path,
                 format!("envelope index {index} is out of order"),
             ));
         }
-        envelopes[index] = bytes;
+        loaded[index] = bytes;
     }
-    if envelopes.iter().any(Vec::is_empty) {
+    if loaded.iter().any(Vec::is_empty) {
         return Err(sound_error(
             root.to_owned(),
             "volume-envelope table has a missing stream",
         ));
     }
-    Ok(envelopes)
+    Ok(loaded)
 }
 
 fn load_dac_samples(
     root: &Path,
-    driver: &Value,
+    dac: &schema::Dac,
 ) -> Result<BTreeMap<u8, Vec<u8>>, crate::DataError> {
-    let banks = driver
-        .get("driver")
-        .and_then(|value| value.get("dac"))
-        .and_then(|value| value.get("banks"))
-        .and_then(Value::as_array)
-        .ok_or_else(|| sound_error(root.to_owned(), "driver.dac.banks is missing"))?;
     let mut samples = BTreeMap::new();
-    for bank in banks {
-        let entries = bank
-            .get("samples")
-            .and_then(Value::as_array)
-            .ok_or_else(|| sound_error(root.to_owned(), "DAC bank samples is not an array"))?;
-        for entry in entries {
-            let id = u8_field(entry, "sound_id", root)?;
-            let path = root.join(string_field(entry, "raw_file", root)?);
-            let bytes = std::fs::read(&path).map_err(|error| crate::DataError::io(&path, error))?;
-            if samples.insert(id, bytes).is_some() {
-                return Err(sound_error(
-                    path,
-                    format!("duplicate DAC sound id {id:#04x}"),
-                ));
-            }
+    for entry in dac.banks.iter().flat_map(|bank| &bank.samples) {
+        let id = entry.sound_id;
+        let path = root.join(&entry.raw_file);
+        let bytes = std::fs::read(&path).map_err(|error| crate::DataError::io(&path, error))?;
+        if samples.insert(id, bytes).is_some() {
+            return Err(sound_error(
+                path,
+                format!("duplicate DAC sound id {id:#04x}"),
+            ));
         }
     }
     Ok(samples)
-}
-
-fn records<'a>(
-    value: &'a Value,
-    path: &Path,
-    group: Option<&str>,
-) -> Result<Vec<&'a Value>, crate::DataError> {
-    let records = value
-        .get("records")
-        .and_then(Value::as_object)
-        .ok_or_else(|| sound_error(path.to_owned(), "records is not an object"))?;
-    let container = group
-        .map(|name| records.get(name).and_then(|value| value.get("records")))
-        .unwrap_or_else(|| records.get("records"));
-    container
-        .and_then(Value::as_array)
-        .map(|items| items.iter().collect())
-        .ok_or_else(|| sound_error(path.to_owned(), "record list is not an array"))
 }
 
 fn insert_record(
@@ -380,12 +319,12 @@ fn insert_record(
     Ok(())
 }
 
-fn read_json(path: &Path) -> Result<Value, crate::DataError> {
+/// Read a sound file: its `format_version` is checked before its shape, so
+/// a pack from another version is refused as one.
+fn read_file<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, crate::DataError> {
     let text = std::fs::read_to_string(path).map_err(|error| crate::DataError::io(path, error))?;
-    serde_json::from_str(&text).map_err(|error| crate::DataError::json(path, error))
-}
-
-fn check_version(value: &Value, path: &Path) -> Result<(), crate::DataError> {
+    let value: Value =
+        serde_json::from_str(&text).map_err(|error| crate::DataError::json(path, error))?;
     let found = value
         .get("format_version")
         .and_then(Value::as_u64)
@@ -397,51 +336,7 @@ fn check_version(value: &Value, path: &Path) -> Result<(), crate::DataError> {
             expected: SOUND_FORMAT_VERSION,
         });
     }
-    Ok(())
-}
-
-fn object_field<'a>(
-    value: &'a Value,
-    field: &str,
-    path: &Path,
-) -> Result<&'a Value, crate::DataError> {
-    value
-        .get(field)
-        .filter(|value| value.is_object())
-        .ok_or_else(|| sound_error(path.to_owned(), format!("{field} is not an object")))
-}
-
-fn string_field<'a>(
-    value: &'a Value,
-    field: &str,
-    path: &Path,
-) -> Result<&'a str, crate::DataError> {
-    value
-        .get(field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| sound_error(path.to_owned(), format!("{field} is not a string")))
-}
-
-fn u8_field(value: &Value, field: &str, path: &Path) -> Result<u8, crate::DataError> {
-    let value = value.get(field).and_then(Value::as_u64).ok_or_else(|| {
-        sound_error(
-            path.to_owned(),
-            format!("{field} is not an unsigned integer"),
-        )
-    })?;
-    u8::try_from(value)
-        .map_err(|_| sound_error(path.to_owned(), format!("{field} does not fit in one byte")))
-}
-
-fn usize_field(value: &Value, field: &str, path: &Path) -> Result<usize, crate::DataError> {
-    let value = value.get(field).and_then(Value::as_u64).ok_or_else(|| {
-        sound_error(
-            path.to_owned(),
-            format!("{field} is not an unsigned integer"),
-        )
-    })?;
-    usize::try_from(value)
-        .map_err(|_| sound_error(path.to_owned(), format!("{field} does not fit in usize")))
+    serde_json::from_value(value).map_err(|error| crate::DataError::json(path, error))
 }
 
 fn parse_hex(raw: &str) -> Result<Vec<u8>, String> {

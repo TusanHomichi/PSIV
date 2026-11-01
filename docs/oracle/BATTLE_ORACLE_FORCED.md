@@ -403,8 +403,8 @@ Not proved, and not claimed:
   disassembly, and no capture has been fought by the Hydrofoil.
 - **A vehicle battle against the other vehicle tables.** The Dezolis table
   (group `$D`) and the capture a second table would prove are still open: its
-  formations' enemies (ProtectBit, LwAddmer, Owltalon) would first need to be in
-  the replay pack (`python3 -m oracle.sweep.replay_pack`), and the region rule for the Ice Digger says they are what a Dezolis
+  formations' enemies (ProtectBit, LwAddmer, Owltalon) would first need to be
+  captured (the replay reads every enemy record from the runtime pack), and the region rule for the Ice Digger says they are what a Dezolis
   vehicle battle would build.
 - **Anything after the battle.** The tape is trimmed 60 frames past the battle's
   last in-battle frame; the log's provenance after that is the game-over or
@@ -611,9 +611,8 @@ cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- every_fixture_replays_as_recorded
 ```
 
-The replay harness reads the records those fixtures seat from
-`replay_fixtures/motavia_pack.json`, which now covers the forced captures beside
-the sweep (`oracle/sweep/replay_pack.py` walks the whole fixture directory);
+The replay harness reads the records those fixtures seat from the local runtime
+pack's `battle/` files (`replay/pack.rs`; without a pack the replay skips);
 `divergences.json` is empty, so every committed fixture — the two tape battles,
 the four earlier forced captures, the four here, the three evidence-only
 captures below and the sweep's 81 — replays exactly.
@@ -751,8 +750,7 @@ status exclusion (`loc_576A`, 8033-8043). List scratch aliases the actor/command
 words and must not create phantom turns. Inventory, party TP, enemy forms,
 HP, status and battle MDEF are also checked at round end.
 
-Party definitions in the replay's existing generated mirror are emitted by
-`oracle.sweep.replay_pack` from the ignored, psiv_tools-decoded runtime pack.
-The native runtime still loads that pack through `psiv-data`; no retail ability
-record is transcribed into new Rust/Python source. Party ability ids are kept
+The replay reads party definitions from the ignored, psiv_tools-decoded runtime
+pack (`replay/pack.rs`), as the native runtime loads it through `psiv-data`; no
+retail ability record is transcribed into new Rust/Python source. Party ability ids are kept
 separate from enemy ability ids when selecting mirror records.

@@ -6,7 +6,8 @@
 
 use super::{Blocked, SceneRunner, pixel_cell};
 use crate::scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, SceneEffect, SceneFault, SceneOp, ScriptedActor,
+    ActorRef, Axis, DialogueId, DialogueSource, SavedByte, SceneEffect, SceneFault, SceneOp,
+    ScriptedActor,
 };
 use crate::state::{CharId, GameState, PARTY_SLOTS};
 
@@ -51,7 +52,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Map;
             }
-            SceneOp::FlightPan => {
+            SceneOp::FlightPan | SceneOp::PanCamera { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Camera;
@@ -114,6 +115,39 @@ impl SceneRunner {
                     total: state.money(),
                 });
                 self.pc += 1;
+            }
+            SceneOp::RunObjectRoutine { npc_index, routine } => {
+                effects.push(SceneEffect::ObjectRoutineStarted { npc_index, routine });
+                self.blocked = Blocked::ObjectRoutine(npc_index);
+                self.pc += 1;
+            }
+            SceneOp::SetObjectRoutine { npc_index, routine } => {
+                effects.push(SceneEffect::ObjectRoutineSet { npc_index, routine });
+                self.pc += 1;
+            }
+            SceneOp::SubtractMoney { amount } => {
+                state.set_money(state.money().wrapping_sub(amount));
+                effects.push(SceneEffect::MoneyChanged {
+                    total: state.money(),
+                });
+                self.pc += 1;
+            }
+            SceneOp::BranchIfMoneyBelow {
+                amount,
+                if_below,
+                if_not,
+            } => {
+                // `bmi` on the longword difference: the sign bit, as the
+                // cartridge reads it.
+                let target = if state.money().wrapping_sub(amount) & 0x8000_0000 != 0 {
+                    if_below
+                } else {
+                    if_not
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
             }
             SceneOp::SetVehicleIndex { index } => {
                 state.set_vehicle_index(index);
@@ -717,11 +751,16 @@ impl SceneRunner {
                 self.pc = target;
             }
             SceneOp::BranchIfSavedDialogueByte {
+                at,
                 value,
                 if_equal,
                 if_not,
             } => {
-                let target = if self.dialogue_stop_byte == Some(value) {
+                let byte = match at {
+                    SavedByte::Next => self.dialogue_stop_byte,
+                    SavedByte::Last => self.dialogue_last_byte,
+                };
+                let target = if byte == Some(value) {
                     if_equal
                 } else {
                     if_not
@@ -824,6 +863,23 @@ impl SceneRunner {
             | SceneOp::SetMapLoadFlags { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
+            }
+            SceneOp::Guild(guild) => {
+                if let Some(fault) = self.guild_op(guild, state, effects) {
+                    return Some(fault);
+                }
+            }
+            SceneOp::JobBoard(step) => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                use crate::scene::JobBoardStep as Step;
+                match step {
+                    Step::Hold => self.blocked = Blocked::JobBoardHold,
+                    Step::ShowList | Step::Choose | Step::Linger => {
+                        self.blocked = Blocked::JobBoard;
+                    }
+                    Step::Begin | Step::Boxes | Step::Close => {}
+                }
             }
             SceneOp::DestinationMenu { .. } => {
                 // The pc stays on this op: the answer decides where the scene

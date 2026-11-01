@@ -52,6 +52,7 @@ def write_manifest(
     title = state["title"]
     travel = state["travel"]
     ship_menu = state["ship_menu"]
+    guild = state["guild"]
     presentation = state["presentation"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
@@ -214,6 +215,7 @@ def write_manifest(
         "shops": shops,
         "travel": travel,
         "ship_menu": ship_menu,
+        "guild": guild,
         "sound": sound,
         "dialogue": dialogue,
         "title": title,

@@ -71,6 +71,9 @@ Retail citations are checked here for the same reason: `tools/check_citations.py
 (issue #158) reads every `ps4.asm:N` against the local disassembly when it is
 present - the line exists, and a label named beside it opens or uses that line -
 and prints its own summary line, `citations: skipped` on a clone without it.
+`tools/check_rom_tables.py` (issue #149) runs here too: it fails a file that
+carries a copy of the cartridge's battle tables, and says its record scan was
+skipped on a clone without the runtime pack.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
@@ -687,6 +690,12 @@ def main() -> int:
         from check_citations import run as check_citations
     citation_problems, citations = check_citations(root)
     problems += citation_problems
+    try:
+        from tools.check_rom_tables import run as check_rom_tables
+    except ModuleNotFoundError:
+        from check_rom_tables import run as check_rom_tables
+    table_problems, tables = check_rom_tables(root)
+    problems += table_problems
     for problem in problems:
         print(problem)
     files, links, anchors, paths, yaml_blocks = counts
@@ -695,6 +704,7 @@ def main() -> int:
         f"{yaml_blocks} yaml blocks, {code_paths} code paths"
     )
     print(citations)
+    print(tables)
     print(f"{summary}; {len(problems)} problem(s)")
     return 1 if problems else 0
 

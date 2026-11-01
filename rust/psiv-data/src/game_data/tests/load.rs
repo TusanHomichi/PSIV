@@ -4,7 +4,7 @@
 //! directory and read it back, which is what covers the file reading and the
 //! format-version check that runs before any map is opened.
 
-use super::fixtures::{MapJson, SKIPPED_MOTAVIA, manifest_text};
+use super::fixtures::{DIGEST, MapJson, SKIPPED_MOTAVIA, manifest_text};
 use crate::error::DataError;
 use crate::{GameData, MapId, PACK_FORMAT_VERSION};
 
@@ -45,6 +45,20 @@ impl TempPack {
         let empty = format!(
             r#"{{"format_version": {version}, "kind": "field_party", "sheet_count": 0, "sheets": []}}"#
         );
+        let line = vec![[0u8, 0, 0]; 16];
+        let rows = vec![[1u8; 8]; 8];
+        let money = vec![1u8; 8];
+        self.write(
+            "guild/guild.json",
+            &serde_json::json!({
+                "format_version": 1, "kind": "guild", "rom_sha256": DIGEST,
+                "window": {"id": 11, "width": 4, "height": 4, "x": 1, "y": 1},
+                "names": ["a", "b", "c", "d", "e", "f", "g", "h"], "pending": "p",
+                "rows": rows, "money": money,
+                "font_line": line, "done_line": line, "closed_line": line,
+            })
+            .to_string(),
+        );
         self.write("sprites/party.json", &empty);
         self.write(
             "sprites/npcs.json",
@@ -73,6 +87,21 @@ fn load_reads_a_directory_of_files() {
     // The fixture writes no `dialogue/`, so this pack has none: the runtime
     // refuses to build from it rather than opening no window.
     assert!(data.dialogue().is_none());
+}
+
+/// An older pack has no job board: it is refused, naming what to do, so the
+/// setup screen asks for a rebuild instead of the game opening an invisible
+/// menu at the guild's counter.
+#[test]
+fn a_pack_without_the_guild_is_refused() {
+    let pack = TempPack::new("no-guild");
+    pack.populate(PACK_FORMAT_VERSION);
+    let manifest = std::fs::read_to_string(pack.dir.join("manifest.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    value.as_object_mut().unwrap().remove("guild");
+    pack.write("manifest.json", &value.to_string());
+    let error = pack.load().expect_err("no guild section");
+    assert!(error.to_string().contains("rebuild the pack"), "{error}");
 }
 
 #[test]

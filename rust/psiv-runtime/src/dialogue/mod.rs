@@ -124,9 +124,18 @@ pub struct DialogueRunner {
     cutscene_portrait: bool,
     /// Signals produced since the last drain, in order.
     signals: Vec<DialogueSignal>,
+    /// The guild board's text mode (`session/job_board.rs`): a window closes
+    /// by itself at its terminator and its last page stays drawn.
+    board_text: bool,
+    /// That last page, until the next text replaces it.
+    board_page: Option<DialogueView>,
+    /// The portrait the routine's first text put up; later texts leave it.
+    board_portrait: Option<u8>,
     /// The byte under the saved dialogue address after the last stop
     /// (`stop_byte.rs`).
     stop_byte: Option<u8>,
+    /// The byte two before it, the last the text ran (`stop_byte.rs`).
+    last_byte: Option<u8>,
 }
 
 impl Default for DialogueRunner {
@@ -143,6 +152,9 @@ impl DialogueRunner {
             set: None,
             flow: None,
             suspended: None,
+            board_text: false,
+            board_page: None,
+            board_portrait: None,
             choice: ChoiceState::default(),
             open_cells: 0,
             revealed: 0,
@@ -155,6 +167,7 @@ impl DialogueRunner {
             cutscene_portrait: false,
             signals: Vec::new(),
             stop_byte: None,
+            last_byte: None,
         }
     }
 
@@ -178,6 +191,13 @@ impl DialogueRunner {
         self.set.as_deref()
     }
 
+    /// The guild board's text mode: see `Runtime::dialogue_board_text`.
+    pub(crate) fn set_board_text(&mut self, on: bool) {
+        self.board_text = on;
+        self.board_page = None;
+        self.board_portrait = None;
+    }
+
     /// Whether a window is on screen. The shell gates its input on this.
     #[must_use]
     pub(crate) fn is_open(&self) -> bool {
@@ -197,12 +217,14 @@ impl DialogueRunner {
     /// What the renderer draws this frame, or `None` with no window up.
     #[must_use]
     pub(crate) fn view(&self) -> Option<DialogueView> {
-        let flow = self.flow.as_ref()?;
+        let Some(flow) = self.flow.as_ref() else {
+            return self.board_text.then(|| self.board_page.clone()).flatten();
+        };
         Some(DialogueView {
             lines: flow.lines().to_vec(),
             revealed: self.revealed,
             total: flow.visible_chars(),
-            portrait: flow.portrait(),
+            portrait: flow.portrait().or(self.board_portrait),
             page_end: flow.page_end(),
             waiting: flow.is_waiting(),
             dismissable: self.is_dismissable(),
@@ -229,6 +251,17 @@ impl DialogueRunner {
         self.pad = pad;
         self.previous = pad;
         if self.flow.is_none() {
+            return;
+        }
+        if self.board_text
+            && self.is_dismissable()
+            && self.flow.as_ref().and_then(TextFlow::page_end) == Some(PageEnd::End)
+        {
+            // `RunText` returns at the terminator; the window stays for the
+            // next text, and the guild's routine destroys it itself.
+            self.board_page = self.view();
+            self.close_window();
+            self.detect_close();
             return;
         }
         if self.flow.as_ref().is_some_and(TextFlow::has_choice) {
@@ -264,6 +297,13 @@ impl DialogueRunner {
             let step = self.step_cells();
             self.open_cells = (self.open_cells + step).min(self.full_cells());
         } else {
+            if self.board_text {
+                self.board_portrait = self
+                    .flow
+                    .as_ref()
+                    .and_then(TextFlow::portrait)
+                    .or(self.board_portrait);
+            }
             if let Some(flow) = self.flow.as_mut() {
                 // Delays only run once the box is open; the cartridge's
                 // animation holds the text loop the same way.
@@ -292,7 +332,11 @@ impl DialogueRunner {
             }
             Opening::Window(flow) => {
                 self.flow = Some(*flow);
-                self.open_cells = 0;
+                self.open_cells = if self.board_text && self.board_page.take().is_some() {
+                    self.full_cells()
+                } else {
+                    0
+                };
                 self.revealed = 0;
                 self.reveal_tick = 0;
                 self.choice.reset();

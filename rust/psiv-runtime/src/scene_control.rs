@@ -23,6 +23,13 @@ impl Runtime {
         self.install_runner(scene, event)
     }
 
+    /// The pack's `HuntersGuildData`, typed for the core's rules.
+    pub(crate) fn guild_jobs(&self) -> Option<psiv_core::GuildJobs> {
+        let guild = self.data.guild()?;
+        let job = |row: usize| psiv_core::GuildJob::from_row(guild.rows[row], guild.money[row]);
+        Some(std::array::from_fn(job))
+    }
+
     /// Starts `scene` as event `event`. The registry lookup above and a
     /// test's own scene share this one setup.
     pub(crate) fn install_runner(&mut self, scene: &'static Scene, event: EventIndex) -> bool {
@@ -30,9 +37,12 @@ impl Runtime {
         // The runner walks with the party's own step timing, so scripted-walk
         // interpolation (renderer, camera driver) shares one clock with field
         // walking.
-        let Ok(runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
+        let Ok(mut runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
             return false;
         };
+        if let Some(jobs) = self.guild_jobs() {
+            runner.set_guild_jobs(jobs);
+        }
         self.scene = Some(runner);
         self.boarding_body = None;
         self.scene_event = event;
@@ -65,12 +75,15 @@ impl Runtime {
         cast
     }
 
-    /// Hands the running scene the byte under `Saved_Dialogue_Addr` that the
-    /// dialogue just closed on (`BranchIfSavedDialogueByte`).
+    /// Hands the running scene the bytes at `(a0)` and `-$2(a0)` around
+    /// `Saved_Dialogue_Addr` that the dialogue just closed on
+    /// (`BranchIfSavedDialogueByte`).
     fn sync_dialogue_stop_byte(&mut self) {
         let byte = self.dialogue.stop_byte();
+        let last = self.dialogue.last_byte();
         if let Some(runner) = self.scene.as_mut() {
             runner.set_dialogue_stop_byte(byte);
+            runner.set_dialogue_last_byte(last);
         }
     }
 
@@ -86,6 +99,33 @@ impl Runtime {
     #[must_use]
     pub fn scene_actors(&self) -> &[ScriptedActor] {
         self.scene.as_ref().map(|r| r.actors()).unwrap_or(&[])
+    }
+
+    /// The object a running scene's `RunObjectRoutine` waits on, which its
+    /// routine (and only it) moves each frame.
+    #[must_use]
+    pub fn running_object_routine(&self) -> Option<usize> {
+        self.scene
+            .as_ref()
+            .and_then(SceneRunner::running_object_routine)
+    }
+
+    /// The scene actors the renderer places: the cast, less an object a
+    /// `RunObjectRoutine` handed to its routine. That object's routine moves
+    /// it ([`Runtime::object_motions`]), and the cast's copy, frozen where
+    /// the scene started, must not draw over it.
+    #[must_use]
+    pub fn scene_actor_draws(&self) -> Vec<ScriptedActor> {
+        let Some(runner) = self.scene.as_ref() else {
+            return Vec::new();
+        };
+        let routine = self.running_object_routine();
+        runner
+            .actors()
+            .iter()
+            .filter(|actor| routine.is_none_or(|npc| actor.actor != ActorRef::Npc(npc)))
+            .copied()
+            .collect()
     }
 
     /// The step timing scene walks interpolate with.

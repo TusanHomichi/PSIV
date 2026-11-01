@@ -44,20 +44,22 @@ mod collision;
 mod dialogue;
 mod error;
 mod game_data;
+mod guild;
 mod ids;
 mod manifest;
 mod map;
 mod new_game;
 mod ship_menu;
 mod shops;
-mod sound;
+pub mod sound;
 mod sprites;
 mod travel;
 
 pub use battle::{
     AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt,
-    CommandUiTile, ELEMENT_SLOTS, EffectTable, EncounterGroup, EncounterGroups, EnemiesFile, Enemy,
-    EnemyAi, EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
+    CommandUiTile, DAMAGE_DIGIT_ART_PATH, DamageDigitArt, ELEMENT_SLOTS, EffectTable,
+    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
+    EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, Formation,
     FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId,
@@ -74,6 +76,7 @@ pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCol
 pub use dialogue::*;
 pub use error::DataError;
 pub use game_data::GameData;
+pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
 pub use manifest::{
     GameStartFacing, GameStartMap, GameStartSummary, Manifest, MapEntry, PACK_FORMAT_VERSION,

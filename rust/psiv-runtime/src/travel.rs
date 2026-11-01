@@ -85,6 +85,11 @@ impl Runtime {
         };
     }
 
+    /// The Hunter's Guild board's answer to the scene.
+    pub(crate) fn answer_job_board(&mut self, input: psiv_core::SceneInput) {
+        self.scene_input = input;
+    }
+
     /// `Main_Frame_Count`, the word the cartridge's blinks read.
     pub(crate) fn main_frame_count(&self) -> u16 {
         self.frames

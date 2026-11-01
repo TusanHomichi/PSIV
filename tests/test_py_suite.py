@@ -10,6 +10,7 @@ holds the two to the same counts.
 """
 
 import io
+import json
 import os
 import subprocess
 import sys
@@ -17,6 +18,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.gate import parse_unittest
 from tools.py_suite import (PYTHON_MEASURED_WORKERS, SLOW_PYTHON_MODULES, discover_modules,
@@ -76,6 +78,81 @@ KILLED = """
 """
 
 
+#: Fails its first try and passes every one after, as a flaky test does.
+FLAKY_ONCE = """
+    import unittest
+    from pathlib import Path
+
+    class Case(unittest.TestCase):
+        def test_wobbles(self):
+            tried = Path(__file__).with_name("tried")
+            if not tried.exists():
+                tried.write_text("once")
+                self.fail("the first try fails")
+
+        def test_steady(self):
+            pass
+"""
+#: Each test fails its first try and skips the next, in its body, its setUp or a subtest: a
+#: skip is no pass.
+SKIPS_AGAIN = """
+    import unittest
+    from pathlib import Path
+
+    def first(name):
+        tried = Path(__file__).with_name("tried-" + name)
+        if tried.exists():
+            return False
+        tried.write_text("once")
+        return True
+
+    class Body(unittest.TestCase):
+        def test_skips(self):
+            if not first("body"):
+                self.skipTest("skipped on its second try")
+            self.fail("the first try fails")
+
+    class Setup(unittest.TestCase):
+        def setUp(self):
+            if Path(__file__).with_name("tried-setup").exists():
+                self.skipTest("skipped on its second try")
+
+        def test_skips(self):
+            first("setup")
+            self.fail("the first try fails")
+
+    class Sub(unittest.TestCase):
+        def test_skips(self):
+            again = not first("sub")
+            with self.subTest(n=1):
+                if again:
+                    self.skipTest("skipped on its second try")
+                self.fail("the first try fails")
+"""
+#: A flaky test that happens to be named test_case, as a subtest's attribute is.
+NAMED_TEST_CASE = """
+    import unittest
+    from pathlib import Path
+
+    class Case(unittest.TestCase):
+        def test_case(self):
+            tried = Path(__file__).with_name("tried")
+            if not tried.exists():
+                tried.write_text("once")
+                self.fail("an ordinary test")
+"""
+#: Fails in one subtest every time.
+SUBTEST_FAILS = """
+    import unittest
+
+    class Case(unittest.TestCase):
+        def test_cases(self):
+            for n in range(3):
+                with self.subTest(n=n):
+                    self.assertNotEqual(n, 1)
+"""
+
+
 class ThrowawaySuite:
     """A temp directory holding `test_<name>.py` for each `{name: body}`."""
 
@@ -91,10 +168,16 @@ class ThrowawaySuite:
     def __exit__(self, *exc):
         self.tmp.cleanup()
 
-    def run(self, workers=2, excluded=()):
-        """`run_suite` over the suite: (exit code, report text, its parsed counts)."""
+    def run(self, workers=2, excluded=(), flaky=None):
+        """`run_suite` over the suite: (exit code, report text, its parsed counts).
+
+        It never sees the flaky step the gate running this case may be under: only the
+        variables `flaky` gives it.
+        """
         stream = io.StringIO()
-        code = run_suite(self.start, excluded=excluded, workers=workers, stream=stream)
+        variables = {k: v for k, v in os.environ.items() if not k.startswith("FLAKY_")}
+        with patch.dict(os.environ, {**variables, **(flaky or {})}, clear=True):
+            code = run_suite(self.start, excluded=excluded, workers=workers, stream=stream)
         text = stream.getvalue()
         return code, text, parse_unittest(text)
 
@@ -104,6 +187,17 @@ class ThrowawaySuite:
                                     str(self.start), "-t", str(self.start)],
                                    capture_output=True, text=True, cwd=self.start)
         return completed.returncode, parse_unittest(completed.stderr)
+
+
+    def flaky(self, expired=()):
+        """`run` under burrow's flaky step, with `expired` the tests whose quarantine has run out:
+        (exit code, report text, counts, its report's entries)."""
+        (self.start / "expired").write_text("".join(f"{name}\n" for name in expired))
+        report = self.start / "report.jsonl"
+        report.write_text("")
+        code, text, counts = self.run(flaky={"FLAKY_EXPIRED": str(self.start / "expired"),
+                                             "FLAKY_REPORT": str(report)})
+        return code, text, counts, [json.loads(line) for line in report.read_text().splitlines()]
 
 
 class PlanCase(unittest.TestCase):
@@ -248,3 +342,75 @@ class RunCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FlakyCase(unittest.TestCase):
+    """Under burrow's flaky step a failed test runs once more; without it, nothing changes."""
+
+    def test_a_test_that_fails_then_passes_is_reported_flaky_and_fails_nothing(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual(code, 0, text)
+        self.assertEqual(counts, {"tests_run": 4, "failures": 0, "errors": 0, "skipped": 0,
+                                  "status": "OK"})
+        # Its name alone: a test's output never reaches the report.
+        self.assertEqual(entries, [{"test": "test_wobbly.Case.test_wobbles"}])
+        self.assertIn("test_wobbly.Case.test_wobbles failed, then passed when it ran again", text)
+
+    def test_negative_control_without_the_step_the_same_failure_fails(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            code, text, counts = suite.run()
+        self.assertEqual(code, 1, text)
+        self.assertEqual(counts["failures"], 1)
+
+    def test_without_both_variables_nothing_changes(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            (suite.start / "expired").write_text("")
+            report = suite.start / "report.jsonl"
+            report.write_text("")
+            for flaky in ({"FLAKY_REPORT": str(report)},
+                          {"FLAKY_REPORT": str(report), "FLAKY_EXPIRED": ""},
+                          {"FLAKY_EXPIRED": str(suite.start / "expired")},
+                          {"FLAKY_EXPIRED": str(suite.start / "expired"), "FLAKY_REPORT": ""}):
+                with self.subTest(flaky=flaky):
+                    for tried in suite.start.rglob("tried"):
+                        tried.unlink()  # its first try again
+                    code, text, counts = suite.run(flaky=flaky)
+                    self.assertEqual((code, counts["failures"]), (1, 1), text)
+                    self.assertEqual(report.read_text(), "")
+                    self.assertNotIn("ran again", text)
+
+    def test_negative_control_a_test_that_fails_again_fails_the_step(self):
+        with ThrowawaySuite({"only": ASSERTION_ONLY, "sub": SUBTEST_FAILS}) as suite:
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual(code, 1, text)
+        self.assertEqual((counts["failures"], entries), (2, []))
+
+    def test_negative_control_a_test_whose_quarantine_ran_out_gets_no_second_try(self):
+        with ThrowawaySuite({"alpha": PASSING, "wobbly": FLAKY_ONCE}) as suite:
+            code, text, counts, entries = suite.flaky(expired=["test_wobbly.Case.test_wobbles"])
+        self.assertEqual(code, 1, text)
+        self.assertEqual((counts["failures"], entries), (1, []))
+        self.assertIn("test_wobbly.Case.test_wobbles's quarantine has run out, so it had no second try",
+                      text)
+        self.assertNotIn("ran again", text)
+
+    def test_a_retry_that_skips_did_not_pass(self):
+        with ThrowawaySuite({"skips": SKIPS_AGAIN}) as suite:
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual(code, 1, text)
+        self.assertEqual((counts["failures"], entries), (3, []))
+
+    def test_a_test_named_test_case_keeps_its_own_id(self):
+        with ThrowawaySuite({"named": NAMED_TEST_CASE}) as suite:
+            code, text, counts = suite.run()
+            self.assertEqual((code, counts["failures"]), (1, 1), text)
+            (suite.start / "tried").unlink()  # its first try again
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual(code, 0, text)
+        self.assertEqual(entries, [{"test": "test_named.Case.test_case"}])
+
+    def test_a_module_that_cannot_import_is_not_tried_again_and_still_fails(self):
+        with ThrowawaySuite({"alpha": PASSING, "broken": BROKEN_IMPORT}) as suite:
+            code, text, counts, entries = suite.flaky()
+        self.assertEqual((code, counts["errors"], entries), (1, 1, []), text)

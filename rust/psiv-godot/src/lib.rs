@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use godot::classes::{
-    Camera2D, ColorRect, INode2D, Node2D, ProjectSettings, Sprite2D, notify::CanvasItemNotification,
+    Camera2D, ColorRect, INode2D, Node2D, Sprite2D, notify::CanvasItemNotification,
 };
 use godot::prelude::*;
 
@@ -23,7 +23,10 @@ mod field_map;
 mod field_status;
 mod field_visuals;
 mod input;
+mod install;
+mod job_board;
 mod named_caches;
+mod pack_setup;
 mod red_palette;
 mod runtime_events;
 mod rust_heap;
@@ -42,6 +45,7 @@ use cutscene::{CutsceneLayer, PresentationState};
 use destination::DestinationScreen;
 use dialogue::DialogueWindow;
 use input::requested_save_slot;
+use job_board::JobBoardScreen;
 use save_dir::save_directory;
 use shop::ShopWindow;
 use transitions::TransitionKind;
@@ -197,6 +201,7 @@ struct Field {
     status_presentation: field_status::StatusPresentation,
     shop: Option<Gd<ShopWindow>>,
     destination: Option<Gd<DestinationScreen>>,
+    job_board: Option<Gd<JobBoardScreen>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
     battle_screen: Option<Gd<BattleScreen>>,
@@ -313,6 +318,7 @@ impl INode2D for Field {
             status_presentation: field_status::StatusPresentation::default(),
             shop: None,
             destination: None,
+            job_board: None,
             camp_menu: None,
             title: None,
             battle_screen: None,
@@ -351,35 +357,25 @@ impl INode2D for Field {
         // Characters sort by their feet line, like the hardware's sprite
         // ordering: standing north of an NPC puts you behind them.
         self.base_mut().set_y_sort_enabled(true);
-        // An explicit local pack selects every loader below, including battle
-        // art. Otherwise an exported build looks beside the executable and
-        // the dev tree uses the repo-root runtime-pack.
-        let override_dir = std::env::var_os("PSIV_RUNTIME_PACK").map(std::path::PathBuf::from);
-        let exe_side = godot::classes::Os::singleton()
-            .get_executable_path()
-            .to_string();
-        let exe_dir = std::path::Path::new(&exe_side)
-            .parent()
-            .map(|p| p.join("runtime-pack"));
-        let dev = ProjectSettings::singleton()
-            .globalize_path("res://../runtime-pack")
-            .to_string();
-        let selected = override_dir
-            .clone()
-            .or_else(|| exe_dir.filter(|p| p.join("manifest.json").is_file()))
-            .unwrap_or_else(|| std::path::PathBuf::from(dev));
-        self.pack_dir = selected
-            .canonicalize()
-            .unwrap_or(selected)
-            .to_string_lossy()
-            .into_owned();
-        if override_dir.is_some() {
+        // One pack selects every loader below, including battle art: an
+        // installed game's in its user data folder, a checkout's own, or the
+        // one PSIV_RUNTIME_PACK names (`install.rs`).
+        let install = install::Install::current();
+        let (selected, overridden) = install::pack_directory(&install);
+        let paths = install::PackPaths::of(selected);
+        self.pack_dir = paths.read.to_string_lossy().into_owned();
+        if overridden {
             godot_print!("runtime pack override: {}", self.pack_dir);
         }
-        let data = match GameData::load(std::path::Path::new(&self.pack_dir)) {
+        let pack = std::path::PathBuf::from(&self.pack_dir);
+        let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {
                 godot_error!("runtime pack failed to load from {}: {e}", self.pack_dir);
+                let problem = pack.join("manifest.json").exists().then(|| e.to_string());
+                let setup =
+                    pack_setup::PackSetup::create(install, paths.rebuild, overridden, problem);
+                self.base_mut().add_child(&setup);
                 return;
             }
         };
@@ -531,6 +527,20 @@ impl INode2D for Field {
         }
         self.base_mut().add_child(&destination);
         self.destination = Some(destination);
+
+        let mut job_board = JobBoardScreen::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => job_board.bind_mut().configure(
+                &self.pack_dir,
+                &set,
+                session.runtime().data().guild().cloned(),
+            ),
+            Err(e) => {
+                godot_error!("job board pack failed to load: {e}");
+            }
+        }
+        self.base_mut().add_child(&job_board);
+        self.job_board = Some(job_board);
 
         let mut camp = CampMenu::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
@@ -773,6 +783,10 @@ impl Field {
         }
         self.battle_field_visibility = None;
         self.presentation.reset_scene();
+        if let Some(board) = self.job_board.as_mut() {
+            board.bind_mut().sync(None, Vector2::ZERO);
+        }
+        self.sync_dialogue_view();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
             layer.bind_mut().panel_destroy_all();

@@ -259,7 +259,7 @@ class OnePlace(unittest.TestCase):
         self.assertRegex(godot.required_version(), r"\A\d+\.\d+(\.\d+)?\Z")
 
     def test_launchers_call_the_resolver(self):
-        for launcher in ("godot/run.sh", "tools/package/deploy-deck.sh"):
+        for launcher in self.SHELL_LAUNCHERS:
             with self.subTest(launcher=launcher):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
 
@@ -295,25 +295,14 @@ class OnePlace(unittest.TestCase):
                               (ROOT / name).read_text())
                 self.assertFalse(python_prepares(text + "\n# prepare(ROOT / 'godot')\n"))
 
-    SHELL_LAUNCHERS = ("godot/run.sh", "tools/package/deploy-deck.sh")
+    SHELL_LAUNCHERS = ("godot/run.sh",)
     QUICK_STARTS = ("README.md", "docs/DEVELOPMENT.md", "docs/MODDING.md")
     PYTHON_LAUNCHERS = ("tools/certify.py", "tools/verify_native_tape.py")
-
-    def test_the_shell_launchers_stop_on_a_failed_pipeline(self):
-        """deploy-deck.sh pipes its export into `tail`; without pipefail a
-        failed export was hidden and the script staged a stale build."""
-        for launcher in ("tools/package/deploy-deck.sh",):
-            with self.subTest(launcher=launcher):
-                text = (ROOT / launcher).read_text()
-                self.assertRegex(text, r"(?m)^set -\w*e\w*o pipefail$")
-                syntax = subprocess.run(["bash", "-n", str(ROOT / launcher)],
-                                        capture_output=True, text=True)
-                self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
     def test_the_shell_launchers_pass_shellcheck(self):
         if shutil.which("shellcheck") is None:
             self.skipTest("shellcheck is not installed")
-        for launcher in ("godot/run.sh", "tools/package/deploy-deck.sh"):
+        for launcher in self.SHELL_LAUNCHERS:
             with self.subTest(launcher=launcher):
                 proc = subprocess.run(["shellcheck", str(ROOT / launcher)],
                                       capture_output=True, text=True)

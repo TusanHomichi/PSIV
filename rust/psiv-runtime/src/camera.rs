@@ -50,6 +50,20 @@ impl Runtime {
         self.scene_move_camera_ordered(x, y, 2, true);
     }
 
+    /// `SceneOp::PanCamera`: the routine as it stands, X then Y on the
+    /// twelve-bit short path. The runner waits for the arrival; with no glide
+    /// left, `Runtime::scene_tick` releases it within the frame.
+    pub(crate) fn scene_pan_camera(&mut self, x: i32, y: i32, speed: i32) {
+        self.scene_move_camera_ordered(x, y, speed, true);
+        // Both of the routine's loops exit before their first frame.
+        let (raw_x, raw_y) = self.camera.raw();
+        if self.camera_glide.is_some_and(|glide| {
+            (raw_x >> 16) & 0xFFF == glide.target_x && (raw_y >> 16) & 0xFFF == glide.target_y
+        }) {
+            self.camera_glide = None;
+        }
+    }
+
     fn scene_move_camera_ordered(&mut self, x: i32, y: i32, speed: i32, x_then_y: bool) {
         let target_x = x - psiv_core::HOME_X;
         let target_y = y - psiv_core::HOME_Y;

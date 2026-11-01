@@ -5,6 +5,7 @@
 # commit (burrow main, 2026-10-26), and Renovate keeps the pin current.
 name: flake
 on:
+  # A PR retargeted onto another branch runs from flake-retarget.yml.
   pull_request:
   push:
     branches: [main]
@@ -12,7 +13,7 @@ permissions:
   contents: read
 jobs:
   check:
-    uses: FieldmouseWorks/burrow/.github/workflows/flake-check.yml@5a244ccf3f1884aadbe6c6e35806bcfee340ed56 # main
+    uses: FieldmouseWorks/burrow/.github/workflows/flake-check.yml@ecf8e5197945011a362e2853be54983ffd683b76 # main
     # What the shared workflow needs to attest its result.
     permissions:
       contents: read

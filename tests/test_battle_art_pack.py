@@ -43,6 +43,7 @@ from psiv_tools.battle_art_pack import (
     CHARACTER_PNG_DIRECTORY,
     ENEMY_ART_NAME,
     COMMAND_UI_ART_NAME,
+    DAMAGE_DIGIT_ART_NAME,
     ENEMY_ATTACK_ART_NAME,
     ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
@@ -137,6 +138,54 @@ class TestPoseLabels(unittest.TestCase):
                 self.assertEqual(labels[0], "Idle")
 
 
+RECEIPT_ART = Path(__file__).resolve().parents[1] / "oracle/fixtures/battle_animation_art"
+
+
+@unittest.skipUnless(RECEIPT_ART.is_dir() and any(RECEIPT_ART.glob("*.png")),
+                     "oracle receipt PNGs (ignored evidence) not present")
+class TestReceiptEvidence(unittest.TestCase):
+    """The evidence behind #214's deferral, read from the ignored PNGs.
+
+    The groups are the ones counted by hand from the captures (pixel indices,
+    palette ignored); if a re-render ever made them per-routine, this fails
+    and the deferral in docs/source-notes/README.md should be revisited."""
+
+    SHARED = (
+        ("0x00D526", "0x00D998", "0x00DCD2", "0x00EFB2",
+         "0x00F088", "0x00FCCA", "0x010C7C", "0x010E7A"),
+        ("0x00E394", "0x00F53C", "0x010AB4"),
+    )
+
+    def sequence(self, receipt):
+        prefix = receipt["routine_offset"].removeprefix("0x")
+        # Width, height and indices, hashed so a failure prints short.
+        return tuple(
+            hashlib.sha256(repr(png_pixels(
+                (RECEIPT_ART / f"{prefix}_frame{index:02d}.png").read_bytes()
+            )).encode()).hexdigest()[:12]
+            for index in range(len(receipt["durations"]))
+        )
+
+    def test_receipt_frames_are_shared_across_routine_bodies(self):
+        receipts = {
+            receipt["routine_offset"]: receipt
+            for receipt in json.loads(
+                (RECEIPT_ART.parent / "battle_animation_remainder.json").read_text()
+            )["receipts"]
+        }
+        for group in self.SHARED:
+            with self.subTest(group=group):
+                first = self.sequence(receipts[group[0]])
+                for routine in group[1:]:
+                    self.assertEqual(self.sequence(receipts[routine]), first, routine)
+        # `$E2BE` is the first group's frames 0-7 with frame 5 shown twice;
+        # its capture window ends before the closing blank frame.
+        first = self.sequence(receipts[self.SHARED[0][0]])
+        self.assertEqual(self.sequence(receipts["0x00E2BE"]), first[:6] + first[5:8])
+        # Control: two groups differ from each other.
+        self.assertNotEqual(self.sequence(receipts[self.SHARED[1][0]]), first)
+
+
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestEmittedFiles(unittest.TestCase):
     @classmethod
@@ -156,6 +205,7 @@ class TestEmittedFiles(unittest.TestCase):
             ("characters", CHARACTER_ART_NAME),
             ("backgrounds", BACKGROUND_ART_NAME),
             ("command_ui", COMMAND_UI_ART_NAME),
+            ("damage_digits", DAMAGE_DIGIT_ART_NAME),
         ):
             with self.subTest(key=key):
                 blob = (self.root / name).read_bytes()
@@ -182,7 +232,9 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertEqual(files["file"], ENEMY_ATTACK_ART_NAME)
         self.assertEqual(files["png_directory"], ENEMY_ATTACK_ART_DIRECTORY)
         self.assertEqual(files["count"], 153)
-        self.assertEqual(files["png_count"], 1355)
+        # 1,355 before #214, less the 395 receipt frames (16 bodies, 32
+        # enemy records) that were copies of oracle captures.
+        self.assertEqual(files["png_count"], 960)
         by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
         for enemy_id in (2, 24, 39, 149):
             with self.subTest(enemy_id=enemy_id):
@@ -200,26 +252,32 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertTrue(by_id[130]["frames"])
         self.assertEqual(by_id[130]["source"]["grand_cross"], 0)
 
-    def test_oracle_frames_keep_each_enemy_indexed_structure(self):
+    def test_receipt_bodies_ship_no_frames(self):
+        # #214: the receipt captures are shared across routine bodies, so they
+        # are not each routine's art (docs/source-notes/README.md, "Other
+        # recorded deviations"). Every enemy a receipt names is deferred with
+        # no frames; the census below is counted independently from the
+        # receipt file, not from the emitter's constant.
+        receipts = json.loads(
+            (Path(__file__).resolve().parents[1]
+             / "oracle/fixtures/battle_animation_remainder.json").read_text()
+        )["receipts"]
+        receipt_ids = {enemy_id for receipt in receipts for enemy_id in receipt["enemy_ids"]}
+        self.assertEqual(len(receipt_ids), 32)
         by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
-        for enemy_id in (27, 28, 29, 99, 100, 101, 117, 118, 119):
+        for enemy_id in sorted(receipt_ids):
             with self.subTest(enemy_id=enemy_id):
-                self.assertEqual(len(by_id[enemy_id]["origin_pixels"]), 2)
-                for frame in by_id[enemy_id]["frames"]:
-                    image = (self.root / frame["png"]).read_bytes()
-                    source_name = (
-                        frame["mapping_rom_offset"].split(":")[1].removeprefix("0x")
-                        + f"_frame{frame['index']:02d}.png"
-                    )
-                    source = (
-                        Path(__file__).resolve().parents[1]
-                        / "oracle/fixtures/battle_animation_art"
-                        / source_name
-                    ).read_bytes()
-                    self.assertEqual(png_pixels(image), png_pixels(source))
-                    chunks = png_chunks(image)
-                    self.assertEqual(chunks[b"IHDR"][9], png.COLOR_TYPE_INDEXED)
-                    self.assertEqual(list(chunks[b"tRNS"])[TRANSPARENT_INDEX], 0)
+                entry = by_id[enemy_id]
+                self.assertEqual(entry["status"], "deferred")
+                self.assertEqual(entry["frames"], [])
+                self.assertNotIn("art", entry)
+                self.assertNotIn("origin_pixels", entry)
+        census = self.attacks["census"]
+        self.assertEqual((census["exact"], census["deferred"], census["partial"]), (121, 32, 0))
+        for entry in self.attacks["enemies"]:
+            for frame in entry["frames"]:
+                self.assertFalse(str(frame["mapping_rom_offset"]).startswith("oracle:"),
+                                 (entry["id"], frame["index"]))
 
     def test_command_ui_art_is_the_two_nemesis_streams(self):
         # `loc_7382` (`ps4.asm:10978`) decompresses 30 icon tiles to VRAM tile
@@ -262,6 +320,35 @@ class TestEmittedFiles(unittest.TestCase):
             [int.from_bytes(cram[i:i + 2], "big") for i in range(0x62, 0x80, 2)],
         )
 
+    def test_damage_digit_art_is_the_battle_setup_stream(self):
+        # The battle setup decompresses 28 tiles to VRAM $BC80, tile $5E4
+        # (`ps4.asm:10007-10009`); the damage numbers are drawn from them.
+        art = json.loads((self.root / DAMAGE_DIGIT_ART_NAME).read_text())
+        self.assertEqual(art["format_version"], PACK_VERSION)
+        self.assertEqual(art["tile_count"], 28)
+        self.assertEqual(
+            [(s["name"], s["rom_offset"], s["tile_count"], s["first_vram_tile"])
+             for s in art["streams"]],
+            [("digits", "0x27D778", 28, 0x5E4)],
+        )
+        tiles = {t["vram_tile"]: t["rows"] for t in art["tiles"]}
+        self.assertEqual(sorted(tiles), list(range(0x5E4, 0x600)))
+        for rows in tiles.values():
+            self.assertEqual([len(row) for row in rows], [8] * 8)
+
+    @unittest.skipUnless(COMMAND_ORACLE_STATE.is_file(), "local oracle VDP state absent")
+    def test_damage_digit_art_matches_oracle_vram(self):
+        # The same battle-loaded frame holds the damage-number tiles.
+        art = json.loads((self.root / DAMAGE_DIGIT_ART_NAME).read_text())
+        vram = bytes.fromhex(
+            json.loads(COMMAND_ORACLE_STATE.read_text())["regions"]["vdp_vram"]["bytes_hex"])
+        for tile in art["tiles"]:
+            at = tile["vram_tile"] * 32
+            self.assertEqual(
+                bytes.fromhex("".join(tile["rows"])), vram[at:at + 32],
+                f"VRAM tile ${tile['vram_tile']:X}",
+            )
+
     def test_json_is_canonical_and_newline_terminated(self):
         for name in (
             ENEMY_ART_NAME,
@@ -270,6 +357,7 @@ class TestEmittedFiles(unittest.TestCase):
             CHARACTER_ART_NAME,
             BACKGROUND_ART_NAME,
             COMMAND_UI_ART_NAME,
+            DAMAGE_DIGIT_ART_NAME,
         ):
             with self.subTest(file=name):
                 text = (self.root / name).read_text()

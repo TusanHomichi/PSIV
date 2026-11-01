@@ -87,6 +87,8 @@ instead of tree 36. Fixed in the same pass; the guard covers it either way.
 | `Cutscene_ProfoundDarkness` | `157992` `if revision=0` | palette line 2 forced to `$EEE` | **not taken**: the `else` ramp is the one the port's presentation follows |
 | `Event_AngerTowerTop` | `151969` `if revision>0` | `jsr (RecoverStats)` | present |
 | `Event_ChazHouse` | `149090` `if revision=0` | `popdlg` + `cmpi.b #$AB, -$2(a0)` (reads the drawn line) | **not taken**: the port's `BranchChoice` is the revision-1 `Yes_No_Option` test |
+| `Event_PayingGirlsBail` | `152662` `if revision=0` / `else` | `cmpi.b #$AB, -$2(a0)`; the `else` compares `$3A` | **not taken**: the US bytes compare `$3A` (`$072CC2`), which the port's `SavedByte::Last` branch reads ([121](121_AiedoBailQuest.md)) |
+| `Event_GirlsBailedOut` | `152676` `if revision=0`, `152697` `if revision>0` | object 0 turns down before the dialogue (rev 0) or after `RefreshMap` (rev 1) | the revision-1 turn, after the load (`$072D2A`) |
 | `Event_DarkForce2` | `150061` `if revision=0` | `Saved_Sound_Index = MusicID_DezorisField2` | **not taken**: the port sets `Sound_StopAll`, the `else` value |
 | `Event_EclipseTorchUsed` | `149579` `if revision=0` | `wait $1D`, `SFXID_BarrierBroken` | **not taken** |
 | `Event_EclipseTorchUsed` | `149609`… `if revision>0` | `SFXID_Deban`, palette copies, `DoMapUpdateLoop` waits | present (the `SFX_DEBAN` op and the waits) |

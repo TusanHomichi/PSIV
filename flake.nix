@@ -14,12 +14,14 @@
 
       # Read as tools/godot.py reads it: the one token, whitespace stripped.
       godotVersion = lib.trim (builtins.readFile ./.godot-version);
-      # The release zip's hash for each pinned version. A version bump in
-      # .godot-version fails here until its hash is added, so the shell never
-      # runs a Godot nobody checked (tests/test_flake.py keeps the two in step).
-      godotHashes = {
-        "4.7.2" = "sha256-yt0yBOcoo10/E623/Q15AmNrefa5XEDCZetztsNTKeQ=";
-      };
+      # The official downloads of each Godot version, with Godot's published
+      # SHA-512 sums: the editor zip here, the export templates for the
+      # release workflow (tools/package/release.py). A version bump in
+      # .godot-version fails here until its downloads are added, so the shell
+      # never runs a Godot nobody checked (tests/test_flake.py keeps the two
+      # in step).
+      godotDownloads = (builtins.fromJSON (builtins.readFile ./tools/godot-downloads.json)).${godotVersion}
+        or (throw "flake.nix: add Godot ${godotVersion}'s downloads to tools/godot-downloads.json");
 
       godotFor = pkgs:
         let
@@ -43,9 +45,8 @@
             pname = "godot-official";
             version = godotVersion;
             src = pkgs.fetchurl {
-              url = "https://github.com/godotengine/godot/releases/download/${godotVersion}-stable/Godot_v${godotVersion}-stable_linux.x86_64.zip";
-              hash = godotHashes.${godotVersion}
-                or (throw "flake.nix: add the hash of Godot ${godotVersion}'s Linux zip to godotHashes");
+              url = "https://github.com/godotengine/godot/releases/download/${godotVersion}-stable/${godotDownloads.editor.file}";
+              sha512 = godotDownloads.editor.sha512;
             };
             nativeBuildInputs = [ pkgs.unzip pkgs.autoPatchelfHook pkgs.makeWrapper ];
             dontConfigure = true;
@@ -93,6 +94,10 @@
       # until it is listed, and a new test that needs the pack fails CI until
       # it skips on its own or is listed here.
       packTests = [
+        # rust/psiv-core/src/battle/replay/data.rs: these skip on their own
+        # without a pack (#149) and are listed so the check skips them by name.
+        "battle::engine::tests::replay::replay::data::barrier_capture_rejects_a_wrong_mdef_or_party_command"
+        "battle::engine::tests::replay::replay::data::every_fixture_replays_as_recorded"
         # rust/psiv-godot/src/audio.rs
         "audio::tests::debug_track_bank_contains_the_pack_path"
         "audio::tests::every_extracted_record_can_start_three_driver_ticks"
@@ -109,6 +114,10 @@
         "scene_map_tests::alarm_blocks_for_eight_stages_in_each_direction_before_dialogue"
         "scene_map_tests::birth_valley_door_animates_collision_then_warps_and_survives_reload"
         "scene_map_tests::elevators_open_ride_step_out_close_and_return_using_the_real_tables"
+        # rust/psiv-runtime/src/scene_strip_club_tests.rs
+        "scene_map_tests::strip_club::a_pan_with_nothing_to_do_takes_no_frame"
+        "scene_map_tests::strip_club::an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends"
+        "scene_map_tests::strip_club::both_pans_hold_the_scene_from_every_column_of_the_trigger_row"
         # rust/psiv-runtime/src/scene_vahal_tests.rs
         "scene_map_tests::vahal::belts_carry_the_party_to_the_first_cell_off_the_belt_and_the_terminal_flag_swaps_the_event"
         "scene_map_tests::vahal::the_dominators_aftermath_runs_from_its_trigger_with_the_real_party"
@@ -187,16 +196,25 @@
           });
         };
 
-      # The documentation check needs no local inputs; it skips the ps4.asm
-      # citations without the disassembly (docs/DEVELOPMENT.md#run-checks).
-      # It lists the change's files with git (tools/repo_files.py), so it
-      # runs in a fresh repository holding the tree.
+      # The documentation and size checks need no local inputs; the first
+      # skips the ps4.asm citations without the disassembly
+      # (docs/DEVELOPMENT.md#run-checks). Both list the change's files with
+      # git (tools/repo_files.py), so they run in a fresh repository holding
+      # the tree.
       docsCheck = pkgs: {
         docs = pkgs.runCommand "psiv-docs" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
           python3 tools/check_docs.py
+          touch $out
+        '';
+        # The 1,000-line rule (tools/size_guard.py).
+        size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          python3 tools/size_guard.py
           touch $out
         '';
       };

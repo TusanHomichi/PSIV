@@ -10,8 +10,17 @@ on `PATH` is used. Either way the executable must report the version that
 `4.7.1.stable.official.<commit>`) and be a `stable` build, so a different
 Godot, or a release candidate of the pinned one, is refused rather than run.
 That file is the one place the version is written, so changing the version is
-a one-line edit there. `python3 tools/godot.py check` checks the same without
-printing the path.
+a one-line edit there, plus `pin` below. `python3 tools/godot.py check` checks
+the same without printing the path.
+
+    python3 tools/godot.py pin
+
+writes `tools/godot-downloads.json` for the version `.godot-version` pins: the
+official Linux editor zip and export templates, with the SHA-512 sums from the
+release's `SHA512-SUMS.txt`. `flake.nix` downloads the editor from it, and a
+release build the templates (`tools/package/release.py`). Renovate bumps
+`.godot-version` when Godot releases (`renovate.json`); `tests/test_flake.py`
+fails until `pin` has run for the new version. It needs no Godot.
 
     python3 tools/godot.py prepare
 
@@ -96,6 +105,23 @@ VERSION_FILE = ROOT / ".godot-version"
 #: The environment variable that names the executable.
 ENV = "PSIV_GODOT"
 
+#: Godot's official downloads PSIV uses, per version, with the SHA-512 sums
+#: Godot publishes for them (`SHA512-SUMS.txt` beside each release). flake.nix
+#: reads the same file for the Nix shell's Godot.
+DOWNLOADS_FILE = ROOT / "tools" / "godot-downloads.json"
+#: Where Godot publishes a release's files.
+RELEASE_URL = "https://github.com/godotengine/godot/releases/download/{version}-stable/{file}"
+#: What each pinned version needs: the Linux editor zip (the Nix shell's
+#: Godot, and the one a release build exports with) and the export templates,
+#: by their names in a release.
+DOWNLOAD_FILES = {"editor": "Godot_v{version}-stable_linux.x86_64.zip",
+                  "templates": "Godot_v{version}-stable_export_templates.tpz"}
+DOWNLOAD_KINDS = tuple(DOWNLOAD_FILES)
+#: The release file that lists every other file's SHA-512.
+SUMS_FILE = "SHA512-SUMS.txt"
+#: Seconds a download may take.
+DOWNLOAD_TIMEOUT = 60
+
 #: Seconds `godot --version` may take.
 VERSION_TIMEOUT = 30
 
@@ -118,6 +144,7 @@ RUN_ROOT_PACK = "runtime-pack"
 FICLONE = 0x40049409
 
 _VERSION_RE = re.compile(r"\A\d+\.\d+(?:\.\d+)?\Z")
+_SHA512_RE = re.compile(r"\A[0-9a-f]{128}\Z")
 
 
 class GodotError(RuntimeError):
@@ -133,6 +160,76 @@ def required_version(path: Path = VERSION_FILE) -> str:
     if not _VERSION_RE.match(text):
         raise GodotError(f"{path} must hold one version such as 4.7.1, not {text!r}")
     return text
+
+
+@dataclass(frozen=True)
+class Download:
+    """One pinned Godot download."""
+
+    url: str
+    file: str
+    sha512: str
+
+
+def download(kind: str, version: str | None = None, path: Path = DOWNLOADS_FILE) -> Download:
+    """The pinned `kind` download (one of `DOWNLOAD_KINDS`) of `version`,
+    default the version `.godot-version` pins. Raises `GodotError` when
+    `path` pins none, or pins one without a well-formed SHA-512."""
+    version = required_version() if version is None else version
+    try:
+        pins = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise GodotError(f"cannot read {path}: {error}") from error
+    release = pins.get(version) if isinstance(pins, dict) else None
+    entry = release.get(kind) if isinstance(release, dict) else None
+    if not (isinstance(entry, dict) and isinstance(entry.get("file"), str)
+            and isinstance(entry.get("sha512"), str) and _SHA512_RE.match(entry["sha512"])):
+        raise GodotError(f"{path.name} pins no {kind} download with a SHA-512 for Godot "
+                         f"{version}; run python3 tools/godot.py pin")
+    return Download(RELEASE_URL.format(version=version, file=entry["file"]),
+                    entry["file"], entry["sha512"])
+
+
+def pins_from_sums(version: str, sums: str) -> dict[str, dict[str, str]]:
+    """`version`'s downloads entry, from its release's `SHA512-SUMS.txt`
+    text (`<sum>  <file>` lines). Raises `GodotError` when it lists one of
+    `DOWNLOAD_FILES` without a well-formed sum."""
+    listed = {}
+    for line in sums.splitlines():
+        words = line.split()
+        if len(words) == 2 and _SHA512_RE.match(words[0]):
+            listed[words[1].lstrip("*")] = words[0]
+    entry = {}
+    for kind, pattern in DOWNLOAD_FILES.items():
+        name = pattern.format(version=version)
+        if name not in listed:
+            raise GodotError(f"Godot {version}'s {SUMS_FILE} lists no SHA-512 for {name}")
+        entry[kind] = {"file": name, "sha512": listed[name]}
+    return entry
+
+
+def _fetch_text(url: str) -> str:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as response:
+            return response.read().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise GodotError(f"cannot fetch {url}: {error}") from error
+
+
+def pin(version: str | None = None, path: Path = DOWNLOADS_FILE,
+        fetch: Callable[[str], str] = _fetch_text) -> dict[str, dict[str, str]]:
+    """Write `path` for `version` (default the pinned one) from its
+    release's published sums, replacing any other version's; returns the
+    entry. Raises `GodotError`."""
+    version = required_version() if version is None else version
+    entry = pins_from_sums(version, fetch(RELEASE_URL.format(version=version, file=SUMS_FILE)))
+    try:
+        path.write_text(json.dumps({version: entry}, indent=2) + "\n",
+                        encoding="utf-8", newline="\n")
+    except OSError as error:
+        raise GodotError(f"cannot write {path}: {error}") from error
+    return entry
 
 
 def reported_version(output: str) -> tuple[str, str] | None:
@@ -533,8 +630,17 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["run"]:
         return run_main(argv[1:])
+    if argv == ["pin"]:
+        try:
+            entry = pin()
+        except GodotError as error:
+            print(f"godot: {error}", file=sys.stderr)
+            return 1
+        print(f"godot: pinned {', '.join(item['file'] for item in entry.values())} "
+              f"in {DOWNLOADS_FILE.relative_to(ROOT)}", file=sys.stderr)
+        return 0
     if argv not in ([], ["prepare"], ["check"]):
-        print("usage: python3 tools/godot.py [prepare | check | run [options] -- <args>]",
+        print("usage: python3 tools/godot.py [prepare | check | pin | run [options] -- <args>]",
               file=sys.stderr)
         return 2
     try:

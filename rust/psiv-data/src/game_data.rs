@@ -51,6 +51,7 @@ pub struct GameData {
     new_game: Option<crate::NewGame>,
     travel: Option<crate::TravelData>,
     ship_menu: Option<crate::ShipMenu>,
+    guild: Option<crate::GuildBoard>,
     /// Shop counters, stock lists and inn rates. `None` for a synthetic pack
     /// built with [`GameData::from_parts`].
     shops: Option<crate::ShopData>,
@@ -91,6 +92,7 @@ impl GameData {
             new_game: None,
             travel: None,
             ship_menu: None,
+            guild: None,
             shops: None,
         })
     }
@@ -126,6 +128,11 @@ impl GameData {
     /// The ship's destination screen, absent in older or synthetic packs.
     pub fn ship_menu(&self) -> Option<&crate::ShipMenu> {
         self.ship_menu.as_ref()
+    }
+
+    /// The Hunter's Guild job board, absent in older or synthetic packs.
+    pub fn guild(&self) -> Option<&crate::GuildBoard> {
+        self.guild.as_ref()
     }
 
     /// The shop counters, stock lists and inn rates, loaded with the pack.

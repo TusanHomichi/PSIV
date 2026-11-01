@@ -3,8 +3,10 @@
 The static decoder remains the authority for retail bytes.  This module is the
 separate observed-behaviour seam: the headless retail oracle records the live
 sprite table/VRAM state for one representative of each shared routine body,
-then the pack consumes that receipt instead of inventing a mapping loop from a
-PLC upload alone.
+and the animation JSON takes that receipt's observed clock instead of
+inventing a mapping loop from a PLC upload alone. The PNGs rendered from the
+captures are oracle evidence only: they are shared across bodies, so the art
+index ships these bodies `deferred` with no frames (#214).
 """
 
 from __future__ import annotations
@@ -112,7 +114,8 @@ def darkforce1_receipt() -> dict[str, Any]:
 def _oracle_mapping_record(receipt: dict[str, Any], index: int) -> dict[str, Any]:
     """Build a typed mapping-record shell for one observed hardware frame.
 
-    The pixel source is the oracle PNG fixture.  Keeping a record shell in the
+    No pixels come from it: the art index ships receipt bodies deferred, and
+    the oracle PNGs are evidence only (#214).  Keeping a record shell in the
     animation JSON still makes the timing and provenance visible to tools that
     do not load the art pack, without pretending that a RAM observation was a
     ROM mapping pointer.

@@ -7,28 +7,9 @@
 //! despawns. This module implements that vocabulary once as [`SceneOp`] and
 //! runs sequences of it deterministically.
 //!
-//! # Actor motion is the same movement model as everything else
-//!
-//! A scripted walk is not a special animation: the cartridge's
-//! `Event_MoveSingleObject` / `Event_MoveCharacters` set an object's
-//! `dest_x_pos`/`dest_y_pos` and then call the ordinary object update until
-//! `curr == dest`. The object's direction comes from `FieldObj_GetAutoInput`
-//! (`ps4.asm:93232`), which compares current against destination one axis at a
-//! time — X first unless `Char_Move_Flags` bit 1 is set. So a scene actor
-//! walks in whole cell-steps at the same rate as the party, and turns to face
-//! the way it walks. [`ScriptedActor`] is exactly that.
-//!
-//! # Blocking
-//!
-//! The runner executes ops until it reaches one that blocks — a wait, a
-//! dialogue, a choice, or the end. Everything non-blocking in between runs in
-//! the same tick, which is what makes a "set three flags and move the camera"
-//! run of ops take one tick rather than three.
-//!
-//! Dialogue is the interesting one: the runner emits
-//! [`SceneEffect::DialogueOpen`] and then stops advancing until the runtime
-//! reports the window closed with [`SceneInput::DialogueClosed`]. The engine
-//! neither draws nor times the window; it only knows the script is waiting.
+//! How the runner blocks lives with the machine (`scene_runner.rs`), and why
+//! scripted actor motion reuses the ordinary movement model with the actor
+//! (`scene_runner/actor.rs`).
 
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
@@ -37,12 +18,9 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
-
-/// How many ops one tick may execute before the runner assumes the script is
-/// looping and faults. Generous for real scenes, finite for broken ones.
-pub const OP_BUDGET_PER_TICK: usize = 1024;
 
 /// One instruction of a scene.
 ///
@@ -244,7 +222,13 @@ pub enum SceneOp {
     /// text would run next: the continuation after an `$F7`, or the first byte
     /// of the next entry after a terminator. The runtime reports it when the
     /// dialogue closes; with no dialogue run yet nothing is equal.
+    ///
+    /// `at` picks the displacement: `(a0)` reads that byte, `-$2(a0)`
+    /// (`Event_PayingGirlsBail`, `$072CC2`) the one before the `$F7` or
+    /// terminator that stopped the text, the last byte the text ran.
     BranchIfSavedDialogueByte {
+        /// Which byte around the saved address.
+        at: SavedByte,
         /// The literal.
         value: u8,
         /// Op index taken when the byte equals it.
@@ -454,6 +438,32 @@ pub enum SceneOp {
         /// How many consecutive objects the block clear covers.
         count: usize,
     },
+    /// Give a map object a new `FieldObjectsJmpTbl` routine (`move.w
+    /// #routine, (a4)`) and run that one object a frame at a time (`jsr` the
+    /// routine, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare`)
+    /// until the routine clears its own slot (`tst.w (a4) / bne`):
+    /// `Event_AiedoManCrushOnAlys` at `$06BE96`. No other object moves
+    /// meanwhile. The runtime runs the routine
+    /// ([`crate::scene_routine_kind`]); the runner blocks until the
+    /// object is gone from the map.
+    RunObjectRoutine {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
+    /// Give a map object a new `FieldObjectsJmpTbl` routine (`move.w
+    /// #routine, (a4)`) and carry on: the routine runs with every other
+    /// object from the next field frame. `Event_StrippersAppearing` turns the
+    /// strip club's customer into `$34C` this way (`$0735AE`). The runtime
+    /// installs [`crate::scene_routine_kind`]; unlike
+    /// [`SceneOp::RunObjectRoutine`] nothing waits on the object.
+    SetObjectRoutine {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The routine's `FieldObjectsJmpTbl` offset.
+        routine: u16,
+    },
     /// Write a field object's `dialogue_id` (`$14(a4)`): the line it speaks
     /// the next time it is talked to. The guards at the Esper Mansion door are
     /// the first user: `Event_EsperGuardPermission` writes `1` or `2` into
@@ -475,6 +485,15 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
+        /// Scroll speed.
+        speed: u16,
+    },
+    /// `Event_MoveCamera` as the cartridge runs it: X to its target, then Y,
+    /// and the scene waits for the arrival (`ps4.asm:121468`). The older
+    /// [`Self::MoveCamera`] and `CameraToActor` carry on at once (#267).
+    PanCamera {
+        /// What to frame.
+        subject: crate::scene_presentation::CameraSubject,
         /// Scroll speed.
         speed: u16,
     },
@@ -575,6 +594,24 @@ pub enum SceneOp {
     AddMoney {
         /// How much.
         amount: u32,
+    },
+    /// Take from the purse, unchecked: `subi.l #amount, (Current_Money).w`
+    /// (`Event_PayingGirlsBail`, `$072CCA`), after a [`SceneOp::BranchIfMoneyBelow`].
+    SubtractMoney {
+        /// How much.
+        amount: u32,
+    },
+    /// Branch on the purse against a literal: `move.l (Current_Money).w, d0 /
+    /// subi.l #amount, d0 / bmi` (`Event_PayingGirlsBail`, `$072C82`): the
+    /// branch reads the sign bit of the longword difference, which for any
+    /// purse below `$80000000` is a below-the-literal test.
+    BranchIfMoneyBelow {
+        /// The literal.
+        amount: u32,
+        /// Op index taken when the difference is negative.
+        if_below: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
     },
     /// Hand control to a battle (`Event_Battle_Index` + the routine-exit bit).
     StartBattle {
@@ -922,18 +959,8 @@ pub enum SceneOp {
         skill: u8,
     },
     /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
-    /// siblings): every frame the table's step word, sign-extended and shifted
-    /// into signed 16.16 pixels (`ext.l d0 / lsl.l #8, d0`), is added to the
-    /// platform object's `curr_y_pos` and, in the same frame, to `curr_y_pos`
-    /// and `dest_y_pos` of all five party objects, and to the camera step
-    /// counters; the loop ends when the platform object reaches its target.
-    /// The target is a whole number of frames away, so the op carries the
-    /// count. Blocks for `frames` ticks, running map updates each one.
-    ///
-    /// The party moves rigidly: the distance (`step_y * frames`) must be a
-    /// whole number of 16-pixel cells, or the scene faults. The platform's own
-    /// motion is announced to the renderer as a [`SceneOp::StepFieldObject`]
-    /// on `slot`.
+    /// siblings); the rules are at `scene_runner/mechanics.rs`. Blocks for
+    /// `frames` ticks.
     RidePlatform {
         /// The temporary platform object's slot (`Field_LoadObject`'s first
         /// free one).
@@ -943,17 +970,9 @@ pub enum SceneOp {
         /// Loop iterations.
         frames: u16,
     },
-    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`,
-    /// and its three siblings): from the leader's resting cell the party is
-    /// walked one cell at a time in `direction` at `FieldObj_Step_Offset` 0
-    /// (16 frames per cell) for as long as the live collision-plane chunk
-    /// under the leader (`GetChunkAndCollision`: chunk at `curr_x_pos`,
-    /// `curr_y_pos + $10`) lies in `first_chunk..=last_chunk`, tested on
-    /// every pixel of the step. The first test comes after one pixel, so the
-    /// leader always takes at least one step, and a step in flight when the
-    /// test fails is completed. Blocks until the leader arrives; the chunk
-    /// layout is read through [`crate::SceneRunner::tick_with`], and a runner
-    /// ticked without one faults.
+    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
+    /// its three siblings); the rules are at `scene_runner/mechanics.rs`.
+    /// Blocks until the leader arrives.
     ConveyorRide {
         /// The belt's direction.
         direction: Direction,
@@ -962,6 +981,10 @@ pub enum SceneOp {
         /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
         last_chunk: u8,
     },
+    /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
+    Guild(GuildOp),
+    /// A step of the guild's list window, which the session holds.
+    JobBoard(JobBoardStep),
     /// Unconditional jump.
     Jump {
         /// Op index.

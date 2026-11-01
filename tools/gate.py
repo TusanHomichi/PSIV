@@ -11,9 +11,11 @@ at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
 lock class. A failing command does not stop the run: one receipt shows every
 failure, and the exit code is 1 when any command failed, 0 otherwise.
 
-The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/`: one log per
+The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/` (or the directory
+`PSIV_GATE_RECEIPT` names, `RECEIPT_ENV`): one log per
 command plus `receipt.json`, holding the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the cores it could use
+dirty and its `git status --porcelain` paths, which of `GATE_INPUTS` were
+missing (`missing_inputs`: a gate without one is partial), the cores it could use
 (`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it gave cargo,
 and for each command its string, UTC start and end, duration, exit code, the CPU clock
 sampled every second while it ran (`cpu_mhz`: mean, min, max and samples, null
@@ -30,13 +32,15 @@ does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
 run, and inside it the heavy lock in `GATE_LOCK_CLASS`, exclusive, through
 `hold_heavy_lock` for every command (the gate's receipt is a timed,
 reproducible run, so nothing shares the machine with it; the receipt names the class at the top and on each command; a run under
-`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there, and
-`PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
+`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there; the
+full gate queues ahead of every other waiter, so a pull request's gate never waits behind
+queued lane work, and `PSIV_LOCK_PRIORITY=1` queues the fast tier as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
 wait would hold the heavy lock while waiting for the gate lock.
 Another gate holding the gate lock refuses the run with exit 2 and nothing
 run (a second gate exits at once instead of racing it; `--wait` waits for it
-instead, naming the holder once). A Godot that has the checkout's
+instead, naming the holder, and says how long it has waited every
+heavy_lock `WAIT_REPORT_S`). A Godot that has the checkout's
 `rust/target/debug/libpsiv_godot.so` mapped does not: cargo replaces that file
 with a new one rather than writing it in place, a non-editor Godot never
 re-reads it, the editor reloads it on focus by design, and every Godot a
@@ -65,8 +69,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import (EXCLUSIVE, HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
-                        hold_heavy_lock, lock_holders)
+from heavy_lock import (EXCLUSIVE, HELD_ENV, RUNNER_WAIT_ENV, gate_lock_path,  # noqa: E402
+                        heavy_lock_path, hold_heavy_lock, lock_holders, wait_reporting)
 from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
 EXIT_OK = 0
@@ -80,6 +84,7 @@ GATE_COMMANDS = [
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "python3 tools/pack_parity.py",
 ]
 
 #: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's
@@ -92,6 +97,20 @@ FAST_COMMANDS = [
     "PYTHONPATH=. python3 tools/py_suite.py --fast",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
 ]
+
+#: The local inputs a full gate needs, relative to the root: the ROM, the
+#: disassembly and the pack (docs/DEVELOPMENT.md, "Gate and coverage"). The
+#: tests that read one skip without it, so a gate without one is partial: its
+#: receipt's `missing_inputs` names each one absent, and a pull request's gate
+#: counts a partial gate as failed (tools/pr_gate.py).
+GATE_INPUTS = ("Phantasy Star IV (USA).md", "reference/ps4disasm", "runtime-pack")
+
+#: Where a caller asks for this run's receipt: a directory only this run
+#: writes, which the caller names (tools/pr_gate.py, so it judges this run's
+#: receipt and no other in the shared `build/gate/`). Unset, the receipt goes
+#: under GATE_DIR, named for the stamp and the candidate. The commands never
+#: see it.
+RECEIPT_ENV = "PSIV_GATE_RECEIPT"
 
 #: The heavy-lock class every gate command runs under. The gate's receipt is a
 #: timed, reproducible run, so it holds the machine for the whole run: the one
@@ -241,6 +260,11 @@ def _git(root, *args):
     return completed.returncode, completed.stdout.strip(), completed.stderr.strip()
 
 
+def missing_inputs(root):
+    """The `GATE_INPUTS` absent under `root` (a link to nothing is absent)."""
+    return [relative for relative in GATE_INPUTS if not (Path(root) / relative).exists()]
+
+
 def git_info(root):
     """The candidate SHA, dirty flag and `git status --porcelain` paths of `root`.
 
@@ -265,8 +289,9 @@ def git_info(root):
 def gate_lock(lock_file, wait=False):
     """Hold `lock_file` exclusively for the run.
 
-    When someone else holds it: refuse (GateRefused), or with `wait` print one
-    line naming the holder and block until it is free.
+    When someone else holds it: refuse (GateRefused), or with `wait` print a
+    line naming the holder and block until it is free, saying how long it has
+    waited and on whom every `WAIT_REPORT_S` (heavy_lock's `wait_reporting`).
     """
     lock_file = Path(lock_file)
     lock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -282,10 +307,14 @@ def gate_lock(lock_file, wait=False):
                     f"({exc.strerror or exc}); heavy runs are serialized one at a time"
                 ) from exc
             print(f"gate: waiting for {lock_file} held by pid {holders}", flush=True)
-            fcntl.flock(handle, fcntl.LOCK_EX)
+            os.close(handle)
+            handle = None
+            handle = wait_reporting(lock_file, fcntl.LOCK_EX, sys.stdout,
+                                    "PSIV's gate lock, while another gate runs")
         yield handle
     finally:
-        os.close(handle)
+        if handle is not None:
+            os.close(handle)
 
 
 
@@ -312,13 +341,18 @@ def cargo_parallelism(cores):
 
 
 def gate_environment(environ, cores):
-    """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`.
+    """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`,
+    and without a job runner's wait directory (`RUNNER_WAIT_ENV`) or the receipt
+    a caller asked for (`RECEIPT_ENV`), which is this run's alone.
 
     Set, not defaulted: a caller's own `CARGO_BUILD_JOBS=1` would make the run
-    a different measurement from the one the receipt describes.
+    a different measurement from the one the receipt describes. The gate's
+    commands run under its locks, so any wait in them (a test's own holder)
+    is the gate's work, never a wait in line its runner should stop counting.
     """
     count = str(cargo_parallelism(cores))
-    return {**environ, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
+    kept = {key: value for key, value in environ.items() if key not in (RUNNER_WAIT_ENV, RECEIPT_ENV)}
+    return {**kept, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
 
 
 def _run_command(command, index, total, root, receipt_dir, env=None):
@@ -367,11 +401,12 @@ def _run_command(command, index, total, root, receipt_dir, env=None):
     }
 
 
-def _summary(records, receipt_dir, root, tier="full"):
+def _summary(records, receipt_dir, root, tier="full", missing=()):
     """The one line printed at the end and stored as the receipt's `summary`.
 
     It opens with what ran: `gate OK` / `gate FAILED` for the full gate, `fast
-    tier OK` / `fast tier FAILED` for the fast tier, which is not a gate result.
+    tier OK` / `fast tier FAILED` for the fast tier, which is not a gate result;
+    then, when an input was missing, `partial:` and which.
     """
     label = "gate" if tier == "full" else f"{tier} tier"
     total = len(records)
@@ -385,8 +420,9 @@ def _summary(records, receipt_dir, root, tier="full"):
         head = f"{label} OK: {total}/{total} commands passed in {seconds:.1f}s"
     counts = "; ".join(f"{Path(record['log']).stem} {_counts_text(record['counts'])}"
                        for record in records if record["counts"])
+    partial = f"partial: {', '.join(missing)} missing" if missing else ""
     tail = f"; receipt={display_path(receipt_dir, root)}"
-    return "; ".join(part for part in (head, counts) if part) + tail
+    return "; ".join(part for part in (head, partial, counts) if part) + tail
 
 
 def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=None):
@@ -407,8 +443,10 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     # lock order (heavy_lock's docstring) and can deadlock: refuse instead.
     nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())
     with gate_lock(lock_file, wait and not nested), \
-            hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS):
+            hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS,
+                            gate=tier == "full"):
         info = git_info(root)
+        missing = missing_inputs(root)
         started = datetime.now(timezone.utc)
         receipt_dir.mkdir(parents=True, exist_ok=True)
         print(f"gate: {len(commands)} commands -> {display_path(receipt_dir, root)}",
@@ -423,6 +461,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "short_sha": info["short_sha"],
             "dirty": info["dirty"],
             "dirty_paths": info["dirty_paths"],
+            "missing_inputs": missing,
             "started_utc": _utc(started),
             "finished_utc": _utc(finished),
             "duration_s": round(sum(r["duration_s"] for r in records), 3),
@@ -434,13 +473,24 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "cargo_build_jobs": int(env["CARGO_BUILD_JOBS"]),
             "rust_test_threads": int(env["RUST_TEST_THREADS"]),
             "commands": records,
-            "summary": _summary(records, receipt_dir, root, tier),
+            "summary": _summary(records, receipt_dir, root, tier, missing),
         }
         if "git_error" in info:
             receipt["git_error"] = info["git_error"]
         (receipt_dir / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
         print(receipt["summary"], flush=True)
         return receipt
+
+
+def receipt_dir_for(root, fast, environ):
+    """Where this run's receipt goes: the directory `RECEIPT_ENV` names (relative to
+    the root), else one under GATE_DIR named for the stamp and the candidate (run_gate
+    re-reads git for the receipt itself)."""
+    if environ.get(RECEIPT_ENV):
+        return Path(root) / environ[RECEIPT_ENV]
+    stamp = utc_stamp(datetime.now(timezone.utc))
+    suffix = "-fast" if fast else ""
+    return Path(root) / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}{suffix}"
 
 
 def main(argv=None):
@@ -461,10 +511,7 @@ def main(argv=None):
             print(command)
         return EXIT_OK
     root = Path.cwd()
-    # The directory is named for the candidate; run_gate re-reads git for the receipt.
-    stamp = utc_stamp(datetime.now(timezone.utc))
-    suffix = "-fast" if args.fast else ""
-    receipt_dir = root / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}{suffix}"
+    receipt_dir = receipt_dir_for(root, args.fast, os.environ)
     try:
         receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait)
     except GateRefused as refusal:

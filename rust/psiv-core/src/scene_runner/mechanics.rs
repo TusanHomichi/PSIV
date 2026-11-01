@@ -25,6 +25,16 @@ const BELT_STEP_FRAMES: u8 = 16;
 const BELT_SCAN_LIMIT: i32 = 4096;
 
 /// A running [`SceneOp::RidePlatform`].
+///
+/// Every frame the table's step word, sign-extended and shifted into signed
+/// 16.16 pixels (`ext.l d0 / lsl.l #8, d0`), is added to the platform object's
+/// `curr_y_pos` and, in the same frame, to `curr_y_pos` and `dest_y_pos` of all
+/// five party objects, and to the camera step counters; the loop ends when the
+/// platform object reaches its target, a whole number of frames away, so the
+/// op carries the count. Map updates run each frame. The party moves rigidly:
+/// the distance (`step_y * frames`) must be a whole number of 16-pixel cells,
+/// or the scene faults. The platform's own motion is announced to the renderer
+/// as a [`SceneOp::StepFieldObject`] on `slot`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RideRun {
     /// Signed 16.16 pixels per frame.
@@ -38,6 +48,16 @@ pub(super) struct RideRun {
 }
 
 /// A [`SceneOp::ConveyorRide`] waiting for its scan, or carrying the party.
+///
+/// From the leader's resting cell the party is walked one cell at a time in
+/// `direction` at `FieldObj_Step_Offset` 0 (16 frames per cell) for as long as
+/// the live collision-plane chunk under the leader (`GetChunkAndCollision`:
+/// chunk at `curr_x_pos`, `curr_y_pos + $10`) lies in
+/// `first_chunk..=last_chunk`, tested on every pixel of the step. The first
+/// test comes after one pixel, so the leader always takes at least one step,
+/// and a step in flight when the test fails is completed. The chunk layout is
+/// read through [`crate::SceneRunner::tick_with`], and a runner ticked without
+/// one faults.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct BeltRun {
     direction: Direction,

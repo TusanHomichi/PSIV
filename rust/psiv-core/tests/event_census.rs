@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 46;
+const ALLOWLIST_CEILING: usize = 36;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -57,7 +57,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x000B, "Event_BoardingHydrofoil", Disposition::Scene),
     (0x000C, "Event_BasementContainers", Disposition::Scene),
     (0x000D, "Event_MeetingSaya", Disposition::Scene),
-    (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Allowlisted(81)),
+    (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Scene),
     (0x000F, "Event_SuspicionOnPrincipal", Disposition::Scene),
     (0x0010, "Event_GettingOffVehicle", Disposition::Allowlisted(81)),
     (0x0011, "Event_DezoSpaceportAppearing", Disposition::InsideScene(0x8010)),
@@ -77,7 +77,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x001F, "Event_ConveyorBeltRight", Disposition::Scene),
     (0x0020, "Event_ConveyorBeltLeft", Disposition::Scene),
     (0x0021, "Event_Recovery", Disposition::Scene),
-    (0x0022, "Event_AiedoManSavings", Disposition::Allowlisted(81)),
+    (0x0022, "Event_AiedoManSavings", Disposition::Scene),
     (0x0023, "Event_GirlsSneakingOut", Disposition::Scene),
     (0x0024, "Event_FaintingPriest", Disposition::Allowlisted(81)),
     (0x0025, "Event_AfterIgglanova", Disposition::Scene),
@@ -145,7 +145,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0063, "Event_ReFaze", Disposition::Scene),
     (0x0064, "Event_DeVarsDefeated", Disposition::Scene),
     (0x0065, "Event_SaLewsDefeated", Disposition::Scene),
-    (0x0066, "Event_HuntersGuild", Disposition::Allowlisted(81)),
+    (0x0066, "Event_HuntersGuild", Disposition::Scene),
     (0x0067, "Event_RuneHealingChaz", Disposition::Allowlisted(83)),
     (0x0068, "Event_PickingFifthCharacter", Disposition::Allowlisted(83)),
     (0x0069, "Event_AngerTowerTop", Disposition::Scene),
@@ -160,7 +160,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0072, "Event_RanchOwnerAfterBattle", Disposition::Allowlisted(81)),
     (0x0073, "Event_RockyFound", Disposition::Allowlisted(81)),
     (0x0074, "Event_CatchingRocky", Disposition::Allowlisted(81)),
-    (0x0075, "Event_RockyOwner", Disposition::Allowlisted(81)),
+    (0x0075, "Event_RockyOwner", Disposition::Scene),
     (0x0076, "Event_PiataDormOwner", Disposition::Allowlisted(81)),
     (0x0077, "Event_MissingStudentFound", Disposition::Allowlisted(81)),
     (0x0078, "Event_OldManNearMissingStudent", Disposition::Allowlisted(81)),
@@ -171,10 +171,10 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x007D, "Event_FractOozeFound", Disposition::Scene),
     (0x007E, "Event_TallasRescued", Disposition::Allowlisted(81)),
     (0x007F, "Event_LostGirlsMother", Disposition::Allowlisted(81)),
-    (0x0080, "Event_GirlPrison", Disposition::Allowlisted(81)),
-    (0x0081, "Event_GirlsBail", Disposition::Allowlisted(81)),
-    (0x0082, "Event_PayingGirlsBail", Disposition::Allowlisted(81)),
-    (0x0083, "Event_GirlsBailedOut", Disposition::Allowlisted(81)),
+    (0x0080, "Event_GirlPrison", Disposition::Scene),
+    (0x0081, "Event_GirlsBail", Disposition::Scene),
+    (0x0082, "Event_PayingGirlsBail", Disposition::Scene),
+    (0x0083, "Event_GirlsBailedOut", Disposition::Scene),
     (0x0084, "Event_DyingBoyFather", Disposition::Allowlisted(81)),
     (0x0085, "Event_FatherAfterBoyRecovery", Disposition::Allowlisted(81)),
     (0x0086, "Event_DyingBoy", Disposition::Allowlisted(81)),
@@ -191,8 +191,8 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0091, "Event_DominatorsDefeated", Disposition::Scene),
     (0x0092, "Event_WeaponPlantArrival", Disposition::Scene),
     (0x0093, "Event_MeeseClinicSickWoman", Disposition::Allowlisted(81)),
-    (0x0094, "Event_StrippersAppearing", Disposition::Allowlisted(81)),
-    (0x0095, "Event_ExitingStripClub", Disposition::Allowlisted(81)),
+    (0x0094, "Event_StrippersAppearing", Disposition::Scene),
+    (0x0095, "Event_ExitingStripClub", Disposition::Scene),
     (0x0096, "Event_PenguinFeedStolen", Disposition::Allowlisted(56)),
     (0x0097, "Event_Pennant", Disposition::Allowlisted(81)),
     (0x0098, "Event_WoodCarving", Disposition::Allowlisted(81)),

@@ -176,6 +176,35 @@ pub enum BespokeKind {
         /// Initial `$3C..$3F` boundary bytes.
         leash: Leash,
     },
+    /// A fixed command with no party or object gate (the routine clears
+    /// `render_flags` bit 3, which `loc_4A316` tests first), whose object
+    /// clears its own slot the first frame `FieldObj_OnScreenTest` rejects
+    /// it. A scene installs it ([`scene_routine_kind`]); the runtime, which
+    /// owns the camera, does the clear.
+    Departing {
+        /// Raw command before `loc_4A150` (`1=up, 2=down, 3=left, 4=right`).
+        command: u8,
+        /// `FieldObj_UpdateStepDuration` selector.
+        speed: WanderSpeed,
+        /// Initial `$3C..$3F` boundary bytes.
+        leash: Leash,
+    },
+    /// No movement: whenever its own timer's `mask` bits are zero the object
+    /// turns between down and up and rewrites the line it speaks. `$34C`,
+    /// `FieldObj_StripClubCustomer` (`ps4.asm:99915-99948`), the strip club's
+    /// customer once `Event_StrippersAppearing` gives him the routine: init
+    /// clears `facing_dir` and `timer`; each frame, `timer & $FF == 0` turns a
+    /// facing other than 0 to 0 (down) with `dialogue_id` `$38`, and 0 to 4
+    /// (up) with `$39`, then `addq.w #1, timer`. The body never calls
+    /// `FieldObj_OnScreenTest`, so it runs wherever the camera is.
+    FacingToggle {
+        /// The mask on the timer word that, at zero, turns the object.
+        mask: u16,
+        /// The line written on turning down.
+        down_dialogue: u16,
+        /// The line written on turning up.
+        up_dialogue: u16,
+    },
     /// No movement while clear, then a random helper after the flag.
     FlaggedRandom {
         /// Branch flag.
@@ -196,8 +225,10 @@ impl BespokeKind {
         match self {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
-            | BespokeKind::PresentationOnly => Leash::ZERO,
+            | BespokeKind::PresentationOnly
+            | BespokeKind::FacingToggle { .. } => Leash::ZERO,
             BespokeKind::Fixed { leash, .. }
+            | BespokeKind::Departing { leash, .. }
             | BespokeKind::Pattern { leash, .. }
             | BespokeKind::Random { leash, .. }
             | BespokeKind::Follow { leash, .. }
@@ -213,8 +244,10 @@ impl BespokeKind {
         match self {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
-            | BespokeKind::PresentationOnly => WanderSpeed::Selector0,
+            | BespokeKind::PresentationOnly
+            | BespokeKind::FacingToggle { .. } => WanderSpeed::Selector0,
             BespokeKind::Fixed { speed, .. }
+            | BespokeKind::Departing { speed, .. }
             | BespokeKind::Pattern { speed, .. }
             | BespokeKind::Random { speed, .. }
             | BespokeKind::Follow { speed, .. }
@@ -230,6 +263,7 @@ impl BespokeKind {
         matches!(
             self,
             BespokeKind::Fixed { .. }
+                | BespokeKind::Departing { .. }
                 | BespokeKind::Pattern { .. }
                 | BespokeKind::Random { .. }
                 | BespokeKind::Follow { .. }
@@ -258,6 +292,7 @@ pub struct BespokeActor {
     choice: u8,
     step: Option<BespokeStep>,
     frames: u8,
+    dialogue: Option<u16>,
 }
 
 impl BespokeActor {
@@ -275,6 +310,7 @@ impl BespokeActor {
             frames: StepFrames::new(kind.speed().frames())
                 .unwrap_or(StepFrames::DEFAULT)
                 .get(),
+            dialogue: None,
         }
     }
 
@@ -300,6 +336,13 @@ impl BespokeActor {
     #[must_use]
     pub const fn timer(&self) -> i16 {
         self.timer
+    }
+
+    /// The `dialogue_id` the routine itself last wrote (`$14(a4)`), which
+    /// replaces the record's line until the map reloads the object.
+    #[must_use]
+    pub const fn dialogue_id(&self) -> Option<u16> {
+        self.dialogue
     }
 
     /// Whether the routine has a committed step in progress.
@@ -328,6 +371,20 @@ impl BespokeActor {
         let frames = i32::from(self.frames);
         let (dx, dy) = step.dir.delta();
         ((dx * n).div_euclid(frames), (dy * n).div_euclid(frames))
+    }
+
+    /// Sub-cell displacement in sixteenths, for the renderer: measured back
+    /// from the destination cell the object committed to when the step
+    /// started, as [`crate::Wanderer::render_offset_16ths`] measures it.
+    #[must_use]
+    pub fn render_offset_16ths(&self) -> (i32, i32) {
+        let Some(step) = self.step else { return (0, 0) };
+        let (tx, ty) = self.travelled_px();
+        let (dx, dy) = step.dir.delta();
+        (
+            tx - dx * crate::field::SUBCELL_UNITS,
+            ty - dy * crate::field::SUBCELL_UNITS,
+        )
     }
 
     /// The cartridge's remaining step-duration words.
@@ -377,6 +434,24 @@ impl BespokeSet {
             actors.push(BespokeActor::new(npc_index, kind));
         }
         Ok(BespokeSet { actors })
+    }
+
+    /// Gives object `npc_index` the routine `kind`, replacing whatever ran it
+    /// (a scene's `move.w #routine, (a4)`); the actor starts as its routine's
+    /// init leaves it.
+    pub fn install(&mut self, npc_index: usize, kind: BespokeKind) {
+        self.remove(npc_index);
+        let at = self
+            .actors
+            .iter()
+            .position(|actor| actor.npc_index > npc_index)
+            .unwrap_or(self.actors.len());
+        self.actors.insert(at, BespokeActor::new(npc_index, kind));
+    }
+
+    /// Drops object `npc_index`'s actor, if it has one.
+    pub fn remove(&mut self, npc_index: usize) {
+        self.actors.retain(|actor| actor.npc_index != npc_index);
     }
 
     /// Actors in cartridge object order.
@@ -434,6 +509,33 @@ impl BespokeSet {
             return;
         }
 
+        if let BespokeKind::FacingToggle {
+            mask,
+            down_dialogue,
+            up_dialogue,
+        } = self.actors[index].kind
+        {
+            let actor = &mut self.actors[index];
+            if (actor.timer as u16) & mask == 0 {
+                // The init's `clr.w $6(a4)` runs in the routine's first
+                // frame, before the test: that frame always reads down.
+                let down = actor.dialogue.is_none()
+                    || map
+                        .npcs()
+                        .get(npc_index)
+                        .is_some_and(|npc| npc.facing == Direction::Down);
+                let (facing, line) = if down {
+                    (Direction::Up, up_dialogue)
+                } else {
+                    (Direction::Down, down_dialogue)
+                };
+                let _ = map.set_npc_facing(npc_index, facing);
+                actor.dialogue = Some(line);
+            }
+            actor.timer = actor.timer.wrapping_add(1);
+            return;
+        }
+
         if self.actors[index].step.is_some() {
             let actor = &mut self.actors[index];
             if let Some(step) = actor.step.as_mut() {
@@ -470,9 +572,11 @@ impl BespokeSet {
         let Some(to) = map.neighbor(from, dir) else {
             return;
         };
+        let objects_gate = !matches!(actor.kind, BespokeKind::Departing { .. });
         if map.grid().is_blocking(to)
-            || context.party.contains(&to)
-            || map.npc_at(to).is_some_and(|npc| npc.cell != from)
+            || objects_gate
+                && (context.party.contains(&to)
+                    || map.npc_at(to).is_some_and(|npc| npc.cell != from))
         {
             return;
         }
@@ -496,8 +600,9 @@ impl BespokeSet {
         match kind {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
-            | BespokeKind::PresentationOnly => 0,
-            BespokeKind::Fixed { command, .. } => command,
+            | BespokeKind::PresentationOnly
+            | BespokeKind::FacingToggle { .. } => 0,
+            BespokeKind::Fixed { command, .. } | BespokeKind::Departing { command, .. } => command,
             BespokeKind::Pattern { commands, .. } => self.next_pattern(index, commands),
             BespokeKind::Random { kind, .. } => self.next_random(index, kind, rolls, context),
             BespokeKind::Follow { target, .. } => {
@@ -773,6 +878,39 @@ pub const PATTERN_ESPER_GUARD: &[u8] = &[3, 2, LATCH];
 /// (`cmpi.w #$8268, -$40(a4)` / `#$826C`), so it steps right where the first
 /// steps left.
 pub const PATTERN_ESPER_GUARD_SECOND: &[u8] = &[4, 2, LATCH];
+
+/// The routine a scene's `move.w #routine, (a4)` installs, by its
+/// `FieldObjectsJmpTbl` offset, for the routines a transcribed scene writes.
+///
+/// `$BC` is `loc_489D6` (`ps4.asm:95479`): init `$3C = $20`, `$3D = $20`,
+/// `$3E = $10`, `$3F = $10` and `bclr #3, $2(a4)`, then each on-screen frame
+/// `FieldObj_NPCMove` with `d0 = 1` (up) and `d7 = 2` (the third speed table);
+/// off screen it clears its own slot. The US build has no `bugfixes`, so the
+/// move is the collision-checking `FieldObj_NPCMove`.
+///
+/// `$34C` is `FieldObj_StripClubCustomer` ([`BespokeKind::FacingToggle`]); the
+/// US build is `grand_cross=0`, so both `dialogue_id` writes are in it.
+#[must_use]
+pub const fn scene_routine_kind(routine: u16) -> Option<BespokeKind> {
+    match routine {
+        0xBC => Some(BespokeKind::Departing {
+            command: 1,
+            speed: WanderSpeed::Selector2,
+            leash: Leash {
+                x_max: 0x20,
+                y_max: 0x20,
+                x: 0x10,
+                y: 0x10,
+            },
+        }),
+        0x34C => Some(BespokeKind::FacingToggle {
+            mask: 0xFF,
+            down_dialogue: 0x38,
+            up_dialogue: 0x39,
+        }),
+        _ => None,
+    }
+}
 
 #[cfg(test)]
 #[path = "bespoke_tests.rs"]
