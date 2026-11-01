@@ -29,9 +29,9 @@ from pathlib import Path
 from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS, GATE_MEASURED_PARALLELISM,
-                        GateRefused, available_cores, cargo_parallelism, command_slug, cpu_mhz,
-                        gate_environment, gate_lock, main, parse_counts, parse_unittest,
-                        run_gate)
+                        RECEIPT_ENV, GateRefused, available_cores, cargo_parallelism, command_slug,
+                        cpu_mhz, gate_environment, gate_lock, main, parse_counts, parse_unittest,
+                        receipt_dir_for, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -732,6 +732,27 @@ class ParallelismCase(unittest.TestCase):
         env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
         self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
         self.assertEqual(env["HOME"], "/h")
+
+    def test_the_commands_never_see_the_receipt_a_caller_asked_for(self):
+        env = gate_environment({RECEIPT_ENV: "/elsewhere", "HOME": "/h"}, 16)
+        self.assertNotIn(RECEIPT_ENV, env)
+        self.assertEqual(env["HOME"], "/h")
+
+
+class ReceiptDirCase(unittest.TestCase):
+    """Where `main` writes the receipt: the caller's directory, else one named for the run."""
+
+    def test_the_directory_a_caller_names(self):
+        root = Path("/repo")
+        self.assertEqual(receipt_dir_for(root, False, {RECEIPT_ENV: "/abs/run"}), Path("/abs/run"))
+        self.assertEqual(receipt_dir_for(root, True, {RECEIPT_ENV: "build/gate/mine"}),
+                         root / "build" / "gate" / "mine")
+
+    def test_unasked_it_is_named_for_the_stamp_the_candidate_and_the_tier(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for fast, suffix in ((False, ""), (True, "-fast")):
+                name = receipt_dir_for(Path(tmp), fast, {RECEIPT_ENV: ""}).relative_to(tmp)
+                self.assertRegex(str(name), rf"^build/gate/\d{{8}}T\d{{6}}Z-nogit{suffix}$")
 
 
 class NotARepositoryCase(unittest.TestCase):

@@ -357,7 +357,9 @@ tier, on a clean tree, with every command exiting 0 and no input missing.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
-`build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
+`build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
+names, which is how `tools/pr_gate.py` reads its own run's receipt and no
+other): the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, which inputs were missing
 (`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
 `tools/gate.py`), the cores it could use

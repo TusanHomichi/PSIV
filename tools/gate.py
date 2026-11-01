@@ -11,7 +11,8 @@ at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
 lock class. A failing command does not stop the run: one receipt shows every
 failure, and the exit code is 1 when any command failed, 0 otherwise.
 
-The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/`: one log per
+The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/` (or the directory
+`PSIV_GATE_RECEIPT` names, `RECEIPT_ENV`): one log per
 command plus `receipt.json`, holding the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, which of `GATE_INPUTS` were
 missing (`missing_inputs`: a gate without one is partial), the cores it could use
@@ -103,6 +104,13 @@ FAST_COMMANDS = [
 #: receipt's `missing_inputs` names each one absent, and a pull request's gate
 #: counts a partial gate as failed (tools/pr_gate.py).
 GATE_INPUTS = ("Phantasy Star IV (USA).md", "reference/ps4disasm", "runtime-pack")
+
+#: Where a caller asks for this run's receipt: a directory only this run
+#: writes, which the caller names (tools/pr_gate.py, so it judges this run's
+#: receipt and no other in the shared `build/gate/`). Unset, the receipt goes
+#: under GATE_DIR, named for the stamp and the candidate. The commands never
+#: see it.
+RECEIPT_ENV = "PSIV_GATE_RECEIPT"
 
 #: The heavy-lock class every gate command runs under. The gate's receipt is a
 #: timed, reproducible run, so it holds the machine for the whole run: the one
@@ -334,7 +342,8 @@ def cargo_parallelism(cores):
 
 def gate_environment(environ, cores):
     """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`,
-    and without a job runner's wait directory (`RUNNER_WAIT_ENV`).
+    and without a job runner's wait directory (`RUNNER_WAIT_ENV`) or the receipt
+    a caller asked for (`RECEIPT_ENV`), which is this run's alone.
 
     Set, not defaulted: a caller's own `CARGO_BUILD_JOBS=1` would make the run
     a different measurement from the one the receipt describes. The gate's
@@ -342,7 +351,7 @@ def gate_environment(environ, cores):
     is the gate's work, never a wait in line its runner should stop counting.
     """
     count = str(cargo_parallelism(cores))
-    kept = {key: value for key, value in environ.items() if key != RUNNER_WAIT_ENV}
+    kept = {key: value for key, value in environ.items() if key not in (RUNNER_WAIT_ENV, RECEIPT_ENV)}
     return {**kept, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
 
 
@@ -473,6 +482,17 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
         return receipt
 
 
+def receipt_dir_for(root, fast, environ):
+    """Where this run's receipt goes: the directory `RECEIPT_ENV` names (relative to
+    the root), else one under GATE_DIR named for the stamp and the candidate (run_gate
+    re-reads git for the receipt itself)."""
+    if environ.get(RECEIPT_ENV):
+        return Path(root) / environ[RECEIPT_ENV]
+    stamp = utc_stamp(datetime.now(timezone.utc))
+    suffix = "-fast" if fast else ""
+    return Path(root) / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}{suffix}"
+
+
 def main(argv=None):
     """`python3 tools/gate.py [--fast] [--wait] [--list]`, run from the repository root."""
     parser = argparse.ArgumentParser(
@@ -491,10 +511,7 @@ def main(argv=None):
             print(command)
         return EXIT_OK
     root = Path.cwd()
-    # The directory is named for the candidate; run_gate re-reads git for the receipt.
-    stamp = utc_stamp(datetime.now(timezone.utc))
-    suffix = "-fast" if args.fast else ""
-    receipt_dir = root / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}{suffix}"
+    receipt_dir = receipt_dir_for(root, args.fast, os.environ)
     try:
         receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait)
     except GateRefused as refusal:

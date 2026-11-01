@@ -13,12 +13,14 @@ spec asks for under `build/gate/`, records where it ran, and exits as told.
 
 `PassCase` runs the gate at the commit, in the kept worktree, and posts its
 receipt's rows. `VerdictCase` fails each way a gate falls short of a full,
-clean, complete pass, and `StaleCase` never counts a receipt an earlier run
-left. `MachineCase` passes a signal, a gate that can't start and an exit of
-126 or more through, for a runner to try again. `StepCase` fails a run whose
-worktree or inputs couldn't be prepared, or whose commit isn't there, without
-running the gate. `LockCase` waits for the worktree's lock. `PostCase` keeps
-logs, paths and anything else the receipt holds off the summary.
+clean, complete pass, and `AttributionCase` counts only the receipt this run
+asked for, never another run's. `MachineCase` passes a signal, a gate that
+can't start and an exit of 126 or more through, for a runner to try again.
+`StepCase` fails a run whose worktree or inputs couldn't be prepared, or
+whose commit isn't there, without running the gate. `LockCase` waits for
+the worktree's lock, and `StopCase` keeps it till everything a run started
+has stopped, however the run ends. `PostCase` keeps logs, paths and anything
+else the receipt holds off the summary.
 """
 
 import fcntl
@@ -54,15 +56,33 @@ Path("build").symlink_to(Path(common).parent / "build")
 BROKEN_TOOL = "import sys\nsys.exit(9)\n"
 
 #: The stand-in gate: `python3 FAKE_GATE SPEC`. It records where it ran in the
-#: main checkout's build/ran.json, then writes the receipt SPEC describes.
+#: main checkout's build/ran.json, then writes the receipt SPEC describes where
+#: tools/gate.py would: the directory PSIV_GATE_RECEIPT names, or (`old`, a gate
+#: from before it) one under build/gate/. With `hold`, it first starts a child
+#: (its pid in `child`) and waits for the file `hold` names; `mark` and `ended`
+#: name files it writes as it starts and ends.
 FAKE_GATE = """import json, os, signal, subprocess, sys, time
 from pathlib import Path
 spec = json.loads(Path(sys.argv[1]).read_text())
 head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                       check=True).stdout.strip()
 Path("build/ran.json").write_text(json.dumps({"cwd": os.getcwd(), "head": head}))
+if spec.get("mark"):
+    Path(spec["mark"]).write_text(str(time.monotonic()))
+if spec.get("hold"):
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+    Path(spec["child"]).write_text(str(child.pid))
+    deadline = time.monotonic() + 60
+    while not Path(spec["hold"]).exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    child.kill()
 if spec.get("signal"):
     os.kill(os.getpid(), spec["signal"])
+for other in spec.get("others", []):
+    # Another run's receipt for this commit, newer than this one's, in the shared directory.
+    out = Path("build/gate") / other["name"]
+    out.mkdir(parents=True)
+    (out / "receipt.json").write_text(json.dumps({**other["receipt"], "candidate_sha": head}))
 if spec.get("write", True):
     commands = spec.get("commands", [{"command": "python3 tools/check_docs.py", "exit_code": 0,
                                       "duration_s": 1.5, "counts": {}}])
@@ -73,10 +93,14 @@ if spec.get("write", True):
     if "missing" in spec:
         receipt["missing_inputs"] = spec["missing"]
     receipt.update(spec.get("extra", {}))
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    out = Path("build/gate") / f"{stamp}-{head[:7]}-{os.getpid()}"
+    asked = os.environ.get("PSIV_GATE_RECEIPT")
+    if spec.get("old") or not asked:
+        asked = Path("build/gate") / (time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + head[:7])
+    out = Path(asked)
     out.mkdir(parents=True)
     (out / "receipt.json").write_text(json.dumps(receipt))
+if spec.get("ended"):
+    Path(spec["ended"]).write_text(str(time.monotonic()))
 sys.exit(spec.get("exit", 0))
 """
 
@@ -122,17 +146,16 @@ class ScratchRepo(unittest.TestCase):
         path.write_text(json.dumps(spec))
         return [sys.executable, str(self.fake), str(path)]
 
-    def start(self, gate, commit=None, directory=None, env=None):
+    def start(self, gate, commit=None, directory=None, env=None, summary=None):
         """main's copy on stdin in the main checkout, as the steward runs it."""
-        source = git(self.repo, "show", "origin/main:tools/pr_gate.py")
+        source = self.tmp / "pr_gate-main.py"
+        source.write_text(git(self.repo, "show", "origin/main:tools/pr_gate.py") + "\n")
         args = [sys.executable, "-", str(directory or self.gate_dir), commit or self.head,
-                "--summary", str(self.summary_file), "--", *gate]
-        process = subprocess.Popen(args, cwd=self.repo, stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                   env={**os.environ, **(env or {})})
-        process.stdin.write(source + "\n")
-        process.stdin.close()
-        return process
+                "--summary", str(summary or self.summary_file), "--", *gate]
+        with open(source) as stdin:
+            return subprocess.Popen(args, cwd=self.repo, stdin=stdin, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True,
+                                    env={**os.environ, **(env or {})})
 
     def run_pr_gate(self, gate, **kwargs):
         """(exit, summary, output) of one run."""
@@ -209,27 +232,52 @@ class VerdictCase(ScratchRepo):
         self.assertFails(self.gate(), "doesn't say which inputs it had")
 
     def test_no_receipt_fails(self):
-        self.assertFails(self.gate(write=False), "left no receipt")
+        self.assertFails(self.gate(write=False), "wrote no receipt")
 
     def test_a_receipt_for_another_commit_fails(self):
-        self.assertFails(self.gate(sha="0" * 40, missing=[]), "left no receipt")
+        self.assertFails(self.gate(sha="0" * 40, missing=[]), "wrote no receipt")
 
     def test_a_gate_exiting_nonzero_after_every_command_passed_fails(self):
         self.assertFails(self.gate(missing=[], exit=1), "every command passed, but the gate exited 1")
 
 
-class StaleCase(ScratchRepo):
-    def test_a_receipt_an_earlier_run_left_never_counts(self):
-        """A passing receipt for this very commit, newer than any this run could
-        write, is already in the shared build/gate/ when the gate starts."""
-        old = self.repo / "build" / "gate" / f"29991231T235959Z-{self.head[:7]}"
-        old.mkdir(parents=True)
-        (old / "receipt.json").write_text(json.dumps({
-            "candidate_sha": self.head, "dirty": False, "tier": "full", "duration_s": 1,
-            "exit_code": 0, "missing_inputs": [], "commands": []}))
+PASSING = {"dirty": False, "tier": "full", "duration_s": 1, "exit_code": 0, "missing_inputs": [],
+           "commands": []}
+FAILING = {"dirty": False, "tier": "fast", "duration_s": 1, "exit_code": 1, "missing_inputs": [],
+           "commands": [{"command": "x", "exit_code": 1, "duration_s": 1, "counts": {}}]}
+
+
+class AttributionCase(ScratchRepo):
+    """Only the receipt this run asked its gate for counts, never another in the
+    shared build/gate/, however new and for whatever commit."""
+
+    def plant(self, name, receipt):
+        out = self.repo / "build" / "gate" / name
+        out.mkdir(parents=True)
+        (out / "receipt.json").write_text(json.dumps({**receipt, "candidate_sha": self.head}))
+
+    def test_a_passing_receipt_an_earlier_run_left_never_counts(self):
+        self.plant(f"29991231T235959Z-{self.head[:7]}", PASSING)
         code, said, _ = self.run_pr_gate(self.gate(write=False))
         self.assertEqual(code, 1, said)
-        self.assertIn("left no receipt", said)
+        self.assertIn("wrote no receipt", said)
+
+    def test_a_failing_receipt_another_run_writes_meanwhile_never_counts(self):
+        """A fast run of the same commit, finished while this gate waited on it."""
+        others = [{"name": f"29991231T235959Z-{self.head[:7]}-fast", "receipt": FAILING}]
+        code, said, _ = self.run_pr_gate(self.gate(missing=[], others=others))
+        self.assertEqual(code, 0, said)
+
+    def test_a_passing_receipt_another_run_writes_meanwhile_never_counts(self):
+        others = [{"name": f"29991231T235959Z-{self.head[:7]}", "receipt": PASSING}]
+        code, said, _ = self.run_pr_gate(self.gate(missing=[], write=False, others=others))
+        self.assertEqual(code, 1, said)
+
+    def test_a_gate_from_before_it_could_be_asked_fails(self):
+        """One that writes its receipt where it always did, ignoring PSIV_GATE_RECEIPT."""
+        code, said, _ = self.run_pr_gate(self.gate(missing=[], old=True))
+        self.assertEqual(code, 1, said)
+        self.assertIn("needs main merged in", said)
 
 
 class MachineCase(ScratchRepo):
@@ -291,6 +339,87 @@ class LockCase(ScratchRepo):
             output, _ = process.communicate(timeout=120)
             self.assertEqual(process.returncode, 0, output)
         self.assertEqual(self.ran()["head"], self.head)
+
+
+def alive(pid):
+    """Whether pid is a process that hasn't ended (a zombie has)."""
+    try:
+        with open(f"/proc/{pid}/stat") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except FileNotFoundError:
+        return False
+
+
+def wait_for(path, timeout=60):
+    deadline = time.monotonic() + timeout
+    while not path.exists():
+        if time.monotonic() > deadline:
+            raise AssertionError(f"{path} never came")
+        time.sleep(0.05)
+
+
+class StopCase(ScratchRepo):
+    """The worktree stays the run's till everything it started has stopped."""
+
+    def held(self, **spec):
+        return self.gate(missing=[], hold=str(self.tmp / "release"), child=str(self.tmp / "child"),
+                         mark=str(self.tmp / "started"), ended=str(self.tmp / "ended"), **spec)
+
+    def lock_is_free(self):
+        with open(self.tmp / "gate.lock", "a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
+            fcntl.flock(lock, fcntl.LOCK_UN)
+            return True
+
+    def test_a_stopped_run_stops_its_gate_and_all_it_started_before_the_lock_goes(self):
+        for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            for name in ("started", "child", "ended"):
+                (self.tmp / name).unlink(missing_ok=True)
+            process = self.start(self.held())
+            wait_for(self.tmp / "child")
+            gate = int(subprocess.run(["pgrep", "-f", str(self.fake)], capture_output=True,
+                                      text=True).stdout.split()[0])
+            child = int((self.tmp / "child").read_text())
+            process.send_signal(signum)
+            output, _ = process.communicate(timeout=60)
+            self.assertEqual(process.returncode, 128 + signum, output)
+            self.assertFalse(alive(gate) or alive(child), signum)
+            self.assertFalse((self.tmp / "ended").exists())
+            self.assertTrue(self.lock_is_free())
+            self.assertIn(f"stopped by signal {int(signum)}", self.summary_file.read_text())
+
+    def test_a_run_killed_outright_leaves_its_gate_holding_the_lock_till_it_ends(self):
+        first = self.start(self.held())
+        wait_for(self.tmp / "child")
+        first.kill()
+        first.wait(timeout=60)
+        # Its gate lives on, holding the other end of this.
+        first.stdout.close()
+        self.assertFalse(self.lock_is_free())
+        second = self.start(self.gate(missing=[], mark=str(self.tmp / "second")),
+                            summary=self.tmp / "second.md")
+        time.sleep(1)
+        self.assertIsNone(second.poll())
+        self.assertFalse((self.tmp / "second").exists())
+        (self.tmp / "release").write_text("")
+        output, _ = second.communicate(timeout=120)
+        self.assertEqual(second.returncode, 0, output)
+        self.assertLess(float((self.tmp / "ended").read_text()), float((self.tmp / "second").read_text()))
+
+    def test_whatever_a_step_left_running_is_stopped_before_the_next_step(self):
+        """A gate that exits leaving a process of its session behind."""
+        orphan = self.tmp / "orphan"
+        script = self.tmp / "leave.py"
+        script.write_text(
+            "import subprocess, sys\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'])\n"
+            f"open({str(orphan)!r}, 'w').write(str(child.pid))\n")
+        code, said, output = self.run_pr_gate([sys.executable, str(script)])
+        self.assertEqual(code, 1, output)
+        self.assertFalse(alive(int(orphan.read_text())))
 
 
 class PostCase(ScratchRepo):
