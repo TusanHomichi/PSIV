@@ -40,6 +40,25 @@ no digest: every hash that names an image, in the tests and in the pack's
 `png_sha256` fields, is `image_sha256` from
 [`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
+Godot patch releases are taken when they land. A bump changes
+`.godot-version` and runs `python3 tools/godot.py pin`, which takes the
+downloads' sums from the `SHA512-SUMS.txt` the release publishes; a new
+minor version also moves gdext's `api-4-N` feature in
+[`rust/psiv-godot/Cargo.toml`](../rust/psiv-godot/Cargo.toml) and
+`compatibility_minimum` in [`godot/psiv.gdextension`](../godot/psiv.gdextension)
+to it. The bump is proven by the checks
+[#133](https://github.com/TusanHomichi/PSIV/issues/133) set: certify at
+0.000000, the whole-route native replay with the memory bracket
+(`tools/verify_native_route.py --rss-every ...`,
+[native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)), the
+full gate, and an audio capture byte-identical between the old and the new
+engine: Godot's Movie Maker records the debug battle under Xvfb from a run
+root with `PSIV_SAVE_DIR` set to a fresh directory,
+`PSIV_DEBUG_BATTLE=0x88 python3 tools/godot.py run -- --rendering-driver
+opengl3 --fixed-fps 60 --write-movie OUT/f.png --quit-after 900`, once per
+engine with that engine's build of the extension, and the two `f.wav` files
+are compared by hash.
+
 ## Prepare the local pack
 
 From the repository root:
