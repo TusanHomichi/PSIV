@@ -1,0 +1,83 @@
+{
+  "conary": "note v1",
+  "change": "7n37m0jwy8zbj88jpeb5kee409",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 264,
+  "url": "https://github.com/tusanhomichi/psiv/pull/264",
+  "summary": "house: the house blocks, as burrow has them now",
+  "task": null,
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "landing": {
+    "revision": "69d889949c743a7d8c63ce47128fdfb8cb751ff6bc45ee8da4b7eaba0ecfaa1e",
+    "before": "a7cb488c91aabcc84da118d1b11b07579884f484",
+    "after": "a7d503693bbb849e6bca7834e6765ba409a0bd75",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793537397782
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792/job/124848988456"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#264)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#264)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#264)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#264)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#264)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306881792"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41306882096/job/124848989344"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/264#pullrequestreview-5728072658"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
