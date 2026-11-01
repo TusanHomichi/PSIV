@@ -186,6 +186,8 @@ jobs.
 | `Event_StrippersAppearing` | `$94` | [123](123_StripClub.md) | `$073440..$0735ED` |
 | `Event_ExitingStripClub` | `$95` | [123](123_StripClub.md#event_exitingstripclub) | `$0735EE..$0735F5` |
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
+| `Event_RanchOwner` | `$70` | [142](142_RanchOwner.md) | `$07259E..$072653` |
+| `Event_RanchOwnerAfterBattle` | `$72` | [142](142_RanchOwner.md#event_ranchownerafterbattle) | `$072678..$07269D` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not

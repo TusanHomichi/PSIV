@@ -271,7 +271,7 @@ def write_manifest(
             "maps_with_layout_variants": variant_maps,
             "slice": 1,
             "kinds_emitted": [
-                "object_despawn", "object_rewrite", "object_dialogue",
+                "object_despawn", "object_rewrite", "object_dialogue", "object_x", "object_y",
                 "layout_write", "layout_replace",
             ],
             "kinds_deferred": (

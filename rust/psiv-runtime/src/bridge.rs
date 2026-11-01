@@ -300,6 +300,12 @@ pub(super) fn field_map_retaining_objects(
             .unwrap_or(object.id.0);
         object.id = NpcId(object_id);
         object.active &= outcome.is_none_or(|o| !o.despawns.contains(&index));
+        if let Some((x, y)) = outcome.and_then(|o| o.positions.get(&index)) {
+            let x = x.map_or(npc.x_pixels, u32::from);
+            let y = y.map_or(npc.y_pixels, u32::from);
+            object.cell = cell_u16(x / 16, y / 16 + 1, "npc")?;
+            object.offset = psiv_core::SubCellOffset::new((x % 16) as u8, (y % 16) as u8);
+        }
         npcs.push(object);
     }
 

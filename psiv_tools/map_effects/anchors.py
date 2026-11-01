@@ -73,6 +73,8 @@ FIELD_OBJ_STRIDE = 0x40
 FIELD_OBJ_LAST = 0xCFC0
 #: `LoadMapObjects` writes the dialogue id to `$14(a4)`.
 OBJECT_DIALOGUE_OFFSET = 0x14
+OBJECT_X_OFFSET = 0x30
+OBJECT_Y_OFFSET = 0x34
 
 #: Kosinski, for `layout_replace`.
 KOS_DECOMP = None  # resolved from the cartridge; see `_kos_decomp`

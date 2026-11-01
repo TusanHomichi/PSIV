@@ -157,9 +157,9 @@ cartridge keeps no other route to the field event dispatcher.
 | `$006D` | `Event_Hijammer` | interaction area $0D | Kuran_F1_Part2 | allowlisted, #83 |
 | `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | scene `Event_Burstroc` |
 | `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | scene `Event_PosiBolt` |
-| `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | allowlisted, #81 |
+| `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | scene `Event_RanchOwner` |
 | `$0071` | `Event_MileSandWormBattle` | map trigger $70 | Mile | scene `Event_MileSandWormBattle` |
-| `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
+| `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | scene `Event_RanchOwnerAfterBattle` |
 | `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | allowlisted, #81 |
 | `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | allowlisted, #81 |
 | `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | scene `Event_RockyOwner` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 28 |
+| #81 | Motavia side content | 26 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 36 |
+| | total | 34 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

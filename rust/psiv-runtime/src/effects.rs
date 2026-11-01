@@ -24,6 +24,10 @@ pub struct EffectOutcome {
     /// The engine applies the id; the renderer's sprite for the slot is a
     /// known gap until sprites are looked up by live id (logged, filed).
     pub rewrites: Vec<(usize, u16)>,
+    /// Position words by record object index, X then Y, each only when a path
+    /// wrote it: `MapDataMan_RanchOwner` puts the ranch owner where his scene
+    /// left him.
+    pub positions: BTreeMap<usize, (Option<u16>, Option<u16>)>,
     /// Dialogue-id overrides by record object index. The renderer must
     /// consult these before the record's own `dialogue_id`.
     pub dialogue_overrides: BTreeMap<usize, u16>,
@@ -194,6 +198,20 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                         if let (Some(i), Some(id)) = (write.object_index, write.object_id) {
                             if (i as usize) < object_count {
                                 out.rewrites.push((i as usize, id));
+                            } else {
+                                out.out_of_range_objects += 1;
+                            }
+                        }
+                    }
+                    kind @ ("object_x" | "object_y") => {
+                        if let (Some(i), Some(pixels)) = (write.object_index, write.pixels) {
+                            if (i as usize) < object_count {
+                                let at = out.positions.entry(i as usize).or_default();
+                                if kind == "object_x" {
+                                    at.0 = Some(pixels);
+                                } else {
+                                    at.1 = Some(pixels);
+                                }
                             } else {
                                 out.out_of_range_objects += 1;
                             }
