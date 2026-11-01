@@ -30,12 +30,14 @@ Godot is set up for headless and Xvfb runs, the checks' paths; for interactive
 play on a desktop GPU, set `PSIV_GODOT` to the host's own Godot. [`tools/godot-downloads.json`](../tools/godot-downloads.json)
 holds the pinned release's downloads and Godot's published SHA-512 sums for
 them, the editor zip the shell runs and the export templates a release build
-uses. Renovate opens a PR when Godot releases ([`renovate.json`](../renovate.json));
-a bump of `.godot-version` also runs `python3 tools/godot.py pin`, which writes
-the new version's downloads there (`tests/test_flake.py` fails until it has). The
-shell's Python links stock zlib, whose PNG bytes differ from zlib-ng's for the
-same pixels. That changes no digest: every hash that names an image, in the
-tests and in the pack's `png_sha256` fields, is `image_sha256` from
+uses. Renovate opens a PR when Godot releases, held until the checks
+[#133](https://github.com/TusanHomichi/PSIV/issues/133) sets for a bump pass on
+it ([`renovate.json`](../renovate.json)); a bump of `.godot-version` also runs
+`python3 tools/godot.py pin`, which writes the new version's downloads there
+(`tests/test_flake.py` fails until it has). The shell's Python links stock
+zlib, whose PNG bytes differ from zlib-ng's for the same pixels. That changes
+no digest: every hash that names an image, in the tests and in the pack's
+`png_sha256` fields, is `image_sha256` from
 [`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
 ## Prepare the local pack

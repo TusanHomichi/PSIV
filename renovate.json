@@ -11,5 +11,14 @@
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^(?<version>\\d+\\.\\d+(\\.\\d+)?)-stable$"
     }
+  ],
+  "packageRules": [
+    {
+      "description": "A Godot bump waits on hold for the checks #133 set for one, which CI can't run, so the steward doesn't merge it on CI alone.",
+      "matchDepNames": ["godot"],
+      "addLabels": ["hold"],
+      "automerge": false,
+      "prBodyNotes": ["This bump keeps the `hold` label until the checks [#133](https://github.com/TusanHomichi/PSIV/issues/133) sets for a Godot bump pass on this head. `python3 tools/godot.py pin` writes the new version's downloads first."]
+    }
   ]
 }
