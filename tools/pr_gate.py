@@ -22,14 +22,16 @@ other:
    command's exit, duration and test counts.
 
 Each step runs in a systemd scope of the user's manager, one name for DIR
-(`psiv-pr-gate-HASH.scope`), so the kernel's cgroup holds every process it
-starts, whatever its process group, session or descriptors. When the step
-ends, or this is stopped (SIGTERM, SIGINT, SIGHUP), the scope is stopped,
-which waits till every process in it has (SIGTERM, then SIGKILL after
-GRACE_S), before the next step or the lock. A run killed outright leaves its
-scope; the next run on DIR stops it, once it holds the lock, before it
-touches DIR. A scope stops with the user unit this runs in, if it runs in
-one, as the steward's runs do.
+as its real path has it (`psiv-pr-gate-HASH.scope`, beside the lock, so
+every spelling of DIR shares both), so the kernel's cgroup holds every
+process it starts, whatever its process group, session or descriptors. When
+the step ends, or this is stopped (SIGTERM, SIGINT, SIGHUP), the scope is
+stopped (SIGTERM, then SIGKILL after GRACE_S), and its cgroup must then be
+gone or empty, however the stop went, before the next step or the lock. A
+run killed outright leaves its scope; the next run on DIR stops it the same
+way, once it holds the lock, before it touches DIR. A scope stops with the
+user unit this runs in, if it runs in one, as the steward's runs do. Its
+arguments reach the step as they are (no `${VAR}` expansion).
 
 The summary never quotes a log, a path outside the repository, or anything
 taken from the cartridge: it is built from the receipt's command strings,
@@ -48,8 +50,10 @@ it wrote no full receipt for COMMIT where it was asked to (a `--fast` run,
 or a branch whose `tools/gate.py` is older than this, is a failure). A gate
 killed by a signal, or this stopped by one, exits 128 plus the signal, and
 one that can't start, or exits 126 or more itself, passes that through: the
-machine failing, not the commit, so a runner can try again; so does a
-machine with no user systemd manager to run steps in, exit 126. 2 for a call
+machine failing, not the commit, so a runner can try again; so does a step
+that couldn't be run or stopped in its scope (no user systemd manager, a
+scope that never ran its command, processes that outlived its stop), exit
+126. 2 for a call
 this can't read.
 """
 
@@ -64,6 +68,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -75,8 +80,8 @@ EXIT_USAGE = 2
 #: A gate that couldn't start, as a shell says it.
 EXIT_NOT_STARTED = 127
 
-#: No user systemd manager to run a step's scope in.
-EXIT_NO_MANAGER = 126
+#: A step that couldn't be run, or stopped, in its scope.
+EXIT_UNSUPERVISED = 126
 
 #: The ref whose copies of the worktree and input tools run, whatever COMMIT is.
 TOOLS_FROM = "origin/main"
@@ -94,13 +99,29 @@ STOPS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 #: Seconds a step's scope has to end after SIGTERM, before SIGKILL.
 GRACE_S = 10
 
+#: Where the kernel shows cgroups, systemd's ControlGroup= relative to it.
+CGROUPS = Path("/sys/fs/cgroup")
+
+#: What a step's scope runs: it marks that the scope started it, then becomes
+#: the step's command, so a command that can't start (127) is told apart from
+#: a scope that never ran (Unsupervised).
+TRAMPOLINE = """import os, sys
+open(sys.argv[1], "w").close()
+try:
+    os.execvp(sys.argv[2], sys.argv[2:])
+except OSError as error:
+    print(f"pr gate: {sys.argv[2]} couldn't start: {error.strerror}", flush=True)
+    os._exit(127)
+"""
+
 
 class StepFailed(Exception):
     """A step before the gate failed; the message says which, fit to post."""
 
 
-class NoManager(Exception):
-    """The user's systemd manager can't run or stop a step's scope."""
+class Unsupervised(Exception):
+    """A step couldn't be run, or stopped, in its scope: the machine failing,
+    not the commit. The message says which, fit to post."""
 
 
 class Stopped(Exception):
@@ -151,24 +172,40 @@ def caller_unit(cgroups: Path = Path("/proc/self/cgroup")) -> str | None:
     return None
 
 
-def stop_scope(scope: str) -> None:
-    """Stop the scope, if it's there, and wait till every process in it has
-    stopped (systemd's stop job ends only then)."""
-    subprocess.run(["systemctl", "--user", "stop", scope], capture_output=True, check=False)
-    shown = subprocess.run(["systemctl", "--user", "show", "--property=ActiveState", "--value", scope],
-                           capture_output=True, text=True, check=False)
-    if shown.returncode != 0 or shown.stdout.strip() not in ("inactive", "failed"):
-        raise NoManager(scope)
+def systemctl(*args: str) -> subprocess.CompletedProcess:
+    """`systemctl --user ARGS`, its output captured."""
+    try:
+        return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, check=False)
+    except OSError as error:
+        raise Unsupervised("no user systemd manager ran its steps") from error
 
 
-def startable(command: list[str], cwd: Path, env: dict[str, str] | None) -> bool:
-    """Whether command[0] is a program the step can start: systemd-run starts
-    it inside the scope, after its own start, so this says first."""
-    program = command[0]
-    if os.sep in program:
-        path = Path(program) if os.path.isabs(program) else cwd / program
-        return path.is_file() and os.access(path, os.X_OK)
-    return shutil.which(program, path=(env or os.environ).get("PATH")) is not None
+def populated(group: str, cgroups: Path = CGROUPS) -> bool:
+    """Whether the cgroup systemd calls `group` still holds a process: one
+    that's gone holds none, and one that can't be read isn't known to be
+    empty."""
+    if not group:
+        return False
+    try:
+        events = (cgroups / group.lstrip("/") / "cgroup.events").read_text()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return "populated 0" not in events.splitlines()
+
+
+def stop_scope(scope: str, cgroups: Path = CGROUPS) -> None:
+    """Stop the scope, if it's there, then make sure nothing of it is left:
+    stopped, its cgroup gone or empty. A stop can end with processes that
+    outlived SIGKILL (the scope `failed`), so how it ended proves nothing."""
+    systemctl("stop", scope)
+    shown = systemctl("show", "--property=ActiveState", "--property=ControlGroup", scope)
+    if shown.returncode != 0:
+        raise Unsupervised("no user systemd manager ran its steps")
+    props = dict(line.partition("=")[::2] for line in shown.stdout.splitlines())
+    if props.get("ActiveState") not in ("inactive", "failed") or populated(props.get("ControlGroup", ""), cgroups):
+        raise Unsupervised("what a step started outlived its stop")
 
 
 def run_step(command: list[str], cwd: Path, scope: str, source: str | None = None,
@@ -176,34 +213,40 @@ def run_step(command: list[str], cwd: Path, scope: str, source: str | None = Non
     """COMMAND's exit in cwd (negative for a signal), in the scope, `source` on
     its stdin; its output passes through. The scope is stopped before this
     returns, however it returns."""
-    if not startable(command, cwd, env):
-        print(f"pr gate: {command[0]} couldn't start", flush=True)
-        return EXIT_NOT_STARTED
+    marks = Path(tempfile.mkdtemp(prefix="pr-gate-"))
+    started = marks / "started"
     unit = caller_unit()
     bind = [f"--property=BindsTo={unit}"] if unit else []
     try:
-        process = subprocess.Popen(["systemd-run", "--user", "--scope", "--quiet", "--collect", f"--unit={scope}",
-                                    f"--property=TimeoutStopSec={GRACE_S}s", *bind, "--", *command],
-                                   cwd=cwd, env=env, text=True,
-                                   stdin=subprocess.PIPE if source is not None else None)
-    except OSError as error:
-        raise NoManager(error.strerror) from error
-    try:
-        if source is not None:
-            try:
-                process.stdin.write(source)
-                process.stdin.close()
-            except BrokenPipeError:
-                pass
-        return process.wait()
-    finally:
-        # A second stop waits till this one's cleanup is done.
-        signal.pthread_sigmask(signal.SIG_BLOCK, STOPS)
         try:
-            stop_scope(scope)
-            process.wait()
+            process = subprocess.Popen(
+                ["systemd-run", "--user", "--scope", "--quiet", "--collect", "--expand-environment=no",
+                 f"--unit={scope}", f"--property=TimeoutStopSec={GRACE_S}s", *bind, "--",
+                 sys.executable, "-c", TRAMPOLINE, str(started), *command],
+                cwd=cwd, env=env, text=True, stdin=subprocess.PIPE if source is not None else None)
+        except OSError as error:
+            raise Unsupervised("no user systemd manager ran its steps") from error
+        try:
+            if source is not None:
+                try:
+                    process.stdin.write(source)
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+            code = process.wait()
         finally:
-            signal.pthread_sigmask(signal.SIG_UNBLOCK, STOPS)
+            # A second stop waits till this one's cleanup is done.
+            signal.pthread_sigmask(signal.SIG_BLOCK, STOPS)
+            try:
+                stop_scope(scope)
+                process.wait()
+            finally:
+                signal.pthread_sigmask(signal.SIG_UNBLOCK, STOPS)
+        if not started.exists():
+            raise Unsupervised("a step's scope never ran its command")
+        return code
+    finally:
+        shutil.rmtree(marks, ignore_errors=True)
 
 
 def run_main_copy(here: Path, cwd: Path, scope: str, tool: str, *args: str) -> int:
@@ -306,8 +349,8 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
             stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
             asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
             gate_exit = run_step(gate, worktree, scope, env={**os.environ, RECEIPT_ENV: str(asked)})
-        except NoManager:
-            return EXIT_NO_MANAGER, summary(full, None, "it couldn't run: no user systemd manager ran its steps")
+        except Unsupervised as error:
+            return EXIT_UNSUPERVISED, summary(full, None, f"it couldn't run: {error}")
         receipt = read_receipt(asked, full)
         code, verdict = judge(full, receipt, gate_exit)
         return code, summary(full, receipt, verdict)
@@ -335,7 +378,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for signum in STOPS:
             signal.signal(signum, _stop)
-        code, said = pr_gate(Path.cwd(), args.dir.absolute(), args.commit, gate)
+        # Its real path: every spelling of it shares one lock and one scope.
+        code, said = pr_gate(Path.cwd(), args.dir.resolve(), args.commit, gate)
         post(args.summary, said)
         return code
     except Stopped as stop:

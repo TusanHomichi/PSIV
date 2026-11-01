@@ -107,7 +107,7 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_feature_map.py": None,
     "tests/test_gate_worktree.py": None,
     "tests/test_pr_gate.py": frozenset({"fake_gate.py", "summary.md", "second.md", "leave.py",
-                                       "pr_gate-main.py"}),
+                                       "pr_gate-main.py", "argv.py"}),
     "tests/test_local_inputs.py": frozenset({"oracle/fixtures/receipt.json",
                                              "oracle/fixtures/new.json"}),
     # The launcher census's cases: launchers it reads from strings, not files.

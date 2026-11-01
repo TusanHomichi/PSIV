@@ -40,6 +40,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -120,14 +121,22 @@ sys.exit(spec.get("exit", 0))
 """
 
 
-#: systemd-run --scope, as the step runs it: refuses a scope still running,
-#: else marks the command as its (FAKE_SCOPE) and becomes it.
-FAKE_SYSTEMD_RUN = """import os, sys
+#: systemd-run --scope, as the step runs it: fails before the command with
+#: FAKE_SCOPE_FAILS, expands `${VAR}` and `$VAR` in it unless told not to, as
+#: systemd does, refuses a scope still running, else marks the command as its
+#: (FAKE_SCOPE) and becomes it.
+FAKE_SYSTEMD_RUN = """import os, re, sys
 args = sys.argv[1:]
 split = args.index("--")
 unit = next(a.split("=", 1)[1] for a in args[:split] if a.startswith("--unit="))
 with open(os.environ["FAKE_SYSTEMD_LOG"], "a") as log:
     log.write(" ".join(["run", *args[:split]]) + "\\n")
+if os.environ.get("FAKE_SCOPE_FAILS"):
+    sys.exit("Failed to start transient scope unit: Access denied")
+command = args[split + 1:]
+if "--expand-environment=no" not in args[:split]:
+    expand = lambda m: os.environ.get(m.group(1) or m.group(2), "")
+    command = [re.sub(r"\\$\\{(\\w+)\\}|\\$(\\w+)", expand, a) for a in command]
 for pid in os.listdir("/proc"):
     try:
         if pid.isdigit() and f"FAKE_SCOPE={unit}".encode() in open(f"/proc/{pid}/environ", "rb").read().split(b"\\0"):
@@ -135,11 +144,12 @@ for pid in os.listdir("/proc"):
     except OSError:
         pass
 os.environ["FAKE_SCOPE"] = unit
-os.execvp(args[split + 1], args[split + 1:])
+os.execvp(command[0], command)
 """
 
 #: systemctl --user stop and show, for a scope FAKE_SYSTEMD_RUN keeps: stop
-#: ends once every process of it has (SIGTERM, then SIGKILL).
+#: ends once every process of it has (SIGTERM, then SIGKILL), and show says
+#: whether it runs and what its cgroup is, as systemd's properties do.
 FAKE_SYSTEMCTL = """import os, signal, sys, time
 if os.environ.get("FAKE_NO_MANAGER"):
     sys.exit("Failed to connect to bus: No medium found")
@@ -156,7 +166,9 @@ def members():
             pass
     return found
 if verb == "show":
-    print("active" if members() else "inactive")
+    left = members()
+    print(f"ActiveState={'active' if left else 'inactive'}")
+    print(f"ControlGroup={'/fake/' + unit if left else ''}")
     sys.exit(0)
 with open(os.environ["FAKE_SYSTEMD_LOG"], "a") as log:
     log.write(f"stop {unit} {len(members())}\\n")
@@ -511,6 +523,53 @@ class StopCase(ScratchRepo):
         self.assertIn("no user systemd manager", said)
         self.assertIsNone(self.ran())
 
+    def test_no_systemctl_is_the_machine_failing(self):
+        """A PATH with git and systemd-run but no systemctl."""
+        bare = self.tmp / "bare"
+        bare.mkdir()
+        (bare / "git").symlink_to(shutil.which("git"))
+        (bare / "systemd-run").symlink_to(self.bin / "systemd-run")
+        code, said, output = self.run_pr_gate(self.gate(missing=[]), env={"PATH": str(bare)})
+        self.assertEqual(code, 126, output)
+        self.assertIn("no user systemd manager", said)
+        self.assertIsNone(self.ran())
+
+    def test_a_scope_that_never_ran_its_command_is_the_machine_failing(self):
+        code, said, output = self.run_pr_gate(self.gate(missing=[]), env={"FAKE_SCOPE_FAILS": "1"})
+        self.assertEqual(code, 126, output)
+        self.assertIn("never ran its command", said)
+        self.assertIsNone(self.ran())
+
+    def test_arguments_reach_the_step_as_they_are(self):
+        got = self.tmp / "argv.json"
+        script = self.tmp / "argv.py"
+        script.write_text(f"import json, sys\nopen({str(got)!r}, 'w').write(json.dumps(sys.argv[1:]))\n")
+        literal = ["${HOME}", "$HOME", "${PR_GATE_UNSET}", "a $b ${c}"]
+        self.run_pr_gate([sys.executable, str(script), *literal])
+        self.assertEqual(json.loads(got.read_text()), literal)
+
+    def test_every_spelling_of_the_worktree_shares_its_lock_and_scope(self):
+        (self.tmp / "sub").mkdir()
+        (self.tmp / "alias").symlink_to(self.tmp)
+        with open(self.tmp / "gate.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            process = self.start(self.gate(missing=[]), directory=self.tmp / "sub" / ".." / "gate")
+            time.sleep(1)
+            self.assertIsNone(process.poll())
+            self.assertIsNone(self.ran())
+            fcntl.flock(held, fcntl.LOCK_UN)
+            output, _ = process.communicate(timeout=120)
+            self.assertEqual(process.returncode, 0, output)
+        code, _, output = self.run_pr_gate(self.gate(missing=[]), directory=self.tmp / "alias" / "gate")
+        self.assertEqual(code, 0, output)
+        code, _, output = self.run_pr_gate(self.gate(missing=[]))
+        self.assertEqual(code, 0, output)
+        units = {word for line in self.systemd_log.read_text().splitlines()
+                 for word in line.split() if word.startswith("--unit=") or line.startswith("stop ") and
+                 word.endswith(".scope")}
+        self.assertEqual(len({u.removeprefix("--unit=") for u in units}), 1, units)
+        self.assertFalse((self.tmp / "sub" / "gate").exists() or (self.tmp / "sub" / "gate.lock").exists())
+
     def test_whatever_a_step_left_running_is_stopped_before_the_next_step(self):
         """A gate that exits leaving a process behind: one of its session, and
         one of a session of its own that kept none of its descriptors."""
@@ -539,6 +598,32 @@ class ScopeCase(unittest.TestCase):
             cgroups.write_text("0::/user.slice/user-1001.slice/session-3.scope\n")
             self.assertIsNone(pr_gate.caller_unit(cgroups))
             self.assertIsNone(pr_gate.caller_unit(Path(tmp) / "none"))
+
+    def stop(self, show, events=None):
+        """stop_scope against a systemctl that shows `show`, and a cgroup
+        tree where the scope's cgroup.events reads `events` (None: gone)."""
+        from tools import pr_gate
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "systemctl").write_text(f"#!/bin/sh\n[ \"$2\" = show ] && printf '%s' {shlex.quote(show)}\nexit 0\n")
+            (tmp / "systemctl").chmod(0o755)
+            if events is not None:
+                (tmp / "cg" / "app.slice" / "s.scope").mkdir(parents=True)
+                (tmp / "cg" / "app.slice" / "s.scope" / "cgroup.events").write_text(events)
+            with mock.patch.dict(os.environ, {"PATH": f"{tmp}:{os.environ['PATH']}"}):
+                pr_gate.stop_scope("s.scope", cgroups=tmp / "cg")
+
+    def test_a_stop_counts_only_once_its_cgroup_is_gone_or_empty(self):
+        from tools import pr_gate
+        group = "ControlGroup=/app.slice/s.scope\n"
+        self.stop("ActiveState=inactive\nControlGroup=\n")
+        self.stop("ActiveState=inactive\n" + group)
+        self.stop("ActiveState=failed\n" + group, "populated 0\nfrozen 0\n")
+        # Processes that outlived SIGKILL: the scope failed, its cgroup still full.
+        with self.assertRaisesRegex(pr_gate.Unsupervised, "outlived its stop"):
+            self.stop("ActiveState=failed\n" + group, "populated 1\nfrozen 0\n")
+        with self.assertRaisesRegex(pr_gate.Unsupervised, "outlived its stop"):
+            self.stop("ActiveState=deactivating\n" + group)
 
 
 class PostCase(ScratchRepo):
