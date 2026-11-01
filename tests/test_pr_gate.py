@@ -26,6 +26,7 @@ else the receipt holds off the summary.
 import fcntl
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -408,6 +409,24 @@ class StopCase(ScratchRepo):
         output, _ = second.communicate(timeout=120)
         self.assertEqual(second.returncode, 0, output)
         self.assertLess(float((self.tmp / "ended").read_text()), float((self.tmp / "second").read_text()))
+
+    def test_a_stop_before_the_lock_is_a_stop_too(self):
+        """A stop while it reads the commit, before any step: a git that waits."""
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        asked = self.tmp / "asked"
+        real = shutil.which("git")
+        (bin_dir / "git").write_text(
+            f'#!/bin/sh\ncase "$1" in rev-parse) : >{shlex.quote(str(asked))}; exec sleep 300;; esac\n'
+            f'exec {shlex.quote(real)} "$@"\n')
+        (bin_dir / "git").chmod(0o755)
+        process = self.start(self.gate(missing=[]), env={"PATH": f"{bin_dir}:{os.environ['PATH']}"})
+        wait_for(asked)
+        process.send_signal(signal.SIGTERM)
+        output, _ = process.communicate(timeout=60)
+        self.assertEqual(process.returncode, 128 + signal.SIGTERM, output)
+        self.assertIn("stopped by signal 15", self.summary_file.read_text())
+        self.assertIsNone(self.ran())
 
     def test_whatever_a_step_left_running_is_stopped_before_the_next_step(self):
         """A gate that exits leaving a process of its session behind."""

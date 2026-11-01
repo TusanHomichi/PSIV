@@ -254,26 +254,23 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
         return EXIT_FAILED, summary(commit, None, "failed before it ran: the commit isn't in this checkout")
     lock_path = worktree.with_name(worktree.name + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with open(lock_path, "a") as lock:
-            print(f"pr gate: waiting for {lock_path.name}", flush=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            fd = lock.fileno()
-            try:
-                if run_main_copy(here, here, fd, "gate_worktree.py", str(worktree), full) != 0:
-                    raise StepFailed("the gate's worktree couldn't be prepared")
-                if run_main_copy(here, worktree, fd, "local_inputs.py", "link") != 0:
-                    raise StepFailed("the local inputs couldn't be prepared")
-            except StepFailed as error:
-                return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}")
-            stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-            asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
-            gate_exit = run_step(gate, worktree, fd, env={**os.environ, RECEIPT_ENV: str(asked)})
-            receipt = read_receipt(asked, full)
-            code, verdict = judge(full, receipt, gate_exit)
-            return code, summary(full, receipt, verdict)
-    except Stopped as stop:
-        return 128 + stop.signum, summary(full, None, f"stopped by signal {stop.signum}, so it didn't finish")
+    with open(lock_path, "a") as lock:
+        print(f"pr gate: waiting for {lock_path.name}", flush=True)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        fd = lock.fileno()
+        try:
+            if run_main_copy(here, here, fd, "gate_worktree.py", str(worktree), full) != 0:
+                raise StepFailed("the gate's worktree couldn't be prepared")
+            if run_main_copy(here, worktree, fd, "local_inputs.py", "link") != 0:
+                raise StepFailed("the local inputs couldn't be prepared")
+        except StepFailed as error:
+            return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}")
+        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
+        gate_exit = run_step(gate, worktree, fd, env={**os.environ, RECEIPT_ENV: str(asked)})
+        receipt = read_receipt(asked, full)
+        code, verdict = judge(full, receipt, gate_exit)
+        return code, summary(full, receipt, verdict)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -289,17 +286,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("commit", help="the commit the gate runs on")
     parser.add_argument("--summary", type=Path, help="where the Markdown summary goes")
     args = parser.parse_args(argv[:split])
-    for signum in STOPS:
-        signal.signal(signum, _stop)
     gate = argv[split + 1:]
     if not gate:
         print("pr gate: nothing to run after --", file=sys.stderr)
         return EXIT_USAGE
-    code, said = pr_gate(Path.cwd(), args.dir.absolute(), args.commit, gate)
-    if args.summary:
-        args.summary.write_text(said)
+    # From here to the end, a stop is a stop: the commit, the lock, the
+    # steps, the receipt and the summary alike.
+    try:
+        for signum in STOPS:
+            signal.signal(signum, _stop)
+        code, said = pr_gate(Path.cwd(), args.dir.absolute(), args.commit, gate)
+        post(args.summary, said)
+        return code
+    except Stopped as stop:
+        signal.pthread_sigmask(signal.SIG_BLOCK, STOPS)
+        post(args.summary, summary(args.commit, None, f"stopped by signal {stop.signum}, so it didn't finish"))
+        return 128 + stop.signum
+
+
+def post(path: Path | None, said: str) -> None:
+    """Write the summary to path, if there is one, and say its first line."""
+    if path:
+        path.write_text(said)
     print(f"pr gate: {said.splitlines()[0]}", flush=True)
-    return code
 
 
 if __name__ == "__main__":
