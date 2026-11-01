@@ -28,8 +28,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM, GateRefused,
-                        available_cores, cargo_parallelism, command_slug, cpu_mhz,
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS, GATE_MEASURED_PARALLELISM,
+                        GateRefused, available_cores, cargo_parallelism, command_slug, cpu_mhz,
                         gate_environment, gate_lock, main, parse_counts, parse_unittest,
                         run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
@@ -500,6 +500,28 @@ class GateRunCase(unittest.TestCase):
         receipt, _ = self.run_quiet([fake_step("only")])
         self.assertTrue(receipt["dirty"])
         self.assertEqual(receipt["dirty_paths"], ["?? scratch.txt"])
+
+    def test_receipt_names_each_missing_input_and_the_summary_says_partial(self):
+        """The fixture repo has none of the inputs; giving it the ROM and a link to the
+        disassembly leaves the pack missing, and a link to nothing counts as missing."""
+        (self.root / GATE_INPUTS[0]).write_bytes(b"")
+        (self.root / "elsewhere").mkdir()
+        (self.root / "reference").mkdir()
+        (self.root / GATE_INPUTS[1]).symlink_to(self.root / "elsewhere")
+        (self.root / GATE_INPUTS[2]).symlink_to(self.root / "gone")
+        with open(self.root / ".git" / "info" / "exclude", "a") as exclude:
+            exclude.write("".join(f"/{name}\n" for name in (GATE_INPUTS[0], "elsewhere",
+                                                             "reference", GATE_INPUTS[2])))
+        receipt, _ = self.run_quiet([fake_step("only")])
+        self.assertEqual(receipt["missing_inputs"], [GATE_INPUTS[2]])
+        self.assertFalse(receipt["dirty"])
+        self.assertIn("gate OK: 1/1 commands passed", receipt["summary"])
+        self.assertIn(f"; partial: {GATE_INPUTS[2]} missing;", receipt["summary"])
+        (self.root / GATE_INPUTS[2]).unlink()
+        (self.root / GATE_INPUTS[2]).mkdir()
+        complete, _ = self.run_quiet([fake_step("only")], self.root / "build" / "gate" / "complete")
+        self.assertEqual(complete["missing_inputs"], [])
+        self.assertNotIn("partial", complete["summary"])
 
     def test_counts_come_from_the_command_log(self):
         (self.root / "sample_tests.py").write_text(

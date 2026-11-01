@@ -13,7 +13,8 @@ failure, and the exit code is 1 when any command failed, 0 otherwise.
 
 The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/`: one log per
 command plus `receipt.json`, holding the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the cores it could use
+dirty and its `git status --porcelain` paths, which of `GATE_INPUTS` were
+missing (`missing_inputs`: a gate without one is partial), the cores it could use
 (`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it gave cargo,
 and for each command its string, UTC start and end, duration, exit code, the CPU clock
 sampled every second while it ran (`cpu_mhz`: mean, min, max and samples, null
@@ -95,6 +96,13 @@ FAST_COMMANDS = [
     "PYTHONPATH=. python3 tools/py_suite.py --fast",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
 ]
+
+#: The local inputs a full gate needs, relative to the root: the ROM, the
+#: disassembly and the pack (docs/DEVELOPMENT.md, "Gate and coverage"). The
+#: tests that read one skip without it, so a gate without one is partial: its
+#: receipt's `missing_inputs` names each one absent, and a pull request's gate
+#: counts a partial gate as failed (tools/pr_gate.py).
+GATE_INPUTS = ("Phantasy Star IV (USA).md", "reference/ps4disasm", "runtime-pack")
 
 #: The heavy-lock class every gate command runs under. The gate's receipt is a
 #: timed, reproducible run, so it holds the machine for the whole run: the one
@@ -244,6 +252,11 @@ def _git(root, *args):
     return completed.returncode, completed.stdout.strip(), completed.stderr.strip()
 
 
+def missing_inputs(root):
+    """The `GATE_INPUTS` absent under `root` (a link to nothing is absent)."""
+    return [relative for relative in GATE_INPUTS if not (Path(root) / relative).exists()]
+
+
 def git_info(root):
     """The candidate SHA, dirty flag and `git status --porcelain` paths of `root`.
 
@@ -379,11 +392,12 @@ def _run_command(command, index, total, root, receipt_dir, env=None):
     }
 
 
-def _summary(records, receipt_dir, root, tier="full"):
+def _summary(records, receipt_dir, root, tier="full", missing=()):
     """The one line printed at the end and stored as the receipt's `summary`.
 
     It opens with what ran: `gate OK` / `gate FAILED` for the full gate, `fast
-    tier OK` / `fast tier FAILED` for the fast tier, which is not a gate result.
+    tier OK` / `fast tier FAILED` for the fast tier, which is not a gate result;
+    then, when an input was missing, `partial:` and which.
     """
     label = "gate" if tier == "full" else f"{tier} tier"
     total = len(records)
@@ -397,8 +411,9 @@ def _summary(records, receipt_dir, root, tier="full"):
         head = f"{label} OK: {total}/{total} commands passed in {seconds:.1f}s"
     counts = "; ".join(f"{Path(record['log']).stem} {_counts_text(record['counts'])}"
                        for record in records if record["counts"])
+    partial = f"partial: {', '.join(missing)} missing" if missing else ""
     tail = f"; receipt={display_path(receipt_dir, root)}"
-    return "; ".join(part for part in (head, counts) if part) + tail
+    return "; ".join(part for part in (head, partial, counts) if part) + tail
 
 
 def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=None):
@@ -422,6 +437,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS,
                             gate=tier == "full"):
         info = git_info(root)
+        missing = missing_inputs(root)
         started = datetime.now(timezone.utc)
         receipt_dir.mkdir(parents=True, exist_ok=True)
         print(f"gate: {len(commands)} commands -> {display_path(receipt_dir, root)}",
@@ -436,6 +452,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "short_sha": info["short_sha"],
             "dirty": info["dirty"],
             "dirty_paths": info["dirty_paths"],
+            "missing_inputs": missing,
             "started_utc": _utc(started),
             "finished_utc": _utc(finished),
             "duration_s": round(sum(r["duration_s"] for r in records), 3),
@@ -447,7 +464,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "cargo_build_jobs": int(env["CARGO_BUILD_JOBS"]),
             "rust_test_threads": int(env["RUST_TEST_THREADS"]),
             "commands": records,
-            "summary": _summary(records, receipt_dir, root, tier),
+            "summary": _summary(records, receipt_dir, root, tier, missing),
         }
         if "git_error" in info:
             receipt["git_error"] = info["git_error"]

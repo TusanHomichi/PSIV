@@ -341,21 +341,26 @@ ROM-free Python tests, a Godot smoke) is open.
 Hosted CI also holds each pull request to the house rules a machine can read,
 its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
-bots are clean on a head, the steward has an agent on the machine that holds
-the local inputs run the full gate, `python3 tools/gate.py --wait`, on that
-exact commit, and record the verdict; the steward merges only once it is green.
-It runs in the one worktree the steward keeps for gates, which main's
-`tools/gate_worktree.py` moves to that commit with every untracked and ignored
+bots are clean on a head, the steward runs main's `tools/pr_gate.py` on the
+machine that holds the local inputs, which runs the full gate,
+`python3 tools/gate.py --wait`, on that exact commit, and judges the receipt
+it wrote; the steward posts the summary it gives (each command's exit, time
+and test counts) and merges only once it is green. It runs in the one
+worktree the steward keeps for gates, under that worktree's lock: main's
+`tools/gate_worktree.py` moves it to that commit with every untracked and ignored
 file gone but `rust/target`, so the gate's Rust build starts warm, and the
 inputs are linked in by main's `tools/local_inputs.py` ([Run checks](#run-checks)).
 Moving one worktree keeps cargo's file-time freshness sound, which a target
 dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
-partial, and a partial gate is recorded as a failure.
+partial, and a partial gate is recorded as a failure: green takes the full
+tier, on a clean tree, with every command exiting 0 and no input missing.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the cores it could use
+dirty and its `git status --porcelain` paths, which inputs were missing
+(`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
+`tools/gate.py`), the cores it could use
 (`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
 command's string, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
@@ -399,7 +404,7 @@ and is reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
-  them yields a partial gate, and the report says which inputs were absent;
+  them yields a partial gate, and the receipt's `missing_inputs` says which;
 - native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`,
   `tools/verify_native_tape.py`, `tools/verify_native_route.py`) and anything
   visual: their ledgers own those runs;
