@@ -1,0 +1,59 @@
+{
+  "conary": "note v1",
+  "change": "3tf8qeyfna70gc4e7wn9k9cx0z",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 233,
+  "url": "https://github.com/tusanhomichi/psiv/pull/233",
+  "summary": "test_tree_rss: hold the child by handshake, not a sleep (#232)",
+  "task": "tusanhomichi/psiv#232",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "3545c2020d89836d95fd826930b5ee3dfdb0d7c2e728f30259e8d115b4258c66",
+    "before": "a7d503693bbb849e6bca7834e6765ba409a0bd75",
+    "after": "625f1eeaa6b7f114ca5c44df572771137738ce7d",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793539873306
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/233#pullrequestreview-5692608411"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40814090588/job/123250983790"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/233#pullrequestreview-5693874845"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/233#pullrequestreview-5728264446"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
