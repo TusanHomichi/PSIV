@@ -1,0 +1,95 @@
+{
+  "conary": "note v1",
+  "change": "5mnwf319z9d7meb0yw5dex8wjs",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 242,
+  "url": "https://github.com/tusanhomichi/psiv/pull/242",
+  "summary": "replay: read battle records from the local pack, not a tracked copy (#149)",
+  "task": "tusanhomichi/psiv#149",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "16ef24975f6bff3d63218ad76c7ae39989d7cc11e44bdc4ea16c518ec4c8c79b",
+    "before": "625f1eeaa6b7f114ca5c44df572771137738ce7d",
+    "after": "6c91b80219ddddcb8cecd494f2ba5418491b0861",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793545797616
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/242#pullrequestreview-5704744373"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/40951651359/job/123721043930"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/242#pullrequestreview-5728264599"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870/job/124885673936"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#242)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#242)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#242)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#242)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#242)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41319222870"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/242#pullrequestreview-5728741417"
+    }
+  ]
+}
