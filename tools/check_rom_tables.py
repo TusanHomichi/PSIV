@@ -82,6 +82,8 @@ NAME_WORDS = 3
 
 #: A tile's rows: string literals of exactly eight characters.
 TILE_LITERAL = re.compile(r""""([^"\\\n]{8})"|'([^'\\\n]{8})'""")
+#: A row that reads as a numbered name: letters, then its number.
+NUMBERED_NAME = re.compile(r"([A-Za-z]+)\d+")
 #: What may sit between two rows of one tile.
 TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
 #: How far above a tile its `synthetic` comment may be.
@@ -148,12 +150,24 @@ class Records:
         return found
 
 
+def numbered_names(rows: list[str]) -> bool:
+    """Whether `rows` count through one name (`Name1`, `Name2`, ...): a list of
+    symbols the width of a tile's rows, not a picture."""
+    names = [NUMBERED_NAME.fullmatch(row) for row in rows]
+    return (
+        all(names)
+        and len({name.group(1) for name in names}) == 1
+        and len(set(rows)) == len(rows)
+    )
+
+
 def tiles_in(text: str) -> list[int]:
     """The first line of every pixel-string tile `text` holds, synthetic ones
     excluded."""
     lines = text.splitlines()
     found = []
     run, start, previous = 0, 0, None
+    rows: list[str] = []
     for match in TILE_LITERAL.finditer(text):
         row = match.group(1) or match.group(2)
         if " " in row or len(set(row)) > 16:
@@ -162,9 +176,12 @@ def tiles_in(text: str) -> list[int]:
         if run and TILE_SEPARATOR.fullmatch(text, previous, match.start()):
             run += 1
         else:
-            run, start = 1, match.start()
+            run, start, rows = 1, match.start(), []
+        rows.append(row)
         previous = match.end()
-        if run == 8:
+        if run == 8 and numbered_names(rows):
+            run, previous = 0, None
+        elif run == 8:
             line = text.count("\n", 0, start) + 1
             above = lines[max(0, line - 1 - MARKER_LINES):line]
             if not any("synthetic" in text_line.lower() for text_line in above):

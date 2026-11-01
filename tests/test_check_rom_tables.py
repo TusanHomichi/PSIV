@@ -137,6 +137,20 @@ class Tiles(unittest.TestCase):
         far = "// A synthetic map.\n" + "\n" * MARKER_LINES + literal_block(ROWS)
         self.assertEqual(len(tiles_in(far)), 1, "a marker past the window does not count")
 
+    def test_a_numbered_name_list_is_not_a_tile(self):
+        names = [f"SYMBOL{n:02}" for n in range(1, 9)]
+        self.assertEqual(tiles_in(literal_block(names)), [])
+        self.assertEqual(tiles_in(literal_block([f"SYMBOL{n:02}" for n in range(1, 13)])), [],
+                         "past eight names")
+
+    def test_a_tile_that_only_looks_numbered_still_fails(self):
+        repeated = ["SYMBOL01"] * 8
+        self.assertEqual(len(tiles_in(literal_block(repeated))), 1, "a repeated row")
+        prefixes = [f"{letter * 6}{n:02}" for n, letter in enumerate("ABABABAB")]
+        self.assertEqual(len(tiles_in(literal_block(prefixes))), 1, "letters that change")
+        after = [f"SYMBOL{n:02}" for n in range(1, 9)] + ROWS
+        self.assertEqual(len(tiles_in(literal_block(after))), 1, "a tile right after a list")
+
     def test_shapes_that_are_not_a_tile_pass(self):
         self.assertEqual(tiles_in(literal_block(ROWS[:7])), [], "seven rows")
         spaced = [row[:3] + " " + row[4:] for row in ROWS]
