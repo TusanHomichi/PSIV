@@ -9,6 +9,10 @@ use crate::scene::SceneOp;
 use crate::scenes::FlightLeg;
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
+/// How many ops one tick may execute before the runner assumes the script is
+/// looping and faults. Generous for real scenes, finite for broken ones.
+pub const OP_BUDGET_PER_TICK: usize = 1024;
+
 /// Which coordinate a comparison reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Axis {

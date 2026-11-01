@@ -264,7 +264,7 @@ const fn line(entry: u16) -> SceneOp {
 }
 
 const fn board(step: JobBoardStep) -> SceneOp {
-    SceneOp::JobBoard { step }
+    SceneOp::JobBoard(step)
 }
 
 const HOLD: SceneOp = board(JobBoardStep::Hold);

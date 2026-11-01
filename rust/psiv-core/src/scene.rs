@@ -18,13 +18,9 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep, SavedByte,
-    SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
-
-/// How many ops one tick may execute before the runner assumes the script is
-/// looping and faults. Generous for real scenes, finite for broken ones.
-pub const OP_BUDGET_PER_TICK: usize = 1024;
 
 /// One instruction of a scene.
 ///
@@ -988,10 +984,7 @@ pub enum SceneOp {
     /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
-    JobBoard {
-        /// Which.
-        step: JobBoardStep,
-    },
+    JobBoard(JobBoardStep),
     /// Unconditional jump.
     Jump {
         /// Op index.

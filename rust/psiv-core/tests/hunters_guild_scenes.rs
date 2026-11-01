@@ -202,7 +202,7 @@ fn play(
                 } => tree = rom_addr,
                 SceneEffect::ChoiceRequested => input = SceneInput::Choice(yes),
                 SceneEffect::Presentation {
-                    op: SceneOp::JobBoard { step },
+                    op: SceneOp::JobBoard(step),
                 } => {
                     steps.push(step);
                     input = match step {
@@ -359,7 +359,7 @@ fn only_the_hold_runs_map_updates() {
             match effect {
                 SceneEffect::DialogueOpen(_) => input = SceneInput::DialogueEnded,
                 SceneEffect::Presentation {
-                    op: SceneOp::JobBoard { step },
+                    op: SceneOp::JobBoard(step),
                 } => match step {
                     JobBoardStep::Hold | JobBoardStep::ShowList | JobBoardStep::Linger => {
                         seen.push((step, runner.runs_map_updates()));

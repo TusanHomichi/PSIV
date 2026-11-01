@@ -869,7 +869,7 @@ impl SceneRunner {
                     return Some(fault);
                 }
             }
-            SceneOp::JobBoard { step } => {
+            SceneOp::JobBoard(step) => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 use crate::scene::JobBoardStep as Step;
