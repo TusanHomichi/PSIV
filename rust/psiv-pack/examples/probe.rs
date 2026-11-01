@@ -90,6 +90,19 @@ fn map_effects(data: &[u8], maps: &ExtractedMaps) -> Result<Json, psiv_pack::Pac
         .with("census", effects.census))
 }
 
+/// `extract_map_updates`'s document, its per-map table as `[id, entries]` rows.
+fn map_updates(data: &[u8], maps: &ExtractedMaps) -> Result<Json, psiv_pack::PackError> {
+    let updates = psiv_pack::maps::updates::extract_map_updates(data, maps.real())?;
+    let per_map: Vec<Json> = updates
+        .per_map
+        .into_iter()
+        .map(|(id, entries)| Json::Array(vec![Json::from(id), Json::from(entries)]))
+        .collect();
+    Ok(Json::object()
+        .with("per_map", per_map)
+        .with("census", updates.census))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [rom] = args.as_slice() else {
@@ -125,6 +138,7 @@ fn main() {
             .with("cram", cram)
             .with("layouts", layouts(rom.bytes(), &decodes, &maps)?)
             .with("map_effects", map_effects(rom.bytes(), &maps)?)
+            .with("map_updates", map_updates(rom.bytes(), &maps)?)
             .with("maps", maps.to_json(rom.bytes()))
             .with("warp_rects", rects)
             .with("names", psiv_pack::text::extract_names(rom.bytes())?))

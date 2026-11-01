@@ -2,9 +2,10 @@
 //! the port of `psiv_tools/maps/` (#216, slice 3). [`extract_maps`] walks all
 //! 417 pointer-table entries. [`layouts`] decodes a record's layout section,
 //! [`overworld`] the two world maps' paged planes, and [`draw`] renders
-//! either. [`effects`] decodes the routines that patch a map as it loads. No
-//! claimed section writes these yet, so the gate holds them to Python as the
-//! `maps`, `layouts` and `map_effects` probes (`examples/probe.rs`).
+//! either. [`effects`] decodes the routines that patch a map as it loads, and
+//! [`updates`] the ones that animate it. No claimed section writes these yet, so
+//! the gate holds them to Python as the `maps`, `layouts`, `map_effects` and
+//! `map_updates` probes (`examples/probe.rs`).
 
 pub mod draw;
 pub mod effects;
@@ -12,6 +13,7 @@ pub mod encounters;
 pub mod layouts;
 pub mod overworld;
 pub mod records;
+pub mod updates;
 
 use std::collections::BTreeSet;
 

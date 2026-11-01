@@ -143,6 +143,15 @@ def _probe_map_effects(rom: bytes):
     return effects
 
 
+def _probe_map_updates(rom: bytes):
+    """`extract_map_updates`'s document, its per-map table as `[id, entries]`
+    rows."""
+    from psiv_tools.map_updates import extract_map_updates
+    updates = dict(extract_map_updates(rom, _probe_maps(rom)["maps"]))
+    updates["per_map"] = [[map_id, updates["per_map"][map_id]] for map_id in sorted(updates["per_map"])]
+    return updates
+
+
 def _probe_warp_rects(rom: bytes):
     from psiv_tools.warps import PackError, warp_rect
     rects = []
@@ -159,7 +168,7 @@ def _probe_warp_rects(rom: bytes):
 #: The ported extractors no claimed section writes yet, by the key
 #: `examples/probe.rs` prints each under: the Python side of the probe.
 PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "map_effects": _probe_map_effects,
-          "maps": _probe_maps,
+          "map_updates": _probe_map_updates, "maps": _probe_maps,
           "names": _probe_names, "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
