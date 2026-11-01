@@ -330,6 +330,36 @@ class BehindMainCase(ScratchRepo):
         self.assertEqual(self.ran()["head"], merged)
         self.assertTrue(said.startswith(f"**Full gate on {merged[:12]}: passed, in "), said)
 
+    def main_moves_while_it_waits(self, commit):
+        """A run on commit started while the lock is held, then main moves on
+        to a commit whose worktree and input tools both fail: the run uses the
+        main it started with throughout."""
+        with open(self.tmp / "gate.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            process = self.start(self.gate(missing=[]), commit=commit)
+            time.sleep(1)
+            self.assertIsNone(process.poll())
+            for tool in ("gate_worktree.py", "local_inputs.py"):
+                self.advance_main(f"tools/{tool}", BROKEN_TOOL)
+            fcntl.flock(held, fcntl.LOCK_UN)
+            output, _ = process.communicate(timeout=120)
+        return process.returncode, self.summary_file.read_text(), output
+
+    def test_a_head_behind_main_uses_one_main_though_the_ref_moves_while_it_waits(self):
+        main = self.advance_main("main.txt", "main's own change\n")
+        code, said, output = self.main_moves_while_it_waits(self.head)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(git(self.gate_dir, "rev-list", "--parents", "-n", "1", self.ran()["head"]).split()[1:],
+                         [self.head, main])
+        self.assertTrue(said.startswith(f"**Full gate on {self.head[:12]} merged with main at {main[:12]}: "
+                                        "passed, in "), said)
+
+    def test_a_head_that_has_main_uses_one_main_though_the_ref_moves_while_it_waits(self):
+        code, said, output = self.main_moves_while_it_waits(self.head)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.ran()["head"], self.head)
+        self.assertTrue(said.startswith(f"**Full gate on {self.head[:12]}: passed, in "), said)
+
     def test_a_head_that_conflicts_with_main_fails_before_the_gate(self):
         main = self.advance_main("change.txt", "main's own change.txt\n")
         code, said, _ = self.run_pr_gate(self.gate(missing=[]))

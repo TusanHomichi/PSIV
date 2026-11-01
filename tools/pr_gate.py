@@ -90,7 +90,9 @@ EXIT_NOT_STARTED = 127
 #: A step that couldn't be run, or stopped, in its scope.
 EXIT_UNSUPERVISED = 126
 
-#: The ref whose copies of the worktree and input tools run, whatever COMMIT is.
+#: The ref whose copies of the worktree and input tools run, whatever COMMIT
+#: is: resolved once, when a run starts, and that one revision is "main" for
+#: every step.
 TOOLS_FROM = "origin/main"
 
 #: Where the gate writes its receipts, relative to the worktree's root
@@ -167,9 +169,9 @@ def head_of(worktree: Path) -> str:
                           text=True, check=True).stdout.strip()
 
 
-def main_copy(here: Path, tool: str) -> str:
-    """The source of `tool` as TOOLS_FROM has it."""
-    shown = subprocess.run(["git", "show", f"{TOOLS_FROM}:tools/{tool}"], cwd=here,
+def main_copy(here: Path, main: str, tool: str) -> str:
+    """The source of `tool` as main, TOOLS_FROM resolved once, has it."""
+    shown = subprocess.run(["git", "show", f"{main}:tools/{tool}"], cwd=here,
                            capture_output=True, text=True, check=False)
     if shown.returncode != 0:
         raise StepFailed(f"{TOOLS_FROM}'s `tools/{tool}` can't be read here")
@@ -273,9 +275,9 @@ def run_step(command: list[str], cwd: Path, scope: str, source: str | None = Non
         shutil.rmtree(marks, ignore_errors=True)
 
 
-def run_main_copy(here: Path, cwd: Path, scope: str, tool: str, *args: str) -> int:
+def run_main_copy(here: Path, main: str, cwd: Path, scope: str, tool: str, *args: str) -> int:
     """main's copy of `tool`, run on stdin with `args` in cwd, as a step."""
-    return run_step([sys.executable, "-", *args], cwd, scope, source=main_copy(here, tool))
+    return run_step([sys.executable, "-", *args], cwd, scope, source=main_copy(here, main, tool))
 
 
 def read_receipt(path: Path, commit: str) -> dict | None:
@@ -356,6 +358,9 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
     full = resolve(here, commit)
     if full is None:
         return EXIT_FAILED, summary(commit, None, "failed before it ran: the commit isn't in this checkout")
+    # One main for the whole run: the tools, the ancestry check, the merge and
+    # the summary. A fetch that moves the ref while this waits for the lock
+    # changes none of them, so the tools never meet a tree from another main.
     main = resolve(here, TOOLS_FROM)
     if main is None:
         return EXIT_FAILED, summary(full, None, f"failed before it ran: {TOOLS_FROM} isn't in this checkout")
@@ -371,7 +376,7 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
             # What a run killed outright left running.
             stop_scope(scope)
             try:
-                if run_main_copy(here, here, scope, "gate_worktree.py", str(worktree), full) != 0:
+                if run_main_copy(here, main, here, scope, "gate_worktree.py", str(worktree), full) != 0:
                     raise StepFailed("the gate's worktree couldn't be prepared")
                 if behind and run_step(["git", *MERGER, "merge", "--quiet", "--no-ff", "--no-edit", "-m",
                                         f"pr gate: {full[:12]} merged with main at {main[:12]}", main],
@@ -381,7 +386,7 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
                     run_step(["git", "merge", "--abort"], worktree, scope)
                     raise StepFailed(f"it doesn't merge cleanly with main at {main[:12]}; "
                                      "merge main into the branch")
-                if run_main_copy(here, worktree, scope, "local_inputs.py", "link") != 0:
+                if run_main_copy(here, main, worktree, scope, "local_inputs.py", "link") != 0:
                     raise StepFailed("the local inputs couldn't be prepared")
             except StepFailed as error:
                 return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}", behind)
