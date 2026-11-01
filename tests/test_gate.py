@@ -39,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
 
 (DOCS_COMMAND, UNITTEST_COMMAND, FMT_COMMAND, CARGO_TEST_COMMAND, CLIPPY_COMMAND,
- PARITY_COMMAND) = GATE_COMMANDS
+ PARITY_COMMAND, CERTIFY_COMMAND) = GATE_COMMANDS
 FAST_UNITTEST_COMMAND = FAST_COMMANDS[3]
 
 # Captured: `python3 -m unittest gate_sample_skip` (build/lane-evidence/capture/
@@ -172,6 +172,11 @@ class DocAgreementCase(unittest.TestCase):
             self.assertIn(command, block)
         self.assertEqual(block, GATE_COMMANDS)
 
+    def test_the_full_gate_certifies_and_the_fast_tier_does_not(self):
+        # #269: a pair drifted for three days because no merge ran certify.
+        self.assertEqual(CERTIFY_COMMAND, "nix develop --command python3 tools/certify.py")
+        self.assertNotIn(CERTIFY_COMMAND, FAST_COMMANDS)
+
     def test_fast_commands_are_the_second_run_checks_block(self):
         blocks = run_checks_blocks(DEVELOPMENT.read_text())
         self.assertGreaterEqual(len(blocks), 2, "no fast-tier block under `## Run checks`")
@@ -212,6 +217,7 @@ class UnitCase(unittest.TestCase):
         python_suite = slugs.pop(1)
         self.assertTrue(python_suite.startswith("python3-tools-py_suite"), python_suite)
         self.assertTrue(python_suite.endswith(".py"), python_suite)
+        self.assertEqual(slugs.pop(), "nix-develop")  # certify, through the dev shell
         parity = slugs.pop()
         self.assertEqual(parity, "python3-tools-pack_parity" + ".py")
         self.assertEqual(slugs, ["python3-tools-check_docs.py", "cargo-fmt", "cargo-test",

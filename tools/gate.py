@@ -78,6 +78,13 @@ EXIT_FAILED = 1
 EXIT_REFUSED = 2
 
 #: docs/DEVELOPMENT.md's `## Run checks` block, in order, verbatim.
+#: The last gate step: the certified pixel pairs, through the dev shell because
+#: that is what holds the pinned Godot and Xvfb the pairs are defined against.
+#: Certify takes the heavy lock by class, a nested no-op under the gate's
+#: exclusive hold, and a failing pair exits 1 (#269: camp-root sat at 5.071417
+#: for three days because no merge ran it).
+CERTIFY_COMMAND = "nix develop --command python3 tools/certify.py"
+
 GATE_COMMANDS = [
     "python3 tools/check_docs.py",
     "PYTHONPATH=. python3 tools/py_suite.py",
@@ -85,6 +92,7 @@ GATE_COMMANDS = [
     "cargo test --manifest-path rust/Cargo.toml --workspace",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     "python3 tools/pack_parity.py",
+    CERTIFY_COMMAND,
 ]
 
 #: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's
