@@ -89,13 +89,16 @@ fn refuse<T>(message: impl Into<String>) -> Result<T, PackError> {
 
 /// `dispatch_table`: from `RunMapUpdates`, not the fork's build addresses.
 fn dispatch_table(rom: &[u8]) -> Result<usize, PackError> {
-    let hits: Vec<usize> = (0..rom.len().saturating_sub(12))
-        .filter(|&at| {
-            rom[at..at + 2] == [0x43, 0xF9]
-                && rom[at + 6..at + 10] == [0x4E, 0xB1, 0x00, 0x00]
-                && rom[at + 10] == 0x66
-                && rom[at + 12..at + 14] == [0x60, 0x00]
+    let hits: Vec<usize> = rom
+        .windows(14)
+        .enumerate()
+        .filter(|(_, window)| {
+            window[..2] == [0x43, 0xF9]
+                && window[6..10] == [0x4E, 0xB1, 0x00, 0x00]
+                && window[10] == 0x66
+                && window[12..14] == [0x60, 0x00]
         })
+        .map(|(at, _)| at)
         .collect();
     let [hit] = hits.as_slice() else {
         return refuse(format!(
@@ -526,6 +529,29 @@ mod tests {
     fn a_rom_without_the_dispatcher_is_refused() {
         let error = dispatch_table(&[0; 64]).unwrap_err();
         assert!(error.0.contains("occurs 0 times"), "{}", error.0);
+    }
+
+    #[test]
+    fn only_a_whole_dispatcher_counts_wherever_the_image_ends() {
+        const WHOLE: [u8; 14] = [
+            0x43, 0xF9, 0, 0, 0, 0, 0x4E, 0xB1, 0x00, 0x00, 0x66, 0x02, 0x60, 0x00,
+        ];
+        let absent = |rom: &[u8]| {
+            let error = dispatch_table(rom).unwrap_err();
+            assert!(error.0.contains("occurs 0 times"), "{}", error.0);
+        };
+        absent(&[]);
+        // Every incomplete suffix, at the very end of the image.
+        for length in 1..WHOLE.len() {
+            absent(&WHOLE[..length]);
+            absent(&[&[0; 8], &WHOLE[..length]].concat());
+        }
+        // A complete one at the last offset is found: the table it names, at
+        // 0, then fails for not being one.
+        let error = dispatch_table(&WHOLE).unwrap_err();
+        assert!(!error.0.contains("occurs"), "{}", error.0);
+        let error = dispatch_table(&[&[0; 8], &WHOLE[..]].concat()).unwrap_err();
+        assert!(!error.0.contains("occurs"), "{}", error.0);
     }
 
     #[test]
