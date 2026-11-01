@@ -86,6 +86,8 @@ NAME_WORDS = 3
 TILE_LITERAL = re.compile(r""""([^"\\\n]{8})"|'([^'\\\n]{8})'""")
 #: A row that reads as a numbered name: letters, then its number.
 NUMBERED_NAME = re.compile(r"([A-Za-z]+)\d+")
+#: A row that reads as a hexadecimal number: an offset or an address.
+HEX_NUMBER = re.compile(r"0x[0-9A-Fa-f]{6}")
 #: What may sit between two rows of one tile.
 TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
 #: The synthetic pictures the tree may hold, by `tile_digest`: test maps of walls
@@ -159,8 +161,10 @@ class Records:
 
 
 def numbered_names(rows: list[str]) -> bool:
-    """Whether `rows` count through one name (`Name1`, `Name2`, ...): a list of
-    symbols the width of a tile's rows, not a picture."""
+    """Whether `rows` count through one name (`Name1`, `Name2`, ...) or are all
+    hexadecimal numbers: a list the width of a tile's rows, not a picture."""
+    if all(HEX_NUMBER.fullmatch(row) for row in rows):
+        return True
     names = [NUMBERED_NAME.fullmatch(row) for row in rows]
     return (
         all(names)

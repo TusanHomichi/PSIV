@@ -172,6 +172,13 @@ class Tiles(unittest.TestCase):
         self.assertEqual(tiles_in(literal_block([f"SYMBOL{n:02}" for n in range(1, 13)])), [],
                          "past eight names")
 
+    def test_a_list_of_offsets_is_not_a_tile(self):
+        offsets = [f"0x{0xD526 + n * 16:06X}" for n in range(8)]
+        self.assertEqual(tiles_in(literal_block(offsets)), [])
+        self.assertEqual(len(tiles_in(literal_block(offsets[:7] + ["KKKKKKKK"]))), 1,
+                         "one row that is no number")
+        self.assertEqual(len(tiles_in(literal_block(offsets + ROWS))), 1, "a tile after them")
+
     def test_a_tile_that_only_looks_numbered_still_fails(self):
         repeated = ["SYMBOL01"] * 8
         self.assertEqual(len(tiles_in(literal_block(repeated))), 1, "a repeated row")
