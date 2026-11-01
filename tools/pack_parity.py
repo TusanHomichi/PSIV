@@ -16,7 +16,8 @@ release and checks it against the Python builder from the same ROM:
    byte-identical bytes, or for a PNG the same `image_sha256` (its decoded
    content: zlib implementations deflate alike rows differently,
    `psiv_tools/png.py`). A claim the Python pack lacks fails, and so does a
-   file `psiv-pack` writes outside its claims. With no claims, the Python
+   file `psiv-pack` writes outside its claims. A claim names a file, a
+   directory, or with a `*` the matching files directly in a directory. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
    installed directory holding no link and nothing outside the claims.
 3. The probes: ported extractors that no claimed section writes yet
@@ -46,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import fnmatch
 import functools
 import hashlib
 import json
@@ -100,16 +102,59 @@ def _probe_maps(rom: bytes):
     return extract_maps(rom)
 
 
+def _probe_map_pictures(rom, record, decoded, overworld, palette, image, overlay, effects, updates):
+    """`build_pack`'s picture work for one map, as the JSON it hands the map
+    file. The PNGs themselves are claimed; `resolve_palette_effects` needs the
+    sprites, so it joins this with them."""
+    from psiv_tools.map_patches import (atlas_json, index_overworld_patches, index_writes,
+                                        patch_atlas, resolve_map_effects,
+                                        resolve_overworld_patches, scene_patch_chunks)
+    from psiv_tools.map_updates_render import bind_updates
+    from psiv_tools.pack import layout_variants
+    stem = f"{record['id']:03X}_{record['symbol']}"
+    with tempfile.TemporaryDirectory(prefix="psiv-probe-") as scratch:
+        directory = Path(scratch)
+        (directory / "maps").mkdir()
+        replacements = [r for r in effects["replacements"] if r["map"] == record["id"]]
+        variants = layout_variants(rom, record, decoded, replacements, directory, stem)
+        map_effects, written, counts = resolve_map_effects(
+            decoded, effects["per_map"].get(record["id"], []))
+        patches, pairs = resolve_overworld_patches(decoded, overworld)
+        scene = scene_patch_chunks(rom, record)
+        chunks = sorted(set(written) | set(scene))
+        patch_tiles = None
+        if chunks or pairs:
+            base, over, entries = patch_atlas(decoded, chunks, palette, pairs)
+            index_writes(map_effects, entries)
+            index_overworld_patches(patches, entries)
+            base_name, over_name = f"maps/{stem}_patch.png", f"maps/{stem}_patch_over.png"
+            (directory / base_name).write_bytes(base)
+            if over is not None:
+                (directory / over_name).write_bytes(over)
+            patch_tiles = atlas_json(entries, base_name, base,
+                                     over_name if over is not None else None, over)
+        payload = {"png": f"maps/{stem}.png", "png_over": f"maps/{stem}_over.png",
+                   "layout_variants": variants, "patch_tiles": patch_tiles}
+        bind_updates(rom, record, payload, directory, image, overlay, updates)
+    return {"map_effects": map_effects, "patch_counts": counts, "overworld_patches": patches,
+            "scene_chunks": scene, "variants": variants, "patch_tiles": patch_tiles,
+            "update_images": payload.get("map_update_images")}
+
+
 def _probe_layouts(rom: bytes):
     """Every real map, as the pack decodes and renders it; a render is held by
     its decoded image. For a world map, also its format facts, its patches, and
     for each cell a write touches the patches that open it."""
     from psiv_tools.layouts import chunk_palette, render_layout
+    from psiv_tools.map_effects import extract_map_effects
+    from psiv_tools.map_updates import extract_map_updates
     from psiv_tools.overworld import check_code_sites, opening_patches
     from psiv_tools.pack_layouts import decode_map_section, unloaded_patterns
     from psiv_tools.render import priority_overlay
+    maps = _probe_maps(rom)["maps"]
+    effects, updates = extract_map_effects(rom, maps), extract_map_updates(rom, maps)
     out = []
-    for record in _probe_maps(rom)["maps"]:
+    for record in maps:
         if record.get("is_null"):
             continue
         decoded, anomalies, overworld = decode_map_section(rom, record)
@@ -121,7 +166,9 @@ def _probe_layouts(rom: bytes):
                  "unloaded_patterns": unloaded_patterns(decoded),
                  "png_sha256": image_sha256(image),
                  "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
-                 "priority": priority}
+                 "priority": priority,
+                 "pictures": _probe_map_pictures(rom, record, decoded, overworld, palette, image,
+                                                 overlay, effects, updates)}
         if overworld is not None:
             entry["overworld"] = overworld.to_json()
             entry["patches"] = [patch.to_json() for patch in overworld.patches]
@@ -188,7 +235,15 @@ def _files(root: Path) -> dict[str, Path]:
 
 
 def _under(relative: str, claim: str) -> bool:
+    """A claim names a file, a directory and everything in it, or, with a `*`
+    in its last part (`maps/*.png`), the matching files directly in a directory."""
+    if "*" in claim:
+        return fnmatch.fnmatchcase(relative, claim) and relative.count("/") == claim.count("/")
     return relative == claim or relative.startswith(claim.rstrip("/") + "/")
+
+
+def _claim_exists(root: Path, claim: str) -> bool:
+    return any(root.glob(claim)) if "*" in claim else (root / claim).exists()
 
 
 def check_output(rust_root: Path, claims: list[str]) -> list[str]:
@@ -213,7 +268,7 @@ def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list
     rust = _files(rust_root)
     python = _files(python_root)
     for claim in claims:
-        if not (python_root / claim).exists():
+        if not _claim_exists(python_root, claim):
             problems.append(f"claim {claim}: the Python pack has no such path")
     claimed = sorted({relative for relative in [*rust, *python]
                       if any(_under(relative, claim) for claim in claims)})
