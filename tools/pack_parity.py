@@ -16,10 +16,20 @@ release and checks it against the Python builder from the same ROM:
    byte-identical bytes, or for a PNG the same `image_sha256` (its decoded
    content: zlib implementations deflate alike rows differently,
    `psiv_tools/png.py`). A claim the Python pack lacks fails, and so does a
-   file `psiv-pack` writes outside its claims. With no claims, the Python
+   file `psiv-pack` writes outside its claims. A claim names a file, a
+   directory, or with a `*` the matching files directly in a directory. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
    installed directory holding no link and nothing outside the claims.
-3. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
+3. The probes: ported extractors that no claimed section writes yet
+   (`examples/probe.rs`, `PROBES` here) print their records as one JSON
+   document, which must match the Python extractors' byte for byte.
+4. The decoders: every Nemesis, Kosinski and Enigma call a full Python build
+   attempts, refused ones included, is listed, by decoder, offset and arguments, in the census
+   (`rust/psiv-pack/tests/fixtures/decode_census.json`, written by
+   `--write-census`). Both decode every listed stream from the ROM; each
+   output (by SHA-256) and consumed length must agree, and both must refuse
+   the same calls. psiv-pack's decode time is printed beside Python's.
+5. `psiv-pack`'s run: one `progress <done>/<total> <section>` line per
    section, then `installed <pack>`, exit 0. Its wall time is printed with
    the CPU clock and load, the number each port PR records.
 
@@ -37,6 +47,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+import fnmatch
+import functools
+import hashlib
 import json
 import os
 import random
@@ -54,13 +67,152 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from heavy_lock import BUILD, PACK, hold_heavy_lock  # noqa: E402
+from psiv_tools import decode_cache  # noqa: E402
 from psiv_tools.png import encode_indexed, encode_rgb, image_sha256  # noqa: E402
 from tree_rss import cpu_mhz, load_1m  # noqa: E402
 
 DEFAULT_ROM = ROOT / "Phantasy Star IV (USA).md"
 FIXTURE = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "harness.json"
 BINARY = ROOT / "rust" / "target" / "release" / ("psiv-pack.exe" if os.name == "nt" else "psiv-pack")
-CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack"]
+PROBE_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "probe")
+CENSUS = ROOT / "rust" / "psiv-pack" / "tests" / "fixtures" / "decode_census.json"
+CENSUS_BINARY = BINARY.parent / "examples" / BINARY.name.replace("psiv-pack", "decode_census")
+CARGO_BUILD = ["cargo", "build", "--release", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack",
+               "--bins", "--example", "probe", "--example", "decode_census"]
+#: The memoized decoders a census records, by `decode_cache` name. Any other
+#: memoized function in a build (a section's own cache) is not a decompressor.
+DECODERS = {"psiv_tools.nemesis.decompress": "nemesis",
+            "psiv_tools.kosinski.decompress": "kosinski",
+            "psiv_tools.enigma.decompress": "enigma"}
+
+
+def _probe_names(rom: bytes):
+    from psiv_tools.text import extract_names
+    return extract_names(rom)
+
+
+def _probe_cram(rom: bytes):
+    from psiv_tools.gfx import decode_color
+    return [decode_color(word) for word in [*range(0x1000), 0xF000]]
+
+
+@functools.lru_cache(maxsize=1)
+def _probe_maps(rom: bytes):
+    from psiv_tools.maps import extract_maps
+    return extract_maps(rom)
+
+
+def _probe_layouts(rom: bytes):
+    """Every real map, as the pack decodes and renders it; a render is held by
+    its decoded image. For a world map, also its format facts, its patches, and
+    for each cell a write touches the patches that open it."""
+    from psiv_tools.layouts import chunk_palette, render_layout
+    from psiv_tools.map_effects import extract_map_effects
+    from psiv_tools.map_patches import resolve_map_effects, scene_patch_chunks
+    from psiv_tools.overworld import check_code_sites, opening_patches
+    from psiv_tools.pack_layouts import decode_map_section, unloaded_patterns
+    from psiv_tools.pack_map_json import _warps
+    from psiv_tools.render import priority_overlay
+    effects = extract_map_effects(rom, _probe_maps(rom)["maps"])
+    out = []
+    for record in _probe_maps(rom)["maps"]:
+        if record.get("is_null"):
+            continue
+        decoded, anomalies, overworld = decode_map_section(rom, record)
+        palette = chunk_palette(rom, decoded.spec.palette)
+        image = render_layout(decoded.chunks, decoded.bg, decoded.patterns, palette,
+                              overlay=decoded.fg)
+        overlay, priority = priority_overlay(decoded, palette)
+        entry = {"id": record["id"], "layout": decoded.to_json(), "anomalies": anomalies,
+                 "unloaded_patterns": unloaded_patterns(decoded),
+                 "png_sha256": image_sha256(image),
+                 "png_over_sha256": image_sha256(overlay) if overlay is not None else None,
+                 "priority": priority,
+                 "patch_counts": resolve_map_effects(
+                     decoded, effects["per_map"].get(record["id"], []))[2],
+                 "scene_chunks": scene_patch_chunks(rom, record),
+                 "warp_anomalies": _warps(record, decoded.collision)[1]}
+        if overworld is not None:
+            entry["overworld"] = overworld.to_json()
+            entry["patches"] = [patch.to_json() for patch in overworld.patches]
+            entry["opening"] = [
+                [f"0x{patch.routine:06X}" for patch in opening_patches(overworld, [
+                    (write.chunk_x * 2 + (i & 1), write.chunk_y * 2 + (i >> 1))])]
+                for patch in overworld.patches for write in patch.writes for i in range(4)]
+            entry["code_sites"] = check_code_sites(rom)
+        out.append(entry)
+    return out
+
+
+def _probe_map_effects(rom: bytes):
+    """`extract_map_effects`'s document, its per-map table as `[id, entries]`
+    rows: JSON object keys would sort as text on the Rust side."""
+    from psiv_tools.map_effects import extract_map_effects
+    effects = dict(extract_map_effects(rom, _probe_maps(rom)["maps"]))
+    effects["per_map"] = [[map_id, effects["per_map"][map_id]] for map_id in sorted(effects["per_map"])]
+    return effects
+
+
+def _probe_map_updates(rom: bytes):
+    """`extract_map_updates`'s document, its per-map table as `[id, entries]`
+    rows."""
+    from psiv_tools.map_updates import extract_map_updates
+    updates = dict(extract_map_updates(rom, _probe_maps(rom)["maps"]))
+    updates["per_map"] = [[map_id, updates["per_map"][map_id]] for map_id in sorted(updates["per_map"])]
+    return updates
+
+
+def _probe_map_sprites(rom: bytes):
+    """What `build_pack`'s sprite work hands the manifest, per map."""
+    import copy
+    from psiv_tools.chest_sprites import bind_chest_sprites
+    from psiv_tools.gfx import palette_rgb
+    from psiv_tools.layouts import decode_map_palette
+    from psiv_tools.map_effects import extract_map_effects
+    from psiv_tools.map_patches import resolve_palette_effects
+    from psiv_tools.pack_layouts import decode_map_section
+    from psiv_tools.pack_map_json import _treasure_chests
+    from psiv_tools.sprites import SpriteCensus, facing_table_extents, scan_field_objects
+    from psiv_tools.sprites.emit import NPC_SPRITES_DIRECTORY, SheetRegistry, resolve_map_sprites
+    maps = _probe_maps(rom)["maps"]
+    effects = extract_map_effects(rom, maps)
+    routines = scan_field_objects(rom)
+    extents = facing_table_extents(routines)
+    registry, census = SheetRegistry(NPC_SPRITES_DIRECTORY), SpriteCensus()
+    per_map = []
+    for record in maps:
+        if record.get("is_null"):
+            continue
+        decoded, _, _ = decode_map_section(rom, record)
+        sprites, artless = resolve_map_sprites(rom, record, decoded, routines, extents, registry, census)
+        palette = palette_rgb(decode_map_palette(rom, decoded.spec.palette))
+        map_effects = copy.deepcopy(effects["per_map"].get(record["id"], []))
+        totals = resolve_palette_effects(rom, record, decoded, map_effects, sprites, routines, extents,
+                                         registry, census, palette,
+                                         int(effects["census"]["jump_table"], 16))
+        bind_chest_sprites(rom, _treasure_chests(record), palette, record["general_var"], registry)
+        per_map.append({"id": record["id"], "artless": artless, "palette_totals": totals})
+    return {"per_map": per_map, "census": census.to_json()}
+
+
+def _probe_warp_rects(rom: bytes):
+    from psiv_tools.warps import PackError, warp_rect
+    rects = []
+    for range_id in range(16):
+        for x, y in ((0, 0), (3, 2), (40, 60), (200, 200)):
+            try:
+                rect = warp_rect(range_id, x, y, 64, 72)
+                rects.append(rect.to_json() if rect is not None else None)
+            except PackError as error:
+                rects.append(str(error))
+    return rects
+
+
+#: The ported extractors no claimed section writes yet, by the key
+#: `examples/probe.rs` prints each under: the Python side of the probe.
+PROBES = {"cram": _probe_cram, "layouts": _probe_layouts, "map_effects": _probe_map_effects,
+          "map_sprites": _probe_map_sprites, "map_updates": _probe_map_updates, "maps": _probe_maps,
+          "names": _probe_names, "warp_rects": _probe_warp_rects}
 PYTHON_PREFIX = "psiv-tools: error: "
 RUST_PREFIX = "psiv-pack: error: "
 PROGRESS = re.compile(r"\Aprogress (\d+)/(\d+) (\S+)\Z")
@@ -79,7 +231,15 @@ def _files(root: Path) -> dict[str, Path]:
 
 
 def _under(relative: str, claim: str) -> bool:
+    """A claim names a file, a directory and everything in it, or, with a `*`
+    in its last part (`maps/*.png`), the matching files directly in a directory."""
+    if "*" in claim:
+        return fnmatch.fnmatchcase(relative, claim) and relative.count("/") == claim.count("/")
     return relative == claim or relative.startswith(claim.rstrip("/") + "/")
+
+
+def _claim_exists(root: Path, claim: str) -> bool:
+    return any(root.glob(claim)) if "*" in claim else (root / claim).exists()
 
 
 def check_output(rust_root: Path, claims: list[str]) -> list[str]:
@@ -104,7 +264,7 @@ def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list
     rust = _files(rust_root)
     python = _files(python_root)
     for claim in claims:
-        if not (python_root / claim).exists():
+        if not _claim_exists(python_root, claim):
             problems.append(f"claim {claim}: the Python pack has no such path")
     claimed = sorted({relative for relative in [*rust, *python]
                       if any(_under(relative, claim) for claim in claims)})
@@ -218,6 +378,133 @@ def fixture_text():
 
 
 # ---------------------------------------------------------------------------
+# Probes
+# ---------------------------------------------------------------------------
+def compare_probe(python: str, rust: str) -> list[str]:
+    """The probe documents differ: name the first differing line."""
+    if python == rust:
+        return []
+    ours, theirs = rust.splitlines(), python.splitlines()
+    line = next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b),
+                min(len(ours), len(theirs)))
+    shown = lambda lines: lines[line] if line < len(lines) else "<end>"  # noqa: E731
+    return [f"probe: line {line + 1} differs: psiv-pack {shown(ours)!r}, "
+            f"Python {shown(theirs)!r} ({len(ours)} lines against {len(theirs)})"]
+
+
+def check_probes(rom_path: Path) -> list[str]:
+    """Run every probe in both builders and compare the documents."""
+    rom = rom_path.read_bytes()
+    try:
+        with decode_cache.scope():
+            python = json.dumps({name: probe(rom) for name, probe in PROBES.items()},
+                                indent=2, sort_keys=True)
+    except ValueError as error:
+        return [f"probe: the Python extractors refused the ROM: {error}"]
+    run = subprocess.run([str(PROBE_BINARY), str(rom_path)], cwd=ROOT, capture_output=True,
+                         text=True, encoding="utf-8")
+    if run.returncode != 0:
+        return [f"probe: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
+    print(f"pack parity: probed {', '.join(PROBES)}", flush=True)
+    return compare_probe(python, run.stdout.rstrip("\n"))
+
+
+# ---------------------------------------------------------------------------
+# Decoders
+# ---------------------------------------------------------------------------
+def census_calls(rom: bytes) -> list[dict]:
+    """Every decompressor call a full Python build attempts, as census
+    entries (`census_entries`)."""
+    from psiv_tools import decode_cache, pack_sections
+    from psiv_tools.pack import build_pack
+    with pack_sections.fresh(), decode_cache.scope() as table, \
+            tempfile.TemporaryDirectory(prefix="psiv-census-") as scratch:
+        build_pack(rom, Path(scratch))
+    return census_entries(table, rom)
+
+
+def census_entries(table, rom: bytes) -> list[dict]:
+    """A decode table's decompressor calls as census entries: the decoder and
+    its arguments, never the bytes, one per distinct call. Every attempt is
+    listed, including one the decoder refused and its caller caught
+    (`battle_art._is_mapping` tells art from mappings that way), so both
+    builders must refuse it alike. A call that does not read the ROM itself is
+    an error, because the census could not name its input."""
+    if table.unkeyed:
+        raise ValueError(f"{table.unkeyed} decoder calls read a mutable buffer; "
+                         "the census can only name ROM offsets")
+    calls = []
+    for name, data, *args in table.attempts:
+        if name not in DECODERS:
+            continue
+        if data is not rom and data != rom:
+            raise ValueError(f"{name} decoded something other than the ROM; "
+                             "the census can only name ROM offsets")
+        entry = {"decoder": DECODERS[name], "offset": args[0]}
+        if DECODERS[name] == "enigma":
+            entry.update(base_tile=args[1], max_words=args[2])
+        calls.append(entry)
+    return sorted(calls, key=lambda c: (c["decoder"], c["offset"], c.get("base_tile", 0),
+                                        c.get("max_words") is not None, c.get("max_words") or 0))
+
+
+def python_decode(rom: bytes, call: dict) -> dict:
+    """One census call through the Python decoder: `{consumed, sha256}` of
+    the bytes it leaves in memory (Enigma's words big-endian), or `{error}`."""
+    from psiv_tools import enigma, kosinski, nemesis
+    try:
+        if call["decoder"] == "enigma":
+            words, consumed = enigma.decompress(rom, call["offset"], call["base_tile"],
+                                                call["max_words"])
+            out = enigma.words_to_bytes(words)
+        else:
+            module = nemesis if call["decoder"] == "nemesis" else kosinski
+            out, consumed = module.decompress(rom, call["offset"])
+    except ValueError as error:
+        return {"error": str(error)}
+    return {"consumed": consumed, "sha256": hashlib.sha256(out).hexdigest()}
+
+
+def compare_decodes(calls: list[dict], python: list[dict], rust: list[dict]) -> list[str]:
+    """The census calls whose Rust result differs from Python's. An error is
+    a result: both must refuse the same calls, though not in the same words."""
+    if len(rust) != len(calls) or len(python) != len(calls):
+        return [f"decode census: {len(calls)} calls, {len(python)} Python results, "
+                f"{len(rust)} psiv-pack results"]
+    problems = []
+    for call, ours, theirs in zip(calls, rust, python):
+        where = f"{call['decoder']} at 0x{call['offset']:X}"
+        if call["decoder"] == "enigma":
+            where += f" (base 0x{call['base_tile']:X}, max {call['max_words']})"
+        if ("error" in ours) != ("error" in theirs):
+            problems.append(f"{where}: psiv-pack {ours.get('error', 'decoded it')}, "
+                            f"Python {theirs.get('error', 'decoded it')}")
+        elif "error" not in ours and ours != theirs:
+            what = "consumed length" if ours["sha256"] == theirs["sha256"] else "output"
+            problems.append(f"{where}: the {what} differs")
+    return problems
+
+
+def check_decodes(rom_path: Path) -> list[str]:
+    """Decode the census with both builders and compare."""
+    census = json.loads(CENSUS.read_text(encoding="utf-8"))
+    calls = census["calls"]
+    rom = rom_path.read_bytes()
+    start = time.monotonic()
+    python = [python_decode(rom, call) for call in calls]
+    python_s = time.monotonic() - start
+    run = subprocess.run([str(CENSUS_BINARY), str(rom_path), str(CENSUS)], cwd=ROOT,
+                         capture_output=True, text=True)
+    if run.returncode != 0:
+        return [f"decode census: psiv-pack exited {run.returncode}: {run.stderr.strip()}"]
+    lines = [json.loads(line) for line in run.stdout.splitlines()]
+    seconds = lines.pop()["seconds"]
+    print(f"pack parity: decoded {len(calls)} census streams; psiv-pack {seconds:.3f} s, "
+          f"Python {python_s:.1f} s", flush=True)
+    return compare_decodes(calls, python, lines)
+
+
+# ---------------------------------------------------------------------------
 # The parity run
 # ---------------------------------------------------------------------------
 def _error_line(stderr: str, prefix: str) -> str | None:
@@ -290,6 +577,9 @@ def run_parity(rom: Path, keep: Path | None) -> int:
     scratch.mkdir(parents=True, exist_ok=True)
     try:
         problems = check_wrong_rom(BINARY, scratch)
+        problems += check_probes(rom)
+        with hold_heavy_lock(lock_class=PACK):
+            problems += check_decodes(rom)
         with hold_heavy_lock(lock_class=PACK):
             print(f"pack parity: psiv-pack, {_clock()}", flush=True)
             start = time.monotonic()
@@ -332,9 +622,21 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rom", type=Path, default=DEFAULT_ROM)
     parser.add_argument("--keep", type=Path, help="build into this directory and keep it")
+    parser.add_argument("--write-census", action="store_true",
+                        help=f"rewrite {CENSUS.relative_to(ROOT)} from a full Python build "
+                             "(needs the ROM) and exit")
     parser.add_argument("--write-fixtures", action="store_true",
                         help=f"rewrite {FIXTURE.relative_to(ROOT)} and exit")
     args = parser.parse_args(argv)
+    if args.write_census:
+        from psiv_tools.core import read_rom
+        with hold_heavy_lock(lock_class=PACK):
+            calls = census_calls(read_rom(args.rom))
+        CENSUS.write_text(json.dumps({"calls": calls, "source": "tools/pack_parity.py "
+                                      "--write-census"}, indent=2, sort_keys=True) + "\n",
+                          encoding="utf-8", newline="\n")
+        print(f"wrote {CENSUS.relative_to(ROOT)}: {len(calls)} calls")
+        return 0
     if args.write_fixtures:
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
         FIXTURE.write_text(fixture_text(), encoding="utf-8", newline="\n")

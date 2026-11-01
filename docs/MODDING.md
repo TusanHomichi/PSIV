@@ -15,8 +15,14 @@ of its edits, never as pack files.
 In this order:
 
 1. the directory `PSIV_RUNTIME_PACK` names;
-2. `runtime-pack/` beside the game's executable (an exported build);
-3. `runtime-pack/` at the repository root (a source checkout).
+2. for an installed game (an exported build), `runtime-pack/` in its user data
+   folder: `~/.local/share/PSIV` on Linux and the Steam Deck,
+   `~/Library/Application Support/PSIV` on macOS, `%APPDATA%\PSIV` on Windows;
+3. for a source checkout, `runtime-pack/` at the repository root.
+
+When that directory holds no pack the game can load, it shows a setup screen
+that asks for the ROM and builds the pack there
+([`pack_setup.rs`](../rust/psiv-godot/src/pack_setup.rs)).
 
 Work on a copy, so the original stays one command away:
 
@@ -32,7 +38,9 @@ run root's link to the checkout's pack, so the copy above is the one that loads.
 **`pack` replaces.** Running `python3 -m psiv_tools pack` into a directory
 builds a new pack beside it and swaps it in whole: the directory becomes a
 link to the new version, and the previous versions, edits included, are kept
-as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them.
+as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them. On
+Windows the directory stays a real one and the previous version, edits
+included, is removed.
 Keep edits in a separate copy, as above.
 A loader that layers a mod over the original pack instead is planned after 1.0
 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
@@ -54,7 +62,7 @@ accepts.
 | Maps: collision, warps, objects, chests, music | `maps/<id>_<symbol>.json`, with the rendered planes in `maps/<id>_<symbol>.png` and `_over.png` | `rust/psiv-data/src/map.rs` |
 | The new-game state | `game_start.json` | `rust/psiv-data/src/new_game.rs` |
 | Sprites | `sprites/` (`party.json`, `npcs.json`, `vehicles.json` and the sheets) | `rust/psiv-data/src/sprites.rs` |
-| Music and sound effects | `sound/` | `rust/psiv-data/src/sound.rs` |
+| Music and sound effects | `sound/` | `rust/psiv-data/src/sound/schema.rs` (the files), `rust/psiv-data/src/sound.rs` (loading) |
 
 `manifest.json` lists every map file and the ROM the pack came from; the
 loader checks it before anything else. The extractor's other output,

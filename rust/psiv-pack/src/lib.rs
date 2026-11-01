@@ -23,8 +23,9 @@
 //!   the exit status stays 0.
 //!
 //! `psiv-pack --claims` prints the sections and the pack-relative paths each
-//! claims, as JSON ([`claims`]): a path names a file, or a directory and
-//! everything in it.
+//! claims, as JSON ([`claims`]): a path names a file, a directory and
+//! everything in it, or (`maps/*.png`) the matching files directly in a
+//! directory.
 
 // The sections hold no unsafe code; only the install's OS calls (liveness
 // and the atomic exchange) allow it. Integer pack data stays integer.
@@ -35,10 +36,20 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
+pub mod decode;
+pub mod gfx;
 pub mod install;
 pub mod json;
+pub mod m68k;
+mod map_symbols;
+pub mod maps;
 pub mod png;
 pub mod rom;
+pub mod sound;
+mod sound_defs;
+pub mod sprites;
+pub mod text;
+pub mod warps;
 
 pub use rom::Rom;
 
@@ -66,14 +77,27 @@ pub struct Section {
     /// The name the progress line shows.
     pub name: &'static str,
     /// The pack-relative paths it writes, all of them: the parity step
-    /// fails on a file it writes outside these.
+    /// fails on a file it writes outside these. A path names a file, a
+    /// directory and everything in it, or with a `*` in its last part, the
+    /// matching files directly in that directory.
     pub claims: &'static [&'static str],
     /// Write the section under the pack root.
     pub build: fn(&Rom, &Path) -> Result<(), PackError>,
 }
 
 /// The sections `psiv-pack` builds, in the order #216 ports them.
-pub const SECTIONS: &[Section] = &[];
+pub const SECTIONS: &[Section] = &[
+    Section {
+        name: "sound",
+        claims: &["sound"],
+        build: sound::build,
+    },
+    Section {
+        name: "maps",
+        claims: &["maps", "sprites"],
+        build: maps::pictures::build,
+    },
+];
 
 /// What `psiv-pack --claims` prints: `{"sections": [{"name": ..., "claims":
 /// [...]}, ...]}`, every section in order with the paths it writes.
@@ -272,7 +296,7 @@ mod tests {
     #[test]
     fn no_sections_build_nothing() {
         let root = scratch("empty");
-        build_sections(&rom(), &root, SECTIONS, 4, |_, _, _| panic!("no section")).unwrap();
+        build_sections(&rom(), &root, &[], 4, |_, _, _| panic!("no section")).unwrap();
         assert!(!root.exists());
     }
 }
