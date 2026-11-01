@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 39;
+const ALLOWLIST_CEILING: usize = 37;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -191,8 +191,8 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0091, "Event_DominatorsDefeated", Disposition::Scene),
     (0x0092, "Event_WeaponPlantArrival", Disposition::Scene),
     (0x0093, "Event_MeeseClinicSickWoman", Disposition::Allowlisted(81)),
-    (0x0094, "Event_StrippersAppearing", Disposition::Allowlisted(81)),
-    (0x0095, "Event_ExitingStripClub", Disposition::Allowlisted(81)),
+    (0x0094, "Event_StrippersAppearing", Disposition::Scene),
+    (0x0095, "Event_ExitingStripClub", Disposition::Scene),
     (0x0096, "Event_PenguinFeedStolen", Disposition::Allowlisted(56)),
     (0x0097, "Event_Pennant", Disposition::Allowlisted(81)),
     (0x0098, "Event_WoodCarving", Disposition::Allowlisted(81)),

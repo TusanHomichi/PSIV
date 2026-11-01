@@ -159,6 +159,25 @@ impl SceneRunner {
         self.blocked = Blocked::Done;
     }
 
+    /// Ends a camera wait within the frame, for a [`SceneOp::PanCamera`] whose
+    /// target the camera already stands on: `Event_MoveCamera` exits both its
+    /// loops before their first frame. Actors do not move again; the ops after
+    /// the pan run now.
+    pub fn release_empty_pan(
+        &mut self,
+        map: &FieldMap,
+        state: &mut GameState,
+        chunks: Option<&dyn Fn(PixelPos) -> Option<u16>>,
+    ) -> Vec<SceneEffect> {
+        let mut effects = Vec::new();
+        if self.blocked == Blocked::Camera {
+            self.blocked = Blocked::No;
+            self.run(state, &mut effects);
+            self.resolve_belt(map, chunks, &mut effects);
+        }
+        effects
+    }
+
     /// Whether this boarding scene is waiting for the runtime's camera glide.
     #[must_use]
     pub fn is_waiting_for_camera(&self) -> bool {
@@ -333,6 +352,9 @@ impl SceneRunner {
     /// [`SceneOp::ConveyorRide`] reads it; a runner ticked through
     /// [`SceneRunner::tick`] has `None`, and that op faults with
     /// [`SceneFault::NoLayout`].
+    ///
+    /// [`Self::release_empty_pan`] is the same frame's second half when a pan
+    /// has no distance to go.
     pub fn tick_with(
         &mut self,
         map: &FieldMap,
