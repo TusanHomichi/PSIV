@@ -436,3 +436,34 @@ fn a_bespoke_step_draws_back_from_its_destination_at_its_own_speed() {
             .all(|w| w[1].1 < w[0].1 || w[1] == (0, 0))
     );
 }
+
+/// `FieldObj_StripClubCustomer` (`$34C`, `ps4.asm:99915-99948`): the init
+/// clears `facing_dir`, so its first frame turns him up and writes `$39`
+/// whatever he faced before; every 256th frame after that he turns back, with
+/// `$38` facing down.
+#[test]
+fn the_strip_club_customer_turns_and_rewrites_his_line_every_256_frames() {
+    let mut map = map_with_npc(Cell::new(2, 2));
+    map.set_npc_facing(0, Direction::Up).unwrap();
+    let kind = scene_routine_kind(0x34C).expect("the scene installs $34C");
+    let mut set = BespokeSet::build(&map, &[(0, kind)]).unwrap();
+    let mut rolls = SliceRolls::new(&[]);
+    let mut seen = Vec::new();
+    for frame in 0..=512u16 {
+        set.tick_one_for_npc(
+            0,
+            &mut map,
+            &mut rolls,
+            context(&[], BespokeFlags::default(), frame),
+        );
+        seen.push((map.npcs()[0].facing, set.get(0).unwrap().dialogue_id()));
+    }
+    let up = (Direction::Up, Some(0x39));
+    let down = (Direction::Down, Some(0x38));
+    assert_eq!(seen[0], up, "the init's facing 0 reads down: he turns up");
+    assert_eq!(seen[255], up);
+    assert_eq!(seen[256], down);
+    assert_eq!(seen[511], down);
+    assert_eq!(seen[512], up);
+    assert_eq!(map.npcs()[0].cell, Cell::new(2, 2), "he never steps");
+}

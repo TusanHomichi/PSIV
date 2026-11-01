@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Fail a change that carries a copy of the cartridge's battle tables (issue #149).
+"""Fail a change that carries a copy of the cartridge's tables or tiles (issue #149).
 
     python3 tools/check_rom_tables.py [--pack DIR]
 
 The ROM-derived tables live in the local runtime pack and never in the tree
 (README, "License and third-party code"). Names and single numbers in documents
-and tests are allowed; a table is not. Two checks read every text file of the
+and tests are allowed; a table is not, and neither is art. Three checks read every text file of the
 change (`tools/repo_files.py`), whatever its suffix:
 
 - **Removed copies.** A file whose content is a version of a table copy this
@@ -19,6 +19,16 @@ change (`tools/repo_files.py`), whatever its suffix:
   a table and fails. The hand-transcribed records some tests seat stay well
   below that (six in the busiest file when this was written); the removed
   replay pack held 112. Without a pack this check says it was skipped.
+- **Pixel-string tiles.** Eight consecutive string literals of exactly eight
+  characters each (no space, at most sixteen distinct characters), separated
+  only by commas, brackets and whitespace, are an 8x8 tile written as pixels,
+  which is how cartridge art was once transcribed into source. Art loads from
+  the pack; a test that wants a picture of a decoded tile compares its digest.
+  Every eight contiguous rows are one tile. A synthetic picture - an ASCII test
+  map - is listed here by the digest of its rows (`SYNTHETIC_TILES`), so it is
+  read in review once, and any other tile beside it still fails. No comment or
+  other text in a file can exempt a tile.
+  This needs no local input.
 
 Only paths and counts are printed; the pack's names and values never leave the
 process. `check_docs.py` runs this after its other checks, prints its summary
@@ -71,6 +81,23 @@ RECORD_STATS = 4
 TABLE_RECORDS = 16
 #: A name is matched across at most this many words (`DESRT LEACH`).
 NAME_WORDS = 3
+
+#: A tile's rows: string literals of exactly eight characters.
+TILE_LITERAL = re.compile(r""""([^"\\\n]{8})"|'([^'\\\n]{8})'""")
+#: A row that reads as a numbered name: letters, then its number.
+NUMBERED_NAME = re.compile(r"([A-Za-z]+)\d+")
+#: A row that reads as a hexadecimal number: an offset or an address.
+HEX_NUMBER = re.compile(r"0x[0-9A-Fa-f]{6}")
+#: What may sit between two rows of one tile.
+TILE_SEPARATOR = re.compile(r"[\s,\[\](){}]*")
+#: The synthetic pictures the tree may hold, by `tile_digest`: test maps of walls
+#: and floor drawn by hand, with no cartridge content. Add one only after reading it.
+SYNTHETIC_TILES = frozenset({
+    "803c0b3ee2762eb85c668d8afcc88721340cb8b424bfa81f5854ca3ab47bedf0",  # rust/psiv-core/tests/determinism.rs
+    "8f1b5495421b4c544ca84a45b0a41cf17e44c1a5aa9241c784bfe8478dbe79b5",  # rust/psiv-core/tests/party.rs
+    "bd495137a8e5e6f5e6e59baa7f8f63c1e2dda165bd29ec4e6c3a197dbb1086f6",  # rust/psiv-core/tests/party.rs
+    "48b4104d901183f4a154e9ffcd97b9f569c648315ccc090f5687d0e5d4e20fb5",  # rust/psiv-core/tests/wrapping.rs
+})
 
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 NUMBER = re.compile(r"\d+")
@@ -133,6 +160,50 @@ class Records:
         return found
 
 
+def numbered_names(rows: list[str]) -> bool:
+    """Whether `rows` count through one name (`Name1`, `Name2`, ...) or are all
+    hexadecimal numbers: a list the width of a tile's rows, not a picture."""
+    if all(HEX_NUMBER.fullmatch(row) for row in rows):
+        return True
+    names = [NUMBERED_NAME.fullmatch(row) for row in rows]
+    return (
+        all(names)
+        and len({name.group(1) for name in names}) == 1
+        and len(set(rows)) == len(rows)
+    )
+
+
+def tile_digest(rows: list[str]) -> str:
+    """What `SYNTHETIC_TILES` pins: exactly these eight rows, in order."""
+    return hashlib.sha256("\n".join(rows).encode()).hexdigest()
+
+
+def tiles_in(text: str, allowed: frozenset[str] = SYNTHETIC_TILES) -> list[int]:
+    """The first line of every pixel-string tile `text` holds, those `allowed`
+    excluded. Every eight contiguous rows are a tile of their own: an exempt
+    one says nothing about the next."""
+    found = []
+    start, previous = 0, None
+    rows: list[str] = []
+    for match in TILE_LITERAL.finditer(text):
+        row = match.group(1) or match.group(2)
+        if " " in row or len(set(row)) > 16:
+            rows, previous = [], None
+            continue
+        if previous is None or not TILE_SEPARATOR.fullmatch(text, previous, match.start()):
+            rows = []
+        if not rows:
+            start = match.start()
+        rows.append(row)
+        previous = match.end()
+        if len(rows) < 8:
+            continue
+        if not numbered_names(rows) and tile_digest(rows) not in allowed:
+            found.append(text.count("\n", 0, start) + 1)
+        rows = []
+    return found
+
+
 def blob_id(data: bytes) -> str:
     """Git's id for a file with this content."""
     return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
@@ -158,16 +229,24 @@ def run(root: Path = Path("."), pack: Path | None = None,
         if blob_id(data) in REMOVED_BLOBS:
             problems.append(f"{name}:1: a copy of the battle tables #149 removed from the tree")
             continue
-        if records is None or b"\0" in data:
+        if b"\0" in data:
+            continue
+        text = data.decode("utf-8", errors="replace")
+        for line in tiles_in(text):
+            problems.append(f"{name}:{line}: an 8x8 tile written as pixel strings (load art "
+                            f"from the pack, or compare a digest; a synthetic picture goes in "
+                            f"SYNTHETIC_TILES; #149)")
+        if records is None:
             continue
         scanned += 1
-        count = len(records.in_text(data.decode("utf-8", errors="replace")))
+        count = len(records.in_text(text))
         if count >= TABLE_RECORDS:
             problems.append(f"{name}:1: {count} enemy records of the runtime pack's battle "
                             f"tables (a table copied from the cartridge; keep it in the "
                             f"local pack, #149)")
     if records is None:
-        summary = f"rom tables: removed copies checked; records skipped (no {pack / ENEMIES})"
+        summary = (f"rom tables: removed copies and tiles checked; records skipped "
+                   f"(no {pack / ENEMIES})")
     else:
         summary = f"rom tables: {scanned} file(s) scanned, {len(problems)} problem(s)"
     return problems, summary

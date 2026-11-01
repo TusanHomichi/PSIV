@@ -4,7 +4,7 @@ use std::path::Path;
 use godot::classes::{Image, ImageTexture, image::Format};
 use godot::prelude::*;
 
-use psiv_data::{DialogueSet, Role};
+use psiv_data::{DamageDigitArt, DialogueSet, Role};
 
 const WINDOW_BASE_TILE: u16 = 0x680;
 const FONT_BASE_TILE: u16 = 0x7c0;
@@ -122,7 +122,13 @@ impl BattleChrome {
         }
         let fonts: [Gd<ImageTexture>; 4] = fonts.try_into().ok()?;
         let window_words: [BTreeMap<_, _>; 4] = window_words.try_into().ok()?;
-        let damage_words = retail_damage_words()?;
+        let damage_words = match DamageDigitArt::load(Path::new(pack_dir)) {
+            Ok(art) => retail_damage_words(&art)?,
+            Err(error) => {
+                godot_error!("battle: damage-number art failed to load: {error}");
+                return None;
+            }
+        };
         let glyph_at = retail_glyphs();
         Some(BattleChrome {
             tiles,
@@ -594,24 +600,34 @@ fn damage_digit(digit: u16) -> ((u16, bool, bool), (u16, bool, bool)) {
     }
 }
 
-fn retail_damage_words() -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
+/// The damage-number words: the patterns `damage_digit` names, from the
+/// pack's `battle/art/damage_digits.json` (the stream the battle setup loads to
+/// tile `$5E4`), in every flip.
+///
+/// The pixels are CRAM indices; the damage numbers use three. Index 14 is the
+/// battle window fill (`$0600`, as for the font), 15 the white ink and 2 the
+/// grey rule. Any other index in these patterns is a pack this renderer does not
+/// know, and refuses.
+fn retail_damage_words(
+    art: &DamageDigitArt,
+) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
     let patterns = [
         0x5e4, 0x5e5, 0x5e6, 0x5e7, 0x5e8, 0x5e9, 0x5ea, 0x5ee, 0x5ef,
     ];
     let mut words = BTreeMap::new();
     for pattern in patterns {
-        let rows = damage_pattern(pattern)?;
+        let rows = art.tile(pattern)?;
         for flip_h in [false, true] {
             for flip_v in [false, true] {
                 let mut bytes = Vec::with_capacity(8 * 8 * 4);
                 for y in 0..8 {
                     for x in 0..8 {
-                        let row = rows[if flip_v { 7 - y } else { y }].as_bytes();
-                        let symbol = row[if flip_h { 7 - x } else { x }];
-                        bytes.extend_from_slice(match symbol {
-                            b'B' => &[0, 0, 98, 255],
-                            b'G' => &[172, 170, 172, 255],
-                            b'W' => &[238, 238, 238, 255],
+                        let row = rows[if flip_v { 7 - y } else { y }];
+                        let index = row[if flip_h { 7 - x } else { x }];
+                        bytes.extend_from_slice(match index {
+                            14 => &[0, 0, 98, 255],
+                            2 => &[172, 170, 172, 255],
+                            15 => &[238, 238, 238, 255],
                             _ => return None,
                         });
                     }
@@ -631,48 +647,6 @@ fn retail_damage_words() -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>
         }
     }
     Some(words)
-}
-
-fn damage_pattern(pattern: u16) -> Option<[&'static str; 8]> {
-    Some(match pattern {
-        0x5e4 => [
-            "BBBBBBBB", "BBGGGGGG", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB",
-            "BGGBBBBB",
-        ],
-        0x5e5 => [
-            "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
-            "BBBBBBBB",
-        ],
-        0x5e6 => [
-            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBWWB",
-            "BWWBBWWB",
-        ],
-        0x5e7 => [
-            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBBWWBBB", "BBWWWBBB", "BBBWWBBB",
-            "BBBWWBBB",
-        ],
-        0x5e8 => [
-            "BBBWWBBB", "BBBWWBBB", "BBBWWBBB", "BBWWWWBB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
-            "BBBBBBBB",
-        ],
-        0x5e9 => [
-            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBWWB",
-            "BBBBBWWB",
-        ],
-        0x5ea => [
-            "BBBWWWBB", "BBWWWBBB", "BWWBBBBB", "BWWWWWWB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
-            "BBBBBBBB",
-        ],
-        0x5ee => [
-            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BWWWWWWB", "BWWBBBBB", "BWWWWWBB",
-            "BWWBBWWB",
-        ],
-        0x5ef => [
-            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBBBB",
-            "BWWWWWBB",
-        ],
-        _ => return None,
-    })
 }
 
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {

@@ -28,10 +28,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM, GateRefused,
-                        available_cores, cargo_parallelism, command_slug, cpu_mhz,
-                        gate_environment, gate_lock, main, parse_counts, parse_unittest,
-                        run_gate)
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS, GATE_MEASURED_PARALLELISM,
+                        RECEIPT_ENV, GateRefused, available_cores, cargo_parallelism, command_slug,
+                        cpu_mhz, gate_environment, gate_lock, main, parse_counts, parse_unittest,
+                        receipt_dir_for, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -501,6 +501,28 @@ class GateRunCase(unittest.TestCase):
         self.assertTrue(receipt["dirty"])
         self.assertEqual(receipt["dirty_paths"], ["?? scratch.txt"])
 
+    def test_receipt_names_each_missing_input_and_the_summary_says_partial(self):
+        """The fixture repo has none of the inputs; giving it the ROM and a link to the
+        disassembly leaves the pack missing, and a link to nothing counts as missing."""
+        (self.root / GATE_INPUTS[0]).write_bytes(b"")
+        (self.root / "elsewhere").mkdir()
+        (self.root / "reference").mkdir()
+        (self.root / GATE_INPUTS[1]).symlink_to(self.root / "elsewhere")
+        (self.root / GATE_INPUTS[2]).symlink_to(self.root / "gone")
+        with open(self.root / ".git" / "info" / "exclude", "a") as exclude:
+            exclude.write("".join(f"/{name}\n" for name in (GATE_INPUTS[0], "elsewhere",
+                                                             "reference", GATE_INPUTS[2])))
+        receipt, _ = self.run_quiet([fake_step("only")])
+        self.assertEqual(receipt["missing_inputs"], [GATE_INPUTS[2]])
+        self.assertFalse(receipt["dirty"])
+        self.assertIn("gate OK: 1/1 commands passed", receipt["summary"])
+        self.assertIn(f"; partial: {GATE_INPUTS[2]} missing;", receipt["summary"])
+        (self.root / GATE_INPUTS[2]).unlink()
+        (self.root / GATE_INPUTS[2]).mkdir()
+        complete, _ = self.run_quiet([fake_step("only")], self.root / "build" / "gate" / "complete")
+        self.assertEqual(complete["missing_inputs"], [])
+        self.assertNotIn("partial", complete["summary"])
+
     def test_counts_come_from_the_command_log(self):
         (self.root / "sample_tests.py").write_text(
             "import unittest\n\n\n"
@@ -710,6 +732,27 @@ class ParallelismCase(unittest.TestCase):
         env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
         self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
         self.assertEqual(env["HOME"], "/h")
+
+    def test_the_commands_never_see_the_receipt_a_caller_asked_for(self):
+        env = gate_environment({RECEIPT_ENV: "/elsewhere", "HOME": "/h"}, 16)
+        self.assertNotIn(RECEIPT_ENV, env)
+        self.assertEqual(env["HOME"], "/h")
+
+
+class ReceiptDirCase(unittest.TestCase):
+    """Where `main` writes the receipt: the caller's directory, else one named for the run."""
+
+    def test_the_directory_a_caller_names(self):
+        root = Path("/repo")
+        self.assertEqual(receipt_dir_for(root, False, {RECEIPT_ENV: "/abs/run"}), Path("/abs/run"))
+        self.assertEqual(receipt_dir_for(root, True, {RECEIPT_ENV: "build/gate/mine"}),
+                         root / "build" / "gate" / "mine")
+
+    def test_unasked_it_is_named_for_the_stamp_the_candidate_and_the_tier(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for fast, suffix in ((False, ""), (True, "-fast")):
+                name = receipt_dir_for(Path(tmp), fast, {RECEIPT_ENV: ""}).relative_to(tmp)
+                self.assertRegex(str(name), rf"^build/gate/\d{{8}}T\d{{6}}Z-nogit{suffix}$")
 
 
 class NotARepositoryCase(unittest.TestCase):

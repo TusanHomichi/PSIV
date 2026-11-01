@@ -170,8 +170,9 @@ and the port never transcribed.
 | `Event_InnerSanctGuardBeforeElsydeon` | `$52` | [113](113_InnerSanctuaryGuard.md) | `$070A76..$070A9D` |
 
 ## Aiedo and the Hunter's Guild
-Issue #81's Aiedo events: Rocky's owner, the guild's bail quest and two townsmen, from hand-built saves
-(`rust/psiv-campaign/tests/aiedo_side.rs`), since the route does not take the guild's jobs.
+Issue #81's Aiedo events: Rocky's owner, the guild's bail quest, two townsmen and the strip club, from
+hand-built saves (`rust/psiv-campaign/tests/aiedo_side.rs`), since the route does not take the guild's
+jobs.
 
 | Scene | Event | Doc | Retail bytes |
 |---|---:|---|---|
@@ -182,6 +183,8 @@ Issue #81's Aiedo events: Rocky's owner, the guild's bail quest and two townsmen
 | `Event_GirlsBailedOut` | `$83` | [121](121_AiedoBailQuest.md#event_girlsbailedout) | `$072CDC..$072D43` |
 | `Event_AiedoManCrushOnAlys` | `$0E` | [122](122_AiedoManEvents.md) | `$06BE78..$06BEE7` |
 | `Event_AiedoManSavings` | `$22` | [122](122_AiedoManEvents.md#event_aiedomansavings) | `$06D468..$06D4A5` |
+| `Event_StrippersAppearing` | `$94` | [123](123_StripClub.md) | `$073440..$0735ED` |
+| `Event_ExitingStripClub` | `$95` | [123](123_StripClub.md#event_exitingstripclub) | `$0735EE..$0735F5` |
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
 
 ## Vahal Fort and Weapon Plant

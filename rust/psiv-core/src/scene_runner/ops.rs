@@ -52,7 +52,7 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Map;
             }
-            SceneOp::FlightPan => {
+            SceneOp::FlightPan | SceneOp::PanCamera { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Camera;
@@ -119,6 +119,10 @@ impl SceneRunner {
             SceneOp::RunObjectRoutine { npc_index, routine } => {
                 effects.push(SceneEffect::ObjectRoutineStarted { npc_index, routine });
                 self.blocked = Blocked::ObjectRoutine(npc_index);
+                self.pc += 1;
+            }
+            SceneOp::SetObjectRoutine { npc_index, routine } => {
+                effects.push(SceneEffect::ObjectRoutineSet { npc_index, routine });
                 self.pc += 1;
             }
             SceneOp::SubtractMoney { amount } => {

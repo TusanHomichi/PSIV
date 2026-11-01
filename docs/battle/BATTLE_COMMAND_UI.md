@@ -202,6 +202,18 @@ and palette word to `oracle/states/battle_command_idle_vdp_25000.json`;
 `public_load_requires_every_vram_tile_and_the_palette` rejects incomplete
 synthetic packs through the public loader.
 
+The damage-number tiles come from the pack the same way. The battle setup
+decompresses one Nemesis stream, 28 tiles at ROM `$27D778`, to VRAM `$BC80`
+(tile `$5E4`, `ps4.asm:10007-10009`). The extractor writes their CRAM-index rows
+to `battle/art/damage_digits.json`, with a manifest `damage_digits` entry and
+`damage_digit_tiles` census; `psiv-data`'s `DamageDigitArt` requires all 28
+tiles `$5E4..$5FF`, and `rust/psiv-godot/src/battle/chrome.rs` builds the
+damage-number words from them (index 14 the window fill, 15 the white ink, 2
+the grey rule). Without the file the battle chrome does not build and the error
+names it. `test_damage_digit_art_matches_oracle_vram` compares every tile to the
+same oracle state. No tile is written as pixels in the tree:
+`tools/check_rom_tables.py` fails one (#149).
+
 ## Pins
 
 Clone tick `t` pairs with oracle frame `24800 + t` for the Academy fixtures

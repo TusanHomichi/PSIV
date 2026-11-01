@@ -507,24 +507,14 @@ class TestDialoguePack(unittest.TestCase):
             )
             for row in rows
         ]
-        self.assertEqual(drawn, [
-            "........",
-            "........",
-            "........",
-            "...#....",
-            "..###...",
-            ".##.##..",
-            "##...##.",
-            "##...##.",
-            "##...##.",
-            "#######.",
-            "##...##.",
-            "##...##.",
-            "##...##.",
-            "........",
-            "........",
-            "........",
-        ])
+        # The glyph is cartridge art, so the test holds its digest, not its
+        # pixels (#149): the sixteen rows, joined by newlines, are a capital A
+        # with three blank rows above and below.
+        self.assertEqual(
+            hashlib.sha256("\n".join(drawn).encode()).hexdigest(),
+            "385b5c6920807235f1a143075f0c846c68ae172f8f5e8493948bb3fcfb4aed68",
+        )
+        self.assertEqual(drawn[:3] + drawn[-3:], ["." * GLYPH_WIDTH] * 6)
 
     def test_the_strip_is_the_font_bytes_expanded(self):
         """Every pixel of the strip is one bit of `Art_DialogueFont`."""
