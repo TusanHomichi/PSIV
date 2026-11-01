@@ -1,0 +1,137 @@
+{
+  "conary": "note v1",
+  "change": "0by98k9byr6g9wv0x177g2s2aq",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 276,
+  "url": "https://github.com/tusanhomichi/psiv/pull/276",
+  "summary": "package: retire deploy-deck.sh, and hold Renovate's Godot bumps for their checks",
+  "task": "tusanhomichi/psiv#115",
+  "author": {
+    "kind": "agent",
+    "login": "TusanHomichi",
+    "session": "https://claude.ai/code/session_01BkHcyBYucKZh4e5amBxuHH"
+  },
+  "landing": {
+    "revision": "98a980de0f3a0b80f39c38a04a78b60f9a1eb8ef23edece559321c7cc8536193",
+    "before": "8d338ad813706c88656e344e07649e0ee8c0cfc9",
+    "after": "c0961b77c696c5fb5249eb4e76668637a9e0c608",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793562830480
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340177080/job/124948309501"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340177080/job/124948308989"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#276)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#276)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#276)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#276)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#276)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176561/job/124948306773"
+    },
+    {
+      "kind": "ci",
+      "check": "build (linux, ubuntu-22.04)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124948306955"
+    },
+    {
+      "kind": "ci",
+      "check": "build (windows, windows-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124948306705"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/276#pullrequestreview-5729796736"
+    },
+    {
+      "kind": "ci",
+      "check": "export",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124949806879"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340177080/job/124948331945"
+    },
+    {
+      "kind": "ci",
+      "check": "build (macos, macos-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124948306939"
+    },
+    {
+      "kind": "ci",
+      "check": "package (linux, ubuntu-22.04)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124950067895"
+    },
+    {
+      "kind": "ci",
+      "check": "package (macos, macos-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124950067889"
+    },
+    {
+      "kind": "ci",
+      "check": "package (windows, windows-latest)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41340176566/job/124950067875"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "status gate"
+    }
+  ]
+}
