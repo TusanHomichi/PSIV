@@ -472,6 +472,7 @@ impl Session {
         } else {
             self.field_frame(pad, pressed)
         };
+        self.job_board_settle(pressed);
         frame.notice = notice;
         frame
     }

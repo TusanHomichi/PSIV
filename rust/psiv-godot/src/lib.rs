@@ -783,6 +783,10 @@ impl Field {
         }
         self.battle_field_visibility = None;
         self.presentation.reset_scene();
+        if let Some(board) = self.job_board.as_mut() {
+            board.bind_mut().sync(None, Vector2::ZERO);
+        }
+        self.sync_dialogue_view();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
             layer.bind_mut().panel_destroy_all();

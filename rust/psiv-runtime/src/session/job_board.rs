@@ -74,6 +74,8 @@ pub(crate) struct JobBoardMode {
     cursor_timer: i16,
     cursor_visible: bool,
     width: u8,
+    /// A Hold began on this frame, whose tick the text window had suspended.
+    hold_entered: bool,
 }
 
 impl JobBoardMode {
@@ -94,6 +96,7 @@ impl JobBoardMode {
             cursor_timer: CURSOR_START_TIMER,
             cursor_visible: false,
             width,
+            hold_entered: false,
         }
     }
 
@@ -237,7 +240,10 @@ impl Session {
             JobBoardStep::Hold | JobBoardStep::Choose | JobBoardStep::Linger => {
                 if let Some(mode) = self.job_board.as_mut() {
                     mode.phase = match step {
-                        JobBoardStep::Hold => Phase::Hold(HOLD_FRAMES),
+                        JobBoardStep::Hold => {
+                            mode.hold_entered = true;
+                            Phase::Hold(HOLD_FRAMES)
+                        }
                         JobBoardStep::Choose => {
                             mode.start_cursor();
                             mode.view.cursor_lit = true;
@@ -258,6 +264,27 @@ impl Session {
                 .job_board
                 .as_ref()
                 .is_some_and(|mode| mode.phase != Phase::Idle)
+    }
+
+    /// The end of the frame a Hold began on, its first iteration: the loop
+    /// tests the pad first, so a press this frame leaves with no update, and
+    /// otherwise this frame runs the update the text window's suspension kept
+    /// from the tick. The other 59 run on the board's own frames.
+    pub(super) fn job_board_settle(&mut self, pressed: Pad) {
+        let Some(mode) = self.job_board.as_mut() else {
+            return;
+        };
+        if !std::mem::take(&mut mode.hold_entered) {
+            return;
+        }
+        let leaving = [Button::Cancel, Button::Speak, Button::Camp, Button::Start]
+            .iter()
+            .any(|&button| pressed.held(button));
+        if leaving {
+            mode.phase = Phase::Hold(1);
+        } else if self.runtime.field_suspended() {
+            self.runtime.run_map_updates();
+        }
     }
 
     /// One frame of the board.

@@ -425,3 +425,64 @@ fn the_title_takes_the_board_down() {
     assert!(session.job_board_view().is_none());
     assert!(session.runtime().dialogue_view().is_none());
 }
+
+/// The welcome up to its last frame of text, the frame before it closes.
+fn welcome_ending() -> Option<Session> {
+    let mut session = party_at(HUNTERS_GUILD, RECEPTION.0, RECEPTION.1, 1000, &[0x44])?;
+    session.frame(Pad::new(Button::Up));
+    for _ in 0..7 {
+        session.frame(Pad::NEUTRAL);
+    }
+    session.frame(Pad::new(Button::Speak));
+    for _ in 0..6000 {
+        let Some(view) = session.runtime().dialogue_view() else {
+            session.frame(Pad::NEUTRAL);
+            continue;
+        };
+        if view.dismissable && view.page_end == Some(psiv_data::PageEnd::End) {
+            return Some(session);
+        }
+        let turn = view.dismissable && view.waiting;
+        session.frame(Pad::NEUTRAL);
+        if turn {
+            session.frame(Pad::new(Button::Speak));
+        }
+    }
+    panic!("the welcome never reached its last page");
+}
+
+fn hold_updates(session: &mut Session, entry: Pad) -> u64 {
+    let before = session.runtime().map_updates().calls;
+    session.frame(entry);
+    assert!(!session.runtime().dialogue_open(), "the text closed");
+    for _ in 0..80 {
+        if session
+            .job_board_view()
+            .is_some_and(|view| !view.rows.is_empty())
+        {
+            return session.runtime().map_updates().calls - before;
+        }
+        session.frame(Pad::NEUTRAL);
+    }
+    panic!("the Hold never ended");
+}
+
+/// `DoMapUpdate_JoypadLoop(#$3B)` through the session: 60 updates on a
+/// timeout, the entry frame's among them.
+#[test]
+fn a_guild_hold_runs_sixty_map_updates() {
+    let Some(mut session) = welcome_ending() else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::NEUTRAL), 60);
+}
+
+/// The loop tests the pad before it updates: a press on the entry frame leaves
+/// with none.
+#[test]
+fn a_press_entering_a_guild_hold_runs_no_map_update() {
+    let Some(mut session) = welcome_ending() else {
+        return;
+    };
+    assert_eq!(hold_updates(&mut session, Pad::new(Button::Start)), 0);
+}
