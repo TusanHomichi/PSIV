@@ -171,6 +171,7 @@ pub(super) fn manifest_text(
              "collision": {{"cell_pixels": 16, "blocking_types": [8, 9, 10, 11, 12]}},
              "warps": {{"count": {}, "rect_units": "collision cells",
                         "standing_cell_y_offset": 1, "without_map_change_cell": []}},
+             "guild": {{"path": "guild/guild.json", "sha256": "x"}},
              "map_count": {}, "maps": [{}],
              "skipped": [{skipped}],
              "unpacked_warp_targets": [{unpacked}],
