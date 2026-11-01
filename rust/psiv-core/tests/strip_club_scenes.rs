@@ -134,7 +134,7 @@ fn the_walk_and_the_pause_before_the_coats_take_220_frames() {
     // The wait after the walk is the walk's own length, read from the ops'
     // coordinates: where object 1 was created and where it is sent.
     let ops = scene_for(EventIndex(0x94)).unwrap().ops;
-    let at = |wanted: &dyn Fn(&SceneOp) -> bool| ops.iter().position(|op| wanted(op)).unwrap();
+    let at = |wanted: &dyn Fn(&SceneOp) -> bool| ops.iter().position(wanted).unwrap();
     let from = match ops[at(&|op| matches!(op, SceneOp::CreateFieldObject { slot: 1, .. }))] {
         SceneOp::CreateFieldObject { x, y, .. } => (x, y),
         _ => unreachable!(),
