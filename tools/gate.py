@@ -48,6 +48,14 @@ repository tool starts loads its own copy (tools/godot.py `create_run_root`).
 A raw `flock(1)` wrapper around the gate is refused too (heavy_lock exits 2
 rather than wait on its own parent).
 
+Before it takes a lock, the gate checks that the environment its commands
+would run in has the toolchain they need (`toolchain_missing`: the Python
+packages and Rust programs of docs/DEVELOPMENT.md, "Current environment").
+Without it, the gate exits 126 (`EXIT_UNEQUIPPED`) with nothing run, naming
+what is missing: the machine failing, not the commit, which
+tools/pr_gate.py passes through for its runner to try again, where every
+command failing for it would be a red verdict on the commit.
+
 `--fast` runs the per-commit fast tier (`FAST_COMMANDS`) with the same receipt,
 marked `tier: "fast"`. `--list` prints the commands and exits 0. Stdlib only,
 Python 3.
@@ -61,6 +69,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -76,6 +85,10 @@ from tree_rss import cpu_mhz, load_1m  # noqa: E402
 EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_REFUSED = 2
+#: The environment lacks the gate's toolchain, so nothing ran: the 126 a shell
+#: gives a command it can't execute, which tools/pr_gate.py and its runners
+#: read as the machine failing, never as a verdict on the commit.
+EXIT_UNEQUIPPED = 126
 
 #: docs/DEVELOPMENT.md's `## Run checks` block, in order, verbatim.
 GATE_COMMANDS = [
@@ -104,6 +117,14 @@ FAST_COMMANDS = [
 #: receipt's `missing_inputs` names each one absent, and a pull request's gate
 #: counts a partial gate as failed (tools/pr_gate.py).
 GATE_INPUTS = ("Phantasy Star IV (USA).md", "reference/ps4disasm", "runtime-pack")
+
+#: What the gate's commands need from the environment they run in, beyond the
+#: standard library (docs/DEVELOPMENT.md, "Current environment", whose
+#: `nix develop` shell has all of it): each Python package by its import name
+#: and the name it is installed as, and the Rust programs `cargo fmt`,
+#: `cargo test` and `cargo clippy` run.
+GATE_PYTHON_PACKAGES = {"yaml": "PyYAML", "PIL": "Pillow", "numpy": "NumPy"}
+GATE_PROGRAMS = ("cargo", "rustfmt", "cargo-clippy")
 
 #: Where a caller asks for this run's receipt: a directory only this run
 #: writes, which the caller names (tools/pr_gate.py, so it judges this run's
@@ -355,6 +376,35 @@ def gate_environment(environ, cores):
     return {**kept, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
 
 
+def toolchain_missing(env, root, packages=None, programs=GATE_PROGRAMS):
+    """What of the gate's toolchain its commands would not find in `env`, run from
+    `root`, in the order it is checked: `python3` and each of `programs` not on
+    env's PATH, then each of `packages` (default `GATE_PYTHON_PACKAGES`) that
+    python3 can't import, by its installed name. Empty when nothing is missing.
+
+    The packages are imported, not only found, by the python3 the commands
+    get, with the same environment and directory: a package built for another
+    interpreter is found and still fails its first import.
+    """
+    packages = GATE_PYTHON_PACKAGES if packages is None else packages
+    path = env.get("PATH", "")
+    python = shutil.which("python3", path=path)
+    missing = [] if python else ["python3"]
+    missing += [program for program in programs if shutil.which(program, path=path) is None]
+    if python and packages:
+        probe = ("import importlib, sys\n"
+                 "for name in sys.argv[1:]:\n"
+                 "    try:\n"
+                 "        importlib.import_module(name)\n"
+                 "    except Exception:\n"
+                 "        print(name)\n")
+        found = subprocess.run([python, "-c", probe, *packages], cwd=root, env=env,
+                               stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        failed = set(found.stdout.split()) if found.returncode == 0 else set(packages)
+        missing += [installed for name, installed in packages.items() if name in failed]
+    return missing
+
+
 def _run_command(command, index, total, root, receipt_dir, env=None):
     """Run one command, log it, and return its receipt record."""
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
@@ -511,6 +561,12 @@ def main(argv=None):
             print(command)
         return EXIT_OK
     root = Path.cwd()
+    missing = toolchain_missing(gate_environment(os.environ, available_cores()), root)
+    if missing:
+        print(f"gate: this environment can't run the gate, nothing was run: no {', '.join(missing)} "
+              "(docs/DEVELOPMENT.md, \"Current environment\"; `nix develop` has all of it)",
+              file=sys.stderr)
+        return EXIT_UNEQUIPPED
     receipt_dir = receipt_dir_for(root, args.fast, os.environ)
     try:
         receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait)

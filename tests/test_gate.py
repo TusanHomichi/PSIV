@@ -19,6 +19,7 @@ import io
 import itertools
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -28,10 +29,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS, GATE_MEASURED_PARALLELISM,
-                        RECEIPT_ENV, GateRefused, available_cores, cargo_parallelism, command_slug,
-                        cpu_mhz, gate_environment, gate_lock, main, parse_counts, parse_unittest,
-                        receipt_dir_for, run_gate)
+from tools.gate import (EXIT_UNEQUIPPED, FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS,
+                        GATE_MEASURED_PARALLELISM, GATE_PROGRAMS, RECEIPT_ENV, GateRefused,
+                        available_cores, cargo_parallelism, command_slug, cpu_mhz,
+                        gate_environment, gate_lock, main, parse_counts, parse_unittest,
+                        receipt_dir_for, run_gate, toolchain_missing)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -199,6 +201,83 @@ class EntryPointCase(unittest.TestCase):
             code = main(["--fast", "--list"])
         self.assertEqual(code, 0)
         self.assertEqual(buffer.getvalue().splitlines(), FAST_COMMANDS)
+
+
+class ToolchainCase(unittest.TestCase):
+    """The preflight: a shell without the gate's toolchain is the machine failing.
+
+    Without it, every command the toolchain is missing for fails, and the gate
+    exits 1: a red verdict on a commit for the machine's reason (#286, the
+    steward's gates on #279 and #282).
+    """
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.env = {"PATH": str(self.bin)}
+
+    def put(self, name, body="#!/bin/sh\nexit 0\n"):
+        program = self.bin / name
+        program.write_text(body)
+        program.chmod(0o755)
+
+    def put_python(self):
+        # A script, not a link: a link to a virtual environment's python
+        # elsewhere would lose the environment.
+        self.put("python3", f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
+
+    def test_a_full_toolchain_is_missing_nothing(self):
+        self.put_python()
+        for program in GATE_PROGRAMS:
+            self.put(program)
+        self.assertEqual(toolchain_missing(self.env, self.root, {"json": "JSON"}), [])
+
+    def test_each_missing_program_and_package_is_named(self):
+        self.put_python()
+        self.put("rustfmt")
+        packages = {"json": "JSON", "a_package_nobody_has_286": "Nobody's"}
+        self.assertEqual(toolchain_missing(self.env, self.root, packages),
+                         [p for p in GATE_PROGRAMS if p != "rustfmt"] + ["Nobody's"])
+
+    def test_a_package_that_fails_its_import_is_missing(self):
+        self.put_python()
+        for program in GATE_PROGRAMS:
+            self.put(program)
+        # Found where the commands run from, and broken when imported: what a
+        # package built for another interpreter does.
+        (self.root / ("broken_286" + ".py")).write_text("raise RuntimeError('built for another python')\n")
+        self.assertEqual(toolchain_missing(self.env, self.root, {"broken_286": "Broken"}), ["Broken"])
+
+    def test_without_python3_it_says_so(self):
+        for program in GATE_PROGRAMS:
+            self.put(program)
+        self.assertEqual(toolchain_missing(self.env, self.root, {"json": "JSON"}), ["python3"])
+
+    def test_main_exits_126_and_runs_nothing_without_it(self):
+        errors = io.StringIO()
+        with mock.patch("tools.gate.toolchain_missing", return_value=["PyYAML", "cargo"]), \
+                mock.patch("tools.gate.run_gate") as gate, contextlib.redirect_stderr(errors):
+            code = main(["--wait"])
+        self.assertEqual(code, EXIT_UNEQUIPPED)
+        self.assertEqual(code, 126)
+        gate.assert_not_called()
+        said = errors.getvalue()
+        for words in ("nothing was run", "no PyYAML, cargo", "nix develop", "Current environment"):
+            self.assertIn(words, said)
+
+    def test_main_runs_the_gate_with_it(self):
+        with mock.patch("tools.gate.toolchain_missing", return_value=[]) as check, \
+                mock.patch("tools.gate.receipt_dir_for", return_value=self.root / "receipt"), \
+                mock.patch("tools.gate.run_gate", return_value={"exit_code": 0}) as gate:
+            self.assertEqual(main(["--wait"]), 0)
+        gate.assert_called_once()
+        # It asks of the environment the commands get, not the caller's own.
+        env = check.call_args.args[0]
+        self.assertIn("CARGO_BUILD_JOBS", env)
+        self.assertNotIn(RECEIPT_ENV, env)
 
 
 class UnitCase(unittest.TestCase):

@@ -388,7 +388,11 @@ command's string, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
 sampled every second; the heavy lock does not exclude unlocked headless runs,
 so a slow step is read beside its load), log path and parsed counts. Report a gate
-result from that receipt, not from a retyped summary. The gate refuses to start
+result from that receipt, not from a retyped summary. A shell without the
+toolchain the commands need ([current environment](#current-environment))
+gets exit 126, nothing run, naming what is missing: the machine failing, not
+the commit, which `tools/pr_gate.py` passes through for its runner to try
+again. The gate refuses to start
 (exit 2, nothing run) while another gate holds the gate lock;
 `--wait` waits for the running gate instead of refusing, naming its holder
 once, and `--list` prints the commands without running them. The gate takes
