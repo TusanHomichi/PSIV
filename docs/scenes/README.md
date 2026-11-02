@@ -186,6 +186,10 @@ jobs.
 | `Event_StrippersAppearing` | `$94` | [123](123_StripClub.md) | `$073440..$0735ED` |
 | `Event_ExitingStripClub` | `$95` | [123](123_StripClub.md#event_exitingstripclub) | `$0735EE..$0735F5` |
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
+| `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
+| `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
+| `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
+| `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
