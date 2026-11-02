@@ -83,6 +83,17 @@ pub enum PresentationOp {
     /// `Field_LoadSprites`/`Field_BuildSprites` followed by the VInt prep used
     /// when the scene rebuilds the live sprite table.
     RebuildSprites,
+    /// `Event_MonsenEarthquake`'s shake (`loc_6E11E`, `loc_6E634`): for
+    /// `frames` frames, a table entry goes to the four
+    /// `Camera_*_Step_Counter` words and `SFXID_GraveOpening` sounds on every
+    /// fourth. The scene waits the frames itself; the runtime moves the camera.
+    Quake {
+        /// How many frames.
+        frames: u16,
+        /// `loc_6E634` begins on `loc_6E73A`, two frames that also shake Y,
+        /// before falling to `loc_6E6B6` like the plain one.
+        opening: bool,
+    },
     /// Destroy one retail dialogue/window layer.
     WindowDestroy {
         /// The `Window_Render_Mode` byte written before the call.

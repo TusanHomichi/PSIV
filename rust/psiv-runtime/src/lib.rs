@@ -28,6 +28,7 @@ mod field_tick;
 mod field_triggers;
 mod loot;
 mod map_updates;
+mod quake;
 pub use map_updates::{MapUpdateView, ScrollWrite, UnsupportedMapUpdate};
 #[cfg(test)]
 mod loot_tests;
@@ -163,6 +164,8 @@ pub struct Runtime {
     /// end clears. With it up, a high-bit cutscene's dialogue takes the panel
     /// layout and the shell hides the field sprites.
     scene_panel_sprites: bool,
+    /// The earthquake's camera shake, while it runs.
+    quake: Option<quake::Quake>,
     /// The retail ending's cleared-game flag, latched when `Cutscene_Ending`
     /// passes its final Start gate. `psiv_core` models the same byte in the
     /// common SRAM header (`$200035`): the session writes it at the latch and

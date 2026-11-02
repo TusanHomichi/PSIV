@@ -281,6 +281,7 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::CameraToActor { .. }
+            | PresentationOp::Quake { .. }
             | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
             | PresentationOp::RajaSickResetRaja { .. }
