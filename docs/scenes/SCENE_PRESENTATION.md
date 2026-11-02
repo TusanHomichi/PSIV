@@ -227,6 +227,18 @@ object retains walk-down frame 1 in this fixture. Chaz's field-party node uses
 the live camp anchor, removing the one-cell standing shift and matching SAT
 `(152,86)`.
 
+Correction, 2026-11-01 ([#269](https://github.com/TusanHomichi/PSIV/issues/269)):
+this fixture once drew slot 0 two pixels up as a "walk bob". There is no bob.
+`Field_FillSpriteAttributes` (`ps4.asm:89283`) writes each SAT y as
+`sprite_y_pos` plus the mapping's y byte, with nothing from the walk phase, and
+this receipt's three visible objects (slot 0, slot 7 and Chaz) all sit at
+object y minus camera y minus 2, whatever they are doing: the sheet's own
+origin already gives that. The fixture's -2 was cancelling the +2 of the
+half-cell anchor the motion path then counted twice; when
+[#222](https://github.com/TusanHomichi/PSIV/pull/222) drew the anchor once, the
+-2 alone was left and this pair went to rmse 5.071417. The oracle frame was
+right throughout; the -2 is gone.
+
 The status-window Plane A decode is also explicit. At screen row 2, columns
 26..37 are
 `C6F3 C683 C6C0 C6B9 C6D2 C680 C680 C68C C696 C680 C7DB CEF3`.

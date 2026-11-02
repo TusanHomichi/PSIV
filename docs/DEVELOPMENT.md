@@ -233,6 +233,7 @@ cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 python3 tools/pack_parity.py
+nix develop --command python3 tools/certify.py
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
@@ -374,7 +375,7 @@ Moving one worktree keeps cargo's file-time freshness sound, which a target
 dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
 partial, and a partial gate is recorded as a failure: green takes the full
 tier, on a clean tree, with every command exiting 0 and no input missing.
-The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the seven
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
@@ -395,11 +396,14 @@ once, and `--list` prints the commands without running them. The gate takes
 the gate lock and then the [heavy-run lock](#heavy-run-lock) itself, in the
 exclusive class for the whole run (its receipt names the class); both are one file each for the whole repository, under the main
 checkout's `build/` (`build/gate/.lock` and `build/continuation-heavy.lock`).
-Presentation certification
-is a separate entry point, `python3 tools/certify.py [--jobs N]` (Godot, Xvfb
-and the local oracle frames required; pairs and doctrine in
-[scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
-Godot-visible paths and report it apart from the gate. An integration candidate
+The gate's last step is presentation certification, `tools/certify.py [--jobs N]`
+(Godot, Xvfb and the local oracle frames required, the first two from the dev
+shell, which is why the step enters it; pairs and doctrine in
+[scene presentation](scenes/SCENE_PRESENTATION.md)). Every pull request's gate
+runs all twelve pairs, so a pair that drifts fails that merge rather than the
+next person to run certify
+([#269](https://github.com/TusanHomichi/PSIV/issues/269)). Run it alone for any change to
+Godot-visible paths while iterating, and report that apart from the gate. An integration candidate
 is verified as a whole by `python3 tools/verify_candidate.py --expect-digest <hex>
 --expect-chapters <n>` on a clean tree: the release campaign route against the
 expected digest and chapter count; then the resume check,
@@ -414,10 +418,9 @@ which asks `gh` for the issue states in one cached call and fails on a
 statement that still defers to a closed issue (an `until #N` or `tracked in #N`
 sentence); a history mention (`fixed in #N`, `PR #N merged`) carries no
 deferral phrase and is not reported, and without `gh` it reports skipped rather
-than passed; then certify, which takes the shared heavy lock
-itself (`PSIV_HEAVY_LOCK` overrides it); then the flash-only enemy attack
+than passed; then the flash-only enemy attack
 driven natively, `python3 tools/verify_native_flash_attack.py` (#92, #214),
-which takes the heavy lock itself too; then `gate.py --wait`, with one receipt under
+which takes the heavy lock itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, certify included, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
