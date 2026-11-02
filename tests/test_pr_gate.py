@@ -15,7 +15,8 @@ So are the user's systemd manager's two commands (`FAKE_SYSTEMD_RUN`,
 processes inherit, where systemd keeps one by its cgroup.
 
 `PassCase` runs the gate at the commit, in the kept worktree, and posts its
-receipt's rows. `VerdictCase` fails each way a gate falls short of a full,
+receipt's rows; `BehindMainCase` runs it on a head behind main merged with
+main, and fails one that doesn't merge cleanly before anything runs. `VerdictCase` fails each way a gate falls short of a full,
 clean, complete pass, and `AttributionCase` counts only the receipt this run
 asked for, never another run's. `MachineCase` passes a signal, a gate that
 can't start and an exit of 126 or more through, for a runner to try again.
@@ -288,6 +289,88 @@ class PassCase(ScratchRepo):
     def test_a_short_commit_is_judged_by_its_full_sha(self):
         code, said, _ = self.run_pr_gate(self.gate(missing=[]), commit=self.head[:10])
         self.assertEqual(code, 0, said)
+
+
+class BehindMainCase(ScratchRepo):
+    """A head from before main moved on is gated merged with main (#278)."""
+
+    def advance_main(self, name, text):
+        """Move origin/main on by a commit that writes `name`, leaving the head where it is."""
+        main = git(self.repo, "rev-parse", "origin/main")
+        env = {**os.environ, "GIT_INDEX_FILE": str(self.tmp / "main-index")}
+        blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.repo, input=text,
+                              capture_output=True, text=True, check=True).stdout.strip()
+        for args in (["read-tree", main], ["update-index", "--add", "--cacheinfo", f"100644,{blob},{name}"]):
+            subprocess.run(["git", *args], cwd=self.repo, env=env, check=True, capture_output=True)
+        tree = subprocess.run(["git", "write-tree"], cwd=self.repo, env=env, capture_output=True,
+                              text=True, check=True).stdout.strip()
+        moved = git(self.repo, "commit-tree", tree, "-p", main, "-m", "main moves on")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", moved)
+        return moved
+
+    def test_a_head_behind_main_is_gated_merged_with_it(self):
+        main = self.advance_main("main.txt", "main's own change\n")
+        code, said, _ = self.run_pr_gate(self.gate(missing=[]))
+        self.assertEqual(code, 0, said)
+        ran = self.ran()
+        self.assertEqual(ran["cwd"], str(self.gate_dir))
+        self.assertEqual(git(self.gate_dir, "rev-list", "--parents", "-n", "1", ran["head"]).split()[1:],
+                         [self.head, main])
+        self.assertTrue((self.gate_dir / "main.txt").is_file())
+        self.assertTrue(said.startswith(f"**Full gate on {self.head[:12]} merged with main at "
+                                        f"{main[:12]}: passed, in "), said)
+
+    def test_the_next_head_that_has_main_moves_the_worktree_off_the_merge(self):
+        main = self.advance_main("main.txt", "main's own change\n")
+        self.assertEqual(self.run_pr_gate(self.gate(missing=[]))[0], 0)
+        git(self.repo, "merge", "-q", "--no-edit", main)
+        merged = git(self.repo, "rev-parse", "HEAD")
+        code, said, _ = self.run_pr_gate(self.gate(missing=[]), commit=merged)
+        self.assertEqual(code, 0, said)
+        self.assertEqual(self.ran()["head"], merged)
+        self.assertTrue(said.startswith(f"**Full gate on {merged[:12]}: passed, in "), said)
+
+    def main_moves_while_it_waits(self, commit):
+        """A run on commit started while the lock is held, then main moves on
+        to a commit whose worktree and input tools both fail: the run uses the
+        main it started with throughout."""
+        with open(self.tmp / "gate.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            process = self.start(self.gate(missing=[]), commit=commit)
+            time.sleep(1)
+            self.assertIsNone(process.poll())
+            for tool in ("gate_worktree.py", "local_inputs.py"):
+                self.advance_main(f"tools/{tool}", BROKEN_TOOL)
+            fcntl.flock(held, fcntl.LOCK_UN)
+            output, _ = process.communicate(timeout=120)
+        return process.returncode, self.summary_file.read_text(), output
+
+    def test_a_head_behind_main_uses_one_main_though_the_ref_moves_while_it_waits(self):
+        main = self.advance_main("main.txt", "main's own change\n")
+        code, said, output = self.main_moves_while_it_waits(self.head)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(git(self.gate_dir, "rev-list", "--parents", "-n", "1", self.ran()["head"]).split()[1:],
+                         [self.head, main])
+        self.assertTrue(said.startswith(f"**Full gate on {self.head[:12]} merged with main at {main[:12]}: "
+                                        "passed, in "), said)
+
+    def test_a_head_that_has_main_uses_one_main_though_the_ref_moves_while_it_waits(self):
+        code, said, output = self.main_moves_while_it_waits(self.head)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.ran()["head"], self.head)
+        self.assertTrue(said.startswith(f"**Full gate on {self.head[:12]}: passed, in "), said)
+
+    def test_a_head_that_conflicts_with_main_fails_before_the_gate(self):
+        main = self.advance_main("change.txt", "main's own change.txt\n")
+        code, said, _ = self.run_pr_gate(self.gate(missing=[]))
+        self.assertEqual(code, 1, said)
+        self.assertEqual(said, f"**Full gate on {self.head[:12]} merged with main at {main[:12]}: "
+                               f"failed before it ran: it doesn't merge cleanly with main at "
+                               f"{main[:12]}; merge main into the branch.**\n")
+        self.assertIsNone(self.ran())
+        mid_merge = subprocess.run(["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+                                   cwd=self.gate_dir, capture_output=True)
+        self.assertNotEqual(mid_merge.returncode, 0, "the worktree was left mid-merge")
 
 
 class VerdictCase(ScratchRepo):
