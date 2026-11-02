@@ -236,10 +236,7 @@ impl Field {
                         super::view::motion_pixel_position(w.cell, npc_offset, w.offset_16ths);
                     entry.node.set_position(Vector2::new(
                         (x - view.origin_x) as f32,
-                        (y - view.origin_y
-                            + view.frame_height
-                            + super::view::camp_receipt_y_offset(entry.index, &entry.sheet))
-                            as f32,
+                        (y - view.origin_y + view.frame_height) as f32,
                     ));
                 }
                 None => {

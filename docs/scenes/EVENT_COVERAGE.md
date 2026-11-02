@@ -167,11 +167,11 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0077` | `Event_MissingStudentFound` | dialogue `$F6` | tree 9 entry 75 | allowlisted, #81 |
 | `$0078` | `Event_OldManNearMissingStudent` | dialogue `$F6` | tree 9 entry 78 | allowlisted, #81 |
 | `$0079` | `Event_MissingStudentInBed` | dialogue `$F6` | tree 9 entry 81 | allowlisted, #81 |
-| `$007A` | `Event_TallasMom` | dialogue `$F6` | tree 12 entry 28 | allowlisted, #81 |
-| `$007B` | `Event_TallasMomAfterRescue` | dialogue `$F6` | tree 12 entry 30 | allowlisted, #81 |
-| `$007C` | `Event_InsideMonsenHole` | map trigger $71 | MonsenCave | allowlisted, #81 |
+| `$007A` | `Event_TallasMom` | dialogue `$F6` | tree 12 entry 28 | scene `Event_TallasMom` |
+| `$007B` | `Event_TallasMomAfterRescue` | dialogue `$F6` | tree 12 entry 30 | scene `Event_TallasMomAfterRescue` |
+| `$007C` | `Event_InsideMonsenHole` | map trigger $71 | MonsenCave | scene `Event_InsideMonsenHole` |
 | `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | scene `Event_FractOozeFound` |
-| `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | allowlisted, #81 |
+| `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | scene `Event_TallasRescued` |
 | `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | scene `Event_LostGirlsMother` |
 | `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | scene `Event_GirlPrison` |
 | `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 25 |
+| #81 | Motavia side content | 21 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 33 |
+| | total | 29 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

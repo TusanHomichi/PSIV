@@ -4,7 +4,7 @@
 
 Each case runs `main` in a throwaway git repository with a fake step runner
 that writes what the real steps would (the route's report, log and tape, the
-certify and gate `receipt=` lines, the resume check's `summary=`), so the order,
+flash-attack and gate `receipt=` lines, the resume check's `summary=`), so the order,
 the heavy lock, the expectations and the receipt are checked without building
 or running anything. `RawFlockParent` runs `main` in a child process under a raw
 `flock(1)` stand-in, because the refusal reads the real process tree.
@@ -63,7 +63,7 @@ def fake_runner(codes=None, digest="abc", chapters=("one", "two")):
                 {"digest": digest, "result": "completed"}))
             (route / "run.tape").write_text("tape")
             text = "".join(f"chapter {c}: 10 frames, 0 battles\n" for c in chapters)
-        elif name in ("certify", "flash-attack", "gate"):
+        elif name in ("flash-attack", "gate"):
             text = f"{name} done; receipt=build/{name}/x\n"
         elif name == "resume":
             text = "resume check: 9 of 9 resumes completed; summary=build/resume/x\n"
@@ -114,21 +114,21 @@ class Candidate(RepoCase):
         self.assertEqual(code, vc.EXIT_OK, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "flash-attack", "gate"])
-        # The headless route and resumes take no lock; certify and the gate
+                          "flash-attack", "gate"])
+        # The headless route and resumes take no lock; the flash attack and the gate
         # take their own classes, so only the build is held from here.
         self.assertEqual([lock is not None for _, lock in calls],
-                         [True, False, False, False, False, False, False])
+                         [True, False, False, False, False, False])
         receipt = self.receipt()
         self.assertEqual([step["lock_class"] for step in receipt["steps"]],
-                         ["build", None, None, None, "own", "own", "own"])
+                         ["build", None, None, None, "own", "own"])
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)
         self.assertEqual(receipt["route"]["frames"], 20)
         self.assertEqual(receipt["failures"], [])
         self.assertEqual(receipt["steps"][2]["receipt"], "build/resume/x")
-        self.assertEqual(receipt["steps"][5]["receipt"], "build/flash-attack/x")
-        self.assertEqual(receipt["steps"][6]["receipt"], "build/gate/x")
+        self.assertEqual(receipt["steps"][4]["receipt"], "build/flash-attack/x")
+        self.assertEqual(receipt["steps"][5]["receipt"], "build/gate/x")
 
     def test_a_digest_mismatch_fails(self):
         runner, _ = fake_runner(digest="def")
@@ -137,13 +137,13 @@ class Candidate(RepoCase):
         self.assertIn("route digest def != expected abc", self.receipt()["failures"])
 
     def test_a_failing_step_fails_but_the_later_steps_still_run(self):
-        runner, calls = fake_runner(codes={"certify": 1})
+        runner, calls = fake_runner(codes={"flash-attack": 1})
         code, out = self.run_main([], runner)
         self.assertEqual(code, vc.EXIT_FAILED, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "flash-attack", "gate"])
-        self.assertIn("step certify exited 1", self.receipt()["failures"])
+                          "flash-attack", "gate"])
+        self.assertIn("step flash-attack exited 1", self.receipt()["failures"])
 
     def test_the_resume_check_runs_on_the_route_step_s_run_and_its_failure_fails(self):
         runner, calls = fake_runner(codes={"resume": 1})
@@ -151,7 +151,7 @@ class Candidate(RepoCase):
         self.assertEqual(code, vc.EXIT_FAILED, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "issue-refs",
-                          "certify", "flash-attack", "gate"])
+                          "flash-attack", "gate"])
         receipt = self.receipt()
         self.assertIn("step resume exited 1", receipt["failures"])
         route = Path(receipt["steps"][1]["log"]).parent / "route"
@@ -168,7 +168,7 @@ class Candidate(RepoCase):
 
 class RawFlockParent(RepoCase):
     """A candidate under a raw flock parent is refused before the build runs;
-    the long build and route would otherwise end in a certify step waiting
+    the long build and route would otherwise end in a flash-attack step waiting
     forever on its own ancestor."""
 
     def setUp(self):
@@ -233,9 +233,9 @@ class BuildStepLock(RepoCase):
     def test_the_build_runs_in_the_build_class(self):
         self.assertEqual(self.seen_classes()["build"], "class=build")
 
-    def test_certify_and_the_gate_run_under_no_holder_and_take_their_own(self):
+    def test_the_flash_attack_and_the_gate_run_under_no_holder_and_take_their_own(self):
         seen = self.seen_classes()
-        self.assertEqual((seen["certify"], seen["gate"]), ("class=none", "class=none"))
+        self.assertEqual((seen["flash-attack"], seen["gate"]), ("class=none", "class=none"))
 
     def test_negative_control_the_headless_route_holds_nothing(self):
         self.assertEqual(self.seen_classes()["route"], "class=none")

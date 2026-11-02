@@ -64,6 +64,7 @@ mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
+pub(crate) mod monsen;
 pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -284,6 +285,11 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // Tallas's rescue (#81).
+    monsen::TALLAS_MOM,
+    monsen::TALLAS_MOM_AFTER_RESCUE,
+    monsen::INSIDE_MONSEN_HOLE,
+    monsen::TALLAS_RESCUED,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -468,6 +474,10 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_TallasMom", 3),
+            ("Event_TallasMomAfterRescue", 3),
+            ("Event_InsideMonsenHole", 2),
+            ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
