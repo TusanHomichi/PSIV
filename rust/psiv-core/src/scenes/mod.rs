@@ -64,6 +64,7 @@ mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
+pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -278,6 +279,9 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     hunters_guild::HUNTERS_GUILD,
+    motavia_side::LOST_GIRLS_MOTHER,
+    motavia_side::KING_RAPPY_DEFEATED,
+    motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
     // The field menu's own events, not story beats: the three machines board
