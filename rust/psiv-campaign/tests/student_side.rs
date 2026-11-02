@@ -69,12 +69,7 @@ fn flag(driver: &Driver, id: u16) -> bool {
 }
 
 fn holds(driver: &Driver, item: u8) -> bool {
-    driver
-        .runtime()
-        .game()
-        .inventory()
-        .slots()
-        .contains(&item)
+    driver.runtime().game().inventory().slots().contains(&item)
 }
 
 /// With the job taken the owner tells the party about her (`$76`).
@@ -119,7 +114,10 @@ fn the_student_is_found_treated_and_taken_home() {
     assert!(!holds(&driver, ITEM_PEROLYMATE), "he took it");
 
     driver.talk(BED_BLOCK).expect("she speaks");
-    assert!(flag(&driver, STUDENT_RECOVERED), "Event_MissingStudentInBed");
+    assert!(
+        flag(&driver, STUDENT_RECOVERED),
+        "Event_MissingStudentInBed"
+    );
     assert_eq!(driver.runtime().map_id().0, PIATA_DORM);
     assert!(
         driver.runtime().map().npcs()[STUDENT_HOME].active,
