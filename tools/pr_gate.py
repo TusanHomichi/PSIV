@@ -12,13 +12,19 @@ DIR's lock (`DIR.lock`), so two runs never move the one worktree under each
 other:
 
 1. main's `tools/gate_worktree.py` moves the kept worktree DIR to COMMIT;
-2. main's `tools/local_inputs.py link` links the local inputs into it;
-3. GATE runs there (`python3 tools/gate.py --wait`, or a wrapper around it
+2. when COMMIT doesn't have main yet, main is merged into it there, in a
+   merge commit that stays in DIR and is never pushed: the gate then proves
+   the pull request as it would land, and main's tools never meet a tree
+   older than they are (a head from before main changed what its input tools
+   give the pack build fails for that alone, #278). One that doesn't merge
+   cleanly fails here, before anything is built;
+3. main's `tools/local_inputs.py link` links the local inputs into it;
+4. GATE runs there (`python3 tools/gate.py --wait`, or a wrapper around it
    such as burrow's `flaky run ... --`), its output passing through, told
    where to write its receipt (`PSIV_GATE_RECEIPT`, tools/gate.py): a
    directory of this run's own, since every worktree links the main
    checkout's `build/gate/`, which holds every other run's;
-4. that receipt is read back, and FILE gets a Markdown summary of it: each
+5. that receipt is read back, and FILE gets a Markdown summary of it: each
    command's exit, duration and test counts.
 
 Each step runs in a systemd scope of the user's manager, one name for DIR
@@ -43,7 +49,8 @@ The steward runs main's copy on any commit (`git show
 origin/main:tools/pr_gate.py | python3 - DIR COMMIT ...`), as it does the two
 tools it calls, so this file imports nothing from `tools/`.
 
-Exit 0 when the full gate passed on COMMIT: every command exited 0, on a
+Exit 0 when the full gate passed on COMMIT, or on COMMIT merged with main
+when it didn't have main yet: every command exited 0, on a
 clean tree that had every input (the receipt's `missing_inputs` is empty:
 a partial gate is a failure). 1 when it failed, a step before it failed, or
 it wrote no full receipt for COMMIT where it was asked to (a `--fast` run,
@@ -83,7 +90,9 @@ EXIT_NOT_STARTED = 127
 #: A step that couldn't be run, or stopped, in its scope.
 EXIT_UNSUPERVISED = 126
 
-#: The ref whose copies of the worktree and input tools run, whatever COMMIT is.
+#: The ref whose copies of the worktree and input tools run, whatever COMMIT
+#: is: resolved once, when a run starts, and that one revision is "main" for
+#: every step.
 TOOLS_FROM = "origin/main"
 
 #: Where the gate writes its receipts, relative to the worktree's root
@@ -95,6 +104,11 @@ RECEIPT_ENV = "PSIV_GATE_RECEIPT"
 
 #: The signals that stop a run, its steps first.
 STOPS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+#: Who the merge commit with main is by (step 2): it stays in the kept
+#: worktree, never pushed, and a signing key the machine's Git asks for has no
+#: say in it.
+MERGER = ("-c", "user.name=pr gate", "-c", "user.email=pr-gate@localhost", "-c", "commit.gpgSign=false")
 
 #: Seconds a step's scope has to end after SIGTERM, before SIGKILL.
 GRACE_S = 10
@@ -143,9 +157,21 @@ def resolve(here: Path, commit: str) -> str | None:
     return shown.stdout.strip() if shown.returncode == 0 else None
 
 
-def main_copy(here: Path, tool: str) -> str:
-    """The source of `tool` as TOOLS_FROM has it."""
-    shown = subprocess.run(["git", "show", f"{TOOLS_FROM}:tools/{tool}"], cwd=here,
+def has(here: Path, ancestor: str, commit: str) -> bool:
+    """Whether commit already has ancestor in its history."""
+    return subprocess.run(["git", "merge-base", "--is-ancestor", ancestor, commit], cwd=here,
+                          capture_output=True, check=False).returncode == 0
+
+
+def head_of(worktree: Path) -> str:
+    """The commit checked out in worktree."""
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, capture_output=True,
+                          text=True, check=True).stdout.strip()
+
+
+def main_copy(here: Path, main: str, tool: str) -> str:
+    """The source of `tool` as main, TOOLS_FROM resolved once, has it."""
+    shown = subprocess.run(["git", "show", f"{main}:tools/{tool}"], cwd=here,
                            capture_output=True, text=True, check=False)
     if shown.returncode != 0:
         raise StepFailed(f"{TOOLS_FROM}'s `tools/{tool}` can't be read here")
@@ -249,9 +275,9 @@ def run_step(command: list[str], cwd: Path, scope: str, source: str | None = Non
         shutil.rmtree(marks, ignore_errors=True)
 
 
-def run_main_copy(here: Path, cwd: Path, scope: str, tool: str, *args: str) -> int:
+def run_main_copy(here: Path, main: str, cwd: Path, scope: str, tool: str, *args: str) -> int:
     """main's copy of `tool`, run on stdin with `args` in cwd, as a step."""
-    return run_step([sys.executable, "-", *args], cwd, scope, source=main_copy(here, tool))
+    return run_step([sys.executable, "-", *args], cwd, scope, source=main_copy(here, main, tool))
 
 
 def read_receipt(path: Path, commit: str) -> dict | None:
@@ -286,11 +312,13 @@ def _cell(text: object) -> str:
     return str(text).replace("|", "\\|").replace("`", "'")
 
 
-def summary(commit: str, receipt: dict | None, verdict: str) -> str:
-    """The Markdown a runner posts: the verdict, then a row a command."""
+def summary(commit: str, receipt: dict | None, verdict: str, main: str | None = None) -> str:
+    """The Markdown a runner posts: the verdict, then a row a command. With
+    main, the gate ran on commit merged with it (step 2)."""
+    on = f"{commit[:12]} merged with main at {main[:12]}" if main else commit[:12]
     if receipt is None:
-        return f"**Full gate on {commit[:12]}: {verdict}.**\n"
-    lines = [f"**Full gate on {commit[:12]}: {verdict}, in {_seconds(receipt.get('duration_s') or 0)}.**",
+        return f"**Full gate on {on}: {verdict}.**\n"
+    lines = [f"**Full gate on {on}: {verdict}, in {_seconds(receipt.get('duration_s') or 0)}.**",
              "", "| Command | Exit | Time | Tests |", "| --- | --- | --- | --- |"]
     for record in receipt.get("commands", []):
         lines.append(f"| `{_cell(record.get('command', ''))}` | {record.get('exit_code')} "
@@ -326,10 +354,18 @@ def judge(commit: str, receipt: dict | None, gate_exit: int) -> tuple[int, str]:
 
 
 def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[int, str]:
-    """The four steps under the worktree's lock: the exit, and the summary."""
+    """The steps under the worktree's lock: the exit, and the summary."""
     full = resolve(here, commit)
     if full is None:
         return EXIT_FAILED, summary(commit, None, "failed before it ran: the commit isn't in this checkout")
+    # One main for the whole run: the tools, the ancestry check, the merge and
+    # the summary. A fetch that moves the ref while this waits for the lock
+    # changes none of them, so the tools never meet a tree from another main.
+    main = resolve(here, TOOLS_FROM)
+    if main is None:
+        return EXIT_FAILED, summary(full, None, f"failed before it ran: {TOOLS_FROM} isn't in this checkout")
+    # The main it's merged with, or None when it already has it.
+    behind = None if has(here, main, full) else main
     lock_path = worktree.with_name(worktree.name + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_path, "a") as lock:
@@ -340,20 +376,29 @@ def pr_gate(here: Path, worktree: Path, commit: str, gate: list[str]) -> tuple[i
             # What a run killed outright left running.
             stop_scope(scope)
             try:
-                if run_main_copy(here, here, scope, "gate_worktree.py", str(worktree), full) != 0:
+                if run_main_copy(here, main, here, scope, "gate_worktree.py", str(worktree), full) != 0:
                     raise StepFailed("the gate's worktree couldn't be prepared")
-                if run_main_copy(here, worktree, scope, "local_inputs.py", "link") != 0:
+                if behind and run_step(["git", *MERGER, "merge", "--quiet", "--no-ff", "--no-edit", "-m",
+                                        f"pr gate: {full[:12]} merged with main at {main[:12]}", main],
+                                       worktree, scope) != 0:
+                    # Left mid-merge, the worktree would still move (its
+                    # checkout is forced), but nothing need rely on that.
+                    run_step(["git", "merge", "--abort"], worktree, scope)
+                    raise StepFailed(f"it doesn't merge cleanly with main at {main[:12]}; "
+                                     "merge main into the branch")
+                if run_main_copy(here, main, worktree, scope, "local_inputs.py", "link") != 0:
                     raise StepFailed("the local inputs couldn't be prepared")
             except StepFailed as error:
-                return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}")
+                return EXIT_FAILED, summary(full, None, f"failed before it ran: {error}", behind)
+            candidate = head_of(worktree)
             stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-            asked = worktree / GATE_DIR / f"{stamp}-{full[:7]}-pr-{uuid.uuid4().hex[:12]}"
+            asked = worktree / GATE_DIR / f"{stamp}-{candidate[:7]}-pr-{uuid.uuid4().hex[:12]}"
             gate_exit = run_step(gate, worktree, scope, env={**os.environ, RECEIPT_ENV: str(asked)})
         except Unsupervised as error:
-            return EXIT_UNSUPERVISED, summary(full, None, f"it couldn't run: {error}")
-        receipt = read_receipt(asked, full)
-        code, verdict = judge(full, receipt, gate_exit)
-        return code, summary(full, receipt, verdict)
+            return EXIT_UNSUPERVISED, summary(full, None, f"it couldn't run: {error}", behind)
+        receipt = read_receipt(asked, candidate)
+        code, verdict = judge(candidate, receipt, gate_exit)
+        return code, summary(full, receipt, verdict, behind)
 
 
 def main(argv: list[str] | None = None) -> int:
