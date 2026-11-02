@@ -65,7 +65,7 @@ would run off the table on a fourth map, which no object reaches.
 | arm 8 | `popdlg` / `jsr Event_RunDialogue` | `RunDialogueResume` |
 | arm 9-10 | `move.b $2(a0), d0` / `jmp EventFlags_Set` | `SetFlag` the row's flag, `End` |
 | 43-49 | `loc_727CA`: the row's scan, `Event_GetAndRunDialogue` on its last byte | `SkipUnlessMap`, entry, `SkipOps` |
-| 50 | `loc_727EE`: `GetItem`, `clr.b (a0)`, `ReorderInventory`, until none | `Rocky(RemoveAll)` |
+| 50 | `loc_727EE`: `GetItem`, `clr.b (a0)`, `ReorderInventory`, until `GetItem` finds none | `Rocky(RemoveAll)` |
 | 51 | `PalFadeOut_ClrSpriteTbl` | `FadeOut` |
 | 52 | `moveq #$24, d0` / `jsr EventFlags_Set` | `SetFlag` event `$24` |
 | 53 | `RockyHouse`, `Field_Map_Index_2` Aiedo, start (`$3C,$42`), facing `$C`, align `$10`, `bclr #3, Map_Load_Flags`, `RefreshMap` | `LoadMap` |
@@ -79,12 +79,20 @@ cell. `Rocky(RunFast)` gives the object that pace. `$B0` is eleven cells.
 **The escape flags.** Only the arm that runs clears them. The caught arm leaves whichever was on:
 `$24` wins in every `MapDataMan_*` that reads them, since each tests it first.
 
+**The cake scan.** `GetItem` (`ps4.asm:121975`) compares only the first `occupied` bytes, and
+`ReorderInventory` (`ps4.asm:124264`) closes only the first hole, so a battle's holes change both
+the catch and the removal. With `[__ 01 91]` the window is two bytes: he runs and the cake stays.
+With `[01 91 __ 91]` the first pass leaves `[01 __ 91 __]`, window two: he is caught and one cake
+stays. `Rocky(BranchIfHolding)` and `Rocky(RemoveAll)` both ask `Inventory::find_item`, again after
+each removal.
+
 ## Tests
 
 - `rust/psiv-core/tests/rocky_scenes.rs`: `$73`'s turn, line and flag; each row without a shortcake
   (object, line, routine, 44 ticks for the run, resume, only that map's flag on, whichever was on);
   each row with shortcakes (line, every cake gone with the holes closed, `$24`, the load, the
-  owner's turn and line).
+  owner's turn and line); the scan window on each row (a cake past it at the catch, and packed,
+  hole-first and past-the-window lists through the removal loop).
 - Pad-driven: `rust/psiv-campaign/tests/rocky_side.rs` on hand-built saves, since the route does
   not take the guild's jobs: found at Monsen with the negative control before the owner, the chase
   from Termi to Krup to Monsen with the object the map effects show on each, and the catch at Termi

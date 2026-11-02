@@ -5,11 +5,22 @@ mod common;
 
 use common::grid;
 use psiv_core::{
-    ActorRef, Cell, Direction, EventIndex, FieldMap, Flag, GameState, MapId, SceneEffect,
-    SceneInput, SceneRunner, ScriptedActor, StepFrames, scene_for,
+    ActorRef, Cell, Direction, EventIndex, FieldMap, Flag, GameState, INVENTORY_SLOTS, Inventory,
+    MapId, SceneEffect, SceneInput, SceneRunner, ScriptedActor, StepFrames, scene_for,
 };
 
 const SHORTCAKE: u8 = 0x91;
+/// Each of the routine's maps, with its first and caught lines.
+const ROWS: [(u16, u16, u16); 3] = [(0x39, 0x35, 0x36), (0x73, 0x2A, 0x2B), (0x7B, 0x4C, 0x4D)];
+
+/// A list that starts with exactly `head`, the rest empty.
+fn holding(head: &[u8]) -> GameState {
+    let mut slots = [0; INVENTORY_SLOTS];
+    slots[..head.len()].copy_from_slice(head);
+    let mut state = GameState::new();
+    *state.inventory_mut() = Inventory::from_slots(slots);
+    state
+}
 
 /// A played scene's effects with the tick of each.
 fn play(event: u16, map_id: u16, state: &mut GameState) -> Vec<(usize, SceneEffect)> {
@@ -173,5 +184,66 @@ fn with_a_shortcake_he_goes_home_and_the_cakes_go() {
                 facing: Direction::Right,
             }
         ));
+    }
+}
+
+/// `GetItem` (`ps4.asm:121975`) compares only the first `occupied` bytes. Two
+/// items and a battle's hole make that window `[$00, $01]`, so a cake in the
+/// third slot is not found: he runs, and the cake stays where it was.
+#[test]
+fn a_cake_past_the_scan_window_does_not_catch_him() {
+    for (map, first, _) in ROWS {
+        let mut state = holding(&[0x00, 0x01, SHORTCAKE]);
+        let log = play(0x74, map, &mut state);
+        assert_eq!(lines(&log), [first], "${map:02X}");
+        assert!(!state.is_set(Flag::event(0x24)), "${map:02X}");
+        assert_eq!(
+            state.inventory().slots()[..4],
+            [0x00, 0x01, SHORTCAKE, 0x00],
+            "${map:02X}"
+        );
+    }
+}
+
+/// The `loc_727EE` loop, worked by hand against `GetItem` and
+/// `ReorderInventory` (`ps4.asm:124264`), which closes only the first hole.
+/// Each case catches him, so `$24` is set whatever stays behind.
+#[test]
+fn the_cake_loop_rescans_its_window_after_each_removal() {
+    let cases: [(&[u8], &[u8]); 4] = [
+        // Packed: the window keeps up with the list, and every cake goes.
+        (
+            &[SHORTCAKE, 0x01, SHORTCAKE, SHORTCAKE, 0x02],
+            &[0x01, 0x02, 0x00, 0x00, 0x00],
+        ),
+        // `[01 __ 91 __]` after the first pass: window 2, the cake is past it.
+        (
+            &[0x01, SHORTCAKE, 0x00, SHORTCAKE],
+            &[0x01, 0x00, SHORTCAKE, 0x00],
+        ),
+        // A hole first: `[__ 91 91 __]`, then `[__ 91 __ __]`, window 1.
+        (
+            &[0x00, SHORTCAKE, SHORTCAKE, SHORTCAKE],
+            &[0x00, SHORTCAKE, 0x00, 0x00],
+        ),
+        // A cake past the first window, which is 4 bytes, and still past the
+        // next: `[01 __ 02 91 __]`, window 3.
+        (
+            &[0x01, SHORTCAKE, 0x00, 0x02, SHORTCAKE],
+            &[0x01, 0x00, 0x02, SHORTCAKE, 0x00],
+        ),
+    ];
+    for (map, _, caught) in ROWS {
+        for (before, after) in cases {
+            let mut state = holding(before);
+            let log = play(0x74, map, &mut state);
+            assert_eq!(lines(&log), [caught, 0x46], "${map:02X} {before:02X?}");
+            assert!(state.is_set(Flag::event(0x24)), "${map:02X} {before:02X?}");
+            assert_eq!(
+                state.inventory().slots()[..after.len()],
+                *after,
+                "${map:02X} {before:02X?}"
+            );
+        }
     }
 }

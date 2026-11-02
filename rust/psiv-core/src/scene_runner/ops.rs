@@ -875,7 +875,7 @@ impl SceneRunner {
                     if_held,
                     if_not,
                 } => {
-                    let held = state.inventory().contains(item);
+                    let held = state.inventory().get_item(item);
                     let target = usize::from(if held { if_held } else { if_not });
                     if target > self.scene.len() {
                         return Some(SceneFault::BadJump { target });
@@ -883,8 +883,7 @@ impl SceneRunner {
                     self.pc = target;
                 }
                 RockyOp::RemoveAll { item } => {
-                    while let Some(slot) = state.inventory().slots().iter().position(|&s| s == item)
-                    {
+                    while let Some(slot) = state.inventory().find_item(item) {
                         let _ = state.inventory_mut().remove_in_field(slot);
                     }
                     effects.push(SceneEffect::InventoryChanged);
