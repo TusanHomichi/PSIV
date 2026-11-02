@@ -357,8 +357,11 @@ its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
 bots are clean on a head, the steward runs main's `tools/pr_gate.py` on the
 machine that holds the local inputs, which runs the full gate,
-`python3 tools/gate.py --wait`, on that exact commit, and judges the receipt
-it wrote; the steward posts the summary it gives (each command's exit, time
+`python3 tools/gate.py --wait`, on that commit, and judges the receipt
+it wrote. A head that doesn't have main yet is first merged with main there,
+in a merge commit the gate's worktree keeps and nobody pushes, so the gate
+proves the pull request as it would land and main's tools never meet an older
+tree; one that doesn't merge cleanly fails before anything runs; the steward posts the summary it gives (each command's exit, time
 and test counts) and merges only once it is green. It runs in the one
 worktree the steward keeps for gates, under that worktree's lock: main's
 `tools/gate_worktree.py` moves it to that commit with every untracked and ignored
