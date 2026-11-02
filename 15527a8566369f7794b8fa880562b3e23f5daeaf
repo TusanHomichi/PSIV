@@ -1,0 +1,95 @@
+{
+  "conary": "note v1",
+  "change": "17afk5936x8nnmgqcvpg5hs903",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 309,
+  "url": "https://github.com/tusanhomichi/psiv/pull/309",
+  "summary": "deps: lock file maintenance (nix)",
+  "task": null,
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "landing": {
+    "revision": "7550c437e5bddb9e15bc2d473d35f43853e54121d217de746c6a0db76847f7f3",
+    "before": "462fcbb1e45dea8c4e5482427a42886f0e2a02fc",
+    "after": "15527a8566369f7794b8fa880562b3e23f5daeaf",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793618860774
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "renovate/stability-days",
+      "result": "pass",
+      "source": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433890286/job/125238882217"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433890286/job/125238881758"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529/job/125238879237"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#309)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#309)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#309)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#309)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#309)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433889529"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41433890286/job/125239000468"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/309"
+    }
+  ]
+}
