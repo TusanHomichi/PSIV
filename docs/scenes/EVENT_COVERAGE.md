@@ -160,8 +160,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | allowlisted, #81 |
 | `$0071` | `Event_MileSandWormBattle` | map trigger $70 | Mile | scene `Event_MileSandWormBattle` |
 | `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
-| `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | allowlisted, #81 |
-| `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | allowlisted, #81 |
+| `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | scene `Event_RockyFound` |
+| `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | scene `Event_CatchingRocky` |
 | `$0075` | `Event_RockyOwner` | dialogue `$F6` | tree 11 entry 68 | scene `Event_RockyOwner` |
 | `$0076` | `Event_PiataDormOwner` | dialogue `$F6` | tree 2 entry 89 | allowlisted, #81 |
 | `$0077` | `Event_MissingStudentFound` | dialogue `$F6` | tree 9 entry 75 | allowlisted, #81 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 28 |
+| #81 | Motavia side content | 26 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 36 |
+| | total | 34 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
