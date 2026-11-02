@@ -64,6 +64,7 @@ mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
+pub(crate) mod late_arc;
 pub(crate) mod monsen;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -279,6 +280,12 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     hunters_guild::HUNTERS_GUILD,
+    late_arc::MUSK_CATS_GUARDING,
+    late_arc::MUSK_CAT_ELDER,
+    late_arc::PENGUIN_OWNER,
+    late_arc::RAJA_SICK,
+    late_arc::RUNE_HEALING_CHAZ,
+    late_arc::HIJAMMER,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
     // Tallas's rescue (#81).
@@ -396,6 +403,12 @@ mod tests {
             ("Event_ConveyorBeltRight", 6),
             ("Event_ConveyorBeltLeft", 6),
             ("Event_Recovery", 16),
+            ("Event_MuskCatsGuarding", 4),
+            ("Event_MuskCatElder", 6),
+            ("Event_PenguinOwner", 11),
+            ("Event_RajaSick", 10),
+            ("Event_RuneHealingChaz", 17),
+            ("Event_Hijammer", 14),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),

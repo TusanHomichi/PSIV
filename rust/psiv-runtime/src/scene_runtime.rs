@@ -227,7 +227,11 @@ impl Runtime {
         let record = self.data.map(psiv_data::MapId(self.map.id().0));
         let live = &self.effects;
         let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+        runner.lend_rng(self.rng.clone());
         let effects = runner.tick_with(&self.map, &mut self.game, scene_input, Some(&probe));
+        if let Some(rng) = runner.take_rng() {
+            self.rng = rng;
+        }
         let mut finished = runner.is_finished();
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
@@ -244,7 +248,11 @@ impl Runtime {
             let live = &self.effects;
             let probe =
                 |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+            runner.lend_rng(self.rng.clone());
             let effects = runner.release_empty_pan(&self.map, &mut self.game, Some(&probe));
+            if let Some(rng) = runner.take_rng() {
+                self.rng = rng;
+            }
             finished = runner.is_finished();
             for effect in effects {
                 self.translate_scene_effect(effect, &mut events);

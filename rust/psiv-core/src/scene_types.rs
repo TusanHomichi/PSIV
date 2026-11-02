@@ -359,6 +359,8 @@ pub enum SceneEffect {
 pub enum SceneFault {
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
+    /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.
+    NoRng,
     /// A jump or branch target was past the end of the scene.
     BadJump {
         /// The offending target.

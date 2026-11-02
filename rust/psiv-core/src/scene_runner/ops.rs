@@ -149,6 +149,27 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
+            SceneOp::BranchIfInventoryFull { if_full, if_not } => {
+                let target = if state.inventory().is_full() {
+                    if_full
+                } else {
+                    if_not
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::BranchOnRngLow2 { targets } => {
+                let Some(rng) = self.rng.as_mut() else {
+                    return Some(SceneFault::NoRng);
+                };
+                let target = targets[usize::from(rng.step() & 3)];
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
             SceneOp::SetVehicleIndex { index } => {
                 state.set_vehicle_index(index);
                 effects.push(SceneEffect::VehicleChanged { index });

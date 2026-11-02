@@ -300,9 +300,9 @@ mistaken for missing pointer data.
 |---:|---|---|---|
 | `$47` | `Event_EclipseTorchUsed` | `$07018A..$070482` | [56](56_EclipseTorchUsed.md) |
 | `$48` | `Event_MeetingLeRoof` | `$070482..$07069E` | [51](51_MeetingLeRoof.md) |
-| `$49` | `Event_MuskCatsGuarding` | `$07069E..$0706C0` | boundary [88](88_RetailBoundaries.md) |
-| `$4A` | `Event_MuskCatElder` | `$0706C0..$070702` | boundary [88](88_RetailBoundaries.md) |
-| `$4B` | `Event_PenguinOwner` | `$070702..$070774` | boundary [88](88_RetailBoundaries.md) |
+| `$49` | `Event_MuskCatsGuarding` | `$07069E..$0706C0` | [180](180_LateArcInteractions.md#event_muskcatsguarding) |
+| `$4A` | `Event_MuskCatElder` | `$0706C0..$070702` | [180](180_LateArcInteractions.md#event_muskcatelder) |
+| `$4B` | `Event_PenguinOwner` | `$070702..$070774` | [180](180_LateArcInteractions.md#event_penguinowner) |
 | `$4C` | `Event_CarnivorousTrees` | `$070774..$070856` | [53](53_CarnivorousTrees.md) |
 | `$4D` | `Event_SavingKyra` | `$070856..$070976` | [54](54_SavingKyra.md) |
 | `$4E` | `Event_DarkForce2` | `$070976..$0709A2` | [57](57_DarkForce2.md) |
@@ -318,7 +318,7 @@ mistaken for missing pointer data.
 | `$58` | `Event_AirCastleArrival` | `$070B1E..$070B30` | [69](69_AirCastleArrival.md) |
 | `$59` | `Event_XeAThoulBeforeBattle` | `$070B30..$070B56` | [70](70_XeAThoulBeforeBattle.md) |
 | `$5A` | `Event_AirCastleFakeChest` | `$070B56..$070C30` | [71](71_AirCastleFakeChest.md) |
-| `$5B` | `Event_RajaSick` | `$070C30..$070C82` | boundary [88](88_RetailBoundaries.md) |
+| `$5B` | `Event_RajaSick` | `$070C30..$070C82` | [180](180_LateArcInteractions.md#event_rajasick) |
 | `$5C` | `Event_Gyuna` | `$070C82..$070CB4` | boundary [88](88_RetailBoundaries.md) |
 | `$5D` | `Event_LashiecAppearance` | `$070CB4..$070E4E` | [72](72_LashiecAppearance.md) |
 | `$5E` | `Event_StrengthTowerTop` | `$070E4E..$071102` | [75](75_StrengthTowerTop.md) |
@@ -330,7 +330,7 @@ mistaken for missing pointer data.
 | `$64` | `Event_DeVarsDefeated` | `$07175A..$071822` | [80](80_DeVarsDefeated.md) |
 | `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
 | `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | [124](124_HuntersGuild.md) |
-| `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | boundary [88](88_RetailBoundaries.md) |
+| `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | [180](180_LateArcInteractions.md#event_runehealingchaz) |
 | `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | boundary [88](88_RetailBoundaries.md) |
 | `$69` | `Event_AngerTowerTop` | `$0721CC..$072262` | [85](85_AngerTowerTop.md) |
 | `$6A` | `Event_AngerTowerExitTop` | `$072262..$0722D2` | [86](86_AngerTowerExitTop.md) |
