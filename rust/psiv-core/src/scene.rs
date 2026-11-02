@@ -18,7 +18,7 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
     OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
@@ -985,6 +985,8 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
+    /// A direct write to the inventory.
+    Item(ItemOp),
     /// Unconditional jump.
     Jump {
         /// Op index.
