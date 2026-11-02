@@ -30,7 +30,7 @@ from pathlib import Path
 from unittest import mock
 
 from tools.gate import (EXIT_UNEQUIPPED, FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS,
-                        GATE_MEASURED_PARALLELISM, GATE_PROGRAMS, RECEIPT_ENV, GateRefused,
+                        GATE_MEASURED_PARALLELISM, GATE_RUST_PROBES, RECEIPT_ENV, GateRefused,
                         available_cores, cargo_parallelism, command_slug, cpu_mhz,
                         gate_environment, gate_lock, main, parse_counts, parse_unittest,
                         receipt_dir_for, run_gate, toolchain_missing)
@@ -219,9 +219,9 @@ class ToolchainCase(unittest.TestCase):
         self.bin.mkdir()
         self.env = {"PATH": str(self.bin)}
 
-    def put(self, name, body="#!/bin/sh\nexit 0\n"):
+    def put(self, name, body):
         program = self.bin / name
-        program.write_text(body)
+        program.write_bytes(body.encode() if isinstance(body, str) else body)
         program.chmod(0o755)
 
     def put_python(self):
@@ -229,32 +229,63 @@ class ToolchainCase(unittest.TestCase):
         # elsewhere would lose the environment.
         self.put("python3", f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
 
+    def put_cargo(self, failing=()):
+        """A cargo whose subcommands in `failing` fail, as a rustup shim does without
+        its toolchain or component; `--version` alone is cargo's own."""
+        cases = "".join(f"  {sub}) exit 1 ;;\n" for sub in failing)
+        self.put("cargo", f'#!/bin/sh\ncase "$1" in\n{cases}  *) exit 0 ;;\nesac\n')
+
+    def missing(self, modules=None):
+        return toolchain_missing(self.env, self.root, {"json": "JSON"} if modules is None else modules)
+
     def test_a_full_toolchain_is_missing_nothing(self):
         self.put_python()
-        for program in GATE_PROGRAMS:
-            self.put(program)
-        self.assertEqual(toolchain_missing(self.env, self.root, {"json": "JSON"}), [])
+        self.put_cargo()
+        self.assertEqual(self.missing(), [])
 
-    def test_each_missing_program_and_package_is_named(self):
+    def test_each_missing_module_and_rust_part_is_named(self):
         self.put_python()
-        self.put("rustfmt")
-        packages = {"json": "JSON", "a_package_nobody_has_286": "Nobody's"}
-        self.assertEqual(toolchain_missing(self.env, self.root, packages),
-                         [p for p in GATE_PROGRAMS if p != "rustfmt"] + ["Nobody's"])
+        self.put_cargo(failing=("fmt", "clippy"))
+        modules = {"json": "JSON", "a_package_nobody_has_286": "Nobody's"}
+        self.assertEqual(self.missing(modules), ["Nobody's", "rustfmt", "clippy"])
+        self.assertEqual(list(GATE_RUST_PROBES), ["cargo", "rustfmt", "clippy"])
 
-    def test_a_package_that_fails_its_import_is_missing(self):
+    def test_a_shim_without_its_toolchain_is_missing_it(self):
         self.put_python()
-        for program in GATE_PROGRAMS:
-            self.put(program)
+        self.put("cargo", "#!/bin/sh\necho 'error: toolchain is not installed' >&2\nexit 1\n")
+        self.assertEqual(self.missing(), ["cargo", "rustfmt", "clippy"])
+
+    def test_no_cargo_is_missing_all_of_rust(self):
+        self.put_python()
+        self.assertEqual(self.missing(), ["cargo", "rustfmt", "clippy"])
+
+    def test_a_module_that_fails_its_import_is_missing(self):
+        self.put_python()
+        self.put_cargo()
         # Found where the commands run from, and broken when imported: what a
         # package built for another interpreter does.
         (self.root / ("broken_286" + ".py")).write_text("raise RuntimeError('built for another python')\n")
-        self.assertEqual(toolchain_missing(self.env, self.root, {"broken_286": "Broken"}), ["Broken"])
+        # And a package that imports while the submodule that loads its native
+        # extension doesn't, as Pillow's `PIL.Image` does with `_imaging`.
+        package = self.root / "half_286"
+        package.mkdir()
+        (package / ("__init__" + ".py")).write_text("")
+        (package / ("Image" + ".py")).write_text("raise ImportError('no _imaging')\n")
+        modules = {"broken_286": "Broken", "half_286": "Half", "half_286.Image": "Half's images"}
+        self.assertEqual(self.missing(modules), ["Broken", "Half's images"])
 
-    def test_without_python3_it_says_so(self):
-        for program in GATE_PROGRAMS:
-            self.put(program)
-        self.assertEqual(toolchain_missing(self.env, self.root, {"json": "JSON"}), ["python3"])
+    def test_a_python3_that_is_absent_or_wont_start_is_missing(self):
+        self.put_cargo()
+        self.assertEqual(self.missing(), ["python3"])
+        for broken in ("#!/no/such/interpreter\n",   # its interpreter is gone
+                       b"\x7fELF\x02\x01\x01garbage",  # a binary the kernel can't load
+                       "print('no shebang')\n"):    # not executable as it stands
+            with self.subTest(broken=broken):
+                self.put("python3", broken)
+                self.assertEqual(self.missing(), ["python3"])
+        self.put_python()
+        (self.bin / "python3").chmod(0o644)     # there, but not executable
+        self.assertEqual(self.missing(), ["python3"])
 
     def test_main_exits_126_and_runs_nothing_without_it(self):
         errors = io.StringIO()
