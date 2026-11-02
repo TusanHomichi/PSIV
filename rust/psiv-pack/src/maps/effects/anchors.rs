@@ -25,6 +25,10 @@ pub const FIELD_OBJ_SECONDARY: i64 = 0xC300;
 pub const FIELD_OBJ_STRIDE: i64 = 0x40;
 pub const FIELD_OBJ_LAST: i64 = 0xCFC0;
 pub const OBJECT_DIALOGUE_OFFSET: i64 = 0x14;
+/// `curr_x_pos` within an object.
+pub const OBJECT_X_OFFSET: i64 = 0x30;
+/// `curr_y_pos` within an object.
+pub const OBJECT_Y_OFFSET: i64 = 0x34;
 /// The two layout buffers, exactly a buffer apart.
 pub const MAP_LAYOUT_FG: i64 = 0xA000;
 pub const MAP_LAYOUT_BG: i64 = 0xB000;

@@ -70,6 +70,7 @@ pub(crate) mod opening;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
+pub(crate) mod ranch;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
 pub(crate) mod soldiers_temple;
@@ -280,6 +281,9 @@ pub static SCENES: &[Scene] = &[
     hunters_guild::HUNTERS_GUILD,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // The ranch owner (#81).
+    ranch::RANCH_OWNER,
+    ranch::RANCH_OWNER_AFTER_BATTLE,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -464,6 +468,8 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_RanchOwner", 12),
+            ("Event_RanchOwnerAfterBattle", 3),
             ("Event_ExitingStripClub", 1),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),

@@ -24,6 +24,8 @@ from .anchors import (
     FLAG_BANK_ADDRESSES,
     GET_MAP_LAYOUT_OFFSET,
     OBJECT_DIALOGUE_OFFSET,
+    OBJECT_X_OFFSET,
+    OBJECT_Y_OFFSET,
 )
 from .geometry import MAP_LAYOUT
 from .model import Gate, MapEffectsError, Path, Write
@@ -423,6 +425,12 @@ class _Decoder:
             elif within == OBJECT_DIALOGUE_OFFSET and value_size == "b":
                 writes.append(Write("object_dialogue", pc, {
                     "object_index": index, "dialogue_id": value}))
+            elif within == OBJECT_X_OFFSET and value_size == "w":
+                writes.append(Write("object_x", pc, {
+                    "object_index": index, "pixels": value}))
+            elif within == OBJECT_Y_OFFSET and value_size == "w":
+                writes.append(Write("object_y", pc, {
+                    "object_index": index, "pixels": value}))
             else:
                 note = f"write at +0x{within:X} of object slot {index}"
                 if note not in deferred:

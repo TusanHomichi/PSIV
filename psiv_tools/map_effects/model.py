@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 SLICE_ONE_KINDS = (
-    "object_despawn", "object_rewrite", "object_dialogue",
+    "object_despawn", "object_rewrite", "object_dialogue", "object_x", "object_y",
     "layout_write", "layout_replace", "flag_clear",
 )
 
