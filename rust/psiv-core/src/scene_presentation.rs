@@ -173,9 +173,9 @@ pub enum PresentationOp {
         y: i32,
     },
     /// Give a scene-created object a destination its routine walks to:
-    /// `FieldObj_GetAutoInput` closes the X gap first, then Y, one cell at a
-    /// time at the normal step (`$0200`, two pixels a frame). The scene's own
-    /// wait carries the frames; the object walks beside it.
+    /// `FieldObj_GetAutoInput` closes one gap first, then the other, one cell
+    /// at a time at the normal step (`$0200`, two pixels a frame). The scene's
+    /// own wait carries the frames; the object walks beside it.
     WalkObject {
         /// Field-object slot.
         slot: usize,
@@ -183,6 +183,11 @@ pub enum PresentationOp {
         x: i32,
         /// Destination Y in pixels.
         y: i32,
+        /// Close the Y gap first: `Char_Move_Flags` bit 1, which
+        /// `FieldObj_GetAutoInput` (`ps4.asm:93234`) reads for every object,
+        /// not only the party. It must match the scene's `SetFollowMode` in
+        /// effect when the walk runs, which a test of every scene checks.
+        y_first: bool,
     },
     /// Give a scene-created object constant step words that its routine adds
     /// every frame from now on (`FieldObj_UpdatePosition`), as

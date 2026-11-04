@@ -64,9 +64,27 @@ const fn villager(slot: usize, art_tile: u16, x: i32, y: i32) -> SceneOp {
     }
 }
 
+/// A villager's walk while `Char_Move_Flags` bit 1 is clear: X first.
 const fn walk(slot: usize, x: i32, y: i32) -> SceneOp {
     SceneOp::Presentation {
-        op: PresentationOp::WalkObject { slot, x, y },
+        op: PresentationOp::WalkObject {
+            slot,
+            x,
+            y,
+            y_first: false,
+        },
+    }
+}
+
+/// A villager's walk under the `bset #1` at `$06E5D2`: Y first.
+const fn leave(slot: usize, x: i32, y: i32) -> SceneOp {
+    SceneOp::Presentation {
+        op: PresentationOp::WalkObject {
+            slot,
+            x,
+            y,
+            y_first: true,
+        },
     }
 }
 
@@ -213,12 +231,13 @@ pub static MONSEN_EARTHQUAKE: Scene = Scene {
         walk(11, 0x310, 0x220),
         SceneOp::Wait { ticks: 120 },
         RESUME,
-        // All four leave, Y first.
-        walk(8, 0x230, 0x220),
-        walk(9, 0x230, 0x220),
-        walk(10, 0x3D0, 0x210),
-        walk(11, 0x3D0, 0x220),
+        // All four leave, Y first: the cartridge writes the four `dest`s and
+        // then `bset #1` before any frame runs, so the bit is set first here.
         SceneOp::SetFollowMode { bits: 0b111 },
+        leave(8, 0x230, 0x220),
+        leave(9, 0x230, 0x220),
+        leave(10, 0x3D0, 0x210),
+        leave(11, 0x3D0, 0x220),
         SceneOp::Wait { ticks: 120 },
         SceneOp::SetFollowMode { bits: 0b101 },
         SceneOp::DespawnNpc {

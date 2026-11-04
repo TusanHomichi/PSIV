@@ -38,7 +38,7 @@ puts under `grand_cross=0`: its US bytes end `...47FE`, `...204C`, `rts` (`$05A9
 | 80-86 | `$06E40E..$06E483` | `$C540`: tile `$3E3` at (`$240,$220`), a frame, to (`$2E0,$230`), its own facing 4 (renderer state, not typed), `loc_6E670` facing 0, resume | `CreateFieldObject` 9, as above, `Wait(88)` |
 | 87-94 | `$06E484..$06E4D5` | Chaz `$C`, wait 30, 0, wait 30, `$C`, wait 30, 0, resume | `Face`, `Wait(30)` in turn, `RunDialogueResume` |
 | 95-104 | `$06E4D6..$06E591` | `$C580` tile `$42B` and `$C5C0` tile `$39B` at (`$3A0,$210`) and (`$3A0,$220`), each a frame and a `dest` to X `$310`; `loc_6E698`, 120 frames of all objects; resume | `CreateFieldObject` 10, 11, `WalkObject`, `Wait(120)`, `RunDialogueResume` |
-| 105-112 | `$06E592..$06E5F5` | `dest` of all four: X `$230`, `$230`, `$3D0`, `$3D0`; `bset #1`, `loc_6E698`, `bclr #1`; `clr.w` all four | `WalkObject` x 4, `SetFollowMode`, `Wait(120)`, `SetFollowMode`, `DespawnNpc` 8, four objects |
+| 105-112 | `$06E592..$06E5F5` | `dest` of all four: X `$230`, `$230`, `$3D0`, `$3D0`; `bset #1` (`$06E5D2`), `loc_6E698`, `bclr #1`; `clr.w` all four | `SetFollowMode` `111b`, `WalkObject` x 4 Y first, `Wait(120)`, `SetFollowMode`, `DespawnNpc` 8, four objects |
 | 113 | `$06E5F6..$06E601` | `bclr #2`, `bclr #0` | `SetFollowMode` `000b` |
 | 114 | `$06E602..$06E613` | `Event_MoveSingleObject` `Character_1` to (`$310,$220`) | `MoveActorTo` the leader |
 | 115 | `$06E614..$06E627` | `Event_MoveCamera` to `Character_1`, speed 1 | `PanCamera` the leader |
@@ -63,11 +63,23 @@ its 60 frames, enough for the distances from the talk's cell. The scene's walks 
 waits; no later op depends on the arrival.
 
 **The villagers' first frame.** Each creation sets `dest` Y from `$30`, the X word
-(`move.w $30(a4), $3A(a4)`), not `$34`. `FieldObj_NPCScriptMove` runs one frame on that before the
-real `dest` goes in, moving a pixel or two. It is not modelled.
+(`move.w $30(a4), $3A(a4)`), not `$34`. That write is dead: the object word is `$0194`, so the
+`bset #7, (a4)` that opens `FieldObj_NPCScriptMove` (`ps4.asm:95002`) finds the bit clear and runs
+the routine's setup, which copies `curr_x_pos`/`curr_y_pos` into both `dest` words before
+`RunSingleObject`'s one pass reads them. The object does not move on that frame, so
+`CreateFieldObject`, `RebuildSprites` and `WaitFrames(1)` are the whole creation.
+
+**The villagers' order of axes.** `FieldObj_GetAutoInput` (`ps4.asm:93232`) reads
+`Char_Move_Flags` bit 1 for every object it moves, the villagers too. The approaches run with it
+clear, X first. The departure sets it before `loc_6E698`'s 120 frames, so the second villager leaves
+(`$2E0,$230`) up a cell before walking left. Each `WalkObject` carries the order (`y_first`), the
+departure's after its `SetFollowMode`, and `scenes::tests::every_object_walk_takes_the_axis_order_in_effect`
+checks every scene's walks against the follow mode they run under.
 
 **Frame differences.** `Event_UpdateObjFacing` costs a frame in the US build. The spin counts it
-because it paces the turns. Elsewhere the port's `Face` costs none, as in every other scene here. The
+because it paces the turns. Elsewhere the port's `Face` costs none, as in every other scene here:
+23 frames without Rune and 26 with him, a deviation recorded with its consequences in
+[the source notes](../source-notes/README.md#other-recorded-deviations). The
 two created objects' `Event_MoveSingleObject` walks are derived, 80 and 88 frames at eight frames a
 cell, not measured on the oracle.
 
