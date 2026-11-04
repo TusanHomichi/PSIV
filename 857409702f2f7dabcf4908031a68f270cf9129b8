@@ -1,0 +1,89 @@
+{
+  "conary": "note v1",
+  "change": "690a7b9y4cz8b392hy0gmae9a7",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 315,
+  "url": "https://github.com/tusanhomichi/psiv/pull/315",
+  "summary": "deps: update fieldmouseworks/burrow digest to f7f7fcc",
+  "task": null,
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "landing": {
+    "revision": "1f3cebc60088cd5bd9b190e3ff646ade0ea52b9a3b1fac4c34d3dcdf6884bf1f",
+    "before": "4be197e8afda82816ebd8c733ceee3e61fa47061",
+    "after": "857409702f2f7dabcf4908031a68f270cf9129b8",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793788896720
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062399/job/126513479932"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062399/job/126513479404"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#315)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#315)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#315)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#315)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154/job/126513478404"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#315)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062154"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41812062399/job/126513523010"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/315"
+    }
+  ]
+}
