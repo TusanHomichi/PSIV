@@ -16,7 +16,7 @@ pub struct TravelFile {
 }
 
 /// A destination shown by RYUKA's visited-town list.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TownDestination {
     /// World byte: Motavia 0, Dezolis 1, Rykros 2.
     pub world: u8,
@@ -35,7 +35,7 @@ pub struct TownDestination {
 }
 
 /// An eight-byte DungeonTeleportPlaces record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DungeonDestination {
     /// Exit selector. Zero means unavailable.
     pub index: u8,
@@ -52,7 +52,7 @@ pub struct DungeonDestination {
 }
 
 /// FieldRoutine_PlaceName matches both map words before applying a selector.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlaceEntry {
     /// Entered map.
     pub map: u16,
@@ -65,11 +65,14 @@ pub struct PlaceEntry {
 }
 
 /// Validated travel tables. Old/synthetic packs may omit the entire file.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TravelData {
-    format_version: u32,
-    kind: String,
-    rom_sha256: RomHash,
+    /// The file's version.
+    pub format_version: u32,
+    /// `field_travel`.
+    pub kind: String,
+    /// The ROM this came from.
+    pub rom_sha256: RomHash,
     /// RYUKA rows in retail display order.
     pub towns: Vec<TownDestination>,
     /// HINAS rows keyed by their explicit index.
