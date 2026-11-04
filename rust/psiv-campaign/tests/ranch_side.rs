@@ -39,6 +39,16 @@ fn party_at(x: u16, y: u16, flags: &[u16]) -> Option<Session> {
     )
 }
 
+/// Whether a movement controller (a walker or a bespoke routine) runs him.
+fn drives_owner(driver: &Driver) -> bool {
+    let runtime = driver.runtime();
+    runtime
+        .bespoke_actors()
+        .iter()
+        .any(|a| a.npc_index() == OWNER)
+        || runtime.wanderers().iter().any(|w| w.npc_index() == OWNER)
+}
+
 fn flag(driver: &Driver, id: u16) -> bool {
     driver.runtime().game().is_set(Flag::event(id))
 }
@@ -54,6 +64,7 @@ fn the_owner_stands_aside_and_stays_there_on_a_reload() {
     let mut driver = Driver::new(session, None);
     let map = driver.runtime().map();
     assert_eq!(map.npcs()[OWNER].cell, Cell::new(19, 45));
+    assert!(drives_owner(&driver), "the record's NPCType7 before $1A");
     assert!(map.npcs()[8].active && map.npcs()[9].active);
     driver.talk(OWNER).expect("he speaks");
     assert!(flag(&driver, 0x1A), "Event_RanchOwner");
@@ -64,11 +75,18 @@ fn the_owner_stands_aside_and_stays_there_on_a_reload() {
     let Some(session) = party_at(19, 48, &[0x19, 0x1A]) else {
         return;
     };
-    let driver = Driver::new(session, None);
+    let mut driver = Driver::new(session, None);
     let map = driver.runtime().map();
     assert_eq!(map.npcs()[OWNER].cell, Cell::new(0x11, 0x2E));
     assert_eq!(map.npcs()[OWNER].id.0, 0x38);
     assert!(!map.npcs()[8].active && !map.npcs()[9].active);
+    // `$38` is `NPCType1`, which stands: no `NPCType7` follow from the record.
+    assert!(!drives_owner(&driver));
+    driver.neutral(120).expect("the field runs");
+    assert_eq!(
+        driver.runtime().map().npcs()[OWNER].cell,
+        Cell::new(0x11, 0x2E)
+    );
 
     // Negative control: no job, no scene, and he stays.
     let Some(session) = party_at(19, 48, &[]) else {

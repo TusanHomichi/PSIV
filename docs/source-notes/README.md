@@ -141,6 +141,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   PNGs stay as oracle evidence only. `battle/enemy_animations.json` is
   unchanged.
 
+- `Event_RanchOwner`'s alignment walk (`$07259E..$0725CF`,
+  [record](../scenes/142_RanchOwner.md#event_ranchowner)). The cartridge loops a frame at a time,
+  calling `FieldObj_NPCType7` (`ps4.asm:95230`) and its `loc_49C86` gate (within `$10` of the
+  leader's Y, step along X toward him) until the owner's X word equals `Character_1`'s. The port
+  runs `MoveActorToActorAxis` on X instead: the scene runner's walk at the party's step pace
+  (normally 8 frames a cell), where `NPCType7` steps at `Selector1`'s 16, and without the routine's
+  own movement state or its Y gate (the talk range keeps the leader inside it). Both horizontal
+  directions take the same path, since the destination is the leader's live X either side. An
+  owner already level with the leader walks nowhere and spends no frame, in both. An owner caught
+  mid-step at the talk starts the walk from the cell he was stepping into (the map holds a
+  stepping object at its destination), where the cartridge finishes that step inside the loop's
+  `NPCType7` calls. He ends on the leader's column either way, the walk is at most a cell, and the
+  dialogue that follows is the same; the frames between the press and the text, and so the shared
+  RNG stream and palette phase, run up to 8 frames a cell ahead of the cartridge.
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.

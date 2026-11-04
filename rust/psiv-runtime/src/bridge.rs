@@ -300,9 +300,20 @@ pub(super) fn field_map_retaining_objects(
             .unwrap_or(object.id.0);
         object.id = NpcId(object_id);
         object.active &= outcome.is_none_or(|o| !o.despawns.contains(&index));
-        if let Some((x, y)) = outcome.and_then(|o| o.positions.get(&index)) {
-            let x = x.map_or(npc.x_pixels, u32::from);
-            let y = y.map_or(npc.y_pixels, u32::from);
+        if let Some(&(x, y)) = outcome.and_then(|o| o.positions.get(&index)) {
+            // An axis the routine leaves alone keeps the object's own word:
+            // the record's on a fresh load, the live one (cell and sub-cell
+            // offset, the standing-cell shift undone) on a refresh that keeps
+            // the objects.
+            let (live_x, live_y) = match objects.get(index) {
+                Some(live) => (
+                    u32::from(live.cell.x) * 16 + u32::from(live.offset.x),
+                    u32::from(live.cell.y).saturating_sub(1) * 16 + u32::from(live.offset.y),
+                ),
+                None => (npc.x_pixels, npc.y_pixels),
+            };
+            let x = x.map_or(live_x, u32::from);
+            let y = y.map_or(live_y, u32::from);
             object.cell = cell_u16(x / 16, y / 16 + 1, "npc")?;
             object.offset = psiv_core::SubCellOffset::new((x % 16) as u8, (y % 16) as u8);
         }
@@ -328,31 +339,72 @@ pub(super) fn field_map_retaining_objects(
 /// routines remain out of this list; they are not silently approximated as
 /// generic walkers.
 pub(super) fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderSet, BridgeError> {
-    let objects: Vec<(usize, WanderKind)> = record
-        .npcs
-        .iter()
-        .enumerate()
-        .filter_map(|(i, npc)| {
-            if !map.npcs().get(i).is_some_and(|object| object.active) {
-                return None;
-            }
-            let kind = match npc.symbol.as_deref() {
-                Some("NPCType2") => WanderKind::Type2,
-                Some("NPCType3") => WanderKind::Type3,
-                Some("NPCType4") => WanderKind::Type4,
-                Some("NPCType28") => WanderKind::Type28,
-                Some("loc_490B8") => WanderKind::StoreWoman,
-                Some("loc_49746") => WanderKind::ClinicWoman,
-                Some("Penguin") => WanderKind::Penguin,
-                Some("Butterfly") => WanderKind::Butterfly,
-                Some("MuskCat") => WanderKind::MuskCat,
-                Some("Xanafalgue") => WanderKind::Xanafalgue,
-                _ => return None,
-            };
-            Some((i, kind))
-        })
+    let objects: Vec<(usize, WanderKind)> = (0..record.npcs.len())
+        .filter(|&i| map.npcs().get(i).is_some_and(|object| object.active))
+        .filter_map(|i| Some((i, wander_kind(live_symbol(map, record, i))?)))
         .collect();
     WanderSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))
+}
+
+/// The routine that runs object `i`: the record's own, unless a map-load
+/// routine (`MapDataManager`'s `move.w #id, (a4)`) or a scene wrote another id
+/// over it, in which case the live id's routine. Movement follows the routine
+/// word, not the record it was loaded from.
+fn live_symbol<'a>(map: &FieldMap, record: &'a MapRecord, i: usize) -> Option<&'a str> {
+    let npc = record.npcs.get(i)?;
+    match map.npcs().get(i) {
+        Some(object) if object.id.0 != npc.object_id => psiv_data::field_object_symbol(object.id.0),
+        _ => npc.symbol.as_deref(),
+    }
+}
+
+/// The transcribed random walkers, by routine symbol.
+fn wander_kind(symbol: Option<&str>) -> Option<WanderKind> {
+    Some(match symbol? {
+        "NPCType2" => WanderKind::Type2,
+        "NPCType3" => WanderKind::Type3,
+        "NPCType4" => WanderKind::Type4,
+        "NPCType28" => WanderKind::Type28,
+        "loc_490B8" => WanderKind::StoreWoman,
+        "loc_49746" => WanderKind::ClinicWoman,
+        "Penguin" => WanderKind::Penguin,
+        "Butterfly" => WanderKind::Butterfly,
+        "MuskCat" => WanderKind::MuskCat,
+        "Xanafalgue" => WanderKind::Xanafalgue,
+        _ => return None,
+    })
+}
+
+/// Gives every retained object whose routine word or presence a refresh
+/// changed the controller its new routine has: a map-load rewrite on a walk
+/// that keeps the objects (`rewalk_map_retaining_objects`, the scene layout
+/// writes) is a `move.w #id, (a4)` like a scene's, so the old routine stops
+/// and the new one starts as its init leaves it. Objects the refresh left
+/// alone keep their controllers, clocks and steps.
+pub(super) fn reconcile_controllers(
+    before: &[Npc],
+    map: &FieldMap,
+    record: &MapRecord,
+    wander: &mut WanderSet,
+    bespoke: &mut BespokeSet,
+) {
+    for (i, object) in map.npcs().iter().enumerate() {
+        let Some(old) = before.get(i) else { continue };
+        if old.id == object.id && old.active == object.active {
+            continue;
+        }
+        wander.remove(i);
+        bespoke.remove(i);
+        if !object.active {
+            continue;
+        }
+        if let Some(kind) = wander_kind(live_symbol(map, record, i)) {
+            wander.install(i, kind);
+        }
+        if let Some(kind) = bespoke_kind_at(map, record, i) {
+            bespoke.install(i, kind);
+        }
+    }
 }
 
 const fn leash(x_max: u8, y_max: u8, x: u8, y: u8) -> Leash {
@@ -604,29 +656,37 @@ fn esper_second_guard(kind: BespokeKind, second: bool) -> BespokeKind {
 
 /// Builds the explicit post-wave-7 actor set for a map.
 pub(super) fn build_bespoke(map: &FieldMap, record: &MapRecord) -> Result<BespokeSet, BridgeError> {
-    let objects: Vec<(usize, BespokeKind)> = record
-        .npcs
-        .iter()
-        .enumerate()
-        .filter_map(|(i, npc)| {
-            if !map.npcs().get(i).is_some_and(|object| object.active) {
-                return None;
-            }
-            let kind = bespoke_kind(npc.symbol.as_deref())?;
-            // `FieldObj_EsperGuard` / `FieldObj_InnerEsperGuards` read the
-            // route table of the second guard when the object before them has
-            // the guard's id word (`cmpi.w #$8268 / #$826C, -$40(a4)`,
-            // `ps4.asm:97172`, `:97206`).
-            let follows_a_guard = i > 0
-                && matches!(
-                    npc.symbol.as_deref(),
-                    Some("EsperGuard" | "InnerEsperGuards")
-                )
-                && record.npcs[i - 1].symbol == npc.symbol;
-            Some((i, esper_second_guard(kind, follows_a_guard)))
-        })
+    let objects: Vec<(usize, BespokeKind)> = (0..record.npcs.len())
+        .filter(|&i| map.npcs().get(i).is_some_and(|object| object.active))
+        .filter_map(|i| Some((i, bespoke_kind_at(map, record, i)?)))
         .collect();
     BespokeSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))
+}
+
+/// Object `i`'s bespoke routine, from its live routine word.
+fn bespoke_kind_at(map: &FieldMap, record: &MapRecord, i: usize) -> Option<BespokeKind> {
+    let symbol = live_symbol(map, record, i);
+    let rewritten = map
+        .npcs()
+        .get(i)
+        .zip(record.npcs.get(i))
+        .is_some_and(|(object, npc)| object.id.0 != npc.object_id);
+    let kind = match bespoke_kind(symbol) {
+        Some(kind) => kind,
+        // A scene-only routine (`scene_routine_kind`) a map-load wrote.
+        None if rewritten => map
+            .npcs()
+            .get(i)
+            .and_then(|object| psiv_core::scene_routine_kind(object.id.0))?,
+        None => return None,
+    };
+    // `FieldObj_EsperGuard` / `FieldObj_InnerEsperGuards` read the route
+    // table of the second guard when the object before them has the guard's
+    // id word (`cmpi.w #$8268 / #$826C, -$40(a4)`, `ps4.asm:97172`, `:97206`).
+    let follows_a_guard = i > 0
+        && matches!(symbol, Some("EsperGuard" | "InnerEsperGuards"))
+        && live_symbol(map, record, i - 1) == symbol;
+    Some(esper_second_guard(kind, follows_a_guard))
 }
 
 /// Object initialisers in the retail routine clear these two transient/story
@@ -662,6 +722,7 @@ pub(super) fn char_id_by_symbol(data: &GameData, symbol: &str) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use psiv_core::{WanderState, Wanderer};
 
     #[test]
     fn bespoke_leashes_preserve_disassembly_word_byte_order() {
@@ -689,5 +750,156 @@ mod tests {
         for (symbol, expected) in cases {
             assert_eq!(bespoke_kind(Some(symbol)).unwrap().leash(), expected);
         }
+    }
+
+    /// Mile (`$01D`) from the local pack: the ranch owner (object 0,
+    /// `NPCType7`, `$50`) and the townsfolk walkers (`NPCType2`, `$3C`).
+    fn mile() -> Option<MapRecord> {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return None;
+        }
+        let data = GameData::load(pack).expect("pack loads");
+        Some(data.map(psiv_data::MapId(0x01D)).expect("Mile").clone())
+    }
+
+    fn placed(record: &MapRecord, at: (Option<u16>, Option<u16>), objects: &[Npc]) -> Npc {
+        let mut outcome = EffectOutcome::default();
+        outcome.positions.insert(0, at);
+        field_map_retaining_objects(record, Some(&outcome), objects)
+            .expect("map builds")
+            .npcs()[0]
+    }
+
+    /// A one-axis position write keeps the other axis: the record's word on a
+    /// fresh load, the live cell and sub-cell offset on a refresh that keeps
+    /// the objects. A two-axis write replaces both either way.
+    #[test]
+    fn a_position_write_keeps_the_axis_it_does_not_write() {
+        let Some(record) = mile() else { return };
+        let offset = psiv_core::SubCellOffset::new;
+        // Fresh: the record's (`$130,$2C0`) on the unwritten axis.
+        let fresh = placed(&record, (Some(0x110), None), &[]);
+        assert_eq!(
+            (fresh.cell, fresh.offset),
+            (Cell::new(0x11, 45), offset(0, 0))
+        );
+        let fresh = placed(&record, (None, Some(0x2D8)), &[]);
+        assert_eq!(
+            (fresh.cell, fresh.offset),
+            (Cell::new(19, 46), offset(0, 8))
+        );
+
+        // Retained: the object has moved to (21, 40) and sits on half cells.
+        let mut live = field_map(&record).expect("map builds").npcs().to_vec();
+        live[0].cell = Cell::new(21, 40);
+        live[0].offset = offset(8, 8);
+        let x_only = placed(&record, (Some(0x110), None), &live);
+        assert_eq!(
+            (x_only.cell, x_only.offset),
+            (Cell::new(0x11, 40), offset(0, 8))
+        );
+        let y_only = placed(&record, (None, Some(0x2D0)), &live);
+        assert_eq!(
+            (y_only.cell, y_only.offset),
+            (Cell::new(21, 46), offset(8, 0))
+        );
+        let both = placed(&record, (Some(0x110), Some(0x2D0)), &live);
+        assert_eq!(
+            (both.cell, both.offset),
+            (Cell::new(0x11, 46), offset(0, 0))
+        );
+        // Negative control: no write, the live object is untouched.
+        let none = field_map_retaining_objects(&record, Some(&EffectOutcome::default()), &live)
+            .expect("map builds")
+            .npcs()[0];
+        assert_eq!((none.cell, none.offset), (Cell::new(21, 40), offset(8, 8)));
+    }
+
+    /// `MapDataMan_RanchOwner` gives the owner `$38` (`NPCType1`, which stands):
+    /// the controllers follow the live routine word, not the record's symbol.
+    #[test]
+    fn a_fresh_load_runs_the_rewritten_routine() {
+        let Some(record) = mile() else { return };
+        let plain = field_map(&record).expect("map builds");
+        assert!(
+            build_bespoke(&plain, &record).unwrap().get(0).is_some(),
+            "NPCType7 follows"
+        );
+        assert!(
+            build_wander(&plain, &record).unwrap().get(1).is_some(),
+            "NPCType2 walks"
+        );
+
+        let outcome = EffectOutcome {
+            rewrites: vec![(0, 0x38), (1, 0x50), (6, 0x3C)],
+            ..EffectOutcome::default()
+        };
+        let map = field_map_retaining_objects(&record, Some(&outcome), &[]).expect("map builds");
+        let bespoke = build_bespoke(&map, &record).unwrap();
+        let wander = build_wander(&map, &record).unwrap();
+        assert!(
+            bespoke.get(0).is_none() && wander.get(0).is_none(),
+            "NPCType1 stands"
+        );
+        assert!(
+            bespoke.get(1).is_some() && wander.get(1).is_none(),
+            "NPCType2 -> NPCType7"
+        );
+        assert!(wander.get(6).is_some(), "NPCType14 -> NPCType2");
+    }
+
+    /// A refresh that keeps the objects reinstalls the controllers of the
+    /// objects whose routine word it rewrote, and only theirs: an unchanged
+    /// walker keeps its clock and its step in progress.
+    #[test]
+    fn a_refresh_reconciles_only_the_rewritten_objects() {
+        let Some(record) = mile() else { return };
+        let before = field_map(&record).expect("map builds");
+        let mut wander = build_wander(&before, &record).unwrap();
+        let mut bespoke = build_bespoke(&before, &record).unwrap();
+        let origin = before.npcs()[2].cell;
+        for index in [1, 2] {
+            wander
+                .restore(
+                    index,
+                    WanderState {
+                        timer: 7,
+                        leash: leash(16, 16, 3, 9),
+                        step: Some((Direction::Left, 5, origin)),
+                    },
+                )
+                .unwrap();
+        }
+        let kept = wander.get(2).cloned();
+        let kept_one = wander.get(1).cloned();
+        assert_ne!(kept, Some(Wanderer::new(2, WanderKind::Type2)));
+
+        let outcome = EffectOutcome {
+            rewrites: vec![(0, 0x38), (1, 0x3C), (5, 0x50)],
+            despawns: vec![7],
+            ..EffectOutcome::default()
+        };
+        let after = field_map_retaining_objects(&record, Some(&outcome), before.npcs())
+            .expect("map builds");
+        reconcile_controllers(before.npcs(), &after, &record, &mut wander, &mut bespoke);
+        assert!(bespoke.get(0).is_none(), "the owner stops following");
+        assert_eq!(
+            wander.get(1),
+            kept_one.as_ref(),
+            "the same id written back, the same walker"
+        );
+        assert_eq!(
+            wander.get(2),
+            kept.as_ref(),
+            "untouched walker keeps its clock and step"
+        );
+        assert!(
+            wander.get(5).is_none(),
+            "the walker made a follower stops walking"
+        );
+        assert!(bespoke.get(5).is_some(), "and follows");
+        assert!(wander.get(7).is_none(), "a despawned walker stops");
     }
 }

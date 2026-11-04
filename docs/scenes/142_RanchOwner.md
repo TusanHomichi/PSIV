@@ -42,12 +42,17 @@ conditional, and neither loads a tree.
 **Op 0.** `FieldObj_NPCType7` (`ps4.asm:95230`) takes its input from `loc_49C86`: within `$10` of the
 leader's Y it steps along X toward him, and otherwise stands, which would spin the loop. The talk
 range keeps him within it. `MoveActorToActorAxis` closes the same gap by whole cells at the normal
-step. The routine's own pace is not modelled, a difference in frames, on a walk of at most a cell.
+step. The routine's own pace is not modelled, a difference in frames, on a walk of at most a cell:
+a recorded deviation ([source notes](../source-notes/README.md#other-recorded-deviations)).
 With the leader above or below him, the X words already match and no frame passes on either side.
 
 **A reload.** `MapDataMan_RanchOwner` (`ps4.asm:110360`) gives him routine `$38` at (`$110,$2D0`)
 once `$1A` is set and clears the blocks. The pack's map effects now carry the position words
-(`object_x`, `object_y`), which were only noted as deferred before. That also places the other
+(`object_x`, `object_y`), which were only noted as deferred before. A word the routine leaves
+alone keeps the object's own: the record's on a fresh load, the live one on a refresh that keeps
+the objects. The movement controllers follow the routine word the walk leaves, not the record's
+symbol, so `$38` (`NPCType1`) stands instead of following, and a refresh that rewrites a retained
+object's routine swaps its controller and leaves the others' clocks alone. That also places the other
 objects whose map-load routine writes a position: `EspMansionNorth`, `ZemaHouse2`, `CulversHouse`
 and `MystVale_Part2`.
 
@@ -63,6 +68,8 @@ and `MystVale_Part2`.
 
 - `rust/psiv-core/tests/ranch_scenes.rs`: the order of `$70`'s writes and the last turn, and `$72`.
 - Pad-driven: `rust/psiv-campaign/tests/ranch_side.rs` on hand-built saves: the talk, his cell and
-  the blocks, the same after a fresh load with `$1A`, a negative control without the job, and the
-  thanks.
+  the blocks, the same after a fresh load with `$1A` (where nothing moves him), a negative control
+  without the job, and the thanks.
+- `rust/psiv-runtime/src/bridge.rs` tests: one-axis position writes on fresh and retained loads, and
+  the controllers of rewritten objects on a fresh load and on a refresh.
 - `tests/test_map_effects.py`, `rust/psiv-pack/src/maps/effects/decoder/tests.rs`: the position words.
