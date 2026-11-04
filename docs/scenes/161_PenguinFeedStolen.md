@@ -51,8 +51,7 @@ so no index moves. The `clr.w (a4)` after the second run is `DespawnNpc`, and th
 drops the slot, as `LoadMapObjects` rebuilds the object area. A spawn into a slot the cast
 already holds moves that object and resets it rather than adding a second one.
 
-**The take loop.** `ItemOp::Take` is the missing student's op (`$78`,
-[160](160_MissingStudent.md)). Here it loops: each pass takes one Feed and closes the bag up,
+**The take loop.** `ItemOp::Take` is the missing student's op (`$78`, #296). Here it loops: each pass takes one Feed and closes the bag up,
 until `GetItem` finds none. A Feed behind a battle's hole stays, because `GetItem` counts the
 occupied slots and searches only that many.
 
