@@ -1,0 +1,95 @@
+{
+  "conary": "note v1",
+  "change": "2frwsz29st6v5nmcnpp0089hz1",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 302,
+  "url": "https://github.com/tusanhomichi/psiv/pull/302",
+  "summary": "scenes: Uzo's mother, Sekreas and the Meese clinic beds ($7F, $89, $93)",
+  "task": "TusanHomichi/PSIV#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "f6618cf88c59a1d72a794144b5a031fa009f313b820441ce08d9bca1aef57672",
+    "before": "57037ca492a18d0eee03fe8549481f819d4ccdc1",
+    "after": "65b215830ef6ea495695a3fcea2590b9bb35f448",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793827784308
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789658/job/125061741498"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789658/job/125061741256"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247/job/125061739091"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#302)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#302)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#302)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#302)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#302)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789247"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/302#pullrequestreview-5731518160"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41377789658/job/125061777010"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/302"
+    }
+  ]
+}
