@@ -482,7 +482,7 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
-            ("Event_RanchOwner", 12),
+            ("Event_RanchOwner", 13),
             ("Event_RanchOwnerAfterBattle", 3),
             ("Event_RockyFound", 3),
             ("Event_CatchingRocky", 58),

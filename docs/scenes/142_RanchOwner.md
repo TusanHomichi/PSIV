@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0070` `Event_RanchOwner` | `$07259E..$072653` inclusive, 182 bytes | `EventPtrs[$70]` at `$05A2B4 + $1C0` | `ranch.rs`, `RANCH_OWNER` (12 ops) |
+| `$0070` `Event_RanchOwner` | `$07259E..$072653` inclusive, 182 bytes | `EventPtrs[$70]` at `$05A2B4 + $1C0` | `ranch.rs`, `RANCH_OWNER` (13 ops) |
 | `$0072` `Event_RanchOwnerAfterBattle` | `$072678..$07269D` inclusive, 38 bytes | `EventPtrs[$72]` at `$05A2B4 + $1C8` | `ranch.rs`, `RANCH_OWNER_AFTER_BATTLE` (3 ops) |
 
 - **Trigger:** dialogue `$F6`, `DialogueTree3`, from the owner (`Mile` `$01D`, object 0, dialogue
@@ -27,24 +27,27 @@ conditional, and neither loads a tree.
 
 | Op | ROM offsets | Retail primitive | Scene record |
 |---:|---|---|---|
-| 0 | `$07259E..$0725CF` | `Character_1`'s X against `Field_Obj_Secondary`'s; while they differ, `FieldObj_NPCType7`, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `MoveActorToActorAxis` object 0, the leader, X |
-| 1 | `$0725D0..$0725DB` | facing 0, `jsr Event_UpdateObjFacing` | `Face` object 0 down |
-| 2 | `$0725DC..$0725E3` | `moveq #$20, d0` / `jsr Event_GetAndRunDialogue` | entry `$20`, standard window |
-| 3 | `$0725E4..$0725ED` | `lea ($FFFFC500).w, a4`, `clr.w (a4)`, `clr.w $40(a4)` | `DespawnNpc` 8, two objects |
-| 4 | `$0725EE..$07260F` | `move.w #$194, (a4)`, `$13 := $60`, `$16 := $24D` (the record's tile), `dest := curr` | `SetObjectRoutine` object 0 |
-| 5-6 | `$072610..$072627` | `RunSingleObject`, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `RebuildSprites`, `WaitFrames(1)` |
-| 7 | `$072628..$07262D` | `bset #1, Char_Move_Flags` | `SetFollowMode` 2 |
-| 8 | `$07262E..$07263D` | `Event_MoveSingleObject` to (`$110,$2D0`) | `MoveActorTo`, blocking |
-| 9 | `$07263E..$072647` | facing 0, `jsr Event_UpdateObjFacing` | `Face` object 0 down |
-| 10 | `$072648..$07264D` | `bclr #1, Char_Move_Flags` | `SetFollowMode` 0 |
-| 11 | `$07264E..$072653` | `moveq #$1A, d0` / `jmp EventFlags_Set` | `SetFlag` event `$1A` |
+| 0 | `$07259E..$0725B1` | `Character_1`'s X against `Field_Obj_Secondary`'s; equal: `bra.s loc_725D0` | `BranchIfAligned` the leader, object 0, X: to 2, else 1 |
+| 1 | `$0725B2..$0725CF` | `FieldObj_NPCType7`, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare`, back to the compare | `MoveActorToActorAxis` object 0, the leader, X |
+| 2 | `$0725D0..$0725DB` | facing 0, `jsr Event_UpdateObjFacing` | `Face` object 0 down |
+| 3 | `$0725DC..$0725E3` | `moveq #$20, d0` / `jsr Event_GetAndRunDialogue` | entry `$20`, standard window |
+| 4 | `$0725E4..$0725ED` | `lea ($FFFFC500).w, a4`, `clr.w (a4)`, `clr.w $40(a4)` | `DespawnNpc` 8, two objects |
+| 5 | `$0725EE..$07260F` | `move.w #$194, (a4)`, `$13 := $60`, `$16 := $24D` (the record's tile), `dest := curr` | `SetObjectRoutine` object 0 |
+| 6-7 | `$072610..$072627` | `RunSingleObject`, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `RebuildSprites`, `WaitFrames(1)` |
+| 8 | `$072628..$07262D` | `bset #1, Char_Move_Flags` | `SetFollowMode` 2 |
+| 9 | `$07262E..$07263D` | `Event_MoveSingleObject` to (`$110,$2D0`) | `MoveActorTo`, blocking |
+| 10 | `$07263E..$072647` | facing 0, `jsr Event_UpdateObjFacing` | `Face` object 0 down |
+| 11 | `$072648..$07264D` | `bclr #1, Char_Move_Flags` | `SetFollowMode` 0 |
+| 12 | `$07264E..$072653` | `moveq #$1A, d0` / `jmp EventFlags_Set` | `SetFlag` event `$1A` |
 
-**Op 0.** `FieldObj_NPCType7` (`ps4.asm:95230`) takes its input from `loc_49C86`: within `$10` of the
+**Ops 0-1.** `FieldObj_NPCType7` (`ps4.asm:95230`) takes its input from `loc_49C86`: within `$10` of the
 leader's Y it steps along X toward him, and otherwise stands, which would spin the loop. The talk
 range keeps him within it. `MoveActorToActorAxis` closes the same gap by whole cells at the normal
 step. The routine's own pace is not modelled, a difference in frames, on a walk of at most a cell:
 a recorded deviation ([source notes](../source-notes/README.md#other-recorded-deviations)).
-With the leader above or below him, the X words already match and no frame passes on either side.
+With the leader above or below him, the X words already match before the first step, and op 0
+skips the walk on the tick the scene starts, as the cartridge's compare does: a walk to his own cell
+would still block the runner until the next tick.
 
 **A reload.** `MapDataMan_RanchOwner` (`ps4.asm:110360`) gives him routine `$38` at (`$110,$2D0`)
 once `$1A` is set and clears the blocks. The pack's map effects now carry the position words

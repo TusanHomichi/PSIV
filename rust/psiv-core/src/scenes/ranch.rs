@@ -31,15 +31,26 @@ const fn set_flag(id: u16) -> SceneOp {
 }
 
 /// `$0070`, `Event_RanchOwner`, retail `$07259E..$072653`
-/// (`ps4.asm:152178-152220`): the owner walks level with the leader, faces
-/// down and speaks entry `$20`; the two blocks that closed his gate go, and he
-/// walks to (`$110,$2D0`), Y first, and faces down.
+/// (`ps4.asm:152178-152220`): unless already level with the leader, the
+/// owner walks level with him; he faces down and speaks entry `$20`; the two
+/// blocks that closed his gate go, and he walks to (`$110,$2D0`), Y first, and faces down.
 /// `EventFlag_MileRanchOwner` (`$1A`) is the last write.
 pub static RANCH_OWNER: Scene = Scene {
     name: "Event_RanchOwner",
     event: EventIndex(0x0070),
     ops: &[
-        // `.loop`: `FieldObj_NPCType7` a frame at a time until the X words match.
+        // `cmp.w $30(a4), d0 / bne.s loc_725B2 / bra.s loc_725D0`: the X
+        // words are compared before the first step, so an owner already
+        // level with the leader goes straight to the turn on this tick. A
+        // walk to his own cell would still block the runner for a tick.
+        SceneOp::BranchIfAligned {
+            a: ActorRef::PartyMember(0),
+            b: OWNER,
+            axis: Axis::X,
+            if_aligned: 2,
+            if_not: 1,
+        },
+        // `loc_725B2`: `FieldObj_NPCType7` a frame at a time until the X words match.
         SceneOp::MoveActorToActorAxis {
             actor: OWNER,
             target: ActorRef::PartyMember(0),
