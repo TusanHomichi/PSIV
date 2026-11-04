@@ -63,6 +63,7 @@ mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
+pub(crate) mod home_decor;
 pub mod hunters_guild;
 pub(crate) mod monsen;
 pub(crate) mod motavia_side;
@@ -285,6 +286,8 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    home_decor::PENNANT,
+    home_decor::WOOD_CARVING,
     // Tallas's rescue (#81).
     monsen::TALLAS_MOM,
     monsen::TALLAS_MOM_AFTER_RESCUE,
@@ -482,6 +485,8 @@ mod tests {
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
+            ("Event_Pennant", 7),
+            ("Event_WoodCarving", 7),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

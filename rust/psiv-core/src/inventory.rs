@@ -171,6 +171,27 @@ impl Inventory {
         Some(removed)
     }
 
+    /// `GetItem` / `clr.b (a0)` / `ReorderInventory` until `GetItem` misses
+    /// (`Event_Pennant`, `ps4.asm:153325-153331`): every copy of `item` goes.
+    /// `GetItem` (`ps4.asm:121975`) counts the occupied slots and searches only
+    /// that many from the front, so a copy behind more holes than items ahead
+    /// of it is not seen. Returns how many were removed.
+    pub fn remove_every_in_field(&mut self, item: u8) -> usize {
+        let mut removed = 0;
+        loop {
+            let held = self.slots.iter().filter(|&&id| id != EMPTY).count();
+            let Some(slot) = self.slots[..held].iter().position(|&id| id == item) else {
+                return removed;
+            };
+            self.slots[slot] = EMPTY;
+            if let Some(hole) = self.slots.iter().position(|id| *id == EMPTY) {
+                self.slots.copy_within(hole + 1..INVENTORY_SLOTS, hole);
+                self.slots[INVENTORY_SLOTS - 1] = EMPTY;
+            }
+            removed += 1;
+        }
+    }
+
     /// Closes holes from left to right.
     ///
     /// This is not the normal inventory-removal operation. It is the private
@@ -212,6 +233,31 @@ impl Inventory {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn remove_every_in_field_takes_every_copy_getitem_sees() {
+        let mut inv = Inventory::default();
+        for item in [0x94, 0x10, 0x94, 0x11] {
+            inv.add(item).unwrap();
+        }
+        assert_eq!(inv.remove_every_in_field(0x94), 2);
+        assert_eq!(&inv.slots()[..3], &[0x10, 0x11, EMPTY]);
+        assert_eq!(inv.remove_every_in_field(0x94), 0, "none left");
+    }
+
+    /// Negative control for the counted search: one item ahead and the copy
+    /// behind two holes sits past the first slot, outside `GetItem`'s count.
+    #[test]
+    fn remove_every_in_field_misses_a_copy_past_the_count() {
+        let mut inv = Inventory::default();
+        for item in [0x10, 0x20, 0x30, 0x94] {
+            inv.add(item).unwrap();
+        }
+        inv.remove(1);
+        inv.remove(2);
+        assert_eq!(inv.remove_every_in_field(0x94), 0);
+        assert_eq!(inv.slots()[3], 0x94);
+    }
     use super::*;
 
     #[test]
