@@ -188,6 +188,10 @@ jobs.
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
 | `Event_RanchOwner` | `$70` | [142](142_RanchOwner.md) | `$07259E..$072653` |
 | `Event_RanchOwnerAfterBattle` | `$72` | [142](142_RanchOwner.md#event_ranchownerafterbattle) | `$072678..$07269D` |
+| `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
+| `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
+| `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
+| `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
