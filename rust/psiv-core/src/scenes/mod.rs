@@ -64,6 +64,7 @@ mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
+pub(crate) mod monsen;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -284,6 +285,11 @@ pub static SCENES: &[Scene] = &[
     // Rocky (#81).
     rocky::ROCKY_FOUND,
     rocky::CATCHING_ROCKY,
+    // Tallas's rescue (#81).
+    monsen::TALLAS_MOM,
+    monsen::TALLAS_MOM_AFTER_RESCUE,
+    monsen::INSIDE_MONSEN_HOLE,
+    monsen::TALLAS_RESCUED,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -470,6 +476,10 @@ mod tests {
             ("Event_StrippersAppearing", 33),
             ("Event_RockyFound", 3),
             ("Event_CatchingRocky", 58),
+            ("Event_TallasMom", 3),
+            ("Event_TallasMomAfterRescue", 3),
+            ("Event_InsideMonsenHole", 2),
+            ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),

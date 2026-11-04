@@ -188,6 +188,10 @@ jobs.
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
 | `Event_RockyFound` | `$73` | [141](141_Rocky.md) | `$07269E..$0726C3` |
 | `Event_CatchingRocky` | `$74` | [141](141_Rocky.md#event_catchingrocky) | `$0726C4..$072871` |
+| `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
+| `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
+| `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
+| `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
