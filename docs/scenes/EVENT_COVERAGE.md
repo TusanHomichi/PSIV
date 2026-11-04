@@ -172,7 +172,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$007C` | `Event_InsideMonsenHole` | map trigger $71 | MonsenCave | scene `Event_InsideMonsenHole` |
 | `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | scene `Event_FractOozeFound` |
 | `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | scene `Event_TallasRescued` |
-| `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | allowlisted, #81 |
+| `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | scene `Event_LostGirlsMother` |
 | `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | scene `Event_GirlPrison` |
 | `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
 | `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | scene `Event_PayingGirlsBail` |
@@ -182,7 +182,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
 | `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | allowlisted, #81 |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
-| `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | allowlisted, #81 |
+| `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |
 | `$008A` | `Event_ZemaServantBattle` | map trigger $74 | Zema | scene `Event_ZemaServantBattle` |
 | `$008B` | `Event_ZemaOldMan` | dialogue `$F6` | tree 4 entry 76 | scene `Event_ZemaOldMan` |
 | `$008C` | `Event_ZemaOldManAfterMission` | dialogue `$F6` | tree 4 entry 78 | scene `Event_ZemaOldManAfterMission` |
@@ -192,7 +192,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0090` | `Event_VahalFortBarrier` | dialogue `$F6` | tree 43 entry 9 | scene `Event_VahalFortBarrier` |
 | `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | scene `Event_DominatorsDefeated` |
 | `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | scene `Event_WeaponPlantArrival` |
-| `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | allowlisted, #81 |
+| `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | scene `Event_MeeseClinicSickWoman` |
 | `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
 | `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
 | `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 24 |
+| #81 | Motavia side content | 21 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 32 |
+| | total | 29 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

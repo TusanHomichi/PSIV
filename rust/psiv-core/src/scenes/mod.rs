@@ -65,6 +65,7 @@ pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
 pub(crate) mod monsen;
+pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -279,6 +280,9 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     hunters_guild::HUNTERS_GUILD,
+    motavia_side::LOST_GIRLS_MOTHER,
+    motavia_side::KING_RAPPY_DEFEATED,
+    motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
     // Tallas's rescue (#81).
@@ -475,6 +479,9 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_LostGirlsMother", 3),
+            ("Event_KingRappyDefeated", 18),
+            ("Event_MeeseClinicSickWoman", 20),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
