@@ -195,7 +195,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | allowlisted, #81 |
 | `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
 | `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
-| `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
+| `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | scene `Event_PenguinFeedStolen` |
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | scene `Event_EnterAngerTower` |
@@ -251,16 +251,17 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 <!-- counts:begin -->
 | Issue | Area | Allowlisted events |
 |---:|---|---:|
-| #56 | trigger-fired events | 1 |
+| #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
 | #81 | Motavia side content | 24 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 32 |
+| | total | 31 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
-  (`$71`, `$37`, `$38`, `$96`, `$2A`); `$96` remains.
+  (`$71`, `$37`, `$38`, `$96`, `$2A`); all five have scenes. The entry stays so the
+  issue's area keeps its row.
 - [#71](https://github.com/TusanHomichi/PSIV/issues/71): the four
   `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`); all four have
   scenes. The entry stays so the issue's area keeps its row.
@@ -273,13 +274,15 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 - [#83](https://github.com/TusanHomichi/PSIV/issues/83): Dezolis late arc,
   including the Dezolis dialogue controls.
 
-## Why the remaining #56 entry is not transcribed
+## How the last #56 entry was transcribed
 
-It needs something the scene vocabulary does not have, and it is off the route:
-
-| Event | Blocker |
-|---|---|
-| `$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) | Builds a temporary thief object in slot `$C380` (map object 2 of Zosa's item shop, which has two objects), steps it with `Event_MoveSingleObject` toward the leader's live X, then clears it. The scene cast holds party members and map objects by index; a temporary object has no `ActorRef`. |
+`$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) builds a temporary thief object in slot `$C380`,
+map object 2 of Zosa's item shop, which has only two objects. It steps the thief with
+`Event_MoveSingleObject` toward the leader's live X, then clears it. The cast used to hold only
+party members and the map's own objects, so a temporary object had no `ActorRef`.
+`SceneOp::Object(ObjectOp::Spawn)` writes the slot as the cartridge does: the slot joins the cast
+as `ActorRef::Npc(2)`, and the runtime places it on the field map at that index
+([161](161_PenguinFeedStolen.md)).
 
 One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
 a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the

@@ -425,6 +425,25 @@ impl Runtime {
                     self.bespoke.remove(npc_index);
                 }
             }
+            SceneEffect::ObjectSpawned {
+                slot,
+                routine,
+                cell,
+                solid,
+            } => {
+                let mut object = psiv_core::Npc::new(
+                    psiv_core::NpcId(routine),
+                    cell,
+                    psiv_core::Direction::Down,
+                );
+                object.interactable = solid;
+                object.talkable = solid;
+                if let Err(error) = self.map.place_object(slot, object) {
+                    events.push(RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    });
+                }
+            }
             SceneEffect::NpcDespawned { npc_index, count } => {
                 for i in npc_index..npc_index + count {
                     let _ = self.map.set_npc_active(i, false);

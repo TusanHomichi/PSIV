@@ -124,8 +124,15 @@ impl Inventory {
     /// this; ordinary "do we own it" questions keep using `contains`.
     #[must_use]
     pub fn get_item(&self, item: u8) -> bool {
+        self.get_item_slot(item).is_some()
+    }
+
+    /// The slot [`Inventory::get_item`]'s scan stops on, which `a0` holds on
+    /// its return: the scene that goes on to `clr.b (a0)` clears this one.
+    #[must_use]
+    pub fn get_item_slot(&self, item: u8) -> Option<usize> {
         let count = self.occupied();
-        self.slots[..count].contains(&item)
+        self.slots[..count].iter().position(|id| *id == item)
     }
 
     /// Puts `item` in the first free slot and returns which one.

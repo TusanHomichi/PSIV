@@ -119,6 +119,21 @@ pub enum SceneInput {
     JobBoardPicked(Option<u8>),
 }
 
+/// A scene's direct writes to `Inventory`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ItemOp {
+    /// `GetItem` (`$5B100`), `bne` to the absent path, `clr.b (a0)`,
+    /// `ReorderInventory` (`$5CB72`): the shape of `Event_OldManNearMissingStudent`
+    /// (`$0729FA..$072A0D`). The scene carries on at the next op with the item
+    /// gone, or jumps with nothing written.
+    Take {
+        /// The item asked for.
+        item: u8,
+        /// Op index taken when `GetItem` does not find it.
+        if_missing: usize,
+    },
+}
+
 /// `Event_HuntersGuild` on the row in `d1` (`scenes/hunters_guild.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GuildOp {
@@ -309,6 +324,17 @@ pub enum SceneEffect {
         /// The dialogue entry it speaks from now on.
         dialogue_id: u16,
     },
+    /// An [`ObjectOp::Spawn`] filled a slot.
+    ObjectSpawned {
+        /// The slot.
+        slot: usize,
+        /// The routine written to its id word.
+        routine: u16,
+        /// Its cell.
+        cell: Cell,
+        /// Whether it blocks and can be talked to.
+        solid: bool,
+    },
     /// An actor was placed outright.
     ActorPlaced {
         /// Who.
@@ -397,4 +423,33 @@ pub enum SavedByte {
     /// `-$2(a0)`: the byte before the `$F7` or terminator the text stopped
     /// on, the last one it ran.
     Last,
+}
+
+/// A scene's own object in a field-object slot (`$FFFFC300 + slot * $40`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ObjectOp {
+    /// `lea (slot).w, a4`, `move.w #routine, (a4)`, the art tile and the
+    /// position words, then one `RunSingleObject`: `Event_PenguinFeedStolen`
+    /// builds its thief this way in slot 2 of a two-object map (`$07360E`).
+    ///
+    /// The slot joins the cast as [`ActorRef::Npc`]`(slot)`, so the walk and
+    /// facing ops that drive a map's own objects drive it too, and the
+    /// runtime puts it on the field map at that index, past the record's own
+    /// objects if need be. A despawn clears it; the next map load drops it,
+    /// as `LoadMapObjects` clears the whole object area.
+    Spawn {
+        /// Field-object slot.
+        slot: usize,
+        /// `FieldObjectsJmpTbl` offset written to the id word.
+        routine: u16,
+        /// `$16(a4)`.
+        art_tile: u16,
+        /// `$30(a4)`, pixels.
+        x: i32,
+        /// `$34(a4)`, pixels.
+        y: i32,
+        /// `render_flags` bit 3 after the routine's init: the object blocks
+        /// and answers the talk probe.
+        solid: bool,
+    },
 }

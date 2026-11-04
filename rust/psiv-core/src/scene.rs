@@ -18,8 +18,8 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
+    OP_BUDGET_PER_TICK, ObjectOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -506,10 +506,9 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
-        /// Whether the scene spins until the walk completes. The retail
-        /// primitives drive the object until `curr == dest`, so this is `true`
-        /// for every transcribed use; `false` exists for staging moves that
-        /// the following ops are expected to overlap.
+        /// Whether the scene spins until the walk completes: `true` for every
+        /// retail primitive, which drives the object until `curr == dest`;
+        /// `false` is for staging moves the following ops overlap.
         wait: bool,
     },
     /// Walk `actor` to the current cell of `target`. Retail uses this shape
@@ -985,6 +984,10 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
+    /// A direct write to the inventory.
+    Item(ItemOp),
+    /// A write to a field-object slot the map's record left empty.
+    Object(ObjectOp),
     /// Unconditional jump.
     Jump {
         /// Op index.

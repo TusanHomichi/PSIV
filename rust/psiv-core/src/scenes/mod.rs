@@ -79,6 +79,7 @@ mod vahal_common;
 pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
 pub(crate) mod weapon_plant;
+pub(crate) mod zosa_events;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
@@ -286,6 +287,8 @@ pub static SCENES: &[Scene] = &[
     monsen::TALLAS_MOM_AFTER_RESCUE,
     monsen::INSIDE_MONSEN_HOLE,
     monsen::TALLAS_RESCUED,
+    // Zosa's item shop (#56).
+    zosa_events::PENGUIN_FEED_STOLEN,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -475,6 +478,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_PenguinFeedStolen", 58),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

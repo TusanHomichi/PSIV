@@ -11,7 +11,7 @@
 use super::{Blocked, SceneRunner};
 use crate::field::StepFrames;
 use crate::geom::{CELL_PIXELS, Direction};
-use crate::scene::{ActorRef, SceneEffect, SceneFault, SceneOp};
+use crate::scene::{ActorRef, ItemOp, ObjectOp, SceneEffect, SceneFault, SceneOp};
 use crate::state::{GameState, PARTY_SLOTS};
 use crate::trigger::PixelPos;
 
@@ -77,6 +77,18 @@ impl SceneRunner {
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         match op {
+            SceneOp::Item(ItemOp::Take { item, if_missing }) => {
+                if let Some(slot) = state.inventory().get_item_slot(item) {
+                    let _ = state.inventory_mut().remove_in_field(slot);
+                    effects.push(SceneEffect::InventoryChanged);
+                    self.pc += 1;
+                } else {
+                    if if_missing > self.scene.len() {
+                        return Some(SceneFault::BadJump { target: if_missing });
+                    }
+                    self.pc = if_missing;
+                }
+            }
             SceneOp::ToggleFlag { flag } => {
                 let value = !state.is_set(flag);
                 if state.write(flag, value).is_err() {
@@ -96,6 +108,37 @@ impl SceneRunner {
                     return Some(SceneFault::BadJump { target });
                 }
                 self.pc = target;
+            }
+            SceneOp::Object(ObjectOp::Spawn {
+                slot,
+                routine,
+                x,
+                y,
+                solid,
+                ..
+            }) => {
+                let actor = ActorRef::Npc(slot);
+                let cell = super::pixel_cell(x, y);
+                match self.actor_mut(actor) {
+                    Some(object) => {
+                        object.cell = cell;
+                        object.target = None;
+                        object.step = None;
+                        object.facing = Direction::Down;
+                    }
+                    None => {
+                        self.actors
+                            .push(crate::ScriptedActor::new(actor, cell, Direction::Down))
+                    }
+                }
+                effects.push(SceneEffect::ObjectSpawned {
+                    slot,
+                    routine,
+                    cell,
+                    solid,
+                });
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
             }
             SceneOp::FaceParty { facing } => {
                 for slot in 0..PARTY_SLOTS {

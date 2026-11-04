@@ -191,6 +191,13 @@ jobs.
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
 | `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 
+## Zosa's item shop
+Issue #56's last trigger-fired event, from a hand-built save (`rust/psiv-campaign/tests/zosa_side.rs`).
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_PenguinFeedStolen` | `$96` | [161](161_PenguinFeedStolen.md) | `$0735F6..$0736E9` |
+
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
 reach the fort yet, so these are state tests, not campaign evidence). The story
