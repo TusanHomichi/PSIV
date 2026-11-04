@@ -188,6 +188,8 @@ jobs.
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
 | `Event_RanchOwner` | `$70` | [142](142_RanchOwner.md) | `$07259E..$072653` |
 | `Event_RanchOwnerAfterBattle` | `$72` | [142](142_RanchOwner.md#event_ranchownerafterbattle) | `$072678..$07269D` |
+| `Event_RockyFound` | `$73` | [141](141_Rocky.md) | `$07269E..$0726C3` |
+| `Event_CatchingRocky` | `$74` | [141](141_Rocky.md#event_catchingrocky) | `$0726C4..$072871` |
 | `Event_LostGirlsMother` | `$7F` | [200](200_LostGirlsMother.md) | `$072C08..$072C2D` |
 | `Event_KingRappyDefeated` | `$89` | [201](201_KingRappyDefeated.md) | `$073018..$0730FB` |
 | `Event_MeeseClinicSickWoman` | `$93` | [202](202_MeeseClinicSickWoman.md) | `$0733CC..$07341F` |

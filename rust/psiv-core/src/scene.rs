@@ -19,7 +19,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
+    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -985,6 +985,8 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
+    /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
+    Rocky(RockyOp),
     /// Unconditional jump.
     Jump {
         /// Op index.
