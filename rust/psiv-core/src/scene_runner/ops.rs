@@ -885,6 +885,11 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::FifthCharacter(fifth) => {
+                if let Some(fault) = self.fifth_op(fifth, state, effects) {
+                    return Some(fault);
+                }
+            }
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);

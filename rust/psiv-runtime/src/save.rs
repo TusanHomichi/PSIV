@@ -194,6 +194,7 @@ pub(super) fn construct_runtime(
         effects,
         vehicle: None,
         boarding_body: None,
+        scene_walk_in: None,
         saved_sound_index,
         map_load_flags: 0,
         saved_party_slots: None,

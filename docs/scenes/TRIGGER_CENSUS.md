@@ -331,7 +331,7 @@ mistaken for missing pointer data.
 | `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
 | `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | [124](124_HuntersGuild.md) |
 | `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | [180](180_LateArcInteractions.md#event_runehealingchaz) |
-| `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | boundary [88](88_RetailBoundaries.md) |
+| `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | [181](181_PickingFifthCharacter.md) |
 | `$69` | `Event_AngerTowerTop` | `$0721CC..$072262` | [85](85_AngerTowerTop.md) |
 | `$6A` | `Event_AngerTowerExitTop` | `$072262..$0722D2` | [86](86_AngerTowerExitTop.md) |
 
@@ -489,9 +489,8 @@ normal retail path is now typed through the post-battle dialogue, panel
 sequence, credits, final Start gate and `Game_Cleared_Flag`. The persistent
 headless arc proof covers title through that terminal edge. The direct Raja
 Sick, Rykros arrival gate, Alys, guild and fifth-character controls are
-enumerated in [88](88_RetailBoundaries.md); deterministic Raja Sick and Rykros
-cutscene bodies are transcribed there, while the input-driven controls remain
-precise why-not boundaries. Molcum `$40` still has only `[0]`; `$00`
+enumerated in [88](88_RetailBoundaries.md), which says of each whether it is
+transcribed and, where not, why. Molcum `$40` still has only `[0]`; `$00`
 dispatches `RunEvent_Null00`, which returns without an event body.
 
 ## Fork and byte authority

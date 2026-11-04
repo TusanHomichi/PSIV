@@ -18,7 +18,7 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, JobBoardStep,
     OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
@@ -982,6 +982,8 @@ pub enum SceneOp {
         /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
         last_chunk: u8,
     },
+    /// `Event_PickingFifthCharacter`'s reads and writes, on its row.
+    FifthCharacter(FifthOp),
     /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.

@@ -148,6 +148,42 @@ pub enum GuildOp {
     AddReward,
 }
 
+/// `Event_PickingFifthCharacter` on the row in `Window_Option_Index_2`
+/// (`scenes/fifth_character.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FifthOp {
+    /// `loc_71E74`: every party object's step counters at zero.
+    WaitParty,
+    /// `loc_71EAE`: all five friends' records, HP and TP to their maximum and
+    /// the status byte to zero, whatever the answer turns out to be.
+    RefillRecords,
+    /// The table row whose stand is one cell ahead of the leader, and that
+    /// friend turns to the leader.
+    PickRow,
+    /// `Event_GetAndRunDialogue` on the row's `$5(a0)` plus `offset`.
+    RunLine {
+        /// Added to the row's first line.
+        offset: u16,
+    },
+    /// `tst.b (Current_Party_Slot_5).w / bmi.w`.
+    BranchFifthSlotFree {
+        /// Op index taken when the slot is empty.
+        if_free: usize,
+        /// Op index taken otherwise.
+        if_taken: usize,
+    },
+    /// `loc_72156`: the slot and row of the friend already along.
+    PickLeaver,
+    /// `Event_GetAndRunDialogue` on the leaver's row, `$5(a0)` plus 3.
+    RunLeaverLine,
+    /// The friend along steps out and the one picked takes their slot.
+    Exchange,
+    /// `loc_72080`: the friend picked takes the free fifth slot.
+    TakeFifthSlot,
+    /// `EventFlags_Set` on the row's `$6(a0)`.
+    SetPicked,
+}
+
 /// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).
 /// `Hold`, `ShowList`, `Choose` and `Linger` block the scene.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -295,6 +331,21 @@ pub enum SceneEffect {
         /// The character whose record was written.
         who: CharId,
     },
+    /// A cleared map object is live again at its stand, with this facing
+    /// (`Event_PickingFifthCharacter`'s friend stepping back out).
+    NpcRestored {
+        /// The object.
+        npc_index: usize,
+        /// Its facing.
+        facing: Direction,
+    },
+    /// When the scene ends, this party object walks to the member ahead of it
+    /// from wherever it stands, instead of holding the trail
+    /// ([`crate::Party::walk_in`]).
+    PartyMemberWalksIn {
+        /// The party slot.
+        slot: usize,
+    },
     /// Drop objects from the map.
     NpcDespawned {
         /// The first object cleared.
@@ -357,6 +408,10 @@ pub enum SceneEffect {
 /// Why a scene stopped early.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneFault {
+    /// `Event_PickingFifthCharacter` found no row: nobody in its table stands
+    /// ahead of the leader, or (leaving) is in the party. The cartridge's
+    /// fall-through reads past the table; its trigger cannot reach either.
+    NoFifthRow,
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
     /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.

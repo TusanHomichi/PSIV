@@ -226,6 +226,9 @@ pub struct Runtime {
     /// Scene-only body drawn after the boarding object's replacement and
     /// before the blocking camera pan permits `Vehicle_Index` to be written.
     boarding_body: Option<psiv_core::VehicleState>,
+    /// The party slot a running scene seated off the trail: it walks in once
+    /// the scene hands the party back ([`psiv_core::Party::walk_in`]).
+    scene_walk_in: Option<usize>,
     /// Persistent `$FFFFECEC` (`Saved_Sound_Index`) used by retail scene and
     /// field-load comparisons. Godot owns playback, not this branch decision.
     saved_sound_index: u8,

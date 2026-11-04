@@ -43,6 +43,8 @@
 //! starts stacked unspools one member per step, which is what the cartridge
 //! does after a map load.
 
+use core::cmp::Ordering;
+
 use crate::error::MapError;
 use crate::field::{Effect, FieldState, Input, StepFrames};
 use crate::geom::{Cell, Direction};
@@ -61,6 +63,8 @@ struct Follower {
     cell: Cell,
     facing: Direction,
     step: Option<FollowerStep>,
+    /// Where a follower off the trail is walking ([`Party::walk_in`]).
+    walking_in: Option<Cell>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +133,7 @@ impl Party {
             cell: leader.cell(),
             facing,
             step: None,
+            walking_in: None,
         };
         Ok(Party {
             leader,
@@ -167,6 +172,7 @@ impl Party {
             follower.cell = self.leader.cell();
             follower.facing = facing;
             follower.step = None;
+            follower.walking_in = None;
         }
         Ok(())
     }
@@ -205,6 +211,12 @@ impl Party {
         let mut vacated = leader_from;
         for follower in &mut self.followers {
             let leaving = follower.cell;
+            if let Some(destination) = follower.walking_in.as_mut() {
+                *destination = vacated;
+                follower.continue_walk_in();
+                vacated = leaving;
+                continue;
+            }
             if vacated != follower.cell {
                 follower.begin_step(map, vacated);
             }
@@ -223,7 +235,21 @@ impl Party {
             if step.progress >= frames {
                 follower.cell = step.to;
                 follower.step = None;
+                follower.continue_walk_in();
             }
+        }
+    }
+
+    /// The follower in party slot `slot`, and those behind it, walk to the
+    /// member ahead of them from wherever they stand, rather than holding the
+    /// one-cell trail: the move a party object makes whenever its destination
+    /// is further than a step (`FieldObj_GetAutoInput`, `ps4.asm:93232`, X first
+    /// by default). A friend who joins from their own stand does this
+    /// (`docs/scenes/181_PickingFifthCharacter.md`). They stand still until the
+    /// leader first steps, and rejoin the trail on reaching their destination.
+    pub fn walk_in(&mut self, slot: usize) {
+        for follower in self.followers.iter_mut().skip(slot.saturating_sub(1)) {
+            follower.walking_in = Some(follower.cell);
         }
     }
 
@@ -314,6 +340,40 @@ impl Party {
 }
 
 impl Follower {
+    /// One more step toward a walk-in's destination, X first; there, the walk
+    /// is over. A step in progress runs out first.
+    fn continue_walk_in(&mut self) {
+        let Some(destination) = self.walking_in else {
+            return;
+        };
+        if self.step.is_some() {
+            return;
+        }
+        let dir = match (
+            destination.x.cmp(&self.cell.x),
+            destination.y.cmp(&self.cell.y),
+        ) {
+            (Ordering::Greater, _) => Direction::Right,
+            (Ordering::Less, _) => Direction::Left,
+            (_, Ordering::Greater) => Direction::Down,
+            (_, Ordering::Less) => Direction::Up,
+            (Ordering::Equal, Ordering::Equal) => {
+                self.walking_in = None;
+                return;
+            }
+        };
+        let Some(to) = self.cell.neighbor(dir) else {
+            self.walking_in = None;
+            return;
+        };
+        self.facing = dir;
+        self.step = Some(FollowerStep {
+            dir,
+            to,
+            progress: 0,
+        });
+    }
+
     /// Starts a step onto `target`, which the caller guarantees is adjacent.
     fn begin_step(&mut self, map: &FieldMap, target: Cell) {
         // In lockstep a follower is always exactly one cell behind on the path,
@@ -355,6 +415,71 @@ impl Follower {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `Party::walk_in`: the fifth stands at their own stand until the leader
+    /// steps, walks there X first, and is on the trail once they arrive.
+    #[test]
+    fn a_member_off_the_trail_walks_in_and_rejoins_it() {
+        let map = open_map();
+        let frames = StepFrames::new(2).unwrap();
+        let mut party = Party::new(&map, Cell::new(5, 5), Direction::Down, frames, 1).unwrap();
+        let far = Cell::new(7, 7);
+        party.followers[0].cell = far;
+        party.walk_in(1);
+        // Not until the leader moves.
+        for _ in 0..4 {
+            party.tick(&map, Input::Neutral);
+        }
+        assert_eq!(party.member(1).unwrap().cell, far);
+
+        // One step of the leader's, from (5,5): the destination is (5,5).
+        party.tick(&map, Input::Direction(Direction::Up));
+        let mut seen = vec![party.member(1).unwrap().cell];
+        for _ in 0..40 {
+            party.tick(&map, Input::Neutral);
+            let cell = party.member(1).unwrap().cell;
+            if seen.last() != Some(&cell) {
+                seen.push(cell);
+            }
+        }
+        assert_eq!(
+            seen,
+            vec![
+                Cell::new(7, 7),
+                Cell::new(6, 7),
+                Cell::new(5, 7),
+                Cell::new(5, 6),
+                Cell::new(5, 5),
+            ],
+            "X first, a step at a time"
+        );
+        assert_eq!(party.followers[0].walking_in, None, "on the trail");
+
+        // On the trail: the next step of the leader's is the ordinary one.
+        let leader = party.member(0).unwrap().cell;
+        party.tick(&map, Input::Direction(Direction::Up));
+        assert_eq!(party.followers[0].step.unwrap().to, leader);
+    }
+
+    /// A destination that moves is followed: the walker never catches a leader
+    /// who keeps walking, and a map load ends the walk.
+    #[test]
+    fn a_walk_in_follows_the_trail_and_ends_with_the_map() {
+        let map = open_map();
+        let frames = StepFrames::new(2).unwrap();
+        let mut party = Party::new(&map, Cell::new(5, 6), Direction::Up, frames, 1).unwrap();
+        party.followers[0].cell = Cell::new(7, 6);
+        party.walk_in(1);
+        for _ in 0..8 {
+            party.tick(&map, Input::Direction(Direction::Up));
+        }
+        assert!(party.followers[0].walking_in.is_some());
+        party
+            .enter_map(&map, Cell::new(3, 3), Direction::Up)
+            .unwrap();
+        assert_eq!(party.followers[0].walking_in, None);
+        assert_eq!(party.member(1).unwrap().cell, Cell::new(3, 3));
+    }
     use crate::collision::CollisionGrid;
     use crate::map::MapId;
 

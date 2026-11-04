@@ -149,7 +149,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
 | `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
 | `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | scene `Event_RuneHealingChaz` |
-| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
+| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | scene `Event_PickingFifthCharacter` |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
 | `$006A` | `Event_AngerTowerExitTop` | map trigger $52 | AngerTower_F2 | scene `Event_AngerTowerExitTop` |
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
@@ -255,8 +255,8 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
 | #81 | Motavia side content | 24 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 1 |
-| | total | 26 |
+| #83 | Dezolis late arc | 0 |
+| | total | 25 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

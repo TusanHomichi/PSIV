@@ -279,6 +279,9 @@ impl Runtime {
                 error: error.to_string(),
             });
         }
+        if let Some(slot) = self.scene_walk_in.take() {
+            self.party.walk_in(slot);
+        }
     }
 
     /// The scene is over: the runner and its scene-only state go, and the
@@ -442,6 +445,12 @@ impl Runtime {
                     count,
                 });
             }
+            SceneEffect::NpcRestored { npc_index, facing } => {
+                let _ = self.map.set_npc_active(npc_index, true);
+                let _ = self.map.set_npc_facing(npc_index, facing);
+                events.push(RuntimeEvent::NpcRestored { index: npc_index });
+            }
+            SceneEffect::PartyMemberWalksIn { slot } => self.scene_walk_in = Some(slot),
             SceneEffect::NpcDialogueSet {
                 npc_index,
                 dialogue_id,

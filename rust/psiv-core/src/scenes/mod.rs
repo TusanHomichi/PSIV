@@ -59,6 +59,7 @@ pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod esper_events;
 mod field_reload;
+pub(crate) mod fifth_character;
 mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
@@ -286,6 +287,7 @@ pub static SCENES: &[Scene] = &[
     late_arc::RAJA_SICK,
     late_arc::RUNE_HEALING_CHAZ,
     late_arc::HIJAMMER,
+    fifth_character::PICKING_FIFTH_CHARACTER,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
     // Tallas's rescue (#81).
@@ -409,6 +411,7 @@ mod tests {
             ("Event_RajaSick", 10),
             ("Event_RuneHealingChaz", 17),
             ("Event_Hijammer", 14),
+            ("Event_PickingFifthCharacter", 19),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),
