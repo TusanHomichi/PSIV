@@ -19,16 +19,14 @@ time and in this order:
 4. `python3 tools/check_issue_refs.py` (with `gh` authenticated): a statement
    that still defers to a CLOSED issue fails; a history mention is not a
    deferral, and without `gh` the step reports skipped;
-5. `python3 tools/certify.py`, the certified pixel pairs; it takes the shared
-   heavy lock (`PSIV_HEAVY_LOCK`, default the main checkout's
-   `build/continuation-heavy.lock`, from tools/heavy_lock.py) itself, an
-   exclusive hold for its extension build and godot slots for its captures;
-6. `python3 tools/verify_native_flash_attack.py`, the flash-only enemy attack
-   driven natively; it takes the shared heavy lock itself, the extension class
-   for its (by then up-to-date) build and one godot slot for its runs;
-7. `python3 tools/gate.py --wait`, the integration gate (it waits for a
-   running gate instead of refusing, and takes the heavy lock itself, in the
-   exclusive class).
+5. `python3 tools/verify_native_flash_attack.py`, the flash-only enemy attack
+   driven natively; it takes the shared heavy lock (`PSIV_HEAVY_LOCK`, default
+   the main checkout's `build/continuation-heavy.lock`, from
+   tools/heavy_lock.py) itself, the extension class for its build and one
+   godot slot for its runs;
+6. `python3 tools/gate.py --wait`, the integration gate, whose last step is
+   certify's pixel pairs (it waits for a running gate instead of refusing, and
+   takes the heavy lock itself, in the exclusive class).
 
 `steps()` states each step's class: `build`, `OWN` (the step's entry point
 takes its own classes) or None (no lock); the receipt records it per step.
@@ -36,12 +34,12 @@ takes its own classes) or None (no lock); the receipt records it per step.
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
 refused before anything runs (not the root, a raw `flock(1)` parent holding the
-heavy lock, which would leave certify waiting on its own ancestor after the
+heavy lock, which would leave the flash attack waiting on its own ancestor after the
 build and the route, or a dirty tree without `--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
 one log per step, the route's tape, saves and report, and `receipt.json` with
 the candidate SHA, each step's command, exit code and duration, the route's
 digest, chapter count, frames and tape SHA-256, and the resume summary and the
-certify, flash-attack and gate receipt paths their logs name. A candidate result is reported from that
+flash-attack and gate receipt paths their logs name. A candidate result is reported from that
 receipt. Stdlib only, Python 3.
 """
 
@@ -85,7 +83,6 @@ def steps(out: Path) -> list[tuple[str, str, str | None]]:
                   f"--report {route}/report.json", None),
         ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", None),
         ("issue-refs", f"python3 tools/check_issue_refs.py --cache {out / 'issue-states.json'}", None),
-        ("certify", "python3 tools/certify.py", OWN),
         ("flash-attack", "python3 tools/verify_native_flash_attack.py", OWN),
         ("gate", "python3 tools/gate.py --wait", OWN),
     ]
@@ -149,7 +146,7 @@ RECEIPT_RE = re.compile(r"(?:receipt|summary)=(\S+)")
 
 
 def named_receipt(log: Path) -> str | None:
-    """The last `receipt=<path>` (certify, gate) or `summary=<path>` (the resume
+    """The last `receipt=<path>` (gate) or `summary=<path>` (the resume
     check) a step's log printed."""
     if not log.is_file():
         return None

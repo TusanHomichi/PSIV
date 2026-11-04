@@ -65,6 +65,7 @@ pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
 pub(crate) mod missing_student;
+pub(crate) mod monsen;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -286,6 +287,11 @@ pub static SCENES: &[Scene] = &[
     missing_student::MISSING_STUDENT_FOUND,
     missing_student::OLD_MAN_NEAR_MISSING_STUDENT,
     missing_student::MISSING_STUDENT_IN_BED,
+    // Tallas's rescue (#81).
+    monsen::TALLAS_MOM,
+    monsen::TALLAS_MOM_AFTER_RESCUE,
+    monsen::INSIDE_MONSEN_HOLE,
+    monsen::TALLAS_RESCUED,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -470,6 +476,10 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_TallasMom", 3),
+            ("Event_TallasMomAfterRescue", 3),
+            ("Event_InsideMonsenHole", 2),
+            ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
             ("Event_PiataDormOwner", 3),
             ("Event_MissingStudentFound", 29),
