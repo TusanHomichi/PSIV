@@ -31,6 +31,11 @@ nothing, so every object stood there from the first visit. The limit is now 256,
 (`tests/test_map_effects.py`) as every other `object_despawn` does. Correction-ladder rung: that test
 pins the entry's whole table, and `census.undecoded_entries` still names each entry the reader refuses.
 
+**The route.** An empty spaceport before Elsydeon makes the route's first visit 16 frames shorter,
+and the RNG after it moves. The release route still completes all 84 chapters (6,165,067 frames, digest
+`f1ac64ed4f1b3835`, was 6,260,544 and `348595da315ac589`). Its resume manifest follows the new halts:
+Dark Force 2 and 3 each lose one resume, [#320](https://github.com/TusanHomichi/PSIV/issues/320).
+
 ## Retail transcription
 
 | Ops | ROM | Retail | Scene |
