@@ -48,6 +48,7 @@ pub mod npc_commands;
 pub mod png;
 pub mod rom;
 pub mod ship_menu;
+pub mod shops;
 pub mod sound;
 mod sound_defs;
 pub mod sprites;
@@ -98,7 +99,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         name: "maps",
-        claims: &["maps", "sprites"],
+        claims: &["maps", "sprites", "shops.json", "shops"],
         build: maps::pictures::build,
     },
     Section {
