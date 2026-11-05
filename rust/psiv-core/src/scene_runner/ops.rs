@@ -819,7 +819,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::RemoveItemsInField { item } => {
+            SceneOp::RemoveItemsInField(item) => {
                 state.inventory_mut().remove_every_in_field(item);
                 effects.push(SceneEffect::InventoryChanged);
                 self.pc += 1;

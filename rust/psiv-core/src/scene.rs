@@ -859,13 +859,8 @@ pub enum SceneOp {
         /// The item id.
         item: u8,
     },
-    /// Remove every copy of `item` the way `Event_Pennant` and
-    /// `Event_WoodCarving` do: `GetItem`, `clr.b (a0)`, `ReorderInventory`,
-    /// again until `GetItem` misses ([`crate::Inventory::remove_every_in_field`]).
-    RemoveItemsInField {
-        /// The item id.
-        item: u8,
-    },
+    /// Every copy of an item, as `Event_Pennant` takes them ([`crate::Inventory::remove_every_in_field`]).
+    RemoveItemsInField(u8),
     /// Add an item through the first-free inventory slot.
     AddItem {
         /// The item id.

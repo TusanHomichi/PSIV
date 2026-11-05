@@ -32,7 +32,7 @@ pub static PENNANT: Scene = Scene {
             window: DialogueWindow::Standard,
         },
         // `ItemID_Pennant`.
-        SceneOp::RemoveItemsInField { item: 0x94 },
+        SceneOp::RemoveItemsInField(0x94),
         SceneOp::FadeOut,
         // `TempEveFlag_Pennant`.
         SceneOp::SetFlag {
@@ -64,7 +64,7 @@ pub static WOOD_CARVING: Scene = Scene {
             window: DialogueWindow::Standard,
         },
         // `ItemID_WoodCarvin`.
-        SceneOp::RemoveItemsInField { item: 0x95 },
+        SceneOp::RemoveItemsInField(0x95),
         SceneOp::FadeOut,
         // `TempEveFlag_WoodCarving`.
         SceneOp::SetFlag {
