@@ -50,7 +50,7 @@ fn party_art(rom: &[u8], offset: usize) -> Result<TileSource, PackError> {
     Ok(source)
 }
 
-fn pal_init_line_3(rom: &[u8]) -> Result<Vec<[u8; 3]>, PackError> {
+pub(crate) fn pal_init_line_3(rom: &[u8]) -> Result<Vec<[u8; 3]>, PackError> {
     bounds(rom, PAL_INIT_LINE_3, PALETTE_LINE_SIZE)?;
     Ok(gfx::palette_rgb(&gfx::decode_palette(
         &rom[PAL_INIT_LINE_3..PAL_INIT_LINE_3 + PALETTE_LINE_SIZE],
