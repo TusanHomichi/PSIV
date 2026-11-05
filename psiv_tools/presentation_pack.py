@@ -132,7 +132,11 @@ def panel_record_offset(panel_id: int) -> int:
 OPENING_ART = 0x001C_F1F2
 OPENING_MAPPING = 0x001D_25BE
 OPENING_PALETTE = 0x001D_2A3C
-PALETTE_REQUESTS = ((0x001D_2A3C, 64), (0x001D_E0B8, 16))
+# Palette words a scene reads from the ROM, by address and word count. The
+# third is `Event_PlateSysEngine`'s light table `loc_6E908` through the first
+# word of `loc_6E922`, which its loop reads past the table (`$06E908..$06E924`).
+PLATE_ENGINE_LIGHT = (0x0006_E908, 14)
+PALETTE_REQUESTS = ((0x001D_2A3C, 64), (0x001D_E0B8, 16), PLATE_ENGINE_LIGHT)
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The
 # source and destination are kept here rather than inferred from the object

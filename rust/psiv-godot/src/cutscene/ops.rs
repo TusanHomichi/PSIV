@@ -285,6 +285,7 @@ impl Field {
             | PresentationOp::VariablePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
+            | PresentationOp::PaletteCycleFromTable { .. }
             | PresentationOp::CameraToActor { .. }
             | PresentationOp::Quake { .. }
             | PresentationOp::NpcPixelPosition { .. }
