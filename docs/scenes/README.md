@@ -197,6 +197,7 @@ jobs.
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
 | `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
+| `Event_MonsenEarthquake` | `$2C` | [143](143_MonsenEarthquake.md) | `$06E0EA..$06E759` |
 
 ## The missing student
 Issue #81's Hunter's Guild job in Piata and Kadary, from hand-built saves
