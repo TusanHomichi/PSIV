@@ -1,0 +1,101 @@
+{
+  "conary": "note v1",
+  "change": "31tkqqsm5m87qntkm7z24tjt75",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 352,
+  "url": "https://github.com/tusanhomichi/psiv/pull/352",
+  "summary": "renovate: keep the release build on the ubuntu-22.04 runner",
+  "task": "tusanhomichi/psiv#243",
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "landing": {
+    "revision": "a13d0060194375e0d5cecc151846ff6ac3f688f7ba0c887ee6975e522aa3f0f5",
+    "before": "733e2e84c559f3ca1857b5200ae7933f7d40842f",
+    "after": "128fdc9e56509d9f59512547190161813edbce9d",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793921573378
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693607/job/127436115506"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693607/job/127436115437"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693607/job/127436115093"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115/job/127436110088"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#352)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#352)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#352)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#352)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#352)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693115"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/352#pullrequestreview-5789751281"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42081693607/job/127436174251"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/352"
+    }
+  ]
+}
