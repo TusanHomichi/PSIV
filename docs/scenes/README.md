@@ -196,6 +196,8 @@ jobs.
 | `Event_DyingBoyFather` | `$84` | [162](162_TorincoCulvers.md) | `$072D44..$072D6B` |
 | `Event_FatherAfterBoyRecovery` | `$85` | [162](162_TorincoCulvers.md) | `$072D6C..$072D93` |
 | `Event_MeetingSekreas` | `$87` | [162](162_TorincoCulvers.md) | `$072FB4..$072FDB` |
+| `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
+| `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
 | `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |

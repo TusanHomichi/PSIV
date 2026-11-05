@@ -63,6 +63,7 @@ mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
+pub(crate) mod home_decor;
 pub mod hunters_guild;
 pub(crate) mod missing_student;
 pub(crate) mod monsen;
@@ -292,6 +293,8 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEETING_SEKREAS,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    home_decor::PENNANT,
+    home_decor::WOOD_CARVING,
     // The earthquake at Monsen (#81).
     monsen_quake::MONSEN_EARTHQUAKE,
     // The ranch owner (#81).
@@ -508,6 +511,8 @@ mod tests {
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
+            ("Event_Pennant", 7),
+            ("Event_WoodCarving", 7),
             ("Event_PiataDormOwner", 3),
             ("Event_MissingStudentFound", 29),
             ("Event_OldManNearMissingStudent", 6),

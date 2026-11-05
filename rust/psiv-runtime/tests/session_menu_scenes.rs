@@ -644,3 +644,73 @@ fn the_aiedo_inn_is_an_ordinary_night_once_either_flag_is_set() {
         );
     }
 }
+
+/// Chaz's house (`$5E`): the Pennant and the Wood Carving, used from the ITEM
+/// menu, run `Event_Pennant` / `Event_WoodCarving` (`$97`, `$98`); the house
+/// reloads with the souvenir and its blocks present. Record
+/// `docs/scenes/203_HomeDecor.md`.
+const CHAZ_HOUSE: (u16, u16, u16) = (0x5E, 40, 36);
+/// `ItemID_Pennant`, `ItemID_WoodCarvin`.
+const ITEM_PENNANT: u8 = 0x94;
+/// See [`ITEM_PENNANT`].
+const ITEM_WOOD_CARVIN: u8 = 0x95;
+
+#[test]
+fn souvenirs_go_up_on_the_wall_of_chazs_house() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    // (item, temporary flag, the objects it shows, where the reload stands the party)
+    for (item, flag, shown, at) in [
+        (ITEM_PENNANT, 0x1C, 0..4, Cell::new(40, 36)),
+        (ITEM_WOOD_CARVIN, 0x1D, 4..9, Cell::new(28, 32)),
+    ] {
+        let game = with_pack(0, &[item, item], 0);
+        let mut player = Player::new(CHAZ_HOUSE, &game);
+        for index in shown.clone() {
+            assert!(
+                !player.runtime().map().npcs()[index].active,
+                "hidden before"
+            );
+        }
+        player.use_item(item);
+        assert!(
+            player.runtime().scene_active(),
+            "the action starts the event"
+        );
+        player.run_scene_out();
+        let rt = player.runtime();
+        assert!(rt.game().is_set(psiv_core::Flag::temp(flag)));
+        assert!(
+            !rt.game().inventory().slots().contains(&item),
+            "both copies are gone"
+        );
+        assert_eq!(rt.map().id().0, 0x5E);
+        for index in shown {
+            assert!(rt.map().npcs()[index].active, "object {index} shown");
+        }
+        assert_eq!(rt.state().cell(), at);
+    }
+}
+
+/// Negative control: outside the house the action refuses and no scene runs.
+#[test]
+fn a_souvenir_is_refused_outside_chazs_house() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let game = with_pack(0, &[ITEM_PENNANT], 0);
+    let mut player = Player::new(AIEDO_INN, &game);
+    player.use_item(ITEM_PENNANT);
+    assert!(!player.runtime().scene_active());
+    assert!(
+        player
+            .runtime()
+            .game()
+            .inventory()
+            .slots()
+            .contains(&ITEM_PENNANT)
+    );
+}
