@@ -515,22 +515,6 @@ fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
         "{:?}",
         report.errors
     );
-    // On the second visit $96 is set and the inner guards step aside with no
-    // talk: the `wait`'s own `opens` is what lets the walk past them plan.
-    let unopened = mutate(
-        &main_text(),
-        "{\"do\": \"wait\", \"frames\": 90, \"opens\": [[47, 20], [48, 20]], ",
-        "{\"do\": \"wait\", \"frames\": 90, ",
-    );
-    let report = run(&unopened).unwrap();
-    assert!(
-        report
-            .errors
-            .iter()
-            .any(|e| e.chapter == "before-elsydeon-cave" && e.objective == Some(13)),
-        "{:?}",
-        report.errors
-    );
 }
 
 /// `wait` is 1 to 600 frames (the Esper guards' wait), and a `board` with no

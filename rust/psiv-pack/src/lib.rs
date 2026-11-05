@@ -46,6 +46,7 @@ pub mod maps;
 pub mod npc_commands;
 pub mod png;
 pub mod rom;
+pub mod ship_menu;
 pub mod sound;
 mod sound_defs;
 pub mod sprites;
@@ -108,6 +109,11 @@ pub const SECTIONS: &[Section] = &[
         name: "npc_commands",
         claims: &["npc_commands.json"],
         build: npc_commands::build,
+    },
+    Section {
+        name: "ship_menu",
+        claims: &["ship_menu"],
+        build: ship_menu::build,
     },
 ];
 
