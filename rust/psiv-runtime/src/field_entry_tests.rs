@@ -371,3 +371,21 @@ fn a_battle_return_reloads_the_records_camera_gates() {
         "the gate write does not move the view"
     );
 }
+
+/// A scene's `LoadMap` is `RefreshMap` (`ps4.asm:121767`), whose 59 callers
+/// are all scenes (35 `Cutscene_*`, 23 `Event_*`, `CreditsStage3`); it runs
+/// `loc_51AB2` at `:121797`. Natively it rebuilds the camera from the record,
+/// so the gate bytes follow the map the scene loads (#59).
+#[test]
+fn a_scene_refresh_into_another_map_takes_its_gate_bytes() {
+    let Some(mut rt) = runtime(0x24, Cell::new(31, 49)) else {
+        return;
+    };
+    let zema = rt.camera.gates();
+    rt.change_map_refresh(MapId(0x190), Cell::new(31, 46), Direction::Down, 0x24, 0)
+        .unwrap();
+    let kuran = rt.camera.gates();
+    assert_ne!(kuran, zema, "the two maps' gates differ");
+    assert_eq!((kuran.ec24, kuran.ec25, kuran.ec26), (0, 1, 0));
+    assert_eq!(rt.camera.raw_step_on(CameraPlane::Background), (0, 0));
+}
