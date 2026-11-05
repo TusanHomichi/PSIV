@@ -57,6 +57,7 @@ mod conveyors;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
+pub(crate) mod dying_boy;
 pub(crate) mod esper_events;
 mod field_reload;
 mod flight;
@@ -289,6 +290,8 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // Torinco's dying boy (#81).
+    dying_boy::DYING_BOY,
     // The earthquake at Monsen (#81).
     monsen_quake::MONSEN_EARTHQUAKE,
     // The ranch owner (#81).
@@ -502,6 +505,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_DyingBoy", 53),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
