@@ -41,6 +41,7 @@
 
 mod blink;
 mod fixture;
+mod fusion;
 mod menu;
 mod narration;
 mod panes;
@@ -58,6 +59,7 @@ pub use view::{
     MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView,
     TargetKind, TechniqueEntry,
 };
+pub use view::{Fusion, FusionPiece};
 
 use std::collections::BTreeMap;
 
@@ -172,6 +174,10 @@ pub(crate) struct BattleMode {
     fault: Option<String>,
     /// Last frame's pad, so every accept and cancel is a press edge.
     previous_pad: Pad,
+    /// Each enemy fighter's formation position byte, for presentation.
+    positions: BTreeMap<u8, u8>,
+    /// The Zol slugs' Fusion while its beat plays.
+    fusion: Option<fusion::Fusion>,
 }
 
 impl BattleMode {
@@ -206,6 +212,8 @@ impl BattleMode {
             start: Some(start),
             fault: None,
             previous_pad: Pad::NEUTRAL,
+            positions: runtime.battle_enemy_positions(start),
+            fusion: None,
         };
         mode.seat(runtime);
         mode.queue = queue::queue_timeline(timeline);
@@ -401,6 +409,32 @@ impl BattleMode {
         self.command_open = true;
     }
 
+    /// The Fusion of the two standing Zol slugs, whose bodies its objects
+    /// replace: the setup erases their plane cells (`ps4.asm:35684-35702`).
+    /// `None` when there are not exactly two.
+    fn start_fusion(&mut self) -> Option<fusion::Fusion> {
+        let slugs: Vec<(u8, u8)> = self
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.visible && enemy.enemy_id == fusion::ZOL_SLUG)
+            .filter_map(|enemy| {
+                enemy
+                    .position
+                    .or_else(|| self.positions.get(&enemy.fighter).copied())
+                    .map(|position| (enemy.fighter, position))
+            })
+            .collect();
+        let [(a, at), (b, bt)] = slugs[..] else {
+            return None;
+        };
+        for enemy in &mut self.enemies {
+            if enemy.fighter == a || enemy.fighter == b {
+                enemy.visible = false;
+            }
+        }
+        Some(fusion::Fusion::new(fusion::body_x(at), fusion::body_x(bt)))
+    }
+
     /// Advances one dwell frame and starts the next event when the beat ends.
     fn advance(&mut self, previous: Pad, pad: Pad) {
         if let Some(active) = self.current.as_mut() {
@@ -467,6 +501,12 @@ impl BattleMode {
         self.sounds.extend(queued.sounds);
         self.animations.extend(queued.animations);
         let event = queued.event;
+        let fused = self.fusion.take().is_some();
+        if let BattleEvent::EnemySkillUsed { skill, .. } = &event
+            && *skill == fusion::FUSION_ABILITY
+        {
+            self.fusion = self.start_fusion();
+        }
         if let BattleEvent::EnemyStatsReloaded { fighter, name, .. } = &event {
             self.names.insert(fighter.get(), name.clone());
             if let Some(enemy) = self.enemies.iter_mut().find(|e| e.fighter == fighter.get()) {
@@ -508,7 +548,12 @@ impl BattleMode {
             }
         }
         self.update_live_party(&event);
-        let narrate = narration::narration(&event, &self.names, &self.character_names);
+        let mut narrate = narration::narration(&event, &self.names, &self.character_names);
+        if fused && matches!(event, BattleEvent::EnemiesFused { .. }) {
+            // The skill's window holds over the seated MetaSlug; the
+            // cartridge prints no line for it.
+            narrate.line.clone_from(&self.message);
+        }
         if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
             self.fault = Some(format!(
                 "battle renderer: engine emitted unsupported ability {ability} for fighter {}",
@@ -587,6 +632,10 @@ impl BattleMode {
             && self.party_defeated()
         {
             0
+        } else if let Some(fusion) = self.fusion {
+            u16::try_from(fusion.seat()).unwrap_or(u16::MAX)
+        } else if fused && matches!(event, BattleEvent::EnemiesFused { .. }) {
+            fusion::SEATED_HOLD_FRAMES as u16
         } else {
             BATTLE_DWELL_FRAMES
         };

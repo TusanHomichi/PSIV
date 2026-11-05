@@ -118,6 +118,12 @@ impl BattleMode {
             transient: self.transient,
             sounds: self.sounds.clone(),
             animations: self.animations.clone(),
+            fusion: match (self.fusion, self.current) {
+                (Some(fusion), Some(active)) => {
+                    fusion.pieces(u32::from(active.total - active.remaining))
+                }
+                _ => Vec::new(),
+            },
             close_ready,
             fault: self.fault.clone(),
         }

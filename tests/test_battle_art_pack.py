@@ -16,6 +16,7 @@ import zlib
 from pathlib import Path
 
 from psiv_tools import png
+from psiv_tools.battle_fusion_art import FUSION_ART_NAME
 from psiv_tools.battle_art import (
     CHARACTER_COUNT,
     CHARACTER_PALETTE_TABLE,
@@ -206,6 +207,7 @@ class TestEmittedFiles(unittest.TestCase):
             ("backgrounds", BACKGROUND_ART_NAME),
             ("command_ui", COMMAND_UI_ART_NAME),
             ("damage_digits", DAMAGE_DIGIT_ART_NAME),
+            ("fusion", FUSION_ART_NAME),
         ):
             with self.subTest(key=key):
                 blob = (self.root / name).read_bytes()
