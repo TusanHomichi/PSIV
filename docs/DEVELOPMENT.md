@@ -376,7 +376,12 @@ dir shared between worktrees does not (the tool's docstring says why). A gate mi
 partial, and a partial gate is recorded as a failure: green takes the full
 tier, on a clean tree, with every command exiting 0 and no input missing.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the seven
-commands above, in order, with the env prefixes and flags written there, and
+commands above, with the env prefixes and flags written there, in two lanes
+side by side (`GATE_LANES`), each running its commands one at a time in the
+order above: the Python checks and the pack parity in one, cargo fmt, test and
+clippy and then certify in the other, so every command that builds the debug
+target stays in one lane and the run takes its longest lane rather than the
+sum of all seven. The fast tier is one lane. It
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
 names, which is how `tools/pr_gate.py` reads its own run's receipt and no
@@ -384,8 +389,11 @@ other): the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, which inputs were missing
 (`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
 `tools/gate.py`), the cores it could use
-(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
-command's string, UTC start and end, duration, exit code, CPU clock and
+(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, its
+lanes (`lanes`, each a list of command indices) and its length from start to
+end (`duration_s`, which lanes side by side make less than the commands'
+durations added up), and each
+command's string, lane, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
 sampled every second; the heavy lock does not exclude unlocked headless runs,
 so a slow step is read beside its load), log path and parsed counts. Report a gate
@@ -534,7 +542,10 @@ exclusive hold keeps every other locked job off the machine while it runs.
 `cargo test --workspace --no-run` at 8 jobs (4,979 MB in 12, 19%), `godot` by a certify pair
 (418 MB in 1, 18%), `python` by the suite (926 MB in one process and 1,256 MB
 on four workers; 3 units, 18%); the opt-level-3
-extension build (5,582 MB, 13 units) is exclusive and sizes nothing. On the
+extension build (5,582 MB, 13 units) is exclusive and sizes nothing. The full
+gate's two lanes overlap, so its peak is theirs together: by the rows below,
+the cold cargo lane (4,979 MB) beside the four-worker suite (1,256 MB), about
+6.2 GB, an estimate not yet measured as one run. On the
 13.5 GB host the budget is the margin: its 16 units leave about 5.5 GB outside
 the lock for the desktop, the agent sessions, unlocked headless runs and any
 job that peaks above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on

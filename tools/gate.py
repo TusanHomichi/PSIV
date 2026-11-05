@@ -4,8 +4,15 @@
 `GATE_COMMANDS` is the ordered gate: exactly the `## Run checks` block of
 docs/DEVELOPMENT.md, so check and documentation cannot drift (tests/test_gate.py
 fails when they do). `python3 tools/gate.py`, run from the root, executes each
-string with `bash -c <string>`, one at a time, so the documented env prefix
-(`PYTHONPATH=.`) applies exactly as written. Every command runs with
+string with `bash -c <string>`, so the documented env prefix (`PYTHONPATH=.`)
+applies exactly as written. The full gate runs its commands in `GATE_LANES`:
+two lanes side by side, each running its own commands one at a time in the
+block's order. One lane holds every command that builds the debug target
+(cargo fmt, test and clippy, then certify's `psiv-godot` build); the other
+the Python checks and the pack parity, whose cargo build is the release
+profile, which cargo locks apart. So no lane waits on the other's cargo lock,
+and the gate takes its longest lane, not the sum of all seven. The fast tier
+is one lane. Every command runs with
 `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to the cores available, capped
 at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
 lock class. A failing command does not stop the run: one receipt shows every
@@ -73,7 +80,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait as wait_futures
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -108,6 +117,20 @@ GATE_COMMANDS = [
     "python3 tools/pack_parity.py",
     CERTIFY_COMMAND,
 ]
+
+#: The full gate's lanes, run side by side, each in `GATE_COMMANDS` order
+#: (module docstring). Together they hold every command exactly once
+#: (`lanes_for`). A command that builds the debug target goes in the cargo lane:
+#: two debug builds side by side would only queue on cargo's lock.
+GATE_LANES = (
+    ("python3 tools/check_docs.py",
+     "PYTHONPATH=. python3 tools/py_suite.py",
+     "python3 tools/pack_parity.py"),
+    ("cargo fmt --manifest-path rust/Cargo.toml --all --check",
+     "cargo test --manifest-path rust/Cargo.toml --workspace",
+     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+     CERTIFY_COMMAND),
+)
 
 #: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's
 #: second `## Run checks` block, in order, verbatim. It is not the integration
@@ -441,8 +464,17 @@ def toolchain_missing(env, root, modules=None, rust=None):
     return missing
 
 
-def _run_command(command, index, total, root, receipt_dir, env=None):
-    """Run one command, log it, and return its receipt record."""
+class LaneStopped(Exception):
+    """Another lane failed to run (not a command failing: the gate itself), so this one stopped."""
+
+
+def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, stop=None):
+    """Run one command, log it, and return its receipt record (`lane` is its lane).
+
+    When `stop` is set while it runs, the command is killed and LaneStopped
+    raised: another lane raised, and the gate stops whole rather than leave a
+    command running past it.
+    """
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
     print(f"[{index}/{total}] {command}", flush=True)
     started_wall = datetime.now(timezone.utc)
@@ -463,6 +495,8 @@ def _run_command(command, index, total, root, receipt_dir, env=None):
                     process.wait(timeout=CPU_SAMPLE_S)
                     break
                 except subprocess.TimeoutExpired:
+                    if stop is not None and stop.is_set():
+                        raise LaneStopped(command) from None
                     continue
         except BaseException:
             process.kill()
@@ -482,12 +516,13 @@ def _run_command(command, index, total, root, receipt_dir, env=None):
         "log": display_path(log_file, root),
         "counts": counts,
         "lock_class": GATE_LOCK_CLASS,
+        "lane": lane,
         "cpu_mhz": _clock_summary(clocks),
         "load_1m_max": max(loads) if loads else None,
     }
 
 
-def _summary(records, receipt_dir, root, tier="full", missing=()):
+def _summary(records, receipt_dir, root, tier="full", missing=(), wall_seconds=0.0):
     """The one line printed at the end and stored as the receipt's `summary`.
 
     It opens with what ran: `gate OK` / `gate FAILED` for the full gate, `fast
@@ -497,7 +532,7 @@ def _summary(records, receipt_dir, root, tier="full", missing=()):
     label = "gate" if tier == "full" else f"{tier} tier"
     total = len(records)
     failed = [record for record in records if record["exit_code"] != 0]
-    seconds = sum(record["duration_s"] for record in records)
+    seconds = wall_seconds
     if failed:
         names = ", ".join(f"{Path(record['log']).stem} exit={record['exit_code']}"
                           for record in failed)
@@ -511,8 +546,64 @@ def _summary(records, receipt_dir, root, tier="full", missing=()):
     return "; ".join(part for part in (head, partial, counts) if part) + tail
 
 
-def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=None):
-    """Run `commands` in order under `root`, writing a receipt into `receipt_dir`.
+def lanes_for(commands, lanes=None):
+    """`lanes` (default: all of `commands` in one lane, in order) as tuples of
+    `commands` indices. ValueError unless they hold every command exactly once, each lane in `commands` order: a lane can't reorder the documented
+    block, drop a command or run one twice."""
+    if lanes is None:
+        return (tuple(range(len(commands))),)
+    positions = {command: index for index, command in enumerate(commands)}
+    if len(positions) != len(commands):
+        raise ValueError("a command appears twice in a gate with lanes, so a lane can't name it")
+    indices = []
+    for lane in lanes:
+        unknown = [command for command in lane if command not in positions]
+        if unknown:
+            raise ValueError(f"a lane runs a command the gate doesn't list: {unknown[0]}")
+        lane_indices = tuple(positions[command] for command in lane)
+        if list(lane_indices) != sorted(lane_indices):
+            raise ValueError(f"a lane runs its commands out of the gate's order: {lane}")
+        indices.append(lane_indices)
+    held = sorted(index for lane in indices for index in lane)
+    if held != list(range(len(commands))):
+        raise ValueError("the lanes must hold every command of the gate exactly once")
+    return tuple(indices)
+
+
+def _run_lanes(commands, lanes, root, receipt_dir, env):
+    """Every command's record, in `commands` order: the lanes (`lanes_for`) side
+    by side, each running its own one at a time. A failing command never stops
+    anything; an exception in a lane (the gate itself breaking) stops every
+    other lane's running command and is raised once all have ended."""
+    records = [None] * len(commands)
+    stop = threading.Event()
+
+    def run_lane(number, lane):
+        for index in lane:
+            if stop.is_set():
+                raise LaneStopped(commands[index])
+            records[index] = _run_command(commands[index], index + 1, len(commands), root,
+                                          receipt_dir, env, lane=number, stop=stop)
+
+    with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
+        futures = [pool.submit(run_lane, number, lane) for number, lane in enumerate(lanes)]
+        try:
+            wait_futures(futures, return_when=FIRST_EXCEPTION)
+        finally:
+            # Whatever ended the wait (a lane raising, or this thread
+            # interrupted), nothing outlives it.
+            if not all(future.done() and future.exception() is None for future in futures):
+                stop.set()
+    errors = [future.exception() for future in futures if future.exception() is not None]
+    first = next((e for e in errors if not isinstance(e, LaneStopped)), errors[0] if errors else None)
+    if first is not None:
+        raise first
+    return records
+
+
+def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=None, lanes=None):
+    """Run `commands` under `root` in `lanes` (`lanes_for`: by default one lane,
+    in order), writing a receipt into `receipt_dir`.
 
     Returns the receipt, whose `exit_code` is 0 when every command exited 0 and
     1 otherwise; the summary line is printed and stored. Holds `root`'s gate
@@ -522,6 +613,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     """
     root = Path(root).resolve()
     receipt_dir = Path(receipt_dir).resolve()
+    lane_indices = lanes_for(commands, lanes)
     lock_file = gate_lock_path(root)
     heavy_lock = heavy_lock or heavy_lock_path(root)
     # Under a heavy holder (`heavy_lock.py run --class ...`) the heavy lock
@@ -535,12 +627,13 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
         missing = missing_inputs(root)
         started = datetime.now(timezone.utc)
         receipt_dir.mkdir(parents=True, exist_ok=True)
-        print(f"gate: {len(commands)} commands -> {display_path(receipt_dir, root)}",
-              flush=True)
+        print(f"gate: {len(commands)} commands in {len(lane_indices)} lane(s) -> "
+              f"{display_path(receipt_dir, root)}", flush=True)
         cores = available_cores()
         env = gate_environment(os.environ, cores)
-        records = [_run_command(command, index, len(commands), root, receipt_dir, env)
-                   for index, command in enumerate(commands, start=1)]
+        began = time.monotonic()
+        records = _run_lanes(commands, lane_indices, root, receipt_dir, env)
+        wall = round(time.monotonic() - began, 3)
         finished = datetime.now(timezone.utc)
         receipt = {
             "candidate_sha": info["candidate_sha"],
@@ -550,7 +643,10 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "missing_inputs": missing,
             "started_utc": _utc(started),
             "finished_utc": _utc(finished),
-            "duration_s": round(sum(r["duration_s"] for r in records), 3),
+            # The run's own length, start to end: with lanes side by side,
+            # less than its commands' durations added up.
+            "duration_s": wall,
+            "lanes": [list(lane) for lane in lane_indices],
             "exit_code": EXIT_FAILED if any(r["exit_code"] != 0 for r in records) else EXIT_OK,
             "receipt_dir": display_path(receipt_dir, root),
             "tier": tier,
@@ -559,7 +655,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "cargo_build_jobs": int(env["CARGO_BUILD_JOBS"]),
             "rust_test_threads": int(env["RUST_TEST_THREADS"]),
             "commands": records,
-            "summary": _summary(records, receipt_dir, root, tier, missing),
+            "summary": _summary(records, receipt_dir, root, tier, missing, wall),
         }
         if "git_error" in info:
             receipt["git_error"] = info["git_error"]
@@ -605,7 +701,8 @@ def main(argv=None):
         return EXIT_UNEQUIPPED
     receipt_dir = receipt_dir_for(root, args.fast, os.environ)
     try:
-        receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait)
+        receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait,
+                           lanes=None if args.fast else GATE_LANES)
     except GateRefused as refusal:
         print(str(refusal), file=sys.stderr)
         return EXIT_REFUSED
