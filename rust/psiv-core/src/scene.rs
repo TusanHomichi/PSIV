@@ -19,7 +19,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
+    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -596,20 +596,17 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_not: usize,
     },
-    /// Branch on all forty item slots being taken: the count of non-zero bytes
-    /// of `Inventory` and `cmpi.w #40, d0 / bcs.w` (`Event_MuskCatElder`,
-    /// `$0706C0`), the guard before an [`SceneOp::AddItem`].
+    /// Branch on all forty `Inventory` slots holding an item (`cmpi.w #40, d0 /
+    /// bcs.w`, `Event_MuskCatElder` `$0706C0`), the guard before an `AddItem`.
     BranchIfInventoryFull {
         /// Op index taken when every slot holds an item.
         if_full: usize,
         /// Op index taken otherwise.
         if_not: usize,
     },
-    /// Advance the field's RNG once and branch on the low two bits of the seed
-    /// word: `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0`
-    /// (`Event_RajaSick`, `$070C4E`). The runtime lends the runner its stream
-    /// ([`crate::SceneRunner::lend_rng`]), so the draw is the one every other
-    /// consumer would have seen, within the frame.
+    /// `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0` and a
+    /// branch on the two bits (`Event_RajaSick`, `$070C4E`), drawn within the
+    /// frame from the stream the runtime lends ([`crate::SceneRunner::lend_rng`]).
     BranchOnRngLow2 {
         /// Op index for each value of the two bits.
         targets: [usize; 4],
@@ -988,6 +985,8 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
+    /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
+    Rocky(RockyOp),
     /// Unconditional jump.
     Jump {
         /// Op index.
