@@ -224,6 +224,16 @@ pub enum RuntimeEvent {
         /// Which transition class fired.
         trigger: WarpTrigger,
     },
+    /// A teleport (RYUKA, HINAS, TELEPIPE, ESCAPIPE) loaded its destination,
+    /// after the [`RuntimeEvent::MapChanged`] it follows. The cartridge fades
+    /// the field out (`MenuExit_Teleport`, `PalFadeOut_ClrSpriteTbl`,
+    /// `ps4.asm:117166-117169`), then `GameMode_LoadFieldMap` spends
+    /// `reload_frames` rows on the load, its 16-frame `Pal_FadeIn` included
+    /// (`psiv_core::field_reload_rows`).
+    Teleported {
+        /// The destination load's measured rows.
+        reload_frames: u16,
+    },
     /// Battle return refreshed map effects while preserving the live cast,
     /// party trail and camera. Rebuild visuals without a doorway transition.
     MapRefreshed,

@@ -56,6 +56,10 @@ impl Field {
                         self.start_transition(TransitionKind::Doorway);
                     }
                 }
+                RuntimeEvent::Teleported { reload_frames } => {
+                    // Replaces the doorway the map change before it started.
+                    self.start_transition_frames(TransitionKind::Teleport, reload_frames);
+                }
                 RuntimeEvent::MapRefreshed => {
                     godot_print!("field map refreshed");
                     self.load_map_visuals();

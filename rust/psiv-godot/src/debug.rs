@@ -327,8 +327,7 @@ impl Field {
             self.play_sound(0x95);
             self.start_window_debug_battle(&spec);
         }
-        if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
-        {
+        if self.anim_tick == 30 && crate::boot::debug_camp_fixture() {
             if self.runtime().is_some_and(|rt| rt.scene_active()) {
                 godot_error!(
                     "debug camp refused: a map-entry trigger already started a scene; \
@@ -338,6 +337,9 @@ impl Field {
             }
             godot_print!("debug: opening camp menu");
             self.open_camp_menu();
+            if crate::boot::debug_camp_telepipe() {
+                self.debug_open_telepipe_towns();
+            }
         }
         if self.anim_tick == 30
             && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
@@ -476,5 +478,27 @@ impl Field {
             let err = image.save_png(&GString::from(path.as_str()));
             godot_print!("debug: screenshot -> {path} ({err:?})");
         }
+    }
+
+    /// Tape 36's path from the camp root to the TELEPIPE town list (ITEM,
+    /// the TELEPIPE, USE): the session's own pad path, pressed in one tick.
+    /// Debug receipt only; the frames it spends are the fixture's lead-in.
+    fn debug_open_telepipe_towns(&mut self) {
+        use psiv_runtime::{Button, CampPage, Pad};
+        let Some(session) = self.session.as_mut() else {
+            return;
+        };
+        for _ in 0..6 {
+            if session
+                .camp_view()
+                .is_some_and(|view| view.page == CampPage::TravelTowns)
+            {
+                godot_print!("debug: TELEPIPE town list open");
+                return;
+            }
+            session.frame(Pad::new(Button::Speak));
+            session.frame(Pad::NEUTRAL);
+        }
+        godot_error!("debug: the TELEPIPE town list never opened");
     }
 }

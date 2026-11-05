@@ -119,8 +119,18 @@ impl CampChrome {
     }
 
     pub(crate) fn window_word(&self, pattern: u16, cell: (i32, i32)) -> Option<Quad> {
+        self.window_word_flipped(pattern, false, cell)
+    }
+
+    /// A window word drawn with its horizontal-flip bit (`$0800`) as given.
+    pub(crate) fn window_word_flipped(
+        &self,
+        pattern: u16,
+        flip_h: bool,
+        cell: (i32, i32),
+    ) -> Option<Quad> {
         Some(Quad {
-            texture: self.window_words.get(&(pattern, false, false))?.clone(),
+            texture: self.window_words.get(&(pattern, flip_h, false))?.clone(),
             dest: Rect2::new(
                 Vector2::new(cell.0 as f32 * CELL, cell.1 as f32 * CELL),
                 Vector2::new(CELL, CELL),
@@ -267,10 +277,12 @@ fn retail_glyphs() -> BTreeMap<char, Vector2> {
 }
 
 fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
-    const PATTERNS: [u16; 8] = [
+    const PATTERNS: [u16; 10] = [
         0x680,
+        0x6E6,
         0x6E7,
         0x6E8,
+        0x6E9,
         STATUS_SLASH_PATTERN,
         0x6F8,
         0x6F9,

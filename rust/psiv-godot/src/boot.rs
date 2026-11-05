@@ -12,6 +12,17 @@ use crate::input::requested_save_slot;
 /// Title-screen bypasses used by save/debug fix loops. These are deliberately
 /// checked before the title is started: a screenshot or a battle/camp/shop
 /// selector must still reach the surface it was written to inspect.
+/// `PSIV_DEBUG_CAMP`: `1` opens tape 22's camp root; `telepipe` opens tape
+/// 36's TELEPIPE town list from the same receipt state (#128).
+pub(crate) fn debug_camp_fixture() -> bool {
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1" || value == "telepipe")
+}
+
+/// Whether the camp fixture is tape 36's TELEPIPE town list.
+pub(crate) fn debug_camp_telepipe() -> bool {
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "telepipe")
+}
+
 pub(crate) fn title_bypassed() -> bool {
     let title_shot = std::env::var("PSIV_DEBUG_TITLE_SHOT").is_ok_and(|value| value == "1");
     requested_save_slot().is_some()
@@ -20,7 +31,7 @@ pub(crate) fn title_bypassed() -> bool {
         || std::env::var_os("PSIV_DEBUG_BATTLE_WINDOW").is_some()
         || std::env::var_os("PSIV_DEBUG_VEHICLE").is_some()
         || std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").is_some()
-        || std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
+        || crate::boot::debug_camp_fixture()
         || std::env::var_os("PSIV_DEBUG_SHOP").is_some()
         || std::env::var_os("PSIV_DEBUG_EVENT").is_some()
         || (std::env::var_os("PSIV_DEBUG_SHOT").is_some() && !title_shot)
