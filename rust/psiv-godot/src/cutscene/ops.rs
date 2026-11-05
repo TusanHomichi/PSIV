@@ -253,8 +253,13 @@ impl Field {
             PresentationOp::SetObjectDestination { slot, x, y } => {
                 self.presentation.object_destination(slot, x, y);
             }
-            PresentationOp::WalkObject { slot, x, y } => {
-                self.presentation.walk_object(slot, x, y);
+            PresentationOp::WalkObject {
+                slot,
+                x,
+                y,
+                y_first,
+            } => {
+                self.presentation.walk_object(slot, x, y, y_first);
             }
             PresentationOp::DriftObject {
                 slot,
@@ -282,6 +287,7 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::CameraToActor { .. }
+            | PresentationOp::Quake { .. }
             | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
             | PresentationOp::RajaSickResetRaja { .. }

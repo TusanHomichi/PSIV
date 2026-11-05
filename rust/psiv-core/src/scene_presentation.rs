@@ -91,6 +91,17 @@ pub enum PresentationOp {
     /// `Field_LoadSprites`/`Field_BuildSprites` followed by the VInt prep used
     /// when the scene rebuilds the live sprite table.
     RebuildSprites,
+    /// `Event_MonsenEarthquake`'s shake (`loc_6E11E`, `loc_6E634`): for
+    /// `frames` frames, a table entry goes to the four
+    /// `Camera_*_Step_Counter` words and `SFXID_GraveOpening` sounds on every
+    /// fourth. The scene waits the frames itself; the runtime moves the camera.
+    Quake {
+        /// How many frames.
+        frames: u16,
+        /// `loc_6E634` begins on `loc_6E73A`, two frames that also shake Y,
+        /// before falling to `loc_6E6B6` like the plain one.
+        opening: bool,
+    },
     /// Destroy one retail dialogue/window layer.
     WindowDestroy {
         /// The `Window_Render_Mode` byte written before the call.
@@ -170,9 +181,9 @@ pub enum PresentationOp {
         y: i32,
     },
     /// Give a scene-created object a destination its routine walks to:
-    /// `FieldObj_GetAutoInput` closes the X gap first, then Y, one cell at a
-    /// time at the normal step (`$0200`, two pixels a frame). The scene's own
-    /// wait carries the frames; the object walks beside it.
+    /// `FieldObj_GetAutoInput` closes one gap first, then the other, one cell
+    /// at a time at the normal step (`$0200`, two pixels a frame). The scene's
+    /// own wait carries the frames; the object walks beside it.
     WalkObject {
         /// Field-object slot.
         slot: usize,
@@ -180,6 +191,11 @@ pub enum PresentationOp {
         x: i32,
         /// Destination Y in pixels.
         y: i32,
+        /// Close the Y gap first: `Char_Move_Flags` bit 1, which
+        /// `FieldObj_GetAutoInput` (`ps4.asm:93234`) reads for every object,
+        /// not only the party. It must match the scene's `SetFollowMode` in
+        /// effect when the walk runs, which a test of every scene checks.
+        y_first: bool,
     },
     /// Give a scene-created object constant step words that its routine adds
     /// every frame from now on (`FieldObj_UpdatePosition`), as

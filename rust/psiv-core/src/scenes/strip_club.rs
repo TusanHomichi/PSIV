@@ -51,7 +51,12 @@ const fn stripper(slot: usize, object_id: u16, x: i32, y: i32) -> SceneOp {
 
 const fn walk(slot: usize, x: i32, y: i32) -> SceneOp {
     SceneOp::Presentation {
-        op: PresentationOp::WalkObject { slot, x, y },
+        op: PresentationOp::WalkObject {
+            slot,
+            x,
+            y,
+            y_first: false,
+        },
     }
 }
 
