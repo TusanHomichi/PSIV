@@ -196,8 +196,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
 | `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
 | `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
-| `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
-| `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
+| `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | scene `Event_Pennant` |
+| `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | scene `Event_WoodCarving` |
 | `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | scene `Event_EnterAngerTower` |
 | `$009A` | `Event_SoldiersTempleCaveDialogue1` | map trigger $57 | IslandCave_F1 | scene `Event_SoldiersTempleCaveDialogue1` |
 | `$009B` | `Event_SoldiersTempleCaveDialogue2` | map trigger $58 | IslandCave_F3 | scene `Event_SoldiersTempleCaveDialogue2` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 12 |
+| #81 | Motavia side content | 10 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 20 |
+| | total | 18 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
