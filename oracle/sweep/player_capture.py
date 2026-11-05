@@ -103,6 +103,26 @@ def force_command(case: dict, scout: pathlib.Path, out: pathlib.Path,
     return command
 
 
+def check_report_options(case: dict, report: dict) -> None:
+    """The capture a report records was taken with this case's options.
+
+    A resumed extraction (`--extract-only`) never reruns `oracle.force`, so
+    the report is the only record of the delay and the required ability: a
+    changed delay, an added or changed requirement, or a report from an
+    attempt whose required ability never fired is refused, fresh or resumed.
+    """
+    if report.get("delay", 0) != case.get("delay", 0):
+        raise ValueError(f"capture delay {report.get('delay', 0)} is not the "
+                         f"case's {case.get('delay', 0)}")
+    if "require_ability" in case:
+        wanted = case["require_ability"]
+        recorded = [int(str(value), 0) for value in report.get("require_ability") or []]
+        if wanted not in recorded:
+            raise ValueError(f"capture did not require ability {wanted:#04x}")
+        if report.get("require_ability_met") is not True:
+            raise ValueError(f"capture's required ability {wanted:#04x} never fired")
+
+
 def executed(fixture: dict) -> set[tuple[str, int]]:
     return {(a["kind"], a["ability"]) for r in fixture["rounds"]
             for a in r["actions"] if a["actor"] <= 5
@@ -184,6 +204,7 @@ def main(argv=None) -> int:
                 run(command, out / "force.log", receipts)
             report = json.loads((out / "report.json").read_text())
             verify_report(report)
+            check_report_options(case, report)
             target = args.fixtures / f"{case['name']}.json"
             extract = [sys.executable, "-m", "oracle.fixture", "--trace", report["trace"],
                        "--log", report["log"], "--ram-map", report["script_ram_map"],
