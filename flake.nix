@@ -224,6 +224,19 @@
           python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
+        # The oracle extractor's fixture tests (every tests/test_oracle_battle_fixture*.py):
+        # hand-built log rows through the extractor, with no emulator, ROM or
+        # other local input. They run here so a change to the extractor is
+        # tested in CI and its new tests can show they fail on its base
+        # (burrow's negative), which a check that only reads them can't. Found
+        # by name, as gate-tests' are.
+        oracle-fixture-tests = pkgs.runCommand "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          export HOME=$TMPDIR
+          PYTHONPATH=. python3 -m unittest $(printf '%s\n' tests/test_oracle_battle_fixture*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
         # The 1,000-line rule (tools/size_guard.py).
         size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
