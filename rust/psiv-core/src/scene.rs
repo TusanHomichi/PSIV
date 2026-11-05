@@ -18,7 +18,8 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
+    MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RockyOp, SavedByte, SceneEffect, SceneFault,
+    SceneInput,
 };
 
 /// One instruction of a scene.
@@ -142,29 +143,12 @@ pub enum SceneOp {
     /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
     /// the fade; the rest is the renderer's.
     InitVramAndCram,
-    /// Return from the scene with an explicit value (`d0`).
-    ///
-    /// Who reads the value depends on how the scene was dispatched
-    /// (`FieldRoutine_Event`, `ps4.asm:120542-120548`):
-    ///
-    /// * A **cutscene** (event index `$8000` and up) goes through
-    ///   `FieldRoutine_Cutscene`, which tests the flags its `jsr` left:
-    ///   **zero** does `bset #2, Map_Load_Flags` and `move.w #8,
-    ///   Game_Mode_Index` (`GameMode_LoadFieldMap`), a field reload before
-    ///   control returns (`ps4.asm:120739-120758`); non-zero skips it. This is
-    ///   how `Cutscene_PiataPrincipal` gets the office back, and it is why a
-    ///   cutscene that mounts a vehicle and sets `Map_Load_Flags` bit 0
-    ///   (`Cutscene_MeetingKyra`) hands the load flags to a real load that
-    ///   consumes them. The runtime models it in
-    ///   `rust/psiv-runtime/src/scene_return.rs`.
-    /// * A plain **event** goes through `loc_5A27A` (`ps4.asm:120553-120568`),
-    ///   which ignores `d0` altogether: it clears the input and
-    ///   `Char_Move_Flags`, hands a pending event battle to `RunEventBattle`,
-    ///   and calls `loc_5B368` (`ps4.asm:122258`, eight palette-buffer writes).
-    ///   There is no map reload on any value, so
-    ///   `Event_IgglanovaBattle`'s `moveq #1, d0` (`ps4.asm:152028`) is a
-    ///   convention of the scene, not a mechanism: its battle hand-off is the
-    ///   `bset #3, Routine_Exit_Flags` before it (`ps4.asm:152027`).
+    /// Return from the scene with an explicit value (`d0`). A cutscene (event
+    /// `$8000` and up) that returns zero gets a field reload from
+    /// `FieldRoutine_Cutscene` (`ps4.asm:120739-120758`); a plain event's `d0`
+    /// is ignored (`loc_5A27A`, `ps4.asm:120553-120568`), so
+    /// `Event_IgglanovaBattle`'s `moveq #1, d0` (`ps4.asm:152028`) is a
+    /// convention of the scene. Both paths are `psiv-runtime`'s `scene_return.rs`.
     Return {
         /// The `d0` value.
         value: u16,
@@ -505,10 +489,8 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
-        /// Whether the scene spins until the walk completes. The retail
-        /// primitives drive the object until `curr == dest`, so this is `true`
-        /// for every transcribed use; `false` exists for staging moves that
-        /// the following ops are expected to overlap.
+        /// Whether the scene spins until the walk ends (`curr == dest`, as every
+        /// retail primitive does); `false` stages a move later ops overlap.
         wait: bool,
     },
     /// Walk `actor` to the current cell of `target`. Retail uses this shape
@@ -600,17 +582,32 @@ pub enum SceneOp {
         /// How much.
         amount: u32,
     },
-    /// Branch on the purse against a literal: `move.l (Current_Money).w, d0 /
-    /// subi.l #amount, d0 / bmi` (`Event_PayingGirlsBail`, `$072C82`): the
-    /// branch reads the sign bit of the longword difference, which for any
-    /// purse below `$80000000` is a below-the-literal test.
+    /// Branch on the purse being below a literal, by the caller's own retail
+    /// compare ([`MoneyTest`]).
     BranchIfMoneyBelow {
         /// The literal.
         amount: u32,
+        /// The compare the cartridge runs.
+        test: MoneyTest,
         /// Op index taken when the difference is negative.
         if_below: usize,
         /// Op index taken otherwise.
         if_not: usize,
+    },
+    /// Branch on all forty `Inventory` slots holding an item (`cmpi.w #40, d0 /
+    /// bcs.w`, `Event_MuskCatElder` `$0706C0`), the guard before an `AddItem`.
+    BranchIfInventoryFull {
+        /// Op index taken when every slot holds an item.
+        if_full: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
+    },
+    /// `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0` and a
+    /// branch on the two bits (`Event_RajaSick`, `$070C4E`), drawn within the
+    /// frame from the stream the runtime lends ([`crate::SceneRunner::lend_rng`]).
+    BranchOnRngLow2 {
+        /// Op index for each value of the two bits.
+        targets: [usize; 4],
     },
     /// Hand control to a battle (`Event_Battle_Index` + the routine-exit bit).
     StartBattle {
@@ -988,6 +985,8 @@ pub enum SceneOp {
     Item(ItemOp),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// A write to a field-object slot the map's record left empty.
+    Object(ObjectOp),
     /// Unconditional jump.
     Jump {
         /// Op index.

@@ -129,17 +129,20 @@ fn mile_sand_worm(ctx: &TriggerContext<'_>) -> TriggerResult {
 ///
 /// ```text
 ///     move.b  #ItemID_PenguFeed ($92), d0 / jsr GetItem
-///     bne.w   RunEvent_NoEvent        ; GetItem returns 0 when FOUND
+///     bne.w   RunEvent_NoEvent        ; GetItem returns 0 (Z set) when FOUND
 ///     cmpi.w  #$260, curr_y_pos(a4)
 ///     bne.w   RunEvent_NoEvent
 ///     move.w  #$96, (Event_Index).w
 /// ```
 ///
-/// Fires when the Feed is *not* in the inventory, by `GetItem`'s own scan
-/// ([`Inventory::get_item`](crate::inventory::Inventory::get_item)).
+/// Fires while `GetItem`'s own scan *finds* the Feed
+/// ([`Inventory::get_item`](crate::inventory::Inventory::get_item)): the
+/// `movem.l` restore between the call and the `bne.w` leaves the flags alone
+/// (`$0575EA`), so the branch reads `GetItem`'s result, and `$96` is the thief
+/// taking the Feed the party carries in.
 fn pengu_feed_stolen(ctx: &TriggerContext<'_>) -> TriggerResult {
     const PENGU_FEED: u8 = 0x92;
-    if ctx.state.inventory().get_item(PENGU_FEED) || ctx.at.y != 0x260 {
+    if !ctx.state.inventory().get_item(PENGU_FEED) || ctx.at.y != 0x260 {
         return TriggerResult::NoEvent;
     }
     TriggerResult::Fire(EventIndex(0x96))
@@ -671,27 +674,26 @@ mod tests {
     }
 
     #[test]
-    fn pengu_feed_stolen_fires_when_the_feed_is_missing_at_y_260() {
+    fn pengu_feed_stolen_fires_when_the_feed_is_carried_at_y_260() {
         let mut state = GameState::new();
         let at = |state: &GameState, y: i32| pengu_feed_stolen(&ctx(state, 0x100, y));
 
-        assert_eq!(at(&state, 0x260), TriggerResult::Fire(EventIndex(0x96)));
-        assert_eq!(at(&state, 0x25F), TriggerResult::NoEvent, "bne: exact y");
-        assert_eq!(at(&state, 0x261), TriggerResult::NoEvent);
-
-        state.inventory_mut().add(0x92).unwrap();
         assert_eq!(
             at(&state, 0x260),
             TriggerResult::NoEvent,
-            "the Feed is still in the bag"
+            "nothing to steal"
         );
+        state.inventory_mut().add(0x92).unwrap();
+        assert_eq!(at(&state, 0x260), TriggerResult::Fire(EventIndex(0x96)));
+        assert_eq!(at(&state, 0x25F), TriggerResult::NoEvent, "bne: exact y");
+        assert_eq!(at(&state, 0x261), TriggerResult::NoEvent);
     }
 
     #[test]
     fn pengu_feed_stolen_uses_get_items_count_limited_scan() {
         // Slot 0 emptied by a battle removal: one item left past the hole.
         // GetItem counts 2 non-empty slots and scans only slots 0..2, so the
-        // Feed in slot 2 is missed and the trigger fires.
+        // Feed in slot 2 is missed and the trigger stays quiet.
         let mut state = GameState::new();
         let inv = state.inventory_mut();
         inv.add(0x01).unwrap();
@@ -701,7 +703,7 @@ mod tests {
         assert!(inv.contains(0x92));
         assert_eq!(
             pengu_feed_stolen(&ctx(&state, 0, 0x260)),
-            TriggerResult::Fire(EventIndex(0x96))
+            TriggerResult::NoEvent
         );
     }
 }

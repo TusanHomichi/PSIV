@@ -355,6 +355,17 @@ pub enum SceneEffect {
         /// The dialogue entry it speaks from now on.
         dialogue_id: u16,
     },
+    /// An [`ObjectOp::Spawn`] filled a slot.
+    ObjectSpawned {
+        /// The slot.
+        slot: usize,
+        /// The routine written to its id word.
+        routine: u16,
+        /// Its cell.
+        cell: Cell,
+        /// Whether it blocks and can be talked to.
+        solid: bool,
+    },
     /// An actor was placed outright.
     ActorPlaced {
         /// Who.
@@ -405,6 +416,8 @@ pub enum SceneEffect {
 pub enum SceneFault {
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
+    /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.
+    NoRng,
     /// A jump or branch target was past the end of the scene.
     BadJump {
         /// The offending target.
@@ -443,4 +456,46 @@ pub enum SavedByte {
     /// `-$2(a0)`: the byte before the `$F7` or terminator the text stopped
     /// on, the last one it ran.
     Last,
+}
+
+/// How a [`SceneOp::BranchIfMoneyBelow`] compares the purse with its literal.
+/// The two retail forms part ways only for a purse of `$80000000` or more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoneyTest {
+    /// `move.l (Current_Money).w, d0 / subi.l #amount, d0 / bmi`
+    /// (`Event_PayingGirlsBail`, `$072C82`): the sign bit of the wrapping
+    /// longword difference.
+    SignOfDifference,
+    /// `cmpi.l #amount, (Current_Money).w / bcc` (`Event_PenguinOwner`,
+    /// `$070702`): below is the carry, an unsigned longword compare.
+    Unsigned,
+}
+
+/// A scene's own object in a field-object slot (`$FFFFC300 + slot * $40`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ObjectOp {
+    /// `lea (slot).w, a4`, `move.w #routine, (a4)`, the art tile and the
+    /// position words, then one `RunSingleObject`: `Event_PenguinFeedStolen`
+    /// builds its thief this way in slot 2 of a two-object map (`$07360E`).
+    ///
+    /// The slot joins the cast as [`ActorRef::Npc`]`(slot)`, so the walk and
+    /// facing ops that drive a map's own objects drive it too, and the
+    /// runtime puts it on the field map at that index, past the record's own
+    /// objects if need be. A despawn clears it; the next map load drops it,
+    /// as `LoadMapObjects` clears the whole object area.
+    Spawn {
+        /// Field-object slot.
+        slot: usize,
+        /// `FieldObjectsJmpTbl` offset written to the id word.
+        routine: u16,
+        /// `$16(a4)`.
+        art_tile: u16,
+        /// `$30(a4)`, pixels.
+        x: i32,
+        /// `$34(a4)`, pixels.
+        y: i32,
+        /// `render_flags` bit 3 after the routine's init: the object blocks
+        /// and answers the talk probe.
+        solid: bool,
+    },
 }

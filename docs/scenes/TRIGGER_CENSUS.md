@@ -300,9 +300,9 @@ mistaken for missing pointer data.
 |---:|---|---|---|
 | `$47` | `Event_EclipseTorchUsed` | `$07018A..$070482` | [56](56_EclipseTorchUsed.md) |
 | `$48` | `Event_MeetingLeRoof` | `$070482..$07069E` | [51](51_MeetingLeRoof.md) |
-| `$49` | `Event_MuskCatsGuarding` | `$07069E..$0706C0` | boundary [88](88_RetailBoundaries.md) |
-| `$4A` | `Event_MuskCatElder` | `$0706C0..$070702` | boundary [88](88_RetailBoundaries.md) |
-| `$4B` | `Event_PenguinOwner` | `$070702..$070774` | boundary [88](88_RetailBoundaries.md) |
+| `$49` | `Event_MuskCatsGuarding` | `$07069E..$0706C0` | [180](180_LateArcInteractions.md#event_muskcatsguarding) |
+| `$4A` | `Event_MuskCatElder` | `$0706C0..$070702` | [180](180_LateArcInteractions.md#event_muskcatelder) |
+| `$4B` | `Event_PenguinOwner` | `$070702..$070774` | [180](180_LateArcInteractions.md#event_penguinowner) |
 | `$4C` | `Event_CarnivorousTrees` | `$070774..$070856` | [53](53_CarnivorousTrees.md) |
 | `$4D` | `Event_SavingKyra` | `$070856..$070976` | [54](54_SavingKyra.md) |
 | `$4E` | `Event_DarkForce2` | `$070976..$0709A2` | [57](57_DarkForce2.md) |
@@ -318,7 +318,7 @@ mistaken for missing pointer data.
 | `$58` | `Event_AirCastleArrival` | `$070B1E..$070B30` | [69](69_AirCastleArrival.md) |
 | `$59` | `Event_XeAThoulBeforeBattle` | `$070B30..$070B56` | [70](70_XeAThoulBeforeBattle.md) |
 | `$5A` | `Event_AirCastleFakeChest` | `$070B56..$070C30` | [71](71_AirCastleFakeChest.md) |
-| `$5B` | `Event_RajaSick` | `$070C30..$070C82` | boundary [88](88_RetailBoundaries.md) |
+| `$5B` | `Event_RajaSick` | `$070C30..$070C82` | [180](180_LateArcInteractions.md#event_rajasick) |
 | `$5C` | `Event_Gyuna` | `$070C82..$070CB4` | boundary [88](88_RetailBoundaries.md) |
 | `$5D` | `Event_LashiecAppearance` | `$070CB4..$070E4E` | [72](72_LashiecAppearance.md) |
 | `$5E` | `Event_StrengthTowerTop` | `$070E4E..$071102` | [75](75_StrengthTowerTop.md) |
@@ -330,7 +330,7 @@ mistaken for missing pointer data.
 | `$64` | `Event_DeVarsDefeated` | `$07175A..$071822` | [80](80_DeVarsDefeated.md) |
 | `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
 | `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | [124](124_HuntersGuild.md) |
-| `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | boundary [88](88_RetailBoundaries.md) |
+| `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | [180](180_LateArcInteractions.md#event_runehealingchaz) |
 | `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | boundary [88](88_RetailBoundaries.md) |
 | `$69` | `Event_AngerTowerTop` | `$0721CC..$072262` | [85](85_AngerTowerTop.md) |
 | `$6A` | `Event_AngerTowerExitTop` | `$072262..$0722D2` | [86](86_AngerTowerExitTop.md) |
@@ -526,7 +526,7 @@ the field RNG cell) and `GameState::inventory`:
 | `$0D` | `RunEvent_RidingElevator` (`ps4.asm:115250`) | live layout byte at `y + $10` is `$53` | `$0014` | yes |
 | `$22` | `RunEvent_EnterGrbkTwDoor` (`ps4.asm:115755`) | layout at `y + $10` is `$3C`; `$0038` when the byte at `y - $10` is `$3E`, else `$0037` | `$0037` / `$0038` | no: `Event_GaruberkTwDoorEntered1` / `2` (`ps4.asm:120629`, `:120630`) |
 | `$5C..$70` | `RunEvent_MileSandWorm` (`ps4.asm:116449`) | `$1B` clear, `x <= $170`, `$150 <= y <= $2B0`, then one `UpdateRNGSeed` draw with `(seed word & $1F) == 0` | `$0071` | no: `Event_MileSandWormBattle` (`ps4.asm:152222`) |
-| `$7B` | `RunEvent_PenguFeedStolen` (`ps4.asm:116572`) | `GetItem($92)` finds nothing (the count-limited scan, `ps4.asm:121975`) and `y == $260` | `$0096` | no: `Event_PenguinFeedStolen` (`ps4.asm:120724`) |
+| `$7B` | `RunEvent_PenguFeedStolen` (`ps4.asm:116572`) | `GetItem($92)` finds the Feed (the count-limited scan, `ps4.asm:121975`; `bne.w` at `$0575EE` skips when it does not) and `y == $260` | `$0096` | yes ([161](161_PenguinFeedStolen.md)) |
 
 The sand worm draws only when its flag and box pass, and exactly once; entries
 listed after a firing entry never run, so list order is also RNG order.

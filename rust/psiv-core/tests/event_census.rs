@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 17;
+const ALLOWLIST_CEILING: usize = 10;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -116,9 +116,9 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0046, "Event_EclipseTorchStolen", Disposition::Scene),
     (0x0047, "Event_EclipseTorchUsed", Disposition::Scene),
     (0x0048, "Event_MeetingLeRoof", Disposition::Scene),
-    (0x0049, "Event_MuskCatsGuarding", Disposition::Allowlisted(83)),
-    (0x004A, "Event_MuskCatElder", Disposition::Allowlisted(83)),
-    (0x004B, "Event_PenguinOwner", Disposition::Allowlisted(83)),
+    (0x0049, "Event_MuskCatsGuarding", Disposition::Scene),
+    (0x004A, "Event_MuskCatElder", Disposition::Scene),
+    (0x004B, "Event_PenguinOwner", Disposition::Scene),
     (0x004C, "Event_CarnivorousTrees", Disposition::Scene),
     (0x004D, "Event_SavingKyra", Disposition::Scene),
     (0x004E, "Event_DarkForce2", Disposition::Scene),
@@ -134,7 +134,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0058, "Event_AirCastleArrival", Disposition::Scene),
     (0x0059, "Event_XeAThoulBeforeBattle", Disposition::Scene),
     (0x005A, "Event_AirCastleFakeChest", Disposition::Scene),
-    (0x005B, "Event_RajaSick", Disposition::Allowlisted(83)),
+    (0x005B, "Event_RajaSick", Disposition::Scene),
     (0x005C, "Event_Gyuna", Disposition::Scene),
     (0x005D, "Event_LashiecAppearance", Disposition::Scene),
     (0x005E, "Event_StrengthTowerTop", Disposition::Scene),
@@ -146,13 +146,13 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0064, "Event_DeVarsDefeated", Disposition::Scene),
     (0x0065, "Event_SaLewsDefeated", Disposition::Scene),
     (0x0066, "Event_HuntersGuild", Disposition::Scene),
-    (0x0067, "Event_RuneHealingChaz", Disposition::Allowlisted(83)),
+    (0x0067, "Event_RuneHealingChaz", Disposition::Scene),
     (0x0068, "Event_PickingFifthCharacter", Disposition::Allowlisted(83)),
     (0x0069, "Event_AngerTowerTop", Disposition::Scene),
     (0x006A, "Event_AngerTowerExitTop", Disposition::Scene),
     (0x006B, "Event_IgglanovaBattle", Disposition::Scene),
     (0x006C, "Event_Phonon", Disposition::Allowlisted(81)),
-    (0x006D, "Event_Hijammer", Disposition::Allowlisted(83)),
+    (0x006D, "Event_Hijammer", Disposition::Scene),
     (0x006E, "Event_Burstroc", Disposition::Scene),
     (0x006F, "Event_PosiBolt", Disposition::Scene),
     (0x0070, "Event_RanchOwner", Disposition::Scene),
@@ -193,7 +193,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0093, "Event_MeeseClinicSickWoman", Disposition::Scene),
     (0x0094, "Event_StrippersAppearing", Disposition::Scene),
     (0x0095, "Event_ExitingStripClub", Disposition::Scene),
-    (0x0096, "Event_PenguinFeedStolen", Disposition::Allowlisted(56)),
+    (0x0096, "Event_PenguinFeedStolen", Disposition::Scene),
     (0x0097, "Event_Pennant", Disposition::Scene),
     (0x0098, "Event_WoodCarving", Disposition::Scene),
     (0x0099, "Event_EnterAngerTower", Disposition::Scene),

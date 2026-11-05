@@ -118,9 +118,9 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0046` | `Event_EclipseTorchStolen` | dialogue `$F6` | tree 38 entry 53 | scene `Event_EclipseTorchStolen` |
 | `$0047` | `Event_EclipseTorchUsed` | map trigger $36 | Dezolis | scene `Event_EclipseTorchUsed` |
 | `$0048` | `Event_MeetingLeRoof` | map trigger $33 | LeRoofRoom | scene `Event_MeetingLeRoof` |
-| `$0049` | `Event_MuskCatsGuarding` | dialogue `$F6` | tree 17 entry 48 | allowlisted, #83 |
-| `$004A` | `Event_MuskCatElder` | dialogue `$F6` | tree 17 entry 44 | allowlisted, #83 |
-| `$004B` | `Event_PenguinOwner` | dialogue `$F6` | tree 17 entry 17 | allowlisted, #83 |
+| `$0049` | `Event_MuskCatsGuarding` | dialogue `$F6` | tree 17 entry 48 | scene `Event_MuskCatsGuarding` |
+| `$004A` | `Event_MuskCatElder` | dialogue `$F6` | tree 17 entry 44 | scene `Event_MuskCatElder` |
+| `$004B` | `Event_PenguinOwner` | dialogue `$F6` | tree 17 entry 17 | scene `Event_PenguinOwner` |
 | `$004C` | `Event_CarnivorousTrees` | map trigger $35 | Dezolis | scene `Event_CarnivorousTrees` |
 | `$004D` | `Event_SavingKyra` | map trigger $35 | Dezolis | scene `Event_SavingKyra` |
 | `$004E` | `Event_DarkForce2` | map trigger $37 | GaruberkTower_Part7 | scene `Event_DarkForce2` |
@@ -136,7 +136,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0058` | `Event_AirCastleArrival` | map trigger $43 | AirCastle | scene `Event_AirCastleArrival` |
 | `$0059` | `Event_XeAThoulBeforeBattle` | map trigger $44 | AirCastleXeAThoulRoom | scene `Event_XeAThoulBeforeBattle` |
 | `$005A` | `Event_AirCastleFakeChest` | map trigger $45 | AirCastleInner_B1_Part3 | scene `Event_AirCastleFakeChest` |
-| `$005B` | `Event_RajaSick` | dialogue `$F6` | tree 18 entry 101 | allowlisted, #83 |
+| `$005B` | `Event_RajaSick` | dialogue `$F6` | tree 18 entry 101 | scene `Event_RajaSick` |
 | `$005C` | `Event_Gyuna` | dialogue `$F6` | tree 16 entry 48 | scene `Event_Gyuna` |
 | `$005D` | `Event_LashiecAppearance` | map trigger $46 | AirCastleInner_B1_Part3 | scene `Event_LashiecAppearance` |
 | `$005E` | `Event_StrengthTowerTop` | map trigger $49 | StrengthTower_F4 | scene `Event_StrengthTowerTop` |
@@ -148,13 +148,13 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0064` | `Event_DeVarsDefeated` | map trigger $4B | StrengthTower_F4 | scene `Event_DeVarsDefeated` |
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
 | `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
-| `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | allowlisted, #83 |
+| `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | scene `Event_RuneHealingChaz` |
 | `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
 | `$006A` | `Event_AngerTowerExitTop` | map trigger $52 | AngerTower_F2 | scene `Event_AngerTowerExitTop` |
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
 | `$006C` | `Event_Phonon` | interaction area $0C | PlateSystem_F3 | allowlisted, #81 |
-| `$006D` | `Event_Hijammer` | interaction area $0D | Kuran_F1_Part2 | allowlisted, #83 |
+| `$006D` | `Event_Hijammer` | interaction area $0D | Kuran_F1_Part2 | scene `Event_Hijammer` |
 | `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | scene `Event_Burstroc` |
 | `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | scene `Event_PosiBolt` |
 | `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | scene `Event_RanchOwner` |
@@ -195,7 +195,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | scene `Event_MeeseClinicSickWoman` |
 | `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | scene `Event_StrippersAppearing` |
 | `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | scene `Event_ExitingStripClub` |
-| `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | allowlisted, #56 |
+| `$0096` | `Event_PenguinFeedStolen` | map trigger $7B | ZosaItemShop | scene `Event_PenguinFeedStolen` |
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | scene `Event_Pennant` |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | scene `Event_WoodCarving` |
 | `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | scene `Event_EnterAngerTower` |
@@ -251,16 +251,17 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 <!-- counts:begin -->
 | Issue | Area | Allowlisted events |
 |---:|---|---:|
-| #56 | trigger-fired events | 1 |
+| #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
 | #81 | Motavia side content | 9 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 7 |
-| | total | 17 |
+| #83 | Dezolis late arc | 1 |
+| | total | 10 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
-  (`$71`, `$37`, `$38`, `$96`, `$2A`); `$96` remains.
+  (`$71`, `$37`, `$38`, `$96`, `$2A`); all five have scenes. The entry stays so the
+  issue's area keeps its row.
 - [#71](https://github.com/TusanHomichi/PSIV/issues/71): the four
   `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`); all four have
   scenes. The entry stays so the issue's area keeps its row.
@@ -273,13 +274,15 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 - [#83](https://github.com/TusanHomichi/PSIV/issues/83): Dezolis late arc,
   including the Dezolis dialogue controls.
 
-## Why the remaining #56 entry is not transcribed
+## How the last #56 entry was transcribed
 
-It needs something the scene vocabulary does not have, and it is off the route:
-
-| Event | Blocker |
-|---|---|
-| `$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) | Builds a temporary thief object in slot `$C380` (map object 2 of Zosa's item shop, which has two objects), steps it with `Event_MoveSingleObject` toward the leader's live X, then clears it. The scene cast holds party members and map objects by index; a temporary object has no `ActorRef`. |
+`$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) builds a temporary thief object in slot `$C380`,
+map object 2 of Zosa's item shop, which has only two objects. It steps the thief with
+`Event_MoveSingleObject` toward the leader's live X, then clears it. The cast used to hold only
+party members and the map's own objects, so a temporary object had no `ActorRef`.
+`SceneOp::Object(ObjectOp::Spawn)` writes the slot as the cartridge does: the slot joins the cast
+as `ActorRef::Npc(2)`, and the runtime places it on the field map at that index
+([161](161_PenguinFeedStolen.md)).
 
 One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
 a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the
