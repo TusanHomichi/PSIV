@@ -77,7 +77,7 @@ Native Motavia travel and the raw saved world-byte interpretation are
 covered here. The cartridge writes `World_Index` in eight places: the new-game
 initializer, the ship's destination menu and Sabotage's copy of it, and five
 scenes. `Runtime::set_world_index` cites each one it makes,
-`tests/test_world_index_writes.py` holds that list to the disassembly, and the
+`rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
 whole-route runner test checks the world and map of every chapter that lands
 on a new planet. Still open: general map-entry follower alignment
 ([#127](https://github.com/TusanHomichi/PSIV/issues/127)); the exact retail

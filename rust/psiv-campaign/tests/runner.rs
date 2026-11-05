@@ -846,7 +846,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     // `Cutscene_CrashLaanding` 1 (`:155847`), `Cutscene_DarkForce1Defeated` 3
     // (`:156396`), the Eclipse Torch's return 1 (`:156940`),
     // `Cutscene_GumbiousBishop` 0 (`:157065`) and `Cutscene_Reunion` 0
-    // (`:157791`). `tests/test_world_index_writes.py` holds that list to the
+    // (`:157791`). `psiv-runtime/tests/world_index_writes.rs` holds that list to the
     // disassembly.
     for (chapter, map, world) in [
         ("mota-spaceport", 0x18D, 3),
