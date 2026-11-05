@@ -7,9 +7,8 @@
 //! despawns. This module implements that vocabulary once as [`SceneOp`] and
 //! runs sequences of it deterministically.
 //!
-//! How the runner blocks lives with the machine (`scene_runner.rs`), and why
-//! scripted actor motion reuses the ordinary movement model with the actor
-//! (`scene_runner/actor.rs`).
+//! How the runner blocks lives with the machine (`scene_runner.rs`), and why scripted actor
+//! motion reuses the ordinary movement model with the actor (`scene_runner/actor.rs`).
 
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
@@ -18,7 +17,7 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
     OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
@@ -429,8 +428,7 @@ pub enum SceneOp {
     /// `#$F` clears one object and `#$2F` clears three. `Event_AlysFound`
     /// clears one; `Event_MeetingHahn` clears **three**, because map `$12`'s
     /// NPC 0 is Hahn and NPCs 1-2 are the `InvisibleBlock` pair fencing him in.
-    /// Modelling this as "clear one" leaves two invisible walls across the
-    /// basement corridor.
+    /// Modelling this as "clear one" leaves two invisible walls across the basement corridor.
     DespawnNpc {
         /// The first object cleared.
         npc_index: usize,
@@ -984,6 +982,8 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
+    /// A direct write to the inventory.
+    Item(ItemOp),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
     /// `Event_GettingOffVehicle`'s needs (`scenes/vehicles.rs`).
