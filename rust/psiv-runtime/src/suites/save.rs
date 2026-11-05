@@ -144,6 +144,66 @@ fn runtime_save_file_round_trips_a_mid_progress_game_state() {
     std::fs::remove_dir_all(directory).expect("remove only this test's temp directory");
 }
 
+/// The logical byte at `offset` of a slot file's interleaved header or payload.
+fn logical(bytes: &[u8], base: usize, offset: usize) -> u8 {
+    bytes[base + 1 + offset * 2]
+}
+
+#[test]
+fn continue_from_a_cartridge_image_stands_where_the_retail_loader_puts_the_party() {
+    let Some(data) = load() else { return };
+    let mut game = GameState::new();
+    game.set_party([Some(CharId(0)), None, None, None, None]);
+    game.roster_mut().seat(CharId(0), stats(0)).unwrap();
+    let save = RetailSave {
+        snapshot: game.snapshot(),
+        location: RetailLocation {
+            map_index: 0x13,
+            char_x: 38 * 16,
+            char_y: 18 * 16,
+            ..RetailLocation::default()
+        },
+    };
+    let directory = unique_directory();
+    let runtime = Runtime::from_save(data.clone(), save, StepFrames::default()).expect("boot");
+    let standing = runtime.state().cell();
+    let native = runtime.slot_bytes(0).expect("encode");
+    // The same file as the cartridge leaves it: no native header extension
+    // past `Game_Cleared_Flag` (`InitSRAM` zeroes the header).
+    let mut image = native.clone();
+    for offset in 0x20..0x100 {
+        image[1 + offset * 2] = 0;
+    }
+    std::fs::create_dir_all(&directory).expect("temp directory");
+    std::fs::write(directory.join("slot_1.sram"), &image).expect("write image");
+    let continued =
+        Runtime::load_slot(data, &directory, 0, StepFrames::default()).expect("continue image");
+
+    // `loc_53546` (ps4.asm:110808-110814) turns `$F406`/`$F408` into the
+    // eight-pixel `Map_Start` words; every load stands the party on them.
+    let word = |offset: usize| {
+        u16::from_be_bytes([
+            logical(&image, 0x200, offset),
+            logical(&image, 0x200, offset + 1),
+        ])
+    };
+    let retail = crate::start_cell(word(0x306) >> 3, word(0x308) >> 3);
+    assert_eq!(word(0x308), 17 * 16, "the object Y, one row above standing");
+    assert_eq!(retail, standing);
+    assert_eq!(continued.state().cell(), retail);
+    assert_eq!(
+        continued.game().roster().get(CharId(0)),
+        Some(&stats(0)),
+        "the image seats its party"
+    );
+    assert_eq!(
+        continued.slot_bytes(0).expect("resave")[0x200..],
+        native[0x200..],
+        "a native SAVE of the continued image writes the same payload"
+    );
+    std::fs::remove_dir_all(directory).expect("remove only this test's temp directory");
+}
+
 #[test]
 fn title_erase_zeros_only_the_selected_payload_and_preserves_other_slots() {
     let Some(data) = load() else { return };

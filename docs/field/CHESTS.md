@@ -73,7 +73,7 @@ marker. The root keeps its separate red selection marker.
 - `tools/native/native_chests.gd` opens a normal, a meseta, a white and a
   full-pack chest with ordinary input from isolated fixtures and saves; a fresh
   process loads the save through the title's CONTINUE
-  (`tools/native/verify_native_continue.py`). The fixtures are transaction
+  (`psiv-campaign verify-continue`). The fixtures are transaction
   proof, not a campaign playthrough; the campaign route opens the Tonoe
   basement chest with ordinary input.
 

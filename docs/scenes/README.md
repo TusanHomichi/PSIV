@@ -201,6 +201,8 @@ jobs.
 | `Event_PlateSysEngine` | `$2D` | [205](205_PlateSysEngine.md) | `$06E75A..$06E907` |
 | `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
 | `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
+| `Event_GettingOffVehicle` | `$10` | [207](207_GettingOffVehicle.md) | `$06BEF8..$06C023` |
+| `Event_DyingBoy` | `$86` | [163](163_DyingBoy.md) | `$072D94..$072FB3` |
 | `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
@@ -212,6 +214,7 @@ jobs.
 | `Event_RajaSick` | `$5B` | [180](180_LateArcInteractions.md#event_rajasick) | `$070C30..$070C81` |
 | `Event_RuneHealingChaz` | `$67` | [180](180_LateArcInteractions.md#event_runehealingchaz) | `$071E56..$071E65` |
 | `Event_Hijammer` | `$6D` | [180](180_LateArcInteractions.md#event_hijammer) | `$072428..$0724A3` |
+| `Event_PickingFifthCharacter` | `$68` | [181](181_PickingFifthCharacter.md) | `$071E66..$0721CB` |
 
 ## Zosa's item shop
 Issue #56's last trigger-fired event, from a hand-built save (`rust/psiv-campaign/tests/zosa_side.rs`).

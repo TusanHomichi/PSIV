@@ -211,6 +211,19 @@
           python3 tools/check_docs.py
           touch $out
         '';
+        # The gate's own tests (every tests/test_gate*.py), which need no
+        # local inputs: fake commands in throwaway repositories. They run
+        # here so a change to the gate is tested in CI, and its new tests can
+        # show they fail on its base (burrow's negative), which a check that
+        # only reads them can't. Found by name, so a new gate test file joins
+        # without this list changing (the negative runs the base's flake).
+        gate-tests = pkgs.runCommand "psiv-gate-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
         # The 1,000-line rule (tools/size_guard.py).
         size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree

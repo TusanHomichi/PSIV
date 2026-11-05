@@ -61,7 +61,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$000D` | `Event_MeetingSaya` | map trigger $16 | KrupKindergarten | scene `Event_MeetingSaya` |
 | `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | scene `Event_AiedoManCrushOnAlys` |
 | `$000F` | `Event_SuspicionOnPrincipal` | map trigger $0A | PiataAcademy_F1 | scene `Event_SuspicionOnPrincipal` |
-| `$0010` | `Event_GettingOffVehicle` | field input: Cancel/Start-class press while on a vehicle (`loc_56084`) |  | allowlisted, #81 |
+| `$0010` | `Event_GettingOffVehicle` | field input: A, B or C while on a vehicle (`loc_56084`) |  | scene `Event_GettingOffVehicle` |
 | `$0011` | `Event_DezoSpaceportAppearing` | called from $8010 |  | inside the caller's scene (`$8010`) |
 | `$0012` | `Event_BioPlantAlarm` | map trigger $0C | BioPlant_Part2 | scene `Event_BioPlantAlarm` |
 | `$0013` | `Event_ElevatorDoorOpening` | interaction area $13 | BioPlant_Part3, BioPlant_B1, BioPlant_B2 (+42 more) | scene `Event_ElevatorDoorOpening` |
@@ -149,7 +149,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
 | `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
 | `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | scene `Event_RuneHealingChaz` |
-| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
+| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | scene `Event_PickingFifthCharacter` |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
 | `$006A` | `Event_AngerTowerExitTop` | map trigger $52 | AngerTower_F2 | scene `Event_AngerTowerExitTop` |
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
@@ -179,7 +179,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
 | `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | scene `Event_DyingBoyFather` |
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | scene `Event_FatherAfterBoyRecovery` |
-| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
+| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | scene `Event_DyingBoy` |
 | `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | scene `Event_MeetingSekreas` |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 4 |
+| #81 | Motavia side content | 2 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 1 |
-| | total | 5 |
+| #83 | Dezolis late arc | 0 |
+| | total | 2 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

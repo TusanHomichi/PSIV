@@ -143,8 +143,11 @@ Event `$10`, `Event_GettingOffVehicle`
 (`ps4.asm:145343-145440`): it samples the four-cell standing footprint at the
 current anchor, accepts only an unsigned maximum of raw collision `0`, then
 rebuilds the party objects and writes selector `0`. Any other raw value opens
-the retail `Cannot get off!` window and leaves the selector mounted. The core
-surfaces that as `VehicleDismountBlocked` and does not mutate the party.
+the retail refusal window and leaves the selector mounted. The port runs that
+event as a scene ([207](../scenes/207_GettingOffVehicle.md)): the core's
+mounted Action edge reports `VehicleEffect::GetOff`, the runtime installs
+`$10` with the leader on the machine's cell, and the scene's own
+`GetOffOp::BranchIfBlocked` makes the decision.
 
 **Where a dismount leaves the party.** Both of the cartridge's
 dismounts rebuild every character object on `Character_1`, which is the

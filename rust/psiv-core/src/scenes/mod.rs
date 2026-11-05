@@ -57,8 +57,10 @@ mod conveyors;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
+pub(crate) mod dying_boy;
 pub(crate) mod esper_events;
 mod field_reload;
+pub mod fifth_character;
 mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
@@ -295,6 +297,7 @@ pub static SCENES: &[Scene] = &[
     late_arc::RAJA_SICK,
     late_arc::RUNE_HEALING_CHAZ,
     late_arc::HIJAMMER,
+    fifth_character::PICKING_FIFTH_CHARACTER,
     motavia_side::LOST_GIRLS_MOTHER,
     motavia_side::KING_RAPPY_DEFEATED,
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
@@ -308,6 +311,8 @@ pub static SCENES: &[Scene] = &[
     plate_wreckage::PLATE_SYS_ENGINE,
     home_decor::PENNANT,
     home_decor::WOOD_CARVING,
+    // Torinco's dying boy (#81).
+    dying_boy::DYING_BOY,
     // The earthquake at Monsen (#81).
     monsen_quake::MONSEN_EARTHQUAKE,
     // The ranch owner (#81).
@@ -334,6 +339,7 @@ pub static SCENES: &[Scene] = &[
     vehicles::BOARDING_LAND_ROVER,
     vehicles::BOARDING_ICE_DIGGER,
     vehicles::BOARDING_HYDROFOIL,
+    vehicles::GETTING_OFF_VEHICLE,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -445,6 +451,7 @@ mod tests {
             ("Event_RajaSick", 11),
             ("Event_RuneHealingChaz", 17),
             ("Event_Hijammer", 14),
+            ("Event_PickingFifthCharacter", 15),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),
@@ -529,6 +536,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_DyingBoy", 53),
             ("Event_WreckageEngine", 67),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
@@ -548,6 +556,7 @@ mod tests {
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
+            ("Event_GettingOffVehicle", 9),
         ];
         assert_eq!(
             SCENES.len(),

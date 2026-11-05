@@ -59,6 +59,15 @@ impl TempPack {
             })
             .to_string(),
         );
+        let row = serde_json::json!({"x": 16, "y": 32, "character": 2, "first_line": 1, "picked_flag": 3});
+        self.write(
+            "fifth/fifth.json",
+            &serde_json::json!({
+                "format_version": 1, "kind": "fifth", "rom_sha256": DIGEST,
+                "rows": [row, row, row, row, row], "records": [2, 4, 6, 8, 9],
+            })
+            .to_string(),
+        );
         self.write("sprites/party.json", &empty);
         self.write(
             "sprites/npcs.json",
@@ -101,6 +110,18 @@ fn a_pack_without_the_guild_is_refused() {
     value.as_object_mut().unwrap().remove("guild");
     pack.write("manifest.json", &value.to_string());
     let error = pack.load().expect_err("no guild section");
+    assert!(error.to_string().contains("rebuild the pack"), "{error}");
+}
+
+#[test]
+fn a_pack_without_the_fifth_table_is_refused() {
+    let pack = TempPack::new("no-fifth");
+    pack.populate(PACK_FORMAT_VERSION);
+    let manifest = std::fs::read_to_string(pack.dir.join("manifest.json")).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    value.as_object_mut().unwrap().remove("fifth");
+    pack.write("manifest.json", &value.to_string());
+    let error = pack.load().expect_err("no fifth section");
     assert!(error.to_string().contains("rebuild the pack"), "{error}");
 }
 

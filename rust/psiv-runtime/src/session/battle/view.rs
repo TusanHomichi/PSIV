@@ -190,11 +190,12 @@ pub struct TechniqueEntry {
     pub name: String,
     /// TP the cast costs.
     pub cost: u8,
-    /// Whether a cast would take effect: supported, affordable and not sealed.
-    /// The window itself only refuses on TP (`ps4.asm:1721`, `2628`); a sealed member
-    /// may choose the entry and the cast is paid and wasted
-    /// (`CharTech_Cast`, `ps4.asm:14256`), so a policy reads this flag to avoid
-    /// a wasted turn.
+    /// Whether the TECH window lets the actor pick it: the window's own rule,
+    /// `CommandsMenu::technique_enabled`.
+    /// It refuses on TP alone (`ps4.asm:1721`, `2628`): a sealed member may
+    /// pick the entry, and the cast is paid and wasted (`CharTech_Cast`,
+    /// `ps4.asm:14256`). A caller that wants to avoid that turn reads the
+    /// seal from the actor's [`PartyStatus::status`].
     pub available: bool,
 }
 
@@ -207,7 +208,8 @@ pub struct SkillEntry {
     pub name: String,
     /// Uses left in the actor's learned slot.
     pub remaining: u8,
-    /// Whether the actor can use it now.
+    /// Whether the SKILL window lets the actor pick it: the window's own rule,
+    /// `CommandsMenu::skill_enabled`.
     pub available: bool,
 }
 

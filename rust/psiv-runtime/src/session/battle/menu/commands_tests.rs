@@ -5,6 +5,7 @@
 use super::*;
 use crate::pad::Button;
 use crate::session::battle::menu::{TopChoice, confirm_pressed, top_input, vehicle_slots};
+use psiv_core::battle::{BattleEvent, status};
 use psiv_core::{CharId, GameState, RetailLocation, RetailSave, StepFrames};
 
 /// Formation `$8A`, the Academy Basement party the shell fixtures use.
@@ -19,6 +20,12 @@ fn pack() -> &'static std::path::Path {
 }
 
 fn battle() -> Option<Runtime> {
+    battle_with(|_| {})
+}
+
+/// The shell fixture's battle, after `prepare` adjusts the runtime's party
+/// before the battle starts from it.
+fn battle_with(prepare: impl FnOnce(&mut GameState)) -> Option<Runtime> {
     let pack = pack();
     if !pack.join("manifest.json").is_file() {
         eprintln!("runtime pack not present; skipping");
@@ -49,6 +56,7 @@ fn battle() -> Option<Runtime> {
     )
     .unwrap();
     runtime.enable_battles(&files).unwrap();
+    prepare(&mut runtime.game);
     runtime
         .start_battle(FORMATION, runtime.battle_party())
         .unwrap();
@@ -129,6 +137,105 @@ fn insufficient_tp_disables_accept_and_leaves_selection_open() {
     assert_eq!(menu.accept(), None);
     assert_eq!(menu.page, MenuPage::Techniques);
     assert!(menu.open);
+}
+
+/// Chaz casts RES on a wounded Alys, everyone else defends: the round's
+/// events for that order, with Chaz sealed or not.
+fn res_round(sealed: bool) -> Option<(CommandsMenu, Vec<BattleEvent>)> {
+    let mut runtime = battle_with(|game| {
+        let roster = game.roster_mut();
+        roster.get_mut(CharId(1)).unwrap().curr_hp = 1;
+        if sealed {
+            roster.get_mut(CharId(0)).unwrap().status = status::TECH_SEALED;
+        }
+    })?;
+    runtime.set_rng_seed(0x1234_5678);
+    let mut menu = CommandsMenu::new(&runtime);
+    menu.move_cursor(1);
+    menu.accept(); // Chaz TECH
+    assert_eq!(menu.page, MenuPage::Techniques);
+    let view = menu.view();
+    let rows = menu.rows();
+    assert_eq!(view.techniques.len(), rows.len());
+    for (entry, (_, enabled)) in view.techniques.iter().zip(&rows) {
+        assert_eq!(
+            entry.available, *enabled,
+            "the view and the window disagree on {}",
+            entry.name
+        );
+    }
+    assert_eq!(view.techniques[0].id, 24);
+    assert!(rows[0].1, "the window offers RES to a member with the TP");
+    assert_eq!(menu.accept(), None); // RES
+    menu.move_cursor(1);
+    assert_eq!(menu.accept(), None); // Alys recipient
+    // Everyone else defends; the last order submits the round.
+    let orders = (0..4)
+        .find_map(|_| {
+            menu.move_cursor(4);
+            menu.accept()
+        })
+        .expect("the last member's order submits");
+    let timeline = runtime.battle_round_timeline(&orders).unwrap();
+    Some((menu, timeline.events))
+}
+
+fn chaz_events(events: &[BattleEvent]) -> Vec<&BattleEvent> {
+    events
+        .iter()
+        .filter(|event| match event {
+            BattleEvent::TechniqueUsed { actor, .. }
+            | BattleEvent::TechniqueRejected { actor, .. }
+            | BattleEvent::Healed { actor, .. } => *actor == id(1),
+            _ => false,
+        })
+        .collect()
+}
+
+#[test]
+fn a_sealed_member_picks_a_technique_the_view_agrees_and_the_cast_is_paid_and_wasted() {
+    // #131: `Battle_FillTechList` marks an entry on TP alone (`ps4.asm:1721`)
+    // and `CharTech_Cast` tests the seal after the cost is paid
+    // (`ps4.asm:14256`).
+    let Some((menu, events)) = res_round(true) else {
+        return;
+    };
+    let cost = menu.techniques[&24].cost;
+    assert!(cost > 0);
+    let tp = menu.roster.get(id(1)).unwrap().stats.curr_tp;
+    assert_eq!(
+        chaz_events(&events),
+        [
+            &BattleEvent::TechniqueUsed {
+                actor: id(1),
+                technique: 24,
+                name: "RES".into(),
+                remaining_tp: tp - u16::from(cost),
+            },
+            &BattleEvent::TechniqueRejected {
+                actor: id(1),
+                technique: 24,
+                reason: psiv_core::battle::TechniqueRejection::Sealed,
+            },
+        ]
+    );
+}
+
+#[test]
+fn an_unsealed_member_s_same_order_heals() {
+    // The negative control: the same round without the seal reaches Alys.
+    let Some((_, events)) = res_round(false) else {
+        return;
+    };
+    let chaz = chaz_events(&events);
+    assert!(matches!(
+        chaz[0],
+        BattleEvent::TechniqueUsed { technique: 24, .. }
+    ));
+    assert!(
+        matches!(chaz[1], BattleEvent::Healed { target, .. } if *target == id(2)),
+        "{chaz:?}"
+    );
 }
 
 #[test]

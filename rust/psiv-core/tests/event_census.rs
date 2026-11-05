@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 5;
+const ALLOWLIST_CEILING: usize = 2;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -59,7 +59,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x000D, "Event_MeetingSaya", Disposition::Scene),
     (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Scene),
     (0x000F, "Event_SuspicionOnPrincipal", Disposition::Scene),
-    (0x0010, "Event_GettingOffVehicle", Disposition::Allowlisted(81)),
+    (0x0010, "Event_GettingOffVehicle", Disposition::Scene),
     (0x0011, "Event_DezoSpaceportAppearing", Disposition::InsideScene(0x8010)),
     (0x0012, "Event_BioPlantAlarm", Disposition::Scene),
     (0x0013, "Event_ElevatorDoorOpening", Disposition::Scene),
@@ -147,7 +147,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0065, "Event_SaLewsDefeated", Disposition::Scene),
     (0x0066, "Event_HuntersGuild", Disposition::Scene),
     (0x0067, "Event_RuneHealingChaz", Disposition::Scene),
-    (0x0068, "Event_PickingFifthCharacter", Disposition::Allowlisted(83)),
+    (0x0068, "Event_PickingFifthCharacter", Disposition::Scene),
     (0x0069, "Event_AngerTowerTop", Disposition::Scene),
     (0x006A, "Event_AngerTowerExitTop", Disposition::Scene),
     (0x006B, "Event_IgglanovaBattle", Disposition::Scene),
@@ -177,7 +177,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0083, "Event_GirlsBailedOut", Disposition::Scene),
     (0x0084, "Event_DyingBoyFather", Disposition::Scene),
     (0x0085, "Event_FatherAfterBoyRecovery", Disposition::Scene),
-    (0x0086, "Event_DyingBoy", Disposition::Allowlisted(81)),
+    (0x0086, "Event_DyingBoy", Disposition::Scene),
     (0x0087, "Event_MeetingSekreas", Disposition::Scene),
     (0x0088, "Event_KingRappy", Disposition::Scene),
     (0x0089, "Event_KingRappyDefeated", Disposition::Scene),

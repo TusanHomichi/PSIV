@@ -176,6 +176,28 @@ agility and dexterity, and enemy paralysis clearing each turn.
   animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
   behind the cartridge.
 
+- `Event_PickingFifthCharacter` (`$071E66`, `ps4.asm:151681`,
+  [record](../scenes/181_PickingFifthCharacter.md#deviations)), four differences:
+  - **The routine words.** Each `loc_72182` row's eighth byte and `loc_721AA` build the objects' routine
+    words (`$82BC` plus the byte for the friend restored at their stand, `$8000` plus it for the new party
+    object). The port draws the restored object from its map record and a party member from its roster id,
+    so neither is carried: the pack's table has no art byte. The restored object keeps the party object's
+    facing, as the struct copy leaves it.
+  - **The two table walks.** Finding no row whose stand is the cell ahead of the leader, the cartridge
+    runs on past the table with `d6 = $140` (object `$FFFFC580`, the row after the last). Finding no table
+    character in the party (`loc_72156`), it indexes slot 5, past `Current_Party_Slots`. Neither is
+    reachable: the friends are static on their stands, and no story state after `Cutscene_Reunion` puts a
+    full party together without one of them. The port faults (`SceneFault::NoFifthRow`) in both cases
+    instead of inventing a row.
+  - **Macro traps.** `Event_RemoveCharFromMacros` (`ps4.asm:133433`) jumps to `ErrorTrap` on a macro in use
+    that lacks the leaver, and `Event_AddMacro` (`ps4.asm:133467`) does on one with no free command. The port
+    leaves such a macro alone (`GameState::remove_from_macros`, `add_to_macros`). The port's other scenes do
+    not write the macros (`PresentationOp::AddMacro` prints and writes nothing), so a port save can hold a
+    macro the cartridge never would, and the trap would end the game.
+  - **The trail.** A party object whose destination is more than a step away walks there
+    (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
+    adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those
+    behind them, and keeps it across a scene handoff. Other followers keep the snap.
 - **The Pengu Feed thief is not drawn (`$96`, #241).** `Event_PenguinFeedStolen`
   (`$0735F6`, `ps4.asm:153259-153328`, [record](../scenes/161_PenguinFeedStolen.md)) writes
   field-object slot 2 (`$FFFFC380`) with routine `$368` (`loc_4B30C`) and art tile `$342`, then
@@ -203,6 +225,29 @@ agility and dexterity, and enemy paralysis clearing each turn.
   frames behind the cartridge, and the turns show a frame sooner. The villagers' creation is not a
   deviation: the `dest` Y the scene writes from the X word is overwritten by
   `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
+- **The vehicle refusal opens in the dialogue window.** `Event_GettingOffVehicle`
+  (`ps4.asm:145397-145413`) draws `CannotGetOffString` into window 0 with window tiles and holds
+  it until `Joypad_Pressed` has a direction, A, B or C. The port opens the same string (from the
+  pack) in the dialogue window, closed by the dialogue's own press, and then reloads the chunks as
+  the cartridge does. The party, the selector and the music are the cartridge's. Recorded in
+  [207](../scenes/207_GettingOffVehicle.md).
+
+- `Event_DyingBoy` (`$86`, `ps4.asm:152726-152855`, [record](../scenes/163_DyingBoy.md)) differs
+  from the cartridge three ways, none of which changes a flag, an item or where anyone stands:
+  - **Facing frames.** It calls `Event_UpdateObjFacing` (`$05A936`, a `VInt_Prepare` at its end in
+    the US build) once for the boy, once for each filled party slot through `loc_5A97C`, and once
+    for Chaz: seven frames with a five-member party. The port's facing ops take none
+    ([#164](https://github.com/TusanHomichi/PSIV/issues/164)). Nothing moves on those frames; the
+    RNG seed and `Main_Frame_Count` (`ps4.asm:617,623`) fall that many frames behind.
+  - **The slow step.** `clr.b (FieldObj_Step_Offset).w` slows the gathering walk and Chaz's walk to
+    the bed's foot to sixteen frames a cell. The port does not apply `SetStepOffset`
+    ([#337](https://github.com/TusanHomichi/PSIV/issues/337)), so they walk at eight. The gathering
+    still ends inside its fixed 150-frame wait; Chaz's two walks, which end their waits, take half
+    the cartridge's frames.
+  - **The sword is not drawn.** `FieldObj_ChazAlisSword` (`$334`, tile `$43C`) has no record among
+    the pack's temporary objects, so the 164 frames pass with Chaz's sprite hidden and nothing in
+    his place. Drawing it needs the art staged for `CulversHouse`
+    ([#329](https://github.com/TusanHomichi/PSIV/issues/329) owns scene-built objects).
 
 - The facing frame in Torinco's `Event_DyingBoyFather` (`$84`), `Event_FatherAfterBoyRecovery`
   (`$85`) and `Event_MeetingSekreas` (`$87`) (`ps4.asm:152706-152725`, `:152856-152865`,

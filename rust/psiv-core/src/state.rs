@@ -254,6 +254,9 @@ pub const MACRO_COUNT: usize = 8;
 /// Number of four-byte commands in one persisted macro record.
 pub const MACRO_COMMANDS: usize = 5;
 
+/// `Command_Attack`, the command a macro's new member starts on.
+const COMMAND_ATTACK: u8 = 1;
+
 /// Number of saved vehicle records at `$FA80`.
 pub const VEHICLE_COUNT: usize = 3;
 
@@ -406,7 +409,7 @@ impl GameState {
         let mut macros = [MacroRecord::default(); MACRO_COUNT];
         macros[0].commands[0] = MacroCommand {
             character_id: 0,
-            command_index: 1,
+            command_index: COMMAND_ATTACK,
             ability_id: 0,
             reserved: 0,
         };
@@ -851,6 +854,43 @@ impl GameState {
         let displaced = self.party_slot(slot);
         self.set_party_slot(slot, Some(who))?;
         Ok(displaced)
+    }
+
+    /// `Event_RemoveCharFromMacros` (`ps4.asm:133433`): `who`'s command goes
+    /// from each macro in use (one whose first command is set), the rest move
+    /// up and the last slot clears. The cartridge traps on a macro in use
+    /// without them; here that macro stays as it is.
+    pub fn remove_from_macros(&mut self, who: CharId) {
+        for record in self
+            .macros
+            .iter_mut()
+            .filter(|r| r.commands[0].command_index != 0)
+        {
+            if let Some(at) = record.commands.iter().position(|c| c.character_id == who.0) {
+                record.commands.copy_within(at + 1.., at);
+                record.commands[MACRO_COMMANDS - 1] = MacroCommand::default();
+            }
+        }
+    }
+
+    /// `Event_AddMacro` (`ps4.asm:133467`): each macro in use takes `who`'s
+    /// plain attack in its first free slot. The cartridge traps on a macro with
+    /// no free slot; here that macro stays as it is.
+    pub fn add_to_macros(&mut self, who: CharId) {
+        for record in self
+            .macros
+            .iter_mut()
+            .filter(|r| r.commands[0].command_index != 0)
+        {
+            if let Some(free) = record.commands.iter_mut().find(|c| c.command_index == 0) {
+                *free = MacroCommand {
+                    character_id: who.0,
+                    command_index: COMMAND_ATTACK,
+                    ability_id: 0,
+                    reserved: 0,
+                };
+            }
+        }
     }
 
     /// A plain-data copy, for saving.
