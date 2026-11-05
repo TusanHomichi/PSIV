@@ -839,6 +839,35 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     for flag in [0x9E, 0xA1] {
         assert!(after.is_set(Flag::event(flag)), "{flag:#x}");
     }
+    // Every later world transition (#126): the chapter whose save first stands
+    // on the new world, the map it stands on and the `World_Index` the
+    // cartridge wrote there. The destination menu writes the chosen row
+    // (`ps4.asm:133677`, `:155599` in Sabotage's copy); the scenes write
+    // `Cutscene_CrashLaanding` 1 (`:155847`), `Cutscene_DarkForce1Defeated` 3
+    // (`:156396`), the Eclipse Torch's return 1 (`:156940`),
+    // `Cutscene_GumbiousBishop` 0 (`:157065`) and `Cutscene_Reunion` 0
+    // (`:157791`). `tests/test_world_index_writes.py` holds that list to the
+    // disassembly.
+    for (chapter, map, world) in [
+        ("mota-spaceport", 0x18D, 3),
+        ("zelan-sabotage", 0x14C, 1),
+        ("kuran-arrival", 0x190, 4),
+        ("kuran-dark-force-1", 0x18E, 3),
+        ("dezolis-ice-digger", 0x001, 1),
+        ("air-castle-arrival", 0x171, 5),
+        ("air-castle-lashiec", 0x162, 1),
+        ("gumbious-bishop", 0x0BF, 0),
+        ("le-roof-meeting", 0x0F0, 2),
+        ("le-roof-again", 0x0D4, 1),
+        ("reunion", 0x0BF, 0),
+        ("anger-tower-top", 0x0FE, 2),
+        ("rykros-departure", 0x0BF, 0),
+    ] {
+        let (session, _) =
+            open_session(pack_dir().as_path(), &StartPoint::Save(save_of(chapter))).unwrap();
+        assert_eq!(session.runtime().map_id().0, map, "{chapter}'s map");
+        assert_eq!(session.runtime().world_index(), world, "{chapter}'s world");
+    }
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

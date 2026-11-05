@@ -41,6 +41,8 @@ pub(super) const EVENT_FLAGS: u16 = 0xF100;
 pub(super) const EXTENDED_EVENT_FLAGS: u16 = 0xF120;
 pub(super) const CHEST_FLAGS: u16 = 0xF140;
 pub(super) const TOWN_FLAGS: u16 = 0xF160;
+/// `World_Index`: the initializer's `move.w #0, (World_Index).w`
+/// (`ps4.asm:88670`) is decoded from the ROM into the start's `world_index`.
 pub(super) const WORLD_INDEX: u16 = 0xF400;
 pub(super) const CURRENT_PARTY_SLOTS: u16 = 0xF40A;
 pub(super) const CURRENT_PARTY_SLOT_5: u16 = 0xF40E;
