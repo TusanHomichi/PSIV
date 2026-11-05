@@ -11,7 +11,7 @@ from unittest import mock
 from oracle.fixture import FixtureError
 from oracle.fixture.player_state import attach_start_ram
 from oracle.sweep import player_abilities as ledger
-from oracle.sweep.player_capture import patches, require_executed, verify_report
+from oracle.sweep.player_capture import force_command, patches, require_executed, verify_report
 from oracle.fixture.observations import battle_start
 from oracle.sweep.player_chains import Chains
 from oracle.force.script import patch_state, party_state
@@ -181,6 +181,23 @@ Event_Unrelated:
         case["defaults"]["cursor"] = 1
         with self.assertRaisesRegex(ValueError, "unknown party field cursor"):
             patches(case, raw, 9)
+
+    def test_force_command_passes_only_the_declared_case_options(self):
+        rounds = [{"1": {"command": "attack", "target": 6}}] * 2
+        path = pathlib.Path("x")
+        plain = force_command({"formation": 454, "rounds": rounds}, path, path, path, ["p"])
+        self.assertEqual(plain[plain.index("--max-rounds") + 1], "2")
+        self.assertNotIn("--delay", plain)
+        self.assertNotIn("--require-ability", plain)
+        self.assertEqual(plain[-2:], ["--ram-patch", "p"])
+        tuned = force_command({"formation": 454, "rounds": rounds, "delay": 3,
+                               "require_ability": 45}, path, path, path, [])
+        self.assertEqual(tuned[tuned.index("--delay") + 1], "3")
+        self.assertEqual(tuned[tuned.index("--require-ability") + 1], "45")
+        for bad in (-1, "3", 1.5):
+            with self.assertRaisesRegex(ValueError, "delay must be a non-negative integer"):
+                force_command({"formation": 454, "rounds": rounds, "delay": bad},
+                              path, path, path, [])
 
     def test_resumed_extraction_rejects_changed_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
