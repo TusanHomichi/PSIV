@@ -8,7 +8,7 @@ use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
-use crate::scene_types::{ItemOp, ObjectOp};
+use crate::scene_types::{ObjectOp, RockyOp};
 use crate::trigger::EventIndex;
 
 /// `Sound_StopMusic`.
@@ -46,9 +46,6 @@ const SPIN_TURN: [SceneOp; 8] = {
     let [g, h] = spin(Direction::Left);
     [a, b, c, d, e, f, g, h]
 };
-
-/// Index of the take in [`PENGUIN_FEED_STOLEN`], `loc_736D2`.
-const TAKE: usize = 55;
 
 /// `$0096`, `Event_PenguinFeedStolen`, retail `$0735F6..$0736E9`
 /// (`ps4.asm:153259-153328`): map trigger `$7B` in `ZosaItemShop` fires it
@@ -157,13 +154,12 @@ pub static PENGUIN_FEED_STOLEN: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_NOW_ON_SALE,
         },
-        // 55-56: `loc_736D2`, `$0736D2..$0736E7`: take one and go again.
-        SceneOp::Item(ItemOp::Take {
+        // 55: `loc_736D2`, `$0736D2..$0736E7`: `GetItem`, `clr.b (a0)`,
+        // `ReorderInventory`, until `GetItem` finds none. 56: `loc_736E8`,
+        // `rts`.
+        SceneOp::Rocky(RockyOp::RemoveAll {
             item: ITEM_PENGU_FEED,
-            if_missing: TAKE + 2,
         }),
-        SceneOp::Jump { to: TAKE },
-        // 57: `loc_736E8`, `rts`.
         SceneOp::End,
     ],
 };

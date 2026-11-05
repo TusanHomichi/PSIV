@@ -18,8 +18,8 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, ObjectOp, SavedByte, SceneEffect, SceneFault, SceneInput,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
+    OP_BUDGET_PER_TICK, ObjectOp, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -984,8 +984,8 @@ pub enum SceneOp {
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
     JobBoard(JobBoardStep),
-    /// A direct write to the inventory.
-    Item(ItemOp),
+    /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
+    Rocky(RockyOp),
     /// A write to a field-object slot the map's record left empty.
     Object(ObjectOp),
     /// Unconditional jump.

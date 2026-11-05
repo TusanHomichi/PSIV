@@ -119,21 +119,6 @@ pub enum SceneInput {
     JobBoardPicked(Option<u8>),
 }
 
-/// A scene's direct writes to `Inventory`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ItemOp {
-    /// `GetItem` (`$5B100`), `bne` to the absent path, `clr.b (a0)`,
-    /// `ReorderInventory` (`$5CB72`): the shape of `Event_OldManNearMissingStudent`
-    /// (`$0729FA..$072A0D`). The scene carries on at the next op with the item
-    /// gone, or jumps with nothing written.
-    Take {
-        /// The item asked for.
-        item: u8,
-        /// Op index taken when `GetItem` does not find it.
-        if_missing: usize,
-    },
-}
-
 /// `Event_HuntersGuild` on the row in `d1` (`scenes/hunters_guild.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GuildOp {
@@ -161,6 +146,37 @@ pub enum GuildOp {
     SetPaid,
     /// The row's money byte, times 1000, onto the purse.
     AddReward,
+}
+
+/// What `Event_CatchingRocky` (`scenes/rocky.rs`) needs that no other scene
+/// has: the dog is caught by holding an item, and runs at his own pace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RockyOp {
+    /// `GetItem` (`ps4.asm:121975`) then `beq`: jump on whether its
+    /// count-limited scan finds `item`, so a cake past a battle's hole is not
+    /// found.
+    BranchIfHolding {
+        /// The item id.
+        item: u8,
+        /// Op index when it is held.
+        if_held: u16,
+        /// Op index when it is not.
+        if_not: u16,
+    },
+    /// The `loc_727EE` loop: `GetItem`, `clr.b (a0)`, `ReorderInventory`,
+    /// until `GetItem` finds no `item`. Each pass scans a window one byte
+    /// shorter, so with holes in the list a later `item` can stay.
+    RemoveAll {
+        /// The item id.
+        item: u8,
+    },
+    /// `FieldObj_Step_Offset` 2 for this object, as `loc_4BC80` writes it
+    /// around its own moves: the movement table's third block, `$0400` a
+    /// frame, four frames a cell.
+    RunFast {
+        /// Who runs.
+        actor: ActorRef,
+    },
 }
 
 /// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).

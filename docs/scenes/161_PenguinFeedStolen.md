@@ -6,7 +6,7 @@ off to the right, and every Pengu Feed `GetItem` can find is taken.
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0096` `Event_PenguinFeedStolen` | `$0735F6..$0736E9` inclusive, 244 bytes | `EventPtrs[$96]` at `$05A2B4 + $258` | `zosa_events.rs`, `PENGUIN_FEED_STOLEN` (58 ops) |
+| `$0096` `Event_PenguinFeedStolen` | `$0735F6..$0736E9` inclusive, 244 bytes | `EventPtrs[$96]` at `$05A2B4 + $258` | `zosa_events.rs`, `PENGUIN_FEED_STOLEN` (57 ops) |
 
 - **Trigger:** map trigger `$7B`, `RunEvent_PenguFeedStolen` (`ps4.asm:116572`, `$0575DC` in the
   US image). It calls `GetItem` for `ItemID_PenguFeed` (`$92`), restores registers with a
@@ -40,7 +40,7 @@ and `FieldObj_Move`.
 | 49-50 | `$07369C..$0736AF` | `Event_MoveSingleObject` to (`$2D0`,`$270`), `clr.w (a4)` | `MoveActorTo`, waits; `DespawnNpc` slot 2 |
 | 51 | `$0736B0..$0736B9` | entry `$10` | `RunDialogue` |
 | 52-54 | `$0736BA..$0736D1` | `Sound_StopMusic`, `DoMapUpdateLoop($10)`, `MusicID_NowOnSale` (`$87`) | `PlaySound`, `Wait(17)`, `PlaySound` |
-| 55-57 | `$0736D2..$0736E9` | `loc_736D2`: `GetItem` `$92`, `bne.s loc_736E8`, `clr.b (a0)`, `ReorderInventory`, `bra.s loc_736D2`; `rts` | `Item(ItemOp::Take)`, `Jump`, `End` |
+| 55-56 | `$0736D2..$0736E9` | `loc_736D2`: `GetItem` `$92`, `bne.s loc_736E8`, `clr.b (a0)`, `ReorderInventory`, `bra.s loc_736D2`; `rts` | `Rocky(RockyOp::RemoveAll)`, `End` |
 
 **The temporary object.** `ZosaItemShop`'s record places two objects, the fire (slot 0) and the
 shopkeeper (slot 1). The thief is written straight into slot 2 (`$FFFFC380`). `ObjectOp::Spawn`
@@ -51,8 +51,8 @@ so no index moves. The `clr.w (a4)` after the second run is `DespawnNpc`, and th
 drops the slot, as `LoadMapObjects` rebuilds the object area. A spawn into a slot the cast
 already holds moves that object and resets it rather than adding a second one.
 
-**The take loop.** `ItemOp::Take` is the missing student's op (`$78`, #296). Here it loops: each pass takes one Feed and closes the bag up,
-until `GetItem` finds none. A Feed behind a battle's hole stays, because `GetItem` counts the
+**The take loop.** It is `Event_CatchingRocky`'s `loc_727EE` loop, already `RockyOp::RemoveAll`
+([141](141_Rocky.md)): each pass takes one Feed and closes the bag up, until `GetItem` finds none. A Feed behind a battle's hole stays, because `GetItem` counts the
 occupied slots and searches only that many.
 
 **What is derived.** The thief's walk uses the scene cast's step rate, eight frames a cell, which

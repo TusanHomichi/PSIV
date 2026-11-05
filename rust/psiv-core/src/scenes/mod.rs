@@ -65,6 +65,7 @@ pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
 pub(crate) mod monsen;
+pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -73,6 +74,7 @@ pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
+pub(crate) mod rocky;
 pub(crate) mod soldiers_temple;
 pub(crate) mod strip_club;
 mod vahal_common;
@@ -280,8 +282,14 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     hunters_guild::HUNTERS_GUILD,
+    motavia_side::LOST_GIRLS_MOTHER,
+    motavia_side::KING_RAPPY_DEFEATED,
+    motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // Rocky (#81).
+    rocky::ROCKY_FOUND,
+    rocky::CATCHING_ROCKY,
     // Tallas's rescue (#81).
     monsen::TALLAS_MOM,
     monsen::TALLAS_MOM_AFTER_RESCUE,
@@ -473,12 +481,17 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_RockyFound", 3),
+            ("Event_CatchingRocky", 58),
             ("Event_TallasMom", 3),
             ("Event_TallasMomAfterRescue", 3),
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
-            ("Event_PenguinFeedStolen", 58),
+            ("Event_LostGirlsMother", 3),
+            ("Event_KingRappyDefeated", 18),
+            ("Event_MeeseClinicSickWoman", 20),
+            ("Event_PenguinFeedStolen", 57),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
