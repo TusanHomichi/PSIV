@@ -602,9 +602,8 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_not: usize,
     },
-    /// `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0` and a
-    /// branch on the two bits (`Event_RajaSick`, `$070C4E`), drawn within the
-    /// frame from the stream the runtime lends ([`crate::SceneRunner::lend_rng`]).
+    /// `UpdateRNGSeed`, then a branch on the low two bits of `RNG_Seed`
+    /// (`Event_RajaSick`, `$070C4E`), drawn from [`crate::SceneRunner::lend_rng`].
     BranchOnRngLow2 {
         /// Op index for each value of the two bits.
         targets: [usize; 4],
