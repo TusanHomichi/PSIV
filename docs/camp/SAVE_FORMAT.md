@@ -328,8 +328,14 @@ it but with any native metadata in `$F020..$F02D` (the roster mask, the `TR`
 exit every writer adds, or the `PS` bridge; a session without battle files
 seats no roster, so its mask alone is not enough) is read as that legacy
 format, so it continues on the row it was saved on, and its next SAVE writes
-the retail word and the marker. A cartridge image is zero in all of them. `a_native_slot_and_a_cartridge_image_agree_on_standing_y`,
-`a_legacy_native_slot_keeps_its_standing_row`,
-`a_legacy_native_slot_with_no_roster_is_still_legacy` and
+the retail word and the marker. A cartridge image is zero in all of them.
+`rust/psiv-core/tests/save_standing_y.rs` covers the three kinds of file,
+zero-roster legacy slots marked only by `TR` or only by `PS` included, and
 `continue_from_a_cartridge_image_stands_where_the_retail_loader_puts_the_party`
-cover the three files.
+CONTINUEs a cartridge image.
+
+`psiv-campaign verify-continue` (`rust/psiv-campaign/src/verify_continue.rs`)
+checks a native CONTINUE's resave through the same codec rules: a source
+without the marker may gain it, and a cartridge image's resave must add
+exactly the writer's metadata, the roster mask of the records the codec
+seats and a valid `TR` exit.

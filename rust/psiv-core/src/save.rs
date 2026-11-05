@@ -212,15 +212,11 @@ impl RetailSlot {
             CHECKSUM_OFFSET + slot * 2,
             payload_checksum(&payload),
         );
-        let roster_mask = save
-            .snapshot
-            .characters
-            .iter()
-            .enumerate()
-            .fold(0_u16, |mask, (index, character)| {
-                mask | u16::from(character.is_some()) << index
-            });
-        write_u16(&mut header, RUST_ROSTER_MASK_OFFSET, roster_mask);
+        write_u16(
+            &mut header,
+            RUST_ROSTER_MASK_OFFSET,
+            save.snapshot.occupancy_mask(),
+        );
         header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2]
             .copy_from_slice(STANDING_Y_MARKER);
 
@@ -299,14 +295,45 @@ impl RetailSlot {
         Ok(read_u16(&header, CHECKSUM_OFFSET + slot * 2))
     }
 
+    /// The logical common header, `$F000..$F100`.
+    #[must_use]
+    pub fn logical_header(&self) -> [u8; RETAIL_HEADER_LOGICAL_BYTES] {
+        deinterleave(&self.bytes[..RETAIL_HEADER_PHYSICAL_BYTES])
+    }
+
+    /// The logical payload, `$F100..$FB00`.
+    #[must_use]
+    pub fn logical_payload(&self) -> [u8; RETAIL_PAYLOAD_BYTES] {
+        deinterleave(&self.bytes[RETAIL_HEADER_PHYSICAL_BYTES..RETAIL_SLOT_FILE_BYTES])
+    }
+
+    /// The native roster mask at `$F020` as stored: zero on a cartridge
+    /// image, whose header has no such field.
+    #[must_use]
+    pub fn roster_mask(&self) -> u16 {
+        read_u16(&self.logical_header(), RUST_ROSTER_MASK_OFFSET)
+    }
+
+    /// Whether the header carries the `SY` marker: the `$F408` word is
+    /// retail's object Y.
+    #[must_use]
+    pub fn has_standing_y_marker(&self) -> bool {
+        has_standing_y_marker(&self.logical_header())
+    }
+
+    /// Whether any native header metadata a slot writer adds before the `SY`
+    /// field is present (`$F020..$F02D`: the roster mask, the `TR` exit, the
+    /// `PS` bridge). A cartridge image has none: `InitSRAM` zeroes the
+    /// header (ps4.asm:134737).
+    #[must_use]
+    pub fn has_native_metadata(&self) -> bool {
+        has_native_metadata(&self.logical_header())
+    }
+
     /// Decodes the validated slot into game state and a boot location.
     pub fn decode(&self) -> Result<RetailSave, SaveError> {
-        let header = deinterleave::<RETAIL_HEADER_LOGICAL_BYTES>(
-            &self.bytes[..RETAIL_HEADER_PHYSICAL_BYTES],
-        );
-        let payload = deinterleave::<RETAIL_PAYLOAD_BYTES>(
-            &self.bytes[RETAIL_HEADER_PHYSICAL_BYTES..RETAIL_SLOT_FILE_BYTES],
-        );
+        let header = self.logical_header();
+        let payload = self.logical_payload();
         // A cartridge image has no roster mask (its header is zero there):
         // it seats every character record that is not all zero, as
         // `from_retail_payload` does. Every native slot seats its leader.
@@ -332,6 +359,18 @@ impl RetailSlot {
 }
 
 impl StateSnapshot {
+    /// The native roster mask the slot writer stores at `$F020`: bit `n` set
+    /// for each seated character record `n`.
+    #[must_use]
+    pub fn occupancy_mask(&self) -> u16 {
+        self.characters
+            .iter()
+            .enumerate()
+            .fold(0_u16, |mask, (index, character)| {
+                mask | u16::from(character.is_some()) << index
+            })
+    }
+
     /// Serializes the state into the exact logical `$F100..$FB00` payload.
     ///
     /// All modeled retail state is written at its retail offset. The remaining
@@ -618,10 +657,17 @@ fn decode_pair(bytes: &[u8], offset: usize) -> StatPair {
 /// extension always `TR` (a session without battle files seats no roster, so
 /// its mask is zero). A cartridge image's header is zero there.
 fn legacy_standing_y(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
-    &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2] != STANDING_Y_MARKER
-        && header[RUST_ROSTER_MASK_OFFSET..RUST_STANDING_Y_OFFSET]
-            .iter()
-            .any(|&byte| byte != 0)
+    !has_standing_y_marker(header) && has_native_metadata(header)
+}
+
+fn has_standing_y_marker(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2] == STANDING_Y_MARKER
+}
+
+fn has_native_metadata(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    header[RUST_ROSTER_MASK_OFFSET..RUST_STANDING_Y_OFFSET]
+        .iter()
+        .any(|&byte| byte != 0)
 }
 
 fn validate_slot(slot: usize) -> Result<(), SaveError> {
