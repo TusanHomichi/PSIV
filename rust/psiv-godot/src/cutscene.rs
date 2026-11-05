@@ -46,7 +46,6 @@ pub(crate) struct CutsceneLayer {
     base: Base<Node2D>,
     textures: BTreeMap<u16, Gd<ImageTexture>>,
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
-    palettes: BTreeMap<u32, Vec<u16>>,
     staged: Vec<u16>,
     visible: Vec<u16>,
     opening_background: Option<Gd<ImageTexture>>,
@@ -70,7 +69,6 @@ impl INode2D for CutsceneLayer {
             base,
             textures: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
-            palettes: BTreeMap::new(),
             staged: Vec::new(),
             visible: Vec::new(),
             opening_background: None,
@@ -107,7 +105,6 @@ impl CutsceneLayer {
         if let Some(screen_y) = assets.opening_screen_y {
             self.opening_screen_y = screen_y;
         }
-        self.palettes.extend(assets.palettes);
         self.textures.extend(assets.textures);
         self.temporary_assets.extend(assets.temporary_assets);
         self.opening_background = assets.opening_background;

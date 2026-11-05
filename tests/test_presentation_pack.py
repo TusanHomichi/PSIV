@@ -11,8 +11,10 @@ from psiv_tools.presentation_pack import (
     ENDING_PANEL_IDS,
     PANEL_IDS,
     PANEL_RECORD_SIZE,
+    PALETTE_REQUESTS,
     PLATE_ENGINE_LIGHT,
     decode_palette_requests,
+    panel_palette_requests,
     panel_record_offset,
 )
 
@@ -98,6 +100,69 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(deepest, words - 1, "the window ends at the deepest read")
         # That read is past the table: the address of `loc_6E922`'s code.
         self.assertEqual(address + 2 * deepest, 0x06E922)
+
+    def test_scene_palette_requests_are_the_words_the_cartridge_reads(self):
+        # Each request beside the instruction bytes that read it, from the US
+        # image: the site, the bytes there (a `lea` of the table and its
+        # destination, then the count), and the words the site copies.
+        data = ROM.read_bytes()
+        sites = {
+            # InitVRAMAndCRAM: lea Pal_Init / lea Palette_Table_Buffer /
+            # moveq #$1F, d0 / move.l (a0)+, (a1)+: 64 words.
+            0x09F2BC: (0x05A68A, "41f90009f2bc43f8fb00701f22d8", 64),
+            # Event_EnterAngerTower's hold: lea Pal_Init_Line_3 / lea
+            # Palette_Line_3 / move.w #$F, d7 / trap #1: 16 words.
+            0x296300: (0x07383A, "41f90029630043f8fb403e3c000f4e41", 16),
+            # loc_78296: lea loc_782D2 / lea Palette_Table_Buffer+$2E /
+            # moveq #0, d7 / ... / moveq #8, d6 / lea loc_782DA: six frames
+            # of nine words (the six delay bytes before $FF at $0782D2).
+            0x0782DA: (0x0782AE, "7c0847f9000782da", 54),
+            # Event_ZioFortBarrier: lea Palette_Line_4 / lea loc_6EE16 /
+            # moveq #6, d7: seven steps reading words n, n+7, n+14.
+            0x06EE16: (0x06ED42, "43f8fb6045f90006ee167e06", 21),
+            # Cutscene_Ending: lea loc_2EEA04 / lea Palette_Table_Buffer_2 /
+            # move.w #$F, d7 / trap #1: 16 words.
+            0x2EEA04: (0x0796D4, "41f9002eea0443f8fb803e3c000f4e41", 16),
+            # Event_KingRappyDefeated: lea Palette_Line_4 / lea loc_730FC,
+            # copied to the $FFFF after its sixteenth word.
+            0x0730FC: (0x073054, "41f8fb6043f9000730fc", 16),
+        }
+        requests = dict(PALETTE_REQUESTS)
+        records = {r["rom_addr"]: r for r in decode_palette_requests(data)}
+        for address, (site, code, words) in sites.items():
+            with self.subTest(address=f"0x{address:06X}"):
+                code_bytes = bytes.fromhex(code)
+                self.assertEqual(data[site : site + len(code_bytes)], code_bytes)
+                self.assertEqual(requests[address], words)
+                record = records[f"0x{address:06X}"]
+                self.assertEqual(
+                    bytes.fromhex(record["raw_hex"]),
+                    data[address : address + 2 * words],
+                )
+        self.assertEqual(data[0x0782D2:0x0782D9], bytes([7, 5, 7, 7, 7, 7, 0xFF]))
+        self.assertEqual(_word(data, 0x0730FC + 32), 0xFFFF)
+
+    def test_every_drawn_panel_layer_has_its_palette(self):
+        # Panel_Draw copies sixteen words of a layer's palette whenever its
+        # art tile is not $FFFF; each such address is a palette record.
+        panels = [
+            {"art_tile_a": 0x8100, "palette_a": "0x09F37C",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+            {"art_tile_a": 0x8100, "palette_a": "0x09F37C",
+             "art_tile_b": 0xA100, "palette_b": "0x09F39C"},
+            {"art_tile_a": 0xFFFF, "palette_a": "0x0A0000",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+            # Already a named request: not repeated.
+            {"art_tile_a": 0x8100, "palette_a": "0x296300",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+        ]
+        self.assertEqual(
+            panel_palette_requests(panels), [(0x09F37C, 16), (0x09F39C, 16)]
+        )
+        data = ROM.read_bytes()
+        records = {r["rom_addr"] for r in decode_palette_requests(data, panels)}
+        self.assertIn("0x09F39C", records)
+        self.assertNotIn("0x0A0000", records)
 
     def test_opening_background_manifest_matches_game_start_addresses(self):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))

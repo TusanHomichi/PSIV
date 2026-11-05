@@ -1,6 +1,6 @@
 //! The presentation pack: `presentation/panels.json` and the art it names.
 //!
-//! The manifest lists the panel planes, palettes, temporary objects and
+//! The manifest lists the panel planes, temporary objects and
 //! shopkeeper portrait the pack decoded; this module turns that file and the
 //! PNGs beside it into the texture tables the layer draws from. It decides no
 //! scene semantics: what is on screen is the runtime's op order.
@@ -19,8 +19,6 @@ use super::temporary_sprite_asset::TemporarySpriteAsset;
 struct PanelManifest {
     panels: Vec<PanelRecord>,
     #[serde(default)]
-    palettes: Vec<PaletteRecord>,
-    #[serde(default)]
     opening_background: Option<OpeningBackgroundRecord>,
     #[serde(default)]
     temporary_objects: Vec<TemporaryObjectRecord>,
@@ -38,13 +36,6 @@ struct OpeningBackgroundRecord {
 struct PanelRecord {
     id: u16,
     png: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PaletteRecord {
-    rom_addr: String,
-    words: u16,
-    raw_hex: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,7 +86,6 @@ pub(super) struct SceneAssets {
     /// Oracle-measured top of the narration image band, when the manifest
     /// carries an opening background at all.
     pub(super) opening_screen_y: Option<f32>,
-    pub(super) palettes: BTreeMap<u32, Vec<u16>>,
     pub(super) textures: BTreeMap<u16, Gd<ImageTexture>>,
     pub(super) temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     pub(super) opening_background: Option<Gd<ImageTexture>>,
@@ -112,7 +102,6 @@ impl SceneAssets {
     pub(super) fn load(pack_dir: &str, set: &DialogueSet) -> SceneAssets {
         let mut assets = SceneAssets {
             opening_screen_y: None,
-            palettes: BTreeMap::new(),
             textures: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
             opening_background: None,
@@ -129,32 +118,6 @@ impl SceneAssets {
             Some(manifest) => {
                 if let Some(opening) = &manifest.opening_background {
                     assets.opening_screen_y = Some(opening.screen_y);
-                }
-                for palette in &manifest.palettes {
-                    let Ok(address) =
-                        u32::from_str_radix(palette.rom_addr.trim_start_matches("0x"), 16)
-                    else {
-                        godot_error!("scene palette address is invalid: {}", palette.rom_addr);
-                        continue;
-                    };
-                    let bytes = palette.raw_hex.as_bytes();
-                    let words: Vec<u16> = bytes
-                        .as_chunks::<4>()
-                        .0
-                        .iter()
-                        .filter_map(|chunk| {
-                            let word = std::str::from_utf8(chunk).ok()?;
-                            u16::from_str_radix(word, 16).ok()
-                        })
-                        .collect();
-                    if words.len() != usize::from(palette.words) {
-                        godot_error!(
-                            "scene palette {address:#08x} decoded {} words, expected {}",
-                            words.len(),
-                            palette.words
-                        );
-                    }
-                    assets.palettes.insert(address, words);
                 }
                 for panel in manifest.panels {
                     let path = format!("{pack_dir}/{}", panel.png);

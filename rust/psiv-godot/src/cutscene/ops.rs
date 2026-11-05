@@ -44,11 +44,10 @@ impl Field {
                 self.set_field_map_visible(false);
                 self.presentation.set_vram_blanked(true);
             }
+            // The runtime's CRAM model applies the words from the pack and
+            // lists any palette the pack lacks (`Runtime::cram`).
             SceneOp::LoadPalette { rom_addr, words, .. } => {
                 self.presentation.loaded_palettes.insert(rom_addr, words);
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind().load_palette(rom_addr, words);
-                }
                 godot_print!("scene palette: {words} words from {rom_addr:#08x}");
             }
             SceneOp::LoadArt { rom_addr, tile } => {
@@ -271,10 +270,11 @@ impl Field {
             }
             PresentationOp::FadeToRed { lines } => self.start_red_palette(lines, false),
             PresentationOp::FadeFromRed { lines } => self.start_red_palette(lines, true),
-            op @ (PresentationOp::CopyRamWords { .. }
-            | PresentationOp::ClearRamWords { .. }
-            | PresentationOp::ClearRamLongs { .. }
-            | PresentationOp::FillRamWords { .. }
+            // Palette records are applied by the runtime's CRAM model
+            // (`Runtime::cram`); this shell does not draw them yet.
+            op @ (PresentationOp::PaletteCopy { .. }
+            | PresentationOp::PaletteRestoreTone { .. }
+            | PresentationOp::ShadowHighlight { .. }
             | PresentationOp::ClearPlanes
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
@@ -282,7 +282,6 @@ impl Field {
             | PresentationOp::PaletteToneFlash { .. }
             | PresentationOp::AddPaletteWord { .. }
             | PresentationOp::GaruberkEyeArtCycle { .. }
-            | PresentationOp::ClearPaletteLine { .. }
             | PresentationOp::VariablePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }

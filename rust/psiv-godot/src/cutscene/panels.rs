@@ -46,23 +46,6 @@ impl CutsceneLayer {
         }
     }
 
-    pub(crate) fn load_palette(&self, rom_addr: u32, words: u16) {
-        match self.palettes.get(&rom_addr) {
-            Some(decoded) if decoded.len() >= usize::from(words) => {
-                godot_print!("scene palette loaded: {words} words from {rom_addr:#08x}");
-            }
-            Some(decoded) => {
-                godot_error!(
-                    "scene palette {rom_addr:#08x} has {} words, requested {words}",
-                    decoded.len()
-                );
-            }
-            None => {
-                godot_error!("scene palette {rom_addr:#08x} is not in the runtime pack");
-            }
-        }
-    }
-
     pub(crate) fn panel_destroy(&mut self, id: u16) {
         if let Some(actual) = self.staged.pop()
             && actual != id

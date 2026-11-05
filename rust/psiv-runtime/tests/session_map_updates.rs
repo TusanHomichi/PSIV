@@ -192,7 +192,7 @@ fn aiedo_water_follows_raw_table_columns_and_absolute_eight_frame_clock() {
         )
         .unwrap();
     }
-    let mut expected = session.runtime().map_updates().palette[26..30].to_vec();
+    let mut expected = session.runtime().cram().words[26..30].to_vec();
     for frame in 1..=64 {
         tick(&mut session, Pad::NEUTRAL);
         if frame % 8 == 0 {
@@ -202,7 +202,7 @@ fn aiedo_water_follows_raw_table_columns_and_absolute_eight_frame_clock() {
             }
         }
         assert_eq!(
-            &session.runtime().map_updates().palette[26..30],
+            &session.runtime().cram().words[26..30],
             expected,
             "water frame {frame}"
         );

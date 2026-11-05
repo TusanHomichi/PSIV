@@ -374,19 +374,26 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Uploads palette lines 0 and 1 of the runtime's CRAM model to the
+    /// indexed map shader. A legacy record without the 64-word shadow keeps
+    /// the baked colours.
     fn sync_map_palette(&mut self) {
-        let Some(view) = self.runtime().map(psiv_runtime::Runtime::map_updates) else {
+        let Some(runtime) = self.runtime() else {
             return;
         };
-        if view.palette.len() != 64 {
+        if runtime
+            .map_record()
+            .is_none_or(|record| record.map_update_palette.is_none())
+        {
             return;
         }
-        let revision = view.palette_revision as i64;
+        let view = runtime.cram();
+        let revision = view.revision as i64;
         // The repository's measured GPGX RGB565 ramps (COLOR_PIPELINE.md).
         const RB: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
         const G: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
         let mut colors = PackedColorArray::new();
-        for &word in &view.palette[..32] {
+        for &word in &view.words[..32] {
             colors.push(Color::from_rgba(
                 f32::from(RB[usize::from((word >> 1) & 7)]) / 255.0,
                 f32::from(G[usize::from((word >> 5) & 7)]) / 255.0,

@@ -90,7 +90,7 @@ pub static KING_RAPPY_DEFEATED: Scene = Scene {
             wait: true,
         },
         SceneOp::RunDialogueResume,
-        // `$073052..$07305B`: `lea Palette_Line_4, a0` / `lea loc_730FC, a1`,
+        // `$073054..$07305D`: `lea Palette_Line_4, a0` / `lea loc_730FC, a1`,
         // copied up to the `$FFFF` after its sixteenth word.
         SceneOp::LoadPalette {
             rom_addr: SEKREAS_PALETTE,
