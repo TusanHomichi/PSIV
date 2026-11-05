@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (19 ops); `scene_runner/fifth.rs`; `fifth/fifth.json` in the pack (`psiv_tools/fifth_pack.py`) |
+| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (15 ops); `scene_runner/fifth.rs`; `fifth/fifth.json` in the pack (`psiv_tools/fifth_pack.py`) |
 
 - **Trigger:** dialogue `$F6 $00 $68`, entry 25 of tree 39: objects 5 to 9 of `MotaSpaceport` `$0BF`
   (`GryzSpaceportWaiting`, `Hahn`, `Demi`, `Raja`, `Kyra`, dialogue 25, `$FFFFC440` on).
@@ -53,8 +53,8 @@ Dark Force 2 and 3 each lose one resume, [#320](https://github.com/TusanHomichi/
 | 7-8 | `$071F5C..$071F8B` | `loc_72156`, the first party slot holding a table character; `$5(a0)` of that row plus 3 | `FifthOp::PickLeaver`, `RunLeaverLine` |
 | 9-10 | `$071F8C..$07207F` | The exchange, below; `bra.w loc_720E8` | `FifthOp::Exchange`, `SkipOps` |
 | 11 | `$072080..$0720E7` | The picked object's struct into `Character_5`, and the object cleared; `Current_Party_Slot_5`; `Event_AddMacro` | `FifthOp::TakeFifthSlot` |
-| 12-17 | `$0720E8..$072127` | `EventFlags_Clear` on all five, `EventFlags_Set` on `$6(a0)` | `SetFlag` five times, `FifthOp::SetPicked` |
-| 18 | `$072128..$072141` | `clr.l (Window_Option_Index).w`, `Event_MoveCamera` to the leader, speed 2 | `PanCamera` |
+| 12-13 | `$0720E8..$072127` | `EventFlags_Clear` on all five, `EventFlags_Set` on `$6(a0)` | `FifthOp::ClearPicked`, `FifthOp::SetPicked` |
+| 14 | `$072128..$072141` | `clr.l (Window_Option_Index).w`, `Event_MoveCamera` to the leader, speed 2 | `PanCamera` |
 
 **The exchange** (`$071F8C..$07207C`). `Event_RemoveCharFromMacros` on the leaver. Their party object's struct
 goes over their home object, which takes dialogue `$19` and `bset #3, $2(a1)`, and goes back to its stand with

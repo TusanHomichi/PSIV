@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from psiv_tools.fifth_pack import (
+    CLEARS,
     EVENT_START,
     RECORDS_LEA,
     ROWS,
@@ -40,7 +41,7 @@ class FifthPack(unittest.TestCase):
         self.assertEqual(len({row["first_line"] for row in record["rows"]}), ROWS)
 
     def test_a_moved_anchor_is_refused(self) -> None:
-        for offset in (EVENT_START + 2, ROWS_LEA, RECORDS_LEA):
+        for offset in (EVENT_START + 2, ROWS_LEA, RECORDS_LEA, CLEARS, CLEARS + 3):
             broken = bytearray(self.rom)
             broken[offset] ^= 0xFF
             with self.subTest(offset=hex(offset)), self.assertRaises(FifthError):

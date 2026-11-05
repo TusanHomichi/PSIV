@@ -30,6 +30,9 @@ CALC_PARTY_NUMBER = 0x05A6A4
 RECORDS_LEA = 0x071EA6
 ROWS_LEA = 0x071EEC
 ROWS = 5
+#: `loc_720E8`: five `move.b #flag, d0` / `jsr (EventFlags_Clear).l` pairs.
+CLEARS = 0x0720E8
+EVENT_FLAGS_CLEAR = 0x0576A8
 ROW_BYTES = 8
 #: `Character_Stats`: record N is `$80` bytes on.
 CHARACTER_STATS = 0xFFFFF500
@@ -70,6 +73,16 @@ def extract_fifth(rom: bytes) -> dict[str, Any]:
             "first_line": rom[at + 5],
             "picked_flag": rom[at + 6],
         })
+    # The scene clears the rows' flags: the routine's own immediates must be
+    # those five.
+    cleared = []
+    for n in range(ROWS):
+        at = CLEARS + n * 10
+        if rom[at:at + 2] != b"\x10\x3c" or rom[at + 4:at + 6] != b"\x4e\xb9" or _long(rom, at + 6) != EVENT_FLAGS_CLEAR:
+            raise FifthError(f"no `move.b #flag, d0 / jsr EventFlags_Clear` at 0x{at:06X}")
+        cleared.append(rom[at + 3])
+    if sorted(cleared) != sorted(row["picked_flag"] for row in rows):
+        raise FifthError("the routine clears flags other than its rows'")
     records = []
     for row in range(ROWS):
         address = _long(rom, records_at + row * 4)
@@ -87,6 +100,7 @@ def extract_fifth(rom: bytes) -> dict[str, Any]:
             "event": f"0x{EVENT_START:06X}",
             "rows": f"0x{rows_at:06X}",
             "records": f"0x{records_at:06X}",
+            "clears": f"0x{CLEARS:06X}",
         },
     }
 
