@@ -416,6 +416,8 @@ pub enum SceneEffect {
 pub enum SceneFault {
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
+    /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.
+    NoRng,
     /// A jump or branch target was past the end of the scene.
     BadJump {
         /// The offending target.
@@ -454,6 +456,19 @@ pub enum SavedByte {
     /// `-$2(a0)`: the byte before the `$F7` or terminator the text stopped
     /// on, the last one it ran.
     Last,
+}
+
+/// How a [`SceneOp::BranchIfMoneyBelow`] compares the purse with its literal.
+/// The two retail forms part ways only for a purse of `$80000000` or more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoneyTest {
+    /// `move.l (Current_Money).w, d0 / subi.l #amount, d0 / bmi`
+    /// (`Event_PayingGirlsBail`, `$072C82`): the sign bit of the wrapping
+    /// longword difference.
+    SignOfDifference,
+    /// `cmpi.l #amount, (Current_Money).w / bcc` (`Event_PenguinOwner`,
+    /// `$070702`): below is the carry, an unsigned longword compare.
+    Unsigned,
 }
 
 /// A scene's own object in a field-object slot (`$FFFFC300 + slot * $40`).
