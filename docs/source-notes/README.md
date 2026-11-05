@@ -154,6 +154,15 @@ agility and dexterity, and enemy paralysis clearing each turn.
   animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
   behind the cartridge.
 
+- **The Pengu Feed thief is not drawn (#241).** `Event_PenguinFeedStolen` (`ps4.asm:153259`,
+  [record](../scenes/161_PenguinFeedStolen.md)) writes routine `$368` (`loc_4B30C`,
+  `ps4.asm:98895`) and tile `$342` into object slot 2 of `ZosaItemShop`. The port places that
+  object in the cast and on the field map, so it walks, turns, blocks nothing and is cleared as on
+  the cartridge, but the pack has no sprite sheet for routine `$368`, and Godot's presentation
+  consumer ignores `ObjectOp::Spawn`. So the music changes, the scene's frames pass and the Feed is
+  taken with no thief on screen. Drawing it is #241's work: its sprite must follow slot 2's
+  movement and facing and go on the despawn or the next map load.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.
