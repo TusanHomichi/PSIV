@@ -256,6 +256,7 @@ dependencies = [
  "psiv-runtime",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
