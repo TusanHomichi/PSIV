@@ -372,7 +372,7 @@ def chain_callers(ev: Event) -> list[int]:
 #: reason. A scene that lands removes its event from here (and the list
 #: shrinks: `ALLOWLIST_CEILING` is the most it may ever hold).
 ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
-    (ISSUE_TRIGGERS, "trigger-fired, no scene (issue #56)", (0x96,)),
+    (ISSUE_TRIGGERS, "trigger-fired, no scene (issue #56)", ()),
     (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", ()),
     (
         ISSUE_MOTAVIA,
@@ -393,7 +393,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 11
+ALLOWLIST_CEILING = 10
 
 
 def disposition(

@@ -2,8 +2,8 @@
 
 use psiv_core::battle::Outcome;
 use psiv_core::{
-    ActorRef, Driver, Input, MapId, ONE_PIXEL, PixelPos, SceneEffect, SceneInput, SceneOp,
-    WarpTrigger,
+    ActorRef, Direction, Driver, Input, MapId, Npc, NpcId, ONE_PIXEL, PixelPos, SceneEffect,
+    SceneInput, SceneOp, WarpTrigger,
 };
 
 use crate::{Runtime, RuntimeEvent};
@@ -466,6 +466,21 @@ impl Runtime {
                     self.bespoke.install(npc_index, kind);
                 } else {
                     self.bespoke.remove(npc_index);
+                }
+            }
+            SceneEffect::ObjectSpawned {
+                slot,
+                routine,
+                cell,
+                solid,
+            } => {
+                let mut object = Npc::new(NpcId(routine), cell, Direction::Down);
+                object.interactable = solid;
+                object.talkable = solid;
+                if let Err(error) = self.map.place_object(slot, object) {
+                    events.push(RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    });
                 }
             }
             SceneEffect::NpcDespawned { npc_index, count } => {

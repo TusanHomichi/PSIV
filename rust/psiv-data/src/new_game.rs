@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::DataError;
 use crate::manifest::PACK_FORMAT_VERSION;
@@ -31,55 +31,82 @@ pub struct NewGame {
     pub event_index: u16,
 }
 
-#[derive(Deserialize)]
-struct File {
-    format_version: u32,
-    kind: String,
-    new_game_init: Init,
-    title_handoff: Handoff,
+/// `game_start.json`, the record the pack builder writes and [`NewGame::load`] reads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct File {
+    /// The pack format version.
+    pub format_version: u32,
+    /// `game_start`.
+    pub kind: String,
+    /// What `loc_44414` writes.
+    pub new_game_init: Init,
+    /// What the title screen leaves behind.
+    pub title_handoff: Handoff,
 }
 
-#[derive(Deserialize)]
-struct Init {
-    money: u32,
-    party_slots: [Slot; 6],
-    flags: Flags,
-    settings: Settings,
+/// `new_game_init`: what `loc_44414` writes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Init {
+    /// Initial meseta.
+    pub money: u32,
+    /// The six party slots.
+    pub party_slots: [Slot; 6],
+    /// The flag banks.
+    pub flags: Flags,
+    /// The settings.
+    pub settings: Settings,
 }
 
-#[derive(Deserialize)]
-struct Slot {
-    empty: bool,
-    id: Option<u8>,
+/// One party slot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Slot {
+    /// Whether the slot is empty.
+    pub empty: bool,
+    /// The character id, when it isn't.
+    pub id: Option<u8>,
 }
 
-#[derive(Deserialize)]
-struct Flags {
-    extended_event_flags: FlagList,
-    town_flags: FlagList,
+/// The flag banks a new game starts with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Flags {
+    /// The extended event flags.
+    pub extended_event_flags: FlagList,
+    /// The town flags.
+    pub town_flags: FlagList,
 }
 
-#[derive(Deserialize)]
-struct FlagList {
-    set: Vec<String>,
+/// One bank's set flags, as `0x` hex.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlagList {
+    /// Set flags, as `0x` hex.
+    pub set: Vec<String>,
 }
 
-#[derive(Deserialize)]
-struct Settings {
-    message_speed: u16,
-    battle_speed: u16,
-    world_index: u16,
+/// The settings a new game starts with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settings {
+    /// Text speed.
+    pub message_speed: u16,
+    /// Battle speed.
+    pub battle_speed: u16,
+    /// Planet selector.
+    pub world_index: u16,
 }
 
-#[derive(Deserialize)]
-struct Handoff {
-    scene_map: crate::GameStartMap,
-    event_index: Event,
+/// `title_handoff`: what the title screen leaves when START is chosen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Handoff {
+    /// The map the opening scene plays on.
+    pub scene_map: crate::GameStartMap,
+    /// The event START dispatches.
+    pub event_index: Event,
 }
 
-#[derive(Deserialize)]
-struct Event {
-    value: u16,
+/// An event index.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Event {
+    /// The index.
+    pub value: u16,
 }
 
 impl NewGame {

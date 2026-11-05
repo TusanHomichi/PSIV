@@ -198,6 +198,19 @@ agility and dexterity, and enemy paralysis clearing each turn.
     (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
     adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those
     behind them, and keeps it across a scene handoff. Other followers keep the snap.
+- **The Pengu Feed thief is not drawn (`$96`, #241).** `Event_PenguinFeedStolen`
+  (`$0735F6`, `ps4.asm:153259-153328`, [record](../scenes/161_PenguinFeedStolen.md)) writes
+  field-object slot 2 (`$FFFFC380`) with routine `$368` (`loc_4B30C`) and art tile `$342`, then
+  runs `Field_LoadSprites` and `Field_BuildSprites`, so on the cartridge the thief is on screen
+  while it runs in, spins and runs off. The port runs the slot's state (`ObjectOp::Spawn`, its
+  walks and facings, the `clr.w` that removes it, the map load that drops it), but the pack has no
+  sprite sheet for tile `$342`: the runtime places the object with no sprite, Godot's presentation
+  consumer ignores the spawn record, and Godot builds its NPC sprite nodes only when a map loads, so nothing is drawn for
+  slot 2. The scene's timing, the take and the flags are unaffected. Drawing
+  it needs the art extracted and a sprite node that follows the slot's position and facing and goes
+  on despawn or map load; that is the same gap as the strip club's dancers, deferred to
+  [#241](https://github.com/TusanHomichi/PSIV/issues/241). The thief's walk speed, eight frames a
+  cell, is the cast's step rate and is not measured against `loc_4B30C`.
 - `Event_MonsenEarthquake`'s facing frames (`$2C`, `ps4.asm:147499-147814`,
   [record](../scenes/143_MonsenEarthquake.md)). Retail's `Event_UpdateObjFacing`
   (`$05A936`) ends in a `VInt_Prepare` in the US build. Outside Gryz's spin, which keeps it, the

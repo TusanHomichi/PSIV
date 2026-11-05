@@ -969,6 +969,7 @@ impl SceneRunner {
             SceneOp::ToggleFlag { .. }
             | SceneOp::BranchIfPartyMember { .. }
             | SceneOp::FaceParty { .. }
+            | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
             | SceneOp::RidePlatform { .. }
             | SceneOp::Item(_)

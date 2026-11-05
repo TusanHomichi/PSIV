@@ -525,7 +525,7 @@ the field RNG cell) and `GameState::inventory`:
 | `$0D` | `RunEvent_RidingElevator` (`ps4.asm:115250`) | live layout byte at `y + $10` is `$53` | `$0014` | yes |
 | `$22` | `RunEvent_EnterGrbkTwDoor` (`ps4.asm:115755`) | layout at `y + $10` is `$3C`; `$0038` when the byte at `y - $10` is `$3E`, else `$0037` | `$0037` / `$0038` | no: `Event_GaruberkTwDoorEntered1` / `2` (`ps4.asm:120629`, `:120630`) |
 | `$5C..$70` | `RunEvent_MileSandWorm` (`ps4.asm:116449`) | `$1B` clear, `x <= $170`, `$150 <= y <= $2B0`, then one `UpdateRNGSeed` draw with `(seed word & $1F) == 0` | `$0071` | no: `Event_MileSandWormBattle` (`ps4.asm:152222`) |
-| `$7B` | `RunEvent_PenguFeedStolen` (`ps4.asm:116572`) | `GetItem($92)` finds nothing (the count-limited scan, `ps4.asm:121975`) and `y == $260` | `$0096` | no: `Event_PenguinFeedStolen` (`ps4.asm:120724`) |
+| `$7B` | `RunEvent_PenguFeedStolen` (`ps4.asm:116572`) | `GetItem($92)` finds the Feed (the count-limited scan, `ps4.asm:121975`; `bne.w` at `$0575EE` skips when it does not) and `y == $260` | `$0096` | yes ([161](161_PenguinFeedStolen.md)) |
 
 The sand worm draws only when its flag and box pass, and exactly once; entries
 listed after a firing entry never run, so list order is also RNG order.

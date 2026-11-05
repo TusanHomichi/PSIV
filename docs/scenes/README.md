@@ -208,6 +208,13 @@ jobs.
 | `Event_Hijammer` | `$6D` | [180](180_LateArcInteractions.md#event_hijammer) | `$072428..$0724A3` |
 | `Event_PickingFifthCharacter` | `$68` | [181](181_PickingFifthCharacter.md) | `$071E66..$0721CB` |
 
+## Zosa's item shop
+Issue #56's last trigger-fired event, from a hand-built save (`rust/psiv-campaign/tests/zosa_side.rs`).
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_PenguinFeedStolen` | `$96` | [161](161_PenguinFeedStolen.md) | `$0735F6..$0736E9` |
+
 ## The missing student
 Issue #81's Hunter's Guild job in Piata and Kadary, from hand-built saves
 (`rust/psiv-campaign/tests/student_side.rs`), since the route does not take the guild's jobs.

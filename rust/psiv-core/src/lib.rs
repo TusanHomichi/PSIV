@@ -149,7 +149,7 @@ pub use scene_presentation::{
     CameraSubject, CreditsPlane, PaletteHold, PresentationAsset, PresentationOp,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
-pub use scene_types::{GuildOp, ItemOp, JobBoardStep, RockyOp};
+pub use scene_types::{GuildOp, ItemOp, JobBoardStep, ObjectOp, RockyOp};
 pub use scenes::fifth_character::{FifthRow, FifthTable};
 pub use scenes::hunters_guild::{
     GuildArrival, GuildChoice, GuildJob, GuildJobs, GuildLine, JobColour, JobRow,
