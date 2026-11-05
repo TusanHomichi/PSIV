@@ -232,6 +232,36 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the cartridge does. The party, the selector and the music are the cartridge's. Recorded in
   [207](../scenes/207_GettingOffVehicle.md).
 
+- Kadary's `Event_FaintingPriest` (`$24`) and `Event_ZioFanatic` (`$31`)
+  (`ps4.asm:147047-147092`, `:148262-148298`, [record](../scenes/164_KadaryPriestAndBeliever.md)):
+  - **Facing frames.** Each turns its speaker with one `Event_UpdateObjFacing` (`$05A936`, a
+    `VInt_Prepare` at its end in the US build) before its first line. The port's facing ops take
+    none ([#164](https://github.com/TusanHomichi/PSIV/issues/164)), so each opens its text one frame
+    sooner. Nothing moves on that frame; the RNG seed and `Main_Frame_Count` (`ps4.asm:617,623`) fall
+    one frame behind.
+  - **The faint is not drawn.** `$24` gives the priest routine `$180` (`FieldObj_FaintedPriest`) and
+    holds 46 frames for its script. The port records the routine and the frames, but the renderer
+    draws each map object from the sheet its record names when the map loads, so the priest stays
+    standing on screen through the faint and afterwards. His state (the routine, his `$38`, the block
+    in his second cell) matches the cartridge. Drawing a scene-changed routine belongs with
+    [#329](https://github.com/TusanHomichi/PSIV/issues/329).
+  - **The writhing believer takes a cell, not 8-pixel-rounded pixels.** `$31` copies object 4's
+    live `$30`/`$34` into object 9 and rounds each down to 8 pixels (`lsr.w #3` / `lsl.w #3`,
+    `$06EE5E..$06EE81`). The port's `ObjectOp::SpawnAt` gives object 9 object 4's cell, the one the
+    map holds for him, with no sub-cell offset. Standing still, object 4 is on a 16-pixel cell on both
+    axes (his record is (`$140`,`$1F0`), and a wander step is one cell), so the rounding changes
+    nothing and the two agree exactly. They differ only when he is talked to mid-step, which the
+    cartridge allows (`Interaction_ChkObjects` finds a stepping object at its destination; see
+    [NPC_WANDER](../field/NPC_WANDER.md#interaction-while-moving)): the port's map has already moved
+    him to the destination cell, while on the cartridge his pixel position is short of it on the
+    walked axis, and the other axis is a multiple of 16 and unchanged. Rounding down, a believer `k`
+    pixels into a step right or down lands on his origin cell (`k` < 8) or the half-cell between
+    (`k` ≥ 8), never the destination; one stepping left or up lands on the half-cell (`k` ≤ 8) or the
+    destination (`k` ≥ 9). In those cases the cartridge's writhing believer is drawn up to one cell
+    back along that axis, and its blocking and talk position (`$31` → `$1F`) follow its pixels there
+    until the next map load drops him, where the port draws, blocks and answers from the destination
+    cell. The scene's frames, its lines and the flags it writes are the same either way.
+
 - `Event_DyingBoy` (`$86`, `ps4.asm:152726-152855`, [record](../scenes/163_DyingBoy.md)) differs
   from the cartridge three ways, none of which changes a flag, an item or where anyone stands:
   - **Facing frames.** It calls `Event_UpdateObjFacing` (`$05A936`, a `VInt_Prepare` at its end in
