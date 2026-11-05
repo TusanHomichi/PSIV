@@ -21,4 +21,4 @@ transcribed. Actual-ROM pointer range: `$06FB1E..$06FB5E` exclusive end.
 | 3-4 | `$06FB4E..$06FB5D` | event battle index `3`; routine-exit handoff | battle/return |
 
 The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
-(`retained(0x48)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md).
+(`retained(0x48)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md#the-dialogue2-audit).

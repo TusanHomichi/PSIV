@@ -17,9 +17,9 @@ body. ROM range: `$070856..$070976` exclusive end.
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
 | 0-8 | `$070856..$0708E7` | vehicle branch (on foot jumps to op 9), music/SFX stop, rebuild sprites, tree dialogue `$34` | vehicle/dialogue |
-| 9-14 | `$0708E8..$07094E` | red alert, panel `$98`, DMA, dialogue entry `$26`; every party object's Y set to the leader's plus `$20` (`$07093C..$07095D`) | presentation/`PlacePartyY { dy: 0x20 }` |
-| 15-18 | `$07094F..$070975` | set Saving Kyra `$95`, event battle `$0A`, return `1` | flag/battle |
+| 9-14 | `$0708E8..$07095D` | red alert, panel `$98`, DMA, dialogue entry `$26`; every party object's Y set to the leader's plus `$20` (`$07093C..$07095D`) | presentation/`PlacePartyY { dy: 0x20 }` |
+| 15-18 | `$07095E..$070975` | set Saving Kyra `$95`, event battle `$0A`, return `1` | flag/battle |
 
 The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
-(`retained(0x26)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md), which also
+(`retained(0x26)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md#the-dialogue2-audit), which also
 resolves the party move.

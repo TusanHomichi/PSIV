@@ -369,10 +369,15 @@ tick the last dialogue closes) with its control
 `rust/psiv-core/tests/events/scenes.rs` (the count stops at the first empty
 slot, the word wraps, a counted member missing from the cast faults).
 
-These are US-image and registry results. They earn no runtime,
-ordinary-native-input, persistence or connected-route evidence: the runtime
-does not yet write a scene's party positions back to the walking party (true
-of every scene move), so the field after the battle is unchanged by this.
+The runtime takes the new positions: when a scene finishes,
+`resume_party_from_scene` (`rust/psiv-runtime/src/scene_runtime.rs`) hands
+each `PartyMember` actor's cell, facing and step to the field party through
+`Party::resume_scripted` (`rust/psiv-core/src/party.rs`); for both tree scenes
+the finish comes after the battle. `resume_scripted` does not copy the actor's
+sub-cell `slide`, so a sub-cell Y would be lost, but only when the leader was
+mid-slide at the write. These are US-image, registry and core-runner results:
+no runtime or native test covers the hand-back for these scenes, and they earn
+no ordinary-native-input, persistence or connected-route evidence.
 
 ## Guards
 
@@ -398,4 +403,5 @@ of every scene move), so the field after the battle is unchanged by this.
 Not covered: the `Event_RunDialogue*` entries (`$5AC6C`, `$5ACE2`, `$5AD38`,
 `$5ADA8`, `$5ADFE`), which run a text pointer already in `a0`, mostly a
 `popdlg` resume; their windows are the same five exits and the port records
-them as `RunDialogueResume` or `RunDialogueResumeWithWindow`.
+them as `RunDialogueResume` or `RunDialogueResumeWithWindow`. Their census is
+[#354](https://github.com/TusanHomichi/PSIV/issues/354).

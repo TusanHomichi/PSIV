@@ -16,6 +16,6 @@ authority. ROM range: `$070774..$070856` exclusive end.
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
 | 0-7 | `$070774..$0707F9` | save Dezolis music; mounted/on-foot branch; stop SFX and dismount | vehicle/presentation |
-| 8-10 | `$0707FA..$07082F` | tree dialogue tree `$2080BE`, entry `$34`; every party object's Y set to the leader's plus `$20` (`$070826..$070847`) | dialogue/`PlacePartyY { dy: 0x20 }` |
-| 11-12 | `$070830..$070855` | event battle `$0A`, return `1` | battle/return |
+| 8-10 | `$0707FA..$070847` | tree dialogue tree `$2080BE`, entry `$34`; every party object's Y set to the leader's plus `$20` (`$070826..$070847`) | dialogue/`PlacePartyY { dy: 0x20 }` |
+| 11-12 | `$070848..$070855` | event battle `$0A`, return `1` | battle/return |
 
