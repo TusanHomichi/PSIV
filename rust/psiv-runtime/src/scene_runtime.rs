@@ -23,8 +23,10 @@ impl Runtime {
         chunks: &[(u32, u32, u16)],
     ) -> Result<(), crate::BridgeError> {
         let reject = |message: String| crate::BridgeError::Rejected(message);
+        // The pack field alone, so the controllers stay borrowable below.
         let record = self
-            .map_record()
+            .data
+            .map(psiv_data::MapId(self.map.id().0))
             .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
         let atlas = record
             .patch_tiles
@@ -93,6 +95,13 @@ impl Runtime {
         let mut map =
             crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        crate::bridge::reconcile_controllers(
+            self.map.npcs(),
+            &map,
+            record,
+            &mut self.wander,
+            &mut self.bespoke,
+        );
         self.map = map;
         self.effects = effects;
         Ok(())
@@ -105,8 +114,10 @@ impl Runtime {
     /// `KosDecomp` overwrites the whole layout buffer.
     fn replace_scene_map_layout(&mut self, fg: u32, bg: u32) -> Result<(), crate::BridgeError> {
         let reject = |message: String| crate::BridgeError::Rejected(message);
+        // The pack field alone, so the controllers stay borrowable below.
         let record = self
-            .map_record()
+            .data
+            .map(psiv_data::MapId(self.map.id().0))
             .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
         let mut variant = None;
         for source in [fg, bg] {
@@ -133,6 +144,13 @@ impl Runtime {
         let mut map =
             crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        crate::bridge::reconcile_controllers(
+            self.map.npcs(),
+            &map,
+            record,
+            &mut self.wander,
+            &mut self.bespoke,
+        );
         self.map = map;
         self.effects = effects;
         Ok(())
@@ -145,8 +163,10 @@ impl Runtime {
         &mut self,
         chunks: &[(u32, u32, u16)],
     ) -> Result<(), crate::BridgeError> {
+        // The pack field alone, so the controllers stay borrowable below.
         let record = self
-            .map_record()
+            .data
+            .map(psiv_data::MapId(self.map.id().0))
             .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
         let base = record.vehicle_battle.as_ref().ok_or_else(|| {
             crate::BridgeError::Rejected("scene needs the base chunk grid".into())
@@ -173,6 +193,13 @@ impl Runtime {
         let mut map =
             crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        crate::bridge::reconcile_controllers(
+            self.map.npcs(),
+            &map,
+            record,
+            &mut self.wander,
+            &mut self.bespoke,
+        );
         self.map = map;
         self.effects = effects;
         Ok(())

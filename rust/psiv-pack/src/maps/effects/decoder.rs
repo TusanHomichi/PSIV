@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 use super::anchors::{
     FIELD_OBJ_LAST, FIELD_OBJ_SECONDARY, FIELD_OBJ_STRIDE, GET_MAP_LAYOUT_OFFSET, MAP_LAYOUT_BG,
-    MAP_LAYOUT_FG, OBJECT_DIALOGUE_OFFSET, bank_address,
+    MAP_LAYOUT_FG, OBJECT_DIALOGUE_OFFSET, OBJECT_X_OFFSET, OBJECT_Y_OFFSET, bank_address,
 };
 use crate::json::Json;
 use crate::map_symbols::event_flag_symbol;
@@ -641,6 +641,10 @@ impl Decoder<'_> {
                     pc,
                     slot.with("dialogue_id", value),
                 ));
+            } else if within == OBJECT_X_OFFSET && word {
+                writes.push(object("object_x", pc, slot.with("pixels", value)));
+            } else if within == OBJECT_Y_OFFSET && word {
+                writes.push(object("object_y", pc, slot.with("pixels", value)));
             } else {
                 note_once(
                     deferred,

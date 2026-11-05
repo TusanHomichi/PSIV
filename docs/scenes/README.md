@@ -186,6 +186,8 @@ jobs.
 | `Event_StrippersAppearing` | `$94` | [123](123_StripClub.md) | `$073440..$0735ED` |
 | `Event_ExitingStripClub` | `$95` | [123](123_StripClub.md#event_exitingstripclub) | `$0735EE..$0735F5` |
 | `Event_HuntersGuild` | `$66` | [124](124_HuntersGuild.md) | `$0718E6..$071E55` |
+| `Event_RanchOwner` | `$70` | [142](142_RanchOwner.md) | `$07259E..$072653` |
+| `Event_RanchOwnerAfterBattle` | `$72` | [142](142_RanchOwner.md#event_ranchownerafterbattle) | `$072678..$07269D` |
 | `Event_RockyFound` | `$73` | [141](141_Rocky.md) | `$07269E..$0726C3` |
 | `Event_CatchingRocky` | `$74` | [141](141_Rocky.md#event_catchingrocky) | `$0726C4..$072871` |
 | `Event_LostGirlsMother` | `$7F` | [200](200_LostGirlsMother.md) | `$072C08..$072C2D` |
