@@ -63,8 +63,12 @@ and each such load followed at once by a `bra` that lands on the call.
 `Event_Gyuna` and `Event_MeeseClinicSickWoman` with two each. A call with no
 literal path is *computed*: `Event_AlysFound` reads `$14` of Alys's object,
 `Event_CatchingRocky` its per-map row (`loc_72866`), `Event_HuntersGuild` the
-job's line. The port unrolls those, so a computed row only asks that the scene
-run its routine's window at least once.
+job's line, `Event_PickingFifthCharacter` its row's `$5(a0)` (`1028 0005` at
+`$071F30`, then `addq.b #2` / `#3`, `5400` / `5600`, before `$071F44` and
+`$071F86`). The port unrolls those or computes them in a table-driven op
+(`GuildOp::RunLine`, `FifthOp::RunLine`, `FifthOp::RunLeaverLine`, each on the
+`Standard` window), so a computed row only asks that the scene run its
+routine's window at least once.
 
 **Checked:** for each scene and routine, the entries its rows give are exactly
 the entries it runs in that routine's window, counted (a second
@@ -92,8 +96,8 @@ any window; no scene runs a window none of its callers asks for.
   `Cutscene_MeetingKyra` `$0777A6` `$27`, now `standard(0x27)`.
 - **`Dialogue4` and `Dialogue5` agree:** 3 and 23 callers, each scene on
   `Ending` and `Cutscene` with the image's entries.
-- **`Dialogue` otherwise agrees:** 146 of its callers have scenes and each
-  scene runs exactly their entries on `Standard`; nine callers have no scene
+- **`Dialogue` otherwise agrees:** 149 of its callers have scenes and each
+  scene runs exactly their entries on `Standard`; six callers have no scene
   (below).
 
 ## Per-scene census
@@ -173,6 +177,7 @@ image read; the census fails on any address missing here.
 | `Event_HuntersGuild` | D1 (`Standard`) | `$071946` `$12`, `$07196A` computed, `$07199C` computed, `$0719E8` computed |
 | `Event_HuntersGuild` | INLINE (inline) | `$071A24` `$0F`, `$071B4E` `$10`, `$071BAC` `$13`, `$071C38` computed, `$071C88` `$12`, `$071CCA` computed, `$071CFA` `$11` |
 | `Event_RuneHealingChaz` | D1 (`Standard`) | `$071E58` `$2B` |
+| `Event_PickingFifthCharacter` | D1 (`Standard`) | `$071F34` computed, `$071F44` computed, `$071F86` computed |
 | `Event_Phonon` | D1 (`Standard`) | `$072320` `$4E`, `$072406` `$4F` |
 | `Event_Hijammer` | D1 (`Standard`) | `$072446` `$0A` |
 | `Event_Burstroc` | D1 (`Standard`) | `$0724C2` `$08` |
@@ -326,7 +331,7 @@ All four now have scenes (rows 11 to 14).
 
 ## Callers with no scene
 
-Nine `Event_GetAndRunDialogue` callers sit in four events no scene
+Six `Event_GetAndRunDialogue` callers sit in three events no scene
 transcribes yet, all listed in `UNTRANSCRIBED` (`tests/test_dialogue_callers.py`). The
 spans run from the `EventPtrs` routine to the next routine's start; a lane that
 transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
@@ -336,7 +341,6 @@ transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
 |---|---|---|---|
 | `Event_FaintingPriest` `$24` | `$06D616..$06D6C7` | `$06D62E` `$45` (`7045`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 | `Event_ZioFanatic` `$31` | `$06EE40..$06EEBD` | `$06EE58` `$49` (`7049`); `$06EEB8` `jmp`, `$1F` (`701F`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
-| `Event_PickingFifthCharacter` `$68` | `$071E66..$0721CB` | `$071F34`, `$071F44`, `$071F86`: computed (`move.b 5(a0), d0`, plus 0, 2, 3) | [#284](https://github.com/TusanHomichi/PSIV/issues/284) |
 | `Event_DyingBoy` `$86` | `$072D94..$072FB3` | `$072DDE` `$33` (`7033`); `$072FA6` `jmp`, `$3B` (`703B`); `$072FAE` `jmp`, `$3E` (`703E`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 
 ## The party move in `Event_CarnivorousTrees` and `Event_SavingKyra`
@@ -395,8 +399,8 @@ no ordinary-native-input, persistence or connected-route evidence.
   `every_dialogue_entry_caller_runs_its_window` holds the registry to
   `DIALOGUE_CALLERS`, with controls for a scene back on resume, a wrong
   variant, a wrong entry, a duplicated op, a dropped row, a caller claimed by
-  two scenes, a row for an unregistered scene, a computed caller with no window
-  and an inline entry excusing another; and
+  two scenes, a row for an unregistered scene, a computed caller with no window,
+  a table-driven line dropped, and an inline entry excusing another; and
   `no_scene_resumes_before_it_opens_a_dialogue`.
   `cargo test --manifest-path rust/Cargo.toml -p psiv-core --lib scenes::dialogue_callers::`.
 

@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use super::SCENES;
-use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, SceneOp};
 use crate::scene_runner::Scene;
 
 /// `Event_GetAndRunDialogue`: panels, both windows and the map chunks go.
@@ -135,6 +135,9 @@ const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Event_HuntersGuild", INLINE, 0x071CCA, DYN),
     ("Event_HuntersGuild", INLINE, 0x071CFA, 0x11),
     ("Event_RuneHealingChaz", D1, 0x071E58, 0x2B),
+    ("Event_PickingFifthCharacter", D1, 0x071F34, DYN),
+    ("Event_PickingFifthCharacter", D1, 0x071F44, DYN),
+    ("Event_PickingFifthCharacter", D1, 0x071F86, DYN),
     ("Event_Phonon", D1, 0x072320, 0x4E),
     ("Event_Phonon", D1, 0x072406, 0x4F),
     ("Event_Hijammer", D1, 0x072446, 0x0A),
@@ -283,8 +286,10 @@ fn routine_name(routine: u32) -> &'static str {
     }
 }
 
-/// Each `RunDialogue` of a scene: its window and its literal entry, `DYN`
-/// when the entry is read off an object.
+/// Each dialogue a scene opens: its window and its literal entry, `DYN` when
+/// the entry is read off an object or out of a table. The table-driven ops
+/// open `Event_GetAndRunDialogue`'s window (`Standard`) on the line they
+/// compute: the guild's row line, the fifth-character row's `$5(a0)` lines.
 fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
     scene
         .ops
@@ -297,6 +302,10 @@ fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
                     DialogueSource::NpcDialogueId(_) => DYN,
                 },
             )),
+            SceneOp::Guild(GuildOp::RunLine { .. })
+            | SceneOp::FifthCharacter(FifthOp::RunLine { .. } | FifthOp::RunLeaverLine) => {
+                Some((DialogueWindow::Standard, DYN))
+            }
             _ => None,
         })
         .collect()
@@ -620,6 +629,27 @@ fn control_an_inline_entry_does_not_excuse_another_entry() {
         vec![
             "Cutscene_CrashLaanding: runs entry 0x4 in DialogueWindow::Cutscene, which no \
              caller in its bytes asks for"
+        ]
+    );
+}
+
+#[test]
+fn control_a_table_driven_line_is_a_window_the_census_counts() {
+    // `Event_PickingFifthCharacter` opens its three `Event_GetAndRunDialogue`
+    // lines through `FifthOp`; without them the scene runs no `Standard`
+    // window for its computed callers (`$071F34`, `$071F44`, `$071F86`).
+    let scenes = edited("Event_PickingFifthCharacter", |op| match op {
+        SceneOp::FifthCharacter(FifthOp::RunLine { .. } | FifthOp::RunLeaverLine) => {
+            SceneOp::Wait { ticks: 1 }
+        }
+        other => *other,
+    });
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    assert_eq!(
+        problems,
+        vec![
+            "Event_PickingFifthCharacter: its bytes call the Standard routine with a computed \
+             entry, the scene runs no Standard dialogue"
         ]
     );
 }
