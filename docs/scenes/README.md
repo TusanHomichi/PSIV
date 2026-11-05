@@ -193,6 +193,8 @@ jobs.
 | `Event_LostGirlsMother` | `$7F` | [200](200_LostGirlsMother.md) | `$072C08..$072C2D` |
 | `Event_KingRappyDefeated` | `$89` | [201](201_KingRappyDefeated.md) | `$073018..$0730FB` |
 | `Event_MeeseClinicSickWoman` | `$93` | [202](202_MeeseClinicSickWoman.md) | `$0733CC..$07341F` |
+| `Event_Phonon` | `$6C` | [204](204_Phonon.md) | `$0722F6..$072427` |
+| `Event_PlateSysEngine` | `$2D` | [205](205_PlateSysEngine.md) | `$06E75A..$06E907` |
 | `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
 | `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
 | `Event_GettingOffVehicle` | `$10` | [207](207_GettingOffVehicle.md) | `$06BEF8..$06C023` |

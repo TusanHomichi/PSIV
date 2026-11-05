@@ -147,6 +147,7 @@ pub use scene::{
 };
 pub use scene_presentation::{
     CameraSubject, CreditsPlane, PaletteHold, PresentationAsset, PresentationOp,
+    palette_cycle_writes,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scene_types::{GetOffOp, GuildOp, ItemOp, JobBoardStep, ObjectOp, RockyOp, SystemLine};
