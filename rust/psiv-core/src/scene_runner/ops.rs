@@ -948,6 +948,7 @@ impl SceneRunner {
             SceneOp::ToggleFlag { .. }
             | SceneOp::BranchIfPartyMember { .. }
             | SceneOp::FaceParty { .. }
+            | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
             | SceneOp::Ride(_)
             | SceneOp::Item(_) => return self.step_mechanic_op(op, state, effects),

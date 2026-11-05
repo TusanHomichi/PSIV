@@ -11,7 +11,7 @@
 use super::{Blocked, SceneRunner};
 use crate::field::StepFrames;
 use crate::geom::{CELL_PIXELS, Direction};
-use crate::scene::{ActorRef, ItemOp, RideOp, SceneEffect, SceneFault, SceneOp};
+use crate::scene::{ActorRef, ItemOp, ObjectOp, RideOp, SceneEffect, SceneFault, SceneOp};
 use crate::state::{GameState, PARTY_SLOTS};
 use crate::trigger::PixelPos;
 
@@ -108,6 +108,37 @@ impl SceneRunner {
                     return Some(SceneFault::BadJump { target });
                 }
                 self.pc = target;
+            }
+            SceneOp::Object(ObjectOp::Spawn {
+                slot,
+                routine,
+                x,
+                y,
+                solid,
+                ..
+            }) => {
+                let actor = ActorRef::Npc(slot);
+                let cell = super::pixel_cell(x, y);
+                match self.actor_mut(actor) {
+                    Some(object) => {
+                        object.cell = cell;
+                        object.target = None;
+                        object.step = None;
+                        object.facing = Direction::Down;
+                    }
+                    None => {
+                        self.actors
+                            .push(crate::ScriptedActor::new(actor, cell, Direction::Down))
+                    }
+                }
+                effects.push(SceneEffect::ObjectSpawned {
+                    slot,
+                    routine,
+                    cell,
+                    solid,
+                });
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
             }
             SceneOp::FaceParty { facing } => {
                 for slot in 0..PARTY_SLOTS {

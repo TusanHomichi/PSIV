@@ -193,7 +193,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0093, "Event_MeeseClinicSickWoman", Disposition::Scene),
     (0x0094, "Event_StrippersAppearing", Disposition::Scene),
     (0x0095, "Event_ExitingStripClub", Disposition::Scene),
-    (0x0096, "Event_PenguinFeedStolen", Disposition::Allowlisted(56)),
+    (0x0096, "Event_PenguinFeedStolen", Disposition::Scene),
     (0x0097, "Event_Pennant", Disposition::Scene),
     (0x0098, "Event_WoodCarving", Disposition::Scene),
     (0x0099, "Event_EnterAngerTower", Disposition::Scene),

@@ -18,7 +18,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, RideOp, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
+    OP_BUDGET_PER_TICK, ObjectOp, RideOp, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
     WreckageOp,
 };
 
@@ -506,10 +506,8 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
-        /// Whether the scene spins until the walk completes. The retail
-        /// primitives drive the object until `curr == dest`, so this is `true`
-        /// for every transcribed use; `false` exists for staging moves that
-        /// the following ops are expected to overlap.
+        /// Whether the scene spins until the walk ends (`curr == dest`, as every
+        /// retail primitive does); `false` stages a move later ops overlap.
         wait: bool,
     },
     /// Walk `actor` to the current cell of `target`. Retail uses this shape
@@ -970,6 +968,8 @@ pub enum SceneOp {
     Rocky(RockyOp),
     /// `Event_WreckageEngine`'s needs (`scenes/wreckage.rs`).
     Wreckage(WreckageOp),
+    /// A write to a field-object slot the map's record left empty.
+    Object(ObjectOp),
     /// Unconditional jump.
     Jump {
         /// Op index.
