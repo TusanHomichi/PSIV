@@ -10,9 +10,9 @@
 //! its types. Everything else (the reads, the chain, `first_control`) has no
 //! typed home yet and is laid over it.
 
-use std::collections::BTreeSet;
 use std::path::Path;
 
+use chain::{event_routine_bounds, read_first_control};
 use psiv_data::{
     FlagList, GameStartFile, GameStartMap, HandoffEvent, NewGameFlags, NewGameInit,
     NewGameSettings, PartySlot, TitleHandoff,
@@ -28,77 +28,77 @@ use crate::png::hex;
 use crate::sound_defs::MUSIC_NAMES;
 use crate::{PackError, Rom};
 
-const GAME_MODE_ROUTINE: u16 = 0xEC20;
-const FIELD_MAP_INDEX: u16 = 0xEC28;
-const FIELD_MAP_INDEX_2: u16 = 0xEC2A;
-const MAP_START_FACING_DIR: u16 = 0xEC44;
-const MAP_START_CHAR_ALIGN: u16 = 0xEC46;
-const MAP_START_X_POS: u16 = 0xEC48;
-const MAP_START_Y_POS: u16 = 0xEC4A;
-const EVENT_INDEX: u16 = 0xECA8;
-const SAVED_SOUND_INDEX: u16 = 0xECEC;
-const EVENT_FLAGS: u16 = 0xF100;
-const EXTENDED_EVENT_FLAGS: u16 = 0xF120;
-const CHEST_FLAGS: u16 = 0xF140;
-const TOWN_FLAGS: u16 = 0xF160;
-const WORLD_INDEX: u16 = 0xF400;
-const CURRENT_PARTY_SLOTS: u16 = 0xF40A;
-const CURRENT_PARTY_SLOT_5: u16 = 0xF40E;
-const INVENTORY: u16 = 0xF410;
-const CURRENT_MONEY: u16 = 0xF438;
-const MESSAGE_SPEED: u16 = 0xF440;
-const BATTLE_SPEED: u16 = 0xF442;
-const MACRO_DATA: u16 = 0xF444;
-const CHARACTER_STATS: u16 = 0xF500;
-const PARTY_SLOTS: usize = 6;
-const EMPTY_SLOT: u8 = 0xFF;
-const CHARACTER_SYMBOLS: [&str; 11] = [
+pub(super) const GAME_MODE_ROUTINE: u16 = 0xEC20;
+pub(super) const FIELD_MAP_INDEX: u16 = 0xEC28;
+pub(super) const FIELD_MAP_INDEX_2: u16 = 0xEC2A;
+pub(super) const MAP_START_FACING_DIR: u16 = 0xEC44;
+pub(super) const MAP_START_CHAR_ALIGN: u16 = 0xEC46;
+pub(super) const MAP_START_X_POS: u16 = 0xEC48;
+pub(super) const MAP_START_Y_POS: u16 = 0xEC4A;
+pub(super) const EVENT_INDEX: u16 = 0xECA8;
+pub(super) const SAVED_SOUND_INDEX: u16 = 0xECEC;
+pub(super) const EVENT_FLAGS: u16 = 0xF100;
+pub(super) const EXTENDED_EVENT_FLAGS: u16 = 0xF120;
+pub(super) const CHEST_FLAGS: u16 = 0xF140;
+pub(super) const TOWN_FLAGS: u16 = 0xF160;
+pub(super) const WORLD_INDEX: u16 = 0xF400;
+pub(super) const CURRENT_PARTY_SLOTS: u16 = 0xF40A;
+pub(super) const CURRENT_PARTY_SLOT_5: u16 = 0xF40E;
+pub(super) const INVENTORY: u16 = 0xF410;
+pub(super) const CURRENT_MONEY: u16 = 0xF438;
+pub(super) const MESSAGE_SPEED: u16 = 0xF440;
+pub(super) const BATTLE_SPEED: u16 = 0xF442;
+pub(super) const MACRO_DATA: u16 = 0xF444;
+pub(super) const CHARACTER_STATS: u16 = 0xF500;
+pub(super) const PARTY_SLOTS: usize = 6;
+pub(super) const EMPTY_SLOT: u8 = 0xFF;
+pub(super) const CHARACTER_SYMBOLS: [&str; 11] = [
     "Chaz", "Alys", "Hahn", "Rune", "Gryz", "Rika", "Demi", "Wren", "Raja", "Kyra", "Seth",
 ];
-const START_POS_PIXELS: u64 = 8;
-const COLLISION_CELL_PIXELS: u64 = 16;
-const STANDING_CELL_Y_OFFSET: u64 = 1;
-const TITLE_SET_MAP: usize = 0x04335C;
-const NEW_GAME_INIT: usize = 0x044414;
-const INIT_CHAR_STATS: usize = 0x044652;
-const TITLE_START_OPTION_HANDOFF: usize = 0x043788;
-const EVENT_DISPATCH: usize = 0x05A27A;
-const EVENT_PTRS: usize = 0x05A2B4;
-const EVENT_FLAGS_SET: usize = 0x057666;
-const EVENT_FLAGS_TEST: u32 = 0x057624;
+pub(super) const START_POS_PIXELS: u64 = 8;
+pub(super) const COLLISION_CELL_PIXELS: u64 = 16;
+pub(super) const STANDING_CELL_Y_OFFSET: u64 = 1;
+pub(super) const TITLE_SET_MAP: usize = 0x04335C;
+pub(super) const NEW_GAME_INIT: usize = 0x044414;
+pub(super) const INIT_CHAR_STATS: usize = 0x044652;
+pub(super) const TITLE_START_OPTION_HANDOFF: usize = 0x043788;
+pub(super) const EVENT_DISPATCH: usize = 0x05A27A;
+pub(super) const EVENT_PTRS: usize = 0x05A2B4;
+pub(super) const EVENT_FLAGS_SET: usize = 0x057666;
+pub(super) const EVENT_FLAGS_TEST: u32 = 0x057624;
 /// The four banks, by the RAM their setter's `lea` names.
-const FLAG_BANKS: [(u16, &str); 4] = [
+pub(super) const FLAG_BANKS: [(u16, &str); 4] = [
     (EVENT_FLAGS, "event_flags"),
     (EXTENDED_EVENT_FLAGS, "extended_event_flags"),
     (CHEST_FLAGS, "chest_flags"),
     (TOWN_FLAGS, "town_flags"),
 ];
-const FLAG_SETTER_STRIDE: usize = 0x0A;
-const GAME_START_EVENT_INDEX: u16 = 0x9F;
+pub(super) const FLAG_SETTER_STRIDE: usize = 0x0A;
+pub(super) const GAME_START_EVENT_INDEX: u16 = 0x9F;
 /// The `lea (d16,PC),a2` inside `RunEvents` that names `RunEventsJmpTbl`.
-const RUN_EVENTS_JMP_TBL_SITE: usize = 0x0560CA;
-const CHARACTER_1: u16 = 0xC000;
-const FLAG_BANK_BYTES: usize = 0x20;
+pub(super) const RUN_EVENTS_JMP_TBL_SITE: usize = 0x0560CA;
+pub(super) const CHARACTER_1: u16 = 0xC000;
+pub(super) const FLAG_BANK_BYTES: usize = 0x20;
 /// `PACK_FORMAT_VERSION`.
-const FORMAT_VERSION: u32 = 2;
+pub(super) const FORMAT_VERSION: u32 = 2;
 
-fn refuse<T>(message: String) -> Result<T, PackError> {
+pub(super) fn refuse<T>(message: String) -> Result<T, PackError> {
     Err(PackError(message))
 }
 
-fn word(rom: &[u8], at: usize) -> u16 {
+pub(super) fn word(rom: &[u8], at: usize) -> u16 {
     rom.get(at..at + 2)
         .map_or(0, |b| u16::from_be_bytes([b[0], b[1]]))
 }
 
-fn long(rom: &[u8], at: usize) -> u32 {
+pub(super) fn long(rom: &[u8], at: usize) -> u32 {
     rom.get(at..at + 4)
         .map_or(0, |b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
 /// The flag symbols the chain needs: the shared table, and the two the
 /// pre-control chain sets.
-fn flag_symbol(flag: u16) -> Option<&'static str> {
+pub(super) fn flag_symbol(flag: u16) -> Option<&'static str> {
     match flag {
         0x07 => Some("EventFlag_PiataFirstTime"),
         0x15 => Some("EventFlag_PiataChazControl"),
@@ -107,30 +107,30 @@ fn flag_symbol(flag: u16) -> Option<&'static str> {
 }
 
 /// A byte pattern: literals and captured runs of any byte.
-enum Part {
+pub(super) enum Part {
     Lit(Vec<u8>),
     Any(usize),
 }
 
-fn lit(bytes: &[u8]) -> Part {
+pub(super) fn lit(bytes: &[u8]) -> Part {
     Part::Lit(bytes.to_vec())
 }
 
-fn ram(address: u16) -> Part {
+pub(super) fn ram(address: u16) -> Part {
     Part::Lit(address.to_be_bytes().to_vec())
 }
 
 /// One instruction sequence found in the image, and what it held.
 #[derive(Clone, Debug)]
-struct Read {
-    label: String,
-    rom_offset: usize,
-    raw_hex: String,
-    values: Vec<u64>,
+pub(super) struct Read {
+    pub(super) label: String,
+    pub(super) rom_offset: usize,
+    pub(super) raw_hex: String,
+    pub(super) values: Vec<u64>,
 }
 
 impl Read {
-    fn value(&self) -> Result<u64, PackError> {
+    pub(super) fn value(&self) -> Result<u64, PackError> {
         match self.values[..] {
             [value] => Ok(value),
             _ => refuse(format!(
@@ -141,7 +141,7 @@ impl Read {
         }
     }
 
-    fn to_json(&self) -> Json {
+    pub(super) fn to_json(&self) -> Json {
         Json::object()
             .with("label", self.label.as_str())
             .with("rom_offset", format!("0x{:06X}", self.rom_offset))
@@ -151,7 +151,7 @@ impl Read {
 
 /// `_read`: the pattern must match exactly `expect` times in the window, as
 /// `re.finditer` scans (left to right, a match resuming after itself).
-fn read_pattern(
+pub(super) fn read_pattern(
     rom: &[u8],
     parts: &[Part],
     label: &str,
@@ -218,7 +218,7 @@ fn read_pattern(
     })
 }
 
-fn move_w(
+pub(super) fn move_w(
     rom: &[u8],
     address: u16,
     label: &str,
@@ -234,7 +234,7 @@ fn move_w(
     )
 }
 
-fn move_b(
+pub(super) fn move_b(
     rom: &[u8],
     address: u16,
     label: &str,
@@ -269,7 +269,7 @@ fn move_l(
 }
 
 /// `_flag_ids`: flag `n` is byte `n >> 3`, bit `7 - (n & 7)`.
-fn flag_ids(data: &[u8], base: u16) -> Vec<u16> {
+pub(super) fn flag_ids(data: &[u8], base: u16) -> Vec<u16> {
     data.iter()
         .enumerate()
         .flat_map(|(index, byte)| {
@@ -340,7 +340,7 @@ fn event_ptrs(rom: &[u8]) -> Result<usize, PackError> {
 }
 
 /// `event_routines`: entries up to the first that isn't a ROM address.
-fn event_routines(rom: &[u8]) -> Result<Vec<usize>, PackError> {
+pub(super) fn event_routines(rom: &[u8]) -> Result<Vec<usize>, PackError> {
     let base = event_ptrs(rom)?;
     let mut routines = Vec::new();
     loop {
@@ -363,7 +363,7 @@ fn event_routines(rom: &[u8]) -> Result<Vec<usize>, PackError> {
     Ok(routines)
 }
 
-fn event_routine(rom: &[u8], index: u16) -> Result<usize, PackError> {
+pub(super) fn event_routine(rom: &[u8], index: u16) -> Result<usize, PackError> {
     let routines = event_routines(rom)?;
     routines.get(usize::from(index)).copied().ok_or_else(|| {
         PackError(format!(
@@ -693,209 +693,8 @@ fn read_new_game_init(rom: &[u8]) -> Result<(NewGameInit, Json, Vec<u16>, Vec<u1
     Ok((typed, json, extended_set, town_set))
 }
 
-fn run_events_jmp_tbl(rom: &[u8]) -> Result<usize, PackError> {
-    let site = RUN_EVENTS_JMP_TBL_SITE;
-    if rom.get(site..site + 2) != Some(&[0x45, 0xFA]) {
-        return refuse(format!(
-            "0x{site:06X} is not the `lea (d16,PC),a2` that names RunEventsJmpTbl"
-        ));
-    }
-    Ok((site as i64 + 2 + i64::from(word(rom, site + 2) as i16)) as usize)
-}
-
-/// One `RunEventsJmpTbl` entry: what gates it and what it plays.
-struct Trigger {
-    index: u16,
-    rom_offset: usize,
-    event: Option<u16>,
-    gates: Vec<(u16, bool)>,
-    position_gated: bool,
-}
-
-impl Trigger {
-    /// A position-gated trigger never fires before control: the party hasn't
-    /// moved.
-    fn fires(&self, flags: &BTreeSet<u16>) -> bool {
-        self.event.is_some()
-            && !self.position_gated
-            && self
-                .gates
-                .iter()
-                .all(|(flag, wanted)| flags.contains(flag) == *wanted)
-    }
-
-    fn to_json(&self) -> Json {
-        Json::object()
-            .with("index", self.index)
-            .with("routine", format!("0x{:06X}", self.rom_offset))
-            .with("event", self.event.map(|e| format!("0x{e:02X}")))
-            .with(
-                "gates",
-                self.gates
-                    .iter()
-                    .map(|(flag, wanted)| {
-                        Json::object()
-                            .with("flag", *flag)
-                            .with("flag_hex", format!("0x{flag:02X}"))
-                            .with("required", if *wanted { "set" } else { "clear" })
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .with("position_gated", self.position_gated)
-    }
-}
-
-/// `_preceding_d0`: the flag id loaded into d0 just before a call.
-fn preceding_d0(rom: &[u8], call: usize) -> Result<u16, PackError> {
-    if rom[call - 2] == 0x70 {
-        return Ok(u16::from(rom[call - 1]));
-    }
-    if rom[call - 4..call - 2] == [0x30, 0x3C] {
-        return Ok(word(rom, call - 2));
-    }
-    refuse(format!(
-        "the call at 0x{call:06X} is not preceded by a `moveq`/`move.w` into d0"
-    ))
-}
-
-fn read_trigger(rom: &[u8], index: u16) -> Result<Trigger, PackError> {
-    let entry = run_events_jmp_tbl(rom)? + usize::from(index) * 4;
-    if word(rom, entry) != 0x6000 {
-        return refuse(format!(
-            "RunEventsJmpTbl entry {index} at 0x{entry:06X} is not a `bra.w`"
-        ));
-    }
-    let start = (entry as i64 + 2 + i64::from(word(rom, entry + 2) as i16)) as usize;
-    let (mut event, mut gates, mut position_gated) = (None, Vec::new(), false);
-    let mut pos = start;
-    loop {
-        if pos >= start + 0x100 {
-            return refuse(format!(
-                "trigger {index} at 0x{start:06X} has no `rts` within 256 bytes"
-            ));
-        }
-        let op = word(rom, pos);
-        if op == 0x4E75 {
-            break;
-        }
-        if op & 0xF1FF == 0x41F8 && word(rom, pos + 2) == CHARACTER_1 {
-            position_gated = true;
-        }
-        if op == 0x31FC && word(rom, pos + 4) == EVENT_INDEX {
-            event = Some(word(rom, pos + 2));
-        }
-        if op == 0x4EB9 && long(rom, pos + 2) == EVENT_FLAGS_TEST {
-            let flag = preceding_d0(rom, pos)?;
-            match rom[pos + 6] {
-                0x66 => gates.push((flag, false)),
-                0x67 => gates.push((flag, true)),
-                branch => {
-                    return refuse(format!(
-                        "trigger {index}: the flag test at 0x{pos:06X} is followed by 0x{branch:02X}, \
-                         neither `beq` nor `bne`"
-                    ));
-                }
-            }
-        }
-        pos += 2;
-    }
-    Ok(Trigger {
-        index,
-        rom_offset: start,
-        event,
-        gates,
-        position_gated,
-    })
-}
-
-/// `flag_setters`: one routine with four doors, each picking a bank by `lea`.
-fn flag_setters(rom: &[u8]) -> Result<Vec<(usize, &'static str)>, PackError> {
-    let mut setters = Vec::with_capacity(FLAG_BANKS.len());
-    for index in 0..FLAG_BANKS.len() {
-        let address = EVENT_FLAGS_SET + index * FLAG_SETTER_STRIDE;
-        if rom.get(address..address + 4) != Some(&[0x48, 0xE7, 0xE0, 0x80]) {
-            return refuse(format!(
-                "0x{address:06X} is not a flag setter's `movem.l d0-d2/a0,-(sp)`"
-            ));
-        }
-        if rom.get(address + 4..address + 6) != Some(&[0x41, 0xF8]) {
-            return refuse(format!("0x{address:06X} does not pick a bank with `lea`"));
-        }
-        let bank = word(rom, address + 6);
-        let Some((_, name)) = FLAG_BANKS.iter().find(|(at, _)| *at == bank) else {
-            return refuse(format!(
-                "the setter at 0x{address:06X} writes 0xFFFF{bank:04X}, which is not one of the four \
-                 flag banks"
-            ));
-        };
-        setters.push((address, *name));
-    }
-    let names: BTreeSet<&str> = setters.iter().map(|(_, n)| *n).collect();
-    if names.len() != FLAG_BANKS.len() {
-        return refuse("the four setters do not cover the four banks".into());
-    }
-    Ok(setters)
-}
-
-/// `scene_flags`: every flag a scene sets, in any bank, in address order.
-fn scene_flags(
-    rom: &[u8],
-    start: usize,
-    end: usize,
-) -> Result<Vec<(&'static str, Read)>, PackError> {
-    let mut found = Vec::new();
-    for (address, bank) in flag_setters(rom)? {
-        for call in [0x4EB9u16, 0x4EF9] {
-            let mut pattern = call.to_be_bytes().to_vec();
-            pattern.extend_from_slice(&(address as u32).to_be_bytes());
-            let mut offset = start;
-            while offset + pattern.len() <= end {
-                let Some(at) = rom[offset..end].windows(6).position(|w| w == pattern) else {
-                    break;
-                };
-                let at = offset + at;
-                found.push((
-                    bank,
-                    Read {
-                        label: format!("{bank} set at 0x{at:06X}"),
-                        rom_offset: at,
-                        raw_hex: hex(&rom[at - 4..at + 6]),
-                        values: vec![u64::from(preceding_d0(rom, at)?)],
-                    },
-                ));
-                offset = at + 2;
-            }
-        }
-    }
-    found.sort_by_key(|(_, read)| read.rom_offset);
-    Ok(found)
-}
-
-/// `event_routine_bounds`: the next routine by address, or the last one's
-/// tail jump to `EventFlags_Set`.
-fn event_routine_bounds(rom: &[u8], index: u16) -> Result<(usize, usize), PackError> {
-    let start = event_routine(rom, index)?;
-    if let Some(next) = event_routines(rom)?
-        .into_iter()
-        .filter(|&a| a > start)
-        .min()
-    {
-        return Ok((start, next));
-    }
-    let mut tail = vec![0x4E, 0xF9];
-    tail.extend_from_slice(&(EVENT_FLAGS_SET as u32).to_be_bytes());
-    let span = &rom[start..(start + 0x100).min(rom.len())];
-    match span.windows(6).position(|w| w == tail) {
-        Some(at) => Ok((start, start + at + 6)),
-        None => refuse(format!(
-            "event 0x{index:02X} at 0x{start:06X} is the last routine and does not end in a tail \
-             jump to EventFlags_Set, so its extent is unknown"
-        )),
-    }
-}
-
 /// `_game_start_epilogue`: where the opening scene puts the player.
-fn game_start_epilogue(
+pub(super) fn game_start_epilogue(
     rom: &[u8],
     routine: usize,
     end: usize,
@@ -1009,164 +808,6 @@ fn game_start_epilogue(
     Ok((json, reads, map))
 }
 
-/// `_pack_flags`: the inverse of [`flag_ids`].
-fn pack_flags(flags: &BTreeSet<u16>, base: u16) -> Result<Vec<u8>, PackError> {
-    let mut packed = vec![0u8; FLAG_BANK_BYTES];
-    for &flag in flags {
-        let index = usize::from(flag.wrapping_sub(base) >> 3);
-        if flag < base || index >= FLAG_BANK_BYTES {
-            return refuse(format!(
-                "flag 0x{flag:03X} is outside the {FLAG_BANK_BYTES}-byte bank that starts at 0x{base:03X}"
-            ));
-        }
-        packed[index] |= 1 << (7 - ((flag - base) & 7));
-    }
-    Ok(packed)
-}
-
-/// `read_first_control`: walk the start map's triggers until none fires.
-fn read_first_control(
-    rom: &[u8],
-    record: &MapRecord,
-    extended: &[u16],
-    town: &[u16],
-) -> Result<Json, PackError> {
-    let mut scenes: Vec<Json> = Vec::new();
-    let mut played: Vec<u16> = Vec::new();
-    let mut reads: Vec<Read> = Vec::new();
-    let mut banks: [(&str, BTreeSet<u16>); 4] = [
-        ("event_flags", BTreeSet::new()),
-        ("extended_event_flags", extended.iter().copied().collect()),
-        ("chest_flags", BTreeSet::new()),
-        ("town_flags", town.iter().copied().collect()),
-    ];
-    let mut epilogue: Option<Json> = None;
-    let mut index = Some(GAME_START_EVENT_INDEX);
-    while let Some(current) = index {
-        let (start, end) = event_routine_bounds(rom, current)?;
-        let sets = scene_flags(rom, start, end)?;
-        reads.extend(sets.iter().map(|(_, read)| read.clone()));
-        if current == GAME_START_EVENT_INDEX {
-            let (json, epilogue_reads, _) = game_start_epilogue(rom, start, end)?;
-            epilogue = Some(json);
-            reads.extend(epilogue_reads);
-        }
-        let mut sets_json = Vec::with_capacity(sets.len());
-        for (bank, read) in &sets {
-            let flag = read.value()? as u16;
-            sets_json.push(
-                Json::object()
-                    .with("bank", *bank)
-                    .with("flag", flag)
-                    .with("flag_hex", format!("0x{flag:02X}"))
-                    .with(
-                        "symbol",
-                        if *bank == "event_flags" {
-                            flag_symbol(flag)
-                        } else {
-                            None
-                        },
-                    )
-                    .with("at", format!("0x{:06X}", read.rom_offset)),
-            );
-            if let Some((_, set)) = banks.iter_mut().find(|(name, _)| name == bank) {
-                set.insert(flag);
-            }
-        }
-        scenes.push(
-            Json::object()
-                .with("event", current)
-                .with("event_hex", format!("0x{current:02X}"))
-                .with("routine", format!("0x{start:06X}"))
-                .with("rom_end", format!("0x{end:06X}"))
-                .with("sets", sets_json),
-        );
-        played.push(current);
-        // `_next_scene`: the start map's trigger list.
-        let triggers = record
-            .events
-            .ids
-            .iter()
-            .map(|&id| read_trigger(rom, id))
-            .collect::<Result<Vec<_>, _>>()?;
-        if let Some(last) = scenes.last_mut() {
-            last.insert(
-                "triggers_after",
-                triggers.iter().map(Trigger::to_json).collect::<Vec<_>>(),
-            );
-        }
-        index = None;
-        for trigger in &triggers {
-            if trigger.fires(&banks[0].1) {
-                let event = trigger.event.unwrap_or(0);
-                if played.contains(&event) {
-                    return refuse(format!(
-                        "trigger {} would replay event 0x{event:02X}; the pre-control chain does not \
-                         terminate",
-                        trigger.index
-                    ));
-                }
-                index = Some(event);
-                break;
-            }
-        }
-    }
-    let Some(mut out) = epilogue else {
-        return refuse("the chain did not start at Event_GameStart".into());
-    };
-    out.insert("scene_chain", scenes);
-    out.insert(
-        "event_flags_set",
-        banks[0]
-            .1
-            .iter()
-            .map(|&flag| {
-                Json::object()
-                    .with("id", flag)
-                    .with("id_hex", format!("0x{flag:02X}"))
-                    .with("symbol", flag_symbol(flag))
-            })
-            .collect::<Vec<_>>(),
-    );
-    out.insert(
-        "extended_event_flags_set",
-        banks[1].1.iter().copied().collect::<Vec<_>>(),
-    );
-    out.insert(
-        "town_flags_set",
-        banks[3].1.iter().copied().collect::<Vec<_>>(),
-    );
-    out.insert(
-        "chest_flags_set",
-        banks[2].1.iter().copied().collect::<Vec<_>>(),
-    );
-    let mut flag_banks = Json::object();
-    for ((address, _), (name, set)) in FLAG_BANKS.iter().zip(&banks) {
-        let base = if *name == "extended_event_flags" {
-            0x100
-        } else {
-            0
-        };
-        let packed = pack_flags(set, base)?;
-        flag_banks.insert(
-            *name,
-            Json::object()
-                .with("address", format!("0xFFFF{address:04X}"))
-                .with("first_id", base)
-                .with("bytes", FLAG_BANK_BYTES)
-                .with("raw_hex", hex(&packed))
-                .with("first_long", format!("0x{:08X}", long(&packed, 0)))
-                .with(
-                    "set",
-                    set.iter().map(|f| format!("0x{f:03X}")).collect::<Vec<_>>(),
-                ),
-        );
-    }
-    out.insert("flag_banks", flag_banks);
-    out.insert("reads", reads.iter().map(Read::to_json).collect::<Vec<_>>());
-    Ok(out)
-}
-
 /// `extract_new_game`: the typed record and the whole document beside it.
 pub fn extract_new_game<'a>(
     rom: &[u8],
@@ -1215,75 +856,6 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     crate::write_json(root, "game_start.json", &file).map(drop)
 }
 
+mod chain;
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn flags_pack_most_significant_bit_first_and_round_trip() {
-        let set: BTreeSet<u16> = [0x100, 0x107, 0x108, 0x11F].into();
-        let packed = pack_flags(&set, 0x100).unwrap();
-        assert_eq!(&packed[..4], &[0x81, 0x80, 0x00, 0x01]);
-        assert_eq!(
-            flag_ids(&packed, 0x100),
-            set.into_iter().collect::<Vec<_>>()
-        );
-        assert!(pack_flags(&[0x20].into(), 0x100).is_err());
-        assert!(pack_flags(&[0x100].into(), 0).is_err());
-    }
-
-    #[test]
-    fn a_pattern_must_match_the_expected_number_of_times() {
-        let rom = [
-            0x31, 0xFC, 0x12, 0x34, 0xEC, 0x28, 0x31, 0xFC, 0x56, 0x78, 0xEC, 0x28,
-        ];
-        let read = |expect, pick| {
-            read_pattern(
-                &rom,
-                &[lit(&[0x31, 0xFC]), Part::Any(2), ram(0xEC28)],
-                "x",
-                None,
-                expect,
-                pick,
-            )
-        };
-        assert_eq!(read(2, 1).unwrap().value().unwrap(), 0x5678);
-        assert_eq!(read(2, 0).unwrap().rom_offset, 0);
-        assert!(
-            read(1, 0)
-                .unwrap_err()
-                .0
-                .contains("expected 1 match(es), found 2")
-        );
-        let windowed = move_w(&rom, 0xEC28, "x", Some((6, 12))).unwrap();
-        assert_eq!(
-            (windowed.rom_offset, windowed.value().unwrap()),
-            (6, 0x5678)
-        );
-    }
-
-    #[test]
-    fn a_position_gated_trigger_never_fires_before_control() {
-        let trigger = |position_gated, gates: Vec<(u16, bool)>| Trigger {
-            index: 0,
-            rom_offset: 0,
-            event: Some(1),
-            gates,
-            position_gated,
-        };
-        let flags: BTreeSet<u16> = [7].into();
-        assert!(trigger(false, vec![(7, true), (0x15, false)]).fires(&flags));
-        assert!(!trigger(false, vec![(7, false)]).fires(&flags));
-        assert!(!trigger(true, vec![]).fires(&flags));
-    }
-
-    #[test]
-    fn the_flag_id_comes_from_a_moveq_or_a_move_w() {
-        assert_eq!(preceding_d0(&[0x70, 0x15, 0, 0], 2).unwrap(), 0x15);
-        assert_eq!(
-            preceding_d0(&[0x30, 0x3C, 0x01, 0x07, 0, 0], 4).unwrap(),
-            0x107
-        );
-        assert!(preceding_d0(&[0, 0, 0, 0, 0], 4).is_err());
-    }
-}
+mod tests;
