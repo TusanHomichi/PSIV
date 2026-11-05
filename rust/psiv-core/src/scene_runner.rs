@@ -29,6 +29,7 @@ pub(crate) mod actor;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
+mod fifth;
 mod guild;
 #[cfg(test)]
 mod map_update_tests;
@@ -65,6 +66,8 @@ enum Blocked {
     Camera,
     /// A `RunObjectRoutine` object still on the map.
     ObjectRoutine(usize),
+    /// `loc_71E74`: until every party object has stopped.
+    PartyAtRest,
     /// A conveyor op waiting for the end of its tick, when the layout scan
     /// turns it into a walk.
     Belt,
@@ -85,6 +88,13 @@ pub struct SceneRunner {
     dialogue_ended: bool,
     /// The row the guild's board last answered; `None` is Cancel.
     job_pick: Option<u8>,
+    /// The row `Event_PickingFifthCharacter` is indexing.
+    fifth_row: usize,
+    /// The pack's tables for `Event_PickingFifthCharacter`
+    /// ([`SceneRunner::set_fifth_table`]).
+    fifth_table: Option<crate::scenes::fifth_character::FifthTable>,
+    /// `loc_72156`'s answer: the party slot and table row of the friend along.
+    fifth_leaver: (usize, usize),
     /// The row `Event_HuntersGuild` is indexing.
     guild_row: usize,
     /// The pack's table, which the runtime hands over ([`SceneRunner::set_guild_jobs`]).
@@ -144,6 +154,9 @@ impl SceneRunner {
             party_slots: [None; PARTY_SLOTS],
             blocked: Blocked::No,
             job_pick: None,
+            fifth_row: 0,
+            fifth_leaver: (0, 0),
+            fifth_table: None,
             guild_row: 0,
             guild_jobs: None,
             dialogue_ended: false,
@@ -237,7 +250,9 @@ impl SceneRunner {
                             | SceneOp::Ride(RideOp::Platform { .. })
                     )
                 }),
-            Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold => true,
+            Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold | Blocked::PartyAtRest => {
+                true
+            }
             _ => false,
         }
     }
@@ -252,6 +267,11 @@ impl SceneRunner {
     /// The stream [`SceneRunner::lend_rng`] lent.
     pub fn take_rng(&mut self) -> Option<crate::battle::Lcg41> {
         self.rng.take()
+    }
+
+    /// Hands over the pack's tables for `Event_PickingFifthCharacter`.
+    pub fn set_fifth_table(&mut self, table: crate::scenes::fifth_character::FifthTable) {
+        self.fifth_table = Some(table);
     }
 
     /// Hands over the pack's table for `Event_HuntersGuild`.
@@ -482,6 +502,7 @@ impl SceneRunner {
                 self.dialogue_ended = input == SceneInput::DialogueEnded;
                 Blocked::No
             }
+            Blocked::PartyAtRest if !self.party_walking() => Blocked::No,
             Blocked::EndingContinue if input == SceneInput::EndingContinue => Blocked::No,
             Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
             Blocked::Map if input == SceneInput::MapLoaded => Blocked::No,

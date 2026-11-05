@@ -4,17 +4,30 @@
  "about": "Every resume of the route from a chapter save finishes, except these halts (tools/resume_check.py; docs/campaign/CAMPAIGN_RUNNER.md#the-runner). Each entry is one halt, where and how it stops (chapter, objective index, objective kind, halt kind, and for a lost battle the battle: event:N or random), the chapters whose resume reaches it, the issue that owns it and the date it was recorded. An unlisted halt fails the check, and so does a listed resume that no longer halts there.",
  "halts": [
   {
+   "chapter": "aero-prism-dark-force-3",
+   "objective": 0,
+   "objective_kind": "go_to_map",
+   "kind": "lost_battle",
+   "battle": "event:18",
+   "resumes": [
+    "dezolis-training"
+   ],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/320",
+   "date": "2026-11-04",
+   "note": "Dark Force 3 (event battle 18) defeats the party: 1 of the resumes that reach it, since the spaceport's objects decode (#83's $68) and the route's RNG moved"
+  },
+  {
    "chapter": "air-castle-xe-athoul",
    "objective": 1,
    "objective_kind": "step_onto",
    "kind": "lost_battle",
    "battle": "event:14",
    "resumes": [
-    "aiedo-chaz-house",
-    "zio-fort-approach"
+    "basement-training",
+    "dezolis-saving-kyra"
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/107",
-   "date": "2026-10-16",
+   "date": "2026-11-04",
    "note": "Xe-A-Thoul (event battle 14) defeats the party: 2 of the resumes that reach him"
   },
   {
@@ -32,20 +45,17 @@
    "note": "bioplant_survival RUNs every round whatever the escape odds; four failed runs in encounters 191 and 183 wipe the party"
   },
   {
-   "chapter": "edge-training",
-   "objective": 1,
-   "objective_kind": "patrol",
+   "chapter": "garuberk-dark-force-2",
+   "objective": 0,
+   "objective_kind": "step_onto",
    "kind": "lost_battle",
-   "battle": "random",
+   "battle": "event:17",
    "resumes": [
-    "meese-supplies",
-    "motavia-machine-center",
-    "soldiers-temple",
-    "zio-fort-barrier"
+    "gumbious-torch-stolen"
    ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
-   "date": "2026-10-20",
-   "note": "a single Edge encounter (formations 475 and 497) defeats the party at levels 46-49 before the refuge can run; since #173's Megid grant the probe of this chapter from rykros-departure's save completes 40 of 40 trials (Wilson 95% lower bound 0.912), so these streams are the ones the training itself loses"
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/320",
+   "date": "2026-11-04",
+   "note": "Dark Force 2 (event battle 17) defeats the party: 1 of the resumes that reach it, since the spaceport's objects decode (#83's $68) and the route's RNG moved"
   },
   {
    "chapter": "profound-darkness",
@@ -54,31 +64,19 @@
    "kind": "lost_battle",
    "battle": "event:26",
    "resumes": [
-    "aiedo-training",
-    "before-elsydeon-cave",
+    "motavia-machine-center",
+    "kuran-arrival",
     "kuran-dark-force-1",
-    "machine-center-control-key",
-    "mota-training",
-    "north-bank",
-    "seth-island",
-    "zelan-wren-canceller"
+    "air-castle-arrival",
+    "jut-outfit",
+    "jut-inn",
+    "dezolis-eclipse-torch",
+    "garuberk-dark-force-2",
+    "edge-training"
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
-   "date": "2026-10-20",
+   "date": "2026-11-04",
    "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the same-save 100-trial probes after #173's Megid grant win 92/100 with Megid and 97/100 without (Wilson 95% lower bounds 0.850 and 0.915), a difference within sampling with the same early-wipe class, so these resume losses are #171's, not a Megid valuation defect (#178 closed as premise-corrected)"
-  },
-  {
-   "chapter": "reunion",
-   "objective": 4,
-   "objective_kind": "go_to_map",
-   "kind": "lost_battle",
-   "battle": "random",
-   "resumes": [
-    "passage-to-zio-fort"
-   ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
-   "date": "2026-10-17",
-   "note": "run_then_win RUNs every round whatever the escape odds: the Ice Digger (960 HP) fails three runs from four PROTECTBITs (formation 129) on Dezolis and is destroyed, the class #138 records for bioplant_survival"
   }
  ]
 }
