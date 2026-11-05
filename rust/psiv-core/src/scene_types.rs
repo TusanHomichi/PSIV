@@ -148,6 +148,37 @@ pub enum GuildOp {
     AddReward,
 }
 
+/// What `Event_CatchingRocky` (`scenes/rocky.rs`) needs that no other scene
+/// has: the dog is caught by holding an item, and runs at his own pace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RockyOp {
+    /// `GetItem` (`ps4.asm:121975`) then `beq`: jump on whether its
+    /// count-limited scan finds `item`, so a cake past a battle's hole is not
+    /// found.
+    BranchIfHolding {
+        /// The item id.
+        item: u8,
+        /// Op index when it is held.
+        if_held: u16,
+        /// Op index when it is not.
+        if_not: u16,
+    },
+    /// The `loc_727EE` loop: `GetItem`, `clr.b (a0)`, `ReorderInventory`,
+    /// until `GetItem` finds no `item`. Each pass scans a window one byte
+    /// shorter, so with holes in the list a later `item` can stay.
+    RemoveAll {
+        /// The item id.
+        item: u8,
+    },
+    /// `FieldObj_Step_Offset` 2 for this object, as `loc_4BC80` writes it
+    /// around its own moves: the movement table's third block, `$0400` a
+    /// frame, four frames a cell.
+    RunFast {
+        /// Who runs.
+        actor: ActorRef,
+    },
+}
+
 /// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).
 /// `Hold`, `ShowList`, `Choose` and `Linger` block the scene.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
