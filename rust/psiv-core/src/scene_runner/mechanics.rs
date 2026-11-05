@@ -11,7 +11,7 @@
 use super::{Blocked, SceneRunner};
 use crate::field::StepFrames;
 use crate::geom::{CELL_PIXELS, Direction};
-use crate::scene::{ActorRef, ItemOp, SceneEffect, SceneFault, SceneOp};
+use crate::scene::{ActorRef, ItemOp, RideOp, SceneEffect, SceneFault, SceneOp};
 use crate::state::{GameState, PARTY_SLOTS};
 use crate::trigger::PixelPos;
 
@@ -24,7 +24,7 @@ const BELT_STEP_FRAMES: u8 = 16;
 /// plane, so only a belt with no end can reach it.
 const BELT_SCAN_LIMIT: i32 = 4096;
 
-/// A running [`SceneOp::RidePlatform`].
+/// A running [`RideOp::Platform`].
 ///
 /// Every frame the table's step word, sign-extended and shifted into signed
 /// 16.16 pixels (`ext.l d0 / lsl.l #8, d0`), is added to the platform object's
@@ -47,7 +47,7 @@ pub(super) struct RideRun {
     position: i64,
 }
 
-/// A [`SceneOp::ConveyorRide`] waiting for its scan, or carrying the party.
+/// A [`RideOp::Conveyor`] waiting for its scan, or carrying the party.
 ///
 /// From the leader's resting cell the party is walked one cell at a time in
 /// `direction` at `FieldObj_Step_Offset` 0 (16 frames per cell) for as long as
@@ -130,11 +130,11 @@ impl SceneRunner {
                 effects.push(SceneEffect::RosterChanged { who });
                 self.pc += 1;
             }
-            SceneOp::RidePlatform {
+            SceneOp::Ride(RideOp::Platform {
                 slot,
                 step_y,
                 frames,
-            } => {
+            }) => {
                 // The party moves rigidly; a ride that ends between cells
                 // would strand it off the cell grid.
                 let distance = i64::from(step_y) * i64::from(frames);
@@ -160,11 +160,11 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
-            SceneOp::ConveyorRide {
+            SceneOp::Ride(RideOp::Conveyor {
                 direction,
                 first_chunk,
                 last_chunk,
-            } => {
+            }) => {
                 self.belt = Some(BeltRun {
                     direction,
                     first_chunk,
@@ -179,7 +179,7 @@ impl SceneRunner {
         None
     }
 
-    /// One frame of a [`SceneOp::RidePlatform`]: the step is added to every
+    /// One frame of a [`RideOp::Platform`]: the step is added to every
     /// party object's position, which the actors carry as a whole-pixel slide
     /// that rolls over into the cell.
     pub(super) fn tick_ride(&mut self) {

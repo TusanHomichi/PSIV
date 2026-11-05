@@ -455,10 +455,10 @@ Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
 | `BranchIfPartyMember{who, if_present, if_absent}` | `Event_GetCharacter` `$5A6D6` (N set when `FindCharacterSlot` fails) + `bmi` | `Event_DominatorsDefeated` |
 | `FaceParty{facing}` | `loc_5A97C` `$5A97C`: `Event_UpdateObjFacing` on every non-empty character object | `Event_DominatorsDefeated` |
 | `SetCharacterSkill{who, slot, skill}` | `move.b #id, skills+n(a0)` on a character record (`Event_Burstroc` `$07250E`) | Burstroc, Positron Bolt |
-| `RidePlatform{slot, step_y, frames}` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
-| `ConveyorRide{direction, first_chunk, last_chunk}` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
+| `Ride(Platform{slot, step_y, frames})` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
+| `Ride(Conveyor{direction, first_chunk, last_chunk})` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
 
-`ConveyorRide` is the one op that reads the live layout: `SceneRunner::tick_with`
+`RideOp::Conveyor` is the one op that reads the live layout: `SceneRunner::tick_with`
 takes the chunk probe, and the runtime hands it the collision plane with scene
 patches applied. `SceneFault::NoLayout` is its fault.
 

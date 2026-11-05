@@ -18,7 +18,8 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput, WreckageOp,
+    OP_BUDGET_PER_TICK, RideOp, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
+    WreckageOp,
 };
 
 /// One instruction of a scene.
@@ -54,7 +55,8 @@ pub enum SceneOp {
     /// is the exact opposite of the other actor's facing (down<->up,
     /// right<->left). That is [`Direction::opposite`], and it makes the
     /// principal turn toward the party from whichever side they approached.
-    /// Note it reads the *leader's* facing, which after `Event_AlysFound` is Alys.
+    /// Note it reads the *leader's* facing, which after `Event_AlysFound` is
+    /// Alys.
     FaceOppositeOf {
         /// Who turns.
         actor: ActorRef,
@@ -956,29 +958,8 @@ pub enum SceneOp {
         /// The skill id written.
         skill: u8,
     },
-    /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
-    /// siblings); the rules are at `scene_runner/mechanics.rs`. Blocks for
-    /// `frames` ticks.
-    RidePlatform {
-        /// The temporary platform object's slot (`Field_LoadObject`'s first
-        /// free one).
-        slot: usize,
-        /// Signed 16.16 pixels per frame.
-        step_y: i32,
-        /// Loop iterations.
-        frames: u16,
-    },
-    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
-    /// its three siblings); the rules are at `scene_runner/mechanics.rs`.
-    /// Blocks until the leader arrives.
-    ConveyorRide {
-        /// The belt's direction.
-        direction: Direction,
-        /// Lowest chunk id the belt covers (`cmpi.b #$A8, d7`).
-        first_chunk: u8,
-        /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
-        last_chunk: u8,
-    },
+    /// A moving platform's or a conveyor belt's ride (`scene_runner/mechanics.rs`).
+    Ride(RideOp),
     /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.

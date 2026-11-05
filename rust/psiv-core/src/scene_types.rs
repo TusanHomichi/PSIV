@@ -163,6 +163,34 @@ pub enum GuildOp {
     AddReward,
 }
 
+/// The party carried by the map rather than walking: a moving platform or a
+/// conveyor belt ([`crate::SceneOp::Ride`]). The rules are at
+/// `scene_runner/mechanics.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RideOp {
+    /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
+    /// siblings). Blocks for `frames` ticks.
+    Platform {
+        /// The temporary platform object's slot (`Field_LoadObject`'s first
+        /// free one).
+        slot: usize,
+        /// Signed 16.16 pixels per frame.
+        step_y: i32,
+        /// Loop iterations.
+        frames: u16,
+    },
+    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
+    /// its three siblings). Blocks until the leader arrives.
+    Conveyor {
+        /// The belt's direction.
+        direction: Direction,
+        /// Lowest chunk id the belt covers (`cmpi.b #$A8, d7`).
+        first_chunk: u8,
+        /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
+        last_chunk: u8,
+    },
+}
+
 /// What `Event_CatchingRocky` (`scenes/rocky.rs`) needs that no other scene
 /// has: the dog is caught by holding an item, and runs at his own pace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -458,7 +486,7 @@ pub enum SceneFault {
         /// `World_Index` at the request.
         world: u8,
     },
-    /// A [`SceneOp::ConveyorRide`] reached the end of the map's chunk plane
+    /// A [`RideOp::Conveyor`] reached the end of the map's chunk plane
     /// (or ran with no layout to read) before the belt's chunks ended.
     NoLayout,
 }

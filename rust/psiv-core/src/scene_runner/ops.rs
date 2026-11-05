@@ -949,9 +949,8 @@ impl SceneRunner {
             | SceneOp::BranchIfPartyMember { .. }
             | SceneOp::FaceParty { .. }
             | SceneOp::SetCharacterSkill { .. }
-            | SceneOp::RidePlatform { .. }
-            | SceneOp::Item(_)
-            | SceneOp::ConveyorRide { .. } => return self.step_mechanic_op(op, state, effects),
+            | SceneOp::Ride(_)
+            | SceneOp::Item(_) => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;
