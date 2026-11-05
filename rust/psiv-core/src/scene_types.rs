@@ -180,6 +180,10 @@ pub enum FifthOp {
     Exchange,
     /// `loc_72080`: the friend picked takes the free fifth slot.
     TakeFifthSlot,
+    /// `loc_720E8`: `EventFlags_Clear` on each friend's `*Picked` flag, in
+    /// table order (the routine's five immediates, which the extractor checks
+    /// are the rows' flags).
+    ClearPicked,
     /// `EventFlags_Set` on the row's `$6(a0)`.
     SetPicked,
 }

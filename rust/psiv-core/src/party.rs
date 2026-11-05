@@ -566,7 +566,10 @@ mod tests {
         );
         // A trail: each member a step behind the one ahead.
         for m in 1..4 {
-            let (a, b) = (party.member(m - 1).unwrap().cell, party.member(m).unwrap().cell);
+            let (a, b) = (
+                party.member(m - 1).unwrap().cell,
+                party.member(m).unwrap().cell,
+            );
             assert_eq!(a.x.abs_diff(b.x) + a.y.abs_diff(b.y), 1, "{a:?} {b:?}");
         }
     }
@@ -591,8 +594,15 @@ mod tests {
             })
             .collect();
         party.seed_scripted(&mut cast);
-        assert!(cast[2].target.is_some() || cast[2].step.is_some(), "{:?}", cast[2]);
-        assert!(cast[1].step.is_none() && cast[1].target.is_none(), "on the trail");
+        assert!(
+            cast[2].target.is_some() || cast[2].step.is_some(),
+            "{:?}",
+            cast[2]
+        );
+        assert!(
+            cast[1].step.is_none() && cast[1].target.is_none(),
+            "on the trail"
+        );
 
         // Handed back mid-walk: the follower keeps walking without the leader.
         let mut resumed = party.clone();

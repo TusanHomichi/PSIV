@@ -108,6 +108,16 @@ impl SceneRunner {
             }
             FifthOp::Exchange => return self.exchange(&table, state, effects),
             FifthOp::TakeFifthSlot => return self.take_fifth_slot(&table, state, effects),
+            FifthOp::ClearPicked => {
+                for row in table.rows {
+                    let flag = Flag::event(row.picked);
+                    if state.write(flag, false).is_err() {
+                        return Some(SceneFault::BadWrite);
+                    }
+                    effects.push(SceneEffect::FlagChanged { flag, value: false });
+                }
+                self.pc += 1;
+            }
             FifthOp::SetPicked => {
                 let flag = Flag::event(table.rows[self.fifth_row].picked);
                 if state.set(flag).is_err() {
@@ -266,7 +276,10 @@ mod tests {
         assert_eq!(leaver(&table, party(0, CharId(20))), Some((0, 0)));
         // Negative control: nobody in the table.
         assert_eq!(
-            leaver(&table, [Some(CHAZ), Some(RUNE), Some(RIKA), Some(WREN), None]),
+            leaver(
+                &table,
+                [Some(CHAZ), Some(RUNE), Some(RIKA), Some(WREN), None]
+            ),
             None
         );
     }

@@ -411,7 +411,7 @@ mod tests {
             ("Event_RajaSick", 10),
             ("Event_RuneHealingChaz", 17),
             ("Event_Hijammer", 14),
-            ("Event_PickingFifthCharacter", 19),
+            ("Event_PickingFifthCharacter", 15),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),

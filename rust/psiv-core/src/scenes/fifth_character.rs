@@ -9,7 +9,7 @@
 use crate::scene::{ActorRef, FifthOp, SceneOp};
 use crate::scene_presentation::CameraSubject;
 use crate::scene_runner::Scene;
-use crate::state::{CharId, Flag};
+use crate::state::CharId;
 use crate::trigger::EventIndex;
 
 /// `Character_1`.
@@ -47,17 +47,6 @@ pub struct FifthTable {
     pub records: [CharId; 5],
 }
 
-/// `EventFlag_GryzPicked`, `HahnPicked`, `DemiPicked`, `RajaPicked`,
-/// `KyraPicked`: the five immediates the routine clears (`$0720E8`).
-const PICKED: [u16; 5] = [0xDC, 0xDB, 0xDD, 0xDE, 0xDF];
-
-const fn clear_picked(index: usize) -> SceneOp {
-    SceneOp::SetFlag {
-        flag: Flag::event(PICKED[index]),
-        value: false,
-    }
-}
-
 /// `$0068`, `Event_PickingFifthCharacter`, retail `$071E66..$0721CB` (code to
 /// `$072181`, then `loc_72182`, `loc_721AA`, `loc_721B0` and `loc_721B8`).
 pub static PICKING_FIFTH_CHARACTER: Scene = Scene {
@@ -78,7 +67,7 @@ pub static PICKING_FIFTH_CHARACTER: Scene = Scene {
         // 5: `tst.b (Yes_No_Option).w / bne.w loc_72128`: 0 is YES.
         SceneOp::BranchChoice {
             if_yes: 6,
-            if_no: 18,
+            if_no: 14,
         },
         // 6: `tst.b (Current_Party_Slot_5).w / bmi.w loc_72080`.
         SceneOp::FifthCharacter(FifthOp::BranchFifthSlotFree {
@@ -95,14 +84,10 @@ pub static PICKING_FIFTH_CHARACTER: Scene = Scene {
         // 11: `loc_72080`.
         SceneOp::FifthCharacter(FifthOp::TakeFifthSlot),
         // 12: `loc_720E8`.
-        clear_picked(0),
-        clear_picked(1),
-        clear_picked(2),
-        clear_picked(3),
-        clear_picked(4),
-        // 17: `$6(a0)`.
+        SceneOp::FifthCharacter(FifthOp::ClearPicked),
+        // 13: `$6(a0)`.
         SceneOp::FifthCharacter(FifthOp::SetPicked),
-        // 18: `loc_72128`: `Event_MoveCamera` to the leader, speed 2, on every
+        // 14: `loc_72128`: `Event_MoveCamera` to the leader, speed 2, on every
         // leg.
         SceneOp::PanCamera {
             subject: CameraSubject::Actor(LEADER),

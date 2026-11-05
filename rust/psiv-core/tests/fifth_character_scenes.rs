@@ -19,12 +19,14 @@ const WREN: CharId = CharId(7);
 
 const FIRST_OBJECT: usize = 5;
 
+/// Made-up characters for the friends, none of them the party's.
+const IDS: [u8; 5] = [10, 1, 6, 4, 2];
+
 /// A made-up table: (who, stand cell, first line, picked flag), friend `n`
 /// standing at cell `(2 + 2n, 3)`.
 fn friend(n: usize) -> (CharId, Cell, u16, u16) {
-    let n8 = n as u8;
     (
-        CharId(20 + n8),
+        CharId(IDS[n]),
         Cell::new(2 + 2 * n as u16, 3),
         0x30 + 4 * n as u16,
         0x60 + n as u16,
@@ -199,7 +201,13 @@ fn a_second_friend_takes_the_first_ones_slot_and_stand() {
 fn the_exchange_keeps_the_leavers_slot_whichever_it_is() {
     // `loc_72156` scans the slots: a friend in slot 1 hands over slot 1.
     let mut state = GameState::new();
-    state.set_party([Some(CHAZ), Some(friend(0).0), Some(RUNE), Some(RIKA), Some(WREN)]);
+    state.set_party([
+        Some(CHAZ),
+        Some(friend(0).0),
+        Some(RUNE),
+        Some(RIKA),
+        Some(WREN),
+    ]);
     let mut runner = runner_at(2, 5);
     let log = play(&mut runner, &mut state, true);
     assert_eq!(
@@ -208,7 +216,13 @@ fn the_exchange_keeps_the_leavers_slot_whichever_it_is() {
     );
     assert_eq!(
         state.party(),
-        [Some(CHAZ), Some(friend(2).0), Some(RUNE), Some(RIKA), Some(WREN)]
+        [
+            Some(CHAZ),
+            Some(friend(2).0),
+            Some(RUNE),
+            Some(RIKA),
+            Some(WREN)
+        ]
     );
     assert!(log.contains(&SceneEffect::PartyMemberWalksIn { slot: 1 }));
 }
@@ -237,7 +251,10 @@ fn no_leaves_the_party_and_the_flags_but_refills_the_records() {
         "{log:?}"
     );
     let record = state.roster().get(asked).unwrap();
-    assert_eq!((record.curr_hp, record.curr_tp), (record.max_hp, record.max_tp));
+    assert_eq!(
+        (record.curr_hp, record.curr_tp),
+        (record.max_hp, record.max_tp)
+    );
     assert_eq!(record.status, 0, "`loc_71EAE` ran before the question");
 }
 

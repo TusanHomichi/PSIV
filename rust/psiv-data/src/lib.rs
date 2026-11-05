@@ -43,8 +43,8 @@ mod camera;
 mod collision;
 mod dialogue;
 mod error;
-mod game_data;
 mod fifth;
+mod game_data;
 mod guild;
 mod ids;
 mod manifest;
@@ -76,8 +76,8 @@ pub use battle::{
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
 pub use error::DataError;
-pub use game_data::GameData;
 pub use fifth::{FIFTH_ROWS, FifthFile, FifthRowRecord, FifthTable};
+pub use game_data::GameData;
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
 pub use manifest::{
