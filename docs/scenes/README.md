@@ -197,6 +197,7 @@ jobs.
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
 | `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
+| `Event_MonsenEarthquake` | `$2C` | [143](143_MonsenEarthquake.md) | `$06E0EA..$06E759` |
 | `Event_MuskCatsGuarding` | `$49` | [180](180_LateArcInteractions.md#event_muskcatsguarding) | `$07069E..$0706BF` |
 | `Event_MuskCatElder` | `$4A` | [180](180_LateArcInteractions.md#event_muskcatelder) | `$0706C0..$070701` |
 | `Event_PenguinOwner` | `$4B` | [180](180_LateArcInteractions.md#event_penguinowner) | `$070702..$070773` |
