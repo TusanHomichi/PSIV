@@ -189,6 +189,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   on despawn or map load; that is the same gap as the strip club's dancers, deferred to
   [#241](https://github.com/TusanHomichi/PSIV/issues/241). The thief's walk speed, eight frames a
   cell, is the cast's step rate and is not measured against `loc_4B30C`.
+- `Event_MonsenEarthquake`'s facing frames (`$2C`, `ps4.asm:147499-147814`,
+  [record](../scenes/143_MonsenEarthquake.md)). Retail's `Event_UpdateObjFacing`
+  (`$05A936`) ends in a `VInt_Prepare` in the US build. Outside Gryz's spin, which keeps it, the
+  scene calls it 15 times, 16 with Rune, and twice through `loc_6E670`, which calls it once for each
+  party slot that is filled (4, or 5 with Rune). The port's `Face`, `FaceOppositeOf` and `FaceParty`
+  take no frame, so the scene is 23 frames shorter without Rune and 26 with him: the informant's two
+  turns, the party's four or five, Gryz's two and Chaz's and Rika's after the spin, the second
+  villager's own turn, Chaz's four as he looks about, and the two `loc_6E670` passes. Each lost
+  frame runs no `Field_UpdateObjects`, no `RunMapUpdates` and reads no pad, so no object moves on it in either build, and every walk and wait lines up with the
+  cartridge's. What drifts is the VInt's own work: `UpdateRNGSeed` and `Main_Frame_Count`
+  (`ps4.asm:617,623`), so the shared RNG stream and absolute frame phase leave the scene that many
+  frames behind the cartridge, and the turns show a frame sooner. The villagers' creation is not a
+  deviation: the `dest` Y the scene writes from the X word is overwritten by
+  `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
 
 ## Public reverse-engineering references used
 

@@ -87,7 +87,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0029, "Event_WreckageEngine", Disposition::Allowlisted(81)),
     (0x002A, "Event_CancellerReminder", Disposition::Scene),
     (0x002B, "Event_GettingLandRover", Disposition::Scene),
-    (0x002C, "Event_MonsenEarthquake", Disposition::Allowlisted(81)),
+    (0x002C, "Event_MonsenEarthquake", Disposition::Scene),
     (0x002D, "Event_PlateSysEngine", Disposition::Allowlisted(81)),
     (0x002E, "Event_RuneLadaeTower", Disposition::Scene),
     (0x002F, "Event_PsycoWandChest", Disposition::Scene),
