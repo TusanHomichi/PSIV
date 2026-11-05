@@ -81,7 +81,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | scene `Event_Recovery` |
 | `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | scene `Event_AiedoManSavings` |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
-| `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | allowlisted, #81 |
+| `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | scene `Event_FaintingPriest` |
 | `$0025` | `Event_AfterIgglanova` | map trigger $13 | AcademyBasement_B2 | scene `Event_AfterIgglanova` |
 | `$0026` | `Event_PrincipalConfession` | dialogue `$F6` | tree 33 entry 22 | scene `Event_PrincipalConfession` |
 | `$0027` | `Event_RuneFlaeli` | map trigger $30 | ValleyMazeOutside | scene `Event_RuneFlaeli` |
@@ -94,7 +94,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$002E` | `Event_RuneLadaeTower` | map trigger $19 | LadeaTower_F2 | scene `Event_RuneLadaeTower` |
 | `$002F` | `Event_PsycoWandChest` | map trigger $2A | LadeaTower_F5 | scene `Event_PsycoWandChest` |
 | `$0030` | `Event_ZioFortBarrier` | dialogue `$F6` | tree 13 entry 73 | scene `Event_ZioFortBarrier` |
-| `$0031` | `Event_ZioFanatic` | dialogue `$F6` | tree 9 entry 32 | allowlisted, #81 |
+| `$0031` | `Event_ZioFanatic` | dialogue `$F6` | tree 9 entry 32 | scene `Event_ZioFanatic` |
 | `$0032` | `Event_MeetingDorin` | dialogue `$F6` | tree 7 entry 23 | scene `Event_MeetingDorin` |
 | `$0033` | `Event_TonoeBasementDoor` | dialogue `$F6` | tree 7 entry 41 | scene `Event_TonoeBasementDoor` |
 | `$0034` | `Event_ZioNurvus` | map trigger $1F | Nurvus_B4_Part2 | scene `Event_ZioNurvus` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 10 |
+| #81 | Motavia side content | 8 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 17 |
+| | total | 15 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

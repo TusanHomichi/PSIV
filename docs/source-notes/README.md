@@ -204,6 +204,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   deviation: the `dest` Y the scene writes from the X word is overwritten by
   `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
 
+- Kadary's `Event_FaintingPriest` (`$24`) and `Event_ZioFanatic` (`$31`)
+  (`ps4.asm:147047-147092`, `:148262-148298`, [record](../scenes/164_KadaryPriestAndBeliever.md)):
+  - **Facing frames.** Each turns its speaker with one `Event_UpdateObjFacing` (`$05A936`, a
+    `VInt_Prepare` at its end in the US build) before its first line. The port's facing ops take
+    none ([#164](https://github.com/TusanHomichi/PSIV/issues/164)), so each opens its text one frame
+    sooner. Nothing moves on that frame; the RNG seed and `Main_Frame_Count` (`ps4.asm:617,623`) fall
+    one frame behind.
+  - **The faint is not drawn.** `$24` gives the priest routine `$180` (`FieldObj_FaintedPriest`) and
+    holds 46 frames for its script. The port records the routine and the frames, but the renderer
+    draws each map object from the sheet its record names when the map loads, so the priest stays
+    standing on screen through the faint and afterwards. His state (the routine, his `$38`, the block
+    in his second cell) matches the cartridge. Drawing a scene-changed routine belongs with
+    [#329](https://github.com/TusanHomichi/PSIV/issues/329).
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

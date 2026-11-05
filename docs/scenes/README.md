@@ -218,6 +218,8 @@ Issue #81's Hunter's Guild job in Piata and Kadary, from hand-built saves
 | `Event_MissingStudentFound` | `$77` | [160](160_MissingStudent.md#event_missingstudentfound) | `$0728BE..$0729E3` |
 | `Event_OldManNearMissingStudent` | `$78` | [160](160_MissingStudent.md#event_oldmannearmissingstudent) | `$0729E4..$072A25` |
 | `Event_MissingStudentInBed` | `$79` | [160](160_MissingStudent.md#event_missingstudentinbed) | `$072A26..$072ACF` |
+| `Event_FaintingPriest` | `$24` | [164](164_KadaryPriestAndBeliever.md) | `$06D616..$06D6C7` |
+| `Event_ZioFanatic` | `$31` | [164](164_KadaryPriestAndBeliever.md#event_ziofanatic) | `$06EE40..$06EEBD` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not

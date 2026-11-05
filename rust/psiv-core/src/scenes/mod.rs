@@ -65,6 +65,7 @@ pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub(crate) mod home_decor;
 pub mod hunters_guild;
+pub(crate) mod kadary_events;
 pub(crate) mod missing_student;
 pub(crate) mod monsen;
 pub(crate) mod monsen_quake;
@@ -313,6 +314,9 @@ pub static SCENES: &[Scene] = &[
     monsen::TALLAS_RESCUED,
     // Zosa's item shop (#56).
     zosa_events::PENGUIN_FEED_STOLEN,
+    // Kadary's priest and believer (#81).
+    kadary_events::FAINTING_PRIEST,
+    kadary_events::ZIO_FANATIC,
     // The field menu's own events, not story beats: the three machines board
     // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123355`; the three
     // boarding actions, `ps4.asm:123419-123465`).
@@ -512,6 +516,8 @@ mod tests {
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
             ("Event_PenguinFeedStolen", 58),
+            ("Event_FaintingPriest", 12),
+            ("Event_ZioFanatic", 6),
             ("Event_Pennant", 7),
             ("Event_WoodCarving", 7),
             ("Event_PiataDormOwner", 3),

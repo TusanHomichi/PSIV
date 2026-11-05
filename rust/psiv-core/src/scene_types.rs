@@ -483,4 +483,20 @@ pub enum ObjectOp {
         /// and answers the talk probe.
         solid: bool,
     },
+    /// [`ObjectOp::Spawn`] with the position words copied from another
+    /// object's live `$30`/`$34`: `Event_ZioFanatic` builds the writhing
+    /// believer in slot 9 where object 4 stands (`$06EE5E..$06EE81`, rounded
+    /// down to 8 pixels with `lsr.w #3` / `lsl.w #3`). The port's objects stand
+    /// on 16-pixel cells, so the slot takes `at`'s cell; a wanderer caught
+    /// mid-step would round differently on the cartridge.
+    SpawnAt {
+        /// Field-object slot.
+        slot: usize,
+        /// `FieldObjectsJmpTbl` offset written to the id word.
+        routine: u16,
+        /// Whose position the slot takes.
+        at: ActorRef,
+        /// As for [`ObjectOp::Spawn`].
+        solid: bool,
+    },
 }
