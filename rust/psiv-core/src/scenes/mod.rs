@@ -57,6 +57,7 @@ mod conveyors;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
+pub(crate) mod dying_boy;
 pub(crate) mod esper_events;
 mod field_reload;
 pub mod fifth_character;
@@ -310,6 +311,8 @@ pub static SCENES: &[Scene] = &[
     plate_wreckage::PLATE_SYS_ENGINE,
     home_decor::PENNANT,
     home_decor::WOOD_CARVING,
+    // Torinco's dying boy (#81).
+    dying_boy::DYING_BOY,
     // The earthquake at Monsen (#81).
     monsen_quake::MONSEN_EARTHQUAKE,
     // The ranch owner (#81).
@@ -532,6 +535,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_DyingBoy", 53),
             ("Event_WreckageEngine", 67),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
