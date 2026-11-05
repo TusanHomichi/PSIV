@@ -200,6 +200,17 @@ jobs.
 | `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 | `Event_MonsenEarthquake` | `$2C` | [143](143_MonsenEarthquake.md) | `$06E0EA..$06E759` |
 
+## The missing student
+Issue #81's Hunter's Guild job in Piata and Kadary, from hand-built saves
+(`rust/psiv-campaign/tests/student_side.rs`), since the route does not take the guild's jobs.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_PiataDormOwner` | `$76` | [160](160_MissingStudent.md) | `$072898..$0728BD` |
+| `Event_MissingStudentFound` | `$77` | [160](160_MissingStudent.md#event_missingstudentfound) | `$0728BE..$0729E3` |
+| `Event_OldManNearMissingStudent` | `$78` | [160](160_MissingStudent.md#event_oldmannearmissingstudent) | `$0729E4..$072A25` |
+| `Event_MissingStudentInBed` | `$79` | [160](160_MissingStudent.md#event_missingstudentinbed) | `$072A26..$072ACF` |
+
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
 reach the fort yet, so these are state tests, not campaign evidence). The story
