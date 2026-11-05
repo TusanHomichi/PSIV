@@ -505,9 +505,8 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
-        /// Whether the scene spins until the walk completes: `true` for every
-        /// retail primitive, which drives the object until `curr == dest`;
-        /// `false` is for staging moves the following ops overlap.
+        /// Whether the scene spins until the walk ends (`curr == dest`, as every
+        /// retail primitive does); `false` stages a move later ops overlap.
         wait: bool,
     },
     /// Walk `actor` to the current cell of `target`. Retail uses this shape
