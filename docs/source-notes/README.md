@@ -154,6 +154,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
   behind the cartridge.
 
+- **The Pengu Feed thief is not drawn (`$96`, #241).** `Event_PenguinFeedStolen`
+  (`$0735F6`, `ps4.asm:153259-153328`, [record](../scenes/161_PenguinFeedStolen.md)) writes
+  field-object slot 2 (`$FFFFC380`) with routine `$368` (`loc_4B30C`) and art tile `$342`, then
+  runs `Field_LoadSprites` and `Field_BuildSprites`, so on the cartridge the thief is on screen
+  while it runs in, spins and runs off. The port runs the slot's state (`ObjectOp::Spawn`, its
+  walks and facings, the `clr.w` that removes it, the map load that drops it), but the pack has no
+  sprite sheet for tile `$342`: the runtime places the object with no sprite and raises no event
+  for it, and Godot builds its NPC sprite nodes only when a map loads, so nothing is drawn for
+  slot 2. The scene's timing, the take and the flags are unaffected. Drawing
+  it needs the art extracted and a sprite node that follows the slot's position and facing and goes
+  on despawn or map load; that is the same gap as the strip club's dancers, deferred to
+  [#241](https://github.com/TusanHomichi/PSIV/issues/241). The thief's walk speed, eight frames a
+  cell, is the cast's step rate and is not measured against `loc_4B30C`.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.
