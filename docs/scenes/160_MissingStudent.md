@@ -80,7 +80,7 @@ the leader, `$0728AE` speaks entry `$6C`, `$0728B6..$0728BD` sets `$27`.
 | 5 | `$072A1E..$072A25` | entry `$53`, tail `jmp` | `RunDialogue` |
 
 **`ItemOp::Take`.** `GetItem` (`$05B100`, `ps4.asm:121975`) counts the occupied slots and compares
-only that many from the front, so a battle's hole can hide the item. `Inventory::get_item_slot` is
+only that many from the front, so a battle's hole can hide the item. `Inventory::find_item` is
 that scan, returning the slot `a0` holds. `ReorderInventory` (`$05CB72`, `ps4.asm:124264`) shifts
 the tail left once at the first hole, which is `Inventory::remove_in_field`. The older
 `SceneOp::RemoveItem` writes a hole and asks nothing, so it cannot carry this branch.

@@ -78,7 +78,7 @@ impl SceneRunner {
     ) -> Option<SceneFault> {
         match op {
             SceneOp::Item(ItemOp::Take { item, if_missing }) => {
-                if let Some(slot) = state.inventory().get_item_slot(item) {
+                if let Some(slot) = state.inventory().find_item(item) {
                     let _ = state.inventory_mut().remove_in_field(slot);
                     effects.push(SceneEffect::InventoryChanged);
                     self.pc += 1;

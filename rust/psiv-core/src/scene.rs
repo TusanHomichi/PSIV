@@ -7,9 +7,8 @@
 //! despawns. This module implements that vocabulary once as [`SceneOp`] and
 //! runs sequences of it deterministically.
 //!
-//! How the runner blocks lives with the machine (`scene_runner.rs`), and why
-//! scripted actor motion reuses the ordinary movement model with the actor
-//! (`scene_runner/actor.rs`).
+//! How the runner blocks lives with the machine (`scene_runner.rs`), and why scripted actor
+//! motion reuses the ordinary movement model with the actor (`scene_runner/actor.rs`).
 
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
@@ -19,7 +18,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput,
+    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -987,6 +986,8 @@ pub enum SceneOp {
     JobBoard(JobBoardStep),
     /// A direct write to the inventory.
     Item(ItemOp),
+    /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
+    Rocky(RockyOp),
     /// Unconditional jump.
     Jump {
         /// Op index.

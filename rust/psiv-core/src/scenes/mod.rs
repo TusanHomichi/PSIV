@@ -75,6 +75,7 @@ pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
+pub(crate) mod rocky;
 pub(crate) mod soldiers_temple;
 pub(crate) mod strip_club;
 mod vahal_common;
@@ -286,6 +287,9 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // Rocky (#81).
+    rocky::ROCKY_FOUND,
+    rocky::CATCHING_ROCKY,
     // The guild's missing student, Piata and Kadary (#81).
     missing_student::PIATA_DORM_OWNER,
     missing_student::MISSING_STUDENT_FOUND,
@@ -480,6 +484,8 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_RockyFound", 3),
+            ("Event_CatchingRocky", 58),
             ("Event_TallasMom", 3),
             ("Event_TallasMomAfterRescue", 3),
             ("Event_InsideMonsenHole", 2),
