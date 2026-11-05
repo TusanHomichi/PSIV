@@ -224,6 +224,18 @@
           python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
+        # The tests of tools/godot.py, the helper every tool that runs Godot
+        # goes through (every tests/test_godot*.py: the exit leak check and
+        # its census of those tools, #123), which need no local inputs either.
+        # Found by name, as the gate's are.
+        godot-tool-tests = pkgs.runCommand "psiv-godot-tool-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_godot*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
         # The 1,000-line rule (tools/size_guard.py).
         size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree

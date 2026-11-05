@@ -297,10 +297,12 @@ leak report: `stop` only marks the player's playback for deletion, which the
 server's next mix step carries out, and a quit before that step left the
 `AudioStreamGeneratorPlayback` on the server's list, reported leaked at exit
 ([#123](https://github.com/TusanHomichi/PSIV/issues/123)). The server steps
-once per 512 frames, and a driver call can end without a step when its period
-is shorter (about 480 frames on some desktop drivers), so the field's exit
-path (`AudioOutput::shutdown`) waits, at most 500 ms, for two driver mixes
-begun after its stop: two calls of at least 256 frames each always include a
-step. The native
+once per 512 frames and a driver call can end without a step (a 128-frame
+PulseAudio call can, and so can two or three of them), so the field's exit path
+(`AudioOutput::shutdown`) counts frames, not calls: it polls the driver under
+its lock until calls begun after its stop have run 512 frames between them,
+which always includes a step, waiting at most 500 ms
+(`rust/psiv-godot/src/audio_shutdown.rs`, checked against a model of the
+server's mix loop for every buffer phase in `rust/psiv-godot/tests/audio_shutdown.rs`). The native
 verifiers fail a run on any such report (`logged_exit_leaks` in
 `tools/godot.py`).
