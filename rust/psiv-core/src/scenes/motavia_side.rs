@@ -109,6 +109,7 @@ pub static KING_RAPPY_DEFEATED: Scene = Scene {
                 slot: SEKREAS_SLOT,
                 x: 0x3E0,
                 y: 0x120,
+                y_first: false,
             },
         },
         SceneOp::Wait {
@@ -120,6 +121,7 @@ pub static KING_RAPPY_DEFEATED: Scene = Scene {
                 slot: SEKREAS_SLOT,
                 x: 0x3E0,
                 y: 0x1C0,
+                y_first: false,
             },
         },
         SceneOp::Wait {

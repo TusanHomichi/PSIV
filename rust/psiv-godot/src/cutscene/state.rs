@@ -39,7 +39,8 @@ pub(crate) struct TemporaryObject {
     pub(crate) destination: Option<(i32, i32)>,
     persistent: bool,
     motion: Option<ObjectMotion>,
-    walk: Option<(i32, i32)>,
+    /// The walk's target, and whether it closes the Y gap first.
+    walk: Option<(i32, i32, bool)>,
 }
 
 /// The normal step, `$0200` in 16.16: two pixels a frame.
@@ -176,12 +177,13 @@ impl PresentationState {
         }
     }
 
-    /// `FieldObj_GetAutoInput`'s walk: X first, then Y, at two pixels a
-    /// frame (the normal step, `$0200`).
-    pub(super) fn walk_object(&mut self, slot: usize, x: i32, y: i32) {
+    /// `FieldObj_GetAutoInput`'s walk at two pixels a frame (the normal
+    /// step, `$0200`): X first, then Y, unless `Char_Move_Flags` bit 1 asks
+    /// for Y first.
+    pub(super) fn walk_object(&mut self, slot: usize, x: i32, y: i32, y_first: bool) {
         if let Some(object) = self.temporary_objects.get_mut(&slot) {
             object.motion = None;
-            object.walk = Some((x, y));
+            object.walk = Some((x, y, y_first));
         }
     }
 
@@ -233,10 +235,11 @@ impl PresentationState {
                 ));
                 motion.remaining -= 1;
             }
-            if let (Some((tx, ty)), Some((x, y))) = (object.walk, object.destination) {
+            if let (Some((tx, ty, y_first)), Some((x, y))) = (object.walk, object.destination) {
                 let toward =
                     |from: i32, to: i32| from + (to - from).clamp(-WALK_PIXELS, WALK_PIXELS);
-                object.destination = Some(if x == tx {
+                let y_now = if y_first { y != ty } else { x == tx };
+                object.destination = Some(if y_now {
                     (x, toward(y, ty))
                 } else {
                     (toward(x, tx), y)
@@ -382,7 +385,7 @@ mod tests {
     fn a_walking_object_closes_x_then_y_at_two_pixels_a_frame() {
         let mut state = PresentationState::default();
         state.create_field_object(1, 0x344, 0x3BA, 0x160, 0x190);
-        state.walk_object(1, 0x220, 0x210);
+        state.walk_object(1, 0x220, 0x210, false);
         for _ in 0..96 {
             state.advance_objects();
         }
@@ -408,6 +411,55 @@ mod tests {
         assert_eq!(
             state.temporary_objects[&1].destination,
             Some((0x220, 0x210))
+        );
+    }
+
+    /// Under `Char_Move_Flags` bit 1 the Y gap closes first: Monsen's second
+    /// villager leaves `($2E0,$230)` up a cell before it walks left to
+    /// `($230,$220)`, and stays there.
+    #[test]
+    fn a_walking_object_closes_y_then_x_when_bit_1_is_set() {
+        let mut state = PresentationState::default();
+        state.create_field_object(9, 0x194, 0x3E3, 0x2E0, 0x230);
+        state.walk_object(9, 0x230, 0x220, true);
+        for _ in 0..8 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&9].destination,
+            Some((0x2E0, 0x220))
+        );
+        state.advance_objects();
+        assert_eq!(
+            state.temporary_objects[&9].destination,
+            Some((0x2DE, 0x220))
+        );
+        for _ in 0..87 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&9].destination,
+            Some((0x230, 0x220))
+        );
+        for _ in 0..10 {
+            state.advance_objects();
+        }
+        assert_eq!(
+            state.temporary_objects[&9].destination,
+            Some((0x230, 0x220))
+        );
+    }
+
+    /// A Y-first walk with no Y gap is an X walk.
+    #[test]
+    fn a_y_first_walk_on_one_row_closes_x() {
+        let mut state = PresentationState::default();
+        state.create_field_object(10, 0x194, 0x42B, 0x310, 0x210);
+        state.walk_object(10, 0x3D0, 0x210, true);
+        state.advance_objects();
+        assert_eq!(
+            state.temporary_objects[&10].destination,
+            Some((0x312, 0x210))
         );
     }
 }
