@@ -490,16 +490,16 @@ def become_subreaper():
         raise OSError(errno, f"prctl(PR_SET_CHILD_SUBREAPER): {os.strerror(errno)}")
 
 
-def stop_descendants(processes=(), grace=STOP_GRACE_S):
+def stop_descendants(processes=(), grace=None):
     """Stop every process below the gate: SIGTERM, then SIGKILL to any still
-    alive after `grace` seconds, until none is left, reaping each zombie that is
+    alive after `grace` seconds (default STOP_GRACE_S), until none is left, reaping each zombie that is
     the gate's own (`processes`, its Popens, through their own `wait`); so the
     gate never releases its locks while anything a command started still runs.
     A zombie whose parent still runs is dead already; once that parent is killed
     it comes to the gate (`become_subreaper`)."""
     owned = {process.pid: process for process in processes}
     me = os.getpid()
-    deadline = time.monotonic() + grace
+    deadline = time.monotonic() + (STOP_GRACE_S if grace is None else grace)
     signum = signal.SIGTERM
     signalled = set()
     while True:
@@ -542,8 +542,33 @@ class GateStopped(BaseException):
         self.signum = signum
 
 
+#: The stop signals that came while `signals_deferred` held them (None: not held).
+_deferred = None
+
+
 def _raise_stopped(signum, _frame):
+    if _deferred is not None:
+        _deferred.append(signum)
+        return
     raise GateStopped(signum)
+
+
+@contextmanager
+def signals_deferred():
+    """Hold a stop signal (STOPS, once `main` has installed `_raise_stopped`)
+    until the block ends, then raise GateStopped for the first that came: the
+    block, stopping everything below the gate, is never cut short by one."""
+    global _deferred
+    outer = _deferred
+    if outer is None:
+        _deferred = []
+    try:
+        yield
+    finally:
+        if outer is None:
+            held, _deferred = _deferred, None
+            if held:
+                raise GateStopped(held[0])
 
 
 class LaneStopped(Exception):
@@ -653,8 +678,9 @@ def _run_lanes(commands, lanes, root, receipt_dir, env):
     """Every command's record, in `commands` order: the lanes (`lanes_for`) side
     by side, each running its own one at a time. A failing command never stops
     anything. An exception in a lane (the gate itself breaking) or in this
-    thread (an interrupt, `GateStopped`) makes every lane give up, then stops
-    everything below the gate (`stop_descendants`), then is raised."""
+    thread (an interrupt, `GateStopped`, a submission failing) makes every lane
+    give up, then stops everything below the gate (`stop_descendants`, with stop
+    signals held: `signals_deferred`), then is raised."""
     records = [None] * len(commands)
     stop = threading.Event()
     processes = []
@@ -667,17 +693,24 @@ def _run_lanes(commands, lanes, root, receipt_dir, env):
                                           receipt_dir, env, lane=number, stop=stop,
                                           processes=processes)
 
+    pool = ThreadPoolExecutor(max_workers=len(lanes))
+    futures = []
     try:
-        with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
-            futures = [pool.submit(run_lane, number, lane) for number, lane in enumerate(lanes)]
-            try:
-                wait_futures(futures, return_when=FIRST_EXCEPTION)
-            finally:
-                if not all(future.done() and future.exception() is None for future in futures):
-                    stop.set()
+        for number, lane in enumerate(lanes):
+            futures.append(pool.submit(run_lane, number, lane))
+        wait_futures(futures, return_when=FIRST_EXCEPTION)
     finally:
-        if stop.is_set():
-            stop_descendants(processes)
+        # Whatever ended the wait, a lane raising, a signal or a submission
+        # failing part way, every lane gives up and has ended before anything is
+        # stopped (so none starts a command after), and a stop signal waits
+        # until everything below the gate is gone.
+        if len(futures) < len(lanes) or not all(
+                future.done() and future.exception() is None for future in futures):
+            stop.set()
+        with signals_deferred():
+            pool.shutdown(wait=True)
+            if stop.is_set():
+                stop_descendants(processes)
     errors = [future.exception() for future in futures if future.exception() is not None]
     first = next((e for e in errors if not isinstance(e, LaneStopped)), errors[0] if errors else None)
     if first is not None:

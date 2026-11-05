@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
@@ -145,15 +146,16 @@ class LaneRunCase(unittest.TestCase):
     #: orphaned by a parent that exits, and a zombie whose parent never reaps it.
     ESCAPES = ("grouped", "timed", "session", "orphan", "zombie")
 
-    def escaping_command(self):
+    def escaping_command(self, ways=ESCAPES):
         """A command that starts one descendant each way ESCAPES names, each writing
         its pid to `<way>.pid` (and the zombie's to `zombie-child.pid`), then
         sleeping 30 s before it writes `woke`."""
         spawned = self.root / "spawned"
         spawned.write_text(
-            "import os, sys, time\n"
+            "import os, signal, sys, time\n"
             "way = sys.argv[1]\n"
             "if way == 'session':\n    os.setsid()\n"
+            "if way == 'stubborn':\n    signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
             "if way == 'orphan' and os.fork():\n    sys.exit(0)\n"
             "if way == 'zombie':\n"
             "    child = os.fork()\n"
@@ -163,16 +165,18 @@ class LaneRunCase(unittest.TestCase):
             "time.sleep(30)\n"
             f"open({str(self.root / 'woke')!r}, 'a').write(way)\n")
         run = f"python3 {spawned}"
-        return (f"{run} grouped & timeout 60 {run} timed & {run} session & {run} orphan & "
-                f"{run} zombie & wait")
+        return " ".join(f"timeout 60 {run} {way} &" if way == "timed" else f"{run} {way} &"
+                        for way in ways) + " wait"
 
-    def started(self):
-        """Whether every descendant `escaping_command` starts has written its pid."""
-        return all((self.root / f"{way}.pid").is_file()
-                   for way in (*self.ESCAPES, "zombie-child"))
+    def pid_files(self, ways):
+        return (*ways, "zombie-child") if "zombie" in ways else tuple(ways)
 
-    def assert_none_outlived(self):
-        for way in (*self.ESCAPES, "zombie-child"):
+    def started(self, ways=ESCAPES):
+        """Whether every descendant `escaping_command(ways)` starts has written its pid."""
+        return all((self.root / f"{way}.pid").is_file() for way in self.pid_files(ways))
+
+    def assert_none_outlived(self, ways=ESCAPES):
+        for way in self.pid_files(ways):
             pid = int((self.root / f"{way}.pid").read_text())
             with self.subTest(way=way), \
                     self.assertRaises(ProcessLookupError, msg=f"the {way} descendant outlived the gate"):
@@ -200,29 +204,79 @@ class LaneRunCase(unittest.TestCase):
         self.assertLess(time.monotonic() - began, 15)
         self.assert_none_outlived()
 
-    def test_a_signal_stops_the_gate_and_everything_below_it(self):
-        """SIGTERM to the gate alone (as from a terminal or a supervisor that signals
-        only its pid): it stops every descendant, then exits 128 plus the signal."""
-        escaping = self.escaping_command()
+    def start_gate(self, command, ways, grace_s=None):
+        """`python3 tools/gate.py --fast` running `command` alone, as its own process
+        (`main`, with its signal handlers), once `ways`' descendants have started."""
         script = ("import sys\n"
                   "from unittest import mock\n"
                   "from tools import gate\n"
-                  f"gate.FAST_COMMANDS[:] = [{escaping!r}]\n"
-                  "with mock.patch('tools.gate.toolchain_missing', return_value=[]):\n"
+                  f"gate.FAST_COMMANDS[:] = [{command!r}]\n"
+                  + (f"gate.STOP_GRACE_S = {grace_s!r}\n" if grace_s is not None else "")
+                  + "with mock.patch('tools.gate.toolchain_missing', return_value=[]):\n"
                   "    sys.exit(gate.main(['--fast']))\n")
         env = dict(os.environ, PYTHONPATH=str(fixture.REPO_ROOT), PSIV_GATE_RECEIPT="build/gate/stopped")
         gate = subprocess.Popen([sys.executable, "-c", script], cwd=self.root, env=env,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         self.addCleanup(gate.kill)
         deadline = time.monotonic() + 15
-        while not self.started():
+        while not self.started(ways):
             self.assertLess(time.monotonic(), deadline, "the command's descendants never started")
             time.sleep(0.05)
+        return gate
+
+    def test_a_signal_stops_the_gate_and_everything_below_it(self):
+        """SIGTERM to the gate alone (as from a terminal or a supervisor that signals
+        only its pid): it stops every descendant, then exits 128 plus the signal."""
+        gate = self.start_gate(self.escaping_command(), self.ESCAPES)
         gate.send_signal(signal.SIGTERM)
         _out, err = gate.communicate(timeout=15)
         self.assertEqual(gate.returncode, 128 + signal.SIGTERM, err)
         self.assertIn("stopped by signal", err)
         self.assert_none_outlived()
+
+    def test_more_signals_during_the_stop_wait_for_it(self):
+        """A descendant that ignores SIGTERM holds the stop for its grace; a
+        second SIGTERM, a SIGINT and a SIGHUP then don't cut the stop short: it
+        still kills that descendant before the gate exits."""
+        ways = ("stubborn",)
+        gate = self.start_gate(self.escaping_command(ways), ways, grace_s=2.0)
+        gate.send_signal(signal.SIGTERM)
+        time.sleep(0.5)
+        for again in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            gate.send_signal(again)
+            time.sleep(0.1)
+        _out, err = gate.communicate(timeout=15)
+        self.assertEqual(gate.returncode, 128 + signal.SIGTERM, err)
+        self.assert_none_outlived(ways)
+
+    def test_a_lane_that_fails_to_start_stops_the_lanes_that_did(self):
+        """Starting the second lane fails once the first is running: the first
+        starts no further command, and everything it started is stopped."""
+        escaping = self.escaping_command()
+        after = fixture.fake_step("after", marker=str(self.root / "after.txt"))
+        other = fixture.fake_step("other")
+        started = self.started
+
+        class SecondSubmitFails(ThreadPoolExecutor):
+            submitted = 0
+
+            def submit(self, *args, **kwargs):
+                SecondSubmitFails.submitted += 1
+                if SecondSubmitFails.submitted == 2:
+                    deadline = time.monotonic() + 15
+                    while not started() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    raise RuntimeError("the second lane didn't start")
+                return super().submit(*args, **kwargs)
+
+        with mock.patch("tools.gate.ThreadPoolExecutor", SecondSubmitFails), \
+                mock.patch("tools.gate.CPU_SAMPLE_S", 0.05), \
+                self.assertRaisesRegex(RuntimeError, "the second lane didn't start"):
+            self.run_lanes([escaping, other, after], ((escaping, after), (other,)))
+        self.assertTrue(started())
+        self.assert_none_outlived()
+        self.assertFalse((self.root / "after.txt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
