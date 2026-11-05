@@ -492,7 +492,7 @@ mod tests {
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
             ("Event_Phonon", 33),
-            ("Event_PlateSysEngine", 64),
+            ("Event_PlateSysEngine", 33),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

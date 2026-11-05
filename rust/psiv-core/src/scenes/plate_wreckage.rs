@@ -133,53 +133,33 @@ const fn face(who: crate::state::CharId, facing: Direction) -> SceneOp {
     }
 }
 
-/// One step of the engine's light: `Palette_Line_2` words 12 and 13
-/// (`Palette_Table_Buffer + $38`, given here as a byte offset), then
-/// `loc_6E922`'s eight `VInt_Prepare`s.
-const fn engine_light(first: u16, second: u16) -> [SceneOp; 2] {
-    [
-        SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
-                offset: 0x38,
-                first,
-                second,
-            },
-        },
-        SceneOp::WaitFrames { frames: 8 },
-    ]
-}
+/// `Palette_Line_2 + $18` (`Palette_Table_Buffer + $38`, line 2's word 12),
+/// as the word offset [`PresentationOp::SetPaletteWords`] takes.
+const ENGINE_LIGHT_WORDS: u16 = 0x1C;
 
-/// `loc_6E842`'s sixteen passes over `loc_6E908`: the first word of each pair
-/// is the table's, `$FFFF` sending it back to the start; the second is read
-/// `$E` past the advanced pointer, so the sixth pair's comes from the code
-/// after the table (`loc_6E922`'s first word, `$7007`).
-const ENGINE_LIGHTS: [(u16, u16); 16] = [
-    (0x0860, 0x00AC),
-    (0x0A80, 0x008A),
-    (0x0CA0, 0x0068),
-    (0x0EC0, 0x008A),
-    (0x0CA0, 0x00AC),
-    (0x0A80, 0x7007),
-    (0x0860, 0x00AC),
-    (0x0A80, 0x008A),
-    (0x0CA0, 0x0068),
-    (0x0EC0, 0x008A),
-    (0x0CA0, 0x00AC),
-    (0x0A80, 0x7007),
-    (0x0860, 0x00AC),
-    (0x0A80, 0x008A),
-    (0x0CA0, 0x0068),
-    (0x0EC0, 0x008A),
-];
+/// `loc_6E842`'s sixteen passes over `loc_6E908`, each followed by
+/// `loc_6E922`'s eight `VInt_Prepare`s. The second word is read `$E` past the
+/// advanced pointer, so the sixth and twelfth passes read the first word of
+/// `loc_6E922`'s code. The table's words stay in the pack
+/// (`presentation/panels.json`, `palettes`).
+const ENGINE_LIGHT: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCycleFromTable {
+        source_rom_addr: 0x0006_E908,
+        offset: ENGINE_LIGHT_WORDS,
+        second_skip: 0xE,
+        steps: 16,
+        frame_delay: 8,
+    },
+};
 
-const fn light(i: usize) -> [SceneOp; 2] {
-    engine_light(ENGINE_LIGHTS[i].0, ENGINE_LIGHTS[i].1)
-}
-
-/// The op list, built from its parts so the sixteen light steps stay one
-/// table above.
-const PLATE_SYS_ENGINE_OPS: [SceneOp; 64] = {
-    let head: [SceneOp; 18] = [
+/// `$002D`, `Event_PlateSysEngine`, retail `$06E75A..$06E907`: the party
+/// gathers at Plate System F4's engine, Demi reads it (entry `$41`), its
+/// light pulses down and goes out, the leader steps back and
+/// `EventFlag_PlateEngine` (`$61`) is set.
+pub static PLATE_SYS_ENGINE: Scene = Scene {
+    name: "Event_PlateSysEngine",
+    event: EventIndex(0x002D),
+    ops: &[
         // 0-5: the party's places around the engine; Rune only if present.
         dest(CHAZ, 0x1E0, 0x190),
         dest(GRYZ, 0x1C0, 0x180),
@@ -210,43 +190,27 @@ const PLATE_SYS_ENGINE_OPS: [SceneOp; 64] = {
         // 15-16
         standard(0x41),
         sound(SFX_POWER_DOWN),
-        // 17: placeholder replaced below.
-        SceneOp::End,
-    ];
-    let mut ops = [SceneOp::End; 64];
-    let mut i = 0;
-    while i < 17 {
-        ops[i] = head[i];
-        i += 1;
-    }
-    // 17-48: the sixteen light steps.
-    let mut step = 0;
-    while step < 16 {
-        let pair = light(step);
-        ops[17 + 2 * step] = pair[0];
-        ops[18 + 2 * step] = pair[1];
-        step += 1;
-    }
-    let tail: [SceneOp; 15] = [
-        // 49-50: `$EC0`/`$CE`, then five more `loc_6E922` waits.
+        // 17: the light.
+        ENGINE_LIGHT,
+        // 18-19: the last colour, immediates, then five more `loc_6E922` waits.
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x38,
+                offset: ENGINE_LIGHT_WORDS,
                 first: 0x0EC0,
                 second: 0x00CE,
             },
         },
         SceneOp::WaitFrames { frames: 40 },
-        // 51: `RunMapUpdates`, `VInt_Prepare`.
-        SceneOp::WaitFrames { frames: 1 },
-        // 52-55: Demi looks right, then down.
+        // 20: `RunMapUpdates`, `VInt_Prepare`: one frame that updates the map.
+        wait(1),
+        // 21-24: Demi looks right, then down.
         face(DEMI, Direction::Right),
         wait(15),
         face(DEMI, Direction::Down),
         wait(30),
-        // 56: `popdlg` / `Event_RunDialogue`.
+        // 25: `popdlg` / `Event_RunDialogue`.
         SceneOp::RunDialogueResume,
-        // 57-59: `bclr #0, Char_Move_Flags`, `Event_MoveSingleObject` on
+        // 26-28: `bclr #0, Char_Move_Flags`, `Event_MoveSingleObject` on
         // `Character_1` to `($1E0,$1C0)`, `DoMainUpdatesLoop($3B)`.
         SceneOp::SetFollowMode { bits: 0 },
         SceneOp::MoveActorTo {
@@ -256,34 +220,18 @@ const PLATE_SYS_ENGINE_OPS: [SceneOp; 64] = {
             wait: true,
         },
         wait(60),
-        // 60-61: `FieldObj_Step_Offset := 1`, `Event_MoveCamera` to the
+        // 29-30: `FieldObj_Step_Offset := 1`, `Event_MoveCamera` to the
         // leader at speed 1.
         SceneOp::SetStepOffset { value: 1 },
         SceneOp::PanCamera {
             subject: CameraSubject::Actor(LEADER),
             speed: 1,
         },
-        // 62-63: `loc_53F14` on `Map_Palettes_Addr`, `EventFlag_PlateEngine`.
+        // 31-32: `loc_53F14` on `Map_Palettes_Addr`, `EventFlag_PlateEngine`.
         SceneOp::ReloadMapPalette,
         SceneOp::SetFlag {
             flag: Flag::event(0x61),
             value: true,
         },
-    ];
-    let mut t = 0;
-    while t < 15 {
-        ops[49 + t] = tail[t];
-        t += 1;
-    }
-    ops
-};
-
-/// `$002D`, `Event_PlateSysEngine`, retail `$06E75A..$06E907`: the party
-/// gathers at Plate System F4's engine, Demi reads it (entry `$41`), its
-/// light pulses down and goes out, the leader steps back and
-/// `EventFlag_PlateEngine` (`$61`) is set.
-pub static PLATE_SYS_ENGINE: Scene = Scene {
-    name: "Event_PlateSysEngine",
-    event: EventIndex(0x002D),
-    ops: &PLATE_SYS_ENGINE_OPS,
+    ],
 };

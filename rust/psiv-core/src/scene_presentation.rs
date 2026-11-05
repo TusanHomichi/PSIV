@@ -17,6 +17,39 @@ pub enum PresentationAsset {
     ShopkeeperDialPortrait2,
 }
 
+/// The `(first, second)` palette words each pass of a
+/// [`PresentationOp::PaletteCycleFromTable`] writes, read from `words`, the
+/// big-endian words from its `source_rom_addr` on (the pack's copy). `None`
+/// when `words` ends before a read the cartridge makes, or when a pass finds
+/// no non-negative word to write (the cartridge would loop forever).
+#[must_use]
+pub fn palette_cycle_writes(words: &[u16], second_skip: u8, steps: u8) -> Option<Vec<(u16, u16)>> {
+    if !second_skip.is_multiple_of(2) {
+        return None;
+    }
+    let skip = usize::from(second_skip / 2);
+    let mut writes = Vec::with_capacity(usize::from(steps));
+    let mut next = 0usize;
+    for _ in 0..steps {
+        let mut restarted = false;
+        let first = loop {
+            let word = *words.get(next)?;
+            next += 1;
+            if word & 0x8000 == 0 {
+                break word;
+            }
+            if restarted {
+                return None;
+            }
+            restarted = true;
+            next = 0;
+        };
+        let second = *words.get(next + skip)?;
+        writes.push((first, second));
+    }
+    Some(writes)
+}
+
 /// What a [`crate::SceneOp::PanCamera`] frames: `Event_MoveCamera`'s `d0`/`d1`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraSubject {
@@ -339,6 +372,27 @@ pub enum PresentationOp {
         /// Table rows, one palette write each.
         steps: u8,
         /// `DoMapUpdateLoop` delay per step, already corrected to frames.
+        frame_delay: u16,
+    },
+    /// `Event_PlateSysEngine`'s light (`loc_6E842`, `ps4.asm:147908-147920`):
+    /// `steps` passes over the word table at `source_rom_addr`. Each pass
+    /// reads `move.w (a1)+, d0`; a negative word (`bpl` not taken) sends the
+    /// pointer back to the table's start without spending the pass. The pass
+    /// then writes `d0` and the word `second_skip` bytes past the advanced
+    /// pointer to the two palette words at `offset`, and waits `frame_delay`
+    /// frames (`loc_6E922`, `VInt_Prepare` only: no map update). The words
+    /// are the cartridge's and live in the pack, never in source; expand them
+    /// with [`palette_cycle_writes`]. The op blocks for all the passes.
+    PaletteCycleFromTable {
+        /// ROM table the passes read.
+        source_rom_addr: u32,
+        /// Word offset from `Palette_Table_Buffer`, as [`Self::SetPaletteWords`].
+        offset: u16,
+        /// Bytes past the advanced pointer the second word is read from.
+        second_skip: u8,
+        /// `dbf` passes, already corrected (`moveq #$F, d7`: 16).
+        steps: u8,
+        /// Frames each pass waits.
         frame_delay: u16,
     },
     /// Move the camera to an actor's live position. This is the dynamic form

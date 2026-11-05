@@ -858,6 +858,21 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(u16::from(steps) * frame_delay);
             }
+            // The engine light's eight-frame `VInt_Prepare` waits are inside
+            // its loop: the op blocks for every pass, with no map update.
+            SceneOp::Presentation {
+                op:
+                    crate::PresentationOp::PaletteCycleFromTable {
+                        steps, frame_delay, ..
+                    },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                let frames = u16::from(steps) * frame_delay;
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
+            }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }
             | SceneOp::PanelDestroyLast
