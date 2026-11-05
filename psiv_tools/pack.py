@@ -64,6 +64,7 @@ from .map_patches import (
     atlas_json,
     resolve_palette_effects,
     index_writes,
+    write_composite_pairs,
     index_overworld_patches,
     patch_atlas,
     resolve_map_effects,
@@ -460,6 +461,7 @@ def build_pack(
             raise PackError(
                 f"map 0x{record['id']:03X}: overworld hook needs a base priority overlay"
             )
+        composite_pairs = sorted(set(composite_pairs) | set(write_composite_pairs(map_effects)))
         scene_chunks = scene_patch_chunks(rom_bytes, record)
         if scene_chunks:
             scene_patch_maps.append({**_target(record), "chunks": scene_chunks})

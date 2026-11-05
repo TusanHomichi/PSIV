@@ -492,7 +492,8 @@ def compose_chunk(
 
 
 def compose_overworld_chunk(decoded, fg_id: int, bg_id: int) -> tuple[bytearray, bytearray, int]:
-    """Draw a page-hook result, BG then transparent FG, in both VDP layers."""
+    """Draw one cell's two planes, BG then transparent FG, in both VDP layers:
+    a page hook's result, or a layout write's."""
     bg, _ = compose_chunk(decoded.chunks, decoded.patterns, bg_id)
     fg, _ = compose_chunk(decoded.chunks, decoded.patterns, fg_id)
     base = bytearray(fg_pixel if fg_pixel & 0xF else bg_pixel
@@ -670,6 +671,17 @@ def resolve_map_effects(
     for effect in effects:
         paths = []
         for path in effect.get("paths", ()):
+            # The cell's two planes once this path's writes are done: a path
+            # can stamp both (`-$1000(a1)` off a BG pointer), and the picture
+            # of either write is the VDP's, FG over BG (#38).
+            after: dict[tuple[int, int], dict[str, int]] = {}
+            for write in path.get("writes", ()):
+                if write.get("kind") == "layout_write":
+                    x, y = write["chunk_x"], write["chunk_y"]
+                    cell = after.setdefault((x, y), {
+                        "fg": decoded.fg.chunk_at(x, y), "bg": decoded.bg.chunk_at(x, y),
+                    })
+                    cell[write["plane"]] = write["chunk_id"]
             writes = []
             for write in path.get("writes", ()):
                 if write.get("kind") != "layout_write":
@@ -684,6 +696,7 @@ def resolve_map_effects(
                 counts["cells"] += len(cells)
                 counts["map_change_cells"] += sum(1 for c in cells if c["collision"] == 1)
                 chunk_ids.append(write["chunk_id"])
+                pair = after[(write["chunk_x"], write["chunk_y"])]
                 resolved = {
                     **write,
                     "cells": cells,
@@ -691,6 +704,8 @@ def resolve_map_effects(
                     # picture and nothing else.
                     "collision_authoritative": authoritative,
                     "collision_plane": plane,
+                    "fg_chunk_id": pair["fg"],
+                    "bg_chunk_id": pair["bg"],
                 }
                 writes.append(resolved)
             paths.append({**path, "writes": writes})
@@ -720,15 +735,29 @@ def atlas_json(
     }
 
 
+def write_composite_pairs(effects: Sequence[dict[str, Any]]) -> list[tuple[int, int]]:
+    """The `(fg, bg)` composites a map's resolved layout writes blit."""
+    return sorted({
+        (write["fg_chunk_id"], write["bg_chunk_id"])
+        for effect in effects for path in effect.get("paths", ())
+        for write in path.get("writes", ()) if write.get("kind") == "layout_write"
+    })
+
+
 def index_writes(effects: Sequence[dict[str, Any]], entries: Sequence[dict[str, Any]]) -> None:
-    """Point each resolved write at its atlas tile, in place."""
-    by_chunk = {entry["chunk_id"]: entry["index"] for entry in entries
-                if entry["chunk_id"] is not None}
+    """Point each resolved write at its atlas tile, in place: the composite of
+    the cell's two planes after the write, never the written chunk alone, which
+    would paint a BG stamp over an opaque FG or blank the BG under a
+    transparent FG pixel (#38)."""
+    by_pair = {
+        (entry["fg_chunk_id"], entry["bg_chunk_id"]): entry["index"]
+        for entry in entries if entry["chunk_id"] is None
+    }
     for effect in effects:
         for path in effect.get("paths", ()):
             for write in path.get("writes", ()):
                 if write.get("kind") == "layout_write":
-                    write["patch_tile"] = by_chunk[write["chunk_id"]]
+                    write["patch_tile"] = by_pair[(write["fg_chunk_id"], write["bg_chunk_id"])]
 
 
 def index_overworld_patches(

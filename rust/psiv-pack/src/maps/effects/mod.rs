@@ -150,7 +150,9 @@ impl Entry {
             .paths
             .iter()
             // A path that does nothing is the routine's own "not set, return".
-            .filter(|path| !path.writes.is_empty() || path.aborts)
+            // One that only performs writes this slice does not model is
+            // kept, so a deferred write is never dropped silently (#38).
+            .filter(|path| !path.writes.is_empty() || path.aborts || !path.deferred.is_empty())
             .map(|path| {
                 Json::object()
                     .with(
