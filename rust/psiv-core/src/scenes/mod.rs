@@ -93,6 +93,10 @@ pub(crate) mod zosa_events;
 
 #[cfg(test)]
 mod dialogue_callers;
+#[cfg(test)]
+mod dialogue_callers_image;
+#[cfg(test)]
+mod documented_ranges;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;

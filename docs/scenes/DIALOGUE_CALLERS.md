@@ -332,7 +332,8 @@ All four now have scenes (rows 11 to 14).
 ## Callers with no scene
 
 Six `Event_GetAndRunDialogue` callers sit in three events no scene
-transcribes yet, all listed in `UNTRANSCRIBED` (`tests/test_dialogue_callers.py`). The
+transcribes yet, all listed in `UNTRANSCRIBED`
+(`rust/psiv-core/src/scenes/dialogue_callers_image.rs`). The
 spans run from the `EventPtrs` routine to the next routine's start; a lane that
 transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
 `Standard`, and the census names the row to add.
@@ -385,16 +386,20 @@ no ordinary-native-input, persistence or connected-route evidence.
 
 ## Guards
 
-- [`tests/test_dialogue_callers.py`](../../tests/test_dialogue_callers.py):
+- `rust/psiv-core/src/scenes/dialogue_callers_image.rs`:
   re-derives every caller and its entries from the US image, reads each
-  routine's exit from its bytes and checks the Rust routine-to-window mapping
-  against it, ties each caller to a scene through the documented ranges, and
-  compares the Rust table, `UNTRANSCRIBED` and this document, with negative
-  controls for a new image caller, a caller retargeted to another routine, a
-  changed entry, a lost branch entry, a dropped or misfiled table row, a
-  caller claimed by two scenes, overlapping ranges, a missing row here, a stale
-  or transcribed `UNTRANSCRIBED` entry, a changed exit and a changed mapping.
-  `PYTHONPATH=. python3 -m unittest tests.test_dialogue_callers -v`.
+  routine's exit from its bytes and checks `ROUTINE_WINDOWS` against it, ties
+  each caller to a scene through the documented ranges (read by
+  `scenes/documented_ranges.rs`, each range given to the nearest scene heading
+  above it), and compares `DIALOGUE_CALLERS`,
+  `UNTRANSCRIBED` and this document, with negative controls for a new image
+  caller, a caller retargeted to another routine, a changed entry, a lost
+  branch entry, a dropped or misfiled table row, a caller claimed by two
+  scenes, overlapping ranges, a missing row here, a stale, transcribed or
+  uncalled `UNTRANSCRIBED` entry, a changed exit and a changed, unknown or
+  missing window mapping. Without the local ROM its image tests print a note
+  and pass.
+  `cargo test --manifest-path rust/Cargo.toml -p psiv-core --lib scenes::dialogue_callers_image::`.
 - `rust/psiv-core/src/scenes/dialogue_callers.rs`:
   `every_dialogue_entry_caller_runs_its_window` holds the registry to
   `DIALOGUE_CALLERS`, with controls for a scene back on resume, a wrong

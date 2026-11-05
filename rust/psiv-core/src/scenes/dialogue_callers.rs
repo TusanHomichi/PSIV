@@ -3,10 +3,10 @@
 //! `jsr GetDialogueByID` inside a transcribed scene's bytes, as a row of
 //! [`DIALOGUE_CALLERS`]; and the test that holds the registry to it.
 //!
-//! The rows are re-derived from the image by `tests/test_dialogue_callers.py`,
-//! which also reads each routine's exit from the bytes and checks
-//! [`ROUTINE_WINDOWS`] against it, so neither table can rot. The audit, the
-//! findings and the callers no scene holds yet are in
+//! The rows are re-derived from the image by the census in
+//! `dialogue_callers_image.rs`, which also reads each routine's exit from the
+//! bytes and checks [`ROUTINE_WINDOWS`] against it, so neither table can rot.
+//! The audit, the findings and the callers no scene holds yet are in
 //! `docs/scenes/DIALOGUE_CALLERS.md`.
 
 use std::collections::BTreeMap;
@@ -16,26 +16,26 @@ use crate::scene::{DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp,
 use crate::scene_runner::Scene;
 
 /// `Event_GetAndRunDialogue`: panels, both windows and the map chunks go.
-const D1: u32 = 0x5AC66;
+pub(super) const D1: u32 = 0x5AC66;
 /// `Event_GetAndRunDialogue2`: nothing is destroyed, the counts are zeroed.
-const D2: u32 = 0x5ACDC;
+pub(super) const D2: u32 = 0x5ACDC;
 /// `Event_GetAndRunDialogue3`: as `D1` without `Panel_DestroyAll`.
-const D3: u32 = 0x5AD32;
+pub(super) const D3: u32 = 0x5AD32;
 /// `Event_GetAndRunDialogue4`: `RunText3`, no button wait, no panel destroy.
-const D4: u32 = 0x5ADA2;
+pub(super) const D4: u32 = 0x5ADA2;
 /// `Event_GetAndRunDialogue5`: as `D3`, then `PalFadeOut_ClrSpriteTbl` and
 /// `Panel_DestroyAll`.
-const D5: u32 = 0x5ADF8;
+pub(super) const D5: u32 = 0x5ADF8;
 /// `GetDialogueByID` called by the scene's own window code, which exits its
 /// own way: any window may stand for it.
-const INLINE: u32 = 0x59164;
+pub(super) const INLINE: u32 = 0x59164;
 /// `d0` is not a literal at the call (read off an object or out of a table).
-const DYN: u16 = 0xFFFF;
+pub(super) const DYN: u16 = 0xFFFF;
 
 /// Which [`DialogueWindow`] each routine is. Five routines, five variants;
 /// `Cutscene5` (`Event_RunDialogue5`'s resume) and `EndingIntro` (an inline
 /// `RunText3` window) belong to no `Get` entry.
-const ROUTINE_WINDOWS: &[(u32, DialogueWindow)] = &[
+pub(super) const ROUTINE_WINDOWS: &[(u32, DialogueWindow)] = &[
     (D1, DialogueWindow::Standard),
     (D2, DialogueWindow::Retained),
     (D3, DialogueWindow::Cutscene3),
@@ -45,7 +45,7 @@ const ROUTINE_WINDOWS: &[(u32, DialogueWindow)] = &[
 
 /// `(scene, routine, call address, entry)`, in image order. A call that more
 /// than one `d0` load reaches has a row per entry.
-const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
+pub(super) const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Event_AlysFound", D1, 0x06B32C, DYN),
     ("Event_MeetingHahn", D1, 0x06B438, 0x11),
     ("Event_MachineCenterAppearing", D1, 0x06B564, 0x0B),
@@ -273,9 +273,9 @@ const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Cutscene_Ending", INLINE, 0x079C72, 0x15),
 ];
 
-type Row = (&'static str, u32, u32, u16);
+pub(super) type Row = (&'static str, u32, u32, u16);
 
-fn routine_name(routine: u32) -> &'static str {
+pub(super) fn routine_name(routine: u32) -> &'static str {
     match routine {
         D1 => "Event_GetAndRunDialogue",
         D2 => "Event_GetAndRunDialogue2",

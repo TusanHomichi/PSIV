@@ -43,8 +43,8 @@ the five dialogue entries, the `DialogueWindow` each routine's exit is, and the
 mistranscriptions the census found (all fourteen `Dialogue2` callers, eight
 callers on the wrong sibling window) are in
 [the dialogue caller census](DIALOGUE_CALLERS.md), guarded by
-[`tests/test_dialogue_callers.py`](../../tests/test_dialogue_callers.py) and
-`psiv-core`'s `every_dialogue_entry_caller_runs_its_window`.
+`psiv-core`'s `scenes::dialogue_callers_image` census and
+`every_dialogue_entry_caller_runs_its_window`.
 
 ## Next-arc registry
 
