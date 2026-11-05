@@ -30,7 +30,7 @@ one the port must take, and a `revision=0` block must not reach the registry.
 
 Retail `DialogueTreesToRAM` calls per scene range, against the registry's
 `SceneOp::SetDialogueTree` count. Guards:
-`rust/psiv-core/src/scenes/mod.rs::every_scene_loads_the_trees_its_retail_bytes_load`
+`rust/psiv-core/src/scenes/tests.rs::every_scene_loads_the_trees_its_retail_bytes_load`
 (the checked-in table, no ROM needed) and
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py), which re-derives
 the retail column from the image and fails if this table rots.
