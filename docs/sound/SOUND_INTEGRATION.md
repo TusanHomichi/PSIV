@@ -294,10 +294,13 @@ includes YM DAC `$2A` data plus `$2B` enable writes.
 Headless Godot boots exit successfully and demonstrate normal Piata routing,
 debug-track routing, and combined debug-battle routing. They exit with no
 leak report: `stop` only marks the player's playback for deletion, which the
-audio thread's next mix carries out, so the field's exit path
-(`AudioOutput::shutdown`) waits, bounded, for one mix after its stop; a quit
-before that mix left the `AudioStreamGeneratorPlayback` on the server's list,
-reported leaked at exit
-([#123](https://github.com/TusanHomichi/PSIV/issues/123)). The native
+server's next mix step carries out, and a quit before that step left the
+`AudioStreamGeneratorPlayback` on the server's list, reported leaked at exit
+([#123](https://github.com/TusanHomichi/PSIV/issues/123)). The server steps
+once per 512 frames, and a driver call can end without a step when its period
+is shorter (about 480 frames on some desktop drivers), so the field's exit
+path (`AudioOutput::shutdown`) waits, at most 500 ms, for two driver mixes
+begun after its stop: two calls of at least 256 frames each always include a
+step. The native
 verifiers fail a run on any such report (`logged_exit_leaks` in
 `tools/godot.py`).

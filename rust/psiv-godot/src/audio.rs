@@ -80,13 +80,15 @@ impl AudioOutput {
     ///
     /// `stop` only marks the playback for deletion
     /// (`AudioServer::stop_playback_stream`, Godot 4.7.1
-    /// servers/audio/audio_server.cpp): the audio thread's next mix takes it
-    /// off the server's playback list, and the server frees what it took off
-    /// when it is destroyed. The field stops it while the tree is torn down at
-    /// quit, and the driver is finished soon after, so a quit that came
-    /// before the next mix left the playback on the list, never freed: the
-    /// `AudioStreamGeneratorPlayback` ObjectDB leak headless runs reported.
-    /// So the exit path waits, bounded, for one mix that began after the stop.
+    /// servers/audio/audio_server.cpp): the server's next mix step
+    /// (`_mix_step`) takes it off the playback list, and the server frees what
+    /// it took off when it is destroyed. The field stops it while the tree is
+    /// torn down at quit, and the driver is finished soon after, so a quit
+    /// that came before the next mix step left the playback on the list,
+    /// never freed: the `AudioStreamGeneratorPlayback` ObjectDB leak headless
+    /// runs reported. So the exit path waits, bounded, for
+    /// `SHUTDOWN_DRIVER_CALLS` driver mixes that began after the stop (see
+    /// there for why one is not enough).
     pub(crate) fn shutdown(&mut self) {
         let Some(mut player) = self.player.take() else {
             return;
@@ -94,9 +96,10 @@ impl AudioOutput {
         let had_playback = player.has_stream_playback();
         player.stop();
         player.set_stream(Gd::<AudioStream>::null_arg());
-        if had_playback && !wait_for_mix_after_stop() {
+        if had_playback && !wait_for_mixes_after_stop() {
             godot_warn!(
-                "audio: no mix within {} ms of the shutdown stop; Godot may report its playback leaked",
+                "audio: fewer than {SHUTDOWN_DRIVER_CALLS} mixes within {} ms of the shutdown stop; \
+                 Godot may report its playback leaked",
                 SHUTDOWN_MIX_WAIT_US / 1_000
             );
         }
@@ -192,43 +195,84 @@ fn parse_sound_id(variable: &str) -> Option<u8> {
     u8::from_str_radix(digits, radix).ok()
 }
 
-/// The longest the exit path waits for the audio thread's next mix. The
-/// headless Dummy driver mixes every 1,024 frames at 44.1 kHz (about 23 ms).
+/// The longest the exit path waits for its driver mixes. The headless Dummy
+/// driver mixes every 1,024 frames at 44.1 kHz (about 23 ms).
 const SHUTDOWN_MIX_WAIT_US: u64 = 500_000;
 
-/// Waits until a mix that began after this call has finished; false when none
-/// came within `SHUTDOWN_MIX_WAIT_US`.
+/// Driver mixes, begun after the stop, the exit path waits for. A driver call
+/// (`AudioDriver::audio_server_process` -> `AudioServer::_driver_process`)
+/// runs a mix step only when the server's 512-frame buffer (`buffer_size`,
+/// `AudioServer::init`) is used up, and any call leaves at most 511 of those
+/// frames unused. One Dummy call (1,024 frames) always steps, but a desktop
+/// driver with short periods (about 480 frames, as PipeWire or PulseAudio can
+/// ask for) can end a call without one. Two calls of at least 256 frames each
+/// take 512 or more frames, more than the 511 left, so they always include a
+/// step after the stop.
+const SHUTDOWN_DRIVER_CALLS: u32 = 2;
+
+/// Waits until `SHUTDOWN_DRIVER_CALLS` driver mixes that began after this call
+/// have finished; false when they did not within `SHUTDOWN_MIX_WAIT_US`.
 ///
 /// The driver records each mix's start time and mixes under its lock, and
 /// `get_time_since_last_mix` reads that time under the same lock, so a read
-/// that shows a start after the stop also shows that mix finished.
-fn wait_for_mix_after_stop() -> bool {
+/// that shows a start after the reference also shows that mix finished.
+fn wait_for_mixes_after_stop() -> bool {
     let time = godot::classes::Time::singleton();
     let server = godot::classes::AudioServer::singleton();
     let stopped_at = time.get_ticks_usec();
+    let mut wait = MixWait::new(stopped_at, SHUTDOWN_DRIVER_CALLS);
     loop {
         let read_at = time.get_ticks_usec();
         let since = server.get_time_since_last_mix();
-        if mixed_after(stopped_at, read_at, since) {
+        let returned_at = time.get_ticks_usec();
+        if wait.observe(read_at, since, returned_at) {
             return true;
         }
-        if time.get_ticks_usec().saturating_sub(stopped_at) > SHUTDOWN_MIX_WAIT_US {
+        if returned_at.saturating_sub(stopped_at) > SHUTDOWN_MIX_WAIT_US {
             return false;
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
 
-/// Whether the last mix began after `stopped_at`, given the time since it
+/// Counts distinct driver mixes begun after a reference time (engine ticks, µs).
+struct MixWait {
+    /// Every mix still to be counted began after this.
+    reference: u64,
+    left: u32,
+}
+
+impl MixWait {
+    fn new(stopped_at: u64, mixes: u32) -> Self {
+        Self {
+            reference: stopped_at,
+            left: mixes,
+        }
+    }
+
+    /// One read: the time since the last mix (seconds), read no earlier than
+    /// `read_at` and returned by `returned_at`. A mix counted here began
+    /// before `returned_at`, so the next one counted must begin after it:
+    /// one mix is never counted twice. True once every mix is counted.
+    fn observe(&mut self, read_at: u64, since_last_mix_s: f64, returned_at: u64) -> bool {
+        if self.left > 0 && mixed_after(self.reference, read_at, since_last_mix_s) {
+            self.left -= 1;
+            self.reference = returned_at;
+        }
+        self.left == 0
+    }
+}
+
+/// Whether the last mix began after `reference`, given the time since it
 /// (seconds) read no earlier than `read_at` (both in engine ticks, µs). The
 /// read can only come later than `read_at`, which makes the start computed
-/// here no later than the true one: a mix judged after the stop was.
-fn mixed_after(stopped_at: u64, read_at: u64, since_last_mix_s: f64) -> bool {
+/// here no later than the true one: a mix judged after the reference was.
+fn mixed_after(reference: u64, read_at: u64, since_last_mix_s: f64) -> bool {
     let since_us = (since_last_mix_s * 1_000_000.0).ceil();
     if !since_us.is_finite() || since_us < 0.0 {
         return false;
     }
-    (read_at as f64) - since_us > stopped_at as f64
+    (read_at as f64) - since_us > reference as f64
 }
 
 fn generator_playback(
@@ -349,8 +393,8 @@ mod tests {
         }
     }
 
-    /// The exit path's wait ends only on a mix that began after the stop
-    /// (#123). Times are hand-picked engine ticks (µs) and seconds.
+    /// A mix counts only when it began after the stop (#123). Times are
+    /// hand-picked engine ticks (µs) and seconds.
     #[test]
     fn only_a_mix_begun_after_the_stop_ends_the_shutdown_wait() {
         use super::mixed_after;
@@ -366,5 +410,25 @@ mod tests {
         assert!(!mixed_after(1_000_000, 1_030_000, 1.030));
         assert!(!mixed_after(1_000_000, 1_030_000, f64::NAN));
         assert!(!mixed_after(1_000_000, 1_030_000, -0.5));
+    }
+
+    /// The exit path waits for two distinct mixes after the stop, not one
+    /// (#123 review): a short-period driver call can end without a mix step.
+    /// Stopped at 1.000000 s; reads are hand-timed.
+    #[test]
+    fn the_shutdown_wait_counts_two_distinct_mixes_after_the_stop() {
+        use super::{MixWait, SHUTDOWN_DRIVER_CALLS};
+        let mut wait = MixWait::new(1_000_000, SHUTDOWN_DRIVER_CALLS);
+        // Read at 1.005000 s, 0.010 s since: the mix began at 0.995 s,
+        // before the stop. Not counted.
+        assert!(!wait.observe(1_005_000, 0.010, 1_005_010));
+        // Read at 1.012000 s, 0.002 s since: began at 1.010 s. Counted,
+        // and one mix alone does not end the wait.
+        assert!(!wait.observe(1_012_000, 0.002, 1_012_010));
+        // Read again at 1.013000 s, 0.003 s since: the same mix (1.010 s),
+        // which began before the last read returned. Not counted twice.
+        assert!(!wait.observe(1_013_000, 0.003, 1_013_010));
+        // Read at 1.040000 s, 0.005 s since: began at 1.035 s, a second mix.
+        assert!(wait.observe(1_040_000, 0.005, 1_040_010));
     }
 }
