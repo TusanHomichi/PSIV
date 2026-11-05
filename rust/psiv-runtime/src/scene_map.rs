@@ -31,7 +31,8 @@ pub(crate) fn live_chunk(
 
 impl Runtime {
     /// Read the live collision-selected plane, including scene/load patches.
-    pub(crate) fn map_chunk_at(&self, at: PixelPos) -> Option<u16> {
+    #[must_use]
+    pub fn map_chunk_at(&self, at: PixelPos) -> Option<u16> {
         live_chunk(self.map_record()?, &self.effects, at)
     }
 
