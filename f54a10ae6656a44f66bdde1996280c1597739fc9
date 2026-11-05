@@ -1,0 +1,95 @@
+{
+  "conary": "note v1",
+  "change": "7aer2eszfwbqjsx403pk4hhx2z",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 319,
+  "url": "https://github.com/tusanhomichi/psiv/pull/319",
+  "summary": "scenes: the Pengu Feed thief ($96), and the trigger that fires it",
+  "task": "tusanhomichi/psiv#56",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "f77a5154faeeca4f923712e772bd2c6640c5599c8225cd14465cd858bba0d0c7",
+    "before": "42572fb079af6ba3ab8751313a479efde5e21ba5",
+    "after": "f54a10ae6656a44f66bdde1996280c1597739fc9",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793878350298
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011009209/job/127189751187"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011009209/job/127189751080"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888/job/127189749747"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#319)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#319)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#319)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#319)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#319)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011008888"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/319#pullrequestreview-5783450977"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42011009209/job/127189809096"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/319"
+    }
+  ]
+}
