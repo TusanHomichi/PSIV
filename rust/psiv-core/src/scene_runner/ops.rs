@@ -936,11 +936,7 @@ impl SceneRunner {
                     self.pc += 1;
                 }
             },
-            SceneOp::GetOff(get_off) => {
-                if let Some(fault) = self.get_off_op(get_off, effects) {
-                    return Some(fault);
-                }
-            }
+            SceneOp::GetOff(get_off) => return self.get_off_op(get_off, effects),
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);
