@@ -57,7 +57,8 @@ occupied slots and searches only that many.
 
 **What is derived.** The thief's walk uses the scene cast's step rate, eight frames a cell, which
 is not measured against `loc_4B30C`'s own step, and its art (tile `$342`) has no sprite sheet in
-the pack. Nothing draws it yet, as with the strip club's dancers (#241).
+the pack. Nothing draws it yet, as with the strip club's dancers (#241); the deviation is recorded
+in [the source notes](../source-notes/README.md#other-recorded-deviations).
 
 ## Evidence
 

@@ -49,7 +49,7 @@ const SPIN_TURN: [SceneOp; 8] = {
 
 /// `$0096`, `Event_PenguinFeedStolen`, retail `$0735F6..$0736E9`
 /// (`ps4.asm:153259-153328`): map trigger `$7B` in `ZosaItemShop` fires it
-/// on the row at `y = $260` while `GetItem` finds no Pengu Feed. The music
+/// on the row at `y = $260` while `GetItem` finds a Pengu Feed. The music
 /// turns, a thief appears in slot 2, runs under the leader, spins five times,
 /// runs off to the right and is gone; entry `$10` follows, the shop's music
 /// comes back, and every Pengu Feed `GetItem` can find is taken.
