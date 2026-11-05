@@ -4,8 +4,8 @@ Twelve events of Vahal Fort and the Weapon Plant (issue #82) are field
 mechanics: a trigger or an interaction runs an event routine whose body is a
 frame loop over the **party objects**. They are scenes in the registry (the
 cartridge dispatches them through `Event_Index` like any event) and each moves
-the party the way the loop does, not as scripted cast: [`SceneOp::RidePlatform`]
-adds a step to every party object per frame, and [`SceneOp::ConveyorRide`] reads
+the party the way the loop does, not as scripted cast: [`RideOp::Platform`]
+adds a step to every party object per frame, and [`RideOp::Conveyor`] reads
 the live collision-plane layout to decide where the carry ends.
 
 | Event | Routine | Retail bytes | Fires from |
@@ -120,13 +120,13 @@ Per scene (22 ops, two halves around the flag test at op 0):
 | start `GetMapLayoutOffset` writes | `WriteMapChunks` (literal chunk coordinates) |
 | 60-frame settle | `WaitFrames 60` |
 | `SFXID_ConveyorBelt` | `PlaySound $E7` |
-| ride loop | `RidePlatform {slot, step_y, frames}` |
+| ride loop | `Ride(Platform {slot, step_y, frames})` |
 | `TempEveFlags_Toggle` | `ToggleFlag` |
 | end writes | `WriteMapChunks` |
 | `clr.w (a4)` | `DespawnNpc {slot, 1}` |
 | `Sound_StopSFX` | `PlaySound $FC` |
 
-`RidePlatform` moves every party actor's pixel position by the step each tick
+`RideOp::Platform` moves every party actor's pixel position by the step each tick
 (a whole-pixel slide that rolls over into the cell), emits the platform's own
 motion to the renderer as a `StepFieldObject`, blocks for the frame count with
 map updates running (the retail loop calls `RunMapUpdates` each frame), and
@@ -200,7 +200,7 @@ next chunk, an up belt after the first pixel that leaves the chunk), and at
 least one cell, because the destination is set before the first test. The Rust
 test derives the ends on paper for both halves and all four directions.
 
-`SceneOp::ConveyorRide` scans the layout once, when it starts, for that `t` (the
+`RideOp::Conveyor` scans the layout once, when it starts, for that `t` (the
 retail test is per pixel, so the scan is per pixel), then walks the leader the
 resulting number of cells at 16 frames a cell; the followers trail through the
 runner's ordinary follow chain, and `OverlapCharacters` after it collapses them
