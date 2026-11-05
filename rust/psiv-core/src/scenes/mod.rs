@@ -339,6 +339,7 @@ pub static SCENES: &[Scene] = &[
     vehicles::BOARDING_LAND_ROVER,
     vehicles::BOARDING_ICE_DIGGER,
     vehicles::BOARDING_HYDROFOIL,
+    vehicles::GETTING_OFF_VEHICLE,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -555,6 +556,7 @@ mod tests {
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
+            ("Event_GettingOffVehicle", 9),
         ];
         assert_eq!(
             SCENES.len(),

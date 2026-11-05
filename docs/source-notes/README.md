@@ -225,6 +225,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   frames behind the cartridge, and the turns show a frame sooner. The villagers' creation is not a
   deviation: the `dest` Y the scene writes from the X word is overwritten by
   `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
+- **The vehicle refusal opens in the dialogue window.** `Event_GettingOffVehicle`
+  (`ps4.asm:145397-145413`) draws `CannotGetOffString` into window 0 with window tiles and holds
+  it until `Joypad_Pressed` has a direction, A, B or C. The port opens the same string (from the
+  pack) in the dialogue window, closed by the dialogue's own press, and then reloads the chunks as
+  the cartridge does. The party, the selector and the music are the cartridge's. Recorded in
+  [207](../scenes/207_GettingOffVehicle.md).
 
 - `Event_DyingBoy` (`$86`, `ps4.asm:152726-152855`, [record](../scenes/163_DyingBoy.md)) differs
   from the cartridge three ways, none of which changes a flag, an item or where anyone stands:

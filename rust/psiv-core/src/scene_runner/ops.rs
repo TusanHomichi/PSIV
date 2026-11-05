@@ -87,6 +87,7 @@ impl SceneRunner {
                 self.dialogue_window = window;
                 let dialogue = match source {
                     DialogueSource::Entry(id) => id,
+                    DialogueSource::System(_) => DialogueId(u16::MAX),
                     DialogueSource::NpcDialogueId(actor) => {
                         // The entry index lives on the field object. The engine
                         // does not carry object dialogue ids, so it reports the
@@ -102,6 +103,7 @@ impl SceneRunner {
                     DialogueSource::NpcDialogueId(actor) => {
                         SceneEffect::DialogueOpenFromNpc { actor }
                     }
+                    DialogueSource::System(line) => SceneEffect::SystemLineOpen(line),
                 });
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
@@ -935,11 +937,8 @@ impl SceneRunner {
                     self.pc += 1;
                 }
             },
-            SceneOp::Wreckage(wreckage) => {
-                if let Some(fault) = self.wreckage_op(wreckage, state, effects) {
-                    return Some(fault);
-                }
-            }
+            SceneOp::GetOff(get_off) => return self.get_off_op(get_off, effects),
+            SceneOp::Wreckage(wreckage) => return self.wreckage_op(wreckage, state, effects),
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);
