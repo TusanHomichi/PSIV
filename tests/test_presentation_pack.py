@@ -11,6 +11,8 @@ from psiv_tools.presentation_pack import (
     ENDING_PANEL_IDS,
     PANEL_IDS,
     PANEL_RECORD_SIZE,
+    PLATE_ENGINE_LIGHT,
+    decode_palette_requests,
     panel_record_offset,
 )
 
@@ -77,6 +79,25 @@ class PresentationPackTests(unittest.TestCase):
                     data, mapping_b, base_tile=art_b, max_words=columns * rows
                 )
                 self.assertEqual(len(words_b), columns * rows)
+
+    def test_plate_engine_light_window_covers_every_read_its_loop_makes(self):
+        # `Event_PlateSysEngine`'s loop reads `(a1)+` until a negative word
+        # and then `$E(a1)`: the pack's window must reach the deepest second
+        # word, the one after the table's last colour, and hold the ROM's bytes.
+        data = ROM.read_bytes()
+        address, words = PLATE_ENGINE_LIGHT
+        records = {r["rom_addr"]: r for r in decode_palette_requests(data)}
+        record = records[f"0x{address:06X}"]
+        self.assertEqual(record["words"], words)
+        raw = bytes.fromhex(record["raw_hex"])
+        self.assertEqual(raw, data[address : address + words * 2])
+        table = [_word(raw, 2 * i) for i in range(words)]
+        terminator = next(i for i, word in enumerate(table) if word & 0x8000)
+        self.assertGreater(terminator, 0)
+        deepest = terminator + 0xE // 2
+        self.assertEqual(deepest, words - 1, "the window ends at the deepest read")
+        # That read is past the table: the address of `loc_6E922`'s code.
+        self.assertEqual(address + 2 * deepest, 0x06E922)
 
     def test_opening_background_manifest_matches_game_start_addresses(self):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
