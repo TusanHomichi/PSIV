@@ -69,7 +69,7 @@ class EventCensus(unittest.TestCase):
             self.assertTrue(reason)
         by_issue = {i: [e for e, (n, _) in ec.ALLOWLIST.items() if n == i] for i in ec.ISSUES}
         # #56 and #71 keep exactly what is still untranscribed of their lists.
-        self.assertEqual(sorted(by_issue[56]), [0x96])
+        self.assertEqual(sorted(by_issue[56]), [])
         self.assertEqual(sorted(by_issue[71]), [])
 
     def test_the_census_sees_every_source_kind(self) -> None:
@@ -179,11 +179,14 @@ class NegativeControl(unittest.TestCase):
         self.assertTrue(any("$0037" in f and "tracked issue" in f for f in found), found)
 
     def test_a_new_event_without_a_scene_is_reported(self) -> None:
+        # Any entry will do; the lowest still listed, so a lane that
+        # transcribes one does not have to edit this control.
         allowlist = dict(ec.ALLOWLIST)
-        del allowlist[0x96]
+        event = min(allowlist)
+        del allowlist[event]
         found = ec.problems(self.census, self.registry, allowlist)
         self.assertEqual(len(found), 1, found)
-        self.assertIn("$0096 Event_PenguinFeedStolen", found[0])
+        self.assertIn(f"${event:04X} {self.census.events[event].label}", found[0])
 
     def test_a_new_immediate_writer_in_the_image_is_reported(self) -> None:
         patched = bytearray(self.rom)
