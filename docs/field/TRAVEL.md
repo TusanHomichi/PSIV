@@ -74,10 +74,15 @@ identifies it. This extension is a deliberate native restart improvement,
 not a claim that the original cartridge saves $ED51.
 
 Native Motavia travel and the raw saved world-byte interpretation are
-covered here. Still open: world selection during later space-travel scenes
-needs the original writes wired into the scene runtime ([#126](https://github.com/TusanHomichi/PSIV/issues/126)); general
-map-entry follower alignment ([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the exact retail teleport visuals and
-window layout ([#128](https://github.com/TusanHomichi/PSIV/issues/128)).
+covered here. The cartridge writes `World_Index` in eight places: the new-game
+initializer, the ship's destination menu and Sabotage's copy of it, and five
+scenes. `Runtime::set_world_index` cites each one it makes,
+`rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
+whole-route runner test checks the world and map of every chapter that lands
+on a new planet. Still open: general map-entry follower alignment
+([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the exact retail
+teleport visuals and window layout
+([#128](https://github.com/TusanHomichi/PSIV/issues/128)).
 
 ## Verification
 
