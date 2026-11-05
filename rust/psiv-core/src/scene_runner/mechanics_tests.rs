@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::battle::{StatPair, StatTriple, Stats};
-use crate::scene::{DialogueId, SceneFault};
+use crate::scene::{DialogueId, RideOp, SceneFault};
 use crate::{CollisionGrid, Direction, EventIndex, Flag, MapId, PixelPos, scene_for};
 
 fn stats() -> Stats {
@@ -562,11 +562,11 @@ fn a_ride_moves_the_party_two_pixels_a_frame_and_rolls_into_cells() {
     assert_eq!(at(80).2, 0);
 }
 
-static MISMATCHED_RIDE: &[SceneOp] = &[SceneOp::RidePlatform {
+static MISMATCHED_RIDE: &[SceneOp] = &[SceneOp::Ride(RideOp::Platform {
     slot: 3,
     step_y: 0x2_0000,
     frames: 7,
-}];
+})];
 
 #[test]
 fn a_ride_that_ends_between_cells_is_a_fault_not_a_stranded_party() {

@@ -288,6 +288,21 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
             (0x6CDC4, "020003E00380CCCDFE0003E002A0CCCD"),
         ),
     ),
+    SceneChunkWrite(
+        scene="Event_WreckageEngine",
+        map_id=0x0B6,
+        citation=(
+            "loc_6DD08, eight passes of GetMapLayoutOffset then `move.b #$A6` at (a1) $06DD1A, "
+            "(a1,d7) $06DD1E, $20(a1) $06DD24 and $20(a1,d7) $06DD2A: Wreckage_F2_Part4's floor"
+        ),
+        chunks=(0xA6,),
+        checks=(
+            (0x6DD1A, "12BC00A6"),
+            (0x6DD1E, "13BC00A67000"),
+            (0x6DD24, "137C00A60020"),
+            (0x6DD2A, "13BC00A67020"),
+        ),
+    ),
 )
 
 

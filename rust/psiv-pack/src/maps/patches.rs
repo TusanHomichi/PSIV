@@ -133,6 +133,18 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
             (0x6CDC4, "020003E00380CCCDFE0003E002A0CCCD"),
         ],
     },
+    SceneChunkWrite {
+        scene: "Event_WreckageEngine",
+        map_id: 0x0B6,
+        chunks: &[0xA6],
+        table: None,
+        checks: &[
+            (0x6DD1A, "12BC00A6"),
+            (0x6DD1E, "13BC00A67000"),
+            (0x6DD24, "137C00A60020"),
+            (0x6DD2A, "13BC00A67020"),
+        ],
+    },
 ];
 
 fn refuse<T>(message: String) -> Result<T, PackError> {
