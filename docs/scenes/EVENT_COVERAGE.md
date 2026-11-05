@@ -179,7 +179,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
 | `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | scene `Event_DyingBoyFather` |
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | scene `Event_FatherAfterBoyRecovery` |
-| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
+| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | scene `Event_DyingBoy` |
 | `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | scene `Event_MeetingSekreas` |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |

@@ -379,7 +379,6 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
         "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Plate System and Wreckage",
         (
             0x24, 0x31,
-            0x86,
         ),
     ),
     (ISSUE_DEZOLIS, "Dezolis late arc", ()),

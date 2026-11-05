@@ -64,7 +64,7 @@ pub static VAHAL_FORT_BARRIER: Scene = Scene {
 
 /// One `Event_GetCharacter` / `move.w #x, $38(a4)` / `move.w #y, $3A(a4)`
 /// pair: a character's destination, walked once the follow chain is off.
-const fn go(who: crate::state::CharId, x: i32, y: i32) -> SceneOp {
+pub(super) const fn go(who: crate::state::CharId, x: i32, y: i32) -> SceneOp {
     SceneOp::MoveActorTo {
         actor: ActorRef::Character(who),
         x,
