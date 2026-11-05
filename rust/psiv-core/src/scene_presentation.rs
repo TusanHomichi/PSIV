@@ -62,6 +62,14 @@ pub enum CameraSubject {
     },
     /// An object's live `$30`/`$34`, read when the op runs.
     Actor(ActorRef),
+    /// An object's live `$30` and a literal `d1`: `Event_WreckageEngine`'s
+    /// `move.w $30(a0), d0 / move.w #$1F0, d1`.
+    ActorX {
+        /// Whose X.
+        actor: ActorRef,
+        /// `d1`.
+        y: i32,
+    },
 }
 
 /// One renderer-owned operation preserved by a scene transcription.
@@ -321,6 +329,14 @@ pub enum PresentationOp {
         /// A palette range the loop rewrites from ROM after every tone step,
         /// before the frame's `VInt_Prepare`, so it never brightens.
         hold: Option<PaletteHold>,
+    },
+    /// `addi.w #add` on one `Palette_Table_Buffer` word
+    /// (`Event_WreckageEngine`'s brightening screens, `$06DD6C`).
+    AddPaletteWord {
+        /// Word offset from `Palette_Table_Buffer`.
+        offset: u16,
+        /// Added to the word, as `addi.w` does (wrapping).
+        add: u16,
     },
     /// `Event_Recovery`'s flash (`loc_6D3BA` and `loc_6D40A`, `ps4.asm:146867-146934`,
     /// ROM `$06D3BA..$06D467`): for `frames` VBlanks, on each frame whose

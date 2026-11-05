@@ -88,6 +88,7 @@ mod vahal_common;
 pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
 pub(crate) mod weapon_plant;
+pub(crate) mod wreckage;
 pub(crate) mod zosa_events;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
@@ -299,8 +300,12 @@ pub static SCENES: &[Scene] = &[
     motavia_side::LOST_GIRLS_MOTHER,
     motavia_side::KING_RAPPY_DEFEATED,
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
+    motavia_side::DYING_BOY_FATHER,
+    motavia_side::FATHER_AFTER_BOY_RECOVERY,
+    motavia_side::MEETING_SEKREAS,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    wreckage::WRECKAGE_ENGINE,
     plate_wreckage::PHONON,
     plate_wreckage::PLATE_SYS_ENGINE,
     home_decor::PENNANT,
@@ -527,6 +532,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_WreckageEngine", 67),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
@@ -539,6 +545,9 @@ mod tests {
             ("Event_MissingStudentFound", 29),
             ("Event_OldManNearMissingStudent", 6),
             ("Event_MissingStudentInBed", 14),
+            ("Event_DyingBoyFather", 3),
+            ("Event_FatherAfterBoyRecovery", 3),
+            ("Event_MeetingSekreas", 3),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

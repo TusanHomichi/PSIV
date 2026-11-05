@@ -86,7 +86,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0026` | `Event_PrincipalConfession` | dialogue `$F6` | tree 33 entry 22 | scene `Event_PrincipalConfession` |
 | `$0027` | `Event_RuneFlaeli` | map trigger $30 | ValleyMazeOutside | scene `Event_RuneFlaeli` |
 | `$0028` | `Event_AlshlineFound` | map trigger $18 | TonoeBasement_B3 | scene `Event_AlshlineFound` |
-| `$0029` | `Event_WreckageEngine` | interaction area $01; dialogue `$F6` | Wreckage_F2_Part4, tree 8 entry 70 | allowlisted, #81 |
+| `$0029` | `Event_WreckageEngine` | interaction area $01; dialogue `$F6` | Wreckage_F2_Part4, tree 8 entry 70 | scene `Event_WreckageEngine` |
 | `$002A` | `Event_CancellerReminder` | map trigger $55 | Zelan_F1 | scene `Event_CancellerReminder` |
 | `$002B` | `Event_GettingLandRover` | map trigger $1B | MachineCenter_B1_Part2 | scene `Event_GettingLandRover` |
 | `$002C` | `Event_MonsenEarthquake` | dialogue `$F6` | tree 12 entry 10 | scene `Event_MonsenEarthquake` |
@@ -177,10 +177,10 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
 | `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | scene `Event_PayingGirlsBail` |
 | `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
-| `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | allowlisted, #81 |
-| `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | allowlisted, #81 |
+| `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | scene `Event_DyingBoyFather` |
+| `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | scene `Event_FatherAfterBoyRecovery` |
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
-| `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | allowlisted, #81 |
+| `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | scene `Event_MeetingSekreas` |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |
 | `$008A` | `Event_ZemaServantBattle` | map trigger $74 | Zema | scene `Event_ZemaServantBattle` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 8 |
+| #81 | Motavia side content | 4 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 0 |
-| | total | 8 |
+| | total | 4 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

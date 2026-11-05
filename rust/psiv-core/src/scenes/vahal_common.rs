@@ -2,7 +2,7 @@
 //! scenes (issue #82). Records are `docs/scenes/110_*` onward and
 //! `docs/field/PLATFORMS_AND_BELTS.md`.
 
-use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{DialogueId, DialogueSource, DialogueWindow, RideOp, SceneOp};
 use crate::state::Flag;
 
 /// `SFXID_ConveyorBelt` (`ps4.constants.asm:1027`), the platforms' and the
@@ -83,9 +83,9 @@ pub(super) const fn platform_object(slot: usize, x: i32, y: i32) -> SceneOp {
 /// The ride loop with the table's step word `step` (`$0200` or `$FE00`):
 /// `ext.l d0 / lsl.l #8, d0` makes it signed 16.16 pixels.
 pub(super) const fn ride(slot: usize, step: i16, frames: u16) -> SceneOp {
-    SceneOp::RidePlatform {
+    SceneOp::Ride(RideOp::Platform {
         slot,
         step_y: (step as i32) << 8,
         frames,
-    }
+    })
 }

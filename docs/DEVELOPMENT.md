@@ -344,9 +344,10 @@ request and push to `main`: the part of the gate that needs no local input, in
 the Nix sandbox from the tracked tree alone. That is `tools/check_docs.py`
 (citations skipped), `tools/size_guard.py`, `cargo fmt --check`, strict Clippy
 and the Rust workspace tests except those that load `runtime-pack` (listed by
-name in `packTests` in `flake.nix`), plus ruff's syntax and undefined-name rules over the Python; the Rust
+name in `packTests` in `flake.nix`), the gate's own tests (every
+`tests/test_gate*.py`: fake commands in throwaway repositories), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
-`oracle/build_core.sh` pins. The Python suite, which reads the ROM, the
+`oracle/build_core.sh` pins. The rest of the Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset
 reaches the runner. When the pack builder changes, hosted CI also runs its
 portability tests (the atomic swap and the text-file census) on Windows and

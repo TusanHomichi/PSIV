@@ -21,6 +21,12 @@ This test closes the class from both ends:
 
 The negative controls remove a row, and remove a chunk from a pack's atlas, and
 show each failure names the scene and the chunk.
+
+The Rust pack builder (`rust/psiv-pack/src/maps/patches.rs`) carries its own
+copy of the rows that add atlas chunks (`via` `"scene"`). `RustBuilderRows`
+holds the two to the same scenes, maps, chunks, tables and pinned bytes without
+the ROM, so a row added to one builder only fails here rather than in the full
+gate's pack parity (the Wreckage row did, #333).
 """
 from __future__ import annotations
 
@@ -41,11 +47,67 @@ from tests.test_scene_trees import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+RUST_PATCHES = ROOT / "rust" / "psiv-pack" / "src" / "maps" / "patches.rs"
 ROM = ROOT / "Phantasy Star IV (USA).md"
 PACK = Path(os.environ.get("PSIV_RUNTIME_PACK", ROOT / "runtime-pack"))
 
 WRITE_RE = re.compile(r"WriteMapChunks\s*\{\s*chunks:\s*&\[(.*?)\]\s*,?\s*\}", re.S)
 TUPLE_RE = re.compile(r"\(\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*\)")
+
+
+RUST_TABLE_RE = re.compile(
+    r"const SCENE_CHUNK_WRITES: &\[SceneChunkWrite\] = &\[(.*?)\n\];", re.S
+)
+RUST_ROW_RE = re.compile(
+    r"SceneChunkWrite\s*\{\s*scene:\s*\"([^\"]+)\",\s*map_id:\s*(0x[0-9A-Fa-f]+|\d+),\s*"
+    r"chunks:\s*&\[([^\]]*)\],\s*table:\s*(None|Some\(\(\s*(0x[0-9A-Fa-f]+|\d+),\s*(0x[0-9A-Fa-f]+|\d+)\s*\)\)),\s*"
+    r"checks:\s*&\[(.*?)\],\s*\}",
+    re.S,
+)
+RUST_CHECK_RE = re.compile(r"\(\s*(0x[0-9A-Fa-f]+|\d+),\s*\"([0-9A-Fa-f]*)\",?\s*\)")
+
+Row = tuple[str, int, tuple[int, ...], "tuple[int, int] | None", tuple[tuple[int, str], ...]]
+
+
+def rust_rows(text: str | None = None) -> list[Row]:
+    """The Rust builder's `SCENE_CHUNK_WRITES`, sorted; every row must parse."""
+    text = text if text is not None else RUST_PATCHES.read_text(encoding="utf-8")
+    table = RUST_TABLE_RE.search(text)
+    if table is None:
+        raise ValueError(f"no SCENE_CHUNK_WRITES table in {RUST_PATCHES}")
+    body = table.group(1)
+    rows: list[Row] = []
+    for match in RUST_ROW_RE.finditer(body):
+        scene, map_id, chunks, _, t_offset, t_length, checks = match.groups()
+        rows.append(
+            (
+                scene,
+                int(map_id, 0),
+                tuple(sorted(int(c, 0) for c in chunks.replace(",", " ").split())),
+                (int(t_offset, 0), int(t_length, 0)) if t_offset else None,
+                tuple((int(o, 0), h.upper()) for o, h in RUST_CHECK_RE.findall(checks)),
+            )
+        )
+    if len(rows) != body.count("SceneChunkWrite {"):
+        raise ValueError("a Rust SCENE_CHUNK_WRITES row does not parse")
+    return sorted(rows)
+
+
+def python_rows(
+    rows: tuple[map_patches.SceneChunkWrite, ...] = map_patches.SCENE_CHUNK_WRITES,
+) -> list[Row]:
+    """Python's rows that add atlas chunks, in `rust_rows`' shape."""
+    return sorted(
+        (
+            row.scene,
+            row.map_id,
+            tuple(sorted(row.chunks)),
+            row.table,
+            tuple((o, h.upper()) for o, h in row.checks),
+        )
+        for row in rows
+        if row.via == "scene"
+    )
 
 
 def registry_writes(sources: dict[str, str] | None = None) -> dict[str, list[tuple[int, int, int]]]:
@@ -146,6 +208,69 @@ def unresolved(
                     f"${row.map_id:03X} ({record.get('symbol')}); rebuild the pack"
                 )
     return problems
+
+
+class RustBuilderRows(unittest.TestCase):
+    """Both builders add the same atlas chunks; no ROM needed."""
+
+    def test_the_rust_builder_has_python_s_scene_rows(self) -> None:
+        self.assertEqual(rust_rows(), python_rows())
+
+    def test_the_wreckage_row_is_in_both(self) -> None:
+        scenes = {row[0] for row in rust_rows()}
+        self.assertIn("Event_WreckageEngine", scenes)
+        self.assertIn("Event_WreckageEngine", {row[0] for row in python_rows()})
+
+    # Negative controls: each way the Rust copy can drift is seen.
+    def _drifted(self, old: str, new: str) -> list[Row]:
+        text = RUST_PATCHES.read_text(encoding="utf-8")
+        self.assertEqual(text.count(old), 1, old)
+        return rust_rows(text.replace(old, new))
+
+    def test_a_row_missing_from_rust_is_seen(self) -> None:
+        text = RUST_PATCHES.read_text(encoding="utf-8")
+        start = text.index('    SceneChunkWrite {\n        scene: "Event_WreckageEngine"')
+        end = text.index("    },\n", start) + len("    },\n")
+        self.assertNotEqual(rust_rows(text[:start] + text[end:]), python_rows())
+
+    def test_a_different_chunk_map_table_or_pin_is_seen(self) -> None:
+        for old, new in (
+            ("chunks: &[0xA6]", "chunks: &[0xA7]"),
+            ("map_id: 0x0B6", "map_id: 0x0B7"),
+            ("table: Some((0x76E58, 21))", "table: Some((0x76E58, 22))"),
+            ('(0x6DD2A, "13BC00A67020")', '(0x6DD2A, "13BC00A67021")'),
+            ('(0x6DD24, "137C00A60020"),\n', ""),
+        ):
+            with self.subTest(old=old):
+                self.assertNotEqual(self._drifted(old, new), python_rows())
+
+    def test_a_row_that_does_not_parse_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            self._drifted("table: None,\n        checks: &[\n            (0x6DD1A", "table: Nope,\n        checks: &[\n            (0x6DD1A")
+
+    def test_python_s_other_rows_are_not_rust_s(self) -> None:
+        # `via` other than "scene" are Python's own guard rows.
+        self.assertNotIn("Cutscene_PsycoWand", {row[0] for row in rust_rows()})
+
+
+class WreckagePins(unittest.TestCase):
+    """`chunk_ids` refuses a change to any of the Wreckage's four `move.b` sites."""
+
+    def test_each_pinned_write_is_checked(self) -> None:
+        row = next(r for r in map_patches.SCENE_CHUNK_WRITES if r.scene == "Event_WreckageEngine")
+        self.assertEqual(len(row.checks), 4)
+        end = max(offset + len(hex_) // 2 for offset, hex_ in row.checks)
+        image = bytearray(end)
+        for offset, hex_ in row.checks:
+            image[offset : offset + len(hex_) // 2] = bytes.fromhex(hex_)
+        self.assertEqual(map_patches.chunk_ids(bytes(image), row), {0xA6})
+        for offset, _ in row.checks:
+            for delta in (0, 3):  # the opcode, and the chunk it stores
+                with self.subTest(offset=hex(offset), byte=delta):
+                    moved = bytearray(image)
+                    moved[offset + delta] ^= 1
+                    with self.assertRaisesRegex(map_patches.MapPatchError, f"\\${offset:06X} moved"):
+                        map_patches.chunk_ids(bytes(moved), row)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

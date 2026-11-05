@@ -18,8 +18,8 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, ItemOp,
-    JobBoardStep, MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RockyOp, SavedByte, SceneEffect,
-    SceneFault, SceneInput,
+    JobBoardStep, MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RideOp, RockyOp, SavedByte, SceneEffect,
+    SceneFault, SceneInput, WreckageOp,
 };
 
 /// One instruction of a scene.
@@ -953,29 +953,8 @@ pub enum SceneOp {
         /// The skill id written.
         skill: u8,
     },
-    /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
-    /// siblings); the rules are at `scene_runner/mechanics.rs`. Blocks for
-    /// `frames` ticks.
-    RidePlatform {
-        /// The temporary platform object's slot (`Field_LoadObject`'s first
-        /// free one).
-        slot: usize,
-        /// Signed 16.16 pixels per frame.
-        step_y: i32,
-        /// Loop iterations.
-        frames: u16,
-    },
-    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
-    /// its three siblings); the rules are at `scene_runner/mechanics.rs`.
-    /// Blocks until the leader arrives.
-    ConveyorRide {
-        /// The belt's direction.
-        direction: Direction,
-        /// Lowest chunk id the belt covers (`cmpi.b #$A8, d7`).
-        first_chunk: u8,
-        /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
-        last_chunk: u8,
-    },
+    /// A moving platform's or a conveyor belt's ride (`scene_runner/mechanics.rs`).
+    Ride(RideOp),
     /// `Event_PickingFifthCharacter`'s reads and writes, on its row.
     FifthCharacter(FifthOp),
     /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
@@ -986,6 +965,8 @@ pub enum SceneOp {
     Item(ItemOp),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// `Event_WreckageEngine`'s needs (`scenes/wreckage.rs`).
+    Wreckage(WreckageOp),
     /// A write to a field-object slot the map's record left empty.
     Object(ObjectOp),
     /// Unconditional jump.

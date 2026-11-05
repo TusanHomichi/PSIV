@@ -193,6 +193,10 @@ jobs.
 | `Event_LostGirlsMother` | `$7F` | [200](200_LostGirlsMother.md) | `$072C08..$072C2D` |
 | `Event_KingRappyDefeated` | `$89` | [201](201_KingRappyDefeated.md) | `$073018..$0730FB` |
 | `Event_MeeseClinicSickWoman` | `$93` | [202](202_MeeseClinicSickWoman.md) | `$0733CC..$07341F` |
+| `Event_DyingBoyFather` | `$84` | [162](162_TorincoCulvers.md) | `$072D44..$072D6B` |
+| `Event_FatherAfterBoyRecovery` | `$85` | [162](162_TorincoCulvers.md) | `$072D6C..$072D93` |
+| `Event_MeetingSekreas` | `$87` | [162](162_TorincoCulvers.md) | `$072FB4..$072FDB` |
+| `Event_WreckageEngine` | `$29` | [206](206_WreckageEngine.md) | `$06DBE8..$06DE7B` |
 | `Event_Phonon` | `$6C` | [204](204_Phonon.md) | `$0722F6..$072427` |
 | `Event_PlateSysEngine` | `$2D` | [205](205_PlateSysEngine.md) | `$06E75A..$06E907` |
 | `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
@@ -472,8 +476,8 @@ Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
 | `BranchIfPartyMember{who, if_present, if_absent}` | `Event_GetCharacter` `$5A6D6` (N set when `FindCharacterSlot` fails) + `bmi` | `Event_DominatorsDefeated` |
 | `FaceParty{facing}` | `loc_5A97C` `$5A97C`: `Event_UpdateObjFacing` on every non-empty character object | `Event_DominatorsDefeated` |
 | `SetCharacterSkill{who, slot, skill}` | `move.b #id, skills+n(a0)` on a character record (`Event_Burstroc` `$07250E`) | Burstroc, Positron Bolt |
-| `RidePlatform{slot, step_y, frames}` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
-| `ConveyorRide{direction, first_chunk, last_chunk}` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
+| `Ride(Platform{slot, step_y, frames})` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
+| `Ride(Conveyor{direction, first_chunk, last_chunk})` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
 
 Two more for the [late arc's interactions](180_LateArcInteractions.md), each with its case in
 `rust/psiv-core/tests/late_arc_scenes.rs`:
@@ -483,7 +487,7 @@ Two more for the [late arc's interactions](180_LateArcInteractions.md), each wit
 | `BranchIfInventoryFull{if_full, if_not}` | the count of non-zero `Inventory` bytes and `cmpi.w #40, d0 / bcs.w` | `Event_MuskCatElder` |
 | `BranchOnRngLow2{targets}` | `UpdateRNGSeed`, `move.w (RNG_Seed).w, d0`, `andi.w #3, d0` | `Event_RajaSick` |
 
-`ConveyorRide` is the one op that reads the live layout: `SceneRunner::tick_with`
+`RideOp::Conveyor` is the one op that reads the live layout: `SceneRunner::tick_with`
 takes the chunk probe, and the runtime hands it the collision plane with scene
 patches applied. `SceneFault::NoLayout` is its fault.
 
