@@ -633,8 +633,8 @@ ShadowSabr's routine casts DEBAN on its conditional slot 7,
 action. The tape party never hit a BloodSaber, so this capture scripts it:
 `python3 -m oracle.sweep.player_capture` on formation `$1C6` (two BloodSaber),
 Chaz attacking enemy 6 with agility and dexterity 255 so his swing lands before
-its turn, the others defending, every member at 999 HP, two rounds, refused
-unless an enemy uses `$2D` (`require_ability`).
+its turn, the others defending, every member at 999 HP, two rounds. Its
+report records the cast (`e1=0x2D` at f25201).
 
 | fixture | rounds | observed use |
 |---|---:|---|
