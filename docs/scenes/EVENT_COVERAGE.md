@@ -90,7 +90,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$002A` | `Event_CancellerReminder` | map trigger $55 | Zelan_F1 | scene `Event_CancellerReminder` |
 | `$002B` | `Event_GettingLandRover` | map trigger $1B | MachineCenter_B1_Part2 | scene `Event_GettingLandRover` |
 | `$002C` | `Event_MonsenEarthquake` | dialogue `$F6` | tree 12 entry 10 | scene `Event_MonsenEarthquake` |
-| `$002D` | `Event_PlateSysEngine` | interaction area $02 | PlateSystem_F4 | allowlisted, #81 |
+| `$002D` | `Event_PlateSysEngine` | interaction area $02 | PlateSystem_F4 | scene `Event_PlateSysEngine` |
 | `$002E` | `Event_RuneLadaeTower` | map trigger $19 | LadeaTower_F2 | scene `Event_RuneLadaeTower` |
 | `$002F` | `Event_PsycoWandChest` | map trigger $2A | LadeaTower_F5 | scene `Event_PsycoWandChest` |
 | `$0030` | `Event_ZioFortBarrier` | dialogue `$F6` | tree 13 entry 73 | scene `Event_ZioFortBarrier` |
@@ -153,7 +153,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
 | `$006A` | `Event_AngerTowerExitTop` | map trigger $52 | AngerTower_F2 | scene `Event_AngerTowerExitTop` |
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
-| `$006C` | `Event_Phonon` | interaction area $0C | PlateSystem_F3 | allowlisted, #81 |
+| `$006C` | `Event_Phonon` | interaction area $0C | PlateSystem_F3 | scene `Event_Phonon` |
 | `$006D` | `Event_Hijammer` | interaction area $0D | Kuran_F1_Part2 | scene `Event_Hijammer` |
 | `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | scene `Event_Burstroc` |
 | `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | scene `Event_PosiBolt` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 9 |
+| #81 | Motavia side content | 7 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 1 |
-| | total | 10 |
+| | total | 8 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
