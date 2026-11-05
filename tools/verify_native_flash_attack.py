@@ -52,13 +52,13 @@ from pathlib import Path
 
 try:  # imported as `tools.verify_native_flash_attack` by tests
     from tools.gate import display_path, git_info, utc_stamp
-    from tools.godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
-                             require as require_godot)
+    from tools.godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
+                             logged_exit_leaks, require as require_godot)
     from tools.heavy_lock import EXTENSION, GODOT as GODOT_CLASS, hold_heavy_lock
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_flash_attack.py`
     from gate import display_path, git_info, utc_stamp
-    from godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
-                       require as require_godot)
+    from godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
+                       logged_exit_leaks, require as require_godot)
     from heavy_lock import EXTENSION, GODOT as GODOT_CLASS, hold_heavy_lock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -174,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     os.chdir(ROOT)
     try:
         require_godot()
+        exit_leaks_binary()
     except GodotError as error:
         print(f"flash attack: refused, {error}")
         return 2

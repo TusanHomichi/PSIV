@@ -559,38 +559,49 @@ def godot_command(run_root: RunRoot, *args: str, project: Path | None = None,
     return [*prefix, str(resolve()), "--path", str(project), *args]
 
 
-#: Godot's own reports, at exit, of what it could not free, as Godot 4.7.1
-#: prints them: `ObjectDB::cleanup` ("1 ObjectDB instance was leaked at
-#: exit", "N ... instances were leaked at exit", and under `--verbose` one
-#: "Leaked instance: Class:id" each), `ResourceCache::clear` ("N resources
-#: still in use at exit", "Resource still in use: path (Class)"), `RID_Alloc`
-#: ("N RID allocations of type 'T' were leaked at exit") and `PagedAllocator`
-#: ("Pages in use exist at exit"). They name no particular class, so any one
-#: of them fails a run (#123). StringName's "unclaimed string names at exit"
-#: is left out: it prints only under `--verbose`, about names, not objects.
-EXIT_LEAK_RE = re.compile(r"leaked at exit|Leaked instance: |still in use at exit"
-                          r"|Resource still in use: |Pages in use exist at exit")
+#: The one check of Godot's own leak reports at exit (#123) is the Rust binary
+#: `psiv-exit-leaks` (rust/psiv-exit-leaks, whose lib names every report form
+#: it matches and whose tests hold every tool here that starts Godot to it).
+#: What follows is only the glue that builds and runs it.
+EXIT_LEAKS_PACKAGE = "psiv-exit-leaks"
+
+_exit_leaks_binary: Path | None = None
 
 
-def exit_leaks(text: str) -> list[str]:
-    """The lines of a Godot run's output that report a leak at exit, stripped,
-    in order; none for a clean exit."""
-    return [line.strip() for line in text.splitlines() if EXIT_LEAK_RE.search(line)]
+def exit_leaks_binary() -> Path:
+    """`psiv-exit-leaks`, built once per process from this checkout (it has no
+    dependencies: seconds cold, nothing when current), honoring
+    `CARGO_TARGET_DIR`."""
+    global _exit_leaks_binary
+    if _exit_leaks_binary is None:
+        command = ["cargo", "build", "--quiet", "--manifest-path", str(ROOT / "rust" / "Cargo.toml"),
+                   "-p", EXIT_LEAKS_PACKAGE, "--bin", EXIT_LEAKS_PACKAGE, "--message-format=json"]
+        try:
+            built = subprocess.run(command, capture_output=True, text=True, check=False)
+        except OSError as error:
+            raise GodotError(f"cannot build {EXIT_LEAKS_PACKAGE}: {error}") from error
+        executables = [message["executable"] for message in map(json.loads, built.stdout.splitlines())
+                       if message.get("reason") == "compiler-artifact" and message.get("executable")]
+        if built.returncode != 0 or not executables:
+            raise GodotError(f"cannot build {EXIT_LEAKS_PACKAGE} (cargo exit {built.returncode}): "
+                             + built.stderr.strip())
+        _exit_leaks_binary = Path(executables[-1])
+    return _exit_leaks_binary
 
 
 def logged_exit_leaks(*logs: Path) -> list[str]:
-    """`exit_leaks` over each of a run's logs that exists (its captured
-    stdout and stderr, its `--log-file`), each line once: the one check every
-    verifier that runs Godot applies to the run's output, failing the run on
-    any line it returns."""
-    found: list[str] = []
-    for log in logs:
-        path = Path(log)
-        if path.is_file():
-            for line in exit_leaks(path.read_text(encoding="utf-8", errors="replace")):
-                if line not in found:
-                    found.append(line)
-    return found
+    """The leak reports Godot made at exit in a run's logs (its captured stdout
+    and stderr, its `--log-file`), as `psiv-exit-leaks` finds them: each line
+    once, none for a clean exit. Every verifier that runs Godot fails the run
+    on any line this returns; a check that cannot run raises `GodotError`."""
+    if not logs:
+        return []
+    command = [str(exit_leaks_binary()), *map(str, logs)]
+    result = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace",
+                            check=False)
+    if result.returncode not in (0, 1):
+        raise GodotError(f"{EXIT_LEAKS_PACKAGE} exit {result.returncode}: {result.stderr.strip()}")
+    return result.stdout.splitlines()
 
 
 def run_main(argv: list[str]) -> int:

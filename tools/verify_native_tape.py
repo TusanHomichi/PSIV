@@ -29,15 +29,15 @@ try:  # imported as `tools.verify_native_tape` by tests
     from tools import native_rss
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
-    from tools.godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
-                             require as require_godot)
+    from tools.godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
+                             logged_exit_leaks, require as require_godot)
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     import native_rss
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
-    from godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
-                       require as require_godot)
+    from godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
+                       logged_exit_leaks, require as require_godot)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -265,6 +265,7 @@ def replay(args: argparse.Namespace) -> int:
         parser().error(f"pack lacks manifest.json: {pack}")
     try:
         require_godot()
+        exit_leaks_binary()
     except GodotError as error:
         parser().error(str(error))
     if args.timeout <= 0:

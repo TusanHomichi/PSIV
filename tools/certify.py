@@ -66,8 +66,8 @@ from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
-                   logged_exit_leaks, require as require_godot)
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root, exit_leaks_binary,  # noqa: E402
+                   godot_command, logged_exit_leaks, require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -449,6 +449,7 @@ def main(argv=None):
         return 0 if args.list else 2
     try:
         require_godot()
+        exit_leaks_binary()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2

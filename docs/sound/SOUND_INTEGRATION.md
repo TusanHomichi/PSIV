@@ -304,5 +304,5 @@ its lock until calls begun after its stop have run 512 frames between them,
 which always includes a step, waiting at most 500 ms
 (`rust/psiv-godot/src/audio_shutdown.rs`, checked against a model of the
 server's mix loop for every buffer phase in `rust/psiv-godot/tests/audio_shutdown.rs`). The native
-verifiers fail a run on any such report (`logged_exit_leaks` in
-`tools/godot.py`).
+verifiers fail a run on any such report: `rust/psiv-exit-leaks` reads the run's
+logs, and `logged_exit_leaks` in `tools/godot.py` builds and runs it.
