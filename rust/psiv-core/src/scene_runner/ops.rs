@@ -946,6 +946,7 @@ impl SceneRunner {
             | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
             | SceneOp::RidePlatform { .. }
+            | SceneOp::Item(_)
             | SceneOp::ConveyorRide { .. } => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);

@@ -64,6 +64,7 @@ mod game_start;
 pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub mod hunters_guild;
+pub(crate) mod missing_student;
 pub(crate) mod monsen;
 pub(crate) mod monsen_quake;
 pub(crate) mod motavia_side;
@@ -297,6 +298,11 @@ pub static SCENES: &[Scene] = &[
     // Rocky (#81).
     rocky::ROCKY_FOUND,
     rocky::CATCHING_ROCKY,
+    // The guild's missing student, Piata and Kadary (#81).
+    missing_student::PIATA_DORM_OWNER,
+    missing_student::MISSING_STUDENT_FOUND,
+    missing_student::OLD_MAN_NEAR_MISSING_STUDENT,
+    missing_student::MISSING_STUDENT_IN_BED,
     // Tallas's rescue (#81).
     monsen::TALLAS_MOM,
     monsen::TALLAS_MOM_AFTER_RESCUE,
@@ -503,6 +509,10 @@ mod tests {
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
             ("Event_PenguinFeedStolen", 58),
+            ("Event_PiataDormOwner", 3),
+            ("Event_MissingStudentFound", 29),
+            ("Event_OldManNearMissingStudent", 6),
+            ("Event_MissingStudentInBed", 14),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
