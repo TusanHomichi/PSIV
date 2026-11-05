@@ -451,15 +451,17 @@ class TestThePackedResolution(unittest.TestCase):
                             self.assertEqual(copy["affects"]["map_pixels"], 0)
                             self.assertTrue(copy["affects"]["map_render_identical"])
         self.assertEqual(sorted(found), [MAP_ZEMA, MAP_ZEMA_HOUSE2, MAP_BIRTH_VALLEY_B1])
-        # ZemaHouse2's path performs no layout write at all, which is why the
-        # effect cannot live on one.
+        # ZemaHouse2's path performs no layout write at all, only object
+        # writes (a despawn and a position), which is why the effect cannot
+        # live on a layout write.
         house2 = self.maps[MAP_ZEMA_HOUSE2]
         kinds = {
             write["kind"]
             for effect in house2["map_effects"] for path in effect["paths"]
             for write in path["writes"] if "deferred_effects" in path
         }
-        self.assertEqual(kinds, {"object_despawn"})
+        self.assertEqual(kinds, {"object_despawn", "object_x", "object_y"})
+        self.assertFalse(kinds & {"layout_write", "layout_replace"})
 
     def test_every_repainted_npc_names_a_sheet_that_exists(self):
         index = json.loads((self.root / "sprites/npcs.json").read_text())
