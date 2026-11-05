@@ -79,6 +79,30 @@ def patches(case: dict, raw: bytes, frame: int) -> list[str]:
     return result
 
 
+#: Case keys that pass straight to `oracle.force`: `delay` shifts every roll
+#: of the fight, and `require_ability` refuses a capture whose enemies never
+#: used that ability (`docs/oracle/BATTLE_ORACLE_FORCED.md`, section 1.3).
+FORCE_OPTIONS = {"delay": "--delay", "require_ability": "--require-ability"}
+
+
+def force_command(case: dict, scout: pathlib.Path, out: pathlib.Path,
+                  script: pathlib.Path, patch_list: list[str]) -> list[str]:
+    """The `oracle.force` run that captures one case."""
+    command = [sys.executable, "-m", "oracle.force", "--scout", str(scout),
+               "--out", str(out), "--party-script", str(script),
+               "--max-rounds", str(len(case["rounds"])), "--repeats", "900"]
+    selector = "--event" if "event" in case else "--formation"
+    command += [selector, str(case[selector[2:]])]
+    for key, option in FORCE_OPTIONS.items():
+        if key in case:
+            if type(case[key]) is not int or case[key] < 0:
+                raise ValueError(f"case {key} must be a non-negative integer")
+            command += [option, str(case[key])]
+    for patch in patch_list:
+        command += ["--ram-patch", patch]
+    return command
+
+
 def executed(fixture: dict) -> set[tuple[str, int]]:
     return {(a["kind"], a["ability"]) for r in fixture["rounds"]
             for a in r["actions"] if a["actor"] <= 5
@@ -154,13 +178,8 @@ def main(argv=None) -> int:
                     raise ValueError(f"case commands changed since capture: {case['name']}")
             else:
                 script.write_text(script_text)
-            command = [sys.executable, "-m", "oracle.force", "--scout", str(args.scout),
-                       "--out", str(out), "--party-script", str(script),
-                       "--max-rounds", str(len(case["rounds"])), "--repeats", "900"]
-            selector = "--event" if "event" in case else "--formation"
-            command += [selector, str(case[selector[2:]])]
-            for patch in patches(case, raw, facts["battle_first"] + 1):
-                command += ["--ram-patch", patch]
+            command = force_command(case, args.scout, out, script,
+                                    patches(case, raw, facts["battle_first"] + 1))
             if not args.extract_only:
                 run(command, out / "force.log", receipts)
             report = json.loads((out / "report.json").read_text())
