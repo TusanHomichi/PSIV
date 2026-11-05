@@ -75,6 +75,7 @@ pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
+pub(crate) mod rocky;
 pub(crate) mod soldiers_temple;
 pub(crate) mod strip_club;
 mod vahal_common;
@@ -288,6 +289,9 @@ pub static SCENES: &[Scene] = &[
     strip_club::EXITING_STRIP_CLUB,
     plate_wreckage::PHONON,
     plate_wreckage::PLATE_SYS_ENGINE,
+    // Rocky (#81).
+    rocky::ROCKY_FOUND,
+    rocky::CATCHING_ROCKY,
     // Tallas's rescue (#81).
     monsen::TALLAS_MOM,
     monsen::TALLAS_MOM_AFTER_RESCUE,
@@ -477,6 +481,8 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_RockyFound", 3),
+            ("Event_CatchingRocky", 58),
             ("Event_TallasMom", 3),
             ("Event_TallasMomAfterRescue", 3),
             ("Event_InsideMonsenHole", 2),

@@ -1,8 +1,9 @@
 //! The Plate System (issue #81): Phonon from the Plate System's chest and the
 //! engine on its fourth floor. The Wreckage's system (`$29`) joins them later.
 //!
-//! Records are `docs/scenes/204_Phonon.md` and `205_PlateSysEngine.md`. Every body was read from the US image through its
-//! `EventPtrs` slot; the clone's labels are navigation only.
+//! Records are `docs/scenes/204_Phonon.md` and `205_PlateSysEngine.md`.
+//! Every body was read from the US image through its `EventPtrs` slot; the
+//! clone's labels are navigation only.
 
 use super::vahal_common::{
     SFX_ANDROID_SKILL_IMPLANT, SFX_CHEST_OPENED, SFX_POWER_DOWN, sound, standard, wait,

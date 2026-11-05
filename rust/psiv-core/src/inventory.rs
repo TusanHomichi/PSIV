@@ -124,8 +124,17 @@ impl Inventory {
     /// this; ordinary "do we own it" questions keep using `contains`.
     #[must_use]
     pub fn get_item(&self, item: u8) -> bool {
+        self.find_item(item).is_some()
+    }
+
+    /// The slot `GetItem` leaves in `a0`: the first `item` inside the same
+    /// count-limited window as [`Inventory::get_item`], or `None`. A caller
+    /// removing items through `GetItem` asks again after each removal, since
+    /// the removal narrows the window.
+    #[must_use]
+    pub fn find_item(&self, item: u8) -> Option<usize> {
         let count = self.occupied();
-        self.slots[..count].contains(&item)
+        self.slots[..count].iter().position(|&id| id == item)
     }
 
     /// Puts `item` in the first free slot and returns which one.
@@ -274,6 +283,20 @@ mod tests {
         assert_eq!(dropped, 8, "slot 7 held item 8");
         assert_eq!(inventory.get(7), Some(0x7D));
         assert!(inventory.is_full(), "still forty items");
+    }
+
+    #[test]
+    fn find_item_scans_only_the_occupied_count() {
+        let mut list = Inventory::new();
+        assert_eq!(list.find_item(0x91), None, "an empty list has no window");
+        list.add(0x91).unwrap();
+        assert_eq!(list.find_item(0x91), Some(0));
+        let mut slots = [EMPTY; INVENTORY_SLOTS];
+        slots[1..3].copy_from_slice(&[0x01, 0x91]);
+        let holed = Inventory::from_slots(slots);
+        assert_eq!(holed.find_item(0x91), None, "past a two-byte window");
+        assert!(holed.contains(0x91), "which `contains` does not limit");
+        assert_eq!(holed.find_item(0x01), Some(1));
     }
 
     #[test]
