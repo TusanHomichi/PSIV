@@ -381,7 +381,10 @@ impl Runtime {
                     });
                     return;
                 }
-                events.push(RuntimeEvent::VehicleChanged { index });
+                events.push(RuntimeEvent::VehicleChanged {
+                    index,
+                    scene_sets_music: self.getting_off_scene_active(),
+                });
             }
             SceneEffect::VehicleBoardingAligned {
                 index,

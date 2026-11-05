@@ -358,6 +358,11 @@ pub enum RuntimeEvent {
     VehicleChanged {
         /// The retail vehicle id.
         index: u16,
+        /// `Event_GettingOffVehicle` made the change and chooses the music
+        /// itself (`AdjustMusicIDs`), so the shell requests none of its own.
+        /// Decided when the effect is applied: the scene can end in the same
+        /// tick, before the shell sees this event.
+        scene_sets_music: bool,
     },
     /// A mounted Action press started `Event_GettingOffVehicle`.
     VehicleGetOff,

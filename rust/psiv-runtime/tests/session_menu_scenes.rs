@@ -306,7 +306,7 @@ fn vehicle_items_snap_off_grid_party_and_wait_for_camera_before_selector() {
             }
             if frame.events.iter().any(|event| {
                 matches!(
-                    event, RuntimeEvent::VehicleChanged { index } if *index == selector
+                    event, RuntimeEvent::VehicleChanged { index, .. } if *index == selector
                 )
             }) {
                 arrived = true;
@@ -346,7 +346,7 @@ fn aligned_vehicle_item_sets_selector_without_a_camera_gate() {
         frame
             .events
             .iter()
-            .any(|event| matches!(event, RuntimeEvent::VehicleChanged { index: 1 }))
+            .any(|event| matches!(event, RuntimeEvent::VehicleChanged { index: 1, .. }))
     );
     assert_eq!(player.runtime().vehicle_cell(), Some(Cell::new(114, 177)));
     assert_eq!(player.runtime().members()[1].cell, Cell::new(114, 177));
@@ -804,6 +804,19 @@ fn getting_off_asks_for_no_exit_music() {
         "at most AdjustMusicIDs's pair: {events:?}"
     );
     assert_eq!(player.runtime().vehicle_index(), None, "on foot");
+    // The scene is over by the time the shell reads the events, so the event
+    // itself must say the scene chose the music (the raw map music is skipped).
+    assert!(!player.runtime().getting_off_scene_active());
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            RuntimeEvent::VehicleChanged {
+                index: 0,
+                scene_sets_music: true
+            }
+        )),
+        "the stand-down's VehicleChanged carries the scene's music choice: {events:?}"
+    );
 }
 
 /// `Event_GettingOffVehicle` (`$10`, record

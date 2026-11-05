@@ -114,14 +114,15 @@ impl Field {
                 RuntimeEvent::InventoryChanged => {
                     godot_print!("inventory changed during scene/runtime tick");
                 }
-                RuntimeEvent::VehicleChanged { index } => {
+                RuntimeEvent::VehicleChanged {
+                    index,
+                    scene_sets_music,
+                } => {
                     godot_print!("vehicle changed to {index:#06x}");
                     // `Event_GettingOffVehicle` plays the adjusted id itself;
-                    // the map's raw byte must not follow it.
-                    let getting_off = self
-                        .runtime()
-                        .is_some_and(|runtime| runtime.getting_off_scene_active());
-                    if index == 0 && !getting_off && !self.battle_presentation_active() {
+                    // the map's raw byte must not follow it. The event says so
+                    // because the scene is already over when it arrives.
+                    if index == 0 && !scene_sets_music && !self.battle_presentation_active() {
                         self.play_map_music();
                     }
                 }
