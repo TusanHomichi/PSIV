@@ -184,6 +184,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_InsideMonsenHole", 2),
         ("Event_TallasRescued", 14),
         ("Event_ExitingStripClub", 1),
+        ("Event_DyingBoy", 53),
         ("Event_WreckageEngine", 67),
         ("Event_LostGirlsMother", 3),
         ("Event_KingRappyDefeated", 18),

@@ -377,9 +377,7 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
     (
         ISSUE_MOTAVIA,
         "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Plate System and Wreckage",
-        (
-            0x86,
-        ),
+        (),
     ),
     (ISSUE_DEZOLIS, "Dezolis late arc", ()),
     (
@@ -392,7 +390,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 2
+ALLOWLIST_CEILING = 1
 
 
 def disposition(
