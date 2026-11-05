@@ -502,7 +502,7 @@ mod tests {
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
-            ("Event_PenguinFeedStolen", 57),
+            ("Event_PenguinFeedStolen", 58),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
