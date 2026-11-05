@@ -741,8 +741,11 @@ policies, no party knew a single-target non-damaging technique, and the
 extractor named no command). Party command scripts closed all three
 (`docs/oracle/BATTLE_ORACLE_FORCED.md` section 9), and the recipe driver
 `python3 -m oracle.sweep.player_capture` teaches a member the technique its
-script names. `replay_fixtures/retarget/vol_mirror_d1.json` is formation 2
-(four MONSTERFLY, `delay` 1): Chaz, at agility 255 and attack 999, kills enemy
+script names. Formation 2's undelayed draw opens with an ambush, so the
+capture is the `oracle.force` command the driver records in its
+`commands.jsonl`, rerun with `--delay 1`.
+`replay_fixtures/retarget/vol_mirror_d1.json` is formation 2
+(four MONSTERFLY): Chaz, at agility 255 and attack 999, kills enemy
 6; Alys's wide swing leaves deficits 8, 7 and 8 on enemies 7, 8 and 9; Hahn's
 VOL (effect 2), ordered at the fallen 6, then lands on enemy 8, the unique
 smallest deficit, with its one instant-death roll and no tiebreak draw, and
