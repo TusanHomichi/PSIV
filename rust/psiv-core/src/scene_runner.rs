@@ -63,6 +63,9 @@ enum Blocked {
     Battle,
     Map,
     Camera,
+    /// A `Pal_VariableFadeIn`/`Out` whose length the runtime has not yet
+    /// measured from the palette it holds.
+    Palette,
     /// A `RunObjectRoutine` object still on the map.
     ObjectRoutine(usize),
     /// A conveyor op waiting for the end of its tick, when the layout scan
@@ -252,6 +255,27 @@ impl SceneRunner {
     /// The stream [`SceneRunner::lend_rng`] lent.
     pub fn take_rng(&mut self) -> Option<crate::battle::Lcg41> {
         self.rng.take()
+    }
+
+    /// Whether the scene waits on [`SceneRunner::release_palette`].
+    #[must_use]
+    pub fn awaits_palette(&self) -> bool {
+        self.blocked == Blocked::Palette
+    }
+
+    /// Answers a [`crate::PresentationOp::VariablePaletteFade`]: the fade the
+    /// runtime started on the op's frame lasts `frames` frames, that one
+    /// included, so the scene resumes `frames` ticks later, exactly as a
+    /// `WaitFrames` of the same count. Nothing happens unless the scene is
+    /// waiting on one.
+    pub fn release_palette(&mut self, frames: u16) {
+        if self.blocked == Blocked::Palette {
+            self.blocked = if frames > 0 {
+                Blocked::Ticks(frames)
+            } else {
+                Blocked::No
+            };
+        }
     }
 
     /// Hands over the pack's table for `Event_HuntersGuild`.

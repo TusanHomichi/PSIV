@@ -44,7 +44,7 @@ impl Field {
                 self.set_field_map_visible(false);
                 self.presentation.set_vram_blanked(true);
             }
-            SceneOp::LoadPalette { rom_addr, words } => {
+            SceneOp::LoadPalette { rom_addr, words, .. } => {
                 self.presentation.loaded_palettes.insert(rom_addr, words);
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind().load_palette(rom_addr, words);

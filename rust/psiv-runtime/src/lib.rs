@@ -16,6 +16,8 @@ mod boss_battles;
 mod bridge;
 mod camera;
 mod camp;
+mod cram;
+pub use cram::CramView;
 mod dialogue;
 mod effects;
 mod encounters;

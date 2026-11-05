@@ -895,6 +895,27 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
+            // `loc_78296` writes a frame and waits its `dbf` count, six times:
+            // the cycle is the scene's frames, as the cartridge spends them.
+            SceneOp::Presentation {
+                op: crate::PresentationOp::RykrosPaletteCycle { delays, .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                let frames: u16 = delays.iter().map(|&delay| u16::from(delay)).sum();
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
+            }
+            // A variable fade's length is in the palette, which the runtime
+            // holds: it answers with [`SceneRunner::release_palette`].
+            SceneOp::Presentation {
+                op: crate::PresentationOp::VariablePaletteFade { .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Palette;
+            }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }
             | SceneOp::PanelDestroyLast

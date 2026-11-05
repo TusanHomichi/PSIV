@@ -832,6 +832,7 @@ mod tests {
             SceneOp::Presentation {
                 op:
                     crate::scene_presentation::PresentationOp::PaletteIncreaseTone { frames, .. }
+                    | crate::scene_presentation::PresentationOp::PaletteRestoreTone { frames }
                     | crate::scene_presentation::PresentationOp::PaletteToneFlash { frames, .. },
             } => Some(*frames),
             _ => None,

@@ -50,6 +50,7 @@ mod ids;
 mod manifest;
 mod map;
 mod new_game;
+mod presentation;
 mod ship_menu;
 mod shops;
 pub mod sound;
@@ -78,6 +79,7 @@ pub use dialogue::*;
 pub use error::DataError;
 pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};
 pub use game_data::GameData;
+pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
 pub use manifest::{

@@ -779,12 +779,10 @@ pub static ENTER_ANGER_TOWER: Scene = Scene {
         SceneOp::WaitFrames { frames: 40 },
         // $073856..$073867: `moveq #$27, d7`; per frame `loc_58666` steps all
         // 64 words back toward `Palette_Table_Buffer_2`, then `VInt_Prepare`.
+        // No hold this time: line 2 steps toward the copy, which the map load
+        // filled with the same `Pal_Init_Line_3` words.
         SceneOp::Presentation {
-            op: PresentationOp::PaletteToneFlash {
-                brighten: false,
-                words: 64,
-                frames: 40,
-            },
+            op: PresentationOp::PaletteRestoreTone { frames: 40 },
         },
         SceneOp::WaitFrames { frames: 40 },
         // $073868..$073875: `popdlg` / `jsr Event_RunDialogue`.

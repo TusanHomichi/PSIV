@@ -258,9 +258,12 @@ static GAME_START_OPS: &[SceneOp] = &{
         SceneOp::SetFollowMode { bits: 0 },
         SceneOp::FadeOut,
         // --- phase 4: the AW 2284 prologue ---
+        // `lea loc_1D2A3C, a0` / `lea Palette_Table_Buffer, a1` / `moveq
+        // #$1F, d0` / `move.l (a0)+, (a1)+` (`$073C12`): 64 words.
         SceneOp::LoadPalette {
             rom_addr: 0x001D_2A3C,
             words: 64,
+            start: 0,
         },
         SceneOp::SetCameraPos { x: 0, y: 0 },
         SceneOp::LoadTitleImage {

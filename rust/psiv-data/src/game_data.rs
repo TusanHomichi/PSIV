@@ -55,6 +55,10 @@ pub struct GameData {
     /// Shop counters, stock lists and inn rates. `None` for a synthetic pack
     /// built with [`GameData::from_parts`].
     shops: Option<crate::ShopData>,
+    /// ROM palettes and panel palette uploads scenes make. Empty for a
+    /// synthetic pack built with [`GameData::from_parts`] or a pack without
+    /// `presentation/panels.json`.
+    scene_palettes: crate::ScenePalettes,
 }
 
 impl GameData {
@@ -94,7 +98,20 @@ impl GameData {
             ship_menu: None,
             guild: None,
             shops: None,
+            scene_palettes: crate::ScenePalettes::default(),
         })
+    }
+
+    /// The palette words scenes read from the ROM and the panel palette
+    /// uploads, from `presentation/panels.json`.
+    #[must_use]
+    pub fn scene_palettes(&self) -> &crate::ScenePalettes {
+        &self.scene_palettes
+    }
+
+    /// Replaces the scene palettes: tests and synthetic packs.
+    pub fn set_scene_palettes(&mut self, palettes: crate::ScenePalettes) {
+        self.scene_palettes = palettes;
     }
 
     /// The pack index: the ROM hash, the inventory and the skipped maps.

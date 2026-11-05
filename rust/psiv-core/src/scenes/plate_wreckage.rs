@@ -11,7 +11,7 @@ use super::vahal_common::{
 use super::{CHAZ, DEMI, GRYZ, RIKA, RUNE};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, SceneOp};
-use crate::scene_presentation::{CameraSubject, PresentationOp};
+use crate::scene_presentation::{CameraSubject, PaletteBuffer, PaletteSource, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -20,10 +20,6 @@ use crate::trigger::EventIndex;
 const SFX_MEGID: u8 = 0xC0;
 /// `SFXID_Recovery`.
 const SFX_RECOVERY: u8 = 0xCD;
-/// `Palette_Table_Buffer_2` and `Palette_Table_Buffer`.
-const PALETTE_BUFFER_2: u32 = 0xFFFF_FB80;
-/// See [`PALETTE_BUFFER_2`].
-const PALETTE_BUFFER: u32 = 0xFFFF_FB00;
 
 /// PlateSystem F3 holds three elevators, so its one chest is object 3
 /// (`$FFFFC3C0`).
@@ -39,9 +35,10 @@ const fn fade(fade_in: bool, mode: u8) -> SceneOp {
 /// `lea Palette_Table_Buffer_2, a0 / lea Palette_Table_Buffer, a1 / move.w
 /// #$3F, d7 / trap #1`: sixty-four words back.
 const RESTORE_PALETTE: SceneOp = SceneOp::Presentation {
-    op: PresentationOp::CopyRamWords {
-        source_ram: PALETTE_BUFFER_2,
-        destination_ram: PALETTE_BUFFER,
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Buffer(PaletteBuffer::Saved),
+        destination: PaletteBuffer::Live,
+        start: 0,
         words: 64,
     },
 };

@@ -18,6 +18,8 @@ use psiv_data::{EffectGate, MapRecord};
 pub struct EffectOutcome {
     /// Volatile state loaded with the map, advanced only by RunMapUpdates.
     pub(crate) updates: crate::MapUpdateView,
+    /// The palette buffers, loaded with the map ([`crate::cram`]).
+    pub(crate) cram: crate::cram::Cram,
     /// Record object indices to despawn (build with `active = false`).
     pub despawns: Vec<usize>,
     /// Record object indices whose object id changes, with the new id.
@@ -139,6 +141,7 @@ pub(crate) fn layout_replace_variant(record: &MapRecord, source: u32) -> Result<
 pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
     let mut out = EffectOutcome {
         updates: crate::MapUpdateView::loaded(record),
+        cram: crate::cram::Cram::loaded(record),
         ..EffectOutcome::default()
     };
     let object_count = record.npcs.len();

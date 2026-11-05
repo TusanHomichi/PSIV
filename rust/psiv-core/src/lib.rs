@@ -89,6 +89,7 @@ mod geom;
 mod inventory;
 mod map;
 mod map_load;
+pub mod palette;
 mod party;
 mod replay;
 mod roster;
@@ -145,9 +146,10 @@ pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, MoneyTest, OP_BUDGET_PER_TICK,
     SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
+pub use palette::palette_cycle_writes;
 pub use scene_presentation::{
-    CameraSubject, CreditsPlane, PaletteHold, PresentationAsset, PresentationOp,
-    palette_cycle_writes,
+    CameraSubject, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource, PresentationAsset,
+    PresentationOp,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scene_types::{GuildOp, ItemOp, JobBoardStep, ObjectOp, RideOp, RockyOp};
