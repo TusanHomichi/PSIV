@@ -147,10 +147,11 @@ f25003/f25125) and the battle ends at f25621 instead of f25616. None of the
 three captures needed it - every ability fired on the first delay tried - but
 the knob is measured rather than assumed.
 
-A capture of the retarget rule's **mirror** loop (a single-target technique
-ordered at an enemy that falls before it resolves) needs a scripted party that
-has learned a single-target non-damaging technique; it is
-[issue #37](https://github.com/TusanHomichi/PSIV/issues/37).
+The retarget rule's **mirror** loop (a single-target technique ordered at an
+enemy that falls before it resolves) is captured through a party command
+script: `replay_fixtures/retarget/vol_mirror_d1.json`, Hahn's VOL re-aimed by
+the smallest deficit
+([`docs/source-notes/battle-party.md`](../source-notes/battle-party.md)).
 
 ## 2. The four captures
 

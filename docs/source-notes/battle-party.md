@@ -735,33 +735,20 @@ those tests fail —
 living enemy), and `a_technique_tie_costs_one_draw_and_the_draw_picks_the_slot`
 on `left: 16, right: 17` for the tiebreak draw it never makes.
 
-**TRANSCRIBED FROM `ps4.asm`, NOT YET ORACLE-VERIFIED.** No capture shows this
-rule, and the tooling cannot yet take one:
+**ORACLE-VERIFIED (#37, 2026-11-05).** The record above was written while
+no capture could show this rule (the force tool had only the attack and defend
+policies, no party knew a single-target non-damaging technique, and the
+extractor named no command). Party command scripts closed all three
+(`docs/oracle/BATTLE_ORACLE_FORCED.md` section 9), and the recipe driver
+`python3 -m oracle.sweep.player_capture` teaches a member the technique its
+script names. `replay_fixtures/retarget/vol_mirror_d1.json` is formation 2
+(four MONSTERFLY, `delay` 1): Chaz, at agility 255 and attack 999, kills enemy
+6; Alys's wide swing leaves deficits 8, 7 and 8 on enemies 7, 8 and 9; Hahn's
+VOL (effect 2), ordered at the fallen 6, then lands on enemy 8, the unique
+smallest deficit, with its one instant-death roll and no tiebreak draw, and
+kills it. The largest-deficit loop would have taken 7. The fixture replays
+exactly.
 
-* the 87 fixtures carry **819 party commands in all, every one of them
-  `attack`** — the sweep's own policy and the forced captures' is the mash-C
-  attack pattern
-  (`oracle/force/tape.py`'s `policy_steps`), and `oracle/fixture/assembly.py`'s
-  `command_entry` writes `"command": "attack"` for every party action by
-  construction, reading only the target cell;
-* `python3 -m oracle.force --policy` offers `{attack, defend}` and nothing else
-  (`oracle/force/cli.py`; `oracle/force/tape.py`'s `policy_steps`), so the tool
-  has no input that opens the TECH list, picks a technique and picks its target.
-  A `tech` policy would need the frame arithmetic for COMD → Right → TECH →
-  the technique's row → the enemy cursor, and — for the mirror loop — a party
-  that knows a single-target non-damaging technique: the tape party's own
-  starting lists are FOI/SHIFT/SANER (Alys), RES/GELUN (Hahn) and RES (Chaz)
-  (`generated/characters.json`'s `initial_techniques`), of which only FOI is
-  single-enemy, and its effect id 1 takes the *largest* loop. VOL (effect 2,
-  single enemy) is the shortest route to the mirror, and nobody in that party
-  has it;
-* a committed fixture would also need the extractor to name the command kind and
-  id (`$FFFF4146`'s two bytes are already logged as `current_command`) and
-  `replay/build.rs`'s `orders` to build `Command::Technique` — both outside this
-  change's scope, and both are what a technique capture would extend
-  ([#37](https://github.com/TusanHomichi/PSIV/issues/37)).
-
-The one oracle-shaped check available today is on the attack side and already
-passes: the twelve re-captured formations replay exactly with the
+The attack side's check also passes: the twelve re-captured formations replay exactly with the
 largest-deficit loop, tiebreak draws included
 (`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4.4 W1/W4).
