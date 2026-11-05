@@ -56,6 +56,7 @@ pub(super) const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Event_BioPlantAlarm", D1, 0x06C29E, 0x0A),
     ("Event_AiedoManSavings", D1, 0x06D46A, 0x3D),
     ("Event_GirlsSneakingOut", D1, 0x06D53C, 0x3E),
+    ("Event_FaintingPriest", D1, 0x06D62E, 0x45),
     ("Event_AfterIgglanova", D1, 0x06D6CA, 0x12),
     ("Event_PrincipalConfession", D1, 0x06D7A4, 0x13),
     ("Event_RuneFlaeli", D1, 0x06D830, 0x26),
@@ -73,6 +74,8 @@ pub(super) const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Event_ZioFortBarrier", D1, 0x06EC70, 0x44),
     ("Event_ZioFortBarrier", D1, 0x06EDC4, 0x45),
     ("Event_ZioFortBarrier", D1, 0x06EE10, 0x4A),
+    ("Event_ZioFanatic", D1, 0x06EE58, 0x49),
+    ("Event_ZioFanatic", D1, 0x06EEB8, 0x1F),
     ("Event_MeetingDorin", D1, 0x06EEEE, 0x18),
     ("Event_TonoeBasementDoor", D1, 0x06F1A6, 0x24),
     ("Event_ZioNurvus", D2, 0x06F3D4, 0x0B),
@@ -173,6 +176,9 @@ pub(super) const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
     ("Event_GirlsBailedOut", D1, 0x072D3E, 0x0A),
     ("Event_DyingBoyFather", D1, 0x072D5C, 0x39),
     ("Event_FatherAfterBoyRecovery", D1, 0x072D84, 0x3A),
+    ("Event_DyingBoy", D1, 0x072DDE, 0x33),
+    ("Event_DyingBoy", D1, 0x072FA6, 0x3B),
+    ("Event_DyingBoy", D1, 0x072FAE, 0x3E),
     ("Event_MeetingSekreas", D1, 0x072FCC, 0x3C),
     ("Event_KingRappy", D2, 0x072FEA, 0x36),
     ("Event_KingRappy", D1, 0x073012, 0x35),
@@ -295,11 +301,17 @@ fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
         .ops
         .iter()
         .filter_map(|op| match op {
+            // A system line is drawn from a string of the cartridge's own, not
+            // out of a tree, so it is no `GetDialogueByID` caller.
+            SceneOp::RunDialogue {
+                source: DialogueSource::System(_),
+                ..
+            } => None,
             SceneOp::RunDialogue { source, window } => Some((
                 *window,
                 match source {
                     DialogueSource::Entry(DialogueId(entry)) => *entry,
-                    DialogueSource::NpcDialogueId(_) => DYN,
+                    DialogueSource::NpcDialogueId(_) | DialogueSource::System(_) => DYN,
                 },
             )),
             SceneOp::Guild(GuildOp::RunLine { .. })
@@ -589,11 +601,13 @@ fn control_a_caller_claimed_by_two_scenes_is_reported() {
 #[test]
 fn control_a_row_for_an_unregistered_scene_is_reported() {
     let mut table = DIALOGUE_CALLERS.to_vec();
-    table.push(("Event_DyingBoy", D1, 0x072DDE, 0x33));
+    table.push(("Event_NotYetTranscribed", D1, 0x073400, 0x33));
     let problems = caller_problems(SCENES, &table);
     assert_eq!(
         problems,
-        vec!["Event_DyingBoy has rows in DIALOGUE_CALLERS ($072DDE) but is not in the registry"]
+        vec![
+            "Event_NotYetTranscribed has rows in DIALOGUE_CALLERS ($073400) but is not in the registry"
+        ]
     );
 }
 

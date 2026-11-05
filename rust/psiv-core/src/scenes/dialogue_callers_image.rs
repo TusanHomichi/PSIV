@@ -142,14 +142,7 @@ const D0_SAFE_GAPS: [&[u8]; 3] = [
 /// and the owning issue. The spans are in `docs/scenes/DIALOGUE_CALLERS.md`.
 type Untranscribed = (u32, u32, &'static str, u16, &'static [u16], u32);
 
-const UNTRANSCRIBED: &[Untranscribed] = &[
-    (D1, 0x06D62E, "Event_FaintingPriest", 0x24, &[0x45], 283),
-    (D1, 0x06EE58, "Event_ZioFanatic", 0x31, &[0x49], 283),
-    (D1, 0x06EEB8, "Event_ZioFanatic", 0x31, &[0x1F], 283),
-    (D1, 0x072DDE, "Event_DyingBoy", 0x86, &[0x33], 283),
-    (D1, 0x072FA6, "Event_DyingBoy", 0x86, &[0x3B], 283),
-    (D1, 0x072FAE, "Event_DyingBoy", 0x86, &[0x3E], 283),
-];
+const UNTRANSCRIBED: &[Untranscribed] = &[];
 
 /// `(call address, routine)` -> the entries `d0` carries into the call.
 type Callers = BTreeMap<(usize, u32), BTreeSet<u16>>;
@@ -755,9 +748,9 @@ fn control_a_missing_audit_row_is_reported() {
     let doc = fixture.doc.replace("$072DDE", "$------");
     let problems = census_with(&fixture, |i| i.doc = &doc);
     assert!(
-        problems.contains(
-            &"$072DDE Event_GetAndRunDialogue: missing from DIALOGUE_CALLERS.md".to_owned()
-        ),
+        problems.iter().any(|p| p.starts_with(
+            "$072DDE Event_DyingBoy Event_GetAndRunDialogue: missing from DIALOGUE_CALLERS.md"
+        )),
         "{problems:#?}"
     );
 }
@@ -783,17 +776,16 @@ fn control_a_stale_untranscribed_entry_is_reported() {
     let Some(fixture) = Fixture::load() else {
         return;
     };
-    let untranscribed: Vec<Untranscribed> = UNTRANSCRIBED
-        .iter()
-        .map(|u| {
-            if u.1 == 0x072DDE {
-                (u.0, u.1, u.2, u.3, &[0x32][..], u.5)
-            } else {
-                *u
-            }
-        })
-        .collect();
-    let problems = census_with(&fixture, |i| i.untranscribed = &untranscribed);
+    // Every caller has a scene now, so take the dying boy's documented range
+    // away and list its first caller with an entry the image does not give.
+    let mut ranges = fixture.ranges.clone();
+    ranges.remove("Event_DyingBoy");
+    let untranscribed: Vec<Untranscribed> =
+        vec![(D1, 0x072DDE, "Event_DyingBoy", 0x86, &[0x32], 283)];
+    let problems = census_with(&fixture, |i| {
+        i.ranges = &ranges;
+        i.untranscribed = &untranscribed;
+    });
     assert!(
         problems
             .iter()

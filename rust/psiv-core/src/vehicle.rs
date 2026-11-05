@@ -273,10 +273,10 @@ pub enum VehicleEffect {
         /// The map-change cell.
         cell: Cell,
     },
-    /// The Action edge successfully requested dismount.
-    Dismount,
-    /// The Action edge requested dismount on a non-empty vehicle cell.
-    DismountBlocked,
+    /// The Action edge while standing: `loc_56084` writes `Event_Index` `$10`,
+    /// `Event_GettingOffVehicle`, which decides whether the party may step
+    /// down ([`dismount_allowed`]).
+    GetOff,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -410,11 +410,7 @@ impl VehicleState {
         }
 
         if action_edge {
-            if dismount_allowed(map, self.cell) {
-                effects.push(VehicleEffect::Dismount);
-            } else {
-                effects.push(VehicleEffect::DismountBlocked);
-            }
+            effects.push(VehicleEffect::GetOff);
             return effects;
         }
 

@@ -96,9 +96,9 @@ any window; no scene runs a window none of its callers asks for.
   `Cutscene_MeetingKyra` `$0777A6` `$27`, now `standard(0x27)`.
 - **`Dialogue4` and `Dialogue5` agree:** 3 and 23 callers, each scene on
   `Ending` and `Cutscene` with the image's entries.
-- **`Dialogue` otherwise agrees:** 149 of its callers have scenes and each
-  scene runs exactly their entries on `Standard`; six callers have no scene
-  (below).
+- **`Dialogue` otherwise agrees:** all 155 of its callers have scenes and
+  each scene runs exactly their entries on `Standard` (the last six were
+  transcribed with #283's events after the audit found them without one).
 
 ## Per-scene census
 
@@ -120,6 +120,7 @@ image read; the census fails on any address missing here.
 | `Event_BioPlantAlarm` | D1 (`Standard`) | `$06C29E` `$0A` |
 | `Event_AiedoManSavings` | D1 (`Standard`) | `$06D46A` `$3D` |
 | `Event_GirlsSneakingOut` | D1 (`Standard`) | `$06D53C` `$3E` |
+| `Event_FaintingPriest` | D1 (`Standard`) | `$06D62E` `$45` |
 | `Event_AfterIgglanova` | D1 (`Standard`) | `$06D6CA` `$12` |
 | `Event_PrincipalConfession` | D1 (`Standard`) | `$06D7A4` `$13` |
 | `Event_RuneFlaeli` | D1 (`Standard`) | `$06D830` `$26` |
@@ -132,6 +133,7 @@ image read; the census fails on any address missing here.
 | `Event_RuneLadaeTower` | D1 (`Standard`) | `$06E9E0` `$06` |
 | `Event_PsycoWandChest` | D1 (`Standard`) | `$06EA18` `$07`, `$06EACC` `$08` |
 | `Event_ZioFortBarrier` | D1 (`Standard`) | `$06EC70` `$44`, `$06EDC4` `$45`, `$06EE10` `$4A` |
+| `Event_ZioFanatic` | D1 (`Standard`) | `$06EE58` `$49`, `$06EEB8` `$1F` |
 | `Event_MeetingDorin` | D1 (`Standard`) | `$06EEEE` `$18` |
 | `Event_TonoeBasementDoor` | D1 (`Standard`) | `$06F1A6` `$24` |
 | `Event_ZioNurvus` | D2 (`Retained`) | `$06F3D4` `$0B` |
@@ -203,6 +205,7 @@ image read; the census fails on any address missing here.
 | `Event_GirlsBailedOut` | D1 (`Standard`) | `$072CDE` `$61`, `$072D3E` `$0A` |
 | `Event_DyingBoyFather` | D1 (`Standard`) | `$072D5C` `$39` |
 | `Event_FatherAfterBoyRecovery` | D1 (`Standard`) | `$072D84` `$3A` |
+| `Event_DyingBoy` | D1 (`Standard`) | `$072DDE` `$33`, `$072FA6` `$3B`, `$072FAE` `$3E` |
 | `Event_MeetingSekreas` | D1 (`Standard`) | `$072FCC` `$3C` |
 | `Event_KingRappy` | D2 (`Retained`) | `$072FEA` `$36` |
 | `Event_KingRappy` | D1 (`Standard`) | `$073012` `$35` |
@@ -331,18 +334,15 @@ All four now have scenes (rows 11 to 14).
 
 ## Callers with no scene
 
-Six `Event_GetAndRunDialogue` callers sit in three events no scene
-transcribes yet, all listed in `UNTRANSCRIBED`
-(`rust/psiv-core/src/scenes/dialogue_callers_image.rs`). The
-spans run from the `EventPtrs` routine to the next routine's start; a lane that
-transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
+None. The three events that had callers no scene held (`Event_FaintingPriest`
+`$24`, `Event_ZioFanatic` `$31`, `Event_DyingBoy` `$86`; #283) have scenes now,
+and their rows are in the table above. `UNTRANSCRIBED`
+(`rust/psiv-core/src/scenes/dialogue_callers_image.rs`) is empty. A caller the
+image gains outside every documented range fails the census until it is listed
+there, with its entries and owning issue, and in a table here that gives the
+`EventPtrs`-derived span and the caller's loader bytes; a lane that
+transcribes it moves its rows into `DIALOGUE_CALLERS` and runs them on
 `Standard`, and the census names the row to add.
-
-| Event | EventPtrs-derived span (inclusive) | Caller, entry and loader | Owner |
-|---|---|---|---|
-| `Event_FaintingPriest` `$24` | `$06D616..$06D6C7` | `$06D62E` `$45` (`7045`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
-| `Event_ZioFanatic` `$31` | `$06EE40..$06EEBD` | `$06EE58` `$49` (`7049`); `$06EEB8` `jmp`, `$1F` (`701F`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
-| `Event_DyingBoy` `$86` | `$072D94..$072FB3` | `$072DDE` `$33` (`7033`); `$072FA6` `jmp`, `$3B` (`703B`); `$072FAE` `jmp`, `$3E` (`703E`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 
 ## The party move in `Event_CarnivorousTrees` and `Event_SavingKyra`
 

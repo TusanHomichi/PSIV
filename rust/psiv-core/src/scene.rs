@@ -84,8 +84,7 @@ pub enum SceneOp {
         y: i32,
     },
     /// Exchange two character objects wholesale — the three-way `trap #1`
-    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put
-    /// Alys in front.
+    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put Alys in front.
     SwapCharSlots {
         /// One character-object index.
         a: usize,
@@ -413,8 +412,7 @@ pub enum SceneOp {
     /// `#$F` clears one object and `#$2F` clears three. `Event_AlysFound`
     /// clears one; `Event_MeetingHahn` clears **three**, because map `$12`'s
     /// NPC 0 is Hahn and NPCs 1-2 are the `InvisibleBlock` pair fencing him in.
-    /// Modelling this as "clear one" leaves two invisible walls across the
-    /// basement corridor.
+    /// Modelling this as "clear one" leaves two invisible walls across the basement corridor.
     DespawnNpc {
         /// The first object cleared.
         npc_index: usize,
@@ -974,6 +972,8 @@ pub enum SceneOp {
     Item(ItemOp),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// `Event_GettingOffVehicle`'s needs (`scenes/vehicles.rs`).
+    GetOff(crate::scene_types::GetOffOp),
     /// `Event_WreckageEngine`'s needs (`scenes/wreckage.rs`).
     Wreckage(WreckageOp),
     /// A write to a field-object slot the map's record left empty.

@@ -61,7 +61,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$000D` | `Event_MeetingSaya` | map trigger $16 | KrupKindergarten | scene `Event_MeetingSaya` |
 | `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | scene `Event_AiedoManCrushOnAlys` |
 | `$000F` | `Event_SuspicionOnPrincipal` | map trigger $0A | PiataAcademy_F1 | scene `Event_SuspicionOnPrincipal` |
-| `$0010` | `Event_GettingOffVehicle` | field input: Cancel/Start-class press while on a vehicle (`loc_56084`) |  | allowlisted, #81 |
+| `$0010` | `Event_GettingOffVehicle` | field input: A, B or C while on a vehicle (`loc_56084`) |  | scene `Event_GettingOffVehicle` |
 | `$0011` | `Event_DezoSpaceportAppearing` | called from $8010 |  | inside the caller's scene (`$8010`) |
 | `$0012` | `Event_BioPlantAlarm` | map trigger $0C | BioPlant_Part2 | scene `Event_BioPlantAlarm` |
 | `$0013` | `Event_ElevatorDoorOpening` | interaction area $13 | BioPlant_Part3, BioPlant_B1, BioPlant_B2 (+42 more) | scene `Event_ElevatorDoorOpening` |
@@ -81,7 +81,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | scene `Event_Recovery` |
 | `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | scene `Event_AiedoManSavings` |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
-| `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | allowlisted, #81 |
+| `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | scene `Event_FaintingPriest` |
 | `$0025` | `Event_AfterIgglanova` | map trigger $13 | AcademyBasement_B2 | scene `Event_AfterIgglanova` |
 | `$0026` | `Event_PrincipalConfession` | dialogue `$F6` | tree 33 entry 22 | scene `Event_PrincipalConfession` |
 | `$0027` | `Event_RuneFlaeli` | map trigger $30 | ValleyMazeOutside | scene `Event_RuneFlaeli` |
@@ -94,7 +94,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$002E` | `Event_RuneLadaeTower` | map trigger $19 | LadeaTower_F2 | scene `Event_RuneLadaeTower` |
 | `$002F` | `Event_PsycoWandChest` | map trigger $2A | LadeaTower_F5 | scene `Event_PsycoWandChest` |
 | `$0030` | `Event_ZioFortBarrier` | dialogue `$F6` | tree 13 entry 73 | scene `Event_ZioFortBarrier` |
-| `$0031` | `Event_ZioFanatic` | dialogue `$F6` | tree 9 entry 32 | allowlisted, #81 |
+| `$0031` | `Event_ZioFanatic` | dialogue `$F6` | tree 9 entry 32 | scene `Event_ZioFanatic` |
 | `$0032` | `Event_MeetingDorin` | dialogue `$F6` | tree 7 entry 23 | scene `Event_MeetingDorin` |
 | `$0033` | `Event_TonoeBasementDoor` | dialogue `$F6` | tree 7 entry 41 | scene `Event_TonoeBasementDoor` |
 | `$0034` | `Event_ZioNurvus` | map trigger $1F | Nurvus_B4_Part2 | scene `Event_ZioNurvus` |
@@ -179,7 +179,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
 | `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | scene `Event_DyingBoyFather` |
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | scene `Event_FatherAfterBoyRecovery` |
-| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
+| `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | scene `Event_DyingBoy` |
 | `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | scene `Event_MeetingSekreas` |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 4 |
+| #81 | Motavia side content | 0 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 0 |
-| | total | 4 |
+| | total | 0 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
@@ -284,9 +284,9 @@ party members and the map's own objects, so a temporary object had no `ActorRef`
 as `ActorRef::Npc(2)`, and the runtime places it on the field map at that index
 ([161](161_PenguinFeedStolen.md)).
 
-One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
-a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the
-generic recovery tile) is transcribed ([102](102_Recovery.md)).
+`$10` (`Event_GettingOffVehicle`, a field-input event with no map) is transcribed
+([207](207_GettingOffVehicle.md)), as is `$21` (`Event_Recovery`, the generic
+recovery tile; [102](102_Recovery.md)).
 
 The Garuberk Tower's six events (`$35` to `$3A`) are transcribed
 ([103](103_GaruberkTowerDoors.md), [104](104_GaruberkTowerEyes.md)). The ops this
