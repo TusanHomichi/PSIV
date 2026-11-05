@@ -37,6 +37,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
 pub mod decode;
+pub mod game_start;
 pub mod gfx;
 pub mod install;
 pub mod json;
@@ -114,6 +115,11 @@ pub const SECTIONS: &[Section] = &[
         name: "ship_menu",
         claims: &["ship_menu"],
         build: ship_menu::build,
+    },
+    Section {
+        name: "game_start",
+        claims: &["game_start.json"],
+        build: game_start::build,
     },
 ];
 

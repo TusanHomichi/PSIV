@@ -713,6 +713,33 @@ impl FieldMap {
         Ok(())
     }
 
+    /// Puts `npc` in slot `index`, the way a scene writes an object into a
+    /// field-object slot the map's record left empty. Slots between the last
+    /// object and `index` are filled with absent ones, so no index moves.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcOutOfBounds`] when its cell is off the grid.
+    pub fn place_object(&mut self, index: usize, mut npc: Npc) -> Result<(), MapError> {
+        let (width, height) = (self.width(), self.height());
+        let Some(cell) = self.normalize(npc.cell) else {
+            return Err(MapError::NpcOutOfBounds {
+                npc: npc.id,
+                cell: npc.cell,
+                width,
+                height,
+            });
+        };
+        npc.cell = cell;
+        while self.npcs.len() <= index {
+            let mut empty = npc;
+            empty.active = false;
+            self.npcs.push(empty);
+        }
+        self.npcs[index] = npc;
+        Ok(())
+    }
+
     /// Moves an object to another cell, keeping its index.
     ///
     /// This is how a wanderer walks: occupancy, blocking, the follower trail

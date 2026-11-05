@@ -147,14 +147,16 @@ fn list_order_decides_how_many_rng_draws_a_scan_makes() {
 
 #[test]
 fn the_pengu_feed_trigger_is_decided_from_the_inventory() {
+    // `GetItem` sets Z when it finds the Feed, and the `bne.w` at `$0575EE`
+    // skips only when it does not: the thief needs something to steal.
     let mut state = GameState::new();
     let at = PixelPos { x: 0, y: 0x260 };
+    assert_eq!(evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at)), None);
+    state.inventory_mut().add(0x92).unwrap();
     assert_eq!(
         evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at)),
         Some((0x7B, TriggerResult::Fire(EventIndex(0x96))))
     );
-    state.inventory_mut().add(0x92).unwrap();
-    assert_eq!(evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at)), None);
 }
 
 #[test]

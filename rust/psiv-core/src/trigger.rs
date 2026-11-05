@@ -186,8 +186,8 @@ pub enum CustomTrigger {
     /// `$5C..$70` — region test plus a 1-in-32 draw that also *advances* the
     /// field RNG every frame the region matches.
     MileSandWorm,
-    /// `$7B` — requires the Pengu Feed to be missing from the inventory
-    /// (it has been stolen) while the leader stands at `y == $260`.
+    /// `$7B` — requires `GetItem` to find the Pengu Feed in the inventory
+    /// (the thief is about to take it) while the leader stands at `y == $260`.
     PenguFeedStolen,
 }
 
