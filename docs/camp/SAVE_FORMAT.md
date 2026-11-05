@@ -324,10 +324,12 @@ image hold the same payload bytes for the same standing cell.
 
 Native slots written before #129 stored the standing row itself. Logical
 header `$F02E..$F02F` holds `SY` on every slot written since; a slot without
-it but with the `$F020` roster mask (every earlier native slot has one, a
-cartridge image never does) is read as that legacy format, so it continues on
-the row it was saved on, and its next SAVE writes the retail word and the
-marker. `a_native_slot_and_a_cartridge_image_agree_on_standing_y`,
-`a_legacy_native_slot_keeps_its_standing_row` and
+it but with any native metadata in `$F020..$F02D` (the roster mask, the `TR`
+exit every writer adds, or the `PS` bridge; a session without battle files
+seats no roster, so its mask alone is not enough) is read as that legacy
+format, so it continues on the row it was saved on, and its next SAVE writes
+the retail word and the marker. A cartridge image is zero in all of them. `a_native_slot_and_a_cartridge_image_agree_on_standing_y`,
+`a_legacy_native_slot_keeps_its_standing_row`,
+`a_legacy_native_slot_with_no_roster_is_still_legacy` and
 `continue_from_a_cartridge_image_stands_where_the_retail_loader_puts_the_party`
 cover the three files.

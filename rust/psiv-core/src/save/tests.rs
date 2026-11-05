@@ -247,6 +247,45 @@ fn a_legacy_native_slot_keeps_its_standing_row() {
 }
 
 #[test]
+fn a_legacy_native_slot_with_no_roster_is_still_legacy() {
+    // A session started without battle files seats no roster, so its slots
+    // carry a zero roster mask; the slot writer still adds `TR`. Without the
+    // `SY` marker that slot is legacy, not a cartridge image.
+    let save = RetailSave {
+        snapshot: GameState::new().snapshot(),
+        location: RetailLocation {
+            map_index: 0x13,
+            char_x: 48 * 16,
+            char_y: 18 * 16,
+            ..RetailLocation::default()
+        },
+    };
+    let current = RetailSlot::encode(&save, 0).unwrap().with_dungeon_exit(0);
+    let mut header = logical_header(current.as_bytes());
+    assert_eq!(read_u16(&header, RUST_ROSTER_MASK_OFFSET), 0);
+    header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2].fill(0);
+    let mut payload = logical_payload(current.as_bytes());
+    write_u16(&mut payload, LOCATION_Y_OFFSET, 18 * 16);
+    write_u16(&mut header, CHECKSUM_OFFSET, payload_checksum(&payload));
+    let mut legacy = vec![0; RETAIL_SLOT_FILE_BYTES];
+    interleave(&header, &mut legacy[..RETAIL_HEADER_PHYSICAL_BYTES]);
+    interleave(&payload, &mut legacy[RETAIL_HEADER_PHYSICAL_BYTES..]);
+    let loaded = RetailSlot::from_bytes(&legacy, 0)
+        .unwrap()
+        .decode()
+        .unwrap();
+    assert_eq!(loaded.location.char_y, 18 * 16);
+    // The same file with the `TR` bytes cleared is a cartridge image.
+    header[RUST_DUNGEON_EXIT_OFFSET..RUST_DUNGEON_EXIT_OFFSET + 4].fill(0);
+    interleave(&header, &mut legacy[..RETAIL_HEADER_PHYSICAL_BYTES]);
+    let image = RetailSlot::from_bytes(&legacy, 0)
+        .unwrap()
+        .decode()
+        .unwrap();
+    assert_eq!(image.location.char_y, 19 * 16);
+}
+
+#[test]
 fn checksum_rejects_a_corrupted_payload_byte() {
     let save = RetailSave {
         snapshot: mid_progress_state().snapshot(),

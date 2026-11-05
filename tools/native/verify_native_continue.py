@@ -15,16 +15,25 @@ from pathlib import Path
 
 
 STANDING_Y_MARKER = (0x2E, b"SY")
-ROSTER_MASK = 0x20
+#: The native header metadata a slot writer adds before the marker: the
+#: roster mask (`$F020`), the `TR` dungeon exit (`$F022`) and the `PS`
+#: saved-party bridge (`$F026..$F02D`). A cartridge image is zero there.
+NATIVE_METADATA = range(0x20, 0x2E)
+ROSTER_MASK = range(0x20, 0x22)
+DUNGEON_EXIT = range(0x22, 0x26)
+
+
+def native_metadata(header):
+    return any(header[i] for i in NATIVE_METADATA)
 
 
 def standing_y(header, payload):
     """The standing row times 16 a slot's `$F408` word names: the cartridge
-    stores the object Y, one row less; a legacy native slot (a roster mask,
+    stores the object Y, one row less; a legacy native slot (native metadata,
     no marker) stored the standing row itself."""
     word = int.from_bytes(payload[0x308:0x30A], "big")
     offset, marker = STANDING_Y_MARKER
-    legacy = header[offset:offset + 2] != marker and any(header[ROSTER_MASK:ROSTER_MASK + 2])
+    legacy = header[offset:offset + 2] != marker and native_metadata(header)
     return word if legacy else (word + 16) & 0xFFFF
 
 
@@ -55,6 +64,14 @@ def main():
     allowed = set(range(0x12, 0x1A))
     if source_header[marker_offset:marker_offset + 2] != marker:
         allowed |= {marker_offset, marker_offset + 1}
+    if not native_metadata(source_header):
+        # A cartridge image's first native resave adds the roster mask and the
+        # dungeon exit, in the writer's own form: `TR`, the index, its
+        # complement.
+        allowed |= set(ROSTER_MASK) | set(DUNGEON_EXIT)
+        exit_bytes = saved_header[DUNGEON_EXIT.start:DUNGEON_EXIT.stop]
+        assert exit_bytes[:2] == b"TR" and exit_bytes[3] == exit_bytes[2] ^ 0xFF, \
+            "the resave's dungeon exit is not the writer's"
     assert saved_header[marker_offset:marker_offset + 2] == marker, "the resave lacks the SY marker"
     assert set(header_changes) <= allowed, "non-checksum header state changed"
     a, b = source[0x201::2], resaved[0x201::2]

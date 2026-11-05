@@ -60,8 +60,9 @@ const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
 const RUST_SAVED_PARTY_OFFSET: usize = 0x26;
 // `SY`: this slot's `$F408` word is retail's object Y, one row above the
 // standing cell. Native slots written before the marker (#129) stored the
-// standing row times 16; they always carry a nonzero roster mask, which a
-// cartridge image never does (`InitSRAM` zeroes the header, ps4.asm:134737).
+// standing row times 16; each carries some native metadata in `$F020..$F02D`
+// (the roster mask, the `TR` exit or the `PS` bridge), which a cartridge
+// image never does (`InitSRAM` zeroes the header, ps4.asm:134737).
 // The field starts after the saved-party bridge's `$F026..$F02D`.
 const RUST_STANDING_Y_OFFSET: usize = 0x2E;
 const STANDING_Y_MARKER: &[u8; 2] = b"SY";
@@ -612,11 +613,15 @@ fn decode_pair(bytes: &[u8], offset: usize) -> StatPair {
 }
 
 /// A native slot written before the `SY` marker: its `$F408` word is the
-/// standing row times 16. Every native slot carries a roster mask (the
-/// leader's seat at least); a cartridge image's header is zero there.
+/// standing row times 16. Every native slot writes some native metadata
+/// before the marker's field: the roster mask, and since the dungeon-exit
+/// extension always `TR` (a session without battle files seats no roster, so
+/// its mask is zero). A cartridge image's header is zero there.
 fn legacy_standing_y(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
     &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2] != STANDING_Y_MARKER
-        && read_u16(header, RUST_ROSTER_MASK_OFFSET) != 0
+        && header[RUST_ROSTER_MASK_OFFSET..RUST_STANDING_Y_OFFSET]
+            .iter()
+            .any(|&byte| byte != 0)
 }
 
 fn validate_slot(slot: usize) -> Result<(), SaveError> {
