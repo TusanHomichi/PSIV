@@ -19,6 +19,13 @@
       "addLabels": ["hold"],
       "automerge": false,
       "prBodyNotes": ["This bump keeps the `hold` label until the checks [#133](https://github.com/TusanHomichi/PSIV/issues/133) sets for a Godot bump pass on this head. `python3 tools/godot.py pin` writes the new version's downloads first."]
+    },
+    {
+      "description": "The release workflow builds Linux on the oldest Ubuntu runner GitHub offers on purpose: a build on a newer one links newer glibc symbol versions, and the Steam Deck refuses to load the extension (docs/DEVELOPMENT.md, tools/package/release.py). It moves when GitHub retires the runner, by hand and checked on a Deck, not by a Renovate bump.",
+      "matchDatasources": ["github-runners"],
+      "matchPackageNames": ["ubuntu"],
+      "matchFileNames": [".github/workflows/release.yml"],
+      "enabled": false
     }
   ]
 }
