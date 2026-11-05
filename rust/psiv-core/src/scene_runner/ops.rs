@@ -7,8 +7,8 @@
 use super::{Blocked, SceneRunner, pixel_cell};
 use crate::field::StepFrames;
 use crate::scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, SavedByte, SceneEffect, SceneFault, SceneOp,
-    ScriptedActor,
+    ActorRef, Axis, DialogueId, DialogueSource, MoneyTest, SavedByte, SceneEffect, SceneFault,
+    SceneOp, ScriptedActor,
 };
 use crate::scene_types::RockyOp;
 use crate::state::{CharId, GameState, PARTY_SLOTS};
@@ -141,16 +141,38 @@ impl SceneRunner {
             }
             SceneOp::BranchIfMoneyBelow {
                 amount,
+                test,
                 if_below,
                 if_not,
             } => {
-                // `bmi` on the longword difference: the sign bit, as the
-                // cartridge reads it.
-                let target = if state.money().wrapping_sub(amount) & 0x8000_0000 != 0 {
-                    if_below
+                let below = match test {
+                    MoneyTest::SignOfDifference => {
+                        state.money().wrapping_sub(amount) & 0x8000_0000 != 0
+                    }
+                    MoneyTest::Unsigned => state.money() < amount,
+                };
+                let target = if below { if_below } else { if_not };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::BranchIfInventoryFull { if_full, if_not } => {
+                let target = if state.inventory().is_full() {
+                    if_full
                 } else {
                     if_not
                 };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::BranchOnRngLow2 { targets } => {
+                let Some(rng) = self.rng.as_mut() else {
+                    return Some(SceneFault::NoRng);
+                };
+                let target = targets[usize::from(rng.step() & 3)];
                 if target > self.scene.len() {
                     return Some(SceneFault::BadJump { target });
                 }

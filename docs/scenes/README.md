@@ -201,6 +201,12 @@ jobs.
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
 | `Event_TallasRescued` | `$7E` | [140](140_TallasRescue.md#event_tallasrescued) | `$072B52..$072C07` |
 | `Event_MonsenEarthquake` | `$2C` | [143](143_MonsenEarthquake.md) | `$06E0EA..$06E759` |
+| `Event_MuskCatsGuarding` | `$49` | [180](180_LateArcInteractions.md#event_muskcatsguarding) | `$07069E..$0706BF` |
+| `Event_MuskCatElder` | `$4A` | [180](180_LateArcInteractions.md#event_muskcatelder) | `$0706C0..$070701` |
+| `Event_PenguinOwner` | `$4B` | [180](180_LateArcInteractions.md#event_penguinowner) | `$070702..$070773` |
+| `Event_RajaSick` | `$5B` | [180](180_LateArcInteractions.md#event_rajasick) | `$070C30..$070C81` |
+| `Event_RuneHealingChaz` | `$67` | [180](180_LateArcInteractions.md#event_runehealingchaz) | `$071E56..$071E65` |
+| `Event_Hijammer` | `$6D` | [180](180_LateArcInteractions.md#event_hijammer) | `$072428..$0724A3` |
 
 ## Zosa's item shop
 Issue #56's last trigger-fired event, from a hand-built save (`rust/psiv-campaign/tests/zosa_side.rs`).
@@ -466,6 +472,14 @@ Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
 | `SetCharacterSkill{who, slot, skill}` | `move.b #id, skills+n(a0)` on a character record (`Event_Burstroc` `$07250E`) | Burstroc, Positron Bolt |
 | `RidePlatform{slot, step_y, frames}` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
 | `ConveyorRide{direction, first_chunk, last_chunk}` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
+
+Two more for the [late arc's interactions](180_LateArcInteractions.md), each with its case in
+`rust/psiv-core/tests/late_arc_scenes.rs`:
+
+| Op | Retail primitive | Used by |
+|---|---|---|
+| `BranchIfInventoryFull{if_full, if_not}` | the count of non-zero `Inventory` bytes and `cmpi.w #40, d0 / bcs.w` | `Event_MuskCatElder` |
+| `BranchOnRngLow2{targets}` | `UpdateRNGSeed`, `move.w (RNG_Seed).w, d0`, `andi.w #3, d0` | `Event_RajaSick` |
 
 `ConveyorRide` is the one op that reads the live layout: `SceneRunner::tick_with`
 takes the chunk probe, and the runtime hands it the collision plane with scene

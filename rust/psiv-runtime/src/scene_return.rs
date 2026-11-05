@@ -27,6 +27,13 @@
 //! `docs/scenes/FIELD_RELOAD.md`), less the fade when bit 7 skipped it, plus
 //! the 124-frame window. A map the oracle fixture could not reach has no
 //! measured setup and counts only its fade.
+//!
+//! A plain event's `d0` reaches nothing: `loc_5A27A` clears the input and
+//! `Char_Move_Flags`, hands a pending event battle to `RunEventBattle` and
+//! calls `loc_5B368` (`ps4.asm:122258`, eight palette-buffer writes), with no
+//! reload on any value. `Event_IgglanovaBattle`'s battle hand-off is its
+//! `bset #3, Routine_Exit_Flags` (`ps4.asm:152027`), not the `moveq #1, d0`
+//! after it.
 
 use psiv_core::{PresentationOp, SceneOp, field_reload_rows};
 
