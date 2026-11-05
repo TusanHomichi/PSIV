@@ -517,7 +517,7 @@ mod tests {
             ("Event_MeeseClinicSickWoman", 20),
             ("Event_PenguinFeedStolen", 58),
             ("Event_FaintingPriest", 12),
-            ("Event_ZioFanatic", 6),
+            ("Event_ZioFanatic", 7),
             ("Event_Pennant", 7),
             ("Event_WoodCarving", 7),
             ("Event_PiataDormOwner", 3),
@@ -866,6 +866,94 @@ mod tests {
         );
         assert!(
             tone_loops_without_their_frames(&[tone, SceneOp::WaitFrames { frames: 60 }]).is_empty()
+        );
+    }
+
+    /// Every op index whose `ObjectOp` spawn is not drawn before the scene
+    /// does anything else.
+    ///
+    /// The renderer creates map-object sprites only on a sprite rebuild, and
+    /// a spawned slot is not drawn by the spawn itself: the cartridge draws
+    /// it with the `Field_BuildSprites` after it, which the port records as
+    /// `PresentationOp::RebuildSprites`. Only the same-frame state writes
+    /// retail makes between the two (another spawn, a clear, a dialogue or
+    /// routine word) may come first; a wait, a line or the scene's end
+    /// before the rebuild leaves the slot undrawn for that long.
+    fn spawns_not_drawn(ops: &[SceneOp]) -> Vec<usize> {
+        ops.iter()
+            .enumerate()
+            .filter(|(_, op)| matches!(op, SceneOp::Object(_)))
+            .filter_map(|(i, _)| {
+                for op in &ops[i + 1..] {
+                    match op {
+                        SceneOp::Presentation {
+                            op: PresentationOp::RebuildSprites,
+                        } => return None,
+                        SceneOp::Object(_)
+                        | SceneOp::DespawnNpc { .. }
+                        | SceneOp::SetNpcDialogue { .. }
+                        | SceneOp::SetObjectRoutine { .. } => {}
+                        _ => return Some(i),
+                    }
+                }
+                Some(i)
+            })
+            .collect()
+    }
+
+    /// `Event_ZioFanatic` spawned the writhing believer and waited 30 frames
+    /// with no rebuild, so he was not on screen until the scene ended.
+    #[test]
+    fn every_spawned_object_is_drawn_before_the_scene_goes_on() {
+        for scene in SCENES {
+            assert_eq!(
+                spawns_not_drawn(scene.ops),
+                Vec::<usize>::new(),
+                "{}: an ObjectOp spawn without its RebuildSprites",
+                scene.name
+            );
+        }
+    }
+
+    /// Negative controls: a spawn followed by a wait, by a line, by a wait
+    /// before its rebuild, or by nothing is reported at its index; one whose
+    /// rebuild follows a clear and a dialogue word is not.
+    #[test]
+    fn a_spawn_without_its_rebuild_is_reported() {
+        let spawn = SceneOp::Object(crate::scene::ObjectOp::SpawnAt {
+            slot: 9,
+            routine: 0x148,
+            at: crate::scene::ActorRef::Npc(4),
+            solid: true,
+        });
+        let rebuild = SceneOp::Presentation {
+            op: PresentationOp::RebuildSprites,
+        };
+        let wait = SceneOp::WaitFrames { frames: 30 };
+        let clear = SceneOp::DespawnNpc {
+            npc_index: 4,
+            count: 1,
+        };
+        assert_eq!(spawns_not_drawn(&[spawn, wait, rebuild]), vec![0]);
+        assert_eq!(spawns_not_drawn(&[spawn, clear, wait]), vec![0]);
+        assert_eq!(
+            spawns_not_drawn(&[spawn, aiedo_events::standard(0x1F), rebuild]),
+            vec![0]
+        );
+        assert_eq!(spawns_not_drawn(&[rebuild, wait, spawn]), vec![2]);
+        assert_eq!(spawns_not_drawn(&[spawn]), vec![0]);
+        assert!(
+            spawns_not_drawn(&[
+                spawn,
+                clear,
+                SceneOp::SetNpcDialogue {
+                    npc_index: 9,
+                    dialogue_id: 0x38,
+                },
+                rebuild,
+                wait,
+            ])
+            .is_empty()
         );
     }
 

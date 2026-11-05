@@ -5,8 +5,8 @@ mod common;
 
 use common::map_with;
 use psiv_core::{
-    ActorRef, Cell, Direction, EventIndex, GameState, ObjectOp, SceneEffect, SceneInput, SceneOp,
-    SceneRunner, ScriptedActor, StepFrames, scene_for,
+    ActorRef, Cell, Direction, EventIndex, GameState, ObjectOp, PresentationOp, SceneEffect,
+    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, scene_for,
 };
 
 /// An open 40-cell room.
@@ -133,6 +133,45 @@ fn the_believer_is_replaced_where_he_stands() {
         |e| matches!(e, SceneEffect::DialogueOpen(id) if id.0 == 0x1F),
     );
     assert_eq!(last_line - spawned.0, 30, "the writhing frames");
+}
+
+/// The first pass of `$06EE90`'s loop draws the sprites: object 9 is on screen
+/// at object 4's cell, and object 4 gone, for all 30 frames and the line
+/// after, not only once the scene ends. The rebuild comes after the spawn and
+/// the clear, on the spawn's tick, before any frame of the wait.
+#[test]
+fn the_writhing_believer_is_drawn_before_he_writhes() {
+    let (log, _) = play(ops(0x31), Cell::new(5, 5));
+    let position = |wanted: &dyn Fn(&SceneEffect) -> bool| {
+        log.iter()
+            .position(|(_, e)| wanted(e))
+            .expect("effect present")
+    };
+    let spawned = position(&|e| matches!(e, SceneEffect::ObjectSpawned { slot: 9, .. }));
+    let cleared = position(&|e| {
+        *e == SceneEffect::NpcDespawned {
+            npc_index: 4,
+            count: 1,
+        }
+    });
+    let rebuilt = position(&|e| {
+        *e == SceneEffect::Presentation {
+            op: SceneOp::Presentation {
+                op: PresentationOp::RebuildSprites,
+            },
+        }
+    });
+    assert!(spawned < cleared && cleared < rebuilt, "{log:?}");
+    assert_eq!(log[rebuilt].0, log[spawned].0, "drawn on the spawn's tick");
+    let last_line = tick_of(
+        &log,
+        |e| matches!(e, SceneEffect::DialogueOpen(id) if id.0 == 0x1F),
+    );
+    assert_eq!(
+        last_line - log[rebuilt].0,
+        30,
+        "drawn through the 30 frames"
+    );
 }
 
 /// `ObjectOp::SpawnAt` on its own: the slot takes the named actor's live cell,

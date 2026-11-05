@@ -107,4 +107,19 @@ fn the_believer_writhes_where_he_stood() {
     assert!(!npcs[BELIEVER].active, "object 4 cleared");
     assert!(npcs[WRITHING].active, "object 9 back");
     assert_eq!(npcs[WRITHING].id.0, 0x148);
+    // After the scene's teardown he keeps the spot object 4 was cleared
+    // from, beside the leader who talked to him, not his record's cell.
+    assert_eq!(
+        npcs[WRITHING].cell, npcs[BELIEVER].cell,
+        "where the believer stood"
+    );
+    let state = driver.runtime().state();
+    assert_eq!(
+        driver
+            .runtime()
+            .map()
+            .neighbor(state.cell(), state.facing()),
+        Some(npcs[WRITHING].cell),
+        "in front of the leader"
+    );
 }

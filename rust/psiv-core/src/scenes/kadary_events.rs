@@ -124,11 +124,16 @@ pub static ZIO_FANATIC: Scene = Scene {
             npc_index: BELIEVER,
             count: 1,
         },
-        // 4: `$06EE90..$06EEB5`: `moveq #$1D, d7` and a `dbf` loop of
+        // 4-5: `$06EE90..$06EEB5`: `moveq #$1D, d7` and a `dbf` loop of
         // `loc_49212`, `Field_LoadSprites`, `Field_BuildSprites`,
-        // `VInt_Prepare`: 30 frames with only object 9 running.
+        // `VInt_Prepare`: 30 frames with only object 9 running. The first
+        // pass's sprite calls draw object 9 where object 4 stood and drop
+        // object 4, before the loop's first frame is shown.
+        SceneOp::Presentation {
+            op: PresentationOp::RebuildSprites,
+        },
         SceneOp::WaitFrames { frames: 30 },
-        // 5: `$06EEB6..$06EEBD`: entry `$1F`, tail `jmp`.
+        // 6: `$06EEB6..$06EEBD`: entry `$1F`, tail `jmp`.
         standard(0x1F),
     ],
 };
