@@ -119,6 +119,21 @@ pub enum SceneInput {
     JobBoardPicked(Option<u8>),
 }
 
+/// A scene's direct writes to `Inventory`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ItemOp {
+    /// `GetItem` (`$5B100`), `bne` to the absent path, `clr.b (a0)`,
+    /// `ReorderInventory` (`$5CB72`): the shape of `Event_OldManNearMissingStudent`
+    /// (`$0729FA..$072A0D`). The scene carries on at the next op with the item
+    /// gone, or jumps with nothing written.
+    Take {
+        /// The item asked for.
+        item: u8,
+        /// Op index taken when `GetItem` does not find it.
+        if_missing: usize,
+    },
+}
+
 /// `Event_HuntersGuild` on the row in `d1` (`scenes/hunters_guild.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GuildOp {
