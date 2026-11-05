@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 8 |
+| #81 | Motavia side content | 6 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 1 |
-| | total | 9 |
+| | total | 7 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
