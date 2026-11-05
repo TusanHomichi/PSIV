@@ -379,7 +379,7 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
         "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Plate System and Wreckage",
         (
             0x24, 0x29, 0x31,
-            0x84, 0x85, 0x86, 0x87, 0x97, 0x98,
+            0x84, 0x85, 0x86, 0x87,
         ),
     ),
     (

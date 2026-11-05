@@ -195,6 +195,8 @@ jobs.
 | `Event_MeeseClinicSickWoman` | `$93` | [202](202_MeeseClinicSickWoman.md) | `$0733CC..$07341F` |
 | `Event_Phonon` | `$6C` | [204](204_Phonon.md) | `$0722F6..$072427` |
 | `Event_PlateSysEngine` | `$2D` | [205](205_PlateSysEngine.md) | `$06E75A..$06E907` |
+| `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
+| `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
 | `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
