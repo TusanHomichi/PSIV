@@ -22,9 +22,9 @@ names, whatever the disassembly's constants file says.
 | 0-2 | `SFXID_ChestOpened`; object 3 faces up; `DoMapUpdateLoop($27)` | `PlaySound`, `Face`, `Wait(40)` |
 | 3 | `FindCharacterSlot(CharID_Demi)`, `bmi.w loc_72404` | `BranchIfPartyMember` Demi |
 | 4 | `moveq #$4E` / `Event_GetAndRunDialogue` | standard `RunDialogue` `$4E` |
-| 5 | `$FFFFED52 := 5`, `Pal_VariableFadeOut` | `VariablePaletteFade` out, mode 5 |
+| 5 | `$FFFFED52 := 5`, `Pal_VariableFadeOut` | `VariablePaletteFade` out, mode 5: blocks for six frames per level of the palette's largest nibble |
 | 6-18 | waits `$27`, `$27`, `$E`, 9, `$1D`, `$3B`, `$27` between `SFXID_AndroidSkillImplant` x3, `SFXID_Megid`, `SFXID_Recovery`, `SFXID_AndroidSkillImplant` | `Wait` and `PlaySound` |
-| 19-25 | `trap #1` of 64 words `Palette_Table_Buffer_2` to `Palette_Table_Buffer`, `DoMainUpdatesLoop(0)`, fade in (mode 2), fade out (mode 0), the copy and wait again, fade in (mode 0) | `CopyRamWords`, `Wait(1)`, `VariablePaletteFade` |
+| 19-25 | `trap #1` of 64 words `Palette_Table_Buffer_2` to `Palette_Table_Buffer`, `DoMainUpdatesLoop(0)`, fade in (mode 2), fade out (mode 0), the copy and wait again, fade in (mode 0) | `PaletteCopy`, `Wait(1)`, `VariablePaletteFade` |
 | 26-28 | `popdlg` / `Event_RunDialogue`; `move.b #SkillID_Phonon, skills+5(Demi_Stats)`; `rts` | `RunDialogueResume`, `SetCharacterSkill`, `End` |
 | 29-32 | `loc_72404`: entry `$4F`, `SFXID_ChestOpened`, object 3 faces down, `jmp ChestFlags_Clear` with `ChestFlag_Phonon` | `RunDialogue`, `PlaySound`, `Face`, `SetFlag` chest `$42` clear |
 

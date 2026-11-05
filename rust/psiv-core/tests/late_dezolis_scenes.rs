@@ -647,11 +647,7 @@ fn with_elsydeon_the_barrier_breaks_and_sets_e0() {
             },
             SceneOp::WaitFrames { frames: 40 },
             SceneOp::Presentation {
-                op: PresentationOp::PaletteToneFlash {
-                    brighten: false,
-                    words: 64,
-                    frames: 40,
-                },
+                op: PresentationOp::PaletteRestoreTone { frames: 40 },
             },
             SceneOp::WaitFrames { frames: 40 },
         ]

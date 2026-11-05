@@ -112,6 +112,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
 
 ## Other recorded deviations
 
+- **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
+  `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
+  each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
+  live buffer over frames the scene runner does not spend; the shell's cover
+  draws the ramp. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
+  makes the copy and leaves the live words at the pre-fade palette, so after a
+  `FadeOut` the words read the old palette instead of black, and a line that no
+  op rewrites before the next `FadeIn` comes back with its old words where the
+  cartridge would bring it back black. The variable fades, tone loops, flashes
+  and cycles are stepped frame by frame
+  ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+
 - **The Menu-button credits skip is not ported.** `Cutscene_Ending`
   (`ps4.asm:158029-158033`) lets a player holding Menu at the scene's start jump
   to the credits; the port plays the whole ending. Recorded in
@@ -241,9 +253,10 @@ agility and dexterity, and enemy paralysis clearing each turn.
   - **The palette words are logged, not drawn.** The cartridge adds `$220` to
     `Palette_Table_Buffer+$1A` four times, eight frames apart (`loc_6DD6C`), and `loc_6DE58` writes
     `$620` and `$2CE` to `Palette_Table_Buffer+$7C`/`+$7E`. The port keeps each as a
-    `PresentationOp` (`AddPaletteWord`, `SetPaletteWords`), with every wait between them, and the
-    Godot renderer only logs them: the screens do not brighten and those two words keep the map's
-    own colours until the palette is next loaded. No state reads them.
+    `PresentationOp` (`AddPaletteWord`, `SetPaletteWords`), with every wait between them; the
+    runtime's CRAM model applies them, and Godot draws only lines 0 and 1 of it on maps with an
+    indexed render, so the screens do not brighten per line yet
+    ([#162](https://github.com/TusanHomichi/PSIV/issues/162)). No game state reads them.
 
 ## Public reverse-engineering references used
 

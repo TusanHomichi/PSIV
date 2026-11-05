@@ -21,7 +21,11 @@ fn pack_present() -> bool {
 
 fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
-    let mut game = GameState::new();
+    // The new game's roster, so every member has a record to write to.
+    let initial = crate::Session::start(data.clone())
+        .field()
+        .expect("the pack boots");
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
     game.set_party(party);
     for &flag in flags {
         let _ = game.set(flag);
