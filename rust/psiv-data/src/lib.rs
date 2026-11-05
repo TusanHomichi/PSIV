@@ -44,6 +44,7 @@ mod collision;
 mod dialogue;
 mod error;
 mod fifth;
+mod field_objects;
 mod game_data;
 mod guild;
 mod ids;
@@ -77,6 +78,7 @@ pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCol
 pub use dialogue::*;
 pub use error::DataError;
 pub use fifth::{FIFTH_ROWS, FifthFile, FifthRowRecord, FifthTable};
+pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};
 pub use game_data::GameData;
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
@@ -99,8 +101,9 @@ pub use map::{
 };
 pub use new_game::NewGame;
 pub use ship_menu::{
-    COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu,
-    ShipMenuFile, ShipPalette, ShipWindow,
+    BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,
+    PaletteEntry, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu, ShipMenuFile, ShipMenuJson, ShipPalette,
+    ShipWindow,
 };
 pub use shops::{
     InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,

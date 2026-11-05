@@ -141,6 +141,28 @@ agility and dexterity, and enemy paralysis clearing each turn.
   PNGs stay as oracle evidence only. `battle/enemy_animations.json` is
   unchanged.
 
+- `Event_RanchOwner`'s alignment walk (`$07259E..$0725CF`,
+  [record](../scenes/142_RanchOwner.md#event_ranchowner)). The cartridge loops a frame at a time,
+  calling `FieldObj_NPCType7` (`ps4.asm:95230`) and its `loc_49C86` gate (within `$10` of the
+  leader's Y, step along X toward him) until the owner's X word equals `Character_1`'s. The port
+  runs `MoveActorToActorAxis` on X instead: the scene runner's walk at the party's step pace
+  (normally 8 frames a cell), where `NPCType7` steps at `Selector1`'s 16, and without the routine's
+  own movement state or its Y gate (the talk range keeps the leader inside it). Both horizontal
+  directions take the same path, since the destination is the leader's live X either side. An
+  owner already level with the leader spends no frame in either: the cartridge compares the X words
+  before its first step, and the port's `BranchIfAligned` skips the walk (a walk to his own cell
+  would block the runner for a tick). An owner caught mid-step at the talk starts from the cell he
+  was stepping into (the map holds a stepping object at its destination), where the cartridge
+  finishes that step inside the loop's `NPCType7` calls. A vertical step leaves his X word alone,
+  so the cartridge's compare sees the same column the port does. A horizontal step into the
+  leader's column is aligned for the port, which skips the walk, while the cartridge's X word only
+  matches once the step completes, so it spends the rest of that step's frames (up to 15 at
+  `NPCType7`'s pace) on the loop, each a `VInt_Prepare` that runs `UpdateRNGSeed` and the frame
+  counter. Any other horizontal step leaves the port a one-cell walk from his destination, where the
+  cartridge also finishes the step first. He ends on the leader's column in every case, the walk is
+  at most a cell, and the dialogue that follows is the same; the frames between the press and the
+  text, and so the shared RNG stream and palette phase, run up to 8 frames a cell ahead
+  of the cartridge, and up to 15 more when the mid-step owner was already heading into the column.
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
@@ -176,6 +198,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
     (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
     adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those
     behind them, and keeps it across a scene handoff. Other followers keep the snap.
+- `Event_MonsenEarthquake`'s facing frames (`$2C`, `ps4.asm:147499-147814`,
+  [record](../scenes/143_MonsenEarthquake.md)). Retail's `Event_UpdateObjFacing`
+  (`$05A936`) ends in a `VInt_Prepare` in the US build. Outside Gryz's spin, which keeps it, the
+  scene calls it 15 times, 16 with Rune, and twice through `loc_6E670`, which calls it once for each
+  party slot that is filled (4, or 5 with Rune). The port's `Face`, `FaceOppositeOf` and `FaceParty`
+  take no frame, so the scene is 23 frames shorter without Rune and 26 with him: the informant's two
+  turns, the party's four or five, Gryz's two and Chaz's and Rika's after the spin, the second
+  villager's own turn, Chaz's four as he looks about, and the two `loc_6E670` passes. Each lost
+  frame runs no `Field_UpdateObjects`, no `RunMapUpdates` and reads no pad, so no object moves on it in either build, and every walk and wait lines up with the
+  cartridge's. What drifts is the VInt's own work: `UpdateRNGSeed` and `Main_Frame_Count`
+  (`ps4.asm:617,623`), so the shared RNG stream and absolute frame phase leave the scene that many
+  frames behind the cartridge, and the turns show a frame sooner. The villagers' creation is not a
+  deviation: the `dest` Y the scene writes from the X word is overwritten by
+  `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
 
 ## Public reverse-engineering references used
 

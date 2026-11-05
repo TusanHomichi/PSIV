@@ -258,7 +258,7 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(census["evaluated"], "map load only")
         self.assertEqual(sorted(census["kinds"]), [
             "flag_clear", "layout_replace", "layout_write", "object_despawn",
-            "object_dialogue", "object_rewrite",
+            "object_dialogue", "object_rewrite", "object_x", "object_y",
         ])
         # 335, not the 339 an earlier pass counted: four of those came from a
         # path whose gates required one flag both set and clear, which no map

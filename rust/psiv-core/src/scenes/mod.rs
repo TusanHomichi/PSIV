@@ -67,6 +67,7 @@ pub(crate) mod gumbious_events;
 pub mod hunters_guild;
 pub(crate) mod late_arc;
 pub(crate) mod monsen;
+pub(crate) mod monsen_quake;
 pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -74,6 +75,7 @@ pub(crate) mod opening;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
+pub(crate) mod ranch;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
 pub(crate) mod rocky;
@@ -295,6 +297,11 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    // The earthquake at Monsen (#81).
+    monsen_quake::MONSEN_EARTHQUAKE,
+    // The ranch owner (#81).
+    ranch::RANCH_OWNER,
+    ranch::RANCH_OWNER_AFTER_BATTLE,
     // Rocky (#81).
     rocky::ROCKY_FOUND,
     rocky::CATCHING_ROCKY,
@@ -321,6 +328,7 @@ pub fn scene_for(event: EventIndex) -> Option<&'static Scene> {
 mod tests {
     use super::*;
     use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
+    use crate::scene_presentation::PresentationOp;
 
     /// Op counts as the transcription docs state them.
     ///
@@ -494,6 +502,9 @@ mod tests {
             ("Event_AiedoManCrushOnAlys", 6),
             ("Event_HuntersGuild", 56),
             ("Event_StrippersAppearing", 33),
+            ("Event_MonsenEarthquake", 117),
+            ("Event_RanchOwner", 13),
+            ("Event_RanchOwnerAfterBattle", 3),
             ("Event_RockyFound", 3),
             ("Event_CatchingRocky", 58),
             ("Event_TallasMom", 3),
@@ -520,6 +531,62 @@ mod tests {
                 .unwrap_or_else(|| panic!("{name} is missing from the registry"));
             assert_eq!(scene.ops.len(), *ops, "{name} op count");
         }
+    }
+
+    /// The op indices of `ops` whose `WalkObject` order disagrees with the
+    /// `Char_Move_Flags` bit 1 the scene's last `SetFollowMode` left, read in
+    /// op order from a clear bit.
+    fn walk_order_mismatches(ops: &[SceneOp]) -> Vec<usize> {
+        let mut y_first_now = false;
+        let mut wrong = Vec::new();
+        for (index, op) in ops.iter().enumerate() {
+            match op {
+                SceneOp::SetFollowMode { bits } => y_first_now = bits & 0b10 != 0,
+                SceneOp::Presentation {
+                    op: PresentationOp::WalkObject { y_first, .. },
+                } if *y_first != y_first_now => wrong.push(index),
+                _ => {}
+            }
+        }
+        wrong
+    }
+
+    /// `FieldObj_GetAutoInput` reads bit 1 for scene-created objects too, so
+    /// every temporary-object walk carries the order the scene has set.
+    #[test]
+    fn every_object_walk_takes_the_axis_order_in_effect() {
+        for scene in SCENES {
+            assert_eq!(
+                walk_order_mismatches(scene.ops),
+                [0usize; 0],
+                "{}",
+                scene.name
+            );
+        }
+    }
+
+    /// The check's negative controls: a Y-first walk before the bit is set,
+    /// an X-first one after it, and one left Y-first after it is cleared.
+    #[test]
+    fn a_walk_against_the_follow_mode_is_caught() {
+        let walk = |y_first| SceneOp::Presentation {
+            op: PresentationOp::WalkObject {
+                slot: 8,
+                x: 0x230,
+                y: 0x220,
+                y_first,
+            },
+        };
+        let mode = |bits| SceneOp::SetFollowMode { bits };
+        assert_eq!(walk_order_mismatches(&[walk(true)]), [0]);
+        assert_eq!(walk_order_mismatches(&[mode(0b111), walk(false)]), [1]);
+        assert_eq!(
+            walk_order_mismatches(&[mode(0b111), walk(true), mode(0b101), walk(true)]),
+            [3]
+        );
+        assert!(
+            walk_order_mismatches(&[mode(0b111), walk(true), mode(0b101), walk(false)]).is_empty()
+        );
     }
 
     #[test]
@@ -773,7 +840,6 @@ mod tests {
     /// is reported at its index.
     #[test]
     fn a_tone_loop_without_its_frames_is_reported() {
-        use crate::scene_presentation::PresentationOp;
         let tone = SceneOp::Presentation {
             op: PresentationOp::PaletteIncreaseTone {
                 frames: 60,

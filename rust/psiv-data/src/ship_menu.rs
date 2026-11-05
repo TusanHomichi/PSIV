@@ -39,7 +39,7 @@ pub const DARK_WORDS: [usize; 2] = [14, 15];
 pub const HIGHLIGHT_BASE_WORD: usize = 7;
 
 /// One `WinGroup_Event` record: a window's size and position in cells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShipWindow {
     /// The window id `Window_Create` is called with.
     pub id: u8,
@@ -53,48 +53,73 @@ pub struct ShipWindow {
     pub y: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct PaletteEntry {
-    rgb: [u8; 3],
+/// One of the 32 palette words, as a colour.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaletteEntry {
+    /// The colour.
+    pub rgb: [u8; 3],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct Colors {
-    highlight: [u8; 3],
-    dark: [u8; 3],
+/// The two colours `loc_64144` writes: the blinking marker and the darkened lines.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Colors {
+    /// The blinking marker's colour (`$EEE`).
+    pub highlight: [u8; 3],
+    /// The darkened lines' colour.
+    pub dark: [u8; 3],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct BackgroundRecord {
-    covers: usize,
-    file: String,
+/// One cover combination's background file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BackgroundRecord {
+    /// The cover bits: Rykros 1, Kuran 2, the Air Castle 4.
+    pub covers: usize,
+    /// The background, pack-relative: 320 x 224 CRAM indices.
+    pub file: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct ShipMenuJson {
-    format_version: u32,
-    kind: String,
-    rom_sha256: RomHash,
-    palette: Vec<PaletteEntry>,
-    colors: Colors,
-    windows: Vec<ShipWindow>,
-    prompt: String,
-    confirm_suffix: Vec<String>,
-    names: Vec<String>,
+/// `ship_menu/ship_menu.json`, the record the pack builder writes and [`ShipMenu::load`] reads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipMenuJson {
+    /// The file's version.
+    pub format_version: u32,
+    /// `ship_menu`.
+    pub kind: String,
+    /// The ROM it came from.
+    pub rom_sha256: RomHash,
+    /// CRAM lines 0 and 1.
+    pub palette: Vec<PaletteEntry>,
+    /// The colours the frame loop writes.
+    pub colors: Colors,
+    /// `WinGroup_Event`'s records for this screen.
+    pub windows: Vec<ShipWindow>,
+    /// The prompt.
+    pub prompt: String,
+    /// The confirmation's two halves.
+    pub confirm_suffix: Vec<String>,
+    /// The six world names.
+    pub names: Vec<String>,
+    /// One caption per world.
     #[serde(default)]
-    flight_captions: Vec<FlightCaption>,
+    pub flight_captions: Vec<FlightCaption>,
+    /// `WinGroup_PlaceName`, by name length.
     #[serde(default)]
-    place_windows: Vec<ShipWindow>,
-    backgrounds: Vec<BackgroundRecord>,
+    pub place_windows: Vec<ShipWindow>,
+    /// One per cover combination.
+    pub backgrounds: Vec<BackgroundRecord>,
 }
 
 /// `SpaceTravel_PlaceNamePtrs`: a complete RunText2 line (leading spaces kept).
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct FlightCaption {
-    world: u8,
-    text: String,
-    glyph_count: usize,
-    instant: bool,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlightCaption {
+    /// The world.
+    pub world: u8,
+    /// The caption.
+    pub text: String,
+    /// How many glyphs it draws.
+    pub glyph_count: usize,
+    /// Drawn without per-glyph waits (`d4 = 1`).
+    pub instant: bool,
 }
 
 /// What the screen's palette does on a frame (`loc_64144`, `ps4.asm:133894-133925`).

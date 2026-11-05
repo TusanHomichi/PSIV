@@ -265,3 +265,17 @@ fn too_many_forks_are_refused() {
     bytes.extend_from_slice(&RTS);
     assert_eq!(run(&bytes).unwrap_err(), "more than 64 paths");
 }
+
+/// `MapDataMan_RanchOwner`'s shape: position words are writes, not deferred.
+#[test]
+fn position_words_are_writes_of_their_own() {
+    let bytes = routine(&[
+        &[0x45, 0xF8, 0xC3, 0x00],
+        &[0x35, 0x7C, 0x01, 0x10, 0x00, 0x30],
+        &[0x35, 0x7C, 0x02, 0xD0, 0x00, 0x34],
+        &RTS,
+    ]);
+    let path = &run(&bytes).unwrap()[0];
+    assert_eq!(kinds(path), ["object_x", "object_y"]);
+    assert!(path.deferred.is_empty());
+}
