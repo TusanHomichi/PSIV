@@ -284,9 +284,9 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
 
 - **A sealed caster's cast fizzles.** GIRES/RES (`loc_2141C`, frame `$F`) and
   ShadowSabr's DEBAN (`loc_1D83A`, frame `$14`) test `btst #4, $16(a1)` on the
-  caster and skip the effect when it is sealed. The port has no way to seal an enemy
-  yet (no party technique with effect `$08` is supported), so the branch is
-  unreachable; it needs the test the day one exists.
+  caster and skip the effect when it is sealed. The party's SEALS (technique 22,
+  effect `$08`) reaches the branch, and a capture shows it
+  (`enemy_scripted/sealed_techmaster.json`, [section 10](#10-what-the-captures-show)).
 - **The enemies' battle attack and defence cells are not in the log.** The
   oracle's fixture extractor reads `$24` and `$28` (the derived cells) for the
   effect columns, which a battle buff never moves, and no column reads an enemy's
@@ -628,6 +628,16 @@ round's draw count.
 | `browren486_1ac_barrier.json` | 6 | 276 | fighter 6 regular-slot BARRIER, round 4, f26069; both enemies' MDEF 3 → 78 |
 | `zio_event06_psycho.json` | 6 | 214 | Alys ITEM `$39` at f25473; enemy 139 → 140, HP 16383 → 2889, MDEF 255 → 38 |
 
+### A sealed caster, and DTHSPELL on 112 Illusionst (party-script captures, `enemy_scripted/`)
+
+Both are `python3 -m oracle.sweep.player_capture` recipes over tape 07's
+party at 999 HP.
+
+| fixture | rounds | observed use |
+|---|---:|---|
+| `enemy_scripted/sealed_techmaster.json` | 2 | formation `$110` (two TechMaster); Alys (agility and mental 255) casts SEALS at f25013 and both casters' status goes `$00` → `$10`; then fighter 7 FOI (f25191), fighter 6 FOI (f25286), fighter 6 `$40` (f25504) and fighter 7 FOI (f25549) each end with no damage word and no cell moving |
+| `enemy_scripted/dthspell_illusionst_d2.json` | 1 | formation `$1BC` (one Illusionst), `delay` 2, the party defending; fighter 6 DTHSPELL at f24865, two rolls, Alys 999 → 0 |
+
 ### Cartridge findings from the captures
 
 - **WARNING is a refill, not a spent turn.** `EnemyInit_Tower` clears the objects beside
@@ -675,7 +685,8 @@ captured pair; no capture shows them.
 - The formations are real, but the party is not a campaign party and the
   encounters are not natural; event battles are random encounters with
   `Event_Battle_Index` written over them.
-- No capture shows a sealed enemy caster's fizzle on one of these arms, or the
-  animations' timing.
+- A sealed enemy caster's fizzle is captured on TechMaster's FOI and `$40`
+  arms only (`enemy_scripted/sealed_techmaster.json`); the other sealable arms
+  are read, not observed. No capture shows the animations' timing.
 - Spector's and TechPlant's wake-up through a round-end roll, and Haunt's other
   formations, are read, not observed.
