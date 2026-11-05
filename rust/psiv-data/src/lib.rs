@@ -97,8 +97,9 @@ pub use map::{
 };
 pub use new_game::NewGame;
 pub use ship_menu::{
-    COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu,
-    ShipMenuFile, ShipPalette, ShipWindow,
+    BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,
+    PaletteEntry, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu, ShipMenuFile, ShipMenuJson, ShipPalette,
+    ShipWindow,
 };
 pub use shops::{
     InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,
