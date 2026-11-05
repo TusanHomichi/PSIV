@@ -27,7 +27,8 @@ pub(crate) const SERVER_STEP_FRAMES: u64 = 512;
 pub(crate) const RETIREMENT_WAIT_US: u64 = 500_000;
 
 /// One poll of the driver, taken under `AudioServer.lock()` (the driver's
-/// lock, which each Godot 4.7.1 driver holds through a call):
+/// lock, which the 4.7.1 Dummy, PulseAudio, ALSA, WASAPI, XAudio2 and
+/// CoreAudio drivers hold through a call):
 /// `AudioServer.get_time_since_last_mix()`, then `get_time_to_next_mix()`,
 /// between two reads of the engine clock (`Time.get_ticks_usec()`, the clock
 /// the driver stamps calls with). Under the lock both reads see the same call;
