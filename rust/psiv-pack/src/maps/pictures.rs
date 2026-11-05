@@ -1,4 +1,4 @@
-//! The `maps` section: `maps/` and `sprites/`, built from the ROM. Sheets are
+//! The `maps` section: `maps/`, `sprites/` and then the shops, built from the ROM. Sheets are
 //! registered first, in map order, because the first object to ask names a
 //! sheet's file. Then each map's pictures and file are built in parallel: one
 //! map's work is [`map_pictures`] and [`super::file::map_file`], which together
@@ -28,6 +28,7 @@ use super::{ExtractedMaps, extract_maps};
 use crate::decode::{Call, Decodes};
 use crate::json::Json;
 use crate::png::{self, hex};
+use crate::shops::ShopMap;
 use crate::sprites::emit::{MapSprites, field_sprites, write_sprites};
 use crate::{PackError, Rom};
 
@@ -333,6 +334,7 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let next = AtomicUsize::new(0);
     let stop = AtomicBool::new(false);
     let failure = Mutex::new(None);
+    let shop_maps = Mutex::new(Vec::new());
     let workers = crate::default_workers().clamp(1, records.len().max(1));
     std::thread::scope(|scope| {
         for _ in 0..workers {
@@ -343,24 +345,35 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
                     else {
                         break;
                     };
-                    if let Err(error) = write_map(data, &decodes, root, record, sprites, &inputs) {
-                        stop.store(true, Ordering::Relaxed);
-                        failure
+                    match write_map(data, &decodes, root, record, sprites, &inputs) {
+                        Ok(map) => shop_maps
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
-                            .get_or_insert(error);
+                            .push(map),
+                        Err(error) => {
+                            stop.store(true, Ordering::Relaxed);
+                            failure
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .get_or_insert(error);
+                        }
                     }
                 }
             });
         }
     });
-    failure
+    if let Some(error) = failure.into_inner().unwrap_or_else(PoisonError::into_inner) {
+        return Err(error);
+    }
+    // A counter names its shopkeeper by position, so the shops follow the maps.
+    let mut shop_maps = shop_maps
         .into_inner()
-        .unwrap_or_else(PoisonError::into_inner)
-        .map_or(Ok(()), Err)
+        .unwrap_or_else(PoisonError::into_inner);
+    shop_maps.sort_by_key(|map| map.id);
+    crate::shops::build(rom, root, &shop_maps)
 }
 
-/// One map's pictures and file.
+/// One map's pictures and file; what the shops need from it.
 fn write_map(
     data: &[u8],
     decodes: &Decodes,
@@ -368,7 +381,7 @@ fn write_map(
     record: &MapRecord,
     sprites: &MapSprites,
     inputs: &MapInputs,
-) -> Result<(), PackError> {
+) -> Result<ShopMap, PackError> {
     let section = decode_map_section(data, decodes, record)?;
     let pictures = map_pictures(
         data,
@@ -387,8 +400,13 @@ fn write_map(
         .per_map
         .get(&record.id)
         .map_or(&[][..], Vec::as_slice);
-    let (file, _anomalies) = map_file(data, record, &section, &pictures, sprites, programs)?;
-    crate::write_json(root, &format!("maps/{}.json", map_stem(record)), &file).map(drop)
+    let (file, _anomalies, typed) = map_file(data, record, &section, &pictures, sprites, programs)?;
+    crate::write_json(root, &format!("maps/{}.json", map_stem(record)), &file)?;
+    Ok(ShopMap {
+        id: typed.id.0,
+        npcs: typed.npcs,
+        collision: typed.collision.grid,
+    })
 }
 
 #[cfg(test)]
