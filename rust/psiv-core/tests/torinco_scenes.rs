@@ -59,3 +59,29 @@ fn each_turns_speaks_and_sets_its_flag() {
         assert!(state.is_set(Flag::event(flag)), "${event:02X}");
     }
 }
+
+/// The recorded facing-frame deviation (`docs/source-notes/README.md`, #164):
+/// retail's `Event_UpdateObjFacing` ends in a `VInt_Prepare`, so the cartridge
+/// opens the text one frame after the turn. The port's `FaceOppositeOf` takes
+/// no frame, so the text opens on the scene's first tick. When #164 charges the
+/// frame this fails, and the note goes with it.
+#[test]
+fn the_facing_frame_is_the_recorded_deviation() {
+    for event in [0x84u16, 0x85, 0x87] {
+        let map = map_with(&["....", "....", "....", "...."], vec![], vec![]);
+        let scene = scene_for(EventIndex(event)).unwrap();
+        let cast = vec![
+            ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(1, 2), Direction::Up),
+            ScriptedActor::new(ActorRef::Npc(0), Cell::new(1, 1), Direction::Left),
+        ];
+        let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
+        let mut state = GameState::new();
+        let opened_on = (1..=10).find(|_| {
+            runner
+                .tick(&map, &mut state, SceneInput::None)
+                .iter()
+                .any(|e| matches!(e, SceneEffect::DialogueOpen(_)))
+        });
+        assert_eq!(opened_on, Some(1), "${event:02X}: retail opens it on tick 2");
+    }
+}

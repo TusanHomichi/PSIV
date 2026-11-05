@@ -191,6 +191,19 @@ agility and dexterity, and enemy paralysis clearing each turn.
   deviation: the `dest` Y the scene writes from the X word is overwritten by
   `FieldObj_NPCScriptMove`'s setup before the object's one pass, so nothing moves on that frame.
 
+- The facing frame in Torinco's `Event_DyingBoyFather` (`$84`), `Event_FatherAfterBoyRecovery`
+  (`$85`) and `Event_MeetingSekreas` (`$87`) (`ps4.asm:152706-152725`, `:152856-152865`,
+  [record](../scenes/162_TorincoCulvers.md)). Each turns object 0 with one
+  `Event_UpdateObjFacing` (`$05A936`), whose US build ends in a `VInt_Prepare`, before its text.
+  The port's `FaceOppositeOf` takes no frame (the engine-wide gap is
+  [#164](https://github.com/TusanHomichi/PSIV/issues/164), which also owns charging it), so each
+  scene opens its text one frame sooner. That frame runs no `Field_UpdateObjects`, no
+  `RunMapUpdates` and reads no pad, so nothing moves on it and the text, the turn and the flag are
+  the same. What drifts is the VInt's own work, `UpdateRNGSeed` and `Main_Frame_Count`
+  (`ps4.asm:617,623`): the shared RNG stream and absolute frame phase leave each scene one frame
+  behind the cartridge. `torinco_scenes.rs` pins the zero-frame turn, so #164's fix fails it and
+  retires this entry.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

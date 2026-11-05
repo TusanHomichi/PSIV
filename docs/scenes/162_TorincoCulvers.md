@@ -38,14 +38,22 @@ has `moveq`:
 
 | Op | ROM offsets (`$84` / `$85` / `$87`) | Retail primitive | Scene record |
 |---:|---|---|---|
-| 0 | `$072D44..$072D59` / `$072D6C..$072D81` / `$072FB4..$072FC9` | `lea (Field_Obj_Secondary).w, a4` … `Event_UpdateObjFacing` | `FaceOppositeOf` object 0, of the leader |
+| 0 | `$072D44..$072D59` / `$072D6C..$072D81` / `$072FB4..$072FC9` | `lea (Field_Obj_Secondary).w, a4` … `Event_UpdateObjFacing` | `FaceOppositeOf` object 0, of the leader (no frame: deviation below) |
 | 1 | `$072D5A..$072D61` / `$072D82..$072D89` / `$072FCA..$072FD1` | entry `$39` / `$3A` / `$3C` | `RunDialogue` |
 | 2 | `$072D62..$072D6B` / `$072D8A..$072D93` / `$072FD2..$072FDB` | `move.b #flag, d0` / `jmp EventFlags_Set` | `SetFlag` `$A9` / `$AB` / `$AE` |
+
+## Deviation
+
+`Event_UpdateObjFacing` ends in a `VInt_Prepare` in the US build, and the port's `FaceOppositeOf`
+takes no frame ([#164](https://github.com/TusanHomichi/PSIV/issues/164)), so each scene opens its
+text one frame sooner than the cartridge. Nothing moves on that frame; the RNG seed and frame
+counter fall one frame behind. Recorded in the
+[source notes](../source-notes/README.md#other-recorded-deviations).
 
 ## Evidence
 
 - State: `rust/psiv-core/tests/torinco_scenes.rs`: each turns object 0 to the leader, speaks its
-  one entry and sets its flag.
+  one entry and sets its flag, and the text opens on the first tick (the recorded deviation).
 - Pad-driven in the headless runtime on the real maps, from hand-built saves
   (`rust/psiv-campaign/tests/motavia_side.rs`): Culvers before and after the cure, Sekreas with the
   job taken, and a negative control without the job for each.
