@@ -567,6 +567,19 @@ impl WanderSet {
         Ok(())
     }
 
+    /// Gives object `npc_index` the walker `kind`, replacing any it had (a
+    /// map-load routine wrote its routine word); the walker starts as a fresh
+    /// load leaves it, and keeps cartridge object order.
+    pub fn install(&mut self, npc_index: usize, kind: WanderKind) {
+        self.remove(npc_index);
+        let at = self
+            .wanderers
+            .iter()
+            .position(|wanderer| wanderer.npc_index > npc_index)
+            .unwrap_or(self.wanderers.len());
+        self.wanderers.insert(at, Wanderer::new(npc_index, kind));
+    }
+
     /// Drops object `npc_index` from the walkers: a scene gave it another
     /// routine.
     pub fn remove(&mut self, npc_index: usize) {
