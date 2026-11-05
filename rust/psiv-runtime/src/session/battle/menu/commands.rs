@@ -35,7 +35,7 @@ const PAGE_ROWS: usize = 4;
 /// its five words at each round's end (`ps4.asm:8422-8425`,
 /// [`CursorMemory::end_round`]).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct CursorMemory {
+pub struct CursorMemory {
     strip: [usize; 5],
     techniques: [usize; 5],
     skills: [usize; 5],
@@ -44,8 +44,31 @@ pub(crate) struct CursorMemory {
 
 impl CursorMemory {
     /// `loc_5BAE`: the round is over, and the item cursors start again.
-    pub(crate) fn end_round(&mut self) {
+    pub fn end_round(&mut self) {
         self.items = [0; 5];
+    }
+
+    /// Where party slot `slot`'s (0-4) `page` reopens: the strip's icon or
+    /// the list's row across its pages. A target picker keeps no word, and
+    /// opens at 0.
+    #[must_use]
+    pub fn cursor(&self, slot: usize, page: MenuPage) -> usize {
+        let list = match page {
+            MenuPage::Actions => &self.strip,
+            MenuPage::Techniques => &self.techniques,
+            MenuPage::Skills => &self.skills,
+            MenuPage::Items => &self.items,
+            MenuPage::Targets(_) => return 0,
+        };
+        list.get(slot).copied().unwrap_or(0)
+    }
+
+    /// The window wrote `cursor` to party slot `slot`'s word for `page`, as
+    /// the cartridge's cursor routines do on every move.
+    pub fn remember(&mut self, slot: usize, page: MenuPage, cursor: usize) {
+        if let Some(word) = self.list(page).and_then(|list| list.get_mut(slot)) {
+            *word = cursor;
+        }
     }
 
     fn list(&mut self, page: MenuPage) -> Option<&mut [usize; 5]> {
@@ -185,17 +208,13 @@ impl CommandsMenu {
         self.page = page;
         self.cursor = self
             .command_slot()
-            .and_then(|slot| self.memory.list(page).map(|list| list[slot]))
-            .unwrap_or(0);
+            .map_or(0, |slot| self.memory.cursor(slot, page));
     }
 
     /// Writes the cursor back to the actor's word for the open page.
     fn remember(&mut self) {
-        let (cursor, page) = (self.cursor, self.page);
-        if let Some(slot) = self.command_slot()
-            && let Some(list) = self.memory.list(page)
-        {
-            list[slot] = cursor;
+        if let Some(slot) = self.command_slot() {
+            self.memory.remember(slot, self.page, self.cursor);
         }
     }
 
