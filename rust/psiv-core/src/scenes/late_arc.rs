@@ -7,7 +7,7 @@
 //! the US image through its `EventPtrs` slot.
 
 use crate::geom::Direction;
-use crate::scene::{ActorRef, SavedByte, SceneOp};
+use crate::scene::{ActorRef, MoneyTest, SavedByte, SceneOp};
 use crate::scene_runner::Scene;
 use crate::scenes::WREN;
 use crate::scenes::recovery::RECOVERY_OPS as R;
@@ -98,6 +98,7 @@ pub static PENGUIN_OWNER: Scene = Scene {
         // 1: `cmpi.l #500, (Current_Money).w / bcc.s`.
         SceneOp::BranchIfMoneyBelow {
             amount: PENGUIN_FEE,
+            test: MoneyTest::Unsigned,
             if_below: 2,
             if_not: 4,
         },

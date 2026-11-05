@@ -46,7 +46,7 @@ entry 44's `$FA $91 $03` reads: a second talk reads entry `$2F` and never reache
 | Ops | ROM | Retail | Scene |
 |---:|---|---|---|
 | 0 | `$070702..$070715` | `lea $FFFFC700, a4`, the leader's facing, `bchg #2`, `Event_UpdateObjFacing` | `FaceOppositeOf` object 16 |
-| 1-4 | `$070716..$070737` | `cmpi.l #500, (Current_Money).w / bcc.s`: below it sets `EventFlag_PenguinNoMoney` `$8C`, otherwise clears it | `BranchIfMoneyBelow`, `SetFlag`, `SkipOps`, `SetFlag` |
+| 1-4 | `$070716..$070737` | `cmpi.l #500, (Current_Money).w / bcc.s`: below it sets `EventFlag_PenguinNoMoney` `$8C`, otherwise clears it | `BranchIfMoneyBelow` `Unsigned`, `SetFlag`, `SkipOps`, `SetFlag` |
 | 5 | `$070738..$07073F` | `moveq #$12, d0 / jsr Event_GetAndRunDialogue` | `standard($12)` |
 | 6 | `$070740..$070745` | `tst.b (Yes_No_Option).w / bne.s` | `BranchChoice` |
 | 7 | `$070746..$070757` | `popdlg / cmpi.b #$3A, -$2(a0) / bne.s` | `BranchIfSavedDialogueByte`, `Last`, `$3A` |
@@ -54,8 +54,8 @@ entry 44's `$FA $91 $03` reads: a second talk reads entry `$2F` and never reache
 
 The entry does the choosing: its `$F5` takes NO to the entry two on, and its `$FA $8C` takes a short
 YES to the next. Only the paid YES ends on `!` (`$3A`), and that byte is what the routine reads.
-`bcc` is unsigned where `BranchIfMoneyBelow` reads the sign of the difference; they differ only for a
-purse of `$80000000` or more.
+`bcc` is unsigned, so the op runs `MoneyTest::Unsigned`: a purse of `$800001F4` covers the fee, where
+the bail scene's `bmi` (`MoneyTest::SignOfDifference`) would call it short.
 
 `EventFlag_Penguin` is what `FieldObj_FellowPenguin` waits on (`ps4.asm:98848`): object 10 follows the
 party's last member (`BespokeKind::FlaggedFollow`). Its first frame on a load clears the flag, so leaving

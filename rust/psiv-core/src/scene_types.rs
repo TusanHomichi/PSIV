@@ -400,3 +400,16 @@ pub enum SavedByte {
     /// on, the last one it ran.
     Last,
 }
+
+/// How a [`SceneOp::BranchIfMoneyBelow`] compares the purse with its literal.
+/// The two retail forms part ways only for a purse of `$80000000` or more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoneyTest {
+    /// `move.l (Current_Money).w, d0 / subi.l #amount, d0 / bmi`
+    /// (`Event_PayingGirlsBail`, `$072C82`): the sign bit of the wrapping
+    /// longword difference.
+    SignOfDifference,
+    /// `cmpi.l #amount, (Current_Money).w / bcc` (`Event_PenguinOwner`,
+    /// `$070702`): below is the carry, an unsigned longword compare.
+    Unsigned,
+}

@@ -162,6 +162,26 @@ fn a_short_purse_raises_the_flag_the_entry_reads_and_pays_nothing() {
 }
 
 #[test]
+fn the_keeper_compares_the_purse_unsigned() {
+    // `cmpi.l #500 / bcc`: a purse past the sign bit covers the fee, where the
+    // bail scene's `bmi` on the difference would call `$800001F4` short.
+    for money in [0x8000_01F4, 0x8000_0000, u32::MAX] {
+        let (state, _) = penguin(money, true, 0x3A);
+        assert!(state.is_clear(PENGUIN_NO_MONEY), "{money:#X}");
+        assert!(state.is_set(PENGUIN), "{money:#X}");
+        assert_eq!(state.money(), money - 500);
+    }
+}
+
+#[test]
+fn a_purse_past_the_sign_bit_that_says_no_keeps_its_money() {
+    let (state, _) = penguin(0x8000_01F4, false, 0x3A);
+    assert_eq!(state.money(), 0x8000_01F4);
+    assert!(state.is_clear(PENGUIN_NO_MONEY));
+    assert!(state.is_clear(PENGUIN));
+}
+
+#[test]
 fn no_pays_nothing_whatever_the_last_byte() {
     let (state, _) = penguin(9_999, false, 0x3A);
     assert_eq!(state.money(), 9_999);

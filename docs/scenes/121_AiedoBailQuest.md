@@ -76,8 +76,8 @@ the money only on a YES with `$7F` set, which the body set from the purse a mome
 
 Two ops are new here, and the saved-byte branch gains a displacement:
 
-- `SceneOp::BranchIfMoneyBelow` reads the sign of the longword difference, as `bmi` does. A
-  purse of exactly 50,000 pays.
+- `SceneOp::BranchIfMoneyBelow` with `MoneyTest::SignOfDifference` reads the sign of the longword
+  difference, as `bmi` does. A purse of exactly 50,000 pays.
 - `SceneOp::SubtractMoney` is the unchecked `subi.l`.
 - `BranchIfSavedDialogueByte`'s `at: SavedByte::Last` reads `-$2(a0)`.
   [`Event_Gyuna`](98_Gyuna.md)'s `(a0)` is `SavedByte::Next`. The runtime reports both bytes

@@ -6,7 +6,9 @@
 //! image through its `EventPtrs` slot; the clone's labels are navigation only.
 
 use crate::geom::Direction;
-use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp};
+use crate::scene::{
+    ActorRef, DialogueId, DialogueSource, DialogueWindow, MoneyTest, SavedByte, SceneOp,
+};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
 use crate::state::Flag;
@@ -97,6 +99,7 @@ pub static PAYING_GIRLS_BAIL: Scene = Scene {
         // 1: `move.l (Current_Money).w, d0 / subi.l #50000, d0 / bmi.s`.
         SceneOp::BranchIfMoneyBelow {
             amount: BAIL,
+            test: MoneyTest::SignOfDifference,
             if_below: 3,
             if_not: 2,
         },
