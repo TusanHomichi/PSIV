@@ -116,7 +116,12 @@ impl Field {
                 }
                 RuntimeEvent::VehicleChanged { index } => {
                     godot_print!("vehicle changed to {index:#06x}");
-                    if index == 0 && !self.battle_presentation_active() {
+                    // `Event_GettingOffVehicle` plays the adjusted id itself;
+                    // the map's raw byte must not follow it.
+                    let getting_off = self
+                        .runtime()
+                        .is_some_and(|runtime| runtime.getting_off_scene_active());
+                    if index == 0 && !getting_off && !self.battle_presentation_active() {
                         self.play_map_music();
                     }
                 }

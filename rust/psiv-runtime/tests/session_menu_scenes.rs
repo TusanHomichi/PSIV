@@ -715,6 +715,97 @@ fn a_souvenir_is_refused_outside_chazs_house() {
     );
 }
 
+/// Every event from a Speak press on a mounted party until the scene it starts
+/// ends, closing the refusal window with a press as a player would.
+fn get_off_events(player: &mut Player) -> Vec<RuntimeEvent> {
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let mut events = player.tick(Pad::new(Button::Speak)).events;
+    for _ in 0..4000 {
+        if !player.runtime().scene_active() {
+            return events;
+        }
+        let dismissable = player
+            .runtime()
+            .dialogue_view()
+            .is_some_and(|view| view.choice.is_none() && view.dismissable);
+        let frame = if dismissable {
+            player.tick(Pad::new(Button::Speak))
+        } else {
+            player.tick(Pad::NEUTRAL)
+        };
+        events.extend(frame.events);
+    }
+    panic!("the scene never finished");
+}
+
+/// The shell restores the saved theme at every scene exit that did not say
+/// `SceneMusicRetained`, which restarts the track. `$10` has no such restore on
+/// either branch, so the refusal must request no music at all and the
+/// stand-down exactly the one `AdjustMusicIDs` write; the shell skips the raw
+/// map music that `VehicleChanged` would otherwise bring, while the scene runs.
+#[test]
+fn getting_off_asks_for_no_exit_music() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let sounds = |events: &[RuntimeEvent]| {
+        events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    RuntimeEvent::ScenePresentation {
+                        op: psiv_core::SceneOp::PlaySound { .. }
+                            | psiv_core::SceneOp::SetSavedMusic { .. }
+                    }
+                )
+            })
+            .count()
+    };
+    let retained = |events: &[RuntimeEvent]| {
+        events
+            .iter()
+            .filter(|event| matches!(event, RuntimeEvent::SceneMusicRetained))
+            .count()
+    };
+
+    // The refusal: no music request of any kind, and the exit restore is off.
+    let game = with_pack(0, &[ITEM_HYDROFOIL], 0);
+    let mut player = Player::new(MOTAVIA_WATER, &game);
+    player.use_item(ITEM_HYDROFOIL);
+    player.run_scene_out();
+    let events = get_off_events(&mut player);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff))
+    );
+    assert_eq!(retained(&events), 1, "refusal keeps the theme: {events:?}");
+    assert_eq!(sounds(&events), 0, "refusal requests no music");
+    assert_eq!(player.runtime().vehicle_index(), Some(3), "still mounted");
+    assert!(!player.runtime().getting_off_scene_active());
+
+    // The stand-down: one PlaySound and SetSavedMusic pair, no exit restore.
+    let game = with_pack(0, &[ITEM_LAND_ROVER], 0);
+    let mut player = Player::new((0, 115, 177), &game);
+    player.use_item(ITEM_LAND_ROVER);
+    player.run_scene_out();
+    let events = get_off_events(&mut player);
+    assert_eq!(
+        retained(&events),
+        1,
+        "stand-down keeps the answer: {events:?}"
+    );
+    assert!(
+        sounds(&events) <= 2,
+        "at most AdjustMusicIDs's pair: {events:?}"
+    );
+    assert_eq!(player.runtime().vehicle_index(), None, "on foot");
+}
+
 /// `Event_GettingOffVehicle` (`$10`, record
 /// `docs/scenes/207_GettingOffVehicle.md`): mounted, Speak runs the event.
 /// On open ground the party stands down on the machine's cell; on open water
