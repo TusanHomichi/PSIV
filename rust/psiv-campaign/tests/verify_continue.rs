@@ -128,18 +128,46 @@ fn resave(source: &[u8], exit: u8) -> Vec<u8> {
 }
 
 fn receipt(row: i64) -> Value {
+    receipt_at(&json!(38), &json!(row), &json!(row + 1))
+}
+
+/// A receipt whose three states stand at column `x`: row `from` once
+/// continued, row `to` once moved and resaved.
+fn receipt_at(x: &Value, from: &Value, to: &Value) -> Value {
     let state = json!({"map": 19, "world": 0, "flags": [], "money": 0x41, "leader": 0,
         "inventory": [], "party_status": [], "party_resources": []});
-    let at = |row: i64| {
+    let at = |row: &Value| {
         let mut state = state.clone();
-        state["cell"] = json!([38, row]);
+        state["cell"] = json!([x, row]);
         state
     };
     json!({"complete": true, "observations": [
-        {"label": "continued", "state": at(row)},
-        {"label": "moved", "state": at(row + 1)},
-        {"label": "resaved", "state": at(row + 1)},
+        {"label": "continued", "state": at(from)},
+        {"label": "moved", "state": at(to)},
+        {"label": "resaved", "state": at(to)},
     ]})
+}
+
+/// `receipt` as `native_continue.gd` stores it: Godot's JSON parses every
+/// number of `debug_play_state()` as a float and writes an integral one back
+/// as `38.0`. The receipt is that text, read back.
+fn godot_receipt(row: i64) -> (String, Value) {
+    fn floats(value: &Value) -> Value {
+        match value {
+            Value::Number(number) => json!(number.as_f64().unwrap()),
+            Value::Array(items) => Value::Array(items.iter().map(floats).collect()),
+            Value::Object(fields) => Value::Object(
+                fields
+                    .iter()
+                    .map(|(key, value)| (key.clone(), floats(value)))
+                    .collect(),
+            ),
+            other => other.clone(),
+        }
+    }
+    let text = serde_json::to_string_pretty(&floats(&receipt(row))).unwrap();
+    let value = serde_json::from_str(&text).unwrap();
+    (text, value)
 }
 
 fn check(source: &[u8], resaved: &[u8]) -> Result<(), String> {
@@ -342,6 +370,118 @@ fn the_receipt_must_show_one_harmless_step() {
     assert!(run(missing).unwrap_err().contains("lacks"));
 }
 
+#[test]
+fn a_receipt_in_godots_float_numbers_passes() {
+    let source = written(&save(&[0], 18), 0, 0);
+    let resaved = resave(&source, 0);
+    let (text, godot) = godot_receipt(18);
+    assert!(
+        text.contains("38.0") && text.contains("18.0") && text.contains("19.0"),
+        "{text}"
+    );
+    verify(&source, &sha256_hex(&source), &resaved, &godot).unwrap();
+    // Zero is a coordinate in either form, and the forms may mix.
+    let run = |receipt: Value| verify(&source, &sha256_hex(&source), &resaved, &receipt);
+    for x in [json!(0), json!(0.0), json!(-0.0)] {
+        for (from, to) in [
+            (json!(0), json!(1)),
+            (json!(0.0), json!(1.0)),
+            (json!(0.0), json!(1)),
+            (json!(65534.0), json!(65535)),
+        ] {
+            run(receipt_at(&x, &from, &to)).unwrap_or_else(|e| panic!("{x} {from} {to}: {e}"));
+        }
+    }
+}
+
+#[test]
+fn a_godot_receipt_still_needs_one_harmless_step() {
+    let source = written(&save(&[0], 18), 0, 0);
+    let resaved = resave(&source, 0);
+    let run = |receipt: Value| verify(&source, &sha256_hex(&source), &resaved, &receipt);
+    for moved in [
+        json!([38.0, 18.0]),
+        json!([38.0, 20.0]),
+        json!([39.0, 19.0]),
+    ] {
+        let mut stood = godot_receipt(18).1;
+        stood["observations"][1]["state"]["cell"] = moved.clone();
+        assert!(
+            run(stood).unwrap_err().contains("not one cell down"),
+            "{moved}"
+        );
+    }
+    let mut resaved_elsewhere = godot_receipt(18).1;
+    resaved_elsewhere["observations"][2]["state"]["cell"] = json!([38.0, 18.0]);
+    assert!(
+        run(resaved_elsewhere)
+            .unwrap_err()
+            .contains("not one cell down")
+    );
+    for key in ["money", "map", "leader"] {
+        let mut spent = godot_receipt(18).1;
+        let before = spent["observations"][2]["state"][key].as_f64().unwrap();
+        spent["observations"][2]["state"][key] = json!(before + 1.0);
+        assert!(
+            run(spent).unwrap_err().contains(&format!("changed {key}")),
+            "{key}"
+        );
+    }
+}
+
+#[test]
+fn a_coordinate_must_be_a_whole_cell_in_range() {
+    let source = written(&save(&[0], 18), 0, 0);
+    let resaved = resave(&source, 0);
+    let run = |receipt: Value| verify(&source, &sha256_hex(&source), &resaved, &receipt);
+    // `json!` of a nonfinite float is `null`, as no JSON text can hold one.
+    let bad = [
+        json!(18.5),
+        json!(0.25),
+        json!(-1),
+        json!(-1.0),
+        json!(65536),
+        json!(65536.0),
+        json!(1e300),
+        json!(f64::INFINITY),
+        json!(f64::NAN),
+        json!("18"),
+        Value::Null,
+    ];
+    for value in &bad {
+        let continued = receipt_at(&json!(38), value, &json!(19));
+        assert!(
+            run(continued)
+                .unwrap_err()
+                .contains("continued state has no cell"),
+            "row {value}"
+        );
+        let column = receipt_at(value, &json!(18), &json!(19));
+        assert!(
+            run(column)
+                .unwrap_err()
+                .contains("continued state has no cell"),
+            "column {value}"
+        );
+        // A bad coordinate after the step is no cell one down either.
+        let mut moved = receipt(18);
+        moved["observations"][1]["state"]["cell"][1] = value.clone();
+        assert!(
+            run(moved).unwrap_err().contains("not one cell down"),
+            "moved {value}"
+        );
+        let mut last = receipt(18);
+        last["observations"][2]["state"]["cell"][0] = value.clone();
+        assert!(
+            run(last).unwrap_err().contains("not one cell down"),
+            "resaved {value}"
+        );
+    }
+    // The bottom row has no row below it.
+    let bottom = receipt_at(&json!(38.0), &json!(65535.0), &json!(65536.0));
+    assert!(run(bottom).unwrap_err().contains("not one cell down"));
+}
+
 fn scratch(name: &str) -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
     let _ = std::fs::remove_dir_all(&dir);
@@ -357,17 +497,19 @@ fn the_command_writes_its_report_and_exits_by_the_verdict() {
     std::fs::write(dir.join("resaved.sram"), resave(&source, 0)).unwrap();
     std::fs::write(dir.join("stepless.sram"), &source).unwrap();
     std::fs::write(dir.join("receipt.json"), receipt(18).to_string()).unwrap();
-    let run = |resaved: &str, out: &str| {
+    std::fs::write(dir.join("godot.json"), godot_receipt(18).0).unwrap();
+    let run_with = |resaved: &str, receipt: &str, out: &str| {
         Command::new(env!("CARGO_BIN_EXE_psiv-campaign"))
             .arg("verify-continue")
             .args(["--source", dir.join("source.sram").to_str().unwrap()])
             .args(["--source-sha256", &sha256_hex(&source)])
             .args(["--resaved", dir.join(resaved).to_str().unwrap()])
-            .args(["--receipt", dir.join("receipt.json").to_str().unwrap()])
+            .args(["--receipt", dir.join(receipt).to_str().unwrap()])
             .args(["--out", dir.join(out).to_str().unwrap()])
             .output()
             .unwrap()
     };
+    let run = |resaved: &str, out: &str| run_with(resaved, "receipt.json", out);
     let pass = run("resaved.sram", "report/out.json");
     assert_eq!(pass.status.code(), Some(0), "{pass:?}");
     let report: Value =
@@ -379,4 +521,7 @@ fn the_command_writes_its_report_and_exits_by_the_verdict() {
     assert!(!dir.join("fail.json").exists());
     let usage = run("absent.sram", "usage.json");
     assert_eq!(usage.status.code(), Some(2));
+    let godot = run_with("resaved.sram", "godot.json", "godot-out.json");
+    assert_eq!(godot.status.code(), Some(0), "{godot:?}");
+    assert!(dir.join("godot-out.json").exists());
 }

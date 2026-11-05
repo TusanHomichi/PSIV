@@ -197,15 +197,15 @@ fn check_receipt(receipt: &Value) -> Result<(), String> {
     let (Some(first), Some(moved), Some(last)) = (first, moved, last) else {
         return Err("the receipt lacks a continued, moved or resaved state".into());
     };
-    let cell = |state: &Value| -> Option<(i64, i64)> {
-        let cell = state.get("cell")?.as_array()?;
-        match cell.as_slice() {
-            [x, y] => Some((x.as_i64()?, y.as_i64()?)),
+    let cell = |state: &Value| -> Option<(u16, u16)> {
+        match state.get("cell")?.as_array()?.as_slice() {
+            [x, y] => Some((coordinate(x)?, coordinate(y)?)),
             _ => None,
         }
     };
     let (x, y) = cell(first).ok_or("the continued state has no cell")?;
-    if cell(moved) != Some((x, y + 1)) || cell(last) != Some((x, y + 1)) {
+    let below = y.checked_add(1).map(|y| (x, y));
+    if below.is_none() || cell(moved) != below || cell(last) != below {
         return Err("the step is not one cell down".into());
     }
     for key in UNCHANGED_KEYS {
@@ -215,6 +215,24 @@ fn check_receipt(receipt: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// A cell coordinate, a [`psiv_core::Cell`] `u16`, as the receipt holds it.
+///
+/// `native_continue.gd` re-serializes the extension's integers through
+/// Godot's JSON, which parses every number as a float and writes `38` back
+/// as `38.0`, so an integral float is the same coordinate. A fractional,
+/// negative or out-of-range number is no cell.
+fn coordinate(value: &Value) -> Option<u16> {
+    if let Some(integer) = value.as_u64() {
+        return u16::try_from(integer).ok();
+    }
+    let float = value.as_f64()?;
+    let in_range =
+        float.is_finite() && float.fract() == 0.0 && (0.0..=f64::from(u16::MAX)).contains(&float);
+    // Exact: an integral float in `0..=u16::MAX` converts without loss.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    in_range.then_some(float as u16)
 }
 
 /// A validated slot at the slot number its own header names.
