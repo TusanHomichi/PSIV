@@ -101,12 +101,9 @@ UNTRANSCRIBED: dict[tuple[str, int], tuple[str, int, frozenset, int]] = {
     ("D1", 0x071F34): ("Event_PickingFifthCharacter", 0x68, frozenset({DYN}), 284),
     ("D1", 0x071F44): ("Event_PickingFifthCharacter", 0x68, frozenset({DYN}), 284),
     ("D1", 0x071F86): ("Event_PickingFifthCharacter", 0x68, frozenset({DYN}), 284),
-    ("D1", 0x072D5C): ("Event_DyingBoyFather", 0x84, frozenset({0x39}), 283),
-    ("D1", 0x072D84): ("Event_FatherAfterBoyRecovery", 0x85, frozenset({0x3A}), 283),
     ("D1", 0x072DDE): ("Event_DyingBoy", 0x86, frozenset({0x33}), 283),
     ("D1", 0x072FA6): ("Event_DyingBoy", 0x86, frozenset({0x3B}), 283),
     ("D1", 0x072FAE): ("Event_DyingBoy", 0x86, frozenset({0x3E}), 283),
-    ("D1", 0x072FCC): ("Event_MeetingSekreas", 0x87, frozenset({0x3C}), 283),
 }
 
 ROW_RE = re.compile(
@@ -460,8 +457,8 @@ class NegativeControl(unittest.TestCase):
         problems = self.run_census(doc=self.doc.replace("$06F3D4", "$------"))
         self.assertTrue(any(p.startswith("$06F3D4 Event_ZioNurvus Event_GetAndRunDialogue2: "
                                          "missing") for p in problems), problems)
-        problems = self.run_census(doc=self.doc.replace("$072D5C", "$------"))
-        self.assertIn("$072D5C Event_GetAndRunDialogue: missing from DIALOGUE_CALLERS.md", problems)
+        problems = self.run_census(doc=self.doc.replace("$072DDE", "$------"))
+        self.assertIn("$072DDE Event_GetAndRunDialogue: missing from DIALOGUE_CALLERS.md", problems)
 
     def test_a_transcribed_caller_left_in_untranscribed_is_reported(self) -> None:
         untranscribed = dict(UNTRANSCRIBED)
@@ -471,7 +468,7 @@ class NegativeControl(unittest.TestCase):
 
     def test_a_stale_untranscribed_entry_is_reported(self) -> None:
         untranscribed = dict(UNTRANSCRIBED)
-        untranscribed[("D1", 0x072D5C)] = ("Event_DyingBoyFather", 0x84, frozenset({0x38}), 283)
+        untranscribed[("D1", 0x072DDE)] = ("Event_DyingBoy", 0x86, frozenset({0x32}), 283)
         problems = self.run_census(untranscribed=untranscribed)
         self.assertTrue(any("UNTRANSCRIBED expects" in p for p in problems), problems)
 

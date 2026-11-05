@@ -92,8 +92,8 @@ any window; no scene runs a window none of its callers asks for.
   `Cutscene_MeetingKyra` `$0777A6` `$27`, now `standard(0x27)`.
 - **`Dialogue4` and `Dialogue5` agree:** 3 and 23 callers, each scene on
   `Ending` and `Cutscene` with the image's entries.
-- **`Dialogue` otherwise agrees:** 143 of its callers have scenes and each
-  scene runs exactly their entries on `Standard`; twelve callers have no scene
+- **`Dialogue` otherwise agrees:** 146 of its callers have scenes and each
+  scene runs exactly their entries on `Standard`; nine callers have no scene
   (below).
 
 ## Per-scene census
@@ -196,6 +196,9 @@ image read; the census fails on any address missing here.
 | `Event_GirlsBail` | D1 (`Standard`) | `$072C6C` `$50` |
 | `Event_PayingGirlsBail` | D1 (`Standard`) | `$072CAE` `$51` |
 | `Event_GirlsBailedOut` | D1 (`Standard`) | `$072CDE` `$61`, `$072D3E` `$0A` |
+| `Event_DyingBoyFather` | D1 (`Standard`) | `$072D5C` `$39` |
+| `Event_FatherAfterBoyRecovery` | D1 (`Standard`) | `$072D84` `$3A` |
+| `Event_MeetingSekreas` | D1 (`Standard`) | `$072FCC` `$3C` |
 | `Event_KingRappy` | D2 (`Retained`) | `$072FEA` `$36` |
 | `Event_KingRappy` | D1 (`Standard`) | `$073012` `$35` |
 | `Event_KingRappyDefeated` | D1 (`Standard`) | `$07302E` `$37`, `$0730EC` `$38` |
@@ -323,8 +326,8 @@ All four now have scenes (rows 11 to 14).
 
 ## Callers with no scene
 
-Twelve `Event_GetAndRunDialogue` callers sit in events no scene transcribes
-yet, all listed in `UNTRANSCRIBED` (`tests/test_dialogue_callers.py`). The
+Nine `Event_GetAndRunDialogue` callers sit in four events no scene
+transcribes yet, all listed in `UNTRANSCRIBED` (`tests/test_dialogue_callers.py`). The
 spans run from the `EventPtrs` routine to the next routine's start; a lane that
 transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
 `Standard`, and the census names the row to add.
@@ -334,10 +337,7 @@ transcribes one moves its rows into `DIALOGUE_CALLERS` and runs them on
 | `Event_FaintingPriest` `$24` | `$06D616..$06D6C7` | `$06D62E` `$45` (`7045`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 | `Event_ZioFanatic` `$31` | `$06EE40..$06EEBD` | `$06EE58` `$49` (`7049`); `$06EEB8` `jmp`, `$1F` (`701F`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 | `Event_PickingFifthCharacter` `$68` | `$071E66..$0721CB` | `$071F34`, `$071F44`, `$071F86`: computed (`move.b 5(a0), d0`, plus 0, 2, 3) | [#284](https://github.com/TusanHomichi/PSIV/issues/284) |
-| `Event_DyingBoyFather` `$84` | `$072D44..$072D6B` | `$072D5C` `$39` (`7039`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
-| `Event_FatherAfterBoyRecovery` `$85` | `$072D6C..$072D93` | `$072D84` `$3A` (`703A`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 | `Event_DyingBoy` `$86` | `$072D94..$072FB3` | `$072DDE` `$33` (`7033`); `$072FA6` `jmp`, `$3B` (`703B`); `$072FAE` `jmp`, `$3E` (`703E`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
-| `Event_MeetingSekreas` `$87` | `$072FB4..$072FDB` | `$072FCC` `$3C` (`703C`) | [#283](https://github.com/TusanHomichi/PSIV/issues/283) |
 
 ## The party move in `Event_CarnivorousTrees` and `Event_SavingKyra`
 
