@@ -32,7 +32,7 @@ use super::action::resolve_attack;
 use super::ai::{choose_target, targetable_party};
 use super::chances::{ESCAPE, Verdict, calculate_chances};
 use super::event::{BattleEvent, Outcome, Skipped};
-use super::fighters::{ENEMY_SLOTS, FighterId, Roster, Side};
+use super::fighters::{ENEMY_SLOTS, Fighter, FighterId, Roster, Side};
 use super::order::{Priority, QueueEntry, build_queue, roll_priority};
 use super::records::{BattleData, BattleDataError, CharacterRecord, FormationRecord};
 use super::rewards::{Pools, split_rewards};
@@ -485,6 +485,11 @@ impl Battle {
             }
         }
 
+        // `Battle_OrderTurns` opens by clearing status bit 7 on every
+        // occupied fighter (`ps4.asm:7724-7733`).
+        for fighter in self.roster.iter_mut() {
+            fighter.transient = false;
+        }
         let queue = build_queue(&self.roster, priority, rolls);
 
         // `loc_56A8`: four `Enemy_TargetCharacter` calls, one per enemy slot,
@@ -503,6 +508,7 @@ impl Battle {
             if self.settle_outcome().is_some() {
                 break;
             }
+            let turn_start = events.len();
             self.take_turn(
                 entry,
                 orders,
@@ -514,6 +520,7 @@ impl Battle {
                     events: &mut events,
                 },
             )?;
+            self.mark_transient(&events[turn_start..]);
             if self.outcome == Some(Outcome::ScriptedExit) {
                 // Object $914 changes Game_Mode_Index immediately. The
                 // remaining queue and end-of-round recovery never run.
@@ -558,6 +565,24 @@ impl Battle {
         Ok(events)
     }
 
+    /// Sets status bit 7 ([`Fighter::transient`]) on the fighters a turn's
+    /// events revived or reseated: the port's `Revived`, `EnemyReplenished`
+    /// and `EnemiesFused` are where retail's revive, refill and Fusion code
+    /// writes the bit. AROWS's wake sets it in the technique's own pass.
+    fn mark_transient(&mut self, turn: &[BattleEvent]) {
+        for event in turn {
+            let fighter = match event {
+                BattleEvent::Revived { target, .. } => *target,
+                BattleEvent::EnemyReplenished { fighter, .. }
+                | BattleEvent::EnemiesFused { fighter, .. } => *fighter,
+                _ => continue,
+            };
+            if let Some(fighter) = self.roster.get_mut(fighter) {
+                fighter.transient = true;
+            }
+        }
+    }
+
     fn take_turn(
         &mut self,
         entry: &QueueEntry,
@@ -588,14 +613,9 @@ impl Battle {
             });
             return Ok(());
         }
-        // loc_5772 checks $EE, including transient bit 7. Keep that bit out
-        // of persistent Stats, but do not let a replaced queued fighter act.
-        if events.iter().any(|event| match event {
-            BattleEvent::Revived { target, .. } => *target == actor,
-            BattleEvent::EnemyReplenished { fighter, .. }
-            | BattleEvent::EnemiesFused { fighter, .. } => *fighter == actor,
-            _ => false,
-        }) {
+        // loc_5772 checks $EE, including transient bit 7: a fighter revived,
+        // reseated or woken this round does not act in it.
+        if fighter.transient {
             events.push(BattleEvent::TurnSkipped {
                 actor,
                 reason: Skipped::JustRevived,
@@ -710,13 +730,7 @@ impl Battle {
                     .get(actor.slot() - super::fighters::PARTY_SLOTS)
                     .copied()
                     .flatten()
-                    .filter(|target| {
-                        self.roster.get(*target).is_some_and(|f| f.is_alive())
-                            && !events.iter().any(|e| {
-                                matches!(e,
-                                BattleEvent::Revived { target: revived, .. } if revived == target)
-                            })
-                    })
+                    .filter(|target| self.roster.get(*target).is_some_and(Fighter::keeps_aim))
                     .or_else(|| choose_target(&targetable_party(&self.roster), rolls));
                 if self.roll_enemy_ability(actor, intended, data, rolls, events)? {
                     return Ok(());

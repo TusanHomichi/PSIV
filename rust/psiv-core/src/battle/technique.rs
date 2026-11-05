@@ -219,7 +219,13 @@ pub(super) fn resolve_technique(
                     super::fighters::reaction::MULTI_TARGET
                 };
         }
-        let stats = &mut roster.get_mut(target).expect("selected").stats;
+        let fighter = roster.get_mut(target).expect("selected");
+        if tech.effect == 14 && fighter.stats.status & status::ASLEEP != 0 {
+            // `AbilityEffect_WakeUp` (`ps4.asm:9360-9364`) sets status bit 7
+            // on a sleeping target before the animation wakes it.
+            fighter.transient = true;
+        }
+        let stats = &mut fighter.stats;
         match tech.effect {
             1 => {
                 let element = u16::from(stats.element_factor(tech.element).unwrap_or(0));

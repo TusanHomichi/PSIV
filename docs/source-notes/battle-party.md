@@ -681,13 +681,17 @@ command's kind and record select (`Deficit::Largest` for `action`'s swing and
 
 Two fidelity notes, both stated rather than papered over:
 
-* the keep test is this port's `Fighter::is_alive` (occupied and not `$44`),
-  where the cartridge asks `status & $C4`. Bit 7 is not in `Stats` — it is the
-  transient sprite bit the port represents as a `Revived` event — so a command
-  aimed at a fighter who was revived earlier in the same round is kept here and
-  re-aimed by the cartridge. `engine::take_turn`'s enemy arm does apply that
-  mask (its just-revived filter), because it can see the events; the scan paths
-  cannot, and no fixture reaches that state with a single-target command;
+* the keep test was this port's `Fighter::is_alive` (occupied and not `$44`),
+  where the cartridge asks `status & $C4`, so a command aimed at a fighter
+  revived earlier in the same round was kept here and re-aimed by the
+  cartridge. Closed by #37: status bit 7 is `Fighter::transient`, set where
+  the US code sets it (the four revive objects at `$395CE`, `$3CA16`,
+  `$3D6DA` and `$3DB08`, the refill at `$14D3A`, Fusion's four absolute
+  writes, and `AbilityEffect_WakeUp` at `$63EC`, which AROWS reaches) and
+  cleared by `Battle_OrderTurns` (`$54DC`). `Fighter::keeps_aim` is the one
+  `$C4` predicate: `retarget::single_target` keeps an aim with it, and
+  `engine::take_turn`'s turn skip (`$EE`) and enemy target refresh read the
+  same flag instead of scanning the round's events;
 * `loc_5AFA`'s `d4 = $7000` sentinel is transcribed as-is, and no fighter in the
   pack can present a deficit that large, so in this port it never rejects a
   living slot. A scan that takes no slot is `None` here where the cartridge
