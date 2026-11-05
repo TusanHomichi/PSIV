@@ -1,6 +1,6 @@
 """The Zol slugs' Fusion sprites: `BattleObj_Fusion`'s five mapping frames.
 
-`EnemyAttack_Blob` (ps4.asm:23040) sends a Fusion turn to `loc_10796`
+`EnemyAttack_Blob` (ps4.asm:23043) sends a Fusion turn to `loc_10796`
 (ps4.asm:23062), which Nemesis-loads the pieces' art to VRAM `$A000` and
 spawns objects `$140` (`BattleObj_Fusion`, ps4.asm:35675) and `$144`
 (`BattleObj_Fusion2`, ps4.asm:35850). Both draw their own mapping record,
