@@ -1,0 +1,95 @@
+{
+  "conary": "note v1",
+  "change": "6marh9dgz28k2mxz9qgv30pegd",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 326,
+  "url": "https://github.com/tusanhomichi/psiv/pull/326",
+  "summary": "scenes: the Pennant and the Wood Carving ($97, $98)",
+  "task": "tusanhomichi/psiv#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "a303136a4cd9f5ed6bbe8edde26caa7dc46108ce7ac201251921133f4e903dfc",
+    "before": "6dc97700b0214bb79ad74a1d9bf7af61ab2ec7eb",
+    "after": "2cc8be93f10dcf31c8189ed9e35e9fa4768ce90c",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793873608809
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997882525/job/127145459813"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997882525/job/127145459374"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958/job/127145457670"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#326)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#326)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#326)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#326)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#326)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997881958"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/326#pullrequestreview-5782165199"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/41997882525/job/127145501961"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/326"
+    }
+  ]
+}
