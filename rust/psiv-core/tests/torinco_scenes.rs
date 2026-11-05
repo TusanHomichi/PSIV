@@ -82,6 +82,10 @@ fn the_facing_frame_is_the_recorded_deviation() {
                 .iter()
                 .any(|e| matches!(e, SceneEffect::DialogueOpen(_)))
         });
-        assert_eq!(opened_on, Some(1), "${event:02X}: retail opens it on tick 2");
+        assert_eq!(
+            opened_on,
+            Some(1),
+            "${event:02X}: retail opens it on tick 2"
+        );
     }
 }
