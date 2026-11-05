@@ -644,3 +644,54 @@ fn the_aiedo_inn_is_an_ordinary_night_once_either_flag_is_set() {
         );
     }
 }
+
+/// `Event_GettingOffVehicle` (`$10`, record
+/// `docs/scenes/207_GettingOffVehicle.md`): mounted, Speak runs the event.
+/// On open ground the party stands down on the machine's cell; on open water
+/// the refusal line opens, a press closes it, and the party stays mounted.
+#[test]
+fn speak_while_riding_gets_off_or_is_refused() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let game = with_pack(0, &[ITEM_LAND_ROVER], 0);
+    let mut player = Player::new((0, 115, 177), &game);
+    player.use_item(ITEM_LAND_ROVER);
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), Some(1));
+    let machine = player.runtime().vehicle_cell().expect("mounted");
+
+    player.press(Button::Speak);
+    assert!(player.runtime().scene_active(), "the field input ran $10");
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), None, "on foot");
+    assert_eq!(player.runtime().game().vehicle_index(), 0);
+    assert_eq!(player.runtime().state().cell(), machine, "where it stood");
+
+    // Negative control: the Hydrofoil boards on water and cannot stop there.
+    let game = with_pack(0, &[ITEM_HYDROFOIL], 0);
+    let mut player = Player::new(MOTAVIA_WATER, &game);
+    player.use_item(ITEM_HYDROFOIL);
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), Some(3));
+    player.press(Button::Speak);
+    assert!(player.runtime().scene_active());
+    let mut shown = false;
+    for _ in 0..200 {
+        if !player.runtime().scene_active() {
+            break;
+        }
+        if let Some(view) = player.runtime().dialogue_view() {
+            shown = true;
+            if view.dismissable {
+                player.press(Button::Speak);
+                continue;
+            }
+        }
+        player.tick(Pad::NEUTRAL);
+    }
+    assert!(shown, "the refusal opened a window");
+    assert!(!player.runtime().scene_active(), "a press ended the scene");
+    assert_eq!(player.runtime().vehicle_index(), Some(3), "still mounted");
+}

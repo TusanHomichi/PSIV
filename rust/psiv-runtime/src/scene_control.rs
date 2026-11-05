@@ -63,10 +63,16 @@ impl Runtime {
     pub(crate) fn build_cast(&self) -> Vec<ScriptedActor> {
         let mut cast = Vec::new();
         for (slot, member) in self.party.members().iter().enumerate() {
+            // Mounted, `Character_1` is the machine: the leader stands where
+            // it does, and a scene reads the machine's cell and facing.
+            let (cell, facing) = match self.vehicle.as_ref() {
+                Some(vehicle) if slot == 0 => (vehicle.cell(), vehicle.facing()),
+                _ => (member.cell, member.facing),
+            };
             cast.push(ScriptedActor::new(
                 ActorRef::PartyMember(slot),
-                member.cell,
-                member.facing,
+                cell,
+                facing,
             ));
         }
         for (i, npc) in self.map.npcs().iter().enumerate() {

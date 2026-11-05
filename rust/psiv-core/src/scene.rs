@@ -84,8 +84,7 @@ pub enum SceneOp {
         y: i32,
     },
     /// Exchange two character objects wholesale — the three-way `trap #1`
-    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put
-    /// Alys in front.
+    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put Alys in front.
     SwapCharSlots {
         /// One character-object index.
         a: usize,
@@ -987,6 +986,8 @@ pub enum SceneOp {
     JobBoard(JobBoardStep),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// `Event_GettingOffVehicle`'s needs (`scenes/vehicles.rs`).
+    GetOff(crate::scene_types::GetOffOp),
     /// Unconditional jump.
     Jump {
         /// Op index.

@@ -389,6 +389,10 @@ impl Runtime {
                 self.dialogue_answer = None;
                 events.push(RuntimeEvent::SceneDialogue { entry: id.0 });
             }
+            SceneEffect::SystemLineOpen(line) => {
+                self.dialogue_answer = None;
+                events.push(RuntimeEvent::SceneSystemLine { line });
+            }
             SceneEffect::DialogueOpenFromNpc { actor } => {
                 let entry = match actor {
                     ActorRef::Npc(i) => self
@@ -724,6 +728,24 @@ impl Runtime {
                         return;
                     }
                     SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
+                    SceneOp::GetOff(psiv_core::GetOffOp::PlayMapMusic) => {
+                        // `AdjustMusicIDs` on the map record's byte, written
+                        // to both words whatever it answers.
+                        if let Some(raw) = self.map_record().map(|record| record.music.id) {
+                            let id = crate::map_change::adjust_music_ids(
+                                self.map.id(),
+                                raw,
+                                &self.game,
+                                self.saved_sound_index,
+                            )
+                            .0;
+                            self.saved_sound_index = id;
+                            for chosen in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }]
+                            {
+                                events.push(RuntimeEvent::ScenePresentation { op: chosen });
+                            }
+                        }
+                    }
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },

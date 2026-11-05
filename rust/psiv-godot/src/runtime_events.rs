@@ -120,8 +120,8 @@ impl Field {
                         self.play_map_music();
                     }
                 }
-                RuntimeEvent::VehicleDismountBlocked => {
-                    godot_print!("vehicle cannot dismount on this terrain");
+                RuntimeEvent::VehicleGetOff => {
+                    godot_print!("Event_GettingOffVehicle started");
                 }
                 RuntimeEvent::RosterChanged { who } => {
                     godot_print!("roster record changed for {who:?}");
@@ -141,6 +141,7 @@ impl Field {
                 RuntimeEvent::Interact { .. }
                 | RuntimeEvent::InteractNothing { .. }
                 | RuntimeEvent::SceneDialogue { .. }
+                | RuntimeEvent::SceneSystemLine { .. }
                 | RuntimeEvent::SceneDialogueResume
                 | RuntimeEvent::SceneChoiceRequested => {
                     godot_error!("window-opening event reached the shell: {event:?}");
@@ -322,6 +323,9 @@ impl Field {
                 Routed::SceneDialogueResume { .. } => {
                     godot_print!("scene dialogue resume (t{})", self.anim_tick);
                     self.retail_dialogue_wait = 0;
+                }
+                Routed::SceneSystemLine { line, opened } => {
+                    godot_print!("scene system line {line:?}: opened {opened}");
                 }
                 Routed::SceneDialogueResumeSkipped => {
                     godot_print!("scene dialogue resume (t{})", self.anim_tick);

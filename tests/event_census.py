@@ -68,7 +68,7 @@ GET_EVENT_FROM_DIALOGUE = 0x058C9C
 #: Immediate `Event_Index` writers that are not `RunEventsJmpTbl` routines.
 OTHER_SITES = {
     0x043792: "Title_StartOption: Start on the title screen",
-    0x056088: "field input: Cancel/Start-class press while on a vehicle (`loc_56084`)",
+    0x056088: "field input: A, B or C while on a vehicle (`loc_56084`)",
     0x05C14E: "ItemAction_LandRover: the ITEM menu boards the Land Rover",
     0x05C174: "ItemAction_IceDigger: the ITEM menu boards the Ice Digger",
     0x05C19A: "ItemAction_Hydrofoil: the ITEM menu boards the Hydrofoil",
@@ -384,11 +384,6 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
         ),
     ),
     (
-        ISSUE_MOTAVIA,
-        "vehicle dismount from the field input (`loc_56084`); no area issue fits, closest is Motavia where the vehicles start",
-        (0x10,),
-    ),
-    (
         ISSUE_DEZOLIS,
         "Dezolis late arc: the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and the fifth-character controls",
         (
@@ -401,7 +396,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 24
+ALLOWLIST_CEILING = 23
 
 
 def disposition(

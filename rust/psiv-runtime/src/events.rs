@@ -316,6 +316,12 @@ pub enum RuntimeEvent {
         /// Entry index in the map's dialogue tree.
         entry: u16,
     },
+    /// Open a line the pack carries outside the trees
+    /// ([`psiv_core::SystemLine`]); it closes like any scene line.
+    SceneSystemLine {
+        /// Which.
+        line: psiv_core::SystemLine,
+    },
     /// Reopen the saved text cursor after the scene's intervening actions.
     /// The renderer acknowledges this just like a new dialogue window.
     SceneDialogueResume,
@@ -353,8 +359,8 @@ pub enum RuntimeEvent {
         /// The retail vehicle id.
         index: u16,
     },
-    /// A mounted Action press hit a non-empty dismount cell.
-    VehicleDismountBlocked,
+    /// A mounted Action press started `Event_GettingOffVehicle`.
+    VehicleGetOff,
     /// The scene wrote a persistent character record.
     RosterChanged {
         /// The character id whose record changed.

@@ -83,6 +83,34 @@ pub enum DialogueSource {
     /// exactly this — `move.b $14(a4),d0` — so the line Alys speaks is a
     /// property of her map object, not of the scene.
     NpcDialogueId(ActorRef),
+    /// A line outside every tree, which the pack carries on its own.
+    System(SystemLine),
+}
+
+/// A line the cartridge draws from a string of its own rather than a tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SystemLine {
+    /// `CannotGetOffString`, `Event_GettingOffVehicle`'s refusal.
+    CannotGetOff,
+}
+
+/// What `Event_GettingOffVehicle` (`scenes/vehicles.rs`) needs that no other
+/// scene has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GetOffOp {
+    /// `loc_4587A` (`GetChunkAndCollision` at `Character_1`, which is the
+    /// machine while mounted) then `tst.w d7 / bne`: any nonzero standing
+    /// collision refuses ([`crate::vehicle::dismount_allowed`]).
+    BranchIfBlocked {
+        /// Op index on ground the party cannot step down onto.
+        if_blocked: u16,
+        /// Op index otherwise.
+        if_clear: u16,
+    },
+    /// The map record's music byte through `AdjustMusicIDs`, written to
+    /// `Saved_Sound_Index` and `Sound_Index` whatever it answers
+    /// (`ps4.asm:145383-145395`). The runtime owns the map's music.
+    PlayMapMusic,
 }
 
 /// What the runtime tells the runner between ticks.
@@ -206,6 +234,8 @@ pub enum SceneEffect {
     DialogueOpen(DialogueId),
     /// Ask the pending yes/no question.
     ChoiceRequested,
+    /// Open a line the pack carries outside the trees.
+    SystemLineOpen(SystemLine),
     /// Open the dialogue whose entry index lives on a field object.
     DialogueOpenFromNpc {
         /// Whose `dialogue_id` to read.

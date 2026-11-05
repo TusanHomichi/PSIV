@@ -8,6 +8,10 @@ use psiv_core::battle::{Rng2, Rolls};
 use psiv_core::{Cell, Driver, Input, ONE_PIXEL, PixelPos, VehicleEffect, VehicleState};
 
 use crate::encounters::{EncounterClock, VEHICLE_MASK};
+use psiv_core::EventIndex;
+
+/// `Event_GettingOffVehicle`, the event `loc_56084` writes.
+const GETTING_OFF_VEHICLE: u16 = 0x10;
 use crate::events::RuntimeEvent;
 use crate::{BridgeError, Runtime};
 
@@ -212,13 +216,16 @@ impl Runtime {
                 VehicleEffect::WarpUnmapped { cell } => {
                     events.push(RuntimeEvent::WarpUnmapped { cell });
                 }
-                VehicleEffect::Dismount => {
-                    if self.set_vehicle_index(0).is_ok() {
-                        events.push(RuntimeEvent::VehicleChanged { index: 0 });
+                // The field input's `$C` routine: `Event_GettingOffVehicle`
+                // runs as an event, which stands the party down or refuses.
+                VehicleEffect::GetOff => {
+                    if self.install_scene(EventIndex(GETTING_OFF_VEHICLE)) {
+                        events.push(RuntimeEvent::VehicleGetOff);
+                    } else {
+                        events.push(RuntimeEvent::SceneMissing {
+                            event: GETTING_OFF_VEHICLE,
+                        });
                     }
-                }
-                VehicleEffect::DismountBlocked => {
-                    events.push(RuntimeEvent::VehicleDismountBlocked);
                 }
             }
         }
