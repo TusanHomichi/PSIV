@@ -176,6 +176,28 @@ agility and dexterity, and enemy paralysis clearing each turn.
   animate shut, and the shared RNG stream and absolute palette phase leave the guild that many frames
   behind the cartridge.
 
+- `Event_PickingFifthCharacter` (`$071E66`, `ps4.asm:151681`,
+  [record](../scenes/181_PickingFifthCharacter.md#deviations)), four differences:
+  - **The routine words.** Each `loc_72182` row's eighth byte and `loc_721AA` build the objects' routine
+    words (`$82BC` plus the byte for the friend restored at their stand, `$8000` plus it for the new party
+    object). The port draws the restored object from its map record and a party member from its roster id,
+    so neither is carried: the pack's table has no art byte. The restored object keeps the party object's
+    facing, as the struct copy leaves it.
+  - **The two table walks.** Finding no row whose stand is the cell ahead of the leader, the cartridge
+    runs on past the table with `d6 = $140` (object `$FFFFC580`, the row after the last). Finding no table
+    character in the party (`loc_72156`), it indexes slot 5, past `Current_Party_Slots`. Neither is
+    reachable: the friends are static on their stands, and no story state after `Cutscene_Reunion` puts a
+    full party together without one of them. The port faults (`SceneFault::NoFifthRow`) in both cases
+    instead of inventing a row.
+  - **Macro traps.** `Event_RemoveCharFromMacros` (`ps4.asm:133433`) jumps to `ErrorTrap` on a macro in use
+    that lacks the leaver, and `Event_AddMacro` (`ps4.asm:133467`) does on one with no free command. The port
+    leaves such a macro alone (`GameState::remove_from_macros`, `add_to_macros`). The port's other scenes do
+    not write the macros (`PresentationOp::AddMacro` prints and writes nothing), so a port save can hold a
+    macro the cartridge never would, and the trap would end the game.
+  - **The trail.** A party object whose destination is more than a step away walks there
+    (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
+    adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those
+    behind them, and keeps it across a scene handoff. Other followers keep the snap.
 - **The Pengu Feed thief is not drawn (`$96`, #241).** `Event_PenguinFeedStolen`
   (`$0735F6`, `ps4.asm:153259-153328`, [record](../scenes/161_PenguinFeedStolen.md)) writes
   field-object slot 2 (`$FFFFC380`) with routine `$368` (`loc_4B30C`) and art tile `$342`, then

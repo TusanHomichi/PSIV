@@ -44,6 +44,7 @@ mod collision;
 mod dialogue;
 mod error;
 mod field_objects;
+mod fifth;
 mod game_data;
 mod guild;
 mod ids;
@@ -77,6 +78,7 @@ pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCol
 pub use dialogue::*;
 pub use error::DataError;
 pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};
+pub use fifth::{FIFTH_ROWS, FifthFile, FifthRowRecord, FifthTable};
 pub use game_data::GameData;
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};

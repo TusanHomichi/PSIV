@@ -99,6 +99,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_RajaSick", 11),
         ("Event_RuneHealingChaz", 17),
         ("Event_Hijammer", 14),
+        ("Event_PickingFifthCharacter", 15),
         ("Event_GaruberkTwDoorOpening1", 19),
         ("Event_GaruberkTwDoorOpening2", 19),
         ("Event_GaruberkTwDoorEntered1", 21),

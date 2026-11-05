@@ -35,7 +35,7 @@ ROM: `Phantasy Star IV (USA).md`, SHA-256
 | Anger Tower Alys / `EventPtrs[$62]` | `$07148A..$071579` | **Transcribed** | Dialogue `$07`, the facing-table steps of object 0 and the leader (`StepObjectAlongFacing`), retained dialogue `$08`, flag `$E4`, the leader set at `$1F0,$1F0`, battle `$18`. See [114](114_AngerTowerAlys.md). |
 | Hunters Guild / `EventPtrs[$66]` | `$0718E6..$071E55` | **Transcribed** | [124](124_HuntersGuild.md): the routine's branches as ops, its list window a session mode. |
 | Rune healing Chaz / `EventPtrs[$67]` | `$071E56..$071E65` | **Transcribed** | [180](180_LateArcInteractions.md#event_runehealingchaz). |
-| Fifth-character selection / `EventPtrs[$68]` | `$071E66..$0721CB` | **Precise why-not** | Waits for all current party objects, derives a candidate from the leader's map position using `$071B0/$072182`, runs candidate-specific dialogue twice, reads yes/no, copies a 32-byte character record, removes/replaces a selected slot and sets `Current_Party_Slot_5`. The selected character and destination are input/position dependent. |
+| Fifth-character selection / `EventPtrs[$68]` | `$071E66..$0721CB` | **Transcribed** | [181](181_PickingFifthCharacter.md): the routine's legs as ops on its table row. |
 | Rykros arrival gate / `loc_64C1E` | `$064C1E..$064CFA` | **Precise why-not** | Tests `World_Index == 2`, Rykros flag clear and Dark Force 3 defeated; otherwise it runs the ordinary space-travel loop, which polls ButtonSpeak/Start, updates objects, palette and camera, and can exit early. The deterministic `Cutscene_Rykros` body is transcribed; this global travel gate is not flattened. |
 
 The old `$8021` “to EOF” row is deliberately gone. The executable ending stops
@@ -87,19 +87,15 @@ that body; the travel loop remains an input boundary.
 ## Why the interactive surfaces stay boundaries
 
 The fixed scene vocabulary is intentionally not a fake UI automation API. The
-guild and fifth-character routines have a different shape from the transcribed
-campaign scenes:
+guild routine has a different shape from the transcribed campaign scenes, as the
+fifth-character routine does, and each keeps its branches as a typed op family
+([124](124_HuntersGuild.md), [181](181_PickingFifthCharacter.md)):
 
 - **Guild:** eight quest records drive several branches before the job board
   even appears. The USA branch uses dialogue trees 26/27 for some ids, draws
   colored availability states, and then loops on cursor and yes/no input. A
   test that chooses “first job” is one path through a combinatorial state
   machine, not a transcription of the retail routine.
-- **Fifth character:** the routine's candidate is selected from the current map
-  coordinate and party object position. Confirmation can replace a selected
-  seated character or fill slot 5, with character-specific dialogue and a
-  character-record copy. There is no single roster edge to assert without
-  choosing a player path.
 - **Gyuna and guards:** these are direct interactions whose dialogue and flags
   are read at call time. Their exact branches are recorded above. Raja's talk
   and the musk cats' are of the same shape, and are
