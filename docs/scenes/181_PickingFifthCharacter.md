@@ -62,14 +62,19 @@ goes over their home object, which takes dialogue `$19` and `bset #3, $2(a1)`, a
 struct goes over the party object, whose destination is set to its own position (`$38`, `$3A`); the picked
 object clears. `Current_Party_Slots` takes the new id in the leaver's slot, and `Event_AddMacro` follows.
 
-**Walking in.** The new member's party object stands where the friend stood, far from the trail. It stays
-until the leader moves; then, like any party object with a distant destination, it walks to the cell the member
-ahead vacated (`FieldObj_GetAutoInput`, `ps4.asm:93232`, X first by default) and is on the trail when it gets
-there. The port's followers otherwise hold an adjacent trail, and snap when one is not, so `Party::walk_in` keeps
-this walk to the slot the scene seated and those behind it. Each walker hands the cell it leaves to the one behind,
-so the chain follows even while the leader stands, and a walker reaches its trail only once the one ahead has. A
-scene that starts mid-walk sees the walk (the cast carries the step and destination, which the routine's
-party-at-rest wait observes) and hands it back. The walk ends on the trail or at a map load.
+**Walking in.** The new member's party object stands where the friend stood, far from the trail. A party
+object's destination is written only on the frame the member ahead of it *begins* a step (`FieldObj_Move`'s tail,
+`ps4.asm:93415`), so it stays until that member next steps: the leader's first step, or later when the members
+ahead are stacked and still unspooling. Then, like any party object with a distant destination, it walks to the
+cell that member left (`FieldObj_GetAutoInput`, `ps4.asm:93232`, X first by default) and is on the trail when it
+gets there. The port's followers otherwise hold an adjacent trail, and snap when one is not, so `Party::walk_in`
+keeps this walk to the slot the scene seated and those behind it. Each follower hands the cell it leaves to the
+one behind on the tick it begins a step, and only then, so the chain follows even while the leader stands, a
+member that stands still hands nothing on, and one handed a destination mid-step finishes that step first. A
+walker reaches its trail only once the one ahead has. A scene that starts mid-walk sees the walk (the cast
+carries each follower's step and a walker's destination, which the routine's party-at-rest wait observes; the
+scene's follow chain carries it on) and hands it back, and the steps due on the handback hand their cells on
+too. The walk ends on the trail or at a map load.
 
 **Macros.** `GameState::remove_from_macros` and `add_to_macros` are `Event_RemoveCharFromMacros` and
 `Event_AddMacro` on the saved macros: each macro in use (first command set) loses the leaver with the rest moving
