@@ -547,3 +547,35 @@ fn an_action_after_text_waits_for_the_typewriter() {
     flow.resume_after_action(&game);
     assert_eq!(flow.lines(), ["beforeafter"]);
 }
+
+/// `Event_WreckageEngine` writes `$1(a0)` after `popdlg`: the operand of the
+/// `$F4` the saved text resumes on. The resumed page shows that portrait.
+#[test]
+fn a_scene_can_patch_the_portrait_the_text_resumes_on() {
+    let game = no_flags();
+    let entry = entry(vec![
+        portrait(1),
+        text("first"),
+        close(),
+        portrait(1),
+        text("second"),
+    ]);
+    let mut flow = open(&entry);
+    assert!(flow.pause_for_scene());
+    assert!(flow.patch_resume_portrait(7));
+    let Opening::Window(resumed) = flow.resume_scene(&game) else {
+        panic!("saved middle of entry");
+    };
+    assert_eq!(resumed.portrait(), Some(7));
+    assert_eq!(resumed.lines(), &["second"]);
+}
+
+/// Negative control: a cursor that does not stop before a `$F4` is left as
+/// it is, and the patch reports it.
+#[test]
+fn a_portrait_patch_needs_a_portrait_at_the_cursor() {
+    let entry = entry(vec![text("first"), close(), text("second")]);
+    let mut flow = open(&entry);
+    assert!(flow.pause_for_scene());
+    assert!(!flow.patch_resume_portrait(7));
+}

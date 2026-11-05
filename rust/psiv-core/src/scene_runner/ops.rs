@@ -934,6 +934,11 @@ impl SceneRunner {
                     self.pc += 1;
                 }
             },
+            SceneOp::Wreckage(wreckage) => {
+                if let Some(fault) = self.wreckage_op(wreckage, state, effects) {
+                    return Some(fault);
+                }
+            }
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);
@@ -982,9 +987,8 @@ impl SceneRunner {
             | SceneOp::FaceParty { .. }
             | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
-            | SceneOp::RidePlatform { .. }
-            | SceneOp::Item(_)
-            | SceneOp::ConveyorRide { .. } => return self.step_mechanic_op(op, state, effects),
+            | SceneOp::Ride(_)
+            | SceneOp::Item(_) => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;
