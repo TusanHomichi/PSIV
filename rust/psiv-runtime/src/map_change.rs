@@ -27,7 +27,7 @@
 //! `FieldRoutine_Cutscene` (`ps4.asm:120746`); that path is
 //! [`Runtime::reload_field_after_cutscene`].
 
-use psiv_core::{Cell, Direction, Flag, GameState, MapId, WarpTrigger};
+use psiv_core::{Cell, Direction, Flag, GameState, MapId, SceneOp, WarpTrigger};
 
 use crate::bridge::{self, build_bespoke, build_wander, clear_bespoke_entry_flags};
 use crate::effects;
@@ -147,12 +147,16 @@ pub(super) fn adjusted_map_music(map: MapId, raw: u8, game: &GameState, saved: u
 impl Runtime {
     /// `Event_GettingOffVehicle`'s music (`ps4.asm:145383-145395`): the map
     /// record's byte through `AdjustMusicIDs`, its `d0` written to
-    /// `Saved_Sound_Index` whatever `d1` says. Returns the id written.
-    pub(crate) fn dismount_music(&mut self) -> Option<u8> {
-        let raw = self.map_record()?.music.id;
+    /// `Saved_Sound_Index` whatever `d1` says, and played.
+    pub(crate) fn dismount_music(&mut self, events: &mut Vec<RuntimeEvent>) {
+        let Some(raw) = self.map_record().map(|record| record.music.id) else {
+            return;
+        };
         let (id, _) = adjust_music_ids(self.map.id(), raw, &self.game, self.saved_sound_index);
         self.saved_sound_index = id;
-        Some(id)
+        for op in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }] {
+            events.push(RuntimeEvent::ScenePresentation { op });
+        }
     }
 
     /// Applies the cartridge's flag test to the live vehicle and consumes the

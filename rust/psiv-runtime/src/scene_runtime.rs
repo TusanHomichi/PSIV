@@ -740,12 +740,7 @@ impl Runtime {
                     }
                     SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
                     SceneOp::GetOff(psiv_core::GetOffOp::PlayMapMusic) => {
-                        if let Some(id) = self.dismount_music() {
-                            for chosen in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }]
-                            {
-                                events.push(RuntimeEvent::ScenePresentation { op: chosen });
-                            }
-                        }
+                        self.dismount_music(events);
                     }
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::Presentation {
