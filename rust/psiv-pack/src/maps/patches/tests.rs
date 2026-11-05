@@ -299,3 +299,46 @@ fn a_moved_or_incomplete_scene_table_is_refused() {
 fn the_door_guards_and_tables_are_pinned() {
     assert!(garuberk_door_chunks(&[]).unwrap_err().0.contains("guard"));
 }
+
+/// An image holding only `row`'s pinned bytes, built from the row itself.
+fn image_of(row: &SceneChunkWrite) -> Vec<u8> {
+    let end = row
+        .checks
+        .iter()
+        .map(|&(offset, hex)| offset + hex.len() / 2)
+        .max()
+        .unwrap();
+    let mut rom = vec![0; end];
+    for &(offset, hex) in row.checks {
+        for (i, pair) in hex.as_bytes().chunks(2).enumerate() {
+            rom[offset + i] = u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap();
+        }
+    }
+    rom
+}
+
+/// The Wreckage's floor (`Event_WreckageEngine`, `loc_6DD08`) writes chunk
+/// `$A6` on map `$0B6` from four `move.b` sites; changing any one refuses the
+/// row, so neither builder ships an atlas the scene cannot use.
+#[test]
+fn the_wreckage_floor_row_pins_all_four_writes() {
+    let row = SCENE_CHUNK_WRITES
+        .iter()
+        .find(|row| row.scene == "Event_WreckageEngine")
+        .expect("the Wreckage row");
+    assert_eq!(row.map_id, 0x0B6);
+    assert_eq!(row.checks.len(), 4);
+    let rom = image_of(row);
+    assert_eq!(row_chunks(&rom, row).unwrap(), BTreeSet::from([0xA6]));
+    for &(offset, hex) in row.checks {
+        // The stored chunk is the instruction's fourth byte.
+        let mut moved = rom.clone();
+        moved[offset + 3] ^= 1;
+        let error = row_chunks(&moved, row).unwrap_err().0;
+        assert!(error.contains(&format!("${offset:06X} moved")), "{error}");
+        // and the opcode word.
+        let mut moved = rom.clone();
+        moved[offset] ^= 0x80;
+        assert!(row_chunks(&moved, row).is_err(), "{hex} at ${offset:06X}");
+    }
+}

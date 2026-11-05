@@ -7,7 +7,7 @@ use common::map_with;
 use psiv_core::battle::{StatPair, StatTriple, Stats};
 use psiv_core::{
     ActorRef, Cell, CharId, Direction, EventIndex, Flag, GameState, SceneEffect, SceneInput,
-    SceneRunner, ScriptedActor, StepFrames, scene_for,
+    SceneOp, SceneRunner, ScriptedActor, StepFrames, scene_for,
 };
 
 const CHAZ: CharId = CharId(0);
@@ -187,6 +187,61 @@ fn rika_leading_reads_it_where_she_stands() {
     assert!(!moved(&log));
     assert_eq!(portraits(&log), [5], "Gryz");
     assert!(state.is_set(Flag::event(0x40)));
+}
+
+fn faced(log: &[SceneEffect]) -> Vec<(ActorRef, Direction)> {
+    log.iter()
+        .filter_map(|e| match e {
+            SceneEffect::ActorFaced { actor, facing } => Some((*actor, *facing)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn pans(log: &[SceneEffect]) -> usize {
+    log.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                SceneEffect::Presentation {
+                    op: SceneOp::PanCamera { .. }
+                }
+            )
+        })
+        .count()
+}
+
+/// The two turns the source notes count as the port's facing frames (Rika
+/// after the swap, the leader after the swap back), and both pans.
+#[test]
+fn rika_following_turns_twice_and_pans_twice() {
+    let mut state = party(&[CHAZ, RIKA, DEMI]);
+    let (log, _) = play(&mut state);
+    assert_eq!(
+        faced(&log),
+        [
+            (ActorRef::Character(RIKA), Direction::Up),
+            (ActorRef::PartyMember(0), Direction::Up)
+        ]
+    );
+    assert_eq!(pans(&log), 2);
+}
+
+/// The recorded deviation: with Rika absent the cartridge's `tst.b d1` sees
+/// `-1` and takes the swap path at both tests; the port takes `if_leads` at
+/// both, so nothing moves or turns and the camera does not pan back
+/// (`docs/source-notes/README.md`, `Event_WreckageEngine`).
+#[test]
+fn rika_absent_skips_both_swaps() {
+    let mut state = party(&[CHAZ, DEMI, GRYZ]);
+    let (log, cells) = play(&mut state);
+    assert!(!moved(&log));
+    assert!(faced(&log).is_empty());
+    assert_eq!(pans(&log), 1, "only the pan to the floor");
+    assert_eq!(chunk_writes(&log).len(), 32);
+    assert_eq!(portraits(&log), [7], "Demi");
+    assert!(state.is_set(Flag::event(0x40)));
+    assert_eq!(cells[..2], [LEADER_AT, SECOND_AT]);
 }
 
 /// Read before: entry `$48` and nothing else.

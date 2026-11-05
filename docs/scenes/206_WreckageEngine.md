@@ -35,8 +35,10 @@ bytes. The body loads no tree. In the US image `Char_Move_Flags` is `$ECFE` and
 
 **The floor.** `GetMapLayoutOffset` adds `x + y * (Map_Row_Size_FG + 1)`; this map is 32 chunks wide,
 so `$20(a1)` is the next row. Pass `k` writes columns `15 + k` and `14 - k` (`d7` runs `-1, -3 ... -15`)
-on rows 12 and 13. `psiv_tools.map_patches.SCENE_CHUNK_WRITES` carries the row that puts chunk `$A6`
-in the map's atlas, pinned to the four `move.b` sites (`$06DD1A`, `$06DD1E`, `$06DD24`, `$06DD2A`).
+on rows 12 and 13. `psiv_tools.map_patches.SCENE_CHUNK_WRITES` and its copy in the Rust builder
+(`rust/psiv-pack/src/maps/patches.rs`) carry the row that puts chunk `$A6` in the map's atlas, pinned
+to the four `move.b` sites (`$06DD1A`, `$06DD1E`, `$06DD24`, `$06DD2A`);
+`tests/test_scene_chunk_atlas.py` holds the two copies equal.
 
 **The portrait.** After the first `$F7` the saved text resumes on `$F4 $01` (Chaz). The body
 overwrites that operand with the next speaker, so the line after the pause is spoken by whoever
@@ -46,7 +48,9 @@ shows. `SceneEffect::ResumePortrait` carries the id, and the runtime patches its
 
 **Rika's slot.** `tst.b d1 / beq` skips the swap when Rika leads. With Rika absent `d1` is `-1`, which
 is not zero, and the cartridge would move the object `$40` before `Character_1`; the port skips the
-swap then. Rika is in the party whenever the Wreckage is reachable.
+swap then, at both tests. Rika is in the party whenever the Wreckage is reachable. This, the
+swap's pace, the two facing frames and the logged palette words are recorded in
+[the source notes](../source-notes/README.md#other-recorded-deviations).
 
 ## Verification
 
