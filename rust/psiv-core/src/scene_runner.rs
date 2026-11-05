@@ -122,6 +122,8 @@ pub struct SceneRunner {
     ride: Option<mechanics::RideRun>,
     /// The `RideOp::Conveyor` in progress.
     belt: Option<mechanics::BeltRun>,
+    /// The field's RNG stream, lent for the tick ([`SceneRunner::lend_rng`]).
+    rng: Option<crate::battle::Lcg41>,
 }
 
 impl SceneRunner {
@@ -158,6 +160,7 @@ impl SceneRunner {
             dialogue_last_byte: None,
             ride: None,
             belt: None,
+            rng: None,
         }
     }
 
@@ -237,6 +240,18 @@ impl SceneRunner {
             Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold => true,
             _ => false,
         }
+    }
+
+    /// Lends the field's RNG stream for a tick, so a
+    /// [`SceneOp::BranchOnRngLow2`] draws from it within the frame.
+    /// [`SceneRunner::take_rng`] hands it back with the draw made.
+    pub fn lend_rng(&mut self, rng: crate::battle::Lcg41) {
+        self.rng = Some(rng);
+    }
+
+    /// The stream [`SceneRunner::lend_rng`] lent.
+    pub fn take_rng(&mut self) -> Option<crate::battle::Lcg41> {
+        self.rng.take()
     }
 
     /// Hands over the pack's table for `Event_HuntersGuild`.
