@@ -3,8 +3,8 @@
 //! cleared-game latch.
 
 use psiv_core::{
-    ActorRef, EventIndex, Party, Scene, SceneInput, SceneRunner, ScriptedActor, StepFrames,
-    runner_for, scene_for,
+    ActorRef, EventIndex, FieldMap, GameState, Party, PixelPos, Scene, SceneInput, SceneRunner,
+    ScriptedActor, StepFrames, runner_for, scene_for,
 };
 
 use crate::Runtime;
@@ -28,6 +28,31 @@ impl Runtime {
         let guild = self.data.guild()?;
         let job = |row: usize| psiv_core::GuildJob::from_row(guild.rows[row], guild.money[row]);
         Some(std::array::from_fn(job))
+    }
+
+    /// Runs the scene runner once with what a tick reads off the runtime: the
+    /// live layout a belt op reads (`GetChunkAndCollision`), taken from the
+    /// runtime's own fields so the runner can borrow `game` mutably, and the
+    /// field RNG stream, lent for the call and taken back with its draws.
+    pub(crate) fn step_scene<R>(
+        &mut self,
+        run: impl FnOnce(
+            &mut SceneRunner,
+            &FieldMap,
+            &mut GameState,
+            &dyn Fn(PixelPos) -> Option<u16>,
+        ) -> R,
+    ) -> Option<R> {
+        let runner = self.scene.as_mut()?;
+        let record = self.data.map(psiv_data::MapId(self.map.id().0));
+        let live = &self.effects;
+        let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+        runner.lend_rng(self.rng.clone());
+        let out = run(runner, &self.map, &mut self.game, &probe);
+        if let Some(rng) = runner.take_rng() {
+            self.rng = rng;
+        }
+        Some(out)
     }
 
     /// Starts `scene` as event `event`. The registry lookup above and a

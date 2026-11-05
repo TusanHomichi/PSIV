@@ -65,6 +65,7 @@ pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub(crate) mod home_decor;
 pub mod hunters_guild;
+pub(crate) mod late_arc;
 pub(crate) mod missing_student;
 pub(crate) mod monsen;
 pub(crate) mod monsen_quake;
@@ -286,6 +287,12 @@ pub static SCENES: &[Scene] = &[
     aiedo_events::AIEDO_MAN_SAVINGS,
     aiedo_events::AIEDO_MAN_CRUSH_ON_ALYS,
     hunters_guild::HUNTERS_GUILD,
+    late_arc::MUSK_CATS_GUARDING,
+    late_arc::MUSK_CAT_ELDER,
+    late_arc::PENGUIN_OWNER,
+    late_arc::RAJA_SICK,
+    late_arc::RUNE_HEALING_CHAZ,
+    late_arc::HIJAMMER,
     motavia_side::LOST_GIRLS_MOTHER,
     motavia_side::KING_RAPPY_DEFEATED,
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
@@ -424,6 +431,12 @@ mod tests {
             ("Event_ConveyorBeltRight", 6),
             ("Event_ConveyorBeltLeft", 6),
             ("Event_Recovery", 16),
+            ("Event_MuskCatsGuarding", 4),
+            ("Event_MuskCatElder", 6),
+            ("Event_PenguinOwner", 12),
+            ("Event_RajaSick", 11),
+            ("Event_RuneHealingChaz", 17),
+            ("Event_Hijammer", 14),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),

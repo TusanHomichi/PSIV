@@ -41,44 +41,48 @@ const fn flash(brighten: bool) -> [SceneOp; 2] {
 const UP: [SceneOp; 2] = flash(true);
 const DOWN: [SceneOp; 2] = flash(false);
 
+/// The body of `Event_Recovery`: its own event, and `jsr`ed by
+/// `Event_RuneHealingChaz`.
+pub(crate) const RECOVERY_OPS: [SceneOp; 16] = [
+    // $06D37C..$06D389: `lea Palette_Table_Buffer, a0` / `lea
+    // Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1`, a copy
+    // of 32 longwords (all 64 palette words) to the second buffer.
+    SceneOp::Presentation {
+        op: PresentationOp::CopyRamWords {
+            source_ram: 0xFFFF_FB00,
+            destination_ram: 0xFFFF_FB80,
+            words: 64,
+        },
+    },
+    // $06D38A..$06D391: `move.b #SFXID_Recovery, (Sound_Index).l`.
+    SceneOp::PlaySound { id: SFX_RECOVERY },
+    // $06D392..$06D3A9: `bsr loc_6D3BA` / `bsr loc_6D40A`, three times.
+    UP[0],
+    UP[1],
+    DOWN[0],
+    DOWN[1],
+    UP[0],
+    UP[1],
+    DOWN[0],
+    DOWN[1],
+    UP[0],
+    UP[1],
+    DOWN[0],
+    DOWN[1],
+    // $06D3AA..$06D3B1: `move.b #SFXID_Res, (Sound_Index).l`.
+    SceneOp::PlaySound { id: SFX_RES },
+    // $06D3B2..$06D3B7: `jsr RecoverStats` (`ps4.asm:136503`): every party
+    // member's HP, TP and skill uses to their maximum and the status byte
+    // to zero (an android shut down by bit 6 included), then the vehicles'
+    // skill uses. `rts` at $06D3B8; a plain event's `d0` is ignored
+    // (`loc_5A27A`, `ps4.asm:120553-120568`).
+    SceneOp::RecoverStats,
+];
+
 /// `$0021`, `Event_Recovery`, retail `$06D37C..$06D467` (the body to the `rts`
 /// at `$06D3B8` and its two flash subroutines).
 pub static RECOVERY: Scene = Scene {
     name: "Event_Recovery",
     event: EventIndex(0x0021),
-    ops: &[
-        // $06D37C..$06D389: `lea Palette_Table_Buffer, a0` / `lea
-        // Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1`, a copy
-        // of 32 longwords (all 64 palette words) to the second buffer.
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB00,
-                destination_ram: 0xFFFF_FB80,
-                words: 64,
-            },
-        },
-        // $06D38A..$06D391: `move.b #SFXID_Recovery, (Sound_Index).l`.
-        SceneOp::PlaySound { id: SFX_RECOVERY },
-        // $06D392..$06D3A9: `bsr loc_6D3BA` / `bsr loc_6D40A`, three times.
-        UP[0],
-        UP[1],
-        DOWN[0],
-        DOWN[1],
-        UP[0],
-        UP[1],
-        DOWN[0],
-        DOWN[1],
-        UP[0],
-        UP[1],
-        DOWN[0],
-        DOWN[1],
-        // $06D3AA..$06D3B1: `move.b #SFXID_Res, (Sound_Index).l`.
-        SceneOp::PlaySound { id: SFX_RES },
-        // $06D3B2..$06D3B7: `jsr RecoverStats` (`ps4.asm:136503`): every party
-        // member's HP, TP and skill uses to their maximum and the status byte
-        // to zero (an android shut down by bit 6 included), then the vehicles'
-        // skill uses. `rts` at $06D3B8; a plain event's `d0` is ignored
-        // (`loc_5A27A`, `ps4.asm:120553-120568`).
-        SceneOp::RecoverStats,
-    ],
+    ops: &RECOVERY_OPS,
 };
