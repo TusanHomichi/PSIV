@@ -27,14 +27,16 @@ const THIEF_ROUTINE: u16 = 0x368;
 const THIEF_Y: i32 = 0x270;
 
 /// `move.w #(d1 * 4), d0 / jsr Event_UpdateObjFacing`, then two
-/// `VInt_Prepare`: one beat of the thief's spin (`loc_7365E`).
+/// `VInt_Prepare`: one beat of the thief's spin (`loc_7365E`). The helper
+/// ends in a `VInt_Prepare` of its own in the US build (`$05A972`), so the
+/// beat is three frames; `Face` takes none.
 const fn spin(facing: Direction) -> [SceneOp; 2] {
     [
         SceneOp::Face {
             actor: ActorRef::Npc(THIEF),
             facing,
         },
-        SceneOp::WaitFrames { frames: 2 },
+        SceneOp::WaitFrames { frames: 3 },
     ]
 }
 
@@ -85,7 +87,7 @@ pub static PENGUIN_FEED_STOLEN: Scene = Scene {
             axis: Axis::X,
             wait: true,
         },
-        // 7-46: `$073656..$07368B`: twenty beats.
+        // 7-46: `$073656..$07368B`: twenty beats of three frames.
         SPIN_TURN[0],
         SPIN_TURN[1],
         SPIN_TURN[2],
@@ -126,13 +128,15 @@ pub static PENGUIN_FEED_STOLEN: Scene = Scene {
         SPIN_TURN[5],
         SPIN_TURN[6],
         SPIN_TURN[7],
-        // 47-48: `$07368C..$07369B`: facing 0, `DoMainUpdatesLoop($1D)`.
+        // 47-49: `$07368C..$07369B`: facing 0 and the helper's own
+        // `VInt_Prepare`, then `DoMainUpdatesLoop($1D)`.
         SceneOp::Face {
             actor: ActorRef::Npc(THIEF),
             facing: Direction::Down,
         },
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::Wait { ticks: 30 },
-        // 49-50: `$07369C..$0736AF`: off to `($2D0,$270)`, `clr.w (a4)`.
+        // 50-51: `$07369C..$0736AF`: off to `($2D0,$270)`, `clr.w (a4)`.
         SceneOp::MoveActorTo {
             actor: ActorRef::Npc(THIEF),
             x: 0x2D0,
@@ -143,19 +147,19 @@ pub static PENGUIN_FEED_STOLEN: Scene = Scene {
             npc_index: THIEF,
             count: 1,
         },
-        // 51: `$0736B0..$0736B9`: entry `$10`.
+        // 52: `$0736B0..$0736B9`: entry `$10`.
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x10)),
             window: DialogueWindow::Standard,
         },
-        // 52-54: `$0736BA..$0736D1`.
+        // 53-55: `$0736BA..$0736D1`.
         SceneOp::PlaySound { id: STOP_MUSIC },
         SceneOp::Wait { ticks: 17 },
         SceneOp::PlaySound {
             id: MUSIC_NOW_ON_SALE,
         },
-        // 55: `loc_736D2`, `$0736D2..$0736E7`: `GetItem`, `clr.b (a0)`,
-        // `ReorderInventory`, until `GetItem` finds none. 56: `loc_736E8`,
+        // 56: `loc_736D2`, `$0736D2..$0736E7`: `GetItem`, `clr.b (a0)`,
+        // `ReorderInventory`, until `GetItem` finds none. 57: `loc_736E8`,
         // `rts`.
         SceneOp::Rocky(RockyOp::RemoveAll {
             item: ITEM_PENGU_FEED,

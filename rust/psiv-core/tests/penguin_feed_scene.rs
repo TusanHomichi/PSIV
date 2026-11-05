@@ -126,6 +126,63 @@ fn the_thief_spins_five_times() {
     assert_eq!(facings, expected);
 }
 
+/// `Event_UpdateObjFacing` ends in a `VInt_Prepare` of its own (`$05A972`, US
+/// build), so each of `loc_7365E`'s twenty beats is that frame plus the two
+/// after it, and the final turn to facing 0 is that frame before
+/// `DoMainUpdatesLoop($1D)`. Ticks here are frames: one per `tick` call.
+#[test]
+fn each_turn_spends_the_helpers_frame() {
+    let scene = scene_for(EventIndex(0x96)).expect("$96 registered");
+    let cast = vec![
+        ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(30, 39), Direction::Up),
+        ScriptedActor::new(ActorRef::Npc(0), Cell::new(28, 25), Direction::Down),
+        ScriptedActor::new(ActorRef::Npc(1), Cell::new(30, 30), Direction::Right),
+    ];
+    let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
+    let (map, mut state) = (map(), GameState::new());
+    let mut input = SceneInput::None;
+    let mut turns = Vec::new();
+    let mut end = None;
+    for frame in 0..5_000_u32 {
+        let effects = runner.tick(&map, &mut state, input);
+        input = SceneInput::None;
+        for effect in &effects {
+            match effect {
+                SceneEffect::ActorFaced { actor, .. } if *actor == THIEF => turns.push(frame),
+                SceneEffect::ActorArrived { actor, at } if *actor == THIEF => {
+                    if at.x == 0x2D0 / 16 {
+                        end = Some(frame);
+                    }
+                }
+                SceneEffect::DialogueOpen(_) => input = SceneInput::DialogueClosed,
+                _ => {}
+            }
+        }
+        if runner.is_finished() {
+            break;
+        }
+    }
+    assert_eq!(turns.len(), 21);
+    // Twenty beats: turn, the helper's frame, two `VInt_Prepare`.
+    for pair in turns[..20].windows(2) {
+        assert_eq!(
+            pair[1] - pair[0],
+            3,
+            "turns {pair:?} are not three frames apart"
+        );
+    }
+    // Last beat to the final turn, then the helper's frame, then
+    // `DoMainUpdatesLoop($1D)`: 30 ticks (the port's `Wait`, unchanged) and the
+    // run to `$2D0` after it.
+    assert_eq!(turns[20] - turns[19], 3);
+    let end = end.expect("the second run arrives");
+    assert!(
+        end - turns[20] > 30,
+        "final turn at {}, run ends at {end}",
+        turns[20]
+    );
+}
+
 /// `loc_736D2`: every Pengu Feed `GetItem` can find goes, and the bag closes
 /// up each time.
 #[test]

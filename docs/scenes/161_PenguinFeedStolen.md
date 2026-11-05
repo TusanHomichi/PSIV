@@ -35,12 +35,12 @@ and `FieldObj_Move`.
 | 0-2 | `$0735F6..$07360D` | `Sound_StopMusic`, `DoMapUpdateLoop($10)`, `MusicID_DezorisDeDon` (`$B3`) | `PlaySound`, `Wait(17)`, `PlaySound` |
 | 3-5 | `$07360E..$07363F` | `lea ($FFFFC380).w, a4`: routine `$368`, tile `$342`, (`$150`,`$270`); `RunSingleObject`, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `Object(ObjectOp::Spawn)` slot 2, `RebuildSprites`, `WaitFrames(1)` |
 | 6 | `$073640..$073655` | `Event_MoveSingleObject` to (`Character_1`'s `$30`, `$270`) | `MoveActorToActorAxis` X, waits |
-| 7-46 | `$073656..$07368B` | `loc_7365E`, `d7 = $13`: facing `d1 * 4`, two `VInt_Prepare`, `d1` wraps at 4 | `Face`, `WaitFrames(2)` x 20: down, up, right, left, five times |
-| 47-48 | `$07368C..$07369B` | facing 0, `DoMainUpdatesLoop($1D)` | `Face`, `Wait(30)` |
-| 49-50 | `$07369C..$0736AF` | `Event_MoveSingleObject` to (`$2D0`,`$270`), `clr.w (a4)` | `MoveActorTo`, waits; `DespawnNpc` slot 2 |
-| 51 | `$0736B0..$0736B9` | entry `$10` | `RunDialogue` |
-| 52-54 | `$0736BA..$0736D1` | `Sound_StopMusic`, `DoMapUpdateLoop($10)`, `MusicID_NowOnSale` (`$87`) | `PlaySound`, `Wait(17)`, `PlaySound` |
-| 55-56 | `$0736D2..$0736E9` | `loc_736D2`: `GetItem` `$92`, `bne.s loc_736E8`, `clr.b (a0)`, `ReorderInventory`, `bra.s loc_736D2`; `rts` | `Rocky(RockyOp::RemoveAll)`, `End` |
+| 7-46 | `$073656..$07368B` | `loc_7365E`, `d7 = $13`: facing `d1 * 4` through `Event_UpdateObjFacing` (which ends in a `VInt_Prepare` of its own in the US build, `$05A972`), then two `VInt_Prepare`; `d1` wraps at 4 | `Face`, `WaitFrames(3)` x 20: down, up, right, left, five times |
+| 47-49 | `$07368C..$07369B` | facing 0 (the helper's `VInt_Prepare`), `DoMainUpdatesLoop($1D)` | `Face`, `WaitFrames(1)`, `Wait(30)` |
+| 50-51 | `$07369C..$0736AF` | `Event_MoveSingleObject` to (`$2D0`,`$270`), `clr.w (a4)` | `MoveActorTo`, waits; `DespawnNpc` slot 2 |
+| 52 | `$0736B0..$0736B9` | entry `$10` | `RunDialogue` |
+| 53-55 | `$0736BA..$0736D1` | `Sound_StopMusic`, `DoMapUpdateLoop($10)`, `MusicID_NowOnSale` (`$87`) | `PlaySound`, `Wait(17)`, `PlaySound` |
+| 56-57 | `$0736D2..$0736E9` | `loc_736D2`: `GetItem` `$92`, `bne.s loc_736E8`, `clr.b (a0)`, `ReorderInventory`, `bra.s loc_736D2`; `rts` | `Rocky(RockyOp::RemoveAll)`, `End` |
 
 **The temporary object.** `ZosaItemShop`'s record places two objects, the fire (slot 0) and the
 shopkeeper (slot 1). The thief is written straight into slot 2 (`$FFFFC380`). `ObjectOp::Spawn`
@@ -64,7 +64,7 @@ in [the source notes](../source-notes/README.md#other-recorded-deviations).
 
 - State: `rust/psiv-core/tests/penguin_feed_scene.rs`: the spawn into slot 2 with the thief not
   solid, the runs to the leader's X and to `$2D0`, the clear before entry `$10`, the twenty
-  facings, the bag emptied of every findable Feed, a Feed behind a hole staying, and a second
+  facings and their timing (three frames a beat, the helper's `VInt_Prepare` included), the bag emptied of every findable Feed, a Feed behind a hole staying, and a second
   spawn reusing its slot.
 - `rust/psiv-core/src/trigger_custom.rs`: the trigger fires with the Feed carried at `y == $260`
   and not one pixel off, and stays quiet with the Feed out of `GetItem`'s reach.

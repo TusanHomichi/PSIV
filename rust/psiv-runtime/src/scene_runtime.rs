@@ -2,8 +2,8 @@
 
 use psiv_core::battle::Outcome;
 use psiv_core::{
-    ActorRef, Driver, Input, MapId, ONE_PIXEL, PixelPos, SceneEffect, SceneInput, SceneOp,
-    WarpTrigger,
+    ActorRef, Direction, Driver, Input, MapId, Npc, NpcId, ONE_PIXEL, PixelPos, SceneEffect,
+    SceneInput, SceneOp, WarpTrigger,
 };
 
 use crate::{Runtime, RuntimeEvent};
@@ -463,11 +463,7 @@ impl Runtime {
                 cell,
                 solid,
             } => {
-                let mut object = psiv_core::Npc::new(
-                    psiv_core::NpcId(routine),
-                    cell,
-                    psiv_core::Direction::Down,
-                );
+                let mut object = Npc::new(NpcId(routine), cell, Direction::Down);
                 object.interactable = solid;
                 object.talkable = solid;
                 if let Err(error) = self.map.place_object(slot, object) {
