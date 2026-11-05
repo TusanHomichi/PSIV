@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use psiv_core::battle::{
     BattleItem, Command, FighterId, ItemSource, Roster, RoundOrders, Side, Skill, Stats, Technique,
-    item_targets, skill_targets, status, technique_targets,
+    item_targets, skill_targets, technique_targets,
 };
 
 use crate::Runtime;
@@ -763,11 +763,8 @@ impl CommandsMenu {
                         id: *id,
                         name: tech.name.clone(),
                         cost: tech.cost,
-                        available: tech.supported()
-                            && fighter.is_some_and(|f| {
-                                f.stats.curr_tp >= u16::from(tech.cost)
-                                    && f.stats.status & status::TECH_SEALED == 0
-                            }),
+                        available: fighter
+                            .is_some_and(|f| CommandsMenu::technique_enabled(&f.stats, tech)),
                     }
                 })
                 .collect(),
@@ -781,12 +778,14 @@ impl CommandsMenu {
                         id: *id,
                         name: skill.name.clone(),
                         remaining,
-                        available: skill.supported()
-                            && remaining > 0
-                            && (!skill.requires_weapon
-                                || self
-                                    .actor_id()
-                                    .is_some_and(|id| self.armed_fighters.contains(&id))),
+                        available: fighter.is_some_and(|f| {
+                            CommandsMenu::skill_enabled(
+                                &f.stats,
+                                *slot,
+                                skill,
+                                self.armed_fighters.contains(&f.id),
+                            )
+                        }),
                     }
                 })
                 .collect(),
