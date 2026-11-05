@@ -246,9 +246,19 @@ fn registered(event: u16) -> Option<&'static str> {
 
 /// Every way the table and a registry can disagree, each naming the event.
 fn violations(registry: &dyn Fn(u16) -> Option<&'static str>) -> Vec<String> {
+    violations_in(CENSUS, registry)
+}
+
+/// `violations` over any table, so a control can hand it rows the real census
+/// no longer holds (the allowlist is empty now, which leaves `Allowlisted`
+/// constructed nowhere else).
+fn violations_in(
+    census: &[(u16, &str, Disposition)],
+    registry: &dyn Fn(u16) -> Option<&'static str>,
+) -> Vec<String> {
     let mut found = Vec::new();
     let mut allowlisted = 0;
-    for &(event, label, disposition) in CENSUS {
+    for &(event, label, disposition) in census {
         match disposition {
             Scene => {
                 if registry(event).is_none() {
@@ -351,23 +361,38 @@ fn unregistering_any_scene_fails_the_guard_and_names_it() {
 }
 
 /// Negative control: an allowlisted event whose scene lands must leave the
-/// list, so the list only shrinks.
+/// list, so the list only shrinks. Run on a synthetic row, since the census
+/// itself holds none now; a row naming an untracked issue and a list over its
+/// ceiling are caught the same way.
 #[test]
 fn a_scene_for_an_allowlisted_event_fails_until_the_entry_is_removed() {
-    let Some(&(event, label, _)) = CENSUS
-        .iter()
-        .find(|&&(_, _, d)| matches!(d, Allowlisted(_)))
-    else {
-        return; // an empty allowlist has nothing to shrink
-    };
-    let fake = |asked: u16| {
-        if asked == event {
-            Some("Event_Fake")
-        } else {
-            registered(asked)
-        }
-    };
-    let found = violations(&fake);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].contains(label) && found[0].contains("still allowlisted"));
+    let table = [(0x7FFFu16, "Event_Fake", Allowlisted(ISSUES[0]))];
+    let unregistered = |_: u16| None;
+
+    let fake = |asked: u16| (asked == 0x7FFF).then_some("Event_Fake");
+    let found = violations_in(&table, &fake);
+    assert!(
+        found
+            .iter()
+            .any(|f| f.contains("Event_Fake") && f.contains("still allowlisted")),
+        "{found:?}"
+    );
+
+    let untracked = [(0x7FFFu16, "Event_Fake", Allowlisted(1))];
+    let found = violations_in(&untracked, &unregistered);
+    assert!(
+        found.iter().any(|f| f.contains("untracked issue #1")),
+        "{found:?}"
+    );
+}
+
+/// Negative control: the ceiling is zero, so one allowlist entry fails.
+#[test]
+fn an_allowlist_entry_over_the_ceiling_fails() {
+    let table = [(0x7FFFu16, "Event_Fake", Allowlisted(ISSUES[0]))];
+    let found = violations_in(&table, &|_| None);
+    assert!(
+        found.iter().any(|f| f.contains("over its ceiling")),
+        "{found:?}"
+    );
 }
