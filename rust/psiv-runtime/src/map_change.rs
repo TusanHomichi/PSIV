@@ -296,6 +296,12 @@ impl Runtime {
         // initialization do not. The loader's redirects run first, as on
         // every `GameMode_LoadFieldMap`.
         let load = self.redirect_kept_load();
+        // `loc_51AB2` runs on every load, this one included
+        // (`ps4.asm:107556`), before the map-data walk: the record's gate
+        // bytes come back, and a zero plane gate reseeds that plane's step
+        // counters (#59). A scene's `RefreshMap` (`:121797`) and the cutscene
+        // reload rebuild the camera from the record, which writes the same.
+        self.refresh_map_camera_gates_for(load.map)?;
         self.rewalk_map_retaining_objects(load.map)?;
         self.saved_map_index_2 = load.previous_map;
         // The battle set bit 0 when it began (`bset #0`, `ps4.asm:118057` and
