@@ -1,5 +1,6 @@
 //! Motavia's side events driven with pads from hand-built saves (#81): Uzo's
-//! mother, Sekreas in Rappy Cave and the patients of Meese's clinic. They need
+//! mother, Sekreas in Rappy Cave, the patients of Meese's clinic, and Culvers
+//! and Sekreas in Torinco. They need
 //! the repository pack and skip with a message without one.
 
 mod common;
@@ -12,6 +13,8 @@ use psiv_runtime::Session;
 const UZO_HOUSE_3: u16 = 0x0E4;
 const RAPPY_CAVE: u16 = 0x0ED;
 const MEESE_CLINIC: u16 = 0x133;
+const CULVERS_HOUSE: u16 = 0x0E7;
+const TORINCO_HOUSE_2: u16 = 0x0E9;
 
 fn party_at(map: u16, x: u16, y: u16, flags: &[u16]) -> Option<Session> {
     let set = pack()?;
@@ -120,4 +123,53 @@ fn the_clinic_patient_answers_from_her_table_cell() {
     driver.talk(20).expect("the block's entry fires the event");
     assert_eq!(driver.scenes_ended(), scenes + 1);
     assert_eq!(driver.runtime().map().npcs()[19].facing, Direction::Left);
+}
+
+/// With the guild's job taken (`EventFlag_DyingBoy`, `$A8`) the father's entry
+/// `$28` reaches `$F6 $00 $84` (`Event_DyingBoyFather`, `$A9`); once the boy
+/// has the sword (`$AA`) it reaches `$F6 $00 $85` (`Event_FatherAfterBoyRecovery`,
+/// `$AB`). Without the job he only talks.
+#[test]
+fn culvers_speaks_before_and_after_the_cure() {
+    let Some(session) = party_at(CULVERS_HOUSE, 28, 30, &[0xA8]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.talk(0).expect("Culvers speaks");
+    assert!(flag(&driver, 0xA9), "Event_DyingBoyFather");
+    assert!(!flag(&driver, 0xAB));
+
+    let Some(session) = party_at(CULVERS_HOUSE, 28, 30, &[0xA8, 0xA9, 0xAA]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.talk(0).expect("Culvers speaks");
+    assert!(flag(&driver, 0xAB), "Event_FatherAfterBoyRecovery");
+
+    let Some(session) = party_at(CULVERS_HOUSE, 28, 30, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.talk(0).expect("Culvers speaks");
+    assert!(!flag(&driver, 0xA9), "no job, no scene");
+}
+
+/// With the guild's job taken (`EventFlag_ManWithTwist`, `$AD`) Sekreas's entry
+/// `$24` reaches `$F6 $00 $87` (`Event_MeetingSekreas`, `$AE`), the flag
+/// `Event_KingRappy` reads. Without the job he only talks.
+#[test]
+fn sekreas_takes_the_job_in_torinco() {
+    let Some(session) = party_at(TORINCO_HOUSE_2, 33, 30, &[0xAD]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.talk(0).expect("Sekreas speaks");
+    assert!(flag(&driver, 0xAE), "Event_MeetingSekreas");
+
+    let Some(session) = party_at(TORINCO_HOUSE_2, 33, 30, &[]) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    driver.talk(0).expect("Sekreas speaks");
+    assert!(!flag(&driver, 0xAE));
 }
