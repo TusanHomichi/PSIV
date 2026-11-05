@@ -98,9 +98,16 @@ refuses an entry on TP alone (`Battle_FillTechList` sets the sign bit,
 `ps4.asm:1721`; `Battle_TechWindow` ignores it, `ps4.asm:2628`), and the cast
 is paid and wasted (`CharTech_CheckTPCost` `ps4.asm:14211`, `CharTech_Cast`
 `ps4.asm:14256`; the engine's `TechniqueRejected(Sealed)` after the paid
-`TechniqueUsed`). `TechniqueEntry.available` stays false for a sealed member so
-a policy avoids the wasted turn. Pad-only test:
-`a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted`.
+`TechniqueUsed`). One rule decides what each window enables, and the menu
+view reports that same rule: `CommandsMenu::technique_enabled`,
+`skill_enabled` and `item_enabled` draw the rows, and `TechniqueEntry.available`
+and `SkillEntry.available` are the same answers, so the view also offers a
+sealed member's technique. A caller that wants to avoid the wasted turn reads
+the seal from the actor's `PartyStatus.status` (the campaign planner does,
+`Planner::in_stock`). Tests: the pad-only
+`a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted`, and
+`a_sealed_member_picks_a_technique_the_view_agrees_and_the_cast_is_paid_and_wasted`
+with its unsealed control (`commands_tests.rs`).
 
 ## Status panes (#64)
 
