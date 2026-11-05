@@ -908,6 +908,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::FifthCharacter(fifth) => return self.fifth_op(fifth, state, effects),
             SceneOp::Rocky(rocky) => match rocky {
                 RockyOp::BranchIfHolding {
                     item,

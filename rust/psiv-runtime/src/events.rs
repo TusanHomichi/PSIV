@@ -377,6 +377,12 @@ pub enum RuntimeEvent {
         /// The formation id the encounter tables picked.
         formation: u16,
     },
+    /// A cleared map object is live again. The renderer shows it, building
+    /// its node if the map loaded with it cleared.
+    NpcRestored {
+        /// The object index.
+        index: usize,
+    },
     /// Map objects were despawned in place (indices stable). The renderer
     /// hides their nodes.
     NpcsDespawned {

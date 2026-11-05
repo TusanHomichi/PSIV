@@ -213,6 +213,7 @@ jobs.
 | `Event_RajaSick` | `$5B` | [180](180_LateArcInteractions.md#event_rajasick) | `$070C30..$070C81` |
 | `Event_RuneHealingChaz` | `$67` | [180](180_LateArcInteractions.md#event_runehealingchaz) | `$071E56..$071E65` |
 | `Event_Hijammer` | `$6D` | [180](180_LateArcInteractions.md#event_hijammer) | `$072428..$0724A3` |
+| `Event_PickingFifthCharacter` | `$68` | [181](181_PickingFifthCharacter.md) | `$071E66..$0721CB` |
 
 ## Zosa's item shop
 Issue #56's last trigger-fired event, from a hand-built save (`rust/psiv-campaign/tests/zosa_side.rs`).

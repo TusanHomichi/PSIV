@@ -30,6 +30,22 @@ impl Runtime {
         Some(std::array::from_fn(job))
     }
 
+    /// The pack's `loc_72182` and `loc_721B8`, typed for the core's scene.
+    pub(crate) fn fifth_table(&self) -> Option<psiv_core::FifthTable> {
+        let table = self.data.fifth()?;
+        let row = |r: psiv_data::FifthRowRecord| psiv_core::FifthRow {
+            x: i32::from(r.x),
+            y: i32::from(r.y),
+            who: psiv_core::CharId(r.character),
+            first_line: u16::from(r.first_line),
+            picked: u16::from(r.picked_flag),
+        };
+        Some(psiv_core::FifthTable {
+            rows: table.rows.map(row),
+            records: table.records.map(psiv_core::CharId),
+        })
+    }
+
     /// Runs the scene runner once with what a tick reads off the runtime: the
     /// live layout a belt op reads (`GetChunkAndCollision`), taken from the
     /// runtime's own fields so the runner can borrow `game` mutably, and the
@@ -68,6 +84,9 @@ impl Runtime {
         if let Some(jobs) = self.guild_jobs() {
             runner.set_guild_jobs(jobs);
         }
+        if let Some(table) = self.fifth_table() {
+            runner.set_fifth_table(table);
+        }
         self.scene = Some(runner);
         self.boarding_body = None;
         self.scene_event = event;
@@ -103,6 +122,7 @@ impl Runtime {
         for (i, npc) in self.map.npcs().iter().enumerate() {
             cast.push(ScriptedActor::new(ActorRef::Npc(i), npc.cell, npc.facing));
         }
+        self.party.seed_scripted(&mut cast);
         cast
     }
 

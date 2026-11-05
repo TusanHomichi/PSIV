@@ -24,7 +24,7 @@ use crate::maps::records::hex6;
 use crate::png::hex;
 
 const STEPS: usize = 4000;
-const MAX_PATHS: usize = 64;
+const MAX_PATHS: usize = 256;
 
 /// What `GetMapLayoutOffset` left in a1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -382,19 +382,13 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
             0x86,
         ),
     ),
-    (
-        ISSUE_DEZOLIS,
-        "Dezolis late arc: the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and the fifth-character controls",
-        (
-            0x68,
-        ),
-    ),
+    (ISSUE_DEZOLIS, "Dezolis late arc", ()),
 )
 ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 4
+ALLOWLIST_CEILING = 3
 
 
 def disposition(

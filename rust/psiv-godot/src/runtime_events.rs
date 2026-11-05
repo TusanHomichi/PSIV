@@ -133,6 +133,13 @@ impl Field {
                     godot_print!("roster record changed for {who:?}");
                     self.refresh_party_sheets();
                 }
+                // The frame's visibility pass shows a node it has; a map that
+                // loaded with this object cleared built none.
+                RuntimeEvent::NpcRestored { index } => {
+                    if !self.npc_nodes.iter().any(|npc| npc.index == index) {
+                        self.load_map_visuals();
+                    }
+                }
                 RuntimeEvent::NpcsDespawned { first, count } => {
                     self.presentation.despawn_objects(first, count);
                     for NpcNode { node, index, .. } in &mut self.npc_nodes {
