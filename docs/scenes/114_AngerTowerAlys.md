@@ -2,7 +2,7 @@
 
 - **Retail bytes:** `$07148A..$071579` inclusive, 240 bytes (the routine to the `rts` at `$071570`, then the direction table `loc_71572`).
 - **Pointer:** `EventPtrs[$62]` at `$05A2B4`; event `$0062`.
-- **Trigger:** Dialogue `$F6 $00 $62`, `DialogueTree41` entry 15: the illusion of Alys on Anger Tower F2 (`$FE`), where `Event_AngerTowerTop` ([85](85_AngerTowerTop.md)) leaves Chaz alone. An `Event_GetAndRunDialogue2` caller (`jsr $5ACDC` at `$071538`, row 11 of [the Dialogue2 audit](DIALOGUE2_CALLERS.md)).
+- **Trigger:** Dialogue `$F6 $00 $62`, `DialogueTree41` entry 15: the illusion of Alys on Anger Tower F2 (`$FE`), where `Event_AngerTowerTop` ([85](85_AngerTowerTop.md)) leaves Chaz alone. An `Event_GetAndRunDialogue2` caller (`jsr $5ACDC` at `$071538`, row 11 of [the Dialogue2 audit](DIALOGUE_CALLERS.md)).
 - **Data:** `dezo_endgame.rs`, `ANGER_TOWER_ALYS` (11 ops).
 
 ## Clone audit

@@ -163,7 +163,8 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(2)),
-            window: DialogueWindow::Cutscene,
+            // `$07643C`: `jsr Event_GetAndRunDialogue3`.
+            window: DialogueWindow::Cutscene3,
         },
         SceneOp::PanelDestroyAll,
         SceneOp::WaitFrames { frames: 20 },

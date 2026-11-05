@@ -112,6 +112,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
 
 ## Other recorded deviations
 
+- **The tree-attack party move leaves no stale destination.**
+  `Event_CarnivorousTrees` (`$070826..$070847`) and `Event_SavingKyra`
+  (`$07093C..$07095D`) write the leader's Y plus `$20` into each counted party
+  object's `curr_y_pos` word (`$34`) and leave `dest_y_pos` (`$3A`) and the
+  fraction word (`$36`) as they were, then request the battle. The port's
+  `SceneOp::PlacePartyY` puts each member at rest on the new row: a scene actor
+  has no destination separate from a walk in progress. Recorded in
+  [DIALOGUE_CALLERS.md](../scenes/DIALOGUE_CALLERS.md#the-party-move-in-event_carnivoroustrees-and-event_savingkyra).
 - **The Menu-button credits skip is not ported.** `Cutscene_Ending`
   (`ps4.asm:158029-158033`) lets a player holding Menu at the scene's start jump
   to the credits; the port plays the whole ending. Recorded in

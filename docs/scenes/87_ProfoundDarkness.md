@@ -24,4 +24,4 @@ separate final presentation surface and is recorded as an explicit boundary,
 not silently represented as a fake return edge.
 
 The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
-(`retained(3)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).
+(`retained(3)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md).

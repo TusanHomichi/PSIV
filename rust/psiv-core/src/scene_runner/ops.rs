@@ -27,23 +27,6 @@ impl SceneRunner {
         };
     }
 
-    /// Parks every party actor of the cast on `cell` facing `facing`,
-    /// cancelling any walk: the character rebuild both of the cartridge's
-    /// dismounts make, every `Character_1..5` object put on `Character_1`'s
-    /// position and facing, the machine's while mounted
-    /// (`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`;
-    /// `Event_EclipseTorchUsed`, `loc_701DE`, `ps4.asm:149559-149577`). The
-    /// runtime calls it when a scene's `SetVehicleIndex 0` dismounts, since the
-    /// cast was seated from the party objects, which a mounted party leaves
-    /// where it boarded.
-    pub fn park_party(&mut self, cell: crate::geom::Cell, facing: crate::geom::Direction) {
-        for actor in &mut self.actors {
-            if matches!(actor.actor, ActorRef::PartyMember(_)) {
-                actor.park(cell, facing);
-            }
-        }
-    }
-
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
@@ -988,7 +971,8 @@ impl SceneRunner {
             | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
             | SceneOp::Ride(_)
-            | SceneOp::Item(_) => return self.step_mechanic_op(op, state, effects),
+            | SceneOp::Item(_)
+            | SceneOp::PlacePartyY { .. } => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;

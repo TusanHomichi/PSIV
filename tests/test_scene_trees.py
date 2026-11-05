@@ -50,6 +50,10 @@ OPS_STATIC_RE = re.compile(
 OPS_FN_RE = re.compile(r"fn ([a-z_0-9]+)\(\)\s*->\s*&'static \[SceneOp\]\s*\{(.*?)\n\}", re.S)
 SET_TREE_RE = re.compile(r"SetDialogueTree\s*\{")
 TITLE_RE = re.compile(r"^#\s+(?:\d+\s*[—–-]\s*)?`([A-Za-z_0-9]+)`", re.M)
+# Any heading that names a scene. A document holding several scenes (110, 111)
+# gives each its own `## `Name`` section, and each range belongs to the section
+# it sits in, not to the document's title.
+HEADING_RE = re.compile(r"^#{1,6}\s+(?:\d+\s*[—–-]\s*)?`([A-Za-z_0-9]+)`", re.M)
 RETAIL_BYTES_RE = re.compile(
     r"\*\*Retail bytes:\*\*\s*`\$([0-9A-F]{6})\.\.\$([0-9A-F]{6})`"
 )
@@ -86,7 +90,12 @@ def registry_tree_ops(sources: dict[str, str] | None = None) -> dict[str, int]:
 
 
 def documented_ranges() -> dict[str, list[tuple[int, int]]]:
-    """Scene name -> every `(start, end_exclusive)` its docs claim."""
+    """Scene name -> every `(start, end_exclusive)` its docs claim.
+
+    A range belongs to the nearest scene heading above it, so the five
+    `Event_VahalFort*` sections of document 110 each keep their own bytes
+    instead of all landing on the title's scene.
+    """
     ranges: dict[str, list[tuple[int, int]]] = {}
 
     def add(name: str, start: int, end: int) -> None:
@@ -94,13 +103,14 @@ def documented_ranges() -> dict[str, list[tuple[int, int]]]:
 
     for path in sorted(DOCS_DIR.glob("*.md")):
         text = path.read_text(encoding="utf-8")
-        title = TITLE_RE.search(text)
-        for match in RETAIL_BYTES_RE.finditer(text):
-            if title:
-                add(title.group(1), int(match.group(1), 16), int(match.group(2), 16) + 1)
-        for match in RETAIL_RANGE_RE.finditer(text):
-            if title:
-                add(title.group(1), int(match.group(1), 16), int(match.group(2), 16) + 1)
+        if TITLE_RE.search(text) is None:
+            continue
+        headings = [(m.start(), m.group(1)) for m in HEADING_RE.finditer(text)]
+        for pattern in (RETAIL_BYTES_RE, RETAIL_RANGE_RE):
+            for match in pattern.finditer(text):
+                owner = [name for at, name in headings if at < match.start()]
+                if owner:
+                    add(owner[-1], int(match.group(1), 16), int(match.group(2), 16) + 1)
     readme = (DOCS_DIR / "README.md").read_text(encoding="utf-8")
     for match in REGISTRY_ROW_RE.finditer(readme):
         add(match.group(1), int(match.group(2), 16), int(match.group(3), 16) + 1)
@@ -192,6 +202,18 @@ class NegativeControl(unittest.TestCase):
             "2 SetDialogueTree op(s)",
             problems,
         )
+
+    def test_a_section_range_belongs_to_its_section(self) -> None:
+        """Document 111 holds `Event_Burstroc` then `## `Event_PosiBolt``.
+
+        Each section's `Retail bytes` line (`$0724A4..$07251F`,
+        `$072520..$07259D`, read off the document) belongs to its own heading;
+        attributing both to the title would put PosiBolt's bytes in Burstroc.
+        """
+        ranges = documented_ranges()
+        self.assertNotIn((0x072520, 0x07259E), ranges["Event_Burstroc"])
+        self.assertIn((0x0724A4, 0x072520), ranges["Event_Burstroc"])
+        self.assertIn((0x072520, 0x07259E), ranges["Event_PosiBolt"])
 
     def test_a_shifted_range_stops_finding_the_load(self) -> None:
         start, end = self.ranges["Cutscene_AlysWounded"][0]
