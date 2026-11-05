@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::DataError;
 
@@ -19,7 +19,7 @@ use crate::DataError;
 pub const SHOPS_FILE: &str = "shops.json";
 
 /// A shopkeeper portrait the counters point at by ROM art address.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopPortrait {
     /// The ROM address of the portrait's art, as the counters spell it.
     pub art: String,
@@ -28,7 +28,7 @@ pub struct ShopPortrait {
 }
 
 /// One row of the cartridge's counter table.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopCounter {
     /// The row's index in `ShopCounters`.
     pub id: usize,
@@ -51,8 +51,8 @@ pub struct ShopCounter {
     pub shop_inventory_index: Option<usize>,
     /// The shopkeeper's portrait art address.
     pub portrait: String,
-    /// The shop's greeting selector.
-    #[serde(default)]
+    /// The shop's greeting selector. An inn has none, and writes no key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub greeting: Option<ShopGreeting>,
 }
 
@@ -69,7 +69,7 @@ impl ShopCounter {
 }
 
 /// A shop's greeting word: which noun names its trade.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopGreeting {
     /// `0` weapons, `1` armor, anything else items.
     #[serde(default)]
@@ -77,7 +77,7 @@ pub struct ShopGreeting {
 }
 
 /// One item a shop sells.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopItem {
     /// The `InventoryData` index.
     pub item_id: u8,
@@ -90,7 +90,7 @@ pub struct ShopItem {
 }
 
 /// One `ShopInventories` list.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopInventory {
     /// The list's index.
     pub index: usize,
@@ -99,7 +99,7 @@ pub struct ShopInventory {
 }
 
 /// One inn's rate word.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InnRecord {
     /// The rate's index; also the inn selector (`Inn_Index`).
     pub index: usize,
@@ -108,13 +108,17 @@ pub struct InnRecord {
 }
 
 /// The decoded `shops.json`.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopData {
+    /// The shopkeeper portraits, by art address.
     #[serde(default)]
-    portraits: Vec<ShopPortrait>,
-    counters: Vec<ShopCounter>,
-    inventories: Vec<ShopInventory>,
-    inns: Vec<InnRecord>,
+    pub portraits: Vec<ShopPortrait>,
+    /// Every counter row, in table order.
+    pub counters: Vec<ShopCounter>,
+    /// The `ShopInventories` lists, in table order.
+    pub inventories: Vec<ShopInventory>,
+    /// The inn rate words, in table order.
+    pub inns: Vec<InnRecord>,
 }
 
 impl ShopData {

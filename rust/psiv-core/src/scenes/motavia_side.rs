@@ -1,9 +1,11 @@
-//! Three short Motavia events (issue #81): Uzo's mother asks after her
-//! daughters, Sekreas explains the bird in Rappy Cave, and the patients of
-//! Meese's clinic answer from their beds.
+//! Short Motavia events (issue #81): Uzo's mother asks after her daughters,
+//! Sekreas explains the bird in Rappy Cave, the patients of Meese's clinic
+//! answer from their beds, and in Torinco the dying boy's father and Sekreas
+//! take the guild's job.
 //!
 //! Records are `docs/scenes/200_LostGirlsMother.md`,
-//! `201_KingRappyDefeated.md` and `202_MeeseClinicSickWoman.md`. Every body
+//! `201_KingRappyDefeated.md`, `202_MeeseClinicSickWoman.md` and
+//! `162_TorincoCulvers.md`. Every body
 //! was read from the US image through its `EventPtrs` slot; the clone's labels
 //! are navigation only.
 
@@ -201,4 +203,42 @@ pub static MEESE_CLINIC_SICK_WOMAN: Scene = Scene {
         SceneOp::SkipOps { count: 1 },
         standard(0x3D),
     ],
+};
+
+/// `move.b #flag, d0 / jmp EventFlags_Set`.
+const fn set_event_flag(id: u16) -> SceneOp {
+    SceneOp::SetFlag {
+        flag: Flag::event(id),
+        value: true,
+    }
+}
+
+/// `$0084`, `Event_DyingBoyFather`, retail `$072D44..$072D6B`
+/// (`ps4.asm:152706-152715`): Culvers (`CulversHouse` object 0,
+/// `Field_Obj_Secondary`) turns to the leader, speaks entry `$39` and sets
+/// `EventFlag_Culvers` (`$A9`), which `Event_DyingBoy` reads.
+pub static DYING_BOY_FATHER: Scene = Scene {
+    name: "Event_DyingBoyFather",
+    event: EventIndex(0x0084),
+    ops: &[face_leader(0), standard(0x39), set_event_flag(0xA9)],
+};
+
+/// `$0085`, `Event_FatherAfterBoyRecovery`, retail `$072D6C..$072D93`
+/// (`ps4.asm:152716-152725`): Culvers again, entry `$3A`, and
+/// `EventFlag_CulversAfterRecovery` (`$AB`), the guild's done flag for the
+/// job.
+pub static FATHER_AFTER_BOY_RECOVERY: Scene = Scene {
+    name: "Event_FatherAfterBoyRecovery",
+    event: EventIndex(0x0085),
+    ops: &[face_leader(0), standard(0x3A), set_event_flag(0xAB)],
+};
+
+/// `$0087`, `Event_MeetingSekreas`, retail `$072FB4..$072FDB`
+/// (`ps4.asm:152856-152865`): Sekreas (`TorincoHouse2` object 0) turns to the
+/// leader, speaks entry `$3C` and sets `EventFlag_Sekreas` (`$AE`), which
+/// `Event_KingRappy` (`$88`) reads before the fight.
+pub static MEETING_SEKREAS: Scene = Scene {
+    name: "Event_MeetingSekreas",
+    event: EventIndex(0x0087),
+    ops: &[face_leader(0), standard(0x3C), set_event_flag(0xAE)],
 };
