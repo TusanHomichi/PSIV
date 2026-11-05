@@ -6,6 +6,7 @@
 // shape for shared test support, not an unused-code smell.
 #![allow(dead_code)]
 
+use psiv_core::battle::{StatPair, StatTriple, Stats};
 use psiv_core::{
     Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, MapId, Npc, NpcId,
     StepFrames, SubCellOffset, Topology, Warp,
@@ -154,4 +155,37 @@ pub fn face_then_act(state: &mut FieldState, map: &FieldMap, dir: Direction) -> 
         state.tick(map, Input::Neutral);
     }
     press_action(state, map)
+}
+
+/// A roster record a scene can write to.
+pub fn stats() -> Stats {
+    Stats {
+        name_bytes: [0; 6],
+        profession: 0,
+        level: 1,
+        experience: 0,
+        curr_hp: 20,
+        max_hp: 25,
+        curr_tp: 10,
+        max_tp: 10,
+        status: 0,
+        strength: StatTriple::uniform(8),
+        mental: StatTriple::uniform(6),
+        agility: StatTriple::uniform(7),
+        dexterity: StatTriple::uniform(5),
+        attack: StatPair::default(),
+        defence: StatPair::default(),
+        mental_defence: StatPair::default(),
+        element_props: [0; 14],
+        element_shadow: [0; 14],
+        equipment: [0; 4],
+        techniques: [0; 16],
+        skills: [1, 2, 3, 4, 0, 0, 0, 0],
+        curr_skill_uses: [0; 8],
+        max_skill_uses: [0; 8],
+        enemy_id: 0,
+        gain_exp_flag: false,
+        weapon_elements: Default::default(),
+        physical_prop_save: 0,
+    }
 }

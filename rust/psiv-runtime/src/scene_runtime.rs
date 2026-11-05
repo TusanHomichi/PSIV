@@ -247,33 +247,29 @@ impl Runtime {
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
-        let Some(runner) = self.scene.as_mut() else {
+        let Some(effects) = self.step_scene(|runner, map, game, probe| {
+            runner.tick_with(map, game, scene_input, Some(probe))
+        }) else {
             return events;
         };
-        // The live layout a belt op reads (`GetChunkAndCollision`), read off
-        // the runtime's own fields so the runner can borrow `game` mutably.
-        let record = self.data.map(psiv_data::MapId(self.map.id().0));
-        let live = &self.effects;
-        let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
-        let effects = runner.tick_with(&self.map, &mut self.game, scene_input, Some(&probe));
-        let mut finished = runner.is_finished();
+        let mut finished = self.scene.as_ref().is_some_and(|r| r.is_finished());
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
         }
         // A pan with no distance to go costs the cartridge no frame: the scene
         // runs on within this one. Every other camera wait starts a glide.
         while self.camera_glide.is_none()
-            && let Some(runner) = self
+            && self
                 .scene
-                .as_mut()
-                .filter(|runner| runner.is_waiting_for_camera())
+                .as_ref()
+                .is_some_and(|r| r.is_waiting_for_camera())
         {
-            let record = self.data.map(psiv_data::MapId(self.map.id().0));
-            let live = &self.effects;
-            let probe =
-                |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
-            let effects = runner.release_empty_pan(&self.map, &mut self.game, Some(&probe));
-            finished = runner.is_finished();
+            let effects = self
+                .step_scene(|runner, map, game, probe| {
+                    runner.release_empty_pan(map, game, Some(probe))
+                })
+                .unwrap_or_default();
+            finished = self.scene.as_ref().is_some_and(|r| r.is_finished());
             for effect in effects {
                 self.translate_scene_effect(effect, &mut events);
             }
