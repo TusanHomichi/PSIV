@@ -124,8 +124,17 @@ impl Inventory {
     /// this; ordinary "do we own it" questions keep using `contains`.
     #[must_use]
     pub fn get_item(&self, item: u8) -> bool {
+        self.find_item(item).is_some()
+    }
+
+    /// The slot `GetItem` leaves in `a0`: the first `item` inside the same
+    /// count-limited window as [`Inventory::get_item`], or `None`. A caller
+    /// removing items through `GetItem` asks again after each removal, since
+    /// the removal narrows the window.
+    #[must_use]
+    pub fn find_item(&self, item: u8) -> Option<usize> {
         let count = self.occupied();
-        self.slots[..count].contains(&item)
+        self.slots[..count].iter().position(|&id| id == item)
     }
 
     /// Puts `item` in the first free slot and returns which one.
@@ -171,27 +180,6 @@ impl Inventory {
         Some(removed)
     }
 
-    /// `GetItem` / `clr.b (a0)` / `ReorderInventory` until `GetItem` misses
-    /// (`Event_Pennant`, `ps4.asm:153325-153331`): every copy of `item` goes.
-    /// `GetItem` (`ps4.asm:121975`) counts the occupied slots and searches only
-    /// that many from the front, so a copy behind more holes than items ahead
-    /// of it is not seen. Returns how many were removed.
-    pub fn remove_every_in_field(&mut self, item: u8) -> usize {
-        let mut removed = 0;
-        loop {
-            let held = self.slots.iter().filter(|&&id| id != EMPTY).count();
-            let Some(slot) = self.slots[..held].iter().position(|&id| id == item) else {
-                return removed;
-            };
-            self.slots[slot] = EMPTY;
-            if let Some(hole) = self.slots.iter().position(|id| *id == EMPTY) {
-                self.slots.copy_within(hole + 1..INVENTORY_SLOTS, hole);
-                self.slots[INVENTORY_SLOTS - 1] = EMPTY;
-            }
-            removed += 1;
-        }
-    }
-
     /// Closes holes from left to right.
     ///
     /// This is not the normal inventory-removal operation. It is the private
@@ -233,31 +221,6 @@ impl Inventory {
 
 #[cfg(test)]
 mod tests {
-
-    #[test]
-    fn remove_every_in_field_takes_every_copy_getitem_sees() {
-        let mut inv = Inventory::default();
-        for item in [0x94, 0x10, 0x94, 0x11] {
-            inv.add(item).unwrap();
-        }
-        assert_eq!(inv.remove_every_in_field(0x94), 2);
-        assert_eq!(&inv.slots()[..3], &[0x10, 0x11, EMPTY]);
-        assert_eq!(inv.remove_every_in_field(0x94), 0, "none left");
-    }
-
-    /// Negative control for the counted search: one item ahead and the copy
-    /// behind two holes sits past the first slot, outside `GetItem`'s count.
-    #[test]
-    fn remove_every_in_field_misses_a_copy_past_the_count() {
-        let mut inv = Inventory::default();
-        for item in [0x10, 0x20, 0x30, 0x94] {
-            inv.add(item).unwrap();
-        }
-        inv.remove(1);
-        inv.remove(2);
-        assert_eq!(inv.remove_every_in_field(0x94), 0);
-        assert_eq!(inv.slots()[3], 0x94);
-    }
     use super::*;
 
     #[test]
@@ -320,6 +283,20 @@ mod tests {
         assert_eq!(dropped, 8, "slot 7 held item 8");
         assert_eq!(inventory.get(7), Some(0x7D));
         assert!(inventory.is_full(), "still forty items");
+    }
+
+    #[test]
+    fn find_item_scans_only_the_occupied_count() {
+        let mut list = Inventory::new();
+        assert_eq!(list.find_item(0x91), None, "an empty list has no window");
+        list.add(0x91).unwrap();
+        assert_eq!(list.find_item(0x91), Some(0));
+        let mut slots = [EMPTY; INVENTORY_SLOTS];
+        slots[1..3].copy_from_slice(&[0x01, 0x91]);
+        let holed = Inventory::from_slots(slots);
+        assert_eq!(holed.find_item(0x91), None, "past a two-byte window");
+        assert!(holed.contains(0x91), "which `contains` does not limit");
+        assert_eq!(holed.find_item(0x01), Some(1));
     }
 
     #[test]

@@ -9,7 +9,7 @@
 //! `docs/scenes/203_HomeDecor.md`.
 
 use crate::geom::Direction;
-use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{DialogueId, DialogueSource, DialogueWindow, RockyOp, SceneOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -32,7 +32,7 @@ pub static PENNANT: Scene = Scene {
             window: DialogueWindow::Standard,
         },
         // `ItemID_Pennant`.
-        SceneOp::RemoveItemsInField(0x94),
+        SceneOp::Rocky(RockyOp::RemoveAll { item: 0x94 }),
         SceneOp::FadeOut,
         // `TempEveFlag_Pennant`.
         SceneOp::SetFlag {
@@ -64,7 +64,7 @@ pub static WOOD_CARVING: Scene = Scene {
             window: DialogueWindow::Standard,
         },
         // `ItemID_WoodCarvin`.
-        SceneOp::RemoveItemsInField(0x95),
+        SceneOp::Rocky(RockyOp::RemoveAll { item: 0x95 }),
         SceneOp::FadeOut,
         // `TempEveFlag_WoodCarving`.
         SceneOp::SetFlag {

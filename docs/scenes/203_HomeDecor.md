@@ -29,7 +29,7 @@ The two bodies differ only in the entry, item, flag and start position.
 | Op | Pennant | Wood Carving | Retail primitive | Scene record |
 |---:|---|---|---|---|
 | 0 | `$0736EA..$0736F1` | `$073754..$07375B` | `moveq #$64` / `#$66`, `jsr Event_GetAndRunDialogue` | standard `RunDialogue` |
-| 1 | `$0736F2..$073707` | `$07375C..$073771` | `GetItem` of `$94` / `$95`; found: `clr.b (a0)`, `ReorderInventory`, again | `RemoveItemsInField` |
+| 1 | `$0736F2..$073707` | `$07375C..$073771` | `GetItem` of `$94` / `$95`; found: `clr.b (a0)`, `ReorderInventory`, again | `Rocky(RemoveAll)` |
 | 2 | `$073708..$07370D` | `$073772..$073777` | `jsr PalFadeOut_ClrSpriteTbl` | `FadeOut` |
 | 3 | `$07370E..$073715` | `$073778..$07377F` | `moveq #$1C` / `#$1D`, `jsr TempEveFlags_Set` | `SetFlag` temp |
 | 4 | `$073716..$07371D` | `$073780..$073787` | `SFXID_Souvenir` (`$F1`) to `Sound_Index` | `PlaySound` |
@@ -39,8 +39,9 @@ The two bodies differ only in the entry, item, flag and start position.
 **The removal loop.** `GetItem` (`ps4.asm:121975`) counts the occupied inventory slots and searches
 only that many from the front; `ReorderInventory` (`ps4.asm:124264`) shifts everything after the
 first hole left by one. Run until `GetItem` misses, that takes every copy the counted search can see.
-`SceneOp::RemoveItemsInField` is that loop (`Inventory::remove_every_in_field`), a new op because
-no existing one repeats a removal; its tests include the case where a copy sits past the count.
+`RockyOp::RemoveAll` is that loop (`Inventory::find_item` asked again after each
+`remove_in_field`); `Event_CatchingRocky` (#287) runs the same one, so these scenes use its op
+rather than a second.
 
 ## Verification
 

@@ -172,7 +172,6 @@ impl Field {
             | SceneOp::RecoverStats
             | SceneOp::SwapCharSlots { .. }
             | SceneOp::RemoveItem { .. }
-            | SceneOp::RemoveItemsInField(_)
             // Control flow is the runner's; a drift is drawn from the runtime's
             // per-frame NPC positions (`NpcPixelPosition`), not animated here.
             | SceneOp::BranchIfActorCoord { .. }
