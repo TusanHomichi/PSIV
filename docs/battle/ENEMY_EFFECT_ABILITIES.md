@@ -631,12 +631,14 @@ round's draw count.
 ### A sealed caster, and DTHSPELL on 112 Illusionst (party-script captures, `enemy_scripted/`)
 
 Both are `python3 -m oracle.sweep.player_capture` recipes over tape 07's
-party at 999 HP.
+party at 999 HP; DTHSPELL's is the `oracle.force` command the driver records
+in its `commands.jsonl`, rerun with `--delay 2` (the undelayed fight rolls
+`$52`, not DTHSPELL).
 
 | fixture | rounds | observed use |
 |---|---:|---|
 | `enemy_scripted/sealed_techmaster.json` | 2 | formation `$110` (two TechMaster); Alys (agility and mental 255) casts SEALS at f25013 and both casters' status goes `$00` → `$10`; then fighter 7 FOI (f25191), fighter 6 FOI (f25286), fighter 6 `$40` (f25504) and fighter 7 FOI (f25549) each end with no damage word and no cell moving |
-| `enemy_scripted/dthspell_illusionst_d2.json` | 1 | formation `$1BC` (one Illusionst), `delay` 2, the party defending; fighter 6 DTHSPELL at f24865, two rolls, Alys 999 → 0 |
+| `enemy_scripted/dthspell_illusionst_d2.json` | 1 | formation `$1BC` (one Illusionst), `--delay 2`, the party defending; fighter 6 DTHSPELL at f24865, two rolls, Alys 999 → 0 |
 
 ### Cartridge findings from the captures
 
