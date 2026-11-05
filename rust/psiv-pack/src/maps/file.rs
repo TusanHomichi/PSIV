@@ -369,7 +369,8 @@ fn update_palette(rom: &[u8], pointer: usize) -> Result<Vec<u16>, PackError> {
     Ok(words)
 }
 
-/// The file, and the warp anomalies the manifest reports.
+/// The file, the warp anomalies the manifest reports, and the typed record
+/// (the shops read its objects and collision).
 pub fn map_file(
     rom: &[u8],
     record: &MapRecord,
@@ -377,7 +378,7 @@ pub fn map_file(
     pictures: &Pictures,
     sprites: &MapSprites,
     programs: &[Json],
-) -> Result<(Json, Vec<Json>), PackError> {
+) -> Result<(Json, Vec<Json>, MapFile), PackError> {
     let decoded: &MapLayout = section.layout();
     let grid = &decoded.collision;
     let layout = decoded.collision_layout();
@@ -516,7 +517,7 @@ pub fn map_file(
     if let Some(tiles) = &pictures.patch_tiles {
         out.insert("patch_tiles", tiles.clone());
     }
-    Ok((out, anomalies))
+    Ok((out, anomalies, file))
 }
 
 #[cfg(test)]

@@ -87,6 +87,20 @@ impl GameData {
                 &data.manifest.rom.sha256,
             )?);
         }
+        // Required as the guild's is: an older pack has no fifth-member table.
+        let Some(file) = &data.manifest.fifth else {
+            return Err(DataError::ManifestMismatch {
+                path: pack_dir.join("manifest.json"),
+                field: "fifth",
+                manifest: "absent; rebuild the pack".into(),
+                record: "fifth/fifth.json".into(),
+            });
+        };
+        data.fifth = Some(crate::FifthTable::load(
+            pack_dir,
+            file,
+            &data.manifest.rom.sha256,
+        )?);
         if let Some(file) = &data.manifest.ship_menu {
             data.ship_menu = Some(crate::ShipMenu::load(
                 pack_dir,

@@ -59,6 +59,7 @@ pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod esper_events;
 mod field_reload;
+pub mod fifth_character;
 mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;
@@ -295,9 +296,13 @@ pub static SCENES: &[Scene] = &[
     late_arc::RAJA_SICK,
     late_arc::RUNE_HEALING_CHAZ,
     late_arc::HIJAMMER,
+    fifth_character::PICKING_FIFTH_CHARACTER,
     motavia_side::LOST_GIRLS_MOTHER,
     motavia_side::KING_RAPPY_DEFEATED,
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
+    motavia_side::DYING_BOY_FATHER,
+    motavia_side::FATHER_AFTER_BOY_RECOVERY,
+    motavia_side::MEETING_SEKREAS,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
     wreckage::WRECKAGE_ENGINE,
@@ -442,6 +447,7 @@ mod tests {
             ("Event_RajaSick", 11),
             ("Event_RuneHealingChaz", 17),
             ("Event_Hijammer", 14),
+            ("Event_PickingFifthCharacter", 15),
             ("Event_GaruberkTwDoorOpening1", 19),
             ("Event_GaruberkTwDoorOpening2", 19),
             ("Event_GaruberkTwDoorEntered1", 21),
@@ -539,6 +545,9 @@ mod tests {
             ("Event_MissingStudentFound", 29),
             ("Event_OldManNearMissingStudent", 6),
             ("Event_MissingStudentInBed", 14),
+            ("Event_DyingBoyFather", 3),
+            ("Event_FatherAfterBoyRecovery", 3),
+            ("Event_MeetingSekreas", 3),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),

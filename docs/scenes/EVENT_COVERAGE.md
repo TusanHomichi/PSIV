@@ -149,7 +149,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0065` | `Event_SaLewsDefeated` | map trigger $4C | CourageTower_F4 | scene `Event_SaLewsDefeated` |
 | `$0066` | `Event_HuntersGuild` | interaction area $09 | HuntersGuild | scene `Event_HuntersGuild` |
 | `$0067` | `Event_RuneHealingChaz` | dialogue `$F6` | tree 20 entry 55 | scene `Event_RuneHealingChaz` |
-| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | allowlisted, #83 |
+| `$0068` | `Event_PickingFifthCharacter` | dialogue `$F6` | tree 39 entry 25 | scene `Event_PickingFifthCharacter` |
 | `$0069` | `Event_AngerTowerTop` | map trigger $51 | AngerTower_F1 | scene `Event_AngerTowerTop` |
 | `$006A` | `Event_AngerTowerExitTop` | map trigger $52 | AngerTower_F2 | scene `Event_AngerTowerExitTop` |
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
@@ -177,10 +177,10 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0081` | `Event_GirlsBail` | dialogue `$F6` | tree 11 entry 79 | scene `Event_GirlsBail` |
 | `$0082` | `Event_PayingGirlsBail` | dialogue `$F6` | tree 11 entry 96 | scene `Event_PayingGirlsBail` |
 | `$0083` | `Event_GirlsBailedOut` | dialogue `$F6` | tree 11 entry 91 | scene `Event_GirlsBailedOut` |
-| `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | allowlisted, #81 |
-| `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | allowlisted, #81 |
+| `$0084` | `Event_DyingBoyFather` | dialogue `$F6` | tree 24 entry 41 | scene `Event_DyingBoyFather` |
+| `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | scene `Event_FatherAfterBoyRecovery` |
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
-| `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | allowlisted, #81 |
+| `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | scene `Event_MeetingSekreas` |
 | `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | scene `Event_KingRappyDefeated` |
 | `$008A` | `Event_ZemaServantBattle` | map trigger $74 | Zema | scene `Event_ZemaServantBattle` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 7 |
+| #81 | Motavia side content | 4 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
-| #83 | Dezolis late arc | 1 |
-| | total | 8 |
+| #83 | Dezolis late arc | 0 |
+| | total | 4 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
