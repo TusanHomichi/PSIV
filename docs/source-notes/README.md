@@ -221,6 +221,34 @@ agility and dexterity, and enemy paralysis clearing each turn.
     his place. Drawing it needs the art staged for `CulversHouse`
     ([#329](https://github.com/TusanHomichi/PSIV/issues/329) owns scene-built objects).
 
+- `Event_WreckageEngine`'s swap and palette (`$29`, `$06DBE8..$06DE7B`, `ps4.asm:147172-147370`,
+  [record](../scenes/206_WreckageEngine.md)). Four differences, kept on purpose:
+  - **Rika absent, at both branches.** Both `FindCharacterSlot(5)` / `tst.b d1` / `beq` tests
+    (to `loc_6DCB2` before the reading, to `loc_6DE58` after it) branch only when Rika leads.
+    Without Rika, `d1` is `-1`, so the cartridge takes the swap path at each: the first stores
+    `lsl.w #6` of it (`$FFC0`) in `$FFFFECD0`, both walk the object `$40` bytes before
+    `Character_1` alongside the leader, the first turns that object up, and the second turns the
+    leader up and pans the camera back to him. The port's `WreckageOp::BranchIfLeads` takes
+    `if_leads` when Rika is absent, as when she leads: no swap and no `Face` either time, and no
+    pan back. Rika is in the party whenever the Wreckage is reachable, so no campaign reaches this.
+  - **The swap's pace.** `loc_6DE7C` runs `Field_UpdateObjects` and a `VInt_Prepare` a frame at a
+    time, with `Joypad_Held` cleared, until the leader's `$30`/`$34` reach its `$38`/`$3A`. The
+    port's `MoveActorOffset` / `MoveActorToActorAxis` legs, each ended by `WaitForActor` on the
+    leader, walk at the scene runner's step pace. The leader and Rika end on each other's cells in
+    both; how many frames each leg takes was not measured on the cartridge, so the frames from the
+    first text to the resumed one, and the RNG and frame phase after them, may differ by up to the
+    difference in pace over the three legs, each way.
+  - **The facing frames.** `Event_UpdateObjFacing` (`$05A936`) ends in a `VInt_Prepare` in the US
+    build; the port's `Face` takes none. The scene turns Rika after the swap and the leader after
+    the swap back, so it is two frames shorter (none when Rika leads), with the same drift as
+    `Event_MonsenEarthquake`'s above.
+  - **The palette words are logged, not drawn.** The cartridge adds `$220` to
+    `Palette_Table_Buffer+$1A` four times, eight frames apart (`loc_6DD6C`), and `loc_6DE58` writes
+    `$620` and `$2CE` to `Palette_Table_Buffer+$7C`/`+$7E`. The port keeps each as a
+    `PresentationOp` (`AddPaletteWord`, `SetPaletteWords`), with every wait between them, and the
+    Godot renderer only logs them: the screens do not brighten and those two words keep the map's
+    own colours until the palette is next loaded. No state reads them.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

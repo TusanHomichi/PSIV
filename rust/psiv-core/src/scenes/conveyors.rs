@@ -3,13 +3,13 @@
 //! `RunEvent_VahFortConveyorBelt` and `RunEvent_WpnPlntConveyorBelt` pick one
 //! of these four events from where the leader stands and the terminals' temp
 //! flags (`trigger_custom.rs`); each is the same carry loop with one direction
-//! and one chunk range, which `SceneOp::ConveyorRide` is. Records are
+//! and one chunk range, which `RideOp::Conveyor` is. Records are
 //! `docs/field/PLATFORMS_AND_BELTS.md`; the bodies were read from the US
 //! image through `EventPtrs[$1D..$20]` (`$06CE5C..$06D37B`).
 
 use super::vahal_common::{SFX_CONVEYOR_BELT, SOUND_STOP_SFX, sound};
 use crate::geom::Direction;
-use crate::scene::SceneOp;
+use crate::scene::{RideOp, SceneOp};
 use crate::scene_runner::Scene;
 use crate::trigger::EventIndex;
 
@@ -28,11 +28,11 @@ const fn belt(direction: Direction, chunks: (u8, u8)) -> [SceneOp; 6] {
     [
         SceneOp::SetStepOffset { value: 0 },
         sound(SFX_CONVEYOR_BELT),
-        SceneOp::ConveyorRide {
+        SceneOp::Ride(RideOp::Conveyor {
             direction,
             first_chunk: chunks.0,
             last_chunk: chunks.1,
-        },
+        }),
         SceneOp::OverlapCharacters,
         SceneOp::SetStepOffset { value: 1 },
         sound(SOUND_STOP_SFX),

@@ -163,6 +163,34 @@ pub enum GuildOp {
     AddReward,
 }
 
+/// The party carried by the map rather than walking: a moving platform or a
+/// conveyor belt ([`crate::SceneOp::Ride`]). The rules are at
+/// `scene_runner/mechanics.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RideOp {
+    /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
+    /// siblings). Blocks for `frames` ticks.
+    Platform {
+        /// The temporary platform object's slot (`Field_LoadObject`'s first
+        /// free one).
+        slot: usize,
+        /// Signed 16.16 pixels per frame.
+        step_y: i32,
+        /// Loop iterations.
+        frames: u16,
+    },
+    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`, and
+    /// its three siblings). Blocks until the leader arrives.
+    Conveyor {
+        /// The belt's direction.
+        direction: Direction,
+        /// Lowest chunk id the belt covers (`cmpi.b #$A8, d7`).
+        first_chunk: u8,
+        /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
+        last_chunk: u8,
+    },
+}
+
 /// What `Event_CatchingRocky` (`scenes/rocky.rs`) needs that no other scene
 /// has: the dog is caught by holding an item, and runs at his own pace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -192,6 +220,29 @@ pub enum RockyOp {
         /// Who runs.
         actor: ActorRef,
     },
+}
+
+/// What `Event_WreckageEngine` (`scenes/wreckage.rs`) needs that no other
+/// scene has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WreckageOp {
+    /// `FindCharacterSlot(who)`, `tst.b d1`, `beq`: jump to `if_leads` when
+    /// `who` holds slot 0. `if_follows` when they hold slots 1 to 4. Not in
+    /// the party, `d1` is `-1` and the cartridge goes on with object `-1`; the
+    /// port takes `if_leads`, skipping the moves, and says so in the record.
+    BranchIfLeads {
+        /// The character asked about.
+        who: CharId,
+        /// Op index when `who` leads, or is absent.
+        if_leads: u16,
+        /// Op index when `who` follows.
+        if_follows: u16,
+    },
+    /// `popdlg` then `loc_6DCBE`: the first `Current_Party_Slots` byte that
+    /// is neither Rika (5) nor Chaz (0), plus one, written to `$1(a0)`, the
+    /// operand of the `$F4` the saved text resumes on. An empty slot reads
+    /// `$FF`, so the write is `0`: no portrait.
+    ResumePortraitFromParty,
 }
 
 /// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).
@@ -405,6 +456,12 @@ pub enum SceneEffect {
         /// The world.
         world: u8,
     },
+    /// The saved text's next `$F4` operand was overwritten
+    /// ([`WreckageOp::ResumePortraitFromParty`]).
+    ResumePortrait {
+        /// The portrait id written, `0` for none.
+        portrait: u8,
+    },
     /// The scene ended.
     Finished,
     /// The scene could not continue.
@@ -442,7 +499,7 @@ pub enum SceneFault {
         /// `World_Index` at the request.
         world: u8,
     },
-    /// A [`SceneOp::ConveyorRide`] reached the end of the map's chunk plane
+    /// A [`RideOp::Conveyor`] reached the end of the map's chunk plane
     /// (or ran with no layout to read) before the belt's chunks ended.
     NoLayout,
 }
