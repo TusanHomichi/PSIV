@@ -1,0 +1,101 @@
+{
+  "conary": "note v1",
+  "change": "7am52amn6ynh46z93mzm3h458n",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 338,
+  "url": "https://github.com/tusanhomichi/psiv/pull/338",
+  "summary": "scenes: the Alis Sword cures the dying boy ($86)",
+  "task": "tusanhomichi/psiv#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "1dcb128ebc1e5c8460f9f53f137fbcaba0e8f1d07ff627705db9d37dab60c2e3",
+    "before": "8f4e2a6ba6ca7556ea54b06707b0a1add0d87608",
+    "after": "2aff1964cde122bf688a1561040d7e5f8ee616c4",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793915297788
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098705485/job/127495485287"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098705485/job/127495484468"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312/job/127495478490"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#338)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#338)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#338)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#338)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#338)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098704312"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098705485/job/127495535170"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/338#pullrequestreview-5791280689"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42098705485/job/127495484990"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/338"
+    }
+  ]
+}
