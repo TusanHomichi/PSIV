@@ -140,6 +140,23 @@ fn exactly_the_bail_is_enough() {
 }
 
 #[test]
+fn a_purse_past_the_sign_bit_is_short_as_bmi_reads_it() {
+    // `$8000C350 - 50000` is `$80000000`: `bmi` takes it, though the purse
+    // holds more than the bail. The keeper's unsigned `bcc` reads it the other way.
+    // `$7F` stays clear, so the entry takes its short text, which ends on `$35`.
+    let (state, _) = bail(
+        0x8000_C350,
+        Answers {
+            yes: true,
+            last_byte: Some(0x35),
+        },
+    );
+    assert!(!set(0x7F, &state), "bmi read the purse as short");
+    assert!(!set(0x7C, &state));
+    assert_eq!(state.money(), 0x8000_C350);
+}
+
+#[test]
 fn a_short_purse_clears_7f() {
     let (state, _) = bail(
         49_999,

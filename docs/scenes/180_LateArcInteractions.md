@@ -8,8 +8,8 @@ places.
 |---|---|---|---|
 | `$0049` `Event_MuskCatsGuarding` | `$07069E..$0706BF` | `$F6`, entry 48 of tree 17: both `MuskCatGuard`s on `MystVale_Part2` `$159` | `late_arc.rs`, `MUSK_CATS_GUARDING` (4 ops) |
 | `$004A` `Event_MuskCatElder` | `$0706C0..$070701` | `$F6`, entry 44 of tree 17 (after its `$FA $91 $03`): the chief and his two invisible blocks on `MystVale_Part5` `$15C` | `MUSK_CAT_ELDER` (6 ops) |
-| `$004B` `Event_PenguinOwner` | `$070702..$070773` | `$F6`, entry 17 of tree 17: object 16 of `Zosa` `$126` | `PENGUIN_OWNER` (11 ops) |
-| `$005B` `Event_RajaSick` | `$070C30..$070C81` | `$F6`, entry 101 of tree 18: `RajaInBed` and two invisible blocks on `MeeseClinic_F1` `$134` | `RAJA_SICK` (10 ops) |
+| `$004B` `Event_PenguinOwner` | `$070702..$070773` | `$F6`, entry 17 of tree 17: object 16 of `Zosa` `$126` | `PENGUIN_OWNER` (12 ops) |
+| `$005B` `Event_RajaSick` | `$070C30..$070C81` | `$F6`, entry 101 of tree 18: `RajaInBed` and two invisible blocks on `MeeseClinic_F1` `$134` | `RAJA_SICK` (11 ops) |
 | `$0067` `Event_RuneHealingChaz` | `$071E56..$071E65` | `$F6`, entry 55 of tree 20: `NPCRune` on `InnerSanctuary_B1` `$16F` | `RUNE_HEALING_CHAZ` (17 ops) |
 | `$006D` `Event_Hijammer` | `$072428..$0724A3` | interaction area `$0D`, the first chest of `Kuran_F1_Part2` `$193`, gated on chest flag `$5E` | `HIJAMMER` (14 ops) |
 
@@ -45,17 +45,22 @@ entry 44's `$FA $91 $03` reads: a second talk reads entry `$2F` and never reache
 
 | Ops | ROM | Retail | Scene |
 |---:|---|---|---|
-| 0 | `$070702..$070715` | `lea $FFFFC700, a4`, the leader's facing, `bchg #2`, `Event_UpdateObjFacing` | `FaceOppositeOf` object 16 |
-| 1-4 | `$070716..$070737` | `cmpi.l #500, (Current_Money).w / bcc.s`: below it sets `EventFlag_PenguinNoMoney` `$8C`, otherwise clears it | `BranchIfMoneyBelow`, `SetFlag`, `SkipOps`, `SetFlag` |
-| 5 | `$070738..$07073F` | `moveq #$12, d0 / jsr Event_GetAndRunDialogue` | `standard($12)` |
-| 6 | `$070740..$070745` | `tst.b (Yes_No_Option).w / bne.s` | `BranchChoice` |
-| 7 | `$070746..$070757` | `popdlg / cmpi.b #$3A, -$2(a0) / bne.s` | `BranchIfSavedDialogueByte`, `Last`, `$3A` |
-| 8-10 | `$070758..$070771` | `subi.l #500`, `move.b #$15, $14(a0)`, `EventFlag_Penguin` `$8A` | `SubtractMoney`, `SetNpcDialogue`, `SetFlag` |
+| 0-1 | `$070702..$070715` | `lea $FFFFC700, a4`, the leader's facing, `bchg #2`, `Event_UpdateObjFacing` | `FaceOppositeOf` object 16, `WaitFrames` 1 |
+| 2-5 | `$070716..$070737` | `cmpi.l #500, (Current_Money).w / bcc.s`: below it sets `EventFlag_PenguinNoMoney` `$8C`, otherwise clears it | `BranchIfMoneyBelow` `Unsigned`, `SetFlag`, `SkipOps`, `SetFlag` |
+| 6 | `$070738..$07073F` | `moveq #$12, d0 / jsr Event_GetAndRunDialogue` | `standard($12)` |
+| 7 | `$070740..$070745` | `tst.b (Yes_No_Option).w / bne.s` | `BranchChoice` |
+| 8 | `$070746..$070757` | `popdlg / cmpi.b #$3A, -$2(a0) / bne.s` | `BranchIfSavedDialogueByte`, `Last`, `$3A` |
+| 9-11 | `$070758..$070771` | `subi.l #500`, `move.b #$15, $14(a0)`, `EventFlag_Penguin` `$8A` | `SubtractMoney`, `SetNpcDialogue`, `SetFlag` |
+
+US retail's `Event_UpdateObjFacing` ends in `jsr VInt_Prepare` (`$05A972`): one frame that runs no
+map update but whose VInt stirs the seed and counts `Main_Frame_Count`. The port's facing ops take no
+frame (#164), so both of this record's turns, the keeper's and Raja's, are followed by `WaitFrames` 1,
+and neither scene is a frame short.
 
 The entry does the choosing: its `$F5` takes NO to the entry two on, and its `$FA $8C` takes a short
 YES to the next. Only the paid YES ends on `!` (`$3A`), and that byte is what the routine reads.
-`bcc` is unsigned where `BranchIfMoneyBelow` reads the sign of the difference; they differ only for a
-purse of `$80000000` or more.
+`bcc` is unsigned, so the op runs `MoneyTest::Unsigned`: a purse of `$800001F4` covers the fee, where
+the bail scene's `bmi` (`MoneyTest::SignOfDifference`) would call it short.
 
 `EventFlag_Penguin` is what `FieldObj_FellowPenguin` waits on (`ps4.asm:98848`): object 10 follows the
 party's last member (`BespokeKind::FlaggedFollow`). Its first frame on a load clears the flag, so leaving
@@ -63,9 +68,10 @@ town or going indoors loses the penguin and the 500 meseta with it.
 
 ### `Event_RajaSick`
 
-The object at `$FFFFC400` turns to the leader. `EventFlag_DarkForce2` `$9E` set: entry `$60`. Clear:
+The object at `$FFFFC400` turns to the leader, which spends the facing's frame. `EventFlag_DarkForce2` `$9E` set: entry `$60`. Clear:
 `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0` picks `$5E` on 0, `$5F` on 1 and `$5D` on 2 or 3.
-The test comes before the draw, so after Dark Force 2 the talk leaves the stream alone.
+The test comes before the draw, so after Dark Force 2 the talk leaves the stream alone. The draw comes
+after the facing frame's VInt and the next frame's, as on the cartridge.
 
 `BranchOnRngLow2` is new. The draw is one `Lcg41::step` of the runtime's own stream
 (`rust/psiv-core/src/battle/rng.rs`), the stream every other consumer reads, taken within the frame

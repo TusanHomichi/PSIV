@@ -18,8 +18,8 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, ItemOp,
-    JobBoardStep, OP_BUDGET_PER_TICK, ObjectOp, RockyOp, SavedByte, SceneEffect, SceneFault,
-    SceneInput,
+    JobBoardStep, MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RockyOp, SavedByte, SceneEffect,
+    SceneFault, SceneInput,
 };
 
 /// One instruction of a scene.
@@ -582,13 +582,13 @@ pub enum SceneOp {
         /// How much.
         amount: u32,
     },
-    /// Branch on the purse against a literal: `move.l (Current_Money).w, d0 /
-    /// subi.l #amount, d0 / bmi` (`Event_PayingGirlsBail`, `$072C82`): the
-    /// branch reads the sign bit of the longword difference, which for any
-    /// purse below `$80000000` is a below-the-literal test.
+    /// Branch on the purse being below a literal, by the caller's own retail
+    /// compare ([`MoneyTest`]).
     BranchIfMoneyBelow {
         /// The literal.
         amount: u32,
+        /// The compare the cartridge runs.
+        test: MoneyTest,
         /// Op index taken when the difference is negative.
         if_below: usize,
         /// Op index taken otherwise.

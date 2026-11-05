@@ -122,12 +122,53 @@ fn a_full_bag_keeps_the_tusk_with_the_elder() {
     assert!(state.is_clear(SILVER_TUSK), "he offers it again");
 }
 
+impl Play {
+    /// One frame the way the runtime runs it: the VInt's `UpdateRNGSeed` steps
+    /// the field stream first, then the runner ticks with the stream lent.
+    fn frame(&mut self, state: &mut GameState, rng: &mut Lcg41, input: SceneInput) {
+        let map = map_with(&["....", "....", "....", "...."], vec![], vec![]);
+        rng.step();
+        self.runner.lend_rng(rng.clone());
+        self.log.extend(self.runner.tick(&map, state, input));
+        *rng = self.runner.take_rng().expect("the stream comes back");
+    }
+
+    /// `Event_UpdateObjFacing`'s `VInt_Prepare`: the first frame turns `npc`
+    /// to the leader and then waits, with no map update and nothing else run.
+    fn assert_facing_frame(&mut self, state: &mut GameState, npc: usize) {
+        let before = state.clone();
+        let mut rng = Lcg41::new(1);
+        let mut after = rng.clone();
+        after.step();
+        self.frame(state, &mut rng, SceneInput::None);
+        assert_eq!(
+            self.log,
+            vec![
+                SceneEffect::ActorFaced {
+                    actor: ActorRef::Npc(npc),
+                    facing: Direction::Down,
+                },
+                SceneEffect::Presentation {
+                    op: SceneOp::WaitFrames { frames: 1 },
+                },
+            ],
+            "the facing frame"
+        );
+        assert_eq!(rng, after, "only the VInt stirs the seed");
+        assert!(!self.runner.runs_map_updates(), "no RunMapUpdates");
+        assert!(!self.runner.is_finished());
+        assert_eq!(*state, before, "nothing written on the facing frame");
+        self.log.clear();
+    }
+}
+
 /// Entry `$12`'s question: runs the scene to the prompt, answers, and has the
-/// text end on `last_byte`.
+/// text end on `last_byte`. Every purse and answer passes the facing frame.
 fn penguin(money: u32, yes: bool, last_byte: u8) -> (GameState, Play) {
     let mut state = GameState::new();
     state.set_money(money);
     let mut play = Play::new(0x4B);
+    play.assert_facing_frame(&mut state, 16);
     play.run(&mut state, SceneInput::None);
     assert_eq!(play.dialogues(), vec![0x12]);
     play.runner.set_dialogue_last_byte(Some(last_byte));
@@ -147,10 +188,6 @@ fn the_keeper_takes_the_fee_on_a_yes_with_the_money() {
         npc_index: 16,
         dialogue_id: 0x15,
     }));
-    assert!(play.log.contains(&SceneEffect::ActorFaced {
-        actor: ActorRef::Npc(16),
-        facing: Direction::Down,
-    }));
 }
 
 #[test]
@@ -158,6 +195,26 @@ fn a_short_purse_raises_the_flag_the_entry_reads_and_pays_nothing() {
     let (state, _) = penguin(499, true, b'.');
     assert_eq!(state.money(), 499);
     assert!(state.is_set(PENGUIN_NO_MONEY));
+    assert!(state.is_clear(PENGUIN));
+}
+
+#[test]
+fn the_keeper_compares_the_purse_unsigned() {
+    // `cmpi.l #500 / bcc`: a purse past the sign bit covers the fee, where the
+    // bail scene's `bmi` on the difference would call `$800001F4` short.
+    for money in [0x8000_01F4, 0x8000_0000, u32::MAX] {
+        let (state, _) = penguin(money, true, 0x3A);
+        assert!(state.is_clear(PENGUIN_NO_MONEY), "{money:#X}");
+        assert!(state.is_set(PENGUIN), "{money:#X}");
+        assert_eq!(state.money(), money - 500);
+    }
+}
+
+#[test]
+fn a_purse_past_the_sign_bit_that_says_no_keeps_its_money() {
+    let (state, _) = penguin(0x8000_01F4, false, 0x3A);
+    assert_eq!(state.money(), 0x8000_01F4);
+    assert!(state.is_clear(PENGUIN_NO_MONEY));
     assert!(state.is_clear(PENGUIN));
 }
 
@@ -204,6 +261,55 @@ fn raja_draws_his_line_from_the_low_two_bits() {
             actor: ActorRef::Npc(4),
             facing: Direction::Down,
         }));
+    }
+}
+
+/// The seed whose draw after `vints` field-stream steps has `low2` as its low
+/// two bits, and whose draw after one VInt fewer does not.
+fn seed_drawing_after(vints: usize, low2: u16) -> Lcg41 {
+    let draw = |rng: &Lcg41, steps: usize| {
+        let mut rng = rng.clone();
+        for _ in 0..steps {
+            rng.step();
+        }
+        rng.step() & 3
+    };
+    (1..)
+        .map(Lcg41::new)
+        .find(|rng| draw(rng, vints) == low2 && draw(rng, vints - 1) != low2)
+        .unwrap()
+}
+
+#[test]
+fn raja_draws_after_the_facing_frame() {
+    // Retail: the facing's `VInt_Prepare` (one `UpdateRNGSeed`), then the next
+    // frame's VInt runs before the scene goes on, so the draw is the third step
+    // of the stream from the talk's frame. Each seed is one whose draw on the
+    // talk's own frame (no facing wait) would pick another line.
+    for (low2, entry) in [(0, 0x5E), (1, 0x5F), (2, 0x5D), (3, 0x5D)] {
+        let mut state = GameState::new();
+        let mut play = Play::new(0x5B);
+        let mut rng = seed_drawing_after(2, low2);
+        play.frame(&mut state, &mut rng, SceneInput::None);
+        assert!(
+            play.dialogues().is_empty(),
+            "the facing frame opens nothing"
+        );
+        assert!(!play.runner.runs_map_updates());
+        play.frame(&mut state, &mut rng, SceneInput::None);
+        assert_eq!(play.dialogues(), vec![entry], "low two bits {low2}");
+    }
+}
+
+#[test]
+fn raja_keeps_the_facing_frame_on_either_side_of_dark_force_2() {
+    for dark_force_2 in [false, true] {
+        let mut state = GameState::new();
+        if dark_force_2 {
+            state.set(DARK_FORCE_2).unwrap();
+        }
+        let mut play = Play::new(0x5B);
+        play.assert_facing_frame(&mut state, 4);
     }
 }
 

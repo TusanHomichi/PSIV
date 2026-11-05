@@ -7,7 +7,7 @@
 //! the US image through its `EventPtrs` slot.
 
 use crate::geom::Direction;
-use crate::scene::{ActorRef, SavedByte, SceneOp};
+use crate::scene::{ActorRef, MoneyTest, SavedByte, SceneOp};
 use crate::scene_runner::Scene;
 use crate::scenes::WREN;
 use crate::scenes::recovery::RECOVERY_OPS as R;
@@ -32,13 +32,20 @@ const PENGUIN_KEEPER: usize = 16;
 const RAJA_IN_BED: usize = 4;
 
 /// `lea (object).w, a4 / lea (Character_1).w, a3 / move.w $6(a3), d0 / bchg #2,
-/// d0 / jsr Event_UpdateObjFacing`.
+/// d0 / jsr Event_UpdateObjFacing`. Follow it with [`FACING_VINT`].
 const fn face_leader(npc: usize) -> SceneOp {
     SceneOp::FaceOppositeOf {
         actor: ActorRef::Npc(npc),
         of: LEADER,
     }
 }
+
+/// The `jsr VInt_Prepare` that ends US retail's `Event_UpdateObjFacing`
+/// (`$05A972`, in the `if grand_cross=0` block): one frame with no map update,
+/// whose VInt still runs `UpdateRNGSeed` and counts `Main_Frame_Count`
+/// (`ps4.asm:617,623`). The port's facing ops take no frame (#164), so these
+/// scenes spend it here.
+const FACING_VINT: SceneOp = SceneOp::WaitFrames { frames: 1 };
 
 const fn set_npc_dialogue(npc_index: usize, dialogue_id: u16) -> SceneOp {
     SceneOp::SetNpcDialogue {
@@ -95,41 +102,43 @@ pub static PENGUIN_OWNER: Scene = Scene {
     event: EventIndex(0x004B),
     ops: &[
         face_leader(PENGUIN_KEEPER),
-        // 1: `cmpi.l #500, (Current_Money).w / bcc.s`.
+        FACING_VINT,
+        // 2: `cmpi.l #500, (Current_Money).w / bcc.s`.
         SceneOp::BranchIfMoneyBelow {
             amount: PENGUIN_FEE,
-            if_below: 2,
-            if_not: 4,
+            test: MoneyTest::Unsigned,
+            if_below: 3,
+            if_not: 5,
         },
-        // 2: `EventFlags_Set`, `bra.s loc_70738`.
+        // 3: `EventFlags_Set`, `bra.s loc_70738`.
         set_event(FLAG_PENGUIN_NO_MONEY),
         SceneOp::SkipOps { count: 1 },
-        // 4: `EventFlags_Clear`.
+        // 5: `EventFlags_Clear`.
         SceneOp::SetFlag {
             flag: Flag::event(FLAG_PENGUIN_NO_MONEY),
             value: false,
         },
-        // 5: `loc_70738`.
+        // 6: `loc_70738`.
         standard(0x12),
-        // 6: `tst.b (Yes_No_Option).w / bne.s loc_70772`: 0 is YES.
+        // 7: `tst.b (Yes_No_Option).w / bne.s loc_70772`: 0 is YES.
         SceneOp::BranchChoice {
-            if_yes: 7,
-            if_no: 11,
+            if_yes: 8,
+            if_no: 12,
         },
-        // 7: `popdlg / cmpi.b #$3A, -$2(a0) / bne.s loc_70772`.
+        // 8: `popdlg / cmpi.b #$3A, -$2(a0) / bne.s loc_70772`.
         SceneOp::BranchIfSavedDialogueByte {
             at: SavedByte::Last,
             value: 0x3A,
-            if_equal: 8,
-            if_not: 11,
+            if_equal: 9,
+            if_not: 12,
         },
-        // 8: `subi.l #500, (Current_Money).w`.
+        // 9: `subi.l #500, (Current_Money).w`.
         SceneOp::SubtractMoney {
             amount: PENGUIN_FEE,
         },
         set_npc_dialogue(PENGUIN_KEEPER, 0x15),
         set_event(0x8A),
-        // 11: `loc_70772: rts`.
+        // 12: `loc_70772: rts`.
     ],
 };
 
@@ -142,26 +151,28 @@ pub static RAJA_SICK: Scene = Scene {
     event: EventIndex(0x005B),
     ops: &[
         face_leader(RAJA_IN_BED),
+        // The facing's frame comes before the draw: its VInt stirs the seed.
+        FACING_VINT,
         SceneOp::BranchFlag {
             flag: Flag::event(FLAG_DARK_FORCE_2),
-            if_set: 9,
-            if_clear: 2,
+            if_set: 10,
+            if_clear: 3,
         },
-        // 2: `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0`, and
+        // 3: `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0`, and
         // the `beq.s` / `cmpi.w #1, d0 / beq.s` under it.
         SceneOp::BranchOnRngLow2 {
-            targets: [3, 5, 7, 7],
+            targets: [4, 6, 8, 8],
         },
-        // 3: `loc_70C6C`.
+        // 4: `loc_70C6C`.
         standard(0x5E),
         SceneOp::End,
-        // 5: `loc_70C70`.
+        // 6: `loc_70C70`.
         standard(0x5F),
         SceneOp::End,
-        // 7: `moveq #$5D, d0 / bra.s loc_70C72`.
+        // 8: `moveq #$5D, d0 / bra.s loc_70C72`.
         standard(0x5D),
         SceneOp::End,
-        // 9: `loc_70C78`.
+        // 10: `loc_70C78`.
         standard(0x60),
     ],
 };
