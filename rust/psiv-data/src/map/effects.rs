@@ -96,8 +96,8 @@ pub struct EffectGate {
 /// covers the union; the `kind` string is authoritative.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectWrite {
-    /// `object_despawn` | `object_rewrite` | `object_dialogue` |
-    /// `layout_write` | `layout_replace`.
+    /// `object_despawn` | `object_rewrite` | `object_dialogue` | `object_x` |
+    /// `object_y` | `layout_write` | `layout_replace`.
     pub kind: String,
     /// ROM address of the writing instruction.
     #[serde(default)]
@@ -111,6 +111,9 @@ pub struct EffectWrite {
     /// The new dialogue id, for `object_dialogue`.
     #[serde(default)]
     pub dialogue_id: Option<u16>,
+    /// The position word, for `object_x` and `object_y`.
+    #[serde(default)]
+    pub pixels: Option<u16>,
     /// Chunk-level coordinates, for `layout_write`.
     #[serde(default)]
     pub cell_x: Option<u32>,
