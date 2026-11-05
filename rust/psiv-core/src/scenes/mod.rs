@@ -59,7 +59,7 @@ pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod esper_events;
 mod field_reload;
-pub(crate) mod fifth_character;
+pub mod fifth_character;
 mod flight;
 mod game_start;
 pub(crate) mod garuberk_events;

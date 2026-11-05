@@ -207,36 +207,100 @@ impl Party {
     }
 
     /// Hands each follower the cell the member ahead of it is leaving.
+    ///
+    /// A follower walking in ([`Party::walk_in`]) takes it as its destination
+    /// only from a member ahead that is stepping now; the cell it vacates is
+    /// handed on only if it starts a step itself.
     fn propagate(&mut self, map: &FieldMap, leader_from: Cell) {
         let mut vacated = leader_from;
+        let mut ahead_stepped = true;
+        let mut ahead_walking_in = false;
         for follower in &mut self.followers {
             let leaving = follower.cell;
             if let Some(destination) = follower.walking_in.as_mut() {
-                *destination = vacated;
-                follower.continue_walk_in();
+                if ahead_stepped {
+                    *destination = vacated;
+                }
+                ahead_stepped = follower.continue_walk_in(ahead_walking_in);
+                ahead_walking_in = follower.walking_in.is_some();
                 vacated = leaving;
                 continue;
             }
             if vacated != follower.cell {
                 follower.begin_step(map, vacated);
             }
+            ahead_stepped = true;
+            ahead_walking_in = false;
             vacated = leaving;
         }
     }
 
-    /// Advances every follower's step in progress by one tick.
+    /// Advances every follower's step in progress by one tick. A follower
+    /// walking in that starts its next step hands the cell it leaves to the
+    /// one behind, so the chain follows a member who walks while the leader
+    /// stands.
     fn advance_followers(&mut self) {
         let frames = self.leader.step_frames().get();
+        let mut ahead_left: Option<Cell> = None;
+        let mut ahead_walking_in = false;
         for follower in &mut self.followers {
-            let Some(step) = follower.step.as_mut() else {
+            if let (Some(destination), Some(cell)) = (follower.walking_in.as_mut(), ahead_left) {
+                *destination = cell;
+            }
+            let mut left = None;
+            if let Some(step) = follower.step.as_mut() {
+                step.progress = step.progress.saturating_add(1);
+                if step.progress >= frames {
+                    follower.cell = step.to;
+                    follower.step = None;
+                    let from = follower.cell;
+                    if follower.continue_walk_in(ahead_walking_in) {
+                        left = Some(from);
+                    }
+                }
+            } else if ahead_left.is_some() {
+                let from = follower.cell;
+                if follower.continue_walk_in(ahead_walking_in) {
+                    left = Some(from);
+                }
+            }
+            ahead_left = left;
+            ahead_walking_in = follower.walking_in.is_some();
+        }
+    }
+
+    /// Starts whatever walk-in steps are due, in slot order: after a scene
+    /// hands the party back, a follower whose scene walk ended short of its
+    /// destination carries on, and one that is there rejoins the trail.
+    fn settle_walk_ins(&mut self) {
+        let mut ahead_walking_in = false;
+        for follower in &mut self.followers {
+            follower.continue_walk_in(ahead_walking_in);
+            ahead_walking_in = follower.walking_in.is_some();
+        }
+    }
+
+    /// Seeds a scene's cast with the live motion of each follower walking in:
+    /// its step in progress and its destination as the actor's target, so the
+    /// scene sees the party moving (`Event_PickingFifthCharacter`'s wait) and
+    /// [`Party::resume_scripted`] hands the walk back. A follower on the trail
+    /// enters a scene on its cell, as it always has.
+    pub fn seed_scripted(&self, actors: &mut [crate::scene::ScriptedActor]) {
+        for actor in actors {
+            let crate::scene::ActorRef::PartyMember(slot) = actor.actor else {
                 continue;
             };
-            step.progress = step.progress.saturating_add(1);
-            if step.progress >= frames {
-                follower.cell = step.to;
-                follower.step = None;
-                follower.continue_walk_in();
-            }
+            let Some(follower) = slot
+                .checked_sub(1)
+                .and_then(|i| self.followers.get(i))
+                .filter(|follower| follower.walking_in.is_some())
+            else {
+                continue;
+            };
+            actor.step = follower.step.map(|s| (s.dir, s.to, s.progress));
+            actor.target = follower
+                .walking_in
+                .filter(|&destination| destination != follower.cell);
         }
     }
 
@@ -280,7 +344,13 @@ impl Party {
                 actor
                     .step
                     .map(|(dir, to, progress)| FollowerStep { dir, to, progress });
+            // A walk-in keeps going from where the scene left it: to the
+            // target the scene still had, or ending where it stands.
+            if follower.walking_in.is_some() {
+                follower.walking_in = Some(actor.target.unwrap_or(cell));
+            }
         }
+        resumed.settle_walk_ins();
         *self = resumed;
         Ok(())
     }
@@ -340,14 +410,16 @@ impl Party {
 }
 
 impl Follower {
-    /// One more step toward a walk-in's destination, X first; there, the walk
-    /// is over. A step in progress runs out first.
-    fn continue_walk_in(&mut self) {
+    /// One more step toward a walk-in's destination, X first; returns whether
+    /// one started. A step in progress runs out first. At the destination the
+    /// walk is over, unless the member ahead is still walking in: then this
+    /// one waits there for its next step.
+    fn continue_walk_in(&mut self, ahead_walking_in: bool) -> bool {
         let Some(destination) = self.walking_in else {
-            return;
+            return false;
         };
         if self.step.is_some() {
-            return;
+            return false;
         }
         let dir = match (
             destination.x.cmp(&self.cell.x),
@@ -358,13 +430,15 @@ impl Follower {
             (_, Ordering::Greater) => Direction::Down,
             (_, Ordering::Less) => Direction::Up,
             (Ordering::Equal, Ordering::Equal) => {
-                self.walking_in = None;
-                return;
+                if !ahead_walking_in {
+                    self.walking_in = None;
+                }
+                return false;
             }
         };
         let Some(to) = self.cell.neighbor(dir) else {
             self.walking_in = None;
-            return;
+            return false;
         };
         self.facing = dir;
         self.step = Some(FollowerStep {
@@ -372,6 +446,7 @@ impl Follower {
             to,
             progress: 0,
         });
+        true
     }
 
     /// Starts a step onto `target`, which the caller guarantees is adjacent.
@@ -459,6 +534,84 @@ mod tests {
         let leader = party.member(0).unwrap().cell;
         party.tick(&map, Input::Direction(Direction::Up));
         assert_eq!(party.followers[0].step.unwrap().to, leader);
+    }
+
+    /// A member walking in from an earlier slot leads the ones behind it:
+    /// each takes the cell it vacates, step by step, while the leader stands,
+    /// and none snaps across a gap.
+    #[test]
+    fn the_chain_follows_a_member_walking_in_from_an_earlier_slot() {
+        let map = open_map();
+        let frames = StepFrames::new(2).unwrap();
+        let mut party = Party::new(&map, Cell::new(1, 1), Direction::Down, frames, 3).unwrap();
+        // The leader at (1,1); slot 1 at its stand (6,1), slots 2-3 behind it.
+        party.followers[0].cell = Cell::new(6, 1);
+        party.followers[1].cell = Cell::new(6, 2);
+        party.followers[2].cell = Cell::new(6, 3);
+        party.walk_in(1);
+        party.tick(&map, Input::Direction(Direction::Down));
+        let mut last: Vec<Cell> = (1..4).map(|m| party.member(m).unwrap().cell).collect();
+        for _ in 0..60 {
+            party.tick(&map, Input::Neutral);
+            let now: Vec<Cell> = (1..4).map(|m| party.member(m).unwrap().cell).collect();
+            for (before, after) in last.iter().zip(&now) {
+                let moved = before.x.abs_diff(after.x) + before.y.abs_diff(after.y);
+                assert!(moved <= 1, "no snap: {before:?} -> {after:?}");
+            }
+            last = now;
+        }
+        assert!(
+            party.followers.iter().all(|f| f.walking_in.is_none()),
+            "all on the trail"
+        );
+        // A trail: each member a step behind the one ahead.
+        for m in 1..4 {
+            let (a, b) = (party.member(m - 1).unwrap().cell, party.member(m).unwrap().cell);
+            assert_eq!(a.x.abs_diff(b.x) + a.y.abs_diff(b.y), 1, "{a:?} {b:?}");
+        }
+    }
+
+    /// The walk survives a scene: the cast carries the follower's step and
+    /// destination, and the handback continues or ends the walk where the
+    /// scene left it. A follower on the trail is seeded as before, on its cell.
+    #[test]
+    fn a_walk_in_crosses_a_scene_handoff() {
+        use crate::scene::{ActorRef, ScriptedActor};
+        let map = open_map();
+        let frames = StepFrames::new(2).unwrap();
+        let mut party = Party::new(&map, Cell::new(1, 1), Direction::Down, frames, 2).unwrap();
+        party.followers[1].cell = Cell::new(6, 1);
+        party.walk_in(2);
+        party.tick(&map, Input::Direction(Direction::Down));
+        party.tick(&map, Input::Neutral);
+        let mut cast: Vec<ScriptedActor> = (0..3)
+            .map(|m| {
+                let view = party.member(m).unwrap();
+                ScriptedActor::new(ActorRef::PartyMember(m), view.cell, view.facing)
+            })
+            .collect();
+        party.seed_scripted(&mut cast);
+        assert!(cast[2].target.is_some() || cast[2].step.is_some(), "{:?}", cast[2]);
+        assert!(cast[1].step.is_none() && cast[1].target.is_none(), "on the trail");
+
+        // Handed back mid-walk: the follower keeps walking without the leader.
+        let mut resumed = party.clone();
+        resumed.resume_scripted(&map, &cast).unwrap();
+        let before = resumed.member(2).unwrap().cell;
+        for _ in 0..8 {
+            resumed.tick(&map, Input::Neutral);
+        }
+        assert_ne!(resumed.member(2).unwrap().cell, before, "the walk went on");
+
+        // Handed back at the destination: the walk is over.
+        let mut there = cast.clone();
+        let destination = cast[2].target.unwrap_or(cast[2].cell);
+        there[2].cell = destination;
+        there[2].target = None;
+        there[2].step = None;
+        let mut ended = party.clone();
+        ended.resume_scripted(&map, &there).unwrap();
+        assert_eq!(ended.followers[1].walking_in, None);
     }
 
     /// A destination that moves is followed: the walker never catches a leader

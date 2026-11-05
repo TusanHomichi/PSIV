@@ -3,13 +3,12 @@
 //!
 //! Record: `docs/scenes/181_PickingFifthCharacter.md`. The scene is the
 //! routine's legs as ops, indexing the row in `Window_Option_Index_2` the way
-//! the routine does ([`crate::scene::FifthOp`], `scene_runner/fifth.rs`); its
-//! table `loc_72182` is [`ROWS`].
+//! the routine does ([`crate::scene::FifthOp`], `scene_runner/fifth.rs`). Its
+//! tables come from the pack ([`FifthTable`]).
 
 use crate::scene::{ActorRef, FifthOp, SceneOp};
 use crate::scene_presentation::CameraSubject;
 use crate::scene_runner::Scene;
-use crate::scenes::{DEMI, GRYZ, HAHN, KYRA, RAJA};
 use crate::state::{CharId, Flag};
 use crate::trigger::EventIndex;
 
@@ -20,9 +19,10 @@ const LEADER: ActorRef = ActorRef::PartyMember(0);
 /// `FIRST_OBJECT + n`.
 pub(crate) const FIRST_OBJECT: usize = 5;
 
-/// One row of `loc_72182`, eight bytes.
+/// One row of `loc_72182`, eight bytes, as the pack carries it
+/// (`psiv_tools/fifth_pack.py`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FifthRow {
+pub struct FifthRow {
     /// `$0`, where the friend stands: X in pixels.
     pub x: i32,
     /// `$2`: Y in pixels.
@@ -36,53 +36,20 @@ pub(crate) struct FifthRow {
     pub picked: u16,
 }
 
-/// `loc_72182`, `$072182..$0721A9`, in the order of the objects at `$FFFFC440`.
-/// The eighth byte of each, the art offset of the object's routine word, has no
-/// counterpart: the map's own record already draws the object.
-pub(crate) const ROWS: [FifthRow; 5] = [
-    FifthRow {
-        x: 0x1B0,
-        y: 0x190,
-        who: GRYZ,
-        first_line: 0x06,
-        picked: PICKED[0],
-    },
-    FifthRow {
-        x: 0x1A0,
-        y: 0x1C0,
-        who: HAHN,
-        first_line: 0x02,
-        picked: PICKED[1],
-    },
-    FifthRow {
-        x: 0x220,
-        y: 0x1C0,
-        who: DEMI,
-        first_line: 0x0A,
-        picked: PICKED[2],
-    },
-    FifthRow {
-        x: 0x220,
-        y: 0x180,
-        who: RAJA,
-        first_line: 0x0E,
-        picked: PICKED[3],
-    },
-    FifthRow {
-        x: 0x210,
-        y: 0x1A0,
-        who: KYRA,
-        first_line: 0x12,
-        picked: PICKED[4],
-    },
-];
+/// The routine's two tables. The eighth byte of each row, the art offset of
+/// the object's routine word, has no counterpart: the map's own record already
+/// draws the object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FifthTable {
+    /// `loc_72182`, in the order of the objects at `$FFFFC440`.
+    pub rows: [FifthRow; 5],
+    /// `loc_721B8`: the records refilled whichever friend is spoken to.
+    pub records: [CharId; 5],
+}
 
 /// `EventFlag_GryzPicked`, `HahnPicked`, `DemiPicked`, `RajaPicked`,
-/// `KyraPicked`, in the order the routine clears them (`$0720E8`).
+/// `KyraPicked`: the five immediates the routine clears (`$0720E8`).
 const PICKED: [u16; 5] = [0xDC, 0xDB, 0xDD, 0xDE, 0xDF];
-
-/// The records `loc_721B8` refills whichever friend is spoken to.
-pub(crate) const RECORDS: [CharId; 5] = [HAHN, GRYZ, DEMI, RAJA, KYRA];
 
 const fn clear_picked(index: usize) -> SceneOp {
     SceneOp::SetFlag {

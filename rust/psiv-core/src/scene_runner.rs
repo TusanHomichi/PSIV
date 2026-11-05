@@ -88,6 +88,9 @@ pub struct SceneRunner {
     job_pick: Option<u8>,
     /// The row `Event_PickingFifthCharacter` is indexing.
     fifth_row: usize,
+    /// The pack's tables for `Event_PickingFifthCharacter`
+    /// ([`SceneRunner::set_fifth_table`]).
+    fifth_table: Option<crate::scenes::fifth_character::FifthTable>,
     /// `loc_72156`'s answer: the party slot and table row of the friend along.
     fifth_leaver: (usize, usize),
     /// The row `Event_HuntersGuild` is indexing.
@@ -151,6 +154,7 @@ impl SceneRunner {
             job_pick: None,
             fifth_row: 0,
             fifth_leaver: (0, 0),
+            fifth_table: None,
             guild_row: 0,
             guild_jobs: None,
             dialogue_ended: false,
@@ -261,6 +265,11 @@ impl SceneRunner {
     /// The stream [`SceneRunner::lend_rng`] lent.
     pub fn take_rng(&mut self) -> Option<crate::battle::Lcg41> {
         self.rng.take()
+    }
+
+    /// Hands over the pack's tables for `Event_PickingFifthCharacter`.
+    pub fn set_fifth_table(&mut self, table: crate::scenes::fifth_character::FifthTable) {
+        self.fifth_table = Some(table);
     }
 
     /// Hands over the pack's table for `Event_HuntersGuild`.

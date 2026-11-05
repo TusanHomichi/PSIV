@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (19 ops), `ROWS`; `scene_runner/fifth.rs` |
+| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (19 ops); `scene_runner/fifth.rs`; `fifth/fifth.json` in the pack (`psiv_tools/fifth_pack.py`) |
 
 - **Trigger:** dialogue `$F6 $00 $68`, entry 25 of tree 39: objects 5 to 9 of `MotaSpaceport` `$0BF`
   (`GryzSpaceportWaiting`, `Hahn`, `Demi`, `Raja`, `Kyra`, dialogue 25, `$FFFFC440` on).
@@ -14,6 +14,10 @@
 The routine was read from the US image through `EventPtrs[$68]`, and its words match
 `ps4.asm:151681-151960`; no `revision` or `grand_cross` conditional falls in the range. `loc_72182`
 (`$072182`) has five eight-byte rows: X and Y, the character id, the first line, the flag, and an art offset.
+Both tables stay in the local pack: `psiv_tools/fifth_pack.py` finds them from the routine's own `lea`s
+(`$071EEC`, `$071EA6`) and refuses an image where they are not, the runtime loads them (`psiv-data`'s
+`FifthTable`, required, so an older pack is refused with a rebuild message) and hands them to the scene, and
+the tests run on a made-up table.
 
 ## Who is at the spaceport: `MapDataMan_MotaSpaceport`
 
@@ -62,13 +66,19 @@ object clears. `Current_Party_Slots` takes the new id in the leaver's slot, and 
 until the leader moves; then, like any party object with a distant destination, it walks to the cell the member
 ahead vacated (`FieldObj_GetAutoInput`, `ps4.asm:93232`, X first by default) and is on the trail when it gets
 there. The port's followers otherwise hold an adjacent trail, and snap when one is not, so `Party::walk_in` keeps
-this walk to the slot the scene seated and those behind it, ending at their destination or a map load.
+this walk to the slot the scene seated and those behind it. Each walker hands the cell it leaves to the one behind,
+so the chain follows even while the leader stands, and a walker reaches its trail only once the one ahead has. A
+scene that starts mid-walk sees the walk (the cast carries the step and destination, which the routine's
+party-at-rest wait observes) and hands it back. The walk ends on the trail or at a map load.
 
 **Macros.** `GameState::remove_from_macros` and `add_to_macros` are `Event_RemoveCharFromMacros` and
 `Event_AddMacro` on the saved macros: each macro in use (first command set) loses the leaver with the rest moving
 up, and takes the new member's plain attack in its first free slot.
 
 ## Deviations
+
+Each is recorded in [the source notes](../source-notes/README.md#other-recorded-deviations).
+
 
 - The eighth byte of each row and `loc_721AA` build the object routine words (`$82BC` plus the byte, and `$8000`
   plus the byte). The port draws a restored object from its map record and a party member from its roster id, so

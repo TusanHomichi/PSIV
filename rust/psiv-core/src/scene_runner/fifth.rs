@@ -4,7 +4,7 @@
 use super::{Blocked, SceneRunner, pixel_cell};
 use crate::geom::Cell;
 use crate::scene::{ActorRef, DialogueId, FifthOp, SceneEffect, SceneFault, ScriptedActor};
-use crate::scenes::fifth_character::{FIRST_OBJECT, FifthRow, RECORDS, ROWS};
+use crate::scenes::fifth_character::{FIRST_OBJECT, FifthRow, FifthTable};
 use crate::state::{CharId, Flag, GameState, PARTY_SLOTS};
 
 /// `Current_Party_Slot_5`.
@@ -15,15 +15,15 @@ fn home_cell(row: &FifthRow) -> Cell {
 }
 
 /// `$071EE6..$071F0A`: the row whose stand is one cell ahead of the leader.
-fn row_ahead(ahead: Cell) -> Option<usize> {
-    ROWS.iter().position(|row| home_cell(row) == ahead)
+fn row_ahead(table: &FifthTable, ahead: Cell) -> Option<usize> {
+    table.rows.iter().position(|row| home_cell(row) == ahead)
 }
 
 /// `loc_72156`: the first party slot holding someone in the table, with their
 /// row.
-fn leaver(party: [Option<CharId>; PARTY_SLOTS]) -> Option<(usize, usize)> {
+fn leaver(table: &FifthTable, party: [Option<CharId>; PARTY_SLOTS]) -> Option<(usize, usize)> {
     party.iter().enumerate().find_map(|(slot, who)| {
-        let row = ROWS.iter().position(|row| Some(row.who) == *who)?;
+        let row = table.rows.iter().position(|row| Some(row.who) == *who)?;
         Some((slot, row))
     })
 }
@@ -35,6 +35,9 @@ impl SceneRunner {
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
+        let Some(table) = self.fifth_table else {
+            return Some(SceneFault::NoFifthTable);
+        };
         match op {
             FifthOp::WaitParty => {
                 self.pc += 1;
@@ -43,7 +46,7 @@ impl SceneRunner {
                 }
             }
             FifthOp::RefillRecords => {
-                for who in RECORDS {
+                for who in table.records {
                     if let Some(record) = state.roster_mut().get_mut(who) {
                         record.curr_hp = record.max_hp;
                         record.curr_tp = record.max_tp;
@@ -65,7 +68,7 @@ impl SceneRunner {
                 let (Ok(x), Ok(y)) = (u16::try_from(x), u16::try_from(y)) else {
                     return Some(SceneFault::NoFifthRow);
                 };
-                let Some(row) = row_ahead(Cell::new(x, y)) else {
+                let Some(row) = row_ahead(&table, Cell::new(x, y)) else {
                     return Some(SceneFault::NoFifthRow);
                 };
                 self.fifth_row = row;
@@ -82,7 +85,7 @@ impl SceneRunner {
                 self.pc += 1;
             }
             FifthOp::RunLine { offset } => {
-                let entry = ROWS[self.fifth_row].first_line + offset;
+                let entry = table.rows[self.fifth_row].first_line + offset;
                 self.open_line(entry, effects);
             }
             FifthOp::BranchFifthSlotFree { if_free, if_taken } => {
@@ -93,20 +96,20 @@ impl SceneRunner {
                 };
             }
             FifthOp::PickLeaver => {
-                let Some(found) = leaver(state.party()) else {
+                let Some(found) = leaver(&table, state.party()) else {
                     return Some(SceneFault::NoFifthRow);
                 };
                 self.fifth_leaver = found;
                 self.pc += 1;
             }
             FifthOp::RunLeaverLine => {
-                let entry = ROWS[self.fifth_leaver.1].first_line + 3;
+                let entry = table.rows[self.fifth_leaver.1].first_line + 3;
                 self.open_line(entry, effects);
             }
-            FifthOp::Exchange => return self.exchange(state, effects),
-            FifthOp::TakeFifthSlot => return self.take_fifth_slot(state, effects),
+            FifthOp::Exchange => return self.exchange(&table, state, effects),
+            FifthOp::TakeFifthSlot => return self.take_fifth_slot(&table, state, effects),
             FifthOp::SetPicked => {
-                let flag = Flag::event(ROWS[self.fifth_row].picked);
+                let flag = Flag::event(table.rows[self.fifth_row].picked);
                 if state.set(flag).is_err() {
                     return Some(SceneFault::BadWrite);
                 }
@@ -138,12 +141,13 @@ impl SceneRunner {
     /// macros follow the two.
     fn exchange(
         &mut self,
+        table: &FifthTable,
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         let (slot, leaving_row) = self.fifth_leaver;
-        let row = ROWS[self.fifth_row];
-        let leaving = ROWS[leaving_row];
+        let row = table.rows[self.fifth_row];
+        let leaving = table.rows[leaving_row];
         // `jsr Event_RemoveCharFromMacros`.
         state.remove_from_macros(leaving.who);
         // The party object's struct over the leaver's home object, which then
@@ -179,10 +183,11 @@ impl SceneRunner {
     /// and `Current_Party_Slot_5` takes them.
     fn take_fifth_slot(
         &mut self,
+        table: &FifthTable,
         state: &mut GameState,
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
-        let row = ROWS[self.fifth_row];
+        let row = table.rows[self.fifth_row];
         if let Some(fault) = self.seat_picked(FIFTH_SLOT, row, effects) {
             return Some(fault);
         }
@@ -230,32 +235,48 @@ impl SceneRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scenes::{CHAZ, GRYZ, HAHN, KYRA, RAJA, RIKA, RUNE, WREN};
+    use crate::scenes::{CHAZ, RIKA, RUNE, WREN};
+
+    /// A made-up table: five friends on a diagonal, ids 20 to 24.
+    fn synthetic() -> FifthTable {
+        let row = |n: u8| FifthRow {
+            x: 0x40 + 0x10 * i32::from(n),
+            y: 0x40 + 0x20 * i32::from(n),
+            who: CharId(20 + n),
+            first_line: 0x30 + 4 * u16::from(n),
+            picked: 0x60 + u16::from(n),
+        };
+        FifthTable {
+            rows: [row(0), row(1), row(2), row(3), row(4)],
+            records: [CharId(20), CharId(21), CharId(22), CharId(23), CharId(24)],
+        }
+    }
 
     /// `loc_72156` scans the slots in order, whichever slot the friend holds.
     #[test]
     fn the_leaver_is_the_first_slot_in_the_table() {
+        let table = synthetic();
         let party = |slot: usize, who: CharId| {
             let mut slots = [Some(CHAZ), Some(RUNE), Some(RIKA), Some(WREN), Some(WREN)];
             slots[slot] = Some(who);
             slots
         };
-        assert_eq!(leaver(party(4, KYRA)), Some((4, 4)));
-        assert_eq!(leaver(party(1, HAHN)), Some((1, 1)));
-        assert_eq!(leaver(party(3, RAJA)), Some((3, 3)));
-        assert_eq!(leaver(party(0, GRYZ)), Some((0, 0)));
+        assert_eq!(leaver(&table, party(4, CharId(24))), Some((4, 4)));
+        assert_eq!(leaver(&table, party(1, CharId(21))), Some((1, 1)));
+        assert_eq!(leaver(&table, party(0, CharId(20))), Some((0, 0)));
         // Negative control: nobody in the table.
         assert_eq!(
-            leaver([Some(CHAZ), Some(RUNE), Some(RIKA), Some(WREN), None]),
+            leaver(&table, [Some(CHAZ), Some(RUNE), Some(RIKA), Some(WREN), None]),
             None
         );
     }
 
     #[test]
     fn a_stand_ahead_names_its_row_and_nothing_else_does() {
-        for (index, row) in ROWS.iter().enumerate() {
-            assert_eq!(row_ahead(home_cell(row)), Some(index));
+        let table = synthetic();
+        for (index, row) in table.rows.iter().enumerate() {
+            assert_eq!(row_ahead(&table, home_cell(row)), Some(index));
         }
-        assert_eq!(row_ahead(Cell::new(1, 1)), None);
+        assert_eq!(row_ahead(&table, Cell::new(1, 1)), None);
     }
 }

@@ -412,6 +412,8 @@ pub enum SceneFault {
     /// ahead of the leader, or (leaving) is in the party. The cartridge's
     /// fall-through reads past the table; its trigger cannot reach either.
     NoFifthRow,
+    /// `Event_PickingFifthCharacter` ran without the pack's table.
+    NoFifthTable,
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
     /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.
