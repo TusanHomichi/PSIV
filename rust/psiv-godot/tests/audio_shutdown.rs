@@ -13,7 +13,14 @@
 #[path = "../src/audio_shutdown.rs"]
 mod audio_shutdown;
 
-use audio_shutdown::{DriverRead, RETIREMENT_WAIT_US, RetirementWait, SERVER_STEP_FRAMES};
+use audio_shutdown::{DriverRead, RETIREMENT_WAIT_US, RetirementWait};
+
+/// The server's buffer in the model, Godot 4.7.1's `buffer_size`
+/// (`AudioServer::init`). The model's own number, not the wait's
+/// `SERVER_STEP_FRAMES`: the sweeps run over every phase of this buffer and
+/// expect the wait to end at exactly this many frames, so a wait whose
+/// constant drifts from it, low or high, fails them.
+const BUFFER_FRAMES: u64 = 512;
 
 /// `AudioServer::_driver_process`: frames left in the buffer, and the steps.
 struct Server {
@@ -27,7 +34,7 @@ impl Server {
         while todo > 0 {
             if self.to_mix == 0 {
                 self.steps += 1;
-                self.to_mix = 512;
+                self.to_mix = BUFFER_FRAMES;
             }
             let copied = self.to_mix.min(todo);
             todo -= copied;
@@ -187,7 +194,7 @@ fn two_short_calls_without_a_step_do_not_end_the_wait() {
 /// One headless Dummy call (1,024 frames) always steps, and ends the wait.
 #[test]
 fn one_dummy_call_ends_the_wait_from_every_phase() {
-    for to_mix in 0..SERVER_STEP_FRAMES {
+    for to_mix in 0..BUFFER_FRAMES {
         let run = run(44_100, to_mix, &[1_024], Polls::AfterEach, 10);
         assert_eq!(run.done_after, Some(1), "{to_mix} frames left");
         assert!(run.steps_by_then >= 1);
@@ -207,14 +214,14 @@ fn the_wait_ends_only_after_a_step_for_every_phase_and_period() {
     ];
     for rate in [44_100, 48_000] {
         for frames in sizes {
-            for to_mix in 0..SERVER_STEP_FRAMES {
+            for to_mix in 0..BUFFER_FRAMES {
                 for polls in [Polls::AfterEach, Polls::EveryThird, Polls::Late] {
                     let run = run(rate, to_mix, &[frames], polls, 4_000);
                     let expected = match polls {
-                        Polls::AfterEach => Some(SERVER_STEP_FRAMES.div_ceil(frames)),
-                        Polls::EveryThird => Some(3 * SERVER_STEP_FRAMES.div_ceil(frames)),
+                        Polls::AfterEach => Some(BUFFER_FRAMES.div_ceil(frames)),
+                        Polls::EveryThird => Some(3 * BUFFER_FRAMES.div_ceil(frames)),
                         Polls::Late if frames == 1 => None,
-                        Polls::Late => Some(SERVER_STEP_FRAMES.div_ceil(frames - 1)),
+                        Polls::Late => Some(BUFFER_FRAMES.div_ceil(frames - 1)),
                     };
                     assert_eq!(
                         run.done_after.map(|calls| calls as u64),
@@ -232,7 +239,7 @@ fn the_wait_ends_only_after_a_step_for_every_phase_and_period() {
 fn the_wait_ends_only_after_a_step_for_varying_call_sizes() {
     for seed in 0..24 {
         let sizes = varying_sizes(seed, 64);
-        for to_mix in (0..SERVER_STEP_FRAMES).step_by(7) {
+        for to_mix in (0..BUFFER_FRAMES).step_by(7) {
             for polls in [Polls::AfterEach, Polls::EveryThird, Polls::Late] {
                 let run = run(44_100, to_mix, &sizes, polls, 4_000);
                 assert!(
