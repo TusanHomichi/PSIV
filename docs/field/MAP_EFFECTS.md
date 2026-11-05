@@ -81,7 +81,7 @@ index instead of panicking on it.
 
 | kind | what it does | instances | maps |
 |---|---|---|---|
-| `object_despawn` | clears a slot: the object never spawns | 339 | 72 |
+| `object_despawn` | clears a slot: the object never spawns | 1455 | 73 |
 | `layout_write` | writes chunk ids into `Map_Layout` | 194 | 13 |
 | `object_rewrite` | writes a different object id into a slot | 8 | 6 |
 | `object_dialogue` | changes an object's dialogue id (`$14(aN)`) | 4 | 3 |
@@ -191,9 +191,12 @@ of their map regardless of story state.
 ## 9. Coverage, and what is deferred
 
 127 of the 160 table entries are referenced by a map record (33 are dead), over
-188 (map, entry) pairs on 139 maps. **113 entries decode; 14 do not** and are
+188 (map, entry) pairs on 139 maps. **117 entries decode; 10 do not** and are
 listed in `census.undecoded_entries` with the offset, the instruction that
 stopped the read, and the maps affected — never half-decoded.
+
+`MapDataMan_MotaSpaceport` (`$67`) is by far the largest: its seven gates make 128 paths and
+1120 of the `object_despawn` writes ([the record](../scenes/181_PickingFifthCharacter.md)).
 
 A routine that mixes Slice 1 with later work is decoded for its Slice-1 writes
 and carries the rest in `deferred` on the path: `postincrement bulk copy`
