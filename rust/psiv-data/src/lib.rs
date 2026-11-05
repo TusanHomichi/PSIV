@@ -95,7 +95,11 @@ pub use map::{
     MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
     UpdateProgram,
 };
-pub use new_game::NewGame;
+pub use new_game::{
+    Event as HandoffEvent, File as GameStartFile, FlagList, Flags as NewGameFlags,
+    Handoff as TitleHandoff, Init as NewGameInit, NewGame, Settings as NewGameSettings,
+    Slot as PartySlot,
+};
 pub use ship_menu::{
     BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,
     PaletteEntry, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu, ShipMenuFile, ShipMenuJson, ShipPalette,
