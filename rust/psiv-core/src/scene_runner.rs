@@ -30,6 +30,7 @@ pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
 mod fifth;
+mod get_off;
 mod guild;
 #[cfg(test)]
 mod map_update_tests;
@@ -112,6 +113,9 @@ pub struct SceneRunner {
     /// The id of the map the scene is running on, as of the last tick: what
     /// `SkipUnlessMap` tests (`Field_Map_Index`).
     map_id: u16,
+    /// `loc_4587A`'s answer at the leader, refreshed every tick
+    /// ([`crate::GetOffOp::BranchIfBlocked`]).
+    dismount_clear: bool,
     /// Every map object's pixel position, refreshed from the map each tick and
     /// overlaid with the positions this scene has drifted
     /// (`SceneOp::BranchIfActorCoord` reads it).
@@ -165,6 +169,7 @@ impl SceneRunner {
             follow_chain: true,
             y_first: false,
             map_id: 0,
+            dismount_clear: false,
             npc_pixels: Vec::new(),
             drifted: Vec::new(),
             drift: None,
@@ -424,6 +429,9 @@ impl SceneRunner {
 
         self.party_slots = state.party();
         self.map_id = map.id().0;
+        self.dismount_clear = self
+            .actor(ActorRef::PartyMember(0))
+            .is_some_and(|leader| crate::vehicle::dismount_allowed(map, leader.cell));
         self.refresh_npc_pixels(map);
         for index in 0..self.actors.len() {
             if self.actor_index(self.actors[index].actor) != Some(index) {

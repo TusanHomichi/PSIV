@@ -61,7 +61,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$000D` | `Event_MeetingSaya` | map trigger $16 | KrupKindergarten | scene `Event_MeetingSaya` |
 | `$000E` | `Event_AiedoManCrushOnAlys` | dialogue `$F6` | tree 11 entry 7 | scene `Event_AiedoManCrushOnAlys` |
 | `$000F` | `Event_SuspicionOnPrincipal` | map trigger $0A | PiataAcademy_F1 | scene `Event_SuspicionOnPrincipal` |
-| `$0010` | `Event_GettingOffVehicle` | field input: Cancel/Start-class press while on a vehicle (`loc_56084`) |  | allowlisted, #81 |
+| `$0010` | `Event_GettingOffVehicle` | field input: A, B or C while on a vehicle (`loc_56084`) |  | scene `Event_GettingOffVehicle` |
 | `$0011` | `Event_DezoSpaceportAppearing` | called from $8010 |  | inside the caller's scene (`$8010`) |
 | `$0012` | `Event_BioPlantAlarm` | map trigger $0C | BioPlant_Part2 | scene `Event_BioPlantAlarm` |
 | `$0013` | `Event_ElevatorDoorOpening` | interaction area $13 | BioPlant_Part3, BioPlant_B1, BioPlant_B2 (+42 more) | scene `Event_ElevatorDoorOpening` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 0 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 1 |
+| #81 | Motavia side content | 0 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 0 |
-| | total | 1 |
+| | total | 0 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
@@ -284,9 +284,9 @@ party members and the map's own objects, so a temporary object had no `ActorRef`
 as `ActorRef::Npc(2)`, and the runtime places it on the field map at that index
 ([161](161_PenguinFeedStolen.md)).
 
-One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
-a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the
-generic recovery tile) is transcribed ([102](102_Recovery.md)).
+`$10` (`Event_GettingOffVehicle`, a field-input event with no map) is transcribed
+([207](207_GettingOffVehicle.md)), as is `$21` (`Event_Recovery`, the generic
+recovery tile; [102](102_Recovery.md)).
 
 The Garuberk Tower's six events (`$35` to `$3A`) are transcribed
 ([103](103_GaruberkTowerDoors.md), [104](104_GaruberkTowerEyes.md)). The ops this

@@ -206,6 +206,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_BoardingLandRover", 7),
         ("Event_BoardingIceDigger", 7),
         ("Event_BoardingHydrofoil", 7),
+        ("Event_GettingOffVehicle", 9),
     ];
     assert_eq!(
         SCENES.len(),
