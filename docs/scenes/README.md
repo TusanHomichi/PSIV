@@ -193,6 +193,8 @@ jobs.
 | `Event_LostGirlsMother` | `$7F` | [200](200_LostGirlsMother.md) | `$072C08..$072C2D` |
 | `Event_KingRappyDefeated` | `$89` | [201](201_KingRappyDefeated.md) | `$073018..$0730FB` |
 | `Event_MeeseClinicSickWoman` | `$93` | [202](202_MeeseClinicSickWoman.md) | `$0733CC..$07341F` |
+| `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
+| `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
 | `Event_DyingBoy` | `$86` | [163](163_DyingBoy.md) | `$072D94..$072FB3` |
 | `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
