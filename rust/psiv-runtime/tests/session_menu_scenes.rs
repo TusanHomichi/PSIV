@@ -662,8 +662,19 @@ fn speak_while_riding_gets_off_or_is_refused() {
     assert_eq!(player.runtime().vehicle_index(), Some(1));
     let machine = player.runtime().vehicle_cell().expect("mounted");
 
-    player.press(Button::Speak);
-    assert!(player.runtime().scene_active(), "the field input ran $10");
+    // A press on the boarding scene's heels does not reach the machine (seen:
+    // no event for it); thirty idle frames first, as hands leave the menu.
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let pressed = player.press(Button::Speak);
+    assert!(
+        pressed
+            .events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff)),
+        "the field input ran $10"
+    );
     player.run_scene_out();
     assert_eq!(player.runtime().vehicle_index(), None, "on foot");
     assert_eq!(player.runtime().game().vehicle_index(), 0);
@@ -675,8 +686,20 @@ fn speak_while_riding_gets_off_or_is_refused() {
     player.use_item(ITEM_HYDROFOIL);
     player.run_scene_out();
     assert_eq!(player.runtime().vehicle_index(), Some(3));
-    player.press(Button::Speak);
-    assert!(player.runtime().scene_active());
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let pressed = player.press(Button::Speak);
+    assert!(
+        pressed
+            .events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff))
+    );
+    assert!(
+        player.runtime().scene_active(),
+        "the refusal holds the scene"
+    );
     let mut shown = false;
     for _ in 0..200 {
         if !player.runtime().scene_active() {

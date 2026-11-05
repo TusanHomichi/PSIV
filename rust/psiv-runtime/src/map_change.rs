@@ -145,6 +145,16 @@ pub(super) fn adjusted_map_music(map: MapId, raw: u8, game: &GameState, saved: u
 }
 
 impl Runtime {
+    /// `Event_GettingOffVehicle`'s music (`ps4.asm:145383-145395`): the map
+    /// record's byte through `AdjustMusicIDs`, its `d0` written to
+    /// `Saved_Sound_Index` whatever `d1` says. Returns the id written.
+    pub(crate) fn dismount_music(&mut self) -> Option<u8> {
+        let raw = self.map_record()?.music.id;
+        let (id, _) = adjust_music_ids(self.map.id(), raw, &self.game, self.saved_sound_index);
+        self.saved_sound_index = id;
+        Some(id)
+    }
+
     /// Applies the cartridge's flag test to the live vehicle and consumes the
     /// bits, as the load routine's tail does. Returns whether bit 7 was set:
     /// a field load then skips its `Pal_FadeIn` (`ps4.asm:107628-107630`).
