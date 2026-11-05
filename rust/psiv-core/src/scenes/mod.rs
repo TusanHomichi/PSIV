@@ -69,6 +69,7 @@ pub(crate) mod motavia_side;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
+pub(crate) mod plate_wreckage;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
@@ -285,6 +286,8 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    plate_wreckage::PHONON,
+    plate_wreckage::PLATE_SYS_ENGINE,
     // Tallas's rescue (#81).
     monsen::TALLAS_MOM,
     monsen::TALLAS_MOM_AFTER_RESCUE,
@@ -482,6 +485,8 @@ mod tests {
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),
+            ("Event_Phonon", 33),
+            ("Event_PlateSysEngine", 64),
             ("Event_BoardingLandRover", 7),
             ("Event_BoardingIceDigger", 7),
             ("Event_BoardingHydrofoil", 7),
