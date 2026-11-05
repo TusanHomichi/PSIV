@@ -49,7 +49,7 @@ const VEHICLE_SKILL_SLOTS: usize = 8;
 
 mod commands;
 
-pub(crate) use commands::CommandsMenu;
+pub(crate) use commands::{CommandsMenu, CursorMemory};
 
 /// What a main-options accept chose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -153,6 +153,7 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
         orders: vec![Command::Defend; 5],
         age: 0,
         bytes: [0; 5],
+        memory: CursorMemory::default(),
         open: true,
     };
     menu.actors = menu
@@ -676,4 +677,81 @@ fn mounted_skill_slots_read_the_live_battle_record() {
         used.saturating_sub(1),
         "the window reads the record the fight spent"
     );
+}
+
+/// #51: `Battle_Char_Comd_Index`, `Battle_Tech_Index`, `Battle_Skill_Index`
+/// and `Battle_Item_Index` are one word per party slot (`ps4.asm:2195`,
+/// `2598`, `2938`, `3330`), and only `loc_5BAE` clears any of them: the item
+/// words, at the round's end (`ps4.asm:8422-8425`).
+#[test]
+fn each_member_s_strip_and_list_cursors_reopen_where_they_left_them() {
+    let Some((runtime, mut menu)) = menu() else {
+        return;
+    };
+    let none = Pad::NEUTRAL;
+    let press = |menu: &mut CommandsMenu, button| menu.input(none, Pad::new(button));
+    // Chaz: TECH, Down onto the list's second row (empty: he knows one
+    // technique), back to the strip, then DEFEND.
+    press(&mut menu, Button::Right);
+    press(&mut menu, Button::Speak);
+    assert_eq!(menu.page, MenuPage::Techniques);
+    press(&mut menu, Button::Down);
+    assert_eq!(menu.cursor, 1);
+    press(&mut menu, Button::Cancel);
+    assert_eq!((menu.page, menu.cursor), (MenuPage::Actions, 1));
+    for _ in 0..3 {
+        press(&mut menu, Button::Right);
+    }
+    assert_eq!(press(&mut menu, Button::Speak), None);
+    // Alys: ITEM, Down, back, DEFEND.
+    assert_eq!(menu.actor(), Some(id(2)));
+    assert_eq!(menu.cursor, 0, "a member's first strip opens on ATTACK");
+    for _ in 0..3 {
+        press(&mut menu, Button::Right);
+    }
+    press(&mut menu, Button::Speak);
+    assert_eq!(menu.page, MenuPage::Items);
+    press(&mut menu, Button::Down);
+    press(&mut menu, Button::Cancel);
+    press(&mut menu, Button::Right);
+    assert_eq!(press(&mut menu, Button::Speak), None);
+    // Hahn: Left wraps to DEFEND; the round's orders go.
+    press(&mut menu, Button::Left);
+    assert!(press(&mut menu, Button::Speak).is_some());
+    let memory = menu.cursor_memory();
+
+    let reopen = |memory| CommandsMenu::with_command_bytes(&runtime, [0; 5], memory);
+    // Inside the round (a backed-up order reopens the window), every word
+    // still stands.
+    let mut next = reopen(memory);
+    assert_eq!(
+        next.cursor, 4,
+        "Chaz's strip opens on DEFEND, where he left it"
+    );
+    for _ in 0..3 {
+        press(&mut next, Button::Left);
+    }
+    press(&mut next, Button::Speak);
+    assert_eq!(
+        (next.page, next.cursor),
+        (MenuPage::Techniques, 1),
+        "his TECH list on the empty row he left"
+    );
+    let alys_items = |memory| {
+        let mut next = reopen(memory);
+        press(&mut next, Button::Speak); // Chaz DEFEND
+        assert_eq!(next.cursor, 4, "Alys's strip opens on DEFEND");
+        press(&mut next, Button::Left);
+        press(&mut next, Button::Speak);
+        assert_eq!(next.page, MenuPage::Items);
+        next.cursor
+    };
+    assert_eq!(alys_items(memory), 1);
+    // The next round: the item words were cleared, the others kept.
+    let mut later = memory;
+    later.end_round();
+    assert_eq!(alys_items(later), 0, "loc_5BAE clears the item cursors");
+    assert_eq!(reopen(later).cursor, 4);
+    // The control: a battle's first window opens every member at zero.
+    assert_eq!(reopen(CursorMemory::default()).cursor, 0);
 }
