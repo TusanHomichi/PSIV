@@ -186,6 +186,13 @@ impl Runtime {
         }
         let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        bridge::reconcile_controllers(
+            self.map.npcs(),
+            &map,
+            record,
+            &mut self.wander,
+            &mut self.bespoke,
+        );
         self.map = map;
         self.effects = effects;
         Ok(())

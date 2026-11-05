@@ -48,6 +48,8 @@ kinds that change what the player can see, walk through and talk to:
     object_despawn    clear an object slot -- the object never spawns
     object_rewrite    write a different object id into a slot
     object_dialogue   change an object's dialogue id
+    object_x          write an object's `curr_x_pos`, in pixels
+    object_y          write an object's `curr_y_pos`, in pixels
     layout_write      write chunk ids into `Map_Layout` through
                       `GetMapLayoutOffset` (doors, bridges, blocked paths)
     layout_replace    decompress an entirely different layout over a plane
