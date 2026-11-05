@@ -256,7 +256,7 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #81 | Motavia side content | 9 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 1 |
-| | total | 11 |
+| | total | 10 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
