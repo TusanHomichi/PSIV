@@ -24,17 +24,17 @@ ROM: `Phantasy Star IV (USA).md`, SHA-256
 | `Cutscene_RajaSick` / `$8012` | `$07734C..$077787` | **Transcribed** | 54 typed ops in `retail_endgame.rs`; fixed post-arrival presentation and map handoff. |
 | `Cutscene_Rykros` / `$801B` | `$07818E..$078345` | **Transcribed** | 27 typed ops; panels `$18B/$18F/$190`, palette cycle and flag `$D0`. |
 | `Cutscene_Ending` / `$8021` | `$078F3E..$07A811` | **Transcribed** | 370 typed ops; normal post-battle story panels, staff roll, credits renderer and final Start gate. See [89](89_Ending.md). |
-| Musk Cats / `EventPtrs[$49]` | `$07069E..$0706BF` | **Precise why-not** | One interaction dialogue (`$1C`), two NPC dialogue ids `$1D`, and event flag `$90` (`MuskCats`); it is an NPC interaction side effect, not a fixed campaign scene. The pointer body is still recorded in [12](TRIGGER_CENSUS.md). |
-| Musk Cat Elder / `EventPtrs[$4A]` | `$0706C0..$070701` | **Precise why-not** | Branches on all 40 inventory slots: full inventory shows dialogue `$2E`; otherwise dialogue `$2D`, inserts Silver Tusk and sets its flag. The branch depends on live inventory capacity. |
-| Penguin Owner / `EventPtrs[$4B]` | `$070702..$070773` | **Precise why-not** | Computes the `$500` money gate, runs yes/no dialogue `$12`, inspects the retail dialogue terminator (`$35` on revision 1), then conditionally subtracts money, changes the NPC and sets the Penguin flag. Input and wallet state are part of the behavior. |
+| Musk Cats / `EventPtrs[$49]` | `$07069E..$0706BF` | **Transcribed** | [180](180_LateArcInteractions.md#event_muskcatsguarding). |
+| Musk Cat Elder / `EventPtrs[$4A]` | `$0706C0..$070701` | **Transcribed** | [180](180_LateArcInteractions.md#event_muskcatelder). |
+| Penguin Owner / `EventPtrs[$4B]` | `$070702..$070773` | **Transcribed** | [180](180_LateArcInteractions.md#event_penguinowner). |
 | Esper Guard permission / `EventPtrs[$4F]` | `$0709A2..$070A29` | **Precise why-not** | Reads Dark Force 2 and Carnivorous Trees flags to choose dialogue `$00/$01/$02`, changes two guard dialogue ids, and sets temp flag `EspMansionGuards`. Direct interaction, not a linear story edge. |
 | Inner Sanctuary guard / `EventPtrs[$51]` | `$070A4E..$070A75` | **Transcribed** | Faces the leader, runs dialogue `$35`, sets `InnerSanctGuard1`: three typed ops. See [113](113_InnerSanctuaryGuard.md). |
 | Inner Sanctuary second guard / `EventPtrs[$52]` | `$070A76..$070A9D` | **Transcribed** | The same shape with dialogue `$36` and `InnerSanctGuard2`. See [113](113_InnerSanctuaryGuard.md). |
-| Raja Sick NPC interaction / `EventPtrs[$5B]` | `$070C30..$070C81` | **Precise why-not** | Faces the leader, tests Dark Force 2, then uses `UpdateRNGSeed` and `seed & 3` to select dialogue `$5D/$5E/$5F`, or `$60` after the gate. There is no deterministic dialogue result to encode as one scene. |
+| Raja Sick NPC interaction / `EventPtrs[$5B]` | `$070C30..$070C81` | **Transcribed** | [180](180_LateArcInteractions.md#event_rajasick). |
 | Gyuna / `EventPtrs[$5C]` | `$070C82..$070CB3` | **Precise why-not** | Chooses dialogue `$31/$32` from `LandaleWhereabouts`, then inspects the selected dialogue's terminal byte (`$35` on USA revision 1) before setting the flag. The player dialogue path is the state transition. |
 | Anger Tower Alys / `EventPtrs[$62]` | `$07148A..$071579` | **Transcribed** | Dialogue `$07`, the facing-table steps of object 0 and the leader (`StepObjectAlongFacing`), retained dialogue `$08`, flag `$E4`, the leader set at `$1F0,$1F0`, battle `$18`. See [114](114_AngerTowerAlys.md). |
 | Hunters Guild / `EventPtrs[$66]` | `$0718E6..$071E55` | **Transcribed** | [124](124_HuntersGuild.md): the routine's branches as ops, its list window a session mode. |
-| Rune healing Chaz / `EventPtrs[$67]` | `$071E56..$071E65` | **Precise why-not** | It is only dialogue `$2B` followed by `Event_Recovery`, which mutates the live party's HP/TP/status. This is a direct NPC service, not a story scene or roster join. |
+| Rune healing Chaz / `EventPtrs[$67]` | `$071E56..$071E65` | **Transcribed** | [180](180_LateArcInteractions.md#event_runehealingchaz). |
 | Fifth-character selection / `EventPtrs[$68]` | `$071E66..$0721CB` | **Precise why-not** | Waits for all current party objects, derives a candidate from the leader's map position using `$071B0/$072182`, runs candidate-specific dialogue twice, reads yes/no, copies a 32-byte character record, removes/replaces a selected slot and sets `Current_Party_Slot_5`. The selected character and destination are input/position dependent. |
 | Rykros arrival gate / `loc_64C1E` | `$064C1E..$064CFA` | **Precise why-not** | Tests `World_Index == 2`, Rykros flag clear and Dark Force 3 defeated; otherwise it runs the ordinary space-travel loop, which polls ButtonSpeak/Start, updates objects, palette and camera, and can exit early. The deterministic `Cutscene_Rykros` body is transcribed; this global travel gate is not flattened. |
 
@@ -100,9 +100,10 @@ campaign scenes:
   seated character or fill slot 5, with character-specific dialogue and a
   character-record copy. There is no single roster edge to assert without
   choosing a player path.
-- **Raja/Gyuna and guards:** these are direct interactions whose dialogue,
-  flags, inventory, money or RNG are read at call time. Their exact branches
-  are recorded above; flattening them into a scene would erase those inputs.
+- **Gyuna and guards:** these are direct interactions whose dialogue and flags
+  are read at call time. Their exact branches are recorded above. Raja's talk
+  and the musk cats' are of the same shape, and are
+  [transcribed](180_LateArcInteractions.md) with the branches kept as ops.
 - **Rykros travel:** the cutscene is fixed, but the world-travel gate is a
   live loop. It is therefore split into the deterministic scene and the
   precise why-not gate rather than modeled as one invented “arrive at Rykros”
