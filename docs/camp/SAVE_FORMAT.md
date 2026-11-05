@@ -121,7 +121,7 @@ The address constants and the save-copy comment are at
 | `0x302` | `$F402` | word | secondary map selector |
 | `0x304` | `$F404` | word | current field map selector |
 | `0x306` | `$F406` | word | leader x position, pixels |
-| `0x308` | `$F408` | word | leader y position, pixels |
+| `0x308` | `$F408` | word | leader object y (`curr_y_pos`), pixels: the standing row less one, times 16 |
 | `0x30A` | `$F40A` | 5 bytes | current party character ids |
 | `0x310` | `$F410` | 40 bytes | inventory slots |
 | `0x338` | `$F438` | longword | current money |
@@ -236,8 +236,9 @@ checksum before construction.
 The Rust header also uses logical `$F020` as a two-byte occupancy mask for
 `Option<Stats>` seats. No retail routine in the header range read here addresses
 that word. This is the deliberate compatibility extension that preserves an
-intentionally all-zero `Stats` record; ordinary retail payloads without the
-extension use the all-zero-record heuristic.
+intentionally all-zero `Stats` record; a slot without the extension (a
+cartridge image, whose header `InitSRAM` zeroes) uses the all-zero-record
+heuristic.
 
 ## Retail title-continue semantics
 
@@ -311,9 +312,22 @@ or Passageway. It changes no retail payload/checksum bytes. Missing or invalid
 metadata uses the map-entry fallback, and only inherited-exit maps read it.
 See `../field/TRAVEL.md` and `travel_native_restart_preserves_inherited_exits_and_legacy_slots_still_load`.
 
-Source review also found an older compatibility gap: `save.rs::cell_pixels`
-currently writes the core's standing-cell Y times 16, and `saved_cell` reads it
-back consistently. The original field object Y is `(standing_y - 1) * 16`.
-Existing native CONTINUE receipts prove native round trips, not retail object-Y
-interchange. Correcting that format requires identifying legacy native slots
-and migrating their Y word without moving existing saves by a cell.
+## Standing Y
+
+The cartridge saves the leader object's `curr_y_pos` at `$F408` (`SaveGame`,
+`ps4.asm:119576-119577`), and its loader divides the word by eight into
+`Map_Start_Y_Pos` (`loc_53546`, `ps4.asm:110808-110814`), which every load
+stands the party one row below. The runtime's `RetailLocation::char_y` is the
+standing row times 16, so the codec (`rust/psiv-core/src/save.rs`) writes
+`char_y - 16` and reads the word back plus 16: a native SAVE and a cartridge
+image hold the same payload bytes for the same standing cell.
+
+Native slots written before #129 stored the standing row itself. Logical
+header `$F02E..$F02F` holds `SY` on every slot written since; a slot without
+it but with the `$F020` roster mask (every earlier native slot has one, a
+cartridge image never does) is read as that legacy format, so it continues on
+the row it was saved on, and its next SAVE writes the retail word and the
+marker. `a_native_slot_and_a_cartridge_image_agree_on_standing_y`,
+`a_legacy_native_slot_keeps_its_standing_row` and
+`continue_from_a_cartridge_image_stands_where_the_retail_loader_puts_the_party`
+cover the three files.

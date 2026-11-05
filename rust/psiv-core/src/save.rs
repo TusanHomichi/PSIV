@@ -58,6 +58,16 @@ const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
 // save; `None` writes nothing, so every other save keeps the retail zeroes.
 // The field starts after the dungeon exit's `$F022..$F025`.
 const RUST_SAVED_PARTY_OFFSET: usize = 0x26;
+// `SY`: this slot's `$F408` word is retail's object Y, one row above the
+// standing cell. Native slots written before the marker (#129) stored the
+// standing row times 16; they always carry a nonzero roster mask, which a
+// cartridge image never does (`InitSRAM` zeroes the header, ps4.asm:134737).
+// The field starts after the saved-party bridge's `$F026..$F02D`.
+const RUST_STANDING_Y_OFFSET: usize = 0x2E;
+const STANDING_Y_MARKER: &[u8; 2] = b"SY";
+/// The pixels between the standing row and the leader object's `curr_y_pos`:
+/// an object stands on the cell one row below its own Y (`start_cell`).
+const STANDING_ROW_PIXELS: u16 = 16;
 const LOCATION_WORLD_OFFSET: usize = 0x300;
 const LOCATION_MAP_2_OFFSET: usize = 0x302;
 const LOCATION_MAP_OFFSET: usize = 0x304;
@@ -79,7 +89,14 @@ const VEHICLE_OFFSET: usize = 0x980;
 const SIGNATURE: &[u8; 15] = b"PHANTASY STAR 4";
 
 /// The location fields the retail load path restores before entering the
-/// field. Coordinates are pixel words, as they are at `$F406`/`$F408`.
+/// field. X is the pixel word at `$F406`.
+///
+/// Y is the leader's *standing* row times 16, the runtime's convention. The
+/// cartridge stores the object's `curr_y_pos` at `$F408` (`SaveGame`,
+/// ps4.asm:119576-119577), which is one row less, and its loader turns that
+/// word back into a start row (`loc_53546`, ps4.asm:110808-110814). The codec
+/// is the one place the two meet: it writes `char_y - 16` and reads `+ 16`,
+/// so a native slot's payload and a cartridge image agree byte for byte.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RetailLocation {
     /// `$F400`, the world/planet index.
@@ -90,7 +107,7 @@ pub struct RetailLocation {
     pub map_index: u16,
     /// `$F406`, the saved leader x position in pixels.
     pub char_x: u16,
-    /// `$F408`, the saved leader y position in pixels.
+    /// The leader's standing row times 16: `$F408` plus 16 (see above).
     pub char_y: u16,
 }
 
@@ -180,7 +197,11 @@ impl RetailSlot {
         );
         write_u16(&mut payload, LOCATION_MAP_OFFSET, save.location.map_index);
         write_u16(&mut payload, LOCATION_X_OFFSET, save.location.char_x);
-        write_u16(&mut payload, LOCATION_Y_OFFSET, save.location.char_y);
+        write_u16(
+            &mut payload,
+            LOCATION_Y_OFFSET,
+            save.location.char_y.wrapping_sub(STANDING_ROW_PIXELS),
+        );
 
         let mut header = [0; RETAIL_HEADER_LOGICAL_BYTES];
         header[SIGNATURE_OFFSET..SIGNATURE_OFFSET + SIGNATURE.len()].copy_from_slice(SIGNATURE);
@@ -199,6 +220,8 @@ impl RetailSlot {
                 mask | u16::from(character.is_some()) << index
             });
         write_u16(&mut header, RUST_ROSTER_MASK_OFFSET, roster_mask);
+        header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2]
+            .copy_from_slice(STANDING_Y_MARKER);
 
         let mut bytes = [0; RETAIL_SLOT_FILE_BYTES];
         interleave(&header, &mut bytes[..RETAIL_HEADER_PHYSICAL_BYTES]);
@@ -283,8 +306,17 @@ impl RetailSlot {
         let payload = deinterleave::<RETAIL_PAYLOAD_BYTES>(
             &self.bytes[RETAIL_HEADER_PHYSICAL_BYTES..RETAIL_SLOT_FILE_BYTES],
         );
+        // A cartridge image has no roster mask (its header is zero there):
+        // it seats every character record that is not all zero, as
+        // `from_retail_payload` does. Every native slot seats its leader.
         let roster_mask = read_u16(&header, RUST_ROSTER_MASK_OFFSET);
-        let snapshot = snapshot_from_payload(&payload, Some(roster_mask));
+        let snapshot = snapshot_from_payload(&payload, (roster_mask != 0).then_some(roster_mask));
+        let saved_y = read_u16(&payload, LOCATION_Y_OFFSET);
+        let char_y = if legacy_standing_y(&header) {
+            saved_y
+        } else {
+            saved_y.wrapping_add(STANDING_ROW_PIXELS)
+        };
         Ok(RetailSave {
             snapshot,
             location: RetailLocation {
@@ -292,7 +324,7 @@ impl RetailSlot {
                 map_index_2: read_u16(&payload, LOCATION_MAP_2_OFFSET),
                 map_index: read_u16(&payload, LOCATION_MAP_OFFSET),
                 char_x: read_u16(&payload, LOCATION_X_OFFSET),
-                char_y: read_u16(&payload, LOCATION_Y_OFFSET),
+                char_y,
             },
         })
     }
@@ -579,6 +611,14 @@ fn decode_pair(bytes: &[u8], offset: usize) -> StatPair {
     }
 }
 
+/// A native slot written before the `SY` marker: its `$F408` word is the
+/// standing row times 16. Every native slot carries a roster mask (the
+/// leader's seat at least); a cartridge image's header is zero there.
+fn legacy_standing_y(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2] != STANDING_Y_MARKER
+        && read_u16(header, RUST_ROSTER_MASK_OFFSET) != 0
+}
+
 fn validate_slot(slot: usize) -> Result<(), SaveError> {
     if slot < RETAIL_SLOT_COUNT {
         Ok(())
@@ -743,7 +783,8 @@ mod tests {
         assert_eq!(slot.as_bytes().len(), RETAIL_SLOT_FILE_BYTES);
         assert_eq!(slot.as_bytes()[0], 0, "MOVEP even byte is a hole");
         assert_eq!(slot.as_bytes()[RETAIL_HEADER_PHYSICAL_BYTES], 0);
-        assert_eq!(slot.checksum(1).unwrap(), 0x8B64);
+        // The Y word is row 17 (`$0110`), the object Y of standing row 18.
+        assert_eq!(slot.checksum(1).unwrap(), 0x8B54);
 
         let loaded = RetailSlot::from_bytes(slot.as_bytes(), 1)
             .unwrap()
@@ -751,6 +792,132 @@ mod tests {
             .unwrap();
         assert_eq!(loaded, save);
         assert_eq!(GameState::from_snapshot(&loaded.snapshot), original);
+    }
+
+    /// A slot file as the cartridge leaves it: `InitSRAM` zeroes the device
+    /// (ps4.asm:134737), then the signature, the slot word and the slot's
+    /// checksum are the only header bytes it writes. `y_word` is the raw
+    /// `$F408` word.
+    fn cartridge_image(snapshot: &StateSnapshot, x: u16, y_word: u16, slot: usize) -> Vec<u8> {
+        let mut payload = snapshot.to_retail_payload();
+        write_u16(&mut payload, LOCATION_MAP_OFFSET, 0x13);
+        write_u16(&mut payload, LOCATION_X_OFFSET, x);
+        write_u16(&mut payload, LOCATION_Y_OFFSET, y_word);
+        let mut header = [0; RETAIL_HEADER_LOGICAL_BYTES];
+        header[SIGNATURE_OFFSET..SIGNATURE_OFFSET + SIGNATURE.len()].copy_from_slice(SIGNATURE);
+        write_u16(&mut header, SAVE_SLOT_OFFSET, slot as u16);
+        write_u16(
+            &mut header,
+            CHECKSUM_OFFSET + slot * 2,
+            payload_checksum(&payload),
+        );
+        let mut bytes = vec![0; RETAIL_SLOT_FILE_BYTES];
+        interleave(&header, &mut bytes[..RETAIL_HEADER_PHYSICAL_BYTES]);
+        interleave(&payload, &mut bytes[RETAIL_HEADER_PHYSICAL_BYTES..]);
+        bytes
+    }
+
+    fn logical_header(bytes: &[u8]) -> [u8; RETAIL_HEADER_LOGICAL_BYTES] {
+        deinterleave(&bytes[..RETAIL_HEADER_PHYSICAL_BYTES])
+    }
+
+    fn logical_payload(bytes: &[u8]) -> [u8; RETAIL_PAYLOAD_BYTES] {
+        deinterleave(&bytes[RETAIL_HEADER_PHYSICAL_BYTES..])
+    }
+
+    #[test]
+    fn a_native_slot_and_a_cartridge_image_agree_on_standing_y() {
+        // Standing on row 18: the leader object's `curr_y_pos` is row 17's
+        // pixel Y, the word `SaveGame` stores (ps4.asm:119576-119577).
+        let snapshot = mid_progress_state().snapshot();
+        let standing = 18 * 16;
+        let image = cartridge_image(&snapshot, 48 * 16, standing - 16, 0);
+        let from_image = RetailSlot::from_bytes(&image, 0).unwrap().decode().unwrap();
+        assert_eq!(from_image.location.char_y, standing);
+
+        let native = RetailSlot::encode(&from_image, 0).unwrap();
+        assert_eq!(
+            logical_payload(native.as_bytes()),
+            logical_payload(&image),
+            "a native SAVE writes the cartridge's payload, Y word included"
+        );
+        assert_eq!(
+            native.checksum(0).unwrap(),
+            RetailSlot::from_bytes(&image, 0)
+                .unwrap()
+                .checksum(0)
+                .unwrap()
+        );
+        let header = logical_header(native.as_bytes());
+        assert_eq!(
+            &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2],
+            b"SY"
+        );
+        assert_eq!(native.decode().unwrap(), from_image);
+        assert_eq!(
+            GameState::from_snapshot(&from_image.snapshot),
+            mid_progress_state(),
+            "a cartridge image without the native roster mask seats its party"
+        );
+    }
+
+    #[test]
+    fn a_legacy_native_slot_keeps_its_standing_row() {
+        // Before the `SY` marker the codec wrote the standing row times 16
+        // and the roster mask. Strip the marker to rebuild that file: it must
+        // load on the same row, and its next SAVE writes the retail word.
+        let save = RetailSave {
+            snapshot: mid_progress_state().snapshot(),
+            location: RetailLocation {
+                map_index: 0x13,
+                char_x: 48 * 16,
+                char_y: 18 * 16,
+                ..RetailLocation::default()
+            },
+        };
+        let current = RetailSlot::encode(&save, 2).unwrap();
+        let mut header = logical_header(current.as_bytes());
+        assert_ne!(read_u16(&header, RUST_ROSTER_MASK_OFFSET), 0);
+        header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2].fill(0);
+        let mut payload = logical_payload(current.as_bytes());
+        write_u16(&mut payload, LOCATION_Y_OFFSET, 18 * 16);
+        write_u16(
+            &mut header,
+            CHECKSUM_OFFSET + 2 * 2,
+            payload_checksum(&payload),
+        );
+        let mut legacy = vec![0; RETAIL_SLOT_FILE_BYTES];
+        interleave(&header, &mut legacy[..RETAIL_HEADER_PHYSICAL_BYTES]);
+        interleave(&payload, &mut legacy[RETAIL_HEADER_PHYSICAL_BYTES..]);
+
+        let loaded = RetailSlot::from_bytes(&legacy, 2)
+            .unwrap()
+            .decode()
+            .unwrap();
+        assert_eq!(loaded, save, "a legacy slot loads where it was saved");
+        let resaved = RetailSlot::encode(&loaded, 2).unwrap();
+        assert_eq!(resaved, current);
+        assert_eq!(
+            read_u16(&logical_payload(resaved.as_bytes()), LOCATION_Y_OFFSET),
+            17 * 16
+        );
+
+        // Negative controls: the same legacy word read as a cartridge image
+        // (no roster mask) is one row lower, and a damaged marker is legacy.
+        let mut no_mask = header;
+        write_u16(&mut no_mask, RUST_ROSTER_MASK_OFFSET, 0);
+        interleave(&no_mask, &mut legacy[..RETAIL_HEADER_PHYSICAL_BYTES]);
+        let as_image = RetailSlot::from_bytes(&legacy, 2)
+            .unwrap()
+            .decode()
+            .unwrap();
+        assert_eq!(as_image.location.char_y, 19 * 16);
+        let mut damaged = logical_header(current.as_bytes());
+        damaged[RUST_STANDING_Y_OFFSET + 1] = b'X';
+        let mut bytes = current.as_bytes().to_vec();
+        interleave(&damaged, &mut bytes[..RETAIL_HEADER_PHYSICAL_BYTES]);
+        let misread = RetailSlot::from_bytes(&bytes, 2).unwrap().decode().unwrap();
+        assert_eq!(misread.location.char_y, 17 * 16);
     }
 
     #[test]

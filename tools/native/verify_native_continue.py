@@ -3,13 +3,29 @@
 
 This requires every gameplay byte except the standing Y word to remain
 unchanged, allowing the header's slot number and valid checksum table to
-change. Use on checkpoint fixtures where the step has no gameplay
+change, and the `SY` standing-Y marker to appear when the source is a native
+slot written before it (#129; the codec's rule is `legacy_standing_y` in
+rust/psiv-core/src/save.rs). Use on checkpoint fixtures where the step has no gameplay
 effect (no poison tick, encounter, warp or story trigger).
 """
 import argparse
 import hashlib
 import json
 from pathlib import Path
+
+
+STANDING_Y_MARKER = (0x2E, b"SY")
+ROSTER_MASK = 0x20
+
+
+def standing_y(header, payload):
+    """The standing row times 16 a slot's `$F408` word names: the cartridge
+    stores the object Y, one row less; a legacy native slot (a roster mask,
+    no marker) stored the standing row itself."""
+    word = int.from_bytes(payload[0x308:0x30A], "big")
+    offset, marker = STANDING_Y_MARKER
+    legacy = header[offset:offset + 2] != marker and any(header[ROSTER_MASK:ROSTER_MASK + 2])
+    return word if legacy else (word + 16) & 0xFFFF
 
 
 def main():
@@ -35,15 +51,20 @@ def main():
     assert source[::2] == resaved[::2], "unused interleaved bytes changed"
     source_header, saved_header = source[1:0x200:2], resaved[1:0x200:2]
     header_changes = [i for i, (a, b) in enumerate(zip(source_header, saved_header)) if a != b]
-    assert set(header_changes) <= set(range(0x12, 0x1A)), "non-checksum header state changed"
+    marker_offset, marker = STANDING_Y_MARKER
+    allowed = set(range(0x12, 0x1A))
+    if source_header[marker_offset:marker_offset + 2] != marker:
+        allowed |= {marker_offset, marker_offset + 1}
+    assert saved_header[marker_offset:marker_offset + 2] == marker, "the resave lacks the SY marker"
+    assert set(header_changes) <= allowed, "non-checksum header state changed"
     a, b = source[0x201::2], resaved[0x201::2]
     changes = [i for i, (old, new) in enumerate(zip(a, b)) if old != new]
-    assert changes and set(changes) <= {0x308, 0x309}, f"unexpected gameplay changes: {changes}"
+    assert set(changes) <= {0x308, 0x309}, f"unexpected gameplay changes: {changes}"
     for header, payload in [(source_header, a), (saved_header, b)]:
         slot = int.from_bytes(header[0x12:0x14], "big")
         assert slot in range(3)
         assert int.from_bytes(header[0x14 + slot * 2:0x16 + slot * 2], "big") == sum(payload) & 0xFFFF
-    assert int.from_bytes(b[0x308:0x30A], "big") == int.from_bytes(a[0x308:0x30A], "big") + 16
+    assert standing_y(saved_header, b) == standing_y(source_header, a) + 16, "the step is not one row down"
     result = {
         "complete": True,
         "source": str(args.source.resolve()),
