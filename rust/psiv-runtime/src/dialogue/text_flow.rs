@@ -336,6 +336,22 @@ impl TextFlow {
         Opening::Window(Box::new(self))
     }
 
+    /// Overwrites the operand of the `$F4` the saved cursor resumes on, as
+    /// `Event_WreckageEngine` writes `$1(a0)` after `popdlg`. Returns whether
+    /// the next segment was a portrait to patch.
+    pub fn patch_resume_portrait(&mut self, portrait: u8) -> bool {
+        match self.segments.get_mut(self.index) {
+            Some(Segment::Control(Ctrl::Portrait { id, operands, .. })) => {
+                *id = portrait;
+                if let Some(first) = operands.first_mut() {
+                    *first = portrait;
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// A taken mid-message jump, once.
     pub fn take_jump(&mut self) -> Option<u16> {
         self.jump.take()

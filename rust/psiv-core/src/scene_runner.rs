@@ -21,7 +21,8 @@ use crate::field::StepFrames;
 use crate::geom::Cell;
 use crate::map::FieldMap;
 use crate::scene::{
-    ActorRef, OP_BUDGET_PER_TICK, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
+    ActorRef, OP_BUDGET_PER_TICK, RideOp, SceneEffect, SceneFault, SceneInput, SceneOp,
+    ScriptedActor,
 };
 use crate::trigger::PixelPos;
 pub(crate) mod actor;
@@ -36,6 +37,7 @@ mod mechanics;
 #[cfg(test)]
 mod mechanics_tests;
 mod ops;
+mod wreckage;
 
 use crate::state::{CharId, GameState, PARTY_SLOTS};
 
@@ -120,9 +122,9 @@ pub struct SceneRunner {
     /// The byte two before it, the last the text ran
     /// (`SavedByte::Last`).
     dialogue_last_byte: Option<u8>,
-    /// The `RidePlatform` in progress.
+    /// The `RideOp::Platform` in progress.
     ride: Option<mechanics::RideRun>,
-    /// The `ConveyorRide` in progress.
+    /// The `RideOp::Conveyor` in progress.
     belt: Option<mechanics::BeltRun>,
     /// The field's RNG stream, lent for the tick ([`SceneRunner::lend_rng`]).
     rng: Option<crate::battle::Lcg41>,
@@ -237,7 +239,7 @@ impl SceneRunner {
                         SceneOp::Wait { .. }
                             | SceneOp::DriftNpcs { .. }
                             | SceneOp::StepObjectAlongFacing { .. }
-                            | SceneOp::RidePlatform { .. }
+                            | SceneOp::Ride(RideOp::Platform { .. })
                     )
                 }),
             Blocked::Actor(_) | Blocked::Camera | Blocked::JobBoardHold => true,
@@ -387,7 +389,7 @@ impl SceneRunner {
     /// [`SceneRunner::tick`] with the live collision-plane layout: `chunks`
     /// answers the chunk id under a pixel position (`None` off the plane),
     /// patches included, as `GetChunkAndCollision` (`$45A52`) does. A
-    /// [`SceneOp::ConveyorRide`] reads it; a runner ticked through
+    /// [`RideOp::Conveyor`] reads it; a runner ticked through
     /// [`SceneRunner::tick`] has `None`, and that op faults with
     /// [`SceneFault::NoLayout`].
     ///

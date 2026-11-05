@@ -81,6 +81,21 @@ impl DialogueRunner {
         ))
     }
 
+    /// Patches the saved cursor's next `$F4` operand
+    /// ([`TextFlow::patch_resume_portrait`]); a fault when there is no saved
+    /// cursor or it does not stop before a portrait.
+    pub(crate) fn patch_resume_portrait(&mut self, portrait: u8) {
+        let patched = self
+            .suspended
+            .as_mut()
+            .is_some_and(|(_, flow)| flow.patch_resume_portrait(portrait));
+        if !patched {
+            self.fault(format!(
+                "scene portrait {portrait}: the saved text does not resume on a portrait"
+            ));
+        }
+    }
+
     /// The scene's next `RunDialogueResume` reopens at `Saved_Dialogue_Addr`.
     pub(crate) fn resume_scene(&mut self, panel_layout: bool, game: &GameState) -> bool {
         self.cutscene_portrait = panel_layout;
