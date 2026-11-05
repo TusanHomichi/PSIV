@@ -11,7 +11,8 @@ from unittest import mock
 from oracle.fixture import FixtureError
 from oracle.fixture.player_state import attach_start_ram
 from oracle.sweep import player_abilities as ledger
-from oracle.sweep.player_capture import force_command, patches, require_executed, verify_report
+from oracle.sweep.player_capture import (check_report_options, force_command, patches,
+                                        require_executed, verify_report)
 from oracle.fixture.observations import battle_start
 from oracle.sweep.player_chains import Chains
 from oracle.force.script import patch_state, party_state
@@ -198,6 +199,22 @@ Event_Unrelated:
             with self.assertRaisesRegex(ValueError, "delay must be a non-negative integer"):
                 force_command({"formation": 454, "rounds": rounds, "delay": bad},
                               path, path, path, [])
+
+    def test_a_report_must_match_the_cases_delay_and_required_ability(self):
+        report = {"delay": 2, "require_ability": ["0x4E"], "require_ability_met": True}
+        check_report_options({"delay": 2, "require_ability": 78}, report)
+        with self.assertRaisesRegex(ValueError, "delay 2 is not the case's 3"):
+            check_report_options({"delay": 3}, report)
+        with self.assertRaisesRegex(ValueError, "did not require ability 0x2d"):
+            check_report_options({"delay": 2, "require_ability": 45}, report)
+        with self.assertRaisesRegex(ValueError, "did not require ability 0x4e"):
+            check_report_options({"delay": 2, "require_ability": 78},
+                                 {"delay": 2, "require_ability": None})
+        failed = dict(report, require_ability_met=False)
+        with self.assertRaisesRegex(ValueError, "never fired"):
+            check_report_options({"delay": 2, "require_ability": 78}, failed)
+        # A case without a requirement accepts any report with its delay.
+        check_report_options({"delay": 2}, failed)
 
     def test_resumed_extraction_rejects_changed_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
