@@ -179,6 +179,29 @@ pub enum RockyOp {
     },
 }
 
+/// What `Event_WreckageEngine` (`scenes/wreckage.rs`) needs that no other
+/// scene has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WreckageOp {
+    /// `FindCharacterSlot(who)`, `tst.b d1`, `beq`: jump to `if_leads` when
+    /// `who` holds slot 0. `if_follows` when they hold slots 1 to 4. Not in
+    /// the party, `d1` is `-1` and the cartridge goes on with object `-1`; the
+    /// port takes `if_leads`, skipping the moves, and says so in the record.
+    BranchIfLeads {
+        /// The character asked about.
+        who: CharId,
+        /// Op index when `who` leads, or is absent.
+        if_leads: u16,
+        /// Op index when `who` follows.
+        if_follows: u16,
+    },
+    /// `popdlg` then `loc_6DCBE`: the first `Current_Party_Slots` byte that
+    /// is neither Rika (5) nor Chaz (0), plus one, written to `$1(a0)`, the
+    /// operand of the `$F4` the saved text resumes on. An empty slot reads
+    /// `$FF`, so the write is `0`: no portrait.
+    ResumePortraitFromParty,
+}
+
 /// One step of the Hunter's Guild list window ([`crate::SceneOp::JobBoard`]).
 /// `Hold`, `ShowList`, `Choose` and `Linger` block the scene.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -378,6 +401,12 @@ pub enum SceneEffect {
     WorldIndexSet {
         /// The world.
         world: u8,
+    },
+    /// The saved text's next `$F4` operand was overwritten
+    /// ([`WreckageOp::ResumePortraitFromParty`]).
+    ResumePortrait {
+        /// The portrait id written, `0` for none.
+        portrait: u8,
     },
     /// The scene ended.
     Finished,

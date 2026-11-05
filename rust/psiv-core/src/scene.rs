@@ -19,7 +19,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, JobBoardStep,
-    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput,
+    OP_BUDGET_PER_TICK, RockyOp, SavedByte, SceneEffect, SceneFault, SceneInput, WreckageOp,
 };
 
 /// One instruction of a scene.
@@ -55,8 +55,7 @@ pub enum SceneOp {
     /// is the exact opposite of the other actor's facing (down<->up,
     /// right<->left). That is [`Direction::opposite`], and it makes the
     /// principal turn toward the party from whichever side they approached.
-    /// Note it reads the *leader's* facing, which after `Event_AlysFound` is
-    /// Alys.
+    /// Note it reads the *leader's* facing, which after `Event_AlysFound` is Alys.
     FaceOppositeOf {
         /// Who turns.
         actor: ActorRef,
@@ -987,6 +986,8 @@ pub enum SceneOp {
     JobBoard(JobBoardStep),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// `Event_WreckageEngine`'s needs (`scenes/wreckage.rs`).
+    Wreckage(WreckageOp),
     /// Unconditional jump.
     Jump {
         /// Op index.

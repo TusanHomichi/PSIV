@@ -35,6 +35,7 @@ mod mechanics;
 #[cfg(test)]
 mod mechanics_tests;
 mod ops;
+mod wreckage;
 
 use crate::state::{CharId, GameState, PARTY_SLOTS};
 

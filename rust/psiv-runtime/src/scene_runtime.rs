@@ -400,6 +400,9 @@ impl Runtime {
                 }
             }
             SceneEffect::DialogueResume => events.push(RuntimeEvent::SceneDialogueResume),
+            SceneEffect::ResumePortrait { portrait } => {
+                self.dialogue.patch_resume_portrait(portrait);
+            }
             SceneEffect::ChoiceRequested => {
                 if let Some(answer) = self.dialogue_answer.take() {
                     self.scene_input = SceneInput::Choice(answer);
@@ -731,6 +734,14 @@ impl Runtime {
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| PixelPos::from_cell(walker.cell)),
+                            psiv_core::CameraSubject::ActorX { actor, y } => self
+                                .scene
+                                .as_ref()
+                                .and_then(|runner| runner.actor(actor))
+                                .map(|walker| PixelPos {
+                                    x: PixelPos::from_cell(walker.cell).x,
+                                    y,
+                                }),
                         };
                         // An actor the cast lacks has nowhere to pan to, and
                         // with no glide the runner's wait releases at once.

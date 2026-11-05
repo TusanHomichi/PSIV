@@ -897,6 +897,11 @@ impl SceneRunner {
                     self.pc += 1;
                 }
             },
+            SceneOp::Wreckage(wreckage) => {
+                if let Some(fault) = self.wreckage_op(wreckage, state, effects) {
+                    return Some(fault);
+                }
+            }
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);

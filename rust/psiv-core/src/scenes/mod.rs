@@ -82,6 +82,7 @@ mod vahal_common;
 pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
 pub(crate) mod weapon_plant;
+pub(crate) mod wreckage;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
@@ -287,6 +288,7 @@ pub static SCENES: &[Scene] = &[
     motavia_side::MEESE_CLINIC_SICK_WOMAN,
     strip_club::STRIPPERS_APPEARING,
     strip_club::EXITING_STRIP_CLUB,
+    wreckage::WRECKAGE_ENGINE,
     // The ranch owner (#81).
     ranch::RANCH_OWNER,
     ranch::RANCH_OWNER_AFTER_BATTLE,
@@ -491,6 +493,7 @@ mod tests {
             ("Event_InsideMonsenHole", 2),
             ("Event_TallasRescued", 14),
             ("Event_ExitingStripClub", 1),
+            ("Event_WreckageEngine", 67),
             ("Event_LostGirlsMother", 3),
             ("Event_KingRappyDefeated", 18),
             ("Event_MeeseClinicSickWoman", 20),

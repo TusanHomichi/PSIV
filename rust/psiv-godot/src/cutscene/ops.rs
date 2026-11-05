@@ -275,6 +275,7 @@ impl Field {
             | PresentationOp::DmaPlanesLoop { .. }
             | PresentationOp::PaletteIncreaseTone { .. }
             | PresentationOp::PaletteToneFlash { .. }
+            | PresentationOp::AddPaletteWord { .. }
             | PresentationOp::GaruberkEyeArtCycle { .. }
             | PresentationOp::ClearPaletteLine { .. }
             | PresentationOp::VariablePaletteFade { .. }

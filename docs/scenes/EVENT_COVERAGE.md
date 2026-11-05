@@ -86,7 +86,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0026` | `Event_PrincipalConfession` | dialogue `$F6` | tree 33 entry 22 | scene `Event_PrincipalConfession` |
 | `$0027` | `Event_RuneFlaeli` | map trigger $30 | ValleyMazeOutside | scene `Event_RuneFlaeli` |
 | `$0028` | `Event_AlshlineFound` | map trigger $18 | TonoeBasement_B3 | scene `Event_AlshlineFound` |
-| `$0029` | `Event_WreckageEngine` | interaction area $01; dialogue `$F6` | Wreckage_F2_Part4, tree 8 entry 70 | allowlisted, #81 |
+| `$0029` | `Event_WreckageEngine` | interaction area $01; dialogue `$F6` | Wreckage_F2_Part4, tree 8 entry 70 | scene `Event_WreckageEngine` |
 | `$002A` | `Event_CancellerReminder` | map trigger $55 | Zelan_F1 | scene `Event_CancellerReminder` |
 | `$002B` | `Event_GettingLandRover` | map trigger $1B | MachineCenter_B1_Part2 | scene `Event_GettingLandRover` |
 | `$002C` | `Event_MonsenEarthquake` | dialogue `$F6` | tree 12 entry 10 | allowlisted, #81 |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 0 |
-| #81 | Motavia side content | 17 |
+| #81 | Motavia side content | 16 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 7 |
-| | total | 25 |
+| | total | 24 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
