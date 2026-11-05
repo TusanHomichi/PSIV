@@ -9,9 +9,11 @@ side can finish; the negative control runs them in one lane and they can't.
 """
 import contextlib
 import io
-import itertools
 import json
 import os
+import signal
+import subprocess
+import sys
 import time
 import unittest
 from pathlib import Path
@@ -138,34 +140,89 @@ class LaneRunCase(unittest.TestCase):
             self.assertTrue((self.root / marker).is_file(), marker)
         self.assertIn("gate FAILED", receipt["summary"])
 
-    def test_a_lane_that_breaks_stops_the_other_lanes_command(self):
-        """The gate itself raising in one lane (here its load sampling) stops the
-        other lane's running command, and what that command started, before it
-        raises: nothing outlives the gate's locks."""
-        child = self.root / "spawned"
-        child.write_text("import time\ntime.sleep(30)\n"
-                         f"open({str(self.root / 'woke')!r}, 'w')\n")
-        sleeper = f"python3 {child} & echo $! > {self.root / 'child.pid'}; wait"
+    #: The ways a command's descendant can get away from it: in its process
+    #: group, under `timeout` (a group of its own), in a session of its own,
+    #: orphaned by a parent that exits, and a zombie whose parent never reaps it.
+    ESCAPES = ("grouped", "timed", "session", "orphan", "zombie")
+
+    def escaping_command(self):
+        """A command that starts one descendant each way ESCAPES names, each writing
+        its pid to `<way>.pid` (and the zombie's to `zombie-child.pid`), then
+        sleeping 30 s before it writes `woke`."""
+        spawned = self.root / "spawned"
+        spawned.write_text(
+            "import os, sys, time\n"
+            "way = sys.argv[1]\n"
+            "if way == 'session':\n    os.setsid()\n"
+            "if way == 'orphan' and os.fork():\n    sys.exit(0)\n"
+            "if way == 'zombie':\n"
+            "    child = os.fork()\n"
+            "    if child == 0:\n        os._exit(0)\n"
+            f"    open({str(self.root)!r} + '/zombie-child.pid', 'w').write(str(child))\n"
+            f"open({str(self.root)!r} + f'/{{way}}.pid', 'w').write(str(os.getpid()))\n"
+            "time.sleep(30)\n"
+            f"open({str(self.root / 'woke')!r}, 'a').write(way)\n")
+        run = f"python3 {spawned}"
+        return (f"{run} grouped & timeout 60 {run} timed & {run} session & {run} orphan & "
+                f"{run} zombie & wait")
+
+    def started(self):
+        """Whether every descendant `escaping_command` starts has written its pid."""
+        return all((self.root / f"{way}.pid").is_file()
+                   for way in (*self.ESCAPES, "zombie-child"))
+
+    def assert_none_outlived(self):
+        for way in (*self.ESCAPES, "zombie-child"):
+            pid = int((self.root / f"{way}.pid").read_text())
+            with self.subTest(way=way), \
+                    self.assertRaises(ProcessLookupError, msg=f"the {way} descendant outlived the gate"):
+                os.kill(pid, 0)
+        self.assertFalse((self.root / "woke").exists())
+
+    def test_a_lane_that_breaks_stops_everything_the_other_lane_started(self):
+        """The gate itself raising in one lane (here its load sampling) stops every
+        process the other lane's command started, wherever its group or session,
+        orphaned or a zombie, before it raises: nothing outlives the gate's locks."""
+        escaping = self.escaping_command()
         breaks = 'python3 -c "import time; time.sleep(30)"'
-        calls = itertools.count()
 
         def load():
-            # Fails only once both commands are running (a few samples in).
-            if next(calls) > 6:
+            # Fails only once every descendant is running.
+            if self.started():
                 raise RuntimeError("the gate broke")
             return 1.0
 
-        started = time.monotonic()
+        began = time.monotonic()
         with mock.patch("tools.gate.CPU_SAMPLE_S", 0.05), \
                 mock.patch("tools.gate.load_1m", side_effect=load), \
                 self.assertRaisesRegex(RuntimeError, "the gate broke"):
-            self.run_lanes([sleeper, breaks], ((sleeper,), (breaks,)))
-        self.assertLess(time.monotonic() - started, 15)
-        pid = int((self.root / "child.pid").read_text())
-        with self.assertRaises(ProcessLookupError, msg="the command's child outlived the gate"):
-            os.kill(pid, 0)
-        self.assertFalse((self.root / "woke").exists())
+            self.run_lanes([escaping, breaks], ((escaping,), (breaks,)))
+        self.assertLess(time.monotonic() - began, 15)
+        self.assert_none_outlived()
 
+    def test_a_signal_stops_the_gate_and_everything_below_it(self):
+        """SIGTERM to the gate alone (as from a terminal or a supervisor that signals
+        only its pid): it stops every descendant, then exits 128 plus the signal."""
+        escaping = self.escaping_command()
+        script = ("import sys\n"
+                  "from unittest import mock\n"
+                  "from tools import gate\n"
+                  f"gate.FAST_COMMANDS[:] = [{escaping!r}]\n"
+                  "with mock.patch('tools.gate.toolchain_missing', return_value=[]):\n"
+                  "    sys.exit(gate.main(['--fast']))\n")
+        env = dict(os.environ, PYTHONPATH=str(fixture.REPO_ROOT), PSIV_GATE_RECEIPT="build/gate/stopped")
+        gate = subprocess.Popen([sys.executable, "-c", script], cwd=self.root, env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(gate.kill)
+        deadline = time.monotonic() + 15
+        while not self.started():
+            self.assertLess(time.monotonic(), deadline, "the command's descendants never started")
+            time.sleep(0.05)
+        gate.send_signal(signal.SIGTERM)
+        _out, err = gate.communicate(timeout=15)
+        self.assertEqual(gate.returncode, 128 + signal.SIGTERM, err)
+        self.assertIn("stopped by signal", err)
+        self.assert_none_outlived()
 
 if __name__ == "__main__":
     unittest.main()

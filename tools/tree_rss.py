@@ -75,9 +75,10 @@ def load_1m(loadavg=Path("/proc/loadavg")):
         return None
 
 
-def _children(proc):
-    """{parent pid: [child pids]} for every process `proc` lists now."""
-    children = {}
+def _table(proc):
+    """{pid: (parent pid, state)} for every process `proc` lists now (state is
+    `/proc/<pid>/stat`'s letter: Z for a zombie, which has exited)."""
+    table = {}
     for entry in os.listdir(proc):
         if not entry.isdigit():
             continue
@@ -88,8 +89,32 @@ def _children(proc):
         # `pid (comm) state ppid ...`; comm may hold spaces and parentheses.
         fields = stat[stat.rfind(")") + 2:].split()
         if len(fields) > 1 and fields[1].isdigit():
-            children.setdefault(int(fields[1]), []).append(int(entry))
+            table[int(entry)] = (int(fields[1]), fields[0])
+    return table
+
+
+def _children(proc, table=None):
+    """{parent pid: [child pids]} for every process `proc` (or `table`, a
+    `_table`) lists."""
+    children = {}
+    for pid, (parent, _state) in (_table(proc) if table is None else table).items():
+        children.setdefault(parent, []).append(pid)
     return children
+
+
+def below(root, proc=Path("/proc")):
+    """{pid: (parent pid, state)} for every process descended from `root`, not
+    `root` itself, as `proc` lists them now."""
+    table = _table(proc)
+    children = _children(proc, table)
+    found, stack = {}, list(children.get(root, ()))
+    while stack:
+        pid = stack.pop()
+        if pid in found or pid == root:
+            continue
+        found[pid] = table[pid]
+        stack.extend(children.get(pid, ()))
+    return found
 
 
 def _rss_kb(proc, pid):

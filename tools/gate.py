@@ -16,7 +16,12 @@ is one lane. Every command runs with
 `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to the cores available, capped
 at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
 lock class. A failing command does not stop the run: one receipt shows every
-failure, and the exit code is 1 when any command failed, 0 otherwise.
+failure, and the exit code is 1 when any command failed, 0 otherwise. The gate
+is the reaper of everything its commands start (`become_subreaper`), so when
+the gate itself breaks in a lane, or a signal in `STOPS` stops it, it stops
+every process below it, wherever its group or session, before it lets its
+locks go (`stop_descendants`); a signal's run exits 128 plus the signal, with
+no receipt.
 
 The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/` (or the directory
 `PSIV_GATE_RECEIPT` names, `RECEIPT_ENV`): one log per
@@ -72,6 +77,7 @@ Python 3.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import fcntl
 import json
 import os
@@ -91,7 +97,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from heavy_lock import (EXCLUSIVE, HELD_ENV, RUNNER_WAIT_ENV, gate_lock_path,  # noqa: E402
                         heavy_lock_path, hold_heavy_lock, lock_holders, wait_reporting)
-from tree_rss import cpu_mhz, load_1m  # noqa: E402
+from tree_rss import below, cpu_mhz, load_1m  # noqa: E402
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -465,53 +471,92 @@ def toolchain_missing(env, root, modules=None, rust=None):
     return missing
 
 
-#: Seconds a stopped command's group gets after SIGTERM before SIGKILL.
+#: Seconds the gate's descendants get after SIGTERM before SIGKILL.
 STOP_GRACE_S = 5.0
 
+#: prctl's option that makes this process the reaper of its orphaned descendants.
+PR_SET_CHILD_SUBREAPER = 36
 
-def _stop_group(process):
-    """Stop `process` and everything in its process group: SIGTERM, then SIGKILL
-    after STOP_GRACE_S, then wait for the group to be empty, so the gate never
-    releases its locks while a command's descendants still run."""
-    group = process.pid
-    for sig, grace in ((signal.SIGTERM, STOP_GRACE_S), (signal.SIGKILL, None)):
-        try:
-            os.killpg(group, sig)
-        except ProcessLookupError:
-            break
-        if grace is not None:
-            deadline = time.monotonic() + grace
-            while time.monotonic() < deadline and _group_alive(group, process):
-                time.sleep(0.05)
-            if not _group_alive(group, process):
-                break
-    process.wait()
-    while _group_alive(group, process):
+
+def become_subreaper():
+    """Make the gate the reaper of everything its commands start (Linux's
+    PR_SET_CHILD_SUBREAPER), so a descendant orphaned by its parent's exit, or
+    one that left the command's process group or session (`timeout`,
+    `setsid`), stays below the gate, where `stop_descendants` finds it, and its
+    zombie is the gate's to reap rather than an init that may never reap it."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+        errno = ctypes.get_errno()
+        raise OSError(errno, f"prctl(PR_SET_CHILD_SUBREAPER): {os.strerror(errno)}")
+
+
+def stop_descendants(processes=(), grace=STOP_GRACE_S):
+    """Stop every process below the gate: SIGTERM, then SIGKILL to any still
+    alive after `grace` seconds, until none is left, reaping each zombie that is
+    the gate's own (`processes`, its Popens, through their own `wait`); so the
+    gate never releases its locks while anything a command started still runs.
+    A zombie whose parent still runs is dead already; once that parent is killed
+    it comes to the gate (`become_subreaper`)."""
+    owned = {process.pid: process for process in processes}
+    me = os.getpid()
+    deadline = time.monotonic() + grace
+    signum = signal.SIGTERM
+    signalled = set()
+    while True:
+        tree = below(me)
+        for pid, (parent, state) in tree.items():
+            if state == "Z" and parent == me:
+                if pid in owned:
+                    owned.pop(pid).wait()
+                    continue
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:  # reaped already
+                    pass
+        alive = [pid for pid, (_parent, state) in tree.items() if state != "Z"]
+        if not tree:
+            for process in owned.values():
+                process.wait()
+            return
+        if signum == signal.SIGTERM and time.monotonic() >= deadline:
+            signum, signalled = signal.SIGKILL, set()
+        for pid in alive:
+            if pid not in signalled:
+                try:
+                    os.kill(pid, signum)
+                except ProcessLookupError:
+                    pass
+                signalled.add(pid)
         time.sleep(0.05)
 
 
-def _group_alive(group, process):
-    """Whether any process is left in `group` (the command's, reaped once it exits)."""
-    process.poll()
-    try:
-        os.killpg(group, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+#: The signals that stop a gate run: everything below it is stopped first.
+STOPS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+
+class GateStopped(BaseException):
+    """The gate was stopped by `signum` (one of STOPS) while it ran."""
+
+    def __init__(self, signum):
+        super().__init__(f"stopped by signal {signum}")
+        self.signum = signum
+
+
+def _raise_stopped(signum, _frame):
+    raise GateStopped(signum)
 
 
 class LaneStopped(Exception):
     """Another lane failed to run (not a command failing: the gate itself), so this one stopped."""
 
 
-def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, stop=None):
+def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, stop=None,
+                 processes=None):
     """Run one command, log it, and return its receipt record (`lane` is its lane).
 
-    When `stop` is set while it runs, the command is killed and LaneStopped
-    raised: another lane raised, and the gate stops whole rather than leave a
-    command running past it.
+    When `stop` is set while it runs, LaneStopped is raised with the command
+    still running: another lane raised, and `_run_lanes` stops everything below
+    the gate once every lane has given up. Its Popen is appended to `processes`.
     """
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
     print(f"[{index}/{total}] {command}", flush=True)
@@ -519,29 +564,23 @@ def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, sto
     started = time.monotonic()
     clocks, loads = [], []
     with log_file.open("wb") as handle:
-        # Its own process group, so stopping it stops what it started too
-        # (py_suite's workers, cargo's rustc, certify's Godot), not only bash.
         process = subprocess.Popen(["bash", "-c", command], cwd=str(root), env=env,
-                                   stdout=handle, stderr=subprocess.STDOUT,
-                                   start_new_session=True)
-        try:
-            while True:
-                clock = cpu_mhz()
-                if clock is not None:
-                    clocks.append(clock)
-                load = load_1m()
-                if load is not None:
-                    loads.append(load)
-                try:
-                    process.wait(timeout=CPU_SAMPLE_S)
-                    break
-                except subprocess.TimeoutExpired:
-                    if stop is not None and stop.is_set():
-                        raise LaneStopped(command) from None
-                    continue
-        except BaseException:
-            _stop_group(process)
-            raise
+                                   stdout=handle, stderr=subprocess.STDOUT)
+        if processes is not None:
+            processes.append(process)
+        while True:
+            clock = cpu_mhz()
+            if clock is not None:
+                clocks.append(clock)
+            load = load_1m()
+            if load is not None:
+                loads.append(load)
+            try:
+                process.wait(timeout=CPU_SAMPLE_S)
+                break
+            except subprocess.TimeoutExpired:
+                if stop is not None and stop.is_set():
+                    raise LaneStopped(command) from None
     ended_wall = datetime.now(timezone.utc)
     duration = round(time.monotonic() - started, 3)
     counts = parse_counts(command, log_file.read_text(errors="replace"))
@@ -613,27 +652,32 @@ def lanes_for(commands, lanes=None):
 def _run_lanes(commands, lanes, root, receipt_dir, env):
     """Every command's record, in `commands` order: the lanes (`lanes_for`) side
     by side, each running its own one at a time. A failing command never stops
-    anything; an exception in a lane (the gate itself breaking) stops every
-    other lane's running command and is raised once all have ended."""
+    anything. An exception in a lane (the gate itself breaking) or in this
+    thread (an interrupt, `GateStopped`) makes every lane give up, then stops
+    everything below the gate (`stop_descendants`), then is raised."""
     records = [None] * len(commands)
     stop = threading.Event()
+    processes = []
 
     def run_lane(number, lane):
         for index in lane:
             if stop.is_set():
                 raise LaneStopped(commands[index])
             records[index] = _run_command(commands[index], index + 1, len(commands), root,
-                                          receipt_dir, env, lane=number, stop=stop)
+                                          receipt_dir, env, lane=number, stop=stop,
+                                          processes=processes)
 
-    with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
-        futures = [pool.submit(run_lane, number, lane) for number, lane in enumerate(lanes)]
-        try:
-            wait_futures(futures, return_when=FIRST_EXCEPTION)
-        finally:
-            # Whatever ended the wait (a lane raising, or this thread
-            # interrupted), nothing outlives it.
-            if not all(future.done() and future.exception() is None for future in futures):
-                stop.set()
+    try:
+        with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
+            futures = [pool.submit(run_lane, number, lane) for number, lane in enumerate(lanes)]
+            try:
+                wait_futures(futures, return_when=FIRST_EXCEPTION)
+            finally:
+                if not all(future.done() and future.exception() is None for future in futures):
+                    stop.set()
+    finally:
+        if stop.is_set():
+            stop_descendants(processes)
     errors = [future.exception() for future in futures if future.exception() is not None]
     first = next((e for e in errors if not isinstance(e, LaneStopped)), errors[0] if errors else None)
     if first is not None:
@@ -672,6 +716,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
         cores = available_cores()
         env = gate_environment(os.environ, cores)
         began = time.monotonic()
+        become_subreaper()
         records = _run_lanes(commands, lane_indices, root, receipt_dir, env)
         wall = round(time.monotonic() - began, 3)
         finished = datetime.now(timezone.utc)
@@ -740,12 +785,18 @@ def main(argv=None):
               file=sys.stderr)
         return EXIT_UNEQUIPPED
     receipt_dir = receipt_dir_for(root, args.fast, os.environ)
+    for signum in STOPS:
+        signal.signal(signum, _raise_stopped)
     try:
         receipt = run_gate(commands, root, receipt_dir, tier, wait=args.wait,
                            lanes=None if args.fast else GATE_LANES)
     except GateRefused as refusal:
         print(str(refusal), file=sys.stderr)
         return EXIT_REFUSED
+    except GateStopped as stopped:
+        print(f"gate: {stopped}; every command it started was stopped, no receipt",
+              file=sys.stderr)
+        return 128 + stopped.signum
     return receipt["exit_code"]
 
 
