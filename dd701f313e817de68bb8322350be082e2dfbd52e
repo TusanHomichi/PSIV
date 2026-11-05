@@ -1,0 +1,101 @@
+{
+  "conary": "note v1",
+  "change": "5yyamxapbesj6nt592za9js6x0",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 341,
+  "url": "https://github.com/tusanhomichi/psiv/pull/341",
+  "summary": "scenes: Kadary's fainting priest and Zio believer ($24, $31)",
+  "task": "tusanhomichi/psiv#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "00c6310a7ccffbd6f9bc05c246512f6287d1d3f52b514e6dad95380663426b79",
+    "before": "128fdc9e56509d9f59512547190161813edbce9d",
+    "after": "dd701f313e817de68bb8322350be082e2dfbd52e",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793922314726
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129344537/job/127601683566"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129344537/job/127601682863"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772/job/127601678643"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#341)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#341)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#341)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#341)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#341)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129343772"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/341#pullrequestreview-5793588602"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129344537/job/127601742950"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42129344537/job/127601683534"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/341"
+    }
+  ]
+}
