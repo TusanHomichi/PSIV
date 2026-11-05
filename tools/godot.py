@@ -559,6 +559,40 @@ def godot_command(run_root: RunRoot, *args: str, project: Path | None = None,
     return [*prefix, str(resolve()), "--path", str(project), *args]
 
 
+#: Godot's own reports, at exit, of what it could not free, as Godot 4.7.1
+#: prints them: `ObjectDB::cleanup` ("1 ObjectDB instance was leaked at
+#: exit", "N ... instances were leaked at exit", and under `--verbose` one
+#: "Leaked instance: Class:id" each), `ResourceCache::clear` ("N resources
+#: still in use at exit", "Resource still in use: path (Class)"), `RID_Alloc`
+#: ("N RID allocations of type 'T' were leaked at exit") and `PagedAllocator`
+#: ("Pages in use exist at exit"). They name no particular class, so any one
+#: of them fails a run (#123). StringName's "unclaimed string names at exit"
+#: is left out: it prints only under `--verbose`, about names, not objects.
+EXIT_LEAK_RE = re.compile(r"leaked at exit|Leaked instance: |still in use at exit"
+                          r"|Resource still in use: |Pages in use exist at exit")
+
+
+def exit_leaks(text: str) -> list[str]:
+    """The lines of a Godot run's output that report a leak at exit, stripped,
+    in order; none for a clean exit."""
+    return [line.strip() for line in text.splitlines() if EXIT_LEAK_RE.search(line)]
+
+
+def logged_exit_leaks(*logs: Path) -> list[str]:
+    """`exit_leaks` over each of a run's logs that exists (its captured
+    stdout and stderr, its `--log-file`), each line once: the one check every
+    verifier that runs Godot applies to the run's output, failing the run on
+    any line it returns."""
+    found: list[str] = []
+    for log in logs:
+        path = Path(log)
+        if path.is_file():
+            for line in exit_leaks(path.read_text(encoding="utf-8", errors="replace")):
+                if line not in found:
+                    found.append(line)
+    return found
+
+
 def run_main(argv: list[str]) -> int:
     """`run`: Godot from a fresh run root, with the arguments after `--`."""
     parser = argparse.ArgumentParser(

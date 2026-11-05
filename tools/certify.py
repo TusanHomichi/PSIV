@@ -67,7 +67,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
 from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
-                   require as require_godot)
+                   logged_exit_leaks, require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -511,6 +511,10 @@ def main(argv=None):
                 record["rmse"], record["compare"] = compare(shot, frame_path)
             else:
                 error = f"no capture (godot exit {code})"
+            record["exit_leaks"] = logged_exit_leaks(receipt / f"{record['pair']}-run.log",
+                                                     receipt / f"{record['pair']}-godot.log")
+            if error is None and record["exit_leaks"]:
+                error = "Godot reported at exit: " + "; ".join(record["exit_leaks"])
         record["error"] = error
         record["pass"] = error is None and record.get("rmse") == "0.000000"
         results.append(record)

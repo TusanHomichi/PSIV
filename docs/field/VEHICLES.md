@@ -494,9 +494,6 @@ Still open:
    retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
    screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
    ([#122](https://github.com/TusanHomichi/PSIV/issues/122)).
-3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
-   ObjectDB leak at shutdown on some headless runs; the field and battle boot
-   exits successfully ([#123](https://github.com/TusanHomichi/PSIV/issues/123)).
 
 Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in

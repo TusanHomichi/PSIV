@@ -76,10 +76,29 @@ impl AudioOutput {
         self.debug_track.is_some() || self.debug_tone
     }
 
+    /// Releases the player's playback before the engine tears down (#123).
+    ///
+    /// `stop` only marks the playback for deletion
+    /// (`AudioServer::stop_playback_stream`, Godot 4.7.1
+    /// servers/audio/audio_server.cpp): the audio thread's next mix takes it
+    /// off the server's playback list, and the server frees what it took off
+    /// when it is destroyed. The field stops it while the tree is torn down at
+    /// quit, and the driver is finished soon after, so a quit that came
+    /// before the next mix left the playback on the list, never freed: the
+    /// `AudioStreamGeneratorPlayback` ObjectDB leak headless runs reported.
+    /// So the exit path waits, bounded, for one mix that began after the stop.
     pub(crate) fn shutdown(&mut self) {
-        if let Some(mut player) = self.player.take() {
-            player.stop();
-            player.set_stream(Gd::<AudioStream>::null_arg());
+        let Some(mut player) = self.player.take() else {
+            return;
+        };
+        let had_playback = player.has_stream_playback();
+        player.stop();
+        player.set_stream(Gd::<AudioStream>::null_arg());
+        if had_playback && !wait_for_mix_after_stop() {
+            godot_warn!(
+                "audio: no mix within {} ms of the shutdown stop; Godot may report its playback leaked",
+                SHUTDOWN_MIX_WAIT_US / 1_000
+            );
         }
     }
 
@@ -171,6 +190,45 @@ fn parse_sound_id(variable: &str) -> Option<u8> {
         (10, value)
     };
     u8::from_str_radix(digits, radix).ok()
+}
+
+/// The longest the exit path waits for the audio thread's next mix. The
+/// headless Dummy driver mixes every 1,024 frames at 44.1 kHz (about 23 ms).
+const SHUTDOWN_MIX_WAIT_US: u64 = 500_000;
+
+/// Waits until a mix that began after this call has finished; false when none
+/// came within `SHUTDOWN_MIX_WAIT_US`.
+///
+/// The driver records each mix's start time and mixes under its lock, and
+/// `get_time_since_last_mix` reads that time under the same lock, so a read
+/// that shows a start after the stop also shows that mix finished.
+fn wait_for_mix_after_stop() -> bool {
+    let time = godot::classes::Time::singleton();
+    let server = godot::classes::AudioServer::singleton();
+    let stopped_at = time.get_ticks_usec();
+    loop {
+        let read_at = time.get_ticks_usec();
+        let since = server.get_time_since_last_mix();
+        if mixed_after(stopped_at, read_at, since) {
+            return true;
+        }
+        if time.get_ticks_usec().saturating_sub(stopped_at) > SHUTDOWN_MIX_WAIT_US {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+/// Whether the last mix began after `stopped_at`, given the time since it
+/// (seconds) read no earlier than `read_at` (both in engine ticks, µs). The
+/// read can only come later than `read_at`, which makes the start computed
+/// here no later than the true one: a mix judged after the stop was.
+fn mixed_after(stopped_at: u64, read_at: u64, since_last_mix_s: f64) -> bool {
+    let since_us = (since_last_mix_s * 1_000_000.0).ceil();
+    if !since_us.is_finite() || since_us < 0.0 {
+        return false;
+    }
+    (read_at as f64) - since_us > stopped_at as f64
 }
 
 fn generator_playback(
@@ -289,5 +347,24 @@ mod tests {
             assert_eq!(live.register_log().writes(), None);
             assert_eq!(traced_pcm, live_pcm, "the trace changed {id:#04x}'s PCM");
         }
+    }
+
+    /// The exit path's wait ends only on a mix that began after the stop
+    /// (#123). Times are hand-picked engine ticks (µs) and seconds.
+    #[test]
+    fn only_a_mix_begun_after_the_stop_ends_the_shutdown_wait() {
+        use super::mixed_after;
+        // Stopped at 1.000000 s; read at 1.030000 s.
+        // 0.010 s since the last mix: it began at 1.020000 s, after the stop.
+        assert!(mixed_after(1_000_000, 1_030_000, 0.010));
+        // 0.040 s: it began at 0.990000 s, before the stop.
+        assert!(!mixed_after(1_000_000, 1_030_000, 0.040));
+        // 0.030 s: it began at the stop's own tick, not after it.
+        assert!(!mixed_after(1_000_000, 1_030_000, 0.030));
+        // Never mixed: the driver's last mix time is 0, so the time since is
+        // the whole uptime.
+        assert!(!mixed_after(1_000_000, 1_030_000, 1.030));
+        assert!(!mixed_after(1_000_000, 1_030_000, f64::NAN));
+        assert!(!mixed_after(1_000_000, 1_030_000, -0.5));
     }
 }

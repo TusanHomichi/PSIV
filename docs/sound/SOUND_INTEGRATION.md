@@ -292,7 +292,12 @@ real Piata track's existing first-three-tick fixture remains deterministic and
 includes YM DAC `$2A` data plus `$2B` enable writes.
 
 Headless Godot boots exit successfully and demonstrate normal Piata routing,
-debug-track routing, and combined debug-battle routing. Godot reports
-one engine-owned `AudioStreamGeneratorPlayback` ObjectDB warning during
-process teardown; the safe `stop`/stream-detach path is in place, but the
-headless engine does not retire that playback before its final leak audit.
+debug-track routing, and combined debug-battle routing. They exit with no
+leak report: `stop` only marks the player's playback for deletion, which the
+audio thread's next mix carries out, so the field's exit path
+(`AudioOutput::shutdown`) waits, bounded, for one mix after its stop; a quit
+before that mix left the `AudioStreamGeneratorPlayback` on the server's list,
+reported leaked at exit
+([#123](https://github.com/TusanHomichi/PSIV/issues/123)). The native
+verifiers fail a run on any such report (`logged_exit_leaks` in
+`tools/godot.py`).

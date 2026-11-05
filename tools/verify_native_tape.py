@@ -29,13 +29,15 @@ try:  # imported as `tools.verify_native_tape` by tests
     from tools import native_rss
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
-    from tools.godot import GodotError, create_run_root, godot_command, require as require_godot
+    from tools.godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
+                             require as require_godot)
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     import native_rss
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
-    from godot import GodotError, create_run_root, godot_command, require as require_godot
+    from godot import (GodotError, create_run_root, godot_command, logged_exit_leaks,
+                       require as require_godot)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -451,6 +453,7 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
         "native_report": result,
         "godot_log": str(godot_log), "run_log": str(run_log),
         "capture": str(capture) if capture.is_file() else None,
+        "exit_leaks": logged_exit_leaks(run_log, godot_log),
     }
     receipt["checkpoints_file"] = str(checkpoints) if checkpoints else None
     receipt["checkpoint_saves_sha256"] = saves_before
@@ -466,6 +469,7 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
                       if args.rss_bound_mb is not None else None)
     receipt["pass"] = (
         code == 0 and result is not None and result.get("result") == "pass"
+        and not receipt["exit_leaks"]
         and identity_stable and mapped_library_matches
         and source_before == source_after
         and receipt["rss_probe_save_sha256_before"] == receipt["rss_probe_save_sha256_after"]
@@ -506,6 +510,8 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
                   f"{rss['rss_mb']['last']} MB")
         else:
             print(f"native tape: RSS FAIL; {rss['reason']}")
+    for line in receipt["exit_leaks"]:
+        print(f"native tape: Godot reported at exit: {line}")
     print(f"native tape: {'PASS' if receipt['pass'] else 'FAIL'}; "
           f"{elapsed:.2f}s; receipt={receipt_path}")
     return 0 if receipt["pass"] else 1
