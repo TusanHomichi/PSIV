@@ -11,6 +11,7 @@ import contextlib
 import io
 import itertools
 import json
+import os
 import time
 import unittest
 from pathlib import Path
@@ -138,9 +139,13 @@ class LaneRunCase(unittest.TestCase):
         self.assertIn("gate FAILED", receipt["summary"])
 
     def test_a_lane_that_breaks_stops_the_other_lanes_command(self):
-        """The gate itself raising in one lane (here its load sampling) kills the
-        other lane's running command and raises, rather than leave it running."""
-        sleeper = f'python3 -c "import time; time.sleep(30); open({str(self.root / "woke")!r}, \'w\')"'
+        """The gate itself raising in one lane (here its load sampling) stops the
+        other lane's running command, and what that command started, before it
+        raises: nothing outlives the gate's locks."""
+        child = self.root / "spawned"
+        child.write_text("import time\ntime.sleep(30)\n"
+                         f"open({str(self.root / 'woke')!r}, 'w')\n")
+        sleeper = f"python3 {child} & echo $! > {self.root / 'child.pid'}; wait"
         breaks = 'python3 -c "import time; time.sleep(30)"'
         calls = itertools.count()
 
@@ -156,6 +161,9 @@ class LaneRunCase(unittest.TestCase):
                 self.assertRaisesRegex(RuntimeError, "the gate broke"):
             self.run_lanes([sleeper, breaks], ((sleeper,), (breaks,)))
         self.assertLess(time.monotonic() - started, 15)
+        pid = int((self.root / "child.pid").read_text())
+        with self.assertRaises(ProcessLookupError, msg="the command's child outlived the gate"):
+            os.kill(pid, 0)
         self.assertFalse((self.root / "woke").exists())
 
 

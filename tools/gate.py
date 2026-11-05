@@ -78,6 +78,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -464,6 +465,43 @@ def toolchain_missing(env, root, modules=None, rust=None):
     return missing
 
 
+#: Seconds a stopped command's group gets after SIGTERM before SIGKILL.
+STOP_GRACE_S = 5.0
+
+
+def _stop_group(process):
+    """Stop `process` and everything in its process group: SIGTERM, then SIGKILL
+    after STOP_GRACE_S, then wait for the group to be empty, so the gate never
+    releases its locks while a command's descendants still run."""
+    group = process.pid
+    for sig, grace in ((signal.SIGTERM, STOP_GRACE_S), (signal.SIGKILL, None)):
+        try:
+            os.killpg(group, sig)
+        except ProcessLookupError:
+            break
+        if grace is not None:
+            deadline = time.monotonic() + grace
+            while time.monotonic() < deadline and _group_alive(group, process):
+                time.sleep(0.05)
+            if not _group_alive(group, process):
+                break
+    process.wait()
+    while _group_alive(group, process):
+        time.sleep(0.05)
+
+
+def _group_alive(group, process):
+    """Whether any process is left in `group` (the command's, reaped once it exits)."""
+    process.poll()
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 class LaneStopped(Exception):
     """Another lane failed to run (not a command failing: the gate itself), so this one stopped."""
 
@@ -481,8 +519,11 @@ def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, sto
     started = time.monotonic()
     clocks, loads = [], []
     with log_file.open("wb") as handle:
+        # Its own process group, so stopping it stops what it started too
+        # (py_suite's workers, cargo's rustc, certify's Godot), not only bash.
         process = subprocess.Popen(["bash", "-c", command], cwd=str(root), env=env,
-                                   stdout=handle, stderr=subprocess.STDOUT)
+                                   stdout=handle, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
         try:
             while True:
                 clock = cpu_mhz()
@@ -499,8 +540,7 @@ def _run_command(command, index, total, root, receipt_dir, env=None, lane=0, sto
                         raise LaneStopped(command) from None
                     continue
         except BaseException:
-            process.kill()
-            process.wait()
+            _stop_group(process)
             raise
     ended_wall = datetime.now(timezone.utc)
     duration = round(time.monotonic() - started, 3)
