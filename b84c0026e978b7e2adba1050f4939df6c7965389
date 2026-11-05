@@ -1,0 +1,101 @@
+{
+  "conary": "note v1",
+  "change": "0x5bs5ht2zbx7wvy59cw6dnesq",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 331,
+  "url": "https://github.com/tusanhomichi/psiv/pull/331",
+  "summary": "scenes: Culvers and Sekreas in Torinco ($84, $85, $87)",
+  "task": "tusanhomichi/psiv#81",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "d520974248a7a587900e0d3c5cc42d539f582092066eb961785fe3e1bd1a9c63",
+    "before": "2877c78c24a6160ac41908c54ba11073658150aa",
+    "after": "b84c0026e978b7e2adba1050f4939df6c7965389",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793896582250
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060452619/job/127360327860"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060452619/job/127360327558"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760/job/127360323252"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#331)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#331)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#331)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#331)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#331)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060451760"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/331#pullrequestreview-5787981614"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060452619/job/127360403025"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42060452619/job/127360328039"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/331"
+    }
+  ]
+}
