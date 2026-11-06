@@ -472,14 +472,17 @@ class QueueCase(LockProcesses):
         self.assertEqual(self.finish(godot), ["godot"])
 
     def kernel_waiters(self):
-        """PIDs blocked in flock(2) on the lock file (`->` lines in /proc/locks)."""
+        """PIDs blocked in flock(2) on the lock file (`->` lines in /proc/locks),
+        matched by device and inode (an inode number repeats across file systems)."""
         inode = os.stat(self.lock).st_ino
+        devices = heavy_lock_module.flock_holders.lock_devices(self.lock)
         pids = []
         for line in Path("/proc/locks").read_text().splitlines():
             fields = line.split()
-            if len(fields) > 6 and fields[1] == "->" \
-                    and int(fields[6].rsplit(":", 1)[1]) == inode:
-                pids.append(int(fields[5]))
+            if len(fields) > 6 and fields[1] == "->":
+                major, minor, node = fields[6].split(":")
+                if int(node) == inode and (int(major, 16), int(minor, 16)) in devices:
+                    pids.append(int(fields[5]))
         return pids
 
     def test_the_head_waits_in_the_kernel_like_a_raw_flock_waiter(self):

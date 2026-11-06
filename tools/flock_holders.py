@@ -8,15 +8,17 @@ Stdlib only, Python 3, Linux (/proc).
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
-def parse_lock_lines(lines, prefix=""):
+def parse_lock_lines(lines, prefix="", devices=None):
     """`[(pid, inode, is_write)]` for the held flocks among /proc lock lines
     (`<prefix>1: FLOCK  ADVISORY  WRITE <pid> <maj>:<min>:<inode> 0 EOF`).
 
-    Matched by inode alone: on btrfs the device field names the superblock's
-    device, not the file's `st_dev`. Waiters (`->` lines) are not holders.
+    An inode number is unique only within one file system: given `devices`
+    (`lock_devices`), a line on any other device is left out, since the same
+    number there is another file. Waiters (`->` lines) are not holders.
     """
     held = []
     for line in lines:
@@ -26,11 +28,57 @@ def parse_lock_lines(lines, prefix=""):
         if len(fields) < 6 or fields[1] == "->":
             continue
         try:
-            held.append((int(fields[4]), int(fields[5].rsplit(":", 1)[1]),
-                         fields[3] == "WRITE"))
-        except (ValueError, IndexError):
+            major, minor, inode = fields[5].split(":")
+            if devices is not None and (int(major, 16), int(minor, 16)) not in devices:
+                continue
+            held.append((int(fields[4]), int(inode), fields[3] == "WRITE"))
+        except ValueError:
             continue
     return held
+
+
+def _unescape(field):
+    """A mountinfo path field, as bytes, with the kernel's octal escapes undone
+    (`\\040` for a space; it escapes space, tab, newline and backslash)."""
+    return re.sub(rb"\\([0-7]{3})", lambda match: bytes([int(match.group(1), 8) & 0xff]), field)
+
+
+def lock_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
+    """The `(major, minor)` devices a /proc lock line can name for `lock` and
+    the files named after it: their directory's `st_dev`, and the device of the
+    mount that holds it, which is the one the kernel prints (its superblock's;
+    on btrfs a subvolume's `st_dev` is another). Empty when the directory does
+    not exist: nothing in it is locked.
+    """
+    directory = os.path.realpath(os.path.dirname(os.path.abspath(lock)))
+    try:
+        device = os.stat(directory).st_dev
+    except OSError:
+        return set()
+    devices = {(os.major(device), os.minor(device))}
+    # Bytes throughout: a mount point is any pathname, printed raw except for
+    # the four escaped characters, so another mount's name need not be UTF-8.
+    # Fields are split on the kernel's one delimiter, a space, and lines on
+    # newline: other whitespace in a name is printed as is.
+    directory = os.fsencode(directory)
+    try:
+        lines = Path(mountinfo).read_bytes().split(b"\n")
+    except OSError:
+        lines = []
+    point, mounted = b"", None
+    for line in lines:  # the longest mount point above it; a later mount over an earlier one
+        fields = line.split(b" ")
+        if len(fields) < 5:
+            continue
+        candidate = _unescape(fields[4])
+        if (directory == candidate or directory.startswith(candidate.rstrip(b"/") + b"/")) \
+                and len(candidate) >= len(point):
+            point, mounted = candidate, fields[2]
+    if mounted is not None:
+        major, _, minor = mounted.partition(b":")
+        if major.isdigit() and minor.isdigit():
+            devices.add((int(major), int(minor)))
+    return devices
 
 
 def fdinfo_locks(lock):
@@ -64,7 +112,8 @@ def fdinfo_locks(lock):
 
 def held_locks(lock, proc_locks):
     """`[(pid, inode, is_write)]` holding a flock: every one on `lock` and the
-    files named after it (`fdinfo_locks`), plus what `proc_locks` shows.
+    files named after it (`fdinfo_locks`), plus what `proc_locks` shows on
+    their file system (`lock_devices`).
 
     /proc/locks alone misses held locks: it is printed a page per read(2),
     each from a fresh walk of the kernel's lock list to the reader's position,
@@ -72,9 +121,13 @@ def held_locks(lock, proc_locks):
     past that position unseen (#204: 11 of 12 units, with other tests taking
     and dropping locks). It still names holders whose fds this user cannot
     read; a lock released mid-scan may appear in one source and not the other.
+    It lists every file system's locks, so a line is matched by its device and
+    inode: by inode alone a lock on another dataset whose inode number equals a
+    unit file's counted as that unit held (#380: 5 units for 3).
     """
     try:
         lines = Path(proc_locks).read_text().splitlines()
     except OSError:
         lines = []
-    return list(dict.fromkeys(fdinfo_locks(lock) + parse_lock_lines(lines)))
+    return list(dict.fromkeys(fdinfo_locks(lock)
+                              + parse_lock_lines(lines, devices=lock_devices(lock))))
