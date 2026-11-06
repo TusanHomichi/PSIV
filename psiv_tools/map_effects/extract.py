@@ -85,8 +85,10 @@ class Entry:
             }
             for path in self.paths
             # A path that does nothing and gates nothing is the routine's own
-            # "flag not set, return" arm; it carries no information.
-            if path.writes or path.aborts
+            # "flag not set, return" arm; it carries no information. One that
+            # only performs writes this slice does not model is kept, so a
+            # deferred write is never dropped silently (#38).
+            if path.writes or path.aborts or path.deferred
         ]
         return out
 

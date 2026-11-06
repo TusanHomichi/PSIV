@@ -264,9 +264,54 @@ class TestDecodedEntries(unittest.TestCase):
         # path whose gates required one flag both set and clear, which no map
         # load can satisfy. Pruning it removed the path and its writes.
         self.assertEqual(census["kinds"]["object_despawn"], 1455)
-        self.assertEqual(census["kinds"]["layout_write"], 191)
+        # 193: Aiedo's two BG stamps by absolute address joined the 191 that
+        # go through GetMapLayoutOffset (#38).
+        self.assertEqual(census["kinds"]["layout_write"], 193)
         self.assertEqual(census["kinds"]["layout_replace"], 4)
         self.assertEqual(census["maps_per_kind"]["layout_replace"], 2)
+
+    def test_aiedo_stamps_two_bg_chunks_by_absolute_address(self):
+        # `MapDataMan_Aiedo` (entry $83, ps4.asm:110754) loads `$FFFFB706`
+        # into a1 and writes chunk 6 at (a1) and 3(a1): Map_Layout_BG, not
+        # through GetMapLayoutOffset. It was decoded as a deferred "write to"
+        # note whose path was then dropped, so the pack carried `kinds: []`.
+        entry = decode_entry(self.data, 0x83)
+        self.assertIsNone(entry.undecoded)
+        (path,) = entry.paths
+        self.assertEqual(path.gates, ())
+        self.assertEqual(path.deferred, [])
+        self.assertEqual(
+            [(w.kind, w.detail["plane"], w.detail["displacement"], w.detail["chunk_id"])
+             for w in path.writes],
+            [("layout_write", "bg", 0x706, 6), ("layout_write", "bg", 0x709, 6)],
+        )
+        (aiedo,) = self.effects["per_map"][0x054]
+        writes = [w for p in aiedo["paths"] for w in p["writes"]]
+        self.assertEqual(
+            [(w["plane"], w["chunk_x"], w["chunk_y"], w["chunk_id"]) for w in writes],
+            [("bg", 22, 37, 6), ("bg", 25, 37, 6)],
+        )
+
+    def test_a_path_with_only_unmodelled_writes_is_kept(self):
+        # A deferred write is listed, never dropped (#38): the palette and RAM
+        # writes no slice models yet still reach the pack with their notes.
+        dropped = []
+        for entries in self.effects["per_map"].values():
+            for entry in entries:
+                if not entry.get("decoded"):
+                    continue
+                raw = decode_entry(self.data, entry["entry"])
+                emitted = sum(1 for p in entry["paths"])
+                informative = sum(1 for p in raw.paths if p.writes or p.aborts or p.deferred)
+                if emitted != informative:
+                    dropped.append(entry["entry_hex"])
+        self.assertEqual(dropped, [])
+        notes = {
+            note for entries in self.effects["per_map"].values() for entry in entries
+            for path in entry.get("paths", ()) for note in path["deferred"]
+        }
+        self.assertIn("write to 0xFFFFECF4", notes)
+        self.assertNotIn("write to 0xFFFFB706", notes)
 
     def test_only_two_banks_gate_anything(self):
         # Event flags and the $F140 bank. Extended and town flags gate no map

@@ -20,7 +20,7 @@ use super::layouts::{
 use super::overworld::{MapSection, decode_map_section};
 use super::patches::{
     PatchCounts, atlas_json, index_overworld_patches, index_writes, patch_atlas,
-    resolve_map_effects, resolve_overworld_patches, scene_patch_chunks,
+    resolve_map_effects, resolve_overworld_patches, scene_patch_chunks, write_composite_pairs,
 };
 use super::records::MapRecord;
 use super::updates::{MapUpdates, extract_map_updates};
@@ -250,6 +250,12 @@ pub fn map_pictures(
             record.id
         )));
     }
+    let composite_pairs: Vec<(u8, u8)> = composite_pairs
+        .into_iter()
+        .chain(write_composite_pairs(&map_effects))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     let scene_chunks = scene_patch_chunks(rom, record)?;
     let patched: BTreeSet<u8> = written.iter().chain(&scene_chunks).copied().collect();
     let mut patch_tiles = None;

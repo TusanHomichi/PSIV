@@ -290,6 +290,39 @@ pub fn resolve_map_effects(
     for effect in effects {
         let mut paths = Vec::new();
         for path in items(effect, "paths") {
+            // The cell's two planes once this path's writes are done: a path
+            // can stamp both (`-$1000(a1)` off a BG pointer), and the picture
+            // of either write is the VDP's, FG over BG (#38).
+            let mut after: BTreeMap<(i128, i128), [u8; 2]> = BTreeMap::new();
+            for write in items(path, "writes") {
+                if text(write, "kind") != "layout_write" {
+                    continue;
+                }
+                let (Some(x), Some(y), Some(chunk_id)) = (
+                    int(write, "chunk_x"),
+                    int(write, "chunk_y"),
+                    int(write, "chunk_id"),
+                ) else {
+                    return refuse(format!(
+                        "layout_write at {} has no chunk or chunk id",
+                        text(write, "at")
+                    ));
+                };
+                let (ux, uy) = (x as usize, y as usize);
+                let inside = |layout: &super::layouts::Layout| {
+                    x >= 0 && y >= 0 && ux < layout.width_chunks && uy < layout.height_chunks
+                };
+                if !inside(&decoded.fg) || !inside(&decoded.bg) {
+                    return refuse(format!(
+                        "layout_write at {} names chunk ({x}, {y}) outside the map",
+                        text(write, "at")
+                    ));
+                }
+                let cell = after
+                    .entry((x, y))
+                    .or_insert([decoded.fg.chunk_at(ux, uy), decoded.bg.chunk_at(ux, uy)]);
+                cell[usize::from(text(write, "plane") == "bg")] = chunk_id as u8;
+            }
             let mut writes = Vec::new();
             for write in items(path, "writes") {
                 if text(write, "kind") != "layout_write" {
@@ -336,12 +369,19 @@ pub fn resolve_map_effects(
                 counts.cells += cells.len();
                 counts.map_change_cells += values.iter().filter(|&&v| v == 1).count();
                 chunk_ids.push(chunk_id as u8);
+                let key = (
+                    int(write, "chunk_x").unwrap_or_default(),
+                    int(write, "chunk_y").unwrap_or_default(),
+                );
+                let [fg, bg] = after[&key];
                 writes.push(
                     write
                         .clone()
                         .with("cells", cells)
                         .with("collision_authoritative", authoritative)
-                        .with("collision_plane", plane),
+                        .with("collision_plane", plane)
+                        .with("fg_chunk_id", fg)
+                        .with("bg_chunk_id", bg),
                 );
             }
             paths.push(path.clone().with("writes", writes));
@@ -571,11 +611,40 @@ pub fn patch_atlas(
     Ok((base_png, over_png, entries))
 }
 
-/// `index_writes`: point each resolved write at its atlas tile.
+/// `write_composite_pairs`: the `(fg, bg)` composites a map's resolved layout
+/// writes blit.
+pub fn write_composite_pairs(effects: &[Json]) -> Vec<(u8, u8)> {
+    let mut pairs = BTreeSet::new();
+    for effect in effects {
+        for path in items(effect, "paths") {
+            for write in items(path, "writes") {
+                if text(write, "kind") != "layout_write" {
+                    continue;
+                }
+                if let (Some(fg), Some(bg)) = (int(write, "fg_chunk_id"), int(write, "bg_chunk_id"))
+                {
+                    pairs.insert((fg as u8, bg as u8));
+                }
+            }
+        }
+    }
+    pairs.into_iter().collect()
+}
+
+/// `index_writes`: point each resolved write at its atlas tile: the composite
+/// of the cell's two planes after the write, never the written chunk alone,
+/// which would paint a BG stamp over an opaque FG or blank the BG under a
+/// transparent FG pixel (#38).
 pub fn index_writes(effects: &mut [Json], entries: &[Json]) -> Result<(), PackError> {
-    let tile_of: BTreeMap<i128, i128> = entries
+    let tile_of: BTreeMap<(i128, i128), i128> = entries
         .iter()
-        .filter_map(|entry| Some((int(entry, "chunk_id")?, int(entry, "index")?)))
+        .filter(|entry| matches!(field(entry, "chunk_id"), Some(Json::Null)))
+        .filter_map(|entry| {
+            Some((
+                (int(entry, "fg_chunk_id")?, int(entry, "bg_chunk_id")?),
+                int(entry, "index")?,
+            ))
+        })
         .collect();
     for effect in effects {
         let Some(Json::Array(paths)) = field_mut(effect, "paths") else {
@@ -589,7 +658,9 @@ pub fn index_writes(effects: &mut [Json], entries: &[Json]) -> Result<(), PackEr
                 if text(write, "kind") != "layout_write" {
                     continue;
                 }
-                let tile = int(write, "chunk_id").and_then(|id| tile_of.get(&id));
+                let tile = int(write, "fg_chunk_id")
+                    .zip(int(write, "bg_chunk_id"))
+                    .and_then(|pair| tile_of.get(&pair));
                 let Some(&tile) = tile else {
                     return refuse(format!(
                         "no atlas tile for the write at {}",

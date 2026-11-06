@@ -98,15 +98,19 @@ class TestPackedCrashLanding(unittest.TestCase):
         self.assertEqual(census[0]["id"], TEMPLE)
         self.assertEqual(census[0]["chunks"], list(range(0x50, 0x60)))
         atlas = self.payload["patch_tiles"]
-        self.assertEqual(atlas["count"], 16)
-        self.assertEqual([t["chunk_id"] for t in atlas["tiles"]], list(range(0x50, 0x60)))
+        # The scene's 16 raw chunks, then the FG/BG composites the map's own
+        # load-time layout writes blit (#38).
+        raw = [t for t in atlas["tiles"] if t["chunk_id"] is not None]
+        self.assertEqual([t["chunk_id"] for t in raw], list(range(0x50, 0x60)))
+        composites = atlas["count"] - len(raw)
+        self.assertTrue(all(t["chunk_id"] is None for t in atlas["tiles"][16:]))
         for kind in ("png", "png_over"):
             image = (self.root / atlas[kind]).read_bytes()
             self.assertEqual(png.image_sha256(image), atlas[kind + "_sha256"])
             with Image.open(self.root / atlas[kind]) as decoded:
-                self.assertEqual(decoded.size, (16 * 32, 32))
+                self.assertEqual(decoded.size, ((16 + composites) * 32, 32))
         # The initial lower-left roof is solid; final both lower chunks solid.
-        collision = {t["chunk_id"]: t["collision"] for t in atlas["tiles"]}
+        collision = {t["chunk_id"]: t["collision"] for t in raw}
         for chunk in range(0x50, 0x60):
             self.assertEqual(collision[chunk], [8] * 4 if chunk in (0x58, 0x5E, 0x5F) else [0] * 4)
 
@@ -121,7 +125,7 @@ class TestPackedCrashLanding(unittest.TestCase):
         with Image.open(self.root / atlas["png"]) as base, Image.open(
             self.root / atlas["png_over"]
         ) as over:
-            for tile in atlas["tiles"]:
+            for tile in (t for t in atlas["tiles"] if t["chunk_id"] is not None):
                 chunk = tile["chunk_id"]
                 bg = replace(self.decoded.bg, width_chunks=1, height_chunks=1, cells=bytes([chunk]))
                 fg = replace(self.decoded.fg, width_chunks=1, height_chunks=1, cells=b"\x00")

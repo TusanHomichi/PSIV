@@ -279,3 +279,46 @@ fn position_words_are_writes_of_their_own() {
     assert_eq!(kinds(path), ["object_x", "object_y"]);
     assert!(path.deferred.is_empty());
 }
+
+#[test]
+fn a_store_into_a_layout_buffer_by_its_address_is_a_layout_write() {
+    // The shape of `MapDataMan_Aiedo` (#38), with other values:
+    // lea ($FFFFB120).w,a1 / move.b #9,(a1) / move.b #9,$3(a1)
+    // / move.w #$0102,($FFFFA010).w / clr.w $4(a1) / rts
+    let bytes = routine(&[
+        &[0x43, 0xF8, 0xB1, 0x20],
+        &[0x12, 0xBC, 0x00, 0x09],
+        &[0x13, 0x7C, 0x00, 0x09, 0x00, 0x03],
+        &[0x31, 0xFC, 0x01, 0x02, 0xA0, 0x10],
+        &[0x42, 0x69, 0x00, 0x04],
+        &RTS,
+    ]);
+    let paths = run(&bytes).unwrap();
+    assert_eq!(paths.len(), 1);
+    let layouts: Vec<_> = paths[0]
+        .writes
+        .iter()
+        .map(|write| {
+            let (target, displacement, chunk) = write.layout.unwrap();
+            (
+                target.plane,
+                target.chunk_x,
+                target.chunk_y,
+                displacement,
+                chunk,
+            )
+        })
+        .collect();
+    assert_eq!(
+        layouts,
+        [
+            (Plane::Bg, 0, 0, 0x120, Some(9)),
+            (Plane::Bg, 0, 0, 0x123, Some(9)),
+            (Plane::Fg, 0, 0, 0x010, Some(1)),
+            (Plane::Fg, 0, 0, 0x011, Some(2)),
+            (Plane::Bg, 0, 0, 0x124, Some(0)),
+            (Plane::Bg, 0, 0, 0x125, Some(0)),
+        ]
+    );
+    assert!(paths[0].deferred.is_empty());
+}
