@@ -1,0 +1,137 @@
+{
+  "conary": "note v1",
+  "change": "3aejc70mg294y0c792pjkte0gj",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 353,
+  "url": "https://github.com/tusanhomichi/psiv/pull/353",
+  "summary": "Battle oracle: capture 72 BloodSaber's DEBAN and read enemy $26/$2A (#65)",
+  "task": "tusanhomichi/psiv#65",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "a2b52dc163990ee83d2bfa2ee2256619a54936f74e394f70b94a9e2017cd9f5d",
+    "before": "5c7ad1649633bc445d8143b49ade3ea8384c6783",
+    "after": "5e25a56f9276c083e5fdb006642e343cd3bff572",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793924504605
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106649711/job/127523106622"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490/job/127523205469"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106649711/job/127523107535"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699/job/127523101718"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106648699"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#353)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106679490"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106649711/job/127523266688"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42106649711/job/127523107424"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/353#pullrequestreview-5792494583"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/353"
+    }
+  ]
+}
