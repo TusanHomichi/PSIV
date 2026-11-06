@@ -16,12 +16,15 @@ fdinfo can't see, as another user's would be:
 - `RawParentCase`: the raw-parent check always reads it, so a parent fdinfo
   can't see is found alone and beside a shared holder fdinfo does see (the
   control: a pid that is no ancestor is not), and an exclusive request under
-  one exits 2 before it queues. On the real /proc/locks, a request under a
+  one exits 2 and leaves the queue. On the real /proc/locks, a request under a
   parent holding the lock through a hard link exits 2, alone and beside such a
   holder. A queued waiter checks again every `PARENT_RECHECK_S`, leaving out
   its own head handle, so a parent the first check missed is refused after
   joining (the negative control: with no such parent it waits and is
-  granted); the check runs outside the queue mutex.
+  granted). The check runs beside the wait, so a slow one holds up neither
+  the waiting line nor the grant (#384); a lock this process holds itself,
+  through a hard link too, is found from its own descriptors before it queues
+  (the control: an open descriptor alone holds nothing).
 
 Temp files and child Pythons only, so the flake's gate-tests check runs it.
 """
@@ -221,8 +224,8 @@ class RawParentCase(FakeProcLocks):
         thread.start()
         return thread, report, outcome
 
-    def test_an_exclusive_request_under_an_unseen_parent_exits_2_before_queueing(self):
-        """Not queued behind the shared holder, waiting on its own parent."""
+    def test_an_exclusive_request_under_an_unseen_parent_exits_2_and_leaves_the_queue(self):
+        """Not left queued behind the shared holder, waiting on its own parent."""
         self.holder("build")
         self.fake_proc_locks(os.getppid(), "READ")
         thread, report, outcome = self.start_waiter()
@@ -230,7 +233,6 @@ class RawParentCase(FakeProcLocks):
         self.assertFalse(thread.is_alive(), "waiting on its own parent")
         self.assertEqual(outcome, [EXIT_HELD_BY_PARENT])
         self.assertIn(f"already held by your parent pid {os.getppid()}", report.getvalue())
-        self.assertNotIn("waiting for", report.getvalue())
         self.assertEqual(self.queue_entries(), [])
 
     def queued_waiter(self):
@@ -267,21 +269,45 @@ class RawParentCase(FakeProcLocks):
         thread.join(TIMEOUT)
         self.assertEqual(outcome, ["granted"])
 
-    def test_the_check_runs_outside_the_queue_mutex(self):
-        self.holder()
-        mutex = f"{self.lock}.mutex"
-        under_mutex = []
+    def test_a_slow_check_holds_up_neither_the_waiting_line_nor_the_grant(self):
+        """Each check reads all of /proc/locks, which took seconds under
+        another job's 60,000 locks; a waiter that waited for it missed its
+        30 s deadlines (#383, #384)."""
+        holder = self.holder()
+        checking = threading.Event()
 
-        def check(*args, **kwargs):
-            under_mutex.append(os.getpid() in heavy_lock_module.lock_holders(mutex))
-            raise RuntimeError("stop waiting")
+        def slow(*args, **kwargs):
+            checking.wait(10 * TIMEOUT)  # well past every wait below; cleanup ends it
 
-        with mock.patch.object(heavy_lock_module, "raw_flock_parent", check), \
-                self.assertRaises(RuntimeError):
-            with hold_heavy_lock(self.lock, environ={}, report=io.StringIO()):
-                self.fail("the lock is held by another process")
-        self.assertEqual(under_mutex, [False])
+        self.addCleanup(checking.set)
+        with mock.patch.object(heavy_lock_module, "raw_flock_parent", slow):
+            thread, report, outcome = self.start_waiter()
+            deadline = time.monotonic() + TIMEOUT
+            while "waiting for" not in report.getvalue() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertIn(f"held by pid {holder.pid} (exclusive)", report.getvalue())
+            self.release(holder)
+            thread.join(TIMEOUT)
+        self.assertFalse(thread.is_alive(), "the grant waited for the check")
+        self.assertEqual(outcome, ["granted"])
 
+    def test_this_process_holding_the_lock_through_a_hard_link_is_found(self):
+        """A raw flock(1) that exec'd this process holds it on a descriptor of
+        its own; a hard link is the same file."""
+        self.lock.touch()
+        alias = self.lock.parent.parent / "alias"
+        os.link(self.lock, alias)
+        handle = os.open(alias, os.O_RDONLY)
+        self.addCleanup(os.close, handle)
+        self.assertFalse(heavy_lock_module.flock_holders.held_here(self.lock),
+                         "an open descriptor alone holds nothing")
+        fcntl.flock(handle, fcntl.LOCK_SH)
+        self.assertTrue(heavy_lock_module.flock_holders.held_here(self.lock))
+        thread, report, outcome = self.start_waiter()
+        thread.join(TIMEOUT)
+        self.assertEqual(outcome, [EXIT_HELD_BY_PARENT])
+        self.assertIn(f"already held by your parent pid {os.getpid()}", report.getvalue())
+        self.assertEqual(self.queue_entries(), [])
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,8 @@
 """Who holds a flock on a lock file, or on the files named after it, read from
-/proc: the holder side of tools/heavy_lock.py (its waiting lines, `status` and
-the units and slots in use) and of the gate's lock.
+/proc: the holder side of tools/heavy_lock.py (its waiting lines, `status`, the
+units and slots in use and its raw flock(1) parent check) and of the gate's
+lock, with the /proc facts about a process they show (its ancestors, age and
+command line).
 
 Stdlib only, Python 3, Linux (/proc).
 """
@@ -116,6 +118,27 @@ def fdinfo_locks(lock):
     return held
 
 
+def held_here(lock):
+    """Whether this process holds a flock on `lock`'s file through a descriptor
+    of its own, under any name: matched by device and inode, which a hard link
+    shares. Its own descriptors only, so it never reads /proc/locks."""
+    try:
+        target = os.stat(lock)
+    except OSError:
+        return False
+    for fd in os.listdir("/proc/self/fd"):
+        try:
+            found = os.stat(f"/proc/self/fd/{fd}")
+            if (found.st_dev, found.st_ino) != (target.st_dev, target.st_ino):
+                continue
+            lines = Path(f"/proc/self/fdinfo/{fd}").read_text().splitlines()
+        except OSError:  # closed since the listing, or the listing's own
+            continue
+        if parse_lock_lines(lines, "lock:"):
+            return True
+    return False
+
+
 def held_locks(lock, proc_locks=None, read=ALWAYS):
     """`[(pid, inode, is_write)]` holding a flock: every one on `lock` and the
     files named after it (`fdinfo_locks`), plus what `proc_locks` (default
@@ -140,7 +163,8 @@ def held_locks(lock, proc_locks=None, read=ALWAYS):
     the line it repeats: that reads it only when fdinfo shows nobody else
     holding the lock file, as when the holder is another user's process. Its
     raw flock(1) parent check reads it ALWAYS, since a holder fdinfo sees says
-    nothing about a parent it can't see, but only once a minute while queued.
+    nothing about a parent it can't see, but beside the wait rather than in its
+    way (`heavy_lock._ParentCheck`).
     """
     held = fdinfo_locks(lock)
     if read == NEVER:
@@ -157,3 +181,36 @@ def held_locks(lock, proc_locks=None, read=ALWAYS):
     except OSError:
         lines = []
     return list(dict.fromkeys(held + parse_lock_lines(lines, devices=lock_devices(lock))))
+
+
+def ancestor_pids(pid=None):
+    """`pid` (default: this process) and every ancestor up to init, nearest first."""
+    pid = os.getpid() if pid is None else pid
+    chain = []
+    while pid > 0 and pid not in chain:
+        chain.append(pid)
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text()
+        except OSError:
+            break
+        pid = int(stat.rsplit(")", 1)[1].split()[1])  # field 4, after the comm
+    return chain
+
+
+def process_age(pid):
+    """Seconds since `pid` started (/proc/<pid>/stat field 22), or None."""
+    try:
+        start = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19])
+        uptime = float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return max(0.0, uptime - start / os.sysconf("SC_CLK_TCK"))
+
+
+def cmdline(pid):
+    """`pid`'s command line, its arguments joined by spaces, or `?`."""
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return "?"
+    return " ".join(part.decode(errors="replace") for part in raw.split(b"\0") if part)
