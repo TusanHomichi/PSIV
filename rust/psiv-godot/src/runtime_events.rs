@@ -118,14 +118,20 @@ impl Field {
                 RuntimeEvent::InventoryChanged => {
                     godot_print!("inventory changed during scene/runtime tick");
                 }
-                RuntimeEvent::VehicleChanged { index } => {
+                RuntimeEvent::VehicleChanged {
+                    index,
+                    scene_sets_music,
+                } => {
                     godot_print!("vehicle changed to {index:#06x}");
-                    if index == 0 && !self.battle_presentation_active() {
+                    // `Event_GettingOffVehicle` plays the adjusted id itself;
+                    // the map's raw byte must not follow it. The event says so
+                    // because the scene is already over when it arrives.
+                    if index == 0 && !scene_sets_music && !self.battle_presentation_active() {
                         self.play_map_music();
                     }
                 }
-                RuntimeEvent::VehicleDismountBlocked => {
-                    godot_print!("vehicle cannot dismount on this terrain");
+                RuntimeEvent::VehicleGetOff => {
+                    godot_print!("Event_GettingOffVehicle started");
                 }
                 RuntimeEvent::RosterChanged { who } => {
                     godot_print!("roster record changed for {who:?}");
@@ -152,6 +158,7 @@ impl Field {
                 RuntimeEvent::Interact { .. }
                 | RuntimeEvent::InteractNothing { .. }
                 | RuntimeEvent::SceneDialogue { .. }
+                | RuntimeEvent::SceneSystemLine { .. }
                 | RuntimeEvent::SceneDialogueResume
                 | RuntimeEvent::SceneChoiceRequested => {
                     godot_error!("window-opening event reached the shell: {event:?}");
@@ -333,6 +340,9 @@ impl Field {
                 Routed::SceneDialogueResume { .. } => {
                     godot_print!("scene dialogue resume (t{})", self.anim_tick);
                     self.retail_dialogue_wait = 0;
+                }
+                Routed::SceneSystemLine { line, opened } => {
+                    godot_print!("scene system line {line:?}: opened {opened}");
                 }
                 Routed::SceneDialogueResumeSkipped => {
                     godot_print!("scene dialogue resume (t{})", self.anim_tick);

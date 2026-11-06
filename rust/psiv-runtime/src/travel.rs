@@ -73,10 +73,15 @@ impl Runtime {
     }
 
     /// Writes `World_Index`, the high byte of the saved word: the destination
-    /// menu's `move.b (a0,d0.w), (World_Index).w` (`ps4.asm:133677`) and the
-    /// scenes' own `move.b #n, (World_Index).w` (`ps4.asm:155847`, `:156396`,
-    /// `:156940`, `:157065`, `:157791`). The RYUKA and TELEPIPE town lists read
-    /// it back (`Runtime::town_destinations`, `ps4.asm:128945-128975`).
+    /// menu's `move.b (a0,d0.w), (World_Index).w` (`ps4.asm:133677`, and
+    /// `:155599` in `Cutscene_SpaceshipSabotage`'s copy of the menu, both
+    /// through [`Runtime::answer_destination`]) and the scenes' own
+    /// `move.b #n, (World_Index).w` (`ps4.asm:155847`, `:156396`, `:156940`,
+    /// `:157065`, `:157791`). The new game's `World_Index = 0`
+    /// (`ps4.asm:88670`) is the pack's start field. These are every write the
+    /// cartridge makes: `tests/world_index_writes.rs` holds this list to
+    /// the disassembly. The RYUKA and TELEPIPE town lists read it back
+    /// (`Runtime::town_destinations`, `ps4.asm:128945-128975`).
     pub(crate) fn set_world_index(&mut self, world: u8) {
         self.saved_world_index = (u16::from(world) << 8) | (self.saved_world_index & 0xFF);
     }

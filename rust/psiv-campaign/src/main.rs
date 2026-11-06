@@ -12,6 +12,8 @@
 //! psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]
 //! psiv-campaign split-tape <run.tape> <report.json> <out-dir>
 //! psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>
+//! psiv-campaign verify-continue --source FILE --source-sha256 HEX --resaved FILE
+//!                               --receipt FILE --out FILE
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
@@ -20,8 +22,10 @@
 //! Exit status. `validate` and `plan`: 0 success, 1 a failed validation or an
 //! impossible plan, 2 a usage or input error. `run` and `replay`: 0 the run
 //! completed, 2 the run halted (a report was written), 1 a usage or setup
-//! error. The two families differ because `validate` and `plan` shipped first
-//! with R0, and a verified command's statuses are not changed under it.
+//! error. `verify-continue`: 0 the resave passes (its report is written), 1 it
+//! fails, 2 a usage or input error. The `validate`/`plan` and `run`/`replay`
+//! families differ because `validate` and `plan` shipped first with R0, and a
+//! verified command's statuses are not changed under it.
 
 mod run_cmd;
 
@@ -43,7 +47,8 @@ psiv-campaign replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]\n  \
 psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
 psiv-campaign split-tape <run.tape> <report.json> <out-dir>\n  \
 psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>\n  \
-psiv-campaign probe <route.json> --chapter ID --from-save FILE --trials N [--spacing FRAMES] [--work-dir DIR] [--report OUT] [--pack DIR]";
+psiv-campaign probe <route.json> --chapter ID --from-save FILE --trials N [--spacing FRAMES] [--work-dir DIR] [--report OUT] [--pack DIR]\n  \
+psiv-campaign verify-continue --source FILE --source-sha256 HEX --resaved FILE --receipt FILE --out FILE";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -55,6 +60,7 @@ fn main() -> ExitCode {
         Some("split-tape") => return run_cmd::cmd_split_tape(&args[1..]),
         Some("prefix-check") => return run_cmd::cmd_prefix_check(&args[1..]),
         Some("probe") => return run_cmd::cmd_probe(&args[1..]),
+        Some("verify-continue") => return cmd_verify_continue(&args[1..]),
         _ => {}
     }
     match run(&args) {
@@ -120,6 +126,61 @@ fn cmd_save_probe_tape(args: &[String]) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// Check a native CONTINUE's resave against its source and the driver's
+/// receipt (`psiv_campaign::verify_continue`).
+fn cmd_verify_continue(args: &[String]) -> ExitCode {
+    let inputs = (|| -> Result<_, String> {
+        let args = Args::parse(args)?;
+        let read = |name: &str| -> Result<(String, Vec<u8>), String> {
+            let path = args.require(name)?;
+            let bytes = std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"))?;
+            Ok((path.to_owned(), bytes))
+        };
+        let (source_path, source) = read("source")?;
+        let (_, resaved) = read("resaved")?;
+        let (receipt_path, receipt) = read("receipt")?;
+        let receipt: serde_json::Value = serde_json::from_slice(&receipt)
+            .map_err(|e| format!("cannot parse {receipt_path}: {e}"))?;
+        let source_path = std::fs::canonicalize(&source_path)
+            .map_err(|e| format!("cannot resolve {source_path}: {e}"))?;
+        Ok((
+            source_path.display().to_string(),
+            source,
+            args.require("source-sha256")?.to_owned(),
+            resaved,
+            receipt,
+            PathBuf::from(args.require("out")?),
+        ))
+    })();
+    let (source_path, source, sha256, resaved, receipt, out) = match inputs {
+        Ok(inputs) => inputs,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::from(2);
+        }
+    };
+    let report = match psiv_campaign::verify_continue::verify(&source, &sha256, &resaved, &receipt)
+    {
+        Ok(report) => report.to_json(&source_path),
+        Err(error) => {
+            eprintln!("verify-continue: {error}");
+            return ExitCode::from(1);
+        }
+    };
+    let text = format!("{report:#}\n");
+    let written = out
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| std::fs::write(&out, &text));
+    if let Err(error) = written {
+        eprintln!("cannot write {}: {error}", out.display());
+        return ExitCode::from(2);
+    }
+    println!("{report}");
+    ExitCode::SUCCESS
 }
 
 fn run(args: &[String]) -> Result<ExitCode, String> {

@@ -73,6 +73,15 @@ impl Session {
                     }
                     routed.push(Routed::SceneDialogue { entry, outcome });
                 }
+                RuntimeEvent::SceneSystemLine { line } => {
+                    let opened =
+                        !self.scene_dialogue_autoclose && self.runtime.open_system_line(line);
+                    if !opened {
+                        self.runtime.close_dialogue();
+                        self.runtime.dialogue_ended();
+                    }
+                    routed.push(Routed::SceneSystemLine { line, opened });
+                }
                 RuntimeEvent::SceneDialogueResume => {
                     if self.scene_dialogue_autoclose {
                         self.runtime.close_dialogue();

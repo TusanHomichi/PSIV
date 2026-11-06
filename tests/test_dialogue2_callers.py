@@ -45,7 +45,7 @@ from tests.test_scene_trees import (
 
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT_DOC = ROOT / "docs" / "scenes" / "DIALOGUE2_CALLERS.md"
-SCENES_MOD = SCENES_DIR / "mod.rs"
+SCENES_TESTS = SCENES_DIR / "tests.rs"
 
 # `jsr $0005ACDC.l`: `Event_GetAndRunDialogue2` (`ps4.asm:121634`).
 DIALOGUE2 = 0x5ACDC
@@ -115,7 +115,7 @@ def registry_retained(sources: dict[str, str] | None = None) -> dict[str, list[i
 
 
 def rust_table(text: str) -> dict[str, tuple[int, int]]:
-    """The `DIALOGUE2_CALLERS` rows of `scenes/mod.rs`: name -> (address, entry)."""
+    """The `DIALOGUE2_CALLERS` rows of `scenes/tests.rs`: name -> (address, entry)."""
     block = re.search(
         r"const DIALOGUE2_CALLERS:[^=]*=\s*&\[(.*?)\n\s*\];", text, re.S
     )
@@ -179,7 +179,7 @@ def census(
             problems.append(f"{name}: registry runs retained entries {ran} the image does not")
     if table != transcribed:
         problems.append(
-            "scenes/mod.rs DIALOGUE2_CALLERS disagrees with the image: "
+            "scenes/tests.rs DIALOGUE2_CALLERS disagrees with the image: "
             f"{sorted(set(table.items()) ^ set(transcribed.items()))}"
         )
     return problems
@@ -192,7 +192,7 @@ class Dialogue2Census(unittest.TestCase):
         cls.rom = ROM.read_bytes()
         cls.registry = registry_retained()
         cls.ranges = documented_ranges()
-        cls.table = rust_table(SCENES_MOD.read_text(encoding="utf-8"))
+        cls.table = rust_table(SCENES_TESTS.read_text(encoding="utf-8"))
         cls.doc = AUDIT_DOC.read_text(encoding="utf-8")
 
     def test_every_caller_in_the_image_is_a_retained_window(self) -> None:
@@ -220,7 +220,7 @@ class NegativeControl(unittest.TestCase):
         self.rom = ROM.read_bytes()
         self.registry = registry_retained()
         self.ranges = documented_ranges()
-        self.table = rust_table(SCENES_MOD.read_text(encoding="utf-8"))
+        self.table = rust_table(SCENES_TESTS.read_text(encoding="utf-8"))
         self.doc = AUDIT_DOC.read_text(encoding="utf-8")
 
     def run_census(self, **override: object) -> list[str]:

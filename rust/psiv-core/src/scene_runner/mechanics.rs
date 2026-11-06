@@ -109,16 +109,29 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
-            SceneOp::Object(ObjectOp::Spawn {
-                slot,
-                routine,
-                x,
-                y,
-                solid,
-                ..
-            }) => {
+            SceneOp::Object(spawn) => {
+                let (slot, routine, solid, cell) = match spawn {
+                    ObjectOp::Spawn {
+                        slot,
+                        routine,
+                        x,
+                        y,
+                        solid,
+                        ..
+                    } => (slot, routine, solid, super::pixel_cell(x, y)),
+                    ObjectOp::SpawnAt {
+                        slot,
+                        routine,
+                        at,
+                        solid,
+                    } => {
+                        let Some(source) = self.actor(at) else {
+                            return Some(SceneFault::UnknownActor { actor: at });
+                        };
+                        (slot, routine, solid, source.cell)
+                    }
+                };
                 let actor = ActorRef::Npc(slot);
-                let cell = super::pixel_cell(x, y);
                 match self.actor_mut(actor) {
                     Some(object) => {
                         object.cell = cell;
