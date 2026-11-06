@@ -1,0 +1,137 @@
+{
+  "conary": "note v1",
+  "change": "1feea85t8fx5jxpxm4x5rdysf1",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 356,
+  "url": "https://github.com/tusanhomichi/psiv/pull/356",
+  "summary": "deps: update fieldmouseworks/burrow to 28981ff",
+  "task": null,
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "landing": {
+    "revision": "7a8a6b967da00945c2d5f1abb24c04ac6c061a679c3ccea01c3ea4218005a978",
+    "before": "5e25a56f9276c083e5fdb006642e343cd3bff572",
+    "after": "d38b1d2cd50a21f16956d20c9c16f04c4860bc09",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793925509235
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988/job/127593679532"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019995/job/127593670784"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019995/job/127593670462"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019995/job/127593670315"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021/job/127593666003"
+    },
+    {
+      "kind": "ci",
+      "check": "renovate/stability-days",
+      "result": "pass",
+      "source": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019021"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#356)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127022988"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42127019995/job/127593719496"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/356"
+    }
+  ]
+}
