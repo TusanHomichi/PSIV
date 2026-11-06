@@ -684,10 +684,12 @@ run or a build under godot, a godot run under a build) exits 2, since that
 holder excludes nobody and reserved no units for it. A raw `flock(1)` wrapper sets no marker: a gate,
 candidate, certify or native replay under one exits 2 naming the parent
 instead of waiting forever, and `verify_candidate` refuses it at startup,
-before the build. A waiter checks before it queues and again every
-`PARENT_RECHECK_S` while it waits, reading /proc/locks each time, so a parent
-fdinfo can't see (another user's, or one holding the lock through a hard link)
-is refused even beside a holder fdinfo does see.
+before the build. A waiter checks its own descriptors before it queues, and
+its ancestors beside its wait once queued and every `PARENT_RECHECK_S` after,
+reading /proc/locks each time, so a parent fdinfo can't see (another user's, or
+one holding the lock through a hard link) is refused even beside a holder
+fdinfo does see, and a slow read holds up neither its waiting line nor its
+grant.
 
 ### Verification tiers
 
