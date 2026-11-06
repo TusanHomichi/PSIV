@@ -51,42 +51,71 @@ def _unescape(field):
     return re.sub(rb"\\([0-7]{3})", lambda match: bytes([int(match.group(1), 8) & 0xff]), field)
 
 
-def lock_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
-    """The `(major, minor)` devices a /proc lock line can name for `lock` and
-    the files named after it: their directory's `st_dev`, and the device of the
-    mount that holds it, which is the one the kernel prints (its superblock's;
-    on btrfs a subvolume's `st_dev` is another). Empty when the directory does
-    not exist: nothing in it is locked.
+def _mount_device(path, mountinfo):
+    """The `(major, minor)` device of the mount holding `path` (an absolute,
+    resolved path): the longest mount point at or above it, a later mount over
+    an earlier one, so a file bind-mounted on its own is its own mount. That
+    is the device the kernel prints in a lock line (its superblock's; on btrfs
+    a subvolume's `st_dev` is another). None when no line covers it.
     """
-    directory = os.path.realpath(os.path.dirname(os.path.abspath(lock)))
-    try:
-        device = os.stat(directory).st_dev
-    except OSError:
-        return set()
-    devices = {(os.major(device), os.minor(device))}
     # Bytes throughout: a mount point is any pathname, printed raw except for
     # the four escaped characters, so another mount's name need not be UTF-8.
     # Fields are split on the kernel's one delimiter, a space, and lines on
     # newline: other whitespace in a name is printed as is.
-    directory = os.fsencode(directory)
+    path = os.fsencode(path)
     try:
         lines = Path(mountinfo).read_bytes().split(b"\n")
     except OSError:
         lines = []
     point, mounted = b"", None
-    for line in lines:  # the longest mount point above it; a later mount over an earlier one
+    for line in lines:
         fields = line.split(b" ")
         if len(fields) < 5:
             continue
         candidate = _unescape(fields[4])
-        if (directory == candidate or directory.startswith(candidate.rstrip(b"/") + b"/")) \
+        if (path == candidate or path.startswith(candidate.rstrip(b"/") + b"/")) \
                 and len(candidate) >= len(point):
             point, mounted = candidate, fields[2]
     if mounted is not None:
         major, _, minor = mounted.partition(b":")
         if major.isdigit() and minor.isdigit():
-            devices.add((int(major), int(minor)))
+            return int(major), int(minor)
+    return None
+
+
+def _devices(path, mountinfo):
+    """`path`'s `st_dev` and its mount's device (`_mount_device`), or an empty
+    set when it does not exist."""
+    path = os.path.realpath(path)
+    try:
+        device = os.stat(path).st_dev
+    except OSError:
+        return set()
+    devices = {(os.major(device), os.minor(device))}
+    mounted = _mount_device(path, mountinfo)
+    if mounted is not None:
+        devices.add(mounted)
     return devices
+
+
+def lock_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
+    """The `(major, minor)` devices a /proc lock line can name for `lock` and
+    the files named after it: their directory's `st_dev`, and the device of the
+    mount that holds it, which is the one the kernel prints (its superblock's;
+    on btrfs a subvolume's `st_dev` is another). Empty when the directory does
+    not exist: nothing in it is locked. For `lock`'s own file alone, which may
+    be mounted apart from its directory, see `file_devices`.
+    """
+    return _devices(os.path.dirname(os.path.abspath(lock)), mountinfo)
+
+
+def file_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
+    """The `(major, minor)` devices a /proc lock line can name for `lock`'s own
+    file: its `st_dev` and the device of the mount that holds the file itself.
+    A file bind-mounted from another file system is a mount of its own, so its
+    directory's devices (`lock_devices`) are not its. Empty when it does not
+    exist."""
+    return _devices(lock, mountinfo)
 
 
 def fdinfo_locks(lock):
@@ -118,10 +147,12 @@ def fdinfo_locks(lock):
     return held
 
 
-def held_here(lock):
+def held_here(lock, mountinfo=Path("/proc/self/mountinfo")):
     """Whether this process holds a flock on `lock`'s file through a descriptor
     of its own, under any name: a lock record in its fdinfo on the file's
-    inode and one of its devices (`lock_devices`), which a hard link shares.
+    inode and one of its own devices (`file_devices`: its `st_dev` and its
+    mount's, so a file bind-mounted on its own counts), which a hard link
+    shares.
     The record names the locked file itself, so a descriptor closed and reused
     meanwhile cannot vouch for another file's lock; and only /proc is read,
     never a descriptor's own file, which a hung mount could stall. Never reads
@@ -130,7 +161,7 @@ def held_here(lock):
         inode = os.stat(lock).st_ino
     except OSError:
         return False
-    devices = lock_devices(lock)
+    devices = file_devices(lock, mountinfo)
     for fd in os.listdir("/proc/self/fdinfo"):
         try:
             lines = Path(f"/proc/self/fdinfo/{fd}").read_text().splitlines()

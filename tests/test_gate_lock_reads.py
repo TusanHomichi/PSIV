@@ -26,15 +26,25 @@ fdinfo can't see, as another user's would be:
   through a hard link too, is found from its own fdinfo before it queues (the
   controls: an open descriptor alone holds nothing, nor does another file's
   lock, whatever a descriptor's file is by the time it is looked at).
+- `OwnMountCase`: that hold is matched on the lock file's own devices, its
+  `st_dev` and its own mount's, not its directory's: a file mounted apart
+  from its directory, as a single-file bind mount is, and a file whose
+  `st_dev` is not the device its lock line names (btrfs) are found (the
+  controls: with neither device matching, or no lock, nothing is). A real
+  single-file bind mount, in a user and mount namespace of its own, runs
+  where `unshare` can make one and is skipped elsewhere.
 
 Temp files and child Pythons only, so the flake's gate-tests check runs it.
 """
 
 import fcntl
 import io
+import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -336,6 +346,135 @@ class RawParentCase(FakeProcLocks):
         with mock.patch.object(flock_holders.os, "stat", stat):
             self.assertFalse(flock_holders.held_here(self.lock))
         self.assertEqual(statted, [], "a descriptor's own file was touched")
+
+
+#: In a user and mount namespace of its own: mounts a tmpfs on `argv[2]`,
+#: bind-mounts a file of it over the lock `argv[3]`, and prints the lock's
+#: `st_dev` and its directory's, and `held_here` open and then locked.
+#: Exits 77 when it cannot mount.
+BIND_MOUNTED = """
+import fcntl, json, os, subprocess, sys
+sys.path.insert(0, sys.argv[1])
+import flock_holders
+source, lock = sys.argv[2], sys.argv[3]
+def mount(*args):
+    try:
+        if subprocess.run(["mount", *args]).returncode == 0:
+            return
+    except OSError as error:  # no mount(8) here
+        print(error, file=sys.stderr)
+    sys.exit(77)
+mount("-t", "tmpfs", "tmpfs", source)
+open(os.path.join(source, "lock"), "w").close()
+open(lock, "w").close()
+mount("--bind", os.path.join(source, "lock"), lock)
+handle = os.open(lock, os.O_RDONLY)
+unlocked = flock_holders.held_here(lock)
+fcntl.flock(handle, fcntl.LOCK_SH)
+print(json.dumps({"directory": os.stat(os.path.dirname(lock)).st_dev,
+                  "file": os.stat(lock).st_dev,
+                  "unlocked": unlocked, "locked": flock_holders.held_here(lock)}))
+"""
+
+#: A device no file here is on.
+FOREIGN = (0xfe, 0xfe)
+
+
+class OwnMountCase(unittest.TestCase):
+    """`flock_holders.held_here` matches a lock record on the lock file's own
+    devices, which need not be its directory's."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.base = Path(tmp.name).resolve()
+        self.lock = self.base / "build" / "continuation-heavy.lock"
+        self.lock.parent.mkdir()
+        self.lock.touch()
+        self.handle = os.open(self.lock, os.O_RDONLY)
+        self.addCleanup(os.close, self.handle)
+        device = os.stat(self.lock).st_dev
+        self.device = (os.major(device), os.minor(device))
+        self.assertNotEqual(self.device, FOREIGN)
+
+    def mountinfo(self, *mounts):
+        """A mountinfo file of `(device, mount point)` lines, in order."""
+        path = self.base / "mountinfo"
+        path.write_text("".join(f"{index} 1 {major}:{minor} / {point} rw - tmpfs tmpfs rw\n"
+                                for index, ((major, minor), point) in enumerate(mounts, 30)))
+        return path
+
+    def stat_on(self, devices):
+        """`os.stat`, but a path in `devices` (path -> (major, minor)) reports
+        that `st_dev`."""
+        real_stat = os.stat
+
+        def stat(path, *args, **kwargs):
+            result = real_stat(path, *args, **kwargs)
+            if str(path) in devices:
+                fields = list(result[:10])
+                fields[2] = os.makedev(*devices[str(path)])
+                result = os.stat_result(fields)
+            return result
+        return mock.patch.object(heavy_lock_module.flock_holders.os, "stat", stat)
+
+    def test_a_file_mounted_apart_from_its_directory_is_found(self):
+        """Its directory is on another file system, as under a single-file bind
+        mount: the directory's devices are not the file's."""
+        flock_holders = heavy_lock_module.flock_holders
+        mountinfo = self.mountinfo(((0, 1), "/"), (FOREIGN, self.lock.parent),
+                                   (self.device, self.lock))
+        fcntl.flock(self.handle, fcntl.LOCK_SH)
+        with self.stat_on({str(self.lock.parent): FOREIGN}):
+            self.assertEqual(flock_holders.lock_devices(self.lock, mountinfo), {FOREIGN},
+                             "the directory's devices name only another file system")
+            self.assertTrue(flock_holders.held_here(self.lock, mountinfo))
+
+    def test_a_file_whose_st_dev_is_not_its_lock_lines_device_is_found(self):
+        """On btrfs a file's `st_dev` is its subvolume's, while its lock line
+        names the mount's device."""
+        fcntl.flock(self.handle, fcntl.LOCK_SH)
+        mountinfo = self.mountinfo(((0, 1), "/"), (self.device, self.base))
+        with self.stat_on({str(self.lock): FOREIGN}):
+            self.assertTrue(heavy_lock_module.flock_holders.held_here(self.lock, mountinfo))
+
+    def test_negative_control_neither_device_its_lock_lines_is_not_found(self):
+        fcntl.flock(self.handle, fcntl.LOCK_SH)
+        mountinfo = self.mountinfo((FOREIGN, "/"))
+        with self.stat_on({str(self.lock): FOREIGN}):
+            self.assertFalse(heavy_lock_module.flock_holders.held_here(self.lock, mountinfo))
+
+    def test_negative_control_its_own_mount_without_a_lock_is_not_held(self):
+        mountinfo = self.mountinfo(((0, 1), "/"), (self.device, self.lock))
+        self.assertFalse(heavy_lock_module.flock_holders.held_here(self.lock, mountinfo))
+
+    def test_negative_control_a_mount_named_after_the_file_is_not_its(self):
+        """`<lock>.x` is another path; a file that does not exist has no devices."""
+        flock_holders = heavy_lock_module.flock_holders
+        mountinfo = self.mountinfo(((0, 1), "/"), ((0, 9), f"{self.lock}.x"))
+        self.assertEqual(flock_holders.file_devices(self.lock, mountinfo), {self.device, (0, 1)})
+        self.assertEqual(flock_holders.file_devices(self.base / "gone", mountinfo), set())
+
+    def test_a_real_single_file_bind_mount_is_found(self):
+        unshare = shutil.which("unshare")
+        if unshare is None:
+            self.skipTest("no unshare here")
+        source = self.base / "source"
+        source.mkdir()
+        lock = self.base / "bound" / "continuation-heavy.lock"
+        lock.parent.mkdir()
+        run = subprocess.run([unshare, "--user", "--map-root-user", "--mount", sys.executable,
+                              "-c", BIND_MOUNTED, str(TOOLS), str(source), str(lock)],
+                             capture_output=True, text=True, timeout=TIMEOUT)
+        if run.returncode == 77 or (run.returncode and "unshare" in run.stderr):
+            self.skipTest(f"no bind mount in a namespace here: {run.stderr.strip()}")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        found = json.loads(run.stdout)
+        self.assertNotEqual(found["file"], found["directory"],
+                            "the bound file is on a file system of its own")
+        self.assertFalse(found["unlocked"], "an open descriptor alone holds nothing")
+        self.assertTrue(found["locked"])
+
 
 if __name__ == "__main__":
     unittest.main()
