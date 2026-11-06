@@ -660,7 +660,10 @@ yield that lets one go ahead use `--priority`; nothing else does. While
 waiting, a line names the holders and how many waiters (gates and priority
 waiters among them) are ahead, again whenever that changes, and every
 `WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
-holder's class, age and command line. A gate waiting for the gate lock with
+holder's class, age and command line. The first line names the holders whose
+descriptors this user can read; the second, when it finds none, and `status`
+also read /proc/locks, for another user's, which takes seconds a read while the
+machine holds tens of thousands of locks (#383). A gate waiting for the gate lock with
 `--wait` reports the same way, so a job runner that stops a job gone quiet
 sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
 waiters with each pid's command line.
@@ -679,7 +682,10 @@ run or a build under godot, a godot run under a build) exits 2, since that
 holder excludes nobody and reserved no units for it. A raw `flock(1)` wrapper sets no marker: a gate,
 candidate, certify or native replay under one exits 2 naming the parent
 instead of waiting forever, and `verify_candidate` refuses it at startup,
-before the build.
+before the build. A waiter checks before it queues and again every
+`PARENT_RECHECK_S` while it waits, reading /proc/locks each time, so a parent
+fdinfo can't see (another user's, or one holding the lock through a hard link)
+is refused even beside a holder fdinfo does see.
 
 ### Verification tiers
 

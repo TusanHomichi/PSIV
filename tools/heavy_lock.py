@@ -79,7 +79,8 @@ holder of another class (an exclusive run under godot, a build under python) is
 refused instead, because the holder neither excluded anyone nor reserved the
 request's units. A raw `flock(1)` wrapper sets no marker; a child that finds
 the lock held by one of its ancestors (by inode, from /proc) exits 2 naming
-the parent instead of waiting forever (`raw_flock_parent`).
+the parent instead of waiting forever (`raw_flock_parent`), before it queues
+and every `PARENT_RECHECK_S` while it waits.
 
 A directory git cannot describe (a fixture, an exported tree) falls back to its
 own `build/`. Stdlib only, Python 3, Linux (/proc).
@@ -160,6 +161,10 @@ GATE_RANK, PRIORITY_RANK, NORMAL_RANK = 0, 1, 2
 #: changes. A job runner that stops a job whose output has gone quiet must see
 #: that it is waiting, and on whom.
 WAIT_REPORT_S = 60
+#: How often a queued waiter checks again for a raw `flock(1)` parent
+#: (`raw_flock_parent`), in case the check before it joined missed one: each
+#: check reads /proc/locks, which a loaded machine slows (#383).
+PARENT_RECHECK_S = 60
 #: How much of a holder's command line a waiting line shows.
 COMMAND_CHARS = 160
 
@@ -259,13 +264,14 @@ def _recorded(path):
     return cap, fields[1] if len(fields) > 1 else None
 
 
-def lock_modes(path, proc_locks=Path("/proc/locks")):
+def lock_modes(path, proc_locks=None, read=flock_holders.ALWAYS):
     """`[(pid, class)]` holding a lock on `path`'s inode (see
-    `flock_holders.held_locks`): a WRITE lock is `exclusive`; a READ lock is
-    `godot` when the pid holds a godot slot, else the class its budget units or
-    class file record, else `shared`."""
+    `flock_holders.held_locks`, which says what a waiter passes as `read`): a
+    WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a godot
+    slot, else the class its budget units or class file record, else
+    `shared`."""
     inode = os.stat(path).st_ino
-    held = flock_holders.held_locks(path, proc_locks)
+    held = flock_holders.held_locks(path, proc_locks, read)
     slots = _numbered(path, GODOT)
     labelled = {**_numbered(path, "unit"), **_numbered(path, CLASS_FILE)}
     in_slots = {pid for pid, node, _ in held if node in slots}
@@ -282,7 +288,7 @@ def lock_modes(path, proc_locks=Path("/proc/locks")):
     return found
 
 
-def units_in_use(path, proc_locks=Path("/proc/locks")):
+def units_in_use(path, proc_locks=None):
     """How many of `path`'s budget unit files are held now (see
     `flock_holders.held_locks`)."""
     units = _numbered(path, "unit")
@@ -290,10 +296,10 @@ def units_in_use(path, proc_locks=Path("/proc/locks")):
     return len({node for _, node, _ in held if node in units})
 
 
-def lock_holders(path, proc_locks=Path("/proc/locks")):
+def lock_holders(path, proc_locks=None, read=flock_holders.ALWAYS):
     """PIDs holding a lock on `path`'s inode (see `lock_modes`)."""
     pids = []
-    for pid, _ in lock_modes(path, proc_locks):
+    for pid, _ in lock_modes(path, proc_locks, read):
         if pid not in pids:
             pids.append(pid)
     return pids
@@ -313,12 +319,18 @@ def ancestor_pids(pid=None):
     return chain
 
 
-def raw_flock_parent(path=None, environ=None):
+def raw_flock_parent(path=None, environ=None, queued=False):
     """The pid of an ancestor holding the heavy lock `path` without exporting the
-    marker (a raw `flock(1)` wrapper), or None.
+    marker (a raw `flock(1)` wrapper), or None. A `queued` waiter leaves itself
+    out: its own head handle holds the lock once the kernel grants it.
 
     A process under such a parent can never take the lock, so an entry point
-    refuses at once (exit 2) instead of waiting on itself.
+    refuses at once (exit 2) instead of waiting on itself. It always reads
+    /proc/locks (`flock_holders.ALWAYS`): fdinfo cannot see a parent that is
+    another user's process or holds the lock through a hard link, and a holder
+    fdinfo does see beside it says nothing about the parent. One read can still
+    miss a line while the machine's locks churn, so a waiter checks again while
+    it waits (`PARENT_RECHECK_S`).
     """
     environ = os.environ if environ is None else environ
     path = Path(path or heavy_lock_path(environ=environ))
@@ -327,7 +339,7 @@ def raw_flock_parent(path=None, environ=None):
     resolved = str(path.resolve())
     if environ.get(HELD_ENV) == resolved:
         return None
-    ancestors = ancestor_pids()
+    ancestors = ancestor_pids()[1:] if queued else ancestor_pids()
     return next((pid for pid in lock_holders(resolved) if pid in ancestors), None)
 
 
@@ -674,8 +686,11 @@ _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
 
 
 def _wait_line(lock, lock_class, rank, ahead):
-    """One "waiting for" line: the holders with their class, the queue ahead."""
-    holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)
+    """One "waiting for" line: the holders fdinfo sees with their class (see
+    `flock_holders.held_locks`; `_still_line` names another user's), the
+    queue ahead."""
+    holders = ", ".join(f"{pid} ({mode})"
+                        for pid, mode in lock_modes(lock, read=flock_holders.NEVER)
                         if pid != os.getpid()) or "none"  # a godot head holds it shared
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
     gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
@@ -690,7 +705,8 @@ def _still_line(lock, waited):
     holders = "; ".join(
         f"pid {pid} ({mode}, up {_duration(_process_age(pid))}): "
         f"{' '.join(_cmdline(pid).split())[:COMMAND_CHARS]}"
-        for pid, mode in lock_modes(lock) if pid != os.getpid())
+        for pid, mode in lock_modes(lock, read=flock_holders.WHEN_UNSEEN)
+        if pid != os.getpid())
     return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
 
 
@@ -723,7 +739,9 @@ def _acquire(lock, need, rank, report, environ):
     displaced from the head (a priority waiter arrived) gives the lock file
     back at once. Prints `_wait_line` whenever it changes, and `_still_line`
     after every `WAIT_REPORT_S` it has not. From joining the queue until it
-    leaves, a job runner hears it waits (`runner_wait`).
+    leaves, a job runner hears it waits (`runner_wait`). Before joining, and
+    every `PARENT_RECHECK_S` after, it exits 2 if a raw `flock(1)` parent holds
+    the lock (`raw_flock_parent`), checked outside the queue mutex.
     """
     lock_class = need.lock_class
     queue = _Queue(lock)
@@ -731,6 +749,7 @@ def _acquire(lock, need, rank, report, environ):
     blocker = None
     shown = None
     began = reported = time.monotonic()
+    checked = None  # when raw_flock_parent last ran
     waits = ExitStack()
     try:
         while True:
@@ -741,29 +760,39 @@ def _acquire(lock, need, rank, report, environ):
                         held = _try_grant(lock, need)
                         if held:
                             return held
-                    parent = raw_flock_parent(lock, environ={})
-                    if parent is not None:
-                        print(refuse_message(lock, parent), file=report, flush=True)
-                        raise SystemExit(EXIT_HELD_BY_PARENT)
-                    entry = queue.join(rank, lock_class, waiting)
-                    waits.enter_context(runner_wait(f"PSIV's heavy-run lock ({lock_class} class)",
-                                                    environ))
-                    waiting = queue.entries()
-                ahead = waiting[:waiting.index(entry[0])]
-                if ahead and blocker is not None:
-                    blocker.abandon()
-                    blocker = None
-                elif not ahead:
-                    blocker = blocker or _Blocker(lock, _main_mode(lock_class))
-                    if blocker.done.is_set():
-                        main = blocker.grant()
-                        taken = need.take(lock)
-                        if taken is not None:
-                            queue.leave(entry)
-                            entry = None
-                            held, blocker = [main, *taken], None
-                            return held
-                line = _wait_line(lock, lock_class, rank, ahead)
+                    if checked is not None:
+                        entry = queue.join(rank, lock_class, waiting)
+                        waits.enter_context(runner_wait(
+                            f"PSIV's heavy-run lock ({lock_class} class)", environ))
+                        waiting = queue.entries()
+                if entry is not None:
+                    ahead = waiting[:waiting.index(entry[0])]
+                    if ahead and blocker is not None:
+                        blocker.abandon()
+                        blocker = None
+                    elif not ahead:
+                        blocker = blocker or _Blocker(lock, _main_mode(lock_class))
+                        if blocker.done.is_set():
+                            main = blocker.grant()
+                            taken = need.take(lock)
+                            if taken is not None:
+                                queue.leave(entry)
+                                entry = None
+                                held, blocker = [main, *taken], None
+                                return held
+            # Checked and named outside the mutex: both read /proc, which a
+            # loaded machine slows, and the other waiters need the mutex. The
+            # check runs before joining (the lock is then tried once more) and
+            # again while queued, so a parent it missed is still refused.
+            if checked is None or time.monotonic() - checked >= PARENT_RECHECK_S:
+                parent = raw_flock_parent(lock, environ={}, queued=entry is not None)
+                if parent is not None:
+                    print(refuse_message(lock, parent), file=report, flush=True)
+                    raise SystemExit(EXIT_HELD_BY_PARENT)
+                checked = time.monotonic()
+                if entry is None:
+                    continue
+            line = _wait_line(lock, lock_class, rank, ahead)
             now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)
