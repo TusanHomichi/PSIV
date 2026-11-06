@@ -32,7 +32,7 @@ from tools.heavy_lock import Hold
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
-NAMES = SIX + BATTLE + ["ship-menu"]
+NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -75,6 +75,21 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7200:FFFFECA8:800D", recipe["patches"])
         self.assertIn("7000:FFFFEC28:00BF", recipe["patches"])
         self.assertIn("7000:FFFFF101:80", recipe["patches"])
+
+    def test_the_teleport_pair_certifies_its_window_region_only(self):
+        pair = next(p for p in certify.PAIRS if p[0] == "teleport-towns")
+        _, env, _, frame, _, recipe = pair
+        self.assertEqual(env, {"PSIV_DEBUG_CAMP": "telepipe"})
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertTrue(frame.startswith("build/certify/oracle/"))
+        # The town list's window, (18,13) 14x12 cells, in pixels.
+        self.assertEqual(recipe["region"], [144, 104, 112, 96])
+        # No other pair is cropped: they certify whole frames.
+        cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
+        self.assertEqual(cropped, ["teleport-towns", "teleport-message"])
+        message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
+        # The message window, $45: (7,21) 26x5 cells.
+        self.assertEqual(message[5]["region"], [56, 168, 208, 40])
 
     def test_battle_pairs_pin_the_enemy_clock_the_oracle_receipt_names(self):
         for name, env, _, _, _, _ in certify.PAIRS:
@@ -184,6 +199,28 @@ class BuildByDefaultTest(unittest.TestCase):
 
     def test_legacy_build_flag_still_parses(self):
         self.assertFalse(certify.build_parser().parse_args(["--build"]).no_build)
+
+
+class CompareTest(unittest.TestCase):
+    """The comparison is the Rust `presentation-rmse`, built beside the
+    extension; a pair's region reaches it as `--region x,y,width,height`."""
+
+    def run_compare(self, region):
+        completed = subprocess.CompletedProcess([], 0, stdout="godot=1x1 rmse=0.000000\n", stderr="")
+        with mock.patch.object(certify.subprocess, "run", return_value=completed) as run:
+            rmse, _ = certify.compare(Path("shot.png"), Path("frame.png"), region)
+        return rmse, run.call_args.args[0]
+
+    def test_a_region_is_passed_to_the_rust_comparison(self):
+        rmse, command = self.run_compare([144, 104, 112, 96])
+        self.assertEqual(rmse, "0.000000")
+        self.assertEqual(command, [str(certify.COMPARE), "--region", "144,104,112,96",
+                                   "shot.png", "frame.png"])
+        self.assertEqual(certify.COMPARE.parent, ROOT / "rust" / "target" / "debug")
+
+    def test_a_whole_frame_pair_passes_no_region(self):
+        _, command = self.run_compare(None)
+        self.assertEqual(command, [str(certify.COMPARE), "shot.png", "frame.png"])
 
 
 class CaptureTimeoutTest(unittest.TestCase):
@@ -480,7 +517,7 @@ class MainLocksTest(unittest.TestCase):
                 mock.patch.object(certify, "create_run_root", run_root), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify.subprocess, "run",
-                                  return_value=mock.Mock(returncode=0)), \
+                                  return_value=mock.Mock(returncode=0)) as self.run_calls, \
                 mock.patch.object(certify, "git_info", return_value={"short_sha": "abc"}), \
                 mock.patch.object(certify, "receipt_dir", return_value=self.tmp / "receipt"), \
                 mock.patch.object(certify, "oracle_frame", return_value=(frame, None)), \
@@ -497,6 +534,15 @@ class MainLocksTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(self.holds, [("extension", 1), ("godot", 2)])
         self.assertEqual(self.jobs, 2)
+
+    def test_the_build_builds_the_comparison_beside_the_extension(self):
+        code, out = self.run_main(["--only", "title"])
+        self.assertEqual(code, 0, out)
+        builds = [call.args[0] for call in self.run_calls.call_args_list
+                  if call.args and call.args[0][:2] == ["cargo", "build"]]
+        self.assertEqual(len(builds), 1, builds)
+        self.assertIn(["-p", "psiv-compare"], [builds[0][i:i + 2] for i in range(len(builds[0]))])
+        self.assertIn(["-p", "psiv-godot"], [builds[0][i:i + 2] for i in range(len(builds[0]))])
 
     def test_no_build_takes_only_the_godot_slots(self):
         code, out = self.run_main(["--no-build", "--only", "title", "camp-root"])

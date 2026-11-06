@@ -133,7 +133,7 @@ pub use battle::{
     MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
     battle_dwell_frames,
 };
-pub use debug::{camp_fixture, scene_fixture};
+pub use debug::{camp_fixture, camp_travel_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
 pub use flight::FlightView;
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
@@ -152,7 +152,7 @@ use crate::pad::Pad;
 use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
-pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS};
+pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS, TOWN_PAGE_ROWS, town_page_rows};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
@@ -475,7 +475,7 @@ impl Session {
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {
             self.shop_frame(pad, pressed)
         } else if !self.runtime.dialogue_open()
-            && let Some(frame) = self.camp_frame(pressed)
+            && let Some(frame) = self.camp_frame(pressed, pad)
         {
             frame
         } else {

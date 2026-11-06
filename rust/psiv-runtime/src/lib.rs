@@ -90,9 +90,9 @@ pub use session::{
     FrameMode, Fusion, FusionPiece, GAME_OVER_FADE_FRAMES, GameOverFrame, JobBoardView, MenuPage,
     MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart,
     Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry,
-    SkillSlotView, Start, TargetKind, TechniqueEntry, TitleEntry, TitleErase, TitleFailure,
-    TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames, camp_fixture,
-    scene_fixture,
+    SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TechniqueEntry, TitleEntry, TitleErase,
+    TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames,
+    camp_fixture, camp_travel_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 pub use view::ObjectMotion;

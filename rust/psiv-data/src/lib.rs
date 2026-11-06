@@ -116,4 +116,6 @@ pub use shops::{
 };
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
-pub use travel::{DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile};
+pub use travel::{
+    DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile, TravelMessages,
+};

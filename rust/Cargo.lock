@@ -260,6 +260,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "psiv-compare"
+version = "0.1.0"
+dependencies = [
+ "psiv-pack",
+]
+
+[[package]]
 name = "psiv-core"
 version = "0.1.0"
 dependencies = [

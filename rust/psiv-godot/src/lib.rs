@@ -26,6 +26,7 @@ mod field_visuals;
 mod input;
 mod install;
 mod job_board;
+mod menu_font;
 mod named_caches;
 mod pack_setup;
 mod red_palette;
@@ -390,7 +391,7 @@ impl INode2D for Field {
         let debug_event = std::env::var("PSIV_DEBUG_EVENT")
             .ok()
             .and_then(|value| u16::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok());
-        let debug_camp = std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1");
+        let debug_camp = crate::boot::debug_camp_fixture();
         // The fixtures are the runtime's (`psiv_runtime::camp_fixture`,
         // `scene_fixture`): they build their own session from the retail
         // initializer, so no shell ever needs a mutable runtime for one. The
@@ -401,7 +402,12 @@ impl INode2D for Field {
         let store = session_store();
         let starts_at_title = !title_bypassed();
         let mut session = if debug_camp {
-            match psiv_runtime::camp_fixture(data.clone(), StepFrames::default()) {
+            let fixture = if crate::boot::debug_camp_telepipe() {
+                psiv_runtime::camp_travel_fixture
+            } else {
+                psiv_runtime::camp_fixture
+            };
+            match fixture(data.clone(), StepFrames::default()) {
                 Ok(session) => configure_session(session, store.clone()),
                 Err(error) => {
                     godot_error!("debug scene runtime failed: {error}");

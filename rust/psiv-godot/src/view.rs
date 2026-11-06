@@ -55,8 +55,7 @@ pub(crate) fn motion_pixel_position(
 pub(crate) const CAMP_RECEIPT_SHEET: &str = "NPCType2_cb8a59c5";
 
 pub(crate) fn camp_receipt_sheet(index: usize, _sheet: &str) -> Option<&'static str> {
-    (std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") && index == 0)
-        .then_some(CAMP_RECEIPT_SHEET)
+    (crate::boot::debug_camp_fixture() && index == 0).then_some(CAMP_RECEIPT_SHEET)
 }
 
 /// Tape-22's frozen camp receipt retains the type-2 NPC's walk-down frame 1
@@ -64,10 +63,7 @@ pub(crate) fn camp_receipt_sheet(index: usize, _sheet: &str) -> Option<&'static 
 /// scoped to the deterministic debug fixture; normal field animation stays
 /// data-driven.
 pub(crate) fn camp_receipt_frame(index: usize, sheet: &str) -> Option<i32> {
-    (std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
-        && index == 0
-        && sheet == CAMP_RECEIPT_SHEET)
-        .then_some(1)
+    (crate::boot::debug_camp_fixture() && index == 0 && sheet == CAMP_RECEIPT_SHEET).then_some(1)
 }
 
 /// A sheet made drawable: its texture plus the geometry and sequences the

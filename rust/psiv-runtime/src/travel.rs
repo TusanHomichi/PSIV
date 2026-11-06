@@ -14,6 +14,15 @@ pub const TELEPIPE: u8 = 132;
 /// Retail field item that leaves the current dungeon.
 pub const ESCAPIPE: u8 = 133;
 
+/// `Pal_FadeIn`'s rows, the floor of any field load.
+const TELEPORT_FADE_IN_FRAMES: u16 = 16;
+
+/// The refusal when the place forbids a teleport; the camp shows the
+/// cartridge's line for it.
+pub(crate) const CANNOT_TELEPORT_HERE: &str = "CANNOT TELEPORT HERE";
+/// The refusal when the caster lacks the technique's TP.
+pub(crate) const NOT_ENOUGH_TP: &str = "NOT ENOUGH TP";
+
 /// The standing cell a load's start words name: `Map_Start_X`/`_Y` are
 /// eight-pixel units, and the party stands one row below the start's cell, as
 /// on every load that places the party (a RYUKA town, a HINAS exit, a scene's
@@ -188,7 +197,7 @@ impl Runtime {
             return Err("CASTER IS PARALYZED".into());
         }
         if stats.curr_tp < u16::from(ability.cost) {
-            return Err("NOT ENOUGH TP".into());
+            return Err(NOT_ENOUGH_TP.into());
         }
         Ok((who, u16::from(ability.cost), ability.name))
     }
@@ -234,7 +243,7 @@ impl Runtime {
         if id == RYUKA {
             let towns = self.town_destinations();
             return if towns.is_empty() {
-                Err("CANNOT TELEPORT HERE".into())
+                Err(CANNOT_TELEPORT_HERE.into())
             } else {
                 Ok(CampTravelMenu::Towns(towns))
             };
@@ -253,7 +262,7 @@ impl Runtime {
                     .iter()
                     .find(|exit| exit.index != 0 && exit.index == self.dungeon_exit_index)
             })
-            .ok_or("CANNOT TELEPORT HERE")?;
+            .ok_or(CANNOT_TELEPORT_HERE)?;
         let facing = match exit.facing {
             0 => Direction::Down,
             4 => Direction::Up,
@@ -319,7 +328,7 @@ impl Runtime {
         if id == TELEPIPE {
             let towns = self.town_destinations();
             return if towns.is_empty() {
-                Err("CANNOT TELEPORT HERE".into())
+                Err(CANNOT_TELEPORT_HERE.into())
             } else {
                 Ok(CampTravelMenu::Towns(towns))
             };
@@ -350,6 +359,7 @@ impl Runtime {
         let Some(destination) = self.pending_travel.take() else {
             return Ok(Vec::new());
         };
+        let music = self.saved_sound_index;
         let loaded = self.change_map_from(
             MapId(destination.map),
             destination.cell,
@@ -357,7 +367,14 @@ impl Runtime {
             destination.previous_map,
         )?;
         self.set_field_suspended(false);
-        Ok(vec![loaded.event(WarpTrigger::MapChange)])
+        // The load's music branch costs a frame when it writes a new word.
+        let music_written = self.saved_sound_index != music;
+        let reload_frames = psiv_core::field_reload_rows(loaded.id().0, music_written)
+            .unwrap_or(TELEPORT_FADE_IN_FRAMES);
+        Ok(vec![
+            loaded.event(WarpTrigger::MapChange),
+            RuntimeEvent::Teleported { reload_frames },
+        ])
     }
 }
 

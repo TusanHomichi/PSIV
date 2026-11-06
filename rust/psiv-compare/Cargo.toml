@@ -1,0 +1,17 @@
+[package]
+name = "psiv-compare"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+name = "psiv_compare"
+path = "src/lib.rs"
+
+[[bin]]
+name = "presentation-rmse"
+path = "src/main.rs"
+
+[dependencies]
+psiv-pack = { path = "../psiv-pack" }

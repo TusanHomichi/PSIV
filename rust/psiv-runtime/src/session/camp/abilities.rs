@@ -20,7 +20,6 @@ impl CampView {
             ),
             CampPage::AbilityList => (&mut self.ability_selection, self.ability_options.len()),
             CampPage::AbilityTarget => (&mut self.target_selection, self.snapshot.party.len()),
-            CampPage::TravelTowns => (&mut self.travel_selection, self.travel_towns.len()),
             CampPage::AbilityResult => {
                 if accept {
                     self.page = CampPage::AbilityList;
@@ -60,7 +59,6 @@ impl CampView {
                 }
             }
             CampPage::AbilityTarget => self.use_selected_ability(runtime),
-            CampPage::TravelTowns => self.select_travel_town(runtime),
             _ => {}
         }
     }

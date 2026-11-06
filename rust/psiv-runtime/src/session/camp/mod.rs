@@ -37,6 +37,7 @@ mod input;
 mod loot;
 mod order;
 mod travel;
+pub use travel::{TOWN_PAGE_ROWS, town_page_rows};
 
 use psiv_core::Input;
 use psiv_data::TownDestination;
@@ -145,6 +146,8 @@ pub struct CampView {
     pub ability_options: Vec<CampAbility>,
     /// The town list RYUKA/HINAS or a pipe offered.
     pub travel_towns: Vec<TownDestination>,
+    /// The label on each town-list page's bottom border, from the pack.
+    pub travel_towns_label: String,
     /// The cursor on the town list.
     pub travel_selection: usize,
     /// The pack slot of the pipe being used, when the travel is an item's.
@@ -198,10 +201,14 @@ pub(crate) struct MenuInput {
     pub(crate) accept: bool,
     pub(crate) cancel: bool,
     pub(crate) start: bool,
+    /// Left and Right as held this frame, not their edges: the town list
+    /// pages on `Joypad_Held` (`Win_TelepipePlaceList`, `ps4.asm:124111`).
+    pub(crate) left_held: bool,
+    pub(crate) right_held: bool,
 }
 
 impl MenuInput {
-    pub(crate) fn of(pressed: Pad) -> MenuInput {
+    pub(crate) fn of(pressed: Pad, held: Pad) -> MenuInput {
         MenuInput {
             up: pressed.held(Button::Up),
             down: pressed.held(Button::Down),
@@ -210,6 +217,8 @@ impl MenuInput {
             accept: pressed.held(Button::Speak) || pressed.held(Button::Camp),
             cancel: pressed.held(Button::Cancel),
             start: pressed.held(Button::Start),
+            left_held: held.held(Button::Left),
+            right_held: held.held(Button::Right),
         }
     }
 }
@@ -230,6 +239,7 @@ impl CampView {
             ability_selection: 0,
             ability_options: Vec::new(),
             travel_towns: Vec::new(),
+            travel_towns_label: String::new(),
             travel_selection: 0,
             travel_item_slot: None,
             status_selection: 0,
@@ -329,7 +339,7 @@ pub(crate) use crate::session::shop::wrap;
 impl Session {
     /// One frame of the camp menu or a chest window; `None` when neither is up
     /// or opens, and the field has the frame.
-    pub(crate) fn camp_frame(&mut self, pressed: Pad) -> Option<Frame> {
+    pub(crate) fn camp_frame(&mut self, pressed: Pad, held: Pad) -> Option<Frame> {
         match self.camp.as_mut() {
             None => {
                 self.camp = Some(if self.runtime.loot_state().is_some() {
@@ -341,7 +351,7 @@ impl Session {
                 });
             }
             Some(camp) => {
-                camp.frame(&mut self.runtime, MenuInput::of(pressed));
+                camp.frame(&mut self.runtime, MenuInput::of(pressed, held));
             }
         }
         let camp = self.camp.as_mut().expect("the camp is up");
