@@ -38,11 +38,13 @@ four missed tree-6 loads (the scenes then read the wrong dialogue tree). Guarded
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
 `psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
 
-**`Event_GetAndRunDialogue2` callers are audited.** Its fourteen cartridge
-callers, the window it leaves up and the one transcription that read it as a
-resume (Zio at Nurvus) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
-[`tests/test_dialogue2_callers.py`](../../tests/test_dialogue2_callers.py) and
-`psiv-core`'s `every_dialogue2_caller_is_a_retained_window`.
+**`Event_GetAndRunDialogue*` callers are audited.** Every cartridge caller of
+the five dialogue entries, the `DialogueWindow` each routine's exit is, and the
+mistranscriptions the census found (all fourteen `Dialogue2` callers, eight
+callers on the wrong sibling window) are in
+[the dialogue caller census](DIALOGUE_CALLERS.md), guarded by
+`psiv-core`'s `scenes::dialogue_callers_image` census and
+`every_dialogue_entry_caller_runs_its_window`.
 
 ## Next-arc registry
 

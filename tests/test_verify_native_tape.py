@@ -242,6 +242,8 @@ class NativeTapeReceiptRss(unittest.TestCase):
                    "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
                     mock.patch.dict(os.environ, {"PSIV_GODOT": str(godot)}), \
+                    mock.patch.object(verify_native_tape, "exit_leaks_binary"), \
+                    mock.patch.object(verify_native_tape, "logged_exit_leaks", return_value=[]), \
                     mock.patch.object(verify_native_tape, "mapped_extension_in_process_tree",
                                       side_effect=mapped), \
                     mock.patch.object(verify_native_tape, "source_identity",

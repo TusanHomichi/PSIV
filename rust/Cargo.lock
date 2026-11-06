@@ -283,6 +283,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "psiv-exit-leaks"
+version = "0.1.0"
+
+[[package]]
 name = "psiv-godot"
 version = "0.1.0"
 dependencies = [

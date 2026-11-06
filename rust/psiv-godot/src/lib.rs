@@ -11,6 +11,7 @@ use godot::classes::{
 use godot::prelude::*;
 
 mod audio;
+mod audio_shutdown;
 mod battle;
 mod boot;
 mod camp;

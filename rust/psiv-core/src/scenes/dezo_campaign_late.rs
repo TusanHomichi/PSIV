@@ -1,6 +1,6 @@
 //! Retail Dezo campaign scenes from Dark Force 2's defeat through Gumbious.
 
-use super::super::{KYRA, SETH, retained};
+use super::super::{KYRA, SETH, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -75,7 +75,8 @@ pub static DARK_FORCE_2_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 8 },
         SceneOp::PanelCreate { id: 0x10F },
         SceneOp::DmaPlanes,
-        cutscene(0x3B),
+        // `$077C70`: `jsr Event_GetAndRunDialogue3`.
+        cutscene3(0x3B),
         SceneOp::PanelCreate { id: 0x110 },
         SceneOp::DmaPlanes,
         SceneOp::PlaySound {
@@ -159,7 +160,8 @@ pub static AERO_PRISM: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_BARRIER_BROKEN,
         },
-        standard(1),
+        // `$077F8C`: `jsr Event_GetAndRunDialogue3`.
+        cutscene3(1),
         SceneOp::Wait { ticks: 30 },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::Wait { ticks: 1 },
@@ -435,7 +437,9 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x107 },
         SceneOp::DmaPlanes,
-        cutscene(0x38),
+        // `$077A8C`: `jsr Event_GetAndRunDialogue3`; the panels stay until
+        // the `Panel_DestroyAll` below.
+        cutscene3(0x38),
         SceneOp::WaitFrames { frames: 120 },
         SceneOp::PanelDestroyAll,
         SceneOp::DmaPlanes,

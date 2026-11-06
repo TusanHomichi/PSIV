@@ -129,8 +129,9 @@ mod title;
 pub use activity::Activity;
 pub use battle::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
-    CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,
-    PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
+    CommandMenuView, CursorMemory, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView,
+    MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
+    battle_dwell_frames,
 };
 pub use debug::{camp_fixture, camp_travel_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};

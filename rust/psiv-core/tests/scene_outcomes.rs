@@ -496,3 +496,125 @@ fn game_start_puts_alys_in_front_for_the_walk_out() {
         "Chaz alone at the end"
     );
 }
+
+/// Where each party slot stands when `ops` requests its battle, with the
+/// party seated at `starts` (slot order) and mounted or on foot. Fails when
+/// the scene walks anyone or spends a tick between its last dialogue closing
+/// and the battle request: the cartridge's `move.w d1, $34(a4)` loop
+/// (`$07083C`, `$070952`) is immediate.
+fn party_at_battle(
+    ops: &'static [SceneOp],
+    mounted: bool,
+    starts: &[Cell],
+) -> Result<Vec<Cell>, String> {
+    let map = map_with(&["....", "....", "...."], vec![], vec![]);
+    let mut state = GameState::new();
+    let mut slots = [None; 5];
+    for (slot, who) in slots.iter_mut().enumerate().take(starts.len()) {
+        *who = Some(CharId(slot as u8));
+    }
+    state.set_party(slots);
+    state.set_vehicle_index(u16::from(mounted));
+    let cast = starts
+        .iter()
+        .enumerate()
+        .map(|(slot, at)| ScriptedActor::new(ActorRef::PartyMember(slot), *at, Direction::Up))
+        .collect();
+    let mut runner = SceneRunner::new(ops, cast, frames());
+    let mut input = SceneInput::None;
+    for _ in 0..100 {
+        let effects = runner.tick(&map, &mut state, input);
+        if let Some(e) = effects.iter().find(|e| {
+            matches!(
+                e,
+                SceneEffect::ActorMoveStarted { .. } | SceneEffect::Faulted(_)
+            )
+        }) {
+            return Err(format!("{e:?}"));
+        }
+        if effects
+            .iter()
+            .any(|e| matches!(e, SceneEffect::BattleRequested { index: 0x0A }))
+        {
+            if input != SceneInput::DialogueClosed {
+                return Err("a tick passed between the dialogue and the battle".into());
+            }
+            return Ok((0..starts.len())
+                .map(|slot| runner.actor(ActorRef::PartyMember(slot)).unwrap().cell)
+                .collect());
+        }
+        input = if effects
+            .iter()
+            .any(|e| matches!(e, SceneEffect::DialogueOpen(_)))
+        {
+            SceneInput::DialogueClosed
+        } else {
+            SceneInput::None
+        };
+    }
+    Err("no battle request".into())
+}
+
+/// Five members on distinct rows and columns. The leader stands on cell
+/// (10, 20): `curr_y_pos` `$130` (cell row less one, times 16), `$150` after
+/// `addi.w #$20`, which is row 22.
+const FIVE: [Cell; 5] = [
+    Cell { x: 10, y: 20 },
+    Cell { x: 11, y: 19 },
+    Cell { x: 12, y: 25 },
+    Cell { x: 13, y: 30 },
+    Cell { x: 14, y: 7 },
+];
+
+#[test]
+fn the_tree_attack_scenes_write_the_leaders_y_plus_0x20_to_every_member() {
+    for name in ["Event_CarnivorousTrees", "Event_SavingKyra"] {
+        let scene = psiv_core::SCENES.iter().find(|s| s.name == name).unwrap();
+        for mounted in [false, true] {
+            for size in [1, 5] {
+                let starts = &FIVE[..size];
+                let placed = party_at_battle(scene.ops, mounted, starts)
+                    .unwrap_or_else(|e| panic!("{name} mounted={mounted} size={size}: {e}"));
+                for (slot, (at, from)) in placed.iter().zip(starts).enumerate() {
+                    assert_eq!(
+                        (at.x, at.y),
+                        (from.x, 22),
+                        "{name} mounted={mounted} size={size} slot {slot}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The negative control: the leader-only walk these scenes had before
+/// (`MoveActorOffset { dy: $20, wait: true }`) fails the same check.
+#[test]
+fn control_a_leader_walk_fails_the_party_move_check() {
+    let scene = psiv_core::SCENES
+        .iter()
+        .find(|s| s.name == "Event_CarnivorousTrees")
+        .unwrap();
+    let ops: Vec<SceneOp> = scene
+        .ops
+        .iter()
+        .map(|op| match op {
+            SceneOp::PlacePartyY { dy: 0x20 } => SceneOp::MoveActorOffset {
+                actor: ActorRef::PartyMember(0),
+                dx: 0,
+                dy: 0x20,
+                wait: true,
+            },
+            other => *other,
+        })
+        .collect();
+    assert_ne!(ops.as_slice(), scene.ops, "the scene no longer has the op");
+    let ops: &'static [SceneOp] = Box::leak(ops.into_boxed_slice());
+    let result = party_at_battle(ops, false, &FIVE);
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|e| e.starts_with("ActorMoveStarted")),
+        "{result:?}"
+    );
+}

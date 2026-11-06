@@ -52,7 +52,8 @@ pub static DEMI_RESCUE: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x42)),
-            window: DialogueWindow::Cutscene,
+            // `$074A92`: `jsr Event_GetAndRunDialogue3`.
+            window: DialogueWindow::Cutscene3,
         },
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,

@@ -344,5 +344,3 @@ already pre-empted.
   effects use the decoded cutscene-layer redraw/overlay seam. A future CRAM
   renderer can replace that shell effect without changing the dialogue action
   timing or dispatch contract.
-- **Teardown noise:** Godot's Dummy-driver forced quit reports one
-  `AudioStreamGeneratorPlayback` ObjectDB leak after a scene completes.
