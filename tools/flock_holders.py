@@ -120,21 +120,23 @@ def fdinfo_locks(lock):
 
 def held_here(lock):
     """Whether this process holds a flock on `lock`'s file through a descriptor
-    of its own, under any name: matched by device and inode, which a hard link
-    shares. Its own descriptors only, so it never reads /proc/locks."""
+    of its own, under any name: a lock record in its fdinfo on the file's
+    inode and one of its devices (`lock_devices`), which a hard link shares.
+    The record names the locked file itself, so a descriptor closed and reused
+    meanwhile cannot vouch for another file's lock; and only /proc is read,
+    never a descriptor's own file, which a hung mount could stall. Never reads
+    /proc/locks either."""
     try:
-        target = os.stat(lock)
+        inode = os.stat(lock).st_ino
     except OSError:
         return False
-    for fd in os.listdir("/proc/self/fd"):
+    devices = lock_devices(lock)
+    for fd in os.listdir("/proc/self/fdinfo"):
         try:
-            found = os.stat(f"/proc/self/fd/{fd}")
-            if (found.st_dev, found.st_ino) != (target.st_dev, target.st_ino):
-                continue
             lines = Path(f"/proc/self/fdinfo/{fd}").read_text().splitlines()
         except OSError:  # closed since the listing, or the listing's own
             continue
-        if parse_lock_lines(lines, "lock:"):
+        if any(node == inode for _, node, _ in parse_lock_lines(lines, "lock:", devices)):
             return True
     return False
 

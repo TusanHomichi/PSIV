@@ -23,8 +23,9 @@ fdinfo can't see, as another user's would be:
   joining (the negative control: with no such parent it waits and is
   granted). The check runs beside the wait, so a slow one holds up neither
   the waiting line nor the grant (#384); a lock this process holds itself,
-  through a hard link too, is found from its own descriptors before it queues
-  (the control: an open descriptor alone holds nothing).
+  through a hard link too, is found from its own fdinfo before it queues (the
+  controls: an open descriptor alone holds nothing, nor does another file's
+  lock, whatever a descriptor's file is by the time it is looked at).
 
 Temp files and child Pythons only, so the flake's gate-tests check runs it.
 """
@@ -308,6 +309,33 @@ class RawParentCase(FakeProcLocks):
         self.assertEqual(outcome, [EXIT_HELD_BY_PARENT])
         self.assertIn(f"already held by your parent pid {os.getpid()}", report.getvalue())
         self.assertEqual(self.queue_entries(), [])
+
+    def test_another_files_lock_is_not_this_one_whatever_a_descriptor_now_is(self):
+        """A descriptor can close and be reused between two looks at it, so the
+        lock record itself must name the file; and a descriptor's own file is
+        never touched, which a hung mount could stall. Here every stat of a
+        descriptor claims the lock file, while the only lock held is another
+        file's and the lock file's own descriptor holds none."""
+        self.lock.touch()
+        other = self.lock.parent.parent / "other"
+        other.touch()
+        locked = os.open(other, os.O_RDONLY)
+        self.addCleanup(os.close, locked)
+        fcntl.flock(locked, fcntl.LOCK_SH)
+        unlocked = os.open(self.lock, os.O_RDONLY)
+        self.addCleanup(os.close, unlocked)
+        real_stat, statted = os.stat, []
+
+        def stat(path, *args, **kwargs):
+            if str(path).startswith("/proc/self/fd/"):
+                statted.append(path)
+                return real_stat(self.lock)
+            return real_stat(path, *args, **kwargs)
+
+        flock_holders = heavy_lock_module.flock_holders
+        with mock.patch.object(flock_holders.os, "stat", stat):
+            self.assertFalse(flock_holders.held_here(self.lock))
+        self.assertEqual(statted, [], "a descriptor's own file was touched")
 
 if __name__ == "__main__":
     unittest.main()
