@@ -22,6 +22,10 @@ fdinfo can't see, as another user's would be:
   its own head handle, so a parent the first check missed is refused after
   joining (the negative control: with no such parent it waits and is
   granted); the check runs outside the queue mutex.
+- `GateLockCase`: the gate lock's refusal names a holder fdinfo sees without
+  reading it (#387: a nested gate's refusal outlasted its test's 10 s while
+  another job held 60,000 locks); with no holder fdinfo sees it still reads it
+  and names that holder (the negative control).
 
 Temp files and child Pythons only, so the flake's gate-tests check runs it.
 """
@@ -39,6 +43,7 @@ from unittest import mock
 
 from tests.test_heavy_lock import TIMEOUT, TOOLS, LockProcesses
 from tools import heavy_lock as heavy_lock_module
+from tools.gate import GateRefused, gate_lock
 from tools.heavy_lock import EXIT_HELD_BY_PARENT, NORMAL_RANK, hold_heavy_lock
 
 #: A pid no process here has, which only the fake /proc/locks names.
@@ -281,6 +286,35 @@ class RawParentCase(FakeProcLocks):
             with hold_heavy_lock(self.lock, environ={}, report=io.StringIO()):
                 self.fail("the lock is held by another process")
         self.assertEqual(under_mutex, [False])
+
+
+class GateLockCase(FakeProcLocks):
+    """The gate lock's holder line; see the module docstring. Its holder is a
+    `run --class exclusive` holder on the same file: any flock refuses it."""
+
+    def refusal(self):
+        """What `gate_lock` refuses with while a holder holds the lock."""
+        with self.assertRaises(GateRefused) as refused:
+            with gate_lock(self.lock):
+                self.fail("the lock is held by another process")
+        self.assertEqual(refused.exception.exit_code, 2)
+        return str(refused.exception)
+
+    def test_a_holder_fdinfo_sees_is_named_without_reading_proc_locks(self):
+        holder = self.holder()
+        self.fake_proc_locks(UNSEEN_PID)
+        message = self.refusal()
+        self.assertIn(f"(pid {holder.pid})", message)
+        self.assertNotIn(str(UNSEEN_PID), message)
+
+    def test_negative_control_a_holder_fdinfo_cant_see_is_named_from_proc_locks(self):
+        """Another user's gate, say: fdinfo shows nobody, so /proc/locks is read."""
+        self.holder()
+        self.fake_proc_locks(UNSEEN_PID)
+        with mock.patch.object(heavy_lock_module.flock_holders, "fdinfo_locks",
+                               return_value=[]):
+            message = self.refusal()
+        self.assertIn(f"(pid {UNSEEN_PID})", message)
 
 
 if __name__ == "__main__":
