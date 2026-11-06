@@ -33,7 +33,7 @@ decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMA
 | `battle-tech` | **0.000000** | clone t600 (`tech,cursor=0,blink=14/1`) ↔ tape-32 frame 25400, the technique window |
 | `battle-status` | **0.000000** | clone t200 (Chaz asleep, Alys paralyzed, Hahn sealed) ↔ tape-32 frame 25000 with three `Character_Stats` patches |
 | `battle-status-2` | **0.000000** | clone t200 (poisoned, dead, asleep+sealed) ↔ the same frame, other patches |
-| `battle-fusion` | **0.000000** | clone t714 (a defended round of formation `$D2`) ↔ tape-33 frame 25560, the MetaSlug |
+| `battle-fusion` | **0.000000** | clone t758 (a defended round of formation `$D2`, blink seed 21/0) ↔ tape-33 frame 25560, the MetaSlug |
 
 The mid-round attack ([#52](https://github.com/TusanHomichi/PSIV/issues/52)) is
 not certified: its fixture reads `rmse=20.254240` against tape-34 frame 25377
