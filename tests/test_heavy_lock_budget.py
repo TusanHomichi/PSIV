@@ -21,6 +21,7 @@ import fcntl
 import io
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -241,7 +242,7 @@ class BudgetCase(LockProcesses):
         self.release(holders[0])
         self.assertEqual(self.finish(second), ["second-cargo"])
 
-    def counts_under_churn(self, seconds, until_short=False):
+    def counts_under_churn(self, seconds):
         """`units_in_use` read again and again for `seconds` while 12 units are
         held steady and four processes take and drop other flocks (#204)."""
         held = 12
@@ -254,20 +255,77 @@ class BudgetCase(LockProcesses):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             counts.append(units_in_use(self.lock))
-            if until_short and counts[-1] < held:
-                break
         return held, counts
 
     def test_units_held_steady_are_all_counted_while_other_locks_churn(self):
         held, counts = self.counts_under_churn(3)
         self.assertEqual(set(counts), {held}, f"{len(counts)} reads")
 
-    def test_negative_control_proc_locks_alone_misses_held_units_under_churn(self):
+    def units_with_one_line_missing(self, printed):
+        """`units_in_use` with 12 units held and a /proc/locks without the line
+        of the last one: what a page-wise read that a dropped lock earlier in
+        the list shifted past it returns (#204).
+
+        The /proc/locks is built here, not read from the live one, whose own
+        page race could drop another unit. Its 11 lines name `printed`: the
+        directory's `st_dev`, or the device of the mount holding it, which the
+        kernel prints and which differs on a btrfs subvolume; a mountinfo
+        written here mounts the directory from a device that is not its
+        `st_dev`, so `lock_devices` accepts both. A 12th line puts the missing
+        unit's inode number on an unrelated device, which never counts.
+        """
+        held = 12
+        units = heavy_lock_module._take_files(str(self.lock), "unit", held, 16, UNITS_ENV,
+                                              BUILD)
+        try:
+            directory = os.path.realpath(self.lock.parent)
+            device = os.stat(directory).st_dev
+            st_dev = (os.major(device), os.minor(device))
+            mount = (0, 253) if st_dev != (0, 253) else (0, 254)
+            point = re.sub(rb"[ \t\n\\]", lambda match: b"\\%03o" % match.group()[0],
+                           os.fsencode(directory))
+            mountinfo = self.lock.parent.parent / "mountinfo"
+            mountinfo.write_bytes(b"30 1 %d:%d / " % mount + point + b" rw - btrfs pool rw\n")
+            lock_devices = heavy_lock_module.flock_holders.lock_devices
+            accepted = lock_devices(self.lock, mountinfo)
+            self.assertEqual(accepted, {st_dev, mount})
+            unrelated = (0xfe, 0xfe)
+            self.assertNotIn(unrelated, accepted)
+            on = {"st_dev": st_dev, "mount": mount}[printed]
+            lines = [(number, on, os.fstat(unit).st_ino)
+                     for number, unit in enumerate(units[:-1], 1)]
+            lines.append((held, unrelated, os.fstat(units[-1]).st_ino))
+            proc_locks = self.lock.parent.parent / "proc-locks"
+            proc_locks.write_text("".join(
+                f"{number}: FLOCK  ADVISORY  WRITE {os.getpid()} "
+                f"{major:02x}:{minor:02x}:{inode} 0 EOF\n"
+                for number, (major, minor), inode in lines))
+            with mock.patch.object(heavy_lock_module.flock_holders, "lock_devices",
+                                   lambda lock: lock_devices(lock, mountinfo)):
+                return held, units_in_use(self.lock, proc_locks)
+        finally:
+            for handle in units:
+                os.close(handle)
+
+    def test_a_unit_missing_from_proc_locks_is_still_counted_through_fdinfo(self):
         """/proc/locks is printed a page per read; a lock dropped earlier in
-        the list between two reads hides a held one."""
-        with mock.patch.object(heavy_lock_module.flock_holders, "fdinfo_locks", lambda lock: []):
-            held, counts = self.counts_under_churn(20, until_short=True)
-        self.assertLess(min(counts), held, f"{len(counts)} reads, none short")
+        the list between two reads hides a held one (#204, #310: a control that
+        waited for that race to happen failed whenever it did not). The missing
+        line is made here, not waited for."""
+        for printed in ("st_dev", "mount"):
+            with self.subTest(printed=printed):
+                held, counted = self.units_with_one_line_missing(printed)
+                self.assertEqual(counted, held)
+
+    def test_negative_control_proc_locks_alone_misses_a_unit_whose_line_is_missing(self):
+        """Without the fdinfo walk the 11 lines count on either device, and the
+        unrelated device's line does not stand in for the missing unit."""
+        for printed in ("st_dev", "mount"):
+            with self.subTest(printed=printed), \
+                    mock.patch.object(heavy_lock_module.flock_holders, "fdinfo_locks",
+                                      lambda lock: []):
+                held, counted = self.units_with_one_line_missing(printed)
+                self.assertEqual(counted, held - 1)
 
     def units_with_a_line_on(self, device):
         """`units_in_use` with 3 units held and a /proc/locks that adds one
