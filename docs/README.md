@@ -71,7 +71,7 @@ hardware's behavior through the oracle.
   [the trigger census](scenes/TRIGGER_CENSUS.md),
   [event coverage](scenes/EVENT_COVERAGE.md).
 - [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue tree selection](scenes/DIALOGUE_TREE_SELECTION.md),
-  [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the second dialogue routine's callers](scenes/DIALOGUE2_CALLERS.md).
+  [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the dialogue routines' callers](scenes/DIALOGUE_CALLERS.md).
 - [Scene presentation](scenes/SCENE_PRESENTATION.md), [the field reload](scenes/FIELD_RELOAD.md),
   [live layout writes](scenes/LIVE_LAYOUT_WRITES.md), [revision-conditional ops](scenes/REVISION_AUDIT.md),
   [the title and boot](scenes/TITLE_BOOT.md).

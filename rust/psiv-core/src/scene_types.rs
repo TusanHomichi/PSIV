@@ -47,7 +47,9 @@ pub enum ActorRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DialogueId(pub u16);
 
-/// Which dialogue-window setup a scene asked for.
+/// Which dialogue-window setup a scene asked for: one variant per retail
+/// window exit. The `Get` entry each is for is pinned by the caller census
+/// (`docs/scenes/DIALOGUE_CALLERS.md`, `scenes/dialogue_callers.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum DialogueWindow {
     /// `Event_GetAndRunDialogue` (`$5AC66`): the window closes, the panels
@@ -59,18 +61,23 @@ pub enum DialogueWindow {
     /// loop, but the routine ends by zeroing `Panel_Num`, `Windows_Opened_Num`
     /// and `$FFFFECA4` instead of destroying anything, so the text window and
     /// every panel stay on screen and no chunk is reloaded. Fourteen
-    /// cartridge callers (`docs/scenes/DIALOGUE2_CALLERS.md`), every one a
+    /// cartridge callers (`docs/scenes/DIALOGUE_CALLERS.md`), every one a
     /// scene that ends in a battle or a map change.
     Retained,
-    /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
+    /// `Event_GetAndRunDialogue5` (`$5ADF8`): the windows close, the palette
+    /// fades out (`PalFadeOut_ClrSpriteTbl`), then `Panel_DestroyAll` and the
+    /// chunk reload.
     Cutscene,
-    /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
+    /// `Event_GetAndRunDialogue3` (`$5AD32`): the windows close and the chunks
+    /// reload, but no `Panel_DestroyAll`, so the panels stay up.
     Cutscene3,
     /// The ending's first `RunText3` window before the panel sequence.
     EndingIntro,
-    /// `Event_GetAndRunDialogue4` / `Event_RunDialogue4` in `$8021`.
+    /// `Event_GetAndRunDialogue4` (`$5ADA2`) / `Event_RunDialogue4` in
+    /// `$8021`: `RunText3`, no button wait, no `Panel_DestroyAll`.
     Ending,
-    /// `Event_RunDialogue5` used for the Rykros hand-off line.
+    /// `Event_RunDialogue5` used for the Rykros hand-off line: the
+    /// `Event_GetAndRunDialogue5` exit reached through its resume entry.
     Cutscene5,
 }
 

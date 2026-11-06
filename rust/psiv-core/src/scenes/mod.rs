@@ -93,6 +93,13 @@ pub(crate) mod weapon_plant;
 pub(crate) mod wreckage;
 pub(crate) mod zosa_events;
 
+#[cfg(test)]
+mod dialogue_callers;
+#[cfg(test)]
+mod dialogue_callers_image;
+#[cfg(test)]
+mod documented_ranges;
+
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
 pub use flight::{
@@ -132,12 +139,25 @@ pub const SETH: CharId = CharId(10);
 /// `moveq #entry, d0 / jsr Event_GetAndRunDialogue2` (`$5ACDC`): entry
 /// `entry` of the current tree, with the window and panels left on screen
 /// ([`DialogueWindow::Retained`]). The census
-/// `every_dialogue2_caller_is_a_retained_window` ties each use to its
-/// cartridge address.
+/// `every_dialogue_entry_caller_runs_its_window` (`dialogue_callers.rs`) ties
+/// each use to its cartridge address.
 pub(crate) const fn retained(entry: u16) -> SceneOp {
     SceneOp::RunDialogue {
         source: DialogueSource::Entry(DialogueId(entry)),
         window: DialogueWindow::Retained,
+    }
+}
+
+/// `moveq #entry, d0 / jsr Event_GetAndRunDialogue3` (`$5AD32`): entry
+/// `entry` of the current tree; the windows close and the map chunks reload,
+/// but `Panel_DestroyAll` is not called, so the panels stay up
+/// ([`DialogueWindow::Cutscene3`]). The census
+/// `every_dialogue_entry_caller_runs_its_window` ties each use to its
+/// cartridge address.
+pub(crate) const fn cutscene3(entry: u16) -> SceneOp {
+    SceneOp::RunDialogue {
+        source: DialogueSource::Entry(DialogueId(entry)),
+        window: DialogueWindow::Cutscene3,
     }
 }
 
