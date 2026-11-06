@@ -5,6 +5,7 @@ use psiv_core::Camera;
 
 use crate::geometry::refresh_camera_gates;
 use crate::{BridgeError, CameraGlide, Runtime};
+use psiv_core::MapId;
 
 impl Runtime {
     /// The camera bounds this map imposes.
@@ -110,17 +111,20 @@ impl Runtime {
         }
     }
 
-    /// Applies the packed `loc_51AB2` gate write to the current camera without
-    /// repositioning the view. This is the runtime seam for `RefreshMap` calls
-    /// made after a scene or warp has already entered the map
-    /// (`docs/field/CAMERA.md`); the refresh paths do not call it yet (#59).
-    #[allow(dead_code)]
-    pub(crate) fn refresh_map_camera_gates(&mut self) -> Result<(), BridgeError> {
+    /// Applies `target`'s packed `loc_51AB2` gate write to the current camera
+    /// without repositioning the view: the part of a load that keeps the
+    /// camera (`docs/field/CAMERA.md`). The battle return calls it; a map
+    /// change and the cutscene reload build the camera from the record, which
+    /// applies the same write.
+    pub(crate) fn refresh_map_camera_gates_for(
+        &mut self,
+        target: MapId,
+    ) -> Result<(), BridgeError> {
         let record = self
-            .map_record()
-            .cloned()
-            .ok_or(BridgeError::NotPacked(self.map.id().0))?;
-        refresh_camera_gates(&mut self.camera, &record).map_err(BridgeError::Rejected)
+            .data
+            .map(psiv_data::MapId(target.0))
+            .ok_or(BridgeError::NotPacked(target.0))?;
+        refresh_camera_gates(&mut self.camera, record).map_err(BridgeError::Rejected)
     }
 }
 

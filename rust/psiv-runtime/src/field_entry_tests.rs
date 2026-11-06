@@ -1,6 +1,6 @@
 //! Map-entry checks use the loaded map before movement or encounter rolls.
 use super::*;
-use psiv_core::{Input, MapId};
+use psiv_core::{CameraGates, CameraPlane, Input, MapId};
 use psiv_data::BattleFiles;
 use std::path::Path;
 
@@ -331,4 +331,61 @@ fn the_load_flags_decide_whether_a_map_load_parks_the_vehicle() {
         None,
         "a warp reads bits 0 and 2, never bit 3"
     );
+}
+
+/// `GameMode_LoadFieldMap` runs `loc_51AB2` on every load (`ps4.asm:107556`),
+/// the battle return included (#59): the record's gate bytes come back and a
+/// zero plane gate reseeds that plane's step counters. Kuran's BG gate is 0
+/// with counters of zero, so a battle return clears whatever the field left.
+#[test]
+fn a_battle_return_reloads_the_records_camera_gates() {
+    let Some(mut rt) = runtime(0x190, Cell::new(31, 46)) else {
+        return;
+    };
+    let gates = rt.camera.gates();
+    assert_eq!((gates.ec24, gates.ec25, gates.ec26), (0, 1, 0));
+    let position = rt.camera.position_on(CameraPlane::Background);
+    rt.camera.apply_gate_write(
+        CameraGates {
+            ec24: 1,
+            ec25: 1,
+            ec26: 0,
+        },
+        (0, 0),
+        (0x0003_0000, 0x0001_8000),
+    );
+    assert_eq!(
+        rt.camera.raw_step_on(CameraPlane::Background),
+        (0x0003_0000, 0x0001_8000)
+    );
+    rt.refresh_field_after_battle().unwrap();
+    assert_eq!(rt.camera.gates(), gates, "the record's gate bytes");
+    assert_eq!(
+        rt.camera.raw_step_on(CameraPlane::Background),
+        (0, 0),
+        "BG gate 0 reseeds the counters"
+    );
+    assert_eq!(
+        rt.camera.position_on(CameraPlane::Background),
+        position,
+        "the gate write does not move the view"
+    );
+}
+
+/// A scene's `LoadMap` is `RefreshMap` (`ps4.asm:121767`), whose 59 callers
+/// are all scenes (35 `Cutscene_*`, 23 `Event_*`, `CreditsStage3`); it runs
+/// `loc_51AB2` at `:121797`. Natively it rebuilds the camera from the record,
+/// so the gate bytes follow the map the scene loads (#59).
+#[test]
+fn a_scene_refresh_into_another_map_takes_its_gate_bytes() {
+    let Some(mut rt) = runtime(0x24, Cell::new(31, 49)) else {
+        return;
+    };
+    let zema = rt.camera.gates();
+    rt.change_map_refresh(MapId(0x190), Cell::new(31, 46), Direction::Down, 0x24, 0)
+        .unwrap();
+    let kuran = rt.camera.gates();
+    assert_ne!(kuran, zema, "the two maps' gates differ");
+    assert_eq!((kuran.ec24, kuran.ec25, kuran.ec26), (0, 1, 0));
+    assert_eq!(rt.camera.raw_step_on(CameraPlane::Background), (0, 0));
 }

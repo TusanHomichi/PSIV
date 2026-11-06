@@ -120,7 +120,7 @@ handoff with the other menu/window latches, so an old inn bill cannot consume
 an unrelated later `SceneEnded`. Vehicle ITEM scenes snap the live party via
 one core boarding rule and wait for the existing runtime camera glide only
 when the retail original-coordinate bit test requires it; the general scene
-`MoveCamera` timing and #59 camera-gate refresh remain separate work.
+`MoveCamera` timing remains separate work.
 The persistent `Saved_Sound_Index` byte lives in runtime: START clears it,
 CONTINUE/field entry seed it from the loaded map, ordinary field loads update
 it, and scene writes update or compare it before Godot receives a chosen
