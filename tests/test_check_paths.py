@@ -20,6 +20,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests import scratch_git
 from tools import check_paths
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +46,7 @@ class RepoCase(unittest.TestCase):
         self.home = self.root / "home"
         self.home.mkdir()
         self.write({"docs/a.md": self.DOC, ".gitignore": "/home\n/runtime-pack\n"})
-        self.git("init", "-q", "-b", "main")
+        scratch_git.init(self.root, env=git_env(self.home))
 
     def git(self, *args):
         subprocess.run(["git", "-C", str(self.root), *args], capture_output=True,

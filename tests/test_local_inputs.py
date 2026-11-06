@@ -38,6 +38,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
 from tools import local_inputs
 from tools.local_inputs import (CACHE_DIR, ENTRIES, ROM_NAME, USED_FILE, Refused, build_with_lock,
                                 link, prune)
@@ -116,7 +117,7 @@ class ScratchCase(unittest.TestCase):
         self.scratch = Path(scratch.name)
         self.main = self.scratch / "main"
         self.main.mkdir()
-        git(self.main, "init", "-q", "-b", "main")
+        scratch_git.init(self.main)
         git(self.main, "config", "user.email", "test@example.invalid")
         git(self.main, "config", "user.name", "test")
         (self.main / ".gitignore").write_text(IGNORED)

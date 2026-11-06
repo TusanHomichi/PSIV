@@ -33,6 +33,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from tests import scratch_git
 from tools import gate_worktree
 from tools.gate_worktree import LIBRARIES, TARGET, Refused, prepare
 
@@ -58,7 +59,7 @@ class ScratchRepo(unittest.TestCase):
         self.tmp = Path(tmp.name)
         self.repo = self.tmp / "repo"
         (self.repo / "rust" / "core").mkdir(parents=True)
-        git(self.tmp, "init", "-q", "-b", "main", str(self.repo))
+        scratch_git.init(self.repo)
         git(self.repo, "config", "user.email", "test@example.invalid")
         git(self.repo, "config", "user.name", "test")
         (self.repo / ".gitignore").write_text(IGNORED)
