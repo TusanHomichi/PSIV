@@ -341,7 +341,8 @@ class _ParentCheck:
     def __init__(self, lock):
         self._stopped = threading.Event()
         self._found = self._error = None
-        threading.Thread(target=self._run, args=(lock,), daemon=True).start()
+        self._thread = threading.Thread(target=self._run, args=(lock,), daemon=True)
+        self._thread.start()
 
     def _run(self, lock):
         try:
@@ -358,8 +359,12 @@ class _ParentCheck:
             raise self._error
         return self._found
 
-    def stop(self):
+    def stop(self, wait):
+        """No more checks; with `wait`, once a read under way has closed what
+        it opened (a wait that failed leaves nothing open)."""
         self._stopped.set()
+        if wait:
+            self._thread.join()
 
 
 def refuse_message(path, parent):
@@ -813,7 +818,7 @@ def _acquire(lock, need, rank, report, environ):
                 time.sleep(POLL_S)
     finally:
         if check is not None:
-            check.stop()
+            check.stop(wait=entry is not None)  # a grant does not wait for it
         if blocker is not None:
             blocker.abandon()
         if entry is not None:
