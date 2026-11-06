@@ -788,6 +788,7 @@ def build_backgrounds(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]
 def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]:
     """Write `battle/art/` and return the `art` subtree of the battle manifest."""
     from .battle_animations import emit_enemy_attack_art
+    from .battle_fusion_art import FUSION_ART_NAME, FUSION_PNG_DIRECTORY, emit_fusion_art
 
     directory = Path(out_dir)
     enemies, enemy_bytes = build_enemies(rom, directory)
@@ -804,6 +805,8 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
     command_ui_sha = _write(directory, COMMAND_UI_ART_NAME, command_ui, version)
     damage_digits = build_damage_digits(rom)
     damage_digits_sha = _write(directory, DAMAGE_DIGIT_ART_NAME, damage_digits, version)
+    fusion, fusion_bytes, fusion_png_count = emit_fusion_art(rom, directory)
+    fusion_sha = _write(directory, FUSION_ART_NAME, fusion, version)
 
     complete = sum(1 for entry in enemies["enemies"] if entry["body_complete"])
     holed = len(enemies["enemies"]) - complete
@@ -858,6 +861,14 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
                 "sha256": damage_digits_sha,
                 "count": damage_digits["tile_count"],
                 "png_count": 0,
+            },
+            "fusion": {
+                "file": FUSION_ART_NAME,
+                "sha256": fusion_sha,
+                "count": fusion["count"],
+                "png_directory": FUSION_PNG_DIRECTORY,
+                "png_count": fusion_png_count,
+                "png_bytes": fusion_bytes,
             },
             "enemy_attacks": {
                 "file": ENEMY_ATTACK_ART_NAME,

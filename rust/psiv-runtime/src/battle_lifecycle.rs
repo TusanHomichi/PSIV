@@ -250,6 +250,31 @@ impl Runtime {
     /// # Errors
     /// [`BridgeError::Rejected`] when battles are not enabled, the formation
     /// id is unknown, or the engine refuses the setup.
+    /// The on-screen position byte of each enemy fighter `start` seats, by
+    /// fighter id: the formation record's own, which presentation alone
+    /// reads (`FormationEnemy::position`).
+    pub(crate) fn battle_enemy_positions(
+        &self,
+        start: crate::session::BattleStart,
+    ) -> std::collections::BTreeMap<u8, u8> {
+        let Some(set) = self.battles.as_ref() else {
+            return std::collections::BTreeMap::new();
+        };
+        let record = match start {
+            crate::session::BattleStart::Encounter(id) => set.table.formation(id),
+            crate::session::BattleStart::EventBattle(index) => set.boss_formations.get(&index),
+        };
+        record
+            .map(|record| {
+                record
+                    .enemies
+                    .iter()
+                    .map(|enemy| (enemy.slot + 5, enemy.position))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub(crate) fn start_battle(
         &mut self,
         formation: u16,

@@ -151,8 +151,9 @@ clock and damage column exactly as a formation builds them. Receipt: tape 33
 (`oracle/tapes/33_zol_fusion_metaslug.tape`, formation `$D2` forced with the
 three patches in `tools/certify.py`'s `TAPE_33`), frame 25560, options back
 over the MetaSlug. The party defends in the clone's round; the slugs' turn is
-Fusion whatever it rolls. Not modelled: the two sprites sliding together and
-flashing (`BattleObj_Fusion`, `ps4.asm:35675`).
+Fusion whatever it rolls. The two pieces sliding together and growing
+(`BattleObj_Fusion`, `ps4.asm:35675`) are drawn frame for frame
+([`ENEMY_FUSION.md`](ENEMY_FUSION.md#the-slide-and-the-growth-64)).
 
 ## Mid-round attack (#52)
 
