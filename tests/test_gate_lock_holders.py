@@ -110,6 +110,67 @@ class DeviceCase(unittest.TestCase):
                          [(10, 77, True), (12, 78, False)])
         self.assertEqual(len(flock_holders.parse_lock_lines(lines)), 3, "no devices: every line")
 
+    def mountinfo_bytes(self, *lines):
+        """`lock_devices` for the lock directory under a mountinfo of raw lines."""
+        mountinfo = self.base / "mountinfo"
+        mountinfo.write_bytes(b"".join(line + b"\n" for line in lines))
+        return flock_holders.lock_devices(self.lockdir / "heavy.lock", mountinfo)
+
+    def raw_line(self, device, point):
+        """A mountinfo line mounting `point` (bytes, already escaped) from `device`."""
+        return b"30 1 " + device + b" / " + point + b" rw - zfs pool rw"
+
+    def test_an_unrelated_mount_name_that_is_not_utf8_is_read_past(self):
+        """#381: the kernel prints a name's bytes raw; byte 0xff is no UTF-8."""
+        found = self.mountinfo_bytes(self.raw_line(b"0:7", b"/media/\xff\xfename"),
+                                     self.raw_line(b"0:2", os.fsencode(self.base) + b"/sub\\040vol"),
+                                     self.raw_line(b"0:8", b"/mnt/\xff"))
+        self.assertEqual(found, {self.own, (0, 2)})
+
+    def test_a_lock_directory_whose_name_is_not_utf8_is_matched(self):
+        try:
+            lockdir = Path(os.fsdecode(os.fsencode(self.base) + b"/vol\xff"))
+            (lockdir / "build").mkdir(parents=True)
+        except (OSError, UnicodeError) as error:  # a file system that takes UTF-8 names only
+            self.skipTest(f"no non-UTF-8 directory here: {error}")
+        mountinfo = self.base / "mountinfo"
+        mountinfo.write_bytes(self.raw_line(b"0:2", os.fsencode(lockdir)) + b"\n")
+        self.assertEqual(flock_holders.lock_devices(lockdir / "build" / "heavy.lock", mountinfo),
+                         {self.own, (0, 2)})
+
+    def test_whitespace_the_kernel_does_not_escape_stays_in_the_name(self):
+        """Fields are split on a space only: a form feed or vertical tab in a name
+        is printed raw, and splitting on any whitespace would cut the name short."""
+        lockdir = self.base / "ff\x0cvt\x0bdir"
+        (lockdir / "build").mkdir(parents=True)
+        mountinfo = self.base / "mountinfo"
+        mountinfo.write_bytes(self.raw_line(b"0:1", b"/") + b"\n"
+                              + self.raw_line(b"0:2", os.fsencode(lockdir)) + b"\n")
+        self.assertEqual(flock_holders.lock_devices(lockdir / "build" / "heavy.lock", mountinfo),
+                         {self.own, (0, 2)})
+
+    def test_negative_control_a_raw_form_feed_name_is_not_the_directory(self):
+        """`<base>/sub\\fvol` (raw form feed) is another path than `<base>/sub vol`."""
+        found = self.mountinfo_bytes(self.raw_line(b"0:1", b"/"),
+                                     self.raw_line(b"0:9", os.fsencode(self.base) + b"/sub\x0cvol"))
+        self.assertEqual(found, {self.own, (0, 1)})
+
+    def test_escaped_tab_newline_and_backslash_are_decoded(self):
+        """The kernel escapes space, tab, newline and backslash as octal; an escaped
+        backslash before digits is a backslash, then the digits."""
+        try:
+            lockdir = self.base / "a\tb\nc\\040d"
+            (lockdir / "build").mkdir(parents=True)
+        except OSError as error:
+            self.skipTest(f"no such directory here: {error}")
+        mountinfo = self.base / "mountinfo"
+        mountinfo.write_bytes(
+            self.raw_line(b"0:1", b"/") + b"\n"
+            + self.raw_line(b"0:4", os.fsencode(self.base) + b"/a\\011b\\012c\\134040d") + b"\n"
+            + self.raw_line(b"0:6", os.fsencode(self.base) + b"/a\\011b\\012c d") + b"\n")
+        self.assertEqual(flock_holders.lock_devices(lockdir / "build" / "heavy.lock", mountinfo),
+                         {self.own, (0, 4)})
+
     def test_a_directory_that_does_not_exist_holds_no_locks(self):
         self.assertEqual(flock_holders.lock_devices(self.base / "gone" / "heavy.lock"), set())
 

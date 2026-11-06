@@ -38,8 +38,9 @@ def parse_lock_lines(lines, prefix="", devices=None):
 
 
 def _unescape(field):
-    """A mountinfo path field with its octal escapes (`\\040` for a space) undone."""
-    return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match.group(1), 8)), field)
+    """A mountinfo path field, as bytes, with the kernel's octal escapes undone
+    (`\\040` for a space; it escapes space, tab, newline and backslash)."""
+    return re.sub(rb"\\([0-7]{3})", lambda match: bytes([int(match.group(1), 8) & 0xff]), field)
 
 
 def lock_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
@@ -55,22 +56,27 @@ def lock_devices(lock, mountinfo=Path("/proc/self/mountinfo")):
     except OSError:
         return set()
     devices = {(os.major(device), os.minor(device))}
+    # Bytes throughout: a mount point is any pathname, printed raw except for
+    # the four escaped characters, so another mount's name need not be UTF-8.
+    # Fields are split on the kernel's one delimiter, a space, and lines on
+    # newline: other whitespace in a name is printed as is.
+    directory = os.fsencode(directory)
     try:
-        lines = Path(mountinfo).read_text().splitlines()
+        lines = Path(mountinfo).read_bytes().split(b"\n")
     except OSError:
         lines = []
-    point, mounted = "", None
+    point, mounted = b"", None
     for line in lines:  # the longest mount point above it; a later mount over an earlier one
-        fields = line.split()
+        fields = line.split(b" ")
         if len(fields) < 5:
             continue
         candidate = _unescape(fields[4])
-        if (directory == candidate or directory.startswith(candidate.rstrip("/") + "/")) \
+        if (directory == candidate or directory.startswith(candidate.rstrip(b"/") + b"/")) \
                 and len(candidate) >= len(point):
             point, mounted = candidate, fields[2]
     if mounted is not None:
-        major, _, minor = mounted.partition(":")
-        if major.isdecimal() and minor.isdecimal():
+        major, _, minor = mounted.partition(b":")
+        if major.isdigit() and minor.isdigit():
             devices.add((int(major), int(minor)))
     return devices
 
