@@ -74,11 +74,15 @@ identifies it. This extension is a deliberate native restart improvement,
 not a claim that the original cartridge saves $ED51.
 
 Native Motavia travel and the raw saved world-byte interpretation are
-covered here. Still open: world selection during later space-travel scenes
-needs the original writes wired into the scene runtime ([#126](https://github.com/TusanHomichi/PSIV/issues/126)); general
-map-entry follower alignment ([#127](https://github.com/TusanHomichi/PSIV/issues/127)); the exact retail teleport visuals and
-window layout ([#128](https://github.com/TusanHomichi/PSIV/issues/128)); and the legacy standing-Y save-format discrepancy
-([#129](https://github.com/TusanHomichi/PSIV/issues/129)).
+covered here. The cartridge writes `World_Index` in eight places: the new-game
+initializer, the ship's destination menu and Sabotage's copy of it, and five
+scenes. `Runtime::set_world_index` cites each one it makes,
+`rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
+whole-route runner test checks the world and map of every chapter that lands
+on a new planet. Still open: general map-entry follower alignment
+([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the exact retail
+teleport visuals and window layout
+([#128](https://github.com/TusanHomichi/PSIV/issues/128)).
 
 ## Verification
 
@@ -109,5 +113,5 @@ keeper row is `$0683A4`, so five members pay 100. The rest is `RecoverStats`
 (`$0662DA`; what it restores is [SHOPS.md](../camp/SHOPS.md#what-a-night-restores)).
 
 The bridge's video comparison uses isolated SRAM position fixtures, not
-connected play. Their Y word is `(standing_y-1)*16`, which accounts for the
-native save-coordinate gap without modifying any campaign save.
+connected play. Their Y word is the cartridge's `(standing_y-1)*16`, the word
+a native SAVE writes too ([SAVE_FORMAT.md](../camp/SAVE_FORMAT.md#standing-y)).

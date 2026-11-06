@@ -238,6 +238,14 @@ pub enum Routed {
         /// What opening it did.
         outcome: SceneDialogueOpen,
     },
+    /// A scene's system line ([`psiv_core::SystemLine`]) opened, or the pack
+    /// had none and the scene went on.
+    SceneSystemLine {
+        /// Which.
+        line: psiv_core::SystemLine,
+        /// Whether a window opened.
+        opened: bool,
+    },
     /// The debug harness's auto-close skipped a scene's line without opening
     /// the window.
     SceneDialogueSkipped {

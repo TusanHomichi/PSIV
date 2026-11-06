@@ -91,8 +91,7 @@ table (`ROUTES`) gates which `(enemy, ability)` pairs may reach it.
 | `$4B` SHADOWBIND | 111 ChaosSorcr, 138 ChaosSorcr2 | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868) | object `$724`, `loc_2BCEA` (`ps4.asm:57360`) | `$06` | 9 |
 
 A carrier appears in `ROUTES` only if a capture saw it use the ability
-([section 10](#10-what-the-captures-show)), or it shares a captured carrier's routine,
-arm and object (72 BloodSaber's DEBAN, beside the captured 70 and 71); the ones
+([section 10](#10-what-the-captures-show)); the ones
 that are not routed, and why, are that ledger's section 3 and section 8 below,
 and they stay on the explicit `UnsupportedAbility` path.
 Radhin's SEALS and DEBAN (the `116` entries above) are routed and captured
@@ -287,18 +286,17 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
   caster and skip the effect when it is sealed. The port has no way to seal an enemy
   yet (no party technique with effect `$08` is supported), so the branch is
   unreachable; it needs the test the day one exists.
-- **The enemies' battle attack and defence cells are not in the log.** The
-  oracle's fixture extractor reads `$24` and `$28` (the derived cells) for the
-  effect columns, which a battle buff never moves, and no column reads an enemy's
-  `$26` / `$2A`. DEBAN's effect on its own side is therefore proven through the
-  damage the party deals afterwards (`D8_d0`; a defence raised by one point instead of
-  eighteen turns a hit of 1 into a hit of 4); GELUN's, on the party, through the party's
-  `atk_bat` cells that `oracle/sweep/arc.py` adds from the log. Adding both sides'
-  cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` would make the
-  DEBAN proof direct.
-- **Carriers no capture has seen use the ability** are not routed, except 72
-  BloodSaber's DEBAN, which shares a captured carrier's routine, arm and object
-  (section 2; [section 10](#10-what-the-captures-show) lists the rest).
+- **The enemies' battle attack and defence cells.** The extractor's
+  `EFFECT_FIELDS` (`oracle/fixture/observations.py`) read an enemy's `atk_bat`
+  and `dfs_bat` (`$26`, `$2A`) wherever the log has them, and a party-script
+  capture's map logs them, so DEBAN's effect on its own side is direct there
+  (`enemy_scripted/deban_bloodsaber.json`, below). The plain `oracle.force`
+  captures' logs have no such column: `D8_d0`'s DEBAN is proven through the
+  damage the party deals afterwards (a defence raised by one point instead of
+  eighteen turns a hit of 1 into a hit of 4), and GELUN's, on the party, through
+  the party's `atk_bat` cells that `oracle/sweep/arc.py` adds from the log.
+- **Carriers no capture has seen use the ability** are not routed
+  ([section 10](#10-what-the-captures-show) lists them).
 - **SoldrFiend's VOL kill** is observed: `replay_fixtures/endgame/soldrfiend.json`,
   `soldrfiend_gires.json` and `arc_motavia/formation_1E1_d0.json` each show the
   target's HP set to 0. Its object ends in the same `loc_25048` the other
@@ -628,6 +626,20 @@ round's draw count.
 | `browren486_1ac_barrier.json` | 6 | 276 | fighter 6 regular-slot BARRIER, round 4, f26069; both enemies' MDEF 3 → 78 |
 | `zio_event06_psycho.json` | 6 | 214 | Alys ITEM `$39` at f25473; enemy 139 → 140, HP 16383 → 2889, MDEF 255 → 38 |
 
+### DEBAN on 72 BloodSaber (a party-script capture, `enemy_scripted/`)
+
+ShadowSabr's routine casts DEBAN on its conditional slot 7,
+`EnemyAI_PhysicalAtkReceived`: the sabre must have been *hit* since its last
+action. The tape party never hit a BloodSaber, so this capture scripts it:
+`python3 -m oracle.sweep.player_capture` on formation `$1C6` (two BloodSaber),
+Chaz attacking enemy 6 with agility and dexterity 255 so his swing lands before
+its turn, the others defending, every member at 999 HP, two rounds. Its
+report records the cast (`e1=0x2D` at f25201).
+
+| fixture | rounds | observed use |
+|---|---:|---|
+| `enemy_scripted/deban_bloodsaber.json` | 2 | Chaz hits fighter 6 (232 → 231); fighter 6 DEBAN, round 1, f25201; `dfs_bat` of fighters 6 and 7 22 → 76; round 2 both sabres swing |
+
 ### Cartridge findings from the captures
 
 - **WARNING is a refill, not a spent turn.** `EnemyInit_Tower` clears the objects beside
@@ -662,16 +674,16 @@ captured pair; no capture shows them.
 
 | carrier | why no capture |
 |---|---|
-| 72 BloodSaber `$2D` DEBAN | Routed by ShadowSabr's routine and arm (captured), but no capture has the party *hit* it before its turn, so `EnemyAI_PhysicalAtkReceived` never fires there and the cast was never seen. |
 | 42 SatMinion `$17` WAITING (conditional, arm `$05`) | `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the FloatMine fall-through `loc_10406`, which `formation_124_d2` shows; every formation that triggers it opens with CRayTube's CHARGCNNON, and no fixture of it is committed. |
 | 105 ShadMirage `$4B` | No US formation seats it; core tests only. |
 | 39 Tower `$14` | Same init and record as 45 CommndBall, whose WARNING is captured. |
 
 ### What the captures do not prove
 
-- The enemies' own `atk_bat` / `dfs_bat` / `agi_bat` cells are not in the log, so
-  DEBAN's size is proven through the damage later hits deal, GELUN's through the
-  party cells `oracle/sweep/arc.py` adds, and SHADOWBIND's only on the party side.
+- The plain captures' logs carry no enemy `atk_bat` / `dfs_bat` cells, so in
+  them DEBAN's size is proven through the damage later hits deal, GELUN's through
+  the party cells `oracle/sweep/arc.py` adds, and SHADOWBIND's only on the party
+  side. The party-script capture of BloodSaber's DEBAN reads the cells directly.
 - The formations are real, but the party is not a campaign party and the
   encounters are not natural; event battles are random encounters with
   `Event_Battle_Index` written over them.

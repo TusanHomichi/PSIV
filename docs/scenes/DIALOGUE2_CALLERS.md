@@ -139,7 +139,7 @@ input receipt.
 
 ## Guards
 
-- `rust/psiv-core/src/scenes/mod.rs`: `every_dialogue2_caller_is_a_retained_window`
+- `rust/psiv-core/src/scenes/tests.rs`: `every_dialogue2_caller_is_a_retained_window`
   (the table `DIALOGUE2_CALLERS`: scene, image address, entry; each scene must
   run that one entry through `retained`, and no other scene may) and
   `no_scene_resumes_before_it_opens_a_dialogue`.

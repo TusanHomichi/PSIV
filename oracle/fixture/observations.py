@@ -582,10 +582,17 @@ STATUS_EFFECT_BITS = 0xFF & ~(0x04 | 0x40)
 #: values the fixtures' own stat blocks carry (`PARTY_NAMES`, `ENEMY_NAMES`),
 #: plus the status byte. HP is read through `columns`, because a vehicle
 #: battle's party side keeps its HP in a cell of its own.
+#:
+#: An enemy's `atk_bat` and `dfs_bat` are `atk_pow_battle` and
+#: `dfs_pow_battle` (`$26`, `$2A`, `ps4.constants.asm:30,32`), the cells a
+#: battle buff writes (DEBAN's `AbilityEffect_DefenseUp`, `ps4.asm:9203`);
+#: `atk` and `dfs` are the derived `$24`/`$28`, which no buff moves. A scripted
+#: capture's map logs them (`oracle/force/script_menu.py`'s `extra_fields`);
+#: a log without them reads nothing, as for any absent column.
 EFFECT_FIELDS = {
     "party": ["status", "str", "agi_bat", "dex", "atk", "dfs", "men"],
     "enemy": ["status", "agi_bat", "atk", "dfs", "str_bat", "men_bat",
-              "dex_bat", "mdfs_bat"],
+              "dex_bat", "mdfs_bat", "atk_bat", "dfs_bat"],
 }
 
 
