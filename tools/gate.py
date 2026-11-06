@@ -95,6 +95,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from flock_holders import WHEN_UNSEEN  # noqa: E402
 from heavy_lock import (EXCLUSIVE, HELD_ENV, RUNNER_WAIT_ENV, gate_lock_path,  # noqa: E402
                         heavy_lock_path, hold_heavy_lock, lock_holders, wait_reporting)
 from tree_rss import below, cpu_mhz, load_1m  # noqa: E402
@@ -373,7 +374,11 @@ def gate_lock(lock_file, wait=False):
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
-            holders = ", ".join(str(pid) for pid in lock_holders(lock_file)) or "unknown"
+            # Named from fdinfo, reading /proc/locks only for a holder it
+            # can't see (another user's): that read takes seconds while the
+            # machine holds tens of thousands of locks (#383, #387).
+            holders = ", ".join(str(pid) for pid in lock_holders(lock_file, read=WHEN_UNSEEN)) \
+                or "unknown"
             if not wait:
                 raise GateRefused(
                     f"gate refuses to start: another gate (pid {holders}) holds {lock_file} "

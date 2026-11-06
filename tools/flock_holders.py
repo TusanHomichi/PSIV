@@ -194,7 +194,8 @@ def held_locks(lock, proc_locks=None, read=ALWAYS):
     several readers at once. A waiter names its holders again and again, so it
     passes NEVER for the line it prints on every change, and WHEN_UNSEEN for
     the line it repeats: that reads it only when fdinfo shows nobody else
-    holding the lock file, as when the holder is another user's process. Its
+    holding the lock file, as when the holder is another user's process. So
+    does a gate naming who holds the gate lock (#387). Its
     raw flock(1) parent check reads it ALWAYS, since a holder fdinfo sees says
     nothing about a parent it can't see, but beside the wait rather than in its
     way (`heavy_lock._ParentCheck`).

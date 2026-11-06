@@ -665,8 +665,10 @@ descriptors this user can read; the second, when it finds none, and `status`
 also read /proc/locks, for another user's, which takes seconds a read while the
 machine holds tens of thousands of locks (#383). A gate waiting for the gate lock with
 `--wait` reports the same way, so a job runner that stops a job gone quiet
-sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
-waiters with each pid's command line.
+sees it waiting. A gate that finds the gate lock held, and refuses or waits,
+names its holder the way the repeated line does (#387).
+`python3 tools/heavy_lock.py status` prints the holders and waiters with each
+pid's command line.
 
 Transition: a waiter started from a checkout older than the gate rank writes
 ranks 0 (priority) and 1 (normal) and ignores rank-2 entries. The current code
