@@ -36,6 +36,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 
+pub mod battle;
 pub mod decode;
 pub mod game_start;
 pub mod gfx;
@@ -121,6 +122,11 @@ pub const SECTIONS: &[Section] = &[
         name: "game_start",
         claims: &["game_start.json"],
         build: game_start::build,
+    },
+    Section {
+        name: "battle",
+        claims: &["battle/formations.json", "battle/levels.json"],
+        build: battle::build,
     },
 ];
 

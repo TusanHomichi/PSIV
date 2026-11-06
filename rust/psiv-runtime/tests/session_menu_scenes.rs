@@ -306,7 +306,7 @@ fn vehicle_items_snap_off_grid_party_and_wait_for_camera_before_selector() {
             }
             if frame.events.iter().any(|event| {
                 matches!(
-                    event, RuntimeEvent::VehicleChanged { index } if *index == selector
+                    event, RuntimeEvent::VehicleChanged { index, .. } if *index == selector
                 )
             }) {
                 arrived = true;
@@ -346,7 +346,7 @@ fn aligned_vehicle_item_sets_selector_without_a_camera_gate() {
         frame
             .events
             .iter()
-            .any(|event| matches!(event, RuntimeEvent::VehicleChanged { index: 1 }))
+            .any(|event| matches!(event, RuntimeEvent::VehicleChanged { index: 1, .. }))
     );
     assert_eq!(player.runtime().vehicle_cell(), Some(Cell::new(114, 177)));
     assert_eq!(player.runtime().members()[1].cell, Cell::new(114, 177));
@@ -713,4 +713,182 @@ fn a_souvenir_is_refused_outside_chazs_house() {
             .slots()
             .contains(&ITEM_PENNANT)
     );
+}
+
+/// Every event from a Speak press on a mounted party until the scene it starts
+/// ends, closing the refusal window with a press as a player would.
+fn get_off_events(player: &mut Player) -> Vec<RuntimeEvent> {
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let mut events = player.tick(Pad::new(Button::Speak)).events;
+    for _ in 0..4000 {
+        if !player.runtime().scene_active() {
+            return events;
+        }
+        let dismissable = player
+            .runtime()
+            .dialogue_view()
+            .is_some_and(|view| view.choice.is_none() && view.dismissable);
+        let frame = if dismissable {
+            player.tick(Pad::new(Button::Speak))
+        } else {
+            player.tick(Pad::NEUTRAL)
+        };
+        events.extend(frame.events);
+    }
+    panic!("the scene never finished");
+}
+
+/// The shell restores the saved theme at every scene exit that did not say
+/// `SceneMusicRetained`, which restarts the track. `$10` has no such restore on
+/// either branch, so the refusal must request no music at all and the
+/// stand-down exactly the one `AdjustMusicIDs` write; the shell skips the raw
+/// map music that `VehicleChanged` would otherwise bring, while the scene runs.
+#[test]
+fn getting_off_asks_for_no_exit_music() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let sounds = |events: &[RuntimeEvent]| {
+        events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    RuntimeEvent::ScenePresentation {
+                        op: psiv_core::SceneOp::PlaySound { .. }
+                            | psiv_core::SceneOp::SetSavedMusic { .. }
+                    }
+                )
+            })
+            .count()
+    };
+    let retained = |events: &[RuntimeEvent]| {
+        events
+            .iter()
+            .filter(|event| matches!(event, RuntimeEvent::SceneMusicRetained))
+            .count()
+    };
+
+    // The refusal: no music request of any kind, and the exit restore is off.
+    let game = with_pack(0, &[ITEM_HYDROFOIL], 0);
+    let mut player = Player::new(MOTAVIA_WATER, &game);
+    player.use_item(ITEM_HYDROFOIL);
+    player.run_scene_out();
+    let events = get_off_events(&mut player);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff))
+    );
+    assert_eq!(retained(&events), 1, "refusal keeps the theme: {events:?}");
+    assert_eq!(sounds(&events), 0, "refusal requests no music");
+    assert_eq!(player.runtime().vehicle_index(), Some(3), "still mounted");
+    assert!(!player.runtime().getting_off_scene_active());
+
+    // The stand-down: one PlaySound and SetSavedMusic pair, no exit restore.
+    let game = with_pack(0, &[ITEM_LAND_ROVER], 0);
+    let mut player = Player::new((0, 115, 177), &game);
+    player.use_item(ITEM_LAND_ROVER);
+    player.run_scene_out();
+    let events = get_off_events(&mut player);
+    assert_eq!(
+        retained(&events),
+        1,
+        "stand-down keeps the answer: {events:?}"
+    );
+    assert!(
+        sounds(&events) <= 2,
+        "at most AdjustMusicIDs's pair: {events:?}"
+    );
+    assert_eq!(player.runtime().vehicle_index(), None, "on foot");
+    // The scene is over by the time the shell reads the events, so the event
+    // itself must say the scene chose the music (the raw map music is skipped).
+    assert!(!player.runtime().getting_off_scene_active());
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            RuntimeEvent::VehicleChanged {
+                index: 0,
+                scene_sets_music: true
+            }
+        )),
+        "the stand-down's VehicleChanged carries the scene's music choice: {events:?}"
+    );
+}
+
+/// `Event_GettingOffVehicle` (`$10`, record
+/// `docs/scenes/207_GettingOffVehicle.md`): mounted, Speak runs the event.
+/// On open ground the party stands down on the machine's cell; on open water
+/// the refusal line opens, a press closes it, and the party stays mounted.
+#[test]
+fn speak_while_riding_gets_off_or_is_refused() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let game = with_pack(0, &[ITEM_LAND_ROVER], 0);
+    let mut player = Player::new((0, 115, 177), &game);
+    player.use_item(ITEM_LAND_ROVER);
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), Some(1));
+    let machine = player.runtime().vehicle_cell().expect("mounted");
+
+    // A press on the boarding scene's heels does not reach the machine (seen:
+    // no event for it); thirty idle frames first, as hands leave the menu.
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let pressed = player.press(Button::Speak);
+    assert!(
+        pressed
+            .events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff)),
+        "the field input ran $10"
+    );
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), None, "on foot");
+    assert_eq!(player.runtime().game().vehicle_index(), 0);
+    assert_eq!(player.runtime().state().cell(), machine, "where it stood");
+
+    // Negative control: the Hydrofoil boards on water and cannot stop there.
+    let game = with_pack(0, &[ITEM_HYDROFOIL], 0);
+    let mut player = Player::new(MOTAVIA_WATER, &game);
+    player.use_item(ITEM_HYDROFOIL);
+    player.run_scene_out();
+    assert_eq!(player.runtime().vehicle_index(), Some(3));
+    for _ in 0..30 {
+        player.tick(Pad::NEUTRAL);
+    }
+    let pressed = player.press(Button::Speak);
+    assert!(
+        pressed
+            .events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::VehicleGetOff))
+    );
+    assert!(
+        player.runtime().scene_active(),
+        "the refusal holds the scene"
+    );
+    let mut shown = false;
+    for _ in 0..200 {
+        if !player.runtime().scene_active() {
+            break;
+        }
+        if let Some(view) = player.runtime().dialogue_view() {
+            shown = true;
+            if view.dismissable {
+                player.press(Button::Speak);
+                continue;
+            }
+        }
+        player.tick(Pad::NEUTRAL);
+    }
+    assert!(shown, "the refusal opened a window");
+    assert!(!player.runtime().scene_active(), "a press ended the scene");
+    assert_eq!(player.runtime().vehicle_index(), Some(3), "still mounted");
 }

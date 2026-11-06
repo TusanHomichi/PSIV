@@ -7,7 +7,7 @@ linked below.
 ## Data and runtime layers
 
 Python extracts the verified US ROM into a local pack. The native game loads
-that pack; it does not run the emulator. The Cargo workspace has six crates:
+that pack; it does not run the emulator. The Cargo workspace has eight crates:
 
 | Component | Role |
 | --- | --- |
@@ -19,6 +19,7 @@ that pack; it does not run the emulator. The Cargo workspace has six crates:
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
 | [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. The runtime `Session` owns every game mode — field, scenes, dialogue, shops, camp, battle, title and game over |
 | [psiv-campaign](../rust/psiv-campaign/) | The headless campaign runner: plays a route file through `Session::frame(pad)` with ordinary pad input and writes a replayable tape ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
+| [psiv-exit-leaks](../rust/psiv-exit-leaks/) | Godot's leak reports at exit, read from a run's logs: the one check the native verifiers fail a run on ([#123](https://github.com/TusanHomichi/PSIV/issues/123)) |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
 results and sends input, deciding nothing about game state. Keep ROM decoding in

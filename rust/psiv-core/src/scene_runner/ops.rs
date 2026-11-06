@@ -27,23 +27,6 @@ impl SceneRunner {
         };
     }
 
-    /// Parks every party actor of the cast on `cell` facing `facing`,
-    /// cancelling any walk: the character rebuild both of the cartridge's
-    /// dismounts make, every `Character_1..5` object put on `Character_1`'s
-    /// position and facing, the machine's while mounted
-    /// (`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`;
-    /// `Event_EclipseTorchUsed`, `loc_701DE`, `ps4.asm:149559-149577`). The
-    /// runtime calls it when a scene's `SetVehicleIndex 0` dismounts, since the
-    /// cast was seated from the party objects, which a mounted party leaves
-    /// where it boarded.
-    pub fn park_party(&mut self, cell: crate::geom::Cell, facing: crate::geom::Direction) {
-        for actor in &mut self.actors {
-            if matches!(actor.actor, ActorRef::PartyMember(_)) {
-                actor.park(cell, facing);
-            }
-        }
-    }
-
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
@@ -87,6 +70,7 @@ impl SceneRunner {
                 self.dialogue_window = window;
                 let dialogue = match source {
                     DialogueSource::Entry(id) => id,
+                    DialogueSource::System(_) => DialogueId(u16::MAX),
                     DialogueSource::NpcDialogueId(actor) => {
                         // The entry index lives on the field object. The engine
                         // does not carry object dialogue ids, so it reports the
@@ -102,6 +86,7 @@ impl SceneRunner {
                     DialogueSource::NpcDialogueId(actor) => {
                         SceneEffect::DialogueOpenFromNpc { actor }
                     }
+                    DialogueSource::System(line) => SceneEffect::SystemLineOpen(line),
                 });
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
@@ -906,6 +891,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::FifthCharacter(fifth) => return self.fifth_op(fifth, state, effects),
             SceneOp::Rocky(rocky) => match rocky {
                 RockyOp::BranchIfHolding {
                     item,
@@ -934,11 +920,8 @@ impl SceneRunner {
                     self.pc += 1;
                 }
             },
-            SceneOp::Wreckage(wreckage) => {
-                if let Some(fault) = self.wreckage_op(wreckage, state, effects) {
-                    return Some(fault);
-                }
-            }
+            SceneOp::GetOff(get_off) => return self.get_off_op(get_off, effects),
+            SceneOp::Wreckage(wreckage) => return self.wreckage_op(wreckage, state, effects),
             SceneOp::Guild(guild) => {
                 if let Some(fault) = self.guild_op(guild, state, effects) {
                     return Some(fault);
@@ -988,7 +971,8 @@ impl SceneRunner {
             | SceneOp::Object(_)
             | SceneOp::SetCharacterSkill { .. }
             | SceneOp::Ride(_)
-            | SceneOp::Item(_) => return self.step_mechanic_op(op, state, effects),
+            | SceneOp::Item(_)
+            | SceneOp::PlacePartyY { .. } => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;

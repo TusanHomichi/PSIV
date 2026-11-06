@@ -308,8 +308,10 @@ impl Driver {
                 "the party is not riding a vehicle",
             ));
         }
+        // The press runs `Event_GettingOffVehicle`; on ground that refuses,
+        // settling closes its line and the party is still mounted.
         self.tap(Button::Speak)?;
-        self.neutral(2)?;
+        self.settle(false)?;
         if self.runtime().vehicle_index().is_some() {
             return Err(Halt::new(
                 HaltKind::Stuck,

@@ -559,6 +559,51 @@ def godot_command(run_root: RunRoot, *args: str, project: Path | None = None,
     return [*prefix, str(resolve()), "--path", str(project), *args]
 
 
+#: The one check of Godot's own leak reports at exit (#123) is the Rust binary
+#: `psiv-exit-leaks` (rust/psiv-exit-leaks, whose lib names every report form
+#: it matches and whose tests hold every tool here that starts Godot to it).
+#: What follows is only the glue that builds and runs it.
+EXIT_LEAKS_PACKAGE = "psiv-exit-leaks"
+
+_exit_leaks_binary: Path | None = None
+
+
+def exit_leaks_binary() -> Path:
+    """`psiv-exit-leaks`, built once per process from this checkout (it has no
+    dependencies: seconds cold, nothing when current), honoring
+    `CARGO_TARGET_DIR`."""
+    global _exit_leaks_binary
+    if _exit_leaks_binary is None:
+        command = ["cargo", "build", "--quiet", "--manifest-path", str(ROOT / "rust" / "Cargo.toml"),
+                   "-p", EXIT_LEAKS_PACKAGE, "--bin", EXIT_LEAKS_PACKAGE, "--message-format=json"]
+        try:
+            built = subprocess.run(command, capture_output=True, text=True, check=False)
+        except OSError as error:
+            raise GodotError(f"cannot build {EXIT_LEAKS_PACKAGE}: {error}") from error
+        executables = [message["executable"] for message in map(json.loads, built.stdout.splitlines())
+                       if message.get("reason") == "compiler-artifact" and message.get("executable")]
+        if built.returncode != 0 or not executables:
+            raise GodotError(f"cannot build {EXIT_LEAKS_PACKAGE} (cargo exit {built.returncode}): "
+                             + built.stderr.strip())
+        _exit_leaks_binary = Path(executables[-1])
+    return _exit_leaks_binary
+
+
+def logged_exit_leaks(*logs: Path) -> list[str]:
+    """The leak reports Godot made at exit in a run's logs (its captured stdout
+    and stderr, its `--log-file`), as `psiv-exit-leaks` finds them: each line
+    once, none for a clean exit. Every verifier that runs Godot fails the run
+    on any line this returns; a check that cannot run raises `GodotError`."""
+    if not logs:
+        return []
+    command = [str(exit_leaks_binary()), *map(str, logs)]
+    result = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace",
+                            check=False)
+    if result.returncode not in (0, 1):
+        raise GodotError(f"{EXIT_LEAKS_PACKAGE} exit {result.returncode}: {result.stderr.strip()}")
+    return result.stdout.splitlines()
+
+
 def run_main(argv: list[str]) -> int:
     """`run`: Godot from a fresh run root, with the arguments after `--`."""
     parser = argparse.ArgumentParser(

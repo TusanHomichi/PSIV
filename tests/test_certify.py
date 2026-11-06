@@ -475,6 +475,8 @@ class MainLocksTest(unittest.TestCase):
         self.prepared = []
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
                 mock.patch.object(certify, "require_godot", require), \
+                mock.patch.object(certify, "exit_leaks_binary"), \
+                mock.patch.object(certify, "logged_exit_leaks", return_value=[]), \
                 mock.patch.object(certify, "create_run_root", run_root), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify.subprocess, "run",

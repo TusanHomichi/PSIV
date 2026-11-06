@@ -66,8 +66,8 @@ from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
-                   require as require_godot)
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root, exit_leaks_binary,  # noqa: E402
+                   godot_command, logged_exit_leaks, require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -189,9 +189,13 @@ PAIRS = [
     # the slugs' turn is Fusion) and the shot lands where the MetaSlug's overlay
     # clock reads what the oracle's Enemy_Sprites words say at frame 25560:
     # every piece at (frame 0, timer 2), one tick before the video frame.
-    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend",
+    # The Fusion's own frames (#64) seat the MetaSlug 80 frames into the
+    # slugs' turn rather than 36, and the options come back 20 frames sooner
+    # after the seat: tick 758 puts the overlay where 714 did, and the blink
+    # seed 21/0 is the old phase 20 red-cursor frames earlier.
+    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend,blink=21/0",
                        "PSIV_DEBUG_BATTLE_FORMATION": "D2",
-                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 714,
+                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 758,
      "build/certify/oracle/battle-fusion/frame_25560.png",
      "b10cb5aa7ce60c6c66eec714cab6de28d4ff85cad7f3a385aaa4cdc589ad8ef8", TAPE_33),
     # Clone tick t pairs with tape-07-family oracle frame 24800 + t: the
@@ -449,6 +453,7 @@ def main(argv=None):
         return 0 if args.list else 2
     try:
         require_godot()
+        exit_leaks_binary()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2
@@ -511,6 +516,10 @@ def main(argv=None):
                 record["rmse"], record["compare"] = compare(shot, frame_path)
             else:
                 error = f"no capture (godot exit {code})"
+            record["exit_leaks"] = logged_exit_leaks(receipt / f"{record['pair']}-run.log",
+                                                     receipt / f"{record['pair']}-godot.log")
+            if error is None and record["exit_leaks"]:
+                error = "Godot reported at exit: " + "; ".join(record["exit_leaks"])
         record["error"] = error
         record["pass"] = error is None and record.get("rmse") == "0.000000"
         results.append(record)

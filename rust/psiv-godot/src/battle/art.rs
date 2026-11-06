@@ -28,6 +28,16 @@ pub(crate) struct BattleArt {
     enemy_attacks: BTreeMap<u16, EnemyAttackArtFileEntry>,
     background_tables: BackgroundTables,
     enemy_palette: EnemyPaletteLayout,
+    /// The Zol slugs' Fusion frames, which `psiv_data::FusionArt` owns.
+    fusion: psiv_data::FusionArt,
+}
+
+/// One Fusion frame as the stage draws it: the texture, its top-left
+/// relative to the piece's position, and its size.
+pub(crate) struct FusionFrame {
+    pub(crate) texture: Gd<ImageTexture>,
+    pub(crate) origin: Vector2i,
+    pub(crate) size: Vector2i,
 }
 
 #[derive(Clone)]
@@ -163,6 +173,7 @@ impl BattleArt {
         let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")?;
         let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
         let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
+        let fusion = psiv_data::FusionArt::load(Path::new(pack_dir)).map_err(|e| e.to_string())?;
 
         let enemies = enemy_file
             .enemies
@@ -272,7 +283,27 @@ impl BattleArt {
                 ui_color_14: parse_word(&ui_color_14)?,
                 index_15_by_line,
             },
+            fusion,
         })
+    }
+
+    /// The Fusion frames as textures, in the pack's order. The pieces' pattern
+    /// word carries no line bits (`#$A000`, `ps4.asm:35726`), so they draw on
+    /// CRAM line 1 in the casting slug's colours.
+    pub(crate) fn fusion_frames(&self, pack_dir: &str) -> Option<Vec<FusionFrame>> {
+        let art = self.enemies.get(&self.fusion.palette_enemy_id)?;
+        self.fusion
+            .frames
+            .iter()
+            .map(|frame| {
+                let image = self.enemy_image(pack_dir, art, &frame.png, 0)?;
+                Some(FusionFrame {
+                    texture: ImageTexture::create_from_image(&image)?,
+                    origin: Vector2i::new(frame.origin[0], frame.origin[1]),
+                    size: Vector2i::new(frame.size[0], frame.size[1]),
+                })
+            })
+            .collect()
     }
 
     pub(crate) fn background_path(

@@ -41,6 +41,7 @@
 
 mod blink;
 mod fixture;
+mod fusion;
 mod menu;
 mod narration;
 mod panes;
@@ -53,11 +54,13 @@ mod queue;
 mod vehicle_end_tests;
 mod view;
 
+pub use menu::CursorMemory;
 pub use view::{
     BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView, EnemyStatus,
     MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView,
     TargetKind, TechniqueEntry,
 };
+pub use view::{Fusion, FusionPiece};
 
 use std::collections::BTreeMap;
 
@@ -145,6 +148,9 @@ pub(crate) struct BattleMode {
     /// `Battle_Command_Data`'s command byte per party slot: what each pane's
     /// icon shows, kept across rounds the way the cartridge keeps it.
     command_bytes: [u8; 5],
+    /// Each member's strip and list cursors, kept across rounds the way the
+    /// cartridge keeps its per-member index words.
+    cursor_memory: menu::CursorMemory,
     /// What each pane draws this frame.
     panes: Vec<PaneView>,
     /// The party bodies drawn so far in the round being played: the fighters
@@ -172,6 +178,10 @@ pub(crate) struct BattleMode {
     fault: Option<String>,
     /// Last frame's pad, so every accept and cancel is a press edge.
     previous_pad: Pad,
+    /// Each enemy fighter's formation position byte, for presentation.
+    positions: BTreeMap<u8, u8>,
+    /// The Zol slugs' Fusion while its beat plays.
+    fusion: Option<fusion::Fusion>,
 }
 
 impl BattleMode {
@@ -193,6 +203,7 @@ impl BattleMode {
             party: Vec::new(),
             enemies: Vec::new(),
             command_bytes: [0; 5],
+            cursor_memory: menu::CursorMemory::default(),
             panes: Vec::new(),
             acted: None,
             blink: blink::CursorBlink::default(),
@@ -206,6 +217,8 @@ impl BattleMode {
             start: Some(start),
             fault: None,
             previous_pad: Pad::NEUTRAL,
+            positions: runtime.battle_enemy_positions(start),
+            fusion: None,
         };
         mode.seat(runtime);
         mode.queue = queue::queue_timeline(timeline);
@@ -291,6 +304,7 @@ impl BattleMode {
                     let orders = commands.input(previous, pad);
                     let keep = commands.open;
                     self.command_bytes = commands.command_bytes();
+                    self.cursor_memory = commands.cursor_memory();
                     (orders, keep)
                 }
                 Window::VehicleSkills(skills) => {
@@ -315,7 +329,11 @@ impl BattleMode {
         match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
             menu::TopChoice::Nothing => None,
             menu::TopChoice::Commands => {
-                let commands = menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes);
+                let commands = menu::CommandsMenu::with_command_bytes(
+                    runtime,
+                    self.command_bytes,
+                    self.cursor_memory,
+                );
                 if let Some(orders) = commands.no_actor_orders() {
                     self.command_open = false;
                     Some(orders)
@@ -401,6 +419,32 @@ impl BattleMode {
         self.command_open = true;
     }
 
+    /// The Fusion of the two standing Zol slugs, whose bodies its objects
+    /// replace: the setup erases their plane cells (`ps4.asm:35684-35702`).
+    /// `None` when there are not exactly two.
+    fn start_fusion(&mut self) -> Option<fusion::Fusion> {
+        let slugs: Vec<(u8, u8)> = self
+            .enemies
+            .iter()
+            .filter(|enemy| enemy.visible && enemy.enemy_id == fusion::ZOL_SLUG)
+            .filter_map(|enemy| {
+                enemy
+                    .position
+                    .or_else(|| self.positions.get(&enemy.fighter).copied())
+                    .map(|position| (enemy.fighter, position))
+            })
+            .collect();
+        let [(a, at), (b, bt)] = slugs[..] else {
+            return None;
+        };
+        for enemy in &mut self.enemies {
+            if enemy.fighter == a || enemy.fighter == b {
+                enemy.visible = false;
+            }
+        }
+        Some(fusion::Fusion::new(fusion::body_x(at), fusion::body_x(bt)))
+    }
+
     /// Advances one dwell frame and starts the next event when the beat ends.
     fn advance(&mut self, previous: Pad, pad: Pad) {
         if let Some(active) = self.current.as_mut() {
@@ -442,6 +486,7 @@ impl BattleMode {
                     // The round's end (`loc_5BAE`, `ps4.asm:8419`) cleared
                     // the whole command table before it.
                     self.command_bytes = [0; 5];
+                    self.cursor_memory.end_round();
                 }
                 self.command_open = true;
                 self.message.clear();
@@ -467,6 +512,12 @@ impl BattleMode {
         self.sounds.extend(queued.sounds);
         self.animations.extend(queued.animations);
         let event = queued.event;
+        let fused = self.fusion.take().is_some();
+        if let BattleEvent::EnemySkillUsed { skill, .. } = &event
+            && *skill == fusion::FUSION_ABILITY
+        {
+            self.fusion = self.start_fusion();
+        }
         if let BattleEvent::EnemyStatsReloaded { fighter, name, .. } = &event {
             self.names.insert(fighter.get(), name.clone());
             if let Some(enemy) = self.enemies.iter_mut().find(|e| e.fighter == fighter.get()) {
@@ -508,7 +559,12 @@ impl BattleMode {
             }
         }
         self.update_live_party(&event);
-        let narrate = narration::narration(&event, &self.names, &self.character_names);
+        let mut narrate = narration::narration(&event, &self.names, &self.character_names);
+        if fused && matches!(event, BattleEvent::EnemiesFused { .. }) {
+            // The skill's window holds over the seated MetaSlug; the
+            // cartridge prints no line for it.
+            narrate.line.clone_from(&self.message);
+        }
         if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
             self.fault = Some(format!(
                 "battle renderer: engine emitted unsupported ability {ability} for fighter {}",
@@ -587,6 +643,10 @@ impl BattleMode {
             && self.party_defeated()
         {
             0
+        } else if let Some(fusion) = self.fusion {
+            u16::try_from(fusion.seat()).unwrap_or(u16::MAX)
+        } else if fused && matches!(event, BattleEvent::EnemiesFused { .. }) {
+            fusion::SEATED_HOLD_FRAMES as u16
         } else {
             BATTLE_DWELL_FRAMES
         };

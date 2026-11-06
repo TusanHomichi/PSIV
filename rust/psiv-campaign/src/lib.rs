@@ -25,6 +25,9 @@
 //!   replay, its cut at chapter boundaries and the check that a longer route
 //!   left an earlier run's chapters alone.
 //!
+//! [`verify_continue`] checks the bytes the native CONTINUE driver's resave
+//! may change.
+//!
 //! The planner plans; the runner moves the party, with pad presses only.
 
 #![forbid(unsafe_code)]
@@ -62,6 +65,7 @@ pub mod start;
 pub mod talk;
 pub mod tape;
 pub mod validate;
+pub mod verify_continue;
 pub mod walk;
 
 pub use cell_plan::{

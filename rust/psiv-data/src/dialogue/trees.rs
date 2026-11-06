@@ -67,6 +67,10 @@ pub struct SystemMessages {
     pub label: Option<String>,
     /// One message per party member, index = character slot (Chaz 0, ...).
     pub messages: Vec<DialogueEntry>,
+    /// `CannotGetOffString`, `Event_GettingOffVehicle`'s refusal. `None` on a
+    /// pack from before it was emitted.
+    #[serde(default)]
+    pub cannot_get_off: Option<DialogueEntry>,
 }
 
 /// One Kosinski tree.

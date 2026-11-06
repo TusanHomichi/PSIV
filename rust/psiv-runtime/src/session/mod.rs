@@ -129,8 +129,9 @@ mod title;
 pub use activity::Activity;
 pub use battle::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
-    CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,
-    PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
+    CommandMenuView, CursorMemory, DamageView, EnemyStatus, Fusion, FusionPiece, MenuPage, MenuRow,
+    MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
+    battle_dwell_frames,
 };
 pub use debug::{camp_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
@@ -236,6 +237,14 @@ pub enum Routed {
         entry: u16,
         /// What opening it did.
         outcome: SceneDialogueOpen,
+    },
+    /// A scene's system line ([`psiv_core::SystemLine`]) opened, or the pack
+    /// had none and the scene went on.
+    SceneSystemLine {
+        /// Which.
+        line: psiv_core::SystemLine,
+        /// Whether a window opened.
+        opened: bool,
     },
     /// The debug harness's auto-close skipped a scene's line without opening
     /// the window.

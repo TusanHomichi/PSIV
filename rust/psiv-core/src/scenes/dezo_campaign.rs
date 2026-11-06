@@ -5,7 +5,7 @@
 //! ops; party, map, inventory, flag and battle writes stay explicit here.
 
 use super::flight::with_ship_menu;
-use super::{KYRA, retained};
+use super::{KYRA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -166,12 +166,9 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         SceneOp::Jump { to: 8 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
-        SceneOp::MoveActorOffset {
-            actor: LEADER,
-            dx: 0,
-            dy: 0x20,
-            wait: true,
-        },
+        // `$070826..$070847`: the leader's Y plus `$20`, written to every
+        // party object; no walk.
+        SceneOp::PlacePartyY { dy: 0x20 },
         SceneOp::StartBattle { index: 0x0A },
         SceneOp::Return { value: 1 },
     ],
@@ -209,12 +206,9 @@ pub static SAVING_KYRA: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         retained(0x26),
-        SceneOp::MoveActorOffset {
-            actor: LEADER,
-            dx: 0,
-            dy: 0x20,
-            wait: true,
-        },
+        // `$07093C..$07095D`: the leader's Y plus `$20`, written to every
+        // party object; no walk.
+        SceneOp::PlacePartyY { dy: 0x20 },
         SceneOp::SetFlag {
             flag: Flag::event(0x95),
             value: true,
@@ -232,13 +226,15 @@ pub static MEETING_KYRA: Scene = Scene {
         SceneOp::PanelCreate { id: 0x140 },
         SceneOp::DmaPlanes,
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
-        cutscene(0x27),
+        // `$0777A6`: `jsr Event_GetAndRunDialogue`.
+        standard(0x27),
         SceneOp::InitVramAndCram,
         SceneOp::PlaySound { id: MUSIC_FAL },
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x99 },
         SceneOp::DmaPlanes,
-        cutscene(0x28),
+        // `$0777D8`: `jsr Event_GetAndRunDialogue3`.
+        cutscene3(0x28),
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelCreate { id: 0x9B },
         SceneOp::DmaPlanes,

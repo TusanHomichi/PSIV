@@ -19,7 +19,7 @@ range is the proof anchor; the body ends at `moveq #1; rts` `$074B70`.
 | 0 | `$074A7E` | `InitVRAMAndCRAM` | `InitVramAndCram` |
 | 1 | `$074A84` | `Pal_FadeIn` | `FadeIn` |
 | 2 | `$074A8A` | render-sprites byte ← 1 | `SetRenderSpritesInCutscene(true)` |
-| 3 | `$074A8A..$074A97` | `Event_GetAndRunDialogue3`, entry `$42` | cutscene dialogue `$42` |
+| 3 | `$074A8A..$074A97` | `Event_GetAndRunDialogue3`, entry `$42` | `Cutscene3` dialogue `$42` (the panels stay) |
 | 4-5 | `$074A98..$074AA3` | init/fade second panel phase | `InitVramAndCram`, `FadeIn` |
 | 6-7 | `$074AA4..$074AB3` | `Panel_Create($40)`, DMA | `PanelCreate`, `DmaPlanes` |
 | 8-9 | `$074AB4..$074AC5` | sword SFX `$F5`; VInt loop `$3B+1` | `PlaySound`, `WaitFrames(60)` |
