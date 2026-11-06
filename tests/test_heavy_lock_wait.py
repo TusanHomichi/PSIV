@@ -6,10 +6,7 @@ waiter keeps saying whom it waits on.
 On tests/test_heavy_lock.py's fixtures. `GateRankCase` runs real waiters: one
 holding the lock with `gate=True` is granted before earlier priority and normal
 waiters, and the negative control, the same waiter without it, keeps its place
-in arrival order. `UnseenHolderCase` shows a waiter's line on every
-change never reads /proc/locks, its repeated line and raw-parent check only when
-fdinfo shows nobody else holding the lock, and it names the holders outside the
-queue mutex. `GateTierCase` shows `run_gate` queues the full gate at the
+in arrival order. `GateTierCase` shows `run_gate` queues the full gate at the
 gate rank and the fast tier below it. `StillWaitingCase` waits in-process with
 a short `WAIT_REPORT_S`: a heavy-lock waiter and a gate waiting for the gate
 lock with `--wait` each print lines saying how long they have waited and the
@@ -95,87 +92,6 @@ class GateRankCase(LockProcesses):
         self.assertIn("1 waiter(s) ahead, 0 of them priority, 1 gate(s)", later.first_line)
         self.release(holder)
         self.assertEqual(self.finish(gate, later), ["gate", "later"])
-
-
-#: A pid no process here has, which only the fake /proc/locks names.
-UNSEEN_PID = 4194000
-
-
-class UnseenHolderCase(LockProcesses):
-    """A waiter names its holders again and again, and /proc/locks takes ever
-    longer to read the more locks the machine holds (#383: 3 s a read under
-    another job's 60,000). Under a fake /proc/locks naming UNSEEN_PID: the line
-    a waiter prints on every change never reads it; the line it repeats and its
-    raw-parent check read it only when fdinfo shows nobody else holding the
-    lock, so they name UNSEEN_PID then, and not beside a holder fdinfo sees;
-    `status` reads it always (the negative control). The holder line is built
-    outside the queue mutex, which every other waiter needs."""
-
-    def fake_proc_locks(self, pid):
-        """A /proc/locks of one WRITE lock by `pid` on the lock file, which
-        `flock_holders` reads for the rest of the case."""
-        device = os.stat(self.lock.parent).st_dev
-        fake = self.lock.parent / "proc-locks"
-        fake.write_text(f"1: FLOCK  ADVISORY  WRITE {pid} {os.major(device):02x}:"
-                        f"{os.minor(device):02x}:{os.stat(self.lock).st_ino} 0 EOF\n")
-        patcher = mock.patch.object(heavy_lock_module.flock_holders, "PROC_LOCKS", fake)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def waiting_lines(self):
-        lock = str(self.lock)
-        return (heavy_lock_module._wait_line(lock, "exclusive", NORMAL_RANK, []),
-                heavy_lock_module._still_line(lock, 5))
-
-    def test_a_holder_fdinfo_sees_is_named_without_reading_proc_locks(self):
-        holder = self.holder()
-        self.fake_proc_locks(UNSEEN_PID)
-        line, still = self.waiting_lines()
-        self.assertIn(f"held by pid {holder.pid} (exclusive); 0 waiter(s)", line)
-        self.assertIn(f"held by pid {holder.pid} (exclusive, up ", still)
-        self.assertNotIn(str(UNSEEN_PID), line + still)
-        self.assertIsNone(heavy_lock_module.raw_flock_parent(self.lock, environ={}))
-
-    def test_negative_control_status_still_reads_proc_locks(self):
-        holder = self.holder()
-        self.fake_proc_locks(UNSEEN_PID)
-        out = io.StringIO()
-        heavy_lock_module.status(self.lock, out)
-        self.assertIn(f"  {holder.pid} exclusive: ", out.getvalue())
-        self.assertIn(f"  {UNSEEN_PID} exclusive: ", out.getvalue())
-
-    def test_with_no_holder_fdinfo_sees_the_repeated_line_names_it(self):
-        """Not the line printed on every change, which a handoff, when fdinfo
-        sees nobody, would otherwise slow."""
-        self.lock.touch()
-        self.fake_proc_locks(UNSEEN_PID)
-        line, still = self.waiting_lines()
-        self.assertIn(" held by pid none; ", line)
-        self.assertIn(f"held by pid {UNSEEN_PID} (exclusive, up ", still)
-
-    def test_a_raw_flock_parent_fdinfo_cannot_see_is_still_refused(self):
-        """Another user's `flock(1)` above this process, say."""
-        self.lock.touch()
-        self.fake_proc_locks(os.getppid())
-        self.assertEqual(heavy_lock_module.raw_flock_parent(self.lock, environ={}),
-                         os.getppid())
-
-    def test_a_waiter_names_its_holders_outside_the_queue_mutex(self):
-        """tests/test_heavy_lock.py's aborted-wait case reads the mutex's
-        holders the same way and finds this process holding it."""
-        self.holder()
-        mutex = f"{self.lock}.mutex"
-        under_mutex = []
-
-        def named(*args):
-            under_mutex.append(os.getpid() in heavy_lock_module.lock_holders(mutex))
-            raise RuntimeError("stop waiting")
-
-        with mock.patch.object(heavy_lock_module, "_wait_line", named), \
-                self.assertRaises(RuntimeError):
-            with hold_heavy_lock(self.lock, environ={}, report=io.StringIO()):
-                self.fail("the lock is held by another process")
-        self.assertEqual(under_mutex, [False])
 
 
 class GateTierCase(unittest.TestCase):

@@ -137,9 +137,10 @@ def held_locks(lock, proc_locks=None, read=ALWAYS):
     another job held 60,000 locks on another file system (#383), longer with
     several readers at once. A waiter names its holders again and again, so it
     passes NEVER for the line it prints on every change, and WHEN_UNSEEN for
-    the line it repeats and its raw flock(1) parent check: those read it only
-    when fdinfo shows nobody else holding the lock file, as when the holder is
-    another user's process.
+    the line it repeats: that reads it only when fdinfo shows nobody else
+    holding the lock file, as when the holder is another user's process. Its
+    raw flock(1) parent check reads it ALWAYS, since a holder fdinfo sees says
+    nothing about a parent it can't see, but only once a minute while queued.
     """
     held = fdinfo_locks(lock)
     if read == NEVER:
