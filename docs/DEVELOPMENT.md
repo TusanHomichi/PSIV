@@ -345,7 +345,9 @@ the Nix sandbox from the tracked tree alone. That is `tools/check_docs.py`
 (citations skipped), `tools/size_guard.py`, `cargo fmt --check`, strict Clippy
 and the Rust workspace tests except those that load `runtime-pack` (listed by
 name in `packTests` in `flake.nix`), the gate's own tests (every
-`tests/test_gate*.py`: fake commands in throwaway repositories), plus ruff's syntax and undefined-name rules over the Python; the Rust
+`tests/test_gate*.py`: fake commands in throwaway repositories), the battle
+fixture extractor's tests (every `tests/test_oracle_battle_fixture*.py`: fake
+logs and the tracked fixtures), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The rest of the Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset

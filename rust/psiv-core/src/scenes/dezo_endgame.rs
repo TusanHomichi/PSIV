@@ -5,7 +5,7 @@
 //! tower flags, the transient party-slot bridge, Elsydeon, Reunion and the
 //! Profound Darkness battle handoff.
 
-use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
+use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{PaletteHold, PresentationOp};
@@ -394,7 +394,8 @@ pub static ELSYDEON: Scene = Scene {
         SceneOp::PanelCreate { id: 0x129 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 160 },
-        cutscene(0x31),
+        // `$0785B2`: `jsr Event_GetAndRunDialogue3`.
+        cutscene3(0x31),
         SceneOp::WaitFrames { frames: 120 },
         SceneOp::PlaySound { id: SFX_DEBAN },
         SceneOp::PanelCreate { id: 0x12B },

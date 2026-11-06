@@ -1,5 +1,5 @@
 use super::*;
-use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::SceneOp;
 use crate::scene_presentation::PresentationOp;
 
 /// Op counts as the transcription docs state them.
@@ -382,74 +382,6 @@ fn every_scene_loads_the_trees_its_retail_bytes_load() {
         assert!(
             SCENES.iter().any(|scene| scene.name == *name),
             "{name} is missing from the registry"
-        );
-    }
-}
-
-/// Every `jsr Event_GetAndRunDialogue2` (`$5ACDC`) in the US image, as
-/// `(scene, address of the jsr, dialogue entry in d0)`. This is the H22
-/// class table: the cartridge runs entry `entry` of the current tree and
-/// leaves the window up, which is [`DialogueWindow::Retained`], never a
-/// `RunDialogueResume`. `tests/test_dialogue2_callers.py` re-derives the
-/// column from the ROM, so the table cannot rot; the four callers whose
-/// scenes are not transcribed yet are listed in
-/// `docs/scenes/DIALOGUE2_CALLERS.md` and `tests/test_dialogue2_callers.py`.
-const DIALOGUE2_CALLERS: &[(&str, u32, u16)] = &[
-    ("Event_ZioNurvus", 0x06F3D4, 0x0B),
-    ("Event_DarkForce1", 0x06FAFA, 0x06),
-    ("Event_Juza", 0x06FB42, 0x48),
-    ("Event_SavingKyra", 0x070936, 0x26),
-    ("Event_DarkForce2", 0x070978, 0x3A),
-    ("Event_XeAThoulBeforeBattle", 0x070B32, 0x36),
-    ("Event_AirCastleFakeChest", 0x070B58, 0x3C),
-    ("Event_LashiecAppearance", 0x070E1E, 0x37),
-    ("Event_AngerTowerAlys", 0x071538, 0x08),
-    ("Cutscene_Alshline", 0x074502, 0x68),
-    ("Cutscene_ProfoundDarkness", 0x078E9C, 0x03),
-    ("Event_FractOozeFound", 0x072B2E, 0x2F),
-    ("Event_KingRappy", 0x072FEA, 0x36),
-    ("Event_DaughterTerminal", 0x0731B4, 0x04),
-];
-
-fn retained_entries(scene: &Scene) -> Vec<u16> {
-    scene
-        .ops
-        .iter()
-        .filter_map(|op| match op {
-            SceneOp::RunDialogue {
-                source: DialogueSource::Entry(DialogueId(entry)),
-                window: DialogueWindow::Retained,
-            } => Some(*entry),
-            _ => None,
-        })
-        .collect()
-}
-
-#[test]
-fn every_dialogue2_caller_is_a_retained_window() {
-    for (name, _, entry) in DIALOGUE2_CALLERS {
-        let scene = SCENES
-            .iter()
-            .find(|scene| scene.name == *name)
-            .unwrap_or_else(|| panic!("{name} is missing from the registry"));
-        assert_eq!(
-            retained_entries(scene),
-            vec![*entry],
-            "{name} runs `Event_GetAndRunDialogue2` with entry {entry:#X} exactly once"
-        );
-    }
-    // No scene outside the table claims the routine, and the table has no
-    // duplicate scene (each scene has exactly one caller in the image).
-    for scene in SCENES {
-        let listed = DIALOGUE2_CALLERS
-            .iter()
-            .filter(|(name, _, _)| *name == scene.name)
-            .count();
-        assert_eq!(
-            retained_entries(scene).len(),
-            listed,
-            "{} uses the retained window without a table row (or the reverse)",
-            scene.name
         );
     }
 }

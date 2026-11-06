@@ -1,5 +1,6 @@
 //! Minimal Godot output bridge for the native PSIV sound machine.
 
+use crate::audio_shutdown::{DriverRead, RETIREMENT_WAIT_US, RetirementWait, SERVER_STEP_FRAMES};
 use godot::classes::{
     AudioStream, AudioStreamGenerator, AudioStreamGeneratorPlayback, AudioStreamPlayer,
 };
@@ -76,11 +77,34 @@ impl AudioOutput {
         self.debug_track.is_some() || self.debug_tone
     }
 
+    /// Releases the player's playback before the engine tears down (#123).
+    ///
+    /// `stop` only marks the playback for deletion, which the server's next
+    /// mix step carries out, and a quit before that step left the
+    /// `AudioStreamGeneratorPlayback` on the server's list, reported leaked
+    /// at exit. The field stops it while the tree is torn down at quit, and
+    /// the driver is finished soon after, so the exit path waits, bounded,
+    /// until the driver has run enough frames since the stop to force a step
+    /// (`crate::audio_shutdown`, which says why frames and not calls).
+    ///
+    /// The stream comes off the player only after the wait: the playback
+    /// reads its generator through a plain pointer in that step
+    /// (`get_stream_sampling_rate`), and the player holds the generator's
+    /// only reference.
     pub(crate) fn shutdown(&mut self) {
-        if let Some(mut player) = self.player.take() {
-            player.stop();
-            player.set_stream(Gd::<AudioStream>::null_arg());
+        let Some(mut player) = self.player.take() else {
+            return;
+        };
+        let had_playback = player.has_stream_playback();
+        player.stop();
+        if had_playback && let Err(frames) = wait_for_retirement() {
+            godot_warn!(
+                "audio: the driver ran {frames} of the {SERVER_STEP_FRAMES} frames that retire \
+                 the stopped playback within {} ms of the shutdown stop; Godot may report it leaked",
+                RETIREMENT_WAIT_US / 1_000
+            );
         }
+        player.set_stream(Gd::<AudioStream>::null_arg());
     }
 
     pub(crate) fn node(&self) -> &Gd<AudioStreamPlayer> {
@@ -171,6 +195,40 @@ fn parse_sound_id(variable: &str) -> Option<u8> {
         (10, value)
     };
     u8::from_str_radix(digits, radix).ok()
+}
+
+/// Polls the driver until calls begun after the stop have run the frames
+/// that force a mix step ([`RetirementWait`]); the frames counted when they
+/// did not within [`RETIREMENT_WAIT_US`]. Each poll holds the driver's lock
+/// for its two reads, in the order `RetirementWait::observe` assumes: the time
+/// since the last mix, then the time to the next.
+fn wait_for_retirement() -> Result<(), u64> {
+    let time = godot::classes::Time::singleton();
+    let mut server = godot::classes::AudioServer::singleton();
+    let mut wait = RetirementWait::new(time.get_ticks_usec());
+    loop {
+        let read_at = time.get_ticks_usec();
+        server.lock();
+        let since_last_mix_s = server.get_time_since_last_mix();
+        let to_next_mix_s = server.get_time_to_next_mix();
+        server.unlock();
+        let mix_rate = f64::from(server.get_mix_rate());
+        let returned_at = time.get_ticks_usec();
+        let read = DriverRead {
+            read_at,
+            since_last_mix_s,
+            to_next_mix_s,
+            mix_rate,
+            returned_at,
+        };
+        if wait.observe(read) {
+            return Ok(());
+        }
+        if wait.timed_out(returned_at) {
+            return Err(wait.frames());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 }
 
 fn generator_playback(

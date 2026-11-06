@@ -548,6 +548,15 @@ pub enum SceneOp {
     /// Collapse the followers onto the leader (`Event_OverlapCharacters`,
     /// `$5A87A`).
     OverlapCharacters,
+    /// Write the leader's `curr_y_pos` word plus `dy` into every occupied
+    /// party object at once: `move.w $34(a4), d0 / addi.w #dy, d0`, then a
+    /// `move.w d1, $34(a4)` loop over `CalcPartyNumber` objects at `$40`
+    /// strides (`Event_CarnivorousTrees`, `$070826`; `Event_SavingKyra`,
+    /// `$07093C`). X is untouched and nothing walks or waits.
+    PlacePartyY {
+        /// The word added to the leader's Y, wrapping as `addi.w` does.
+        dy: u16,
+    },
     /// Snap the overlapped party onto the vehicle lattice. If either original
     /// sprite axis had bit `$10`, refresh objects and wait for the existing
     /// runtime camera glide before the following `SetVehicleIndex`.

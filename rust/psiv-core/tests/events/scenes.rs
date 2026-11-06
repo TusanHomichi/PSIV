@@ -500,3 +500,87 @@ fn scene_actors_walk_a_wrapping_map_like_everyone_else() {
         Cell::new(0, 1)
     );
 }
+
+/// `PlacePartyY` is `CalcPartyNumber` objects' `curr_y_pos` words set to the
+/// leader's plus `dy` (`$070826..$070847`): the count stops at the first
+/// empty slot, X stays, and the op neither walks nor blocks.
+#[test]
+fn place_party_y_writes_the_counted_members_only() {
+    static OPS: &[SceneOp] = &[SceneOp::PlacePartyY { dy: 0x20 }, SceneOp::End];
+    let map = map_with(&["......"], vec![], vec![]);
+    let mut state = GameState::new();
+    // Slot 1 empty: `tst.b (a0)+ / bmi` stops the count at one.
+    state.set_party([Some(CharId(0)), None, Some(CharId(2)), None, None]);
+    let cast = vec![
+        ScriptedActor::new(ActorRef::PartyMember(0), Cell::new(4, 9), Direction::Down),
+        ScriptedActor::new(ActorRef::PartyMember(2), Cell::new(6, 3), Direction::Down),
+    ];
+    let mut runner = SceneRunner::new(OPS, cast, frames());
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    // Row 9 is `curr_y_pos` `$80`; `$A0` is row 11.
+    assert_eq!(
+        effects,
+        vec![
+            SceneEffect::ActorPlaced {
+                actor: ActorRef::PartyMember(0),
+                at: Cell::new(4, 11)
+            },
+            SceneEffect::Finished
+        ]
+    );
+    assert_eq!(
+        runner.actor(ActorRef::PartyMember(2)).unwrap().cell,
+        Cell::new(6, 3)
+    );
+    assert!(runner.is_finished());
+}
+
+/// `addi.w #$20` wraps at the word: a leader at `curr_y_pos` `$FFF0` (row
+/// `$1000`) lands on `$0010`, row 2.
+#[test]
+fn place_party_y_wraps_at_the_word() {
+    static OPS: &[SceneOp] = &[SceneOp::PlacePartyY { dy: 0x20 }];
+    let map = map_with(&["......"], vec![], vec![]);
+    let mut state = GameState::new();
+    state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
+    let cast = vec![
+        ScriptedActor::new(
+            ActorRef::PartyMember(0),
+            Cell::new(1, 0x1000),
+            Direction::Down,
+        ),
+        ScriptedActor::new(ActorRef::PartyMember(1), Cell::new(2, 5), Direction::Down),
+    ];
+    let mut runner = SceneRunner::new(OPS, cast, frames());
+    runner.tick(&map, &mut state, SceneInput::None);
+    assert_eq!(
+        runner.actor(ActorRef::PartyMember(0)).unwrap().cell,
+        Cell::new(1, 2)
+    );
+    assert_eq!(
+        runner.actor(ActorRef::PartyMember(1)).unwrap().cell,
+        Cell::new(2, 2)
+    );
+}
+
+/// A counted member the cast does not hold is a fault, not a silent skip.
+#[test]
+fn place_party_y_faults_on_a_missing_member() {
+    static OPS: &[SceneOp] = &[SceneOp::PlacePartyY { dy: 0x20 }];
+    let map = map_with(&["......"], vec![], vec![]);
+    let mut state = GameState::new();
+    state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
+    let cast = vec![ScriptedActor::new(
+        ActorRef::PartyMember(0),
+        Cell::new(1, 4),
+        Direction::Down,
+    )];
+    let mut runner = SceneRunner::new(OPS, cast, frames());
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    assert!(
+        effects.contains(&SceneEffect::Faulted(SceneFault::UnknownActor {
+            actor: ActorRef::PartyMember(1)
+        })),
+        "{effects:?}"
+    );
+}
