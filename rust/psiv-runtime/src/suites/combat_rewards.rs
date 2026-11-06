@@ -111,6 +111,12 @@ fn battle_return_retains_live_object_positions_facing_and_camera() {
     .unwrap();
     rt.face_npc(0, psiv_core::Direction::Right);
     rt.set_camera(256, 112);
+    // `set_camera` parks the view without recomputing the cached driver
+    // sprite position; the battle return's `loc_51AB2` write (#59) does, as
+    // every load does. Refresh it first so the snapshot is a state the
+    // engine could hold, and the test compares what the return must keep.
+    let gates = rt.camera.gates();
+    rt.camera.set_gates(gates);
     let objects = rt.map().npcs().to_vec();
     let party = rt.members();
     let camera = *rt.camera();
