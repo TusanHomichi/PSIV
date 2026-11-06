@@ -1,0 +1,137 @@
+{
+  "conary": "note v1",
+  "change": "4c4883a60w4yyj26mesekp8h9e",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 359,
+  "url": "https://github.com/tusanhomichi/psiv/pull/359",
+  "summary": "Scenes: census every Event_GetAndRunDialogue* caller; the tree scenes' party Y move (#71)",
+  "task": "tusanhomichi/psiv#71",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "landing": {
+    "revision": "775521a0c62193082133e522def3ac60c5f5f700e48e8faac83755f09863483c",
+    "before": "d38b1d2cd50a21f16956d20c9c16f04c4860bc09",
+    "after": "1e3c617166bec6f91d828586fb5bf87d2b2f294f",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793927612087
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132378522/job/127611916764"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132378522/job/127611916647"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740/job/127611913488"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132377740"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981/job/127612200317"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#359)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132465981"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/359#pullrequestreview-5793798105"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132378522/job/127611966297"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42132378522/job/127611916151"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/359"
+    }
+  ]
+}
