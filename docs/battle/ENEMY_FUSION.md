@@ -89,8 +89,33 @@ slugs that fused never die.
 
 The shell draws the MetaSlug from the event's `position` (`$14`) and enemy id
 through `EnemyStatus`; the certified pair is `battle-fusion`
-([`BATTLE_COMMAND_UI.md`](BATTLE_COMMAND_UI.md)). The slide-together animation is
-not modelled.
+([`BATTLE_COMMAND_UI.md`](BATTLE_COMMAND_UI.md)).
+
+### The slide and the growth (#64)
+
+`BattleObj_Fusion` and `BattleObj_Fusion2` replace the two slugs with two
+pieces and run on their own frame counter (`rust/psiv-runtime/src/session/battle/fusion.rs`
+cites each step). With `t` counted from the pieces' first frame:
+
+| `t` | what the frame shows (formation `$D2`, tape 33) |
+| --- | --- |
+| 0-5 | both pieces standing over the slugs' columns (`loc_1AA5A`); the slugs' plane cells are erased (`ps4.asm:35684-35702`) |
+| 6-11 | both flat (`loc_1AA74`) |
+| 12 on | one pixel a frame toward x 160 (`$120`), mirrored on the second half of each twelve-frame counter cycle (`$2(a4)` bit 7) |
+| arrival + 1 or + 2 | the left piece (`BattleObj_Fusion2`) is gone; the right one stands (`loc_1AA5A`), then grows every six frames (`loc_1AA82`, `loc_1AAA8`, `loc_1AACE`) |
+| growth + 19 | `loc_14D46` seats the MetaSlug |
+
+For `$D2` the pieces start at x 112 and 208, arrive on `t = 59`, grow from
+`t = 61`, and the MetaSlug is seated on `t = 80` (f25248); the FUSION window
+then holds 16 more frames and no line names the MetaSlug. Every frame of tape
+33 from f25163 to f25255 fits these pieces, drawn from the pack's
+`battle/art/fusion.json` (`psiv_tools/battle_fusion_art.py`), with no pixel
+apart. The runtime's beat lasts until the seat and the view carries the
+pieces; Godot draws them. Tests: `rust/psiv-runtime/tests/battle_fusion.rs`
+(the timeline) and `a_fusion_plays_the_slide_and_seats_the_metaslug_at_retail_frames`
+(through the session). The pieces' size bytes are read the VDP way, columns in
+bits 3-2; the shared attack decoder reads them the other way round
+([#364](https://github.com/TusanHomichi/PSIV/issues/364)).
 
 ## COMBINE
 

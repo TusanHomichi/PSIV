@@ -210,9 +210,13 @@ PAIRS = [
     # the slugs' turn is Fusion) and the shot lands where the MetaSlug's overlay
     # clock reads what the oracle's Enemy_Sprites words say at frame 25560:
     # every piece at (frame 0, timer 2), one tick before the video frame.
-    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend",
+    # The Fusion's own frames (#64) seat the MetaSlug 80 frames into the
+    # slugs' turn rather than 36, and the options come back 20 frames sooner
+    # after the seat: tick 758 puts the overlay where 714 did, and the blink
+    # seed 21/0 is the old phase 20 red-cursor frames earlier.
+    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend,blink=21/0",
                        "PSIV_DEBUG_BATTLE_FORMATION": "D2",
-                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 714,
+                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 758,
      "build/certify/oracle/battle-fusion/frame_25560.png",
      "b10cb5aa7ce60c6c66eec714cab6de28d4ff85cad7f3a385aaa4cdc589ad8ef8", TAPE_33),
     # Clone tick t pairs with tape-07-family oracle frame 24800 + t: the
