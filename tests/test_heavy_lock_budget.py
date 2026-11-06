@@ -241,7 +241,7 @@ class BudgetCase(LockProcesses):
         self.release(holders[0])
         self.assertEqual(self.finish(second), ["second-cargo"])
 
-    def counts_under_churn(self, seconds, until_short=False):
+    def counts_under_churn(self, seconds):
         """`units_in_use` read again and again for `seconds` while 12 units are
         held steady and four processes take and drop other flocks (#204)."""
         held = 12
@@ -254,20 +254,40 @@ class BudgetCase(LockProcesses):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             counts.append(units_in_use(self.lock))
-            if until_short and counts[-1] < held:
-                break
         return held, counts
 
     def test_units_held_steady_are_all_counted_while_other_locks_churn(self):
         held, counts = self.counts_under_churn(3)
         self.assertEqual(set(counts), {held}, f"{len(counts)} reads")
 
-    def test_negative_control_proc_locks_alone_misses_held_units_under_churn(self):
+    def units_with_one_line_missing(self):
+        """`units_in_use` with 12 units held and a /proc/locks without the line
+        of the last one: what a page-wise read that a dropped lock earlier in
+        the list shifted past it returns (#204)."""
+        held = 12
+        units = heavy_lock_module._take_files(str(self.lock), "unit", held, 16, UNITS_ENV,
+                                              BUILD)
+        self.addCleanup(lambda: [os.close(handle) for handle in units])
+        device = os.stat(self.lock.parent).st_dev
+        last = f"{os.major(device):02x}:{os.minor(device):02x}:{os.fstat(units[-1]).st_ino}"
+        kept = [line for line in Path("/proc/locks").read_text().splitlines()
+                if line.split()[5:6] != [last]]
+        proc_locks = self.lock.parent.parent / "proc-locks"
+        proc_locks.write_text("\n".join(kept) + "\n")
+        return held, units_in_use(self.lock, proc_locks)
+
+    def test_a_unit_missing_from_proc_locks_is_still_counted_through_fdinfo(self):
         """/proc/locks is printed a page per read; a lock dropped earlier in
-        the list between two reads hides a held one."""
+        the list between two reads hides a held one (#204, #310: a control that
+        waited for that race to happen failed whenever it did not). The missing
+        line is made here, not waited for."""
+        held, counted = self.units_with_one_line_missing()
+        self.assertEqual(counted, held)
+
+    def test_negative_control_proc_locks_alone_misses_a_unit_whose_line_is_missing(self):
         with mock.patch.object(heavy_lock_module.flock_holders, "fdinfo_locks", lambda lock: []):
-            held, counts = self.counts_under_churn(20, until_short=True)
-        self.assertLess(min(counts), held, f"{len(counts)} reads, none short")
+            held, counted = self.units_with_one_line_missing()
+        self.assertEqual(counted, held - 1)
 
     def units_with_a_line_on(self, device):
         """`units_in_use` with 3 units held and a /proc/locks that adds one
