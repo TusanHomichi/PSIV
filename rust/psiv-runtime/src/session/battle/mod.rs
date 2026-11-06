@@ -53,6 +53,7 @@ mod queue;
 mod vehicle_end_tests;
 mod view;
 
+pub use menu::CursorMemory;
 pub use view::{
     BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView, EnemyStatus,
     MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView,
@@ -145,6 +146,9 @@ pub(crate) struct BattleMode {
     /// `Battle_Command_Data`'s command byte per party slot: what each pane's
     /// icon shows, kept across rounds the way the cartridge keeps it.
     command_bytes: [u8; 5],
+    /// Each member's strip and list cursors, kept across rounds the way the
+    /// cartridge keeps its per-member index words.
+    cursor_memory: menu::CursorMemory,
     /// What each pane draws this frame.
     panes: Vec<PaneView>,
     /// The party bodies drawn so far in the round being played: the fighters
@@ -193,6 +197,7 @@ impl BattleMode {
             party: Vec::new(),
             enemies: Vec::new(),
             command_bytes: [0; 5],
+            cursor_memory: menu::CursorMemory::default(),
             panes: Vec::new(),
             acted: None,
             blink: blink::CursorBlink::default(),
@@ -291,6 +296,7 @@ impl BattleMode {
                     let orders = commands.input(previous, pad);
                     let keep = commands.open;
                     self.command_bytes = commands.command_bytes();
+                    self.cursor_memory = commands.cursor_memory();
                     (orders, keep)
                 }
                 Window::VehicleSkills(skills) => {
@@ -315,7 +321,11 @@ impl BattleMode {
         match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
             menu::TopChoice::Nothing => None,
             menu::TopChoice::Commands => {
-                let commands = menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes);
+                let commands = menu::CommandsMenu::with_command_bytes(
+                    runtime,
+                    self.command_bytes,
+                    self.cursor_memory,
+                );
                 if let Some(orders) = commands.no_actor_orders() {
                     self.command_open = false;
                     Some(orders)
@@ -442,6 +452,7 @@ impl BattleMode {
                     // The round's end (`loc_5BAE`, `ps4.asm:8419`) cleared
                     // the whole command table before it.
                     self.command_bytes = [0; 5];
+                    self.cursor_memory.end_round();
                 }
                 self.command_open = true;
                 self.message.clear();

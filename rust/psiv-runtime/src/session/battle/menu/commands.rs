@@ -22,6 +22,66 @@ use super::{accept_pressed, list_step};
 /// (`Battle_OpenTechs`'s `loc_18F2`, `ps4.asm:2499-2511`).
 const PAGE_ROWS: usize = 4;
 
+/// Where each member's strip and list cursors stand, which the cartridge keeps
+/// per party slot (`Battle_Total_Comd_Input`) and reopens at.
+///
+/// `Battle_CharCommand` reads and writes `Battle_Char_Comd_Index`
+/// (`$FFFF41A2`, `ps4.asm:2195-2203`), and `Battle_TechWindow` and
+/// `Battle_SkillWindow` hand `Battle_UpdateRedCursor2` the member's
+/// `Battle_Tech_Index` and `Battle_Skill_Index` words (`$FFFF41AE`,
+/// `$FFFF41BA`, `ps4.asm:2598-2601`, `2938-2941`): nothing clears them during
+/// a battle, so a member's next strip and lists open where they left them.
+/// `Battle_Item_Index` (`$FFFF41C4`) is per member too, but `loc_5BAE` clears
+/// its five words at each round's end (`ps4.asm:8422-8425`,
+/// [`CursorMemory::end_round`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CursorMemory {
+    strip: [usize; 5],
+    techniques: [usize; 5],
+    skills: [usize; 5],
+    items: [usize; 5],
+}
+
+impl CursorMemory {
+    /// `loc_5BAE`: the round is over, and the item cursors start again.
+    pub fn end_round(&mut self) {
+        self.items = [0; 5];
+    }
+
+    /// Where party slot `slot`'s (0-4) `page` reopens: the strip's icon or
+    /// the list's row across its pages. A target picker keeps no word, and
+    /// opens at 0.
+    #[must_use]
+    pub fn cursor(&self, slot: usize, page: MenuPage) -> usize {
+        let list = match page {
+            MenuPage::Actions => &self.strip,
+            MenuPage::Techniques => &self.techniques,
+            MenuPage::Skills => &self.skills,
+            MenuPage::Items => &self.items,
+            MenuPage::Targets(_) => return 0,
+        };
+        list.get(slot).copied().unwrap_or(0)
+    }
+
+    /// The window wrote `cursor` to party slot `slot`'s word for `page`, as
+    /// the cartridge's cursor routines do on every move.
+    pub fn remember(&mut self, slot: usize, page: MenuPage, cursor: usize) {
+        if let Some(word) = self.list(page).and_then(|list| list.get_mut(slot)) {
+            *word = cursor;
+        }
+    }
+
+    fn list(&mut self, page: MenuPage) -> Option<&mut [usize; 5]> {
+        match page {
+            MenuPage::Actions => Some(&mut self.strip),
+            MenuPage::Techniques => Some(&mut self.techniques),
+            MenuPage::Skills => Some(&mut self.skills),
+            MenuPage::Items => Some(&mut self.items),
+            MenuPage::Targets(_) => None,
+        }
+    }
+}
+
 /// The per-character command window: rows, pages, targets and reservations.
 #[derive(Debug)]
 pub(crate) struct CommandsMenu {
@@ -42,6 +102,9 @@ pub(crate) struct CommandsMenu {
     /// icons show (`ps4.asm:11056`). The window writes the byte the cartridge
     /// writes at each step and the battle mode carries it between rounds.
     bytes: [u8; 5],
+    /// Each member's remembered cursors, which the battle mode carries
+    /// between rounds.
+    memory: CursorMemory,
     /// Whether the window is still open. `false` hands the orders back.
     pub(crate) open: bool,
 }
@@ -55,11 +118,16 @@ impl CommandsMenu {
     /// empty roster.
     #[cfg(test)]
     pub(crate) fn new(runtime: &Runtime) -> CommandsMenu {
-        CommandsMenu::with_command_bytes(runtime, [0; 5])
+        CommandsMenu::with_command_bytes(runtime, [0; 5], CursorMemory::default())
     }
 
-    /// [`CommandsMenu::new`] over the command bytes the battle already holds.
-    pub(crate) fn with_command_bytes(runtime: &Runtime, bytes: [u8; 5]) -> CommandsMenu {
+    /// [`CommandsMenu::new`] over the command bytes and cursor memory the
+    /// battle already holds.
+    pub(crate) fn with_command_bytes(
+        runtime: &Runtime,
+        bytes: [u8; 5],
+        memory: CursorMemory,
+    ) -> CommandsMenu {
         let roster = runtime.battle_roster().cloned().unwrap_or_else(Roster::new);
         let actors = roster
             .side(Side::Party)
@@ -86,6 +154,7 @@ impl CommandsMenu {
             orders: vec![Command::Defend; 5],
             age: 0,
             bytes,
+            memory,
             open: true,
         };
         menu.open_actor();
@@ -125,6 +194,30 @@ impl CommandsMenu {
         self.bytes
     }
 
+    /// The members' remembered cursors, for the next window.
+    pub(crate) fn cursor_memory(&self) -> CursorMemory {
+        self.memory
+    }
+
+    /// Opens `page` for the actor at the cursor it left there. That can be an
+    /// empty row: Up and Down wrap inside a page whether or not a row holds an
+    /// entry (`Battle_UpdateRedCursor2`, `ps4.asm:1572`), and the word keeps
+    /// what they wrote. A battle's technique and skill lists do not change,
+    /// and the item words are cleared before the pack can.
+    fn open_page(&mut self, page: MenuPage) {
+        self.page = page;
+        self.cursor = self
+            .command_slot()
+            .map_or(0, |slot| self.memory.cursor(slot, page));
+    }
+
+    /// Writes the cursor back to the actor's word for the open page.
+    fn remember(&mut self) {
+        if let Some(slot) = self.command_slot() {
+            self.memory.remember(slot, self.page, self.cursor);
+        }
+    }
+
     /// The acting fighter's record index in `Battle_Command_Data`.
     fn command_slot(&self) -> Option<usize> {
         self.actor_id().map(|id| id.slot())
@@ -144,6 +237,7 @@ impl CommandsMenu {
         {
             *next = 0;
         }
+        self.open_page(MenuPage::Actions);
     }
 
     fn actor_id(&self) -> Option<FighterId> {
@@ -406,7 +500,6 @@ impl CommandsMenu {
             MenuPage::Actions if self.actor == 0 => self.open = false,
             MenuPage::Actions => {
                 self.actor -= 1;
-                self.cursor = 0;
                 self.open_actor();
             }
             // `Battle_BackFromTechs` (`ps4.asm:2792`) and its twins reopen the
@@ -471,20 +564,17 @@ impl CommandsMenu {
                 }
                 1 => {
                     self.set_command_byte(2);
-                    self.page = MenuPage::Techniques;
-                    self.cursor = 0;
+                    self.open_page(MenuPage::Techniques);
                     return None;
                 }
                 2 => {
                     self.set_command_byte(3);
-                    self.page = MenuPage::Skills;
-                    self.cursor = 0;
+                    self.open_page(MenuPage::Skills);
                     return None;
                 }
                 3 => {
                     self.set_command_byte(4);
-                    self.page = MenuPage::Items;
-                    self.cursor = 0;
+                    self.open_page(MenuPage::Items);
                     return None;
                 }
                 _ => {
@@ -578,9 +668,14 @@ impl CommandsMenu {
     pub(crate) fn input(&mut self, previous: Pad, pad: Pad) -> Option<RoundOrders> {
         self.age = self.age.saturating_add(1);
         match self.page {
-            MenuPage::Actions => self.strip_step(previous, pad),
+            MenuPage::Actions => {
+                self.strip_step(previous, pad);
+                self.remember();
+            }
             MenuPage::Techniques | MenuPage::Skills | MenuPage::Items => {
-                if self.page_step(previous, pad) {
+                let flipped = self.page_step(previous, pad);
+                self.remember();
+                if flipped {
                     return None;
                 }
             }

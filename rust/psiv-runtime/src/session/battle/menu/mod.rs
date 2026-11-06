@@ -50,6 +50,7 @@ const VEHICLE_SKILL_SLOTS: usize = 8;
 mod commands;
 
 pub(crate) use commands::CommandsMenu;
+pub use commands::CursorMemory;
 
 /// What a main-options accept chose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
