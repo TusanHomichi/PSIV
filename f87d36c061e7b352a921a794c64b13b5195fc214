@@ -1,0 +1,138 @@
+{
+  "conary": "note v1",
+  "change": "2zvfxb4qd9m2rxx5dh3b0nq5ra",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 377,
+  "url": "https://github.com/tusanhomichi/psiv/pull/377",
+  "summary": "deps: update fieldmouseworks/burrow to a07558e",
+  "task": null,
+  "author": {
+    "kind": "bot",
+    "login": "fieldmouseworks-workers[bot]",
+    "session": null
+  },
+  "class": "R0",
+  "landing": {
+    "revision": "77aa31e5eb14978bde252dbba2f7529364eae7d50af9730e57095d2438f6cf67",
+    "before": "355ffeac8cca99b0b8f4251beeaa536a92f61bee",
+    "after": "f87d36c061e7b352a921a794c64b13b5195fc214",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1793962015663
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295/job/127834836433"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659861/job/127834828876"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659861/job/127834828712"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659861/job/127834828240"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335/job/127834825889"
+    },
+    {
+      "kind": "ci",
+      "check": "renovate/stability-days",
+      "result": "pass",
+      "source": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200662295"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#377)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659335"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42200659861/job/127834880937"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/377"
+    }
+  ]
+}
