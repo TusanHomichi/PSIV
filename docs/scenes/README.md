@@ -38,11 +38,13 @@ four missed tree-6 loads (the scenes then read the wrong dialogue tree). Guarded
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
 `psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
 
-**`Event_GetAndRunDialogue2` callers are audited.** Its fourteen cartridge
-callers, the window it leaves up and the one transcription that read it as a
-resume (Zio at Nurvus) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
-[`tests/test_dialogue2_callers.py`](../../tests/test_dialogue2_callers.py) and
-`psiv-core`'s `every_dialogue2_caller_is_a_retained_window`.
+**`Event_GetAndRunDialogue*` callers are audited.** Every cartridge caller of
+the five dialogue entries, the `DialogueWindow` each routine's exit is, and the
+mistranscriptions the census found (all fourteen `Dialogue2` callers, eight
+callers on the wrong sibling window) are in
+[the dialogue caller census](DIALOGUE_CALLERS.md), guarded by
+`psiv-core`'s `scenes::dialogue_callers_image` census and
+`every_dialogue_entry_caller_runs_its_window`.
 
 ## Next-arc registry
 
@@ -201,6 +203,8 @@ jobs.
 | `Event_PlateSysEngine` | `$2D` | [205](205_PlateSysEngine.md) | `$06E75A..$06E907` |
 | `Event_Pennant` | `$97` | [203](203_HomeDecor.md) | `$0736EA..$073753` |
 | `Event_WoodCarving` | `$98` | [203](203_HomeDecor.md) | `$073754..$0737BD` |
+| `Event_GettingOffVehicle` | `$10` | [207](207_GettingOffVehicle.md) | `$06BEF8..$06C023` |
+| `Event_DyingBoy` | `$86` | [163](163_DyingBoy.md) | `$072D94..$072FB3` |
 | `Event_TallasMom` | `$7A` | [140](140_TallasRescue.md) | `$072AD0..$072AF5` |
 | `Event_TallasMomAfterRescue` | `$7B` | [140](140_TallasRescue.md) | `$072AF6..$072B1B` |
 | `Event_InsideMonsenHole` | `$7C` | [140](140_TallasRescue.md) | `$072B1C..$072B2B` |
@@ -231,6 +235,8 @@ Issue #81's Hunter's Guild job in Piata and Kadary, from hand-built saves
 | `Event_MissingStudentFound` | `$77` | [160](160_MissingStudent.md#event_missingstudentfound) | `$0728BE..$0729E3` |
 | `Event_OldManNearMissingStudent` | `$78` | [160](160_MissingStudent.md#event_oldmannearmissingstudent) | `$0729E4..$072A25` |
 | `Event_MissingStudentInBed` | `$79` | [160](160_MissingStudent.md#event_missingstudentinbed) | `$072A26..$072ACF` |
+| `Event_FaintingPriest` | `$24` | [164](164_KadaryPriestAndBeliever.md) | `$06D616..$06D6C7` |
+| `Event_ZioFanatic` | `$31` | [164](164_KadaryPriestAndBeliever.md#event_ziofanatic) | `$06EE40..$06EEBD` |
 
 ## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not

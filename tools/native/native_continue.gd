@@ -25,7 +25,7 @@ func _initialize():
     # the source save was written from, for a key-by-key comparison after
     # CONTINUE. Without it the slot's own bytes are the reference: the tape
     # replay's `--expect-save` already proves a loaded slot re-encodes to its
-    # source, and verify_native_continue.py compares the saved bytes.
+    # source, and `psiv-campaign verify-continue` compares the saved bytes.
     var receipt_path := OS.get_environment("PSIV_CONTINUE_ROUTE_RECEIPT")
     if not receipt_path.is_empty():
         var receipt = JSON.parse_string(FileAccess.get_file_as_string(receipt_path))

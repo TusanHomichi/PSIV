@@ -199,6 +199,10 @@ impl Runtime {
                 self.dialogue_answer = None;
                 events.push(RuntimeEvent::SceneDialogue { entry: id.0 });
             }
+            SceneEffect::SystemLineOpen(line) => {
+                self.dialogue_answer = None;
+                events.push(RuntimeEvent::SceneSystemLine { line });
+            }
             SceneEffect::DialogueOpenFromNpc { actor } => {
                 let entry = match actor {
                     ActorRef::Npc(i) => self
@@ -386,7 +390,10 @@ impl Runtime {
                     });
                     return;
                 }
-                events.push(RuntimeEvent::VehicleChanged { index });
+                events.push(RuntimeEvent::VehicleChanged {
+                    index,
+                    scene_sets_music: self.getting_off_scene_active(),
+                });
             }
             SceneEffect::VehicleBoardingAligned {
                 index,
@@ -558,6 +565,9 @@ impl Runtime {
                         return;
                     }
                     SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
+                    SceneOp::GetOff(psiv_core::GetOffOp::PlayMapMusic) => {
+                        self.dismount_music(events);
+                    }
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },

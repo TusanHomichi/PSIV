@@ -570,3 +570,32 @@ class ActionEffects(ForcedFixture):
                           hit_03="06", hit_05="FF")]
         log = self.log(rows)
         self.assertEqual(fx.pass_frame(log, 1, 3, [1]), 1)
+
+
+class EnemyBattleStatCells(unittest.TestCase):
+    """#65: an enemy's `atk_pow_battle`/`dfs_pow_battle` (`$26`, `$2A`) are
+    effect cells wherever the log has them, and nothing where it does not."""
+
+    class Log:
+        def __init__(self, cells):
+            self.cells = cells
+
+        def has(self, column):
+            return any(name == column for _, name in self.cells)
+
+        def signed(self, frame, column):
+            return self.cells[(frame, column)]
+
+    def effects(self, cells):
+        from oracle.fixture.observations import action_effects
+        return action_effects(self.Log(cells), 1, 2, {6})
+
+    def test_debans_defence_cell_is_read_directly(self):
+        cells = {(1, "e1_hp"): 232, (2, "e1_hp"): 232,
+                 (1, "e1_dfs_bat"): 22, (2, "e1_dfs_bat"): 76,
+                 (1, "e1_atk_bat"): 226, (2, "e1_atk_bat"): 226}
+        self.assertEqual(self.effects(cells)["stats"], [[6, "dfs_bat", 22, 76]])
+
+    def test_a_log_without_the_cells_reads_nothing_from_them(self):
+        cells = {(1, "e1_hp"): 232, (2, "e1_hp"): 232}
+        self.assertEqual(self.effects(cells)["stats"], [])
