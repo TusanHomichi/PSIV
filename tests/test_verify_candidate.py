@@ -20,6 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
 from tools import verify_candidate as vc
 from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV
 
@@ -82,7 +83,8 @@ class RepoCase(unittest.TestCase):
         self.root = Path(tmp.name)
         env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
                    HOME=str(self.root))
-        for args in (["init", "-q", "-b", "main"], ["add", "-A"],
+        scratch_git.init(self.root, env=env)
+        for args in (["add", "-A"],
                      ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q",
                       "--allow-empty", "-m", "c"]):
             subprocess.run(["git", "-C", str(self.root), *args], check=True, env=env,

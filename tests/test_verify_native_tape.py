@@ -15,6 +15,7 @@ import contextlib
 import io
 import json
 
+from tests import scratch_git
 from tools import verify_native_tape
 from tools.godot import required_version
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
@@ -78,7 +79,7 @@ class NativeTapeIdentityGuard(unittest.TestCase):
     def test_untracked_directory_symlink_is_hashed_without_following_it(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
                             "-c", "user.email=test@example.invalid", "commit",
                             "--allow-empty", "-qm", "base"], check=True)
@@ -100,7 +101,7 @@ class NativeTapeIdentityGuard(unittest.TestCase):
     def test_quoted_and_newline_filename_keeps_its_actual_path(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
                             "-c", "user.email=test@example.invalid", "commit",
                             "--allow-empty", "-qm", "base"], check=True)
@@ -224,7 +225,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
             probe_save.write_bytes(b"probe save")
             extra = [str(probe_save) if arg == "PROBE" else arg for arg in extra]
             # The run root copies the project's files as Git lists them.
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             (root / "godot").mkdir()
             (root / "godot/project.godot").write_text("[application]\n")
             library = root / "rust/target/debug/libpsiv_godot.so"

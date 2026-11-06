@@ -13,6 +13,7 @@ import pathlib
 import subprocess
 import unittest
 
+from tests import scratch_git
 from tools.local_inputs import LINKED_INPUT_GLOBS, LINKED_INPUTS
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -43,7 +44,7 @@ class LinkedInputsAreIgnored(unittest.TestCase):
         # ignore a non-directory `foo` (the bug), `/foo` does (the fix).
         import tempfile
         with tempfile.TemporaryDirectory() as scratch:
-            subprocess.run(["git", "init", "-q", scratch], check=True)
+            scratch_git.init(scratch, branch=None)
             probe = pathlib.Path(scratch)
             def ignored(pattern: str) -> bool:
                 (probe / ".gitignore").write_text(pattern + "\n")
