@@ -32,7 +32,7 @@ from tools.heavy_lock import Hold
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
-NAMES = SIX + BATTLE + ["ship-menu"]
+NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -75,6 +75,21 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7200:FFFFECA8:800D", recipe["patches"])
         self.assertIn("7000:FFFFEC28:00BF", recipe["patches"])
         self.assertIn("7000:FFFFF101:80", recipe["patches"])
+
+    def test_the_teleport_pair_certifies_its_window_region_only(self):
+        pair = next(p for p in certify.PAIRS if p[0] == "teleport-towns")
+        _, env, _, frame, _, recipe = pair
+        self.assertEqual(env, {"PSIV_DEBUG_CAMP": "telepipe"})
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertTrue(frame.startswith("build/certify/oracle/"))
+        # The town list's window, (18,13) 14x12 cells, in pixels.
+        self.assertEqual(recipe["region"], [144, 104, 112, 96])
+        # No other pair is cropped: they certify whole frames.
+        cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
+        self.assertEqual(cropped, ["teleport-towns", "teleport-message"])
+        message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
+        # The message window, $45: (7,21) 26x5 cells.
+        self.assertEqual(message[5]["region"], [56, 168, 208, 40])
 
     def test_battle_pairs_pin_the_enemy_clock_the_oracle_receipt_names(self):
         for name, env, _, _, _, _ in certify.PAIRS:

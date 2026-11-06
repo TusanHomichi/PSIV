@@ -13,14 +13,21 @@ use crate::input::requested_save_slot;
 /// checked before the title is started: a screenshot or a battle/camp/shop
 /// selector must still reach the surface it was written to inspect.
 /// `PSIV_DEBUG_CAMP`: `1` opens tape 22's camp root; `telepipe` opens tape
-/// 36's TELEPIPE town list from the same receipt state (#128).
+/// 36's TELEPIPE town list from the same receipt state (#128);
+/// `telepipe-message` goes on to MILE's teleport message.
 pub(crate) fn debug_camp_fixture() -> bool {
-    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1" || value == "telepipe")
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") || debug_camp_telepipe()
 }
 
-/// Whether the camp fixture is tape 36's TELEPIPE town list.
+/// Whether the camp fixture is tape 36's TELEPIPE town list (or message).
 pub(crate) fn debug_camp_telepipe() -> bool {
-    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "telepipe")
+    std::env::var("PSIV_DEBUG_CAMP")
+        .is_ok_and(|value| value == "telepipe" || value == "telepipe-message")
+}
+
+/// Whether the fixture continues to tape 36's teleport message.
+pub(crate) fn debug_camp_telepipe_message() -> bool {
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "telepipe-message")
 }
 
 pub(crate) fn title_bypassed() -> bool {

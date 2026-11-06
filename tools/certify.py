@@ -149,6 +149,27 @@ TAPE_35 = {
     "frames": [7293],
 }
 
+# Tape 36 is tape 22's prelude with three fixture patches, a TELEPIPE, every
+# Motavia town visited and `EventFlag_PrincipalConfession`, then ITEM, the
+# TELEPIPE and USE: frame 8090 is the settled town list
+# (docs/field/TRAVEL.md, "Teleport windows and effect").
+TAPE_36 = {
+    "tape": "oracle/tapes/36_teleport_windows.tape",
+    "patches": ["7600:FFFFF410:84", "7600:FFFFF160:FFFF", "7600:FFFFF101:08"],
+    "frames": [8090],
+    # The town list's own window, (18,13) 14x12 cells: the ITEM path's
+    # windows around it are not this pair's to certify.
+    "region": [144, 104, 112, 96],
+}
+
+# The same tape's teleport message after Down to MILE and Speak, settled from
+# 8300; its window $45, (7,21) 26x5 cells, over the list's lower rows.
+TAPE_36_MESSAGE = {
+    **TAPE_36,
+    "frames": [8340],
+    "region": [56, 168, 208, 40],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -215,6 +236,13 @@ PAIRS = [
     ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
      "build/certify/oracle/ship-menu/frame_7293.png",
      "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),
+    # The TELEPIPE town list against tape 36, its window's region only (#128).
+    ("teleport-towns", {"PSIV_DEBUG_CAMP": "telepipe"}, 60,
+     "build/certify/oracle/teleport-towns/frame_8090.png",
+     "31176866ed7455c71d3126c9737798f74ddd85e3192ef5d919055fe833be2141", TAPE_36),
+    ("teleport-message", {"PSIV_DEBUG_CAMP": "telepipe-message"}, 60,
+     "build/certify/oracle/teleport-message/frame_8340.png",
+     "654ca4af46c35ce3d428e8ae00d9e4f125c1484309b126f9e5f1edc6344bfccb", TAPE_36_MESSAGE),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.
@@ -349,8 +377,9 @@ def capture(name, env, tick, receipt, display, project, run_root):
     return shot, code
 
 
-def compare(shot, frame):
-    completed = subprocess.run([sys.executable, "psiv_tools/presentation_rmse.py",
+def compare(shot, frame, region=None):
+    crop = ["--region", ",".join(str(value) for value in region)] if region else []
+    completed = subprocess.run([sys.executable, "psiv_tools/presentation_rmse.py", *crop,
                                 str(shot), str(frame)], capture_output=True, text=True)
     match = RMSE.search(completed.stdout)
     return (match.group(1) if match else None), (completed.stdout + completed.stderr).strip()
@@ -482,8 +511,11 @@ def main(argv=None):
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
             frame_path, error = oracle_frame(name, frame, digest, recipe, receipt)
-            records.append(({"pair": name, "tick": tick, "oracle": frame,
-                             "oracle_sha256": digest, "env": env}, frame_path, error))
+            record = {"pair": name, "tick": tick, "oracle": frame,
+                      "oracle_sha256": digest, "env": env}
+            if recipe and recipe.get("region"):
+                record["region"] = recipe["region"]
+            records.append((record, frame_path, error))
             if error is None:
                 tasks.append((name, env, tick))
         prepared = time.monotonic()
@@ -508,7 +540,8 @@ def main(argv=None):
             record["seconds"] = seconds
             if shot.exists():
                 record["capture_sha256"] = sha256(shot)
-                record["rmse"], record["compare"] = compare(shot, frame_path)
+                record["rmse"], record["compare"] = compare(shot, frame_path,
+                                                            record.get("region"))
             else:
                 error = f"no capture (godot exit {code})"
         record["error"] = error

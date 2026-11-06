@@ -129,7 +129,7 @@ impl BattleChrome {
                 return None;
             }
         };
-        let glyph_at = retail_glyphs();
+        let glyph_at = crate::menu_font::retail_glyphs();
         Some(BattleChrome {
             tiles,
             window_words,
@@ -509,48 +509,6 @@ impl BattleChrome {
         }
         quads
     }
-}
-
-fn retail_glyphs() -> BTreeMap<char, Vector2> {
-    let mut glyphs = BTreeMap::new();
-    for (index, ch) in ('A'..='Z').enumerate() {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
-        );
-    }
-    for (index, ch) in ('0'..='9').enumerate() {
-        // The window charset stores digits at byte values 27..36; the PNG
-        // starts at the font's loaded tile 0x681, so source cells are 26..35.
-        let index = index + 26;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
-        );
-    }
-    for (index, ch) in ('a'..='z').enumerate() {
-        let index = index + 56;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
-        );
-    }
-    for (index, ch) in [
-        (48, '-'),
-        (49, '!'),
-        (50, '?'),
-        (51, ':'),
-        (52, ','),
-        (53, '.'),
-        (54, '<'),
-        (55, '>'),
-    ] {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
-        );
-    }
-    glyphs
 }
 
 fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {

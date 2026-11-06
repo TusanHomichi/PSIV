@@ -134,19 +134,43 @@ def rmse(left: bytes, right: bytes) -> float:
     return math.sqrt(squared / len(left))
 
 
+def crop(rgb: bytes, region: tuple[int, int, int, int]) -> bytes:
+    """The `x,y,width,height` rectangle of a 320x224 RGB frame."""
+    x, y, width, height = region
+    if x < 0 or y < 0 or width <= 0 or height <= 0 or x + width > 320 or y + height > 224:
+        raise PngError(f"region {region} is not inside the 320x224 frame")
+    return b"".join(
+        rgb[((y + row) * 320 + x) * 3:((y + row) * 320 + x + width) * 3]
+        for row in range(height)
+    )
+
+
+def region_arg(text: str) -> tuple[int, int, int, int]:
+    parts = tuple(int(part) for part in text.split(","))
+    if len(parts) != 4:
+        raise argparse.ArgumentTypeError("a region is x,y,width,height")
+    return parts
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("godot", type=Path)
     parser.add_argument("oracle", type=Path)
+    parser.add_argument("--region", type=region_arg,
+                        help="compare only this x,y,width,height rectangle of the frame")
     args = parser.parse_args()
     godot_width, godot_height, godot_rgb = read_png(args.godot)
     oracle_width, oracle_height, oracle_rgb = read_png(args.oracle)
     if (oracle_width, oracle_height) != (320, 224):
         raise SystemExit(f"oracle frame is {oracle_width}x{oracle_height}, expected 320x224")
     normalized = normalize_godot(godot_width, godot_height, godot_rgb)
+    scope = ""
+    if args.region:
+        normalized, oracle_rgb = crop(normalized, args.region), crop(oracle_rgb, args.region)
+        scope = " region=" + ",".join(str(value) for value in args.region)
     print(
         f"godot={godot_width}x{godot_height} normalized=320x224 "
-        f"oracle={oracle_width}x{oracle_height} rmse={rmse(normalized, oracle_rgb):.6f}"
+        f"oracle={oracle_width}x{oracle_height}{scope} rmse={rmse(normalized, oracle_rgb):.6f}"
     )
 
 

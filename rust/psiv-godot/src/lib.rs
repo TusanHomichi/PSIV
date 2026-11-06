@@ -25,6 +25,7 @@ mod field_visuals;
 mod input;
 mod install;
 mod job_board;
+mod menu_font;
 mod named_caches;
 mod pack_setup;
 mod red_palette;

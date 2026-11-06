@@ -124,11 +124,18 @@ session pages the list as retail does (`session/camp/travel.rs`); and a
 teleport's `RuntimeEvent::Teleported` carries the destination's load rows to
 the `Teleport` transition, which reproduces the fade levels above
 (`transitions.rs`, `a_teleport_fades_out_then_spends_the_destinations_load_rows`).
+Two certified pairs (`tools/certify.py`, region-only) compare the native
+captures with tape 36 in the 320×224 field viewport: `teleport-towns`, the
+list's window (pixels 144,104 to 256,200) at frame 8090 against
+`PSIV_DEBUG_CAMP=telepipe`, and `teleport-message`, window `$45` (56,168 to
+264,208) at frame 8340 against `PSIV_DEBUG_CAMP=telepipe-message`. Both pass
+at RMSE 0. The rest of those frames is the ITEM path's windows, which are
+not these pairs' to certify.
+
 Not reproduced yet: the camp windows close at once rather than one at a time,
 so the fade starts on the acknowledgement instead of 35 frames later; and the
 fade-out darkens the destination, as every native doorway does, where the
-cartridge darkens the field it left. The native capture of the list against
-the oracle frame is still to be compared.
+cartridge darkens the field it left.
 
 ## Verification
 

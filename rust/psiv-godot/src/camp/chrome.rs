@@ -63,7 +63,7 @@ impl CampChrome {
         Some(CampChrome {
             window_words: retail_window_words(&strip)?,
             font: ImageTexture::create_from_image(&menu_image)?,
-            glyph_at: retail_glyphs(),
+            glyph_at: crate::menu_font::retail_glyphs(),
             tiles,
         })
     }
@@ -234,46 +234,6 @@ impl CampChrome {
         }
         quads
     }
-}
-
-fn retail_glyphs() -> BTreeMap<char, Vector2> {
-    let mut glyphs = BTreeMap::new();
-    for (index, ch) in ('A'..='Z').enumerate() {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in ('0'..='9').enumerate() {
-        let index = index + 26;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in ('a'..='z').enumerate() {
-        let index = index + 56;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in [
-        (48, '-'),
-        (49, '!'),
-        (50, '?'),
-        (51, ':'),
-        (52, ','),
-        (53, '.'),
-        (54, '<'),
-        (55, '>'),
-    ] {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    glyphs
 }
 
 fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {

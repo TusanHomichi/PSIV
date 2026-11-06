@@ -494,6 +494,14 @@ impl Field {
                 .is_some_and(|view| view.page == CampPage::TravelTowns)
             {
                 godot_print!("debug: TELEPIPE town list open");
+                if crate::boot::debug_camp_telepipe_message() {
+                    // Tape 36: Down to MILE, Speak.
+                    for button in [Button::Down, Button::Speak] {
+                        session.frame(Pad::new(button));
+                        session.frame(Pad::NEUTRAL);
+                    }
+                    godot_print!("debug: teleport message open");
+                }
                 return;
             }
             session.frame(Pad::new(Button::Speak));
