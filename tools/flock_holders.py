@@ -11,6 +11,12 @@ import os
 import re
 from pathlib import Path
 
+#: Every file lock on the machine, as the kernel prints them.
+PROC_LOCKS = Path("/proc/locks")
+#: When `held_locks` reads it: always; only when fdinfo shows nobody else
+#: holding the lock file; never.
+ALWAYS, WHEN_UNSEEN, NEVER = "always", "when unseen", "never"
+
 
 def parse_lock_lines(lines, prefix="", devices=None):
     """`[(pid, inode, is_write)]` for the held flocks among /proc lock lines
@@ -110,10 +116,11 @@ def fdinfo_locks(lock):
     return held
 
 
-def held_locks(lock, proc_locks):
+def held_locks(lock, proc_locks=None, read=ALWAYS):
     """`[(pid, inode, is_write)]` holding a flock: every one on `lock` and the
-    files named after it (`fdinfo_locks`), plus what `proc_locks` shows on
-    their file system (`lock_devices`).
+    files named after it (`fdinfo_locks`), plus what `proc_locks` (default
+    `PROC_LOCKS`) shows on their file system (`lock_devices`), as `read` says
+    (ALWAYS, WHEN_UNSEEN or NEVER).
 
     /proc/locks alone misses held locks: it is printed a page per read(2),
     each from a fresh walk of the kernel's lock list to the reader's position,
@@ -124,10 +131,28 @@ def held_locks(lock, proc_locks):
     It lists every file system's locks, so a line is matched by its device and
     inode: by inode alone a lock on another dataset whose inode number equals a
     unit file's counted as that unit held (#380: 5 units for 3).
+
+    Reading it takes time that grows faster than the machine's lock count,
+    since each page is printed from a fresh walk of the list: 3 s a read while
+    another job held 60,000 locks on another file system (#383), longer with
+    several readers at once. A waiter names its holders again and again, so it
+    passes NEVER for the line it prints on every change, and WHEN_UNSEEN for
+    the line it repeats and its raw flock(1) parent check: those read it only
+    when fdinfo shows nobody else holding the lock file, as when the holder is
+    another user's process.
     """
+    held = fdinfo_locks(lock)
+    if read == NEVER:
+        return held
+    if read == WHEN_UNSEEN:
+        try:
+            inode = os.stat(lock).st_ino
+        except OSError:
+            inode = None
+        if any(node == inode and pid != os.getpid() for pid, node, _ in held):
+            return held
     try:
-        lines = Path(proc_locks).read_text().splitlines()
+        lines = Path(PROC_LOCKS if proc_locks is None else proc_locks).read_text().splitlines()
     except OSError:
         lines = []
-    return list(dict.fromkeys(fdinfo_locks(lock)
-                              + parse_lock_lines(lines, devices=lock_devices(lock))))
+    return list(dict.fromkeys(held + parse_lock_lines(lines, devices=lock_devices(lock))))

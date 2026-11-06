@@ -259,13 +259,14 @@ def _recorded(path):
     return cap, fields[1] if len(fields) > 1 else None
 
 
-def lock_modes(path, proc_locks=Path("/proc/locks")):
+def lock_modes(path, proc_locks=None, read=flock_holders.ALWAYS):
     """`[(pid, class)]` holding a lock on `path`'s inode (see
-    `flock_holders.held_locks`): a WRITE lock is `exclusive`; a READ lock is
-    `godot` when the pid holds a godot slot, else the class its budget units or
-    class file record, else `shared`."""
+    `flock_holders.held_locks`, which says what a waiter passes as `read`): a
+    WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a godot
+    slot, else the class its budget units or class file record, else
+    `shared`."""
     inode = os.stat(path).st_ino
-    held = flock_holders.held_locks(path, proc_locks)
+    held = flock_holders.held_locks(path, proc_locks, read)
     slots = _numbered(path, GODOT)
     labelled = {**_numbered(path, "unit"), **_numbered(path, CLASS_FILE)}
     in_slots = {pid for pid, node, _ in held if node in slots}
@@ -282,7 +283,7 @@ def lock_modes(path, proc_locks=Path("/proc/locks")):
     return found
 
 
-def units_in_use(path, proc_locks=Path("/proc/locks")):
+def units_in_use(path, proc_locks=None):
     """How many of `path`'s budget unit files are held now (see
     `flock_holders.held_locks`)."""
     units = _numbered(path, "unit")
@@ -290,10 +291,10 @@ def units_in_use(path, proc_locks=Path("/proc/locks")):
     return len({node for _, node, _ in held if node in units})
 
 
-def lock_holders(path, proc_locks=Path("/proc/locks")):
+def lock_holders(path, proc_locks=None, read=flock_holders.ALWAYS):
     """PIDs holding a lock on `path`'s inode (see `lock_modes`)."""
     pids = []
-    for pid, _ in lock_modes(path, proc_locks):
+    for pid, _ in lock_modes(path, proc_locks, read):
         if pid not in pids:
             pids.append(pid)
     return pids
@@ -328,7 +329,8 @@ def raw_flock_parent(path=None, environ=None):
     if environ.get(HELD_ENV) == resolved:
         return None
     ancestors = ancestor_pids()
-    return next((pid for pid in lock_holders(resolved) if pid in ancestors), None)
+    return next((pid for pid in lock_holders(resolved, read=flock_holders.WHEN_UNSEEN)
+                 if pid in ancestors), None)
 
 
 def refuse_message(path, parent):
@@ -674,8 +676,11 @@ _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
 
 
 def _wait_line(lock, lock_class, rank, ahead):
-    """One "waiting for" line: the holders with their class, the queue ahead."""
-    holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)
+    """One "waiting for" line: the holders fdinfo sees with their class (see
+    `flock_holders.held_locks`; `_still_line` names another user's), the
+    queue ahead."""
+    holders = ", ".join(f"{pid} ({mode})"
+                        for pid, mode in lock_modes(lock, read=flock_holders.NEVER)
                         if pid != os.getpid()) or "none"  # a godot head holds it shared
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
     gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
@@ -690,7 +695,8 @@ def _still_line(lock, waited):
     holders = "; ".join(
         f"pid {pid} ({mode}, up {_duration(_process_age(pid))}): "
         f"{' '.join(_cmdline(pid).split())[:COMMAND_CHARS]}"
-        for pid, mode in lock_modes(lock) if pid != os.getpid())
+        for pid, mode in lock_modes(lock, read=flock_holders.WHEN_UNSEEN)
+        if pid != os.getpid())
     return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
 
 
@@ -763,7 +769,9 @@ def _acquire(lock, need, rank, report, environ):
                             entry = None
                             held, blocker = [main, *taken], None
                             return held
-                line = _wait_line(lock, lock_class, rank, ahead)
+            # Named outside the mutex: naming the holders reads /proc, which
+            # a loaded machine slows, and the other waiters need the mutex.
+            line = _wait_line(lock, lock_class, rank, ahead)
             now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)

@@ -660,7 +660,10 @@ yield that lets one go ahead use `--priority`; nothing else does. While
 waiting, a line names the holders and how many waiters (gates and priority
 waiters among them) are ahead, again whenever that changes, and every
 `WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
-holder's class, age and command line. A gate waiting for the gate lock with
+holder's class, age and command line. The first line names the holders whose
+descriptors this user can read; the second, when it finds none, and `status`
+also read /proc/locks, for another user's, which takes seconds a read while the
+machine holds tens of thousands of locks (#383). A gate waiting for the gate lock with
 `--wait` reports the same way, so a job runner that stops a job gone quiet
 sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
 waiters with each pid's command line.
