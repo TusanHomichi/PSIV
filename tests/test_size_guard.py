@@ -33,6 +33,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests import scratch_git
 from tools.size_guard import BINARY_SNIFF_BYTES, EXEMPT, MAX_LINES, over_limit, scan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,7 +115,7 @@ class RepoCase(HomeCase):
         """Write `files`, then track everything: the change the guard reads."""
         for name, content in files.items():
             self.write(name, content)
-        self.git("init", "-q", "-b", "main")
+        scratch_git.init(self.root, env=git_env(self.home))
         self.git("add", "-A")
 
     def guard(self, *args):

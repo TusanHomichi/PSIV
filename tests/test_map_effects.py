@@ -253,8 +253,8 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(census["unreferenced_entries"], 33)
         self.assertEqual(census["maps_with_entries"], 139)
         self.assertEqual(census["map_entry_pairs"], 188)
-        self.assertEqual(census["decoded_entries"], 116)
-        self.assertEqual(len(census["undecoded_entries"]), 11)
+        self.assertEqual(census["decoded_entries"], 117)
+        self.assertEqual(len(census["undecoded_entries"]), 10)
         self.assertEqual(census["evaluated"], "map load only")
         self.assertEqual(sorted(census["kinds"]), [
             "flag_clear", "layout_replace", "layout_write", "object_despawn",
@@ -263,7 +263,7 @@ class TestDecodedEntries(unittest.TestCase):
         # 335, not the 339 an earlier pass counted: four of those came from a
         # path whose gates required one flag both set and clear, which no map
         # load can satisfy. Pruning it removed the path and its writes.
-        self.assertEqual(census["kinds"]["object_despawn"], 335)
+        self.assertEqual(census["kinds"]["object_despawn"], 1455)
         # 193: Aiedo's two BG stamps by absolute address joined the 191 that
         # go through GetMapLayoutOffset (#38).
         self.assertEqual(census["kinds"]["layout_write"], 193)
@@ -319,6 +319,26 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(sorted(self.census["gate_banks"]), ["chest_flags", "event_flags"])
         self.assertEqual(sorted(self.census["flags_per_bank"]), ["chest_flags", "event_flags"])
 
+    def test_the_mota_spaceport_decodes_with_its_five_picked_gates(self):
+        # `MapDataMan_MotaSpaceport`, entry $67: a path for every combination
+        # of Elsydeon, Reunion and the five `EventFlag_*Picked` tests. A cap on
+        # paths once left it undecoded, and every friend at the spaceport on
+        # the map from the first visit (docs/scenes/181_PickingFifthCharacter.md).
+        entry = decode_entry(read_rom(ROM), 0x67)
+        self.assertIsNone(entry.undecoded)
+        def despawned(flags):
+            matching = [
+                path for path in entry.paths
+                if all((gate.flag in flags) == gate.required for gate in path.gates)
+            ]
+            self.assertEqual(len(matching), 1, flags)
+            return sorted(write.detail["object_index"] for write in matching[0].writes)
+        self.assertEqual(despawned(set()), list(range(10)))
+        self.assertEqual(despawned({0xD9}), [5, 6, 7, 8, 9])
+        self.assertEqual(despawned({0xD9, 0xDA}), [0, 1, 2, 3, 4])
+        for flag, picked in [(0xDC, 5), (0xDB, 6), (0xDD, 7), (0xDE, 8), (0xDF, 9)]:
+            self.assertEqual(despawned({0xD9, 0xDA, flag}), [0, 1, 2, 3, 4, picked])
+
     def test_undecoded_entries_are_reported_not_dropped(self):
         for entry in self.census["undecoded_entries"]:
             with self.subTest(entry=entry["entry_hex"]):
@@ -326,7 +346,7 @@ class TestDecodedEntries(unittest.TestCase):
                 self.assertTrue(entry["maps"])
         # Every referenced entry is either decoded or listed.
         listed = {e["entry"] for e in self.census["undecoded_entries"]}
-        self.assertEqual(len(listed), 11)
+        self.assertEqual(len(listed), 10)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

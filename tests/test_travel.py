@@ -1,7 +1,7 @@
 """Travel data follows ROM entry direction and world-specific town flag banks."""
 from pathlib import Path
 import unittest
-from psiv_tools.travel import extract_travel
+from psiv_tools.travel import MESSAGES, decode_message, extract_travel
 
 ROM = Path(__file__).resolve().parents[1] / 'Phantasy Star IV (USA).md'
 
@@ -40,3 +40,27 @@ class TravelTests(unittest.TestCase):
         rom[0x6115A] = 99
         with self.assertRaisesRegex(ValueError, 'travel table guard'):
             extract_travel(bytes(rom))
+
+    def test_the_teleport_strings_come_from_the_window_charset(self):
+        messages = self.travel['messages']
+        self.assertEqual(sorted(messages), sorted(key for key, _ in MESSAGES))
+        # The town list's label is one three-cell word; the ready message is
+        # two lines split at its `$FC`; the refusals are one line each.
+        self.assertEqual(len(messages['towns_label']), 3)
+        self.assertEqual(len(messages['teleported'].split('\n')), 2)
+        self.assertTrue(all(line for line in messages['teleported'].split('\n')))
+        for key in ('cannot_be_used', 'not_enough_tp'):
+            self.assertNotIn('\n', messages[key])
+        # The `$7A $79` tile pair reads as the two letters it draws.
+        self.assertTrue(messages['not_enough_tp'].endswith('TP!'))
+
+    def test_a_window_string_without_its_terminator_is_refused(self):
+        offset = MESSAGES[0][1]
+        rom = bytearray(self.rom)
+        rom[offset:offset + 64] = bytes([1]) * 64
+        with self.assertRaisesRegex(ValueError, 'no window string terminator'):
+            decode_message(bytes(rom), offset)
+        rom[offset] = 0x7B
+        rom[offset + 1] = 0xFE
+        with self.assertRaises(ValueError):
+            decode_message(bytes(rom), offset)

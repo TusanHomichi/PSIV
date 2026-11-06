@@ -99,9 +99,37 @@ pub fn scene_fixture(
 /// player-centred default, reflecting the walk history the fixture does not
 /// replay.
 pub fn camp_fixture(data: GameData, step_frames: StepFrames) -> Result<Session, String> {
+    camp_fixture_with(data, step_frames, |_| Ok(()))
+}
+
+/// Tape 36's state (#128): tape 22's camp with the tape's three fixture
+/// patches, a TELEPIPE in the first slot (`$FFFFF410`), every Motavia town
+/// visited (`$FFFFF160`) and `EventFlag_PrincipalConfession` (`$0C`), so the
+/// TELEPIPE's town list can be drawn against the oracle's.
+pub fn camp_travel_fixture(data: GameData, step_frames: StepFrames) -> Result<Session, String> {
+    camp_fixture_with(data, step_frames, |game| {
+        game.inventory_mut()
+            .add(crate::TELEPIPE)
+            .map_err(|error| format!("TELEPIPE: {error}"))?;
+        for town in 0..16 {
+            game.set(Flag::town(town))
+                .map_err(|error| format!("town flag {town}: {error}"))?;
+        }
+        game.set(Flag::event(0x0C))
+            .map_err(|error| format!("PrincipalConfession: {error}"))?;
+        Ok(())
+    })
+}
+
+fn camp_fixture_with(
+    data: GameData,
+    step_frames: StepFrames,
+    edit: impl FnOnce(&mut GameState) -> Result<(), String>,
+) -> Result<Session, String> {
     let mut game = post_opening_game(&data, step_frames)?;
     game.set_party([Some(CharId(0)), None, None, None, None]);
     game.set_money(500);
+    edit(&mut game)?;
     const OBJECTS: [(i32, i32, Direction); 8] = [
         (736, 226, Direction::Down),
         (743, 128, Direction::Left),

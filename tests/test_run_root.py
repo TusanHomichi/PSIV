@@ -26,6 +26,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
 from tools import godot
 from tools.repo_files import repo_files
 
@@ -46,7 +47,7 @@ class Checkout(unittest.TestCase):
         self.dir = Path(tmp.name)
         self.source = self.dir / "checkout"
         (self.source / "godot").mkdir(parents=True)
-        subprocess.run(["git", "init", "-q", str(self.source)], check=True)
+        scratch_git.init(self.source, branch=None)
         (self.source / "godot/project.godot").write_text("[application]\n")
         (self.source / "godot/psiv.gdextension").write_text("[configuration]\n")
         self.library = godot.library_path(self.source)

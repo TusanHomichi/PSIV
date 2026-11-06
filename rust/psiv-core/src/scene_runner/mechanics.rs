@@ -68,6 +68,23 @@ pub(super) struct BeltRun {
 }
 
 impl SceneRunner {
+    /// Parks every party actor of the cast on `cell` facing `facing`,
+    /// cancelling any walk: the character rebuild both of the cartridge's
+    /// dismounts make, every `Character_1..5` object put on `Character_1`'s
+    /// position and facing, the machine's while mounted
+    /// (`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`;
+    /// `Event_EclipseTorchUsed`, `loc_701DE`, `ps4.asm:149559-149577`). The
+    /// runtime calls it when a scene's `SetVehicleIndex 0` dismounts, since the
+    /// cast was seated from the party objects, which a mounted party leaves
+    /// where it boarded.
+    pub fn park_party(&mut self, cell: crate::geom::Cell, facing: crate::geom::Direction) {
+        for actor in &mut self.actors {
+            if matches!(actor.actor, ActorRef::PartyMember(_)) {
+                actor.park(cell, facing);
+            }
+        }
+    }
+
     /// Runs the ops of this module. Returns a fault instead of advancing when
     /// the op cannot run.
     pub(super) fn step_mechanic_op(
@@ -109,16 +126,29 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
-            SceneOp::Object(ObjectOp::Spawn {
-                slot,
-                routine,
-                x,
-                y,
-                solid,
-                ..
-            }) => {
+            SceneOp::Object(spawn) => {
+                let (slot, routine, solid, cell) = match spawn {
+                    ObjectOp::Spawn {
+                        slot,
+                        routine,
+                        x,
+                        y,
+                        solid,
+                        ..
+                    } => (slot, routine, solid, super::pixel_cell(x, y)),
+                    ObjectOp::SpawnAt {
+                        slot,
+                        routine,
+                        at,
+                        solid,
+                    } => {
+                        let Some(source) = self.actor(at) else {
+                            return Some(SceneFault::UnknownActor { actor: at });
+                        };
+                        (slot, routine, solid, source.cell)
+                    }
+                };
                 let actor = ActorRef::Npc(slot);
-                let cell = super::pixel_cell(x, y);
                 match self.actor_mut(actor) {
                     Some(object) => {
                         object.cell = cell;
@@ -147,6 +177,36 @@ impl SceneRunner {
                         member.facing = facing;
                         effects.push(SceneEffect::ActorFaced { actor, facing });
                     }
+                }
+                self.pc += 1;
+            }
+            SceneOp::PlacePartyY { dy } => {
+                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                    return Some(SceneFault::UnknownActor {
+                        actor: ActorRef::PartyMember(0),
+                    });
+                };
+                // The leader's `curr_y_pos` word: the cell's pixel row plus
+                // any slide into it. `addi.w` wraps at the word.
+                let y = PixelPos::from_cell(leader.cell).y + leader.slide.1;
+                let y = i32::from((y as u16).wrapping_add(dy));
+                let row = (y.div_euclid(CELL_PIXELS) + 1) as u16;
+                // `CalcPartyNumber` (`$05A6A4`) counts `Current_Party_Slots`
+                // up to the first empty one; the loop writes that many objects.
+                let count = state.party().iter().take_while(|who| who.is_some()).count();
+                for slot in 0..count {
+                    let actor = ActorRef::PartyMember(slot);
+                    let Some(member) = self.actor_mut(actor) else {
+                        return Some(SceneFault::UnknownActor { actor });
+                    };
+                    member.cell.y = row;
+                    member.slide.1 = y.rem_euclid(CELL_PIXELS);
+                    member.target = None;
+                    member.step = None;
+                    effects.push(SceneEffect::ActorPlaced {
+                        actor,
+                        at: member.cell,
+                    });
                 }
                 self.pc += 1;
             }

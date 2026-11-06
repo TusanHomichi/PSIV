@@ -129,10 +129,11 @@ mod title;
 pub use activity::Activity;
 pub use battle::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
-    CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,
-    PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
+    CommandMenuView, CursorMemory, DamageView, EnemyStatus, Fusion, FusionPiece, MenuPage, MenuRow,
+    MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
+    battle_dwell_frames,
 };
-pub use debug::{camp_fixture, scene_fixture};
+pub use debug::{camp_fixture, camp_travel_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
 pub use flight::FlightView;
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
@@ -151,7 +152,7 @@ use crate::pad::Pad;
 use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
-pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS};
+pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS, TOWN_PAGE_ROWS, town_page_rows};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
@@ -236,6 +237,14 @@ pub enum Routed {
         entry: u16,
         /// What opening it did.
         outcome: SceneDialogueOpen,
+    },
+    /// A scene's system line ([`psiv_core::SystemLine`]) opened, or the pack
+    /// had none and the scene went on.
+    SceneSystemLine {
+        /// Which.
+        line: psiv_core::SystemLine,
+        /// Whether a window opened.
+        opened: bool,
     },
     /// The debug harness's auto-close skipped a scene's line without opening
     /// the window.
@@ -466,7 +475,7 @@ impl Session {
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {
             self.shop_frame(pad, pressed)
         } else if !self.runtime.dialogue_open()
-            && let Some(frame) = self.camp_frame(pressed)
+            && let Some(frame) = self.camp_frame(pressed, pad)
         {
             frame
         } else {

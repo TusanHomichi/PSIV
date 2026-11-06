@@ -297,7 +297,8 @@ impl BattleMode {
         if !spec.strip && spec.window.is_none() {
             return;
         }
-        let mut commands = menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes);
+        let mut commands =
+            menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes, self.cursor_memory);
         commands.debug_open(
             spec.window.unwrap_or(MenuPage::Actions),
             spec.cursor,

@@ -62,7 +62,7 @@ class _Decoder:
     #: re-executes the same addresses. Retail's longest routine unrolls in far
     #: fewer than this.
     STEPS = 4000
-    MAX_PATHS = 64
+    MAX_PATHS = 256
 
     #: `move.b`/`move.w #imm,<ea>` and `clr.w <ea>` for a0..a6, as
     #: `opcode -> (register, has displacement, size)`.

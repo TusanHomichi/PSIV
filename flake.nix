@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=46cab2ed869c60b415ee61aeff9026cecaf3a942";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=1ba73dc29723f6770fdc442f87f45d6d3b330c6c";
 
   outputs = { self, burrow }:
     let
@@ -209,6 +209,32 @@
           cd tree
           git init -q
           python3 tools/check_docs.py
+          touch $out
+        '';
+        # The gate's own tests (every tests/test_gate*.py), which need no
+        # local inputs: fake commands in throwaway repositories. They run
+        # here so a change to the gate is tested in CI, and its new tests can
+        # show they fail on its base (burrow's negative), which a check that
+        # only reads them can't. Found by name, so a new gate test file joins
+        # without this list changing (the negative runs the base's flake).
+        gate-tests = pkgs.runCommand "psiv-gate-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
+        # The battle fixture extractor's tests (every
+        # tests/test_oracle_battle_fixture*.py), which read fake logs and
+        # the tracked fixtures and need no local inputs. They run here so a
+        # change to the extractor can show its new tests fail on its base
+        # (burrow's negative), which a check that only reads them can't.
+        # Found by name, like gate-tests.
+        oracle-fixture-tests = pkgs.runCommand "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_oracle_battle_fixture*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
         # The 1,000-line rule (tools/size_guard.py).

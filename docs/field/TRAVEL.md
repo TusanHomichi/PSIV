@@ -74,11 +74,76 @@ identifies it. This extension is a deliberate native restart improvement,
 not a claim that the original cartridge saves $ED51.
 
 Native Motavia travel and the raw saved world-byte interpretation are
-covered here. Still open: world selection during later space-travel scenes
-needs the original writes wired into the scene runtime ([#126](https://github.com/TusanHomichi/PSIV/issues/126)); general
-map-entry follower alignment ([#127](https://github.com/TusanHomichi/PSIV/issues/127)); the exact retail teleport visuals and
-window layout ([#128](https://github.com/TusanHomichi/PSIV/issues/128)); and the legacy standing-Y save-format discrepancy
-([#129](https://github.com/TusanHomichi/PSIV/issues/129)).
+covered here. The cartridge writes `World_Index` in eight places: the new-game
+initializer, the ship's destination menu and Sabotage's copy of it, and five
+scenes. `Runtime::set_world_index` cites each one it makes,
+`rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
+whole-route runner test checks the world and map of every chapter that lands
+on a new planet. Still open: general map-entry follower alignment
+([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the teleport's
+window teardown ([#128](https://github.com/TusanHomichi/PSIV/issues/128),
+[below](#teleport-windows-and-effect)).
+
+## Teleport windows and effect
+
+Measured on the oracle with
+[`oracle/tapes/36_teleport_windows.tape`](../../oracle/tapes/36_teleport_windows.tape):
+Tape 22's prelude to Chaz alone on Piata Academy F1, then the fixture patches
+(see [the oracle guide](../../oracle/README.md#deterministic-scene-fixtures))
+`7600:FFFFF410:84` (a TELEPIPE), `7600:FFFFF160:FFFF` (every Motavia town
+visited) and `7600:FFFFF101:08` (`EventFlag_PrincipalConfession`, which keeps
+`Event_PiataGuardsReprimand` from carrying the party back into Piata), and
+ITEM, the TELEPIPE, USE, Down to MILE, Speak, Speak.
+
+**The town list** (`Win_TelepipePlaceList`, `ps4.asm:123998-124213`; RYUKA's
+copy `Win_RyukaPlaceList`, `:129219`) shows the visited towns five to a page
+from `$FFFFE270`. Each page is its own window from records `$36..$44`
+(`ps4.asm:140340-140388`; `$66..$74` for RYUKA): 14 cells wide, two cells per
+town plus the border, at (18,13) for the first page and one cell further right
+for each later one, drawn over the pages before it. Every row has a cursor box
+at the window's second column and the name at its fourth; `TO?` sits on the
+bottom border five cells in (`loc_2AA892`). A page with one behind it carries
+the left arrow on its top-left corner and one with a page ahead the flipped
+arrow on its top-right. Up and Down wrap within the page; Right *held* opens
+the next page and Left *held* closes the current one, each with the cursor on
+the first row (`ps4.asm:124111-124158`); Start closes every window.
+
+**The message** is window `$45` (`$65` for techniques), the ITEM message's
+rectangle, with one of three lines chosen by `$FFFFE284` (`loc_5CB66`,
+`loc_60B26`): `Somehow the body` / `has become lighter.` (two rows apart),
+`Cannot be used here!` and `Not enough TP!`. Its acknowledgement plays the
+teleport sound and closes every window. The label and the three lines are
+the pack's: `travel.json`'s `messages` (`psiv_tools/travel.py` `MESSAGES`,
+format 2), decoded through the window charset with `$FC` as a line break and
+the window font's two-tile TP (`$7A $79`, outside the charset) read as `TP`;
+the native window draws those two letters from the ordinary glyphs.
+
+**The effect**, frame by frame on tape 36 (the acknowledgement on 8355): the
+seven windows close one at a time, the last at 8385; `MenuExit_Teleport`
+(`ps4.asm:117166-117169`) fades the palette out in two-frame steps from 8391
+to black at 8403; `GameMode_LoadFieldMap` runs from 8404 for 61 rows (map 0
+with the music branch taken: `field_reload_rows`), black until its
+`Pal_FadeIn` lights 8452 and clears 8464; control returns on 8465, the party
+standing at (61,102) on the overworld outside MILE.
+
+The port draws the list, its pages, arrows and label, and the message lines
+from those records (`rust/psiv-godot/src/camp/abilities.rs`, `layout.rs`); the
+session pages the list as retail does (`session/camp/travel.rs`); and a
+teleport's `RuntimeEvent::Teleported` carries the destination's load rows to
+the `Teleport` transition, which reproduces the fade levels above
+(`transitions.rs`, `a_teleport_fades_out_then_spends_the_destinations_load_rows`).
+Two certified pairs (`tools/certify.py`, region-only) compare the native
+captures with tape 36 in the 320×224 field viewport: `teleport-towns`, the
+list's window (pixels 144,104 to 256,200) at frame 8090 against
+`PSIV_DEBUG_CAMP=telepipe`, and `teleport-message`, window `$45` (56,168 to
+264,208) at frame 8340 against `PSIV_DEBUG_CAMP=telepipe-message`. Both pass
+at RMSE 0. The rest of those frames is the ITEM path's windows, which are
+not these pairs' to certify.
+
+Not reproduced yet: the camp windows close at once rather than one at a time,
+so the fade starts on the acknowledgement instead of 35 frames later; and the
+fade-out darkens the destination, as every native doorway does, where the
+cartridge darkens the field it left.
 
 ## Verification
 
@@ -109,5 +174,5 @@ keeper row is `$0683A4`, so five members pay 100. The rest is `RecoverStats`
 (`$0662DA`; what it restores is [SHOPS.md](../camp/SHOPS.md#what-a-night-restores)).
 
 The bridge's video comparison uses isolated SRAM position fixtures, not
-connected play. Their Y word is `(standing_y-1)*16`, which accounts for the
-native save-coordinate gap without modifying any campaign save.
+connected play. Their Y word is the cartridge's `(standing_y-1)*16`, the word
+a native SAVE writes too ([SAVE_FORMAT.md](../camp/SAVE_FORMAT.md#standing-y)).

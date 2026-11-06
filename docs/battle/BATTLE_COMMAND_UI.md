@@ -77,17 +77,22 @@ Receipt: tape 32 (`oracle/tapes/32_battle_command_windows.tape`, frame 25134
 the strip with the cursor on TECH, frame 25400 the technique window: SANER 6,
 SHIFT 7, FOI 3).
 
+### Each member's cursors are remembered
+
+`Battle_Char_Comd_Index`, `Battle_Tech_Index` and `Battle_Skill_Index` are one
+word per party slot (`ps4.asm:2195`, `2598`, `2938`), and nothing clears them
+during a battle, so a member's strip and lists reopen where that member left
+them, an empty row included. `Battle_Item_Index` is per member too, and
+`loc_5BAE` clears its five words at each round's end (`ps4.asm:8422-8425`).
+`CursorMemory` (`menu/commands.rs`) holds the four, the battle mode carries it
+between windows and clears the item words where it clears the command table.
+Test: `each_member_s_strip_and_list_cursors_reopen_where_they_left_them`.
+
 ### Not modelled, named
 
 - Windows open over 6-8 frames (`Battle_CreateWindow`, `ps4.asm:1657`: two cells
   a frame); the port's windows appear whole. The red cursor's timers do not
   run during that growth in the cartridge.
-- `Battle_Char_Comd_Index`, `Battle_Tech_Index` and `Battle_Skill_Index` are
-  per-member words (`ps4.asm:2195`, `2598`, `2938`); the cartridge reopens
-  those windows where that member left them, while the port starts at the
-  first row. `Battle_Item_Index` is also per member during a round, but
-  `loc_5BAE` (`ps4.asm:8422`) clears its five words at round end. The
-  across-member/round cursor memory still belongs to [#51](https://github.com/TusanHomichi/PSIV/issues/51).
 - The skill and item windows are decoded from their routines and drawn by the
   same code, but no oracle frame certifies them.
 - Target selection is the cartridge's sprite cursor over the enemies or party
@@ -98,9 +103,16 @@ refuses an entry on TP alone (`Battle_FillTechList` sets the sign bit,
 `ps4.asm:1721`; `Battle_TechWindow` ignores it, `ps4.asm:2628`), and the cast
 is paid and wasted (`CharTech_CheckTPCost` `ps4.asm:14211`, `CharTech_Cast`
 `ps4.asm:14256`; the engine's `TechniqueRejected(Sealed)` after the paid
-`TechniqueUsed`). `TechniqueEntry.available` stays false for a sealed member so
-a policy avoids the wasted turn. Pad-only test:
-`a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted`.
+`TechniqueUsed`). One rule decides what each window enables, and the menu
+view reports that same rule: `CommandsMenu::technique_enabled`,
+`skill_enabled` and `item_enabled` draw the rows, and `TechniqueEntry.available`
+and `SkillEntry.available` are the same answers, so the view also offers a
+sealed member's technique. A caller that wants to avoid the wasted turn reads
+the seal from the actor's `PartyStatus.status` (the campaign planner does,
+`Planner::in_stock`). Tests: the pad-only
+`a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted`, and
+`a_sealed_member_picks_a_technique_the_view_agrees_and_the_cast_is_paid_and_wasted`
+with its unsealed control (`commands_tests.rs`).
 
 ## Status panes (#64)
 
@@ -139,8 +151,9 @@ clock and damage column exactly as a formation builds them. Receipt: tape 33
 (`oracle/tapes/33_zol_fusion_metaslug.tape`, formation `$D2` forced with the
 three patches in `tools/certify.py`'s `TAPE_33`), frame 25560, options back
 over the MetaSlug. The party defends in the clone's round; the slugs' turn is
-Fusion whatever it rolls. Not modelled: the two sprites sliding together and
-flashing (`BattleObj_Fusion`, `ps4.asm:35675`).
+Fusion whatever it rolls. The two pieces sliding together and growing
+(`BattleObj_Fusion`, `ps4.asm:35675`) are drawn frame for frame
+([`ENEMY_FUSION.md`](ENEMY_FUSION.md#the-slide-and-the-growth-64)).
 
 ## Mid-round attack (#52)
 

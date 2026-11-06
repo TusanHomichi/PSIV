@@ -54,7 +54,7 @@ func _physics_process(_delta):
                 "Root": choose(camp.root,0)
                 "ItemList": choose(camp.item,3)
                 "ItemResult":
-                    if camp.message != "CANNOT TELEPORT HERE" or state.inventory != initial_inventory:
+                    if camp.message != "Cannot be used here!" or state.inventory != initial_inventory:
                         fail("blocked TELEPIPE was consumed or misreported",state)
                         return false
                     record("telepipe-blocked",state)

@@ -69,7 +69,7 @@ impl ShopChrome {
             tiles,
             words,
             font,
-            glyph_at: retail_glyphs(),
+            glyph_at: crate::menu_font::retail_glyphs(),
         })
     }
 
@@ -152,46 +152,6 @@ impl ShopChrome {
         }
         quads
     }
-}
-
-fn retail_glyphs() -> BTreeMap<char, Vector2> {
-    let mut glyphs = BTreeMap::new();
-    for (index, ch) in ('A'..='Z').enumerate() {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in ('0'..='9').enumerate() {
-        let index = index + 26;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in ('a'..='z').enumerate() {
-        let index = index + 56;
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    for (index, ch) in [
-        (48, '-'),
-        (49, '!'),
-        (50, '?'),
-        (51, ':'),
-        (52, ','),
-        (53, '.'),
-        (54, '<'),
-        (55, '>'),
-    ] {
-        glyphs.insert(
-            ch,
-            Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
-        );
-    }
-    glyphs
 }
 
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {

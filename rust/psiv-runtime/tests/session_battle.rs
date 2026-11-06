@@ -212,7 +212,9 @@ fn fight_press(view: &BattleView) -> Pad {
         Some(MenuView::Top { .. }) => Pad::new(Button::Speak),
         Some(MenuView::Commands(menu)) => match menu.page {
             MenuPage::Actions if menu.cursor == 0 => Pad::new(Button::Speak),
-            MenuPage::Actions => Pad::new(Button::Up),
+            // The strip reads Left and Right only (`Battle_CharCommand`), and a
+            // member's strip reopens on the icon it left (#51).
+            MenuPage::Actions => Pad::new(Button::Left),
             MenuPage::Targets(_) if menu.cursor == 0 => Pad::new(Button::Speak),
             MenuPage::Targets(_) => Pad::new(Button::Up),
             _ => Pad::new(Button::Cancel),

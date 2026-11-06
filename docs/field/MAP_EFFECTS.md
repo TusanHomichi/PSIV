@@ -81,7 +81,7 @@ index instead of panicking on it.
 
 | kind | what it does | instances | maps |
 |---|---|---|---|
-| `object_despawn` | clears a slot: the object never spawns | 339 | 72 |
+| `object_despawn` | clears a slot: the object never spawns | 1455 | 73 |
 | `layout_write` | writes chunk ids into `Map_Layout` | 193 | 14 |
 | `object_rewrite` | writes a different object id into a slot | 8 | 6 |
 | `object_dialogue` | changes an object's dialogue id (`$14(aN)`) | 4 | 3 |
@@ -126,14 +126,14 @@ colour.
 ### Census by write kind
 
 Every referenced entry, by what its paths write (`tests/test_map_effects.py`
-holds the counts). 116 of the 127 referenced entries decode; the 11 that do
+holds the counts). 117 of the 127 referenced entries decode; the 10 that do
 not are listed in `manifest.map_effects.undecoded_entries` with their reason.
 A path whose only writes are ones this slice does not model is emitted with
 its `deferred` notes and no writes, never dropped:
 
 | What the path writes | Entries | Modelled |
 |---|---|---|
-| at least one of the kinds in the table above | 98 of the 116 decoded entries (several also carry a deferred note below) | yes |
+| at least one of the kinds in the table above | 99 of the 117 decoded entries (several also carry a deferred note below) | yes |
 | `Palette_Table_Buffer` words (`$FFFFFB02`..`$FFFFFB2A`) | `$13`, `$27`, `$40`, `$44` | no: deferred |
 | a postincrement or `trap #1` block copy (palette lines) | `$05`, `$0D`, `$0F`, `$26`, `$28`, `$2A`..`$2E`, `$30`, `$34`, `$37`, `$40`, `$41`, `$5B` | the three NPC-line copies only (`resolve_palette_effects`) |
 | `Camera_Y_Pos_BG`/`Camera_X_Pos_BG` | `$33` | no: deferred |
@@ -231,10 +231,13 @@ of their map regardless of story state.
 ## 9. Coverage, and what is deferred
 
 127 of the 160 table entries are referenced by a map record (33 are dead), over
-188 (map, entry) pairs on 139 maps. **116 entries decode; 11 do not** and are
+188 (map, entry) pairs on 139 maps. **117 entries decode; 10 do not** and are
 listed in `census.undecoded_entries` with the offset, the instruction that
 stopped the read, and the maps affected — never half-decoded. What each
 decoded entry writes is the [census by write kind](#census-by-write-kind).
+
+`MapDataMan_MotaSpaceport` (`$67`) is by far the largest: its seven gates make 128 paths and
+1120 of the `object_despawn` writes ([the record](../scenes/181_PickingFifthCharacter.md)).
 
 A routine that mixes Slice 1 with later work is decoded for its Slice-1 writes
 and carries the rest in `deferred` on the path: `postincrement bulk copy`

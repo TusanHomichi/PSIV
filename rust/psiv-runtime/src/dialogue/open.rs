@@ -111,6 +111,19 @@ impl DialogueRunner {
         }
     }
 
+    /// Reads one entry off the pack's dialogue set.
+    pub(crate) fn set_entry(
+        &self,
+        read: impl FnOnce(&psiv_data::DialogueSet) -> Option<DialogueEntry>,
+    ) -> Option<DialogueEntry> {
+        self.set.as_deref().and_then(read)
+    }
+
+    /// Opens a pack line outside the trees as a scene line.
+    pub(crate) fn open_system_entry(&mut self, entry: &DialogueEntry, game: &GameState) -> bool {
+        self.open_resolved(entry, game)
+    }
+
     /// The leader's "Nothing here" line (one per character slot).
     pub(crate) fn open_nothing_here(&mut self, character_slot: usize, game: &GameState) -> bool {
         let entry = self

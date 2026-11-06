@@ -46,6 +46,24 @@ pub(super) const MESETA: CellRect = CellRect::new(3, 23, 13, 3);
 /// The decoded empty-inventory ITEM message.
 // docs/camp/CAMP_MENU_LAYOUT.md § ITEM: empty inventory; oracle/... camp_item_empty_inventory.item_message
 pub(super) const ITEM_MESSAGE: CellRect = CellRect::new(7, 21, 26, 5);
+/// The first town-list page window's top-left cell and its width. Each page
+/// is its own window one cell right of the last, two rows per town plus its
+/// border: `WinGroup` records `$36..$44` (`ps4.asm:140340-140388`), width
+/// and height one less than drawn, and `$66..$74` for RYUKA.
+pub(super) const TOWN_LIST_ORIGIN: (i32, i32) = (18, 13);
+pub(super) const TOWN_LIST_WIDTH: i32 = 14;
+/// The column of the town list's label (`CampView::travel_towns_label`) on
+/// each page's bottom border, five cells in (`ps4.asm:124062-124068`).
+pub(super) const TOWN_LIST_LABEL_COLUMN: i32 = 5;
+/// The page arrows on the top border (`ps4.asm:124070-124099`): `$C6E9` and
+/// `$C6E6` at the window's left corner when a page lies behind, and `$CEE6`,
+/// the same arrow flipped, at its right corner when one lies ahead.
+pub(super) const TOWN_ARROW_TAIL_PATTERN: u16 = 0x6E9;
+pub(super) const TOWN_ARROW_PATTERN: u16 = 0x6E6;
+/// `Win_ItemTeleportMsg` and `Win_TechTeleportMsg` draw their line pairs two
+/// cells apart from inside the `$45`/`$65` window (`ps4.asm:124215`,
+/// `:129447`), the same rectangle as [`ITEM_MESSAGE`].
+pub(super) const TRAVEL_MESSAGE_LINE_STEP: i32 = 2;
 /// The decoded STATE child chooser.
 // docs/camp/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.state_options
 #[cfg(test)]

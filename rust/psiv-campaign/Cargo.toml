@@ -19,3 +19,4 @@ psiv-data = { path = "../psiv-data" }
 psiv-runtime = { path = "../psiv-runtime" }
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.11"

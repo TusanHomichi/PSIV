@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 5;
+const ALLOWLIST_CEILING: usize = 0;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -59,7 +59,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x000D, "Event_MeetingSaya", Disposition::Scene),
     (0x000E, "Event_AiedoManCrushOnAlys", Disposition::Scene),
     (0x000F, "Event_SuspicionOnPrincipal", Disposition::Scene),
-    (0x0010, "Event_GettingOffVehicle", Disposition::Allowlisted(81)),
+    (0x0010, "Event_GettingOffVehicle", Disposition::Scene),
     (0x0011, "Event_DezoSpaceportAppearing", Disposition::InsideScene(0x8010)),
     (0x0012, "Event_BioPlantAlarm", Disposition::Scene),
     (0x0013, "Event_ElevatorDoorOpening", Disposition::Scene),
@@ -79,7 +79,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0021, "Event_Recovery", Disposition::Scene),
     (0x0022, "Event_AiedoManSavings", Disposition::Scene),
     (0x0023, "Event_GirlsSneakingOut", Disposition::Scene),
-    (0x0024, "Event_FaintingPriest", Disposition::Allowlisted(81)),
+    (0x0024, "Event_FaintingPriest", Disposition::Scene),
     (0x0025, "Event_AfterIgglanova", Disposition::Scene),
     (0x0026, "Event_PrincipalConfession", Disposition::Scene),
     (0x0027, "Event_RuneFlaeli", Disposition::Scene),
@@ -92,7 +92,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x002E, "Event_RuneLadaeTower", Disposition::Scene),
     (0x002F, "Event_PsycoWandChest", Disposition::Scene),
     (0x0030, "Event_ZioFortBarrier", Disposition::Scene),
-    (0x0031, "Event_ZioFanatic", Disposition::Allowlisted(81)),
+    (0x0031, "Event_ZioFanatic", Disposition::Scene),
     (0x0032, "Event_MeetingDorin", Disposition::Scene),
     (0x0033, "Event_TonoeBasementDoor", Disposition::Scene),
     (0x0034, "Event_ZioNurvus", Disposition::Scene),
@@ -147,7 +147,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0065, "Event_SaLewsDefeated", Disposition::Scene),
     (0x0066, "Event_HuntersGuild", Disposition::Scene),
     (0x0067, "Event_RuneHealingChaz", Disposition::Scene),
-    (0x0068, "Event_PickingFifthCharacter", Disposition::Allowlisted(83)),
+    (0x0068, "Event_PickingFifthCharacter", Disposition::Scene),
     (0x0069, "Event_AngerTowerTop", Disposition::Scene),
     (0x006A, "Event_AngerTowerExitTop", Disposition::Scene),
     (0x006B, "Event_IgglanovaBattle", Disposition::Scene),
@@ -177,7 +177,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0083, "Event_GirlsBailedOut", Disposition::Scene),
     (0x0084, "Event_DyingBoyFather", Disposition::Scene),
     (0x0085, "Event_FatherAfterBoyRecovery", Disposition::Scene),
-    (0x0086, "Event_DyingBoy", Disposition::Allowlisted(81)),
+    (0x0086, "Event_DyingBoy", Disposition::Scene),
     (0x0087, "Event_MeetingSekreas", Disposition::Scene),
     (0x0088, "Event_KingRappy", Disposition::Scene),
     (0x0089, "Event_KingRappyDefeated", Disposition::Scene),
@@ -246,9 +246,19 @@ fn registered(event: u16) -> Option<&'static str> {
 
 /// Every way the table and a registry can disagree, each naming the event.
 fn violations(registry: &dyn Fn(u16) -> Option<&'static str>) -> Vec<String> {
+    violations_in(CENSUS, registry)
+}
+
+/// `violations` over any table, so a control can hand it rows the real census
+/// no longer holds (the allowlist is empty now, which leaves `Allowlisted`
+/// constructed nowhere else).
+fn violations_in(
+    census: &[(u16, &str, Disposition)],
+    registry: &dyn Fn(u16) -> Option<&'static str>,
+) -> Vec<String> {
     let mut found = Vec::new();
     let mut allowlisted = 0;
-    for &(event, label, disposition) in CENSUS {
+    for &(event, label, disposition) in census {
         match disposition {
             Scene => {
                 if registry(event).is_none() {
@@ -351,23 +361,38 @@ fn unregistering_any_scene_fails_the_guard_and_names_it() {
 }
 
 /// Negative control: an allowlisted event whose scene lands must leave the
-/// list, so the list only shrinks.
+/// list, so the list only shrinks. Run on a synthetic row, since the census
+/// itself holds none now; a row naming an untracked issue and a list over its
+/// ceiling are caught the same way.
 #[test]
 fn a_scene_for_an_allowlisted_event_fails_until_the_entry_is_removed() {
-    let Some(&(event, label, _)) = CENSUS
-        .iter()
-        .find(|&&(_, _, d)| matches!(d, Allowlisted(_)))
-    else {
-        return; // an empty allowlist has nothing to shrink
-    };
-    let fake = |asked: u16| {
-        if asked == event {
-            Some("Event_Fake")
-        } else {
-            registered(asked)
-        }
-    };
-    let found = violations(&fake);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].contains(label) && found[0].contains("still allowlisted"));
+    let table = [(0x7FFFu16, "Event_Fake", Allowlisted(ISSUES[0]))];
+    let unregistered = |_: u16| None;
+
+    let fake = |asked: u16| (asked == 0x7FFF).then_some("Event_Fake");
+    let found = violations_in(&table, &fake);
+    assert!(
+        found
+            .iter()
+            .any(|f| f.contains("Event_Fake") && f.contains("still allowlisted")),
+        "{found:?}"
+    );
+
+    let untracked = [(0x7FFFu16, "Event_Fake", Allowlisted(1))];
+    let found = violations_in(&untracked, &unregistered);
+    assert!(
+        found.iter().any(|f| f.contains("untracked issue #1")),
+        "{found:?}"
+    );
+}
+
+/// Negative control: the ceiling is zero, so one allowlist entry fails.
+#[test]
+fn an_allowlist_entry_over_the_ceiling_fails() {
+    let table = [(0x7FFFu16, "Event_Fake", Allowlisted(ISSUES[0]))];
+    let found = violations_in(&table, &|_| None);
+    assert!(
+        found.iter().any(|f| f.contains("over its ceiling")),
+        "{found:?}"
+    );
 }

@@ -36,6 +36,60 @@ impl BattleScreen {
         for mut party in self.party_nodes.drain(..) {
             party.node.queue_free();
         }
+        for mut piece in self.fusion_nodes.drain(..) {
+            piece.queue_free();
+        }
+        self.fusion_frames.clear();
+    }
+
+    /// Draws the view's Fusion pieces (`BattleView::fusion`), building the
+    /// two sprites and loading the frames the first time a Fusion plays.
+    pub(super) fn draw_fusion(&mut self, pieces: &[psiv_runtime::FusionPiece]) {
+        if pieces.is_empty() && self.fusion_nodes.is_empty() {
+            return;
+        }
+        if self.fusion_frames.is_empty() {
+            let Some(frames) = self
+                .art
+                .as_ref()
+                .and_then(|art| art.fusion_frames(&self.pack_dir))
+            else {
+                godot_error!("battle art: the Fusion frames did not load");
+                return;
+            };
+            self.fusion_frames = frames;
+        }
+        while self.fusion_nodes.len() < 2 {
+            let mut node = Sprite2D::new_alloc();
+            node.set_centered(false);
+            node.set_z_index(-10);
+            node.set_visible(false);
+            self.base_mut().add_child(&node);
+            self.fusion_nodes.push(node);
+        }
+        for (index, node) in self.fusion_nodes.iter_mut().enumerate() {
+            let Some(piece) = pieces.get(index) else {
+                node.set_visible(false);
+                continue;
+            };
+            let Some(frame) = self.fusion_frames.get(usize::from(piece.frame)) else {
+                node.set_visible(false);
+                continue;
+            };
+            // A mirrored sprite keeps its position and mirrors its offsets.
+            let left = if piece.flipped {
+                -frame.origin.x - frame.size.x
+            } else {
+                frame.origin.x
+            };
+            node.set_texture(&frame.texture);
+            node.set_flip_h(piece.flipped);
+            node.set_position(Vector2::new(
+                f32::from(piece.x) + left as f32,
+                f32::from(piece.y) + frame.origin.y as f32,
+            ));
+            node.set_visible(true);
+        }
     }
 
     pub(super) fn build_background(&mut self, setup: &BattleSetup) {

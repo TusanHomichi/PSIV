@@ -33,6 +33,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
 from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
@@ -98,7 +99,7 @@ class SharedLockCase(unittest.TestCase):
         self.main = base / "main"
         self.worktree = base / "lanes" / "lane-a"
         self.main.mkdir()
-        self.git(self.main, "init", "-q", "-b", "main")
+        scratch_git.init(self.main)
         self.git(self.main, "config", "user.email", "lock@example.invalid")
         self.git(self.main, "config", "user.name", "lock test")
         self.git(self.main, "config", "commit.gpgsign", "false")

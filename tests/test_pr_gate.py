@@ -43,6 +43,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
+
 ROOT = Path(__file__).resolve().parents[1]
 
 IGNORED = """/rust/target
@@ -198,7 +200,7 @@ class ScratchRepo(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         self.repo = self.tmp / "repo"
         (self.repo / "tools").mkdir(parents=True)
-        git(self.tmp, "init", "-q", "-b", "main", str(self.repo))
+        scratch_git.init(self.repo)
         git(self.repo, "config", "user.email", "test@example.invalid")
         git(self.repo, "config", "user.name", "test")
         git(self.repo, "config", "commit.gpgsign", "false")

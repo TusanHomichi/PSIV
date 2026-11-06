@@ -255,15 +255,15 @@ fn the_reader_refuses_what_it_cannot_read() {
 
 #[test]
 fn too_many_forks_are_refused() {
-    // Seven distinct flags double the paths each time, past 64.
+    // Nine distinct flags double the paths each time, past 256.
     let mut bytes = Vec::new();
-    for flag in 0..7u8 {
+    for flag in 0..9u8 {
         bytes.extend_from_slice(&[0x30, 0x3C, 0x00, flag]);
         bytes.extend(jsr(TEST));
         bytes.extend_from_slice(&[0x67, 0x00, 0x00, 0x02]);
     }
     bytes.extend_from_slice(&RTS);
-    assert_eq!(run(&bytes).unwrap_err(), "more than 64 paths");
+    assert_eq!(run(&bytes).unwrap_err(), "more than 256 paths");
 }
 
 /// `MapDataMan_RanchOwner`'s shape: position words are writes, not deferred.

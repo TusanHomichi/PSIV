@@ -1,4 +1,5 @@
-"""Retail HINAS/RYUKA destinations and FieldRoutine_PlaceName entry records.
+"""Retail HINAS/RYUKA destinations, FieldRoutine_PlaceName entry records and
+the teleport windows' strings.
 
 Coordinates are the original Map_Start values (eight-pixel units), not cells.
 The Motavia loop reads 16 entries although only 13 precede the Dezolis table;
@@ -18,6 +19,36 @@ DUNGEON_TABLE = 0x61212
 DUNGEON_COUNT = 34
 ENTRY_TABLE = 0x664BC
 ENTRY_COUNT = 62
+# The teleport windows' strings, in the window charset: the town list's label
+# (`Win_TelepipePlaceList`, `ps4.asm:124040`, and RYUKA's copy at `:129261`)
+# and the three lines `Win_ItemTeleportMsg` and `Win_TechTeleportMsg` pick
+# from (`loc_5CB66`, `loc_60B26`). `$FC` is a line break.
+MESSAGES = (
+    ('towns_label', 0x2AA892),
+    ('teleported', 0x2AA896),
+    ('cannot_be_used', 0x2AA8BC),
+    ('not_enough_tp', 0x2AA8D2),
+)
+# `loc_2AA8D2` spells TP with the window font's two-tile pair `$7A $79`, which
+# the window charset leaves out.
+TP_TILES = {0x7A: 'T', 0x79: 'P'}
+MESSAGE_LIMIT = 64
+
+
+def decode_message(rom: bytes, offset: int) -> str:
+    """One `$FE`-terminated window string; `$FC` becomes a newline."""
+    end = rom.find(0xFE, offset, offset + MESSAGE_LIMIT)
+    if end < 0:
+        raise ValueError(f'no window string terminator within {MESSAGE_LIMIT} bytes of {offset:#x}')
+    text = []
+    for byte in rom[offset:end]:
+        if byte == 0xFC:
+            text.append('\n')
+        elif byte in TP_TILES:
+            text.append(TP_TILES[byte])
+        else:
+            text.append(decode_name(bytes([byte])))
+    return ''.join(text)
 
 
 def extract_travel(rom: bytes) -> dict:
@@ -57,9 +88,11 @@ def extract_travel(rom: bytes) -> dict:
         entries.append({'map': map_id, 'previous_map': previous_map,
                         'place_id': place, 'name': names[place],
                         'selector': selector, 'rom_offset': offset})
-    return {'format_version': 1, 'kind': 'field_travel',
+    messages = {key: decode_message(rom, offset) for key, offset in MESSAGES}
+    return {'format_version': 2, 'kind': 'field_travel',
             'rom_sha256': hashlib.sha256(rom).hexdigest(),
-            'towns': towns, 'dungeons': dungeons, 'entries': entries}
+            'towns': towns, 'dungeons': dungeons, 'entries': entries,
+            'messages': messages}
 
 
 def emit_travel(rom: bytes, directory: Path) -> dict:

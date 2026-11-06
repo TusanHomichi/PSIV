@@ -85,13 +85,14 @@ pub use pad::{Button, Pad};
 pub use save::{RuntimeSaveError, SaveStore, SessionSaveError};
 pub use session::{
     Activity, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
-    CampPage, CampSaveFailure, CampView, CommandMenuView, DamageView, DestinationPhase,
-    DestinationView, EnemyStatus, FALLBACK_SPAWN, FieldNoticeOpened, Frame, FrameMode,
-    GAME_OVER_FADE_FRAMES, GameOverFrame, JobBoardView, MenuPage, MenuRow, MenuView, MessageKind,
-    OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart, Session, ShopCounterView,
-    ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry, SkillSlotView, Start, TargetKind,
-    TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView,
-    TitleWindow, battle_dwell_frames, camp_fixture, scene_fixture,
+    CampPage, CampSaveFailure, CampView, CommandMenuView, CursorMemory, DamageView,
+    DestinationPhase, DestinationView, EnemyStatus, FALLBACK_SPAWN, FieldNoticeOpened, Frame,
+    FrameMode, Fusion, FusionPiece, GAME_OVER_FADE_FRAMES, GameOverFrame, JobBoardView, MenuPage,
+    MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart,
+    Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry,
+    SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TechniqueEntry, TitleEntry, TitleErase,
+    TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames,
+    camp_fixture, camp_travel_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 pub use view::ObjectMotion;
@@ -229,6 +230,9 @@ pub struct Runtime {
     /// Scene-only body drawn after the boarding object's replacement and
     /// before the blocking camera pan permits `Vehicle_Index` to be written.
     boarding_body: Option<psiv_core::VehicleState>,
+    /// The party slot a running scene seated off the trail: it walks in once
+    /// the scene hands the party back ([`psiv_core::Party::walk_in`]).
+    scene_walk_in: Option<usize>,
     /// Persistent `$FFFFECEC` (`Saved_Sound_Index`) used by retail scene and
     /// field-load comparisons. Godot owns playback, not this branch decision.
     saved_sound_index: u8,

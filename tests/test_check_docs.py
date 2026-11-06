@@ -32,6 +32,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests import scratch_git
 from tools.repo_files import repo_files
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,7 +132,7 @@ class RepoCase(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
-        self.git("init", "-q", "-b", "main")
+        scratch_git.init(self.root, env=git_env(self.home))
         self.git("add", "-A")  # the tracked files are the change the checker reads
         return run_checker(self.root, self.home)
 

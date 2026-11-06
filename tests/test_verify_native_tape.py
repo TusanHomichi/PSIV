@@ -15,6 +15,7 @@ import contextlib
 import io
 import json
 
+from tests import scratch_git
 from tools import verify_native_tape
 from tools.godot import required_version
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
@@ -78,7 +79,7 @@ class NativeTapeIdentityGuard(unittest.TestCase):
     def test_untracked_directory_symlink_is_hashed_without_following_it(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
                             "-c", "user.email=test@example.invalid", "commit",
                             "--allow-empty", "-qm", "base"], check=True)
@@ -100,7 +101,7 @@ class NativeTapeIdentityGuard(unittest.TestCase):
     def test_quoted_and_newline_filename_keeps_its_actual_path(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
                             "-c", "user.email=test@example.invalid", "commit",
                             "--allow-empty", "-qm", "base"], check=True)
@@ -188,8 +189,11 @@ class NativeTapeHostPower(unittest.TestCase):
 
 FAKE_GODOT = """#!{python}
 # Stands in for Godot: answers the resolver's version query, then writes the
-# driver's report and slot snapshot.
-import json, os, sys
+# driver's report and slot snapshot. A real replay runs long after the verifier
+# has read its process map; this one stays up until the stand-in for that read
+# has run (it leaves FAKE_MAPPED_SIGNAL), or the replay could end before the
+# verifier first looks, and the receipt would rightly fail unbound (#369).
+import json, os, sys, time
 if sys.argv[1:] == ["--version"]:
     print("{version}.stable.official.fake")
     sys.exit(0)
@@ -204,6 +208,9 @@ with open(os.environ["PSIV_TAPE_SNAPSHOT_OUT"], "wb") as out:
     out.write(b"slot")
 with open(os.environ["PSIV_TAPE_REPORT"], "w") as out:
     json.dump({{"result": "pass", "rss_samples": samples, "rss_probes": probes}}, out)
+deadline = time.monotonic() + 30  # under the cases' --timeout 60
+while not os.path.exists(os.environ["FAKE_MAPPED_SIGNAL"]) and time.monotonic() < deadline:
+    time.sleep(0.01)
 """
 
 
@@ -211,14 +218,14 @@ class NativeTapeReceiptRss(unittest.TestCase):
     """`main` itself: a failing RSS verdict fails the receipt, everything else
     being a pass (Godot, the process map and Git are stood in for)."""
 
-    def run_main(self, rows, extra=(), probes=None, maps_checkout=False):
+    def run_main(self, rows, extra=(), probes=None, maps_checkout=False, observed=True):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             probe_save = root / "academy.sram"
             probe_save.write_bytes(b"probe save")
             extra = [str(probe_save) if arg == "PROBE" else arg for arg in extra]
             # The run root copies the project's files as Git lists them.
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            scratch_git.init(root, branch=None)
             (root / "godot").mkdir()
             (root / "godot/project.godot").write_text("[application]\n")
             library = root / "rust/target/debug/libpsiv_godot.so"
@@ -234,14 +241,21 @@ class NativeTapeReceiptRss(unittest.TestCase):
             godot = root / "godot-bin"
             godot.write_text(FAKE_GODOT.format(python=sys.executable, version=required_version()))
             godot.chmod(0o755)
+            signal_path = root / "mapped-observed"
             def mapped(pid, path):  # Godot maps the run root's snapshot
                 if maps_checkout:  # negative control: the checkout's own library
                     path = library.resolve()
+                signal_path.touch()  # the fake Godot may exit now
+                if not observed:  # negative control: it exited before the first look
+                    return None
                 return {"path": str(path), "inode": path.stat().st_ino}
-            env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
+            env = {"FAKE_MAPPED_SIGNAL": str(signal_path),
+                   "FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
                    "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
                     mock.patch.dict(os.environ, {"PSIV_GODOT": str(godot)}), \
+                    mock.patch.object(verify_native_tape, "exit_leaks_binary"), \
+                    mock.patch.object(verify_native_tape, "logged_exit_leaks", return_value=[]), \
                     mock.patch.object(verify_native_tape, "mapped_extension_in_process_tree",
                                       side_effect=mapped), \
                     mock.patch.object(verify_native_tape, "source_identity",
@@ -272,6 +286,13 @@ class NativeTapeReceiptRss(unittest.TestCase):
     def test_negative_control_godot_mapping_the_checkout_library_fails(self):
         code, receipt = self.run_main([(300, 100, 10, 1)] * 6, maps_checkout=True)
         self.assertEqual(code, 1)
+        self.assertIs(receipt["mapped_library_matches_preflight"], False)
+        self.assertIs(receipt["pass"], False)
+
+    def test_negative_control_a_godot_never_seen_mapping_its_library_fails(self):
+        code, receipt = self.run_main([(300, 100, 10, 1)] * 6, observed=False)
+        self.assertEqual(code, 1)
+        self.assertIsNone(receipt["mapped_extension"])
         self.assertIs(receipt["mapped_library_matches_preflight"], False)
         self.assertIs(receipt["pass"], False)
 

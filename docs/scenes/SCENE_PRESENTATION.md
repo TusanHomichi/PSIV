@@ -33,7 +33,7 @@ decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMA
 | `battle-tech` | **0.000000** | clone t600 (`tech,cursor=0,blink=14/1`) ↔ tape-32 frame 25400, the technique window |
 | `battle-status` | **0.000000** | clone t200 (Chaz asleep, Alys paralyzed, Hahn sealed) ↔ tape-32 frame 25000 with three `Character_Stats` patches |
 | `battle-status-2` | **0.000000** | clone t200 (poisoned, dead, asleep+sealed) ↔ the same frame, other patches |
-| `battle-fusion` | **0.000000** | clone t714 (a defended round of formation `$D2`) ↔ tape-33 frame 25560, the MetaSlug |
+| `battle-fusion` | **0.000000** | clone t758 (a defended round of formation `$D2`, blink seed 21/0) ↔ tape-33 frame 25560, the MetaSlug |
 
 The mid-round attack ([#52](https://github.com/TusanHomichi/PSIV/issues/52)) is
 not certified: its fixture reads `rmse=20.254240` against tape-34 frame 25377
@@ -93,9 +93,10 @@ gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --fixed-fps
   Godot's physics catch-up under uneven render pacing makes the captured
   previous-frame texture reflect a load-dependent tick.
 
-`psiv_tools/presentation_rmse.py` crops the centred 960x672 3x surface from
-`PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE against an
-oracle frame; the identity-path check is `rmse=0.000000`.
+`presentation-rmse` (`rust/psiv-compare`) crops the centred 960x672 3x
+surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE
+against an oracle frame, over the whole frame or one `--region
+x,y,width,height`; the identity-path check is `rmse=0.000000`.
 
 ## Placement findings
 
@@ -310,10 +311,8 @@ coordinates, and the opening image addresses in
 `oracle/decode_layout.py` against the committed frame-4000 state; its
 `self_check.passed` value is `true` and all four layout checks pass.
 
-Godot capture comparison uses `psiv_tools/presentation_rmse.py`. It crops the
-centred 960x672 3x surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224,
-and reports RGB RMSE against an oracle frame. The identity-path tool check is
-`rmse=0.000000`.
+Godot capture comparison uses `presentation-rmse`, described under the
+capture doctrine above.
 
 ## Opening cinematic
 
@@ -345,5 +344,3 @@ already pre-empted.
   effects use the decoded cutscene-layer redraw/overlay seam. A future CRAM
   renderer can replace that shell effect without changing the dialogue action
   timing or dispatch contract.
-- **Teardown noise:** Godot's Dummy-driver forced quit reports one
-  `AudioStreamGeneratorPlayback` ObjectDB leak after a scene completes.

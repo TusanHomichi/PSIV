@@ -462,6 +462,13 @@ impl Field {
         self.sync_transition();
     }
 
+    /// A transition whose length the runtime measured (a teleport's load).
+    pub(super) fn start_transition_frames(&mut self, kind: TransitionKind, frames: u16) {
+        self.transition = Some(Transition::with_frames(kind, frames));
+        self.ensure_transition_nodes();
+        self.sync_transition();
+    }
+
     /// Advances transitions even while the battle presentation owns the
     /// normal runtime tick.
     pub(super) fn tick_transition(&mut self) {

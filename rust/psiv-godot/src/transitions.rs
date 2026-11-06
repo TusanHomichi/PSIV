@@ -26,6 +26,10 @@ pub(crate) enum TransitionKind {
     SceneFadeIn,
     /// A scene's direct `PalFadeOut_ClrSpriteTbl` ramp.
     SceneFadeOut,
+    /// A teleport: `MenuExit_Teleport`'s `PalFadeOut_ClrSpriteTbl`, then the
+    /// destination's `GameMode_LoadFieldMap` rows (the transition's
+    /// `frames`), black until its closing `Pal_FadeIn` ramp.
+    Teleport,
 }
 
 /// The solid colour used by the current palette ramp.
@@ -96,6 +100,7 @@ impl Transition {
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
+            TransitionKind::Teleport => self.teleport_visual(),
         }
     }
 
@@ -112,6 +117,9 @@ impl Transition {
     }
 
     fn duration(self) -> u16 {
+        if self.kind == TransitionKind::Teleport {
+            return TELEPORT_FADE_OUT_FRAMES + self.frames.unwrap_or(FADE_IN_FRAMES);
+        }
         if let Some(frames) = self.frames {
             return frames;
         }
@@ -121,7 +129,28 @@ impl Transition {
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
+            TransitionKind::Teleport => unreachable!("handled above"),
         }
+    }
+
+    /// The fade-out's 13 stepped frames after its unchanged first, then the
+    /// load: black until the last 13 of its rows, which ramp back in. On the
+    /// oracle (tape 36, MILE from Piata Academy): first dark frame 8391,
+    /// black 8403, mode 8 from 8404 for map 0's 61 rows, first lit frame
+    /// 8452, clear 8464, control 8465.
+    fn teleport_visual(self) -> Option<TransitionVisual> {
+        if self.finished() {
+            return None;
+        }
+        if self.age < TELEPORT_FADE_OUT_FRAMES {
+            return (self.age > 0).then(|| black(step_up(self.age)));
+        }
+        let load = self.age - TELEPORT_FADE_OUT_FRAMES;
+        let rows = self.frames.unwrap_or(FADE_IN_FRAMES);
+        let display_enable = rows.saturating_sub(14);
+        Some(black(PALETTE_LEVELS.saturating_sub(step_up(
+            load.saturating_sub(display_enable),
+        ))))
     }
 
     fn doorway_visual(self) -> Option<TransitionVisual> {
@@ -192,6 +221,11 @@ impl Transition {
         Some(black(step_up(self.age)))
     }
 }
+
+/// `PalFadeOut_ClrSpriteTbl`'s frames: one unchanged, then thirteen stepped.
+const TELEPORT_FADE_OUT_FRAMES: u16 = 14;
+/// `Pal_FadeIn`'s rows, the least a field load spends.
+const FADE_IN_FRAMES: u16 = 16;
 
 fn black(level: u8) -> TransitionVisual {
     TransitionVisual {
@@ -303,6 +337,30 @@ mod tests {
             darkest_again, None,
             "no second blackout after the ramp starts"
         );
+    }
+
+    /// Tape 36's teleport to MILE, frame by frame from 8390 (the first frame
+    /// after the last window closed): the levels step every two frames to
+    /// black at 8403, hold through the overworld's 61 load rows, ramp from
+    /// 8452 and clear at 8464; control returns at 8465.
+    #[test]
+    fn a_teleport_fades_out_then_spends_the_destinations_load_rows() {
+        let mut teleport = Transition::with_frames(TransitionKind::Teleport, 61);
+        let mut levels = vec![teleport.visual().map_or(0, |visual| visual.level)];
+        while !teleport.tick() {
+            levels.push(teleport.visual().map_or(0, |visual| visual.level));
+        }
+        let at = |frame: usize| levels[frame - 8390];
+        assert_eq!(levels.len(), 8465 - 8390, "control returns at 8465");
+        assert_eq!(at(8390), 0);
+        assert_eq!((at(8391), at(8392), at(8393)), (1, 1, 2));
+        assert_eq!(at(8403), 7, "black");
+        assert!(
+            (8403..=8451).all(|frame| at(frame) == 7),
+            "the load's black rows"
+        );
+        assert_eq!((at(8452), at(8453), at(8454)), (6, 6, 5));
+        assert_eq!(at(8464), 0, "clear on the load's last row");
     }
 
     #[test]
