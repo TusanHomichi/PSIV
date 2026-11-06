@@ -991,3 +991,6 @@ fn a_full_pack_can_discard_an_item_to_take_the_chest() {
     player.press(Button::Speak);
     assert!(player.session.camp_view().is_none());
 }
+
+#[path = "session_menus/hand_cancel.rs"]
+mod hand_cancel;
