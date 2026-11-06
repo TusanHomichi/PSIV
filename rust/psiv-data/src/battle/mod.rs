@@ -402,6 +402,7 @@ mod command_art;
 mod damage_art;
 mod enemies;
 mod formations;
+mod fusion_art;
 mod levels;
 mod party;
 
@@ -418,6 +419,7 @@ pub use formations::{
     EncounterGroup, EncounterGroups, Formation, FormationEnemy, FormationsFile, MapBinding,
     NamedMapRef, PositionGrid,
 };
+pub use fusion_art::{FUSION_ART_PATH, FUSION_FRAMES, FusionArt, FusionFrame};
 pub use levels::{Level, LevelStats, LevelTable, LevelsFile};
 pub use party::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,

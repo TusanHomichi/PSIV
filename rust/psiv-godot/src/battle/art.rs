@@ -28,23 +28,8 @@ pub(crate) struct BattleArt {
     enemy_attacks: BTreeMap<u16, EnemyAttackArtFileEntry>,
     background_tables: BackgroundTables,
     enemy_palette: EnemyPaletteLayout,
-    fusion: FusionArtFile,
-}
-
-/// `battle/art/fusion.json`: the Zol slugs' Fusion frames
-/// (`psiv_tools/battle_fusion_art.py`), drawn in the casting slug's palette.
-#[derive(Deserialize)]
-struct FusionArtFile {
-    palette_enemy_id: u16,
-    frames: Vec<FusionFrameFile>,
-}
-
-#[derive(Deserialize)]
-struct FusionFrameFile {
-    index: usize,
-    png: String,
-    origin: [i32; 2],
-    size: [i32; 2],
+    /// The Zol slugs' Fusion frames, which `psiv_data::FusionArt` owns.
+    fusion: psiv_data::FusionArt,
 }
 
 /// One Fusion frame as the stage draws it: the texture, its top-left
@@ -188,15 +173,7 @@ impl BattleArt {
         let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")?;
         let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
         let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
-        let fusion: FusionArtFile = read_json(pack_dir, "battle/art/fusion.json")?;
-        if fusion
-            .frames
-            .iter()
-            .enumerate()
-            .any(|(index, frame)| frame.index != index)
-        {
-            return Err("battle/art/fusion.json frames are out of order".into());
-        }
+        let fusion = psiv_data::FusionArt::load(Path::new(pack_dir)).map_err(|e| e.to_string())?;
 
         let enemies = enemy_file
             .enemies

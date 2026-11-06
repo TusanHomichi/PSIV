@@ -101,6 +101,9 @@ impl GameData {
             file,
             &data.manifest.rom.sha256,
         )?);
+        // Required: the battle stage loads the Fusion frames with the rest of
+        // its art, so an older pack without them is rebuilt before any battle.
+        crate::FusionArt::load(pack_dir)?;
         if let Some(file) = &data.manifest.ship_menu {
             data.ship_menu = Some(crate::ShipMenu::load(
                 pack_dir,

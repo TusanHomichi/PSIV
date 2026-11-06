@@ -68,6 +68,7 @@ impl TempPack {
             })
             .to_string(),
         );
+        self.write_fusion(version);
         self.write("sprites/party.json", &empty);
         self.write(
             "sprites/npcs.json",
@@ -75,9 +76,72 @@ impl TempPack {
         );
     }
 
+    /// The Fusion frames' index and five placeholder PNGs (#64).
+    fn write_fusion(&self, version: u32) {
+        let frames: Vec<_> = (0..crate::FUSION_FRAMES)
+            .map(|index| {
+                let png = format!("battle/art/fusion/{index}.png");
+                self.write(&png, "png");
+                serde_json::json!({"index": index, "png": png, "origin": [-24, -32], "size": [48, 32]})
+            })
+            .collect();
+        self.write(
+            crate::FUSION_ART_PATH,
+            &serde_json::json!({"format_version": version, "kind": "battle_fusion_art",
+                                "palette_enemy_id": 34, "frames": frames})
+            .to_string(),
+        );
+    }
+
     fn load(&self) -> Result<GameData, DataError> {
         GameData::load(&self.dir)
     }
+}
+
+/// #64: a pack from before the Fusion's frames is refused with a rebuild
+/// message, so no battle starts with its art missing.
+#[test]
+fn a_pack_without_the_fusion_frames_is_refused_for_a_rebuild() {
+    let pack = TempPack::new("no-fusion");
+    pack.populate(PACK_FORMAT_VERSION);
+    std::fs::remove_file(pack.dir.join(crate::FUSION_ART_PATH)).expect("remove the frames");
+    match pack.load() {
+        Err(DataError::ManifestMismatch {
+            field, manifest, ..
+        }) => assert_eq!(
+            (field, manifest.as_str()),
+            ("fusion", "absent; rebuild the pack")
+        ),
+        other => panic!("expected a rebuild refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn fusion_frames_out_of_order_or_without_their_pngs_are_refused() {
+    let pack = TempPack::new("bad-fusion");
+    pack.populate(PACK_FORMAT_VERSION);
+    std::fs::remove_file(pack.dir.join("battle/art/fusion/3.png")).expect("remove a frame");
+    assert!(matches!(
+        pack.load(),
+        Err(DataError::ManifestMismatch {
+            field: "fusion",
+            ..
+        })
+    ));
+    let pack = TempPack::new("bad-fusion-order");
+    pack.populate(PACK_FORMAT_VERSION);
+    let path = pack.dir.join(crate::FUSION_ART_PATH);
+    let text = std::fs::read_to_string(&path)
+        .unwrap()
+        .replacen("\"index\":1", "\"index\":2", 1);
+    std::fs::write(&path, text).unwrap();
+    assert!(matches!(
+        pack.load(),
+        Err(DataError::ManifestMismatch {
+            field: "fusion",
+            ..
+        })
+    ));
 }
 
 impl Drop for TempPack {
