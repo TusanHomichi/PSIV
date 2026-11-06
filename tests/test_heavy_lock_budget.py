@@ -11,8 +11,10 @@ head is never passed by a smaller arrival; a failed or refused take gives back
 every handle; a killed holder's units come back; nesting across shared classes
 and a budget mismatch are refused. With no budget (the default) shared
 holders never wait on one another, an exclusive run still waits for them, each
-is named by its class, and a holder with a budget does not count them. Each
-has a negative control.
+is named by its class, and a holder with a budget does not count them. A
+/proc/locks line on another file system never counts as a unit held, whatever
+its inode number (`DeviceCase` finds the device the kernel names). Each has a
+negative control.
 """
 
 import fcntl
@@ -22,14 +24,19 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses, read_until
 from tools import heavy_lock as heavy_lock_module
 from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, PACK, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
+
+#: The module heavy_lock reads holders through (it imports `tools/` by path).
+flock_holders = heavy_lock_module.flock_holders
 
 
 #: The 13.5 GB development host's budget, which BudgetCase runs under.
@@ -266,6 +273,33 @@ class BudgetCase(LockProcesses):
             held, counts = self.counts_under_churn(20, until_short=True)
         self.assertLess(min(counts), held, f"{len(counts)} reads, none short")
 
+    def units_with_a_line_on(self, device):
+        """`units_in_use` with 3 units held and a /proc/locks that adds one
+        more lock, on a free unit file's inode number on `device`."""
+        held = heavy_lock_module._take_files(str(self.lock), "unit", 3, 16, UNITS_ENV, GODOT)
+        self.addCleanup(lambda: [os.close(handle) for handle in held])
+        free = f"{self.lock}.unit3"
+        os.close(os.open(free, os.O_RDWR | os.O_CREAT, 0o644))
+        line = (f"99: FLOCK  ADVISORY  READ {os.getpid()} "
+                f"{device[0]:02x}:{device[1]:02x}:{os.stat(free).st_ino} 0 EOF")
+        proc_locks = self.lock.parent.parent / "proc-locks"
+        proc_locks.write_text(Path("/proc/locks").read_text() + line + "\n")
+        return units_in_use(self.lock, proc_locks)
+
+    def test_a_lock_on_another_file_system_with_a_units_inode_number_is_not_held(self):
+        """#380: /proc/locks lists every file system's locks, and an inode
+        number is unique only within one, so a lock on another ZFS dataset
+        whose object number equals a unit file's is someone else's file (it
+        read 5 units for 3 in a gate)."""
+        foreign = (0xfe, 0xfe)  # not the lock directory's device (checked below)
+        device = os.stat(self.lock.parent).st_dev
+        self.assertNotEqual(foreign, (os.major(device), os.minor(device)))
+        self.assertEqual(self.units_with_a_line_on(foreign), 3)
+
+    def test_negative_control_the_same_line_on_the_units_file_system_is_held(self):
+        device = os.stat(self.lock.parent).st_dev
+        self.assertEqual(self.units_with_a_line_on((os.major(device), os.minor(device))), 4)
+
     def test_negative_control_a_budget_one_unit_short_makes_the_suite_wait(self):
         # The extension class: a budget is never below the largest class.
         short = CLASS_UNITS[EXTENSION] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON] - 1
@@ -467,6 +501,56 @@ class BudgetCase(LockProcesses):
         self.assertEqual(lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()))}),
                          max(CLASS_UNITS.values()))
 
+
+
+class DeviceCase(unittest.TestCase):
+    """`flock_holders.lock_devices`: the devices a /proc lock line names for a
+    lock directory, its `st_dev` and its mount's, read from a mountinfo file
+    written here (on btrfs the kernel prints the mount's, not a subvolume's
+    `st_dev`)."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.base = Path(tmp.name).resolve()
+        self.lockdir = self.base / "sub vol" / "build"
+        self.lockdir.mkdir(parents=True)
+        device = os.stat(self.lockdir).st_dev
+        self.own = (os.major(device), os.minor(device))
+
+    def devices(self, *mounts):
+        """`lock_devices` under a mountinfo of `(device, mount point)` lines, in order."""
+        mountinfo = self.base / "mountinfo"
+        mountinfo.write_text("".join(
+            f"{index} 1 {device} / {point.replace(' ', chr(92) + '040')} rw - zfs pool rw\n"
+            for index, (device, point) in enumerate(mounts, 30)))
+        return flock_holders.lock_devices(self.lockdir / "heavy.lock", mountinfo)
+
+    def test_the_longest_mount_point_above_the_directory_names_the_device(self):
+        found = self.devices(("0:1", "/"), ("0:2", str(self.base / "sub vol")),
+                             ("0:3", str(self.base / "sub")), ("0:4", str(self.lockdir / "x")))
+        self.assertEqual(found, {self.own, (0, 2)})
+
+    def test_negative_control_a_string_prefix_is_not_a_mount_above_it(self):
+        """`<base>/sub` is a prefix of `<base>/sub vol`'s text, not of its path."""
+        self.assertEqual(self.devices(("0:1", "/"), ("0:3", str(self.base / "sub"))),
+                         {self.own, (0, 1)})
+
+    def test_a_later_mount_over_the_same_point_names_the_device(self):
+        point = str(self.base / "sub vol")
+        self.assertEqual(self.devices(("0:2", point), ("0:5", point)), {self.own, (0, 5)})
+
+    def test_a_line_on_the_mounts_device_is_held_and_one_elsewhere_is_not(self):
+        devices = self.devices(("0:2", str(self.base / "sub vol")))
+        lines = ["1: FLOCK  ADVISORY  WRITE 10 00:02:77 0 EOF",
+                 "2: FLOCK  ADVISORY  READ 11 00:09:77 0 EOF",
+                 "3: FLOCK  ADVISORY  READ 12 00:02:78 0 EOF"]
+        self.assertEqual(flock_holders.parse_lock_lines(lines, devices=devices),
+                         [(10, 77, True), (12, 78, False)])
+        self.assertEqual(len(flock_holders.parse_lock_lines(lines)), 3, "no devices: every line")
+
+    def test_a_directory_that_does_not_exist_holds_no_locks(self):
+        self.assertEqual(flock_holders.lock_devices(self.base / "gone" / "heavy.lock"), set())
 
 
 class NoBudgetCase(LockProcesses):
