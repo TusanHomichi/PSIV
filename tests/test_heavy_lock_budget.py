@@ -13,8 +13,8 @@ and a budget mismatch are refused. With no budget (the default) shared
 holders never wait on one another, an exclusive run still waits for them, each
 is named by its class, and a holder with a budget does not count them. A
 /proc/locks line on another file system never counts as a unit held, whatever
-its inode number (`DeviceCase` finds the device the kernel names). Each has a
-negative control.
+its inode number (tests/test_gate_lock_holders.py tests how its device is
+found). Each has a negative control.
 """
 
 import fcntl
@@ -24,7 +24,6 @@ import os
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -34,9 +33,6 @@ from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses,
 from tools import heavy_lock as heavy_lock_module
 from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, PACK, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
-
-#: The module heavy_lock reads holders through (it imports `tools/` by path).
-flock_holders = heavy_lock_module.flock_holders
 
 
 #: The 13.5 GB development host's budget, which BudgetCase runs under.
@@ -501,56 +497,6 @@ class BudgetCase(LockProcesses):
         self.assertEqual(lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()))}),
                          max(CLASS_UNITS.values()))
 
-
-
-class DeviceCase(unittest.TestCase):
-    """`flock_holders.lock_devices`: the devices a /proc lock line names for a
-    lock directory, its `st_dev` and its mount's, read from a mountinfo file
-    written here (on btrfs the kernel prints the mount's, not a subvolume's
-    `st_dev`)."""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.base = Path(tmp.name).resolve()
-        self.lockdir = self.base / "sub vol" / "build"
-        self.lockdir.mkdir(parents=True)
-        device = os.stat(self.lockdir).st_dev
-        self.own = (os.major(device), os.minor(device))
-
-    def devices(self, *mounts):
-        """`lock_devices` under a mountinfo of `(device, mount point)` lines, in order."""
-        mountinfo = self.base / "mountinfo"
-        mountinfo.write_text("".join(
-            f"{index} 1 {device} / {point.replace(' ', chr(92) + '040')} rw - zfs pool rw\n"
-            for index, (device, point) in enumerate(mounts, 30)))
-        return flock_holders.lock_devices(self.lockdir / "heavy.lock", mountinfo)
-
-    def test_the_longest_mount_point_above_the_directory_names_the_device(self):
-        found = self.devices(("0:1", "/"), ("0:2", str(self.base / "sub vol")),
-                             ("0:3", str(self.base / "sub")), ("0:4", str(self.lockdir / "x")))
-        self.assertEqual(found, {self.own, (0, 2)})
-
-    def test_negative_control_a_string_prefix_is_not_a_mount_above_it(self):
-        """`<base>/sub` is a prefix of `<base>/sub vol`'s text, not of its path."""
-        self.assertEqual(self.devices(("0:1", "/"), ("0:3", str(self.base / "sub"))),
-                         {self.own, (0, 1)})
-
-    def test_a_later_mount_over_the_same_point_names_the_device(self):
-        point = str(self.base / "sub vol")
-        self.assertEqual(self.devices(("0:2", point), ("0:5", point)), {self.own, (0, 5)})
-
-    def test_a_line_on_the_mounts_device_is_held_and_one_elsewhere_is_not(self):
-        devices = self.devices(("0:2", str(self.base / "sub vol")))
-        lines = ["1: FLOCK  ADVISORY  WRITE 10 00:02:77 0 EOF",
-                 "2: FLOCK  ADVISORY  READ 11 00:09:77 0 EOF",
-                 "3: FLOCK  ADVISORY  READ 12 00:02:78 0 EOF"]
-        self.assertEqual(flock_holders.parse_lock_lines(lines, devices=devices),
-                         [(10, 77, True), (12, 78, False)])
-        self.assertEqual(len(flock_holders.parse_lock_lines(lines)), 3, "no devices: every line")
-
-    def test_a_directory_that_does_not_exist_holds_no_locks(self):
-        self.assertEqual(flock_holders.lock_devices(self.base / "gone" / "heavy.lock"), set())
 
 
 class NoBudgetCase(LockProcesses):
