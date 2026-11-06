@@ -31,9 +31,10 @@
 //! coordinate transform and conditional refresh/pan gate, with the runtime's
 //! existing camera glide completing before `Vehicle_Index` is set.
 
-use crate::scene::SceneOp;
+use crate::scene::{DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
+use crate::scene_types::{GetOffOp, SystemLine};
 use crate::trigger::EventIndex;
 
 /// `MusicID_LandMaster` (`ps4.constants.asm:930`).
@@ -144,5 +145,59 @@ pub static BOARDING_HYDROFOIL: Scene = Scene {
         },
         SceneOp::AlignVehicleBoarding { index: 3 },
         SceneOp::SetVehicleIndex { index: 3 },
+    ],
+};
+
+/// `Pal_Init_Line_3`, copied to `Palette_Line_3` (`$FFFFFB40`) on the way
+/// down: `moveq #$10, d7 / trap #1` moves seventeen words, one into line 4.
+const PAL_INIT_LINE_3: u32 = 0x0029_6300;
+/// See [`PAL_INIT_LINE_3`].
+const PALETTE_LINE_3: u32 = 0xFFFF_FB40;
+
+/// `$0010`, `Event_GettingOffVehicle`, EventPtrs[`$10`], retail
+/// `$06BEF8..$06C023` (`ps4.asm:145343-145413`; record
+/// `docs/scenes/207_GettingOffVehicle.md`). `loc_56084` writes the index when
+/// a button reaches the field input while the party rides.
+///
+/// On open ground every character object is rebuilt on the machine's spot and
+/// facing (`loc_6BF4E`), `Vehicle_Index` goes to 0 and the map's music plays.
+/// Anywhere else `CannotGetOffString` opens until a press, the window goes and
+/// the map's chunks reload; the party stays mounted.
+pub static GETTING_OFF_VEHICLE: Scene = Scene {
+    name: "Event_GettingOffVehicle",
+    event: EventIndex(0x0010),
+    ops: &[
+        // 0: `loc_4587A`, then the `tst.w d7 / bne loc_6BFB4` each machine
+        // reaches.
+        SceneOp::GetOff(GetOffOp::BranchIfBlocked {
+            if_blocked: 7,
+            if_clear: 1,
+        }),
+        // 1-2: `Field_BuildSprites`, `VInt_Prepare`.
+        SceneOp::Presentation {
+            op: PresentationOp::RebuildSprites,
+        },
+        SceneOp::WaitFrames { frames: 1 },
+        // 3
+        SceneOp::Presentation {
+            op: PresentationOp::CopyRamWords {
+                source_ram: PAL_INIT_LINE_3,
+                destination_ram: PALETTE_LINE_3,
+                words: 17,
+            },
+        },
+        // 4-5: `loc_6BF4E` and `Vehicle_Index := 0`, then `AdjustMusicIDs`.
+        SceneOp::SetVehicleIndex { index: 0 },
+        SceneOp::GetOff(GetOffOp::PlayMapMusic),
+        SceneOp::End,
+        // 7-8: `loc_6BFB4`: the window, held until a press of a direction, A,
+        // B or C, then `Window_Destroy` and `Map_LoadChunks`.
+        SceneOp::RunDialogue {
+            source: DialogueSource::System(SystemLine::CannotGetOff),
+            window: DialogueWindow::Standard,
+        },
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
     ],
 };

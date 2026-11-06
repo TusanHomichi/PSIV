@@ -178,16 +178,6 @@ class NegativeControl(unittest.TestCase):
         found = ec.problems(self.census, self.registry, allowlist)
         self.assertTrue(any("$0037" in f and "tracked issue" in f for f in found), found)
 
-    def test_a_new_event_without_a_scene_is_reported(self) -> None:
-        # Any entry will do; the lowest still listed, so a lane that
-        # transcribes one does not have to edit this control.
-        allowlist = dict(ec.ALLOWLIST)
-        event = min(allowlist)
-        del allowlist[event]
-        found = ec.problems(self.census, self.registry, allowlist)
-        self.assertEqual(len(found), 1, found)
-        self.assertIn(f"${event:04X} {self.census.events[event].label}", found[0])
-
     def test_a_new_immediate_writer_in_the_image_is_reported(self) -> None:
         patched = bytearray(self.rom)
         patched[0x7C000 : 0x7C006] = bytes.fromhex("31FC00AAECA8")

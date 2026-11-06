@@ -150,7 +150,10 @@ pub use scene_presentation::{
     palette_cycle_writes,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
-pub use scene_types::{GuildOp, ItemOp, JobBoardStep, ObjectOp, RideOp, RockyOp};
+pub use scene_types::{
+    GetOffOp, GuildOp, ItemOp, JobBoardStep, ObjectOp, RideOp, RockyOp, SystemLine,
+};
+pub use scenes::fifth_character::{FifthRow, FifthTable};
 pub use scenes::hunters_guild::{
     GuildArrival, GuildChoice, GuildJob, GuildJobs, GuildLine, JobColour, JobRow,
     choice as guild_choice, dispatch as guild_dispatch, job_row,

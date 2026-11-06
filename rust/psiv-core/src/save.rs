@@ -58,6 +58,17 @@ const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
 // save; `None` writes nothing, so every other save keeps the retail zeroes.
 // The field starts after the dungeon exit's `$F022..$F025`.
 const RUST_SAVED_PARTY_OFFSET: usize = 0x26;
+// `SY`: this slot's `$F408` word is retail's object Y, one row above the
+// standing cell. Native slots written before the marker (#129) stored the
+// standing row times 16; each carries some native metadata in `$F020..$F02D`
+// (the roster mask, the `TR` exit or the `PS` bridge), which a cartridge
+// image never does (`InitSRAM` zeroes the header, ps4.asm:134737).
+// The field starts after the saved-party bridge's `$F026..$F02D`.
+const RUST_STANDING_Y_OFFSET: usize = 0x2E;
+const STANDING_Y_MARKER: &[u8; 2] = b"SY";
+/// The pixels between the standing row and the leader object's `curr_y_pos`:
+/// an object stands on the cell one row below its own Y (`start_cell`).
+const STANDING_ROW_PIXELS: u16 = 16;
 const LOCATION_WORLD_OFFSET: usize = 0x300;
 const LOCATION_MAP_2_OFFSET: usize = 0x302;
 const LOCATION_MAP_OFFSET: usize = 0x304;
@@ -79,7 +90,14 @@ const VEHICLE_OFFSET: usize = 0x980;
 const SIGNATURE: &[u8; 15] = b"PHANTASY STAR 4";
 
 /// The location fields the retail load path restores before entering the
-/// field. Coordinates are pixel words, as they are at `$F406`/`$F408`.
+/// field. X is the pixel word at `$F406`.
+///
+/// Y is the leader's *standing* row times 16, the runtime's convention. The
+/// cartridge stores the object's `curr_y_pos` at `$F408` (`SaveGame`,
+/// ps4.asm:119576-119577), which is one row less, and its loader turns that
+/// word back into a start row (`loc_53546`, ps4.asm:110808-110814). The codec
+/// is the one place the two meet: it writes `char_y - 16` and reads `+ 16`,
+/// so a native slot's payload and a cartridge image agree byte for byte.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RetailLocation {
     /// `$F400`, the world/planet index.
@@ -90,7 +108,7 @@ pub struct RetailLocation {
     pub map_index: u16,
     /// `$F406`, the saved leader x position in pixels.
     pub char_x: u16,
-    /// `$F408`, the saved leader y position in pixels.
+    /// The leader's standing row times 16: `$F408` plus 16 (see above).
     pub char_y: u16,
 }
 
@@ -180,7 +198,11 @@ impl RetailSlot {
         );
         write_u16(&mut payload, LOCATION_MAP_OFFSET, save.location.map_index);
         write_u16(&mut payload, LOCATION_X_OFFSET, save.location.char_x);
-        write_u16(&mut payload, LOCATION_Y_OFFSET, save.location.char_y);
+        write_u16(
+            &mut payload,
+            LOCATION_Y_OFFSET,
+            save.location.char_y.wrapping_sub(STANDING_ROW_PIXELS),
+        );
 
         let mut header = [0; RETAIL_HEADER_LOGICAL_BYTES];
         header[SIGNATURE_OFFSET..SIGNATURE_OFFSET + SIGNATURE.len()].copy_from_slice(SIGNATURE);
@@ -190,15 +212,13 @@ impl RetailSlot {
             CHECKSUM_OFFSET + slot * 2,
             payload_checksum(&payload),
         );
-        let roster_mask = save
-            .snapshot
-            .characters
-            .iter()
-            .enumerate()
-            .fold(0_u16, |mask, (index, character)| {
-                mask | u16::from(character.is_some()) << index
-            });
-        write_u16(&mut header, RUST_ROSTER_MASK_OFFSET, roster_mask);
+        write_u16(
+            &mut header,
+            RUST_ROSTER_MASK_OFFSET,
+            save.snapshot.occupancy_mask(),
+        );
+        header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2]
+            .copy_from_slice(STANDING_Y_MARKER);
 
         let mut bytes = [0; RETAIL_SLOT_FILE_BYTES];
         interleave(&header, &mut bytes[..RETAIL_HEADER_PHYSICAL_BYTES]);
@@ -275,16 +295,56 @@ impl RetailSlot {
         Ok(read_u16(&header, CHECKSUM_OFFSET + slot * 2))
     }
 
+    /// The logical common header, `$F000..$F100`.
+    #[must_use]
+    pub fn logical_header(&self) -> [u8; RETAIL_HEADER_LOGICAL_BYTES] {
+        deinterleave(&self.bytes[..RETAIL_HEADER_PHYSICAL_BYTES])
+    }
+
+    /// The logical payload, `$F100..$FB00`.
+    #[must_use]
+    pub fn logical_payload(&self) -> [u8; RETAIL_PAYLOAD_BYTES] {
+        deinterleave(&self.bytes[RETAIL_HEADER_PHYSICAL_BYTES..RETAIL_SLOT_FILE_BYTES])
+    }
+
+    /// The native roster mask at `$F020` as stored: zero on a cartridge
+    /// image, whose header has no such field.
+    #[must_use]
+    pub fn roster_mask(&self) -> u16 {
+        read_u16(&self.logical_header(), RUST_ROSTER_MASK_OFFSET)
+    }
+
+    /// Whether the header carries the `SY` marker: the `$F408` word is
+    /// retail's object Y.
+    #[must_use]
+    pub fn has_standing_y_marker(&self) -> bool {
+        has_standing_y_marker(&self.logical_header())
+    }
+
+    /// Whether any native header metadata a slot writer adds before the `SY`
+    /// field is present (`$F020..$F02D`: the roster mask, the `TR` exit, the
+    /// `PS` bridge). A cartridge image has none: `InitSRAM` zeroes the
+    /// header (ps4.asm:134737).
+    #[must_use]
+    pub fn has_native_metadata(&self) -> bool {
+        has_native_metadata(&self.logical_header())
+    }
+
     /// Decodes the validated slot into game state and a boot location.
     pub fn decode(&self) -> Result<RetailSave, SaveError> {
-        let header = deinterleave::<RETAIL_HEADER_LOGICAL_BYTES>(
-            &self.bytes[..RETAIL_HEADER_PHYSICAL_BYTES],
-        );
-        let payload = deinterleave::<RETAIL_PAYLOAD_BYTES>(
-            &self.bytes[RETAIL_HEADER_PHYSICAL_BYTES..RETAIL_SLOT_FILE_BYTES],
-        );
+        let header = self.logical_header();
+        let payload = self.logical_payload();
+        // A cartridge image has no roster mask (its header is zero there):
+        // it seats every character record that is not all zero, as
+        // `from_retail_payload` does. Every native slot seats its leader.
         let roster_mask = read_u16(&header, RUST_ROSTER_MASK_OFFSET);
-        let snapshot = snapshot_from_payload(&payload, Some(roster_mask));
+        let snapshot = snapshot_from_payload(&payload, (roster_mask != 0).then_some(roster_mask));
+        let saved_y = read_u16(&payload, LOCATION_Y_OFFSET);
+        let char_y = if legacy_standing_y(&header) {
+            saved_y
+        } else {
+            saved_y.wrapping_add(STANDING_ROW_PIXELS)
+        };
         Ok(RetailSave {
             snapshot,
             location: RetailLocation {
@@ -292,13 +352,25 @@ impl RetailSlot {
                 map_index_2: read_u16(&payload, LOCATION_MAP_2_OFFSET),
                 map_index: read_u16(&payload, LOCATION_MAP_OFFSET),
                 char_x: read_u16(&payload, LOCATION_X_OFFSET),
-                char_y: read_u16(&payload, LOCATION_Y_OFFSET),
+                char_y,
             },
         })
     }
 }
 
 impl StateSnapshot {
+    /// The native roster mask the slot writer stores at `$F020`: bit `n` set
+    /// for each seated character record `n`.
+    #[must_use]
+    pub fn occupancy_mask(&self) -> u16 {
+        self.characters
+            .iter()
+            .enumerate()
+            .fold(0_u16, |mask, (index, character)| {
+                mask | u16::from(character.is_some()) << index
+            })
+    }
+
     /// Serializes the state into the exact logical `$F100..$FB00` payload.
     ///
     /// All modeled retail state is written at its retail offset. The remaining
@@ -579,6 +651,25 @@ fn decode_pair(bytes: &[u8], offset: usize) -> StatPair {
     }
 }
 
+/// A native slot written before the `SY` marker: its `$F408` word is the
+/// standing row times 16. Every native slot writes some native metadata
+/// before the marker's field: the roster mask, and since the dungeon-exit
+/// extension always `TR` (a session without battle files seats no roster, so
+/// its mask is zero). A cartridge image's header is zero there.
+fn legacy_standing_y(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    !has_standing_y_marker(header) && has_native_metadata(header)
+}
+
+fn has_standing_y_marker(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    &header[RUST_STANDING_Y_OFFSET..RUST_STANDING_Y_OFFSET + 2] == STANDING_Y_MARKER
+}
+
+fn has_native_metadata(header: &[u8; RETAIL_HEADER_LOGICAL_BYTES]) -> bool {
+    header[RUST_ROSTER_MASK_OFFSET..RUST_STANDING_Y_OFFSET]
+        .iter()
+        .any(|&byte| byte != 0)
+}
+
 fn validate_slot(slot: usize) -> Result<(), SaveError> {
     if slot < RETAIL_SLOT_COUNT {
         Ok(())
@@ -634,317 +725,4 @@ fn deinterleave<const N: usize>(physical: &[u8]) -> [u8; N] {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::battle::{StatPair, StatTriple};
-    use crate::{CHARACTER_COUNT, CharId, Flag, GameState, MacroCommand, VehicleRecord};
-
-    fn stats(index: u8) -> Stats {
-        Stats {
-            name_bytes: [index, index + 1, index + 2, index + 3, 0xFE, 0],
-            profession: u16::from(index),
-            level: u16::from(index) + 1,
-            experience: 1000 + u32::from(index),
-            curr_hp: 30 - u16::from(index),
-            max_hp: 40 + u16::from(index),
-            curr_tp: 12 + u16::from(index),
-            max_tp: 20 + u16::from(index),
-            status: index & 3,
-            strength: StatTriple {
-                base: index,
-                modified: index + 1,
-                battle: index + 2,
-            },
-            mental: StatTriple::uniform(index + 3),
-            agility: StatTriple::uniform(index + 4),
-            dexterity: StatTriple::uniform(index + 5),
-            attack: StatPair::uniform(100 + u16::from(index)),
-            defence: StatPair {
-                derived: 200 + u16::from(index),
-                battle: 190 + u16::from(index),
-            },
-            mental_defence: StatPair::uniform(300 + u16::from(index)),
-            element_props: [index; 14],
-            element_shadow: [index + 1; 14],
-            weapon_elements: [index, index + 1],
-            equipment: [index, index + 1, index + 2, index + 3],
-            techniques: [index + 10; 16],
-            skills: [index + 20; 8],
-            curr_skill_uses: [index + 30; 8],
-            max_skill_uses: [index + 40; 8],
-            physical_prop_save: index + 4,
-            enemy_id: 0,
-            gain_exp_flag: index.is_multiple_of(2),
-        }
-    }
-
-    fn mid_progress_state() -> GameState {
-        let mut state = GameState::new();
-        state.set(Flag::event(0x12)).unwrap();
-        state.set(Flag::event(0x118)).unwrap();
-        state.set(Flag::temp(0x24)).unwrap();
-        state.set(Flag::town(0x2A)).unwrap();
-        state.inventory_mut().add(0x7D).unwrap();
-        state.inventory_mut().add(0x22).unwrap();
-        state.add_money(4321);
-        state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
-        for index in 0..CHARACTER_COUNT {
-            state
-                .roster_mut()
-                .seat(CharId(index as u8), stats(index as u8))
-                .unwrap();
-        }
-        state.roster_mut().get_mut(CharId(0)).unwrap().curr_hp = 3;
-        state.roster_mut().get_mut(CharId(0)).unwrap().status = 1;
-        state.roster_mut().get_mut(CharId(0)).unwrap().equipment = [0x21, 0x22, 0x23, 0x24];
-        state.set_vehicle_index(2);
-        state.set_button_mappings_index(4);
-        state.set_message_speed(3);
-        state.set_battle_speed(1);
-        state.macros_mut()[3].commands[2] = MacroCommand {
-            character_id: 4,
-            command_index: 2,
-            ability_id: 31,
-            reserved: 0xA5,
-        };
-        state.vehicles_mut()[1] = VehicleRecord {
-            current_hp: 0x0123,
-            max_hp: 0x0456,
-            skill_mask: 0xA5,
-            reserved_05: 0x5A,
-            current_skill_uses: [1, 2, 3, 4, 5, 6, 7, 8],
-            max_skill_uses: [8, 7, 6, 5, 4, 3, 2, 1],
-            reserved_tail: [0xCC; 10],
-        };
-        state
-    }
-
-    #[test]
-    fn logical_payload_round_trips_byte_for_byte() {
-        let payload = mid_progress_state().snapshot().to_retail_payload();
-        let decoded = StateSnapshot::from_retail_payload(&payload).unwrap();
-        assert_eq!(decoded.to_retail_payload(), payload);
-    }
-
-    #[test]
-    fn retail_slot_round_trips_the_whole_snapshot_and_location() {
-        let original = mid_progress_state();
-        let save = RetailSave {
-            snapshot: original.snapshot(),
-            location: RetailLocation {
-                world_index: 1,
-                map_index_2: 0xFFFF,
-                map_index: 0x13,
-                char_x: 48 * 16,
-                char_y: 18 * 16,
-            },
-        };
-        let slot = RetailSlot::encode(&save, 1).unwrap();
-        assert_eq!(slot.as_bytes().len(), RETAIL_SLOT_FILE_BYTES);
-        assert_eq!(slot.as_bytes()[0], 0, "MOVEP even byte is a hole");
-        assert_eq!(slot.as_bytes()[RETAIL_HEADER_PHYSICAL_BYTES], 0);
-        assert_eq!(slot.checksum(1).unwrap(), 0x8B64);
-
-        let loaded = RetailSlot::from_bytes(slot.as_bytes(), 1)
-            .unwrap()
-            .decode()
-            .unwrap();
-        assert_eq!(loaded, save);
-        assert_eq!(GameState::from_snapshot(&loaded.snapshot), original);
-    }
-
-    #[test]
-    fn checksum_rejects_a_corrupted_payload_byte() {
-        let save = RetailSave {
-            snapshot: mid_progress_state().snapshot(),
-            location: RetailLocation::default(),
-        };
-        let slot = RetailSlot::encode(&save, 0).unwrap();
-        let mut bytes = *slot.as_bytes();
-        bytes[RETAIL_HEADER_PHYSICAL_BYTES + 1 + 2 * INVENTORY_OFFSET] ^= 1;
-        assert!(matches!(
-            RetailSlot::from_bytes(&bytes, 0),
-            Err(SaveError::ChecksumMismatch { slot: 0, .. })
-        ));
-    }
-
-    #[test]
-    fn the_saved_party_bridge_round_trips_in_the_native_header() {
-        let save = RetailSave {
-            snapshot: mid_progress_state().snapshot(),
-            location: RetailLocation::default(),
-        };
-        let bridge = [
-            Some(CharId(0)),
-            Some(CharId(1)),
-            Some(CharId(2)),
-            None,
-            None,
-        ];
-        let encoded = RetailSlot::encode(&save, 0)
-            .unwrap()
-            .with_saved_party_slots(Some(bridge));
-        assert_eq!(encoded.saved_party_slots(), Some(bridge));
-        // The payload and its checksum are untouched.
-        assert_eq!(
-            RetailSlot::from_bytes(encoded.as_bytes(), 0)
-                .unwrap()
-                .decode()
-                .unwrap(),
-            save
-        );
-        // The exact layout: `P`, `S`, the five slots at the interleaved stride,
-        // and the complement of their sum.
-        let offset = RUST_SAVED_PARTY_OFFSET * 2 + 1;
-        assert_eq!(&encoded.as_bytes()[offset..offset + 2], b"P\0");
-        assert_eq!(encoded.as_bytes()[offset + 2], b'S');
-        let slots: Vec<u8> = (0..5)
-            .map(|index| encoded.as_bytes()[offset + 4 + index * 2])
-            .collect();
-        assert_eq!(slots, vec![0, 1, 2, 0xFF, 0xFF]);
-        let sum = slots.iter().fold(0_u8, |sum, byte| sum.wrapping_add(*byte));
-        assert_eq!(encoded.as_bytes()[offset + 14], !sum);
-        // It coexists with the dungeon exit just before it.
-        let both = RetailSlot::encode(&save, 0)
-            .unwrap()
-            .with_dungeon_exit(7)
-            .with_saved_party_slots(Some(bridge));
-        assert_eq!(both.dungeon_exit(), Some(7));
-        assert_eq!(both.saved_party_slots(), Some(bridge));
-        // No bridge pending: nothing is written.
-        let plain = RetailSlot::encode(&save, 0)
-            .unwrap()
-            .with_saved_party_slots(None);
-        assert_eq!(plain.saved_party_slots(), None);
-        assert_eq!(plain.as_bytes()[offset], 0);
-        // An all-empty bridge writes nothing and reads None, so the writer
-        // never produces a field the reader refuses.
-        let empty = RetailSlot::encode(&save, 0)
-            .unwrap()
-            .with_saved_party_slots(Some([None; 5]));
-        assert_eq!(empty.as_bytes()[offset], 0);
-        assert_eq!(empty.saved_party_slots(), None);
-        // A retail save's zeroed header has no marker: None.
-        let mut retail = encoded.as_bytes().to_vec();
-        retail[offset..=offset + 14].fill(0);
-        assert_eq!(
-            RetailSlot::from_bytes(&retail, 0)
-                .unwrap()
-                .saved_party_slots(),
-            None
-        );
-        // A damaged bridge is refused rather than guessed.
-        let mut damaged = encoded.as_bytes().to_vec();
-        damaged[offset + 4] ^= 0xFF;
-        let damaged = RetailSlot::from_bytes(&damaged, 0).unwrap();
-        assert_eq!(damaged.saved_party_slots(), None);
-    }
-
-    #[test]
-    fn the_cleared_game_flag_round_trips_at_sram_200035() {
-        let save = RetailSave {
-            snapshot: mid_progress_state().snapshot(),
-            location: RetailLocation::default(),
-        };
-        let clear = RetailSlot::encode(&save, 0).unwrap().mark_game_cleared();
-        assert_eq!(clear.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 1);
-        assert!(clear.game_cleared());
-        // The payload and its checksum are untouched: a retail reader still
-        // validates the slot, and the flag rides in the common header.
-        let decoded = RetailSlot::from_bytes(clear.as_bytes(), 0).unwrap();
-        assert!(decoded.game_cleared());
-        assert_eq!(decoded.decode().unwrap(), save);
-        let uncleared = RetailSlot::encode(&save, 0).unwrap();
-        assert!(!uncleared.game_cleared());
-        assert_eq!(uncleared.as_bytes()[2 * GAME_CLEARED_OFFSET + 1], 0);
-        // Sticky: marking never clears an already-set byte.
-        assert!(
-            uncleared
-                .mark_game_cleared()
-                .mark_game_cleared()
-                .game_cleared()
-        );
-        assert!(RetailSlot::cleared_in_bytes(clear.as_bytes()));
-    }
-
-    #[test]
-    fn a_zero_stats_seat_survives_through_the_rust_occupancy_extension() {
-        let mut state = GameState::new();
-        state
-            .roster_mut()
-            .seat(
-                CharId(4),
-                Stats {
-                    name_bytes: [0; 6],
-                    profession: 0,
-                    level: 0,
-                    experience: 0,
-                    curr_hp: 0,
-                    max_hp: 0,
-                    curr_tp: 0,
-                    max_tp: 0,
-                    status: 0,
-                    strength: StatTriple::default(),
-                    mental: StatTriple::default(),
-                    agility: StatTriple::default(),
-                    dexterity: StatTriple::default(),
-                    attack: StatPair::default(),
-                    defence: StatPair::default(),
-                    mental_defence: StatPair::default(),
-                    element_props: [0; 14],
-                    element_shadow: [0; 14],
-                    weapon_elements: [0; 2],
-                    equipment: [0; 4],
-                    techniques: [0; 16],
-                    skills: [0; 8],
-                    curr_skill_uses: [0; 8],
-                    max_skill_uses: [0; 8],
-                    physical_prop_save: 0,
-                    enemy_id: 0,
-                    gain_exp_flag: false,
-                },
-            )
-            .unwrap();
-        let save = RetailSave {
-            snapshot: state.snapshot(),
-            location: RetailLocation::default(),
-        };
-        let slot = RetailSlot::encode(&save, 0).unwrap();
-        let loaded = RetailSlot::from_bytes(slot.as_bytes(), 0)
-            .unwrap()
-            .decode()
-            .unwrap();
-        assert_eq!(
-            loaded.snapshot.characters[4],
-            Some(Stats {
-                name_bytes: [0; 6],
-                profession: 0,
-                level: 0,
-                experience: 0,
-                curr_hp: 0,
-                max_hp: 0,
-                curr_tp: 0,
-                max_tp: 0,
-                status: 0,
-                strength: StatTriple::default(),
-                mental: StatTriple::default(),
-                agility: StatTriple::default(),
-                dexterity: StatTriple::default(),
-                attack: StatPair::default(),
-                defence: StatPair::default(),
-                mental_defence: StatPair::default(),
-                element_props: [0; 14],
-                element_shadow: [0; 14],
-                weapon_elements: [0; 2],
-                equipment: [0; 4],
-                techniques: [0; 16],
-                skills: [0; 8],
-                curr_skill_uses: [0; 8],
-                max_skill_uses: [0; 8],
-                physical_prop_save: 0,
-                enemy_id: 0,
-                gain_exp_flag: false,
-            })
-        );
-    }
-}
+mod tests;
