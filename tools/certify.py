@@ -4,9 +4,9 @@
 Each pair launches the debug Godot build under Xvfb with the capture doctrine
 from docs/scenes/SCENE_PRESENTATION.md (software GL, X11, dummy audio,
 `--fixed-fps 60`), takes one `PSIV_DEBUG_SHOT` at a pinned clone tick, and
-compares it with a hash-pinned oracle frame through
-`psiv_tools/presentation_rmse.py`. A certified pair passes only at
-`rmse=0.000000`.
+compares it with a hash-pinned oracle frame through `presentation-rmse`
+(`rust/psiv-compare`), over the whole frame or the region the pair's recipe
+names. A certified pair passes only at `rmse=0.000000`.
 
 Oracle frames are local, ignored assets. A missing frame that has a tape
 recipe (MeetingRika, tape 28) is regenerated through the oracle host; every
@@ -14,8 +14,8 @@ frame is hash-checked before use, so a regenerated or edited frame that
 differs from the certified one fails instead of silently re-baselining.
 
 Usage: `python3 tools/certify.py [--no-build] [--jobs N] [--only NAME ...] [--list]`.
-The debug extension is rebuilt first by default, so a capture always comes from
-the checked-out sources; `--no-build` skips that only when the caller has just
+The debug extension and `presentation-rmse` are rebuilt first by default, so a
+capture and its comparison always come from the checked-out sources; `--no-build` skips that only when the caller has just
 built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
 selected pair is 0.000000.
@@ -249,6 +249,8 @@ PAIRS = [
 QUIT_MARGIN = 30
 
 RMSE = re.compile(r"rmse=([0-9.]+)")
+# The comparison, built beside the debug extension.
+COMPARE = Path(__file__).resolve().parent.parent / "rust" / "target" / "debug" / "presentation-rmse"
 
 
 def sha256(path):
@@ -379,8 +381,8 @@ def capture(name, env, tick, receipt, display, project, run_root):
 
 def compare(shot, frame, region=None):
     crop = ["--region", ",".join(str(value) for value in region)] if region else []
-    completed = subprocess.run([sys.executable, "psiv_tools/presentation_rmse.py", *crop,
-                                str(shot), str(frame)], capture_output=True, text=True)
+    completed = subprocess.run([str(COMPARE), *crop, str(shot), str(frame)],
+                               capture_output=True, text=True)
     match = RMSE.search(completed.stdout)
     return (match.group(1) if match else None), (completed.stdout + completed.stderr).strip()
 
@@ -389,7 +391,8 @@ def build_parser():
     """The command line: build by default, opt out with `--no-build`."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--no-build", action="store_true",
-                        help="skip `cargo build -p psiv-godot` (only when this tree was just built)")
+                        help="skip `cargo build -p psiv-godot -p psiv-compare` "
+                             "(only when this tree was just built)")
     parser.add_argument("--build", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--jobs", type=int, metavar="N",
                         help=f"capture workers, one godot slot each (default: min({DEFAULT_JOBS}, "
@@ -488,8 +491,8 @@ def main(argv=None):
         return 2
     if not args.no_build:
         with hold_heavy_lock(lock_class=EXTENSION):
-            built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
-                                    "rust/Cargo.toml"])
+            built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "-p", "psiv-compare",
+                                    "--manifest-path", "rust/Cargo.toml"])
         if built.returncode != 0:
             return built.returncode
     info = git_info(root)

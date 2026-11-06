@@ -159,7 +159,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --quit-after 300000 \
   > /tmp/psiv-title-xvfb-480.log 2>&1
-python3 psiv_tools/presentation_rmse.py \
+cargo run -q --manifest-path rust/Cargo.toml -p psiv-compare -- \
   /tmp/psiv-title-xvfb-480.png oracle/frames/title/frame_450.png
 ```
 

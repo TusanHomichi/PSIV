@@ -146,6 +146,8 @@ pub struct CampView {
     pub ability_options: Vec<CampAbility>,
     /// The town list RYUKA/HINAS or a pipe offered.
     pub travel_towns: Vec<TownDestination>,
+    /// The label on each town-list page's bottom border, from the pack.
+    pub travel_towns_label: String,
     /// The cursor on the town list.
     pub travel_selection: usize,
     /// The pack slot of the pipe being used, when the travel is an item's.
@@ -237,6 +239,7 @@ impl CampView {
             ability_selection: 0,
             ability_options: Vec::new(),
             travel_towns: Vec::new(),
+            travel_towns_label: String::new(),
             travel_selection: 0,
             travel_item_slot: None,
             status_selection: 0,

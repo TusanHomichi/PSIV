@@ -248,10 +248,23 @@ fn unfilter(raw: &[u8], stride: usize, height: usize, bpp: usize) -> Result<Vec<
     Ok(out)
 }
 
-/// `psiv_tools.png.image_sha256`: the SHA-256 of the IHDR fields, the PLTE
-/// and tRNS payloads and the unfiltered rows, so the same image gives the
-/// same digest whichever deflate wrote it. 8-bit, non-interlaced images only.
-pub fn image_sha256(data: &[u8]) -> Result<String, PngError> {
+/// A PNG file's image: its IHDR, its PLTE and tRNS payloads (empty when
+/// absent) and the unfiltered rows. 8-bit, non-interlaced images only.
+pub struct Image<'a> {
+    /// The IHDR payload, 13 bytes.
+    pub header: &'a [u8],
+    pub width: usize,
+    pub height: usize,
+    /// The colour type: 0 grey, 2 RGB, 3 indexed, 4 grey and alpha, 6 RGBA.
+    pub colour: u8,
+    pub plte: &'a [u8],
+    pub trns: &'a [u8],
+    /// `height` rows of `width` pixels, each of the colour type's channels.
+    pub pixels: Vec<u8>,
+}
+
+/// Decode a PNG file, checking every chunk's CRC.
+pub fn decode(data: &[u8]) -> Result<Image<'_>, PngError> {
     if data.len() < 8 || &data[..8] != SIGNATURE {
         return Err(PngError("missing PNG signature".into()));
     }
@@ -302,7 +315,7 @@ pub fn image_sha256(data: &[u8]) -> Result<String, PngError> {
     };
     if depth != 8 || bpp == 0 || interlace != 0 {
         return Err(PngError(format!(
-            "image_sha256 takes 8-bit non-interlaced images, not depth {depth} \
+            "only 8-bit non-interlaced images decode, not depth {depth} \
              colour type {colour} interlace {interlace}"
         )));
     }
@@ -311,15 +324,31 @@ pub fn image_sha256(data: &[u8]) -> Result<String, PngError> {
         .read_to_end(&mut raw)
         .map_err(|e| PngError(format!("IDAT does not inflate: {e}")))?;
     let pixels = unfilter(&raw, width * bpp, height, bpp)?;
+    Ok(Image {
+        header,
+        width,
+        height,
+        colour,
+        plte,
+        trns,
+        pixels,
+    })
+}
+
+/// `psiv_tools.png.image_sha256`: the SHA-256 of the IHDR fields, the PLTE
+/// and tRNS payloads and the unfiltered rows, so the same image gives the
+/// same digest whichever deflate wrote it. 8-bit, non-interlaced images only.
+pub fn image_sha256(data: &[u8]) -> Result<String, PngError> {
+    let image = decode(data)?;
     let mut digest = Sha256::new();
     digest.update(IMAGE_DIGEST_DOMAIN);
-    digest.update(header);
-    for (kind, payload) in [(b"PLTE", plte), (b"tRNS", trns)] {
+    digest.update(image.header);
+    for (kind, payload) in [(b"PLTE", image.plte), (b"tRNS", image.trns)] {
         digest.update(kind);
         digest.update((payload.len() as u32).to_be_bytes());
         digest.update(payload);
     }
-    digest.update(&pixels);
+    digest.update(&image.pixels);
     Ok(hex(&digest.finalize()))
 }
 

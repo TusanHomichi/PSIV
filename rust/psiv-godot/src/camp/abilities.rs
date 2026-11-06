@@ -3,7 +3,7 @@
 use super::draw::{draw_text, frame};
 use super::layout::{
     CHILD_CURSOR_PATTERN, CellRect, SELECTED_CURSOR_PATTERN, TOWN_ARROW_PATTERN,
-    TOWN_ARROW_TAIL_PATTERN, TOWN_LIST_LABEL, TOWN_LIST_ORIGIN, TOWN_LIST_WIDTH,
+    TOWN_ARROW_TAIL_PATTERN, TOWN_LIST_LABEL_COLUMN, TOWN_LIST_ORIGIN, TOWN_LIST_WIDTH,
     TRAVEL_MESSAGE_LINE_STEP,
 };
 use super::{CampChrome, CampMenu, DrawList, ITEM_LIST, ITEM_TARGET};
@@ -141,8 +141,8 @@ fn draw_town_pages(view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         draw_text(
             chrome,
             &mut list.quads,
-            TOWN_LIST_LABEL,
-            (x + 5, top + 1 + 2 * rows),
+            &view.travel_towns_label,
+            (x + TOWN_LIST_LABEL_COLUMN, top + 1 + 2 * rows),
         );
         if page > 0 {
             for (pattern, at) in [(TOWN_ARROW_TAIL_PATTERN, x - 1), (TOWN_ARROW_PATTERN, x)] {

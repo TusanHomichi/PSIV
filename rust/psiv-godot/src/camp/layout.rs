@@ -52,9 +52,9 @@ pub(super) const ITEM_MESSAGE: CellRect = CellRect::new(7, 21, 26, 5);
 /// and height one less than drawn, and `$66..$74` for RYUKA.
 pub(super) const TOWN_LIST_ORIGIN: (i32, i32) = (18, 13);
 pub(super) const TOWN_LIST_WIDTH: i32 = 14;
-/// The town list's label on each page's bottom border, five cells in
-/// (`loc_2AA892`, drawn at `ps4.asm:124062-124068`).
-pub(super) const TOWN_LIST_LABEL: &str = "TO?";
+/// The column of the town list's label (`CampView::travel_towns_label`) on
+/// each page's bottom border, five cells in (`ps4.asm:124062-124068`).
+pub(super) const TOWN_LIST_LABEL_COLUMN: i32 = 5;
 /// The page arrows on the top border (`ps4.asm:124070-124099`): `$C6E9` and
 /// `$C6E6` at the window's left corner when a page lies behind, and `$CEE6`,
 /// the same arrow flipped, at its right corner when one lies ahead.

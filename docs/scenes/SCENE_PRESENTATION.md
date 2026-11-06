@@ -93,9 +93,10 @@ gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --fixed-fps
   Godot's physics catch-up under uneven render pacing makes the captured
   previous-frame texture reflect a load-dependent tick.
 
-`psiv_tools/presentation_rmse.py` crops the centred 960x672 3x surface from
-`PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE against an
-oracle frame; the identity-path check is `rmse=0.000000`.
+`presentation-rmse` (`rust/psiv-compare`) crops the centred 960x672 3x
+surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE
+against an oracle frame, over the whole frame or one `--region
+x,y,width,height`; the identity-path check is `rmse=0.000000`.
 
 ## Placement findings
 
@@ -310,10 +311,8 @@ coordinates, and the opening image addresses in
 `oracle/decode_layout.py` against the committed frame-4000 state; its
 `self_check.passed` value is `true` and all four layout checks pass.
 
-Godot capture comparison uses `psiv_tools/presentation_rmse.py`. It crops the
-centred 960x672 3x surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224,
-and reports RGB RMSE against an oracle frame. The identity-path tool check is
-`rmse=0.000000`.
+Godot capture comparison uses `presentation-rmse`, described under the
+capture doctrine above.
 
 ## Opening cinematic
 

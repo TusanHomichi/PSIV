@@ -112,7 +112,11 @@ the first row (`ps4.asm:124111-124158`); Start closes every window.
 rectangle, with one of three lines chosen by `$FFFFE284` (`loc_5CB66`,
 `loc_60B26`): `Somehow the body` / `has become lighter.` (two rows apart),
 `Cannot be used here!` and `Not enough TP!`. Its acknowledgement plays the
-teleport sound and closes every window.
+teleport sound and closes every window. The label and the three lines are
+the pack's: `travel.json`'s `messages` (`psiv_tools/travel.py` `MESSAGES`,
+format 2), decoded through the window charset with `$FC` as a line break and
+the window font's two-tile TP (`$7A $79`, outside the charset) read as `TP`;
+the native window draws those two letters from the ordinary glyphs.
 
 **The effect**, frame by frame on tape 36 (the acknowledgement on 8355): the
 seven windows close one at a time, the last at 8385; `MenuExit_Teleport`
