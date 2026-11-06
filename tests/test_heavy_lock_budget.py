@@ -268,12 +268,15 @@ class BudgetCase(LockProcesses):
         units = heavy_lock_module._take_files(str(self.lock), "unit", held, 16, UNITS_ENV,
                                               BUILD)
         self.addCleanup(lambda: [os.close(handle) for handle in units])
+        # A /proc/locks built here, not read from the live one (whose own page
+        # race could drop another unit): the first 11 units' lines, on the
+        # directory's device, which `lock_devices` accepts on any file system.
         device = os.stat(self.lock.parent).st_dev
-        last = f"{os.major(device):02x}:{os.minor(device):02x}:{os.fstat(units[-1]).st_ino}"
-        kept = [line for line in Path("/proc/locks").read_text().splitlines()
-                if line.split()[5:6] != [last]]
+        lines = [f"{number}: FLOCK  ADVISORY  WRITE {os.getpid()} "
+                 f"{os.major(device):02x}:{os.minor(device):02x}:{os.fstat(unit).st_ino} 0 EOF"
+                 for number, unit in enumerate(units[:-1], 1)]
         proc_locks = self.lock.parent.parent / "proc-locks"
-        proc_locks.write_text("\n".join(kept) + "\n")
+        proc_locks.write_text("\n".join(lines) + "\n")
         return held, units_in_use(self.lock, proc_locks)
 
     def test_a_unit_missing_from_proc_locks_is_still_counted_through_fdinfo(self):
