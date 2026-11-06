@@ -57,6 +57,14 @@ impl Json {
         self
     }
 
+    /// The value at `key`, on an object that has it.
+    pub fn get(&self, key: &str) -> Option<&Json> {
+        match self {
+            Json::Object(pairs) => pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
     /// Set `key` on an object. Panics on a non-object: that is a bug in the
     /// section building it, not a property of the ROM.
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<Json>) {
