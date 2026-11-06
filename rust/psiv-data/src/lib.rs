@@ -64,9 +64,9 @@ pub use battle::{
     EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, FUSION_ART_PATH,
-    FUSION_FRAMES, Formation, FormationEnemy, FormationsFile, FusionArt, FusionFrame, Level,
-    LevelStats, LevelTable, LevelsFile, MapBinding, NamedId, NamedMapRef, PositionGrid, Property,
-    Rewards,
+    FUSION_FRAMES, Formation, FormationEnemy, FormationsFile, FusionArt, FusionFrame,
+    InlineFormation, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId, NamedMapRef,
+    PositionGrid, Property, Rewards,
 };
 pub use camera::{MapScroll, ScrollCounters};
 // The seating path: `battle/characters.json` and `battle/equipment.json`.

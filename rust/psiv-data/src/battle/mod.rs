@@ -416,8 +416,8 @@ pub use command_art::{COMMAND_UI_ART_PATH, CommandUiArt, CommandUiTile};
 pub use damage_art::{DAMAGE_DIGIT_ART_PATH, DamageDigitArt};
 pub use enemies::{EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats, Rewards};
 pub use formations::{
-    EncounterGroup, EncounterGroups, Formation, FormationEnemy, FormationsFile, MapBinding,
-    NamedMapRef, PositionGrid,
+    EncounterGroup, EncounterGroups, Formation, FormationEnemy, FormationsFile, InlineFormation,
+    MapBinding, NamedMapRef, PositionGrid,
 };
 pub use fusion_art::{FUSION_ART_PATH, FUSION_FRAMES, FusionArt, FusionFrame};
 pub use levels::{Level, LevelStats, LevelTable, LevelsFile};

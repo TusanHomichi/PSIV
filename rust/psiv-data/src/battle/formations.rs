@@ -117,11 +117,11 @@ pub struct Formation {
     /// Absent on a boss formation, which is reached through
     /// [`Formation::event_battle_index`] instead — the two live in different
     /// index spaces because `Battle_SetupEnemyData` reaches them by different
-    /// routes (`ps4.asm:11813`).
-    #[serde(default)]
+    /// routes (`ps4.asm:11813`). A record writes only the key it has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<u16>,
     /// `Event_Battle_Index`, on a boss formation.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub event_battle_index: Option<u16>,
     /// Byte 0, compared against the party's highest agility.
     pub ambush_chance: u8,
