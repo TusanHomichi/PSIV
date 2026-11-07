@@ -72,6 +72,7 @@ fn combatant(id: u8, name: &str, hp: u16) -> Combatant {
             stats,
             ability: 0,
             reaction_flags: 0,
+            transient: false,
             active: true,
         },
         plain_attacks: 8,

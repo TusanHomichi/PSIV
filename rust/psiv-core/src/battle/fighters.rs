@@ -138,6 +138,16 @@ pub struct Fighter {
     /// Whether the fighter object is occupied. Dormant formation neighbors
     /// keep their cached identity/stats but cannot act or receive attacks.
     pub active: bool,
+    /// Status bit 7 (`$80`), kept beside [`Stats`] because it never outlives
+    /// a round. Retail sets it on a fighter revived (the revive objects,
+    /// `ps4.asm:74525`, `78768`, `79746`, `80070`), reseated by a refill
+    /// (`ps4.asm:29731`) or by Fusion (`ps4.asm:29744-29747`), or woken by
+    /// AROWS (`AbilityEffect_WakeUp`, `ps4.asm:9363`), and
+    /// `Battle_OrderTurns` clears it on every fighter (`ps4.asm:7730`).
+    /// While it is set, `loc_5772`'s `$EE` takes the fighter's turn this
+    /// round and `loc_5A98`'s `$C4` re-aims a command named at it
+    /// ([`Fighter::keeps_aim`]).
+    pub transient: bool,
 }
 
 impl Fighter {
@@ -166,6 +176,15 @@ impl Fighter {
     #[must_use]
     pub const fn is_alive(&self) -> bool {
         self.active && !self.stats.is_out()
+    }
+
+    /// Whether a single-target command named at this fighter keeps its aim:
+    /// an occupied slot whose `status & $C4` is clear (`loc_5A98`,
+    /// `ps4.asm:8330-8337`), so not dead, not android-dead and not
+    /// [`transient`](Fighter::transient) this round.
+    #[must_use]
+    pub const fn keeps_aim(&self) -> bool {
+        self.is_alive() && !self.transient
     }
 }
 
@@ -214,6 +233,7 @@ impl Roster {
             stats,
             ability: 0,
             reaction_flags: 0,
+            transient: false,
             active: true,
         });
         Some(id)
@@ -237,6 +257,7 @@ impl Roster {
             stats: Stats::from_enemy(record),
             ability: 0,
             reaction_flags: 0,
+            transient: false,
             active: true,
         });
         Some(id)

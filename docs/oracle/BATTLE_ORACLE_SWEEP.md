@@ -415,9 +415,9 @@ skill, item or vehicle skill whose record's effect nibble is not `1`
 (`loc_5C8A` -> `loc_5CA2`, `ps4.asm:8504-8548`). The port's one owner for all
 four single-target paths is `rust/psiv-core/src/battle/retarget.rs`'s
 `single_target` (`Deficit::Largest`/`Smallest`); tests are
-`battle/retarget_tests.rs`. The mirror loop is read from `ps4.asm` and not yet
-captured: no capture's party commands a single-target non-damaging technique
-([#37](https://github.com/TusanHomichi/PSIV/issues/37)).
+`battle/retarget_tests.rs`. The mirror loop is captured since: a party-script
+capture's VOL lands on the smallest deficit
+(`replay_fixtures/retarget/vol_mirror_d1.json`).
 The full finding is [`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
 2026-09-25 record.
 
