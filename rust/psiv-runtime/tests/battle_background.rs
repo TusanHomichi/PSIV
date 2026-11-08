@@ -17,7 +17,7 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use psiv_core::{CharId, GameState, RetailLocation, RetailSave};
+use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleBackgrounds, BattleFiles, DataError, GameData, MOTAVIA_TERRAIN_ENTRIES};
 use psiv_runtime::{Runtime, Session};
 
@@ -51,6 +51,11 @@ fn pack() -> Option<&'static (GameData, BattleFiles)> {
 
 /// A session on Motavia (map 0) with the leader at retail pixel `(x, y)`.
 fn motavia_at(x: u16, y: u16) -> Option<Session> {
+    motavia_with(x, y, &[])
+}
+
+/// [`motavia_at`] with these event flags set.
+fn motavia_with(x: u16, y: u16, flags: &[u16]) -> Option<Session> {
     let (data, files) = pack()?;
     let initial = Session::start(data.clone())
         .with_battles(files.clone())
@@ -58,6 +63,9 @@ fn motavia_at(x: u16, y: u16) -> Option<Session> {
         .expect("the pack boots");
     let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
     game.set_party([Some(CharId(0)), None, None, None, None]);
+    for &flag in flags {
+        game.set(Flag::event(flag)).expect("flag in range");
+    }
     Some(
         Session::start(data.clone())
             .with_battles(files.clone())
@@ -189,4 +197,33 @@ fn a_vehicle_on_a_chunk_past_the_label_picks_its_formation_group_by_it() {
     let runtime = session.runtime();
     assert_eq!(runtime.vehicle_battle_terrain(), Some(48));
     assert_eq!(runtime.motavia_battle_background(), background("MotaSea"));
+}
+
+#[test]
+fn a_fixture_staging_a_battle_on_another_map_keeps_the_live_context() {
+    // The debug window fixture overrides the map and nothing else: a map-0
+    // override still reads the chunk underfoot, and a Dezolis override after
+    // Dark Force 2 still takes the swap (`loc_6C24`).
+    let Some(grass) = motavia_at(2320, 1408) else {
+        return;
+    };
+    assert_eq!(
+        grass.runtime().battle_background_on(None, 0),
+        Some(background("MotaGrass"))
+    );
+    let after = motavia_with(2320, 1408, &[0x9E]).expect("the pack is there");
+    assert_eq!(
+        grass.runtime().battle_background_on(None, 1),
+        Some(background("Dezo1"))
+    );
+    assert_eq!(
+        after.runtime().battle_background_on(None, 1),
+        Some(background("Dezo2")),
+        "Dark Force 2's flag swaps Dezolis's background"
+    );
+    // An event battle wins over all of it.
+    assert_eq!(
+        after.runtime().battle_background_on(Some(0), 0x17),
+        Some(background("AcademyBasement"))
+    );
 }

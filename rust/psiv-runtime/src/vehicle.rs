@@ -179,7 +179,15 @@ impl Runtime {
     /// pack has no tables or the tables pick none.
     #[must_use]
     pub fn battle_background(&self, event_battle: Option<u16>) -> Option<u8> {
-        let map = self.map.id().0;
+        self.battle_background_on(event_battle, self.map.id().0)
+    }
+
+    /// [`Self::battle_background`] as if the battle started on `map`, with
+    /// everything else live: the chunk under the leader, the mounted state and
+    /// Dark Force 2's flag. Debug fixtures that stage a battle on another map
+    /// use it, so their choice is the one a real battle there would make.
+    #[must_use]
+    pub fn battle_background_on(&self, event_battle: Option<u16>, map: u16) -> Option<u8> {
         let mounted = self.vehicle_index().is_some();
         let chunk = (map == 0 || mounted)
             .then(|| self.vehicle_battle_terrain())

@@ -40,7 +40,7 @@ impl Field {
             map_id: 0x17,
             background: self
                 .runtime()
-                .and_then(|runtime| fixture_background(runtime, Some(0), 0x17)),
+                .and_then(|runtime| runtime.battle_background_on(Some(0), 0x17)),
             vehicle_index: None,
             vehicle_png: None,
             vehicle_frame: None,
@@ -142,7 +142,7 @@ impl Field {
             // formation $0F7; this only avoids making the screenshot depend on
             // the current field map's random-battle background binding.
             setup.map_id = 0x17;
-            setup.background = fixture_background(runtime, Some(0), 0x17);
+            setup.background = runtime.battle_background_on(Some(0), 0x17);
             setup
         };
         let enemy_specs: Vec<_> = setup
@@ -217,7 +217,7 @@ impl Field {
             };
             let (event, map) = map.map_or((Some(0), 0x17), |map| (None, map));
             setup.map_id = map;
-            setup.background = fixture_background(runtime, event, map);
+            setup.background = runtime.battle_background_on(event, map);
             setup.enemy_animation_phase_ticks = std::env::var("PSIV_DEBUG_BATTLE_PHASE")
                 .ok()
                 .and_then(|value| value.trim().parse().ok())
@@ -227,13 +227,4 @@ impl Field {
         self.begin_battle_presentation(setup, "tape-07 battle with a command window open");
         self.set_battle_view(view);
     }
-}
-
-/// The background a fixture's stand-in battle draws: the pack's own
-/// selection for `event` and `map`, as a real battle there would choose it.
-fn fixture_background(runtime: &psiv_runtime::Runtime, event: Option<u16>, map: u16) -> Option<u8> {
-    runtime
-        .data()
-        .battle_backgrounds()?
-        .select(event, map, None, false, false)
 }
