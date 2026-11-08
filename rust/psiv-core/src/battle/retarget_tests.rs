@@ -192,6 +192,28 @@ fn a_living_aim_is_kept_by_both_loops_and_costs_no_draw() {
 }
 
 #[test]
+fn a_living_aim_with_status_bit_7_is_re_aimed_like_a_fallen_one() {
+    // `loc_5A98` masks `$C4` (`ps4.asm:8335-8337`), so a fighter revived,
+    // reseated or woken this round - alive, bit 7 set - does not keep the aim
+    // even though the scan itself (`$44`) still counts it. Deficits 5 (slot
+    // 6), 11 (7) and 16 (8).
+    let (mut roster, _) = battlefield(&[15, 9, 4]);
+    roster.get_mut(id(6)).expect("seated").transient = true;
+    assert!(roster.get(id(6)).unwrap().is_alive());
+    assert_eq!(aim(&roster, 6, Deficit::Largest, &[]), (Some(id(8)), 0));
+    assert_eq!(
+        aim(&roster, 6, Deficit::Smallest, &[]),
+        (Some(id(6)), 0),
+        "the scan takes the flagged slot back: it skips `$44` only"
+    );
+    assert_eq!(aim(&roster, 7, Deficit::Largest, &[]), (Some(id(7)), 0));
+
+    // The negative control: the same field without the bit keeps the aim.
+    roster.get_mut(id(6)).expect("seated").transient = false;
+    assert_eq!(aim(&roster, 6, Deficit::Largest, &[]), (Some(id(6)), 0));
+}
+
+#[test]
 fn a_fallen_aim_lands_on_the_unique_extreme_with_no_draw() {
     // Deficits 4 (slot 7), 12 (8) and 9 (9): the largest is 8, the smallest 7.
     let (mut roster, _) = battlefield(&[0, 16, 8, 11]);
@@ -441,4 +463,45 @@ fn an_attack_item_re_aims_by_the_largest_deficit() {
         "the smallest deficit was not the one hit"
     );
     assert_eq!(inventory.occupied(), 0, "the item was spent");
+}
+
+#[test]
+fn arows_sets_status_bit_7_on_the_sleepers_it_wakes_and_on_no_one_else() {
+    // `AbilityEffect_WakeUp` (`ps4.asm:9360-9364`): `btst #StatusAsleep` /
+    // `bset #7`, per target, before the animation clears the sleep bits.
+    let arows = Technique {
+        id: 38,
+        name: "AROWS".into(),
+        effect: 14,
+        cost: 4,
+        targeting: 0x15,
+        power: 0,
+        resistance: 0,
+        element: 0,
+    };
+    let data = data().with_techniques([arows]);
+    let (mut roster, _) = battlefield(&[15]);
+    roster.get_mut(id(2)).expect("Alys").stats.status |= status::ASLEEP;
+    teach(&mut roster, 1, 38);
+    let mut rolls = SliceRolls::new(&[]);
+    let mut events = Vec::new();
+    resolve_technique(&mut roster, id(1), 38, None, &data, &mut rolls, &mut events);
+    assert!(
+        events.contains(&BattleEvent::CharacterSleepCleared),
+        "{events:?}"
+    );
+    let alys = roster.get(id(2)).expect("Alys");
+    assert_eq!(
+        alys.stats.status & status::ASLEEP,
+        0,
+        "the animation woke her"
+    );
+    assert!(alys.transient, "the effect pass flagged the sleeper");
+    assert!(!alys.keeps_aim(), "`$C4` re-aims a command named at her");
+    for awake in [1, 3] {
+        assert!(
+            !roster.get(id(awake)).expect("seated").transient,
+            "fighter {awake} was not asleep, so its bit 7 stays clear"
+        );
+    }
 }
