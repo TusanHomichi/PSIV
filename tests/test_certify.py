@@ -30,7 +30,8 @@ from unittest import mock
 from tools import certify
 from tools.heavy_lock import Hold
 
-SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
+SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "title",
+       "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message"]
 ROOT = Path(__file__).resolve().parent.parent
@@ -84,9 +85,10 @@ class PairTableCase(unittest.TestCase):
         self.assertTrue(frame.startswith("build/certify/oracle/"))
         # The town list's window, (18,13) 14x12 cells, in pixels.
         self.assertEqual(recipe["region"], [144, 104, 112, 96])
-        # No other pair is cropped: they certify whole frames.
+        # Only these are cropped; the others certify whole frames. The
+        # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
-        self.assertEqual(cropped, ["teleport-towns", "teleport-message"])
+        self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

@@ -24,6 +24,15 @@ The ordering contract is covered by
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
+The palette scenes' first pair joined them on 2026-11-08
+([#162](https://github.com/TusanHomichi/PSIV/issues/162)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `anger-tower-barrier` | **0.000000** | clone t108 (`PSIV_DEBUG_EVENT=0x99`) ↔ tape-37 frame 7384: `Event_EnterAngerTower`'s tone at saturation, lines 0, 1 and 3 white and line 2 held; region `1,1,319,223` (the native field's first row and column are black) |
+
+With the hold dropped from the CRAM model the pair fails (`rmse=12.012963`).
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 
@@ -347,10 +356,9 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   palette is a `LoadSceneAsset` write the CRAM model does not take), scene
   temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **No oracle pairs for the palette scenes yet:** the drawing is certified
-  only through the existing pairs (MeetingRika's panels and sprites, the camp
-  frame's sprites); frames of Rykros, an ending tone loop, `$99` and the Zio
-  barrier ramp against the oracle are
+- **One oracle pair for the palette scenes:** `$99`'s held tone
+  (`anger-tower-barrier`); frames of Rykros's tone and cycle, an ending tone
+  loop and the Zio barrier ramp against the oracle are still
   [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
   [#68](https://github.com/TusanHomichi/PSIV/issues/68).
 
