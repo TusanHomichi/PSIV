@@ -77,10 +77,10 @@ pub struct Ability {
     /// Which table: `techniques`, `skills`, `enemy_skills` or `item_effects`.
     pub kind: String,
     /// The disassembly's identifier, for the tables that carry one.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symbol: Option<String>,
     /// The extractor's name, for the tables that carry one.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// The cartridge's own name.
     #[serde(default)]
@@ -88,34 +88,34 @@ pub struct Ability {
     /// Byte 0, the index into `AbilityEffectsOffs`.
     pub effect_id: u8,
     /// Byte 1, for a technique.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tp_cost: Option<u8>,
     /// Byte 2 for techniques/skills: usability in the high nibble, range below.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub targeting: Option<AbilityTargeting>,
     /// Enemy-skill byte 2. Its meaning is dispatcher-specific; Fission's
     /// object restores the formation's cached neighbor instead of reading it.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_id: Option<u8>,
     /// Byte 1, for an item effect. The field is named `parameter_2` in the
     /// extracted record because its meaning depends on the item effect.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parameter_2: Option<u8>,
     /// Item record byte 7: its battle object/gameplay dispatcher.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub battle_object_or_graphic_id: Option<u8>,
     /// Byte 1's low seven bits, for a skill or enemy skill: which of the
     /// actor's stats supplies the attack power.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relevant_stat: Option<NamedId>,
     /// Byte 1's high bit, for a skill.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_weapon: Option<bool>,
     /// Byte 3.
     #[serde(default)]
     pub power_or_hit_chance: Option<u16>,
     /// Byte 2, for an item effect: single-target or party-target mode.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub targeting_or_parameter_3: Option<u8>,
     /// Byte 4: which of the target's stats resists.
     #[serde(default)]
