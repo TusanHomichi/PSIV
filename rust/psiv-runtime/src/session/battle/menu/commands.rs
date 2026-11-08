@@ -108,6 +108,10 @@ pub(crate) struct CommandsMenu {
     /// `$FFFF418C`: the width the opening window has reached, while
     /// `Battle_CreateWindow` is still growing it. `None` once it is whole.
     growth: Option<u8>,
+    /// The frame a window became whole: `Battle_CreateWindow` drew it, but
+    /// the window's own routine, which writes the red or blue cursor tile,
+    /// has not run yet. A list draws its selected row blue then.
+    whole_unread: bool,
     /// Whether the window is still open. `false` hands the orders back.
     pub(crate) open: bool,
 }
@@ -176,6 +180,7 @@ impl CommandsMenu {
             bytes,
             memory,
             growth: None,
+            whole_unread: false,
             open: true,
         };
         menu.open_actor();
@@ -199,6 +204,17 @@ impl CommandsMenu {
             )
     }
 
+    /// Whether a list's selected row may show the red cursor this frame.
+    ///
+    /// The cursor tile is written by the list routine
+    /// (`Battle_UpdateRedCursor2`, `ps4.asm:1572`), which first runs the
+    /// frame after `Battle_CreateWindow` draws the window whole. Until then
+    /// the row is blue whatever the blink timers last decided; they stay
+    /// paused through that frame too ([`CommandsMenu::red_cursor_window`]).
+    pub(crate) fn list_cursor_shown(&self) -> bool {
+        !self.growing() && !self.whole_unread
+    }
+
     /// Fixture entry: the window as the cartridge leaves it once `page` is
     /// open with the cursor on `cursor`, command byte included.
     pub(crate) fn debug_open(&mut self, page: MenuPage, cursor: usize, age: u32) {
@@ -206,6 +222,7 @@ impl CommandsMenu {
         self.cursor = cursor;
         self.age = age;
         self.growth = None;
+        self.whole_unread = false;
         self.set_command_byte(match page {
             MenuPage::Techniques => 2,
             MenuPage::Skills => 3,
@@ -243,6 +260,7 @@ impl CommandsMenu {
     /// `clr.w ($FFFF418C)` before a window's first `Battle_CreateWindow`.
     fn start_growth(&mut self) {
         self.growth = window_width(self.page).map(|_| 0);
+        self.whole_unread = false;
     }
 
     /// Whether a window is still growing, and reads no input.
@@ -263,8 +281,9 @@ impl CommandsMenu {
         if self.growth.is_none() {
             // The strip's cursor object is created now (`move.w #4,
             // (Command_Cursor).w`, `ps4.asm:2175`) and shows from the next
-            // frame.
+            // frame. A list's red cursor routine likewise first runs then.
             self.age = 0;
+            self.whole_unread = true;
         }
     }
 
@@ -731,6 +750,7 @@ impl CommandsMenu {
             self.grow();
             return None;
         }
+        self.whole_unread = false;
         self.age = self.age.saturating_add(1);
         match self.page {
             MenuPage::Actions => {

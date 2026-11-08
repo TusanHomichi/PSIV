@@ -765,19 +765,74 @@ fn the_strip_and_the_technique_window_grow_before_they_read_a_button() {
         assert!(menu.list.is_none());
     }
     assert_eq!(widths, [(2, 5), (4, 4), (6, 3), (8, 2), (10, 1)]);
-    let whole = commands_of(&tick(&mut session, Pad::NEUTRAL));
+    let whole_frame = tick(&mut session, Pad::NEUTRAL);
+    let whole = commands_of(&whole_frame);
     assert!(whole.growing.is_none());
+    assert!(
+        !view(&whole_frame).cursor_red,
+        "the list's routine has not run: its row is blue"
+    );
     assert_eq!(
         whole.list.expect("the list, whole").cursor,
         0,
         "the Down was not read"
     );
-    let moved = commands_of(&tick(&mut session, Pad::new(Button::Down)));
+    let moved_frame = tick(&mut session, Pad::new(Button::Down));
+    assert!(
+        view(&moved_frame).cursor_red,
+        "the routine runs and a held button shows red"
+    );
+    let moved = commands_of(&moved_frame);
     assert_eq!(
         moved.list.expect("the list").cursor,
         1,
         "the next frame reads it"
     );
+}
+
+/// #51: the frame a list is drawn whole is `Battle_CreateWindow`'s, not the
+/// list routine's, so its selected row is blue whatever the blink last
+/// showed; the routine runs the next frame and decides it
+/// (`Battle_UpdateRedCursor2`, `ps4.asm:1572`). The strip fixture starts the
+/// blink red, so a stale value would show. TECH is covered above; this is
+/// SKILL and ITEM.
+#[test]
+fn the_skill_and_item_windows_show_no_red_cursor_until_their_routine_runs() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let files = BattleFiles::load(pack).expect("battle files load");
+    for (icon, page) in [(2, MenuPage::Skills), (3, MenuPage::Items)] {
+        let mut session = Session::start(GameData::load(pack).expect("pack loads"))
+            .with_battles(files.clone())
+            .field()
+            .expect("the pack boots");
+        let opening =
+            session.debug_battle_window(TAPE_07_FORMATION, &format!("strip,cursor={icon}"));
+        assert!(opening.fault.is_none(), "{:?}", opening.fault);
+        tick(&mut session, Pad::NEUTRAL);
+        let accepted = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
+        assert_eq!(accepted.page, page);
+        let mut frames = 0;
+        let whole = loop {
+            let frame = tick(&mut session, Pad::NEUTRAL);
+            if commands_of(&frame).growing.is_none() {
+                break frame;
+            }
+            frames += 1;
+            assert!(frames < 16, "{page:?} never finished growing");
+        };
+        assert!(commands_of(&whole).list.is_some(), "{page:?} is whole");
+        assert!(
+            !view(&whole).cursor_red,
+            "{page:?}: the whole frame's row is blue"
+        );
+        let next = tick(&mut session, Pad::new(Button::Down));
+        assert!(
+            view(&next).cursor_red,
+            "{page:?}: the routine runs and a held button shows red"
+        );
+    }
 }
 
 /// Plays tape 07's first round with pad presses only: Alys opens TECH and

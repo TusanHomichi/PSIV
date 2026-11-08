@@ -119,6 +119,17 @@ view's `growing` carries it, and the stage draws an empty window at that width
 in place of the strip or list. Test:
 `the_strip_and_the_technique_window_grow_before_they_read_a_button`.
 
+The frame a list is drawn whole is still `Battle_CreateWindow`'s: the list
+routine, whose `Battle_UpdateRedCursor2` (`ps4.asm:1572`) writes the selected
+row's red or blue tile and runs the blink timers, first runs the next frame
+(tape 32: the list at f25172, the red cursor at f25173). So the whole frame's
+row is blue whatever the blink last showed, and the timers stay paused
+through it; the same holds for a next page's window. `CommandsMenu::list_cursor_shown`
+carries that to the view's `cursor_red`. Tests:
+`a_list_drawn_whole_shows_its_cursor_only_from_the_next_frame` (TECH, SKILL,
+ITEM and a next page) and
+`the_skill_and_item_windows_show_no_red_cursor_until_their_routine_runs`.
+
 ### Not modelled, named
 
 - The closing side: `Battle_DestroyWindow` (`ps4.asm:1678`) shrinks a window
