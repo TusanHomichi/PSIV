@@ -368,32 +368,49 @@ the field renderer and mounted battle setup use that lookup. The palette
 counts are disassembly/data-backed extraction results; tape 29 is a movement
 and entry oracle, not a CRAM-capture tape.
 
-## Mounted battle backgrounds
+## Motavia battle backgrounds, on foot and mounted
 
-`Battle_SetupBackground` chooses in this order:
+`Battle_SetupBackground` (`ps4.asm:10124`) chooses in this order:
 
 1. `EventBattleBGIndexes`, 27 entries, when `Event_Battle_Index` is active;
 2. `Battle_BackgroundIndexes`, 416 entries indexed by `Field_Map_Index`;
-3. on Motavia map `0`, the raw terrain chunk through `MotaBattleBGIndexes`.
+3. on Motavia map `0`, `Mota_Battle_BG_Index`, which `FieldRoutine_Battle`
+   (`ps4.asm:117936-117944`) stores from the chunk under `Character_1`
+   through `GetMotaBattleBGIndex` (`ps4.asm:118165`).
 
-The Mota table, `MotaBattleBGIndexes` (`ps4.asm:118181`), is exactly 42 bytes
-at ROM `$0586EC..$058716`, not 43:
+The same rule serves a battle on foot and a mounted one. The runtime owns it
+(`Runtime::battle_background`, over `psiv_data::BattleBackgrounds`); the
+Godot stage only draws the index it is given.
 
-```text
-0,3,3,3,3,1,1,1,3,3,0,1,0,1,0,1,0,3,0,3,0,3,0,
-0,0,0,0,0,0,0,0,0,0,4,2,2,2,2,2,2,2,2,2
-```
+`MotaBattleBGIndexes` is 214 bytes, `$0586EC..$0587C2`, not the 42 the
+disassembly lists under its label (#40). `GetMotaBattleBGIndex` indexes it
+with the whole chunk byte and no bound, and the bytes after the 42nd carry on
+in the same 0-4 range under `loc_58716` and `loc_5874C`: two names that exist
+only because two `bcc.w` in `loc_584EE` (at `$58514` and `$5854A`) target
+addresses inside the table. The data ends where `FieldRoutine_Interaction`'s
+`bra.w` begins. Motavia's chunk ids run to 210, and a third of its walkable
+cells sit on chunks 42 and up; a 42-byte table put every battle there on
+background 0, and gave a mounted battle on them the default vehicle group
+`$8` where `Battle_SetupEnemyData` reads `$9` or `$A` from the same index
+(`ps4.asm:11829-11838`). The pack loader refuses a pack whose table is not 214
+long.
+
+Oracle tape 31's natural Motavia battle (f93785, leader at x 1296, y 1408,
+chunk 41) draws the beach, and the same battle with the leader moved to x 2320
+at f93786 (chunk 184, a fixture write) draws the grass. Rows 0-39 of both
+retail frames at f94000 match the pack's MotaBeach and MotaGrass images pixel
+for pixel; `rust/psiv-runtime/tests/battle_background.rs` selects the same two
+backgrounds at those positions.
 
 `GetMotaBattleBGIndex` stores index+1 and reserves zero for background zero;
 the runtime subtracts that bias. `psiv_tools/battle_art_pack.py` extracts all
 32 composite battle backgrounds and emits the three selection tables into
 `runtime-pack/battle/art/backgrounds.json`. Mounted maps use the ordinary field
 table when it has an entry. A mounted debug/map path whose field entry is
-`$FF` falls back to the raw Mota terrain table; if its raw chunk byte is outside
-the table's 42 named classes, it uses the table's reserved background-0 class.
-That is what closes the former `no asset for map 0x013` failure for the
-Piata Academy F1 fixture without claiming that an indoor chunk is Motavia
-terrain. Event battles still win over both terrain paths.
+`$FF` falls back to the Mota table by its chunk; a chunk past the table takes
+background 0. That is what closes the former `no asset for map 0x013` failure
+for the Piata Academy F1 fixture without claiming that an indoor chunk is
+Motavia terrain. Event battles still win over both terrain paths.
 
 The raw chunk grid is emitted per map as `vehicle_battle` in each map JSON.
 The runtime keeps a variant's grid when an active layout replacement supplies

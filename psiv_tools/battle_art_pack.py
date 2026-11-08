@@ -51,8 +51,10 @@ because a background nobody can select would be dead data:
 * `EventBattleBGIndexes` (27) when `Event_Battle_Index` is not negative;
 * `Battle_BackgroundIndexes` (416, one per map id) when `Field_Map_Index` is
   not zero;
-* `MotaBattleBGIndexes` (42, one per Motavia terrain byte) otherwise, storing
-  index+1 with 0 reserved for index 0.
+* `MotaBattleBGIndexes` (214, one per Motavia chunk id) otherwise, storing
+  index+1 with 0 reserved for index 0. The public disassembly labels only its
+  first 42 bytes; the rest runs on under two branch-target labels to the next
+  routine (#40).
 
 Plus one rule that is not a table: `loc_6C24` swaps index 4 for index 5 once
 `EventFlag_DarkForce2` is set, and that is the *only* way background 5 is ever
@@ -212,7 +214,18 @@ BACKGROUND_ART_NAME = f"{ART_DIRECTORY}/backgrounds.json"
 #
 #   EventBattleBGIndexes  0x006C8C + 27, `even` -> 0x006CA8
 #   Battle_BackgroundIndexes 0x006CA8 + 416    -> 0x006E48 (`loc_6E48`)
-#   MotaBattleBGIndexes   0x0586EC + 42        -> 0x058716 (`loc_58716`)
+#   MotaBattleBGIndexes   0x0586EC + 214       -> 0x0587C2
+#                                                 (`FieldRoutine_Interaction`)
+#
+# The Motavia table is not the 42 bytes the disassembly lists under its label.
+# `GetMotaBattleBGIndex` indexes it with the whole chunk byte (`andi.w #$FF,d7`,
+# no bound), and the bytes after the 42nd carry on in the same 0-4 range under
+# `loc_58716` and `loc_5874C`. Those two names exist only because two `bcc.w`
+# in `loc_584EE` target addresses inside the table.
+# The data ends where `FieldRoutine_Interaction`'s `bra.w` begins. Motavia's
+# overworld uses chunk ids up to 210, and a third of its walkable cells sit on
+# chunks 42 and up; reading only 42 bytes put every battle there on background
+# 0 (#40).
 BATTLE_SETUP_BACKGROUND = 0x006BFC
 #: `moveq #0,d0 / move.b (Event_Battle_Index).l,d0 / bmi.s`, the routine's head.
 BATTLE_SETUP_SIGNATURE = bytes.fromhex("7000103900ffecfc6b0a41fa")
@@ -223,7 +236,11 @@ FIELD_MAP_BG_INDEXES = 0x006CA8
 #: 416 for a 417-map id space, exactly like `Battle_EnemyFormationIndexes`.
 FIELD_MAP_BG_COUNT = 416
 MOTA_BG_INDEXES = 0x0586EC
-MOTA_BG_COUNT = 42
+MOTA_BG_COUNT = 214
+#: `FieldRoutine_Interaction: bra.w Interaction_DoChecks`, the first code after
+#: the Motavia table, so its start is the table's end.
+FIELD_ROUTINE_INTERACTION = 0x0587C2
+FIELD_ROUTINE_INTERACTION_OPCODE = bytes.fromhex("6000")
 
 #: `Battle_BackgroundIndexes` stores this for a map that never picks one.
 NO_BACKGROUND = 0xFF
@@ -596,6 +613,12 @@ def background_selection(rom: bytes) -> dict[str, Any]:
             f"Battle_SetupBackground at 0x{BATTLE_SETUP_BACKGROUND:06X} does not "
             "start with its Event_Battle_Index test"
         )
+    tail = rom[FIELD_ROUTINE_INTERACTION:FIELD_ROUTINE_INTERACTION + 2]
+    if tail != FIELD_ROUTINE_INTERACTION_OPCODE:
+        raise BattleArtError(
+            f"FieldRoutine_Interaction at 0x{FIELD_ROUTINE_INTERACTION:06X}, the "
+            "end of MotaBattleBGIndexes, does not start with its bra.w"
+        )
     event = list(rom[EVENT_BG_INDEXES:EVENT_BG_INDEXES + EVENT_BG_COUNT])
     field = list(rom[FIELD_MAP_BG_INDEXES:FIELD_MAP_BG_INDEXES + FIELD_MAP_BG_COUNT])
     mota = list(rom[MOTA_BG_INDEXES:MOTA_BG_INDEXES + MOTA_BG_COUNT])
@@ -623,7 +646,8 @@ def background_selection(rom: bytes) -> dict[str, Any]:
             "rom_offset": f"0x{MOTA_BG_INDEXES:06X}",
             "count": MOTA_BG_COUNT,
             "indexed_by": (
-                "the Motavia overworld terrain byte, when Field_Map_Index is 0"
+                "the Motavia overworld chunk id under Character_1 "
+                "(GetChunkAndCollision), when Field_Map_Index is 0"
             ),
             "stored_bias": MOTA_STORED_BIAS,
             "note": (
