@@ -434,7 +434,7 @@ The gate's last step is presentation certification, `tools/certify.py [--jobs N]
 (Godot, Xvfb and the local oracle frames required, the first two from the dev
 shell, which is why the step enters it; pairs and doctrine in
 [scene presentation](scenes/SCENE_PRESENTATION.md)). Every pull request's gate
-runs all twelve pairs, so a pair that drifts fails that merge rather than the
+runs every pair, so a pair that drifts fails that merge rather than the
 next person to run certify
 ([#269](https://github.com/TusanHomichi/PSIV/issues/269)). Run it alone for any change to
 Godot-visible paths while iterating, and report that apart from the gate. An integration candidate

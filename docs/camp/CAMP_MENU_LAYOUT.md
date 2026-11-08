@@ -186,13 +186,21 @@ zero (`ps4.asm:117321-117358`).
 
 ### Geometry and text
 
-The root and Chaz summary remain visible. The child message window is:
+The root, Chaz summary and meseta remain open; the message covers all of the
+meseta but its left edge (cells 3 to 6), and its `MST` text. The child message
+window is:
 
 | window | screen cells | pixels | retail source |
 |---|---:|---:|---|
 | root options | `(4,2,9,15)` | `(32,16,72,120)` | `WinGroup_Menu[0]` |
 | Chaz summary | `(26,1,12,6)` | `(208,8,96,48)` | `WinGroup_Menu[6]` |
+| meseta | `(3,23,13,3)` | `(24,184,104,24)` | group `[1]`, retained |
 | item message | `(7,21,26,5)` | `(56,168,208,40)` | `WinGroup_Menu[$35]`, `$19,$04,$07,$15` |
+
+The ITEM and TECH/SKILL pages draw the meseta under their windows for the
+same reason: `MenuOptions_Item` and `MenuOptions_Tech` open their windows
+over the root's three, and tape 36's teardown closes all three
+([TRAVEL.md](../field/TRAVEL.md#teleport-windows-and-effect)).
 
 The complete run is `Can't have any items!` at cell `(8,22)`, pixel
 `(64,176)`. The source string is `loc_2AA0E6` at

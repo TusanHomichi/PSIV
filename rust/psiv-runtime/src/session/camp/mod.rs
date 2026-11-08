@@ -13,6 +13,7 @@
 //! equipment  EQUIP: equip against unequip, the hand choice
 //! order      STATE > ORDER: the pick and undo draft and its frame-counted close
 //! travel     RYUKA/HINAS and the pipes: the town list, the paid message
+//! teardown   DestroyAllWindows before a teleport, one window at a time
 //! loot       the chest windows: the discard and give-up confirmations
 //! ```
 //!
@@ -36,7 +37,9 @@ mod equipment;
 mod input;
 mod loot;
 mod order;
+mod teardown;
 mod travel;
+pub use teardown::{TeardownView, WindowRecord, WindowRect, WindowTeardown};
 pub use travel::{TOWN_PAGE_ROWS, town_page_rows};
 
 use psiv_core::Input;
@@ -152,6 +155,12 @@ pub struct CampView {
     pub travel_selection: usize,
     /// The pack slot of the pipe being used, when the travel is an item's.
     pub travel_item_slot: Option<usize>,
+    /// The cartridge's windows under the town list when the pipe or the
+    /// technique was chosen, the first opened first (`teardown.rs`).
+    pub(crate) travel_windows: Vec<WindowRecord>,
+    /// The windows closing before a teleport, from its acknowledgement until
+    /// the menu exits (`DestroyAllWindows`).
+    pub teardown: Option<WindowTeardown>,
     /// The cursor on STATUS's members.
     pub status_selection: usize,
     /// Whether STATUS was entered from STATE (and backs out to it).
@@ -242,6 +251,8 @@ impl CampView {
             travel_towns_label: String::new(),
             travel_selection: 0,
             travel_item_slot: None,
+            travel_windows: Vec::new(),
+            teardown: None,
             status_selection: 0,
             status_from_state: false,
             order_draft: OrderDraft::default(),
@@ -370,7 +381,10 @@ impl Session {
         let drained = camp.finish_frame();
         if drained.closed {
             self.camp = None;
-            self.runtime.set_field_suspended(false);
+            // A teleport keeps the field parked through its fade and load.
+            if !self.runtime.teleporting() {
+                self.runtime.set_field_suspended(false);
+            }
             // The press that closed the menu must not read as a talk.
             self.accept_blocked = true;
             // An accepted ITEM action hands the field to its event

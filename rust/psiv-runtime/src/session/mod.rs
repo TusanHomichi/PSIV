@@ -152,7 +152,10 @@ use crate::pad::Pad;
 use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
-pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS, TOWN_PAGE_ROWS, town_page_rows};
+pub use camp::{
+    CampPage, CampView, OrderDraft, ROOT_OPTIONS, TOWN_PAGE_ROWS, TeardownView, WindowRecord,
+    WindowRect, WindowTeardown, town_page_rows,
+};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
@@ -461,6 +464,8 @@ impl Session {
             // back — not the field, not the shared seed.
             self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
             self.game_over_frame()
+        } else if self.runtime.teleporting() {
+            self.teleport_frame()
         } else if self.destination.is_some() {
             // A scene handed the frame to the ship's destination menu: it owns
             // the pad until the player answers (`destination.rs`).
@@ -484,6 +489,19 @@ impl Session {
         self.job_board_settle(pressed);
         frame.notice = notice;
         frame
+    }
+
+    /// One frame of a teleport's fade-out or load: no menu, no talk, no
+    /// pad (`Runtime::tick_teleport`).
+    fn teleport_frame(&mut self) -> Frame {
+        let events = self.runtime.tick(Input::Neutral);
+        let (events, routed) = self.route(events);
+        Frame {
+            mode: FrameMode::Field,
+            events,
+            routed,
+            ..Frame::default()
+        }
     }
 
     /// One frame of the battle loop.

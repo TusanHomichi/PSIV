@@ -2,7 +2,8 @@
 
 `loc_68704` draws every window in the game out of three tiles and their flip
 bits. The role map here is that routine, and the records are the cartridge's
-own window table.
+own window table. The camp menu's records (`WinGroup_Menu`) ride along: the
+runtime closes them window by window before a teleport.
 """
 
 from __future__ import annotations
@@ -74,6 +75,13 @@ WINDOW_BORDER_CELLS = 1
 WIN_GROUP_DIALOGUE = 0x069380
 WIN_GROUP_RECORD_SIZE = 8
 WIN_GROUP_DIALOGUE_NAMES = ("controls", "dialogue", "portrait", "yes_no")
+#: `WinGroupOffsets` (`ps4.asm:140144`): one word per group, each the group's
+#: distance from the table. Entry 1 is `WinGroup_Menu`, entry 2
+#: `WinGroup_Dialogue`, which follows it directly; the second must resolve to
+#: [`WIN_GROUP_DIALOGUE`], which the signatures pin.
+WIN_GROUP_OFFSETS = 0x06899C
+WIN_GROUP_MENU_ENTRY = 1
+WIN_GROUP_DIALOGUE_ENTRY = 2
 #: The window `Window_Create` is called with for the message box itself.
 DIALOGUE_WINDOW_INDEX = 1
 PORTRAIT_WINDOW_INDEX = 2
@@ -168,6 +176,51 @@ def window_records(rom: bytes) -> list[dict[str, Any]]:
                 "height_cells": height - 2 * WINDOW_BORDER_CELLS,
             },
             "content_pointer": f"0x{int.from_bytes(raw[4:], 'big'):06X}",
+        })
+    return records
+
+
+def menu_records_offset(rom: bytes) -> int:
+    """Where `WinGroup_Menu` starts, by its `WinGroupOffsets` entry."""
+    raw = rom_slice(
+        rom, WIN_GROUP_OFFSETS + 2 * WIN_GROUP_MENU_ENTRY, 2, "WinGroupOffsets"
+    )
+    return WIN_GROUP_OFFSETS + int.from_bytes(raw, "big")
+
+
+def menu_window_records(rom: bytes) -> list[dict[str, Any]]:
+    """`WinGroup_Menu`, the camp menu's windows, read from the cartridge.
+
+    The group runs from its `WinGroupOffsets` entry to `WinGroup_Dialogue`'s.
+    Each record is stored as for the dialogue group (width and height less
+    one, then the screen cell); the runtime picks records by the index each
+    routine passes `Window_Create`.
+    """
+    raw = rom_slice(
+        rom, WIN_GROUP_OFFSETS + 2 * WIN_GROUP_DIALOGUE_ENTRY, 2, "WinGroupOffsets"
+    )
+    start = menu_records_offset(rom)
+    end = WIN_GROUP_OFFSETS + int.from_bytes(raw, "big")
+    if end != WIN_GROUP_DIALOGUE:
+        raise DialoguePackError(
+            f"WinGroupOffsets names WinGroup_Dialogue at 0x{end:06X}, not "
+            f"0x{WIN_GROUP_DIALOGUE:06X}"
+        )
+    if not start < end or (end - start) % WIN_GROUP_RECORD_SIZE:
+        raise DialoguePackError(
+            f"WinGroup_Menu at 0x{start:06X} is not a whole number of records "
+            f"before WinGroup_Dialogue"
+        )
+    records = []
+    for index in range((end - start) // WIN_GROUP_RECORD_SIZE):
+        offset = start + index * WIN_GROUP_RECORD_SIZE
+        raw = rom_slice(rom, offset, WIN_GROUP_RECORD_SIZE, "WinGroup_Menu")
+        records.append({
+            "index": index,
+            "width_cells": raw[0] + 1,
+            "height_cells": raw[1] + 1,
+            "x_cell": raw[2],
+            "y_cell": raw[3],
         })
     return records
 
@@ -279,6 +332,12 @@ def window_json_document(
             "selector": "LoadWindowGroup, by Game_Mode_Routine",
         },
         "windows": list(records),
+        "menu_group": {
+            "label": "WinGroup_Menu",
+            "rom_offset": f"0x{menu_records_offset(rom):06X}",
+            "selector": "WinGroupOffsets entry 1",
+        },
+        "menu_windows": menu_window_records(rom),
         "text_window": {
             "window": DIALOGUE_WINDOW_INDEX,
             "rect": box["rect"],

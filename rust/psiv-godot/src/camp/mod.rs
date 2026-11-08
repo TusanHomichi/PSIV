@@ -27,13 +27,17 @@ use self::chrome::{CampChrome, Quad};
 
 /// Tier-1 browse geometry for inventory and target pages. The tape only
 /// decoded the empty ITEM branch; these child surfaces keep live inventory
-/// usable while leaving that documented gap explicit.
+/// usable while leaving that documented gap explicit: the cartridge's own
+/// windows are #403.
 const ITEM_LIST: layout::CellRect = layout::CellRect::new(14, 2, 24, 20);
 const ITEM_TARGET: layout::CellRect = layout::CellRect::new(18, 6, 18, 10);
 
 struct DrawList {
     quads: Vec<Quad>,
     portrait: Option<(Gd<ImageTexture>, Rect2)>,
+    /// Each window the page drew, in drawing order: its rectangle and its
+    /// first quad. A window's quads run to the next one's first.
+    windows: Vec<(layout::CellRect, usize)>,
 }
 
 /// A visible camp menu node. `Field` owns the node and gives it the session's
