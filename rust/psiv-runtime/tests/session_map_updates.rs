@@ -17,6 +17,28 @@ fn pack_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack"))
 }
 
+// A negative control copies its inputs instead of requiring privileged symlink
+// creation, so the same fixture runs on Windows and Unix.
+fn copy_tree(source: &Path, target: &Path) {
+    if source.is_dir() {
+        std::fs::create_dir_all(target).unwrap();
+        for entry in std::fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            copy_tree(&entry.path(), &target.join(entry.file_name()));
+        }
+    } else {
+        std::fs::copy(source, target).unwrap();
+    }
+}
+
+fn pack_available() -> bool {
+    if !pack_path().join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return false;
+    }
+    true
+}
+
 fn pack() -> &'static (GameData, BattleFiles) {
     static PACK: OnceLock<(GameData, BattleFiles)> = OnceLock::new();
     PACK.get_or_init(|| {
@@ -54,14 +76,14 @@ fn control_pack(source: &Path) -> PathBuf {
     for entry in std::fs::read_dir(source).unwrap() {
         let entry = entry.unwrap();
         if entry.file_name() != "maps" {
-            std::os::unix::fs::symlink(entry.path(), target.join(entry.file_name())).unwrap();
+            copy_tree(&entry.path(), &target.join(entry.file_name()));
         }
     }
     for entry in std::fs::read_dir(source.join("maps")).unwrap() {
         let entry = entry.unwrap();
         let name = PathBuf::from("maps").join(entry.file_name());
         if name != Path::new(map_name) {
-            std::os::unix::fs::symlink(entry.path(), target.join(name)).unwrap();
+            copy_tree(&entry.path(), &target.join(name));
         }
     }
     let mut map: serde_json::Value =
@@ -146,6 +168,9 @@ fn tick(session: &mut Session, pad: Pad) {
 
 #[test]
 fn zelan_canceller_requires_the_chest_bit_not_inventory_or_temporary_flags() {
+    if !pack_available() {
+        return;
+    }
     for (bank, positive) in [(0, true), (1, false), (2, false)] {
         let mut game = fresh_game();
         let _ = game.clear(Flag::event(0x72));
@@ -172,6 +197,9 @@ fn zelan_canceller_requires_the_chest_bit_not_inventory_or_temporary_flags() {
 
 #[test]
 fn aiedo_water_follows_raw_table_columns_and_absolute_eight_frame_clock() {
+    if !pack_available() {
+        return;
+    }
     // The raw table is read from the cartridge itself as an independent check
     // of the pack; skip, like the pack-dependent suites, when the local ROM is
     // absent (a fresh clone, a worktree without the input linked).
@@ -211,6 +239,9 @@ fn aiedo_water_follows_raw_table_columns_and_absolute_eight_frame_clock() {
 
 #[test]
 fn canceller_chest_input_defers_the_story_write_until_its_window_closes() {
+    if !pack_available() {
+        return;
+    }
     let mut game = fresh_game();
     let _ = game.clear(Flag::chest(0x0B));
     let _ = game.clear(Flag::event(0x72));
@@ -239,6 +270,9 @@ fn canceller_chest_input_defers_the_story_write_until_its_window_closes() {
 
 #[test]
 fn menu_and_dialogue_frames_park_updates_but_not_the_absolute_clock() {
+    if !pack_available() {
+        return;
+    }
     let mut session = session_at(0x54, ground(0x54, None), &fresh_game());
     for _ in 0..8 {
         tick(&mut session, Pad::NEUTRAL);
@@ -267,6 +301,9 @@ fn menu_and_dialogue_frames_park_updates_but_not_the_absolute_clock() {
 
 #[test]
 fn tower_chest_conjunctions_set_story_flags_only_when_all_bits_hold() {
+    if !pack_available() {
+        return;
+    }
     for (map, required, event) in [
         (246, vec![0xA1, 0xA2, 0xA3], 0xD5),
         (251, vec![0xA4, 0xA5], 0xD3),
@@ -301,6 +338,9 @@ fn tower_chest_conjunctions_set_story_flags_only_when_all_bits_hold() {
 
 #[test]
 fn unused_chest_clear_and_music_writes_reach_persistent_state() {
+    if !pack_available() {
+        return;
+    }
     let mut game = fresh_game();
     let _ = game.set(Flag::chest(0xA9));
     let mut chest = session_at(198, ground(198, None), &game);
@@ -318,6 +358,9 @@ fn unused_chest_clear_and_music_writes_reach_persistent_state() {
 
 #[test]
 fn camera_damping_runs_between_driver_latch_and_camera_commit() {
+    if !pack_available() {
+        return;
+    }
     let mut session = session_at(132, Cell::new(30, 20), &fresh_game());
     tick(&mut session, Pad::new(Button::Right));
     let camera = session.runtime().camera();
@@ -329,6 +372,9 @@ fn camera_damping_runs_between_driver_latch_and_camera_commit() {
 
 #[test]
 fn tunnels_and_sine_scroll_emit_exact_sparse_presentation_writes() {
+    if !pack_available() {
+        return;
+    }
     let mut tunnels = session_at(134, ground(134, None), &fresh_game());
     tick(&mut tunnels, Pad::NEUTRAL);
     let view = tunnels.runtime().map_updates();
@@ -355,6 +401,9 @@ fn tunnels_and_sine_scroll_emit_exact_sparse_presentation_writes() {
 
 #[test]
 fn rykros_countdown_and_single_rng2_reload_share_the_field_seed() {
+    if !pack_available() {
+        return;
+    }
     let mut session = session_at(2, ground(2, None), &fresh_game());
     for frame in 1..=272 {
         let seed = session.runtime().rng_seed();
@@ -387,6 +436,9 @@ fn rykros_countdown_and_single_rng2_reload_share_the_field_seed() {
 
 #[test]
 fn positional_encounter_override_preserves_the_unsigned_inclusive_boundary() {
+    if !pack_available() {
+        return;
+    }
     for (cell_y, enabled) in [(23, false), (24, true)] {
         let mut session = session_at(415, ground(415, Some(cell_y)), &fresh_game());
         tick(&mut session, Pad::NEUTRAL);
@@ -403,6 +455,9 @@ fn positional_encounter_override_preserves_the_unsigned_inclusive_boundary() {
 
 #[test]
 fn missing_dma_and_conveyor_buffers_are_reported_without_invented_effects() {
+    if !pack_available() {
+        return;
+    }
     for (map, index) in [(202, 0x11), (199, 0x12), (412, 0x22)] {
         let mut session = session_at(map, ground(map, None), &fresh_game());
         tick(&mut session, Pad::NEUTRAL);

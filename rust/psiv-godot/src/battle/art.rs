@@ -729,6 +729,10 @@ mod tests {
     #[test]
     fn retail_battle_art_pack_has_the_declared_shape() {
         let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
         let art = BattleArt::load(&pack.to_string_lossy()).expect("retail battle art loads");
         assert_eq!(art.enemies.len(), 153);
         assert_eq!(
@@ -747,6 +751,10 @@ mod tests {
     #[test]
     fn igglanova_boss_uses_pack_positions_palette_and_event_background() {
         let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
         let files = BattleFiles::load(&pack).expect("retail battle pack loads");
         let formation = files
             .formations

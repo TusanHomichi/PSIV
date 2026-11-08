@@ -16,3 +16,4 @@ psiv-sound = { path = "../psiv-sound" }
 godot = { version = "0.5", features = ["api-4-7"] }
 serde.workspace = true
 serde_json.workspace = true
+memory-stats = "1.2"

@@ -63,7 +63,10 @@ no-leak variation exceeds them should widen them with its own measurement.
 
 Godot reports static memory only in debug builds (`MEMORY_STATIC` is 0 under
 a release template, which would make the static terms meaningless), so the
-verdict is for debug builds of the extension and engine (#117).
+release verdict judges counted Rust bytes, objects and cache ceilings.
+The orphan-node monitor is also unavailable in a release engine.
+Static-byte checks are explicitly unavailable; RSS remains diagnostic because
+retained allocator pages cannot establish a leak (#117).
 """
 
 from __future__ import annotations
@@ -255,6 +258,20 @@ def probe_caches(sample: dict) -> dict | None:
     return out
 
 
+def static_availability(samples: list) -> bool | None:
+    """Legacy receipts used debug counters; new receipts declare availability.
+
+    A mixed mode or a nonzero unavailable counter is malformed evidence.
+    """
+    modes = [item.get("static_available", True) for item in samples]
+    if any(type(mode) is not bool for mode in modes) or len(set(modes)) != 1:
+        return None
+    available = modes[0] if modes else True
+    if not available and any(item.get("static_kb") != 0 for item in samples):
+        return None
+    return available
+
+
 def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     """A probe's floor of each measure, or why it has none: missing, never
     settled on the open field, too few samples, or a sample off the field,
@@ -275,8 +292,16 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
                        for key in PROBE_KEYS + ("orphan_nodes", "rust_live_bytes"))
                and item["rss_kb"] > 0 for item in samples):
         return None, "a sample off the open field or unreadable"
-    if probe.get("orphan_monitor_alive") is not True:
+    available = static_availability(samples)
+    if available is None:
+        return None, "inconsistent static-memory availability"
+    orphan_available = probe.get("orphan_monitor_available", True)
+    if type(orphan_available) is not bool or orphan_available != available:
+        return None, "inconsistent orphan-monitor availability"
+    if orphan_available and probe.get("orphan_monitor_alive") is not True:
         return None, "its orphan-node monitor did not count a test orphan"
+    if not orphan_available and any(item["orphan_nodes"] != 0 for item in samples):
+        return None, "an unavailable orphan monitor reported nodes"
     caches = [probe_caches(item) for item in samples]
     if any(cache is None for cache in caches):
         return None, "a sample without its named caches"
@@ -290,10 +315,12 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS + ("orphan_nodes",)}
     outside = [item["objects"] - sum(cache["objects"] for cache in item_caches.values())
                for item, item_caches in zip(samples, caches)]
-    outside_kb = [item["static_kb"] - sum(cache["bytes"] for cache in item_caches.values()) / 1024
+    outside_kb = [item["static_kb"] - (sum(cache["bytes"] for cache in item_caches.values()) / 1024
+                                       if available else 0)
                   for item, item_caches in zip(samples, caches)]
     if any(value < 0 for value in outside) or any(value < 0 for value in outside_kb):
         return None, "a probe's named caches exceed its objects or static memory"
+    floor["static_available"] = available
     floor["objects_outside_caches"] = min(outside)
     floor["static_outside_caches_kb"] = min(outside_kb)
     floor["rust_live_kb"] = min(item["rust_live_bytes"] for item in samples) / 1024
@@ -331,6 +358,9 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
     def mb(kb: float) -> float:
         return round(kb / 1024, 1)
 
+    if start["static_available"] != end["static_available"]:
+        return {"pass": False, "reason": "probes disagree on static-memory availability"}
+    available = start["static_available"]
     static = end["static_outside_caches_kb"] - start["static_outside_caches_kb"]
     rust = end["rust_live_kb"] - start["rust_live_kb"]
     objects = end["objects_outside_caches"] - start["objects_outside_caches"]
@@ -348,20 +378,22 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
             "pass": max(before["entries"], after["entries"]) <= after["ceiling"]}
     orphans = max(start["orphan_nodes"], end["orphan_nodes"])
     return {
-        "start_floor": {"static_mb": mb(start["static_kb"]), "objects": start["objects"],
+        "start_floor": {"static_mb": mb(start["static_kb"]) if available else None, "objects": start["objects"],
                         "rust_live_mb": mb(start["rust_live_kb"]),
                         "residual_mb": mb(start["residual_kb"]), "rss_mb": mb(start["rss_kb"])},
-        "end_floor": {"static_mb": mb(end["static_kb"]), "objects": end["objects"],
+        "end_floor": {"static_mb": mb(end["static_kb"]) if available else None, "objects": end["objects"],
                       "rust_live_mb": mb(end["rust_live_kb"]),
                       "residual_mb": mb(end["residual_kb"]), "rss_mb": mb(end["rss_kb"])},
-        "static_growth_mb": mb(static), "rust_live_growth_mb": mb(rust),
+        "static_available": available,
+        "static_growth_mb": mb(static) if available else None, "rust_live_growth_mb": mb(rust),
         "residual_growth_mb": mb(end["residual_kb"] - start["residual_kb"]),
         "object_growth": objects,
-        "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]),
+        "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]) if available else None,
         "total_object_growth": end["objects"] - start["objects"],
         "node_growth": end["nodes"] - start["nodes"]
         if "nodes" in end and "nodes" in start else None,
-        "orphan_nodes": orphans,
+        "orphan_nodes": orphans if available else None,
+        "orphan_monitor_available": available,
         "objects_per_texture": [start["objects_per_texture"], end["objects_per_texture"]],
         "caches": caches,
         "pass": static / 1024 <= bound_mb and rust / 1024 <= bound_mb
@@ -435,6 +467,9 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
             or any(item["rss_kb"] <= 0 for item in samples)):
         verdict.update({"pass": False, "reason": "missing or unreadable samples around warm-up"})
         return verdict
+    available = static_availability(samples)
+    if available is None:
+        return dict(verdict, reason="inconsistent static-memory availability", **{"pass": False})
     cadence = min(b["frame"] - a["frame"] for a, b in zip(samples, samples[1:]))
     verdict["cadence_frames"] = cadence
     refused = cadence_error(cadence, floor_frames)
@@ -472,7 +507,7 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                                 "reason": "a named cache count is not an integer"})
                 return verdict
             item["objects_unnamed"] = item["objects"] - item["cache_objects"]
-            item["static_unnamed_kb"] = item["static_kb"] - item["cache_bytes"] / 1024
+            item["static_unnamed_kb"] = item["static_kb"] - (item["cache_bytes"] / 1024 if available else 0)
             if item["objects_unnamed"] < 0 or item["static_unnamed_kb"] < 0:
                 verdict.update({"pass": False,
                                 "reason": "a sample's named caches exceed its objects or static memory"})
@@ -561,6 +596,20 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                                                         for low, high in gaps)},
         "bracket": bracket_verdict(probes, bound_mb, object_bound),
     })
-    verdict["pass"] = all(verdict[part]["pass"] for part in
-                          ("rust_heap", "bracket", "godot_static", "objects"))
+    if verdict["bracket"].get("static_available", available) != available:
+        return dict(verdict, **{"pass": False, "reason": "samples and probes disagree on static-memory availability"})
+    verdict["static_available"] = available
+    verdict["godot_static"]["judged"] = available
+    if not available:
+        verdict["godot_static"]["pass"] = None
+        verdict["godot_static"]["growth_mb"] = None
+        verdict["static_drift"]["drift_mb"] = None
+        verdict["static_drift"]["within_bound"] = None
+        for item in verdict["maps"].values():
+            item["first_floor_static_mb"] = None
+            item["static_growth_mb"] = None
+    judged = ["rust_heap", "bracket", "objects"]
+    if available:
+        judged.append("godot_static")
+    verdict["pass"] = all(verdict[part]["pass"] for part in judged)
     return verdict

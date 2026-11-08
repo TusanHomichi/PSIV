@@ -9,8 +9,11 @@ prerequisites and the commands to build and start the game.
 ## Current environment
 
 This section owns the toolchain versions. The committed GDExtension library
-paths target Linux x86-64, and the Steam Deck build is the same Linux target
-(see [a build for the Steam Deck](#a-build-for-the-steam-deck)). The supported
+paths cover Linux x86-64, Windows x86-64 and macOS universal. The Steam Deck
+build is the same Linux target
+(see [a build for the Steam Deck](#a-build-for-the-steam-deck)).
+Every platform uses Godot's Compatibility renderer; certification captures
+use that renderer too. The supported
 Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
 build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
 [`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup

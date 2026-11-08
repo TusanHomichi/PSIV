@@ -487,6 +487,10 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     if receipt["rss"] is not None:
         rss = receipt["rss"]
+        if rss.get("static_available") is False:
+            print("native tape: release-template memory coverage: counted Rust heap, Godot "
+                  "objects and cache ceilings; Godot static bytes and orphan monitor unavailable; "
+                  "RSS is diagnostic only")
         if "rust_heap" in rss:
             bracket = rss["bracket"]
             print(f"native tape: RSS bracket {'PASS' if bracket['pass'] else 'FAIL'}; " + (
