@@ -28,7 +28,6 @@ pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
 use godot::prelude::*;
 
-use psiv_core::Flag;
 use psiv_data::{BattleFiles, CommandUiArt};
 use psiv_runtime::{BattleStart, BattleView, Runtime, RuntimeEvent, Session};
 
@@ -37,21 +36,18 @@ use super::Field;
 /// Data the renderer needs to compose one encounter. These are copied out of
 /// pack/runtime records so the Godot node never borrows either lower layer.
 pub(crate) struct BattleSetup {
+    /// The field map the battle started on, for diagnostics.
     pub(crate) map_id: u16,
-    /// `None` for random encounters; `Some` selects the event-battle
-    /// background table for a scene-owned boss formation.
-    pub(crate) event_battle: Option<u16>,
-    /// Runtime does not yet expose the raw Motavia terrain byte. Keeping this
-    /// `None` for non-Motavia battles; map 0 carries the raw chunk id used by
-    /// `MotaBattleBGIndexes`.
-    pub(crate) motavia_terrain: Option<u8>,
+    /// The background `Battle_SetupBackground` draws, as the runtime chose
+    /// it ([`psiv_runtime::Runtime::battle_background`]). `None` when the
+    /// pack's tables pick none.
+    pub(crate) background: Option<u8>,
     /// The mounted selector, when this is the one-fighter vehicle surface.
     pub(crate) vehicle_index: Option<u16>,
     /// Pack-relative vehicle field sheet, used for the battle fighter body.
     pub(crate) vehicle_png: Option<String>,
     /// First-frame crop size from the vehicle field sheet.
     pub(crate) vehicle_frame: Option<(u32, u32)>,
-    pub(crate) dark_force_2: bool,
     /// Initial elapsed idle-overlay ticks. The tape-07 command-idle receipt at
     /// frame 25000 needs a non-zero fixture offset because its three live tile
     /// pieces have different cadences; normal encounters retain phase zero.
@@ -483,10 +479,7 @@ fn build_setup_for_formation(
         .collect();
     Some(BattleSetup {
         map_id: runtime.map_id().0,
-        event_battle,
-        motavia_terrain: (runtime.map_id().0 == 0 || runtime.vehicle_index().is_some())
-            .then(|| runtime.vehicle_battle_terrain())
-            .flatten(),
+        background: runtime.battle_background(event_battle),
         vehicle_index: runtime.vehicle_index(),
         vehicle_png: runtime
             .vehicle_index()
@@ -504,7 +497,6 @@ fn build_setup_for_formation(
                     .vehicle_sheet_for_map(runtime.map_id().0, index)
             })
             .map(|sheet| (sheet.frame_width, sheet.frame_height)),
-        dark_force_2: runtime.game().is_set(Flag::event(0x9E)),
         enemy_animation_phase_ticks: 0,
         party,
         enemies,

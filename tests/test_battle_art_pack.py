@@ -36,6 +36,7 @@ from psiv_tools.battle_art_pack import (
     EVENT_BG_INDEXES,
     FIELD_MAP_BG_COUNT,
     FIELD_MAP_BG_INDEXES,
+    FIELD_ROUTINE_INTERACTION,
     MOTA_BG_COUNT,
     MOTA_BG_INDEXES,
     MOTA_STORED_BIAS,
@@ -617,10 +618,25 @@ class TestBackgrounds(unittest.TestCase):
     def test_each_table_ends_where_the_next_thing_begins(self):
         # None of the three counts is a guess: the event table's end rounds up
         # to the map table's start, the map table's end is `loc_6E48`, and the
-        # Motavia table's end is `loc_58716`.
+        # Motavia table's end is `FieldRoutine_Interaction`'s `bra.w` (#40).
         self.assertEqual((EVENT_BG_INDEXES + EVENT_BG_COUNT + 1) & ~1, FIELD_MAP_BG_INDEXES)
         self.assertEqual(FIELD_MAP_BG_INDEXES + FIELD_MAP_BG_COUNT, 0x006E48)
-        self.assertEqual(MOTA_BG_INDEXES + MOTA_BG_COUNT, 0x058716)
+        self.assertEqual(MOTA_BG_INDEXES + MOTA_BG_COUNT, FIELD_ROUTINE_INTERACTION)
+        self.assertEqual(self.data[FIELD_ROUTINE_INTERACTION:FIELD_ROUTINE_INTERACTION + 2],
+                         bytes.fromhex("6000"))
+
+    def test_the_motavia_table_runs_past_the_disassembly_label(self):
+        # The disassembly lists 42 bytes under `MotaBattleBGIndexes`, but the
+        # bytes up to the next routine are the same kind of entry: every one is
+        # a stored background, 0 to 4. A table cut at 42 would leave a third of
+        # Motavia's walkable cells with no background (#40).
+        indexes = self.selection["motavia_terrain"]["indexes"]
+        self.assertEqual(len(indexes), MOTA_BG_COUNT)
+        self.assertGreater(MOTA_BG_COUNT, 42)
+        self.assertTrue(all(0 <= stored <= 4 for stored in indexes))
+        # Past the 42nd byte the table still selects more than one background,
+        # so a cut table changes what a battle draws, not only an error.
+        self.assertGreater(len({max(v - MOTA_STORED_BIAS, 0) for v in indexes[42:]}), 1)
 
     def test_the_map_table_is_one_short_of_the_map_id_space(self):
         # The same off-by-one `Battle_EnemyFormationIndexes` has: 416 bytes for
@@ -696,8 +712,27 @@ class TestPoseLabelsAgainstTheDisassembly(unittest.TestCase):
                     int(v, 16)
                     for v in re.findall(r"^\tdc\.b\s+\$?([0-9A-Fa-f]+)", match.group(1), re.M)
                 ]
+                if label == "MotaBattleBGIndexes":
+                    clone += self._motavia_table_tail(text)
                 self.assertEqual(len(clone), count)
                 self.assertEqual(clone, list(data[offset:offset + count]))
+
+    @staticmethod
+    def _motavia_table_tail(text: str) -> list[int]:
+        # The clone splits the Motavia table at two branch-target labels and
+        # writes the rest as `dc.w` words; it ends at the next routine.
+        start = text.index("\nloc_58716:\n")
+        end = text.index("\nFieldRoutine_Interaction:\n", start)
+        tail = []
+        for line in text[start:end].splitlines():
+            line = line.split(";")[0].strip()
+            if not line.startswith("dc.w"):
+                continue
+            for word in line[len("dc.w"):].split(","):
+                word = word.strip()
+                value = int(word[1:], 16) if word.startswith("$") else int(word)
+                tail += [value >> 8, value & 0xFF]
+        return tail
 
     def test_every_label_is_the_clones_own(self):
         text = DISASM.read_text(errors="replace")
