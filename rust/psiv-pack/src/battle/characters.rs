@@ -24,7 +24,9 @@ use super::names::{
     CHARACTERS, Display, PROFESSIONS, PROPERTIES, SKILLS, TECHNIQUES, display, element, named_byte,
     property_level,
 };
-use super::rules::{CHARACTER_BYTES, CHARACTER_TABLE, CharInit, Rules, SLOTS, TypeRule};
+use super::rules::{
+    CHARACTER_BYTES, CHARACTER_TABLE, CharInit, ElementRules, Rules, SLOTS, TypeRule,
+};
 use super::{FORMAT_VERSION, range, serialize};
 use crate::PackError;
 use crate::json::{Json, overlay};
@@ -86,6 +88,61 @@ fn known(raw: &[u8], names: &[&str], display_names: &Display) -> Vec<Json> {
         .collect()
 }
 
+/// One derived-stat pass: the base stat plus every equipped item's signed
+/// bonuses. `add.b` into a byte register wraps; the word passes keep 16 bits.
+fn derive(base: u8, bonuses: &[&str], equipped: &[(&str, &Item)], result_bytes: u8) -> i32 {
+    let mut total = i32::from(base);
+    for (_, item) in equipped {
+        for field in bonuses {
+            total += i32::from(item.bonus(field));
+        }
+    }
+    total & if result_bytes == 1 { 0xFF } else { 0xFFFF }
+}
+
+/// `UpdateCharElems` over one loadout: a hand holding anything but a shield
+/// sets that hand's attack element; a shield or armour sets its element's
+/// property to the resistance value; a property nothing touched keeps the
+/// record's own byte (`own`). Returns the properties and the two hands'
+/// elements.
+fn element_bytes(
+    own: &[u8],
+    equipped: &[(&str, &Item)],
+    rules: &ElementRules,
+) -> Result<(Vec<u8>, [u8; 2]), String> {
+    let mut granted = vec![0u16; own.len()];
+    let mut weapons = [0u8; 2];
+    for (slot, item) in equipped {
+        let id = item.element();
+        if let Some(hand) = SLOTS[..2].iter().position(|s| s == slot) {
+            if u16::from(item.kind()) != rules.shield_type {
+                weapons[hand] = id;
+                continue;
+            }
+            weapons[hand] = 0;
+        }
+        if id != 0 {
+            let slot = granted
+                .get_mut(usize::from(id) - 1)
+                .ok_or_else(|| format!("wears element {id}, past the property slots"))?;
+            *slot = rules.resistance_value;
+        }
+    }
+    let props = own
+        .iter()
+        .zip(&granted)
+        .map(|(&own, &granted)| {
+            if granted == 0 {
+                Ok(own)
+            } else {
+                u8::try_from(granted)
+                    .map_err(|_| format!("resistance value {granted} does not fit a property byte"))
+            }
+        })
+        .collect::<Result<_, _>>()?;
+    Ok((props, weapons))
+}
+
 /// `_initialize`: `UpdateCharModStats` and `UpdateCharElems` run over one
 /// record with the decoded rules.
 fn initialize(
@@ -101,15 +158,8 @@ fn initialize(
                 pass.base_stat
             ))
         })?;
-        let mut total = i32::from(base);
-        for (_, item) in equipped {
-            for field in &pass.bonuses {
-                total += i32::from(item.bonus(field));
-            }
-        }
-        // `add.b` into a byte register wraps; the word passes keep 16 bits.
-        let mask = if pass.result_bytes == 1 { 0xFF } else { 0xFFFF };
-        derived.insert(pass.stat.clone(), total & mask);
+        let total = derive(base, &pass.bonuses, equipped, pass.result_bytes);
+        derived.insert(pass.stat.clone(), total);
     }
     let get = |name: &str| {
         derived
@@ -128,43 +178,12 @@ fn initialize(
         );
     }
 
-    let elements = &rules.elements;
-    let mut props = [0u16; PROPERTIES.len()];
-    let mut weapons = [0u8; 2];
-    for (slot, item) in equipped {
-        let hand = SLOTS[..2].iter().position(|s| s == slot);
-        let id = item.element();
-        if let Some(hand) = hand {
-            if u16::from(item.kind()) != elements.shield_type {
-                weapons[hand] = id;
-                continue;
-            }
-            weapons[hand] = 0;
-        }
-        if id != 0 {
-            let index = usize::from(id) - 1;
-            if index >= PROPERTIES.len() {
-                return Err(PackError(format!(
-                    "character {} wears element {id}, past the property slots",
-                    record.id
-                )));
-            }
-            props[index] = elements.resistance_value;
-        }
-    }
+    let own: Vec<u8> = (0..PROPERTIES.len()).map(|i| record.property(i)).collect();
+    let (props, weapons) = element_bytes(&own, equipped, &rules.elements)
+        .map_err(|error| PackError(format!("character {}: {error}", record.id)))?;
     let mut element_props = BTreeMap::new();
     let mut meanings = Json::object();
-    for (index, name) in PROPERTIES.iter().enumerate() {
-        let value = if props[index] == 0 {
-            record.property(index)
-        } else {
-            u8::try_from(props[index]).map_err(|_| {
-                PackError(format!(
-                    "resistance value {} does not fit a property byte",
-                    props[index]
-                ))
-            })?
-        };
+    for (name, &value) in PROPERTIES.iter().zip(&props) {
         element_props.insert((*name).to_owned(), Property { value });
         meanings.insert(*name, Json::object().with("meaning", property_level(value)));
     }
@@ -536,5 +555,67 @@ mod tests {
         assert_eq!(record.stat("agility"), Some(12));
         assert_eq!(record.stat("atk_pow"), None);
         assert_eq!((record.property(0), record.property(13)), (4, 1));
+    }
+
+    fn item(kind: u8, element: u8, strength: i8) -> Item {
+        let mut raw = [0u8; super::super::rules::ITEM_BYTES];
+        raw[10] = kind;
+        raw[11] = strength as u8;
+        raw[18] = element;
+        Item {
+            id: 1,
+            symbol: "Test",
+            offset: 0,
+            raw,
+        }
+    }
+
+    #[test]
+    fn a_pass_adds_signed_bonuses_and_wraps_to_its_width() {
+        let dagger = item(1, 0, -3);
+        let ring = item(6, 0, 10);
+        let worn = [("right_hand", &dagger), ("head", &ring)];
+        assert_eq!(derive(10, &["strength"], &worn, 1), 17);
+        assert_eq!(derive(250, &["strength"], &worn, 1), 1);
+        let cursed = [("right_hand", &dagger)];
+        assert_eq!(derive(1, &["strength"], &cursed, 2), 0xFFFE);
+        assert_eq!(derive(1, &["strength", "strength"], &cursed, 2), 0xFFFB);
+    }
+
+    fn element_rules() -> ElementRules {
+        ElementRules {
+            routine: 0,
+            element_offset: 0x12,
+            type_offset: 0x0A,
+            shield_type: 5,
+            elements: 14,
+            props: 0x30,
+            resistance_value: 1,
+            right: 0x50,
+            left: 0x51,
+        }
+    }
+
+    #[test]
+    fn armour_and_shields_grant_resistance_and_weapons_set_their_hand() {
+        let sword = item(1, 7, 0);
+        let shield = item(5, 5, 0);
+        let mail = item(7, 3, 0);
+        let worn = [
+            ("right_hand", &sword),
+            ("left_hand", &shield),
+            ("body", &mail),
+        ];
+        let own = [2u8; 14];
+        let mut immune = own;
+        immune[2] = 0;
+        let (props, weapons) = element_bytes(&immune, &worn, &element_rules()).unwrap();
+        assert_eq!(weapons, [7, 0]);
+        assert_eq!((props[2], props[4]), (1, 1), "fire and water granted");
+        assert_eq!(props[6], 2, "a weapon's element grants nothing");
+        let (bare, none) = element_bytes(&own, &[], &element_rules()).unwrap();
+        assert_eq!((bare, none), (own.to_vec(), [0, 0]));
+        let past = item(7, 15, 0);
+        assert!(element_bytes(&own, &[("body", &past)], &element_rules()).is_err());
     }
 }
