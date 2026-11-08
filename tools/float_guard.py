@@ -1,84 +1,91 @@
-"""Reject float syntax in retail crates, including Clippy's test blind spots.
+"""Source-level float guard for retail crates, including Clippy's test gaps.
 
-This is a conservative source guard, not Rust type inference. There are no
-allowed float sites. Strings/comments are ignored; fenced Rust doc examples
-are scanned separately. External macro expansions remain Clippy's concern.
+No allowed float sites. This recognizes source tokens, not inferred types or
+external macro expansions. Literal doc attributes and comment docs are scanned;
+include_str!/generated documentation remains outside this source-only check.
 """
+from dataclasses import dataclass
 import re
 
 CRATES = ("psiv-core", "psiv-data", "psiv-runtime")
-# Consume whole identifiers and numeric tokens so hex addresses, tuple fields,
-# ranges and method calls cannot be mistaken for float literals.
-TOKEN = re.compile(
-    r'(?P<raw>(?:br|r)\#*\")|(?P<string>b?"(?:\\.|[^"\\])*" )'
-    r"|(?P<char>b?'(?:\\(?:u\{[0-9a-fA-F_]+\}|x[0-9a-fA-F]{2}|.)|[^'\\])')"
+LEX = re.compile(
+    r'(?P<space>\s+)'
+    r'|(?P<raw>(?:br|cr|r)\#*")'
+    r'|(?P<string>[bc]?"(?:\\[\s\S]|[^"\\])*(?:"|\Z))'
+    r"|(?P<char>b?'(?:\\(?:u\{[0-9a-fA-F_]+\}|x[0-9a-fA-F]{2}|.)|[^'\\\n])')"
     r'|(?P<line>//[^\n]*)|(?P<block>/\*)'
-    r'|(?P<number>(?<![\w.])(?:0[xob][0-9a-fA-F_]+(?:[iu][0-9]+)?|'
-    r'[0-9][0-9_]*(?:\.(?!\.|[A-Za-z_])[0-9_]*)?'
-    r'(?:[eE][+-]?[0-9_]+)?(?:[A-Za-z_][A-Za-z_0-9]*)?))'
-    r'|(?P<ident>\b[A-Za-z_][A-Za-z_0-9]*)',
-    re.VERBOSE,
+    r'|(?P<number>[0-9][0-9_]*(?:\.(?!\.|[^\W\d])[0-9_]*)?'
+    r'(?:[eE][+-]?[0-9_]+)?(?:[^\W\d]\w*)?)'
+    r'|(?P<ident>(?:r\#)?[^\W\d]\w*)'
+    r'|(?P<range>\.\.(?:=|\.)?)|(?P<other>[\s\S])', re.UNICODE,
 )
-FLOAT = re.compile(r'^(?:f32|f64)$|^[0-9][0-9_]*(?:\.(?!\.)|[eE]|_?f(?:32|64)$)')
+
+
+@dataclass
+class Token:
+    kind: str
+    start: int
+    text: str
+
+    @property
+    def end(self):
+        return self.start + len(self.text)
+
+
+def tokens(source):
+    """Keep string/comment boundaries, even in incomplete compile_fail code."""
+    pos = 0
+    while pos < len(source):
+        match = LEX.match(source, pos)
+        kind = match.lastgroup
+        end = match.end()
+        if kind == 'raw':
+            delimiter = '"' + '#' * match.group().count('#')
+            close = source.find(delimiter, end)
+            end = len(source) if close < 0 else close + len(delimiter)
+        elif kind == 'block':
+            depth = 1
+            while depth and end < len(source):
+                marker = re.search(r'/\*|\*/', source[end:])
+                if marker is None:
+                    end = len(source)
+                    break
+                depth += 1 if marker.group() == '/*' else -1
+                end += marker.end()
+        yield Token(kind, pos, source[pos:end])
+        pos = end
 
 
 def float_sites(source):
-    """Return (line, token) pairs; skip nested comments and Rust strings."""
+    """Return (one-based line, token), with range and tuple punctuation distinct."""
     sites = []
-    pos = 0
-    while match := TOKEN.search(source, pos):
-        pos = match.end()
-        kind = match.lastgroup
-        if kind == 'raw':
-            hashes = match.group().count('#')
-            end = source.find('"' + '#' * hashes, pos)
-            pos = len(source) if end < 0 else end + 1 + hashes
-        elif kind == 'block':
-            depth = 1
-            while depth and pos < len(source):
-                marker = re.search(r'/\*|\*/', source[pos:])
-                if marker is None:
-                    pos = len(source)
-                    break
-                depth += 1 if marker.group() == '/*' else -1
-                pos += marker.end()
-        elif kind in ('number', 'ident') and FLOAT.search(match.group()):
-            sites.append((source.count('\n', 0, match.start()) + 1, match.group()))
+    previous = None
+    for token in tokens(source):
+        if token.kind in ('space', 'line', 'block'):
+            continue
+        text = token.text
+        is_float = token.kind == 'ident' and text.removeprefix('r#') in ('f32', 'f64')
+        if token.kind == 'number' and previous != '.':
+            # Nondecimal literals are consumed with their full identifier suffix.
+            is_float = not text.startswith(('0x', '0o', '0b')) and (
+                '.' in text or re.search(r'[eE][+-]?[0-9_]+', text) is not None
+                or text.endswith(('f32', 'f64')))
+        if is_float:
+            sites.append((source.count('\n', 0, token.start) + 1, text))
+        previous = text
     return sites
 
 
 def violations(root):
-    """Scan all crate Rust files, plus fenced Rust line/block-doc examples."""
+    from tools.float_guard_docs import doc_examples
+
     found = []
     for crate in CRATES:
         for path in sorted((root / 'rust' / crate).rglob('*.rs')):
             source = path.read_text()
-            snippets = [source]
-            # Keep original line numbers. Non-Rust fenced examples are excluded.
-            doc = []
-            active = False
-            fenced = False
-            block_doc = False
-            for line in source.splitlines():
-                match = re.match(r'\s*//[/!] ?(.*)', line)
-                text = match.group(1) if match else ''
-                stripped = line.strip()
-                if stripped.startswith(('/**', '/*!')):
-                    block_doc = True
-                    text = stripped[3:]
-                elif block_doc:
-                    text = stripped.removeprefix('*').lstrip()
-                if block_doc and '*/' in line:
-                    text = text.split('*/')[0]
-                    block_doc = False
-                if text.startswith('```'):
-                    active = not fenced and text[3:].split(',')[0] in ('', 'rust', 'no_run', 'ignore', 'should_panic', 'compile_fail')
-                    fenced = not fenced
-                    doc.append('')
-                else:
-                    doc.append(text if active else '')
-            snippets.append('\n'.join(doc))
-            for snippet in snippets:
-                found.extend(f'{path.relative_to(root)}:{line}: float syntax {token}'
-                             for line, token in float_sites(snippet))
+            sites = float_sites(source)
+            for example, lines in doc_examples(source):
+                sites.extend((lines[line - 1], text) for line, text in float_sites(example))
+            found.extend(f'{path.relative_to(root)}:{line}: float syntax {text}'
+                         for line, text in sites)
     return found
