@@ -295,7 +295,10 @@ pub static PSYCO_WAND_CHEST: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_THE_BLACK_BLOOD,
         },
-        SceneOp::RunDialogueResume,
+        // `$06EB6C`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Retained,
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0x69),
             value: true,

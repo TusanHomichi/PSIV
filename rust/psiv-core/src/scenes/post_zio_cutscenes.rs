@@ -175,7 +175,10 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::PanelCreate { id: 0x7E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 10 },
-        SceneOp::RunDialogueResume,
+        // `$0764C0`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Retained,
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0x71),
             value: true,
@@ -436,7 +439,10 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::Wait { ticks: 60 },
         SceneOp::SetRenderSpritesInCutscene { enabled: false },
-        SceneOp::RunDialogueResume,
+        // `$076C26`: `popdlg` / `jsr Event_RunDialogue`; this and the four after it exit as `Get`, not as the `Get5` window before them.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Standard,
+        },
         SceneOp::SetFollowMode { bits: 1 },
         SceneOp::MoveActorTo {
             actor: WREN_ACTOR,

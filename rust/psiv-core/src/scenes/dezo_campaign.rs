@@ -124,7 +124,10 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x11B },
         SceneOp::DmaPlanes,
-        SceneOp::RunDialogueResume,
+        // `$078454`: `popdlg` / `jsr Event_RunDialogue3`: the panels stay.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene3,
+        },
         SceneOp::FadeOut,
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
@@ -239,7 +242,10 @@ pub static MEETING_KYRA: Scene = Scene {
         SceneOp::PanelCreate { id: 0x9B },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
-        SceneOp::RunDialogueResume,
+        // `$077810`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::JoinParty { slot: 4, who: KYRA },
         SceneOp::Presentation {
             op: PresentationOp::AddMacro { slot: 9 },
@@ -457,7 +463,10 @@ pub static LUTZ_REVELATION: Scene = Scene {
         SceneOp::PanelCreate { id: 0x9E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 100 },
-        SceneOp::RunDialogueResume,
+        // `$0779EA`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0x97),
             value: true,

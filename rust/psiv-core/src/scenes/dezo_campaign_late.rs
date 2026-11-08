@@ -87,7 +87,33 @@ pub static DARK_FORCE_2_DEFEATED: Scene = Scene {
         SceneOp::PanelDestroyAll,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::RunDialogueResume,
+        // `$077CD6`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
+        // `$077CDC..$077D47`: `DoMapUpdateLoop` `$27`, a fresh screen, panel
+        // `$116` with `MusicID_Explosion` for `$77+1` frames, then
+        // `MusicID_RedAlert`, one frame, panel `$A8`, and the scene's last
+        // page through `Event_RunDialogue5` at `$077D42`.
+        SceneOp::Wait { ticks: 40 },
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
+        SceneOp::PanelCreate { id: 0x116 },
+        SceneOp::DmaPlanes,
+        SceneOp::PlaySound {
+            id: MUSIC_EXPLOSION,
+        },
+        SceneOp::WaitFrames { frames: 120 },
+        SceneOp::PlaySound {
+            id: MUSIC_RED_ALERT,
+        },
+        SceneOp::WaitFrames { frames: 1 },
+        SceneOp::PanelCreate { id: 0xA8 },
+        SceneOp::DmaPlanes,
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0xA1),
             value: true,
@@ -177,7 +203,10 @@ pub static AERO_PRISM: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xEC },
         SceneOp::WaitFrames { frames: 20 },
-        SceneOp::RunDialogueResume,
+        // `$0780A4`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Retained,
+        },
         SceneOp::RemovePartyMember { who: SETH },
         SceneOp::ClearCharacterStatus { who: SETH },
         SceneOp::SetFlag {
@@ -456,7 +485,10 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_DEZOLIS_FIELD,
         },
-        SceneOp::RunDialogueResume,
+        // `$077B28`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::AddItem {
             item: ITEM_ECLIPSE_TORCH,
         },
