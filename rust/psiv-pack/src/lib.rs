@@ -125,7 +125,12 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         name: "battle",
-        claims: &["battle/formations.json", "battle/levels.json"],
+        claims: &[
+            "battle/abilities.json",
+            "battle/enemies.json",
+            "battle/formations.json",
+            "battle/levels.json",
+        ],
         build: battle::build,
     },
 ];
