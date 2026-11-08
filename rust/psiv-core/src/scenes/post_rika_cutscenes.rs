@@ -125,7 +125,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 26,
+            if_set: 29,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
