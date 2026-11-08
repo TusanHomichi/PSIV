@@ -229,6 +229,7 @@
         platform-tests = pkgs.runCommand "psiv-platform-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
+          git init -q
           export HOME=$TMPDIR
           python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_release tests.test_text_files tests.test_pack_swap
           touch $out
