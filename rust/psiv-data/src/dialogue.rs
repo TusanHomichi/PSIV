@@ -40,9 +40,9 @@ mod selection_tests;
 mod trees;
 
 pub use chrome::{
-    CellRegion, FontFile, Glyph, GlyphMetrics, OpenAnimation, PixelRect, Portrait, PortraitFile,
-    PortraitGeometry, PortraitWindow, Role, RoleTile, TextWindow, WindowFile, WindowGeometry,
-    MenuWindow, WindowPalette, WindowRecord,
+    CellRegion, FontFile, Glyph, GlyphMetrics, MenuWindow, OpenAnimation, PixelRect, Portrait,
+    PortraitFile, PortraitGeometry, PortraitWindow, Role, RoleTile, TextWindow, WindowFile,
+    WindowGeometry, WindowPalette, WindowRecord,
 };
 pub use trees::{
     ActionKind, Ctrl, DialogueEntry, DialogueTree, FirstWorldOverride, FlagScope, PORTRAIT_HIDE,
