@@ -185,7 +185,7 @@ TAPE_37 = {
     "frames": [7384],
     # All but the frame's top row and left column: the native field leaves
     # the first device pixel of each black, a shell edge separate from the
-    # palette this pair certifies.
+    # palette this pair certifies (#409).
     "region": [1, 1, 319, 223],
 }
 

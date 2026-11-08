@@ -29,7 +29,7 @@ The palette scenes' first pair joined them on 2026-11-08
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `anger-tower-barrier` | **0.000000** | clone t108 (`PSIV_DEBUG_EVENT=0x99`) ↔ tape-37 frame 7384: `Event_EnterAngerTower`'s tone at saturation, lines 0, 1 and 3 white and line 2 held; region `1,1,319,223` (the native field's first row and column are black) |
+| `anger-tower-barrier` | **0.000000** | clone t108 (`PSIV_DEBUG_EVENT=0x99`) ↔ tape-37 frame 7384: `Event_EnterAngerTower`'s tone at saturation, lines 0, 1 and 3 white and line 2 held; region `1,1,319,223` (the native field's first row and column are black, [#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the hold dropped from the CRAM model the pair fails (`rmse=12.012963`).
 
