@@ -56,6 +56,9 @@ pub struct GameData {
     /// Shop counters, stock lists and inn rates. `None` for a synthetic pack
     /// built with [`GameData::from_parts`].
     shops: Option<crate::ShopData>,
+    /// The battle background selection tables. `None` for a synthetic pack
+    /// built with [`GameData::from_parts`], or a pack with no battle art.
+    battle_backgrounds: Option<crate::BattleBackgrounds>,
 }
 
 impl GameData {
@@ -96,6 +99,7 @@ impl GameData {
             guild: None,
             fifth: None,
             shops: None,
+            battle_backgrounds: None,
         })
     }
 
@@ -148,6 +152,15 @@ impl GameData {
     /// `None` only for a synthetic pack built with [`GameData::from_parts`].
     pub fn shops(&self) -> Option<&crate::ShopData> {
         self.shops.as_ref()
+    }
+
+    /// `Battle_SetupBackground`'s tables, loaded with the pack.
+    ///
+    /// `None` for a synthetic pack built with [`GameData::from_parts`], or a
+    /// pack with no battle art.
+    #[must_use]
+    pub fn battle_backgrounds(&self) -> Option<&crate::BattleBackgrounds> {
+        self.battle_backgrounds.as_ref()
     }
 
     /// All sprite sheets by id (party and NPC merged; ids never collide).

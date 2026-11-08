@@ -38,12 +38,12 @@ impl Field {
     pub(crate) fn start_oracle_debug_battle(&mut self) {
         let setup = BattleSetup {
             map_id: 0x17,
-            event_battle: Some(0),
-            motavia_terrain: None,
+            background: self
+                .runtime()
+                .and_then(|runtime| runtime.battle_background_on(Some(0), 0x17)),
             vehicle_index: None,
             vehicle_png: None,
             vehicle_frame: None,
-            dark_force_2: false,
             enemy_animation_phase_ticks: ORACLE_ENEMY_PHASE_TICKS,
             party: vec![
                 PartyPlacement {
@@ -142,7 +142,7 @@ impl Field {
             // formation $0F7; this only avoids making the screenshot depend on
             // the current field map's random-battle background binding.
             setup.map_id = 0x17;
-            setup.event_battle = Some(0);
+            setup.background = runtime.battle_background_on(Some(0), 0x17);
             setup
         };
         let enemy_specs: Vec<_> = setup
@@ -215,16 +215,9 @@ impl Field {
             let Some(mut setup) = build_setup(files, runtime, formation) else {
                 return;
             };
-            match map {
-                Some(map) => {
-                    setup.map_id = map;
-                    setup.event_battle = None;
-                }
-                None => {
-                    setup.map_id = 0x17;
-                    setup.event_battle = Some(0);
-                }
-            }
+            let (event, map) = map.map_or((Some(0), 0x17), |map| (None, map));
+            setup.map_id = map;
+            setup.background = runtime.battle_background_on(event, map);
             setup.enemy_animation_phase_ticks = std::env::var("PSIV_DEBUG_BATTLE_PHASE")
                 .ok()
                 .and_then(|value| value.trim().parse().ok())
