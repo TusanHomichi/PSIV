@@ -1,4 +1,18 @@
-"""Transport and build prerequisites for the Rust memory-verdict owner."""
+"""Interpreted bootstrap for a Rust executable that may be absent or stale.
+
+The current checkout must own the input manifest, candidate selection and
+freshness check before invoking the compiled policy. An old executable cannot
+choose the inputs against which it declares itself current. Exact input-text
+comparison and executable/source cache invalidation establish freshness, not
+protection against a hostile executable.
+
+When no candidate matches, compilation needs a build-class reservation. A
+second Rust bootstrap would itself need a current executable or compilation;
+that repeats the same prerequisite and cannot run inside an inherited Godot
+or Python hold. This interpreted boundary therefore owns discovery, reuse and
+reserved rebuild decisions. Counter availability and verdict acceptance stay
+in Rust; the generic heavy-lock module owns reservation rules.
+"""
 from __future__ import annotations
 
 import json

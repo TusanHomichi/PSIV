@@ -253,7 +253,7 @@ the current source, or builds it under a build-class reservation. A fresh
 process can reuse that artifact under an inherited Godot or Python holder.
 A missing or stale bridge must be built before entering either holder; those
 reservations do not cover compilation. The focused-check prerequisite is in
-[the development guide](../DEVELOPMENT.md#run-checks).
+[the development guide](../DEVELOPMENT.md#memory-verdict-prerequisite).
 
 `tools/verify_native_tape.py` is the generic Godot entry point. It opens one
 campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start
