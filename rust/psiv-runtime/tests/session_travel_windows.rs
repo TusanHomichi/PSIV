@@ -292,6 +292,31 @@ fn the_acknowledged_teleport_closes_each_window_then_fades_then_loads() {
     let indices: Vec<u8> = teardown.stack().iter().map(|window| window.index).collect();
     assert_eq!(indices, [0x00, 0x06, 0x01, 0x0E, 0x2F, 0x36, 0x45]);
     assert_eq!(teardown.view().open.len(), 7);
+    // `Windows_Opened_Num` on tape 36 falls on 8355, 8363, 8368, 8371, 8376,
+    // 8381 and 8385: the pack's records close in these frames each, and the
+    // menu exits on 8390.
+    let frames: Vec<u16> = teardown
+        .stack()
+        .iter()
+        .rev()
+        .map(|window| window.close_frames())
+        .collect();
+    assert_eq!(frames, [8, 5, 3, 5, 5, 4, 4]);
+    assert_eq!(teardown.frames(), 8390 - 8355);
+    // The message on 8356..8363: full width at its own column, then four
+    // cells narrower and two further right a frame, then gone.
+    let message = teardown.stack()[6];
+    let narrowing: Vec<_> = (0..8)
+        .map(|step| {
+            message
+                .closing_rect(step)
+                .map(|rect| (rect.x - message.x, rect.width))
+        })
+        .collect();
+    assert_eq!(narrowing[0], Some((0, message.width)));
+    assert_eq!(narrowing[1], Some((2, message.width - 4)));
+    assert_eq!(narrowing[6], Some((12, 2)));
+    assert_eq!(narrowing[7], None);
 
     // 8356..8389: one window at a time, the message first, the root last; a
     // held pad changes nothing.

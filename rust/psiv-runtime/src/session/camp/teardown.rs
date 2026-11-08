@@ -23,9 +23,10 @@
 //! the acknowledgement shows the first blank window and the last step (the
 //! root's background back) shows on 8389, the frame `Field_MenuLoop` spends.
 
-/// One window on the cartridge's stack: its `WinGroup_Menu` record
-/// (`ps4.asm:140181` onwards) as screen cells, the frame included (each size
-/// is the record's byte plus one).
+use psiv_data::{GameData, MenuWindow};
+
+/// One window on the cartridge's stack: its `WinGroup_Menu` record as screen
+/// cells, the frame included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowRecord {
     /// The record's index in `WinGroup_Menu`.
@@ -54,14 +55,16 @@ pub struct WindowRect {
 }
 
 impl WindowRecord {
-    /// A record from its four bytes: width, height, x, y.
-    const fn from_bytes(index: u8, width: u8, height: u8, x: u8, y: u8) -> WindowRecord {
+    /// The pack's record (`dialogue/window.json`'s `menu_windows`).
+    #[must_use]
+    pub fn from_pack(window: &MenuWindow) -> WindowRecord {
+        let cells = |value: u32| i32::try_from(value).unwrap_or(i32::MAX);
         WindowRecord {
-            index,
-            x: x as i32,
-            y: y as i32,
-            width: width as i32 + 1,
-            height: height as i32 + 1,
+            index: u8::try_from(window.index).unwrap_or(u8::MAX),
+            x: cells(window.x_cell),
+            y: cells(window.y_cell),
+            width: cells(window.width_cells),
+            height: cells(window.height_cells),
         }
     }
 
@@ -102,77 +105,70 @@ impl WindowRecord {
     }
 }
 
-/// `WinGroup_Menu[0]`, the root options (`ps4.asm:140182`).
-pub(super) const ROOT: WindowRecord = WindowRecord::from_bytes(0x00, 0x08, 0x0E, 0x04, 0x02);
-/// `WinGroup_Menu[1]`, the meseta (`ps4.asm:140185`).
-pub(super) const MESETA: WindowRecord = WindowRecord::from_bytes(0x01, 0x0C, 0x02, 0x03, 0x17);
-/// `WinGroup_Menu[$2F]`, the item's USE/LOOK/DSCD (`ps4.asm:140323`).
-pub(super) const ITEM_ACTION: WindowRecord = WindowRecord::from_bytes(0x2F, 0x07, 0x06, 0x13, 0x02);
-/// The item teleport message's record, `WinGroup_Menu[$45]`
-/// (`ps4.asm:140389`), which runs `Win_ItemTeleportMsg`.
-pub(super) const ITEM_TELEPORT_MESSAGE: WindowRecord =
-    WindowRecord::from_bytes(0x45, 0x19, 0x04, 0x07, 0x15);
-/// The technique teleport message's record, `WinGroup_Menu[$75]`
-/// (`ps4.asm:140533`), which runs `Win_TechTeleportMsg`.
-pub(super) const TECH_TELEPORT_MESSAGE: WindowRecord =
-    WindowRecord::from_bytes(0x75, 0x19, 0x04, 0x07, 0x15);
+// The records each routine passes `Window_Create`. Their geometry is the
+// pack's (`dialogue/window.json`'s `menu_windows`, read from `WinGroup_Menu`);
+// these are only the indices the routines compute.
 
-/// The party's stats, `WinGroup_Menu[$02..$06]` (`ps4.asm:140188-140200`):
-/// `CalcWinIDAndCharNum` picks `$02` for five members up to `$06` for one,
-/// five rows each.
-pub(super) fn party_stats(members: usize) -> WindowRecord {
-    let members = members.clamp(1, 5) as u8;
-    WindowRecord::from_bytes(0x07 - members, 0x0B, 5 * members, 0x1A, 0x01)
+/// The root options (`Win_MenuOptions`, `ps4.asm:117201-117247`).
+pub(super) const ROOT: u8 = 0x00;
+/// The meseta, opened with the root.
+pub(super) const MESETA: u8 = 0x01;
+/// The item's USE/LOOK/DSCD (`Win_ItemAction`).
+pub(super) const ITEM_ACTION: u8 = 0x2F;
+/// `Win_ItemTeleportMsg`'s window.
+pub(super) const ITEM_TELEPORT_MESSAGE: u8 = 0x45;
+/// `Win_TechTeleportMsg`'s window.
+pub(super) const TECH_TELEPORT_MESSAGE: u8 = 0x75;
+
+/// The party's stats: `CalcWinIDAndCharNum` counts one record down from
+/// `$06` for each member past the first.
+pub(super) fn party_stats(members: usize) -> u8 {
+    0x07 - members.clamp(1, 5) as u8
 }
 
-/// Page `page` of a list of `count` rows, two cells a row, eight rows a page:
-/// `Win_ItemList` (`$07..$2E`, x 2 to 6, `ps4.asm:140203-140320`) and
-/// `Win_TechList` (`$51..$60`, x 8 and 9, `:140425-140470`). The record is the
-/// row count's (`MenuOptions_Item`, `ps4.asm:117321-117349`); a full page is
-/// the first record of its column.
-fn list_page(first: u8, width: u8, x: u8, count: usize, page: usize) -> WindowRecord {
+/// Page `page` of a list of `count` rows, eight a page, each page eight
+/// records on from the last: the full page is the column's first record and
+/// a shorter one is `8 - rows` further (`MenuOptions_Item`'s `subq #7` and
+/// `neg`, `ps4.asm:117321-117349`).
+fn list_page(first: u8, count: usize, page: usize) -> u8 {
     let rows = count.saturating_sub(page * 8).clamp(1, 8) as u8;
-    let column = page as u8;
-    WindowRecord::from_bytes(
-        first + column * 8 + (8 - rows),
-        width,
-        2 * rows + 1,
-        x + column,
-        0x03,
-    )
+    first + page as u8 * 8 + (8 - rows)
 }
 
-/// The pack's page `page`, `count` items when ITEM opened.
-pub(super) fn item_list(count: usize, page: usize) -> WindowRecord {
-    list_page(0x07, 0x0D, 0x02, count, page)
+/// The pack's page `page`, `count` items when ITEM opened (`Win_ItemList`).
+pub(super) fn item_list(count: usize, page: usize) -> u8 {
+    list_page(0x07, count, page)
 }
 
-/// The caster's technique list, page `page` of `count`.
-pub(super) fn tech_list(count: usize, page: usize) -> WindowRecord {
-    list_page(0x51, 0x0B, 0x08, count, page)
+/// The caster's technique list, page `page` of `count` (`Win_TechList`).
+pub(super) fn tech_list(count: usize, page: usize) -> u8 {
+    list_page(0x51, count, page)
 }
 
-/// `Win_TechCharList`, `$4D` for five members to `$50` for two
-/// (`ps4.asm:140413-140422`); one member skips it (`MenuOptions_Tech`,
+/// `Win_TechCharList`, one record down from `$50` (two members) for each
+/// member more; one member skips it (`MenuOptions_Tech`,
 /// `ps4.asm:117360-117368`).
-pub(super) fn tech_casters(members: usize) -> WindowRecord {
-    let members = members.clamp(2, 5) as u8;
-    WindowRecord::from_bytes(0x52 - members, 0x08, 2 * members + 1, 0x02, 0x0D)
+pub(super) fn tech_casters(members: usize) -> u8 {
+    0x52 - members.clamp(2, 5) as u8
 }
 
-/// Town-list page `page` with `rows` towns: `$36..$44` for a TELEPIPE
-/// (`ps4.asm:140344-140386`), `$66` onwards for RYUKA, at (18,13) and one cell
-/// further right for each later page.
-pub(super) fn town_page(first: u8, page: usize, rows: usize) -> WindowRecord {
-    let rows = rows.clamp(1, 5) as u8;
-    let column = page as u8;
-    WindowRecord::from_bytes(
-        first + column * 5 + (5 - rows),
-        0x0D,
-        2 * rows + 1,
-        0x12 + column,
-        0x0D,
-    )
+/// Town-list page `page` with `rows` towns, from `first`: `$36` for a
+/// TELEPIPE (`Win_TelepipePlaceList`), `$66` for RYUKA, five records a page.
+pub(super) fn town_page(first: u8, page: usize, rows: usize) -> u8 {
+    first + page as u8 * 5 + (5 - rows.clamp(1, 5) as u8)
+}
+
+/// The pack's records for `indices`, in order. A pack without them (a
+/// synthetic one) has no stack to close.
+pub(super) fn records(data: &GameData, indices: &[u8]) -> Vec<WindowRecord> {
+    let Some(dialogue) = data.dialogue() else {
+        return Vec::new();
+    };
+    indices
+        .iter()
+        .filter_map(|&index| dialogue.window.menu_windows.get(usize::from(index)))
+        .map(WindowRecord::from_pack)
+        .collect()
 }
 
 /// `DestroyAllWindows` over a stack, counted in frames from the
@@ -257,122 +253,93 @@ impl WindowTeardown {
 mod tests {
     use super::*;
 
-    /// Tape 36's stack after ITEM, the TELEPIPE, USE and MILE, Chaz alone
-    /// with one item: the first opened first.
-    fn tape_36() -> Vec<WindowRecord> {
-        vec![
-            ROOT,
-            party_stats(1),
-            MESETA,
-            item_list(1, 0),
-            ITEM_ACTION,
-            town_page(0x36, 0, 5),
-            ITEM_TELEPORT_MESSAGE,
-        ]
-    }
-
-    #[test]
-    fn the_records_are_tape_36s_windows() {
-        let indices: Vec<u8> = tape_36().iter().map(|window| window.index).collect();
-        assert_eq!(indices, [0x00, 0x06, 0x01, 0x0E, 0x2F, 0x36, 0x45]);
-        assert_eq!(
-            ITEM_TELEPORT_MESSAGE.rect(),
-            WindowRect {
-                x: 7,
-                y: 21,
-                width: 26,
-                height: 5
-            }
-        );
-        assert_eq!(item_list(9, 1).index, 0x0F + 7, "a second page of one");
-        assert_eq!(item_list(8, 0).index, 0x07, "a full page");
-        assert_eq!(town_page(0x36, 2, 1).index, 0x44);
-        assert_eq!(tech_casters(2).index, 0x50);
-        assert_eq!(tech_casters(5).index, 0x4D);
-        assert_eq!(tech_list(1, 0).index, 0x58);
-        assert_eq!(party_stats(5).index, 0x02);
-    }
-
-    /// `Windows_Opened_Num` on tape 36: 6 from 8355, 5 from 8363, 4 from
-    /// 8368, 3 from 8371, 2 from 8376, 1 from 8381, 0 from 8385; the fade
-    /// starts on 8390.
-    #[test]
-    fn each_window_takes_the_frames_tape_36_measured() {
-        let frames: Vec<u16> = tape_36()
-            .iter()
-            .rev()
-            .map(|window| window.close_frames())
-            .collect();
-        assert_eq!(frames, [8, 5, 3, 5, 5, 4, 4]);
-        let teardown = WindowTeardown::new(tape_36());
-        assert_eq!(teardown.frames(), 8390 - 8355);
-    }
-
-    /// The message's close on tape 36, frames 8355 to 8363: the text until
-    /// the frame after the acknowledgement, then a blank window 26 cells wide
-    /// at column 7, four cells narrower and two further right each frame, and
-    /// gone on 8363.
-    #[test]
-    fn the_message_narrows_as_tape_36_draws_it() {
-        let mut teardown = WindowTeardown::new(tape_36());
-        let at = |teardown: &WindowTeardown| teardown.view();
-        assert_eq!(at(&teardown).open.len(), 7, "8355: every window");
-        assert_eq!(at(&teardown).closing, None);
-        let mut shown = Vec::new();
-        for _ in 8356..=8363 {
-            teardown.tick();
-            let view = at(&teardown);
-            shown.push(
-                view.closing
-                    .map(|(window, rect)| (window.index, rect.x, rect.width)),
-            );
-            assert_eq!(view.open.len(), 6);
+    fn window(index: u8, x: i32, width: i32) -> WindowRecord {
+        WindowRecord {
+            index,
+            x,
+            y: 21,
+            width,
+            height: 5,
         }
+    }
+
+    #[test]
+    fn the_indices_are_the_routines() {
+        assert_eq!(item_list(1, 0), 0x0E, "one item: the shortest page");
+        assert_eq!(item_list(8, 0), 0x07, "a full page");
+        assert_eq!(item_list(9, 1), 0x16, "a second page of one");
+        assert_eq!(town_page(0x36, 0, 5), 0x36);
+        assert_eq!(town_page(0x36, 2, 1), 0x44);
+        assert_eq!(tech_casters(2), 0x50);
+        assert_eq!(tech_casters(5), 0x4D);
+        assert_eq!(tech_list(1, 0), 0x58);
+        assert_eq!(party_stats(1), 0x06);
+        assert_eq!(party_stats(5), 0x02);
+    }
+
+    /// A window 26 cells wide: the blank window at full width, then four
+    /// cells narrower and two further right each frame down to two cells,
+    /// then the background, eight frames in all.
+    #[test]
+    fn a_window_narrows_two_cells_a_pass_two_passes_a_frame() {
+        let message = window(0, 7, 26);
+        assert_eq!(message.close_frames(), 8);
+        let shown: Vec<_> = (0..8)
+            .map(|step| message.closing_rect(step).map(|rect| (rect.x, rect.width)))
+            .collect();
         assert_eq!(
             shown,
             [
-                Some((0x45, 7, 26)),
-                Some((0x45, 9, 22)),
-                Some((0x45, 11, 18)),
-                Some((0x45, 13, 14)),
-                Some((0x45, 15, 10)),
-                Some((0x45, 17, 6)),
-                Some((0x45, 19, 2)),
+                Some((7, 26)),
+                Some((9, 22)),
+                Some((11, 18)),
+                Some((13, 14)),
+                Some((15, 10)),
+                Some((17, 6)),
+                Some((19, 2)),
                 None,
             ]
         );
-        teardown.tick();
-        assert_eq!(
-            at(&teardown).closing.map(|(window, _)| window.index),
-            Some(0x36),
-            "8364: the town list"
-        );
-    }
-
-    #[test]
-    fn the_menu_exits_after_the_last_window_and_one_loop_frame() {
-        let mut teardown = WindowTeardown::new(tape_36());
-        let mut frame = 8355;
-        while !teardown.tick() {
-            frame += 1;
-        }
-        frame += 1;
-        assert_eq!(frame, 8390, "MenuExit_Teleport");
-        let view = teardown.view();
-        assert!(view.open.is_empty() && view.closing.is_none());
     }
 
     /// An odd width ends on a pass of two cells: the `addq` before
     /// `loc_688BA` puts back the cell the last subtraction took.
     #[test]
     fn an_odd_width_ends_two_cells_wide() {
-        let action = ITEM_ACTION; // 8 cells: passes 8, 6, 4, 2
-        assert_eq!(action.close_frames(), 3);
-        assert_eq!(action.closing_rect(1).unwrap().width, 4);
-        let root = ROOT; // 9 cells: passes 9, 7, 5, 3, 2
-        assert_eq!(root.close_frames(), 4);
-        assert_eq!(root.closing_rect(2).unwrap().width, 2);
-        assert_eq!(root.closing_rect(2).unwrap().x, root.x + 3, "the centre");
-        assert_eq!(root.closing_rect(3), None);
+        let even = window(0, 0, 8); // passes 8, 6, 4, 2
+        assert_eq!(even.close_frames(), 3);
+        assert_eq!(even.closing_rect(1).unwrap().width, 4);
+        let odd = window(0, 4, 9); // passes 9, 7, 5, 3, 2
+        assert_eq!(odd.close_frames(), 4);
+        assert_eq!(odd.closing_rect(2).unwrap().width, 2);
+        assert_eq!(odd.closing_rect(2).unwrap().x, 4 + 3, "the centre");
+        assert_eq!(odd.closing_rect(3), None);
+    }
+
+    /// The stack closes last-opened first; the acknowledgement's frame still
+    /// shows every window, and the menu exits a frame after the last step.
+    #[test]
+    fn the_stack_closes_from_the_top_then_spends_one_more_frame() {
+        let stack = vec![window(0, 0, 9), window(1, 10, 26)];
+        let mut teardown = WindowTeardown::new(stack);
+        assert_eq!(teardown.frames(), 4 + 8 + 1);
+        assert_eq!(teardown.view().open.len(), 2);
+        assert_eq!(teardown.view().closing, None);
+        teardown.tick();
+        let view = teardown.view();
+        assert_eq!(
+            (view.open.len(), view.closing.map(|(w, _)| w.index)),
+            (1, Some(1))
+        );
+        for _ in 0..8 {
+            teardown.tick();
+        }
+        assert_eq!(teardown.view().closing.map(|(w, _)| w.index), Some(0));
+        let mut frames = 9;
+        while !teardown.tick() {
+            frames += 1;
+        }
+        assert_eq!(frames + 1, teardown.frames());
+        assert!(teardown.view().open.is_empty() && teardown.view().closing.is_none());
     }
 }

@@ -146,9 +146,11 @@ acknowledgement starts the camp's `WindowTeardown`
 root, stats and meseta; then the pack's pages to the pipe's and
 USE/LOOK/DSCD, or the caster list (with more than one member) and the
 technique list's pages; then the town list's pages and the message. The
-stack is derived from the routines that open each window
-(`MenuOptions_Item`, `MenuOptions_Tech`, `ps4.asm:117321-117368`); only the
-TELEPIPE path's was measured. The menu exits on the frame after its last
+runtime computes only which record each routine opens (`MenuOptions_Item`,
+`MenuOptions_Tech`, `ps4.asm:117321-117368`); each record's geometry is the
+pack's, `dialogue/window.json`'s `menu_windows`, which
+`psiv_tools/dialogue_pack/chrome.py` reads out of `WinGroup_Menu` through
+`WinGroupOffsets`. Only the TELEPIPE path's stack was measured. The menu exits on the frame after its last
 step, and the runtime's teleport tail (`travel.rs`) holds the field through
 `RuntimeEvent::TeleportFadeOut`'s fade, loads the destination on the
 fourteenth frame with `MapChanged` and `RuntimeEvent::Teleported`, and
@@ -173,8 +175,10 @@ list's foot beside it) and `teleport-close-towns` in the list's at 8365
 the close pair at tick 32 fails at 36.7, one step off. The rest of those
 frames is the ITEM path's windows, which are not these pairs' to certify.
 
-Not reproduced: the ITEM and TECH paths draw native windows where the
-cartridge has its pack, USE/LOOK/DSCD, caster and technique lists
+Not reproduced, a recorded deviation
+([source notes](../source-notes/README.md#other-recorded-deviations)): the
+ITEM and TECH paths draw native windows where the cartridge has its pack,
+USE/LOOK/DSCD, caster and technique lists
 ([#403](https://github.com/TusanHomichi/PSIV/issues/403)). Those windows
 vanish on the first step of the close, while the cartridge closes each on
 its own frames; the frames themselves are the cartridge's. The fade is a

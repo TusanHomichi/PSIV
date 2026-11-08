@@ -4,7 +4,7 @@ use psiv_data::TravelMessages;
 
 use crate::{CampTravelMenu, Runtime};
 
-use super::teardown::{self, WindowRecord, WindowTeardown};
+use super::teardown::{self, WindowTeardown};
 use super::{CampPage, CampView, MenuInput, wrap};
 
 /// The first town-list record for a TELEPIPE (`ps4.asm:140344`) and for
@@ -33,7 +33,7 @@ impl CampView {
         let count = self.ability_options.len();
         windows
             .extend((0..=self.ability_selection / 8).map(|page| teardown::tech_list(count, page)));
-        self.travel_windows = windows;
+        self.travel_windows = teardown::records(runtime.data(), &windows);
         self.travel_towns.clear();
         let result = runtime.begin_camp_travel(caster.party_slot, ability.id);
         self.show_travel_result(runtime, result);
@@ -50,7 +50,7 @@ impl CampView {
         let mut windows = self.root_windows();
         windows.extend((0..=self.item_selection / 8).map(|page| teardown::item_list(count, page)));
         windows.push(teardown::ITEM_ACTION);
-        self.travel_windows = windows;
+        self.travel_windows = teardown::records(runtime.data(), &windows);
         // A town list from an earlier pipe or cast is not this one's.
         self.travel_towns.clear();
         let result = runtime.begin_camp_item_travel(item.slot);
@@ -109,7 +109,7 @@ impl CampView {
 
     /// The windows `Win_MenuOptions` opens with the menu and keeps: the root
     /// options, the party's stats, the meseta, in that order.
-    fn root_windows(&self) -> Vec<WindowRecord> {
+    fn root_windows(&self) -> Vec<u8> {
         vec![
             teardown::ROOT,
             teardown::party_stats(self.snapshot.party.len()),
@@ -120,8 +120,8 @@ impl CampView {
     /// The acknowledged teleport message: the sound, then `DestroyAllWindows`
     /// over every window on the stack (`teardown.rs`). The teleport itself
     /// starts when the last has closed ([`Self::teardown_frame`]).
-    pub(super) fn acknowledge_travel(&mut self) {
-        let mut windows = self.travel_windows.clone();
+    pub(super) fn acknowledge_travel(&mut self, runtime: &Runtime) {
+        let mut windows = Vec::new();
         let count = self.travel_towns.len();
         if count > 0 {
             let first = if self.travel_item_slot.is_some() {
@@ -139,7 +139,9 @@ impl CampView {
         } else {
             teardown::TECH_TELEPORT_MESSAGE
         });
-        self.teardown = Some(WindowTeardown::new(windows));
+        let mut stack = self.travel_windows.clone();
+        stack.extend(teardown::records(runtime.data(), &windows));
+        self.teardown = Some(WindowTeardown::new(stack));
         self.sound_request = Some(0xDE);
     }
 

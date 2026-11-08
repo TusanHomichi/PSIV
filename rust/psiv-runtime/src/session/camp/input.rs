@@ -18,7 +18,7 @@ impl CampView {
         }
         if self.page == CampPage::TravelReady {
             if input.cancel || input.accept || input.start {
-                self.acknowledge_travel();
+                self.acknowledge_travel(runtime);
             }
             return;
         }
