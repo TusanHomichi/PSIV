@@ -27,8 +27,9 @@ const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_STAIRS: u8 = 0xDF;
 const SFX_RED_ALERT: u8 = 0xA9;
 
-/// `loc_782D2`'s `$07, $05, $07, $07, $07, $07, $FF`, each a `dbf` count:
-/// one frame more than the byte.
+/// Frame durations derived from `loc_782D2` at US `$0782D2`:
+/// each `dbf` count spends one frame more than its byte.
+/// The ROM-backed presentation test checks these against local retail input.
 const RYKROS_PALETTE_DELAYS: &[u8] = &[8, 6, 8, 8, 8, 8];
 const RAJA_SICK_COMPANIONS: &[crate::CharId] = &[CHAZ, RUNE, RIKA, WREN];
 

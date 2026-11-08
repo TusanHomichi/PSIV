@@ -300,8 +300,8 @@ fn the_recovery_flash_restores_two_lines_and_leaves_two() {
     assert_eq!(runtime.effects.cram.saved()[..32], base[..32]);
 }
 
-/// Acceptance for Rykros: `loc_78296` spends `$07, $05, $07, $07, $07, $07`
-/// (`loc_782D2`, read from the US image at `$0782D2`) each plus one: 46
+/// Acceptance for Rykros: `loc_78296` spends each `loc_782D2` delay
+/// (US `$0782D2`) plus one frame for the `dbf` loop: 46
 /// frames from the cycle's first frame to the dialogue that follows it. The
 /// last frame's nine words are the table's sixth row, at `$FFFFFB2E`.
 #[test]
@@ -326,7 +326,7 @@ fn the_rykros_cycle_blocks_its_frames() {
             RuntimeEvent::SceneDialogueResume | RuntimeEvent::SceneDialogue { .. }
         )
     });
-    assert_eq!(resume - cycle, 8 + 6 + 8 + 8 + 8 + 8);
+    assert_eq!(resume - cycle, 46);
     assert_eq!(frames[cycle].words[23..32], table[..9]);
     assert_eq!(frames[resume - 1].words[23..32], table[45..54]);
 }

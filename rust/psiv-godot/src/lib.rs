@@ -49,7 +49,7 @@ use destination::DestinationScreen;
 use dialogue::DialogueWindow;
 use input::requested_save_slot;
 use job_board::JobBoardScreen;
-use save_dir::save_directory;
+use save_dir::session_store;
 use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView};
@@ -65,22 +65,6 @@ struct PsivExtension;
 unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
-
-/// The run's save directory as a store, or the logged refusal.
-///
-/// The policy is the shell's (`save_dir.rs`): a scripted run that named no
-/// directory gets no store, and the session refuses every slot operation
-/// instead of falling back to a default path. Resolved once per boot, so the
-/// fixtures and the constructors share one answer.
-pub(crate) fn session_store() -> Option<SaveStore> {
-    match save_directory() {
-        Ok(directory) => Some(SaveStore::new(directory)),
-        Err(error) => {
-            godot_error!("save slot scan refused: {error}");
-            None
-        }
-    }
-}
 
 /// The cinema letterbox: four bars, made the first time a scene needs them.
 pub(crate) const LETTERBOX_BARS: usize = 4;

@@ -1,6 +1,7 @@
 """ROM-backed assertions for the scene presentation extraction."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -189,6 +190,14 @@ class PresentationPackTests(unittest.TestCase):
         delays = data[0x0782D2 : data.index(0xFF, 0x0782D2)]
         self.assertEqual(len(delays), 6)
         self.assertNotIn(0, delays)
+        # Verify the runtime's derived frame counts without copying ROM bytes.
+        source = (ROOT / "rust/psiv-core/src/scenes/retail_endgame.rs").read_text()
+        durations = re.search(r"const RYKROS_PALETTE_DELAYS: &\[u8\] = &\[([^]]+)\]", source)
+        self.assertIsNotNone(durations)
+        self.assertEqual(
+            [int(value.strip()) for value in durations.group(1).split(",")],
+            [delay + 1 for delay in delays],
+        )
         self.assertEqual(requests[0x0782DA], 9 * len(delays))
         self.assertEqual(_word(data, 0x0730FC + 32), 0xFFFF)
 
