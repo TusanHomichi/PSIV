@@ -163,3 +163,59 @@ class ReviewControls(unittest.TestCase):
         self.assertEqual(examples(source), [(2, '1.5')])
         self.assertEqual(examples('#[cfg_attr(all(), deprecated(note = "```rust\\n'
                                   'let x = 1.5;\\n```"))]'), [])
+
+    def test_conditional_docs_cannot_hide_other_branches(self):
+        source = ('#[cfg_attr(any(), doc = "```text")]\n'
+                  '#[doc = "```rust\\nlet x = 1.5;\\n```"]\nfn item() {}')
+        self.assertEqual(examples(source), [(2, '1.5')])
+        # Same predicates select all their fragments together. Fences assembled
+        # across attributes must not be split into independent examples.
+        source = ('#[cfg_attr(feature = "a", doc = "```rust")]\n'
+                  '#[cfg_attr(feature = "a", doc = "let x = 1.5;")]\n'
+                  '#[cfg_attr(feature = "a", doc = "```")]\nfn item() {}')
+        self.assertEqual(examples(source), [(2, '1.5')])
+        source = ('#[cfg_attr(all(), cfg_attr(any(), doc = "```text"))]\n'
+                  '/// ```rust\n/// let x = 1.5;\n/// ```\nfn item() {}')
+        self.assertEqual(examples(source), [(3, '1.5')])
+        # A compile_fail string in one conditional example cannot consume the
+        # independent unconditional example that follows it.
+        source = ('#[cfg_attr(all(), doc = "```compile_fail\\n\\\"open\\n```")]\n'
+                  '/// ```rust\n/// let x = 1.5;\n/// ```\nfn item() {}')
+        self.assertEqual(examples(source), [(3, '1.5')])
+        # Correlated non-Rust fragments must remain excluded in both branches.
+        source = ('#[cfg_attr(feature = "a", doc = "```text")]\n'
+                  '#[cfg_attr(feature = "a", doc = "f64 1.5")]\n'
+                  '#[cfg_attr(feature = "a", doc = "```")]\nfn item() {}')
+        self.assertEqual(examples(source), [])
+
+    def test_conditional_doc_complexity_fails_closed(self):
+        source = '\n'.join('#[cfg_attr(feature = "f' + str(index) + '", doc = "prose")]'
+                           for index in range(9)) + '\nfn item() {}'
+        with self.assertRaisesRegex(RuntimeError, '256 conditional documentation alternatives'):
+            list(doc_examples(source))
+
+    def test_attribute_literals_and_tuple_receivers(self):
+        for marker in ('#', '#!'):
+            for attribute in ('value', 'r#value', 'helper'):
+                for literal in ('1.5', '1e3', '1_f64'):
+                    with self.subTest(marker=marker, attribute=attribute, literal=literal):
+                        self.assert_contexts(marker + '[' + attribute + '(receiver . ' + literal + ')] fn item() {}', 1)
+        for keyword in ('return', 'let', 'if', 'match', 'loop', 'true', 'async', 'gen'):
+            with self.subTest(keyword=keyword):
+                self.assert_contexts('fn item() { ' + keyword + ' . 1.5; }', 1)
+        self.assert_contexts('let value = { ((1, 2), 3) }.0.1;', 0)
+        self.assert_contexts('let value = self.0.1;', 0)
+        self.assert_contexts('let value = r#type.0.1;', 0)
+        self.assert_contexts('#[value((receiver.0).1)] fn item() {}', 0)
+
+    def test_rustdoc_info_comments_and_tag_order(self):
+        for info in ('no_run (demonstration)', 'rust (a custom demonstration)',
+                     'rust ("custom"),{class="text"}', '(custom),rust',
+                     'text,no_run,rust', 'rust,text,compile_fail', '"rust" (text)'):
+            with self.subTest(info=info):
+                self.assertEqual(examples(line_doc('let x = 1.5;', '```' + info)), [(2, '1.5')])
+        for info in ('text (a rust demonstration)', 'custom (rust),no_run',
+                     'rust,text,no_run', '"not rust" (rust custom)',
+                     'custom,{class=rust} (no_run)'):
+            with self.subTest(info=info):
+                self.assertEqual(examples(line_doc('let x = 1.5;', '```' + info)), [])

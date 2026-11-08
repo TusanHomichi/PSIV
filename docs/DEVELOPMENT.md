@@ -472,7 +472,10 @@ float types and literals throughout psiv-core, psiv-data and psiv-runtime,
 including test bodies and Rustdoc examples that Clippy does not lint.
 Documentation comments and literal doc attributes use the same Rust token
 boundaries as code; CommonMark fenced and indented examples are scanned
-independently. Literal docs in `cfg_attr` are checked in every feature branch.
+independently. Literal docs in `cfg_attr` are checked as alternatives, including
+their absence, so a conditional fence cannot hide another branch. Equal
+predicates select their fragments together; an item exceeding 256 alternatives
+fails the check rather than silently skipping configurations.
 Within macro token trees, write chained tuple fields as `(pair.0).1`: the token
 `0.1` could instead match a floating literal in a macro matcher. There are no
 allowed float sites. The guard ignores strings and non-code

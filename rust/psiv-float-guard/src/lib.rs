@@ -45,6 +45,66 @@ fn ident<'a>(token: &Token<'a>) -> &'a str {
     token.text.strip_prefix("r#").unwrap_or(token.text)
 }
 
+fn receiver_ident(token: &Token<'_>) -> bool {
+    if token.kind == TokenKind::RawIdent || token.text == "self" {
+        return true;
+    }
+    token.kind == TokenKind::Ident
+        && !matches!(
+            token.text,
+            "as" | "break"
+                | "const"
+                | "continue"
+                | "crate"
+                | "else"
+                | "enum"
+                | "extern"
+                | "false"
+                | "fn"
+                | "for"
+                | "if"
+                | "impl"
+                | "in"
+                | "let"
+                | "loop"
+                | "match"
+                | "mod"
+                | "move"
+                | "mut"
+                | "pub"
+                | "ref"
+                | "return"
+                | "Self"
+                | "static"
+                | "struct"
+                | "super"
+                | "trait"
+                | "true"
+                | "type"
+                | "unsafe"
+                | "use"
+                | "where"
+                | "while"
+                | "async"
+                | "await"
+                | "dyn"
+                | "abstract"
+                | "become"
+                | "box"
+                | "do"
+                | "final"
+                | "macro"
+                | "override"
+                | "priv"
+                | "typeof"
+                | "unsized"
+                | "virtual"
+                | "yield"
+                | "try"
+                | "gen"
+        )
+}
+
 pub fn float_sites(source: &str) -> Vec<Site> {
     let tokens: Vec<_> = tokens(source)
         .into_iter()
@@ -59,7 +119,11 @@ pub fn float_sites(source: &str) -> Vec<Site> {
                 && matches!(tokens[i - 2].kind, TokenKind::Ident | TokenKind::RawIdent);
             let definition =
                 i >= 3 && tokens[i - 3].text == "macro_rules" && tokens[i - 2].text == "!";
-            macros.push(macros.last().copied().unwrap_or(false) || call || definition);
+            let attribute = token.text == "["
+                && i >= 1
+                && (tokens[i - 1].text == "#"
+                    || (i >= 2 && tokens[i - 1].text == "!" && tokens[i - 2].text == "#"));
+            macros.push(macros.last().copied().unwrap_or(false) || call || definition || attribute);
         } else if matches!(token.text, ")" | "]" | "}") {
             macros.pop();
         }
@@ -79,10 +143,9 @@ pub fn float_sites(source: &str) -> Vec<Site> {
                 });
                 let receiver = i >= 2
                     && tokens[i - 1].text == "."
-                    && (matches!(
-                        tokens[i - 2].kind,
-                        TokenKind::Ident | TokenKind::RawIdent | TokenKind::Literal { .. }
-                    ) || matches!(tokens[i - 2].text, ")" | "]"));
+                    && (receiver_ident(&tokens[i - 2])
+                        || matches!(tokens[i - 2].kind, TokenKind::Literal { .. })
+                        || matches!(tokens[i - 2].text, ")" | "]" | "}"));
                 !(integer_chain && receiver && !macros.last().copied().unwrap_or(false))
             }
             TokenKind::Literal {
@@ -118,11 +181,15 @@ pub fn scan(root: &Path) -> Result<Vec<Violation>, String> {
             } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
                 let mut sites = float_sites(&source);
-                for example in examples(&source)? {
+                for example in
+                    examples(&source).map_err(|error| format!("{}: {error}", path.display()))?
+                {
                     for (line, token) in float_sites(&example.source) {
                         sites.push((example.lines[line - 1], token));
                     }
                 }
+                sites.sort();
+                sites.dedup();
                 found.extend(sites.into_iter().map(|(line, token)| {
                     Violation {
                         path: path
