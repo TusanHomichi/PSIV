@@ -131,6 +131,33 @@ pub(super) fn strip_cursor(tiles: &mut CommandTiles, menu: &CommandMenuView) -> 
     tiles.sprite_2x2(CURSOR_FRAME_TILES[frame], x, CURSOR_Y)
 }
 
+/// Draws a strip or list window that is still opening: an empty window of
+/// this frame's width, centred on the full one (`Battle_CreateWindow`,
+/// `ps4.asm:1657`, through `Battle_SetupWindow`).
+pub(super) fn draw_growing(chrome: &BattleChrome, menu: &CommandMenuView, quads: &mut Vec<Quad>) {
+    let Some(growing) = menu.growing else {
+        return;
+    };
+    if growing.width == 0 {
+        return;
+    }
+    let slot = usize::from(growing.slot).min(4);
+    let (column, row, height) = match growing.window {
+        MenuPage::Actions => (STRIP_COLUMNS[slot], STRIP_ROW, STRIP_HEIGHT),
+        _ => (LIST_COLUMNS[slot], LIST_ROW, LIST_HEIGHT),
+    };
+    let cell = chrome.cell;
+    let left = column + i32::from(growing.left_offset());
+    if let Some(frame) = chrome.frame(WindowRect {
+        x: left as f32 * cell,
+        y: row as f32 * cell,
+        w: f32::from(growing.width) * cell,
+        h: height as f32 * cell,
+    }) {
+        quads.extend(frame);
+    }
+}
+
 /// The window width for each list kind: `moveq #$C, d1` (technique,
 /// `ps4.asm:2509`), `$F` (skill, `ps4.asm:2841`), `$E` (item, `ps4.asm:3205`).
 fn list_width(window: MenuPage) -> i32 {

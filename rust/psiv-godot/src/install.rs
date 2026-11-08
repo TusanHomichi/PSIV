@@ -6,8 +6,8 @@
 //! read-only, and a game started from a launcher has no useful working
 //! directory. It builds the pack with `psiv-pack`, the pack builder the
 //! release ships beside the game (#216). A checkout run (the editor binary, from a run root or the
-//! editor) reads the checkout's `runtime-pack` and keeps the `saves/` default
-//! in `save_dir.rs`. `PSIV_RUNTIME_PACK` names a pack for either.
+//! editor) reads the checkout's `runtime-pack`. Every launch keeps saves in
+//! Godot's per-user data directory (`save_dir.rs`). `PSIV_RUNTIME_PACK` names a pack for either.
 //!
 //! The rules are pure functions of their inputs, so they are tested here;
 //! [`Install::current`] is the thin wrapper over Godot that feeds them.
@@ -23,9 +23,6 @@ const PACK_ENV: &str = "PSIV_RUNTIME_PACK";
 
 /// The pack's directory name, in the user data folder and in a checkout.
 const PACK_NAME: &str = "runtime-pack";
-
-/// The installed game's save directory, in the user data folder.
-const SAVES_NAME: &str = "saves";
 
 /// The pack builder a release ships beside the game's executable.
 const BUILDER_NAME: &str = "psiv-pack";
@@ -76,12 +73,6 @@ impl Install {
             Install::Installed { user_data, .. } => user_data.join(PACK_NAME),
             Install::Checkout { root } => root.join(PACK_NAME),
         }
-    }
-
-    /// The installed game's save directory; `None` for a checkout, which
-    /// keeps `save_dir.rs`'s working-directory default.
-    pub(crate) fn installed_saves(&self) -> Option<PathBuf> {
-        self.user_data().map(|user_data| user_data.join(SAVES_NAME))
     }
 }
 
@@ -287,15 +278,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn only_an_installed_game_keeps_its_saves_in_the_user_data_folder() {
-        assert_eq!(
-            installed().installed_saves(),
-            Some(PathBuf::from("/home/player/.local/share/PSIV/saves"))
-        );
-        assert_eq!(checkout().installed_saves(), None);
-    }
-
     fn command(executable: &str, platform: Platform) -> BuilderCommand {
         builder_command(
             Path::new(executable),
@@ -338,6 +320,20 @@ mod tests {
             text.ends_with("python3 -m psiv_tools pack /path/to/your/ROM /mods/pack"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn builder_arguments_preserve_unicode_and_spaces_without_shell_parsing() {
+        for platform in [Platform::Linux, Platform::MacOs, Platform::Windows] {
+            let rom = Path::new("games/é 日本 (USA).md");
+            let pack = Path::new("player data/日本 (pack)");
+            let built = builder_command(Path::new("game folder/PSIV"), platform, rom, pack);
+            assert_eq!(built.arguments, [rom.as_os_str(), pack.as_os_str()]);
+            assert_eq!(
+                resolve_pack_directory(Some(pack.as_os_str()), &installed()),
+                pack
+            );
+        }
     }
 
     #[test]

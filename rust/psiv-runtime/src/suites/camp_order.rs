@@ -8,6 +8,10 @@ use std::path::Path;
 #[test]
 fn camp_order_is_atomic_preserves_positions_and_stats_and_survives_save() {
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
     let data = GameData::load(pack).unwrap();
     let files = BattleFiles::load(pack).unwrap();
     let mut game = GameState::new();

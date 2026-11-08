@@ -165,6 +165,21 @@
       # with warnings as errors, the workspace tests) over the whole tree.
       # The tests run in the test profile, as `cargo test` builds them
       # (rust/Cargo.toml states its overflow checks and debug assertions).
+      # The Python verifier calls the Rust policy owner. Nix checks receive a
+      # built binary: sandboxed tests never fetch dependencies or compile it.
+      memoryVerdictFor = pkgs:
+        let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
+        craneLib.buildPackage {
+          src = lib.cleanSource self;
+          pname = "psiv-memory-verdict";
+          version = "0.1.0";
+          cargoToml = ./rust/Cargo.toml;
+          cargoLock = ./rust/Cargo.lock;
+          postUnpack = "cd $sourceRoot/rust && sourceRoot=.";
+          cargoExtraArgs = "--locked -p psiv-memory-verdict";
+          strictDeps = true;
+        };
+
       rustChecks = pkgs:
         let
           craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]);
@@ -222,6 +237,19 @@
           cd tree
           export HOME=$TMPDIR
           python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
+        # ROM-free native platform verdicts and release archive checks. These
+        # use synthetic samples and stand-in archives, never local game assets.
+        platform-tests = pkgs.runCommand "psiv-platform-tests" {
+          nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
+          PSIV_MEMORY_VERDICT_BINARY = "${memoryVerdictFor pkgs}/bin/psiv-memory-verdict";
+        } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          export HOME=$TMPDIR
+          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap
           touch $out
         '';
         # The battle fixture extractor's tests (every
