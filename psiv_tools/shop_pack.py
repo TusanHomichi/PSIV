@@ -48,10 +48,18 @@ from .shop_flow import (
 )
 from .shops import INN_GROUP, extract_shops
 from .shop_portraits import emit_shop_portraits
-from .text import extract_names
+from .text import DIALOGUE, decode_string, extract_names
 
 #: Where the file lands in the pack.
 SHOPS_NAME = "shops.json"
+#: The farewell a shopkeeper says when Cancel leaves the BUY/SELL menu
+#: (`Win_ShopBuySell`'s `loc_65014`, `ps4.asm:135009-135045`): `loc_682A4`'s four pointers,
+#: picked by the text variant in `$FFFFE3EE`.
+FAREWELL_TABLE = 0x0682A4
+FAREWELL_VARIANTS = 4
+#: The innkeeper's, on Cancel or NO at the bill (`Win_RestConfirm`'s
+#: `loc_660B6`, `ps4.asm:136345-136366`): one line per inn text variant.
+INN_FAREWELLS = (0x2AC18E, 0x2AC24E)
 
 #: A dead row: a position no object can occupy.
 DEAD_POSITION = (0, 0)
@@ -198,6 +206,26 @@ def build_shops(rom: bytes, maps: dict[int, dict[str, Any]],
         "inventories": inventories,
         "inns": inns,
         "census": census,
+        "lines": shop_lines(rom),
+    }
+
+
+def _window_line(rom: bytes, address: int) -> str:
+    """One `RunText` line in the dialogue charset, up to its `$FF`."""
+    end = rom.index(0xFF, address)
+    return decode_string(rom[address:end], charset=DIALOGUE)["text"]
+
+
+def shop_lines(rom: bytes) -> dict[str, list[str]]:
+    """The lines a shop or inn window says as the party leaves."""
+    farewell = [
+        _window_line(rom, be16(rom, FAREWELL_TABLE + 4 * index) << 16
+                     | be16(rom, FAREWELL_TABLE + 4 * index + 2))
+        for index in range(FAREWELL_VARIANTS)
+    ]
+    return {
+        "farewell": farewell,
+        "inn_farewell": [_window_line(rom, address) for address in INN_FAREWELLS],
     }
 
 

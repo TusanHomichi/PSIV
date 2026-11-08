@@ -293,9 +293,28 @@ Retail resets the list cursor: the buy and sell lists share
 `Window_Option_Index_3`, and Cancel out of either writes zero to it
 (`ps4.asm:135182`, `135508`), so a SELL visit never leaves BUY on a stale row.
 The port had kept the sell cursor; it now zeroes it on the same exit, pinned by
-`session_menus.rs` (`the_buy_list_opens_on_its_first_row_after_a_sell_visit`).
+`session_menus/shops.rs` (`the_buy_list_opens_on_its_first_row_after_a_sell_visit`).
 
-Two page-graph differences from the cartridge remain, both in how a visit
-ends: Cancel on a greeting leaves the window where the cartridge advances to the
-menu, and Cancel at the BUY/SELL menu (or NO at the inn) leaves without the
-cartridge's farewell line (`ps4.asm:135014-135060`).
+A visit ends as the cartridge ends it (#49). A greeting's wait takes Cancel as
+it takes Speak or Camp (`loc_65F74`, `ps4.asm:136233-136249`). Cancel at the
+BUY/SELL menu says the shopkeeper's farewell (`Win_ShopBuySell`'s `loc_65014`,
+`ps4.asm:135009-135045`), and Cancel or NO at the inn's bill says the
+innkeeper's (`Win_RestConfirm`'s `loc_660B6`, `ps4.asm:136345-136366`); each
+waits for `Cancel|Speak|Camp` and then destroys every window. An inn's result
+line, the morning's or a refused bill's, closes the window when acknowledged
+(`ps4.asm:136459-136481`, `136484-136501`). The lines come from the pack:
+`shops.json`'s `lines` holds `loc_682A4`'s four farewells and the inn's two,
+decoded through the dialogue charset by both pack builders, and each is picked
+by the counter's text variant, the `$FFFFE3EE` that `Win_ShopMessage` writes
+(`ps4.asm:136155-136232`): an inn's rate word's high byte, a shop's greeting
+word's, and 2 at the bakery (shop `$1D`) or 3 at the alternate group's other
+counter. The tests are `rust/psiv-runtime/tests/session_menus/shops.rs`.
+
+Three page-graph differences remain. The cartridge's ordinary shop greeting has
+no wait at all: `loc_65F74` opens the BUY/SELL window on the pass after the
+greeting is printed, where the port waits for a press. Cancel out of either
+list says the cartridge's line from `loc_68354` (`loc_65244`,
+`ps4.asm:135181-135194`) where the port's menu shows its own. And the bakery
+opens its buy list directly (`loc_66000`, `ps4.asm:136287-136307`) and leaves
+from it with its farewell (`loc_65278`, `ps4.asm:135195-135208`), where the
+port shows the BUY/SELL menu.

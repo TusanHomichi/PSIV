@@ -112,8 +112,8 @@ pub use ship_menu::{
     ShipWindow,
 };
 pub use shops::{
-    InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,
-    ShopPortrait,
+    InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopGroup, ShopInventory, ShopItem,
+    ShopLines, ShopPortrait,
 };
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
