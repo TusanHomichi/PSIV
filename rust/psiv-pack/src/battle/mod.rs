@@ -1,9 +1,13 @@
 //! `battle/`: the port of `psiv_tools/battle_pack.py`, which owns the reasons
-//! for each file's shape (#216, slice 6). This slice writes the formations
-//! and the level tables; the rest of the directory follows.
+//! for each file's shape (#216, slice 6). This slice writes the enemies, the
+//! formations, the level tables and the abilities; the rest of the directory
+//! follows.
 
+mod abilities;
+mod enemies;
 mod formations;
 mod levels;
+mod names;
 
 use std::path::Path;
 
@@ -27,10 +31,23 @@ fn serialize<T: serde::Serialize>(value: &T, what: &str) -> Result<Json, PackErr
         .map_err(|error| PackError(format!("cannot serialize {what}: {error}")))
 }
 
-/// `battle/formations.json` and `battle/levels.json`.
+/// `battle/enemies.json`, `battle/formations.json`, `battle/levels.json` and
+/// `battle/abilities.json`.
 pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let data = rom.bytes();
     let decodes = Decodes::new(data);
+    let display = names::display_names(data)?;
+    let enemy_names = display.get("enemies").cloned().unwrap_or_default();
+    crate::write_json(
+        root,
+        "battle/enemies.json",
+        &enemies::build(data, &enemy_names)?,
+    )?;
+    crate::write_json(
+        root,
+        "battle/abilities.json",
+        &abilities::build(data, &display)?,
+    )?;
     crate::write_json(
         root,
         "battle/formations.json",
