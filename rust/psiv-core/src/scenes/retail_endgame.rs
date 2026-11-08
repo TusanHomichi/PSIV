@@ -6,7 +6,9 @@
 
 use crate::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CreditsPlane, PaletteBuffer, PaletteSource, PresentationOp};
+use crate::scene_presentation::{
+    CreditsPlane, PaletteBuffer, PaletteSource, PresentationOp, RESTORE_PALETTE, SAVE_PALETTE,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -223,14 +225,7 @@ pub static RYKROS: Scene = Scene {
         SceneOp::PanelCreate { id: 0x190 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Live),
-                destination: PaletteBuffer::Saved,
-                start: 0,
-                words: 64,
-            },
-        },
+        SAVE_PALETTE,
         SceneOp::Presentation {
             op: PresentationOp::PaletteIncreaseTone {
                 frames: 30,
@@ -538,14 +533,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x169 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Live),
-                destination: PaletteBuffer::Saved,
-                start: 0,
-                words: 64,
-            },
-        },
+        SAVE_PALETTE,
         SceneOp::Presentation {
             op: PresentationOp::PaletteCopy {
                 source: PaletteSource::Rom(0x002E_EA04),
@@ -650,14 +638,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x173 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -682,14 +663,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x175 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -714,14 +688,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x177 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -746,14 +713,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x179 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -779,14 +739,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x17C },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -811,14 +764,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Saved),
-                destination: PaletteBuffer::Live,
-                start: 0,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x17E },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -974,14 +920,7 @@ pub static ENDING: Scene = Scene {
                 plane_flags: 0x8002,
             },
         },
-        SceneOp::Presentation {
-            op: PresentationOp::PaletteCopy {
-                source: PaletteSource::Buffer(PaletteBuffer::Live),
-                destination: PaletteBuffer::Saved,
-                start: 0,
-                words: 64,
-            },
-        },
+        SAVE_PALETTE,
         SceneOp::Presentation {
             op: PresentationOp::PaletteCopy {
                 source: PaletteSource::Fill(0x0EEE),

@@ -154,7 +154,7 @@ fn enter_anger_tower_whitens_three_lines_and_holds_the_third() {
         .data()
         .scene_palettes()
         .words(0x0029_6300)
-        .expect("the pack carries Pal_Init_Line_3")
+        .expect("the pack carries Pal_Init_Line_3")[..16]
         .to_vec();
     let (base, frames) = trace(&mut runtime, 0x99);
     let tone = emitted(&frames, |op| {

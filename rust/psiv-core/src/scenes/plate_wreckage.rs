@@ -11,7 +11,7 @@ use super::vahal_common::{
 use super::{CHAZ, DEMI, GRYZ, RIKA, RUNE};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, SceneOp};
-use crate::scene_presentation::{CameraSubject, PaletteBuffer, PaletteSource, PresentationOp};
+use crate::scene_presentation::{CameraSubject, PresentationOp, RESTORE_PALETTE};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -31,17 +31,6 @@ const fn fade(fade_in: bool, mode: u8) -> SceneOp {
         op: PresentationOp::VariablePaletteFade { fade_in, mode },
     }
 }
-
-/// `lea Palette_Table_Buffer_2, a0 / lea Palette_Table_Buffer, a1 / move.w
-/// #$3F, d7 / trap #1`: sixty-four words back.
-const RESTORE_PALETTE: SceneOp = SceneOp::Presentation {
-    op: PresentationOp::PaletteCopy {
-        source: PaletteSource::Buffer(PaletteBuffer::Saved),
-        destination: PaletteBuffer::Live,
-        start: 0,
-        words: 64,
-    },
-};
 
 /// `$006C`, `Event_Phonon`, retail `$0722F6..$072427`: the chest in Plate
 /// System F3 opens; with Demi in the party she takes the Phonon unit (entry

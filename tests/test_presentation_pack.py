@@ -110,9 +110,11 @@ class PresentationPackTests(unittest.TestCase):
             # InitVRAMAndCRAM: lea Pal_Init / lea Palette_Table_Buffer /
             # moveq #$1F, d0 / move.l (a0)+, (a1)+: 64 words.
             0x09F2BC: (0x05A68A, "41f90009f2bc43f8fb00701f22d8", 64),
-            # Event_EnterAngerTower's hold: lea Pal_Init_Line_3 / lea
-            # Palette_Line_3 / move.w #$F, d7 / trap #1: 16 words.
-            0x296300: (0x07383A, "41f90029630043f8fb403e3c000f4e41", 16),
+            # Pal_Init_Line_3, at its deepest read: Event_GettingOffVehicle's
+            # lea Pal_Init_Line_3 / lea Palette_Line_3 / moveq #$10, d7 /
+            # trap #1, 17 words. Event_EnterAngerTower's hold ($07383A,
+            # move.w #$F, d7) reads the first 16.
+            0x296300: (0x06BF2A, "41f90029630043f8fb407e104e41", 17),
             # loc_78296: lea loc_782D2 / lea Palette_Table_Buffer+$2E /
             # moveq #0, d7 / ... / moveq #8, d6 / lea loc_782DA: six frames
             # of nine words (the six delay bytes before $FF at $0782D2).

@@ -532,6 +532,29 @@ pub enum PresentationOp {
     },
 }
 
+impl PresentationOp {
+    /// The frames a palette loop that waits inside its own body spends, so
+    /// the scene blocks for them: `loc_6ED4E`'s barrier ramp (`steps` passes
+    /// of `frame_delay`), `loc_6E842`'s engine light (the same) and
+    /// `loc_78296`'s Rykros cycle (the sum of its delays, each already the
+    /// frames its `dbf` spends). `None` for every other record.
+    #[must_use]
+    pub fn palette_loop_frames(&self) -> Option<u16> {
+        match *self {
+            Self::PaletteRampFromTable {
+                steps, frame_delay, ..
+            }
+            | Self::PaletteCycleFromTable {
+                steps, frame_delay, ..
+            } => Some(u16::from(steps) * frame_delay),
+            Self::RykrosPaletteCycle { delays, .. } => {
+                Some(delays.iter().map(|&delay| u16::from(delay)).sum())
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The `trap #1` copy a tone loop makes each frame after `Pal_IncreaseTone`
 /// (`$58608`): `Event_EnterAngerTower`'s `lea Pal_Init_Line_3, a0` / `lea
 /// Palette_Line_3, a1` / `move.w #$F, d7` / `trap #1` (`$07383A..$073849`).
@@ -586,3 +609,25 @@ pub enum CreditsPlane {
     /// Plane B is the star field/background plane.
     B,
 }
+
+/// `trap #1` of all 64 words from `Palette_Table_Buffer_2` back to
+/// `Palette_Table_Buffer` (`move.w #$3F, d7`): the restore after a
+/// palette effect.
+pub(crate) const RESTORE_PALETTE: crate::SceneOp = crate::SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Buffer(PaletteBuffer::Saved),
+        destination: PaletteBuffer::Live,
+        start: 0,
+        words: 64,
+    },
+};
+
+/// The same 64 words the other way, saving the live palette first.
+pub(crate) const SAVE_PALETTE: crate::SceneOp = crate::SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Buffer(PaletteBuffer::Live),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 64,
+    },
+};
