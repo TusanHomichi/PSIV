@@ -1,0 +1,110 @@
+[
+  {
+    "info": "text{.example}",
+    "rust": true
+  },
+  {
+    "info": "custom{.example}",
+    "rust": true
+  },
+  {
+    "info": "text{.a}{class=b}",
+    "rust": true
+  },
+  {
+    "info": "text{.a}text{.b}",
+    "rust": true
+  },
+  {
+    "info": "text{.a}rust",
+    "rust": true
+  },
+  {
+    "info": "{.a}rust",
+    "rust": true
+  },
+  {
+    "info": "{.a}\"rust\"",
+    "rust": true
+  },
+  {
+    "info": "\"rust\"{.a}",
+    "rust": true
+  },
+  {
+    "info": "\"rust\"{.a}{class=b}",
+    "rust": true
+  },
+  {
+    "info": "text{.a}\"rust\"{.b}",
+    "rust": true
+  },
+  {
+    "info": "text{.a} rust",
+    "rust": true
+  },
+  {
+    "info": "text{.a},rust",
+    "rust": true
+  },
+  {
+    "info": "text{.a}(custom),rust",
+    "rust": true
+  },
+  {
+    "info": "text,\"rust\"{.a}",
+    "rust": true
+  },
+  {
+    "info": "\"text\"{.example}",
+    "rust": false
+  },
+  {
+    "info": "\"custom\"{.example}",
+    "rust": false
+  },
+  {
+    "info": "text {.example}",
+    "rust": false
+  },
+  {
+    "info": "text,{.example}",
+    "rust": false
+  },
+  {
+    "info": "{.a}text",
+    "rust": false
+  },
+  {
+    "info": "{.a}\"text\"",
+    "rust": false
+  },
+  {
+    "info": "rust{.a}text",
+    "rust": false
+  },
+  {
+    "info": "\"text\"{.a}{class=b}",
+    "rust": false
+  },
+  {
+    "info": "text{.a}\"text\"{.b}",
+    "rust": false
+  },
+  {
+    "info": "\"custom\"{.a}rust",
+    "rust": false
+  },
+  {
+    "info": "text{.a} custom",
+    "rust": false
+  },
+  {
+    "info": "text,{.a}rust{.b}",
+    "rust": false
+  },
+  {
+    "info": "text rust{.a}",
+    "rust": false
+  }
+]

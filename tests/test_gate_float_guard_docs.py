@@ -219,3 +219,11 @@ class ReviewControls(unittest.TestCase):
                      'custom,{class=rust} (no_run)'):
             with self.subTest(info=info):
                 self.assertEqual(examples(line_doc('let x = 1.5;', '```' + info)), [])
+
+    def test_rustdoc_adjacent_css_boundaries(self):
+        import json
+        fixture = Path(__file__).resolve().parents[1] / 'rust/psiv-float-guard/tests/rustdoc_info.json'
+        for case in json.loads(fixture.read_text()):
+            with self.subTest(info=case['info']):
+                expected = [(2, '1.5')] if case['rust'] else []
+                self.assertEqual(examples(line_doc('let x = 1.5;', '```' + case['info'])), expected)

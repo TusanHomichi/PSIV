@@ -485,6 +485,9 @@ examples included from other files. Run it and its regression controls with
 The Python adapter builds the scanner once per worker under the build lock;
 Nix injects its immutable binary through `PSIV_FLOAT_GUARD_BINARY`, which can
 also select a prebuilt scanner for a focused run inside a narrower reservation.
+The scanner crate's Rust tests compare the info-string fixture with the pinned
+Rustdoc; run `cargo test --manifest-path rust/Cargo.toml -p psiv-float-guard`
+under the build reservation for this independent grammar check.
 
 The gate does not
 cover:

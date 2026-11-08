@@ -339,7 +339,8 @@ fn rust_info(info: &str) -> bool {
     let mut braces = 0;
     let mut quoted = false;
     let mut comment = false;
-    for ch in info.chars().chain(std::iter::once(',')) {
+    let mut chars = info.chars().chain(std::iter::once(',')).peekable();
+    while let Some(ch) = chars.next() {
         if comment {
             if ch == ')' {
                 comment = false;
@@ -348,6 +349,21 @@ fn rust_info(info: &str) -> bool {
         }
         if ch == '"' {
             quoted = !quoted;
+            if braces == 0 {
+                if quoted && !word.is_empty() {
+                    return false;
+                }
+                if !quoted {
+                    names.push(std::mem::take(&mut word));
+                    if chars
+                        .peek()
+                        .is_some_and(|next| !matches!(next, '{' | '(' | ',' | ' ' | '\t'))
+                    {
+                        return false;
+                    }
+                }
+            }
+            continue;
         }
         if !quoted && ch == '(' {
             if !word.is_empty() {
@@ -357,6 +373,9 @@ fn rust_info(info: &str) -> bool {
             continue;
         }
         if !quoted && ch == '{' {
+            // Rustdoc enters the CSS group without yielding a preceding bare
+            // tag. Quoted tags were already yielded at their closing quote.
+            word.clear();
             braces += 1;
         }
         if !quoted && ch == '}' {
