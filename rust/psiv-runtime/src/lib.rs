@@ -87,11 +87,11 @@ pub use session::{
     Activity, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
     CampPage, CampSaveFailure, CampView, CommandMenuView, CursorMemory, DamageView,
     DestinationPhase, DestinationView, EnemyStatus, FALLBACK_SPAWN, FieldNoticeOpened, Frame,
-    FrameMode, Fusion, FusionPiece, GAME_OVER_FADE_FRAMES, GameOverFrame, JobBoardView, MenuPage,
-    MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart,
-    Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry,
-    SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TechniqueEntry, TitleEntry, TitleErase,
-    TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames,
+    FrameMode, Fusion, FusionPiece, GAME_OVER_FADE_FRAMES, GameOverFrame, GrowingWindow,
+    JobBoardView, MenuPage, MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS,
+    Routed, SceneStart, Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView,
+    SkillEntry, SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TechniqueEntry, TitleEntry,
+    TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames,
     camp_fixture, camp_travel_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};

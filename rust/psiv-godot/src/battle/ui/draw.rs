@@ -62,6 +62,14 @@ pub(super) fn compose(screen: &mut BattleScreen) {
                     }
                 }
             }
+            // A window still opening: the strip under a list stays, the
+            // opening window is an empty box, and no cursor shows (the list
+            // routines clear the strip's cursor object as they open,
+            // `clr.w (a4)`, `ps4.asm:2339`).
+            Some(MenuView::Commands(commands)) if commands.growing.is_some() => {
+                command_window::draw_strip(chrome, &mut screen.tiles, commands, &mut quads);
+                command_window::draw_growing(chrome, commands, &mut quads);
+            }
             Some(MenuView::Commands(commands)) if commands.strip.is_some() => {
                 command_window::draw_strip(chrome, &mut screen.tiles, commands, &mut quads);
                 if commands.list.is_some() {

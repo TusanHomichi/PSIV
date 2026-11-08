@@ -47,6 +47,7 @@ pub fn pack() -> Option<&'static Pack> {
 /// listed: tests fill in what the case needs.
 pub fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
     psiv_runtime::CommandMenuView {
+        growing: None,
         strip: None,
         list: None,
         title: String::new(),

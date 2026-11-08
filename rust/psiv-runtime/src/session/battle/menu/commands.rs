@@ -13,8 +13,8 @@ use crate::Runtime;
 use crate::pad::{Button, Pad};
 
 use super::super::view::{
-    CommandMenuView, ListEntry, ListView, MenuPage, MenuRow, PartyStatus, SkillEntry, StripView,
-    TargetKind, TechniqueEntry,
+    CommandMenuView, GrowingWindow, ListEntry, ListView, MenuPage, MenuRow, PartyStatus,
+    SkillEntry, StripView, TargetKind, TechniqueEntry,
 };
 use super::{accept_pressed, list_step};
 
@@ -105,9 +105,29 @@ pub(crate) struct CommandsMenu {
     /// Each member's remembered cursors, which the battle mode carries
     /// between rounds.
     memory: CursorMemory,
+    /// `$FFFF418C`: the width the opening window has reached, while
+    /// `Battle_CreateWindow` is still growing it. `None` once it is whole.
+    growth: Option<u8>,
     /// Whether the window is still open. `false` hands the orders back.
     pub(crate) open: bool,
 }
+
+/// The width in cells `Battle_CreateWindow` grows a page's window to: its
+/// `d1`. The strip `$10` (`ps4.asm:2170`); the technique window `$C`
+/// (`2489`), the skill window `$F` (`2830`) and the item window `$E`
+/// (`3186`). The target pickers are the port's own and do not grow.
+const fn window_width(page: MenuPage) -> Option<u8> {
+    match page {
+        MenuPage::Actions => Some(16),
+        MenuPage::Techniques => Some(12),
+        MenuPage::Skills => Some(15),
+        MenuPage::Items => Some(14),
+        MenuPage::Targets(_) => None,
+    }
+}
+
+/// Cells `Battle_CreateWindow` adds a frame (`addq.w #2`, `ps4.asm:1658`).
+const GROWTH_STEP: u8 = 2;
 
 impl CommandsMenu {
     /// Opens the window over the battle's live data.
@@ -155,6 +175,7 @@ impl CommandsMenu {
             age: 0,
             bytes,
             memory,
+            growth: None,
             open: true,
         };
         menu.open_actor();
@@ -169,10 +190,13 @@ impl CommandsMenu {
     /// Whether the open page's cursor is a red-cursor routine (the lists) as
     /// opposed to the strip's sprite and the target pickers.
     pub(crate) fn red_cursor_window(&self) -> bool {
-        matches!(
-            self.page,
-            MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
-        )
+        // The window routine that runs the red cursor's timers is not
+        // running while `Battle_CreateWindow` grows the window.
+        !self.growing()
+            && matches!(
+                self.page,
+                MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
+            )
     }
 
     /// Fixture entry: the window as the cartridge leaves it once `page` is
@@ -181,6 +205,7 @@ impl CommandsMenu {
         self.page = page;
         self.cursor = cursor;
         self.age = age;
+        self.growth = None;
         self.set_command_byte(match page {
             MenuPage::Techniques => 2,
             MenuPage::Skills => 3,
@@ -204,11 +229,43 @@ impl CommandsMenu {
     /// entry (`Battle_UpdateRedCursor2`, `ps4.asm:1572`), and the word keeps
     /// what they wrote. A battle's technique and skill lists do not change,
     /// and the item words are cleared before the pack can.
+    ///
+    /// The window then grows into place (`Battle_OpenCharComd`,
+    /// `Battle_OpenTechs` and twins, through `Battle_CreateWindow`).
     fn open_page(&mut self, page: MenuPage) {
         self.page = page;
         self.cursor = self
             .command_slot()
             .map_or(0, |slot| self.memory.cursor(slot, page));
+        self.start_growth();
+    }
+
+    /// `clr.w ($FFFF418C)` before a window's first `Battle_CreateWindow`.
+    fn start_growth(&mut self) {
+        self.growth = window_width(self.page).map(|_| 0);
+    }
+
+    /// Whether a window is still growing, and reads no input.
+    pub(crate) fn growing(&self) -> bool {
+        self.growth.is_some()
+    }
+
+    /// One `Battle_CreateWindow` call: two cells wider, and whole once the
+    /// width reaches the window's (`cmp.w ($FFFF418C),d1 / ble`), which is
+    /// also the frame the routine moves on to the window's input routine.
+    fn grow(&mut self) {
+        let Some(width) = self.growth else { return };
+        let width = width.saturating_add(GROWTH_STEP);
+        self.growth = match window_width(self.page) {
+            Some(full) if width < full => Some(width),
+            _ => None,
+        };
+        if self.growth.is_none() {
+            // The strip's cursor object is created now (`move.w #4,
+            // (Command_Cursor).w`, `ps4.asm:2175`) and shows from the next
+            // frame.
+            self.age = 0;
+        }
     }
 
     /// Writes the cursor back to the actor's word for the open page.
@@ -665,7 +722,15 @@ impl CommandsMenu {
     /// that flips to the next page only when one exists, a Left likewise, then
     /// Cancel, then accept. The target lists keep this port's own one-list
     /// mapping (the cartridge picks targets with a cursor over the enemies).
+    ///
+    /// While a window grows, the frame is `Battle_CreateWindow`'s and no
+    /// button is read; the cursor object is created on the frame the window
+    /// is whole, so its clock starts after.
     pub(crate) fn input(&mut self, previous: Pad, pad: Pad) -> Option<RoundOrders> {
+        if self.growing() {
+            self.grow();
+            return None;
+        }
         self.age = self.age.saturating_add(1);
         match self.page {
             MenuPage::Actions => {
@@ -722,6 +787,9 @@ impl CommandsMenu {
         let entries = self.rows().len();
         if pad.is_pressed(previous, Button::Right) && entries > base + PAGE_ROWS {
             self.cursor = base + PAGE_ROWS;
+            // `Battle_TechNextWin` and twins (`ps4.asm:2739`, `3078`,
+            // `3503`) grow the next page's window from nothing.
+            self.start_growth();
             return true;
         }
         if pad.is_pressed(previous, Button::Left) && base > 0 {
@@ -758,9 +826,22 @@ impl CommandsMenu {
             MenuPage::Targets(action) => self.targets(action),
             _ => Vec::new(),
         };
+        let growing = self
+            .growth
+            .zip(window_width(self.page))
+            .and_then(|(width, full_width)| {
+                Some(GrowingWindow {
+                    window: self.page,
+                    slot: self.comd_slot()?,
+                    width,
+                    full_width,
+                })
+            });
+        let strip_growing = growing.is_some() && self.page == MenuPage::Actions;
         CommandMenuView {
-            strip: self.strip_view(),
-            list: self.list_view(),
+            growing,
+            strip: self.strip_view().filter(|_| !strip_growing),
+            list: self.list_view().filter(|_| growing.is_none()),
             title: self.title(),
             page: self.page,
             rows: self

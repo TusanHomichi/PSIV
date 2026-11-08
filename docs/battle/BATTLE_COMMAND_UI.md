@@ -88,11 +88,48 @@ them, an empty row included. `Battle_Item_Index` is per member too, and
 between windows and clears the item words where it clears the command table.
 Test: `each_member_s_strip_and_list_cursors_reopen_where_they_left_them`.
 
+### The windows grow open
+
+`Battle_CreateWindow` (`ps4.asm:1657`) adds two cells to `$FFFF418C` each
+frame and draws an empty window that wide, shifted right by
+`(d1 - width) & ~1` bytes (two a cell) so it grows from the centre of where the
+full window goes. Once the width reaches the window's `d1` it draws the whole
+window, contents and all, and returns past the caller's `rts`, which is the
+frame the routine moves on to the window's input routine. Until then no
+button is read, the red cursor's timers do not run, and the strip's cursor
+object does not exist (`move.w #4,(Command_Cursor).w` comes after,
+`ps4.asm:2175`). A list opening clears the strip's cursor as it starts
+(`clr.w (a4)`, `ps4.asm:2339`).
+
+| window | `d1` | frames | source |
+| --- | --- | --- | --- |
+| strip | `$10` | 8 (2-14, then whole) | `loc_1566`, `ps4.asm:2170` |
+| technique | `$C` | 6 | `loc_18DA`, `ps4.asm:2489`; next page `Battle_TechNextWin` |
+| skill | `$F` | 8 (14 is left-aligned, then whole) | `loc_1C66`, `ps4.asm:2830`; `Battle_SkillNextWin` |
+| item | `$E` | 7 | `loc_2036`, `ps4.asm:3186`; `Battle_ItemNextWin` |
+
+Tape 32: TECH accepted at f25165, `Battle_Routine_2` `$8007` from f25166 to
+f25170, `Battle_TechWindow` from f25172; the video shows boxes of 2, 4, 6, 8
+and 10 cells at f25167-f25171, the list at f25172 and the red cursor at
+f25173. The strip from COMD: boxes of 2-14 cells at f25008-f25014, the icons at
+f25015 and the cursor at f25016.
+
+`CommandsMenu` holds the width while a window grows and reads no button; the
+view's `growing` carries it, and the stage draws an empty window at that width
+in place of the strip or list. Test:
+`the_strip_and_the_technique_window_grow_before_they_read_a_button`.
+
 ### Not modelled, named
 
-- Windows open over 6-8 frames (`Battle_CreateWindow`, `ps4.asm:1657`: two cells
-  a frame); the port's windows appear whole. The red cursor's timers do not
-  run during that growth in the cartridge.
+- The closing side: `Battle_DestroyWindow` (`ps4.asm:1678`) shrinks a window
+  the same way when the main options give way to the strip (f25003-f25005 in
+  tape 32), when a list closes on a choice or a cancel, and on a previous-page
+  flip (`Battle_TechPrevWin`). The port removes those windows at once.
+- The frames between COMD and the strip's growth: the main options' shrink,
+  `Battle_ProcessCOMD`'s frame and `Battle_OpenCharComd`'s setup frame, which
+  in tape 32 also runs long enough to drop a video frame. The port's strip
+  starts growing the frame after COMD, so it is whole five frames earlier than
+  the cartridge's.
 - The skill and item windows are decoded from their routines and drawn by the
   same code, but no oracle frame certifies them.
 - Target selection is the cartridge's sprite cursor over the enemies or party

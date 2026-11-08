@@ -24,7 +24,9 @@ use std::path::Path;
 use psiv_core::battle::{BattleEvent, Priority, Side, status};
 use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{BattleView, Button, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session};
+use psiv_runtime::{
+    BattleView, Button, CommandMenuView, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session,
+};
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
@@ -223,11 +225,27 @@ fn fight_press(view: &BattleView) -> Pad {
     }
 }
 
-/// Presses one button and releases it, so the press is a fresh edge.
+/// Presses one button and releases it, so the press is a fresh edge, then
+/// waits out any window the press opened: `Battle_CreateWindow` grows it for
+/// a few frames that read no button (#51).
 fn tap(session: &mut Session, button: Button) -> Frame {
     let frame = tick(session, Pad::new(button));
-    tick(session, Pad::NEUTRAL);
+    let mut released = tick(session, Pad::NEUTRAL);
+    for _ in 0..16 {
+        if !growing(&released) {
+            break;
+        }
+        released = tick(session, Pad::NEUTRAL);
+    }
     frame
+}
+
+/// Whether the frame's command window is still opening.
+fn growing(frame: &Frame) -> bool {
+    matches!(
+        view_of(frame).and_then(|view| view.menu.as_ref()),
+        Some(MenuView::Commands(menu)) if menu.growing.is_some()
+    )
 }
 
 /// The view of a battle frame, for the caller's assertions.
@@ -670,6 +688,98 @@ fn cancelling_out_of_a_target_list_returns_to_the_menu() {
     );
 }
 
+/// The command menu of `frame`, which must have one.
+fn commands_of(frame: &Frame) -> CommandMenuView {
+    match view(frame).menu.clone() {
+        Some(MenuView::Commands(menu)) => *menu,
+        other => panic!("the command window is open: {other:?}"),
+    }
+}
+
+/// Neutral frames while the window grows: the width each one drew, and the
+/// first frame it was whole.
+fn grow(session: &mut Session) -> (Vec<u8>, CommandMenuView) {
+    let mut widths = Vec::new();
+    for _ in 0..16 {
+        let menu = commands_of(&tick(session, Pad::NEUTRAL));
+        match menu.growing {
+            Some(growing) => widths.push(growing.width),
+            None => return (widths, menu),
+        }
+    }
+    panic!("the window never finished growing: {widths:?}");
+}
+
+/// #51: `Battle_CreateWindow` (`ps4.asm:1657`) grows a window two cells a
+/// frame, centred, draws it whole once the width reaches the window's, and
+/// only then does the window's routine read a button. Tape 32: TECH accepted
+/// at f25165 (`Battle_Routine_2` 7), the window `8007` growing f25166-f25170
+/// and whole at f25171, `Battle_TechWindow` (8) from f25172; the video shows
+/// 2, 4, 6, 8 and 10 cells at f25167-f25171 and the list at f25172.
+#[test]
+fn the_strip_and_the_technique_window_grow_before_they_read_a_button() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let mut session = Session::start(GameData::load(pack).expect("pack loads"))
+        .with_battles(files)
+        .field()
+        .expect("the pack boots");
+    let opening = session.debug_battle_window(TAPE_07_FORMATION, "top");
+    assert!(opening.fault.is_none(), "{:?}", opening.fault);
+    tick(&mut session, Pad::NEUTRAL);
+
+    // COMD: the 16-cell strip grows from nothing; no icons, no cursor.
+    let opened = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
+    let growing = opened.growing.expect("the strip opens growing");
+    assert_eq!(
+        (growing.window, growing.width, growing.full_width),
+        (MenuPage::Actions, 0, 16)
+    );
+    assert!(opened.strip.is_none());
+    let (widths, strip) = grow(&mut session);
+    assert_eq!(widths, [2, 4, 6, 8, 10, 12, 14]);
+    let drawn = strip.strip.expect("the whole strip, icons and all");
+    assert_eq!(drawn.age, 0, "the cursor object is created on this frame");
+
+    // Right to TECH, then accept: the 12-cell window grows over the strip.
+    tick(&mut session, Pad::new(Button::Right));
+    tick(&mut session, Pad::NEUTRAL);
+    let accepted = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
+    assert_eq!(accepted.page, MenuPage::Techniques);
+    let growing = accepted.growing.expect("the list opens growing");
+    assert_eq!((growing.width, growing.full_width), (0, 12));
+    assert!(accepted.strip.is_some() && accepted.list.is_none());
+    let mut widths = Vec::new();
+    for frame in 0..5 {
+        // A Down pressed while the window grows is not read.
+        let pad = if frame == 2 {
+            Pad::new(Button::Down)
+        } else {
+            Pad::NEUTRAL
+        };
+        let menu = commands_of(&tick(&mut session, pad));
+        let growing = menu.growing.expect("still growing");
+        widths.push((growing.width, growing.left_offset()));
+        assert!(menu.list.is_none());
+    }
+    assert_eq!(widths, [(2, 5), (4, 4), (6, 3), (8, 2), (10, 1)]);
+    let whole = commands_of(&tick(&mut session, Pad::NEUTRAL));
+    assert!(whole.growing.is_none());
+    assert_eq!(
+        whole.list.expect("the list, whole").cursor,
+        0,
+        "the Down was not read"
+    );
+    let moved = commands_of(&tick(&mut session, Pad::new(Button::Down)));
+    assert_eq!(
+        moved.list.expect("the list").cursor,
+        1,
+        "the next frame reads it"
+    );
+}
+
 /// Plays tape 07's first round with pad presses only: Alys opens TECH and
 /// picks the first entry, Chaz and Hahn defend. `spec` seeds the fixture
 /// (`PSIV_DEBUG_BATTLE_WINDOW`). Returns the narration lines the round showed,
@@ -687,7 +797,13 @@ fn alys_casts_her_first_technique(spec: &str) -> Option<(Vec<String>, u16, bool)
     tick(&mut session, Pad::NEUTRAL);
     let tap = |session: &mut Session, button: Button| {
         let down = tick(session, Pad::new(button));
-        let up = tick(session, Pad::NEUTRAL);
+        let mut up = tick(session, Pad::NEUTRAL);
+        for _ in 0..16 {
+            if !growing(&up) {
+                break;
+            }
+            up = tick(session, Pad::NEUTRAL);
+        }
         (down, up)
     };
     // COMD opens Alys's strip; Right is TECH; Speak opens the list.
