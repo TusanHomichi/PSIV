@@ -137,6 +137,26 @@ pub fn enemy_skill_symbols() -> Vec<&'static str> {
     )
 }
 
+/// `PROFESSIONS`, by profession id.
+pub const PROFESSIONS: [&str; 8] = [
+    "Hunter", "Scholar", "Wizard", "Motavian", "Numan", "Android", "Priest", "Esper",
+];
+
+/// `ITEM_TYPES`, by type byte.
+pub const ITEM_TYPES: [&str; 11] = [
+    "none_or_unused",
+    "one_handed_single_target_weapon",
+    "one_handed_multi_target_weapon",
+    "two_handed_single_target_weapon",
+    "two_handed_multi_target_weapon",
+    "shield",
+    "headwear_or_ring",
+    "body_equipment",
+    "disposable_item",
+    "plot_item",
+    "field_only_item",
+];
+
 /// `PROPERTY_NAMES`: the fourteen property slots, in record order.
 pub const PROPERTIES: [&str; 14] = [
     "physical",
@@ -257,6 +277,8 @@ pub fn display_names(rom: &[u8]) -> Result<HashMap<&'static str, Display>, PackE
         ("enemy_skills", "enemy_skill_names"),
         ("techniques", "technique_names"),
         ("skills", "skill_names"),
+        ("characters", "character_names"),
+        ("professions", "profession_names"),
     ];
     let mut out = HashMap::new();
     for (key, table) in tables {
