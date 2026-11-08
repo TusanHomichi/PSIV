@@ -10,16 +10,13 @@ use psiv_core::{Cell, Driver, Input, ONE_PIXEL, PixelPos, VehicleEffect, Vehicle
 use crate::encounters::{EncounterClock, VEHICLE_MASK};
 use psiv_core::EventIndex;
 
+/// `EventFlag_DarkForce2`, which `loc_6C24` tests to swap background 4 for 5.
+const DARK_FORCE_2_FLAG: u16 = 0x9E;
+
 /// `Event_GettingOffVehicle`, the event `loc_56084` writes.
 const GETTING_OFF_VEHICLE: u16 = 0x10;
 use crate::events::RuntimeEvent;
 use crate::{BridgeError, Runtime};
-
-/// Retail's `MotaBattleBGIndexes`, `ps4.asm:118181-118224`.
-const MOTA_BATTLE_BG_INDEXES: [u8; 42] = [
-    0, 3, 3, 3, 3, 1, 1, 1, 3, 3, 0, 1, 0, 1, 0, 1, 0, 3, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 4, 2, 2, 2, 2, 2, 2, 2, 2,
-];
 
 impl Runtime {
     /// Whether `Event_GettingOffVehicle` is the scene running. It plays the
@@ -164,21 +161,44 @@ impl Runtime {
             .map(|chunk| (*chunk & 0xFF) as u8)
     }
 
-    /// The zero-based `Mota_Battle_BG_Index` after
-    /// `GetMotaBattleBGIndex` subtracts a non-zero table byte.
+    /// `Mota_Battle_BG_Index` as `FieldRoutine_Battle` stores it: the
+    /// pack's `MotaBattleBGIndexes` entry for the chunk under the leader,
+    /// through `GetMotaBattleBGIndex` (`ps4.asm:117936-117944`, `118165`).
+    /// 0 when the map has no chunk grid, the pack no tables, or the chunk is
+    /// past the table.
     #[must_use]
-    pub fn vehicle_motavia_background(&self) -> u8 {
-        let Some(raw) = self.vehicle_battle_terrain() else {
-            return 0;
-        };
-        match MOTA_BATTLE_BG_INDEXES
-            .get(raw as usize)
-            .copied()
+    pub fn motavia_battle_background(&self) -> u8 {
+        self.vehicle_battle_terrain()
+            .and_then(|chunk| self.data.battle_backgrounds()?.motavia(chunk))
             .unwrap_or(0)
-        {
-            0 => 0,
-            value => value - 1,
-        }
+    }
+
+    /// The background `Battle_SetupBackground` (`ps4.asm:10124`) draws for a
+    /// battle starting now: `event_battle` is the scene's
+    /// `Event_Battle_Index`, `None` for a random encounter. `None` when the
+    /// pack has no tables or the tables pick none.
+    #[must_use]
+    pub fn battle_background(&self, event_battle: Option<u16>) -> Option<u8> {
+        self.battle_background_on(event_battle, self.map.id().0)
+    }
+
+    /// [`Self::battle_background`] as if the battle started on `map`, with
+    /// everything else live: the chunk under the leader, the mounted state and
+    /// Dark Force 2's flag. Debug fixtures that stage a battle on another map
+    /// use it, so their choice is the one a real battle there would make.
+    #[must_use]
+    pub fn battle_background_on(&self, event_battle: Option<u16>, map: u16) -> Option<u8> {
+        let mounted = self.vehicle_index().is_some();
+        let chunk = (map == 0 || mounted)
+            .then(|| self.vehicle_battle_terrain())
+            .flatten();
+        self.data.battle_backgrounds()?.select(
+            event_battle,
+            map,
+            chunk,
+            self.game.is_set(psiv_core::Flag::event(DARK_FORCE_2_FLAG)),
+            mounted,
+        )
     }
 
     /// One mounted field frame. The core has already transcribed movement,
@@ -249,7 +269,7 @@ impl Runtime {
         }
 
         let map_id = self.map.id().0;
-        let background = self.vehicle_motavia_background();
+        let background = self.motavia_battle_background();
         if let Some(cell) = landed
             && !map_changed
             && self.scene.is_none()

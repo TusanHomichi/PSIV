@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 
 use psiv_data::{Level, LevelStats, LevelTable, LevelsFile, NamedId};
 
+use super::names::{CHARACTERS, SKILLS, TECHNIQUES};
 use super::{FORMAT_VERSION, range, serialize};
 use crate::PackError;
 use crate::json::{Json, overlay};
@@ -21,72 +22,6 @@ const POINTERS: usize = 0x004074;
 const POINTER_BYTES: usize = 6;
 const RECORD_BYTES: usize = 22;
 const LAST_LEVEL: u16 = 99;
-
-const CHARACTERS: [&str; 11] = [
-    "Chaz", "Alys", "Hahn", "Rune", "Gryz", "Rika", "Demi", "Wren", "Raja", "Kyra", "Seth",
-];
-const TECHNIQUES: [&str; 40] = [
-    "Foi", "Gifoi", "Nafoi", "Wat", "Giwat", "Nawat", "Tsu", "Githu", "Nathu", "Zan", "Gizan",
-    "Nazan", "Gra", "Gigra", "Nagra", "Megid", "Brose", "Vol", "Savol", "Gelun", "Doran", "Seals",
-    "Rimit", "Res", "Gires", "Nares", "Sar", "Gisar", "Nasar", "Shift", "Saner", "Deban", "Feeve",
-    "Anti", "Rimpa", "Rever", "Regen", "Arows", "Ryuka", "Hinas",
-];
-const SKILLS: [&str; 54] = [
-    "Crosscut",
-    "Rayblade",
-    "DblSlash",
-    "Flaeli",
-    "Flare",
-    "Vortex",
-    "Astral",
-    "Airslash",
-    "Disrupt",
-    "Hewn",
-    "Tandle",
-    "Efess",
-    "Legeon",
-    "Burstroc",
-    "Posibolt",
-    "Sweeping",
-    "Phonon",
-    "StFire",
-    "Corrsion",
-    "Explode",
-    "Eliminat",
-    "Diem",
-    "Spark",
-    "Death",
-    "Holyword",
-    "Dthspell",
-    "Negatis",
-    "Illusion",
-    "Telele",
-    "Shadow",
-    "Earth",
-    "Hijammer",
-    "Moonshad",
-    "Crash",
-    "StasisBm",
-    "Bindwa",
-    "Mindblst",
-    "Barrier",
-    "WarCry",
-    "Blessing",
-    "Warla",
-    "Recover",
-    "Medice",
-    "Miracle",
-    "MedicPw",
-    "Ataraxia",
-    "Vision",
-    "Eliminat2",
-    "Flaeli2",
-    "Hewn2",
-    "Tandle2",
-    "Spark2",
-    "Barrier2",
-    "Recover2",
-];
 
 fn hex6(value: usize) -> String {
     format!("0x{value:06X}")

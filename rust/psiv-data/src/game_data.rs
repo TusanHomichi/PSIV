@@ -60,6 +60,9 @@ pub struct GameData {
     /// synthetic pack built with [`GameData::from_parts`] or a pack without
     /// `presentation/panels.json`.
     scene_palettes: crate::ScenePalettes,
+    /// The battle background selection tables. `None` for a synthetic pack
+    /// built with [`GameData::from_parts`], or a pack with no battle art.
+    battle_backgrounds: Option<crate::BattleBackgrounds>,
 }
 
 impl GameData {
@@ -101,6 +104,7 @@ impl GameData {
             fifth: None,
             shops: None,
             scene_palettes: crate::ScenePalettes::default(),
+            battle_backgrounds: None,
         })
     }
 
@@ -165,6 +169,15 @@ impl GameData {
     /// `None` only for a synthetic pack built with [`GameData::from_parts`].
     pub fn shops(&self) -> Option<&crate::ShopData> {
         self.shops.as_ref()
+    }
+
+    /// `Battle_SetupBackground`'s tables, loaded with the pack.
+    ///
+    /// `None` for a synthetic pack built with [`GameData::from_parts`], or a
+    /// pack with no battle art.
+    #[must_use]
+    pub fn battle_backgrounds(&self) -> Option<&crate::BattleBackgrounds> {
+        self.battle_backgrounds.as_ref()
     }
 
     /// All sprite sheets by id (party and NPC merged; ids never collide).

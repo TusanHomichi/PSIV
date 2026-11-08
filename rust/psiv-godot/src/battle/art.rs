@@ -1,4 +1,5 @@
-//! Battle presentation art and the data-only selectors that choose it.
+//! Battle presentation art. Which background a battle draws is the runtime's
+//! (`psiv_runtime::Runtime::battle_background`); this module only loads it.
 //!
 //! The PNGs in `runtime-pack/battle/art` are indexed renders.  Backgrounds
 //! and character poses already carry the one palette they use.  Enemy bodies
@@ -26,7 +27,6 @@ pub(crate) struct BattleArt {
     backgrounds: BTreeMap<u8, String>,
     enemy_overlays: BTreeMap<u16, EnemyOverlayFileEntry>,
     enemy_attacks: BTreeMap<u16, EnemyAttackArtFileEntry>,
-    background_tables: BackgroundTables,
     enemy_palette: EnemyPaletteLayout,
     /// The Zol slugs' Fusion frames, which `psiv_data::FusionArt` owns.
     fusion: psiv_data::FusionArt,
@@ -54,16 +54,6 @@ pub(crate) struct EnemyArt {
 #[derive(Clone)]
 pub(crate) struct CharacterArt {
     pub(crate) poses: BTreeMap<u8, String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BackgroundTables {
-    pub(crate) event_battle: Vec<u8>,
-    pub(crate) field_map: Vec<u8>,
-    pub(crate) motavia_terrain: Vec<u8>,
-    pub(crate) field_none: u8,
-    pub(crate) dark_force_from: u8,
-    pub(crate) dark_force_to: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,38 +108,12 @@ struct CharacterPoseFileEntry {
 #[derive(Deserialize)]
 struct BackgroundFile {
     backgrounds: Vec<BackgroundFileEntry>,
-    selection: BackgroundSelectionFile,
 }
 
 #[derive(Deserialize)]
 struct BackgroundFileEntry {
     index: u8,
     png: String,
-}
-
-#[derive(Deserialize)]
-struct BackgroundSelectionFile {
-    event_battle: IndexTableFile,
-    field_map: IndexTableFile,
-    motavia_terrain: IndexTableFile,
-    dark_force_2_swap: DarkForceSwapFile,
-}
-
-#[derive(Deserialize)]
-struct IndexTableFile {
-    indexes: Vec<u8>,
-    #[serde(default = "default_no_background")]
-    none: u8,
-}
-
-#[derive(Deserialize)]
-struct DarkForceSwapFile {
-    from: u8,
-    to: u8,
-}
-
-fn default_no_background() -> u8 {
-    u8::MAX
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(pack_dir: &str, name: &str) -> Result<T, String> {
@@ -269,14 +233,6 @@ impl BattleArt {
                 .collect(),
             enemy_overlays,
             enemy_attacks,
-            background_tables: BackgroundTables {
-                event_battle: background_file.selection.event_battle.indexes,
-                field_map: background_file.selection.field_map.indexes,
-                motavia_terrain: background_file.selection.motavia_terrain.indexes,
-                field_none: background_file.selection.field_map.none,
-                dark_force_from: background_file.selection.dark_force_2_swap.from,
-                dark_force_to: background_file.selection.dark_force_2_swap.to,
-            },
             enemy_palette: EnemyPaletteLayout {
                 first_table_index,
                 fixed_colors,
@@ -304,25 +260,6 @@ impl BattleArt {
                 })
             })
             .collect()
-    }
-
-    pub(crate) fn background_path(
-        &self,
-        event_battle: Option<u16>,
-        map_id: u16,
-        motavia_terrain: Option<u8>,
-        dark_force_2: bool,
-        vehicle_mounted: bool,
-    ) -> Option<&str> {
-        let index = select_background(
-            &self.background_tables,
-            event_battle,
-            map_id,
-            motavia_terrain,
-            dark_force_2,
-            vehicle_mounted,
-        )?;
-        self.backgrounds.get(&index).map(String::as_str)
     }
 
     /// CRAM index 15 of lines 0 to 3: the ink the menu font and the HP/TP
@@ -511,52 +448,6 @@ impl BattleArt {
     }
 }
 
-/// Selects the retail background number. `motavia_terrain` is the raw terrain
-/// byte used to index `MotaBattleBGIndexes`; that table stores index+1 and
-/// reserves zero for background zero.
-pub(crate) fn select_background(
-    tables: &BackgroundTables,
-    event_battle: Option<u16>,
-    map_id: u16,
-    motavia_terrain: Option<u8>,
-    dark_force_2: bool,
-    vehicle_mounted: bool,
-) -> Option<u8> {
-    let selected = if let Some(event) = event_battle {
-        tables.event_battle.get(usize::from(event)).copied()?
-    } else if map_id == 0
-        || vehicle_mounted
-            && motavia_terrain.is_some()
-            && tables
-                .field_map
-                .get(usize::from(map_id))
-                .is_none_or(|index| *index == tables.field_none)
-    {
-        let terrain = usize::from(motavia_terrain?);
-        match tables.motavia_terrain.get(terrain).copied() {
-            Some(stored) => stored.saturating_sub(1),
-            // The retail table is 42 bytes, while its selector consumes the
-            // raw chunk byte without a bounds check.  Mounted debug fixtures
-            // can land on a valid field chunk outside those 42 Motavia
-            // classes (Piata Academy F1 is one); keep the battle surface
-            // asset-backed and use the table's reserved background-0 class.
-            None if vehicle_mounted => 0,
-            None => return None,
-        }
-    } else {
-        let index = tables.field_map.get(usize::from(map_id)).copied()?;
-        if index == tables.field_none {
-            return None;
-        }
-        index
-    };
-    Some(if dark_force_2 && selected == tables.dark_force_from {
-        tables.dark_force_to
-    } else {
-        selected
-    })
-}
-
 /// Bit 7 set selects the `$40` palette-table offset, CRAM line 2. Clear is
 /// the `$20` offset, CRAM line 1 (`Palette_Table_Buffer` is line 0 at `$00`).
 pub(crate) const fn enemy_cram_line(position: u8) -> u8 {
@@ -601,80 +492,6 @@ pub(crate) fn cram_color(word: u16) -> Color {
 mod tests {
     use super::*;
     use psiv_data::BattleFiles;
-
-    fn tables() -> BackgroundTables {
-        BackgroundTables {
-            event_battle: vec![13, 4],
-            field_map: vec![u8::MAX, 4, 21],
-            motavia_terrain: vec![0, 1, 4],
-            field_none: u8::MAX,
-            dark_force_from: 4,
-            dark_force_to: 5,
-        }
-    }
-
-    #[test]
-    fn background_selection_uses_event_map_and_terrain_tables() {
-        let tables = tables();
-        assert_eq!(
-            select_background(&tables, Some(0), 2, None, false, false),
-            Some(13)
-        );
-        assert_eq!(
-            select_background(&tables, None, 1, None, false, false),
-            Some(4)
-        );
-        assert_eq!(
-            select_background(&tables, None, 0, Some(2), false, false),
-            Some(3)
-        );
-        assert_eq!(
-            select_background(&tables, None, 0, Some(1), false, false),
-            Some(0)
-        );
-        assert_eq!(
-            select_background(&tables, None, 2, None, false, false),
-            Some(21)
-        );
-        assert_eq!(
-            select_background(&tables, None, 2, None, true, false),
-            Some(21)
-        );
-    }
-
-    #[test]
-    fn dark_force_swap_applies_after_selection() {
-        let tables = tables();
-        assert_eq!(
-            select_background(&tables, Some(1), 0, None, true, false),
-            Some(5)
-        );
-        assert_eq!(
-            select_background(&tables, Some(1), 0, None, false, false),
-            Some(4)
-        );
-        assert_eq!(
-            select_background(&tables, None, 99, None, false, false),
-            None
-        );
-    }
-
-    #[test]
-    fn mounted_debug_maps_fall_back_to_the_motavia_chunk_table_only_when_unmapped() {
-        let tables = tables();
-        assert_eq!(
-            select_background(&tables, None, 99, Some(2), false, true),
-            Some(3)
-        );
-        assert_eq!(
-            select_background(&tables, None, 99, Some(0x5F), false, true),
-            Some(0)
-        );
-        assert_eq!(
-            select_background(&tables, None, 2, Some(2), false, true),
-            Some(21)
-        );
-    }
 
     #[test]
     fn enemy_palette_places_fixed_table_and_line_dependent_words() {
@@ -733,9 +550,6 @@ mod tests {
             43
         );
         assert_eq!(art.backgrounds.len(), 32);
-        assert_eq!(art.background_tables.event_battle.len(), 27);
-        assert_eq!(art.background_tables.field_map.len(), 416);
-        assert_eq!(art.background_tables.motavia_terrain.len(), 42);
     }
 
     #[test]
@@ -768,8 +582,12 @@ mod tests {
         assert_eq!(enemy_cram_line(20), 1);
         assert_eq!(enemy_cram_line(137), 2);
         assert_eq!(enemy_cram_line(159), 2);
+        let tables = psiv_data::BattleBackgrounds::load(&pack)
+            .expect("retail background tables load")
+            .expect("the retail pack has them");
+        let index = tables.select(Some(0), 0x17, None, false, false);
         assert_eq!(
-            art.background_path(Some(0), 0x17, None, false, false),
+            index.and_then(|index| art.background_path_by_index(index)),
             Some("battle/art/backgrounds/13_AcademyBasement.png")
         );
     }
