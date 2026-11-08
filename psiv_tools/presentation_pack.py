@@ -143,7 +143,9 @@ PALETTE_REQUESTS = (
     (0x001D_E0B8, 16),  # Event_RuneFlaeli's LoadPalette to line 4 (`$06D81A`)
     PLATE_ENGINE_LIGHT,
     (0x0009_F2BC, 64),  # Pal_Init: InitVRAMAndCRAM's 32 longwords (`$05A68A`)
-    (0x0029_6300, 16),  # Pal_Init_Line_3: Event_EnterAngerTower's hold (`$07383A`)
+    # Pal_Init_Line_3: Event_EnterAngerTower's 16-word hold (`$07383A`) and
+    # Event_GettingOffVehicle's `moveq #$10, d7 / trap #1`, 17 words (`$06BF2A`).
+    (0x0029_6300, 17),
     (0x0007_82DA, 54),  # loc_782DA: Rykros's six nine-word frames (`$078296`)
     (0x0006_EE16, 21),  # loc_6EE16: Zio Fort's barrier ramp, 7 steps x 3 (`$06ED42`)
     (0x002E_EA04, 16),  # loc_2EEA04: the ending's line to Buffer_2 (`$0796D4`)

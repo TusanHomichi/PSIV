@@ -59,7 +59,7 @@ fn party(members: &[CharId]) -> GameState {
     state
 }
 
-/// Runs `event` to its end, answering windows and the camera at once.
+/// Runs `event` to its end, answering windows, the camera and palette fades at once.
 fn play(event: u16, state: &mut GameState) -> Vec<SceneEffect> {
     let map = map_with(&["........"; 8], vec![], vec![]);
     let scene = scene_for(EventIndex(event)).expect("registered");
@@ -83,6 +83,12 @@ fn play(event: u16, state: &mut GameState) -> Vec<SceneEffect> {
     let mut input = SceneInput::None;
     for _ in 0..5_000 {
         let effects = runner.tick(&map, state, input);
+        // `Event_Phonon`'s `Pal_VariableFadeOut` lasts as long as the
+        // palette needs, which the runtime measures; this driver holds no
+        // palette, so it answers with a one-frame fade.
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         input = if runner.is_waiting_for_camera() {
             SceneInput::CameraArrived
         } else if effects.iter().any(|e| {

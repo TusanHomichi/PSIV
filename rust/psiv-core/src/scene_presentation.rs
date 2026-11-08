@@ -115,7 +115,7 @@ pub enum PresentationOp {
     /// Restore the five party sprite X positions saved by the scene.
     RestorePartySpriteX,
     /// `move.w #$8C89, (a6)` / `move.w #$8C81, (a6)`: VDP register 12 with
-    /// shadow/highlight on or off (`Event_ZioNurvus`, `$06F2F6`, `$06F3AA`).
+    /// shadow/highlight on or off (`Event_ZioNurvus`, `$06F2FA`, `$06F3AA`).
     ShadowHighlight {
         /// Register 12's `$08` bit.
         enabled: bool,

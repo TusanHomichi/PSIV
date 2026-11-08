@@ -22,8 +22,8 @@ ROM: `Phantasy Star IV (USA).md`, SHA-256
 | Surface | Retail bytes | Disposition | Evidence / exact reason |
 |---|---|---|---|
 | `Cutscene_RajaSick` / `$8012` | `$07734C..$077787` | **Transcribed** | 54 typed ops in `retail_endgame.rs`; fixed post-arrival presentation and map handoff. |
-| `Cutscene_Rykros` / `$801B` | `$07818E..$078345` | **Transcribed** | 27 typed ops; panels `$18B/$18F/$190`, palette cycle and flag `$D0`. |
-| `Cutscene_Ending` / `$8021` | `$078F3E..$07A811` | **Transcribed** | 370 typed ops; normal post-battle story panels, staff roll, credits renderer and final Start gate. See [89](89_Ending.md). |
+| `Cutscene_Rykros` / `$801B` | `$07818E..$078345` | **Transcribed** | 28 typed ops; panels `$18B/$18F/$190`, palette cycle and flag `$D0`. |
+| `Cutscene_Ending` / `$8021` | `$078F3E..$07A811` | **Transcribed** | 371 typed ops; normal post-battle story panels, staff roll, credits renderer and final Start gate. See [89](89_Ending.md). |
 | Musk Cats / `EventPtrs[$49]` | `$07069E..$0706BF` | **Transcribed** | [180](180_LateArcInteractions.md#event_muskcatsguarding). |
 | Musk Cat Elder / `EventPtrs[$4A]` | `$0706C0..$070701` | **Transcribed** | [180](180_LateArcInteractions.md#event_muskcatelder). |
 | Penguin Owner / `EventPtrs[$4B]` | `$070702..$070773` | **Transcribed** | [180](180_LateArcInteractions.md#event_penguinowner). |

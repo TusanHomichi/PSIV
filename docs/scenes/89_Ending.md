@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `retail_endgame.rs`, `ENDING` (370 typed ops).
+- **Data:** `retail_endgame.rs`, `ENDING` (371 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -261,7 +261,7 @@ dialogue.
 
 ## Census
 
-The ending's transcription is 370 ops, and its 50 post-battle panels are
+The ending's transcription is 371 ops, and its 50 post-battle panels are
 among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and

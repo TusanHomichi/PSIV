@@ -21,11 +21,16 @@ fn pack_present() -> bool {
 
 fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
-    // The new game's roster, so every member has a record to write to.
     let initial = crate::Session::start(data.clone())
         .field()
         .expect("the pack boots");
     let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    // A member a scene writes to (Demi's Phonon skill) needs a record.
+    for &who in party.iter().flatten() {
+        if game.roster().get(who).is_none() {
+            game.roster_mut().seat(who, super::save::stats(who.0)).expect("seat");
+        }
+    }
     game.set_party(party);
     for &flag in flags {
         let _ = game.set(flag);
@@ -289,10 +294,14 @@ fn a_variable_fade_blocks_for_the_palette_it_fades() {
         .max()
         .unwrap()
         .max(1);
-    let spent = usize::from(largest) * 6;
-    // The palette is black on the fade's last frame and not before.
-    assert_eq!(frames[fade + spent - 1].words, [0; 64]);
-    assert_ne!(frames[fade + spent - 2].words, [0; 64]);
+    // `$ED52` is 5 here: a pass, then six `VInt_Prepare`s (`loc_5B1A4`).
+    let every = 6;
+    let spent = usize::from(largest) * every;
+    // Each pass writes the buffer before its wait (`ps4.asm:122042-122066`),
+    // so the last pass turns it black at the start of its six frames, and
+    // the pass before leaves a nibble lit.
+    assert_eq!(frames[fade + spent - every].words, [0; 64]);
+    assert_ne!(frames[fade + spent - every - 1].words, [0; 64]);
     // The scene's next ops are `wait(40)` (no event) and a sound: the sound
     // lands the fade's frames and forty more after it.
     let next = next_event(&frames, fade, |event| {

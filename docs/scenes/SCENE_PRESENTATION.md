@@ -393,7 +393,7 @@ Corrections this model brought, each checked against the US image:
   grew by those frames.
 - `SetPaletteWords` offsets are word offsets: Vahal's barrier (`$0732EC`), the
   girls' sneaking-out palette (`$06D506`) and MeetingRika's (`$074826`) were
-  byte offsets. `Event_ZioNurvus`'s `$8C89`/`$8C81` (`$06F2F6`, `$06F3AA`) are
+  byte offsets. `Event_ZioNurvus`'s `$8C89`/`$8C81` (`$06F2FA`, `$06F3AA`) are
   VDP register 12 writes, now `ShadowHighlight`.
 
 Deviation: the fades whose frames the scene does not spend (`FadeIn`,

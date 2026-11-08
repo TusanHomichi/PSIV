@@ -59,7 +59,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_PsycoWandChest", 20),
         ("Cutscene_PsycoWand", 110),
         ("Event_ZioFortBarrier", 35),
-        ("Event_ZioNurvus", 17),
+        ("Event_ZioNurvus", 18),
         ("Cutscene_ZioDefeated", 46),
         ("Cutscene_MeetingWren", 16),
         ("Cutscene_InsideSpaceship", 44),
@@ -163,8 +163,8 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_AngerTowerExitTop", 10),
         ("Cutscene_ProfoundDarkness", 20),
         ("Cutscene_RajaSick", 54),
-        ("Cutscene_Rykros", 27),
-        ("Cutscene_Ending", 370),
+        ("Cutscene_Rykros", 28),
+        ("Cutscene_Ending", 371),
         ("Event_RockyOwner", 3),
         ("Event_GirlPrison", 3),
         ("Event_GirlsBail", 3),
@@ -213,13 +213,20 @@ fn every_scene_matches_its_docs_op_count() {
         expected.len(),
         "every act scene is registered"
     );
-    for (name, ops) in expected {
-        let scene = SCENES
-            .iter()
-            .find(|s| s.name == *name)
-            .unwrap_or_else(|| panic!("{name} is missing from the registry"));
-        assert_eq!(scene.ops.len(), *ops, "{name} op count");
-    }
+    // Every disagreement at once, so one change that moves several counts
+    // is fixed in one pass.
+    let wrong: Vec<String> = expected
+        .iter()
+        .filter_map(|(name, ops)| {
+            let scene = SCENES
+                .iter()
+                .find(|s| s.name == *name)
+                .unwrap_or_else(|| panic!("{name} is missing from the registry"));
+            (scene.ops.len() != *ops)
+                .then(|| format!("{name}: {} ops, the docs say {ops}", scene.ops.len()))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "op counts: {wrong:#?}");
 }
 
 /// The op indices of `ops` whose `WalkObject` order disagrees with the
