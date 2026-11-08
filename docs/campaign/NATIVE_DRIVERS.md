@@ -51,7 +51,7 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_alshline` | Gryz's door, the basement, the Alshline chest, an ordinary SAVE back in town | `alshline` (4); the chest is the route's first `open_chest`. The grinding of `basement-training` (3) is the route's own addition | Retired |
 | `native_alshline_retreat` | The same quest using RUN on random encounters | The `run_unless_boss` policy of `rune-dorin` (2), `alshline` (4) and `zema-rescue` (5) presses RUN from the battle menu | Retired |
 | `native_zema_return` | Rest, back through the pass, Zema's rescue boss, the post-battle conversation, SAVE | `zema-rescue` (5) | Retired. Not carried: the resident-palette, 50-page and Igglanova-entrance observations (see the gaps below) |
-| `native_zema_outfit` | Purchases at two counters with exact prices, equipping through the camp, a paid rest, SAVE | `zema-outfit` (6): 6 buys, 7 equips, one `rest_inn` | Retired. Not carried: the hand-selector cancel check (see the gaps below) |
+| `native_zema_outfit` | Purchases at two counters with exact prices, equipping through the camp, a paid rest, SAVE | `zema-outfit` (6): 6 buys, 7 equips, one `rest_inn` | Retired. Its hand-selector cancel check is now `cancelling_the_hand_selector_changes_neither_equipment_nor_the_pack` in `rust/psiv-runtime/tests/session_menus/hand_cancel.rs`, through ordinary pad input |
 | `native_zema_training` | Birth Valley battles and paid Zema rests to a target level | `zema-training` (7), policy `train_with_inn` | Retired |
 | `native_zema_armour` | Carbon suits bought and equipped for Alys and Chaz | `zema-armour` (8) | Retired |
 | `native_bioplant` | The BioPlant doors, elevators, encounters, poison cures and dialogue to Rika, with the alarm palette captures | `bioplant-elevators` (9), `bioplant-rika` (11), policy `bioplant_survival` | Retired. Not carried: the alarm captures `verify_native_alarm.py` reads |
@@ -130,8 +130,5 @@ These were proved by a retired driver and are carried by nothing today:
 - **Resident palette, 50 dialogue pages and Igglanova's visible entrance**
   (`native_zema_return`): presentation observations of the Zema rescue
   ([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
-- **The equipment hand-selector cancel** (`native_zema_outfit`): cancelling
-  the hand choice mutates neither equipment nor inventory. `suites::camp_equipment`
-  covers the accepted path only ([#121](https://github.com/TusanHomichi/PSIV/issues/121)).
 - **Per-chapter replay.** A chapter cannot be replayed alone, because a save
   holds no RNG state ([why](CAMPAIGN_RUNNER.md#native-tape-replay)).
