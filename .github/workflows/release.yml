@@ -17,13 +17,13 @@ on:
       - "godot/project.godot"
       - "godot/psiv.gdextension"
       - "oracle/build_core.sh"
-      - "rust/Cargo.lock"
-      - "rust/psiv-godot/src/install.rs"
-      - "rust/psiv-godot/src/pack_setup.rs"
-      - "rust/psiv-pack/**"
+      - "rust/**"
+      - "rust-toolchain.toml"
+      - ".gitattributes"
       - "tools/godot-downloads.json"
       - "tools/godot.py"
       - "tools/package/**"
+      - "tests/test_release.py"
   workflow_dispatch:
 permissions:
   contents: read

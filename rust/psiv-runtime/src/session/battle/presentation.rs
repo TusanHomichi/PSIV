@@ -111,7 +111,13 @@ impl BattleMode {
                 }
                 _ => self.acted.clone(),
             },
-            cursor_red: self.blink.red,
+            // A list drawn whole this frame has not run its cursor routine:
+            // its selected row is blue until the next frame decides it.
+            cursor_red: self.blink.red
+                && !matches!(
+                    self.window.as_ref(),
+                    Some(Window::Commands(commands)) if !commands.list_cursor_shown()
+                ),
             enemies: self.enemies.clone(),
             poses,
             current,

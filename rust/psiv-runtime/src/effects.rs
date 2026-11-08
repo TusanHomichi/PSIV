@@ -306,6 +306,10 @@ mod tests {
     #[test]
     fn rescued_zema_and_petrified_birth_valley_select_their_actual_palette_sheets() {
         let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
         let data = psiv_data::GameData::load(pack).expect("pack loads");
         let zema = data.map(psiv_data::MapId(0x24)).unwrap();
         let valley = data.map(psiv_data::MapId(0x2c)).unwrap();

@@ -188,6 +188,9 @@ fn play_from(column: u16) {
 /// at all.
 #[test]
 fn both_pans_hold_the_scene_from_every_column_of_the_trigger_row() {
+    if !pack_present() {
+        return;
+    }
     for column in 30..=39 {
         play_from(column);
     }
@@ -197,6 +200,9 @@ fn both_pans_hold_the_scene_from_every_column_of_the_trigger_row() {
 /// seated by hand: the trigger row cannot empty the outbound pan's Y leg.
 #[test]
 fn an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = party_below_the_stage(32);
     step_into_the_scene(&mut rt);
     let home = home_of(&rt);
@@ -225,6 +231,9 @@ fn an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends() {
 /// literal subject and the actor).
 #[test]
 fn a_pan_with_nothing_to_do_takes_no_frame() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = party_below_the_stage(32);
     step_into_the_scene(&mut rt);
     let home = home_of(&rt);

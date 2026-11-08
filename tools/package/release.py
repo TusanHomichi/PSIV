@@ -122,7 +122,7 @@ BUILD_STARTED = "pack setup: building "
 NOT_THE_ROM = "is not the US retail ROM PSIV builds from"
 
 #: The file the smoke test offers in place of the ROM.
-NOT_THE_ROM_NAME = "not-the-game"
+NOT_THE_ROM_NAME = "not the game (portabilité).md"
 
 #: Frames a smoke run lasts, at `--max-fps 60`, and its time limit in seconds.
 SMOKE_FRAMES = {"setup": "120", "refusal": "300"}
@@ -467,7 +467,8 @@ def first_run_environment(home: Path, saves: Path) -> dict[str, str]:
 def smoke(archive: Path, platform: Platform) -> list[str]:
     """Run the archive's game as a first run does; the lines it showed."""
     with tempfile.TemporaryDirectory(prefix="psiv-smoke-") as scratch:
-        scratch_path = Path(scratch)
+        scratch_path = Path(scratch) / "first run (portabilité)"
+        scratch_path.mkdir()
         unpack(archive, scratch_path / "game")
         folder = scratch_path / "game" / archive.name.removesuffix(platform.suffix)
         game = folder / platform.executable

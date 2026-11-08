@@ -1,0 +1,24 @@
+# Stable source bytes on every checkout, including Windows with autocrlf.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.ttf binary
+*.otf binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
+*.zip binary
+*.gz binary
+*.tpz binary
+*.bin binary
+*.gen binary
+*.smd binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.pck binary
