@@ -47,10 +47,10 @@ impl CampView {
             CampPage::AbilityCharacters
             | CampPage::AbilityList
             | CampPage::AbilityTarget
-            | CampPage::AbilityResult
-            | CampPage::TravelTowns => {
+            | CampPage::AbilityResult => {
                 self.ability_frame(runtime, up, down, accept);
             }
+            CampPage::TravelTowns => self.travel_towns_frame(runtime, input),
             CampPage::Root => {
                 if up {
                     self.root_selection = wrap(self.root_selection, ROOT_OPTIONS.len(), false);

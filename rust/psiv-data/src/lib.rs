@@ -44,6 +44,7 @@ mod collision;
 mod dialogue;
 mod error;
 mod field_objects;
+mod fifth;
 mod game_data;
 mod guild;
 mod ids;
@@ -63,9 +64,10 @@ pub use battle::{
     EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
     EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
-    EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, Formation,
-    FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId,
-    NamedMapRef, PositionGrid, Property, Rewards,
+    EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, FUSION_ART_PATH,
+    FUSION_FRAMES, Formation, FormationEnemy, FormationsFile, FusionArt, FusionFrame,
+    InlineFormation, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId, NamedMapRef,
+    PositionGrid, Property, Rewards,
 };
 pub use camera::{MapScroll, ScrollCounters};
 // The seating path: `battle/characters.json` and `battle/equipment.json`.
@@ -78,6 +80,7 @@ pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCol
 pub use dialogue::*;
 pub use error::DataError;
 pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};
+pub use fifth::{FIFTH_ROWS, FifthFile, FifthRowRecord, FifthTable};
 pub use game_data::GameData;
 pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
@@ -115,4 +118,6 @@ pub use shops::{
 };
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
-pub use travel::{DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile};
+pub use travel::{
+    DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile, TravelMessages,
+};

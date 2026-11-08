@@ -341,8 +341,15 @@ separate literal `EC25`/`EC26` writer outside `loc_51AB2`.
 `Camera::apply_gate_write` implements the loader's exact rule: write all three
 gate bytes, load the FG counters only when `EC25 == 0`, load the BG counters
 only when `EC26 == 0`, and preserve an existing pair for a nonzero gate.
-`Runtime::refresh_map_camera_gates` is the runtime seam for those post-entry
-`RefreshMap` calls. The focused receipt is
+Every native load applies it where the cartridge does. A map change, a
+scene's `RefreshMap` (`change_map_refresh`) and the cutscene reload build the
+camera from the record (`camera_for_record`), which writes the gates as the
+cartridge's `loc_51AB2` and `loc_53854` together do. The battle return keeps
+the camera, but `GameMode_LoadFieldMap` still runs `loc_51AB2` there, so
+`refresh_field_after_battle` applies the record's write through
+`Runtime::refresh_map_camera_gates_for` before the map-data walk (#59):
+`a_battle_return_reloads_the_records_camera_gates` pins it on Kuran, whose
+BG gate 0 reseeds the BG counters. The focused receipt is
 `oracle/states/refresh_map_camera_gate_receipt.json`, and the core test is
 `camera::tests::refresh_map_rewrites_gate_bytes_and_only_zero_gates_consume_counters`.
 

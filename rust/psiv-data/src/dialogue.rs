@@ -147,6 +147,13 @@ impl DialogueSet {
             .get(character_slot)
     }
 
+    /// `Event_GettingOffVehicle`'s refusal line, the one a mounted party gets
+    /// on ground it cannot step down onto. `None` on an older pack.
+    #[must_use]
+    pub fn cannot_get_off(&self) -> Option<&DialogueEntry> {
+        self.trees.system_messages.as_ref()?.cannot_get_off.as_ref()
+    }
+
     /// Where `ch` sits in the glyph strip.
     #[must_use]
     pub fn glyph(&self, ch: char) -> Option<&Glyph> {

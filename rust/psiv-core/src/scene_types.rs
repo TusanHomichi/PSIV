@@ -47,7 +47,9 @@ pub enum ActorRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DialogueId(pub u16);
 
-/// Which dialogue-window setup a scene asked for.
+/// Which dialogue-window setup a scene asked for: one variant per retail
+/// window exit. The `Get` entry each is for is pinned by the caller census
+/// (`docs/scenes/DIALOGUE_CALLERS.md`, `scenes/dialogue_callers.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum DialogueWindow {
     /// `Event_GetAndRunDialogue` (`$5AC66`): the window closes, the panels
@@ -59,18 +61,23 @@ pub enum DialogueWindow {
     /// loop, but the routine ends by zeroing `Panel_Num`, `Windows_Opened_Num`
     /// and `$FFFFECA4` instead of destroying anything, so the text window and
     /// every panel stay on screen and no chunk is reloaded. Fourteen
-    /// cartridge callers (`docs/scenes/DIALOGUE2_CALLERS.md`), every one a
+    /// cartridge callers (`docs/scenes/DIALOGUE_CALLERS.md`), every one a
     /// scene that ends in a battle or a map change.
     Retained,
-    /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
+    /// `Event_GetAndRunDialogue5` (`$5ADF8`): the windows close, the palette
+    /// fades out (`PalFadeOut_ClrSpriteTbl`), then `Panel_DestroyAll` and the
+    /// chunk reload.
     Cutscene,
-    /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
+    /// `Event_GetAndRunDialogue3` (`$5AD32`): the windows close and the chunks
+    /// reload, but no `Panel_DestroyAll`, so the panels stay up.
     Cutscene3,
     /// The ending's first `RunText3` window before the panel sequence.
     EndingIntro,
-    /// `Event_GetAndRunDialogue4` / `Event_RunDialogue4` in `$8021`.
+    /// `Event_GetAndRunDialogue4` (`$5ADA2`) / `Event_RunDialogue4` in
+    /// `$8021`: `RunText3`, no button wait, no `Panel_DestroyAll`.
     Ending,
-    /// `Event_RunDialogue5` used for the Rykros hand-off line.
+    /// `Event_RunDialogue5` used for the Rykros hand-off line: the
+    /// `Event_GetAndRunDialogue5` exit reached through its resume entry.
     Cutscene5,
 }
 
@@ -83,6 +90,34 @@ pub enum DialogueSource {
     /// exactly this — `move.b $14(a4),d0` — so the line Alys speaks is a
     /// property of her map object, not of the scene.
     NpcDialogueId(ActorRef),
+    /// A line outside every tree, which the pack carries on its own.
+    System(SystemLine),
+}
+
+/// A line the cartridge draws from a string of its own rather than a tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SystemLine {
+    /// `CannotGetOffString`, `Event_GettingOffVehicle`'s refusal.
+    CannotGetOff,
+}
+
+/// What `Event_GettingOffVehicle` (`scenes/vehicles.rs`) needs that no other
+/// scene has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GetOffOp {
+    /// `loc_4587A` (`GetChunkAndCollision` at `Character_1`, which is the
+    /// machine while mounted) then `tst.w d7 / bne`: any nonzero standing
+    /// collision refuses ([`crate::vehicle::dismount_allowed`]).
+    BranchIfBlocked {
+        /// Op index on ground the party cannot step down onto.
+        if_blocked: u16,
+        /// Op index otherwise.
+        if_clear: u16,
+    },
+    /// The map record's music byte through `AdjustMusicIDs`, written to
+    /// `Saved_Sound_Index` and `Sound_Index` whatever it answers
+    /// (`ps4.asm:145383-145395`). The runtime owns the map's music.
+    PlayMapMusic,
 }
 
 /// What the runtime tells the runner between ticks.
@@ -161,6 +196,46 @@ pub enum GuildOp {
     SetPaid,
     /// The row's money byte, times 1000, onto the purse.
     AddReward,
+}
+
+/// `Event_PickingFifthCharacter` on the row in `Window_Option_Index_2`
+/// (`scenes/fifth_character.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FifthOp {
+    /// `loc_71E74`: every party object's step counters at zero.
+    WaitParty,
+    /// `loc_71EAE`: all five friends' records, HP and TP to their maximum and
+    /// the status byte to zero, whatever the answer turns out to be.
+    RefillRecords,
+    /// The table row whose stand is one cell ahead of the leader, and that
+    /// friend turns to the leader.
+    PickRow,
+    /// `Event_GetAndRunDialogue` on the row's `$5(a0)` plus `offset`.
+    RunLine {
+        /// Added to the row's first line.
+        offset: u16,
+    },
+    /// `tst.b (Current_Party_Slot_5).w / bmi.w`.
+    BranchFifthSlotFree {
+        /// Op index taken when the slot is empty.
+        if_free: usize,
+        /// Op index taken otherwise.
+        if_taken: usize,
+    },
+    /// `loc_72156`: the slot and row of the friend already along.
+    PickLeaver,
+    /// `Event_GetAndRunDialogue` on the leaver's row, `$5(a0)` plus 3.
+    RunLeaverLine,
+    /// The friend along steps out and the one picked takes their slot.
+    Exchange,
+    /// `loc_72080`: the friend picked takes the free fifth slot.
+    TakeFifthSlot,
+    /// `loc_720E8`: `EventFlags_Clear` on each friend's `*Picked` flag, in
+    /// table order (the routine's five immediates, which the extractor checks
+    /// are the rows' flags).
+    ClearPicked,
+    /// `EventFlags_Set` on the row's `$6(a0)`.
+    SetPicked,
 }
 
 /// The party carried by the map rather than walking: a moving platform or a
@@ -272,6 +347,8 @@ pub enum SceneEffect {
     DialogueOpen(DialogueId),
     /// Ask the pending yes/no question.
     ChoiceRequested,
+    /// Open a line the pack carries outside the trees.
+    SystemLineOpen(SystemLine),
     /// Open the dialogue whose entry index lives on a field object.
     DialogueOpenFromNpc {
         /// Whose `dialogue_id` to read.
@@ -392,6 +469,21 @@ pub enum SceneEffect {
         /// The character whose record was written.
         who: CharId,
     },
+    /// A cleared map object is live again at its stand, with this facing
+    /// (`Event_PickingFifthCharacter`'s friend stepping back out).
+    NpcRestored {
+        /// The object.
+        npc_index: usize,
+        /// Its facing.
+        facing: Direction,
+    },
+    /// When the scene ends, this party object walks to the member ahead of it
+    /// from wherever it stands, instead of holding the trail
+    /// ([`crate::Party::walk_in`]).
+    PartyMemberWalksIn {
+        /// The party slot.
+        slot: usize,
+    },
     /// Drop objects from the map.
     NpcDespawned {
         /// The first object cleared.
@@ -471,6 +563,12 @@ pub enum SceneEffect {
 /// Why a scene stopped early.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneFault {
+    /// `Event_PickingFifthCharacter` found no row: nobody in its table stands
+    /// ahead of the leader, or (leaving) is in the party. The cartridge's
+    /// fall-through reads past the table; its trigger cannot reach either.
+    NoFifthRow,
+    /// `Event_PickingFifthCharacter` ran without the pack's table.
+    NoFifthTable,
     /// `Event_HuntersGuild` ran without the pack's table.
     NoGuildTable,
     /// A [`SceneOp::BranchOnRngLow2`] ran on a runner with no stream lent.
@@ -553,6 +651,27 @@ pub enum ObjectOp {
         y: i32,
         /// `render_flags` bit 3 after the routine's init: the object blocks
         /// and answers the talk probe.
+        solid: bool,
+    },
+    /// [`ObjectOp::Spawn`] with the position words copied from another
+    /// object's live `$30`/`$34`: `Event_ZioFanatic` builds the writhing
+    /// believer in slot 9 where object 4 stands (`$06EE5E..$06EE81`, rounded
+    /// down to 8 pixels with `lsr.w #3` / `lsl.w #3`). The port's objects stand
+    /// on 16-pixel cells, so the slot takes `at`'s cell, with no sub-cell
+    /// offset: the same place for an object at rest on a cell, and its step's
+    /// destination for one caught mid-step, where the cartridge's rounding
+    /// lands up to a cell short (`docs/source-notes/README.md`, Kadary).
+    ///
+    /// Like [`ObjectOp::Spawn`], the slot is drawn only by the
+    /// `PresentationOp::RebuildSprites` after it.
+    SpawnAt {
+        /// Field-object slot.
+        slot: usize,
+        /// `FieldObjectsJmpTbl` offset written to the id word.
+        routine: u16,
+        /// Whose position the slot takes.
+        at: ActorRef,
+        /// As for [`ObjectOp::Spawn`].
         solid: bool,
     },
 }

@@ -29,6 +29,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
 from tools.gate import (EXIT_UNEQUIPPED, FAST_COMMANDS, GATE_COMMANDS, GATE_INPUTS,
                         GATE_MEASURED_PARALLELISM, GATE_RUST_PROBES, RECEIPT_ENV, GateRefused,
                         available_cores, cargo_parallelism, command_slug, cpu_mhz,
@@ -396,7 +397,7 @@ class GateRunCase(unittest.TestCase):
 
     def init_repo(self):
         """A committed repo whose `build/` is ignored, so only real edits are dirty."""
-        self.git("init", "-q", "-b", "main")
+        scratch_git.init(self.root)
         self.git("config", "user.email", "gate@example.invalid")
         self.git("config", "user.name", "gate test")
         self.git("config", "commit.gpgsign", "false")

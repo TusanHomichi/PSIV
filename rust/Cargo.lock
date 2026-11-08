@@ -256,6 +256,14 @@ dependencies = [
  "psiv-runtime",
  "serde",
  "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "psiv-compare"
+version = "0.1.0"
+dependencies = [
+ "psiv-pack",
 ]
 
 [[package]]
@@ -273,6 +281,10 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "psiv-exit-leaks"
+version = "0.1.0"
 
 [[package]]
 name = "psiv-godot"

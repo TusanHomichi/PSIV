@@ -253,8 +253,8 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(census["unreferenced_entries"], 33)
         self.assertEqual(census["maps_with_entries"], 139)
         self.assertEqual(census["map_entry_pairs"], 188)
-        self.assertEqual(census["decoded_entries"], 116)
-        self.assertEqual(len(census["undecoded_entries"]), 11)
+        self.assertEqual(census["decoded_entries"], 117)
+        self.assertEqual(len(census["undecoded_entries"]), 10)
         self.assertEqual(census["evaluated"], "map load only")
         self.assertEqual(sorted(census["kinds"]), [
             "flag_clear", "layout_replace", "layout_write", "object_despawn",
@@ -263,16 +263,81 @@ class TestDecodedEntries(unittest.TestCase):
         # 335, not the 339 an earlier pass counted: four of those came from a
         # path whose gates required one flag both set and clear, which no map
         # load can satisfy. Pruning it removed the path and its writes.
-        self.assertEqual(census["kinds"]["object_despawn"], 335)
-        self.assertEqual(census["kinds"]["layout_write"], 191)
+        self.assertEqual(census["kinds"]["object_despawn"], 1455)
+        # 193: Aiedo's two BG stamps by absolute address joined the 191 that
+        # go through GetMapLayoutOffset (#38).
+        self.assertEqual(census["kinds"]["layout_write"], 193)
         self.assertEqual(census["kinds"]["layout_replace"], 4)
         self.assertEqual(census["maps_per_kind"]["layout_replace"], 2)
+
+    def test_aiedo_stamps_two_bg_chunks_by_absolute_address(self):
+        # `MapDataMan_Aiedo` (entry $83, ps4.asm:110754) loads `$FFFFB706`
+        # into a1 and writes chunk 6 at (a1) and 3(a1): Map_Layout_BG, not
+        # through GetMapLayoutOffset. It was decoded as a deferred "write to"
+        # note whose path was then dropped, so the pack carried `kinds: []`.
+        entry = decode_entry(self.data, 0x83)
+        self.assertIsNone(entry.undecoded)
+        (path,) = entry.paths
+        self.assertEqual(path.gates, ())
+        self.assertEqual(path.deferred, [])
+        self.assertEqual(
+            [(w.kind, w.detail["plane"], w.detail["displacement"], w.detail["chunk_id"])
+             for w in path.writes],
+            [("layout_write", "bg", 0x706, 6), ("layout_write", "bg", 0x709, 6)],
+        )
+        (aiedo,) = self.effects["per_map"][0x054]
+        writes = [w for p in aiedo["paths"] for w in p["writes"]]
+        self.assertEqual(
+            [(w["plane"], w["chunk_x"], w["chunk_y"], w["chunk_id"]) for w in writes],
+            [("bg", 22, 37, 6), ("bg", 25, 37, 6)],
+        )
+
+    def test_a_path_with_only_unmodelled_writes_is_kept(self):
+        # A deferred write is listed, never dropped (#38): the palette and RAM
+        # writes no slice models yet still reach the pack with their notes.
+        dropped = []
+        for entries in self.effects["per_map"].values():
+            for entry in entries:
+                if not entry.get("decoded"):
+                    continue
+                raw = decode_entry(self.data, entry["entry"])
+                emitted = sum(1 for p in entry["paths"])
+                informative = sum(1 for p in raw.paths if p.writes or p.aborts or p.deferred)
+                if emitted != informative:
+                    dropped.append(entry["entry_hex"])
+        self.assertEqual(dropped, [])
+        notes = {
+            note for entries in self.effects["per_map"].values() for entry in entries
+            for path in entry.get("paths", ()) for note in path["deferred"]
+        }
+        self.assertIn("write to 0xFFFFECF4", notes)
+        self.assertNotIn("write to 0xFFFFB706", notes)
 
     def test_only_two_banks_gate_anything(self):
         # Event flags and the $F140 bank. Extended and town flags gate no map
         # effect in the cartridge, which is worth knowing before modelling them.
         self.assertEqual(sorted(self.census["gate_banks"]), ["chest_flags", "event_flags"])
         self.assertEqual(sorted(self.census["flags_per_bank"]), ["chest_flags", "event_flags"])
+
+    def test_the_mota_spaceport_decodes_with_its_five_picked_gates(self):
+        # `MapDataMan_MotaSpaceport`, entry $67: a path for every combination
+        # of Elsydeon, Reunion and the five `EventFlag_*Picked` tests. A cap on
+        # paths once left it undecoded, and every friend at the spaceport on
+        # the map from the first visit (docs/scenes/181_PickingFifthCharacter.md).
+        entry = decode_entry(read_rom(ROM), 0x67)
+        self.assertIsNone(entry.undecoded)
+        def despawned(flags):
+            matching = [
+                path for path in entry.paths
+                if all((gate.flag in flags) == gate.required for gate in path.gates)
+            ]
+            self.assertEqual(len(matching), 1, flags)
+            return sorted(write.detail["object_index"] for write in matching[0].writes)
+        self.assertEqual(despawned(set()), list(range(10)))
+        self.assertEqual(despawned({0xD9}), [5, 6, 7, 8, 9])
+        self.assertEqual(despawned({0xD9, 0xDA}), [0, 1, 2, 3, 4])
+        for flag, picked in [(0xDC, 5), (0xDB, 6), (0xDD, 7), (0xDE, 8), (0xDF, 9)]:
+            self.assertEqual(despawned({0xD9, 0xDA, flag}), [0, 1, 2, 3, 4, picked])
 
     def test_undecoded_entries_are_reported_not_dropped(self):
         for entry in self.census["undecoded_entries"]:
@@ -281,7 +346,7 @@ class TestDecodedEntries(unittest.TestCase):
                 self.assertTrue(entry["maps"])
         # Every referenced entry is either decoded or listed.
         listed = {e["entry"] for e in self.census["undecoded_entries"]}
-        self.assertEqual(len(listed), 11)
+        self.assertEqual(len(listed), 10)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

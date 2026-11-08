@@ -71,7 +71,7 @@ hardware's behavior through the oracle.
   [the trigger census](scenes/TRIGGER_CENSUS.md),
   [event coverage](scenes/EVENT_COVERAGE.md).
 - [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue tree selection](scenes/DIALOGUE_TREE_SELECTION.md),
-  [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the second dialogue routine's callers](scenes/DIALOGUE2_CALLERS.md).
+  [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the dialogue routines' callers](scenes/DIALOGUE_CALLERS.md).
 - [Scene presentation](scenes/SCENE_PRESENTATION.md), [the field reload](scenes/FIELD_RELOAD.md),
   [live layout writes](scenes/LIVE_LAYOUT_WRITES.md), [revision-conditional ops](scenes/REVISION_AUDIT.md),
   [the title and boot](scenes/TITLE_BOOT.md).
@@ -118,6 +118,7 @@ Add a row here when a new rule gets an owner.
 | Layer boundaries; Godot presents and sends input | [Runtime design](RUNTIME_DESIGN.md#data-and-runtime-layers) |
 | Retail deviations and provenance | [Source notes](source-notes/README.md) |
 | Protected inputs, local assets out of Git, saves and evidence safety | [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence) |
+| Running a native driver safely: saves, run roots, library rebuilds | [Agent workflow](AGENT_WORKFLOW.md#reproduce-without-damaging-a-save) |
 | Evidence types and what a claim needs | [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make) |
 | Record policy: where work and its record live (issues, PRs, commits; no ledgers, logs or graphs in docs) | [Agent workflow](AGENT_WORKFLOW.md#where-work-and-its-record-live) |
 | Roles and delegation | [Agent workflow](AGENT_WORKFLOW.md#roles-and-delegation) |

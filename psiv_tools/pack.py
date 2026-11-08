@@ -64,6 +64,7 @@ from .map_patches import (
     atlas_json,
     resolve_palette_effects,
     index_writes,
+    write_composite_pairs,
     index_overworld_patches,
     patch_atlas,
     resolve_map_effects,
@@ -81,6 +82,7 @@ from .title_pack import emit_title
 from .newgame import extract_new_game
 from .travel import emit_travel
 from .ship_menu_pack import emit_ship_menu
+from .fifth_pack import emit_fifth
 from .guild_pack import emit_guild
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
@@ -460,6 +462,7 @@ def build_pack(
             raise PackError(
                 f"map 0x{record['id']:03X}: overworld hook needs a base priority overlay"
             )
+        composite_pairs = sorted(set(composite_pairs) | set(write_composite_pairs(map_effects)))
         scene_chunks = scene_patch_chunks(rom_bytes, record)
         if scene_chunks:
             scene_patch_maps.append({**_target(record), "chunks": scene_chunks})
@@ -638,6 +641,7 @@ def build_pack(
         directory, ("ship_menu",), lambda root: emit_ship_menu(rom_bytes, root)
     )
     guild = sections.emit(directory, ("guild",), lambda root: emit_guild(rom_bytes, root))
+    fifth = sections.emit(directory, ("fifth",), lambda root: emit_fifth(rom_bytes, root))
     start = game_start["first_control"]
 
     # Enemies, formations, level progression and the ability records the

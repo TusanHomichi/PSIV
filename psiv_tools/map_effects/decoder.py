@@ -27,7 +27,7 @@ from .anchors import (
     OBJECT_X_OFFSET,
     OBJECT_Y_OFFSET,
 )
-from .geometry import MAP_LAYOUT
+from .geometry import MAP_LAYOUT, MAP_LAYOUT_BYTES
 from .model import Gate, MapEffectsError, Path, Write
 
 #: Conditional branches that follow an arithmetic compare rather than a flag
@@ -62,7 +62,7 @@ class _Decoder:
     #: re-executes the same addresses. Retail's longest routine unrolls in far
     #: fewer than this.
     STEPS = 4000
-    MAX_PATHS = 64
+    MAX_PATHS = 256
 
     #: `move.b`/`move.w #imm,<ea>` and `clr.w <ea>` for a0..a6, as
     #: `opcode -> (register, has displacement, size)`.
@@ -291,7 +291,10 @@ class _Decoder:
                 address = self.w(pc + 2 if op == 0x4278 else pc + 4)
                 value = None if op == 0x4278 else self.w(pc + 2)
                 size = 4 if op == 0x4278 else (6 if op == 0x31FC else 6)
-                self._absolute(pc, address, value, op == 0x4278, writes, deferred)
+                width = "b" if op == 0x11FC else "w"
+                layout_value = 0 if op == 0x4278 else (value & 0xFF if width == "b" else value)
+                if not self._layout_absolute(pc, address, layout_value, width, writes, deferred):
+                    self._absolute(pc, address, value, op == 0x4278, writes, deferred)
                 pc += size
                 continue
 
@@ -371,6 +374,29 @@ class _Decoder:
             deferred.append(note)
         return pc + size
 
+    @staticmethod
+    def _layout_absolute(pc, address, value, value_size, writes, deferred) -> bool:
+        """A store into a layout buffer by its own address, not through
+        `GetMapLayoutOffset`: `MapDataMan_Aiedo` stamps two BG chunks with
+        `lea ($FFFFB706).w,a1` (#38). The write is the buffer's byte offset,
+        resolved per map like any other displacement; a word, and the only
+        clear this decoder reads (`clr.w`, size `None`), stores two chunks."""
+        plane = next((name for base, name in MAP_LAYOUT.items()
+                      if base <= address < base + MAP_LAYOUT_BYTES), None)
+        if plane is None:
+            return False
+        if value_size is None:
+            value, value_size = 0, "w"
+        base = next(b for b, name in MAP_LAYOUT.items() if name == plane)
+        chunks = [value & 0xFF] if value_size == "b" else [value >> 8, value & 0xFF]
+        for step, chunk in enumerate(chunks):
+            writes.append(Write("layout_write", pc, {
+                "plane": plane, "chunk_x": 0, "chunk_y": 0,
+                "displacement": address - base + step, "chunk_id": chunk,
+                "note": "an absolute buffer address; resolve with the map's row size",
+            }))
+        return True
+
     def _absolute(self, pc, address, value, is_clear, writes, deferred) -> None:
         """A store straight to an absolute short address."""
         if FIELD_OBJ_SECONDARY <= address <= FIELD_OBJ_LAST + OBJECT_DIALOGUE_OFFSET:
@@ -413,6 +439,8 @@ class _Decoder:
             }))
             return size
         address = base + disp
+        if self._layout_absolute(pc, address, value, value_size, writes, deferred):
+            return size
         if FIELD_OBJ_SECONDARY <= address <= FIELD_OBJ_LAST + OBJECT_DIALOGUE_OFFSET:
             index, within = divmod(address - FIELD_OBJ_SECONDARY, FIELD_OBJ_STRIDE)
             if within == 0 and value_size is None:

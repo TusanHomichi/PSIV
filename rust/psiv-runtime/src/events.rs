@@ -224,6 +224,16 @@ pub enum RuntimeEvent {
         /// Which transition class fired.
         trigger: WarpTrigger,
     },
+    /// A teleport (RYUKA, HINAS, TELEPIPE, ESCAPIPE) loaded its destination,
+    /// after the [`RuntimeEvent::MapChanged`] it follows. The cartridge fades
+    /// the field out (`MenuExit_Teleport`, `PalFadeOut_ClrSpriteTbl`,
+    /// `ps4.asm:117166-117169`), then `GameMode_LoadFieldMap` spends
+    /// `reload_frames` rows on the load, its 16-frame `Pal_FadeIn` included
+    /// (`psiv_core::field_reload_rows`).
+    Teleported {
+        /// The destination load's measured rows.
+        reload_frames: u16,
+    },
     /// Battle return refreshed map effects while preserving the live cast,
     /// party trail and camera. Rebuild visuals without a doorway transition.
     MapRefreshed,
@@ -316,6 +326,12 @@ pub enum RuntimeEvent {
         /// Entry index in the map's dialogue tree.
         entry: u16,
     },
+    /// Open a line the pack carries outside the trees
+    /// ([`psiv_core::SystemLine`]); it closes like any scene line.
+    SceneSystemLine {
+        /// Which.
+        line: psiv_core::SystemLine,
+    },
     /// Reopen the saved text cursor after the scene's intervening actions.
     /// The renderer acknowledges this just like a new dialogue window.
     SceneDialogueResume,
@@ -352,9 +368,14 @@ pub enum RuntimeEvent {
     VehicleChanged {
         /// The retail vehicle id.
         index: u16,
+        /// `Event_GettingOffVehicle` made the change and chooses the music
+        /// itself (`AdjustMusicIDs`), so the shell requests none of its own.
+        /// Decided when the effect is applied: the scene can end in the same
+        /// tick, before the shell sees this event.
+        scene_sets_music: bool,
     },
-    /// A mounted Action press hit a non-empty dismount cell.
-    VehicleDismountBlocked,
+    /// A mounted Action press started `Event_GettingOffVehicle`.
+    VehicleGetOff,
     /// The scene wrote a persistent character record.
     RosterChanged {
         /// The character id whose record changed.
@@ -365,6 +386,12 @@ pub enum RuntimeEvent {
     EncounterRolled {
         /// The formation id the encounter tables picked.
         formation: u16,
+    },
+    /// A cleared map object is live again. The renderer shows it, building
+    /// its node if the map loaded with it cleared.
+    NpcRestored {
+        /// The object index.
+        index: usize,
     },
     /// Map objects were despawned in place (indices stable). The renderer
     /// hides their nodes.

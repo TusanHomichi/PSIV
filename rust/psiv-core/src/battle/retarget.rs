@@ -237,10 +237,11 @@ fn scan(roster: &Roster, deficit: Deficit, rolls: &mut impl Rolls) -> Option<Fig
 /// the vehicle's own attack, `loc_5CB0`/`ps4.asm:8523-8524`).
 ///
 /// An aim whose slot holds a fighter that is not out keeps the aim and draws
-/// **nothing** (`tst.w (a0)` / `status & $C4` clear, `ps4.asm:8330-8337`).
-/// Anything else — the slot empty, or its fighter dead or android-dead —
-/// dispatches on the aim's own side, the cartridge's `cmpi.w #5, d1`
-/// (`ps4.asm:8339-8340`):
+/// **nothing** (`tst.w (a0)` / `status & $C4` clear, `ps4.asm:8330-8337`,
+/// [`Fighter::keeps_aim`]). Anything else — the slot empty, its fighter dead
+/// or android-dead, or its status bit 7 set because it was revived, reseated
+/// or woken this round ([`Fighter::transient`]) — dispatches on the aim's own
+/// side, the cartridge's `cmpi.w #5, d1` (`ps4.asm:8339-8340`):
 ///
 /// * an **enemy** slot (id above 5) is re-aimed by [`scan`], so the answer is a
 ///   living enemy or `None` when there is none;
@@ -262,7 +263,7 @@ pub fn single_target(
     deficit: Deficit,
     rolls: &mut impl Rolls,
 ) -> Option<FighterId> {
-    if roster.get(commanded).is_some_and(Fighter::is_alive) {
+    if roster.get(commanded).is_some_and(Fighter::keeps_aim) {
         return Some(commanded);
     }
     match commanded.side() {

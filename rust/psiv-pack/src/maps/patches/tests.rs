@@ -139,8 +139,10 @@ fn layout_write(chunk_id: i128, plane: &str) -> Json {
         .with("at", "0x000010")
         .with("chunk_id", Json::Int(chunk_id))
         .with("plane", plane)
-        .with("cell_x", 4)
-        .with("cell_y", 6)
+        .with("chunk_x", 1)
+        .with("chunk_y", 0)
+        .with("cell_x", 2)
+        .with("cell_y", 0)
 }
 
 #[test]
@@ -172,8 +174,30 @@ fn a_write_resolves_to_cells_and_says_whether_collision_reads_it() {
     let cells = items(write, "cells");
     assert_eq!(
         (int(&cells[3], "x"), int(&cells[3], "y")),
-        (Some(5), Some(7))
+        (Some(3), Some(1))
     );
+    // The picture is the cell after the write, FG over BG (#38): the BG
+    // write keeps the stored FG chunk 0 and the FG write the stored BG.
+    assert_eq!(
+        (int(write, "fg_chunk_id"), int(write, "bg_chunk_id")),
+        (Some(0), Some(1))
+    );
+    let fg_write = &items(&items(&resolved[1], "paths")[0], "writes")[0];
+    assert_eq!(
+        (int(fg_write, "fg_chunk_id"), int(fg_write, "bg_chunk_id")),
+        (Some(1), Some(0))
+    );
+    assert_eq!(write_composite_pairs(&resolved), [(0, 1), (1, 0)]);
+    // A path that stamps both planes of one cell composes both.
+    let both = Json::object().with(
+        "paths",
+        vec![Json::object().with("writes", vec![layout_write(1, "bg"), layout_write(1, "fg")])],
+    );
+    let (stamped, _, _) = resolve_map_effects(&map, &[both]).unwrap();
+    assert_eq!(write_composite_pairs(&stamped), [(1, 1)]);
+    // A write outside the map is refused, not composed from a guess.
+    let outside = effect(layout_write(1, "bg").with("chunk_x", 2));
+    assert!(resolve_map_effects(&map, &[outside]).is_err());
     assert_eq!(int(&cells[3], "collision"), Some(0xF));
     // An undecoded effect still comes back with an empty path list.
     assert_eq!(field(&resolved[3], "paths"), Some(&Json::Array(Vec::new())));
@@ -250,9 +274,21 @@ fn a_write_or_tile_with_no_atlas_entry_is_refused() {
     let mut resolved = vec![effect(layout_write(5, "fg"))];
     let error = index_writes(&mut resolved, &[]).unwrap_err();
     assert!(error.0.starts_with("no atlas tile"), "{}", error.0);
-    let tile = Json::object().with("index", 3).with("chunk_id", 5);
-    index_writes(&mut resolved, &[tile]).unwrap();
-    let write = &items(&items(&resolved[0], "paths")[0], "writes")[0];
+    // A raw tile of the written chunk is not the write's picture.
+    let raw = Json::object().with("index", 2).with("chunk_id", 5);
+    let mut written = vec![effect(
+        layout_write(5, "fg")
+            .with("fg_chunk_id", 5)
+            .with("bg_chunk_id", 0),
+    )];
+    assert!(index_writes(&mut written, std::slice::from_ref(&raw)).is_err());
+    let tile = Json::object()
+        .with("index", 3)
+        .with("chunk_id", Json::Null)
+        .with("fg_chunk_id", 5)
+        .with("bg_chunk_id", 0);
+    index_writes(&mut written, &[raw, tile]).unwrap();
+    let write = &items(&items(&written[0], "paths")[0], "writes")[0];
     assert_eq!(int(write, "patch_tile"), Some(3));
 }
 

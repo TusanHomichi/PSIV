@@ -172,6 +172,10 @@ pub(crate) struct BattleScreen {
     party_nodes: Vec<PartySprite>,
     enemy_textures: BTreeMap<(u16, u8), Gd<ImageTexture>>,
     enemy_positions: BTreeMap<u8, u8>,
+    /// The Zol slugs' Fusion pieces: the frames and the two sprites that draw
+    /// the view's `fusion` (built with the stage, freed with it).
+    fusion_frames: Vec<super::art::FusionFrame>,
+    fusion_nodes: Vec<Gd<Sprite2D>>,
     vehicle_index: Option<u16>,
     /// What the runtime says this frame; the node draws it and decides nothing.
     view: Option<BattleView>,
@@ -191,6 +195,8 @@ impl INode2D for BattleScreen {
             party_nodes: Vec::new(),
             enemy_textures: BTreeMap::new(),
             enemy_positions: BTreeMap::new(),
+            fusion_frames: Vec::new(),
+            fusion_nodes: Vec::new(),
             vehicle_index: None,
             view: None,
         }
@@ -302,6 +308,7 @@ impl BattleScreen {
         for animation in &view.animations {
             self.start_enemy_animation(animation);
         }
+        self.draw_fusion(&view.fusion);
         self.view = Some(view);
         self.base_mut().queue_redraw();
     }

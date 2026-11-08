@@ -247,6 +247,20 @@ impl Runtime {
         self.dialogue.resume_scene(panel_layout, &self.game)
     }
 
+    /// A line the pack carries outside the trees, opened for the running
+    /// scene. False when the pack has none.
+    pub(crate) fn open_system_line(&mut self, line: psiv_core::SystemLine) -> bool {
+        let entry = match line {
+            psiv_core::SystemLine::CannotGetOff => {
+                self.dialogue.set_entry(|set| set.cannot_get_off().cloned())
+            }
+        };
+        let Some(entry) = entry else {
+            return false;
+        };
+        self.dialogue.open_system_entry(&entry, &self.game)
+    }
+
     /// The leader's "Nothing here" line for `character_slot` (0 = Chaz): the
     /// cartridge's answer to an empty-handed confirm.
     pub(crate) fn open_nothing_here(&mut self, character_slot: usize) -> bool {

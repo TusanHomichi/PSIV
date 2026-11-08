@@ -15,7 +15,8 @@ use std::collections::HashMap;
 
 use super::anchors::{
     FIELD_OBJ_LAST, FIELD_OBJ_SECONDARY, FIELD_OBJ_STRIDE, GET_MAP_LAYOUT_OFFSET, MAP_LAYOUT_BG,
-    MAP_LAYOUT_FG, OBJECT_DIALOGUE_OFFSET, OBJECT_X_OFFSET, OBJECT_Y_OFFSET, bank_address,
+    MAP_LAYOUT_BYTES, MAP_LAYOUT_FG, OBJECT_DIALOGUE_OFFSET, OBJECT_X_OFFSET, OBJECT_Y_OFFSET,
+    bank_address,
 };
 use crate::json::Json;
 use crate::map_symbols::event_flag_symbol;
@@ -24,7 +25,7 @@ use crate::maps::records::hex6;
 use crate::png::hex;
 
 const STEPS: usize = 4000;
-const MAX_PATHS: usize = 64;
+const MAX_PATHS: usize = 256;
 
 /// What `GetMapLayoutOffset` left in a1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -462,7 +463,17 @@ impl Decoder<'_> {
                 let clear = op == 0x4278;
                 let address = i64::from(self.w(if clear { pc + 2 } else { pc + 4 }));
                 let value = (!clear).then(|| self.w(pc + 2));
-                absolute(pc, address, value, &mut writes, &mut deferred);
+                let word = op != 0x11FC;
+                let chunks = if clear {
+                    Some(0)
+                } else if word {
+                    value
+                } else {
+                    value.map(|v| v & 0xFF)
+                };
+                if !layout_absolute(pc, address, chunks, word, &mut writes) {
+                    absolute(pc, address, value, &mut writes, &mut deferred);
+                }
                 pc += if clear { 4 } else { 6 };
                 continue;
             }
@@ -627,6 +638,11 @@ impl Decoder<'_> {
             Address::Plain(base) => base,
         };
         let address = base + displacement;
+        // `clr.w` is the only clear read here: two zero chunks.
+        let chunks = if cleared { Some(0) } else { value };
+        if layout_absolute(pc, address, chunks, word || cleared, writes) {
+            return Ok(size);
+        }
         if (FIELD_OBJ_SECONDARY..=FIELD_OBJ_LAST + OBJECT_DIALOGUE_OFFSET).contains(&address) {
             let index = (address - FIELD_OBJ_SECONDARY) / FIELD_OBJ_STRIDE;
             let within = (address - FIELD_OBJ_SECONDARY) % FIELD_OBJ_STRIDE;
@@ -656,6 +672,55 @@ impl Decoder<'_> {
         note_once(deferred, format!("write to 0xFFFF{address:04X}"));
         Ok(size)
     }
+}
+
+/// `_layout_absolute`: a store into a layout buffer by its own address, not
+/// through `GetMapLayoutOffset`. `MapDataMan_Aiedo` stamps two BG chunks with
+/// `lea ($FFFFB706).w,a1` (#38). The write is the buffer's byte offset,
+/// resolved per map like any other displacement; a word stores two chunks.
+/// Returns whether the address was a layout buffer's.
+fn layout_absolute(
+    pc: i64,
+    address: i64,
+    value: Option<u16>,
+    word: bool,
+    writes: &mut Vec<Write>,
+) -> bool {
+    let Some(plane) = [Plane::Fg, Plane::Bg].into_iter().find(|&plane| {
+        let base = if plane == Plane::Fg {
+            MAP_LAYOUT_FG
+        } else {
+            MAP_LAYOUT_BG
+        };
+        (base..base + MAP_LAYOUT_BYTES).contains(&address)
+    }) else {
+        return false;
+    };
+    let value = value.unwrap_or(0);
+    let base = if plane == Plane::Fg {
+        MAP_LAYOUT_FG
+    } else {
+        MAP_LAYOUT_BG
+    };
+    let chunks = if word {
+        vec![value >> 8, value & 0xFF]
+    } else {
+        vec![value & 0xFF]
+    };
+    let target = LayoutTarget {
+        plane,
+        chunk_x: 0,
+        chunk_y: 0,
+    };
+    for (step, chunk) in chunks.into_iter().enumerate() {
+        writes.push(Write {
+            kind: "layout_write",
+            at: pc,
+            detail: Json::object(),
+            layout: Some((target, (address - base + step as i64) as i16, Some(chunk))),
+        });
+    }
+    true
 }
 
 /// `_absolute`: a store straight to an absolute short address.

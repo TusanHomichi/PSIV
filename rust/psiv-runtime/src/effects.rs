@@ -484,6 +484,58 @@ mod tests {
     }
 
     #[test]
+    fn aiedos_bg_stamp_applies_on_every_load_as_collision_and_a_composite() {
+        // `MapDataMan_Aiedo` (entry $83, `ps4.asm:110754`) writes chunk 6 into
+        // Map_Layout_BG at chunks (22,37) and (25,37), unconditionally (#38).
+        // Aiedo's collision reads BG, so both chunks are collision; the
+        // picture is the cell's FG over the new BG.
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(pack).expect("current pack loads");
+        let record = data.map(psiv_data::MapId(0x054)).expect("Aiedo");
+        let out = evaluate(record, &mut GameState::new());
+        let tiles = record
+            .patch_tiles
+            .as_ref()
+            .expect("Aiedo has a patch atlas");
+        for (x, y) in [(22, 37), (25, 37)] {
+            assert!(
+                out.chunk_patches.contains(&(x, y, 6)),
+                "chunk ({x},{y}) reads 6"
+            );
+            let &(_, _, index) = out
+                .patch_blits
+                .iter()
+                .find(|&&(bx, by, _)| (bx, by) == (x, y))
+                .expect("the stamp blits a tile");
+            let tile = tiles.tiles.iter().find(|t| t.index == index).unwrap();
+            assert_eq!(tile.chunk_id, None, "a composite, not the bare chunk");
+            assert_eq!(tile.bg_chunk_id, Some(6));
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                assert!(
+                    out.cell_patches
+                        .iter()
+                        .any(|&(cx, cy, _)| (cx, cy) == (x * 2 + dx, y * 2 + dy)),
+                    "cell ({}, {}) is patched",
+                    x * 2 + dx,
+                    y * 2 + dy
+                );
+            }
+        }
+        assert_eq!(out.unresolved_layout_writes, 0);
+        // Every load: a game with any flags set reads the same stamp.
+        let mut later = GameState::new();
+        later.set(Flag::event(0x33)).unwrap();
+        assert_eq!(
+            evaluate(record, &mut later).chunk_patches,
+            out.chunk_patches
+        );
+    }
+
+    #[test]
     fn motavia_page_hook_opens_only_with_saved_flag_and_survives_map_refreshes() {
         let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
         if !pack.join("manifest.json").is_file() {

@@ -28,9 +28,12 @@ from psiv_tools.map_patches import (
     resolve_palette_effects,
     MapPatchError,
     atlas_json,
+    compose_chunk,
+    compose_overworld_chunk,
     chunk_collision_cells,
     collision_summary,
     index_writes,
+    write_composite_pairs,
     patch_atlas,
     resolve_map_effects,
     resolve_overworld_patches,
@@ -61,7 +64,7 @@ MAP_DEZOLIS = 1
 #: resolution. What is pinned here is what this module owns -- four cells per
 #: write, every chunk id resolving, and the six door cells, which are Zema's
 #: and BirthValley_B1's alone and do not move.
-MAPS_WITH_WRITES = 13
+MAPS_WITH_WRITES = 14
 MINIMUM_WRITES = 100
 TOTAL_MAP_CHANGE_CELLS = 6
 
@@ -328,6 +331,42 @@ class TestTheCollisionPlane(unittest.TestCase):
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestAiedosBgStamp(unittest.TestCase):
+    """`MapDataMan_Aiedo` writes chunk 6 into BG at chunks (22,37) and
+    (25,37) on every load (#38). Aiedo's collision reads BG, so the stamp is
+    real collision. Its picture is the cell's FG over the new BG: the FG chunk
+    there has no priority tiles and is transparent on 349 pixels, 38 of which
+    change colour. The bare chunk would paint BG over the FG instead."""
+
+    CELLS = ((22, 37), (25, 37))
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        _, _, cls.decoded = _decoded(cls.data, "Aiedo")
+
+    def test_the_stamp_is_collision_on_aiedo(self):
+        self.assertEqual(self.decoded.spec.collision_plane_name, "bg")
+
+    def test_the_composite_keeps_the_fg_and_shows_the_stamp_through_it(self):
+        for x, y in self.CELLS:
+            fg, bg = self.decoded.fg.chunk_at(x, y), self.decoded.bg.chunk_at(x, y)
+            with self.subTest(cell=(x, y)):
+                self.assertNotEqual(bg, 6, "the stored layout lacks the stamp")
+                front, _ = compose_chunk(self.decoded.chunks, self.decoded.patterns, fg)
+                baked, _, _ = compose_overworld_chunk(self.decoded, fg, bg)
+                stamped, _, _ = compose_overworld_chunk(self.decoded, fg, 6)
+                bare, _ = compose_chunk(self.decoded.chunks, self.decoded.patterns, 6)
+                opaque = [i for i, pixel in enumerate(front) if pixel & 0xF]
+                self.assertTrue(all(stamped[i] == front[i] for i in opaque))
+                changed = sum(1 for a, b in zip(baked, stamped) if a != b)
+                self.assertEqual(changed, 38)
+                # The negative control: the chunk alone loses FG pixels.
+                self.assertTrue(any(bare[i] != front[i] for i in opaque))
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestThePackedResolution(unittest.TestCase):
     """The emitted pack, built once."""
 
@@ -417,9 +456,32 @@ class TestThePackedResolution(unittest.TestCase):
             if not written:
                 self.assertIsNone(atlas)
                 continue
+            pairs = {
+                (write["fg_chunk_id"], write["bg_chunk_id"])
+                for effect in payload["map_effects"]
+                for path in effect["paths"]
+                for write in path["writes"]
+                if write["kind"] == "layout_write"
+            }
             with self.subTest(map=payload["symbol"]):
-                self.assertEqual({t["chunk_id"] for t in atlas["tiles"]}, written)
-                self.assertEqual(atlas["count"], len(written))
+                raw = [t for t in atlas["tiles"] if t["chunk_id"] is not None]
+                composites = [t for t in atlas["tiles"] if t["chunk_id"] is None]
+                self.assertEqual({t["chunk_id"] for t in raw}, written)
+                self.assertEqual(
+                    {(t["fg_chunk_id"], t["bg_chunk_id"]) for t in composites}, pairs
+                )
+                self.assertEqual(atlas["count"], len(written) + len(pairs))
+                # A write blits the cell's composite, never its chunk alone.
+                by_index = {t["index"]: t for t in atlas["tiles"]}
+                for effect in payload["map_effects"]:
+                    for path in effect["paths"]:
+                        for write in path["writes"]:
+                            if write["kind"] != "layout_write":
+                                continue
+                            tile = by_index[write["patch_tile"]]
+                            self.assertIsNone(tile["chunk_id"])
+                            self.assertEqual(tile[f'{write["plane"]}_chunk_id'],
+                                             write["chunk_id"])
                 self.assertEqual(atlas["tile_pixels"], ATLAS_TILE_PIXELS)
                 image = (self.root / atlas["png"]).read_bytes()
                 self.assertEqual(atlas["png_sha256"], png.image_sha256(image))
@@ -657,12 +719,13 @@ class TestEveryMapThatPatches(unittest.TestCase):
             with self.subTest(map=record["symbol"]):
                 # Raises if any write names a chunk the map never loaded.
                 resolved, chunk_ids, counts = resolve_map_effects(decoded, per_map)
+                pairs = write_composite_pairs(resolved)
                 base, over, entries = patch_atlas(
-                    decoded, chunk_ids, chunk_palette(data, spec.palette)
+                    decoded, chunk_ids, chunk_palette(data, spec.palette), pairs
                 )
                 index_writes(resolved, entries)
                 payload = atlas_json(entries, "a.png", base, None, None)
-                self.assertEqual(payload["count"], len(set(chunk_ids)))
+                self.assertEqual(payload["count"], len(set(chunk_ids)) + len(pairs))
             for key in totals:
                 totals[key] += counts[key]
         self.assertEqual(maps, MAPS_WITH_WRITES)

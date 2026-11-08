@@ -19,6 +19,7 @@
 
 use psiv_core::battle::{FighterId, ItemSource, Outcome};
 
+pub use super::fusion::{Fusion, FusionPiece};
 use crate::events::BattleAnimationEvent;
 
 /// One party pane of the status strip.
@@ -384,6 +385,9 @@ pub struct BattleView {
     pub sounds: Vec<u8>,
     /// Enemy attack animation cues this frame started.
     pub animations: Vec<BattleAnimationEvent>,
+    /// The Zol slugs' Fusion pieces this frame draws, in the pack's Fusion
+    /// frames (`battle/art/fusion.json`); empty outside a Fusion.
+    pub fusion: Vec<FusionPiece>,
     /// Whether the presentation is over and the field takes the frame back.
     pub close_ready: bool,
     /// A round the engine refused, for the shell to log. The mode stays open
@@ -413,6 +417,7 @@ impl Default for BattleView {
             transient: None,
             sounds: Vec::new(),
             animations: Vec::new(),
+            fusion: Vec::new(),
             close_ready: false,
             fault: None,
         }

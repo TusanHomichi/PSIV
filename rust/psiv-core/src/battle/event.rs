@@ -86,7 +86,8 @@ pub enum Skipped {
     /// A character with no weapon in either hand has no Attack command
     /// (`Battle_AttackCommand`'s `loc_1682`).
     Unarmed,
-    /// Revived or replenished this round: retail's transient status bit 7.
+    /// Revived, reseated or woken by AROWS this round: retail's transient
+    /// status bit 7 ([`super::fighters::Fighter::transient`]).
     JustRevived,
 }
 

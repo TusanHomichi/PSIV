@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["psiv-data", "psiv-core", "psiv-runtime", "psiv-sound", "psiv-godot", "psiv-campaign", "psiv-pack"]
+members = ["psiv-data", "psiv-core", "psiv-runtime", "psiv-sound", "psiv-godot", "psiv-campaign", "psiv-pack", "psiv-compare", "psiv-exit-leaks"]
 
 [workspace.package]
 edition = "2024"

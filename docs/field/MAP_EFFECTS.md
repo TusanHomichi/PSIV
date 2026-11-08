@@ -81,8 +81,8 @@ index instead of panicking on it.
 
 | kind | what it does | instances | maps |
 |---|---|---|---|
-| `object_despawn` | clears a slot: the object never spawns | 339 | 72 |
-| `layout_write` | writes chunk ids into `Map_Layout` | 194 | 13 |
+| `object_despawn` | clears a slot: the object never spawns | 1455 | 73 |
+| `layout_write` | writes chunk ids into `Map_Layout` | 193 | 14 |
 | `object_rewrite` | writes a different object id into a slot | 8 | 6 |
 | `object_dialogue` | changes an object's dialogue id (`$14(aN)`) | 4 | 3 |
 | `layout_replace` | decompresses a whole different layout over a plane | 4 | 2 |
@@ -105,6 +105,46 @@ The row size is the **map's**, so a displacement off the returned pointer is
 only a coordinate once the map is known — which is why the pack resolves
 displacements at emission and one routine serving two maps of different widths
 resolves differently on each.
+
+One routine writes a layout buffer without `GetMapLayoutOffset`:
+`MapDataMan_Aiedo` (entry `$83`, `ps4.asm:110754`) loads `$FFFFB706` into a1
+and writes chunk 6 at `(a1)` and `3(a1)`, on every load. A store whose address
+falls in either buffer is a `layout_write` with that byte offset as its
+displacement, resolved like any other: on Aiedo, BG chunks (22,37) and
+(25,37). Aiedo's collision reads BG, so both are collision changes. Until #38
+the decoder recorded the stores as a deferred note and the emitter then
+dropped the path, so the pack carried `kinds: []`.
+
+A write's picture is the cell's two planes after its path's writes, FG over
+BG, composed into the patch atlas as an `(fg_chunk_id, bg_chunk_id)` tile
+(`chunk_id: null`), the same composite the overworld page hooks use. The
+written chunk alone would paint a BG stamp over the FG, or replace the BG
+under every transparent FG pixel with the backdrop colour. Aiedo's FG chunk
+is transparent on 349 pixels of each stamped cell, and 38 of them change
+colour.
+
+### Census by write kind
+
+Every referenced entry, by what its paths write (`tests/test_map_effects.py`
+holds the counts). 117 of the 127 referenced entries decode; the 10 that do
+not are listed in `manifest.map_effects.undecoded_entries` with their reason.
+A path whose only writes are ones this slice does not model is emitted with
+its `deferred` notes and no writes, never dropped:
+
+| What the path writes | Entries | Modelled |
+|---|---|---|
+| at least one of the kinds in the table above | 99 of the 117 decoded entries (several also carry a deferred note below) | yes |
+| `Palette_Table_Buffer` words (`$FFFFFB02`..`$FFFFFB2A`) | `$13`, `$27`, `$40`, `$44` | no: deferred |
+| a postincrement or `trap #1` block copy (palette lines) | `$05`, `$0D`, `$0F`, `$26`, `$28`, `$2A`..`$2E`, `$30`, `$34`, `$37`, `$40`, `$41`, `$5B` | the three NPC-line copies only (`resolve_palette_effects`) |
+| `Camera_Y_Pos_BG`/`Camera_X_Pos_BG` | `$33` | no: deferred |
+| `$FFFFECF4` | `$46` | no: deferred |
+| a call outside the flag doors | `$1A`, `$23`, `$3D`, `$3E` | no: deferred |
+| `bclr` on a memory bit | `$80` | no: deferred |
+| nothing | `$00` | — |
+
+`$83` was the one entry that wrote a layout buffer by address; it now decodes
+as two `layout_write`s. No other entry stores into either buffer outside
+`GetMapLayoutOffset`.
 
 ## 5. Zema's doors, and the four other stuck doorways
 
@@ -191,9 +231,13 @@ of their map regardless of story state.
 ## 9. Coverage, and what is deferred
 
 127 of the 160 table entries are referenced by a map record (33 are dead), over
-188 (map, entry) pairs on 139 maps. **113 entries decode; 14 do not** and are
+188 (map, entry) pairs on 139 maps. **117 entries decode; 10 do not** and are
 listed in `census.undecoded_entries` with the offset, the instruction that
-stopped the read, and the maps affected — never half-decoded.
+stopped the read, and the maps affected — never half-decoded. What each
+decoded entry writes is the [census by write kind](#census-by-write-kind).
+
+`MapDataMan_MotaSpaceport` (`$67`) is by far the largest: its seven gates make 128 paths and
+1120 of the `object_despawn` writes ([the record](../scenes/181_PickingFifthCharacter.md)).
 
 A routine that mixes Slice 1 with later work is decoded for its Slice-1 writes
 and carries the rest in `deferred` on the path: `postincrement bulk copy`

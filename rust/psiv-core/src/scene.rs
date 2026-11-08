@@ -17,9 +17,9 @@ use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, GuildOp, ItemOp, JobBoardStep,
-    MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RideOp, RockyOp, SavedByte, SceneEffect, SceneFault,
-    SceneInput, WreckageOp,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, FifthOp, GuildOp, ItemOp,
+    JobBoardStep, MoneyTest, OP_BUDGET_PER_TICK, ObjectOp, RideOp, RockyOp, SavedByte, SceneEffect,
+    SceneFault, SceneInput, WreckageOp,
 };
 
 /// One instruction of a scene.
@@ -84,8 +84,7 @@ pub enum SceneOp {
         y: i32,
     },
     /// Exchange two character objects wholesale — the three-way `trap #1`
-    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put
-    /// Alys in front.
+    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put Alys in front.
     SwapCharSlots {
         /// One character-object index.
         a: usize,
@@ -416,8 +415,7 @@ pub enum SceneOp {
     /// `#$F` clears one object and `#$2F` clears three. `Event_AlysFound`
     /// clears one; `Event_MeetingHahn` clears **three**, because map `$12`'s
     /// NPC 0 is Hahn and NPCs 1-2 are the `InvisibleBlock` pair fencing him in.
-    /// Modelling this as "clear one" leaves two invisible walls across the
-    /// basement corridor.
+    /// Modelling this as "clear one" leaves two invisible walls across the basement corridor.
     DespawnNpc {
         /// The first object cleared.
         npc_index: usize,
@@ -553,6 +551,15 @@ pub enum SceneOp {
     /// Collapse the followers onto the leader (`Event_OverlapCharacters`,
     /// `$5A87A`).
     OverlapCharacters,
+    /// Write the leader's `curr_y_pos` word plus `dy` into every occupied
+    /// party object at once: `move.w $34(a4), d0 / addi.w #dy, d0`, then a
+    /// `move.w d1, $34(a4)` loop over `CalcPartyNumber` objects at `$40`
+    /// strides (`Event_CarnivorousTrees`, `$070826`; `Event_SavingKyra`,
+    /// `$07093C`). X is untouched and nothing walks or waits.
+    PlacePartyY {
+        /// The word added to the leader's Y, wrapping as `addi.w` does.
+        dy: u16,
+    },
     /// Snap the overlapped party onto the vehicle lattice. If either original
     /// sprite axis had bit `$10`, refresh objects and wait for the existing
     /// runtime camera glide before the following `SetVehicleIndex`.
@@ -605,9 +612,8 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_not: usize,
     },
-    /// `jsr UpdateRNGSeed / move.w (RNG_Seed).w, d0 / andi.w #3, d0` and a
-    /// branch on the two bits (`Event_RajaSick`, `$070C4E`), drawn within the
-    /// frame from the stream the runtime lends ([`crate::SceneRunner::lend_rng`]).
+    /// `UpdateRNGSeed`, then a branch on the low two bits of `RNG_Seed`
+    /// (`Event_RajaSick`, `$070C4E`), drawn from [`crate::SceneRunner::lend_rng`].
     BranchOnRngLow2 {
         /// Op index for each value of the two bits.
         targets: [usize; 4],
@@ -959,6 +965,8 @@ pub enum SceneOp {
     },
     /// A moving platform's or a conveyor belt's ride (`scene_runner/mechanics.rs`).
     Ride(RideOp),
+    /// `Event_PickingFifthCharacter`'s reads and writes, on its row.
+    FifthCharacter(FifthOp),
     /// `Event_HuntersGuild`'s reads of its table, on the row it is indexing.
     Guild(GuildOp),
     /// A step of the guild's list window, which the session holds.
@@ -967,6 +975,8 @@ pub enum SceneOp {
     Item(ItemOp),
     /// `Event_CatchingRocky`'s needs (`scenes/rocky.rs`).
     Rocky(RockyOp),
+    /// `Event_GettingOffVehicle`'s needs (`scenes/vehicles.rs`).
+    GetOff(crate::scene_types::GetOffOp),
     /// `Event_WreckageEngine`'s needs (`scenes/wreckage.rs`).
     Wreckage(WreckageOp),
     /// A write to a field-object slot the map's record left empty.

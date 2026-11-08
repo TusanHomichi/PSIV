@@ -43,6 +43,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests import scratch_git
+from tests.test_heavy_lock import read_until
+
 ROOT = Path(__file__).resolve().parents[1]
 
 IGNORED = """/rust/target
@@ -198,7 +201,7 @@ class ScratchRepo(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         self.repo = self.tmp / "repo"
         (self.repo / "tools").mkdir(parents=True)
-        git(self.tmp, "init", "-q", "-b", "main", str(self.repo))
+        scratch_git.init(self.repo)
         git(self.repo, "config", "user.email", "test@example.invalid")
         git(self.repo, "config", "user.name", "test")
         git(self.repo, "config", "commit.gpgsign", "false")
@@ -244,6 +247,18 @@ class ScratchRepo(unittest.TestCase):
                                     stderr=subprocess.STDOUT, text=True,
                                     env={**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}",
                                          "FAKE_SYSTEMD_LOG": str(self.systemd_log), **(env or {})})
+
+    def start_at_lock(self, gate, **kwargs):
+        """`start` while the test holds the worktree's lock: (the run, what it
+        has printed). Returns once the run says it waits for the lock, which it
+        says only after resolving the commit and main (#388: a fixed sleep
+        before moving main let a run slowed by load resolve the moved main),
+        and checks it has not got past the lock a second later."""
+        process = self.start(gate, **kwargs)
+        printed = read_until(process.stdout, "pr gate: waiting for ", timeout=120)
+        time.sleep(1)
+        self.assertIsNone(process.poll(), printed)
+        return process, printed
 
     def run_pr_gate(self, gate, **kwargs):
         """(exit, summary, output) of one run."""
@@ -336,13 +351,11 @@ class BehindMainCase(ScratchRepo):
         main it started with throughout."""
         with open(self.tmp / "gate.lock", "a") as held:
             fcntl.flock(held, fcntl.LOCK_EX)
-            process = self.start(self.gate(missing=[]), commit=commit)
-            time.sleep(1)
-            self.assertIsNone(process.poll())
+            process, printed = self.start_at_lock(self.gate(missing=[]), commit=commit)
             for tool in ("gate_worktree.py", "local_inputs.py"):
                 self.advance_main(f"tools/{tool}", BROKEN_TOOL)
             fcntl.flock(held, fcntl.LOCK_UN)
-            output, _ = process.communicate(timeout=120)
+            output = printed + process.communicate(timeout=120)[0]
         return process.returncode, self.summary_file.read_text(), output
 
     def test_a_head_behind_main_uses_one_main_though_the_ref_moves_while_it_waits(self):
@@ -500,13 +513,11 @@ class LockCase(ScratchRepo):
     def test_it_waits_for_the_worktrees_lock(self):
         with open(self.tmp / "gate.lock", "a") as held:
             fcntl.flock(held, fcntl.LOCK_EX)
-            process = self.start(self.gate(missing=[]))
-            time.sleep(1)
-            self.assertIsNone(process.poll())
+            process, printed = self.start_at_lock(self.gate(missing=[]))
             self.assertIsNone(self.ran())
             self.assertFalse(self.gate_dir.exists())
             fcntl.flock(held, fcntl.LOCK_UN)
-            output, _ = process.communicate(timeout=120)
+            output = printed + process.communicate(timeout=120)[0]
             self.assertEqual(process.returncode, 0, output)
         self.assertEqual(self.ran()["head"], self.head)
 
@@ -636,12 +647,11 @@ class StopCase(ScratchRepo):
         (self.tmp / "alias").symlink_to(self.tmp)
         with open(self.tmp / "gate.lock", "a") as held:
             fcntl.flock(held, fcntl.LOCK_EX)
-            process = self.start(self.gate(missing=[]), directory=self.tmp / "sub" / ".." / "gate")
-            time.sleep(1)
-            self.assertIsNone(process.poll())
+            process, printed = self.start_at_lock(self.gate(missing=[]),
+                                                  directory=self.tmp / "sub" / ".." / "gate")
             self.assertIsNone(self.ran())
             fcntl.flock(held, fcntl.LOCK_UN)
-            output, _ = process.communicate(timeout=120)
+            output = printed + process.communicate(timeout=120)[0]
             self.assertEqual(process.returncode, 0, output)
         code, _, output = self.run_pr_gate(self.gate(missing=[]), directory=self.tmp / "alias" / "gate")
         self.assertEqual(code, 0, output)

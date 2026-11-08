@@ -2,9 +2,7 @@
 //!
 //! The three routines here are still deterministic scene-shaped programs:
 //! Raja Sick (`$8012`), the Rykros arrival/tower hand-off (`$801B`), and the
-//! final presentation (`$8021`). The guild and fifth-character routines stay
-//! in `88_RetailBoundaries.md`; their joypad-driven state machines are not
-//! honest `SceneOp` slices.
+//! final presentation (`$8021`).
 
 use crate::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};

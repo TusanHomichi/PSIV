@@ -143,8 +143,11 @@ Event `$10`, `Event_GettingOffVehicle`
 (`ps4.asm:145343-145440`): it samples the four-cell standing footprint at the
 current anchor, accepts only an unsigned maximum of raw collision `0`, then
 rebuilds the party objects and writes selector `0`. Any other raw value opens
-the retail `Cannot get off!` window and leaves the selector mounted. The core
-surfaces that as `VehicleDismountBlocked` and does not mutate the party.
+the retail refusal window and leaves the selector mounted. The port runs that
+event as a scene ([207](../scenes/207_GettingOffVehicle.md)): the core's
+mounted Action edge reports `VehicleEffect::GetOff`, the runtime installs
+`$10` with the leader on the machine's cell, and the scene's own
+`GetOffOp::BranchIfBlocked` makes the decision.
 
 **Where a dismount leaves the party.** Both of the cartridge's
 dismounts rebuild every character object on `Character_1`, which is the
@@ -494,9 +497,6 @@ Still open:
    retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
    screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
    ([#122](https://github.com/TusanHomichi/PSIV/issues/122)).
-3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
-   ObjectDB leak at shutdown on some headless runs; the field and battle boot
-   exits successfully ([#123](https://github.com/TusanHomichi/PSIV/issues/123)).
 
 Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in

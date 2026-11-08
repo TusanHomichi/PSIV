@@ -592,6 +592,28 @@ class TestDialoguePack(unittest.TestCase):
             messages[10]["text"], "There isn't\nanything strange here."
         )
 
+    def test_cannot_get_off_is_the_string_the_lea_names(self):
+        line = self.trees["system_messages"]["cannot_get_off"]
+        lea = self.data[0x06BFEC:0x06BFF2]
+        self.assertEqual(lea[:2].hex(), "41f9")
+        offset = int.from_bytes(lea[2:], "big")
+        self.assertEqual(line["rom_offset"], f"0x{offset:06X}")
+        end = self.data.index(0xFF, offset)
+        self.assertEqual(line["raw_hex"], self.data[offset:end].hex())
+        self.assertEqual(line["charset"], "window")
+        self.assertEqual(len(line["pages"]), 1)
+        self.assertTrue(all("text" in segment for segment in line["segments"]))
+
+    def test_cannot_get_off_refuses_a_moved_lea(self):
+        """Negative control: with the `lea` gone the extraction stops."""
+        from psiv_tools.dialogue_pack.common import DialoguePackError
+        from psiv_tools.dialogue_pack.flow import cannot_get_off
+
+        broken = bytearray(self.data)
+        broken[0x06BFEC:0x06BFEE] = b"\x4E\x71"
+        with self.assertRaises(DialoguePackError):
+            cannot_get_off(bytes(broken))
+
     def test_system_messages_paginate_like_entries(self):
         for message in self.trees["system_messages"]["messages"]:
             self.assertEqual(len(message["pages"]), 1, message["id"])

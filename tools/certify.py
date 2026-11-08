@@ -4,9 +4,9 @@
 Each pair launches the debug Godot build under Xvfb with the capture doctrine
 from docs/scenes/SCENE_PRESENTATION.md (software GL, X11, dummy audio,
 `--fixed-fps 60`), takes one `PSIV_DEBUG_SHOT` at a pinned clone tick, and
-compares it with a hash-pinned oracle frame through
-`psiv_tools/presentation_rmse.py`. A certified pair passes only at
-`rmse=0.000000`.
+compares it with a hash-pinned oracle frame through `presentation-rmse`
+(`rust/psiv-compare`), over the whole frame or the region the pair's recipe
+names. A certified pair passes only at `rmse=0.000000`.
 
 Oracle frames are local, ignored assets. A missing frame that has a tape
 recipe (MeetingRika, tape 28) is regenerated through the oracle host; every
@@ -14,8 +14,8 @@ frame is hash-checked before use, so a regenerated or edited frame that
 differs from the certified one fails instead of silently re-baselining.
 
 Usage: `python3 tools/certify.py [--no-build] [--jobs N] [--only NAME ...] [--list]`.
-The debug extension is rebuilt first by default, so a capture always comes from
-the checked-out sources; `--no-build` skips that only when the caller has just
+The debug extension and `presentation-rmse` are rebuilt first by default, so a
+capture and its comparison always come from the checked-out sources; `--no-build` skips that only when the caller has just
 built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
 selected pair is 0.000000.
@@ -66,8 +66,8 @@ from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import (RUN_ROOT_PACK, GodotError, create_run_root, godot_command,  # noqa: E402
-                   require as require_godot)
+from godot import (RUN_ROOT_PACK, GodotError, create_run_root, exit_leaks_binary,  # noqa: E402
+                   godot_command, logged_exit_leaks, require as require_godot)
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -149,6 +149,27 @@ TAPE_35 = {
     "frames": [7293],
 }
 
+# Tape 36 is tape 22's prelude with three fixture patches, a TELEPIPE, every
+# Motavia town visited and `EventFlag_PrincipalConfession`, then ITEM, the
+# TELEPIPE and USE: frame 8090 is the settled town list
+# (docs/field/TRAVEL.md, "Teleport windows and effect").
+TAPE_36 = {
+    "tape": "oracle/tapes/36_teleport_windows.tape",
+    "patches": ["7600:FFFFF410:84", "7600:FFFFF160:FFFF", "7600:FFFFF101:08"],
+    "frames": [8090],
+    # The town list's own window, (18,13) 14x12 cells: the ITEM path's
+    # windows around it are not this pair's to certify.
+    "region": [144, 104, 112, 96],
+}
+
+# The same tape's teleport message after Down to MILE and Speak, settled from
+# 8300; its window $45, (7,21) 26x5 cells, over the list's lower rows.
+TAPE_36_MESSAGE = {
+    **TAPE_36,
+    "frames": [8340],
+    "region": [56, 168, 208, 40],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -189,9 +210,13 @@ PAIRS = [
     # the slugs' turn is Fusion) and the shot lands where the MetaSlug's overlay
     # clock reads what the oracle's Enemy_Sprites words say at frame 25560:
     # every piece at (frame 0, timer 2), one tick before the video frame.
-    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend",
+    # The Fusion's own frames (#64) seat the MetaSlug 80 frames into the
+    # slugs' turn rather than 36, and the options come back 20 frames sooner
+    # after the seat: tick 758 puts the overlay where 714 did, and the blink
+    # seed 21/0 is the old phase 20 red-cursor frames earlier.
+    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend,blink=21/0",
                        "PSIV_DEBUG_BATTLE_FORMATION": "D2",
-                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 714,
+                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 758,
      "build/certify/oracle/battle-fusion/frame_25560.png",
      "b10cb5aa7ce60c6c66eec714cab6de28d4ff85cad7f3a385aaa4cdc589ad8ef8", TAPE_33),
     # Clone tick t pairs with tape-07-family oracle frame 24800 + t: the
@@ -215,12 +240,21 @@ PAIRS = [
     ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
      "build/certify/oracle/ship-menu/frame_7293.png",
      "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),
+    # The TELEPIPE town list against tape 36, its window's region only (#128).
+    ("teleport-towns", {"PSIV_DEBUG_CAMP": "telepipe"}, 60,
+     "build/certify/oracle/teleport-towns/frame_8090.png",
+     "31176866ed7455c71d3126c9737798f74ddd85e3192ef5d919055fe833be2141", TAPE_36),
+    ("teleport-message", {"PSIV_DEBUG_CAMP": "telepipe-message"}, 60,
+     "build/certify/oracle/teleport-message/frame_8340.png",
+     "654ca4af46c35ce3d428e8ae00d9e4f125c1484309b126f9e5f1edc6344bfccb", TAPE_36_MESSAGE),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.
 QUIT_MARGIN = 30
 
 RMSE = re.compile(r"rmse=([0-9.]+)")
+# The comparison, built beside the debug extension.
+COMPARE = Path(__file__).resolve().parent.parent / "rust" / "target" / "debug" / "presentation-rmse"
 
 
 def sha256(path):
@@ -349,9 +383,10 @@ def capture(name, env, tick, receipt, display, project, run_root):
     return shot, code
 
 
-def compare(shot, frame):
-    completed = subprocess.run([sys.executable, "psiv_tools/presentation_rmse.py",
-                                str(shot), str(frame)], capture_output=True, text=True)
+def compare(shot, frame, region=None):
+    crop = ["--region", ",".join(str(value) for value in region)] if region else []
+    completed = subprocess.run([str(COMPARE), *crop, str(shot), str(frame)],
+                               capture_output=True, text=True)
     match = RMSE.search(completed.stdout)
     return (match.group(1) if match else None), (completed.stdout + completed.stderr).strip()
 
@@ -360,7 +395,8 @@ def build_parser():
     """The command line: build by default, opt out with `--no-build`."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--no-build", action="store_true",
-                        help="skip `cargo build -p psiv-godot` (only when this tree was just built)")
+                        help="skip `cargo build -p psiv-godot -p psiv-compare` "
+                             "(only when this tree was just built)")
     parser.add_argument("--build", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--jobs", type=int, metavar="N",
                         help=f"capture workers, one godot slot each (default: min({DEFAULT_JOBS}, "
@@ -449,6 +485,7 @@ def main(argv=None):
         return 0 if args.list else 2
     try:
         require_godot()
+        exit_leaks_binary()
     except GodotError as error:
         print(f"certify: refused, {error}")
         return 2
@@ -459,8 +496,8 @@ def main(argv=None):
         return 2
     if not args.no_build:
         with hold_heavy_lock(lock_class=EXTENSION):
-            built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
-                                    "rust/Cargo.toml"])
+            built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "-p", "psiv-compare",
+                                    "--manifest-path", "rust/Cargo.toml"])
         if built.returncode != 0:
             return built.returncode
     info = git_info(root)
@@ -482,8 +519,11 @@ def main(argv=None):
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
             frame_path, error = oracle_frame(name, frame, digest, recipe, receipt)
-            records.append(({"pair": name, "tick": tick, "oracle": frame,
-                             "oracle_sha256": digest, "env": env}, frame_path, error))
+            record = {"pair": name, "tick": tick, "oracle": frame,
+                      "oracle_sha256": digest, "env": env}
+            if recipe and recipe.get("region"):
+                record["region"] = recipe["region"]
+            records.append((record, frame_path, error))
             if error is None:
                 tasks.append((name, env, tick))
         prepared = time.monotonic()
@@ -508,9 +548,14 @@ def main(argv=None):
             record["seconds"] = seconds
             if shot.exists():
                 record["capture_sha256"] = sha256(shot)
-                record["rmse"], record["compare"] = compare(shot, frame_path)
+                record["rmse"], record["compare"] = compare(shot, frame_path,
+                                                            record.get("region"))
             else:
                 error = f"no capture (godot exit {code})"
+            record["exit_leaks"] = logged_exit_leaks(receipt / f"{record['pair']}-run.log",
+                                                     receipt / f"{record['pair']}-godot.log")
+            if error is None and record["exit_leaks"]:
+                error = "Godot reported at exit: " + "; ".join(record["exit_leaks"])
         record["error"] = error
         record["pass"] = error is None and record.get("rmse") == "0.000000"
         results.append(record)

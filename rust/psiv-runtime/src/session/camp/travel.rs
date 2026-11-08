@@ -1,8 +1,10 @@
 //! Teleport selection, paid message and ordinary map-change delivery.
 
+use psiv_data::TravelMessages;
+
 use crate::{CampTravelMenu, Runtime};
 
-use super::{CampPage, CampView};
+use super::{CampPage, CampView, MenuInput, wrap};
 
 impl CampView {
     pub(super) fn begin_selected_travel(&mut self, runtime: &mut Runtime) {
@@ -14,7 +16,7 @@ impl CampView {
             return;
         };
         let result = runtime.begin_camp_travel(caster.party_slot, ability.id);
-        self.show_travel_result(result);
+        self.show_travel_result(runtime, result);
     }
 
     pub(super) fn begin_selected_item_travel(&mut self, runtime: &mut Runtime) {
@@ -23,7 +25,7 @@ impl CampView {
         };
         self.travel_item_slot = Some(item.slot);
         let result = runtime.begin_camp_item_travel(item.slot);
-        self.show_travel_result(result);
+        self.show_travel_result(runtime, result);
     }
 
     pub(super) fn select_travel_town(&mut self, runtime: &mut Runtime) {
@@ -38,18 +40,30 @@ impl CampView {
             };
             runtime.select_camp_town(caster.party_slot, town.index)
         };
-        self.show_travel_result(result);
+        self.show_travel_result(runtime, result);
     }
 
-    fn show_travel_result(&mut self, result: Result<CampTravelMenu, String>) {
+    /// The town list, or the window line the pack's `travel.json` holds for
+    /// the outcome (`TravelMessages`).
+    fn show_travel_result(&mut self, runtime: &Runtime, result: Result<CampTravelMenu, String>) {
+        let messages = runtime.data().travel().map(|travel| &travel.messages);
         match result {
             Ok(CampTravelMenu::Towns(towns)) => {
+                // A town list comes only from the pack's travel tables, so its
+                // label is there too.
+                self.travel_towns_label = messages
+                    .map(|messages| messages.towns_label.clone())
+                    .unwrap_or_default();
                 self.travel_towns = towns;
                 self.travel_selection = 0;
                 self.page = CampPage::TravelTowns;
             }
-            Ok(CampTravelMenu::Ready { name }) => {
-                self.message = format!("{name}: READY TO TELEPORT");
+            Ok(CampTravelMenu::Ready { .. }) => {
+                // Every granted teleport reads a destination from the pack's
+                // travel tables, so its line is there too.
+                self.message = messages
+                    .map(|messages| messages.teleported.clone())
+                    .unwrap_or_default();
                 // Pipes only play the teleport sound when the message is
                 // acknowledged (Win_ItemTeleportMsg), never the TECH cast.
                 if self.travel_item_slot.is_none() {
@@ -58,7 +72,7 @@ impl CampView {
                 self.page = CampPage::TravelReady;
             }
             Err(reason) => {
-                self.message = reason;
+                self.message = retail_travel_refusal(messages, reason);
                 self.page = self.travel_failure_page();
             }
         }
@@ -85,6 +99,92 @@ impl CampView {
             CampPage::ItemResult
         } else {
             CampPage::AbilityResult
+        }
+    }
+
+    /// The town list, `Win_TelepipePlaceList` (`ps4.asm:123998`) and its
+    /// copy `Win_RyukaPlaceList` (`:129219`). Towns come in pages of
+    /// [`TOWN_PAGE_ROWS`], each its own window; the cursor wraps within the
+    /// page. Right *held* opens the next page and Left *held* closes the
+    /// current one, both with the cursor on the first row
+    /// (`ps4.asm:124111-124158`), before Speak or Camp confirms.
+    pub(super) fn travel_towns_frame(&mut self, runtime: &mut Runtime, input: MenuInput) {
+        let count = self.travel_towns.len();
+        if count == 0 {
+            return;
+        }
+        let last_page = (count - 1) / TOWN_PAGE_ROWS;
+        let page = self.travel_selection / TOWN_PAGE_ROWS;
+        let rows = town_page_rows(count, page);
+        if input.up || input.down {
+            let row = wrap(self.travel_selection % TOWN_PAGE_ROWS, rows, input.down);
+            self.travel_selection = page * TOWN_PAGE_ROWS + row;
+        }
+        if input.right_held && page < last_page {
+            self.sound_request = Some(SFX_MOVING_CURSOR);
+            self.travel_selection = (page + 1) * TOWN_PAGE_ROWS;
+            return;
+        }
+        if input.left_held && page > 0 {
+            self.sound_request = Some(SFX_MOVING_CURSOR);
+            self.travel_selection = (page - 1) * TOWN_PAGE_ROWS;
+            return;
+        }
+        if input.accept {
+            self.select_travel_town(runtime);
+        }
+    }
+}
+
+/// The cartridge's line for a refused teleport, from the lines
+/// `Win_ItemTeleportMsg` and `Win_TechTeleportMsg` choose from by
+/// `$FFFFE284` (`loc_5CB66`, `loc_60B26`): the place forbids it, or the caster
+/// lacks the TP. Any other refusal, or one from a pack without travel tables,
+/// is the port's own and keeps its wording.
+fn retail_travel_refusal(messages: Option<&TravelMessages>, reason: String) -> String {
+    let line = messages.and_then(|messages| match reason.as_str() {
+        crate::travel::CANNOT_TELEPORT_HERE => Some(&messages.cannot_be_used),
+        crate::travel::NOT_ENOUGH_TP => Some(&messages.not_enough_tp),
+        _ => None,
+    });
+    line.cloned().unwrap_or(reason)
+}
+
+/// Rows in one town-list window: `$FFFFE270` holds the towns in groups of
+/// five, one group per page window.
+pub const TOWN_PAGE_ROWS: usize = 5;
+
+/// `SFXID_MovingCursor` (`ps4.constants.asm:1038`).
+const SFX_MOVING_CURSOR: u8 = 0xF2;
+
+/// The rows on `page` of a list of `count` towns: five, except the last.
+#[must_use]
+pub fn town_page_rows(count: usize, page: usize) -> usize {
+    count
+        .saturating_sub(page * TOWN_PAGE_ROWS)
+        .min(TOWN_PAGE_ROWS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_refusal_shows_the_packs_line_or_keeps_the_ports_own_wording() {
+        let messages = TravelMessages {
+            towns_label: "label".into(),
+            teleported: "ready".into(),
+            cannot_be_used: "place".into(),
+            not_enough_tp: "tp".into(),
+        };
+        for (reason, line) in [
+            (crate::travel::CANNOT_TELEPORT_HERE, "place"),
+            (crate::travel::NOT_ENOUGH_TP, "tp"),
+            ("CASTER IS DOWN", "CASTER IS DOWN"),
+        ] {
+            assert_eq!(retail_travel_refusal(Some(&messages), reason.into()), line);
+            // Without the pack's travel tables nothing is put in its place.
+            assert_eq!(retail_travel_refusal(None, reason.into()), reason);
         }
     }
 }

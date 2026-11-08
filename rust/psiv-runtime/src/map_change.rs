@@ -27,7 +27,7 @@
 //! `FieldRoutine_Cutscene` (`ps4.asm:120746`); that path is
 //! [`Runtime::reload_field_after_cutscene`].
 
-use psiv_core::{Cell, Direction, Flag, GameState, MapId, WarpTrigger};
+use psiv_core::{Cell, Direction, Flag, GameState, MapId, SceneOp, WarpTrigger};
 
 use crate::bridge::{self, build_bespoke, build_wander, clear_bespoke_entry_flags};
 use crate::effects;
@@ -102,6 +102,37 @@ pub(crate) struct CutsceneReload {
     pub(crate) skip_fade: bool,
 }
 
+/// `AdjustMusicIDs` (`US ROM $0545F0`) itself: the id it leaves in `d0` and
+/// whether it returns nonzero in `d1` (the "already playing" answer, which
+/// hands back the raw id). The field loader writes only a zero answer
+/// ([`adjusted_map_music`]); `Event_GettingOffVehicle` writes `d0` either way.
+pub(crate) fn adjust_music_ids(map: MapId, raw: u8, game: &GameState, saved: u8) -> (u8, bool) {
+    if map.0 == 1 && game.is_set(Flag::event(0x9E)) {
+        return if saved == 0x9D {
+            (raw, true)
+        } else {
+            (0x9D, false)
+        };
+    }
+    if game.vehicle_index() != 0 {
+        return (0x8D, false);
+    }
+    if matches!(map.0, 0x24 | 0x25 | 0x28 | 0x29) && game.is_set(Flag::event(0x33)) {
+        return if saved == 0x84 {
+            (raw, true)
+        } else {
+            (0x84, false)
+        };
+    }
+    if map.0 == 0x3F && game.is_set(Flag::event(0x42)) && game.is_clear(Flag::event(0x67)) {
+        return (0xA5, false);
+    }
+    if matches!(map.0, 0x8C | 0x171) {
+        return (0xB1, false);
+    }
+    (raw, false)
+}
+
 /// `AdjustMusicIDs` (`US ROM $0545F0`), after the field loader has already
 /// skipped zero, battle bit 0, and a raw id equal to `Saved_Sound_Index`.
 /// `None` is the routine's nonzero return: do not write the saved word.
@@ -109,25 +140,25 @@ pub(super) fn adjusted_map_music(map: MapId, raw: u8, game: &GameState, saved: u
     if raw == 0 || raw == saved {
         return None;
     }
-    if map.0 == 1 && game.is_set(Flag::event(0x9E)) {
-        return (saved != 0x9D).then_some(0x9D);
-    }
-    if game.vehicle_index() != 0 {
-        return Some(0x8D);
-    }
-    if matches!(map.0, 0x24 | 0x25 | 0x28 | 0x29) && game.is_set(Flag::event(0x33)) {
-        return (saved != 0x84).then_some(0x84);
-    }
-    if map.0 == 0x3F && game.is_set(Flag::event(0x42)) && game.is_clear(Flag::event(0x67)) {
-        return Some(0xA5);
-    }
-    if matches!(map.0, 0x8C | 0x171) {
-        return Some(0xB1);
-    }
-    Some(raw)
+    let (id, already) = adjust_music_ids(map, raw, game, saved);
+    (!already).then_some(id)
 }
 
 impl Runtime {
+    /// `Event_GettingOffVehicle`'s music (`ps4.asm:145383-145395`): the map
+    /// record's byte through `AdjustMusicIDs`, its `d0` written to
+    /// `Saved_Sound_Index` whatever `d1` says, and played.
+    pub(crate) fn dismount_music(&mut self, events: &mut Vec<RuntimeEvent>) {
+        let Some(raw) = self.map_record().map(|record| record.music.id) else {
+            return;
+        };
+        let (id, _) = adjust_music_ids(self.map.id(), raw, &self.game, self.saved_sound_index);
+        self.saved_sound_index = id;
+        for op in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }] {
+            events.push(RuntimeEvent::ScenePresentation { op });
+        }
+    }
+
     /// Applies the cartridge's flag test to the live vehicle and consumes the
     /// bits, as the load routine's tail does. Returns whether bit 7 was set:
     /// a field load then skips its `Pal_FadeIn` (`ps4.asm:107628-107630`).
@@ -297,6 +328,12 @@ impl Runtime {
         // initialization do not. The loader's redirects run first, as on
         // every `GameMode_LoadFieldMap`.
         let load = self.redirect_kept_load();
+        // `loc_51AB2` runs on every load, this one included
+        // (`ps4.asm:107556`), before the map-data walk: the record's gate
+        // bytes come back, and a zero plane gate reseeds that plane's step
+        // counters (#59). A scene's `RefreshMap` (`:121797`) and the cutscene
+        // reload rebuild the camera from the record, which writes the same.
+        self.refresh_map_camera_gates_for(load.map)?;
         self.rewalk_map_retaining_objects(load.map)?;
         self.saved_map_index_2 = load.previous_map;
         // The battle set bit 0 when it began (`bset #0`, `ps4.asm:118057` and
@@ -446,6 +483,20 @@ impl Runtime {
 #[cfg(test)]
 mod map_music_tests {
     use super::*;
+
+    #[test]
+    fn adjust_music_ids_hands_back_the_raw_id_when_already_playing() {
+        let mut game = GameState::new();
+        game.set(Flag::event(0x9E)).unwrap();
+        // Dezolis after the second Dark Force: `DezorisField2` already saved
+        // returns the raw byte with `d1` set, which the loader skips and
+        // `Event_GettingOffVehicle` writes anyway.
+        assert_eq!(adjust_music_ids(MapId(1), 0x88, &game, 0x9D), (0x88, true));
+        assert_eq!(adjust_music_ids(MapId(1), 0x88, &game, 0x80), (0x9D, false));
+        assert_eq!(adjusted_map_music(MapId(1), 0x88, &game, 0x9D), None);
+        // An ordinary map answers its own byte, zero included.
+        assert_eq!(adjust_music_ids(MapId(0), 0, &game, 0x8D), (0, false));
+    }
 
     #[test]
     fn adjust_music_ids_retains_retail_priority_and_skip_cases() {

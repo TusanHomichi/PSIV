@@ -1,4 +1,5 @@
-//! ROM-derived town destinations, dungeon exits and place-entry selectors.
+//! ROM-derived town destinations, dungeon exits, place-entry selectors and the
+//! teleport windows' strings.
 
 use std::{collections::BTreeSet, path::Path};
 
@@ -64,6 +65,20 @@ pub struct PlaceEntry {
     pub selector: u8,
 }
 
+/// The teleport windows' strings, decoded from the window charset with `$FC`
+/// as a newline (`psiv_tools/travel.py` `MESSAGES` cites each one).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TravelMessages {
+    /// The town list's label on each page's bottom border (`loc_2AA892`).
+    pub towns_label: String,
+    /// The line a granted teleport shows (`loc_2AA896`).
+    pub teleported: String,
+    /// The refusal where the place forbids a teleport (`loc_2AA8BC`).
+    pub cannot_be_used: String,
+    /// The refusal when the caster lacks the TP (`loc_2AA8D2`).
+    pub not_enough_tp: String,
+}
+
 /// Validated travel tables. Old/synthetic packs may omit the entire file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TravelData {
@@ -79,6 +94,8 @@ pub struct TravelData {
     pub dungeons: Vec<DungeonDestination>,
     /// Map-entry registration and inherited-exit selectors.
     pub entries: Vec<PlaceEntry>,
+    /// The teleport windows' strings.
+    pub messages: TravelMessages,
 }
 
 impl TravelData {
@@ -94,15 +111,28 @@ impl TravelData {
             .map_err(|message| DataError::ManifestMismatch {
                 path,
                 field: "travel",
-                manifest: "field_travel/1 with matching ROM and valid unique selectors".into(),
+                manifest:
+                    "field_travel/2 with matching ROM, valid unique selectors and every message"
+                        .into(),
                 record: message,
             })?;
         Ok(data)
     }
 
     fn validate(&self, rom: &RomHash) -> Result<(), String> {
-        if self.format_version != 1 || self.kind != "field_travel" || self.rom_sha256 != *rom {
+        if self.format_version != 2 || self.kind != "field_travel" || self.rom_sha256 != *rom {
             return Err("wrong version, kind or ROM hash".into());
+        }
+        let messages = &self.messages;
+        for (key, text) in [
+            ("towns_label", &messages.towns_label),
+            ("teleported", &messages.teleported),
+            ("cannot_be_used", &messages.cannot_be_used),
+            ("not_enough_tp", &messages.not_enough_tp),
+        ] {
+            if text.is_empty() {
+                return Err(format!("empty travel message {key}"));
+            }
         }
         let mut towns = BTreeSet::new();
         for town in &self.towns {
@@ -155,10 +185,11 @@ mod tests {
     fn travel_rejects_duplicate_and_dangling_selectors_and_wrong_rom() {
         let rom = RomHash::parse(&"1".repeat(64)).unwrap();
         let mut data: TravelData = serde_json::from_value(serde_json::json!({
-            "format_version":1, "kind":"field_travel", "rom_sha256":rom,
+            "format_version":2, "kind":"field_travel", "rom_sha256":rom,
             "towns":[{"world":1,"index":0,"town_flag":16,"name":"RAJA TEMPLE","previous_map":332,"x":72,"y":190}],
             "dungeons":[{"index":1,"map":0,"x":92,"y":286,"facing":0,"alignment":0}],
-            "entries":[{"map":16,"previous_map":0,"name":"PIATA","selector":129}]
+            "entries":[{"map":16,"previous_map":0,"name":"PIATA","selector":129}],
+            "messages":{"towns_label":"A","teleported":"B\nC","cannot_be_used":"D","not_enough_tp":"E"}
         })).unwrap();
         assert!(data.validate(&rom).is_ok());
         assert!(
@@ -170,5 +201,47 @@ mod tests {
         data.entries[0].selector = 129;
         data.towns.push(data.towns[0].clone());
         assert!(data.validate(&rom).is_err());
+    }
+}
+
+#[cfg(test)]
+mod message_tests {
+    use super::*;
+
+    fn data(rom: &RomHash) -> TravelData {
+        serde_json::from_value(serde_json::json!({
+            "format_version":2, "kind":"field_travel", "rom_sha256":rom,
+            "towns":[], "dungeons":[], "entries":[],
+            "messages":{"towns_label":"A","teleported":"B\nC","cannot_be_used":"D","not_enough_tp":"E"}
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn every_travel_message_must_be_present() {
+        let rom = RomHash::parse(&"1".repeat(64)).unwrap();
+        assert!(data(&rom).validate(&rom).is_ok());
+        for field in 0..4 {
+            let mut data = data(&rom);
+            let messages = &mut data.messages;
+            [
+                &mut messages.towns_label,
+                &mut messages.teleported,
+                &mut messages.cannot_be_used,
+                &mut messages.not_enough_tp,
+            ][field]
+                .clear();
+            assert!(data.validate(&rom).is_err(), "field {field}");
+        }
+        // A pack from before the messages (format 1) is refused, not read
+        // without them.
+        let mut old = data(&rom);
+        old.format_version = 1;
+        assert!(old.validate(&rom).is_err());
+        let missing = serde_json::from_value::<TravelData>(serde_json::json!({
+            "format_version":2, "kind":"field_travel", "rom_sha256":rom,
+            "towns":[], "dungeons":[], "entries":[]
+        }));
+        assert!(missing.is_err());
     }
 }

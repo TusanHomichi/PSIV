@@ -13,6 +13,6 @@ psiv-core = { path = "../psiv-core" }
 psiv-data = { path = "../psiv-data" }
 psiv-runtime = { path = "../psiv-runtime" }
 psiv-sound = { path = "../psiv-sound" }
-godot = "0.5"
+godot = { version = "0.5", features = ["api-4-7"] }
 serde.workspace = true
 serde_json.workspace = true

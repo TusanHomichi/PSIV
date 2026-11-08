@@ -174,6 +174,56 @@ fn status_fixtures_reach_the_panes() {
     );
 }
 
+/// #64: the Fusion's pieces play the frames tape 33 shows (`battle/fusion.rs`):
+/// the slugs' bodies give way to the two pieces, which slide together and
+/// grow, and the MetaSlug is seated 80 frames after the pieces appear, under
+/// the same FUSION window, which holds 16 frames more with no line of its own.
+#[test]
+fn a_fusion_plays_the_slide_and_seats_the_metaslug_at_retail_frames() {
+    let Some(mut session) = armed_session() else {
+        return;
+    };
+    session.debug_battle_window(0xD2, "top,round=defend");
+    let mut seen: Vec<(u32, crate::BattleView)> = Vec::new();
+    for tick in 0..4_000 {
+        let frame = session.frame(Pad::NEUTRAL);
+        let Some(view) = frame.battle.as_ref().and_then(|b| b.view.as_ref()) else {
+            continue;
+        };
+        if view.ready {
+            break;
+        }
+        seen.push((tick, view.clone()));
+    }
+    let first = seen
+        .iter()
+        .position(|(_, view)| !view.fusion.is_empty())
+        .expect("the Fusion draws its pieces");
+    let (start_tick, start) = &seen[first];
+    eprintln!("fusion pieces from tick {start_tick}");
+    let fusion = crate::Fusion::new(112, 208);
+    assert_eq!(start.fusion, fusion.pieces(0));
+    assert!(
+        start.enemies.iter().all(|e| !e.visible),
+        "the pieces replace both slugs"
+    );
+    for t in 0..80 {
+        let (_, view) = &seen[first + t as usize];
+        assert_eq!(view.fusion, fusion.pieces(t), "t={t}");
+        assert_eq!(view.message, start.message, "t={t}");
+    }
+    let (_, seated) = &seen[first + 80];
+    assert!(seated.fusion.is_empty());
+    assert!(seated.enemies.iter().any(|e| e.visible && e.enemy_id == 36));
+    assert_eq!(
+        seated.message, start.message,
+        "no line of its own for the MetaSlug"
+    );
+    for t in 80..96 {
+        assert_eq!(seen[first + t].1.message, start.message, "t={t}");
+    }
+}
+
 /// The Zol slugs' Fusion through the whole shell path: a defended round runs
 /// the slugs' turn, the view's slot 1 becomes the MetaSlug at position `$14`,
 /// and the options come back over it with every pane back to no command.

@@ -9,17 +9,17 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1793879903,
-        "narHash": "sha256-Is6fj3zol4efqVT0vVj0eO0Q1cLqLznzHy7ijUWOGOk=",
+        "lastModified": 1794128925,
+        "narHash": "sha256-Zw0izVe839wBdwm6476YTdAO77Op1RxJeRNV8aiLftc=",
         "ref": "main",
-        "rev": "46cab2ed869c60b415ee61aeff9026cecaf3a942",
-        "revCount": 444,
+        "rev": "4f941f7e6d966f6ec18578eea8bab0a804b89e0a",
+        "revCount": 492,
         "type": "git",
         "url": "https://github.com/FieldmouseWorks/burrow"
       },
       "original": {
         "ref": "main",
-        "rev": "46cab2ed869c60b415ee61aeff9026cecaf3a942",
+        "rev": "4f941f7e6d966f6ec18578eea8bab0a804b89e0a",
         "type": "git",
         "url": "https://github.com/FieldmouseWorks/burrow"
       }
@@ -65,10 +65,10 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1793633738,
-        "narHash": "sha256-tItrb9M8eYA6WhFgmT9tpGKueri3+wRuVA952o/2xSU=",
+        "lastModified": 1793865203,
+        "narHash": "sha256-/cpdPHaySDIyCgZI6EWngiM6jK3YLUNzv1b7lTzy6Bk=",
         "ref": "nixos-26.05",
-        "rev": "7dcdd87373d72e7a2173e4db02e20d3d7f495cfd",
+        "rev": "c56a87d8e41ce69bd2af57eb35dcc117a9dfca33",
         "shallow": true,
         "type": "git",
         "url": "https://github.com/NixOS/nixpkgs"
@@ -82,10 +82,10 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1793726008,
-        "narHash": "sha256-jQp1wKvbwWdLBASTXkSi/VYmDJ5AbBi1WvcMt9HWJC8=",
+        "lastModified": 1793876309,
+        "narHash": "sha256-Wojg9lIH/hDH91iDVH2/EPw8oDSpxjxhXONbU1yf4Zg=",
         "ref": "nixos-unstable",
-        "rev": "1d060086d60cb76a40cf37109f979d88a5bd6396",
+        "rev": "f9a75f41be3a74eab55d3a7679d34ad6cc0da977",
         "shallow": true,
         "type": "git",
         "url": "https://github.com/NixOS/nixpkgs"
@@ -110,10 +110,10 @@
         ]
       },
       "locked": {
-        "lastModified": 1793870170,
-        "narHash": "sha256-0psEeQjs1g9oWQ6eVVGlCom+X3/uHyr6jSMyHVU57u8=",
+        "lastModified": 1794127728,
+        "narHash": "sha256-QhZ104DwHvvMxWxmI13zdppISE27UmdqhRI2VwBg/yU=",
         "ref": "refs/heads/master",
-        "rev": "19e0e6c951a7a8a7d3232c64e58d26b89df44c60",
+        "rev": "51c6dc40d18552701f7c5c62e3f7a5fc899f7132",
         "shallow": true,
         "type": "git",
         "url": "https://github.com/oxalica/rust-overlay"

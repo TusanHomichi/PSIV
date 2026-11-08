@@ -40,6 +40,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests import scratch_git
 from tests.test_feature_map import check_map
 from tools import check_docs, size_guard
 from tools.repo_files import RepoFilesError, ignored_paths, repo_files
@@ -117,7 +118,7 @@ class RepoCase(HomeCase):
         """Write `files`, init the repository and track them; nothing after is staged."""
         for name, content in files.items():
             self.write(name, content)
-        self.git("init", "-q", "-b", "main")
+        scratch_git.init(self.root)
         self.git("add", "-A")
 
     def files(self, *patterns):

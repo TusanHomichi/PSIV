@@ -19,7 +19,8 @@ this module parses its tables and fails on every way they can go stale:
   filter whose module the crate does not have;
 - a ledger link that no longer resolves, points outside `docs/`, or carries an
   anchor the target no longer defines;
-- a `rust/psiv-runtime/tests/*.rs` target or a `tools/native/` driver with no
+- a `rust/psiv-runtime/tests/*.rs` cargo target (a child module under a
+  subdirectory is part of its target, not one) or a `tools/native/` driver with no
   row in the map. That coverage is half the map's value: a new integration
   target or driver fails here until its row lands beside it.
 
@@ -272,6 +273,26 @@ def ledger_root(path: Path) -> Path:
 
 # --------------------------------------------------------------------- checks
 
+def runtime_test_targets(names) -> list[str]:
+    """The cargo integration targets among `names`: `tests/<name>.rs` files.
+
+    Cargo builds one target per file directly in `tests/` (and per
+    `tests/<dir>/main.rs`). A deeper `.rs` file is a child module of a target
+    (`tests/session_menus/hand_cancel.rs` belongs to `session_menus.rs`) and
+    has no `--test` name of its own.
+    """
+    targets = set()
+    for name in names:
+        if not name.startswith(RUNTIME_TESTS_PREFIX) or not name.endswith(".rs"):
+            continue
+        parts = name[len(RUNTIME_TESTS_PREFIX):].split("/")
+        if len(parts) == 1:
+            targets.add(Path(parts[0]).stem)
+        elif len(parts) == 2 and parts[1] == "main.rs":
+            targets.add(parts[0])
+    return sorted(targets)
+
+
 def check_map(path: Path = FEATURE_MAP, tracked: list[str] | None = None) -> list[str]:
     """`(problems)` for the feature tables in `path`, empty when the map is true."""
     if tracked is None:
@@ -314,10 +335,11 @@ def check_map(path: Path = FEATURE_MAP, tracked: list[str] | None = None) -> lis
         if cells.get("Feature") in features:
             problem(line, f"duplicate feature row: {cells['Feature']}")
         features.add(cells.get("Feature", ""))
-    for target in sorted(name for name in tracked if name.startswith(RUNTIME_TESTS_PREFIX)):
-        stem = Path(target).stem
+    for stem in runtime_test_targets(tracked):
         if stem not in targets_seen:
-            problems.append(f"{path}: {target}: no row runs this target (--test {stem})")
+            problems.append(
+                f"{path}: {RUNTIME_TESTS_PREFIX}{stem}.rs: no row runs this target (--test {stem})"
+            )
     for driver in sorted(name for name in tracked if name.startswith(NATIVE_DRIVERS_PREFIX)):
         if not any(covers(token, driver) for token in tokens_seen):
             problems.append(f"{path}: {driver}: no row lists this native driver")
@@ -336,10 +358,9 @@ class RealMap(unittest.TestCase):
         targets = set()
         for _, cells in rows:
             targets |= set(TARGET_RE.findall(cells["Focused test"]))
-        expected = {
-            Path(name).stem
-            for name in repo_files(ROOT, (f"{RUNTIME_TESTS_PREFIX}*.rs",))
-        }
+        expected = set(
+            runtime_test_targets(repo_files(ROOT, (f"{RUNTIME_TESTS_PREFIX}*.rs",)))
+        )
         self.assertTrue(expected, "no psiv-runtime integration targets found")
         self.assertEqual(expected - targets, set())
 
@@ -414,6 +435,29 @@ class NegativeControl(unittest.TestCase):
 
 class Parsing(unittest.TestCase):
     """The small rules the checks are built on, on data built here."""
+
+    def test_only_cargo_targets_are_runtime_test_targets(self):
+        prefix = RUNTIME_TESTS_PREFIX
+        names = [
+            f"{prefix}session_menus.rs",
+            f"{prefix}session_menus/hand_cancel.rs",
+            f"{prefix}session_menus/deeper/more.rs",
+            f"{prefix}suite/main.rs",
+            f"{prefix}suite/helper.rs",
+            f"{prefix}fixtures/data.json",
+            "rust/psiv-core/tests/other.rs",
+        ]
+        self.assertEqual(runtime_test_targets(names), ["session_menus", "suite"])
+
+    def test_a_child_module_needs_no_row_but_a_new_target_does(self):
+        tracked = repo_files(ROOT)
+        child = f"{RUNTIME_TESTS_PREFIX}session_menus/negative_control_child.rs"
+        target = f"{RUNTIME_TESTS_PREFIX}negative_control_target.rs"
+        self.assertEqual(check_map(tracked=tracked + [child]), [])
+        problems = check_map(tracked=tracked + [target])
+        self.assertTrue(
+            any("--test negative_control_target" in item for item in problems), problems
+        )
 
     def test_rows_are_read_from_a_table_with_the_expected_columns(self):
         text = (

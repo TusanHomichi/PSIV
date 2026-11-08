@@ -123,21 +123,34 @@ The full commands and the heavy-run lock are in the
 [oracle/README.md](../oracle/README.md). What each kind of evidence proves is
 owned by [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make).
 
-Run the cheapest useful check during development. Add feedback only when a
-concrete observation is missing, and give a new correctness check a meaningful
-negative control. Repair real failures without rewriting evidence. Freeze a
-reviewed candidate (a commit, or a base commit plus an exact patch) before
-expensive gates; a relevant code, test or gate-input change invalidates the
-affected results.
+Run the cheapest useful check during development, through the repository's
+own entry points; a check needed twice is promoted into the repo. Add feedback
+only when a concrete observation is missing, give gameplay fixes regression
+coverage and a new correctness check a meaningful negative control. Repair real
+failures without rewriting evidence. Freeze a reviewed candidate (a commit, or
+a base commit plus an exact patch) before expensive gates; a relevant code,
+test or gate-input change invalidates the affected results. Keep the actual
+commands, revisions, hashes, timing, exit status, failures and skips, and
+inspect the raw evidence.
 
 ## Reproduce without damaging a save
 
 Before a native run, identify the source commit and dirty changes, the pack
-manifest hash, the source save hash, the driver and the executable. Use a
-separate output directory under `build/` and a separate `PSIV_SAVE_DIR`.
-Inspect driver paths and stop conditions before launch, and record any fixture
-injection explicitly. Check that the intended build is the one running: a
-loaded shared library can outlive a source edit. Keep a failed run's logs and
+manifest hash, the source save hash, the driver and the executable. Copy the
+source save to a separate run directory and set `PSIV_SAVE_DIR` to it,
+keeping its hash: the extension refuses a `--script` run without that variable,
+before it touches a save directory, so a driver cannot fall back to the
+checkout's `saves/`. Use a separate output directory under `build/`. Inspect
+the driver's configuration, paths and stop conditions before launch (existing
+drivers can hold local paths, special fixtures or long campaign routes), and
+record any fixture injection explicitly. Missing `build/` evidence on a fresh
+clone is expected; report that limitation. Check that the intended build is the one running: a
+loaded shared library can outlive a source edit. Rebuilding the GDExtension
+during a Godot run is safe (cargo uplifts the library and the linker, mold
+here, writes a new inode, so the mapped one survives); repository tools run
+Godot from a run root with its own library copy, and the editor reloads the
+checkout's library on focus by design. Never copy over a built library in
+place: that is the one remaining crash. Keep a failed run's logs and
 state apart from a successful save, and never repair party resources or flags
 behind the driver's back and then call the run ordinary play.
 

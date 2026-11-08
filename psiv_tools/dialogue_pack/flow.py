@@ -10,7 +10,7 @@ import hashlib
 from typing import Any, Iterable, Sequence
 
 from ..gfx import DIALOGUE_PORTRAIT_SYMBOLS
-from ..text import DIALOGUE, DIALOGUE_CHARSET, TEXT_ACTIONS, decode_string
+from ..text import DIALOGUE, DIALOGUE_CHARSET, TEXT_ACTIONS, WINDOW, decode_string
 from .common import DialoguePackError, rom_slice
 from .window import CHARS_PER_LINE, LINES_PER_WINDOW
 
@@ -394,6 +394,49 @@ def system_messages(rom: bytes) -> dict[str, Any]:
             "their own label and pointer and are not in this id space."
         ),
         "messages": messages,
+        "cannot_get_off": cannot_get_off(rom),
+    }
+
+
+#: `Event_GettingOffVehicle`'s refusal: `lea (CannotGetOffString).l, a0` at
+#: this address, then `LoadWindowTiles` into window 0 (`ps4.asm:145410`).
+CANNOT_GET_OFF_LEA = 0x06BFEC
+CANNOT_GET_OFF_LABEL = "CannotGetOffString"
+
+
+def cannot_get_off(rom: bytes) -> dict[str, Any]:
+    """The mounted party's refusal line, in the shape a tree entry has.
+
+    The cartridge draws it with `LoadWindowTiles` in the window charset (the
+    US build's `revision>0` side); the port shows it in the dialogue window,
+    so it is emitted as a one-page entry. The string's address is read from
+    the `lea` that names it, which is pinned.
+    """
+    lea = rom_slice(rom, CANNOT_GET_OFF_LEA, 6, CANNOT_GET_OFF_LABEL)
+    if lea[:2] != bytes.fromhex("41F9"):
+        raise DialoguePackError(
+            f"{CANNOT_GET_OFF_LABEL}: no `lea (abs).l, a0` at 0x{CANNOT_GET_OFF_LEA:06X}"
+        )
+    offset = int.from_bytes(lea[2:], "big")
+    end = rom.find(0xFF, offset)
+    if end < 0 or end - offset > 32:
+        raise DialoguePackError(
+            f"{CANNOT_GET_OFF_LABEL} at 0x{offset:06X} has no terminator within a line"
+        )
+    payload = rom_slice(rom, offset, end - offset, CANNOT_GET_OFF_LABEL)
+    decoded = decode_string(payload, charset=WINDOW, portrait_operand_bytes=1)
+    segments = entry_segments(decoded["segments"])
+    if any("text" not in segment for segment in segments):
+        raise DialoguePackError(f"{CANNOT_GET_OFF_LABEL} holds a control code")
+    return {
+        "id": 0,
+        "label": CANNOT_GET_OFF_LABEL,
+        "rom_offset": f"0x{offset:06X}",
+        "charset": WINDOW,
+        "text": decoded["text"],
+        "raw_hex": decoded["raw_hex"],
+        "segments": segments,
+        "pages": paginate(decoded["segments"]),
     }
 
 

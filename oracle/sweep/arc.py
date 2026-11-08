@@ -23,9 +23,10 @@ reads them over each ability action's frames, exactly as the extractor reads the
 others (`log.signed(start, column)` against `log.signed(end, column)`), and
 appends `[fighter id, "atk_bat" | "dfs_bat", before, after]` to the action's
 `effect.stats`. The replay comparator checks them
-(`rust/psiv-core/src/battle/replay/compare.rs`). The enemies' `$26` / `$2A` are
-not in the log at all, so DEBAN's effect on its own side is proven only through
-the damage the party deals afterwards.
+(`rust/psiv-core/src/battle/replay/compare.rs`). These captures' logs have no
+column for the enemies' `$26` / `$2A`, so DEBAN's effect on its own side is
+proven here only through the damage the party deals afterwards; a party-script
+capture logs them, and the extractor reads them there (`EFFECT_FIELDS`).
 """
 from __future__ import annotations
 

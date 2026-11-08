@@ -40,6 +40,25 @@ no digest: every hash that names an image, in the tests and in the pack's
 `png_sha256` fields, is `image_sha256` from
 [`psiv_tools/png.py`](../psiv_tools/png.py), taken over what the file decodes to.
 
+Godot patch releases are taken when they land. A bump changes
+`.godot-version` and runs `python3 tools/godot.py pin`, which takes the
+downloads' sums from the `SHA512-SUMS.txt` the release publishes; a new
+minor version also moves gdext's `api-4-N` feature in
+[`rust/psiv-godot/Cargo.toml`](../rust/psiv-godot/Cargo.toml) and
+`compatibility_minimum` in [`godot/psiv.gdextension`](../godot/psiv.gdextension)
+to it. The bump is proven by the checks
+[#133](https://github.com/TusanHomichi/PSIV/issues/133) set: certify at
+0.000000, the whole-route native replay with the memory bracket
+(`tools/verify_native_route.py --rss-every ...`,
+[native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)), the
+full gate, and an audio capture byte-identical between the old and the new
+engine: Godot's Movie Maker records the debug battle under Xvfb from a run
+root with `PSIV_SAVE_DIR` set to a fresh directory,
+`PSIV_DEBUG_BATTLE=0x88 python3 tools/godot.py run -- --rendering-driver
+opengl3 --fixed-fps 60 --write-movie OUT/f.png --quit-after 900`, once per
+engine with that engine's build of the extension, and the two `f.wav` files
+are compared by hash.
+
 ## Prepare the local pack
 
 From the repository root:
@@ -345,7 +364,9 @@ the Nix sandbox from the tracked tree alone. That is `tools/check_docs.py`
 (citations skipped), `tools/size_guard.py`, `cargo fmt --check`, strict Clippy
 and the Rust workspace tests except those that load `runtime-pack` (listed by
 name in `packTests` in `flake.nix`), the gate's own tests (every
-`tests/test_gate*.py`: fake commands in throwaway repositories), plus ruff's syntax and undefined-name rules over the Python; the Rust
+`tests/test_gate*.py`: fake commands in throwaway repositories), the battle
+fixture extractor's tests (every `tests/test_oracle_battle_fixture*.py`: fake
+logs and the tracked fixtures), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The rest of the Python suite, which reads the ROM, the
 disassembly and the pack, does not run there, and no ROM or derived asset
@@ -377,7 +398,12 @@ dir shared between worktrees does not (the tool's docstring says why). A gate mi
 partial, and a partial gate is recorded as a failure: green takes the full
 tier, on a clean tree, with every command exiting 0 and no input missing.
 The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the seven
-commands above, in order, with the env prefixes and flags written there, and
+commands above, with the env prefixes and flags written there, in two lanes
+side by side (`GATE_LANES`), each running its commands one at a time in the
+order above: the Python checks and the pack parity in one, cargo fmt, test and
+clippy and then certify in the other, so every command that builds the debug
+target stays in one lane and the run takes its longest lane rather than the
+sum of all seven. The fast tier is one lane. It
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
 names, which is how `tools/pr_gate.py` reads its own run's receipt and no
@@ -385,8 +411,11 @@ other): the candidate SHA, whether the tree was
 dirty and its `git status --porcelain` paths, which inputs were missing
 (`missing_inputs`, of the ROM, the disassembly and the pack: `GATE_INPUTS` in
 `tools/gate.py`), the cores it could use
-(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
-command's string, UTC start and end, duration, exit code, CPU clock and
+(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, its
+lanes (`lanes`, each a list of command indices) and its length from start to
+end (`duration_s`, which lanes side by side make less than the commands'
+durations added up), and each
+command's string, lane, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
 sampled every second; the heavy lock does not exclude unlocked headless runs,
 so a slow step is read beside its load), log path and parsed counts. Report a gate
@@ -535,7 +564,10 @@ exclusive hold keeps every other locked job off the machine while it runs.
 `cargo test --workspace --no-run` at 8 jobs (4,979 MB in 12, 19%), `godot` by a certify pair
 (418 MB in 1, 18%), `python` by the suite (926 MB in one process and 1,256 MB
 on four workers; 3 units, 18%); the opt-level-3
-extension build (5,582 MB, 13 units) is exclusive and sizes nothing. On the
+extension build (5,582 MB, 13 units) is exclusive and sizes nothing. The full
+gate's two lanes overlap, so its peak is theirs together: by the rows below,
+the cold cargo lane (4,979 MB) beside the four-worker suite (1,256 MB), about
+6.2 GB, an estimate not yet measured as one run. On the
 13.5 GB host the budget is the margin: its 16 units leave about 5.5 GB outside
 the lock for the desktop, the agent sessions, unlocked headless runs and any
 job that peaks above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
@@ -628,10 +660,15 @@ yield that lets one go ahead use `--priority`; nothing else does. While
 waiting, a line names the holders and how many waiters (gates and priority
 waiters among them) are ahead, again whenever that changes, and every
 `WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
-holder's class, age and command line. A gate waiting for the gate lock with
+holder's class, age and command line. The first line names the holders whose
+descriptors this user can read; the second, when it finds none, and `status`
+also read /proc/locks, for another user's, which takes seconds a read while the
+machine holds tens of thousands of locks (#383). A gate waiting for the gate lock with
 `--wait` reports the same way, so a job runner that stops a job gone quiet
-sees it waiting. `python3 tools/heavy_lock.py status` prints the holders and
-waiters with each pid's command line.
+sees it waiting. A gate that finds the gate lock held, and refuses or waits,
+names its holder the way the repeated line does (#387).
+`python3 tools/heavy_lock.py status` prints the holders and waiters with each
+pid's command line.
 
 Transition: a waiter started from a checkout older than the gate rank writes
 ranks 0 (priority) and 1 (normal) and ignores rank-2 entries. The current code
@@ -647,7 +684,12 @@ run or a build under godot, a godot run under a build) exits 2, since that
 holder excludes nobody and reserved no units for it. A raw `flock(1)` wrapper sets no marker: a gate,
 candidate, certify or native replay under one exits 2 naming the parent
 instead of waiting forever, and `verify_candidate` refuses it at startup,
-before the build.
+before the build. A waiter checks its own descriptors before it queues, and
+its ancestors beside its wait once queued and every `PARENT_RECHECK_S` after,
+reading /proc/locks each time, so a parent fdinfo can't see (another user's, or
+one holding the lock through a hard link) is refused even beside a holder
+fdinfo does see, and a slow read holds up neither its waiting line nor its
+grant.
 
 ### Verification tiers
 

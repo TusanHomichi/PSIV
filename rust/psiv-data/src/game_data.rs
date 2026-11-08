@@ -52,6 +52,7 @@ pub struct GameData {
     travel: Option<crate::TravelData>,
     ship_menu: Option<crate::ShipMenu>,
     guild: Option<crate::GuildBoard>,
+    fifth: Option<crate::FifthTable>,
     /// Shop counters, stock lists and inn rates. `None` for a synthetic pack
     /// built with [`GameData::from_parts`].
     shops: Option<crate::ShopData>,
@@ -97,6 +98,7 @@ impl GameData {
             travel: None,
             ship_menu: None,
             guild: None,
+            fifth: None,
             shops: None,
             scene_palettes: crate::ScenePalettes::default(),
         })
@@ -150,6 +152,12 @@ impl GameData {
     /// The Hunter's Guild job board, absent in older or synthetic packs.
     pub fn guild(&self) -> Option<&crate::GuildBoard> {
         self.guild.as_ref()
+    }
+
+    /// `Event_PickingFifthCharacter`'s tables.
+    #[must_use]
+    pub fn fifth(&self) -> Option<&crate::FifthTable> {
+        self.fifth.as_ref()
     }
 
     /// The shop counters, stock lists and inn rates, loaded with the pack.
