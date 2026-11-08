@@ -58,15 +58,15 @@ mod sprites;
 mod travel;
 
 pub use battle::{
-    AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt,
-    CommandUiTile, DAMAGE_DIGIT_ART_PATH, DamageDigitArt, ELEMENT_SLOTS, EffectTable,
-    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
-    EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
-    EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
-    EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, FUSION_ART_PATH,
-    FUSION_FRAMES, Formation, FormationEnemy, FormationsFile, FusionArt, FusionFrame,
-    InlineFormation, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId, NamedMapRef,
-    PositionGrid, Property, Rewards,
+    AbilitiesFile, Ability, BATTLE_BACKGROUNDS_PATH, BATTLE_DIRECTORY, BattleBackgrounds,
+    BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt, CommandUiTile, DAMAGE_DIGIT_ART_PATH,
+    DamageDigitArt, ELEMENT_SLOTS, EffectTable, EncounterGroup, EncounterGroups, EnemiesFile,
+    Enemy, EnemyAi, EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch,
+    EnemyAnimationEvidence, EnemyAnimationFrameSequence, EnemyAnimationSfxWrite,
+    EnemyAnimationSource, EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats,
+    FUSION_ART_PATH, FUSION_FRAMES, Formation, FormationEnemy, FormationsFile, FusionArt,
+    FusionFrame, InlineFormation, Level, LevelStats, LevelTable, LevelsFile,
+    MOTAVIA_TERRAIN_ENTRIES, MapBinding, NamedId, NamedMapRef, PositionGrid, Property, Rewards,
 };
 pub use camera::{MapScroll, ScrollCounters};
 // The seating path: `battle/characters.json` and `battle/equipment.json`.

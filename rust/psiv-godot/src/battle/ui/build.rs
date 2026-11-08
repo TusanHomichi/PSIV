@@ -96,14 +96,9 @@ impl BattleScreen {
         let Some(art) = self.art.as_ref() else {
             return;
         };
-        let selected = art
-            .background_path(
-                setup.event_battle,
-                setup.map_id,
-                setup.motavia_terrain,
-                setup.dark_force_2,
-                setup.vehicle_index.is_some(),
-            )
+        let selected = setup
+            .background
+            .and_then(|index| art.background_path_by_index(index))
             .or_else(|| {
                 godot_error!(
                     "battle background selection has no asset for map {:#05x}; using background 0 provisionally",

@@ -398,6 +398,7 @@ pub struct NamedId {
 
 mod abilities;
 mod animations;
+mod backgrounds;
 mod command_art;
 mod damage_art;
 mod enemies;
@@ -412,6 +413,7 @@ pub use animations::{
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile,
 };
+pub use backgrounds::{BATTLE_BACKGROUNDS_PATH, BattleBackgrounds, MOTAVIA_TERRAIN_ENTRIES};
 pub use command_art::{COMMAND_UI_ART_PATH, CommandUiArt, CommandUiTile};
 pub use damage_art::{DAMAGE_DIGIT_ART_PATH, DamageDigitArt};
 pub use enemies::{EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats, Rewards};
