@@ -87,8 +87,10 @@ The window routine's exit fade cadence has not been compared with the oracle.
 The extracted palette copy's NPC sheet replacements (`deferred_effects`) are
 kept by the data reader and selected by the map-effect gate, so Zema's seven
 residents take their restored sheets and Birth Valley's NPCs their petrified
-palette before the rescue. A regression checks both flag directions and all
-seven restored Zema assets.
+palette before the rescue. The copy's own words reach the CRAM model too,
+so those sheets draw from them
+([CRAM state](SCENE_PRESENTATION.md#cram-state)). Regressions check both flag
+directions, all seven restored Zema assets and both palette buffers.
 
 ## Where the dialogue rules run
 

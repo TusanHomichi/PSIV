@@ -372,8 +372,12 @@ each function transcribed from the routine it names with its own masks and
 borrows. Writers:
 
 - a map load fills both buffers from the record's 64-word shadow (lines 0, 1
-  and 3 from the map, line 2 `Pal_Init_Line_3`), and the map update programs
-  write single words;
+  and 3 from the map, line 2 `Pal_Init_Line_3`), then makes each
+  `MapDataManager` palette copy whose path's gates hold, in dispatcher order,
+  into both buffers: the load's `Pal_FadeIn` copies the live buffer to the
+  second after `MapDataManager` runs (`ps4.asm:107579-107630`). Rescued Zema's
+  and petrified Birth Valley's NPC sheets draw from those words. The map
+  update programs write single words;
 - `InitVramAndCram` copies the live buffer to the second one and loads
   `Pal_Init` (`$09F2BC`, the `lea` at `$05A68A`); `LoadPalette` and
   `ReloadMapPalette` write the live buffer; `Panel_Create` (scene ops and
@@ -418,7 +422,7 @@ of every drawn frame (`Field::sync_map_palette`), and every surface whose
 art is indexed draws from it:
 
 - the map's index textures, lines 0 and 1, through the map shader
-  (`field_map.rs`);
+  (`field_map.rs`), its palette set when the shader is installed;
 - field sprite sheets (party, followers, NPCs) on the line their pack record
   names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
@@ -427,7 +431,10 @@ art is indexed draws from it:
 Sheets and panels keep each pixel's palette index
 (`psiv_data::color::index_png`) and are recoloured
 (`psiv_data::color::recolor`) when the words change, on the frame they are
-drawn (`rust/psiv-godot/src/cram_art.rs`). The window's art is baked in
+drawn (`rust/psiv-godot/src/cram_art.rs`). A map record without the 64-word
+shadow is not live (`CramView::live`): every surface on it, the map's base,
+overlay, layout variant and patch atlas pictures included, draws its baked
+colours. The window's art is baked in
 `Pal_Init_Line_3`'s colours, which are distinct, so its shader finds each
 pixel's index by colour. The red fades are the CRAM model's too: the
 screen-space red effect that stood in for them is gone, since it would now

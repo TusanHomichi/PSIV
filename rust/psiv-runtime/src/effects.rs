@@ -184,6 +184,13 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                 continue;
             }
             for palette in &path.deferred_effects {
+                // The copy reaches the palette in dispatcher order, so a later
+                // entry's copy to the same line wins; the NPC sheets it
+                // repaints draw from these words. Pack validation rejects a
+                // copy that does not fit.
+                if let Some((start, words)) = palette.copy() {
+                    out.cram.map_load_copy(start, &words);
+                }
                 for replacement in &palette.affects.npc_sheets {
                     out.sprite_overrides
                         .insert(replacement.npc_index, replacement.to.clone());
@@ -304,7 +311,7 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use psiv_data::{EffectPath, EffectWrite, MapEffect};
+    use psiv_data::{EffectPath, EffectWrite, MapEffect, PaletteAffectedSprites, PaletteEffect};
 
     #[test]
     fn rescued_zema_and_petrified_birth_valley_select_their_actual_palette_sheets() {
@@ -332,6 +339,138 @@ mod tests {
             evaluate(valley, &mut game).sprite_overrides,
             before.sprite_overrides
         );
+    }
+
+    /// The copy each path's sheets were baked with, as `(first slot, words)`.
+    fn pack_copy(record: &MapRecord) -> (usize, Vec<u16>) {
+        let copies: Vec<_> = record
+            .map_effects
+            .iter()
+            .flat_map(|effect| &effect.paths)
+            .flat_map(|path| &path.deferred_effects)
+            .map(|palette| palette.copy().expect("validated"))
+            .collect();
+        assert_eq!(copies.len(), 1);
+        copies[0].clone()
+    }
+
+    /// Rescued Zema and petrified Birth Valley draw their alternate sheets
+    /// from the live CRAM, so the map-entry copy those sheets were baked with
+    /// must be in it: both buffers, the gated line only, the rest the map's.
+    #[test]
+    fn map_entry_palette_copies_reach_both_buffers_under_their_gates() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        let data = psiv_data::GameData::load(pack).expect("pack loads");
+        let zema = data.map(psiv_data::MapId(0x24)).unwrap();
+        let valley = data.map(psiv_data::MapId(0x2c)).unwrap();
+        let mut game = GameState::new();
+        let check = |record: &MapRecord, game: &mut GameState, copied: bool| {
+            let shadow = record.map_update_palette.clone().expect("64-word shadow");
+            let (start, words) = pack_copy(record);
+            // The copy changes the line, or this test could not tell.
+            assert_ne!(shadow[start..start + 16], words[..]);
+            let mut expected = shadow;
+            if copied {
+                expected[start..start + 16].copy_from_slice(&words);
+            }
+            let out = evaluate(record, game);
+            assert!(out.cram.view().live);
+            assert_eq!(out.cram.view().words[..], expected[..]);
+            assert_eq!(out.cram.saved()[..], expected[..]);
+        };
+        check(zema, &mut game, false);
+        check(valley, &mut game, true);
+        game.set(Flag::event(0x33)).unwrap();
+        check(zema, &mut game, true);
+        check(valley, &mut game, false);
+    }
+
+    fn copy_path(flag: u16, required: &str, line: usize, word: u16) -> EffectPath {
+        let mut effect = gated_effect(flag, required, Vec::new());
+        let mut path = effect.paths.remove(0);
+        path.deferred_effects.push(PaletteEffect {
+            resolved_as: "palette_write".into(),
+            cram_line: line,
+            words_hex: (0..16u16)
+                .map(|i| format!("0x{:04X}", word.wrapping_add(i)))
+                .collect(),
+            affects: PaletteAffectedSprites {
+                npc_sheets: Vec::new(),
+            },
+        });
+        path
+    }
+
+    fn copies(entries: Vec<Vec<EffectPath>>) -> MapRecord {
+        let effects = entries
+            .into_iter()
+            .enumerate()
+            .map(|(entry, paths)| MapEffect {
+                entry: entry as u16,
+                decoded: true,
+                kinds: Vec::new(),
+                paths,
+                reason: None,
+            })
+            .collect();
+        let mut record = record_with(effects, 0);
+        record.map_update_palette = Some((0..64).map(|slot| 0x0100 + slot).collect());
+        record
+    }
+
+    /// Copies land in dispatcher order (a later entry's copy to the same line
+    /// wins), only on paths whose gates hold, and only on their own line.
+    #[test]
+    fn map_entry_copies_follow_dispatcher_order_and_gates() {
+        let base: Vec<u16> = (0..64).map(|slot| 0x0100 + slot).collect();
+        let line = |start: u16| (0..16).map(|i| start + i).collect::<Vec<u16>>();
+        let mut game = GameState::new();
+        game.set(Flag::event(0x40)).unwrap();
+        let record = copies(vec![
+            vec![copy_path(0x40, "set", 3, 0x0200)],
+            vec![
+                copy_path(0x40, "set", 3, 0x0300),
+                copy_path(0x40, "clear", 1, 0x0400),
+            ],
+            vec![copy_path(0x41, "set", 0, 0x0500)],
+        ]);
+        let out = evaluate(&record, &mut game);
+        let mut expected = base.clone();
+        expected[48..64].copy_from_slice(&line(0x0300));
+        assert_eq!(out.cram.view().words[..], expected[..]);
+        assert_eq!(out.cram.saved()[..], expected[..]);
+
+        // The later entry's gate fails: the earlier copy stands.
+        let record = copies(vec![
+            vec![copy_path(0x40, "set", 3, 0x0200)],
+            vec![copy_path(0x41, "set", 3, 0x0300)],
+        ]);
+        let out = evaluate(&record, &mut game);
+        let mut expected = base.clone();
+        expected[48..64].copy_from_slice(&line(0x0200));
+        assert_eq!(out.cram.view().words[..], expected[..]);
+        assert_eq!(out.cram.saved()[..], expected[..]);
+
+        // No gate holds: the map's own palette.
+        game.clear(Flag::event(0x40)).unwrap();
+        let out = evaluate(&record, &mut game);
+        assert_eq!(out.cram.view().words[..], base[..]);
+        assert_eq!(out.cram.saved()[..], base[..]);
+    }
+
+    /// Only a 64-word shadow is the cartridge's palette; without one the
+    /// renderer keeps the baked colours.
+    #[test]
+    fn only_a_sixty_four_word_shadow_is_live() {
+        let mut record = copies(Vec::new());
+        let mut game = GameState::new();
+        assert!(evaluate(&record, &mut game).cram.view().live);
+        record.map_update_palette = Some(vec![0x0EEE; 63]);
+        let short = evaluate(&record, &mut game);
+        assert!(!short.cram.view().live);
+        assert_eq!(short.cram.view().words, [0; 64]);
+        record.map_update_palette = None;
+        assert!(!evaluate(&record, &mut game).cram.view().live);
     }
 
     /// `MapDataMan_GaruberkTowerPart2` (`ps4.asm:109346-109358`) decompresses

@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use godot::classes::{ColorRect, ShaderMaterial, Sprite2D};
+use godot::classes::{ColorRect, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -377,15 +377,14 @@ impl Field {
     /// Copies the runtime's CRAM model into the field's live palette
     /// (`cram_art`), which sprite sheets and scene panels draw from, and
     /// uploads lines 0 and 1 to the indexed map shader. A legacy record
-    /// without the 64-word shadow keeps the baked colours.
+    /// without the 64-word shadow is not live ([`psiv_runtime::CramView`]),
+    /// and every surface keeps its baked colours.
     fn sync_map_palette(&mut self) {
         let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
-        let live = runtime
-            .map_record()
-            .is_some_and(|record| record.map_update_palette.is_some());
         let view = runtime.cram();
+        let live = view.live;
         let changed = {
             let mut cram = self.cram.borrow_mut();
             let changed = cram.live != live || cram.revision != view.revision;
@@ -419,32 +418,12 @@ impl Field {
         if !live {
             return;
         }
-        let revision = view.revision as i64;
-        let mut colors = PackedColorArray::new();
-        for &word in &view.words[..32] {
-            let [r, g, b] = psiv_data::color::cram_rgb(word);
-            colors.push(Color::from_rgba8(r, g, b, 255));
-        }
+        let palette = super::field_map::map_palette_colors(&view.words, view.revision);
         for sprite in [&mut self.map_sprite, &mut self.overlay_sprite]
             .into_iter()
             .flatten()
         {
-            let Some(mut material) = sprite
-                .get_material()
-                .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
-            else {
-                continue;
-            };
-            if material
-                .get_shader_parameter("revision")
-                .try_to::<i64>()
-                .ok()
-                == Some(revision)
-            {
-                continue;
-            }
-            material.set_shader_parameter("palette", &colors.to_variant());
-            material.set_shader_parameter("revision", &revision.to_variant());
+            super::field_map::upload_map_palette(sprite, &palette);
         }
     }
 }

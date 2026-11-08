@@ -39,6 +39,10 @@ pub struct CramView {
     /// ROM palettes a scene asked for that the pack does not carry, by
     /// address, in the order they were asked for.
     pub missing: Vec<u32>,
+    /// Whether `words` are the cartridge's: the map record carries the
+    /// 64-word shadow a load fills them from. A legacy record has none, and
+    /// the renderer draws the colours baked into the pack's pictures.
+    pub live: bool,
 }
 
 impl Default for CramView {
@@ -47,6 +51,7 @@ impl Default for CramView {
             words: [0; PALETTE_WORDS],
             revision: 0,
             missing: Vec::new(),
+            live: false,
         }
     }
 }
@@ -121,21 +126,31 @@ fn words_of(slice: &[u16]) -> [u16; PALETTE_WORDS] {
 impl Cram {
     /// A map load: both buffers hold the record's 64-word shadow (lines 0,
     /// 1 and 3 from `Map_Palettes_Addr`, line 2 `Pal_Init_Line_3`). A legacy
-    /// record without one loads black.
+    /// record without a 64-word one loads black and is not [`CramView::live`].
     pub(crate) fn loaded(record: &MapRecord) -> Self {
-        let words = record
+        let shadow = record
             .map_update_palette
             .as_deref()
-            .map(words_of)
-            .unwrap_or([0; PALETTE_WORDS]);
+            .filter(|words| words.len() == PALETTE_WORDS);
+        let words = shadow.map(words_of).unwrap_or([0; PALETTE_WORDS]);
         Self {
             view: CramView {
                 words,
+                live: shadow.is_some(),
                 ..CramView::default()
             },
             saved: words,
             program: None,
         }
+    }
+
+    /// A `MapDataManager` routine's palette copy (`move.l (a0)+, (a1)+` into
+    /// `Palette_Table_Buffer`), made after `loc_53F14` fills the buffer and
+    /// before the load's `Pal_FadeIn` copies it to `Palette_Table_Buffer_2`
+    /// (`ps4.asm:107579-107630`). So both buffers hold it.
+    pub(crate) fn map_load_copy(&mut self, start: usize, values: &[u16]) {
+        self.write_run(start, values);
+        self.saved = self.view.words;
     }
 
     /// Continues `previous`'s revision count past this load, so a renderer
