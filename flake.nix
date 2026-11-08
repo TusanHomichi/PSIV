@@ -224,6 +224,15 @@
           python3 -m unittest $(printf '%s\n' tests/test_gate*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
+        # ROM-free native platform verdicts and release archive checks. These
+        # use synthetic samples and stand-in archives, never local game assets.
+        platform-tests = pkgs.runCommand "psiv-platform-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          export HOME=$TMPDIR
+          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_release tests.test_text_files tests.test_pack_swap
+          touch $out
+        '';
         # The battle fixture extractor's tests (every
         # tests/test_oracle_battle_fixture*.py), which read fake logs and
         # the tracked fixtures and need no local inputs. They run here so a

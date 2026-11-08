@@ -11,11 +11,3 @@ pub(crate) fn resident_memory_kb() -> i64 {
         .filter(|value| *value > 0)
         .unwrap_or(-1)
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn native_process_resident_memory_is_available() {
-        assert!(super::resident_memory_kb() > 0);
-    }
-}
