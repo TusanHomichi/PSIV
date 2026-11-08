@@ -170,6 +170,22 @@ TAPE_36_MESSAGE = {
     "region": [56, 168, 208, 40],
 }
 
+# The same tape's message closing after the acknowledgement on 8355: frame
+# 8358 shows `DestroyAllWindows`'s third step, the blank window 18 cells wide
+# at column 11, with the meseta and the town list's foot uncovered beside it.
+TAPE_36_CLOSE = {
+    **TAPE_36,
+    "frames": [8358],
+    "region": [56, 168, 208, 40],
+}
+
+# Then the town list's own close: 8365 is its second step, 10 cells wide at
+# column 20, the field uncovered on both sides.
+TAPE_36_CLOSE_TOWNS = {
+    **TAPE_36,
+    "frames": [8365],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -247,6 +263,14 @@ PAIRS = [
     ("teleport-message", {"PSIV_DEBUG_CAMP": "telepipe-message"}, 60,
      "build/certify/oracle/teleport-message/frame_8340.png",
      "654ca4af46c35ce3d428e8ae00d9e4f125c1484309b126f9e5f1edc6344bfccb", TAPE_36_MESSAGE),
+    # The fixture acknowledges at tick 30 (8355); the shot at tick 31 shows
+    # the first step (8356), so tick 33 is the third.
+    ("teleport-close", {"PSIV_DEBUG_CAMP": "telepipe-close"}, 33,
+     "build/certify/oracle/teleport-close/frame_8358.png",
+     "3ebdba42970ec29494ef93a372381a97fd557b5ca707b21974291ddf64e48a2f", TAPE_36_CLOSE),
+    ("teleport-close-towns", {"PSIV_DEBUG_CAMP": "telepipe-close"}, 40,
+     "build/certify/oracle/teleport-close-towns/frame_8365.png",
+     "28524733090391752cf562879b1fc59abfe4556ee94369a415edef289f7965c3", TAPE_36_CLOSE_TOWNS),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

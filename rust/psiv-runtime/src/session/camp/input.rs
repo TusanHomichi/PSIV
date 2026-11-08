@@ -12,9 +12,13 @@ impl CampView {
             self.loot_frame(runtime, input);
             return;
         }
+        if self.teardown.is_some() {
+            self.teardown_frame(runtime);
+            return;
+        }
         if self.page == CampPage::TravelReady {
             if input.cancel || input.accept || input.start {
-                self.complete_travel(runtime);
+                self.acknowledge_travel();
             }
             return;
         }

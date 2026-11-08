@@ -56,9 +56,17 @@ impl Field {
                         self.start_transition(TransitionKind::Doorway);
                     }
                 }
+                // `MenuExit_Teleport`'s `PalFadeOut_ClrSpriteTbl`, over the
+                // field being left: the destination loads only once it is
+                // black.
+                RuntimeEvent::TeleportFadeOut => {
+                    self.start_transition(TransitionKind::SceneFadeOut);
+                }
                 RuntimeEvent::Teleported { reload_frames } => {
-                    // Replaces the doorway the map change before it started.
-                    self.start_transition_frames(TransitionKind::Teleport, reload_frames);
+                    // The load's rows under black, then its `Pal_FadeIn`: the
+                    // ramp a cutscene's field reload draws. It replaces the
+                    // doorway the map change before it started.
+                    self.start_transition_frames(TransitionKind::SceneFadeIn, reload_frames);
                 }
                 RuntimeEvent::MapRefreshed => {
                     godot_print!("field map refreshed");

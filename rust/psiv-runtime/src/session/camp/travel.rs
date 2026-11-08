@@ -4,7 +4,13 @@ use psiv_data::TravelMessages;
 
 use crate::{CampTravelMenu, Runtime};
 
+use super::teardown::{self, WindowRecord, WindowTeardown};
 use super::{CampPage, CampView, MenuInput, wrap};
+
+/// The first town-list record for a TELEPIPE (`ps4.asm:140344`) and for
+/// RYUKA (`ps4.asm:140488`).
+const TELEPIPE_TOWNS: u8 = 0x36;
+const RYUKA_TOWNS: u8 = 0x66;
 
 impl CampView {
     pub(super) fn begin_selected_travel(&mut self, runtime: &mut Runtime) {
@@ -15,6 +21,20 @@ impl CampView {
         let Some(ability) = self.ability_options.get(self.ability_selection) else {
             return;
         };
+        // Root, stats and meseta (`Win_MenuOptions`, `ps4.asm:117201-117247`),
+        // the caster list when there is more than one member
+        // (`MenuOptions_Tech`, `ps4.asm:117360-117368`), and the technique
+        // list's pages up to the chosen one.
+        let members = self.snapshot.party.len();
+        let mut windows = self.root_windows();
+        if members > 1 {
+            windows.push(teardown::tech_casters(members));
+        }
+        let count = self.ability_options.len();
+        windows
+            .extend((0..=self.ability_selection / 8).map(|page| teardown::tech_list(count, page)));
+        self.travel_windows = windows;
+        self.travel_towns.clear();
         let result = runtime.begin_camp_travel(caster.party_slot, ability.id);
         self.show_travel_result(runtime, result);
     }
@@ -24,6 +44,15 @@ impl CampView {
             return;
         };
         self.travel_item_slot = Some(item.slot);
+        // Root, stats and meseta, the pack's pages up to the pipe's
+        // (`MenuOptions_Item`, `ps4.asm:117321-117349`), and USE/LOOK/DSCD.
+        let count = self.snapshot.inventory.len();
+        let mut windows = self.root_windows();
+        windows.extend((0..=self.item_selection / 8).map(|page| teardown::item_list(count, page)));
+        windows.push(teardown::ITEM_ACTION);
+        self.travel_windows = windows;
+        // A town list from an earlier pipe or cast is not this one's.
+        self.travel_towns.clear();
         let result = runtime.begin_camp_item_travel(item.slot);
         self.show_travel_result(runtime, result);
     }
@@ -78,14 +107,58 @@ impl CampView {
         }
     }
 
-    pub(super) fn complete_travel(&mut self, runtime: &mut Runtime) {
-        match runtime.complete_camp_travel() {
+    /// The windows `Win_MenuOptions` opens with the menu and keeps: the root
+    /// options, the party's stats, the meseta, in that order.
+    fn root_windows(&self) -> Vec<WindowRecord> {
+        vec![
+            teardown::ROOT,
+            teardown::party_stats(self.snapshot.party.len()),
+            teardown::MESETA,
+        ]
+    }
+
+    /// The acknowledged teleport message: the sound, then `DestroyAllWindows`
+    /// over every window on the stack (`teardown.rs`). The teleport itself
+    /// starts when the last has closed ([`Self::teardown_frame`]).
+    pub(super) fn acknowledge_travel(&mut self) {
+        let mut windows = self.travel_windows.clone();
+        let count = self.travel_towns.len();
+        if count > 0 {
+            let first = if self.travel_item_slot.is_some() {
+                TELEPIPE_TOWNS
+            } else {
+                RYUKA_TOWNS
+            };
+            windows.extend(
+                (0..=self.travel_selection / TOWN_PAGE_ROWS)
+                    .map(|page| teardown::town_page(first, page, town_page_rows(count, page))),
+            );
+        }
+        windows.push(if self.travel_item_slot.is_some() {
+            teardown::ITEM_TELEPORT_MESSAGE
+        } else {
+            teardown::TECH_TELEPORT_MESSAGE
+        });
+        self.teardown = Some(WindowTeardown::new(windows));
+        self.sound_request = Some(0xDE);
+    }
+
+    /// One frame of the windows closing; on the frame the menu exits, the
+    /// teleport begins and the camp is gone.
+    pub(super) fn teardown_frame(&mut self, runtime: &mut Runtime) {
+        let Some(teardown) = self.teardown.as_mut() else {
+            return;
+        };
+        if !teardown.tick() {
+            return;
+        }
+        match runtime.begin_camp_teleport() {
             Ok(events) => {
                 self.runtime_events.extend(events);
-                self.sound_request = Some(0xDE);
                 self.close();
             }
             Err(error) => {
+                self.teardown = None;
                 self.message = format!("TRAVEL ERROR: {error}");
                 self.page = self.travel_failure_page();
             }

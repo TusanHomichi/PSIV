@@ -80,8 +80,9 @@ scenes. `Runtime::set_world_index` cites each one it makes,
 `rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
 whole-route runner test checks the world and map of every chapter that lands
 on a new planet. Still open: general map-entry follower alignment
-([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the teleport's
-window teardown ([#128](https://github.com/TusanHomichi/PSIV/issues/128),
+([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the ITEM and
+TECH paths' own windows, which the teleport's teardown closes
+([#403](https://github.com/TusanHomichi/PSIV/issues/403),
 [below](#teleport-windows-and-effect)).
 
 ## Teleport windows and effect
@@ -118,32 +119,67 @@ format 2), decoded through the window charset with `$FC` as a line break and
 the window font's two-tile TP (`$7A $79`, outside the charset) read as `TP`;
 the native window draws those two letters from the ordinary glyphs.
 
-**The effect**, frame by frame on tape 36 (the acknowledgement on 8355): the
-seven windows close one at a time, the last at 8385; `MenuExit_Teleport`
-(`ps4.asm:117166-117169`) fades the palette out in two-frame steps from 8391
-to black at 8403; `GameMode_LoadFieldMap` runs from 8404 for 61 rows (map 0
+**The effect**, frame by frame on tape 36 (the acknowledgement on 8355).
+`DestroyAllWindows` (`ps4.asm:117527-117543`) closes the seven windows one at
+a time, the last opened first: `$45`, the town list `$36`, USE/LOOK/DSCD
+`$2F`, the pack `$0E`, the meseta `$01`, the stats `$06`, the root `$00`.
+Each close (`Window_Destroy`'s `loc_6881E`, `ps4.asm:139965-140054`) blanks
+the window, then redraws it two cells narrower and one cell further right on
+every pass, waiting a frame on every other pass, until it is two cells wide,
+and a last frame restores what was under it. A window `w` cells wide takes
+`ceil(ceil(w/2)/2) + 1` frames: 8, 5, 3, 5, 5, 4 and 4 here, where
+`Windows_Opened_Num` falls on 8355, 8363, 8368, 8371, 8376, 8381 and 8385.
+Each step shows a frame after the pass that drew it: the blank message on
+8356, the last step on 8389, the frame `Field_MenuLoop` spends before
+`Field_MenuExit`. `MenuExit_Teleport` (`ps4.asm:117166-117169`) then fades
+the field being left out in two-frame steps from 8390 to black on 8403;
+`GameMode_LoadFieldMap` loads the destination from 8404 for 61 rows (map 0
 with the music branch taken: `field_reload_rows`), black until its
 `Pal_FadeIn` lights 8452 and clears 8464; control returns on 8465, the party
 standing at (61,102) on the overworld outside MILE.
 
 The port draws the list, its pages, arrows and label, and the message lines
 from those records (`rust/psiv-godot/src/camp/abilities.rs`, `layout.rs`); the
-session pages the list as retail does (`session/camp/travel.rs`); and a
-teleport's `RuntimeEvent::Teleported` carries the destination's load rows to
-the `Teleport` transition, which reproduces the fade levels above
-(`transitions.rs`, `a_teleport_fades_out_then_spends_the_destinations_load_rows`).
-Two certified pairs (`tools/certify.py`, region-only) compare the native
+session pages the list as retail does (`session/camp/travel.rs`). The
+acknowledgement starts the camp's `WindowTeardown`
+(`session/camp/teardown.rs`) over the cartridge's stack for the path taken:
+root, stats and meseta; then the pack's pages to the pipe's and
+USE/LOOK/DSCD, or the caster list (with more than one member) and the
+technique list's pages; then the town list's pages and the message. The
+stack is derived from the routines that open each window
+(`MenuOptions_Item`, `MenuOptions_Tech`, `ps4.asm:117321-117368`); only the
+TELEPIPE path's was measured. The menu exits on the frame after its last
+step, and the runtime's teleport tail (`travel.rs`) holds the field through
+`RuntimeEvent::TeleportFadeOut`'s fade, loads the destination on the
+fourteenth frame with `MapChanged` and `RuntimeEvent::Teleported`, and
+returns control when the load's rows run out. Godot fades the field it
+still shows with `SceneFadeOut` and draws the load as `SceneFadeIn` of its
+rows, the cutscene return's ramp (`transitions.rs`,
+`a_teleport_fades_out_then_spends_the_destinations_load_rows`).
+`the_acknowledged_teleport_closes_each_window_then_fades_then_loads`
+(`rust/psiv-runtime/tests/session_travel_windows.rs`) pins the frames
+through `Session::frame`, the pad ignored throughout.
+
+Four certified pairs (`tools/certify.py`, region-only) compare the native
 captures with tape 36 in the 320×224 field viewport: `teleport-towns`, the
 list's window (pixels 144,104 to 256,200) at frame 8090 against
-`PSIV_DEBUG_CAMP=telepipe`, and `teleport-message`, window `$45` (56,168 to
-264,208) at frame 8340 against `PSIV_DEBUG_CAMP=telepipe-message`. Both pass
-at RMSE 0. The rest of those frames is the ITEM path's windows, which are
-not these pairs' to certify.
+`PSIV_DEBUG_CAMP=telepipe`; `teleport-message`, window `$45` (56,168 to
+264,208) at frame 8340 against `PSIV_DEBUG_CAMP=telepipe-message`; and,
+against `PSIV_DEBUG_CAMP=telepipe-close` (the message acknowledged on the
+fixture's tick 30), `teleport-close` in the message's rectangle at frame 8358
+(tick 33: the blank window 18 cells wide at column 11, the meseta and the
+list's foot beside it) and `teleport-close-towns` in the list's at 8365
+(tick 40, the list 10 cells wide, the field around it). All pass at RMSE 0;
+the close pair at tick 32 fails at 36.7, one step off. The rest of those
+frames is the ITEM path's windows, which are not these pairs' to certify.
 
-Not reproduced yet: the camp windows close at once rather than one at a time,
-so the fade starts on the acknowledgement instead of 35 frames later; and the
-fade-out darkens the destination, as every native doorway does, where the
-cartridge darkens the field it left.
+Not reproduced: the ITEM and TECH paths draw native windows where the
+cartridge has its pack, USE/LOOK/DSCD, caster and technique lists
+([#403](https://github.com/TusanHomichi/PSIV/issues/403)). Those windows
+vanish on the first step of the close, while the cartridge closes each on
+its own frames; the frames themselves are the cartridge's. The fade is a
+black cover stepped to the cartridge's levels, not its per-channel CRAM fade
+([TRANSITIONS_DECODED.md](TRANSITIONS_DECODED.md#retail-palette-vocabulary)).
 
 ## Verification
 

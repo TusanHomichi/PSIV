@@ -7,14 +7,14 @@ use psiv_runtime::{CampPage, CampView};
 
 impl CampMenu {
     pub(super) fn draw_loot(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
-        frame(chrome, &mut list.quads, CellRect::new(1, 1, 38, 8));
+        frame(chrome, list, CellRect::new(1, 1, 38, 8));
         for (row, text) in view.message.lines().enumerate().take(3) {
             draw_text(chrome, &mut list.quads, text, (3, 3 + row as i32 * 2));
         }
         if view.page == CampPage::LootMessage || view.page == CampPage::LootBlocked {
             return;
         }
-        frame(chrome, &mut list.quads, CellRect::new(13, 9, 26, 18));
+        frame(chrome, list, CellRect::new(13, 9, 26, 18));
         let page = view.item_selection / 8;
         for (row, item) in view
             .snapshot
@@ -41,7 +41,7 @@ impl CampMenu {
             view.page,
             CampPage::LootReturnConfirm | CampPage::LootDiscardConfirm
         ) {
-            frame(chrome, &mut list.quads, CellRect::new(1, 9, 38, 10));
+            frame(chrome, list, CellRect::new(1, 9, 38, 10));
             let prompt = if view.page == CampPage::LootReturnConfirm {
                 "Give up this item?"
             } else {
