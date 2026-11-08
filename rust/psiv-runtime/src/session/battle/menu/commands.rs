@@ -13,8 +13,8 @@ use crate::Runtime;
 use crate::pad::{Button, Pad};
 
 use super::super::view::{
-    CommandMenuView, ListEntry, ListView, MenuPage, MenuRow, PartyStatus, SkillEntry, StripView,
-    TargetKind, TechniqueEntry,
+    CommandMenuView, GrowingWindow, ListEntry, ListView, MenuPage, MenuRow, PartyStatus,
+    SkillEntry, StripView, TargetKind, TechniqueEntry,
 };
 use super::{accept_pressed, list_step};
 
@@ -105,9 +105,33 @@ pub(crate) struct CommandsMenu {
     /// Each member's remembered cursors, which the battle mode carries
     /// between rounds.
     memory: CursorMemory,
+    /// `$FFFF418C`: the width the opening window has reached, while
+    /// `Battle_CreateWindow` is still growing it. `None` once it is whole.
+    growth: Option<u8>,
+    /// The frame a window became whole: `Battle_CreateWindow` drew it, but
+    /// the window's own routine, which writes the red or blue cursor tile,
+    /// has not run yet. A list draws its selected row blue then.
+    whole_unread: bool,
     /// Whether the window is still open. `false` hands the orders back.
     pub(crate) open: bool,
 }
+
+/// The width in cells `Battle_CreateWindow` grows a page's window to: its
+/// `d1`. The strip `$10` (`ps4.asm:2170`); the technique window `$C`
+/// (`2489`), the skill window `$F` (`2830`) and the item window `$E`
+/// (`3186`). The target pickers are the port's own and do not grow.
+const fn window_width(page: MenuPage) -> Option<u8> {
+    match page {
+        MenuPage::Actions => Some(16),
+        MenuPage::Techniques => Some(12),
+        MenuPage::Skills => Some(15),
+        MenuPage::Items => Some(14),
+        MenuPage::Targets(_) => None,
+    }
+}
+
+/// Cells `Battle_CreateWindow` adds a frame (`addq.w #2`, `ps4.asm:1658`).
+const GROWTH_STEP: u8 = 2;
 
 impl CommandsMenu {
     /// Opens the window over the battle's live data.
@@ -155,6 +179,8 @@ impl CommandsMenu {
             age: 0,
             bytes,
             memory,
+            growth: None,
+            whole_unread: false,
             open: true,
         };
         menu.open_actor();
@@ -169,10 +195,24 @@ impl CommandsMenu {
     /// Whether the open page's cursor is a red-cursor routine (the lists) as
     /// opposed to the strip's sprite and the target pickers.
     pub(crate) fn red_cursor_window(&self) -> bool {
-        matches!(
-            self.page,
-            MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
-        )
+        // The window routine that runs the red cursor's timers is not
+        // running while `Battle_CreateWindow` grows the window.
+        !self.growing()
+            && matches!(
+                self.page,
+                MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
+            )
+    }
+
+    /// Whether a list's selected row may show the red cursor this frame.
+    ///
+    /// The cursor tile is written by the list routine
+    /// (`Battle_UpdateRedCursor2`, `ps4.asm:1572`), which first runs the
+    /// frame after `Battle_CreateWindow` draws the window whole. Until then
+    /// the row is blue whatever the blink timers last decided; they stay
+    /// paused through that frame too ([`CommandsMenu::red_cursor_window`]).
+    pub(crate) fn list_cursor_shown(&self) -> bool {
+        !self.growing() && !self.whole_unread
     }
 
     /// Fixture entry: the window as the cartridge leaves it once `page` is
@@ -181,6 +221,8 @@ impl CommandsMenu {
         self.page = page;
         self.cursor = cursor;
         self.age = age;
+        self.growth = None;
+        self.whole_unread = false;
         self.set_command_byte(match page {
             MenuPage::Techniques => 2,
             MenuPage::Skills => 3,
@@ -204,11 +246,45 @@ impl CommandsMenu {
     /// entry (`Battle_UpdateRedCursor2`, `ps4.asm:1572`), and the word keeps
     /// what they wrote. A battle's technique and skill lists do not change,
     /// and the item words are cleared before the pack can.
+    ///
+    /// The window then grows into place (`Battle_OpenCharComd`,
+    /// `Battle_OpenTechs` and twins, through `Battle_CreateWindow`).
     fn open_page(&mut self, page: MenuPage) {
         self.page = page;
         self.cursor = self
             .command_slot()
             .map_or(0, |slot| self.memory.cursor(slot, page));
+        self.start_growth();
+    }
+
+    /// `clr.w ($FFFF418C)` before a window's first `Battle_CreateWindow`.
+    fn start_growth(&mut self) {
+        self.growth = window_width(self.page).map(|_| 0);
+        self.whole_unread = false;
+    }
+
+    /// Whether a window is still growing, and reads no input.
+    pub(crate) fn growing(&self) -> bool {
+        self.growth.is_some()
+    }
+
+    /// One `Battle_CreateWindow` call: two cells wider, and whole once the
+    /// width reaches the window's (`cmp.w ($FFFF418C),d1 / ble`), which is
+    /// also the frame the routine moves on to the window's input routine.
+    fn grow(&mut self) {
+        let Some(width) = self.growth else { return };
+        let width = width.saturating_add(GROWTH_STEP);
+        self.growth = match window_width(self.page) {
+            Some(full) if width < full => Some(width),
+            _ => None,
+        };
+        if self.growth.is_none() {
+            // The strip's cursor object is created now (`move.w #4,
+            // (Command_Cursor).w`, `ps4.asm:2175`) and shows from the next
+            // frame. A list's red cursor routine likewise first runs then.
+            self.age = 0;
+            self.whole_unread = true;
+        }
     }
 
     /// Writes the cursor back to the actor's word for the open page.
@@ -665,7 +741,16 @@ impl CommandsMenu {
     /// that flips to the next page only when one exists, a Left likewise, then
     /// Cancel, then accept. The target lists keep this port's own one-list
     /// mapping (the cartridge picks targets with a cursor over the enemies).
+    ///
+    /// While a window grows, the frame is `Battle_CreateWindow`'s and no
+    /// button is read; the cursor object is created on the frame the window
+    /// is whole, so its clock starts after.
     pub(crate) fn input(&mut self, previous: Pad, pad: Pad) -> Option<RoundOrders> {
+        if self.growing() {
+            self.grow();
+            return None;
+        }
+        self.whole_unread = false;
         self.age = self.age.saturating_add(1);
         match self.page {
             MenuPage::Actions => {
@@ -722,6 +807,9 @@ impl CommandsMenu {
         let entries = self.rows().len();
         if pad.is_pressed(previous, Button::Right) && entries > base + PAGE_ROWS {
             self.cursor = base + PAGE_ROWS;
+            // `Battle_TechNextWin` and twins (`ps4.asm:2739`, `3078`,
+            // `3503`) grow the next page's window from nothing.
+            self.start_growth();
             return true;
         }
         if pad.is_pressed(previous, Button::Left) && base > 0 {
@@ -750,167 +838,10 @@ impl CommandsMenu {
         let previous = self.actor_id().map_or(0, |actor| actor.slot());
         self.orders.iter().take(previous).any(|order| matches!(order, Command::Item { source: ItemSource::Inventory(s), .. } if *s == slot))
     }
-
-    /// What the window draws and what the native input drivers probe.
-    pub(crate) fn view(&self) -> CommandMenuView {
-        let fighter = self.actor_fighter();
-        let targets = match self.page {
-            MenuPage::Targets(action) => self.targets(action),
-            _ => Vec::new(),
-        };
-        CommandMenuView {
-            strip: self.strip_view(),
-            list: self.list_view(),
-            title: self.title(),
-            page: self.page,
-            rows: self
-                .rows()
-                .into_iter()
-                .map(|(label, enabled)| MenuRow { label, enabled })
-                .collect(),
-            cursor: self.cursor,
-            actor: fighter.map(|f| f.id.get()),
-            character: fighter.and_then(|f| f.character),
-            party: self.party_status(),
-            enemies: self.alive_enemies(),
-            techniques: self
-                .known()
-                .iter()
-                .map(|id| {
-                    let tech = &self.techniques[id];
-                    TechniqueEntry {
-                        id: *id,
-                        name: tech.name.clone(),
-                        cost: tech.cost,
-                        available: fighter
-                            .is_some_and(|f| CommandsMenu::technique_enabled(&f.stats, tech)),
-                    }
-                })
-                .collect(),
-            skills: self
-                .known_skills()
-                .iter()
-                .map(|(slot, id)| {
-                    let skill = &self.skills[id];
-                    let remaining = fighter.map_or(0, |f| f.stats.curr_skill_uses[*slot]);
-                    SkillEntry {
-                        id: *id,
-                        name: skill.name.clone(),
-                        remaining,
-                        available: fighter.is_some_and(|f| {
-                            CommandsMenu::skill_enabled(
-                                &f.stats,
-                                *slot,
-                                skill,
-                                self.armed_fighters.contains(&f.id),
-                            )
-                        }),
-                    }
-                })
-                .collect(),
-            targets: targets.iter().map(FighterId::get).collect(),
-        }
-    }
-
-    /// The acting fighter's slot minus one: `Battle_Total_Comd_Input`.
-    fn comd_slot(&self) -> Option<u8> {
-        self.actor_id().map(|id| id.get() - 1)
-    }
-
-    /// The strip stays on the plane under the list windows: `Battle_TechCommand`
-    /// and its twins only open a window over it (`ps4.asm:2326`).
-    fn strip_view(&self) -> Option<StripView> {
-        if !matches!(
-            self.page,
-            MenuPage::Actions | MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
-        ) {
-            return None;
-        }
-        let actor = self.actor_id()?;
-        Some(StripView {
-            slot: self.comd_slot()?,
-            present: [
-                self.armed_fighters.contains(&actor),
-                !self.known().is_empty(),
-                !self.known_skills().is_empty(),
-                !self.known_items().is_empty(),
-                true,
-            ],
-            cursor: self.cursor.min(4) as u8,
-            age: self.age,
-        })
-    }
-
-    fn list_view(&self) -> Option<ListView> {
-        if !matches!(
-            self.page,
-            MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
-        ) {
-            return None;
-        }
-        let fighter = self.actor_fighter()?;
-        let rows = self.rows();
-        let base = self.cursor / PAGE_ROWS * PAGE_ROWS;
-        let entries = (base..rows.len().min(base + PAGE_ROWS))
-            .map(|row| match self.page {
-                MenuPage::Techniques => {
-                    let id = self.known()[row];
-                    ListEntry {
-                        name: self.techniques[&id].name.clone(),
-                        value: Some(self.techniques[&id].cost),
-                        enabled: rows[row].1,
-                    }
-                }
-                MenuPage::Skills => {
-                    let (slot, id) = self.known_skills()[row];
-                    ListEntry {
-                        name: self.skills[&id].name.clone(),
-                        value: Some(fighter.stats.curr_skill_uses[slot]),
-                        enabled: rows[row].1,
-                    }
-                }
-                _ => {
-                    let (_, id) = self.known_items()[row];
-                    ListEntry {
-                        name: self.items[&id].name.clone(),
-                        value: None,
-                        enabled: rows[row].1,
-                    }
-                }
-            })
-            .collect();
-        Some(ListView {
-            window: self.page,
-            slot: self.comd_slot()?,
-            page: base / PAGE_ROWS,
-            entries,
-            cursor: (self.cursor % PAGE_ROWS) as u8,
-            more_before: base > 0,
-            more_after: rows.len() > base + PAGE_ROWS,
-        })
-    }
-
-    fn party_status(&self) -> Vec<PartyStatus> {
-        self.roster
-            .side(Side::Party)
-            .map(|f| PartyStatus {
-                fighter: f.id.get(),
-                name: f.name.clone(),
-                hp: f.stats.curr_hp,
-                max_hp: f.stats.max_hp,
-                tp: f.stats.curr_tp,
-                status: f.stats.status,
-            })
-            .collect()
-    }
-
-    fn alive_enemies(&self) -> Vec<u8> {
-        self.roster
-            .living(Side::Enemy)
-            .map(|f| f.id.get())
-            .collect()
-    }
 }
+
+#[path = "commands_view.rs"]
+mod view;
 
 #[cfg(test)]
 #[path = "commands_tests.rs"]

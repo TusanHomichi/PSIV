@@ -57,8 +57,8 @@ mod view;
 pub use menu::CursorMemory;
 pub use view::{
     BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView, EnemyStatus,
-    MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView,
-    TargetKind, TechniqueEntry,
+    GrowingWindow, MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry,
+    SkillSlotView, TargetKind, TechniqueEntry,
 };
 pub use view::{Fusion, FusionPiece};
 
