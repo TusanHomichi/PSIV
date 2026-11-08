@@ -238,7 +238,7 @@
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
         {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
-        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 6, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; level 6 and 1180 meseta are the driver defaults (PSIV_TRAIN_LEVEL). Played: the condition holds after dozens of battles (RUNNER_LOG (commit 0faa91b^) run R1-4); the runner cures the party between battles through the camp"},
+        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 7, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; 1180 meseta is the driver default and level 6 was (PSIV_TRAIN_LEVEL). Level 7 since #49 (2026-11-08): the shop and inn farewells cost their frames, the battle stream moved, and at level 6 the party lost encounter $187 in bioplant-rika; at 7 the whole route completes. Played: the condition holds after dozens of battles (RUNNER_LOG (commit 0faa91b^) run R1-4); the runner cures the party between battles through the camp"},
         {"do": "go_to_map", "map": 43, "via_warp": 0, "note": "native leg: walk to (24,49) on map 0x2c"},
         {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (17,53) on map 0x2b"},
         {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},

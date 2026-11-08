@@ -211,9 +211,12 @@ fn buying_at_a_piata_counter_spends_the_price_and_fills_a_slot() {
             .starts_with("Thank you")
     );
 
-    // Back out: the message returns to the menu, the menu to the field.
+    // Back out: the message returns to the menu, Cancel there says the
+    // farewell, and its acknowledgement closes the window.
     player.press(Button::Speak);
     assert_eq!(shop_page(&player), ShopPage::Root);
+    player.press(Button::Cancel);
+    assert_eq!(shop_page(&player), ShopPage::Farewell);
     player.press(Button::Cancel);
     assert!(player.session.shop_view().is_none(), "the window closed");
 }
@@ -759,7 +762,9 @@ fn the_camp_button_confirms_in_shops_and_the_camp() {
         "Camp confirms the greeting"
     );
     player.press(Button::Cancel);
-    assert!(player.session.shop_view().is_none());
+    assert_eq!(shop_page(&player), ShopPage::Farewell);
+    player.press(Button::Camp);
+    assert!(player.session.shop_view().is_none(), "Camp acknowledges it");
 
     player.press(Button::Camp);
     assert_eq!(camp_page(&player), CampPage::Root, "Camp opens the menu");
@@ -994,3 +999,5 @@ fn a_full_pack_can_discard_an_item_to_take_the_chest() {
 
 #[path = "session_menus/hand_cancel.rs"]
 mod hand_cancel;
+#[path = "session_menus/shop_exits.rs"]
+mod shop_exits;
