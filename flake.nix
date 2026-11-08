@@ -70,7 +70,7 @@
         };
 
       # The checks' Python, with what tools/ and tests/ import.
-      pythonFor = pkgs: pkgs.python3.withPackages (ps: [ ps.pyyaml ps.pillow ps.numpy ps.markdown-it-py ]);
+      pythonFor = pkgs: pkgs.python3.withPackages (ps: [ ps.pyyaml ps.pillow ps.numpy ]);
 
       # The Rust toolchain rust-toolchain.toml pins, plus `extra` components.
       toolchainFor = pkgs: extra:
@@ -180,6 +180,19 @@
           strictDeps = true;
         };
 
+      floatGuardFor = pkgs:
+        let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
+        craneLib.buildPackage {
+          src = lib.cleanSource self;
+          pname = "psiv-float-guard";
+          version = "0.1.0";
+          cargoToml = ./rust/Cargo.toml;
+          cargoLock = ./rust/Cargo.lock;
+          postUnpack = "cd $sourceRoot/rust && sourceRoot=.";
+          cargoExtraArgs = "--locked -p psiv-float-guard";
+          strictDeps = true;
+        };
+
       rustChecks = pkgs:
         let
           craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]);
@@ -232,7 +245,10 @@
         # show they fail on its base (burrow's negative), which a check that
         # only reads them can't. Found by name, so a new gate test file joins
         # without this list changing (the negative runs the base's flake).
-        gate-tests = pkgs.runCommand "psiv-gate-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        gate-tests = pkgs.runCommand "psiv-gate-tests" {
+          nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
+          PSIV_FLOAT_GUARD_BINARY = "${floatGuardFor pkgs}/bin/psiv-float-guard";
+        } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           export HOME=$TMPDIR

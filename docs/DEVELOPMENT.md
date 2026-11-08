@@ -23,8 +23,8 @@ platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
-documents' `yaml` blocks. The float source guard uses markdown-it-py for
-CommonMark Rustdoc code blocks. Native automated checks on Linux use Xvfb.
+documents' `yaml` blocks. The float source guard is the Rust binary `psiv-float-guard`, using the Rust
+lexer and pulldown-cmark for CommonMark Rustdoc code blocks. Native automated checks on Linux use Xvfb.
 
 On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 `.envrc`, enters a shell with all of these: Python with Pillow, NumPy and
@@ -479,6 +479,9 @@ allowed float sites. The guard ignores strings and non-code
 comments; it does not infer types or inspect external macro expansions or
 examples included from other files. Run it and its regression controls with
 `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_gate_float_guard*.py'`.
+The Python adapter builds the scanner once per worker under the build lock;
+Nix injects its immutable binary through `PSIV_FLOAT_GUARD_BINARY`, which can
+also select a prebuilt scanner for a focused run inside a narrower reservation.
 
 The gate does not
 cover:

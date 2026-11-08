@@ -3,8 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tools.float_guard import CRATES, float_sites, violations
-from tools.float_guard_docs import doc_examples
+from tools.float_guard import CRATES, doc_examples, float_sites, violations
 
 
 def examples(source):

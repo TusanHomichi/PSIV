@@ -45,8 +45,11 @@ class FloatGuardTests(unittest.TestCase):
     def test_doc_fences_and_block_docs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            for crate in CRATES:
+                lib = root / 'rust' / crate / 'src/lib.rs'
+                lib.parent.mkdir(parents=True)
+                lib.write_text('')
             path = root / 'rust' / CRATES[0] / 'src/lib.rs'
-            path.parent.mkdir(parents=True)
             path.write_text("""/// ```text
 /// 1.5 f64
 /// ```
