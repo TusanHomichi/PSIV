@@ -70,7 +70,7 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
     }
     match view.menu.as_ref()? {
         // The main options: row 0 is COMD (ATTAC when mounted).
-        MenuView::Top { cursor } => {
+        MenuView::Top { cursor, .. } => {
             let boss = driver.battles().last().is_some_and(|b| b.kind == "event");
             let row = if policy.wants_run_with(boss, &view.party) {
                 2

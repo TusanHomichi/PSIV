@@ -16,6 +16,7 @@ use super::super::view::{
     CommandMenuView, GrowingWindow, ListEntry, ListView, MenuPage, MenuRow, PartyStatus,
     SkillEntry, StripView, TargetKind, TechniqueEntry,
 };
+use super::window_phase::{Phase, Step};
 use super::{accept_pressed, list_step};
 
 /// Rows per list-window page: four entries at `$100`-byte spacing
@@ -105,9 +106,11 @@ pub(crate) struct CommandsMenu {
     /// Each member's remembered cursors, which the battle mode carries
     /// between rounds.
     memory: CursorMemory,
-    /// `$FFFF418C`: the width the opening window has reached, while
-    /// `Battle_CreateWindow` is still growing it. `None` once it is whole.
-    growth: Option<u8>,
+    /// The window opening or closing (`$FFFF418C`), while one is; no button
+    /// is read then.
+    phase: Option<Phase<After>>,
+    /// The chosen command, while the windows close before it is recorded.
+    pending: Option<Command>,
     /// The frame a window became whole: `Battle_CreateWindow` drew it, but
     /// the window's own routine, which writes the red or blue cursor tile,
     /// has not run yet. A list draws its selected row blue then.
@@ -130,8 +133,24 @@ const fn window_width(page: MenuPage) -> Option<u8> {
     }
 }
 
-/// Cells `Battle_CreateWindow` adds a frame (`addq.w #2`, `ps4.asm:1658`).
-const GROWTH_STEP: u8 = 2;
+/// What happens on the frame a closing window is gone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum After {
+    /// `Battle_BackFromTechs` and twins (`ps4.asm:2792`): the strip again,
+    /// its cursor recreated on the icon that opened the list.
+    Strip,
+    /// `Battle_TechSelected` and twins (`ps4.asm:2771`): the strip closes
+    /// next, then the order is recorded.
+    CloseStrip,
+    /// `Battle_CharComdSelected` (`ps4.asm:2404`): the order is recorded and
+    /// the next member's strip opens, or the round's orders go.
+    Record,
+    /// `Battle_PreviousChar` (`ps4.asm:2415`): the previous member's strip
+    /// opens, or, from the first member's, the main options.
+    Previous,
+    /// `Battle_TechPrevWin` and twins (`ps4.asm:2760`): the previous page.
+    PreviousPage,
+}
 
 impl CommandsMenu {
     /// Opens the window over the battle's live data.
@@ -179,7 +198,8 @@ impl CommandsMenu {
             age: 0,
             bytes,
             memory,
-            growth: None,
+            phase: None,
+            pending: None,
             whole_unread: false,
             open: true,
         };
@@ -221,7 +241,7 @@ impl CommandsMenu {
         self.page = page;
         self.cursor = cursor;
         self.age = age;
-        self.growth = None;
+        self.phase = None;
         self.whole_unread = false;
         self.set_command_byte(match page {
             MenuPage::Techniques => 2,
@@ -259,31 +279,104 @@ impl CommandsMenu {
 
     /// `clr.w ($FFFF418C)` before a window's first `Battle_CreateWindow`.
     fn start_growth(&mut self) {
-        self.growth = window_width(self.page).map(|_| 0);
+        self.phase = window_width(self.page).map(|_| Phase::grow());
         self.whole_unread = false;
     }
 
-    /// Whether a window is still growing, and reads no input.
-    pub(crate) fn growing(&self) -> bool {
-        self.growth.is_some()
+    /// The strip COMD opens takes one more frame before it draws anything:
+    /// `Battle_OpenCharComd`'s setup frame runs long there (tape 32: COMD at
+    /// f25001, the main options gone at f25005, the strip's first two cells
+    /// at f25007, where a member's later strips draw theirs the frame after
+    /// the last one closes).
+    pub(crate) fn delay_first_growth(&mut self) {
+        if let Some(Phase::Grow { setup, .. }) = self.phase.as_mut() {
+            *setup = 1;
+        }
     }
 
-    /// One `Battle_CreateWindow` call: two cells wider, and whole once the
-    /// width reaches the window's (`cmp.w ($FFFF418C),d1 / ble`), which is
-    /// also the frame the routine moves on to the window's input routine.
-    fn grow(&mut self) {
-        let Some(width) = self.growth else { return };
-        let width = width.saturating_add(GROWTH_STEP);
-        self.growth = match window_width(self.page) {
-            Some(full) if width < full => Some(width),
-            _ => None,
+    /// Starts closing the open page's window; `then` happens when it is gone.
+    fn start_shrink(&mut self, then: After) {
+        self.phase = window_width(self.page).map(|full| Phase::shrink(full, then));
+    }
+
+    /// Whether a window is opening or closing, and reads no input.
+    pub(crate) fn growing(&self) -> bool {
+        self.phase.is_some()
+    }
+
+    /// The open page's window as this frame draws it, while it is opening
+    /// or closing: its width, or `None` while it still shows whole.
+    pub(super) fn box_width(&self) -> Option<(u8, u8)> {
+        let full = window_width(self.page)?;
+        Some((self.phase.as_ref()?.box_width(full)?, full))
+    }
+
+    /// One frame of `Battle_CreateWindow` or `Battle_DestroyWindow`.
+    fn step_phase(&mut self) -> Option<RoundOrders> {
+        let (Some(mut phase), Some(full)) = (self.phase, window_width(self.page)) else {
+            self.phase = None;
+            return None;
         };
-        if self.growth.is_none() {
-            // The strip's cursor object is created now (`move.w #4,
-            // (Command_Cursor).w`, `ps4.asm:2175`) and shows from the next
-            // frame. A list's red cursor routine likewise first runs then.
-            self.age = 0;
-            self.whole_unread = true;
+        let step = phase.step(full);
+        self.phase = Some(phase);
+        match step {
+            Step::Running => None,
+            Step::Whole => {
+                self.phase = None;
+                // The strip's cursor object is created now (`move.w #4,
+                // (Command_Cursor).w`, `ps4.asm:2175`) and shows from the
+                // next frame. A list's red cursor routine likewise first
+                // runs then.
+                self.age = 0;
+                self.whole_unread = true;
+                None
+            }
+            Step::Gone(after) => {
+                self.phase = None;
+                self.closed(after)
+            }
+        }
+    }
+
+    /// The frame a closing window is gone.
+    fn closed(&mut self, after: After) -> Option<RoundOrders> {
+        match after {
+            After::Strip => {
+                self.cursor = match self.page {
+                    MenuPage::Techniques => 1,
+                    MenuPage::Skills => 2,
+                    _ => 3,
+                };
+                self.page = MenuPage::Actions;
+                self.set_command_byte(0);
+                self.age = 0;
+                None
+            }
+            After::CloseStrip => {
+                self.page = MenuPage::Actions;
+                self.age = 0;
+                self.phase = Some(Phase::shrink(16, After::Record));
+                None
+            }
+            After::Record => {
+                let command = self.pending.take()?;
+                self.record(command)
+            }
+            After::Previous => {
+                if self.actor == 0 {
+                    self.open = false;
+                } else {
+                    self.actor -= 1;
+                    self.open_actor();
+                }
+                None
+            }
+            After::PreviousPage => {
+                let base = self.cursor / PAGE_ROWS * PAGE_ROWS;
+                self.cursor = base.saturating_sub(PAGE_ROWS);
+                self.whole_unread = true;
+                None
+            }
         }
     }
 
@@ -573,22 +666,13 @@ impl CommandsMenu {
         match self.page {
             // The first actor's first page closes the window itself; that is
             // the one path that hands the main options the frame back.
-            MenuPage::Actions if self.actor == 0 => self.open = false,
-            MenuPage::Actions => {
-                self.actor -= 1;
-                self.open_actor();
-            }
-            // `Battle_BackFromTechs` (`ps4.asm:2792`) and its twins reopen the
-            // strip with `Battle_Char_Comd_Index` untouched, so the cursor is
-            // still on the icon that opened the list.
+            // The strip closes first (`Battle_PreviousChar`).
+            MenuPage::Actions => self.start_shrink(After::Previous),
+            // `Battle_BackFromTechs` (`ps4.asm:2792`) and its twins close the
+            // list, then reopen the strip with `Battle_Char_Comd_Index`
+            // untouched, so the cursor is still on the icon that opened it.
             MenuPage::Techniques | MenuPage::Skills | MenuPage::Items => {
-                self.cursor = match self.page {
-                    MenuPage::Techniques => 1,
-                    MenuPage::Skills => 2,
-                    _ => 3,
-                };
-                self.page = MenuPage::Actions;
-                self.set_command_byte(0);
+                self.start_shrink(After::Strip);
             }
             MenuPage::Targets(TargetKind::Attack) => {
                 self.page = MenuPage::Actions;
@@ -655,7 +739,9 @@ impl CommandsMenu {
                 }
                 _ => {
                     self.set_command_byte(5);
-                    Command::Defend
+                    self.pending = Some(Command::Defend);
+                    self.start_shrink(After::Record);
+                    return None;
                 }
             },
             MenuPage::Techniques => {
@@ -665,10 +751,13 @@ impl CommandsMenu {
                     self.cursor = 0;
                     return None;
                 }
-                Command::Technique {
+                self.pending = Some(Command::Technique {
                     technique: id,
                     target: None,
-                }
+                });
+                // The list closes, then the strip (`Battle_TechSelected`).
+                self.start_shrink(After::CloseStrip);
+                return None;
             }
             MenuPage::Skills => {
                 let (_, id) = *self.known_skills().get(self.cursor)?;
@@ -677,10 +766,13 @@ impl CommandsMenu {
                     self.cursor = 0;
                     return None;
                 }
-                Command::Skill {
+                self.pending = Some(Command::Skill {
                     skill: id,
                     target: None,
-                }
+                });
+                // The list closes, then the strip (`Battle_TechSelected`).
+                self.start_shrink(After::CloseStrip);
+                return None;
             }
             MenuPage::Items => {
                 let (source, item) = *self.known_items().get(self.cursor)?;
@@ -689,11 +781,14 @@ impl CommandsMenu {
                     self.cursor = 0;
                     return None;
                 }
-                Command::Item {
+                self.pending = Some(Command::Item {
                     item,
                     source,
                     target: None,
-                }
+                });
+                // The list closes, then the strip (`Battle_TechSelected`).
+                self.start_shrink(After::CloseStrip);
+                return None;
             }
             MenuPage::Targets(action) => {
                 let target = *self.targets(action).get(self.cursor)?;
@@ -715,6 +810,12 @@ impl CommandsMenu {
                 }
             }
         };
+        self.record(command)
+    }
+
+    /// Records the actor's order and opens the next member's strip, or hands
+    /// the round's orders back after the last.
+    fn record(&mut self, command: Command) -> Option<RoundOrders> {
         let slot = self.actor_id()?.slot();
         self.orders[slot] = command;
         self.actor += 1;
@@ -747,8 +848,7 @@ impl CommandsMenu {
     /// is whole, so its clock starts after.
     pub(crate) fn input(&mut self, previous: Pad, pad: Pad) -> Option<RoundOrders> {
         if self.growing() {
-            self.grow();
-            return None;
+            return self.step_phase();
         }
         self.whole_unread = false;
         self.age = self.age.saturating_add(1);
@@ -813,7 +913,8 @@ impl CommandsMenu {
             return true;
         }
         if pad.is_pressed(previous, Button::Left) && base > 0 {
-            self.cursor = base - PAGE_ROWS;
+            // `Battle_TechPrevWin` and twins close the window first.
+            self.start_shrink(After::PreviousPage);
             return true;
         }
         false

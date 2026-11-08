@@ -48,6 +48,7 @@ use super::view::{MenuView, SkillSlotView};
 const VEHICLE_SKILL_SLOTS: usize = 8;
 
 mod commands;
+pub(crate) mod window_phase;
 
 pub(crate) use commands::CommandsMenu;
 pub use commands::CursorMemory;
@@ -65,6 +66,13 @@ pub(crate) enum TopChoice {
     AttackAll,
     /// RUN.
     Run,
+}
+
+/// The main options window's width in cells: `moveq #8, d1` before its
+/// `Battle_CreateWindow` (`ps4.asm:1904`), 9 for the mounted one
+/// (`ps4.asm:2027`).
+pub(crate) const fn top_width(vehicle: bool) -> u8 {
+    if vehicle { 9 } else { 8 }
 }
 
 /// Reads one frame of the main options.

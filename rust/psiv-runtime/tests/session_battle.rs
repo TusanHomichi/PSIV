@@ -226,26 +226,40 @@ fn fight_press(view: &BattleView) -> Pad {
 }
 
 /// Presses one button and releases it, so the press is a fresh edge, then
-/// waits out any window the press opened: `Battle_CreateWindow` grows it for
-/// a few frames that read no button (#51).
+/// waits out the windows the press closed and opened: `Battle_DestroyWindow`
+/// and `Battle_CreateWindow` take a few frames that read no button (#51).
+/// Returns the first frame after them.
 fn tap(session: &mut Session, button: Button) -> Frame {
-    let frame = tick(session, Pad::new(button));
+    tick(session, Pad::new(button));
     let mut released = tick(session, Pad::NEUTRAL);
-    for _ in 0..16 {
+    for _ in 0..64 {
         if !growing(&released) {
             break;
         }
         released = tick(session, Pad::NEUTRAL);
     }
-    frame
+    released
 }
 
 /// Whether the frame's command window is still opening.
 fn growing(frame: &Frame) -> bool {
     matches!(
         view_of(frame).and_then(|view| view.menu.as_ref()),
-        Some(MenuView::Commands(menu)) if menu.growing.is_some()
+        Some(MenuView::Commands(menu)) if menu.settling
+    ) || matches!(
+        view_of(frame).and_then(|view| view.menu.as_ref()),
+        Some(MenuView::Top { width: Some(_), .. })
     )
+}
+
+/// Neutral frames until no window is opening or closing.
+fn settle_windows(session: &mut Session) {
+    for _ in 0..64 {
+        if !growing(&tick(session, Pad::NEUTRAL)) {
+            return;
+        }
+    }
+    panic!("the windows never settled");
 }
 
 /// The view of a battle frame, for the caller's assertions.
@@ -264,12 +278,13 @@ fn view_of(frame: &Frame) -> Option<&BattleView> {
         .and_then(|battle| battle.view.as_ref())
 }
 
-/// Waits out the dwell beats until the command window is open.
+/// Waits out the dwell beats until the command window is open and whole.
 fn wait_for_menu(session: &mut Session) -> BattleView {
     for _ in 0..2_000 {
         let frame = tick(session, Pad::NEUTRAL);
         if let Some(view) = view_of(&frame)
             && view.ready
+            && !growing(&frame)
         {
             return view.clone();
         }
@@ -365,7 +380,10 @@ fn zio_ambush_uses_no_command_or_item_before_the_first_player_round() {
         );
     }
     assert!(saw_barrier, "Zio's first enemy-only action was presented");
-    assert_eq!(first_player_menu, Some(MenuView::Top { cursor: 0 }));
+    assert!(
+        matches!(first_player_menu, Some(MenuView::Top { cursor: 0, .. })),
+        "{first_player_menu:?}"
+    );
     assert_eq!(item_count(&session, PSYCHO_WAND), 1);
 }
 
@@ -397,7 +415,14 @@ fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press(
     let started = session.debug_battle(TAPE_07_FORMATION);
     assert!(started.fault.is_none());
     let top = wait_for_menu(&mut session);
-    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(
+        top.menu,
+        Some(MenuView::Top {
+            cursor: 0,
+            width: None,
+            full_width: 8
+        })
+    );
     let roster = session.runtime().battle_roster().unwrap();
     assert_eq!(roster.living(Side::Party).count(), 3);
     assert!(
@@ -406,7 +431,17 @@ fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press(
             .all(|fighter| !fighter.stats.can_act()),
         "the `$6E` scan has no actor to command"
     );
-    let after_comd = tick(&mut session, Pad::new(Button::Speak));
+    // The main options close first (`Battle_DestroyWindow`: 6, 4, 2 cells),
+    // and the round goes on the frame they are gone.
+    tick(&mut session, Pad::new(Button::Speak));
+    for _ in 0..3 {
+        let closing = tick(&mut session, Pad::NEUTRAL);
+        assert!(matches!(
+            view(&closing).menu,
+            Some(MenuView::Top { width: Some(_), .. })
+        ));
+    }
+    let after_comd = tick(&mut session, Pad::NEUTRAL);
     let after_comd = view(&after_comd);
     assert!(!after_comd.ready, "the single COMD press submits the round");
     assert_eq!(after_comd.menu, None, "there is no empty actor page");
@@ -452,7 +487,14 @@ fn the_first_basement_battle_is_fought_with_pad_presses() {
     // The menu opens when the opening beat's dwell runs out, on the top menu:
     // SPEAK presses COMD.
     let top = wait_for_menu(&mut session);
-    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(
+        top.menu,
+        Some(MenuView::Top {
+            cursor: 0,
+            width: None,
+            full_width: 8
+        })
+    );
     assert_eq!(top.cursor, 0);
 
     // COMD opens the command window on the first actor's ATTACK row.
@@ -728,16 +770,39 @@ fn the_strip_and_the_technique_window_grow_before_they_read_a_button() {
         .expect("the pack boots");
     let opening = session.debug_battle_window(TAPE_07_FORMATION, "top");
     assert!(opening.fault.is_none(), "{:?}", opening.fault);
-    tick(&mut session, Pad::NEUTRAL);
+    wait_for_menu(&mut session);
 
-    // COMD: the 16-cell strip grows from nothing; no icons, no cursor.
-    let opened = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
-    let growing = opened.growing.expect("the strip opens growing");
-    assert_eq!(
-        (growing.window, growing.width, growing.full_width),
-        (MenuPage::Actions, 0, 16)
+    // COMD at A (tape 32: f25001): the main options still show, then close
+    // 6, 4, 2 cells wide (`Battle_DestroyWindow`; video f25003-f25005).
+    let pressed = view(&tick(&mut session, Pad::new(Button::Speak)))
+        .menu
+        .clone();
+    assert!(
+        matches!(pressed, Some(MenuView::Top { width: None, .. })),
+        "{pressed:?}"
     );
-    assert!(opened.strip.is_none());
+    let mut closing = Vec::new();
+    for _ in 0..3 {
+        match view(&tick(&mut session, Pad::NEUTRAL)).menu.clone() {
+            Some(MenuView::Top {
+                width: Some(width), ..
+            }) => closing.push(width),
+            other => panic!("the main options are closing: {other:?}"),
+        }
+    }
+    assert_eq!(closing, [6, 4, 2]);
+    // A+4 they are gone and the 16-cell strip starts; its setup frame (A+5)
+    // draws nothing either, and its first two cells are A+6's (f25007).
+    for frame in ["gone", "setup"] {
+        let opened = commands_of(&tick(&mut session, Pad::NEUTRAL));
+        let growing = opened.growing.expect("the strip opens growing");
+        assert_eq!(
+            (growing.window, growing.width, growing.full_width),
+            (MenuPage::Actions, 0, 16),
+            "{frame}"
+        );
+        assert!(opened.strip.is_none());
+    }
     let (widths, strip) = grow(&mut session);
     assert_eq!(widths, [2, 4, 6, 8, 10, 12, 14]);
     let drawn = strip.strip.expect("the whole strip, icons and all");
@@ -835,6 +900,104 @@ fn the_skill_and_item_windows_show_no_red_cursor_until_their_routine_runs() {
     }
 }
 
+/// Each frame's opening or closing window: its page, its width (`None` once
+/// whole) and the acting fighter.
+fn window_frames(session: &mut Session, frames: usize) -> Vec<(MenuPage, Option<u8>, Option<u8>)> {
+    (0..frames)
+        .map(|_| {
+            let menu = commands_of(&tick(session, Pad::NEUTRAL));
+            (menu.page, menu.growing.map(|g| g.width), menu.actor)
+        })
+        .collect()
+}
+
+/// #51: `Battle_DestroyWindow` (`ps4.asm:1678`) narrows a window two cells a
+/// frame and moves on the frame it is gone. Tape 37 (tape 32, then every way
+/// the windows close), with A the press:
+/// - B in the technique list (f25505): 10, 8, 6, 4 and 2 cells at A+1..A+5
+///   (video f25507-f25511), the strip again at A+6, read from A+7;
+/// - DEFEND (f25605): the strip 14 down to 2 at A+1..A+7, gone at A+8, and
+///   the next member's strip's first two cells at A+9 (video f25615);
+/// - B on that strip (f25689): the same, back to the previous member;
+/// - SANER (f25853): the list 10..2 at A+1..A+5, the strip whole at A+6, then
+///   14..2 at A+7..A+13, gone at A+14, the next strip at A+15 (video f25869).
+#[test]
+fn the_windows_close_two_cells_a_frame_before_the_next_one_opens() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let mut session = Session::start(GameData::load(pack).expect("pack loads"))
+        .with_battles(files)
+        .field()
+        .expect("the pack boots");
+    let opening = session.debug_battle_window(TAPE_07_FORMATION, "top");
+    assert!(opening.fault.is_none(), "{:?}", opening.fault);
+    wait_for_menu(&mut session);
+    tap(&mut session, Button::Speak);
+    tap(&mut session, Button::Right);
+    let listed = commands_of(&tap(&mut session, Button::Speak));
+    assert_eq!(listed.page, MenuPage::Techniques);
+    let alys = listed.actor;
+
+    let tech = MenuPage::Techniques;
+    let strip = MenuPage::Actions;
+    // B in the list.
+    tick(&mut session, Pad::new(Button::Cancel));
+    let frames = window_frames(&mut session, 6);
+    let list_closing: Vec<_> = [10, 8, 6, 4, 2].map(|w| (tech, Some(w), alys)).into();
+    assert_eq!(frames[..5], list_closing[..]);
+    assert_eq!(frames[5], (strip, None, alys), "the strip again");
+    let back = commands_of(&tick(&mut session, Pad::new(Button::Right)));
+    assert_eq!(back.cursor, 2, "the strip reads the next frame's press");
+    tick(&mut session, Pad::NEUTRAL);
+
+    // Right twice more to DEFEND, then accept: the strip closes and the next
+    // member's opens.
+    tap(&mut session, Button::Right);
+    tap(&mut session, Button::Right);
+    tick(&mut session, Pad::new(Button::Speak));
+    let frames = window_frames(&mut session, 9);
+    let strip_closing: Vec<_> = [14, 12, 10, 8, 6, 4, 2]
+        .map(|w| (strip, Some(w), alys))
+        .into();
+    assert_eq!(frames[..7], strip_closing[..]);
+    let chaz = frames[7].2;
+    assert_ne!(chaz, alys, "the next member answers");
+    assert_eq!(
+        frames[7..],
+        [(strip, Some(0), chaz), (strip, Some(2), chaz)]
+    );
+    settle_windows(&mut session);
+    let settled = commands_of(&tap(&mut session, Button::Cancel));
+    // B on that strip: it closes and Alys's reopens.
+    assert_eq!(
+        settled.actor, alys,
+        "Cancel goes back to the previous member"
+    );
+
+    // TECH and the first technique (SANER: no target): the list closes, the
+    // strip shows whole for a frame, then closes, then the next strip opens.
+    for _ in 0..3 {
+        tap(&mut session, Button::Left);
+    }
+    let listed = commands_of(&tap(&mut session, Button::Speak));
+    assert_eq!((listed.page, listed.cursor), (tech, 0));
+    tick(&mut session, Pad::new(Button::Speak));
+    let frames = window_frames(&mut session, 15);
+    assert_eq!(frames[..5], list_closing[..]);
+    assert_eq!(
+        frames[5],
+        (strip, None, alys),
+        "the strip whole for a frame"
+    );
+    assert_eq!(frames[6..13], strip_closing[..]);
+    assert_eq!(
+        frames[13..],
+        [(strip, Some(0), chaz), (strip, Some(2), chaz)]
+    );
+}
+
 /// Plays tape 07's first round with pad presses only: Alys opens TECH and
 /// picks the first entry, Chaz and Hahn defend. `spec` seeds the fixture
 /// (`PSIV_DEBUG_BATTLE_WINDOW`). Returns the narration lines the round showed,
@@ -849,22 +1012,11 @@ fn alys_casts_her_first_technique(spec: &str) -> Option<(Vec<String>, u16, bool)
         .expect("the pack boots");
     let opening = session.debug_battle_window(TAPE_07_FORMATION, spec);
     assert!(opening.fault.is_none(), "{:?}", opening.fault);
-    tick(&mut session, Pad::NEUTRAL);
-    let tap = |session: &mut Session, button: Button| {
-        let down = tick(session, Pad::new(button));
-        let mut up = tick(session, Pad::NEUTRAL);
-        for _ in 0..16 {
-            if !growing(&up) {
-                break;
-            }
-            up = tick(session, Pad::NEUTRAL);
-        }
-        (down, up)
-    };
+    wait_for_menu(&mut session);
     // COMD opens Alys's strip; Right is TECH; Speak opens the list.
     tap(&mut session, Button::Speak);
     tap(&mut session, Button::Right);
-    let (_, listed) = tap(&mut session, Button::Speak);
+    let listed = tap(&mut session, Button::Speak);
     let Some(MenuView::Commands(menu)) = view(&listed).menu.clone() else {
         panic!("TECH opens the technique list");
     };
