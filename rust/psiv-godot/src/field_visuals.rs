@@ -83,7 +83,7 @@ impl Field {
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)
                     && let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, None)
                 {
                     self.sheet_views.insert(sheet_id.clone(), view);
                 }
@@ -163,7 +163,7 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram))
                 {
                     self.sheet_views.insert(sheet_id, view);
                 }
@@ -374,32 +374,56 @@ impl Field {
         self.sync_transition();
     }
 
-    /// Uploads palette lines 0 and 1 of the runtime's CRAM model to the
-    /// indexed map shader. A legacy record without the 64-word shadow keeps
-    /// the baked colours.
+    /// Copies the runtime's CRAM model into the field's live palette
+    /// (`cram_art`), which sprite sheets and scene panels draw from, and
+    /// uploads lines 0 and 1 to the indexed map shader. A legacy record
+    /// without the 64-word shadow keeps the baked colours.
     fn sync_map_palette(&mut self) {
-        let Some(runtime) = self.runtime() else {
+        let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
-        if runtime
+        let live = runtime
             .map_record()
-            .is_none_or(|record| record.map_update_palette.is_none())
-        {
+            .is_some_and(|record| record.map_update_palette.is_some());
+        let view = runtime.cram();
+        let changed = {
+            let mut cram = self.cram.borrow_mut();
+            let changed = cram.live != live || cram.revision != view.revision;
+            cram.live = live;
+            cram.words = view.words;
+            cram.revision = view.revision;
+            changed
+        };
+        if changed {
+            if let Some(layer) = self.cutscene_layer.as_mut() {
+                layer.bind_mut().palette_changed();
+            }
+            // The window's art is baked in line 2's `Pal_Init_Line_3`
+            // colours; with no live palette it draws them as baked.
+            let baked = runtime
+                .data()
+                .scene_palettes()
+                .words(crate::cram_art::WINDOW_LINE_ROM)
+                .unwrap_or(&[]);
+            if baked.len() >= 16
+                && let Some(window) = self.dialogue.as_mut()
+            {
+                let line = if live {
+                    &view.words[32..48]
+                } else {
+                    &baked[..16]
+                };
+                window.bind_mut().set_palette_line(&baked[..16], line);
+            }
+        }
+        if !live {
             return;
         }
-        let view = runtime.cram();
         let revision = view.revision as i64;
-        // The repository's measured GPGX RGB565 ramps (COLOR_PIPELINE.md).
-        const RB: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
-        const G: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
         let mut colors = PackedColorArray::new();
         for &word in &view.words[..32] {
-            colors.push(Color::from_rgba(
-                f32::from(RB[usize::from((word >> 1) & 7)]) / 255.0,
-                f32::from(G[usize::from((word >> 5) & 7)]) / 255.0,
-                f32::from(RB[usize::from((word >> 9) & 7)]) / 255.0,
-                1.0,
-            ));
+            let [r, g, b] = psiv_data::color::cram_rgb(word);
+            colors.push(Color::from_rgba8(r, g, b, 255));
         }
         for sprite in [&mut self.map_sprite, &mut self.overlay_sprite]
             .into_iter()

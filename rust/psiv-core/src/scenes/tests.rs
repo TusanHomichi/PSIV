@@ -646,7 +646,11 @@ fn every_palette_record_fits_the_palette_buffer() {
                 );
             }
             if let SceneOp::LoadPalette { words, start, .. } = op {
-                assert!(usize::from(*start) + usize::from(*words) <= 64, "{} op {index}", scene.name);
+                assert!(
+                    usize::from(*start) + usize::from(*words) <= 64,
+                    "{} op {index}",
+                    scene.name
+                );
             }
         }
     }
@@ -660,8 +664,14 @@ fn a_palette_record_that_cannot_fit_is_reported() {
         first,
         second,
     };
-    assert_eq!(palette_record_fault(&words(0x5C, 0x0620, 0x0EEE)), Some("offset past the buffer"));
-    assert_eq!(palette_record_fault(&words(0x18, 0x8C89, 0x8C81)), Some("not CRAM words"));
+    assert_eq!(
+        palette_record_fault(&words(0x5C, 0x0620, 0x0EEE)),
+        Some("offset past the buffer")
+    );
+    assert_eq!(
+        palette_record_fault(&words(0x18, 0x8C89, 0x8C81)),
+        Some("not CRAM words")
+    );
     assert_eq!(palette_record_fault(&words(0x2E, 0x0620, 0x0EEE)), None);
     assert_eq!(
         palette_record_fault(&PresentationOp::PaletteCopy {

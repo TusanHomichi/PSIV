@@ -5,9 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use psiv_core::{
-    PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp,
-};
+use psiv_core::{PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
 use psiv_data::{PanelPalette, ScenePalettes};
 
 use super::{Cram, CramView};
@@ -36,7 +34,13 @@ fn op(op: PresentationOp) -> SceneOp {
 
 /// Runs `op` the way a scene does: applied on frame `start`, then `frames - 1`
 /// more ticks, the words recorded after each frame.
-fn run(cram: &mut Cram, scene_op: SceneOp, start: u16, frames: u16, palettes: &ScenePalettes) -> Vec<[u16; 64]> {
+fn run(
+    cram: &mut Cram,
+    scene_op: SceneOp,
+    start: u16,
+    frames: u16,
+    palettes: &ScenePalettes,
+) -> Vec<[u16; 64]> {
     let mut trace = Vec::new();
     let _ = cram.apply(&scene_op, start, palettes, None);
     trace.push(cram.view().words);
@@ -106,7 +110,11 @@ fn a_thirty_frame_loop_takes_seven_or_eight_steps_by_phase() {
         let trace = run(&mut cram, restore, start, 30, &none);
         let hits = PHASE_HITS[usize::from(start)];
         assert_eq!(changes(filled(0x00EC), &trace), hits, "start {start}");
-        assert_eq!(cram.view().words[0], expected[usize::from(start)], "start {start}");
+        assert_eq!(
+            cram.view().words[0],
+            expected[usize::from(start)],
+            "start {start}"
+        );
     }
 }
 
@@ -247,7 +255,12 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
     let mut cram = cram(filled(0x0246), filled(0x0000));
     // Saved -> live, all 64.
     let _ = cram.apply(
-        &copy(PaletteSource::Buffer(PaletteBuffer::Saved), PaletteBuffer::Live, 0, 64),
+        &copy(
+            PaletteSource::Buffer(PaletteBuffer::Saved),
+            PaletteBuffer::Live,
+            0,
+            64,
+        ),
         0,
         &palettes,
         None,
@@ -260,16 +273,31 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         &palettes,
         None,
     );
-    let _ = cram.apply(&copy(PaletteSource::Fill(0), PaletteBuffer::Live, 32, 15), 0, &palettes, None);
+    let _ = cram.apply(
+        &copy(PaletteSource::Fill(0), PaletteBuffer::Live, 32, 15),
+        0,
+        &palettes,
+        None,
+    );
     assert_eq!(cram.view().words[31], 0x0EEE);
     assert_eq!(cram.view().words[32..47], [0; 15]);
     assert_eq!(cram.view().words[47], 0x0EEE);
     // A ROM palette into the saved buffer.
-    let _ = cram.apply(&copy(PaletteSource::Rom(0x0002_EEA4), PaletteBuffer::Saved, 0, 3), 0, &palettes, None);
+    let _ = cram.apply(
+        &copy(PaletteSource::Rom(0x0002_EEA4), PaletteBuffer::Saved, 0, 3),
+        0,
+        &palettes,
+        None,
+    );
     assert_eq!(cram.saved()[..4], [0x0002, 0x0004, 0x0006, 0x0000]);
     // A palette the pack lacks is listed, and nothing is written.
     let before = cram.view().words;
-    let _ = cram.apply(&copy(PaletteSource::Rom(0x0012_3456), PaletteBuffer::Live, 0, 16), 0, &palettes, None);
+    let _ = cram.apply(
+        &copy(PaletteSource::Rom(0x0012_3456), PaletteBuffer::Live, 0, 16),
+        0,
+        &palettes,
+        None,
+    );
     assert_eq!(cram.view().words, before);
     assert_eq!(cram.view().missing, vec![0x0012_3456]);
 }
@@ -430,11 +458,23 @@ fn a_variable_fade_in_answers_its_length() {
 fn the_red_fades_take_green_and_blue_down_and_back() {
     let none = ScenePalettes::default();
     let mut cram = cram(filled(0x0EEE), filled(0));
-    let trace = run(&mut cram, op(PresentationOp::FadeToRed { lines: 1 }), 0, 16, &none);
+    let trace = run(
+        &mut cram,
+        op(PresentationOp::FadeToRed { lines: 1 }),
+        0,
+        16,
+        &none,
+    );
     assert_eq!(trace[0][0], 0x0CCE);
     assert_eq!(trace[15][0], 0x000E);
     assert_eq!(cram.saved()[0], 0x0EEE);
-    let trace = run(&mut cram, op(PresentationOp::FadeFromRed { lines: 1 }), 16, 16, &none);
+    let trace = run(
+        &mut cram,
+        op(PresentationOp::FadeFromRed { lines: 1 }),
+        16,
+        16,
+        &none,
+    );
     assert_eq!(trace[0][0], 0x022E);
     assert_eq!(trace[15][0], 0x0EEE);
 }

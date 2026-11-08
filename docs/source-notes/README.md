@@ -336,9 +336,9 @@ agility and dexterity, and enemy paralysis clearing each turn.
     `Palette_Table_Buffer+$1A` four times, eight frames apart (`loc_6DD6C`), and `loc_6DE58` writes
     `$620` and `$2CE` to `Palette_Table_Buffer+$7C`/`+$7E`. The port keeps each as a
     `PresentationOp` (`AddPaletteWord`, `SetPaletteWords`), with every wait between them; the
-    runtime's CRAM model applies them, and Godot draws only lines 0 and 1 of it on maps with an
-    indexed render, so the screens do not brighten per line yet
-    ([#162](https://github.com/TusanHomichi/PSIV/issues/162)). No game state reads them.
+    runtime's CRAM model applies them, and the map, sprites, panels and dialogue window draw
+    from it ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#drawing-the-cram)). No game
+    state reads them.
 
 ## Public reverse-engineering references used
 

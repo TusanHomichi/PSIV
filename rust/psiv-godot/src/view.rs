@@ -3,13 +3,18 @@
 //! Everything here is presentation geometry copied out of `psiv-data` so
 //! nodes never borrow `GameData`. No game rules.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use godot::classes::{Image, ImageTexture, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction};
 use psiv_data::Sheet;
+use psiv_data::color::IndexLayout;
+
+use crate::cram_art::{IndexedArt, SharedCram};
 
 use crate::CELL_PIXELS;
 
@@ -68,8 +73,13 @@ pub(crate) fn camp_receipt_frame(index: usize, sheet: &str) -> Option<i32> {
 
 /// A sheet made drawable: its texture plus the geometry and sequences the
 /// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
+///
+/// A sheet whose pack record names its CRAM line draws from the live palette
+/// ([`crate::cram_art`]); `texture` is the file's baked colours, drawn while
+/// no live palette is known.
 pub(crate) struct SheetView {
     pub(crate) texture: Gd<ImageTexture>,
+    indexed: Option<(RefCell<IndexedArt>, SharedCram)>,
     pub(crate) frame_width: i32,
     pub(crate) frame_height: i32,
     pub(crate) origin_x: i32,
@@ -79,10 +89,21 @@ pub(crate) struct SheetView {
 }
 
 impl SheetView {
-    pub(crate) fn build(pack_dir: &str, sheet: &Sheet) -> Option<SheetView> {
+    /// `cram` is the field's live palette; `None` draws the baked colours
+    /// only (vehicles: their line-3 palette is a `LoadSceneAsset` write the
+    /// CRAM model does not take yet).
+    pub(crate) fn build(
+        pack_dir: &str,
+        sheet: &Sheet,
+        cram: Option<&SharedCram>,
+    ) -> Option<SheetView> {
         let path = format!("{pack_dir}/{}", sheet.png);
         let image = Image::load_from_file(&GString::from(path.as_str()))?;
         let texture = ImageTexture::create_from_image(&image)?;
+        let indexed = cram.zip(sheet.cram_line()).and_then(|(cram, line)| {
+            let art = IndexedArt::load(&path, IndexLayout::Line(line))?;
+            Some((RefCell::new(art), Rc::clone(cram)))
+        });
         let mut sequences = BTreeMap::new();
         for (name, sequence) in &sheet.sequences {
             let frames: Vec<(i32, u32)> = sequence
@@ -95,6 +116,7 @@ impl SheetView {
         }
         Some(SheetView {
             texture,
+            indexed,
             frame_width: sheet.frame_width as i32,
             frame_height: sheet.frame_height as i32,
             origin_x: sheet.origin_x,
@@ -120,7 +142,11 @@ impl SheetView {
 
     /// Configures a sprite node to show one frame of this strip.
     pub(crate) fn apply(&self, sprite: &mut Gd<Sprite2D>, frame: i32) {
-        sprite.set_texture(&self.texture);
+        let live = self
+            .indexed
+            .as_ref()
+            .and_then(|(art, cram)| art.borrow_mut().texture(&cram.borrow()));
+        sprite.set_texture(live.as_ref().unwrap_or(&self.texture));
         // Drawn above the node origin so the origin is the feet line and
         // y-sort orders characters the way the hardware did.
         sprite.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));

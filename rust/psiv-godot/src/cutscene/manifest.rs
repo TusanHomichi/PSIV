@@ -14,6 +14,7 @@ use psiv_data::{DialogueSet, Role};
 use serde::Deserialize;
 
 use super::temporary_sprite_asset::TemporarySpriteAsset;
+use psiv_data::color::IndexLayout;
 
 #[derive(Debug, Deserialize)]
 struct PanelManifest {
@@ -36,6 +37,16 @@ struct OpeningBackgroundRecord {
 struct PanelRecord {
     id: u16,
     png: String,
+    /// Layer A's art tile; its palette select is the line A draws from.
+    #[serde(default = "no_layer")]
+    art_tile_a: u16,
+    /// Layer B's art tile, `$FFFF` when the panel has one layer.
+    #[serde(default = "no_layer")]
+    art_tile_b: u16,
+}
+
+const fn no_layer() -> u16 {
+    0xFFFF
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +98,9 @@ pub(super) struct SceneAssets {
     /// carries an opening background at all.
     pub(super) opening_screen_y: Option<f32>,
     pub(super) textures: BTreeMap<u16, Gd<ImageTexture>>,
+    /// Each panel's PNG and the lines its layers draw from, for the live
+    /// palette (`cram_art`); loaded on the panel's first draw.
+    pub(super) indexed_panels: BTreeMap<u16, (String, IndexLayout)>,
     pub(super) temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     pub(super) opening_background: Option<Gd<ImageTexture>>,
     pub(super) generic_portrait: Option<Gd<ImageTexture>>,
@@ -103,6 +117,7 @@ impl SceneAssets {
         let mut assets = SceneAssets {
             opening_screen_y: None,
             textures: BTreeMap::new(),
+            indexed_panels: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
             opening_background: None,
             generic_portrait: None,
@@ -121,6 +136,13 @@ impl SceneAssets {
                 }
                 for panel in manifest.panels {
                     let path = format!("{pack_dir}/{}", panel.png);
+                    let layout = IndexLayout::Panel {
+                        a: IndexLayout::art_tile_line(panel.art_tile_a),
+                        b: IndexLayout::art_tile_line(panel.art_tile_b),
+                    };
+                    assets
+                        .indexed_panels
+                        .insert(panel.id, (path.clone(), layout));
                     if let Some(image) = Image::load_from_file(&GString::from(path.as_str()))
                         && let Some(texture) = ImageTexture::create_from_image(&image)
                     {

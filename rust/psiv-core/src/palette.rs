@@ -111,11 +111,9 @@ pub const fn fade_out_step(word: u16) -> u16 {
     let mut d0 = word;
     let mut nibble = 0;
     while nibble < 4 {
-        let mut d1 = d0 & 0x000F;
+        // `andi.w #$F, d1` / `beq.s` / `subq.w #1, d1`: a zero nibble stays.
+        let d1 = (d0 & 0x000F).saturating_sub(1);
         d0 &= 0xFFF0;
-        if d1 != 0 {
-            d1 -= 1;
-        }
         d0 |= d1;
         d0 = d0.rotate_left(4);
         nibble += 1;

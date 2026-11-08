@@ -104,7 +104,11 @@ impl Runtime {
         let Some(updates) = &record.map_updates else {
             return;
         };
-        let crate::EffectOutcome { updates: view, cram, .. } = &mut self.effects;
+        let crate::EffectOutcome {
+            updates: view,
+            cram,
+            ..
+        } = &mut self.effects;
         view.last_frame = Some(self.frames);
         view.calls += 1;
         view.scroll_writes.clear();

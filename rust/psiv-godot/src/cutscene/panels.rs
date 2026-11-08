@@ -3,12 +3,16 @@
 //!
 //! `staged` mirrors the cartridge's panel stack and `visible` changes only on
 //! `DmaPlanes`, so a scene can build the next frame without exposing half of it
-//! for a single Godot draw. Palette actions target CRAM, which this pack bakes
-//! into the panel PNGs, so redrawing is the faithful operation at this
-//! presentation boundary; the red-flash overlay is the one effect written
-//! straight to CRAM.
+//! for a single Godot draw. A panel draws from the field's live palette
+//! (`cram_art`): each layer's pixels on the line its art tile selects, so a
+//! palette record reaches the panel on the frame the runtime's CRAM model
+//! applies it. The file's baked colours draw only while no live palette is
+//! known.
 
+use godot::classes::ImageTexture;
 use godot::prelude::*;
+
+use crate::cram_art::{IndexedArt, SharedCram};
 
 use super::{CutsceneLayer, SCREEN};
 
@@ -27,7 +31,8 @@ impl CutsceneLayer {
     pub(super) fn draw_planes(&mut self) {
         let visible = self.visible.clone();
         for id in visible {
-            if let Some(texture) = self.textures.get(&id).cloned() {
+            let live = self.live_panel(id);
+            if let Some(texture) = live.or_else(|| self.textures.get(&id).cloned()) {
                 self.base_mut().draw_texture_rect(
                     &texture,
                     Rect2::new(retail_plane_scroll_offset(), SCREEN),
@@ -35,6 +40,36 @@ impl CutsceneLayer {
                 );
             }
         }
+    }
+
+    /// Hands over the field's live palette.
+    pub(crate) fn set_cram(&mut self, cram: SharedCram) {
+        self.cram = Some(cram);
+    }
+
+    /// The live palette changed: redraw any visible panel in it.
+    pub(crate) fn palette_changed(&mut self) {
+        if !self.visible.is_empty() {
+            self.base_mut().queue_redraw();
+        }
+    }
+
+    /// Panel `id` in the live palette, its indices read on its first draw;
+    /// `None` while no live palette is known or the indices did not load.
+    fn live_panel(&mut self, id: u16) -> Option<Gd<ImageTexture>> {
+        let cram = self.cram.clone()?;
+        let cram = cram.borrow();
+        if !cram.live {
+            return None;
+        }
+        if !self.panel_art.contains_key(&id) {
+            let art = self
+                .indexed_panels
+                .get(&id)
+                .and_then(|(path, layout)| IndexedArt::load(path, *layout));
+            self.panel_art.insert(id, art);
+        }
+        self.panel_art.get_mut(&id)?.as_mut()?.texture(&cram)
     }
 
     pub(crate) fn panel_create(&mut self, id: u16) {
@@ -63,10 +98,8 @@ impl CutsceneLayer {
         }
     }
 
-    /// `$F2` palette actions target CRAM, while this pack stores panels as
-    /// palette-baked PNGs. Redrawing is the faithful operation available at
-    /// this presentation boundary; the raw palette records remain auditable
-    /// in `presentation/panels.json`.
+    /// A `$F2` palette action: the runtime's CRAM model applied it; redraw
+    /// so the panels show it.
     pub(crate) fn refresh_palette(&mut self) {
         self.base_mut().queue_redraw();
         godot_print!("dialogue action: palette refresh");

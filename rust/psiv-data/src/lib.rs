@@ -41,6 +41,7 @@
 mod battle;
 mod camera;
 mod collision;
+pub mod color;
 mod dialogue;
 mod error;
 mod field_objects;
@@ -82,7 +83,6 @@ pub use error::DataError;
 pub use field_objects::{FIELD_OBJECT_SYMBOLS, field_object_symbol};
 pub use fifth::{FIFTH_ROWS, FifthFile, FifthRowRecord, FifthTable};
 pub use game_data::GameData;
-pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use guild::{GUILD_JOBS, GuildBoard, GuildFile, GuildLine};
 pub use ids::{MapId, RomHash};
 pub use manifest::{
@@ -107,6 +107,7 @@ pub use new_game::{
     Handoff as TitleHandoff, Init as NewGameInit, NewGame, Settings as NewGameSettings,
     Slot as PartySlot,
 };
+pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use ship_menu::{
     BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,
     PaletteEntry, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu, ShipMenuFile, ShipMenuJson, ShipPalette,

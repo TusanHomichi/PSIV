@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, Image, ImageTexture, Node2D, ShaderMaterial};
 use godot::prelude::*;
 
 use psiv_data::{CHARS_PER_LINE, DialogueSet, LINES_PER_WINDOW, Role};
@@ -188,6 +188,8 @@ pub struct DialogueWindow {
     /// What the runtime says to draw this frame; `None` with no window up.
     snapshot: Option<DialogueView>,
     choice_view: Option<choice::ChoiceView>,
+    /// Draws the window's line-2 art in the live palette (`cram_art`).
+    line_material: Option<Gd<ShaderMaterial>>,
 }
 
 #[godot_api]
@@ -200,6 +202,7 @@ impl INode2D for DialogueWindow {
             pack_dir: String::new(),
             snapshot: None,
             choice_view: None,
+            line_material: None,
         }
     }
 
@@ -247,6 +250,22 @@ impl DialogueWindow {
                 godot_error!("dialogue: window or font art failed to load from {pack_dir}");
             }
         }
+    }
+
+    /// Draws the window's art, baked in line 2's `baked` words, in the
+    /// `live` ones: the field's CRAM line 2 (`cram_art`).
+    pub(crate) fn set_palette_line(&mut self, baked: &[u16], live: &[u16]) {
+        let mut material = match self.line_material.clone() {
+            Some(material) => material,
+            None => {
+                let material = crate::cram_art::window_line_material();
+                self.base_mut().set_material(&material);
+                self.line_material = Some(material.clone());
+                material
+            }
+        };
+        crate::cram_art::set_window_line(&mut material, baked, live);
+        self.base_mut().queue_redraw();
     }
 
     /// Takes this frame's runtime view. `None` hides the window.

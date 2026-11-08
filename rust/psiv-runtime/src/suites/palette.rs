@@ -6,7 +6,9 @@
 use std::path::Path;
 
 use crate::{Runtime, RuntimeEvent};
-use psiv_core::{CharId, Flag, GameState, Input, PresentationOp, RetailLocation, RetailSave, SceneOp, StepFrames};
+use psiv_core::{
+    CharId, Flag, GameState, Input, PresentationOp, RetailLocation, RetailSave, SceneOp, StepFrames,
+};
 use psiv_data::GameData;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -28,7 +30,9 @@ fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     // A member a scene writes to (Demi's Phonon skill) needs a record.
     for &who in party.iter().flatten() {
         if game.roster().get(who).is_none() {
-            game.roster_mut().seat(who, super::save::stats(who.0)).expect("seat");
+            game.roster_mut()
+                .seat(who, super::save::stats(who.0))
+                .expect("seat");
         }
     }
     game.set_party(party);
@@ -68,7 +72,10 @@ fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
     for _ in 0..50_000 {
         let events = runtime.tick(Input::Neutral);
         for item in &events {
-            assert!(!matches!(item, RuntimeEvent::SceneFaulted { .. }), "{item:?}");
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "{item:?}"
+            );
             if matches!(item, RuntimeEvent::SceneChoiceRequested) {
                 runtime.dialogue_choice(true);
             }
@@ -85,7 +92,11 @@ fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
             words: runtime.cram().words,
         });
         if !runtime.scene_active() {
-            assert!(runtime.cram().missing.is_empty(), "{:x?}", runtime.cram().missing);
+            assert!(
+                runtime.cram().missing.is_empty(),
+                "{:x?}",
+                runtime.cram().missing
+            );
             return (base, frames);
         }
     }
@@ -134,7 +145,11 @@ fn enter_anger_tower_whitens_three_lines_and_holds_the_third() {
         return;
     }
     // Anger Tower ($FC), Elsydeon ($D9) held: the barrier breaks.
-    let mut runtime = runtime_on(0x0FC, [Some(CharId(0)), None, None, None, None], &[Flag::event(0xD9)]);
+    let mut runtime = runtime_on(
+        0x0FC,
+        [Some(CharId(0)), None, None, None, None],
+        &[Flag::event(0xD9)],
+    );
     let held: Vec<u16> = runtime
         .data()
         .scene_palettes()
@@ -142,9 +157,19 @@ fn enter_anger_tower_whitens_three_lines_and_holds_the_third() {
         .expect("the pack carries Pal_Init_Line_3")
         .to_vec();
     let (base, frames) = trace(&mut runtime, 0x99);
-    let tone = emitted(&frames, |op| matches!(op, PresentationOp::PaletteIncreaseTone { .. }));
-    let start = if tone == 0 { base } else { frames[tone - 1].words };
-    assert_eq!(start[32..48], held[..], "the map load put the party line in line 2");
+    let tone = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteIncreaseTone { .. })
+    });
+    let start = if tone == 0 {
+        base
+    } else {
+        frames[tone - 1].words
+    };
+    assert_eq!(
+        start[32..48],
+        held[..],
+        "the map load put the party line in line 2"
+    );
     let failures = check_anger_tower(&start, &held, &frames[tone..tone + 80]);
     assert_eq!(failures, Vec::<String>::new());
     assert!(runtime.game().is_set(Flag::event(0xE0)));
@@ -165,7 +190,10 @@ fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<S
             }
         }
         if frame.words[32..48] != *held {
-            failures.push(format!("frame {k}: line 2 is {:04X?}", &frame.words[32..48]));
+            failures.push(format!(
+                "frame {k}: line 2 is {:04X?}",
+                &frame.words[32..48]
+            ));
         }
         for slot in (0..32).chain(48..64) {
             let want: Vec<u16> = rgb(start[slot])
@@ -187,7 +215,9 @@ fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<S
         }
     }
     if tone_steps != 10 || restore_steps != 10 {
-        failures.push(format!("{tone_steps} tone and {restore_steps} restore phase frames"));
+        failures.push(format!(
+            "{tone_steps} tone and {restore_steps} restore phase frames"
+        ));
     }
     failures
 }
@@ -199,8 +229,17 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
     if !pack_present() {
         return;
     }
-    let mut runtime = runtime_on(0x0FC, [Some(CharId(0)), None, None, None, None], &[Flag::event(0xD9)]);
-    let held: Vec<u16> = runtime.data().scene_palettes().words(0x0029_6300).unwrap().to_vec();
+    let mut runtime = runtime_on(
+        0x0FC,
+        [Some(CharId(0)), None, None, None, None],
+        &[Flag::event(0xD9)],
+    );
+    let held: Vec<u16> = runtime
+        .data()
+        .scene_palettes()
+        .words(0x0029_6300)
+        .unwrap()
+        .to_vec();
     let start = runtime.cram().words;
     // The tone without its hold, through the same CRAM model.
     let mut frames = Vec::new();
@@ -245,9 +284,15 @@ fn the_recovery_flash_restores_two_lines_and_leaves_two() {
     // AirCastle_F1_Part9 ($176), whose recovery tile fires $21.
     let mut runtime = runtime_on(0x176, [Some(CharId(0)), None, None, None, None], &[]);
     let (base, frames) = trace(&mut runtime, 0x21);
-    let flash = emitted(&frames, |op| matches!(op, PresentationOp::PaletteToneFlash { .. }));
+    let flash = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteToneFlash { .. })
+    });
     // Something changed: the first flash's frames brighten line 0 or 1.
-    assert!(frames[flash..flash + 16].iter().any(|f| f.words[..32] != base[..32]));
+    assert!(
+        frames[flash..flash + 16]
+            .iter()
+            .any(|f| f.words[..32] != base[..32])
+    );
     for (k, frame) in frames.iter().enumerate() {
         assert_eq!(frame.words[32..], base[32..], "frame {k}: lines 2 and 3");
     }
@@ -265,11 +310,21 @@ fn the_rykros_cycle_blocks_its_frames() {
         return;
     }
     let mut runtime = runtime_on(0x002, [Some(CharId(0)), None, None, None, None], &[]);
-    let table: Vec<u16> = runtime.data().scene_palettes().words(0x0007_82DA).expect("Rykros table").to_vec();
+    let table: Vec<u16> = runtime
+        .data()
+        .scene_palettes()
+        .words(0x0007_82DA)
+        .expect("Rykros table")
+        .to_vec();
     let (_, frames) = trace(&mut runtime, 0x801B);
-    let cycle = emitted(&frames, |op| matches!(op, PresentationOp::RykrosPaletteCycle { .. }));
+    let cycle = emitted(&frames, |op| {
+        matches!(op, PresentationOp::RykrosPaletteCycle { .. })
+    });
     let resume = next_event(&frames, cycle, |event| {
-        matches!(event, RuntimeEvent::SceneDialogueResume | RuntimeEvent::SceneDialogue { .. })
+        matches!(
+            event,
+            RuntimeEvent::SceneDialogueResume | RuntimeEvent::SceneDialogue { .. }
+        )
     });
     assert_eq!(resume - cycle, 8 + 6 + 8 + 8 + 8 + 8);
     assert_eq!(frames[cycle].words[23..32], table[..9]);
@@ -283,10 +338,21 @@ fn a_variable_fade_blocks_for_the_palette_it_fades() {
     if !pack_present() {
         return;
     }
-    let party = [Some(CharId(0)), Some(CharId(5)), Some(CharId(6)), None, None];
+    let party = [
+        Some(CharId(0)),
+        Some(CharId(5)),
+        Some(CharId(6)),
+        None,
+        None,
+    ];
     let mut runtime = runtime_on(0x0BD, party, &[]);
     let (_, frames) = trace(&mut runtime, 0x6C);
-    let fade = emitted(&frames, |op| matches!(op, PresentationOp::VariablePaletteFade { fade_in: false, .. }));
+    let fade = emitted(&frames, |op| {
+        matches!(
+            op,
+            PresentationOp::VariablePaletteFade { fade_in: false, .. }
+        )
+    });
     let before = frames[fade - 1].words;
     let largest = before
         .iter()

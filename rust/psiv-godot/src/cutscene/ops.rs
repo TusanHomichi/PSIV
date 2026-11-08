@@ -268,11 +268,12 @@ impl Field {
                 self.presentation
                     .step_field_object(slot, step_x, step_y, u16::MAX);
             }
-            PresentationOp::FadeToRed { lines } => self.start_red_palette(lines, false),
-            PresentationOp::FadeFromRed { lines } => self.start_red_palette(lines, true),
             // Palette records are applied by the runtime's CRAM model
-            // (`Runtime::cram`); this shell does not draw them yet.
+            // (`Runtime::cram`), and the map, sprites, panels and dialogue
+            // window draw from it (`cram_art`).
             op @ (PresentationOp::PaletteCopy { .. }
+            | PresentationOp::FadeToRed { .. }
+            | PresentationOp::FadeFromRed { .. }
             | PresentationOp::PaletteRestoreTone { .. }
             | PresentationOp::ShadowHighlight { .. }
             | PresentationOp::ClearPlanes
@@ -333,7 +334,6 @@ impl Field {
     }
 
     pub(crate) fn finish_cutscene_presentation(&mut self) {
-        self.clear_red_palette();
         let restored = if self.presentation.scene_music_retained() {
             // Runtime already settled this scene's Saved_Sound_Index decision.
             // Boarding has no cartridge restore at exit; discard the shell's

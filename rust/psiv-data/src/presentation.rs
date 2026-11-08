@@ -172,11 +172,13 @@ mod tests {
         // $8100 -> high byte $81 & $70 = 0; $A100 -> $20 bytes, word 16;
         // $E000 -> $60 bytes, word 48; $3000 -> $30 bytes, word 24 (the
         // vertical-flip bit is in the mask, as the cartridge has it).
-        let at = |art_tile| PanelPalette {
-            art_tile,
-            rom_addr: 0,
-        }
-        .start();
+        let at = |art_tile| {
+            PanelPalette {
+                art_tile,
+                rom_addr: 0,
+            }
+            .start()
+        };
         assert_eq!(at(0x8100), 0);
         assert_eq!(at(0xA100), 16);
         assert_eq!(at(0xE000), 48);

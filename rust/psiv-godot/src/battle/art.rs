@@ -593,14 +593,8 @@ fn palette_index(pixel: Color, palette: &[u16; 16]) -> Option<usize> {
 }
 
 pub(crate) fn cram_color(word: u16) -> Color {
-    const RED_BLUE: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
-    const GREEN: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
-    Color::from_rgba8(
-        RED_BLUE[((word >> 1) & 7) as usize],
-        GREEN[((word >> 5) & 7) as usize],
-        RED_BLUE[((word >> 9) & 7) as usize],
-        255,
-    )
+    let [r, g, b] = psiv_data::color::cram_rgb(word);
+    Color::from_rgba8(r, g, b, 255)
 }
 
 #[cfg(test)]

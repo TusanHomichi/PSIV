@@ -250,7 +250,7 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id) {
-                    if let Some(view) = SheetView::build(&self.pack_dir, sheet) {
+                    if let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram)) {
                         self.sheet_views.insert(sheet_id, view);
                     } else {
                         godot_error!("sheet {sheet_id} png failed to load");

@@ -326,9 +326,14 @@ impl Cram {
         palettes: &ScenePalettes,
     ) {
         let values: Vec<u16> = match source {
-            PaletteSource::Buffer(PaletteBuffer::Live) => {
-                self.view.words.iter().skip(start).take(count).copied().collect()
-            }
+            PaletteSource::Buffer(PaletteBuffer::Live) => self
+                .view
+                .words
+                .iter()
+                .skip(start)
+                .take(count)
+                .copied()
+                .collect(),
             PaletteSource::Buffer(PaletteBuffer::Saved) => {
                 self.saved.iter().skip(start).take(count).copied().collect()
             }
@@ -401,7 +406,9 @@ impl Cram {
                     }
                 }
             }
-            SceneOp::Presentation { op } => return self.presentation(op, main_frame_count, palettes),
+            SceneOp::Presentation { op } => {
+                return self.presentation(op, main_frame_count, palettes);
+            }
             _ => {}
         }
         None
@@ -445,15 +452,17 @@ impl Cram {
                 palettes,
             ),
             PresentationOp::PaletteIncreaseTone { frames, hold } => {
-                let hold = hold.and_then(|PaletteHold {
-                                         source_rom_addr,
-                                         destination_ram,
-                                         words,
-                                     }| {
-                    let start = destination_ram.checked_sub(PALETTE_TABLE_BUFFER)? / 2;
-                    let found = self.rom(palettes, source_rom_addr, usize::from(words))?;
-                    Some((start as usize, found.to_vec()))
-                });
+                let hold = hold.and_then(
+                    |PaletteHold {
+                         source_rom_addr,
+                         destination_ram,
+                         words,
+                     }| {
+                        let start = destination_ram.checked_sub(PALETTE_TABLE_BUFFER)? / 2;
+                        let found = self.rom(palettes, source_rom_addr, usize::from(words))?;
+                        Some((start as usize, found.to_vec()))
+                    },
+                );
                 self.start(Program::Tone { left: frames, hold }, frame);
             }
             PresentationOp::PaletteRestoreTone { frames } => {
@@ -479,25 +488,15 @@ impl Cram {
                 delays,
             } => {
                 let per = usize::from(words_per_frame);
-                let Some(start) = destination_ram.checked_sub(PALETTE_TABLE_BUFFER) else {
-                    return None;
-                };
-                let Some(table) = self.rom(palettes, source_rom_addr, per * delays.len()) else {
-                    return None;
-                };
+                let start = destination_ram.checked_sub(PALETTE_TABLE_BUFFER)?;
+                let table = self.rom(palettes, source_rom_addr, per * delays.len())?;
                 let mut writes = Vec::with_capacity(delays.len());
                 let mut at = 0u16;
                 for (index, &delay) in delays.iter().enumerate() {
                     writes.push((at, start as usize / 2, table[index * per..][..per].to_vec()));
                     at += u16::from(delay);
                 }
-                self.start(
-                    Program::Writes {
-                        elapsed: 0,
-                        writes,
-                    },
-                    frame,
-                );
+                self.start(Program::Writes { elapsed: 0, writes }, frame);
             }
             // `loc_6ED4E`: three words of line `destination_ram`'s words 1-3,
             // then `frame_delay` frames, `steps` times.
@@ -515,13 +514,7 @@ impl Cram {
                     .enumerate()
                     .map(|(n, row)| (n as u16 * frame_delay, start, row.to_vec()))
                     .collect();
-                self.start(
-                    Program::Writes {
-                        elapsed: 0,
-                        writes,
-                    },
-                    frame,
-                );
+                self.start(Program::Writes { elapsed: 0, writes }, frame);
             }
             // `loc_6E842`: two words a pass, then `frame_delay` frames.
             PresentationOp::PaletteCycleFromTable {
@@ -546,16 +539,14 @@ impl Cram {
                     .into_iter()
                     .enumerate()
                     .map(|(n, (first, second))| {
-                        (n as u16 * frame_delay, usize::from(offset), vec![first, second])
+                        (
+                            n as u16 * frame_delay,
+                            usize::from(offset),
+                            vec![first, second],
+                        )
                     })
                     .collect();
-                self.start(
-                    Program::Writes {
-                        elapsed: 0,
-                        writes,
-                    },
-                    frame,
-                );
+                self.start(Program::Writes { elapsed: 0, writes }, frame);
             }
             // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
