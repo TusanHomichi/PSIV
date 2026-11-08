@@ -293,7 +293,7 @@ Retail resets the list cursor: the buy and sell lists share
 `Window_Option_Index_3`, and Cancel out of either writes zero to it
 (`ps4.asm:135182`, `135508`), so a SELL visit never leaves BUY on a stale row.
 The port had kept the sell cursor; it now zeroes it on the same exit, pinned by
-`session_menus.rs` (`the_buy_list_opens_on_its_first_row_after_a_sell_visit`).
+`session_menus/shops.rs` (`the_buy_list_opens_on_its_first_row_after_a_sell_visit`).
 
 A visit ends as the cartridge ends it (#49). A greeting's wait takes Cancel as
 it takes Speak or Camp (`loc_65F74`, `ps4.asm:136233-136249`). Cancel at the
@@ -308,7 +308,7 @@ decoded through the dialogue charset by both pack builders, and each is picked
 by the counter's text variant, the `$FFFFE3EE` that `Win_ShopMessage` writes
 (`ps4.asm:136155-136232`): an inn's rate word's high byte, a shop's greeting
 word's, and 2 at the bakery (shop `$1D`) or 3 at the alternate group's other
-counter. The tests are `rust/psiv-runtime/tests/session_menus/shop_exits.rs`.
+counter. The tests are `rust/psiv-runtime/tests/session_menus/shops.rs`.
 
 Three page-graph differences remain. The cartridge's ordinary shop greeting has
 no wait at all: `loc_65F74` opens the BUY/SELL window on the pass after the
