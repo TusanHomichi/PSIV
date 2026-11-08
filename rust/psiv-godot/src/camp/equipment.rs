@@ -18,7 +18,7 @@ impl CampMenu {
         self.draw_root(view, chrome, list, false);
         frame(
             chrome,
-            &mut list.quads,
+            list,
             super::layout::equip_character_list(view.snapshot.party.len()),
         );
         for (row, character) in view.snapshot.party.iter().enumerate() {
@@ -52,12 +52,12 @@ impl CampMenu {
         // tile strings. Keep oracle geometry constants intact for its fixtures.
         frame(
             chrome,
-            &mut list.quads,
+            list,
             CellRect::new(EQUIP_STATS.x, EQUIP_STATS.y, 28, EQUIP_STATS.h),
         );
         frame(
             chrome,
-            &mut list.quads,
+            list,
             CellRect::new(EQUIPPED_ITEMS.x, EQUIPPED_ITEMS.y, 23, EQUIPPED_ITEMS.h),
         );
         let stats = [
@@ -103,7 +103,7 @@ impl CampMenu {
         list: &mut DrawList,
     ) {
         self.draw_equip_stats(view, chrome, list);
-        frame(chrome, &mut list.quads, EQUIP_ITEM_LIST);
+        frame(chrome, list, EQUIP_ITEM_LIST);
         const VISIBLE: usize = 8;
         let page_start = (view.equipment_item_selection / VISIBLE) * VISIBLE;
         for (row, item) in view
@@ -137,7 +137,7 @@ impl CampMenu {
         list: &mut DrawList,
     ) {
         self.draw_equip_stats(view, chrome, list);
-        frame(chrome, &mut list.quads, EQUIP_MESSAGE);
+        frame(chrome, list, EQUIP_MESSAGE);
         draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
@@ -148,11 +148,7 @@ impl CampMenu {
         list: &mut DrawList,
     ) {
         self.draw_equip_stats(view, chrome, list);
-        frame(
-            chrome,
-            &mut list.quads,
-            super::layout::CellRect::new(21, 13, 17, 7),
-        );
+        frame(chrome, list, super::layout::CellRect::new(21, 13, 17, 7));
         for (index, label) in ["RIGHT HAND", "LEFT HAND"].into_iter().enumerate() {
             draw_text(chrome, &mut list.quads, label, (24, 15 + index as i32 * 2));
         }

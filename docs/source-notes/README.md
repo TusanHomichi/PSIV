@@ -123,6 +123,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   cartridge would bring it back black. The variable fades, tone loops, flashes
   and cycles are stepped frame by frame
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The teleport's teardown drops the native ITEM and TECH windows at once.**
+  `DestroyAllWindows` closes every window on the camp's stack in turn
+  (`ps4.asm:117527-117543`), and the port closes each window it draws at the
+  cartridge's position on that window's own frames. The ITEM and TECH pages
+  still draw native windows where the cartridge has the pack's pages,
+  USE/LOOK/DSCD, the caster list and the technique pages, on every path that
+  reaches the teleport message (TELEPIPE, ESCAPIPE, RYUKA, HINAS). Those native
+  windows vanish on the teardown's first step, and the closing rectangles of
+  the cartridge records they stand for are not drawn. The frame count is the
+  cartridge's either way: the teardown runs on the whole stack. It ends when
+  the pages draw those windows from their records
+  ([#403](https://github.com/TusanHomichi/PSIV/issues/403)). Recorded in
+  [TRAVEL.md](../field/TRAVEL.md#teleport-windows-and-effect).
+
 - **The tree-attack party move leaves no stale destination.**
   `Event_CarnivorousTrees` (`$070826..$070847`) and `Event_SavingKyra`
   (`$07093C..$07095D`) write the leader's Y plus `$20` into each counted party

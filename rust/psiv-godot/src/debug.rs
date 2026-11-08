@@ -505,6 +505,12 @@ impl Field {
                         session.frame(Pad::NEUTRAL);
                     }
                     godot_print!("debug: teleport message open");
+                    if crate::boot::debug_camp_telepipe_close() {
+                        // Tape 36's acknowledgement; the shell's own frame
+                        // after this hook is the teardown's first step.
+                        session.frame(Pad::new(Button::Speak));
+                        godot_print!("debug: teleport message acknowledged");
+                    }
                 }
                 return;
             }

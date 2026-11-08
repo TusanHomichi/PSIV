@@ -6,7 +6,7 @@
 
 use godot::prelude::*;
 
-use psiv_runtime::{CampCharacter, CampPage, CampView, ROOT_OPTIONS};
+use psiv_runtime::{CampCharacter, CampPage, CampView, ROOT_OPTIONS, WindowRecord, WindowTeardown};
 
 use super::chrome::{CampChrome, Quad};
 use super::layout::{
@@ -25,6 +25,7 @@ impl CampMenu {
         let mut list = DrawList {
             quads: Vec::new(),
             portrait: None,
+            windows: Vec::new(),
         };
         match view.page {
             CampPage::TravelTowns | CampPage::TravelReady if view.travel_item_slot.is_some() => {
@@ -61,6 +62,9 @@ impl CampMenu {
             CampPage::Status => self.draw_status(view, chrome, &mut list),
             CampPage::Unsupported => self.draw_unsupported(view, chrome, &mut list),
         }
+        if let Some(teardown) = view.teardown.as_ref() {
+            close_windows(&mut list, teardown, chrome);
+        }
         Some(list)
     }
 
@@ -71,11 +75,9 @@ impl CampMenu {
         list: &mut DrawList,
         meseta: bool,
     ) {
-        frame(chrome, &mut list.quads, ROOT_MENU);
-        frame(chrome, &mut list.quads, CHARACTER_SUMMARY);
-        if meseta {
-            draw_meseta(chrome, &mut list.quads, view.snapshot.money);
-        }
+        // The cartridge's order (`Win_MenuOptions`, `ps4.asm:117201-117247`):
+        // the options, the stats, the meseta, each window's contents with it.
+        frame(chrome, list, ROOT_MENU);
         draw_root_options(chrome, &mut list.quads);
         let cursor = (
             ROOT_CURSOR_CELL.0,
@@ -84,14 +86,18 @@ impl CampMenu {
         if let Some(quad) = chrome.window_word(SELECTED_CURSOR_PATTERN, cursor) {
             list.quads.push(quad);
         }
+        frame(chrome, list, CHARACTER_SUMMARY);
         if let Some(character) = view.snapshot.party.first() {
             draw_summary(chrome, &mut list.quads, character);
+        }
+        if meseta {
+            draw_meseta(chrome, list, view.snapshot.money);
         }
     }
 
     fn draw_item_empty(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(view, chrome, list, false);
-        frame(chrome, &mut list.quads, ITEM_MESSAGE);
+        self.draw_root(view, chrome, list, true);
+        frame(chrome, list, ITEM_MESSAGE);
         draw_text(
             chrome,
             &mut list.quads,
@@ -101,8 +107,8 @@ impl CampMenu {
     }
 
     fn draw_item_list(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(view, chrome, list, false);
-        frame(chrome, &mut list.quads, ITEM_LIST);
+        self.draw_root(view, chrome, list, true);
+        frame(chrome, list, ITEM_LIST);
         let page = view.item_selection / 8;
         for (row, item) in view
             .snapshot
@@ -143,7 +149,7 @@ impl CampMenu {
 
     fn draw_item_target(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_item_list(view, chrome, list);
-        frame(chrome, &mut list.quads, ITEM_TARGET);
+        frame(chrome, list, ITEM_TARGET);
         for (row, character) in view.snapshot.party.iter().enumerate() {
             draw_text(
                 chrome,
@@ -161,8 +167,8 @@ impl CampMenu {
     }
 
     fn draw_item_result(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(view, chrome, list, false);
-        frame(chrome, &mut list.quads, ITEM_MESSAGE);
+        self.draw_root(view, chrome, list, true);
+        frame(chrome, list, ITEM_MESSAGE);
         draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
@@ -170,7 +176,7 @@ impl CampMenu {
         self.draw_root(view, chrome, list, true);
         // STATE_OPTIONS is the oracle-pinned retail two-row rectangle. This
         // modern branch adds SAVE without rewriting that retail constant.
-        frame(chrome, &mut list.quads, STATE_SAVE_OPTIONS);
+        frame(chrome, list, STATE_SAVE_OPTIONS);
         for text in STATE_TEXT {
             draw_text(chrome, &mut list.quads, text.text, text.cell);
         }
@@ -191,7 +197,7 @@ impl CampMenu {
 
     fn draw_save_slots(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_root(view, chrome, list, true);
-        frame(chrome, &mut list.quads, SAVE_SLOTS_OPTIONS);
+        frame(chrome, list, SAVE_SLOTS_OPTIONS);
         for text in SAVE_SLOT_TEXT {
             draw_text(chrome, &mut list.quads, text.text, text.cell);
         }
@@ -205,7 +211,7 @@ impl CampMenu {
 
     fn draw_save_result(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_save_slots(view, chrome, list);
-        frame(chrome, &mut list.quads, ITEM_MESSAGE);
+        frame(chrome, list, ITEM_MESSAGE);
         draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
@@ -221,7 +227,7 @@ impl CampMenu {
             STATUS_EXP,
             MESETA,
         ] {
-            frame(chrome, &mut list.quads, rect);
+            frame(chrome, list, rect);
         }
         draw_text(
             chrome,
@@ -240,13 +246,70 @@ impl CampMenu {
 
     fn draw_unsupported(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_root(view, chrome, list, true);
-        frame(chrome, &mut list.quads, ITEM_MESSAGE);
+        frame(chrome, list, ITEM_MESSAGE);
         draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 }
 
-pub(super) fn frame(chrome: &CampChrome, quads: &mut Vec<Quad>, rect: layout::CellRect) {
-    quads.extend(chrome.frame(rect));
+/// A window: its frame, and the start of the quads that belong to it.
+pub(super) fn frame(chrome: &CampChrome, list: &mut DrawList, rect: layout::CellRect) {
+    list.windows.push((rect, list.quads.len()));
+    list.quads.extend(chrome.frame(rect));
+}
+
+/// `DestroyAllWindows` over what the page drew (`psiv_runtime::WindowTeardown`):
+/// the windows the cartridge still has open stay, the closing one is its blank
+/// rectangle, and the rest are gone. A page window is the cartridge's when its
+/// top-left cell is a stacked window's; the page's own windows that are not
+/// (the ITEM list and target windows are native geometry) go when the first
+/// window starts to close.
+fn close_windows(list: &mut DrawList, teardown: &WindowTeardown, chrome: &CampChrome) {
+    let shown = teardown.view();
+    if shown.open.len() == teardown.stack().len() {
+        return;
+    }
+    let drawn = |window: &WindowRecord| {
+        list.windows
+            .iter()
+            .any(|(rect, _)| (rect.x, rect.y) == (window.x, window.y))
+    };
+    let closing = shown
+        .closing
+        .filter(|(window, _)| drawn(window))
+        .map(|(_, rect)| layout::CellRect::new(rect.x, rect.y, rect.width, rect.height));
+    let keep = kept_quads(&list.windows, list.quads.len(), &shown.open);
+    let mut quads: Vec<Quad> = std::mem::take(&mut list.quads)
+        .into_iter()
+        .enumerate()
+        .filter(|(at, _)| keep.iter().any(|range| range.contains(at)))
+        .map(|(_, quad)| quad)
+        .collect();
+    if let Some(rect) = closing {
+        quads.extend(chrome.frame(rect));
+    }
+    list.quads = quads;
+    list.windows.clear();
+    list.portrait = None;
+}
+
+/// The quads of each drawn window whose top-left cell is an open window's.
+fn kept_quads(
+    windows: &[(layout::CellRect, usize)],
+    quad_count: usize,
+    open: &[WindowRecord],
+) -> Vec<std::ops::Range<usize>> {
+    windows
+        .iter()
+        .enumerate()
+        .filter(|(_, (rect, _))| {
+            open.iter()
+                .any(|window| (window.x, window.y) == (rect.x, rect.y))
+        })
+        .map(|(at, (_, start))| {
+            let end = windows.get(at + 1).map_or(quad_count, |(_, next)| *next);
+            *start..end
+        })
+        .collect()
 }
 
 pub(super) fn draw_text(chrome: &CampChrome, quads: &mut Vec<Quad>, text: &str, cell: (i32, i32)) {
@@ -276,9 +339,14 @@ fn draw_selectors(
     }
 }
 
-fn draw_meseta(chrome: &CampChrome, quads: &mut Vec<Quad>, money: u32) {
-    frame(chrome, quads, MESETA);
-    draw_text(chrome, quads, &format!("{money} MST"), ROOT_TEXT[11].cell);
+fn draw_meseta(chrome: &CampChrome, list: &mut DrawList, money: u32) {
+    frame(chrome, list, MESETA);
+    draw_text(
+        chrome,
+        &mut list.quads,
+        &format!("{money} MST"),
+        ROOT_TEXT[11].cell,
+    );
 }
 
 fn draw_summary(chrome: &CampChrome, quads: &mut Vec<Quad>, character: &CampCharacter) {
@@ -300,4 +368,50 @@ fn draw_summary(chrome: &CampChrome, quads: &mut Vec<Quad>, character: &CampChar
         character.max_tp,
         ROOT_TEXT[3].cell,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::ITEM_LIST;
+    use super::layout::CellRect;
+    use super::{ITEM_MESSAGE, MESETA, ROOT_MENU, kept_quads};
+    use psiv_runtime::WindowRecord;
+
+    fn record(rect: CellRect) -> WindowRecord {
+        WindowRecord {
+            index: 0,
+            x: rect.x,
+            y: rect.y,
+            width: rect.w,
+            height: rect.h,
+        }
+    }
+
+    /// A page's windows stay while the cartridge's window at their top-left
+    /// cell is open; a page window with no such window (the native ITEM
+    /// list) and a closed one go, each with the contents drawn after it.
+    #[test]
+    fn a_window_keeps_its_own_quads_while_its_cartridge_window_is_open() {
+        let windows = [
+            (ROOT_MENU, 0),
+            (MESETA, 10),
+            (ITEM_LIST, 14),
+            (ITEM_MESSAGE, 30),
+        ];
+        let open = [record(ROOT_MENU), record(MESETA)];
+        assert_eq!(kept_quads(&windows, 40, &open), [0..10, 10..14]);
+        // The meseta at another origin is not this window.
+        let moved = WindowRecord {
+            x: MESETA.x + 1,
+            ..record(MESETA)
+        };
+        let kept = kept_quads(&windows, 40, &[record(ROOT_MENU), moved]);
+        assert_eq!((kept.len(), kept.first()), (1, Some(&(0..10))));
+        let kept = kept_quads(&windows, 40, &[record(ITEM_MESSAGE)]);
+        assert_eq!(
+            (kept.len(), kept.first()),
+            (1, Some(&(30..40))),
+            "the last window runs to the end"
+        );
+    }
 }

@@ -8,13 +8,15 @@
 //! town opens `Win_ItemTeleportMsg`'s first line, and a refused TELEPIPE,
 //! ESCAPIPE, RYUKA or HINAS shows the cartridge's refusal: each window line is
 //! the pack's (`travel.json`'s `messages`), never a copy in the runtime.
+//! Acknowledging the granted line closes the windows one at a time, fades the
+//! field being left and loads the destination on tape 36's frames.
 
 use std::path::Path;
 
 use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData, TravelMessages};
 use psiv_runtime::{
-    Button, CampPage, ESCAPIPE, HINAS, Pad, RYUKA, Session, TELEPIPE, TOWN_PAGE_ROWS,
+    Button, CampPage, ESCAPIPE, HINAS, Pad, RYUKA, RuntimeEvent, Session, TELEPIPE, TOWN_PAGE_ROWS,
 };
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -262,4 +264,160 @@ fn hinas_and_escapipe_outside_a_dungeon_show_the_cartridges_refusal() {
     }
     assert_eq!(page(&session), CampPage::ItemResult);
     assert_eq!(message(&session), lines.cannot_be_used);
+}
+
+/// Tape 36's teleport, frame by frame from the acknowledgement (8355): the
+/// seven windows close one at a time (`DestroyAllWindows`), the menu exits and
+/// the field being left fades from 8390, the destination loads on 8404, the
+/// first frame after black, and control returns when its rows run out (8465
+/// for MILE's 61). No pad reaches the field before then.
+#[test]
+fn the_acknowledged_teleport_closes_each_window_then_fades_then_loads() {
+    let Some(mut session) = session() else { return };
+    open_town_list(&mut session);
+    press(&mut session, Button::Down); // MILE
+    press(&mut session, Button::Speak);
+    assert_eq!(page(&session), CampPage::TravelReady);
+    let start = session.runtime().state().cell();
+    let map = session.runtime().map().id();
+
+    // 8355: the acknowledgement. Every window is still on screen.
+    let ack = session.frame(Pad::new(Button::Speak));
+    assert_eq!(
+        ack.sound,
+        Some(0xDE),
+        "the teleport sound plays on the press"
+    );
+    let teardown = session.camp_view().unwrap().teardown.clone().unwrap();
+    let indices: Vec<u8> = teardown.stack().iter().map(|window| window.index).collect();
+    assert_eq!(indices, [0x00, 0x06, 0x01, 0x0E, 0x2F, 0x36, 0x45]);
+    assert_eq!(teardown.view().open.len(), 7);
+    // `Windows_Opened_Num` on tape 36 falls on 8355, 8363, 8368, 8371, 8376,
+    // 8381 and 8385: the pack's records close in these frames each, and the
+    // menu exits on 8390.
+    let frames: Vec<u16> = teardown
+        .stack()
+        .iter()
+        .rev()
+        .map(|window| window.close_frames())
+        .collect();
+    assert_eq!(frames, [8, 5, 3, 5, 5, 4, 4]);
+    assert_eq!(teardown.frames(), 8390 - 8355);
+    // The message on 8356..8363: full width at its own column, then four
+    // cells narrower and two further right a frame, then gone.
+    let message = teardown.stack()[6];
+    let narrowing: Vec<_> = (0..8)
+        .map(|step| {
+            message
+                .closing_rect(step)
+                .map(|rect| (rect.x - message.x, rect.width))
+        })
+        .collect();
+    assert_eq!(narrowing[0], Some((0, message.width)));
+    assert_eq!(narrowing[1], Some((2, message.width - 4)));
+    assert_eq!(narrowing[6], Some((12, 2)));
+    assert_eq!(narrowing[7], None);
+
+    // 8356..8389: one window at a time, the message first, the root last; a
+    // held pad changes nothing.
+    let mut open = Vec::new();
+    let mut closing = Vec::new();
+    for frame in 8356..=8389 {
+        let pad = if frame % 2 == 0 {
+            Pad::new(Button::Up)
+        } else {
+            Pad::new(Button::Camp)
+        };
+        let out = session.frame(pad);
+        assert!(
+            out.menu_events.is_empty() && out.events.is_empty(),
+            "{frame}"
+        );
+        let view = session.camp_view().expect("the menu is up until it exits");
+        let shown = view.teardown.as_ref().unwrap().view();
+        open.push(shown.open.len());
+        closing.push(shown.closing.map(|(window, _)| window.index));
+    }
+    let at = |frame: usize| (open[frame - 8356], closing[frame - 8356]);
+    assert_eq!(at(8356), (6, Some(0x45)), "the message closes first");
+    assert_eq!(at(8363), (6, None), "the message is gone");
+    assert_eq!(at(8364), (5, Some(0x36)), "then the town list");
+    assert_eq!(at(8388), (0, Some(0x00)), "the root last");
+    assert_eq!(at(8389), (0, None), "every window gone");
+
+    // 8390: the menu exits and the fade starts over the field being left.
+    let exit = session.frame(Pad::NEUTRAL);
+    assert!(session.camp_view().is_none());
+    assert!(matches!(
+        exit.menu_events[..],
+        [RuntimeEvent::TeleportFadeOut]
+    ));
+    assert!(session.runtime().teleporting());
+
+    // 8391..8403: the fade. The party is still where it was.
+    for frame in 8391..=8403 {
+        let out = session.frame(Pad::new(Button::Camp));
+        assert!(out.events.is_empty(), "{frame}");
+        assert!(session.camp_view().is_none(), "{frame}: no menu reopens");
+        assert_eq!(session.runtime().state().cell(), start);
+        assert_eq!(session.runtime().map().id(), map);
+    }
+
+    // 8404: black, and the destination loads under it.
+    let load = session.frame(Pad::NEUTRAL);
+    let rows = match load.events[..] {
+        [
+            RuntimeEvent::MapChanged { .. },
+            RuntimeEvent::Teleported { reload_frames },
+        ] => reload_frames,
+        _ => panic!("the load's events: {:?}", load.events),
+    };
+    assert_ne!(session.runtime().map().id(), map);
+    let arrived = session.runtime().state().cell();
+
+    // Its rows, 8404 to 8404 + rows - 1: the field is parked and the pad does
+    // nothing. Control returns on the next frame, 8465 for MILE.
+    for row in 1..rows {
+        session.frame(Pad::new(Button::Down));
+        assert!(session.runtime().teleporting(), "row {row}");
+        assert!(session.camp_view().is_none());
+        assert_eq!(session.runtime().state().cell(), arrived);
+    }
+    session.frame(Pad::NEUTRAL);
+    assert!(!session.runtime().teleporting(), "control returns");
+    assert!(!session.runtime().field_suspended());
+}
+
+/// A town list browsed and cancelled is not the next travel's: HINAS cast in
+/// the same menu has no town pages to stack or draw under its line.
+#[test]
+fn a_cancelled_town_list_does_not_follow_the_next_cast() {
+    let Some(mut session) = session_with(&[TELEPIPE], 50) else {
+        return;
+    };
+    open_town_list(&mut session);
+    assert!(!session.camp_view().unwrap().travel_towns.is_empty());
+    for _ in 0..4 {
+        if page(&session) == CampPage::Root {
+            break;
+        }
+        press(&mut session, Button::Cancel);
+    }
+    assert_eq!(page(&session), CampPage::Root, "the same menu, at its root");
+    press(&mut session, Button::Down); // TECH
+    press(&mut session, Button::Speak);
+    press(&mut session, Button::Speak); // Chaz
+    let at = session
+        .camp_view()
+        .unwrap()
+        .ability_options
+        .iter()
+        .position(|ability| ability.id == HINAS)
+        .expect("Chaz knows HINAS");
+    for _ in 0..at {
+        press(&mut session, Button::Down);
+    }
+    press(&mut session, Button::Speak);
+    assert_eq!(page(&session), CampPage::AbilityResult);
+    assert!(session.camp_view().unwrap().travel_towns.is_empty());
 }

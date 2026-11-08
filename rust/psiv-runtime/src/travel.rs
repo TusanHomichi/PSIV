@@ -16,6 +16,19 @@ pub const ESCAPIPE: u8 = 133;
 
 /// `Pal_FadeIn`'s rows, the floor of any field load.
 const TELEPORT_FADE_IN_FRAMES: u16 = 16;
+/// `PalFadeOut_ClrSpriteTbl`'s frames in `MenuExit_Teleport`
+/// (`ps4.asm:117166-117169`): one unchanged, then thirteen stepped to black.
+/// On tape 36 the menu exits on 8390, black on 8403, the load from 8404.
+pub(crate) const TELEPORT_FADE_OUT_FRAMES: u16 = 14;
+
+/// A teleport between the menu's exit and field control: the fade-out over
+/// the field being left, then the destination's load. The field does not run.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TeleportTail {
+    elapsed: u16,
+    /// Fade-out and load together, once the load has run.
+    total: Option<u16>,
+}
 
 /// The refusal when the place forbids a teleport; the camp shows the
 /// cartridge's line for it.
@@ -353,8 +366,73 @@ impl Runtime {
         self.prepare_travel(TravelPayment::Item(slot), name, destination)
     }
 
-    /// Acknowledge the paid teleport message. It is consumed once; the shell
-    /// closes camp and processes the ordinary map-change event for art/music.
+    /// `MenuExit_Teleport`: the windows are gone and the field starts to
+    /// fade (`ps4.asm:117166-117169`). The field stays where it is until the
+    /// fade is black; [`Runtime::tick_teleport`] then loads the destination
+    /// and waits out its rows. Nothing happens without a paid teleport.
+    pub(crate) fn begin_camp_teleport(&mut self) -> Result<Vec<RuntimeEvent>, BridgeError> {
+        if self.pending_travel.is_none() {
+            return Ok(Vec::new());
+        }
+        self.teleport_tail = Some(TeleportTail {
+            elapsed: 0,
+            total: None,
+        });
+        self.set_field_suspended(true);
+        Ok(vec![RuntimeEvent::TeleportFadeOut])
+    }
+
+    /// Whether a teleport owns the frames: its fade-out or its load.
+    #[must_use]
+    pub fn teleporting(&self) -> bool {
+        self.teleport_tail.is_some()
+    }
+
+    /// One frame of the teleport. The destination loads on the frame after
+    /// the fade reaches black (the first of `GameMode_LoadFieldMap`'s rows),
+    /// and control returns on the frame its rows run out, as a cutscene's
+    /// return does (`scene_return.rs`).
+    pub(crate) fn tick_teleport(&mut self) -> Vec<RuntimeEvent> {
+        let Some(tail) = self.teleport_tail.as_mut() else {
+            return Vec::new();
+        };
+        tail.elapsed += 1;
+        let elapsed = tail.elapsed;
+        let mut events = Vec::new();
+        if elapsed == TELEPORT_FADE_OUT_FRAMES {
+            match self.complete_camp_travel() {
+                Ok(loaded) => events = loaded,
+                Err(error) => {
+                    self.teleport_tail = None;
+                    self.set_field_suspended(false);
+                    return vec![RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    }];
+                }
+            }
+            let rows = events
+                .iter()
+                .find_map(|event| match event {
+                    RuntimeEvent::Teleported { reload_frames } => Some(*reload_frames),
+                    _ => None,
+                })
+                .unwrap_or(TELEPORT_FADE_IN_FRAMES);
+            if let Some(tail) = self.teleport_tail.as_mut() {
+                tail.total = Some(TELEPORT_FADE_OUT_FRAMES + rows);
+            }
+        }
+        if self
+            .teleport_tail
+            .is_some_and(|tail| tail.total.is_some_and(|total| elapsed >= total))
+        {
+            self.teleport_tail = None;
+            self.set_field_suspended(false);
+        }
+        events
+    }
+
+    /// The teleport's load: the paid destination, consumed once. Its events
+    /// are the ordinary map change for art and music, then the load's rows.
     pub(crate) fn complete_camp_travel(&mut self) -> Result<Vec<RuntimeEvent>, BridgeError> {
         let Some(destination) = self.pending_travel.take() else {
             return Ok(Vec::new());
@@ -366,7 +444,6 @@ impl Runtime {
             destination.facing,
             destination.previous_map,
         )?;
-        self.set_field_suspended(false);
         // The load's music branch costs a frame when it writes a new word.
         let music_written = self.saved_sound_index != music;
         let reload_frames = psiv_core::field_reload_rows(loaded.id().0, music_written)

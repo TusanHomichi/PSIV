@@ -54,6 +54,7 @@ from psiv_tools.dialogue_pack import (
     font_strip,
     frame_roles,
     glyph_bitmaps,
+    menu_window_records,
     paginate,
     pattern_word,
     split_preamble,
@@ -713,6 +714,29 @@ class TestDialoguePack(unittest.TestCase):
         self.assertEqual(box["rect"], {"x": 24, "y": 160, "width": 272, "height": 48})
         portrait = records[2]
         self.assertEqual(portrait["rect"], {"x": 40, "y": 104, "width": 48, "height": 48})
+
+    def test_the_menu_records_are_the_cartridges_menu_group(self):
+        """`WinGroup_Menu` runs from its `WinGroupOffsets` entry to the
+        dialogue group's, and its records are the camp windows the layout
+        documents: the root options, the meseta, and the teleport messages,
+        which share the dialogue group's first rectangle."""
+        records = menu_window_records(self.data)
+        self.assertEqual(self.window["menu_windows"], records)
+        self.assertEqual(len(records), 312)
+        self.assertEqual([r["index"] for r in records], list(range(312)))
+        cells = lambda r: (r["x_cell"], r["y_cell"], r["width_cells"], r["height_cells"])
+        self.assertEqual(cells(records[0x00]), (4, 2, 9, 15))
+        self.assertEqual(cells(records[0x01]), (3, 23, 13, 3))
+        controls = window_records(self.data)[0]
+        for message in (0x45, 0x65, 0x75):
+            self.assertEqual(cells(records[message]), cells(controls))
+
+    def test_the_menu_group_must_end_where_the_dialogue_group_starts(self):
+        corrupt = bytearray(self.data)
+        entry = 0x06899C + 2 * 2
+        corrupt[entry + 1] ^= 0x08
+        with self.assertRaises(DialoguePackError):
+            menu_window_records(bytes(corrupt))
 
     def test_the_box_interior_is_exactly_the_text_area(self):
         """The window record and `TextBufferToPlane`'s immediates are separate

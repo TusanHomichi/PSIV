@@ -346,6 +346,10 @@ fn window_json() -> String {
     "rect": {{"x": 40, "y": 104, "width": 48, "height": 48}}
   }},
   "windows": [],
+  "menu_windows": [
+    {{"index": 0, "width_cells": 9, "height_cells": 15, "x_cell": 4, "y_cell": 2}},
+    {{"index": 1, "width_cells": 13, "height_cells": 3, "x_cell": 3, "y_cell": 23}}
+  ],
   "palette": {{"colors": [[0, 36, 109], [255, 255, 255]], "fill_index": 14}}
 }}"#,
         role(105, 840, false, false),
@@ -612,6 +616,35 @@ fn a_missing_window_role_stops_the_load() {
     let error = load_fixture("dialogue_role", &trees_json(), FONT, &window, PORTRAITS)
         .expect_err("eight roles cannot draw a frame");
     assert!(error.to_string().contains("missing edge_left"), "{error}");
+}
+
+/// `Window_Create` indexes the menu group by record, so a gap in the list
+/// would hand a routine the wrong window; and a window needs its frame.
+#[test]
+fn menu_windows_that_are_not_dense_or_have_no_frame_stop_the_load() {
+    let window = window_json().replace(r#"{"index": 1,"#, r#"{"index": 2,"#);
+    let error = load_fixture(
+        "dialogue_menu_dense",
+        &trees_json(),
+        FONT,
+        &window,
+        PORTRAITS,
+    )
+    .expect_err("record 1 is missing");
+    assert!(
+        error.to_string().contains("menu_windows[1] is record 2"),
+        "{error}"
+    );
+    let window = window_json().replace(r#""width_cells": 13"#, r#""width_cells": 1"#);
+    let error = load_fixture(
+        "dialogue_menu_frame",
+        &trees_json(),
+        FONT,
+        &window,
+        PORTRAITS,
+    )
+    .expect_err("one cell has no frame");
+    assert!(error.to_string().contains("less than its frame"), "{error}");
 }
 
 #[test]

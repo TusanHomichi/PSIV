@@ -11,8 +11,8 @@ use psiv_runtime::{CampAbilityKind, CampPage, CampView, TOWN_PAGE_ROWS, town_pag
 
 impl CampMenu {
     pub(super) fn draw_abilities(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(view, chrome, list, false);
-        frame(chrome, &mut list.quads, ITEM_LIST);
+        self.draw_root(view, chrome, list, true);
+        frame(chrome, list, ITEM_LIST);
         let kind = if view.ability_kind == CampAbilityKind::Technique {
             "TECH"
         } else {
@@ -77,7 +77,7 @@ impl CampMenu {
             );
         }
         if view.page == CampPage::AbilityTarget {
-            frame(chrome, &mut list.quads, ITEM_TARGET);
+            frame(chrome, list, ITEM_TARGET);
             for (row, c) in view.snapshot.party.iter().enumerate() {
                 draw_text(
                     chrome,
@@ -97,11 +97,13 @@ impl CampMenu {
         chrome: &CampChrome,
         list: &mut DrawList,
     ) {
-        if view.page == CampPage::TravelTowns {
+        // The town list stays open under the teleport message: `DestroyAllWindows`
+        // closes both (tape 36, `Windows_Opened_Num` 7 at the message).
+        if matches!(view.page, CampPage::TravelTowns | CampPage::TravelReady) {
             draw_town_pages(view, chrome, list);
         }
         if matches!(view.page, CampPage::AbilityResult | CampPage::TravelReady) {
-            frame(chrome, &mut list.quads, super::layout::ITEM_MESSAGE);
+            frame(chrome, list, super::layout::ITEM_MESSAGE);
             draw_message(view, chrome, list);
         }
     }
@@ -123,7 +125,7 @@ fn draw_town_pages(view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         let x = left + page as i32;
         frame(
             chrome,
-            &mut list.quads,
+            list,
             CellRect::new(x, top, TOWN_LIST_WIDTH, 2 * rows + 2),
         );
         let first = page * TOWN_PAGE_ROWS;

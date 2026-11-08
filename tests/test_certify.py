@@ -33,7 +33,8 @@ from tools.heavy_lock import Hold
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "title",
        "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
-NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message"]
+NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
+                         "teleport-close-towns"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -88,10 +89,20 @@ class PairTableCase(unittest.TestCase):
         # Only these are cropped; the others certify whole frames. The
         # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
-        self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message"])
+        self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message",
+                                   "teleport-close", "teleport-close-towns"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
+        # The windows closing after the acknowledgement (#128): each pair
+        # holds the rectangle of the window it watches close.
+        close = {p[0]: p for p in certify.PAIRS if p[0].startswith("teleport-close")}
+        self.assertEqual(close["teleport-close"][5]["region"], message[5]["region"])
+        self.assertEqual(close["teleport-close-towns"][5]["region"], recipe["region"])
+        for _, env, tick, _, _, close_recipe in close.values():
+            self.assertEqual(env, {"PSIV_DEBUG_CAMP": "telepipe-close"})
+            # Tick 31 shows 8356, the first step after the 8355 press.
+            self.assertEqual(close_recipe["frames"], [8325 + tick])
 
     def test_battle_pairs_pin_the_enemy_clock_the_oracle_receipt_names(self):
         for name, env, _, _, _, _ in certify.PAIRS:
