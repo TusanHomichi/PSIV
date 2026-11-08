@@ -165,6 +165,7 @@ pub(super) fn construct_runtime(
         saved_map_index_2: placement.map_index_2,
         dungeon_exit_index: 0,
         pending_travel: None,
+        teleport_tail: None,
         loot: None,
         scene: None,
         scene_input: SceneInput::None,

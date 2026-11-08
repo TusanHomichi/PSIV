@@ -14,20 +14,28 @@ use crate::input::requested_save_slot;
 /// selector must still reach the surface it was written to inspect.
 /// `PSIV_DEBUG_CAMP`: `1` opens tape 22's camp root; `telepipe` opens tape
 /// 36's TELEPIPE town list from the same receipt state (#128);
-/// `telepipe-message` goes on to MILE's teleport message.
+/// `telepipe-message` goes on to MILE's teleport message, and
+/// `telepipe-close` acknowledges it, so the windows start to close.
 pub(crate) fn debug_camp_fixture() -> bool {
     std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") || debug_camp_telepipe()
 }
 
-/// Whether the camp fixture is tape 36's TELEPIPE town list (or message).
+/// Whether the camp fixture is tape 36's TELEPIPE town list (or further).
 pub(crate) fn debug_camp_telepipe() -> bool {
-    std::env::var("PSIV_DEBUG_CAMP")
-        .is_ok_and(|value| value == "telepipe" || value == "telepipe-message")
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| {
+        value == "telepipe" || value == "telepipe-message" || value == "telepipe-close"
+    })
 }
 
 /// Whether the fixture continues to tape 36's teleport message.
 pub(crate) fn debug_camp_telepipe_message() -> bool {
-    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "telepipe-message")
+    std::env::var("PSIV_DEBUG_CAMP")
+        .is_ok_and(|value| value == "telepipe-message" || value == "telepipe-close")
+}
+
+/// Whether the fixture acknowledges the message: tape 36's frame 8355.
+pub(crate) fn debug_camp_telepipe_close() -> bool {
+    std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "telepipe-close")
 }
 
 pub(crate) fn title_bypassed() -> bool {

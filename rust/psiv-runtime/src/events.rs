@@ -224,12 +224,17 @@ pub enum RuntimeEvent {
         /// Which transition class fired.
         trigger: WarpTrigger,
     },
-    /// A teleport (RYUKA, HINAS, TELEPIPE, ESCAPIPE) loaded its destination,
-    /// after the [`RuntimeEvent::MapChanged`] it follows. The cartridge fades
-    /// the field out (`MenuExit_Teleport`, `PalFadeOut_ClrSpriteTbl`,
-    /// `ps4.asm:117166-117169`), then `GameMode_LoadFieldMap` spends
+    /// A teleport's windows have closed and the field being left fades out
+    /// (`MenuExit_Teleport`, `PalFadeOut_ClrSpriteTbl`,
+    /// `ps4.asm:117166-117169`): one unchanged frame, then thirteen stepped
+    /// to black. The destination loads after it, with
+    /// [`RuntimeEvent::Teleported`].
+    TeleportFadeOut,
+    /// A teleport (RYUKA, HINAS, TELEPIPE, ESCAPIPE) loaded its destination
+    /// under the black the fade-out left, after the
+    /// [`RuntimeEvent::MapChanged`] it follows. `GameMode_LoadFieldMap` spends
     /// `reload_frames` rows on the load, its 16-frame `Pal_FadeIn` included
-    /// (`psiv_core::field_reload_rows`).
+    /// (`psiv_core::field_reload_rows`); control returns when they run out.
     Teleported {
         /// The destination load's measured rows.
         reload_frames: u16,

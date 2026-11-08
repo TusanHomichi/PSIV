@@ -9,7 +9,7 @@ impl CampMenu {
     pub(super) fn draw_order(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_state(view, chrome, list);
         if view.page == CampPage::OrderAlone {
-            frame(chrome, &mut list.quads, ITEM_MESSAGE);
+            frame(chrome, list, ITEM_MESSAGE);
             draw_text(chrome, &mut list.quads, "There's only", (8, 22));
             draw_text(chrome, &mut list.quads, "one of you!", (8, 23));
             return;
@@ -17,7 +17,7 @@ impl CampMenu {
         // WinGroup_Menu D2..D9: dimensions are stored one cell short.
         let height = view.snapshot.party.len() as i32 * 2 + 2;
         if view.page == CampPage::Order {
-            frame(chrome, &mut list.quads, CellRect::new(2, 13, 9, height));
+            frame(chrome, list, CellRect::new(2, 13, 9, height));
             draw_text(
                 chrome,
                 &mut list.quads,
@@ -25,7 +25,7 @@ impl CampMenu {
                 (4, 14 + view.snapshot.party.len() as i32 * 2),
             );
         }
-        frame(chrome, &mut list.quads, CellRect::new(11, 13, 7, height));
+        frame(chrome, list, CellRect::new(11, 13, 7, height));
         for (ids, x) in [
             (&view.order_draft.remaining, 5),
             (&view.order_draft.chosen, 13),

@@ -29,6 +29,10 @@ impl Runtime {
         if self.battle_field_refresh_pending {
             return self.return_to_field();
         }
+        // A teleport's fade-out and load: no field mode runs (`travel.rs`).
+        if self.teleport_tail.is_some() {
+            return self.tick_teleport();
+        }
         self.tick_camera_glide();
         if self.scene.is_some() {
             // The frame the mode dispatcher spends entering event mode.
