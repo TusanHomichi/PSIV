@@ -246,7 +246,9 @@ engine also judges Godot static bytes and checks orphan nodes. Release export
 templates provide neither counter: the receipt marks both unavailable rather
 than interpreting zero as a measurement. RSS remains diagnostic in both
 builds because the system allocator can retain freed pages; it is never used
-as a substitute for counted Rust bytes.
+as a substitute for counted Rust bytes. Counter availability and verdict
+selection belong to `psiv-memory-verdict`; the Python launcher builds its
+JSON bridge before taking the Godot slot and calls it for those decisions.
 
 `tools/verify_native_tape.py` is the generic Godot entry point. It opens one
 campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start

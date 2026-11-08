@@ -250,6 +250,10 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.rss_bound_mb is not None:
+        policy = native_rss.memory_policy({"operation": "prepare"})
+        if "error" in policy:
+            parser().error(policy["error"])
     with hold_heavy_lock(heavy_lock_path(ROOT), lock_class=GODOT_CLASS):
         return replay(args)
 

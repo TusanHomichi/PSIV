@@ -72,6 +72,10 @@ retained allocator pages cannot establish a leak (#117).
 from __future__ import annotations
 
 import math
+import json
+import os
+from pathlib import Path
+import subprocess
 
 # The floor window, in frames of field time observed on one map (each sample
 # stands for one `--rss-every` interval, so a window is
@@ -258,18 +262,43 @@ def probe_caches(sample: dict) -> dict | None:
     return out
 
 
-def static_availability(samples: list) -> bool | None:
-    """Legacy receipts used debug counters; new receipts declare availability.
+_policy_binary: Path | None = None
 
-    A mixed mode or a nonzero unavailable counter is malformed evidence.
-    """
-    modes = [item.get("static_available", True) for item in samples]
-    if any(type(mode) is not bool for mode in modes) or len(set(modes)) != 1:
-        return None
-    available = modes[0] if modes else True
-    if not available and any(item.get("static_kb") != 0 for item in samples):
-        return None
-    return available
+
+def memory_policy(request: dict) -> dict:
+    """Transport to the Rust owner; no build-dependent verdict policy lives here."""
+    global _policy_binary
+    if _policy_binary is None:
+        override = os.environ.get("PSIV_MEMORY_VERDICT_BINARY")
+        if override:
+            _policy_binary = Path(override)
+        else:
+            root = Path(__file__).resolve().parents[1]
+            command = ["cargo", "build", "--quiet", "--locked", "--manifest-path", str(root / "rust/Cargo.toml"),
+                       "-p", "psiv-memory-verdict", "--message-format=json"]
+            try:
+                from tools.heavy_lock import BUILD, heavy_lock_path, hold_heavy_lock
+            except ModuleNotFoundError:
+                from heavy_lock import BUILD, heavy_lock_path, hold_heavy_lock
+            try:
+                with hold_heavy_lock(heavy_lock_path(root), lock_class=BUILD):
+                    built = subprocess.run(command, capture_output=True, text=True, check=False)
+                executables = [item["executable"] for item in map(json.loads, built.stdout.splitlines())
+                               if item.get("reason") == "compiler-artifact" and item.get("executable")]
+            except (OSError, ValueError) as error:
+                return {"error": "cannot build Rust memory policy: " + str(error)}
+            if built.returncode or not executables:
+                return {"error": "cannot build Rust memory policy: " + built.stderr.strip()}
+            _policy_binary = Path(executables[-1])
+    try:
+        result = subprocess.run([str(_policy_binary)], input=json.dumps(request),
+                                capture_output=True, text=True, check=False)
+        output = json.loads(result.stdout)
+        if result.returncode or not isinstance(output, dict):
+            return {"error": "Rust memory policy failed: " + result.stderr.strip()}
+        return output
+    except (OSError, ValueError) as error:
+        return {"error": str(error)}
 
 
 def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
@@ -292,16 +321,6 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
                        for key in PROBE_KEYS + ("orphan_nodes", "rust_live_bytes"))
                and item["rss_kb"] > 0 for item in samples):
         return None, "a sample off the open field or unreadable"
-    available = static_availability(samples)
-    if available is None:
-        return None, "inconsistent static-memory availability"
-    orphan_available = probe.get("orphan_monitor_available", True)
-    if type(orphan_available) is not bool or orphan_available != available:
-        return None, "inconsistent orphan-monitor availability"
-    if orphan_available and probe.get("orphan_monitor_alive") is not True:
-        return None, "its orphan-node monitor did not count a test orphan"
-    if not orphan_available and any(item["orphan_nodes"] != 0 for item in samples):
-        return None, "an unavailable orphan monitor reported nodes"
     caches = [probe_caches(item) for item in samples]
     if any(cache is None for cache in caches):
         return None, "a sample without its named caches"
@@ -315,12 +334,9 @@ def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
     floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS + ("orphan_nodes",)}
     outside = [item["objects"] - sum(cache["objects"] for cache in item_caches.values())
                for item, item_caches in zip(samples, caches)]
-    outside_kb = [item["static_kb"] - (sum(cache["bytes"] for cache in item_caches.values()) / 1024
-                                       if available else 0)
-                  for item, item_caches in zip(samples, caches)]
+    outside_kb = [item["static_kb"] - item["static_cache_kb"] for item in samples]
     if any(value < 0 for value in outside) or any(value < 0 for value in outside_kb):
         return None, "a probe's named caches exceed its objects or static memory"
-    floor["static_available"] = available
     floor["objects_outside_caches"] = min(outside)
     floor["static_outside_caches_kb"] = min(outside_kb)
     floor["rust_live_kb"] = min(item["rust_live_bytes"] for item in samples) / 1024
@@ -347,6 +363,10 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
     beside its ceiling, and the RSS residual (RSS minus static minus live
     Rust bytes) is reported, never judged. A missing or unsettled probe, or
     one without its caches, fails."""
+    prepared = memory_policy({"operation": "prepare", "probes": probes})
+    if "error" in prepared:
+        return {"pass": False, "reason": prepared["error"]}
+    probes = prepared["probes"]
     probes = probes if isinstance(probes, dict) else {}
     start, start_why = probe_floor(probes.get("start"))
     end, end_why = probe_floor(probes.get("end"))
@@ -358,9 +378,6 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
     def mb(kb: float) -> float:
         return round(kb / 1024, 1)
 
-    if start["static_available"] != end["static_available"]:
-        return {"pass": False, "reason": "probes disagree on static-memory availability"}
-    available = start["static_available"]
     static = end["static_outside_caches_kb"] - start["static_outside_caches_kb"]
     rust = end["rust_live_kb"] - start["rust_live_kb"]
     objects = end["objects_outside_caches"] - start["objects_outside_caches"]
@@ -377,28 +394,28 @@ def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> 
             "ceiling": after["ceiling"],
             "pass": max(before["entries"], after["entries"]) <= after["ceiling"]}
     orphans = max(start["orphan_nodes"], end["orphan_nodes"])
-    return {
-        "start_floor": {"static_mb": mb(start["static_kb"]) if available else None, "objects": start["objects"],
+    verdict = {
+        "start_floor": {"static_mb": mb(start["static_kb"]), "objects": start["objects"],
                         "rust_live_mb": mb(start["rust_live_kb"]),
                         "residual_mb": mb(start["residual_kb"]), "rss_mb": mb(start["rss_kb"])},
-        "end_floor": {"static_mb": mb(end["static_kb"]) if available else None, "objects": end["objects"],
+        "end_floor": {"static_mb": mb(end["static_kb"]), "objects": end["objects"],
                       "rust_live_mb": mb(end["rust_live_kb"]),
                       "residual_mb": mb(end["residual_kb"]), "rss_mb": mb(end["rss_kb"])},
-        "static_available": available,
-        "static_growth_mb": mb(static) if available else None, "rust_live_growth_mb": mb(rust),
+        "static_growth_mb": mb(static), "rust_live_growth_mb": mb(rust),
         "residual_growth_mb": mb(end["residual_kb"] - start["residual_kb"]),
         "object_growth": objects,
-        "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]) if available else None,
+        "total_static_growth_mb": mb(end["static_kb"] - start["static_kb"]),
         "total_object_growth": end["objects"] - start["objects"],
         "node_growth": end["nodes"] - start["nodes"]
         if "nodes" in end and "nodes" in start else None,
-        "orphan_nodes": orphans if available else None,
-        "orphan_monitor_available": available,
+        "orphan_nodes": orphans,
         "objects_per_texture": [start["objects_per_texture"], end["objects_per_texture"]],
-        "caches": caches,
-        "pass": static / 1024 <= bound_mb and rust / 1024 <= bound_mb
-        and objects <= object_bound and orphans == 0
-        and all(cache["pass"] for cache in caches.values())}
+        "caches": caches}
+    result = memory_policy({"operation": "finalize", "bracket_only": True,
+                            "static_available": prepared["static_available"],
+                            "verdict": verdict, "bound_mb": bound_mb, "object_bound": object_bound,
+                            "static_growth_kb": static, "rust_growth_kb": rust})
+    return {"pass": False, "reason": result["error"]} if "error" in result else result
 
 
 #: The static/Rust-growth bound over a whole route, in MB: about twice the
@@ -467,9 +484,12 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
             or any(item["rss_kb"] <= 0 for item in samples)):
         verdict.update({"pass": False, "reason": "missing or unreadable samples around warm-up"})
         return verdict
-    available = static_availability(samples)
-    if available is None:
-        return dict(verdict, reason="inconsistent static-memory availability", **{"pass": False})
+    prepared = memory_policy({"operation": "prepare", "samples": samples, "probes": probes})
+    if "error" in prepared:
+        return dict(verdict, **{"pass": False, "reason": prepared["error"]})
+    samples, probes = prepared["samples"], prepared["probes"]
+    warmup = [item for item in samples if item["frame"] < warmup_frames]
+    measured = [item for item in samples if item["frame"] >= warmup_frames]
     cadence = min(b["frame"] - a["frame"] for a, b in zip(samples, samples[1:]))
     verdict["cadence_frames"] = cadence
     refused = cadence_error(cadence, floor_frames)
@@ -507,7 +527,7 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                                 "reason": "a named cache count is not an integer"})
                 return verdict
             item["objects_unnamed"] = item["objects"] - item["cache_objects"]
-            item["static_unnamed_kb"] = item["static_kb"] - (item["cache_bytes"] / 1024 if available else 0)
+            item["static_unnamed_kb"] = item["static_kb"] - item["static_cache_kb"]
             if item["objects_unnamed"] < 0 or item["static_unnamed_kb"] < 0:
                 verdict.update({"pass": False,
                                 "reason": "a sample's named caches exceed its objects or static memory"})
@@ -596,20 +616,6 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                                                         for low, high in gaps)},
         "bracket": bracket_verdict(probes, bound_mb, object_bound),
     })
-    if verdict["bracket"].get("static_available", available) != available:
-        return dict(verdict, **{"pass": False, "reason": "samples and probes disagree on static-memory availability"})
-    verdict["static_available"] = available
-    verdict["godot_static"]["judged"] = available
-    if not available:
-        verdict["godot_static"]["pass"] = None
-        verdict["godot_static"]["growth_mb"] = None
-        verdict["static_drift"]["drift_mb"] = None
-        verdict["static_drift"]["within_bound"] = None
-        for item in verdict["maps"].values():
-            item["first_floor_static_mb"] = None
-            item["static_growth_mb"] = None
-    judged = ["rust_heap", "bracket", "objects"]
-    if available:
-        judged.append("godot_static")
-    verdict["pass"] = all(verdict[part]["pass"] for part in judged)
-    return verdict
+    result = memory_policy({"operation": "finalize", "bracket_only": False,
+                            "static_available": prepared["static_available"], "verdict": verdict})
+    return dict(verdict, **{"pass": False, "reason": result["error"]}) if "error" in result else result
