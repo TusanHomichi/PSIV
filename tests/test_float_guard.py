@@ -34,8 +34,8 @@ class FloatGuardTests(unittest.TestCase):
             for crate in CRATES:
                 for relative, source in (
                     ('src/lib.rs', '#[test]\nfn expected() { let x = 1.5; }'),
-                    ('tests/new.rs', '#[test]\nfn expected() { let x = 2 as f64; }'),
-                    ('src/docs.rs', '/// ```rust\n/// let x = 1e3;\n/// ```'),
+                    (str(Path('tests') / 'new.rs'), '#[test]\nfn expected() { let x = 2 as f64; }'),
+                    (str(Path('src') / 'docs.rs'), '/// ```rust\n/// let x = 1e3;\n/// ```'),
                 ):
                     path = root / 'rust' / crate / relative
                     path.parent.mkdir(parents=True, exist_ok=True)
