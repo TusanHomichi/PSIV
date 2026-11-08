@@ -5,6 +5,8 @@
 
 use serde_json::{Value, json};
 
+mod identity;
+
 type Result<T> = std::result::Result<T, String>;
 
 fn mode(samples: &[Value]) -> Result<bool> {
@@ -49,10 +51,21 @@ fn charge(sample: &mut Value, available: bool) {
     );
 }
 
-fn prepare(mut request: Value) -> Result<Value> {
+fn preparation_error(message: &str, probe: bool) -> Value {
+    let mut response = json!({"error": message});
+    if probe {
+        response["bracket"] = json!({"pass": false, "reason": message});
+    }
+    response
+}
+
+fn prepare(mut request: Value) -> Value {
     let mut modes = Vec::new();
     if let Some(samples) = request.get("samples").and_then(Value::as_array) {
-        modes.push(mode(samples)?);
+        match mode(samples) {
+            Ok(available) => modes.push(available),
+            Err(error) => return preparation_error(&error, false),
+        }
     }
     if let Some(probes) = request.get_mut("probes").and_then(Value::as_object_mut) {
         for name in ["start", "end"] {
@@ -62,20 +75,26 @@ fn prepare(mut request: Value) -> Result<Value> {
             let Some(samples) = probe.get_mut("samples").and_then(Value::as_array_mut) else {
                 continue;
             };
-            let available = mode(samples)?;
+            let available = match mode(samples) {
+                Ok(available) => available,
+                Err(error) => return preparation_error(&format!("{name} probe {error}"), true),
+            };
             modes.push(available);
             let orphan_available = match probe.get("orphan_monitor_available") {
                 None => true,
                 Some(Value::Bool(value)) => *value,
-                _ => return Err("inconsistent orphan-monitor availability".into()),
+                _ => {
+                    return preparation_error("inconsistent orphan-monitor availability", true);
+                }
             };
             if orphan_available != available {
-                return Err("inconsistent orphan-monitor availability".into());
+                return preparation_error("inconsistent orphan-monitor availability", true);
             }
             if available && probe.get("orphan_monitor_alive") != Some(&Value::Bool(true)) {
-                return Err(format!(
-                    "{name} probe its orphan-node monitor did not count a test orphan"
-                ));
+                return preparation_error(
+                    &format!("{name} probe its orphan-node monitor did not count a test orphan"),
+                    true,
+                );
             }
             if !available {
                 let samples = probe["samples"].as_array().expect("checked above");
@@ -83,7 +102,7 @@ fn prepare(mut request: Value) -> Result<Value> {
                     .iter()
                     .any(|item| item.get("orphan_nodes").and_then(Value::as_i64) != Some(0))
                 {
-                    return Err("an unavailable orphan monitor reported nodes".into());
+                    return preparation_error("an unavailable orphan monitor reported nodes", true);
                 }
             }
             for sample in probe["samples"].as_array_mut().expect("checked above") {
@@ -93,23 +112,26 @@ fn prepare(mut request: Value) -> Result<Value> {
     }
     let available = modes.first().copied().unwrap_or(true);
     if modes.iter().any(|value| *value != available) {
-        return Err("samples and probes disagree on static-memory availability".into());
+        return preparation_error(
+            "samples and probes disagree on static-memory availability",
+            true,
+        );
     }
     if let Some(samples) = request.get_mut("samples").and_then(Value::as_array_mut) {
         for sample in samples {
             charge(sample, available);
         }
     }
-    Ok(
-        json!({"samples": request.get("samples"), "probes": request.get("probes"),
-              "static_available": available}),
-    )
+    json!({"samples": request.get("samples"), "probes": request.get("probes"),
+              "static_available": available})
 }
 
 fn unavailable_bracket(verdict: &mut Value) {
     if let Some(verdict) = verdict.as_object_mut() {
         for key in ["static_growth_mb", "total_static_growth_mb", "orphan_nodes"] {
-            verdict.insert(key.into(), Value::Null);
+            if let Some(value) = verdict.get_mut(key) {
+                *value = Value::Null;
+            }
         }
         for key in ["start_floor", "end_floor"] {
             if let Some(floor) = verdict.get_mut(key).and_then(Value::as_object_mut) {
@@ -229,7 +251,8 @@ fn finalize(request: Value) -> Result<Value> {
 /// A request-level error is explicit JSON and can never be read as a pass.
 pub fn evaluate(request: Value) -> Value {
     let result = match request.get("operation").and_then(Value::as_str) {
-        Some("prepare") => prepare(request),
+        Some("identity") => Ok(identity::build_inputs()),
+        Some("prepare") => Ok(prepare(request)),
         Some("finalize") => finalize(request),
         _ => Err("unknown memory policy operation".into()),
     };

@@ -207,6 +207,20 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 
 ## Run checks
 
+Before running memory-verdict tests under a Python-class holder, or a native
+memory replay under an inherited Godot-class holder, prepare the Rust policy
+binary under its build reservation:
+
+```bash
+python3 tools/heavy_lock.py run --class build -- cargo build --locked --manifest-path rust/Cargo.toml -p psiv-memory-verdict
+python3 tools/heavy_lock.py run --class python -- python3 -m unittest tests.test_native_rss tests.test_memory_policy_startup
+```
+
+The verifier checks an existing binary's embedded source identity before
+reusing it; a stale binary needs the prerequisite again. Standalone tape and
+route launchers prepare it before taking their own Godot slot. Nix checks
+receive their policy binary as a declared derivation dependency.
+
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.

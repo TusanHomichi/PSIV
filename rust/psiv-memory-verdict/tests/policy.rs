@@ -135,3 +135,42 @@ fn malformed_protocol_is_an_explicit_error_and_missing_checks_never_pass() {
     input["verdict"]["objects"] = Value::Null;
     assert_eq!(evaluate(input)["pass"], false);
 }
+
+#[test]
+fn preparation_failures_keep_a_reason_only_bracket_diagnostic() {
+    for available in [true, false] {
+        let mut input = request(available);
+        if available {
+            input["probes"]["start"]["orphan_monitor_alive"] = json!(false);
+        } else {
+            input["probes"]["end"]["samples"][0]["static_available"] = json!(true);
+        }
+        let output = evaluate(input);
+        assert!(output["error"].is_string());
+        assert_eq!(output["bracket"]["pass"], false);
+        assert_eq!(output["bracket"]["reason"], output["error"]);
+        assert!(output["bracket"].get("static_growth_mb").is_none());
+    }
+}
+
+#[test]
+fn release_finalization_does_not_turn_failed_probe_diagnostics_into_numeric_brackets() {
+    for reason in ["missing", "unsettled", "unreadable", "malformed"] {
+        let diagnostic = json!({"pass": false, "reason": reason});
+        let mut input = final_request(false);
+        input["verdict"]["bracket"] = diagnostic.clone();
+        let output = evaluate(input);
+        assert_eq!(output["pass"], false);
+        assert_eq!(output["bracket"], diagnostic);
+        assert!(output["bracket"].get("static_growth_mb").is_none());
+    }
+}
+
+#[test]
+fn sample_local_preparation_failures_do_not_invent_a_bracket_failure() {
+    let mut input = request(false);
+    input["samples"][0]["static_kb"] = json!(1);
+    let output = evaluate(input);
+    assert!(output["error"].is_string());
+    assert!(output.get("bracket").is_none());
+}

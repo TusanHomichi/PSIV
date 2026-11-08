@@ -19,3 +19,17 @@ fn malformed_json_exits_two_and_emits_an_error_object() {
             .contains("invalid memory policy JSON")
     );
 }
+
+#[test]
+fn identity_matches_current_build_input_contents() {
+    let identity = psiv_memory_verdict::evaluate(serde_json::json!({"operation": "identity"}));
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for (name, contents) in identity.as_object().expect("build identity") {
+        assert_eq!(
+            contents.as_str().expect("source text"),
+            std::fs::read_to_string(root.join(name)).expect("current build input"),
+            "{name}"
+        );
+    }
+    assert_eq!(identity.as_object().unwrap().len(), 7);
+}

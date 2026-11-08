@@ -72,10 +72,6 @@ retained allocator pages cannot establish a leak (#117).
 from __future__ import annotations
 
 import math
-import json
-import os
-from pathlib import Path
-import subprocess
 
 # The floor window, in frames of field time observed on one map (each sample
 # stands for one `--rss-every` interval, so a window is
@@ -262,43 +258,10 @@ def probe_caches(sample: dict) -> dict | None:
     return out
 
 
-_policy_binary: Path | None = None
-
-
-def memory_policy(request: dict) -> dict:
-    """Transport to the Rust owner; no build-dependent verdict policy lives here."""
-    global _policy_binary
-    if _policy_binary is None:
-        override = os.environ.get("PSIV_MEMORY_VERDICT_BINARY")
-        if override:
-            _policy_binary = Path(override)
-        else:
-            root = Path(__file__).resolve().parents[1]
-            command = ["cargo", "build", "--quiet", "--locked", "--manifest-path", str(root / "rust/Cargo.toml"),
-                       "-p", "psiv-memory-verdict", "--message-format=json"]
-            try:
-                from tools.heavy_lock import BUILD, heavy_lock_path, hold_heavy_lock
-            except ModuleNotFoundError:
-                from heavy_lock import BUILD, heavy_lock_path, hold_heavy_lock
-            try:
-                with hold_heavy_lock(heavy_lock_path(root), lock_class=BUILD):
-                    built = subprocess.run(command, capture_output=True, text=True, check=False)
-                executables = [item["executable"] for item in map(json.loads, built.stdout.splitlines())
-                               if item.get("reason") == "compiler-artifact" and item.get("executable")]
-            except (OSError, ValueError) as error:
-                return {"error": "cannot build Rust memory policy: " + str(error)}
-            if built.returncode or not executables:
-                return {"error": "cannot build Rust memory policy: " + built.stderr.strip()}
-            _policy_binary = Path(executables[-1])
-    try:
-        result = subprocess.run([str(_policy_binary)], input=json.dumps(request),
-                                capture_output=True, text=True, check=False)
-        output = json.loads(result.stdout)
-        if result.returncode or not isinstance(output, dict):
-            return {"error": "Rust memory policy failed: " + result.stderr.strip()}
-        return output
-    except (OSError, ValueError) as error:
-        return {"error": str(error)}
+try:
+    from tools.memory_policy import memory_policy
+except ModuleNotFoundError:
+    from memory_policy import memory_policy
 
 
 def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
@@ -486,7 +449,10 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         return verdict
     prepared = memory_policy({"operation": "prepare", "samples": samples, "probes": probes})
     if "error" in prepared:
-        return dict(verdict, **{"pass": False, "reason": prepared["error"]})
+        failure = dict(verdict, **{"pass": False, "reason": prepared["error"]})
+        if "bracket" in prepared:
+            failure["bracket"] = prepared["bracket"]
+        return failure
     samples, probes = prepared["samples"], prepared["probes"]
     warmup = [item for item in samples if item["frame"] < warmup_frames]
     measured = [item for item in samples if item["frame"] >= warmup_frames]

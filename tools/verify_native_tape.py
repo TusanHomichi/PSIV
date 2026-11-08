@@ -248,12 +248,17 @@ def parser() -> argparse.ArgumentParser:
     return command
 
 
+def prepare_memory_policy() -> None:
+    """Resolve/build the policy before reserving a Godot-only slot."""
+    policy = native_rss.memory_policy({"operation": "prepare"})
+    if "error" in policy:
+        parser().error(policy["error"])
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.rss_bound_mb is not None:
-        policy = native_rss.memory_policy({"operation": "prepare"})
-        if "error" in policy:
-            parser().error(policy["error"])
+        prepare_memory_policy()
     with hold_heavy_lock(heavy_lock_path(ROOT), lock_class=GODOT_CLASS):
         return replay(args)
 

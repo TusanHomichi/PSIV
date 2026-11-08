@@ -670,3 +670,23 @@ class ReleaseTemplates(unittest.TestCase):
             mutate(rows, probes)
             result = rss_verdict(rows, WARMUP, 16, probes=probes)
             self.assertFalse(result["pass"], result)
+
+    def test_release_probe_failures_keep_reason_only_bracket_diagnostics(self):
+        for defect in ("missing", "unsettled", "unreadable", "malformed", "capability"):
+            with self.subTest(defect=defect):
+                rows, probes = self.release()
+                if defect == "missing":
+                    probes.pop("end")
+                elif defect == "unsettled":
+                    probes["end"]["settled"] = False
+                elif defect == "unreadable":
+                    probes["end"]["samples"][0]["rss_kb"] = 0
+                elif defect == "malformed":
+                    probes["end"]["samples"][0].pop("caches")
+                else:
+                    probes["end"]["orphan_monitor_available"] = True
+                result = rss_verdict(rows, WARMUP, 16, probes=probes)
+                self.assertFalse(result["pass"])
+                self.assertFalse(result["bracket"]["pass"])
+                self.assertIsInstance(result["bracket"]["reason"], str)
+                self.assertNotIn("static_growth_mb", result["bracket"])

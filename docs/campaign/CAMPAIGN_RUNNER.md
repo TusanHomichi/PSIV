@@ -247,8 +247,13 @@ templates provide neither counter: the receipt marks both unavailable rather
 than interpreting zero as a measurement. RSS remains diagnostic in both
 builds because the system allocator can retain freed pages; it is never used
 as a substitute for counted Rust bytes. Counter availability and verdict
-selection belong to `psiv-memory-verdict`; the Python launcher builds its
-JSON bridge before taking the Godot slot and calls it for those decisions.
+selection belong to `psiv-memory-verdict`. Before taking a Godot slot, the
+launcher reuses a local JSON bridge only when its embedded build inputs match
+the current source, or builds it under a build-class reservation. A fresh
+process can reuse that artifact under an inherited Godot or Python holder.
+A missing or stale bridge must be built before entering either holder; those
+reservations do not cover compilation. The focused-check prerequisite is in
+[the development guide](../DEVELOPMENT.md#run-checks).
 
 `tools/verify_native_tape.py` is the generic Godot entry point. It opens one
 campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start
