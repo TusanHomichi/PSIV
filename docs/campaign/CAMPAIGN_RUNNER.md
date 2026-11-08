@@ -239,6 +239,22 @@ chosen from such a table and the table goes in the chapter's `source`
 
 ### Native tape replay
 
+Resident memory is sampled through the extension using the host OS process
+API. The memory verdict counts the extension's live Rust allocation bytes,
+Godot objects outside the named caches, and cache entry ceilings. A debug
+engine also judges Godot static bytes and checks orphan nodes. Release export
+templates provide neither counter: the receipt marks both unavailable rather
+than interpreting zero as a measurement. RSS remains diagnostic in both
+builds because the system allocator can retain freed pages; it is never used
+as a substitute for counted Rust bytes. Counter availability and verdict
+selection belong to `psiv-memory-verdict`. Before taking a Godot slot, the
+launcher reuses a local JSON bridge only when its embedded build inputs match
+the current source, or builds it under a build-class reservation. A fresh
+process can reuse that artifact under an inherited Godot or Python holder.
+A missing or stale bridge must be built before entering either holder; those
+reservations do not cover compilation. The focused-check prerequisite is in
+[the development guide](../DEVELOPMENT.md#memory-verdict-prerequisite).
+
 `tools/verify_native_tape.py` is the generic Godot entry point. It opens one
 campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start
 tape's FNV against the source bytes **before** copying them into a fresh,

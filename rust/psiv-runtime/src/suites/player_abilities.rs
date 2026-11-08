@@ -8,6 +8,10 @@ fn player_ability_dispatch_inventory() {
         || Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack")).to_path_buf(),
         Into::into,
     );
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
     let files = BattleFiles::load(&pack).expect("player inventory requires the decoded pack");
     let data = crate::battle_data(&files).unwrap();
     let techniques: Vec<_> = data.techniques().collect();

@@ -26,7 +26,7 @@ var next_checkpoint := 0
 var checkpoint_results: Array = []
 var replay_started_ms := 0
 # Resident-memory samples (#92): every PSIV_TAPE_RSS_EVERY gameplay frames the
-# process's VmRSS is recorded, so a long replay shows whether memory stays flat.
+# process's resident memory is recorded, so a long replay shows whether memory stays flat.
 var rss_every := 0
 var rss_samples: Array = []
 # One texture's object count, measured once by `_objects_per_texture`; the
@@ -94,9 +94,6 @@ func _prepare_tape() -> void:
             _fail("PSIV_TAPE_RSS_EVERY must be a positive frame count")
             return
         rss_every = int(every)
-        if _rss_kb() <= 0:
-            _fail("resident memory is unreadable from /proc/self/status")
-            return
     if not _load_probe():
         return
     var source_path := OS.get_environment("PSIV_TAPE_SOURCE_SAVE")
@@ -252,6 +249,7 @@ func _drive_probe(phase: int, window: int, cursor: int) -> void:
         var state = JSON.parse_string(str(game.debug_play_state()))
         probe_samples.append({"frame": probe_frames, "rss_kb": _rss_kb(),
                 "static_kb": int(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1024,
+                "static_available": OS.is_debug_build(),
                 "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
                 "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
                 "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
@@ -324,6 +322,7 @@ func _finish_probe() -> void:
     report["rss_probes"][probe_stage] = {"settled": true, "frames_waited": probe_frames,
             "settle_frames": probe_settle, "samples": probe_samples,
             "objects_per_texture": _objects_per_texture(),
+            "orphan_monitor_available": OS.is_debug_build(),
             "orphan_monitor_alive": _orphan_monitor_moves()}
     print("native-tape: %s memory probe settled after %d frames" % [probe_stage, probe_frames])
     probe_entered = false
@@ -342,6 +341,8 @@ func _start_game() -> void:
     game = field_scene.instantiate()
     root.add_child(game)
     current_scene = game
+    if rss_every > 0 and _rss_kb() <= 0:
+        _fail("resident memory is unavailable from the extension bridge")
 
 func _physics_process(_delta: float) -> bool:
     if failed or game == null:
@@ -447,15 +448,13 @@ func _check_checkpoint() -> bool:
     return true
 
 func _sample_rss() -> void:
-    # Godot's own counters split the owner: objects, resources and nodes that
-    # pile up are engine-side; RSS growth with flat counters and flat static
-    # memory is the extension's own (Rust) heap. Static memory holds the
-    # current map's images, so each sample names its map; the verdict compares
-    # a map only with itself. An unreadable map is left out of the sample and
-    # fails the verdict.
+    # Counted Rust bytes and Godot object counters establish ownership.
+    # Static bytes are available only under a debug engine; RSS is always a
+    # diagnostic because system allocators retain freed pages.
     var sample := {"frame": consumed,
             "elapsed_ms": Time.get_ticks_msec() - replay_started_ms, "rss_kb": _rss_kb(),
             "static_kb": int(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1024,
+                "static_available": OS.is_debug_build(),
             "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
             "resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
             "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
@@ -477,16 +476,9 @@ func _sample_rss() -> void:
     rss_samples.append(sample)
     report["rss_samples"] = rss_samples
 
-# VmRSS in KiB; procfs files report no length, so read them line by line.
+# The extension owns the per-OS RSS API; <=0 is an unreadable sample.
 func _rss_kb() -> int:
-    var status := FileAccess.open("/proc/self/status", FileAccess.READ)
-    if status == null:
-        return -1
-    while not status.eof_reached():
-        var line := status.get_line()
-        if line.begins_with("VmRSS:"):
-            return int(line.trim_prefix("VmRSS:").strip_edges().split(" ")[0])
-    return -1
+    return int(game.resident_memory_kb()) if game != null else -1
 
 func _sha256_hex(bytes: PackedByteArray) -> String:
     var context := HashingContext.new()

@@ -24,6 +24,17 @@ fn pack_dir() -> std::path::PathBuf {
     }
 }
 
+/// Real-pack suites skip only an absent local input; loading a present pack
+/// remains an assertion, so a stale or malformed pack still fails.
+fn pack_present() -> bool {
+    let path = pack_dir();
+    if !path.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present at {}; skipping", path.display());
+        return false;
+    }
+    true
+}
+
 fn fixture(map: u16, cell: Cell) -> Runtime {
     let data = GameData::load(&pack_dir()).unwrap();
     Runtime::new(data, map, cell, Direction::Up, StepFrames::default()).unwrap()
@@ -74,6 +85,9 @@ fn open(rt: &mut Runtime) -> Vec<ChunkFrame> {
 
 #[test]
 fn birth_valley_door_animates_collision_then_warps_and_survives_reload() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = fixture(0x2C, Cell::new(23, 16));
     rt.game.set(Flag::event(16)).unwrap(); // Holt is already complete.
     assert!(!rt.map.is_walkable(Cell::new(23, 15)));
@@ -113,6 +127,9 @@ fn birth_valley_door_animates_collision_then_warps_and_survives_reload() {
 
 #[test]
 fn elevators_open_ride_step_out_close_and_return_using_the_real_tables() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = fixture(0xA4, Cell::new(32, 18));
     for (target, arrival, door_y) in [(0xA6, 12, 5), (0xA4, 18, 8)] {
         assert!(!rt.map.is_walkable(Cell::new(32, rt.state().cell().y - 1)));
@@ -169,6 +186,9 @@ fn elevators_open_ride_step_out_close_and_return_using_the_real_tables() {
 
 #[test]
 fn alarm_blocks_for_eight_stages_in_each_direction_before_dialogue() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = fixture(0xA3, Cell::new(28, 31));
     assert!(rt.start_event(0x12));
     let mut fade_ticks = Vec::new();
@@ -210,8 +230,7 @@ fn alarm_blocks_for_eight_stages_in_each_direction_before_dialogue() {
 /// to trigger it.
 #[test]
 fn juzas_stairs_open_on_the_live_map_when_the_event_writes_them() {
-    if !pack_dir().join("manifest.json").is_file() {
-        eprintln!("pack absent; skipping");
+    if !pack_present() {
         return;
     }
     // Juza `$41` set and Juza Defeated `$48` clear: the state the party fights
@@ -297,8 +316,7 @@ fn juzas_stairs_open_on_the_live_map_when_the_event_writes_them() {
 /// convenient encounter.
 #[test]
 fn the_machine_center_door_opens_on_the_live_overworld() {
-    if !pack_dir().join("manifest.json").is_file() {
-        eprintln!("pack absent; skipping");
+    if !pack_present() {
         return;
     }
     // Zio `$42` set (the trigger's own gate), Machine Center `$43` clear.

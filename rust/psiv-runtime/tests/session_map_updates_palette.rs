@@ -8,26 +8,31 @@ use psiv_core::{Cell, CharId, Flag, GameState, RetailLocation, RetailSave};
 use psiv_data::{GameData, MapId, UpdateProgram};
 use psiv_runtime::{Pad, Session};
 
-fn data() -> &'static GameData {
-    static DATA: OnceLock<GameData> = OnceLock::new();
+fn data() -> Option<&'static GameData> {
+    static DATA: OnceLock<Option<GameData>> = OnceLock::new();
     DATA.get_or_init(|| {
         let root = std::env::var_os("PSIV_RUNTIME_PACK")
             .map(PathBuf::from)
             .unwrap_or_else(|| {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack")
             });
-        GameData::load(&root).unwrap()
+        if !root.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present at {}; skipping", root.display());
+            return None;
+        }
+        Some(GameData::load(&root).expect("existing runtime pack loads"))
     })
+    .as_ref()
 }
 
-fn session(map: u16, flags: &[(u16, bool)]) -> Session {
-    let start = Session::start(data().clone()).new_game().unwrap();
+fn session(data: &GameData, map: u16, flags: &[(u16, bool)]) -> Session {
+    let start = Session::start(data.clone()).new_game().unwrap();
     let mut game = GameState::from_snapshot(&start.runtime().game().snapshot());
     game.set_party([Some(CharId(0)), None, None, None, None]);
     for &(id, set) in flags {
         let _ = game.write(Flag::event(id), set);
     }
-    let record = data().map(MapId(map)).unwrap();
+    let record = data.map(MapId(map)).unwrap();
     let at = (1..record.dimensions.height_cells)
         .find_map(|y| {
             (0..record.dimensions.width_cells).find_map(|x| {
@@ -39,7 +44,7 @@ fn session(map: u16, flags: &[(u16, bool)]) -> Session {
             })
         })
         .unwrap();
-    Session::start(data().clone())
+    Session::start(data.clone())
         .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
@@ -54,7 +59,8 @@ fn session(map: u16, flags: &[(u16, bool)]) -> Session {
 
 #[test]
 fn palette_counters_are_independent_and_wrap_at_their_own_table_bounds() {
-    let mut session = session(162, &[]);
+    let Some(data) = data() else { return };
+    let mut session = session(data, 162, &[]);
     for frame in 1..=384 {
         session.frame(Pad::NEUTRAL);
         let counter = session.runtime().map_updates().counters;
@@ -72,9 +78,10 @@ fn palette_counters_are_independent_and_wrap_at_their_own_table_bounds() {
 
 #[test]
 fn strip_lights_use_the_local_duration_byte_and_park_it_in_a_menu() {
-    let mut session = session(90, &[]);
+    let Some(data) = data() else { return };
+    let mut session = session(data, 90, &[]);
     let UpdateProgram::Palette { cycles, .. } =
-        &data().map(MapId(90)).unwrap().map_updates.as_ref().unwrap()[0].program
+        &data.map(MapId(90)).unwrap().map_updates.as_ref().unwrap()[0].program
     else {
         panic!("strip recipe")
     };
@@ -103,20 +110,21 @@ fn strip_lights_use_the_local_duration_byte_and_park_it_in_a_menu() {
 
 #[test]
 fn shutdown_gates_stop_counters_and_reunion_bypasses_both() {
+    let Some(data) = data() else { return };
     for (flags, active) in [
         (vec![(0x65, false), (0x61, false), (0xDA, false)], true),
         (vec![(0x65, true), (0x61, false), (0xDA, false)], false),
         (vec![(0x65, false), (0x61, true), (0xDA, false)], false),
         (vec![(0x65, true), (0x61, true), (0xDA, true)], true),
     ] {
-        let mut session = session(187, &flags);
+        let mut session = session(data, 187, &flags);
         for _ in 0..16 {
             session.frame(Pad::NEUTRAL);
         }
         let view = session.runtime().map_updates();
         assert_eq!(view.counters[..2], if active { [2, 2] } else { [0, 0] });
         if !active {
-            let UpdateProgram::Palette { stopped, .. } = &data()
+            let UpdateProgram::Palette { stopped, .. } = &data
                 .map(MapId(187))
                 .unwrap()
                 .map_updates
@@ -138,8 +146,9 @@ fn shutdown_gates_stop_counters_and_reunion_bypasses_both() {
 
 #[test]
 fn edge_clear_rotate_and_blob_copies_follow_the_map_list_order() {
-    let mut session = session(256, &[]);
-    let record = data().map(MapId(256)).unwrap();
+    let Some(data) = data() else { return };
+    let mut session = session(data, 256, &[]);
+    let record = data.map(MapId(256)).unwrap();
     let updates = record.map_updates.as_ref().unwrap();
     let UpdateProgram::Edge { colors } = &updates[0].program else {
         panic!("edge recipe")
@@ -172,13 +181,9 @@ fn edge_clear_rotate_and_blob_copies_follow_the_map_list_order() {
 
 #[test]
 fn edge_sliding_blob_and_signed_scroll_keep_separate_counters() {
-    let mut session = session(257, &[]);
-    let updates = data()
-        .map(MapId(257))
-        .unwrap()
-        .map_updates
-        .as_ref()
-        .unwrap();
+    let Some(data) = data() else { return };
+    let mut session = session(data, 257, &[]);
+    let updates = data.map(MapId(257)).unwrap().map_updates.as_ref().unwrap();
     let UpdateProgram::EdgeLine {
         frames,
         sliding: true,
@@ -213,7 +218,8 @@ fn edge_sliding_blob_and_signed_scroll_keep_separate_counters() {
 
 #[test]
 fn no_update_entry_has_no_palette_or_state_side_effects() {
-    let mut session = session(17, &[]);
+    let Some(data) = data() else { return };
+    let mut session = session(data, 17, &[]);
     let before = session.runtime().map_updates().palette.clone();
     let state = session.runtime().game().snapshot();
     for _ in 0..32 {

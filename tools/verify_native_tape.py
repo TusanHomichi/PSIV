@@ -248,8 +248,17 @@ def parser() -> argparse.ArgumentParser:
     return command
 
 
+def prepare_memory_policy() -> None:
+    """Resolve/build the policy before reserving a Godot-only slot."""
+    policy = native_rss.memory_policy({"operation": "prepare"})
+    if "error" in policy:
+        parser().error(policy["error"])
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.rss_bound_mb is not None:
+        prepare_memory_policy()
     with hold_heavy_lock(heavy_lock_path(ROOT), lock_class=GODOT_CLASS):
         return replay(args)
 
@@ -487,6 +496,10 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     if receipt["rss"] is not None:
         rss = receipt["rss"]
+        if rss.get("static_available") is False:
+            print("native tape: release-template memory coverage: counted Rust heap, Godot "
+                  "objects and cache ceilings; Godot static bytes and orphan monitor unavailable; "
+                  "RSS is diagnostic only")
         if "rust_heap" in rss:
             bracket = rss["bracket"]
             print(f"native tape: RSS bracket {'PASS' if bracket['pass'] else 'FAIL'}; " + (
