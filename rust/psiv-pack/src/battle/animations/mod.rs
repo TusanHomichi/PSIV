@@ -866,4 +866,17 @@ mod tests {
         let chosen = choose(&rom, &[sequence("a"), sequence("b")], 0, &[]).unwrap();
         assert_eq!(string(&chosen.sequence, "mapping_offset"), Some("a"));
     }
+
+    #[test]
+    fn of_two_equal_sequences_the_one_hiding_fewer_frames_wins() {
+        let rom = vec![0u8; 0x10];
+        let sequence = |offset: &str, hidden: u8| {
+            Json::object()
+                .with("mapping_offset", offset)
+                .with("mapping_pointers", vec![Json::Null])
+                .with("hidden_frames", hidden)
+        };
+        let chosen = choose(&rom, &[sequence("a", 1), sequence("b", 0)], 0, &[]).unwrap();
+        assert_eq!(string(&chosen.sequence, "mapping_offset"), Some("b"));
+    }
 }

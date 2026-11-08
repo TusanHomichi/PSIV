@@ -380,4 +380,21 @@ mod tests {
         assert_eq!(movement["tracks"][0]["writes"][0]["delta"], 4);
         assert_eq!(movement["tracks"][0]["writes"][0]["axis"], "y");
     }
+
+    /// Pinned to the Python decoder, which reads the quick value from the
+    /// effective-address bits: every `addq`/`subq.w #n,d16(a4)` decodes as
+    /// `addq.w #6` (#410). Fixing it changes both builders together.
+    #[test]
+    fn addq_and_subq_decode_as_the_python_decoder_reads_them() {
+        let mut rom = vec![0u8; 0x20];
+        put(&mut rom, 0, &[0x5F6C, 0x002C, 0x536C, 0x002E]);
+        let sites = coordinate_sites(&rom, 0, 0x10, 0x40);
+        let sites: Vec<serde_json::Value> = sites.iter().map(serde_json::Value::from).collect();
+        assert_eq!(sites.len(), 2);
+        assert!(
+            sites
+                .iter()
+                .all(|s| s["delta"] == 6 && s["operation"] == "addq.w")
+        );
+    }
 }

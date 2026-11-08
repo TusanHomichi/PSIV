@@ -305,4 +305,13 @@ mod tests {
         assert!(second.get("compressed_bytes_read").is_none());
         assert!(pattern_sources(18, 22, Some(10), &plc).is_empty());
     }
+
+    #[test]
+    fn a_tile_index_keeps_all_eleven_bits() {
+        let rom = [0u8, 0, 0, 0x04, 0x10, 0, 0];
+        let record = decode_record(&rom, 0).unwrap();
+        let entry = serde_json::Value::from(&entries_of(&record)[0]);
+        assert_eq!(entry["tile_index"], 0x410);
+        assert_eq!(entry["tile_span_end"], 0x411);
+    }
 }

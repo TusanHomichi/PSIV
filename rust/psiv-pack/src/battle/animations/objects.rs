@@ -652,4 +652,29 @@ mod tests {
             (None, "unresolved".to_owned())
         );
     }
+
+    #[test]
+    fn a_selector_pointer_with_its_sign_bit_set_hides_the_frame() {
+        let mut rom = vec![0u8; 0x400];
+        // move.l #$100,$08(a4); move.l #$180,$28(a4); jsr loc_25270.
+        put(
+            &mut rom,
+            0,
+            &[
+                0x297C, 0x0000, 0x0100, 0x0008, 0x297C, 0x0000, 0x0180, 0x0028, 0x4EB9, 0x0002,
+                0x5270,
+            ],
+        );
+        rom[0x100..0x105].copy_from_slice(&[2, 4, 4, 0, 4]);
+        put(&mut rom, 0x180, &[0x0000, 0x0200, 0x8000, 0x0000]);
+        let found = frame_sequences(&rom, 0, 0x30, &Json::Null);
+        assert_eq!(found.len(), 1);
+        let value = serde_json::Value::from(&found[0]);
+        assert_eq!(value["timing_model"], "selector");
+        assert_eq!(
+            value["mapping_pointers"],
+            serde_json::json!(["0x000200", null])
+        );
+        assert_eq!(value["hidden_frames"], 1);
+    }
 }
