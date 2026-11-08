@@ -57,8 +57,12 @@ selector for types 1, 2 and 5. It rebuilds the tentative equipment from the
 saved record on each cursor update, writes the selected hand, and commits
 only on confirmation. Left-hand selection displaces a two-handed right
 weapon; right-hand selection preserves the left. Cancel changes neither
-equipment nor inventory. The earlier initial-data-only dual-wielding claim
-missed this later routine and was wrong.
+equipment nor inventory: `loc_5FAA2` (`ps4.asm:128125-128145`) redraws the
+windows and returns to the item list without reaching the commit at
+`loc_5FAF2`. `cancelling_the_hand_selector_changes_neither_equipment_nor_the_pack`
+(`rust/psiv-runtime/tests/session_menus/hand_cancel.rs`) drives it with the
+pad. The earlier initial-data-only dual-wielding claim missed this later
+routine and was wrong.
 
 The native EQUIP page now exposes that hand choice, including two slashers
 for Alys and a shield in the right hand. Core regressions cover re-equipping
