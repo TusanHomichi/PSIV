@@ -359,6 +359,16 @@ impl Field {
                     // A map-entry trigger that already started a scene would
                     // make `start_event` refuse and the capture show the wrong
                     // scene (#44): say so instead of blaming the event.
+                    // A fixture whose map trigger starts the very scene asked
+                    // for (`$99`) is already where the selector would put it.
+                    if self
+                        .runtime()
+                        .and_then(psiv_runtime::Runtime::scene_event)
+                        .is_some_and(|running| running.0 == event)
+                    {
+                        godot_print!("debug event {value}: started by its map trigger");
+                        return;
+                    }
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_error!(
                             "debug event {value} refused: a map-entry trigger already started a scene; \

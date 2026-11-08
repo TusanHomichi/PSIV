@@ -330,8 +330,10 @@ The shell-only selectors `PSIV_DEBUG_TITLE_AUTOSTART=1` (real title START) and
 `PSIV_DEBUG_RETAIL_PACE=1` preserves retail dialogue cadence for frame pairing.
 All are evaluation switches and are never used by normal play. The old
 `PSIV_DEBUG_EVENT=0x9f` fixture is gone (#44); `PSIV_DEBUG_EVENT` still serves
-MeetingRika (`0x8007`) and refuses to boot a scene a map-entry trigger has
-already pre-empted.
+MeetingRika (`0x8007`) and the ship's menu (`0x800D`), and refuses to boot a
+scene a map-entry trigger has already pre-empted. `0x99` loads the Anger
+Tower with Elsydeon held, where the map's own entry trigger starts
+`Event_EnterAngerTower`: the barrier's tone with line 2 held.
 
 ## Remaining deferrals
 

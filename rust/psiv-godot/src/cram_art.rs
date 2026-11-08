@@ -48,6 +48,32 @@ impl Default for CramState {
 /// One [`CramState`] the field and the scene layer read.
 pub(crate) type SharedCram = Rc<RefCell<CramState>>;
 
+/// `path`, an indexed PNG, decoded with each pixel's palette index in red
+/// and its transparency in alpha ([`index_png`]). `None` (reported) for a
+/// file that is missing, not indexed or does not decode.
+pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
+    let bytes = FileAccess::get_file_as_bytes(path);
+    if bytes.is_empty() {
+        godot_error!("indexed art {path} could not be read");
+        return None;
+    }
+    let indexed = match index_png(bytes.as_slice()) {
+        Ok(indexed) => indexed,
+        Err(error) => {
+            godot_error!("indexed art {path}: {error}");
+            return None;
+        }
+    };
+    let mut image = Image::new_gd();
+    if image.load_png_from_buffer(&PackedByteArray::from(indexed.as_slice()))
+        != godot::global::Error::OK
+    {
+        godot_error!("indexed art {path} does not decode");
+        return None;
+    }
+    Some(image)
+}
+
 /// An indexed pack PNG and the texture it is drawn through.
 pub(crate) struct IndexedArt {
     layout: IndexLayout,
@@ -64,25 +90,7 @@ impl IndexedArt {
     /// Reads `path`, an indexed PNG, as palette indices laid out by
     /// `layout`. `None` (reported) for a file that is missing or not indexed.
     pub(crate) fn load(path: &str, layout: IndexLayout) -> Option<Self> {
-        let bytes = FileAccess::get_file_as_bytes(path);
-        if bytes.is_empty() {
-            godot_error!("indexed art {path} could not be read");
-            return None;
-        }
-        let indexed = match index_png(bytes.as_slice()) {
-            Ok(indexed) => indexed,
-            Err(error) => {
-                godot_error!("indexed art {path}: {error}");
-                return None;
-            }
-        };
-        let mut image = Image::new_gd();
-        if image.load_png_from_buffer(&PackedByteArray::from(indexed.as_slice()))
-            != godot::global::Error::OK
-        {
-            godot_error!("indexed art {path} does not decode");
-            return None;
-        }
+        let mut image = load_index_image(path)?;
         image.convert(Format::RGBA8);
         let data = image.get_data();
         let pixels = data.as_slice();

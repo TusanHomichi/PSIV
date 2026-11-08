@@ -56,17 +56,13 @@ impl Field {
 
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
-                let indexed = palette_images.and_then(|images| images.get(&name));
-                let path = format!("/{}", indexed.unwrap_or(&name));
-                let path = format!("{}{path}", self.pack_dir);
-                match Image::load_from_file(&GString::from(path.as_str())) {
+                let (loaded, indexed) = load_map_image(&self.pack_dir, palette_images, &name);
+                let path = format!("{}/{name}", self.pack_dir);
+                match loaded {
                     Some(mut image) => {
                         if let Some(tiles) = &atlas {
-                            let atlas_name = palette_images
-                                .and_then(|images| images.get(&tiles.png))
-                                .unwrap_or(&tiles.png);
-                            let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
-                            match Image::load_from_file(&GString::from(atlas_path.as_str())) {
+                            let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
+                            match load_map_image(&self.pack_dir, palette_images, &tiles.png).0 {
                                 Some(atlas_img) => {
                                     let edge = tiles.tile_pixels as i32;
                                     for &(cx, cy, index) in &blits {
@@ -99,7 +95,7 @@ impl Field {
                             && let Some(sprite) = self.map_sprite.as_mut()
                         {
                             sprite.set_texture(&texture);
-                            install_palette_material(sprite, indexed.is_some());
+                            install_palette_material(sprite, indexed);
                             // A scene's InitVramAndCram may have blanked the
                             // field; a map redraw is what restores it — the
                             // actor sprites ride the same reload.
@@ -122,22 +118,18 @@ impl Field {
         if let Some(sprite) = self.overlay_sprite.as_mut() {
             match over {
                 Some(name) => {
-                    let indexed = palette_images.and_then(|images| images.get(&name));
-                    let path = format!("/{}", indexed.unwrap_or(&name));
-                    let path = format!("{}{path}", self.pack_dir);
-                    match Image::load_from_file(&GString::from(path.as_str())) {
+                    let (loaded, indexed) = load_map_image(&self.pack_dir, palette_images, &name);
+                    let path = format!("{}/{name}", self.pack_dir);
+                    match loaded {
                         Some(mut image) => {
                             // The overlay atlas mirrors the base one: same
                             // indices, above-sprites pixels only.
                             if let Some(tiles) = &atlas
                                 && let Some(over_png) = &tiles.png_over
                             {
-                                let atlas_name = palette_images
-                                    .and_then(|images| images.get(over_png))
-                                    .unwrap_or(over_png);
-                                let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
+                                let atlas_path = format!("{}/{over_png}", self.pack_dir);
                                 if let Some(atlas_img) =
-                                    Image::load_from_file(&GString::from(atlas_path.as_str()))
+                                    load_map_image(&self.pack_dir, palette_images, over_png).0
                                 {
                                     let edge = tiles.tile_pixels as i32;
                                     for &(cx, cy, index) in &blits {
@@ -161,7 +153,7 @@ impl Field {
                             match ImageTexture::create_from_image(&image) {
                                 Some(texture) => {
                                     sprite.set_texture(&texture);
-                                    install_palette_material(sprite, indexed.is_some());
+                                    install_palette_material(sprite, indexed);
                                     sprite.set_visible(true);
                                 }
                                 None => {
@@ -307,6 +299,27 @@ void fragment() {
     COLOR = vec4(palette[slot].rgb, pixel.a);
 }
 "#;
+
+/// A map picture `name` (base, overlay or patch atlas) with each pixel's
+/// palette index in red, so the map shader draws it from the live CRAM: the
+/// pack's own index image where it carries one, else the same rewrite made
+/// here ([`crate::cram_art::load_index_image`]). The flag is false only for
+/// a picture that is not an indexed PNG, drawn with its baked colours.
+fn load_map_image(
+    pack_dir: &str,
+    images: Option<&std::collections::BTreeMap<String, String>>,
+    name: &str,
+) -> (Option<Gd<Image>>, bool) {
+    if let Some(indexed) = images.and_then(|images| images.get(name)) {
+        let path = format!("{pack_dir}/{indexed}");
+        return (Image::load_from_file(&GString::from(path.as_str())), true);
+    }
+    let path = format!("{pack_dir}/{name}");
+    match crate::cram_art::load_index_image(&path) {
+        Some(image) => (Some(image), true),
+        None => (Image::load_from_file(&GString::from(path.as_str())), false),
+    }
+}
 
 fn install_palette_material(sprite: &mut Gd<Sprite2D>, indexed: bool) {
     if indexed {
