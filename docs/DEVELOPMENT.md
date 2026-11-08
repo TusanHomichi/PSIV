@@ -9,8 +9,11 @@ prerequisites and the commands to build and start the game.
 ## Current environment
 
 This section owns the toolchain versions. The committed GDExtension library
-paths target Linux x86-64, and the Steam Deck build is the same Linux target
-(see [a build for the Steam Deck](#a-build-for-the-steam-deck)). The supported
+paths cover Linux x86-64, Windows x86-64 and macOS universal. The Steam Deck
+build is the same Linux target
+(see [a build for the Steam Deck](#a-build-for-the-steam-deck)).
+Every platform uses Godot's Compatibility renderer; certification captures
+use that renderer too. The supported
 Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
 build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
 [`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
@@ -742,6 +745,22 @@ The rule has one form and no exceptions list: `EXEMPT` is the only carve-out,
 and any other file over the limit fails, so the way past it is to reorganize the
 file into cohesive modules. The guard takes no argument that could record a
 file the rule should pass.
+
+### Memory-verdict prerequisite
+
+Before running memory-verdict tests under a Python-class holder, or a native
+memory replay under an inherited Godot-class holder, prepare the Rust policy
+binary under its build reservation:
+
+```bash
+python3 tools/heavy_lock.py run --class build -- cargo build --locked --manifest-path rust/Cargo.toml -p psiv-memory-verdict
+python3 tools/heavy_lock.py run --class python -- python3 -m unittest tests.test_native_rss tests.test_memory_policy_startup
+```
+
+The verifier checks an existing binary's embedded source identity before
+reusing it; a stale binary needs the prerequisite again. Standalone tape and
+route launchers prepare it before taking their own Godot slot. Nix checks
+receive their policy binary as a declared derivation dependency.
 
 ## Native and original-game comparisons
 

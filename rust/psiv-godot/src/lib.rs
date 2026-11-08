@@ -30,6 +30,7 @@ mod job_board;
 mod menu_font;
 mod named_caches;
 mod pack_setup;
+mod resident_memory;
 mod runtime_events;
 mod rust_heap;
 mod save_dir;
@@ -270,6 +271,13 @@ impl Field {
     #[func]
     fn debug_named_caches(&self) -> GString {
         self.named_caches_probe()
+    }
+
+    /// Current process RSS (working set on Windows), in KiB. A failed query
+    /// returns -1 so verification refuses missing measurements.
+    #[func]
+    fn resident_memory_kb(&self) -> i64 {
+        resident_memory::resident_memory_kb()
     }
 
     #[func]

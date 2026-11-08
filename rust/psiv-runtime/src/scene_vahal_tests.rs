@@ -166,6 +166,9 @@ const WEAPON_PLANT_F1: u16 = 0x0C5;
 
 #[test]
 fn the_first_vahal_platform_rides_down_and_back_through_the_ordinary_trigger() {
+    if !pack_present() {
+        return;
+    }
     let mut rt = rt_at(VAHAL_F2, Cell::new(45, 33), &PARTY, &[]);
     // At rest, flag clear: the platform sits at chunk row 17 and the shaft
     // below it is solid (the map's own load effect wrote `$CC/$CD` there).
@@ -253,6 +256,9 @@ fn the_first_vahal_platform_rides_down_and_back_through_the_ordinary_trigger() {
 
 #[test]
 fn the_second_vahal_platform_rises_from_the_bottom_when_its_flag_is_clear() {
+    if !pack_present() {
+        return;
+    }
     // The corridor below the shaft; one step up onto the platform's chunk.
     let mut rt = rt_at(VAHAL_F2, Cell::new(45, 60), &PARTY, &[]);
     assert!(recovery(&rt, 22, 29));
@@ -281,6 +287,9 @@ struct WeaponPlantCase {
 
 #[test]
 fn the_four_weapon_plant_platforms_carry_the_party_fourteen_rows_down() {
+    if !pack_present() {
+        return;
+    }
     let cases = [
         WeaponPlantCase {
             from: Cell::new(29, 41),
@@ -368,6 +377,9 @@ struct BeltCase {
 
 #[test]
 fn belts_carry_the_party_to_the_first_cell_off_the_belt_and_the_terminal_flag_swaps_the_event() {
+    if !pack_present() {
+        return;
+    }
     let cases = [
         // Vahal Fort F2's vertical belt, chunk column 12, chunk rows 17-21:
         // the entry box is the first group of `RunEvent_VahFortConveyorBelt`,
@@ -481,6 +493,9 @@ fn belts_carry_the_party_to_the_first_cell_off_the_belt_and_the_terminal_flag_sw
 
 #[test]
 fn walking_the_belt_off_its_entry_box_starts_nothing() {
+    if !pack_present() {
+        return;
+    }
     // Negative control: the carry is fired by the entry boxes alone (rows 34-35
     // and 42-43 of this column). A player already on the belt column between
     // them walks it as ordinary ground.
@@ -524,6 +539,9 @@ fn use_terminal(rt: &mut Runtime, facing: Direction) -> Run {
 
 #[test]
 fn the_terminals_flip_the_belt_flag_of_the_half_the_leader_stands_in() {
+    if !pack_present() {
+        return;
+    }
     // (map, the cell in front of the terminal, the way it faces, the event,
     // the temp flag the leader's X selects). Vahal Fort splits at x = $1F0
     // (cell 31), the Weapon Plant at $300 (cell 48).
@@ -586,6 +604,9 @@ fn open_chest(rt: &mut Runtime) -> Run {
 
 #[test]
 fn wren_installs_the_burst_roc_and_the_positron_bolt_from_their_chests() {
+    if !pack_present() {
+        return;
+    }
     // (map, the cell below the chest, the event, the chest's object index, the
     // dialogue, the skill slot and id Wren gains, the event flag, the chest
     // flag the interaction gate sets).
@@ -650,6 +671,9 @@ fn story(map: u16, cell: Cell, members: &[u8], flags: &[Flag]) -> (Runtime, Run)
 
 #[test]
 fn the_story_triggers_fire_once_on_their_flags_and_say_their_lines() {
+    if !pack_present() {
+        return;
+    }
     // (map, flags that arm it, the trigger slot, the event, the dialogue, the
     // flag it sets).
     let cases = [
@@ -703,6 +727,9 @@ fn the_story_triggers_fire_once_on_their_flags_and_say_their_lines() {
 
 #[test]
 fn the_dominators_aftermath_runs_from_its_trigger_with_the_real_party() {
+    if !pack_present() {
+        return;
+    }
     for fifth in [6, 4, 2, 8, 9, 10] {
         let members = [0, 3, 5, 7, fifth];
         let (rt, run) = story(VAHAL_F3, Cell::new(44, 45), &members, &[Flag::event(0xB6)]);

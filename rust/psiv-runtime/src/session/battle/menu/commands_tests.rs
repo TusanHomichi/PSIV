@@ -261,6 +261,8 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
         age: 0,
         bytes: [0; 5],
         memory: CursorMemory::default(),
+        growth: None,
+        whole_unread: false,
         open: true,
     };
     menu.actors = menu
@@ -612,6 +614,15 @@ fn the_post_battle_pages_confirm_on_any_face_button() {
     assert!(!confirm_pressed(held, held));
 }
 
+/// One press, once any window opening has finished: the frames
+/// `Battle_CreateWindow` takes read no button.
+fn press(menu: &mut CommandsMenu, button: Button) -> Option<RoundOrders> {
+    while menu.growing() {
+        assert_eq!(menu.input(Pad::NEUTRAL, Pad::NEUTRAL), None);
+    }
+    menu.input(Pad::NEUTRAL, Pad::new(button))
+}
+
 /// The strip is the cartridge's `Battle_CharCommand` (`ps4.asm:2192`): the
 /// cursor goes through `Battle_UpdateCursor` (`ps4.asm:70646`), which tests
 /// Left and Right only and wraps over the five icons (`d1 = 4`).
@@ -620,25 +631,24 @@ fn the_strip_moves_on_left_and_right_only_and_wraps() {
     let Some((_runtime, mut menu)) = menu() else {
         return;
     };
-    let none = Pad::NEUTRAL;
     for button in [Button::Up, Button::Down] {
-        menu.input(none, Pad::new(button));
+        press(&mut menu, button);
         assert_eq!(menu.cursor, 0, "{button} is not tested by the strip");
     }
-    menu.input(none, Pad::new(Button::Right));
+    press(&mut menu, Button::Right);
     assert_eq!(menu.cursor, 1);
-    menu.input(none, Pad::new(Button::Left));
-    menu.input(none, Pad::new(Button::Left));
+    press(&mut menu, Button::Left);
+    press(&mut menu, Button::Left);
     assert_eq!(menu.cursor, 4, "Left from the first icon wraps to the last");
-    menu.input(none, Pad::new(Button::Right));
+    press(&mut menu, Button::Right);
     assert_eq!(
         menu.cursor, 0,
         "Right from the last icon wraps to the first"
     );
     // Accept and cancel are the cartridge's too.
-    assert_eq!(menu.input(none, Pad::new(Button::Speak)), None);
+    assert_eq!(press(&mut menu, Button::Speak), None);
     assert_eq!(menu.page, MenuPage::Targets(TargetKind::Attack));
-    menu.input(none, Pad::new(Button::Cancel));
+    press(&mut menu, Button::Cancel);
     assert_eq!(menu.page, MenuPage::Actions);
 }
 
@@ -669,10 +679,6 @@ fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
     }
     menu.page = MenuPage::Techniques;
     menu.cursor = 0;
-    let none = Pad::NEUTRAL;
-    let press = |menu: &mut CommandsMenu, button| {
-        menu.input(none, Pad::new(button));
-    };
     press(&mut menu, Button::Up);
     assert_eq!(
         menu.cursor, 3,
@@ -687,6 +693,11 @@ fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
     assert_eq!(menu.cursor, 0, "no previous page: Left does nothing");
     press(&mut menu, Button::Right);
     assert_eq!(menu.cursor, 4, "Right flips to the next page's first row");
+    // `Battle_TechNextWin` grows the next page's window from nothing.
+    assert!(menu.view().list.is_none() && menu.growing());
+    while menu.growing() {
+        menu.input(Pad::NEUTRAL, Pad::NEUTRAL);
+    }
     let view = menu.view().list.expect("a list window");
     assert_eq!((view.page, view.entries.len()), (1, 2));
     assert!(view.more_before && !view.more_after);
@@ -708,6 +719,94 @@ fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
     assert_eq!(menu.page, MenuPage::Techniques);
     menu.cancel();
     assert_eq!((menu.page, menu.cursor), (MenuPage::Actions, 1));
+}
+
+/// Neutral frames until the opening window is whole, checking that no frame
+/// of the growth shows the list's cursor.
+fn grow_whole(menu: &mut CommandsMenu) {
+    assert!(menu.growing(), "the window opens growing");
+    while menu.growing() {
+        assert!(!menu.list_cursor_shown(), "no cursor while it grows");
+        assert_eq!(menu.input(Pad::NEUTRAL, Pad::NEUTRAL), None);
+    }
+}
+
+/// #51: the frame `Battle_CreateWindow` draws a list whole is not yet the
+/// list routine's, so its selected row is blue (`Battle_UpdateRedCursor2`,
+/// `ps4.asm:1572`, first runs the next frame), and the blink timers stay
+/// paused through it. That holds for the TECH, SKILL and ITEM windows and for
+/// a next page's window (`Battle_TechNextWin`, `ps4.asm:2739`).
+#[test]
+fn a_list_drawn_whole_shows_its_cursor_only_from_the_next_frame() {
+    for icon in [1, 2, 3] {
+        let Some((_runtime, mut menu)) = menu() else {
+            return;
+        };
+        let mut slots = [0; 40];
+        slots[0] = 125;
+        menu.inventory = psiv_core::Inventory::from_slots(slots);
+        grow_whole(&mut menu);
+        for _ in 0..icon {
+            press(&mut menu, Button::Right);
+        }
+        assert_eq!(menu.cursor, icon);
+        menu.input(Pad::NEUTRAL, Pad::new(Button::Speak));
+        let page = menu.page;
+        assert!(
+            matches!(
+                page,
+                MenuPage::Techniques | MenuPage::Skills | MenuPage::Items
+            ),
+            "icon {icon} opens a list: {page:?}"
+        );
+        // The frame of the accept is the strip routine's: no timers.
+        assert!(!menu.red_cursor_window(), "{page:?} grows");
+        grow_whole(&mut menu);
+        assert!(menu.view().list.is_some(), "{page:?} is drawn whole");
+        assert!(
+            !menu.list_cursor_shown(),
+            "{page:?}: the whole frame's row is blue"
+        );
+        // The next frame is the list routine's: it runs the timers and
+        // decides the cursor, and it reads the pad.
+        assert!(menu.red_cursor_window(), "{page:?} runs its routine next");
+        menu.input(Pad::NEUTRAL, Pad::new(Button::Down));
+        assert!(menu.list_cursor_shown(), "{page:?}: its routine has run");
+        assert_eq!(menu.cursor % PAGE_ROWS, 1, "{page:?} read the Down");
+    }
+
+    // A next page grows from nothing and is whole for a frame the same way.
+    let Some((_runtime, mut menu)) = menu() else {
+        return;
+    };
+    let usable: Vec<u8> = menu
+        .techniques
+        .values()
+        .filter(|tech| tech.targeting & 0x10 != 0)
+        .map(|tech| tech.id)
+        .take(6)
+        .collect();
+    let actor = menu.actor_id().unwrap();
+    {
+        let stats = &mut menu.roster.get_mut(actor).unwrap().stats;
+        stats.techniques = [0; 16];
+        stats.techniques[..usable.len()].copy_from_slice(&usable);
+    }
+    grow_whole(&mut menu);
+    press(&mut menu, Button::Right);
+    press(&mut menu, Button::Speak);
+    grow_whole(&mut menu);
+    menu.input(Pad::NEUTRAL, Pad::NEUTRAL);
+    assert!(menu.list_cursor_shown());
+    menu.input(Pad::NEUTRAL, Pad::new(Button::Right));
+    assert_eq!(menu.cursor, 4, "Right flips to the next page");
+    assert!(!menu.red_cursor_window(), "the next page grows");
+    grow_whole(&mut menu);
+    assert_eq!(menu.view().list.map(|list| list.page), Some(1));
+    assert!(!menu.list_cursor_shown(), "the next page's whole frame");
+    assert!(menu.red_cursor_window());
+    menu.input(Pad::NEUTRAL, Pad::NEUTRAL);
+    assert!(menu.list_cursor_shown(), "the next page's routine has run");
 }
 
 /// The pane icon follows the command byte the way the cartridge writes it:
@@ -795,8 +894,6 @@ fn each_member_s_strip_and_list_cursors_reopen_where_they_left_them() {
     let Some((runtime, mut menu)) = menu() else {
         return;
     };
-    let none = Pad::NEUTRAL;
-    let press = |menu: &mut CommandsMenu, button| menu.input(none, Pad::new(button));
     // Chaz: TECH, Down onto the list's second row (empty: he knows one
     // technique), back to the strip, then DEFEND.
     press(&mut menu, Button::Right);

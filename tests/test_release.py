@@ -320,11 +320,13 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         self.archive = tar_archive(self.dir / f"{platform.archive_name(VERSION)}.tar.gz",
                                    release_files(platform))
         self.environments = []
+        self.commands = []
         self.enterContext(mock.patch.dict(os.environ, {"PSIV_SAVE_DIR": "/developer/saves"}))
 
     def game(self, code):
         def run(command, *, env, **options):
             self.environments.append(env)
+            self.commands.append(command)
             log = pathlib.Path(command[command.index("--log-file") + 1])
             log.write_text(f"{release.SETUP_SHOWN}x\n{release.BUILD_STARTED}x\n"
                            f"{release.NOT_THE_ROM_NAME} {release.NOT_THE_ROM}\n")
@@ -340,6 +342,21 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11"):
             release.smoke(self.archive, PLATFORMS["linux"])
 
+    def test_a_clean_exit_without_the_setup_screen_fails(self):
+        def no_setup(command, **options):
+            return subprocess.CompletedProcess(command, 0, "", "")
+        with mock.patch.object(release.subprocess, "run", no_setup):
+            with self.assertRaisesRegex(ReleaseError, "never showed"):
+                release.smoke(self.archive, PLATFORMS["linux"])
+
+    def test_executable_rom_and_saves_exercise_non_ascii_paths(self):
+        with self.game(0):
+            release.smoke(self.archive, PLATFORMS["linux"])
+        for command in self.commands:
+            self.assertIn("first run (portabilité)", command[0])
+        self.assertEqual(pathlib.Path(self.commands[-1][-1]).name,
+                         "not the game (portabilité).md")
+
     def test_each_run_has_its_own_scratch_save_directory(self):
         with self.game(0):
             release.smoke(self.archive, PLATFORMS["linux"])
@@ -347,7 +364,8 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         for environment in self.environments:
             saves = pathlib.Path(environment["PSIV_SAVE_DIR"])
             self.assertEqual(saves.name, "saves")
-            self.assertEqual(saves.parent.name[:len("psiv-smoke-")], "psiv-smoke-")
+            self.assertEqual(saves.parent.name, "first run (portabilité)")
+            self.assertTrue(saves.parent.parent.name.startswith("psiv-smoke-"))
 
 
 # --- notices ---------------------------------------------------------------

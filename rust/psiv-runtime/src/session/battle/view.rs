@@ -266,9 +266,38 @@ pub struct ListView {
     pub more_after: bool,
 }
 
+/// A strip or list window still opening: `Battle_CreateWindow`
+/// (`ps4.asm:1657`) draws an empty window two cells wider each frame, centred
+/// on where the full one goes, and draws the full window, contents and all,
+/// once the width reaches it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GrowingWindow {
+    /// The window opening: [`MenuPage::Actions`] for the strip, or a list.
+    pub window: MenuPage,
+    /// `Battle_Total_Comd_Input`, for the window's column.
+    pub slot: u8,
+    /// This frame's width in cells (`$FFFF418C`); 0 draws nothing.
+    pub width: u8,
+    /// The full window's width in cells (the routine's `d1`).
+    pub full_width: u8,
+}
+
+impl GrowingWindow {
+    /// Cells from the full window's left edge to this frame's: the routine
+    /// adds `(d1 - width) & ~1` bytes, two a cell, to the plane address.
+    #[must_use]
+    pub const fn left_offset(self) -> u8 {
+        (self.full_width.saturating_sub(self.width) & !1) / 2
+    }
+}
+
 /// The per-character command window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandMenuView {
+    /// A strip or list window still opening. While it is, [`Self::strip`]
+    /// (when the strip is the one opening) or [`Self::list`] is `None`, and
+    /// the window reads no input.
+    pub growing: Option<GrowingWindow>,
     /// The strip, on the actions page.
     pub strip: Option<StripView>,
     /// The list window, on the technique, skill and item pages.

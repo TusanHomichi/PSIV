@@ -8,6 +8,10 @@ use std::path::Path;
 #[test]
 fn alys_can_equip_two_slashers_and_keep_them_after_reload() {
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
     let data = GameData::load(pack).unwrap();
     let files = BattleFiles::load(pack).unwrap();
     let mut game = GameState::new();

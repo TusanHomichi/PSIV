@@ -218,7 +218,8 @@ class NativeTapeReceiptRss(unittest.TestCase):
     """`main` itself: a failing RSS verdict fails the receipt, everything else
     being a pass (Godot, the process map and Git are stood in for)."""
 
-    def run_main(self, rows, extra=(), probes=None, maps_checkout=False, observed=True):
+    def run_main(self, rows, extra=(), probes=None, maps_checkout=False, observed=True,
+                 sample_records=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             probe_save = root / "academy.sram"
@@ -250,7 +251,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
                     return None
                 return {"path": str(path), "inode": path.stat().st_ino}
             env = {"FAKE_MAPPED_SIGNAL": str(signal_path),
-                   "FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
+                   "FAKE_RSS_SAMPLES": json.dumps(samples(*rows) if sample_records is None else sample_records),
                    "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
                     mock.patch.dict(os.environ, {"PSIV_GODOT": str(godot)}), \
@@ -314,6 +315,33 @@ class NativeTapeReceiptRss(unittest.TestCase):
         self.assertEqual(receipt["rss"]["bracket"]["static_growth_mb"], 40.0)
         self.assertEqual(receipt["rss_probe_save_sha256_before"],
                          receipt["rss_probe_save_sha256_after"])
+
+    def test_release_probe_failures_write_a_failed_receipt_and_report_without_crashing(self):
+        bound = ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16", "--rss-probe-save", "PROBE")
+        for defect in ("missing", "unsettled", "unreadable", "malformed", "capability"):
+            with self.subTest(defect=defect):
+                recorded = samples(*([(250, 0, 2800, 1)] * 8))
+                probes = bracket()
+                for item in recorded + probes["start"]["samples"] + probes["end"]["samples"]:
+                    item.update(static_available=False, static_kb=0)
+                for probe in probes.values():
+                    probe.update(orphan_monitor_available=False, orphan_monitor_alive=False)
+                if defect == "missing":
+                    probes.pop("end")
+                elif defect == "unsettled":
+                    probes["end"]["settled"] = False
+                elif defect == "unreadable":
+                    probes["end"]["samples"][0]["rss_kb"] = 0
+                elif defect == "malformed":
+                    probes["end"]["samples"][0].pop("caches")
+                else:
+                    probes["end"]["orphan_monitor_available"] = True
+                code, receipt = self.run_main([], bound, probes=probes, sample_records=recorded)
+                self.assertEqual(code, 1)
+                self.assertFalse(receipt["pass"])
+                self.assertFalse(receipt["rss"]["bracket"]["pass"])
+                self.assertIsInstance(receipt["rss"]["bracket"]["reason"], str)
+                self.assertNotIn("static_growth_mb", receipt["rss"]["bracket"])
 
     def test_a_bound_without_a_warmup_sample_or_at_a_coarse_cadence_is_refused(self):
         for extra in (("--rss-bound-mb", "16", "--rss-probe-save", "PROBE"),
