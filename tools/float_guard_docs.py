@@ -1,6 +1,8 @@
 """Documentation tokens and independent Rustdoc examples for the float guard."""
 import re
 
+from markdown_it import MarkdownIt
+
 from tools.float_guard import tokens
 
 
@@ -54,13 +56,13 @@ def documentation(source):
         current_style = None
         if token.kind == 'line' and (text.startswith('//!') or
                 (text.startswith('///') and not text.startswith('////'))):
-            current_style = text[2]
+            current_style = '!' if text[2] == '!' else '/'
             line = source.count('\n', 0, token.start) + 1
             chars = [(ch, line) for ch in text[3:].removeprefix(' ')]
             chars.append(('\n', source.count('\n', 0, token.start) + 1))
         elif token.kind == 'block' and (text.startswith('/*!') or
-                (text.startswith('/**') and not text.startswith('/***'))):
-            current_style = text[2]
+                (text.startswith('/**') and not text.startswith(('/***', '/**/')))):
+            current_style = '!' if text[2] == '!' else '/'
             body = text[3:-2]
             chars = []
             line = source.count('\n', 0, token.start) + 1
@@ -102,9 +104,12 @@ def documentation(source):
             parts = [part.text for part in significant]
             inner = parts[:1] == ['!']
             attr = significant[1:] if inner else significant
-            if len(attr) == 5 and [part.text for part in attr[:3]] == ['[', 'doc', '='] and attr[-1].text == ']' and attr[3].kind in ('raw', 'string'):
-                chars = string_doc(attr[3], source)
-                chars.append(('\n', source.count('\n', 0, token.end) + 1))
+            docs = list(literal_docs(attr[1:-1])) if attr and attr[0].text == '[' else []
+            if docs:
+                chars = []
+                for literal in docs:
+                    chars.extend(string_doc(literal, source))
+                    chars.append(('\n', source.count('\n', 0, literal.end) + 1))
                 current_style = '!' if inner else '/'
             if parts and parts[-1] == ']':
                 i = j - 1
@@ -127,57 +132,60 @@ def documentation(source):
         yield group
 
 
+def literal_docs(parts):
+    """Extract only doc literals, recursively descending cfg_attr attribute lists.
+
+    Conditions are deliberately not evaluated: all source feature branches must
+    obey the float guard, even when they aren't enabled on this machine.
+    """
+    if not parts:
+        return
+    name = parts[0].text.removeprefix('r#')
+    if (name == 'doc' and len(parts) == 3 and parts[1].text == '='
+            and parts[2].kind in ('raw', 'string')):
+        yield parts[2]
+    elif name == 'cfg_attr' and len(parts) > 3 and parts[1].text == '(':
+        arguments, current, depth = [], [], 0
+        for part in parts[2:-1]:
+            if part.text == ',' and depth == 0:
+                arguments.append(current)
+                current = []
+                continue
+            depth += part.text in ('(', '[', '{')
+            depth -= part.text in (')', ']', '}')
+            current.append(part)
+        arguments.append(current)
+        for argument in arguments[1:]:
+            yield from literal_docs(argument)
+
+
 def rust_info(info):
-    """Rustdoc defaults to Rust; known language tags override that default."""
-    attrs = re.findall(r'[\w-]+', info)
+    """Class groups decorate a block; custom overrides its Rust language tag."""
+    # Quoted names are single words. Braced CSS classes are not language tags.
+    words = re.findall(r'\{(?:[^"}]|"[^"]*")*\}|"[^"]*"|[^\s,]+', info)
+    attrs = [word.strip('"') for word in words if not word.startswith('{')]
+    if 'custom' in attrs:
+        return False
     known = lambda attr: (attr in ('rust', 'no_run', 'ignore', 'should_panic',
                                   'compile_fail', 'test_harness', 'standalone_crate')
-                          or attr.startswith(('edition', 'ignore-'))
-                          or re.fullmatch(r'E\d{4}', attr))
+                          or re.fullmatch(r'edition(?:2015|2018|2021|2024)', attr)
+                          or attr.startswith('ignore-') or re.fullmatch(r'E\d{4}', attr))
     return not attrs or 'rust' in attrs or all(known(attr) for attr in attrs)
 
 
 def doc_examples(source):
-    """Extract fences (backticks/tildes) and indented code, one lexer per block."""
+    """Use CommonMark container/fence semantics and reset the lexer per block."""
+    parser = MarkdownIt('commonmark')
     for chars in documentation(source):
-        # Strip doc decoration once per item, preserving indentation for Markdown.
-        rows = []
         text = ''.join(ch for ch, _ in chars)
+        lines = []
         offset = 0
-        raw_rows = text.splitlines(keepends=True)
-        for row in raw_rows:
-            line = chars[offset][1] if offset < len(chars) else 1
-            content = row.rstrip('\r\n')
-            rows.append((content, line))
+        for row in text.splitlines(keepends=True):
+            lines.append(chars[offset][1])
             offset += len(row)
-        fence = None
-        block = []
-        enabled = False
-        indented = False
-        blank_before = True
-        for row, line in rows:
-            opening = re.match(r' {0,3}(`{3,}|~{3,})(.*)$', row)
-            if fence:
-                if re.fullmatch(r' {0,3}' + re.escape(fence[0]) + '{' + str(len(fence)) + r',}\s*', row):
-                    if enabled:
-                        yield '\n'.join(value for value, _ in block), [n for _, n in block]
-                    block, fence = [], None
-                else:
-                    block.append((row, line))
-            elif opening:
-                if indented and block:
-                    yield '\n'.join(value for value, _ in block), [n for _, n in block]
-                block, indented = [], False
-                fence = opening[1]
-                enabled = rust_info(opening[2])
-            elif (indented or blank_before) and (row.startswith('    ') or row.startswith('\t')):
-                indented = True
-                block.append((row[4:] if row.startswith('    ') else row[1:], line))
-            elif indented and not row.strip():
-                block.append(('', line))
-            elif indented:
-                yield '\n'.join(value for value, _ in block), [n for _, n in block]
-                block, indented = [], False
-            blank_before = not row.strip() or bool(opening) or fence is not None
-        if block and (indented or enabled):
-            yield '\n'.join(value for value, _ in block), [n for _, n in block]
+        for block in parser.parse(text):
+            if block.type not in ('fence', 'code_block') or not rust_info(block.info):
+                continue
+            start = block.map[0] + (block.type == 'fence')
+            count = len(block.content.splitlines())
+            yield block.content, lines[start:start + count]

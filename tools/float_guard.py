@@ -59,20 +59,38 @@ def tokens(source):
 def float_sites(source):
     """Return (one-based line, token), with range and tuple punctuation distinct."""
     sites = []
-    previous = None
+    history = []
+    delimiters = []
     for token in tokens(source):
         if token.kind in ('space', 'line', 'block'):
             continue
         text = token.text
+        if text in ('(', '[', '{'):
+            invocation = len(history) >= 2 and history[-1].text == '!' and history[-2].kind == 'ident'
+            definition = len(history) >= 3 and [t.text for t in history[-3:-1]] == ['macro_rules', '!']
+            delimiters.append(bool((delimiters and delimiters[-1]) or invocation or definition))
+        elif text in (')', ']', '}') and delimiters:
+            delimiters.pop()
         is_float = token.kind == 'ident' and text.removeprefix('r#') in ('f32', 'f64')
-        if token.kind == 'number' and previous != '.':
+        if token.kind == 'number':
             # Nondecimal literals are consumed with their full identifier suffix.
             is_float = not text.startswith(('0x', '0o', '0b')) and (
                 '.' in text or re.search(r'[eE][+-]?[0-9_]+', text) is not None
                 or text.endswith(('f32', 'f64')))
+        # Rust tokenizes chained tuple fields as a decimal-looking token. Only
+        # accept bare integer field chains with an expression receiver; suffixes
+        # and exponents are never tuple indices. A macro's leading dot is not a
+        # receiver (e.g. value!(. 1.5)). Within macro token trees even a.b.c
+        # can match an ident, dot and float literal; require (a.b).c there.
+        if (token.kind == 'number' and re.fullmatch(r'[0-9]+\.[0-9]+', text)
+                and len(history) >= 2 and history[-1].text == '.'
+                and not any(delimiters)):
+            receiver = history[-2]
+            if receiver.kind in ('ident', 'number') or receiver.text in (')', ']'):
+                is_float = False
         if is_float:
             sites.append((source.count('\n', 0, token.start) + 1, text))
-        previous = text
+        history.append(token)
     return sites
 
 

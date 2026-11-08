@@ -23,7 +23,8 @@ platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
-documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
+documents' `yaml` blocks. The float source guard uses markdown-it-py for
+CommonMark Rustdoc code blocks. Native automated checks on Linux use Xvfb.
 
 On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
 `.envrc`, enters a shell with all of these: Python with Pillow, NumPy and
@@ -466,14 +467,18 @@ those commands, at the gate's jobs and threads; a subset, another
 `CARGO_BUILD_JOBS` or test-thread count, or a per-crate run is a focused check
 and is reported as one.
 
-The Python suite includes `tests/test_float_guard.py`: a source guard rejects
+The Python suite and the flake's `gate-tests` discovery include `tests/test_gate_float_guard.py`: a source guard rejects
 float types and literals throughout psiv-core, psiv-data and psiv-runtime,
 including test bodies and Rustdoc examples that Clippy does not lint.
 Documentation comments and literal doc attributes use the same Rust token
-boundaries as code; fenced and indented examples are scanned independently. There are no allowed float sites. It ignores strings and non-code
+boundaries as code; CommonMark fenced and indented examples are scanned
+independently. Literal docs in `cfg_attr` are checked in every feature branch.
+Within macro token trees, write chained tuple fields as `(pair.0).1`: the token
+`0.1` could instead match a floating literal in a macro matcher. There are no
+allowed float sites. The guard ignores strings and non-code
 comments; it does not infer types or inspect external macro expansions or
 examples included from other files. Run it and its regression controls with
-`PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_float_guard*.py'`.
+`PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_gate_float_guard*.py'`.
 
 The gate does not
 cover:

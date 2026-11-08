@@ -70,7 +70,7 @@
         };
 
       # The checks' Python, with what tools/ and tests/ import.
-      pythonFor = pkgs: pkgs.python3.withPackages (ps: [ ps.pyyaml ps.pillow ps.numpy ]);
+      pythonFor = pkgs: pkgs.python3.withPackages (ps: [ ps.pyyaml ps.pillow ps.numpy ps.markdown-it-py ]);
 
       # The Rust toolchain rust-toolchain.toml pins, plus `extra` components.
       toolchainFor = pkgs: extra:

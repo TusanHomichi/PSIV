@@ -107,3 +107,60 @@ class ReviewControls(unittest.TestCase):
         self.assertEqual(examples(first + line_doc('let x = 1.5;')), [(5, '1.5')])
         # A shorter fence cannot close the surrounding non-Rust block.
         self.assertEqual(examples(line_doc('```\nf64 1.5', '````text', '````')), [])
+
+    def test_dotted_macro_literals(self):
+        macro = 'macro_rules! value { (. $x:literal) => { $x }; }\n'
+        for literal in ('1.5', '1e3', '1f64', '1_f32'):
+            with self.subTest(literal=literal):
+                self.assert_contexts(macro + f'let x = value!(. {literal});', 1)
+        self.assert_contexts('macro_rules! value { () => { . 1.5 }; }', 1)
+        self.assert_contexts('macro_rules! value { ($a:ident . $x:literal) => { $x }; }\n'
+                             'let x = value!(receiver . 1.5);', 1)
+        self.assert_contexts('assert_eq!((pair.0).1, 0);', 0)
+        self.assert_contexts('let x = (pair.0.1, (pair).0.1, values[0].0.1);', 0)
+
+    def test_mixed_documentation_forms(self):
+        for middle in ('/** let x = 1.5; */', '#[doc = "let x = 1.5;"]'):
+            source = '/// ```rust\n' + middle + '\n/// ```\nfn item() {}'
+            self.assertEqual(examples(source), [(2, '1.5')])
+        self.assertEqual(examples('/// ```rust\n/**/\n/// let x = 1.5;\n'
+                                  '/* ordinary */\n/// ```\nfn item() {}'), [(3, '1.5')])
+        self.assertEqual(examples('//! ```rust\n/*! let x = 1.5; */\n//! ```'), [(2, '1.5')])
+        self.assertEqual(examples('/// ```text\nfn first() {}\n/** ```rust\n'
+                                  'let x = 1.5;\n``` */\nfn second() {}'), [(4, '1.5')])
+
+    def test_commonmark_containers_and_info_strings(self):
+        for rows, expected_line in (
+            (['> ```rust', '> let x = 1.5;', '> ```'], 2),
+            (['- ```rust', '  let x = 1.5;', '  ```'], 2),
+            (['- outer', '  - inner', '', '    > ~~~~rust',
+              '    > let x = 1.5;', '    > ~~~~'], 5),
+            (['> prose', '>', '>     let x = 1.5;'], 3),
+        ):
+            source = '\n'.join('/// ' + row for row in rows)
+            with self.subTest(rows=rows):
+                self.assertEqual(examples(source), [(expected_line, '1.5')])
+        for info in ('{class=example}', '{.example}', '{class="hello world"}',
+                     'rust,{class="custom, text"}', '"rust",{.example}',
+                     'no_run,{class="example, custom"}'):
+            with self.subTest(info=info):
+                self.assertEqual(examples(line_doc('let x = 1.5;', '```' + info)), [(2, '1.5')])
+        for info in ('custom,{class=rust}', 'custom,rust', 'custom,{.rust}',
+                     '"not rust" {."hello everyone"}', 'text,{class=rust}'):
+            with self.subTest(info=info):
+                self.assertEqual(examples(line_doc('let x = 1.5;', '```' + info)), [])
+
+    def test_conditional_literal_doc_attributes(self):
+        for spelling in ('cfg_attr', 'r#cfg_attr'):
+            for doc in ('doc', 'r#doc'):
+                for marker in ('#', '#!'):
+                    source = (marker + '[' + spelling + '(all(), allow(dead_code), '
+                              + doc + ' = "```rust\\nlet x = 1.5;\\n```", '
+                              'cfg_attr(any(), doc = r"```rust\nlet y = 2f64;\n```"))]')
+                    with self.subTest(source=source):
+                        self.assertEqual(examples(source), [(1, '1.5'), (2, '2f64')])
+        source = ('/// ```rust\n#[cfg_attr(all(), doc = "let x = 1.5;")]\n'
+                  '/// ```\nfn item() {}')
+        self.assertEqual(examples(source), [(2, '1.5')])
+        self.assertEqual(examples('#[cfg_attr(all(), deprecated(note = "```rust\\n'
+                                  'let x = 1.5;\\n```"))]'), [])
