@@ -616,3 +616,77 @@ class TheCacheBasis(unittest.TestCase):
         verdict = rss_verdict(recorded, WARMUP, 16, probes=bracket())
         self.assertFalse(verdict["pass"])
         self.assertIn("basis", verdict["reason"])
+
+
+class ReleaseTemplates(unittest.TestCase):
+    def release(self):
+        rows = samples(*visits(WARM, *SWING))
+        probes = bracket()
+        for item in rows + probes["start"]["samples"] + probes["end"]["samples"]:
+            item["static_available"] = False
+            item["static_kb"] = 0
+        for item in probes.values():
+            item["orphan_monitor_available"] = False
+            item["orphan_monitor_alive"] = False
+        # Release still exposes named cache bytes even though the engine
+        # provides no allocator counter from which to subtract those bytes.
+        for item in probes["start"]["samples"] + probes["end"]["samples"]:
+            item["caches"] = {"texture_cache": cache(entries=1, mb=4)}
+        for item in rows:
+            item.update(cache_bytes=4 * 1024 * 1024, cache_objects=2,
+                        cache_per_texture=2)
+        return rows, probes
+
+    def test_release_map_image_swing_is_not_mistaken_for_rust_heap_growth(self):
+        rows, probes = self.release()
+        result = rss_verdict(rows, WARMUP, 16, probes=probes)
+        self.assertTrue(result["pass"], result)
+        self.assertFalse(result["static_available"])
+        self.assertFalse(result["godot_static"]["judged"])
+        self.assertIsNone(result["godot_static"]["growth_mb"])
+        self.assertIsNone(result["bracket"]["static_growth_mb"])
+
+    def test_release_still_rejects_counted_rust_leaks_and_object_leaks(self):
+        for kind in ("rust", "objects"):
+            rows, probes = self.release()
+            if kind == "rust":
+                rows[-1]["rust_live_bytes"] += 20 * 1024 * 1024
+            else:
+                for item in probes["end"]["samples"]:
+                    item["objects"] += 100
+            result = rss_verdict(rows, WARMUP, 16, probes=probes)
+            self.assertFalse(result["pass"], kind)
+
+    def test_release_rejects_mixed_or_contradictory_counter_modes(self):
+        for mutate in (lambda rows, probes: rows[-1].update(static_available=True),
+                       lambda rows, probes: rows[-1].update(static_kb=1),
+                       lambda rows, probes: probes["end"]["samples"][-1].update(
+                           static_available=True),
+                       lambda rows, probes: probes["end"].update(
+                           orphan_monitor_available=True),
+                       lambda rows, probes: probes["end"]["samples"][-1].update(
+                           orphan_nodes=1)):
+            rows, probes = self.release()
+            mutate(rows, probes)
+            result = rss_verdict(rows, WARMUP, 16, probes=probes)
+            self.assertFalse(result["pass"], result)
+
+    def test_release_probe_failures_keep_reason_only_bracket_diagnostics(self):
+        for defect in ("missing", "unsettled", "unreadable", "malformed", "capability"):
+            with self.subTest(defect=defect):
+                rows, probes = self.release()
+                if defect == "missing":
+                    probes.pop("end")
+                elif defect == "unsettled":
+                    probes["end"]["settled"] = False
+                elif defect == "unreadable":
+                    probes["end"]["samples"][0]["rss_kb"] = 0
+                elif defect == "malformed":
+                    probes["end"]["samples"][0].pop("caches")
+                else:
+                    probes["end"]["orphan_monitor_available"] = True
+                result = rss_verdict(rows, WARMUP, 16, probes=probes)
+                self.assertFalse(result["pass"])
+                self.assertFalse(result["bracket"]["pass"])
+                self.assertIsInstance(result["bracket"]["reason"], str)
+                self.assertNotIn("static_growth_mb", result["bracket"])

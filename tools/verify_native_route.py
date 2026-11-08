@@ -22,9 +22,9 @@ is measured, and how, is `tools/native_rss.py`). The check's coverage is set
 in frames, so every run plays the same maps and battles whatever the host's
 speed; the bound is judged over that window of frames. Growth is not normalized per frame:
 audio is rendered on the wall clock, so a slower host renders more of it per
-frame. The verdict reads Godot's static memory, which only debug builds
-report, so the check is for debug builds (the release path is #117). The
-reference window is a whole completed route:
+frame. Debug engines also report Godot static memory and orphan-node counts; release
+templates label those counters unavailable and judge the counted Rust heap,
+objects and cache ceilings. The reference window is a whole completed route:
 
     psiv-campaign run rust/psiv-campaign/routes/main.json \
         --save-dir RUN --tape RUN/run.tape --report RUN/report.json
@@ -268,6 +268,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.rss_bound_mb is not None:
+        verify_native_tape.prepare_memory_policy()
     lock = verify_native_tape.heavy_lock_path(verify_native_tape.ROOT)
     with verify_native_tape.hold_heavy_lock(lock, lock_class=verify_native_tape.GODOT_CLASS):
         return verify_route(args)

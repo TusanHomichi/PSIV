@@ -3,8 +3,12 @@ use super::*;
 use psiv_core::battle::{Command, status};
 use psiv_core::{Cell, CharId, Direction, StepFrames};
 
-fn runtime() -> Runtime {
+fn runtime() -> Option<Runtime> {
     let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return None;
+    }
     let mut runtime = Runtime::new(
         psiv_data::GameData::load(pack).expect("decoded runtime pack"),
         0x13,
@@ -23,7 +27,7 @@ fn runtime() -> Runtime {
         None,
         None,
     ]);
-    runtime
+    Some(runtime)
 }
 
 fn mode(runtime: &mut Runtime) -> BattleMode {
@@ -41,7 +45,7 @@ fn mode(runtime: &mut Runtime) -> BattleMode {
 
 #[test]
 fn tp_event_updates_only_its_recipient_at_the_played_beat() {
-    let mut runtime = runtime();
+    let Some(mut runtime) = runtime() else { return };
     let mut mode = mode(&mut runtime);
     let before = mode.party.clone();
     let target = FighterId::new(2).unwrap();
@@ -60,7 +64,7 @@ fn tp_event_updates_only_its_recipient_at_the_played_beat() {
 
 #[test]
 fn session_round_applies_arows_global_event_to_off_party_records() {
-    let mut runtime = runtime();
+    let Some(mut runtime) = runtime() else { return };
     let mut off_party = runtime.game.roster().get(CharId(0)).unwrap().clone();
     off_party.status = status::ASLEEP | status::ASLEEP_2 | status::ANDROID_DEAD;
     off_party.agility.battle = 1;

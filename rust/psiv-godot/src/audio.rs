@@ -246,6 +246,15 @@ mod tests {
     use psiv_sound::{Chip, DRIVER_TICK_HZ, SAMPLE_RATE, SoundMachine};
     use std::path::Path;
 
+    fn pack_available() -> bool {
+        let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return false;
+        }
+        true
+    }
+
     fn piata_bank() -> psiv_sound::SoundBank {
         let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
         let data = GameData::load(pack).expect("runtime pack loads");
@@ -268,6 +277,9 @@ mod tests {
 
     #[test]
     fn real_piata_track_first_ticks_are_deterministic_and_include_dac() {
+        if !pack_available() {
+            return;
+        }
         let first = real_track_log();
         let second = real_track_log();
         assert_eq!(first, second);
@@ -283,6 +295,9 @@ mod tests {
 
     #[test]
     fn debug_track_bank_contains_the_pack_path() {
+        if !pack_available() {
+            return;
+        }
         let bank = piata_bank();
         assert!(bank.sequences.iter().any(|sequence| sequence.id == 0x84));
         assert!(bank.sequences.iter().any(|sequence| sequence.id == 0xf2));
@@ -290,6 +305,9 @@ mod tests {
 
     #[test]
     fn every_extracted_record_can_start_three_driver_ticks() {
+        if !pack_available() {
+            return;
+        }
         let bank = piata_bank();
         let ids: Vec<u8> = bank.sequences.iter().map(|sequence| sequence.id).collect();
         let frames = (SAMPLE_RATE / DRIVER_TICK_HZ) as usize * 3;
@@ -329,6 +347,9 @@ mod tests {
     /// write that grew the old always-on trace); `$F5` is a battle SFX.
     #[test]
     fn the_live_machine_keeps_no_trace_and_tracing_changes_no_pcm() {
+        if !pack_available() {
+            return;
+        }
         for (id, dac) in [(0x84, true), (0xf5, false)] {
             let mut traced = SoundMachine::with_register_trace();
             let mut live = SoundMachine::new();
