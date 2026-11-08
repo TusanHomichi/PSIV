@@ -464,7 +464,17 @@ finished check against an edited manifest without running it again. When it
 runs is set by the [verification tiers](#verification-tiers). Reporting a gate result means
 those commands, at the gate's jobs and threads; a subset, another
 `CARGO_BUILD_JOBS` or test-thread count, or a per-crate run is a focused check
-and is reported as one. The gate does not
+and is reported as one.
+
+The Python suite includes `tests/test_float_guard.py`: a source guard rejects
+float types and literals throughout psiv-core, psiv-data and psiv-runtime,
+including test bodies and fenced Rust line/block-doc examples that Clippy does
+not lint. There are no allowed float sites. It ignores strings and non-code
+comments; it does not infer types or inspect external macro expansions or
+examples included from other files. Run it with
+`PYTHONPATH=. python3 -m unittest discover -s tests -p test_float_guard.py`.
+
+The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
