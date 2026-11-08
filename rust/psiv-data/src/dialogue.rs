@@ -42,7 +42,7 @@ mod trees;
 pub use chrome::{
     CellRegion, FontFile, Glyph, GlyphMetrics, OpenAnimation, PixelRect, Portrait, PortraitFile,
     PortraitGeometry, PortraitWindow, Role, RoleTile, TextWindow, WindowFile, WindowGeometry,
-    WindowPalette, WindowRecord,
+    MenuWindow, WindowPalette, WindowRecord,
 };
 pub use trees::{
     ActionKind, Ctrl, DialogueEntry, DialogueTree, FirstWorldOverride, FlagScope, PORTRAIT_HIDE,
@@ -269,6 +269,25 @@ impl DialogueSet {
                 path,
                 "open_animation step_cells is 0: it never opens",
             ));
+        }
+        // `Window_Create` indexes the menu group by record, so the list is
+        // dense, and `Window_Draw` needs a frame of at least two cells.
+        for (at, window) in self.window.menu_windows.iter().enumerate() {
+            if window.index as usize != at {
+                return Err(defect(
+                    path,
+                    format!("menu_windows[{at}] is record {}", window.index),
+                ));
+            }
+            if window.width_cells < 2 || window.height_cells < 2 {
+                return Err(defect(
+                    path,
+                    format!(
+                        "menu window {at} is {}x{} cells, less than its frame",
+                        window.width_cells, window.height_cells
+                    ),
+                ));
+            }
         }
         Ok(())
     }

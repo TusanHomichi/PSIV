@@ -86,6 +86,9 @@ pub struct WindowFile {
     pub portrait_window: PortraitWindow,
     /// Every window in `WinGroup_Dialogue`, in record order.
     pub windows: Vec<WindowRecord>,
+    /// Every window in `WinGroup_Menu`, the camp menu's group, in record
+    /// order: the record a routine passes `Window_Create` is its index.
+    pub menu_windows: Vec<MenuWindow>,
     /// `Pal_Init_Line_3`, the CRAM line the whole window renders in.
     pub palette: WindowPalette,
 }
@@ -247,6 +250,21 @@ pub struct WindowRecord {
     pub width_cells: u32,
     /// Height in cells, frame included.
     pub height_cells: u32,
+}
+
+/// One `WinGroup_Menu` record, in screen cells with the frame included.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct MenuWindow {
+    /// Record index in the group.
+    pub index: u32,
+    /// Width in cells.
+    pub width_cells: u32,
+    /// Height in cells.
+    pub height_cells: u32,
+    /// Left column.
+    pub x_cell: u32,
+    /// Top row.
+    pub y_cell: u32,
 }
 
 /// A rect in Genesis screen pixels.

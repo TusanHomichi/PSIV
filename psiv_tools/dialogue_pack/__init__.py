@@ -187,6 +187,7 @@ from .chrome import (
     check_window_fits_the_text,
     emit_window,
     frame_roles,
+    menu_window_records,
     pattern_word,
     window_json_document,
     window_records,
