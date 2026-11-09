@@ -320,6 +320,11 @@ python3 -m oracle.force --formation 0x126 --durable --max-rounds 4 \
   --require-ability 0x1D --out build/scripted/siren
 ```
 
+Scripted captures observe three to five occupied slots, including the last
+two members’ HP, status, resources and battle stats. Legacy `alys`, `chaz`
+and `hahn` column names alias slots 1–3; `party4` and `party5` alias slots
+4–5. Each alias follows the character record actually selected in that slot.
+
 The script is strict JSON. Every round names all occupied party fighters by
 one-based battle slot (1..5), not character id. All keys shown are required;
 DEFEND has no `id` or `target`:

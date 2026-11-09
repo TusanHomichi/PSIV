@@ -95,7 +95,7 @@ writes when no victory boundary is observed.
 
 The owning regression families are `battle::player_tests`,
 `suites::player_abilities`, `session::battle::player_tests`,
-`tests.test_player_abilities` and `tests.test_oracle_party_fixture`.
+`tests.test_player_abilities` and `tests.test_oracle_battle_fixture_party`.
 Existing field offerings remain unchanged; `suites::camp_abilities` covers
 their learned order, confirmation, costs, caster stat, human/android/dead
 eligibility and RNG consumption. No new field surface is introduced.

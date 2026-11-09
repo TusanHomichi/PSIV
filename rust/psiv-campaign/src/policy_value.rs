@@ -13,6 +13,84 @@ use crate::policy_estimate::{
 };
 
 impl Planner {
+    /// Nominal incoming damage on one patient. The engine owns each carrier's
+    /// request shape and arithmetic; this local roll sequence touches no RNG
+    /// state in the session. A single-target attack is aimed at the patient,
+    /// as in the existing conservative plain-attack defence valuation.
+    fn incoming(
+        board: &Board,
+        roster: &psiv_core::battle::Roster,
+        enemy: u8,
+        ability: u8,
+        patient: u8,
+    ) -> Value {
+        use psiv_core::battle::{BattleEvent, FighterId, SliceRolls};
+        let (Some(enemy), Some(patient)) = (FighterId::new(enemy), FighterId::new(patient)) else {
+            return 0;
+        };
+        let hp = roster.get(patient).map_or(0, |f| f.stats.curr_hp);
+        let Ok(Some(events)) = roster.preview_enemy_damage(
+            enemy,
+            ability,
+            patient,
+            board.data,
+            &mut SliceRolls::new(&[3, 4]),
+        ) else {
+            return 0;
+        };
+        events
+            .iter()
+            .filter_map(|e| match e {
+                BattleEvent::Resolved { target, damage, .. } if *target == patient => {
+                    damage.map(|d| Value::from(d.min(hp)) * HP)
+                }
+                _ => None,
+            })
+            .sum()
+    }
+
+    /// The regular slots' mean saving, or the largest conditional saving.
+    /// Conditions have no fabricated selection frequency: the latter is a
+    /// potential-threat bound, like the planner's observed worst round.
+    fn mental_defence_saving(&self, board: &Board, ability: &Ability, member: &Combatant) -> Value {
+        use psiv_core::battle::FighterId;
+        let (Some(roster), Some(patient)) = (board.roster, FighterId::new(member.id())) else {
+            return 0;
+        };
+        let Some(raised) = roster.preview_support(patient, ability.effect, ability.power_stat)
+        else {
+            return 0;
+        };
+        board
+            .enemies
+            .iter()
+            .map(|enemy| {
+                let Ok(record) = board.data.enemy(enemy.stats().enemy_id) else {
+                    return 0;
+                };
+                let saving = |id| {
+                    Self::incoming(board, roster, enemy.id(), id, member.id())
+                        .saturating_sub(Self::incoming(board, &raised, enemy.id(), id, member.id()))
+                };
+                let regular = record
+                    .regular_abilities
+                    .iter()
+                    .map(|id| saving(*id))
+                    .sum::<Value>()
+                    / 8;
+                let conditional = record
+                    .condition_ids
+                    .iter()
+                    .zip(record.conditional_abilities.iter())
+                    .take_while(|(condition, _)| **condition != 0)
+                    .map(|(_, id)| saving(*id))
+                    .max()
+                    .unwrap_or(0);
+                regular.max(conditional)
+            })
+            .sum()
+    }
+
     /// The most `member` could lose before their next turn.
     pub(super) fn threat(&self, board: &Board, member: &Combatant) -> u16 {
         let plain = board
@@ -225,8 +303,14 @@ impl Planner {
             return 0;
         }
         let rounds = self.rounds_left(board).saturating_sub(1).min(BUFF_ROUNDS);
-        match ability.class() {
-            EffectClass::Buff(Stat::Attack) if m.attack() <= m.attack_base() => {
+        let EffectClass::Buff(stat) = ability.class() else {
+            return 0;
+        };
+        match stat {
+            Stat::Attack => {
+                if m.attack() > m.attack_base() {
+                    return 0;
+                }
                 let Some(kit) = board.kit(m.id()) else {
                     return 0;
                 };
@@ -237,7 +321,10 @@ impl Planner {
                 let raised = self.attack_pick(board, kit, &strong).map_or(0, |p| p.value);
                 raised.saturating_sub(base.value) * rounds
             }
-            EffectClass::Buff(Stat::Defence) if m.defence() <= m.defence_base() => {
+            Stat::Defence => {
+                if m.defence() > m.defence_base() {
+                    return 0;
+                }
                 let strong = m.with_defence(m.defence().saturating_add(ability.power_stat));
                 let saved: Value = board
                     .enemies
@@ -251,7 +338,14 @@ impl Planner {
                     .sum();
                 saved * rounds
             }
-            _ => 0,
+            Stat::MentalDefence => {
+                if m.stats().mental_defence.battle > m.stats().mental_defence.derived {
+                    return 0;
+                }
+                self.mental_defence_saving(board, ability, m) * rounds
+            }
+            // Speed and accuracy buffs: https://github.com/TusanHomichi/PSIV/issues/476
+            Stat::Agility | Stat::Dexterity => 0,
         }
     }
 

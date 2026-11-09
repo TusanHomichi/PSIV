@@ -218,6 +218,36 @@ Event_Unrelated:
         with self.assertRaisesRegex(ValueError, "distinct character"):
             patches(case, raw, 9)
 
+    def test_five_member_script_observes_last_two_slots_and_defeat(self):
+        from oracle.fixture.logs import Log
+        from oracle.fixture.observations import wiped_out
+        from oracle.fixture.state import round_state
+        party = {i: {"character": character}
+                 for i, character in enumerate((0, 3, 4, 5, 9), 1)}
+        with tempfile.TemporaryDirectory() as directory:
+            out = pathlib.Path(directory) / "map.tsv"
+            write_map(runs.DEFAULT_RAM_MAP_TSV, out, party)
+            fields = {f["name"]: f for f in
+                      json.loads(out.with_suffix(".json").read_text())["fields"]}
+        self.assertEqual(fields["party4_hp"]["addr"], "FFFFF78E")
+        self.assertEqual(fields["party5_hp"]["addr"], "FFFFF98E")
+        self.assertEqual(fields["party5_player_atk_bat"]["addr"], "FFFFF9A6")
+        self.assertLess(len(fields), 1024)
+        row = {name: "0" for name in fields}
+        row["frame"] = "1"
+        for i, prefix in enumerate(("alys", "chaz", "hahn", "party4", "party5")):
+            row[prefix + "_maxhp"] = "100"
+            row[f"menu_party_{i}"] = str(party[i + 1]["character"])
+        row["party5_hp"] = "37"
+        log = Log([row], fields)
+        members, _ = battle_start(log, 1)
+        self.assertEqual([m["character_id"] for m in members], [0, 3, 4, 5, 9])
+        self.assertEqual(round_state(log, 1, {1, 2, 3, 4, 5})[-1]["hp"], 37)
+        # Three dead legacy slots must not falsely declare a five-member wipe.
+        self.assertIsNone(wiped_out(log, {1, 2, 3, 4, 5}, 1, 1))
+        row["party5_hp"] = "65511"
+        self.assertEqual(wiped_out(log, {1, 2, 3, 4, 5}, 1, 1), 1)
+
     def test_animation_hit_pass_keys_on_substituted_character_identity(self):
         party = [{"id": 1, "name": "ALYS", "character_id": 5},
                  {"id": 2, "name": "CHAZ", "character_id": 9}]
