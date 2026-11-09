@@ -48,6 +48,7 @@ mod map_symbols;
 pub mod maps;
 pub mod npc_commands;
 pub mod png;
+pub mod presentation;
 pub mod rom;
 mod scene_tables;
 pub mod ship_menu;
@@ -150,6 +151,11 @@ pub const SECTIONS: &[Section] = &[
         name: "title",
         claims: &["title"],
         build: title::build,
+    },
+    Section {
+        name: "presentation",
+        claims: &["presentation"],
+        build: presentation::build,
     },
     Section {
         name: "battle",
