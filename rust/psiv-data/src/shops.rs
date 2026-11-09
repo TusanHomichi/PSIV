@@ -51,6 +51,10 @@ pub struct ShopCounter {
     pub shop_inventory_index: Option<usize>,
     /// The shopkeeper's portrait art address.
     pub portrait: String,
+    /// The selector's group (`$FFFFECD0`'s high byte): `0` inn, `1` shop,
+    /// `2` a shop with its own dialogue.
+    #[serde(default)]
+    pub group: ShopGroup,
     /// The shop's greeting selector. An inn has none, and writes no key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub greeting: Option<ShopGreeting>,
@@ -68,12 +72,28 @@ impl ShopCounter {
     }
 }
 
+/// A counter's selector group.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopGroup {
+    /// `0` inn, `1` shop, `2` a shop with its own dialogue.
+    pub id: u8,
+    /// The pack's name for it; `None` for a group the table does not name.
+    pub name: Option<String>,
+}
+
 /// A shop's greeting word: which noun names its trade.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopGreeting {
+    /// The greeting word's index: the shop's index in its group
+    /// (`$FFFFECD1`).
+    #[serde(default)]
+    pub index: usize,
     /// `0` weapons, `1` armor, anything else items.
     #[serde(default)]
     pub trade_fragment: u8,
+    /// The word's high byte, the shop's text variant (`$FFFFE3EE`).
+    #[serde(default)]
+    pub text_variant: u8,
 }
 
 /// One item a shop sells.
@@ -105,6 +125,9 @@ pub struct InnRecord {
     pub index: usize,
     /// Meseta per occupied party slot.
     pub rate_per_character: u32,
+    /// The rate word's high byte, the inn's text variant (`$FFFFE3EE`).
+    #[serde(default)]
+    pub text_variant: u8,
 }
 
 /// The decoded `shops.json`.
@@ -119,6 +142,21 @@ pub struct ShopData {
     pub inventories: Vec<ShopInventory>,
     /// The inn rate words, in table order.
     pub inns: Vec<InnRecord>,
+    /// The window's own lines, decoded from the cartridge.
+    #[serde(default)]
+    pub lines: ShopLines,
+}
+
+/// The lines a shop or inn window says as the party leaves, decoded through
+/// the dialogue charset (`$FC` a line break).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopLines {
+    /// The shopkeeper's farewell when Cancel leaves the BUY/SELL menu,
+    /// `loc_682A4`'s four lines by text variant (`$FFFFE3EE`).
+    pub farewell: Vec<String>,
+    /// The innkeeper's when Cancel or NO refuses the bill, by inn text
+    /// variant.
+    pub inn_farewell: Vec<String>,
 }
 
 impl ShopData {

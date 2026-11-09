@@ -13,16 +13,31 @@
 //! and their confirmations carry the same two tests (`ps4.asm:135155-135695`,
 //! read for the masks, not page by page). A result line and the greeting's
 //! scroll arrow wait for any of `Cancel|Speak|Camp` (`ps4.asm:135029`,
-//! `136246`). No shop routine reads `ButtonStart`. Two port page-graph
-//! differences remain, listed in `docs/camp/SHOPS.md`: Cancel on a greeting
-//! leaves where the cartridge advances, and Cancel at the BUY/SELL menu leaves
-//! without the cartridge's farewell line.
+//! `136246`). No shop routine reads `ButtonStart`.
+//!
+//! A visit ends as the cartridge ends it. Cancel at the BUY/SELL menu says the
+//! shopkeeper's farewell (`Win_ShopBuySell`'s `loc_65014`,
+//! `ps4.asm:135009-135045`), and Cancel or NO at the inn's bill says the
+//! innkeeper's (`Win_RestConfirm`'s `loc_660B6`, `ps4.asm:136345-136366`);
+//! either waits for `Cancel|Speak|Camp` and then destroys every window. An
+//! inn's greeting waits for the same three and advances on any of them
+//! (`loc_65F74`, `ps4.asm:136233-136249`), and so does the port's shop
+//! greeting. An inn's result line, the morning's or a refused bill's, closes
+//! the window when it is acknowledged (`ps4.asm:136459-136481`, `136484-136501`).
+//! The lines are the pack's (`shops.json`'s `lines`), chosen by the counter's
+//! text variant ([`text_variant`]).
 //!
 //! The money and inventory changes themselves are `shop.rs`'s transactions
 //! (`ps4.asm:135153` buy, `ps4.asm:135570` sell): the price word spent
 //! unchanged, and halved with `lsr.w #1`.
 
 use psiv_data::{ShopCounter, ShopData};
+
+/// `$FFFFE3EE` for the alternate-dialogue group: `Win_ShopMessage` writes 2 at
+/// the Aiedo bakery (shop index `$1D`) and 3 at every other counter of the
+/// group (`loc_65F4A`, `ps4.asm:136222-136228`).
+const BAKERY_SHOP_INDEX: usize = 0x1D;
+const ALTERNATE_DIALOGUE_GROUP: u8 = 2;
 
 use psiv_core::Input;
 
@@ -53,6 +68,9 @@ pub enum ShopPage {
     InnConfirm,
     /// A transaction's result, until acknowledged.
     Message,
+    /// The farewell as the party leaves, until acknowledged; then the window
+    /// closes.
+    Farewell,
 }
 
 /// One item on the sell list: an occupied inventory slot.
@@ -123,6 +141,8 @@ pub struct ShopView {
     pub counter: ShopCounterView,
     accept_blocked: bool,
     inn_selector: Option<usize>,
+    /// The counter's text variant, `$FFFFE3EE` ([`text_variant`]).
+    text_variant: usize,
     /// A rest that handed the party to a scene: the session destroys this
     /// window, runs the scene, and rebuilds the window from here.
     pub(crate) rest_scene: Option<RestScene>,
@@ -190,6 +210,7 @@ impl ShopView {
             },
             accept_blocked: true,
             inn_selector: counter.inn_index,
+            text_variant: text_variant(counter, shops),
             rest_scene: None,
         };
         view.refresh(runtime);
@@ -229,7 +250,7 @@ impl ShopView {
     /// One frame of the window. `pressed` is this frame's edges.
     pub(crate) fn frame(&mut self, runtime: &mut Runtime, pad: Pad, pressed: Pad) -> ShopOutcome {
         if pressed.held(Button::Cancel) {
-            if self.go_back() {
+            if self.cancel(runtime) {
                 return ShopOutcome::Closed;
             }
             self.refresh(runtime);
@@ -326,13 +347,21 @@ impl ShopView {
                     if self.confirm_selection == 0 {
                         self.confirm_inn(runtime);
                     } else {
-                        self.page = ShopPage::InnGreeting;
+                        self.farewell(runtime);
                     }
                 }
             }
             ShopPage::Message => {
                 if accept {
-                    self.page = self.resting_page();
+                    if self.counter.is_inn {
+                        return ShopOutcome::Closed;
+                    }
+                    self.page = ShopPage::Root;
+                }
+            }
+            ShopPage::Farewell => {
+                if accept {
+                    return ShopOutcome::Closed;
                 }
             }
         }
@@ -340,20 +369,19 @@ impl ShopView {
         ShopOutcome::Open
     }
 
-    /// The page a result returns to.
-    fn resting_page(&self) -> ShopPage {
-        if self.counter.is_inn {
-            ShopPage::InnGreeting
-        } else {
-            ShopPage::Root
-        }
-    }
-
-    /// Backs one page out; `true` when there is nowhere left and the window
-    /// closes.
-    fn go_back(&mut self) -> bool {
+    /// Cancel on the current page; `true` when the window closes.
+    fn cancel(&mut self, runtime: &Runtime) -> bool {
         match self.page {
-            ShopPage::Greeting | ShopPage::InnGreeting | ShopPage::Root => return true,
+            // A greeting's wait takes Cancel as it takes Speak.
+            ShopPage::Greeting => self.page = ShopPage::Root,
+            ShopPage::InnGreeting => {
+                self.page = ShopPage::InnConfirm;
+                self.confirm_selection = 0;
+            }
+            ShopPage::Root | ShopPage::InnConfirm => self.farewell(runtime),
+            ShopPage::Farewell => return true,
+            ShopPage::Message if self.counter.is_inn => return true,
+            ShopPage::Message => self.page = ShopPage::Root,
             ShopPage::BuyList | ShopPage::SellList => {
                 // Both lists share the cartridge's `Window_Option_Index_3`,
                 // and leaving either by Cancel zeroes it (`ps4.asm:135182`
@@ -364,10 +392,24 @@ impl ShopView {
             }
             ShopPage::BuyConfirm => self.page = ShopPage::BuyList,
             ShopPage::SellConfirm => self.page = ShopPage::SellList,
-            ShopPage::InnConfirm => self.page = ShopPage::InnGreeting,
-            ShopPage::Message => self.page = self.resting_page(),
         }
         false
+    }
+
+    /// The farewell line for this counter, until it is acknowledged.
+    fn farewell(&mut self, runtime: &Runtime) {
+        let lines = runtime.data().shops().map(|shops| &shops.lines);
+        self.message = lines
+            .and_then(|lines| {
+                if self.counter.is_inn {
+                    lines.inn_farewell.get(self.text_variant)
+                } else {
+                    lines.farewell.get(self.text_variant)
+                }
+            })
+            .cloned()
+            .unwrap_or_default();
+        self.page = ShopPage::Farewell;
     }
 
     fn confirm_buy(&mut self, runtime: &mut Runtime) {
@@ -397,7 +439,7 @@ impl ShopView {
 
     fn confirm_inn(&mut self, runtime: &mut Runtime) {
         let Some(index) = self.inn_selector else {
-            self.page = ShopPage::InnGreeting;
+            self.farewell(runtime);
             return;
         };
         let Some(rate) = runtime
@@ -406,7 +448,7 @@ impl ShopView {
             .and_then(|shops| shops.inn(index))
             .map(|inn| inn.rate_per_character)
         else {
-            self.page = ShopPage::InnGreeting;
+            self.farewell(runtime);
             return;
         };
         // The cartridge tests the bill and runs `RecoverStats` first
@@ -440,6 +482,28 @@ impl ShopView {
     pub(crate) fn take_rest_scene(&mut self) -> Option<RestScene> {
         self.rest_scene.take()
     }
+}
+
+/// `$FFFFE3EE`, the counter's text variant, as `Win_ShopMessage` sets it
+/// (`ps4.asm:136155-136232`): an inn's from its rate word's high byte
+/// (`loc_68112`), a shop's from its greeting word's (`loc_68136`), and the
+/// alternate-dialogue group's 2 at the bakery and 3 elsewhere.
+fn text_variant(counter: &ShopCounter, shops: &ShopData) -> usize {
+    if counter.is_inn() {
+        return counter
+            .inn_index
+            .and_then(|index| shops.inn(index))
+            .map_or(0, |inn| usize::from(inn.text_variant));
+    }
+    let greeting = counter.greeting.as_ref();
+    if counter.group.id == ALTERNATE_DIALOGUE_GROUP {
+        return if greeting.is_some_and(|greeting| greeting.index == BAKERY_SHOP_INDEX) {
+            2
+        } else {
+            3
+        };
+    }
+    greeting.map_or(0, |greeting| usize::from(greeting.text_variant))
 }
 
 /// An item's price word (`ps4.asm:135570` reads `InventoryData` `$14` for a
@@ -517,5 +581,51 @@ impl Session {
             routed,
             ..Frame::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ShopCounter, ShopData, text_variant};
+
+    fn shops() -> ShopData {
+        serde_json::from_value(serde_json::json!({
+            "counters": [
+                {"id": 0, "map_id": 1, "kind": "inn", "x_cell": 1, "y_cell": 1,
+                 "inn_index": 1, "portrait": "0xA", "group": {"id": 0, "name": "inn"}},
+                {"id": 1, "map_id": 1, "kind": "shop", "x_cell": 2, "y_cell": 1,
+                 "shop_inventory_index": 0, "portrait": "0xA",
+                 "group": {"id": 1, "name": "shop"},
+                 "greeting": {"index": 4, "trade_fragment": 2, "text_variant": 1}},
+                {"id": 2, "map_id": 1, "kind": "shop", "x_cell": 3, "y_cell": 1,
+                 "shop_inventory_index": 0, "portrait": "0xA",
+                 "group": {"id": 2, "name": "shop_alternate_dialogue"},
+                 "greeting": {"index": 29, "trade_fragment": 0, "text_variant": 0}},
+                {"id": 3, "map_id": 1, "kind": "shop", "x_cell": 4, "y_cell": 1,
+                 "shop_inventory_index": 0, "portrait": "0xA",
+                 "group": {"id": 2, "name": "shop_alternate_dialogue"},
+                 "greeting": {"index": 30, "trade_fragment": 0, "text_variant": 0}}
+            ],
+            "inventories": [{"index": 0, "items": []}],
+            "inns": [{"index": 0, "rate_per_character": 5},
+                     {"index": 1, "rate_per_character": 9, "text_variant": 1}]
+        }))
+        .unwrap()
+    }
+
+    /// `Win_ShopMessage`'s `$FFFFE3EE`: the inn's rate word, the shop's
+    /// greeting word, and 2 at the bakery or 3 elsewhere in the alternate
+    /// group, whatever their greeting words say.
+    #[test]
+    fn the_text_variant_is_the_one_the_greeting_routine_writes() {
+        let data = shops();
+        let variant = |id: usize| -> usize {
+            let counter: &ShopCounter = &data.counters[id];
+            text_variant(counter, &data)
+        };
+        assert_eq!(variant(0), 1, "the inn's rate word");
+        assert_eq!(variant(1), 1, "the shop's greeting word");
+        assert_eq!(variant(2), 2, "the bakery, shop $1D");
+        assert_eq!(variant(3), 3, "the group's other counter");
     }
 }

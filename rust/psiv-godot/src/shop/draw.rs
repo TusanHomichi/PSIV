@@ -38,7 +38,9 @@ impl ShopWindow {
             }
             match view.page {
                 ShopPage::InnConfirm => draw_inn_confirm(chrome, view, &mut quads),
-                ShopPage::Message => draw_message(chrome, &mut quads, &view.message),
+                ShopPage::Message | ShopPage::Farewell => {
+                    draw_message(chrome, &mut quads, &view.message);
+                }
                 _ => draw_message(chrome, &mut quads, "Welcome! This is the inn."),
             }
         } else {
@@ -59,7 +61,9 @@ impl ShopWindow {
                 ShopPage::BuyConfirm => draw_buy_list(chrome, view, &mut quads, true),
                 ShopPage::SellList => draw_sell_list(chrome, view, &mut quads, false),
                 ShopPage::SellConfirm => draw_sell_list(chrome, view, &mut quads, true),
-                ShopPage::Message => draw_message(chrome, &mut quads, &view.message),
+                ShopPage::Message | ShopPage::Farewell => {
+                    draw_message(chrome, &mut quads, &view.message);
+                }
                 _ => draw_message(chrome, &mut quads, "Do you need anything else?"),
             }
         }

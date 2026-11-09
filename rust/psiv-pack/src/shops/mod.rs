@@ -19,11 +19,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 use psiv_data::{
-    CollisionGrid, InnRecord, Npc, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,
+    CollisionGrid, InnRecord, Npc, ShopCounter, ShopData, ShopGreeting, ShopGroup, ShopInventory,
+    ShopItem, ShopLines,
 };
 
 use crate::json::{Json, overlay};
-use crate::text::extract_names;
+use crate::text::{decode_string, extract_names};
 use crate::{PackError, Rom};
 
 use flow::{Flow, MAX_PARTY, PRICE_OFFSET, read_flow, sell_price};
@@ -31,6 +32,14 @@ use tables::{INN_GROUP, Inventory, Location, SHOP_COUNT, item_symbol};
 
 const FORMAT_VERSION: u32 = 2;
 const FILE: &str = "shops.json";
+/// The farewell a shopkeeper says when Cancel leaves the BUY/SELL menu
+/// (`Win_ShopBuySell`'s `loc_65014`, `ps4.asm:135009-135045`): `loc_682A4`'s
+/// four pointers, picked by the text variant in `$FFFFE3EE`.
+const FAREWELL_TABLE: usize = 0x0682A4;
+const FAREWELL_VARIANTS: usize = 4;
+/// The innkeeper's, on Cancel or NO at the bill (`Win_RestConfirm`'s
+/// `loc_660B6`, `ps4.asm:136345-136366`): one line per inn text variant.
+const INN_FAREWELLS: [usize; 2] = [0x2AC18E, 0x2AC24E];
 /// `TABLES["items"]`: 160 records of 22 bytes.
 const ITEMS: usize = 0x2A8E28;
 const ITEM_BYTES: usize = 22;
@@ -160,8 +169,14 @@ fn counter<'a>(
         inn_index: is_inn.then_some(index),
         shop_inventory_index: row.shop_inventory_index(),
         portrait: format!("0x{portrait:06X}"),
+        group: ShopGroup {
+            id: row.group_id(),
+            name: row.group_name().map(str::to_owned),
+        },
         greeting: greeting.map(|word| ShopGreeting {
+            index,
             trade_fragment: (word & 0xFF) as u8,
+            text_variant: (word >> 8) as u8,
         }),
     };
     let shopkeeper = match keeper {
@@ -282,6 +297,7 @@ pub fn build(rom: &Rom, root: &Path, maps: &[ShopMap]) -> Result<(), PackError> 
         counters: counters.iter().map(|c| c.record.clone()).collect(),
         inventories,
         inns,
+        lines: lines(rom)?,
     };
     let mut out = serialize(&typed, "the shops")?;
     let research = Json::object()
@@ -311,6 +327,44 @@ pub fn build(rom: &Rom, root: &Path, maps: &[ShopMap]) -> Result<(), PackError> 
         );
     overlay(&mut out, &research);
     crate::write_json(root, FILE, &out).map(drop)
+}
+
+/// One `RunText` line in the dialogue charset, up to its `$FF`.
+fn window_line(data: &[u8], address: usize) -> Result<String, PackError> {
+    let tail = data
+        .get(address..)
+        .ok_or_else(|| PackError(format!("line at 0x{address:06X} is past the ROM")))?;
+    let end = tail
+        .iter()
+        .position(|&byte| byte == 0xFF)
+        .ok_or_else(|| PackError(format!("line at 0x{address:06X} has no terminator")))?;
+    let decoded = decode_string(&tail[..end], "dialogue", 1)
+        .map_err(|error| PackError(format!("line at 0x{address:06X}: {error}")))?;
+    match field(&decoded, "text") {
+        Some(Json::Str(text)) => Ok(text.clone()),
+        _ => Err(PackError(format!(
+            "line at 0x{address:06X} decoded no text"
+        ))),
+    }
+}
+
+/// The lines a shop or inn window says as the party leaves.
+fn lines(rom: &Rom) -> Result<ShopLines, PackError> {
+    let data = rom.bytes();
+    let farewell = (0..FAREWELL_VARIANTS)
+        .map(|index| {
+            let address = crate::m68k::l(data, FAREWELL_TABLE + 4 * index)? as usize;
+            window_line(data, address)
+        })
+        .collect::<Result<_, _>>()?;
+    let inn_farewell = INN_FAREWELLS
+        .iter()
+        .map(|&address| window_line(data, address))
+        .collect::<Result<_, _>>()?;
+    Ok(ShopLines {
+        farewell,
+        inn_farewell,
+    })
 }
 
 fn source(flow: &Flow) -> Json {
@@ -439,6 +493,7 @@ fn inns(
         typed.push(InnRecord {
             index,
             rate_per_character: rate,
+            text_variant: (word >> 8) as u8,
         });
         research.push(info);
     }
