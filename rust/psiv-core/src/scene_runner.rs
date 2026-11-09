@@ -471,7 +471,9 @@ impl SceneRunner {
             }
         }
         self.tick_follow_chain();
+        let was_drifting = self.drift.is_some();
         self.tick_drift(&mut effects);
+        let drift_frame_completed = was_drifting && self.drift.is_none();
         self.tick_step(&mut effects);
         self.tick_ride();
         self.end_belt_if_arrived();
@@ -482,6 +484,12 @@ impl SceneRunner {
             self.blocked = Blocked::No;
         }
         self.unblock(input);
+        // DoMainUpdatesLoop presents its last object update through VInt_Prepare
+        // before the caller's next writes. Keep that mapping visible for the
+        // whole final drift frame (Tyler oracle 7267 -> facing write 7268).
+        if drift_frame_completed {
+            return effects;
+        }
         self.run(state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
         self.freeze_belt_riders(chunks);

@@ -175,6 +175,9 @@ impl SceneRunner {
                 .find(|actor| actor.actor == ActorRef::Npc(npc))
             {
                 actor.place_at_pixel(at);
+                if let Some(animation) = actor.animation.as_mut() {
+                    animation.tick();
+                }
             }
             self.record_npc_pixel(npc, at, effects);
         }

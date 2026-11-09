@@ -273,7 +273,14 @@ impl Field {
                 {
                     let kind = if actor.is_walking() { "walk" } else { "idle" };
                     entry.idle = sequence_name(kind, actor.facing);
-                    let frame = view.frame_at(&entry.idle, self.anim_tick);
+                    let frame = match actor.animation {
+                        Some(animation) => view
+                            .sequences
+                            .get(&format!("walk_facing_0x{:02X}", animation.word))
+                            .and_then(|(frames, _)| frames.get(usize::from(animation.index)))
+                            .map_or(0, |(frame, _)| *frame),
+                        None => view.frame_at(&entry.idle, self.anim_tick),
+                    };
                     view.apply(&mut entry.node, frame);
                     entry.node.set_position(
                         view.draw_pos(actor.cell, actor.render_offset_16ths(step_frames)),

@@ -19,6 +19,31 @@ use crate::geom::{CELL_PIXELS, Cell, Direction};
 use crate::map::FieldMap;
 use crate::scene::ActorRef;
 
+/// A field object's explicit `FieldObj_Animate2` sequence state.
+/// `DriftNpcs` advances it after each position update. Camera/map-only waits
+/// leave it alone. A subsequent `Face` write replaces it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActorAnimation {
+    /// Byte offset in `mappings_addr` (the word at object `$6`).
+    pub word: u16,
+    /// Current `mappings_idx`.
+    pub index: u8,
+    /// Current `mappings_duration`, before the next decrement.
+    pub duration: u8,
+    /// Duration bytes from the selected ROM sequence.
+    pub durations: &'static [u8],
+}
+impl ActorAnimation {
+    pub(super) fn tick(&mut self) {
+        self.duration = self.duration.wrapping_sub(1);
+        if self.duration as i8 >= 0 {
+            return;
+        }
+        self.index = (usize::from(self.index) + 1).rem_euclid(self.durations.len()) as u8;
+        self.duration = self.durations[usize::from(self.index)];
+    }
+}
+
 /// A scene actor: a cell position, a facing, and a walk in progress.
 ///
 /// Movement is the auto-input model: close the X gap first, then the Y gap,
@@ -31,6 +56,8 @@ pub struct ScriptedActor {
     pub cell: Cell,
     /// Current facing.
     pub facing: Direction,
+    /// Explicit sequence selected by the scene, until the next facing write.
+    pub animation: Option<ActorAnimation>,
     /// Where it is walking, if anywhere.
     pub target: Option<Cell>,
     pub(crate) step: Option<(Direction, Cell, u8)>,
@@ -52,6 +79,7 @@ impl ScriptedActor {
             actor,
             cell,
             facing,
+            animation: None,
             target: None,
             step: None,
             pace: None,
@@ -191,6 +219,26 @@ impl ScriptedActor {
             self.target = None;
             return Some(self.cell);
         }
+        None
+    }
+}
+
+impl super::SceneRunner {
+    pub(super) fn select_actor_animation(
+        &mut self,
+        actor: ActorRef,
+        animation: ActorAnimation,
+    ) -> Option<crate::SceneFault> {
+        if animation.durations.is_empty()
+            || animation.durations.len() > 256
+            || usize::from(animation.index) >= animation.durations.len()
+        {
+            return Some(crate::SceneFault::BadWrite);
+        }
+        let Some(walker) = self.actor_mut(actor) else {
+            return Some(crate::SceneFault::UnknownActor { actor });
+        };
+        walker.animation = Some(animation);
         None
     }
 }

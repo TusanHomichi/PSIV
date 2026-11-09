@@ -6,7 +6,7 @@
   inscription on Tyler's grave (map `$120`). Not a
   `RunEventsJmpTbl` event: the census finds it as a dialogue source
   ([EVENT_COVERAGE](EVENT_COVERAGE.md)).
-- **Data:** `dezolis_route.rs`, `TYLER_GRAVE_OPENING` (19 ops), `GRAVE_DRIFT`.
+- **Data:** `dezolis_route.rs`, `TYLER_GRAVE_OPENING` (21 ops), `GRAVE_DRIFT`.
 - **New ops:** `BranchIfActorCoord`, `DriftNpcs` (below).
 
 The route needs it: `RunEvent_FindingLandale` (`$2B`, Hangar) requires
@@ -83,21 +83,52 @@ jumped a cell at a time
 (`a_drifting_actor_is_drawn_at_its_pixel_every_frame`,
 `rust/psiv-core/src/scene_runner/drift_tests.rs`).
 
-**Not modelled (presentation only, no state):**
+### Slab animation and camera timing
 
-- The stone halves' slide sequences: `$6(a4)` = `$10` and `$14` select two
-  entries of the object's sequence table past the four facings, which the
-  pack's `GravestoneHalf` sheet does not carry, so the halves draw their idle
-  frames while they slide ([#84](https://github.com/TusanHomichi/PSIV/issues/84)).
+`$06FD0E..$06FD18` writes selector word `$10` and duration byte 4 on
+`$C380`; `$06FD50..$06FD5A` writes `$14` and 4 on `$C3C0`. The US bytes
+at `$04DF1C` form the six-entry sequence pointer table used by
+`FieldObj_GravestoneHalf` (`$04DDAE`). Entries `$10/$14` point to
+`$04E5D0/$04E5E6`: both begin `84 04 04 04 34`, then padding and four
+mapping pointers. Left: `$04F844,$04F884,$04F8DC,$04F928`; right:
+`$04F864,$04F8B0,$04F902,$04F954`.
 
-The camera's 4 px lead and `Event_MoveCamera`'s wait are modelled: both pairs
-are `PanCamera`, X then Y at speed 4, the scene waiting for each arrival
-(`CameraSubject::ActorShifted` for the lead).
-- `InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
-  stands at the grave, so all twelve are on screen; the op does not model the
-  off-screen skip.
+`FieldObj_Animate2` (`$04472E`, `loc_4477E` for per-frame durations)
+subtracts one from the countdown byte, advances `mappings_idx` only when
+that byte is signed-negative, and reloads the new index's duration. From
+initial index 0/countdown 4, updates 1..4 draw mapping 0, 5..9 mapping 1,
+10..14 mapping 2 and 15..64 mapping 3. The selector then becomes 8/$C;
+these point at the final single-frame mappings. `SetActorAnimation` carries
+the literal selector/countdown, `DriftNpcs` advances it on object updates,
+and `Face` replaces it. Both pack builders include the two scripted selectors
+as `walk_facing_0x10/14`; Godot selects the runtime's mapping index.
+
+Both camera pairs use `PanCamera`: `Event_MoveCamera` (`$05AAEE`) subtracts
+`$98/$58`, pans X before Y, and blocks at speed 4 until each target is reached.
+`CameraSubject::ActorShifted` retains the leader's 4 px lead. From a camera
+already framing the leader, each outward/return pan consumes one frame.
+
+The reproducible [oracle recipe](../../oracle/CAPTURE.md#tylers-grave)
+uses a constructed Tyler field fixture with flag `$84` already set, so the
+inscription dialogue is skipped; it is not a campaign-route proof. The
+frame-boundary trace records lead/back at 7200/7201, first/last slab updates
+at 7204/7267, selectors 8/$C and second lead at 7268, back at 7269 and field
+routine return at 7330. `oracle/tyler_grave.py` verifies that 131-frame retail
+envelope and the mapping-index chain. The runtime regression checks the
+four one-frame pans, 64 consecutive object updates and 60-frame map-update
+hold. Map-refresh CPU/DMA overhead between 7201 and 7204 and the event-dispatch
+return boundary are outside that runtime timing claim; fixed artificial waits
+are not substituted for those unmodelled boundaries.
+
+`InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
+stands at the grave, so all twelve are on screen; the op does not model the
+off-screen skip.
 
 ## New ops
+
+- **`SetActorAnimation { actor, animation }`**: object sequence
+  selector and countdown writes before a `DriftNpcs` loop. The runner owns
+  advancement; Godot consumes its current mapping index.
 
 - **`BranchIfActorCoord { actor, axis, cmp, value, if_true, if_false }`**: the
   `cmpi.w #value, $30/$34(a4)` / `Bcc` pair. `CoordCmp` is the unsigned-word

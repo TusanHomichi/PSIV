@@ -145,8 +145,8 @@ pub use save::{
     RetailSave, RetailSlot, SaveError,
 };
 pub use scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, MoneyTest, OP_BUDGET_PER_TICK,
-    SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
+    ActorAnimation, ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, MoneyTest,
+    OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
 pub use scene_presentation::{
     CameraSubject, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource, PresentationAsset,

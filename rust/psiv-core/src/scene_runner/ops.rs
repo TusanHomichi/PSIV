@@ -58,11 +58,18 @@ impl SceneRunner {
                 effects.push(SceneEffect::ActorMoveStarted { actor, to });
                 self.pc += 1;
             }
+            SceneOp::SetActorAnimation { actor, animation } => {
+                if let Some(fault) = self.select_actor_animation(actor, animation) {
+                    return Some(fault);
+                }
+                self.pc += 1;
+            }
             SceneOp::Face { actor, facing } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
                 walker.facing = facing;
+                walker.animation = None;
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
             }
