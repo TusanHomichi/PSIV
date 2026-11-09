@@ -159,6 +159,35 @@ class MethodCase(unittest.TestCase):
             self.assertEqual(sorted(statuses), [0, 0, 0, 0, 0, 0, 7])
 
 
+class PatchBytesCase(unittest.TestCase):
+    @staticmethod
+    def staged_patch(attributes):
+        # A fresh mixed-EOL patch must survive Git's first add, not merely an
+        # already committed legacy patch that text=auto leaves alone.
+        raw = b"--- a/probe.c\n+++ b/probe.c\n@@ -1 +1 @@\n-old\r\n+new\r\n"
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            (root / ".gitattributes").write_text(attributes)
+            relative = "oracle/patches/probe.patch"
+            (root / relative).parent.mkdir(parents=True)
+            (root / relative).write_bytes(raw)
+            subprocess.run(["git", "-C", str(root), "add", relative],
+                           check=True, capture_output=True)
+            staged = subprocess.check_output(["git", "-C", str(root), "show", f":{relative}"])
+        return raw, staged
+
+    def test_new_core_patches_keep_their_exact_upstream_bytes(self):
+        raw, staged = self.staged_patch((ROOT / ".gitattributes").read_text())
+        self.assertEqual(staged, raw)
+
+    def test_negative_control_normalization_changes_the_patch_payload(self):
+        attributes = "\n".join(line for line in (ROOT / ".gitattributes").read_text().splitlines()
+                               if not line.startswith("oracle/patches/"))
+        raw, staged = self.staged_patch(attributes)
+        self.assertNotEqual(staged, raw)
+
+
 @unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("gcc"),
                      "Linux oracle hook probes need gcc")
 class PcTraceCase(unittest.TestCase):

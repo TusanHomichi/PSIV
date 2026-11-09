@@ -268,13 +268,14 @@
           python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap
           touch $out
         '';
-        # The battle fixture extractor's tests (every
+        # Oracle fixture extraction and reload timing tests (every
         # tests/test_oracle_battle_fixture*.py), which read fake logs and
         # the tracked fixtures and need no local inputs. They run here so a
         # change to the extractor can show its new tests fail on its base
         # (burrow's negative), which a check that only reads them can't.
-        # Found by name, like gate-tests.
-        oracle-fixture-tests = pkgs.runCommand "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        # Found by name, like gate-tests. runCommandCC supplies the compiler
+        # for the actual observer and host transport probes.
+        oracle-fixture-tests = pkgs.runCommandCC "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           export HOME=$TMPDIR
