@@ -127,8 +127,10 @@ use an older extract without noticing:
   check above raises `StaleExtractError`, naming the file, what is wrong with it
   and the command above. A stale stamp refuses every table name, including one
   a newer extractor adds, and a table the stamp lists but which has been deleted
-  is refused too. Only a checkout with no `generated/` at all (or a name nothing
-  lists and no file holds) gives an ordinary `FileNotFoundError`, so a check that
+  is refused too. Any JSON table makes the directory an extract, even without
+  `metadata.json` and when the requested table is absent. Only a directory with
+  no JSON tables (or an absent name under a current stamp) gives an ordinary
+  `FileNotFoundError`, so a check that
   skips without the local inputs still skips. `tests/test_extract_stamp.py` fails when any other module reads
   `generated/`.
 - Editing an extractor module, even a pure refactor, changes the stamp and
