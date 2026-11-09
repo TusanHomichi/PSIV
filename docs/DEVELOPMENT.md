@@ -570,6 +570,13 @@ with exit 2. A holder with no budget records its class in a class file
 (`<lock>.classN`) instead, for `status` and the waiting lines, and holders with
 a budget don't count it.
 
+Periodic reports discover external holders beside a wait, so a slow
+`/proc/locks` scan cannot block a grant or its messages. Reports use the latest
+completed observation, refreshed once per minute. While discovery is
+unavailable the message says `holder diagnostics pending`; that is not a
+verdict that the lock is free. `heavy_lock.py status` gives a pending notice
+after one second rather than blocking on an incomplete holder census.
+
 A waiter, for the heavy lock or a gate for the gate lock, also tells a job
 runner that sets `PROJ_WAIT_DIR` that it is waiting in line, so the wait
 doesn't count against the job's time limit. That is how a gate proof on the

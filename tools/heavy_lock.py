@@ -103,6 +103,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import flock_holders  # noqa: E402
+from lock_reporting import Snapshot, bounded_output, still_line, wait_line  # noqa: E402
+# Retain the formatter name used by callers and its existing contract tests.
+from lock_reporting import duration as _duration  # noqa: E402, F401
 
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
@@ -695,14 +698,20 @@ def wait_reporting(lock, mode, report, what, environ=None):
     the holding handle, which the caller closes; raises when the flock
     fails."""
     began = time.monotonic()
+    holders = None
     with runner_wait(what, environ):
         blocker = _Blocker(lock, mode)
         try:
             while not blocker.done.wait(WAIT_REPORT_S):
-                print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
+                holders = holders or Snapshot(lambda: lock_modes(lock, read=flock_holders.WHEN_UNSEEN))
+                print(_still_line(lock, time.monotonic() - began, holders.value()),
+                      file=report, flush=True)
         except BaseException:
             blocker.abandon()
             raise
+        finally:
+            if holders is not None:
+                holders.close()
         return blocker.grant()
 
 
@@ -710,38 +719,17 @@ _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
 
 
 def _wait_line(lock, lock_class, rank, ahead):
-    """One "waiting for" line: the holders fdinfo sees with their class (see
-    `flock_holders.held_locks`; `_still_line` names another user's), the
-    queue ahead."""
-    holders = ", ".join(f"{pid} ({mode})"
-                        for pid, mode in lock_modes(lock, read=flock_holders.NEVER)
-                        if pid != os.getpid()) or "none"  # a godot head holds it shared
+    """Queue summary from fdinfo-only holders; external discovery is asynchronous."""
+    modes = lock_modes(lock, read=flock_holders.NEVER)
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
     gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
     me = ", ".join([lock_class, *([_RANK_NAMES[rank]] if rank in _RANK_NAMES else [])])
-    return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
-            f"{urgent} of them priority, {gates} gate(s); this waiter: {me}")
+    return wait_line(lock, me, len(ahead), urgent, gates, modes)
 
 
-def _still_line(lock, waited):
-    """The line a waiter repeats while its wait does not change: how long it has
-    waited, and each holder's class, age and command line (on one line)."""
-    holders = "; ".join(
-        f"pid {pid} ({mode}, up {_duration(flock_holders.process_age(pid))}): "
-        f"{' '.join(flock_holders.cmdline(pid).split())[:COMMAND_CHARS]}"
-        for pid, mode in lock_modes(lock, read=flock_holders.WHEN_UNSEEN)
-        if pid != os.getpid())
-    return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
-
-
-def _duration(seconds):
-    """`seconds` for a person: `40 s`, `12 min`, `2 h 05 min`; `?` for None."""
-    if seconds is None:
-        return "?"
-    if seconds < 60:
-        return f"{seconds:.0f} s"
-    minutes = int(seconds // 60)
-    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
+def _still_line(lock, waited, modes=...):
+    modes = lock_modes(lock, read=flock_holders.WHEN_UNSEEN) if modes is ... else modes
+    return still_line(lock, waited, modes, flock_holders, COMMAND_CHARS)
 
 
 def _acquire(lock, need, rank, report, environ):
@@ -764,7 +752,7 @@ def _acquire(lock, need, rank, report, environ):
     blocker = None
     shown = None
     began = reported = time.monotonic()
-    check = None
+    check = holders = None
     waits = ExitStack()
     try:
         while True:
@@ -810,13 +798,16 @@ def _acquire(lock, need, rank, report, environ):
                 print(line, file=report, flush=True)
                 shown, reported = line, now
             elif now - reported >= WAIT_REPORT_S:
-                print(_still_line(lock, now - began), file=report, flush=True)
+                holders = holders or Snapshot(lambda: lock_modes(lock, read=flock_holders.WHEN_UNSEEN))
+                print(_still_line(lock, now - began, holders.value()), file=report, flush=True)
                 reported = now
             if blocker is not None and not blocker.done.is_set():
                 blocker.done.wait(POLL_S)
             else:
                 time.sleep(POLL_S)
     finally:
+        if holders is not None:
+            holders.close()
         if check is not None:
             check.stop(wait=entry is not None)  # a grant does not wait for it
         if blocker is not None:
@@ -896,6 +887,15 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
 
 
 def status(path=None, out=None):
+    """Print diagnostics within one second, even while /proc/locks is slow."""
+    stopped = threading.Event()
+    try:
+        bounded_output(lambda stream: _status(path, stream, stopped), out or sys.stdout)
+    finally:
+        stopped.set()
+
+
+def _status(path=None, out=None, stopped=None):
     """Print the lock's holders and waiters, each with its pid and command line."""
     out = out or sys.stdout
     path = Path(path or heavy_lock_path())
@@ -913,6 +913,8 @@ def status(path=None, out=None):
     print("holders:" + ("" if holders else " none"), file=out)
     for pid, mode in holders:
         print(f"  {pid} {mode}: {flock_holders.cmdline(pid)}", file=out)
+    if stopped is not None and stopped.is_set():
+        return
     queue = _Queue(path.resolve())
     with queue.locked():
         waiting = queue.entries()

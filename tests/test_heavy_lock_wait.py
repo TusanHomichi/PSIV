@@ -170,7 +170,7 @@ class StillWaitingCase(unittest.TestCase):
 
         printed("waiting for ", 1)
         if lines:
-            printed("\nstill waiting", lines)
+            printed("; held by pid", lines)
         else:
             time.sleep(WAIT_S)
         self.assertTrue(thread.is_alive(), "the wait must block while the holder holds")
@@ -207,10 +207,12 @@ class StillWaitingCase(unittest.TestCase):
     def assert_still_lines(self, lock, holder, output):
         lines = [line for line in output.splitlines() if line.startswith("still waiting")]
         self.assertGreaterEqual(len(lines), STILL_LINES, output)
-        self.assertIn(f"still waiting for {lock} after ", lines[0])
-        self.assertIn(f"held by pid {holder.pid} (exclusive, up ", lines[0])
-        self.assertIn(" s): ", lines[0])
-        self.assertIn("import fcntl, sys, time", lines[0])  # the holder's command line
+        completed = [line for line in lines if "; held by pid" in line]
+        self.assertGreaterEqual(len(completed), STILL_LINES, output)
+        self.assertIn(f"still waiting for {lock} after ", completed[0])
+        self.assertIn(f"held by pid {holder.pid} (exclusive, up ", completed[0])
+        self.assertIn(" s): ", completed[0])
+        self.assertIn("import fcntl, sys, time", completed[0])  # the holder's command line
 
     def test_a_heavy_lock_waiter_says_how_long_and_on_whom(self):
         lock, holder, output = self.heavy_wait(SHORT_PERIOD_S, STILL_LINES)
