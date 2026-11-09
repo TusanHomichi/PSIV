@@ -26,11 +26,11 @@ navigation only.
 | 0 | `$06FC94..$06FC9E` | `lea $C380.w, a4` / `cmpi.w #$120, $30(a4)` / `bne.w loc_6FE12` | `BranchIfActorCoord` object 2 X `Equal` `$120` |
 | 1-2 | `$06FCA2..$06FCB0` | `EventFlags_Test $84`, `bne`; else `moveq #$1E, d0 / jsr Event_GetAndRunDialogue` | `BranchFlag`, standard `RunDialogue` `$1E` |
 | 3 | `$06FCB6` | `move.b #$DD, Sound_Index` (`SFXID_GraveOpening`) | `PlaySound` |
-| 4-5 | `$06FCBE..$06FCE0` | `Event_MoveCamera` (`$5AAEE`) to `Character_1` (x + 4, y) then (x, y), speed 4 | `CameraToActor` twice |
+| 4-5 | `$06FCBE..$06FCE0` | `Event_MoveCamera` (`$5AAEE`) to `Character_1` (x + 4, y) then (x, y), speed 4 (`addq.w #4, d0` / call / `subq.w #4, d0` / call) | `PanCamera` `ActorShifted` +4, then `PanCamera` `Actor`; each blocks until the camera arrives |
 | 6 | `$06FCE4..$06FCFE` | `GetMapLayoutOffset(d1=$A, d2=$C, d3=1)` (BG), `move.b #$47, (a1)`, `RefreshPlaneBG`, `DMAPlane_B_VInt` | `WriteMapChunks` `(10,12) <- $47` |
 | 7 | `$06FD04..$06FD8A` | twelve `move.l d0, $20(a4)` step constants, then `moveq #$3F, d0 / jsr DoMainUpdatesLoop` | `DriftNpcs` (64 frames) |
 | 8-9 | `$06FD90..$06FDB2` | `move.l #0, $20(a4)` on the twelve; `$6(a4) = 8` on `$C380`, `$C` on `$C3C0` | `Face` objects 2 (right) and 3 (left) |
-| 10-12 | `$06FDB8..$06FDE0` | sound `$DD`, camera pans again | `PlaySound`, `CameraToActor` twice |
+| 10-12 | `$06FDB8..$06FDE0` | sound `$DD`, the same camera pair again | `PlaySound`, the two `PanCamera` |
 | 13 | `$06FDE6` | `moveq #$3B, d0 / jsr DoMapUpdateLoop` | `Wait` 60 |
 | 14-15 | `$06FDEE..$06FE02` | `EventFlags_Test $84`, `bne`; else `popdlg / Event_RunDialogue` | `BranchFlag`, `RunDialogueResume` |
 | 16-17 | `$06FE08..$06FE0C` | `move.b #$84, d0 / jmp EventFlags_Set` | `SetFlag` `$84`, `End` |
@@ -85,12 +85,14 @@ jumped a cell at a time
 
 **Not modelled (presentation only, no state):**
 
-- `$6(a4)` = `$10` on `$C380` and `$14` on `$C3C0`, and `mappings_duration` 4,
-  during the slide: the stone halves' animation words.
-- The camera's 4 px lead (`x + 4` then `x`): the camera glide ends at the leader
-  either way, and `CameraToActor` carries no offset.
-- `Event_MoveCamera` blocks until the glide ends; the port's camera ops do not
-  block (the same as every other `CameraToActor` use).
+- The stone halves' slide sequences: `$6(a4)` = `$10` and `$14` select two
+  entries of the object's sequence table past the four facings, which the
+  pack's `GravestoneHalf` sheet does not carry, so the halves draw their idle
+  frames while they slide ([#84](https://github.com/TusanHomichi/PSIV/issues/84)).
+
+The camera's 4 px lead and `Event_MoveCamera`'s wait are modelled: both pairs
+are `PanCamera`, X then Y at speed 4, the scene waiting for each arrival
+(`CameraSubject::ActorShifted` for the lead).
 - `InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
   stands at the grave, so all twelve are on screen; the op does not model the
   off-screen skip.
