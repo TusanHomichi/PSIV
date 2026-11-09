@@ -1,3 +1,4 @@
+use crate::cutscene::MusicRestore;
 use godot::classes::Input;
 use godot::prelude::*;
 
@@ -27,17 +28,28 @@ impl Field {
         godot_print!("scene saved music: {id:#04x}");
     }
 
-    /// At real-session restore edges, read the persistent cartridge word from
-    /// runtime. `loc_33DEC` and other retail readers do not consume `$ECEC`.
-    /// Only a runtime-less debug fixture falls back to the shell's old cue.
+    /// At real-session restore edges, copy the persistent cartridge word from
+    /// runtime to `Sound_Index`, as the battle return does (`$033E0C`).
+    /// `loc_33DEC` and other retail readers do not consume `$ECEC`. A zero
+    /// word is a request the driver's `DoSoundQueue` drops (it latches only
+    /// `$81` and up), so the music already playing goes on: the restore
+    /// happened, and nothing replaces it with the map's raw id. Only a
+    /// runtime-less debug fixture falls back to the shell's old cue, and
+    /// answers `false` when it has none.
     pub(super) fn restore_saved_music(&mut self) -> bool {
         let runtime_saved = self.runtime().map(|runtime| runtime.saved_sound_index());
-        let Some(id) = self.presentation.restore_music_id(runtime_saved) else {
-            return false;
-        };
-        self.play_sound(id);
-        godot_print!("restored saved music: {id:#04x}");
-        true
+        match self.presentation.restore_music_id(runtime_saved) {
+            MusicRestore::Play(id) => {
+                self.play_sound(id);
+                godot_print!("restored saved music: {id:#04x}");
+                true
+            }
+            MusicRestore::Keep => {
+                godot_print!("restored saved music: 0, the current music goes on");
+                true
+            }
+            MusicRestore::None => false,
+        }
     }
 
     pub(super) fn play_map_music(&mut self) {

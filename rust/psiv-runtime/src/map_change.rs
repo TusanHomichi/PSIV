@@ -60,6 +60,7 @@ use crate::{BridgeError, Runtime, RuntimeEvent};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LoadedMap {
     map: MapId,
+    music: Option<u8>,
 }
 
 impl LoadedMap {
@@ -67,6 +68,20 @@ impl LoadedMap {
     #[must_use]
     pub fn id(self) -> MapId {
         self.map
+    }
+
+    /// The music `GameMode_LoadFieldMap`'s change edge plays, if the load
+    /// raised it. A field load whose music branch writes `Saved_Sound_Index`
+    /// (`$05180E`) also sets `$FFFFECED` (`$051812`); the load's tail tests
+    /// and clears that bit (`$051958`) and, set, sends `Sound_StopAll`
+    /// (`$051960`), spends a `VInt_Prepare` (`$051970`) and copies the saved
+    /// word to `Sound_Index` (`$05197A`). Clear, it sends nothing and the
+    /// music already playing goes on: `RefreshMap`, the battle return, a map
+    /// with no music, a raw id equal to the saved word, and an
+    /// `AdjustMusicIDs` that keeps the current track all leave it clear.
+    #[must_use]
+    pub fn music_change(self) -> Option<u8> {
+        self.music
     }
 
     /// The event the load reports, through `trigger`'s transition.
@@ -456,12 +471,14 @@ impl Runtime {
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
         // RefreshMap never writes this word. GameMode_LoadFieldMap skips the
-        // battle bit and uses AdjustMusicIDs after the raw comparison.
-        if matches!(kind, MapLoad::Field)
-            && !keep_old_music
-            && let Some(id) =
-                adjusted_map_music(target, record.music.id, &self.game, self.saved_sound_index)
-        {
+        // battle bit and uses AdjustMusicIDs after the raw comparison; a write
+        // raises the change edge the load's tail plays ([`LoadedMap::music_change`]).
+        let music = if matches!(kind, MapLoad::Field) && !keep_old_music {
+            adjusted_map_music(target, record.music.id, &self.game, self.saved_sound_index)
+        } else {
+            None
+        };
+        if let Some(id) = music {
             self.saved_sound_index = id;
         }
         // MapDataManager runs inside map load, and its walk is STATEFUL:
@@ -511,7 +528,7 @@ impl Runtime {
         }
         self.saved_map_index_2 = previous_map;
         self.apply_travel_entry();
-        Ok(LoadedMap { map: target })
+        Ok(LoadedMap { map: target, music })
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{SoundSequence, SoundTrack};
+use super::{Driver, SoundSequence, SoundTrack};
 use crate::{Chip, SoundMachine};
 
 #[test]
@@ -248,4 +248,19 @@ fn distinct_enemy_attack_sfx_register_log_is_ordered_and_deterministic() {
             values
         });
     assert_eq!(compressed, vec![4, 5]);
+}
+
+#[test]
+fn a_request_below_81_is_never_latched() {
+    // `DoSoundQueue`'s `subi.b #$81 / bcs`: 0 (a zero saved music word),
+    // `$7F` and `$80` leave nothing pending, so nothing stops.
+    let mut driver = Driver::new();
+    for id in [0x00, 0x7F, 0x80] {
+        driver.queue_sound(id);
+        assert_eq!(driver.pending_sound, None, "{id:#04x}");
+    }
+    driver.queue_sound(0x81);
+    assert_eq!(driver.pending_sound, Some(0x81));
+    driver.queue_sound(0xFE);
+    assert_eq!(driver.pending_sound, Some(0xFE));
 }

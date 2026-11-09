@@ -220,7 +220,15 @@ impl Driver {
         self.install_music(id);
     }
 
+    /// One byte into the request queue. `DoSoundQueue`
+    /// (`ps4.sound_driver.asm:583-587`) subtracts `$81` from each slot and
+    /// skips it on a borrow, so an id of `$80` or below is never latched: a
+    /// zero `Saved_Sound_Index` copied to `Sound_Index` leaves the music
+    /// playing.
     pub(crate) fn queue_sound(&mut self, id: u8) {
+        if id < 0x81 {
+            return;
+        }
         if self
             .pending_sound
             .is_none_or(|old| sound_priority(id) >= sound_priority(old))
