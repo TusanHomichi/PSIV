@@ -608,6 +608,17 @@ impl Runtime {
                                     x: PixelPos::from_cell(walker.cell).x,
                                     y,
                                 }),
+                            psiv_core::CameraSubject::ActorShifted { actor, dx } => self
+                                .scene
+                                .as_ref()
+                                .and_then(|runner| runner.actor(actor))
+                                .map(|walker| {
+                                    let at = PixelPos::from_cell(walker.cell);
+                                    PixelPos {
+                                        x: at.x + dx,
+                                        y: at.y,
+                                    }
+                                }),
                         };
                         // An actor the cast lacks has nowhere to pan to, and
                         // with no glide the runner's wait releases at once.

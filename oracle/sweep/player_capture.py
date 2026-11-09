@@ -29,6 +29,15 @@ BYTES = {"status": 22, "strength": 24, "mental": 27,
 
 def patches(case: dict, raw: bytes, frame: int) -> list[str]:
     result = []
+    if "inventory" in case:
+        inventory = case["inventory"]
+        if (not isinstance(inventory, list) or len(inventory) > 40
+                or any(type(item) is not int or not 0 <= item <= 255
+                       for item in inventory)):
+            raise ValueError("inventory fixture needs at most 40 item bytes")
+        # Inventory, ps4.constants.asm:2381 ($FFFFF410), 40 byte slots.
+        contents = bytes(inventory + [0] * (40 - len(inventory)))
+        result.append(f"{frame}:FFFFF410:{contents.hex()}")
     if "characters" in case:
         characters = case["characters"]
         if (len(characters) != 3 or len(set(characters)) != 3

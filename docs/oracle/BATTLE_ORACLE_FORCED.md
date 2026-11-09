@@ -645,10 +645,13 @@ number at all.
 
 ### 6.3 What these captures do not prove
 
-- **Juza's own battle, past its first round.** 114 Juza is event battle 3,
+- **Juza's later rounds in these capture sets.** The captures above use
+  TechMaster and Greneris. Section 6.4 adds 114 Juza himself, event battle 3,
   which no map's group reaches; [section 8](#8-forcing-an-event-battle---event)'s
-  `--event` drives it, and section 6.4's two captures show his ZAN and
-  FORCEFLASH, one round each. His later rounds are read, not observed.
+  `--event` drives it. Those two captures show ZAN and FORCEFLASH, one round
+  each. The separate [event-boss recipe](../../oracle/README.md#early-event-bosses)
+  captures sixteen scripted defending rounds against Juza, including both
+  abilities; its later-round evidence belongs to that fixture set.
 - **A win, or a round the party lives through.** Every capture here ends in the
   party's defeat, so the fixtures prove the enemies' turns and the damage they
   deal, not what the party's commands did afterwards.
