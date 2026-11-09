@@ -56,13 +56,13 @@ first, then priority waiters (`--priority`, or `PSIV_LOCK_PRIORITY=1` for code
 that calls `hold_heavy_lock`), then the rest, each in arrival order. A holder
 is never preempted; the next grant goes to the head, which waits in flock(2)
 itself, so a release wakes it together with any raw `flock(1)` waiter instead
-of that waiter winning every race against a poll. While waiting, a line names
-the holders and how many waiters (gates and priority waiters among them) are
-ahead, again whenever that changes, and every `WAIT_REPORT_S` while nothing
-does, a line says how long it has waited and each holder's class, age and
-command line (`wait_reporting` does the same for any flock, such as the gate
-lock), so a job runner that stops a job gone quiet sees it waiting, and on
-whom. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
+of that waiter winning every race against a poll. While waiting, an immediate
+line reports how many waiters (gates and priority waiters among them) are
+ahead, with holder diagnostics pending. Every `WAIT_REPORT_S` a line shows
+elapsed time and the latest completed holder observation: class, age and
+command line. All diagnostic discovery runs beside the granting loop;
+formatting uses completed values only (`wait_reporting` does the same for the
+gate lock), so a job runner sees both the wait and its progress. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
 of a job) also gets a file there for each wait, held flocked and saying what
 it waits for (`runner_wait`): the runner doesn't count time spent waiting in
 line against the job's time limit, and a file whose waiter died is no
@@ -103,7 +103,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import flock_holders  # noqa: E402
-from lock_reporting import Snapshot, bounded_output, still_line, wait_line  # noqa: E402
+from lock_reporting import Snapshot, bounded_output, observe_holders, still_line, wait_line  # noqa: E402
 # Retain the formatter name used by callers and its existing contract tests.
 from lock_reporting import duration as _duration  # noqa: E402, F401
 
@@ -703,7 +703,7 @@ def wait_reporting(lock, mode, report, what, environ=None):
         blocker = _Blocker(lock, mode)
         try:
             while not blocker.done.wait(WAIT_REPORT_S):
-                holders = holders or Snapshot(lambda: lock_modes(lock, read=flock_holders.WHEN_UNSEEN))
+                holders = holders or Snapshot(lambda: observe_holders(lock, lock_modes, flock_holders, COMMAND_CHARS))
                 print(_still_line(lock, time.monotonic() - began, holders.value()),
                       file=report, flush=True)
         except BaseException:
@@ -718,18 +718,16 @@ def wait_reporting(lock, mode, report, what, environ=None):
 _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
 
 
-def _wait_line(lock, lock_class, rank, ahead):
-    """Queue summary from fdinfo-only holders; external discovery is asynchronous."""
-    modes = lock_modes(lock, read=flock_holders.NEVER)
+def _wait_line(lock, lock_class, rank, ahead, observation=None):
+    """Queue summary using only completed diagnostic values, or pending."""
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
     gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
     me = ", ".join([lock_class, *([_RANK_NAMES[rank]] if rank in _RANK_NAMES else [])])
-    return wait_line(lock, me, len(ahead), urgent, gates, modes)
+    return wait_line(lock, me, len(ahead), urgent, gates, observation)
 
 
-def _still_line(lock, waited, modes=...):
-    modes = lock_modes(lock, read=flock_holders.WHEN_UNSEEN) if modes is ... else modes
-    return still_line(lock, waited, modes, flock_holders, COMMAND_CHARS)
+def _still_line(lock, waited, observation):
+    return still_line(lock, waited, observation)
 
 
 def _acquire(lock, need, rank, report, environ):
@@ -790,15 +788,15 @@ def _acquire(lock, need, rank, report, environ):
             if parent is not None:
                 print(refuse_message(lock, parent), file=report, flush=True)
                 raise SystemExit(EXIT_HELD_BY_PARENT)
-            # Named outside the mutex: naming the holders reads /proc, which
-            # a loaded machine slows, and the other waiters need the mutex.
-            line = _wait_line(lock, lock_class, rank, ahead)
+            # Formatting consumes only completed observations; discovery and
+            # all process metadata stay beside the granting loop.
+            line = _wait_line(lock, lock_class, rank, ahead, holders.value() if holders else None)
             now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)
                 shown, reported = line, now
             elif now - reported >= WAIT_REPORT_S:
-                holders = holders or Snapshot(lambda: lock_modes(lock, read=flock_holders.WHEN_UNSEEN))
+                holders = holders or Snapshot(lambda: observe_holders(lock, lock_modes, flock_holders, COMMAND_CHARS))
                 print(_still_line(lock, now - began, holders.value()), file=report, flush=True)
                 reported = now
             if blocker is not None and not blocker.done.is_set():

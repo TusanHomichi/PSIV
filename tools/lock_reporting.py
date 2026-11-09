@@ -36,6 +36,9 @@ class Snapshot:
             return self._value
 
     def _run(self):
+        with self._state:
+            if self._closed:
+                return
         try:
             value = self._scan()
         except Exception:
@@ -101,21 +104,31 @@ def duration(seconds):
     return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
 
 
-def still_line(lock, waited, modes, metadata, command_chars):
-    """Format the latest observation, keeping pending discovery explicit."""
+def observe_holders(lock, lock_modes, metadata, command_chars):
+    """Collect a complete immutable observation, including every process lookup."""
+    return tuple(
+        (pid, mode, metadata.process_age(pid),
+         " ".join(metadata.cmdline(pid).split())[:command_chars])
+        for pid, mode in lock_modes(lock, read=metadata.WHEN_UNSEEN)
+        if pid != os.getpid())
+
+
+def still_line(lock, waited, observation):
+    """Format completed values only; discovery never runs on a granting loop."""
     prefix = f"still waiting for {lock} after {duration(waited)}"
-    if modes is None:
+    if observation is None:
         return f"{prefix}; holder diagnostics pending"
-    holders = "; ".join(
-        f"pid {pid} ({mode}, up {duration(metadata.process_age(pid))}): "
-        f"{' '.join(metadata.cmdline(pid).split())[:command_chars]}"
-        for pid, mode in modes if pid != os.getpid())
+    holders = "; ".join(f"pid {pid} ({mode}, up {duration(age)}): {command}"
+                        for pid, mode, age, command in observation)
     return f"{prefix}; held by {holders or 'nobody'}"
 
 
-def wait_line(lock, description, ahead, urgent, gates, modes):
+def wait_line(lock, description, ahead, urgent, gates, observation):
     """Format queue policy supplied by the caller, without discovering holders."""
-    holders = ", ".join(f"{pid} ({mode})" for pid, mode in modes
-                        if pid != os.getpid()) or "none"
-    return (f"waiting for {lock} held by pid {holders}; {ahead} waiter(s) ahead, "
+    if observation is None:
+        held = "holder diagnostics pending"
+    else:
+        holders = ", ".join(f"{pid} ({mode})" for pid, mode, _, _ in observation) or "none"
+        held = f"held by pid {holders}"
+    return (f"waiting for {lock}; {held}; {ahead} waiter(s) ahead, "
             f"{urgent} of them priority, {gates} gate(s); this waiter: {description}")

@@ -4,7 +4,8 @@ import threading
 import time
 import unittest
 
-from tools.lock_reporting import Snapshot, bounded_output
+from tools.lock_reporting import Snapshot, bounded_output, still_line, wait_line
+from tests.test_gate_lock_reporting import track_threads
 
 
 class ReportingCase(unittest.TestCase):
@@ -62,7 +63,11 @@ class ReportingCase(unittest.TestCase):
 
         try:
             began = time.monotonic()
-            bounded_output(write, output, timeout_s=0.02)
+            with track_threads():
+                try:
+                    bounded_output(write, output, timeout_s=0.02)
+                finally:
+                    release.set()
             self.assertLess(time.monotonic() - began, 1)
             self.assertIn("diagnostics pending", output.getvalue())
             self.assertNotIn("holders: none", output.getvalue())
@@ -71,10 +76,18 @@ class ReportingCase(unittest.TestCase):
 
     def test_complete_status_and_errors_are_preserved(self):
         output = io.StringIO()
-        bounded_output(lambda out: out.write("known\n"), output)
+        with track_threads():
+            bounded_output(lambda out: out.write("known\n"), output)
         self.assertEqual(output.getvalue(), "known\n")
         def invalid(out):
             raise ValueError("bad input")
 
-        with self.assertRaisesRegex(ValueError, "bad input"):
+        with track_threads(), self.assertRaisesRegex(ValueError, "bad input"):
             bounded_output(invalid, output)
+
+    def test_formatting_consumes_only_completed_holder_values(self):
+        observation = ((999999, "build", 61, "holder worker"),)
+        self.assertIn("pid 999999 (build, up 1 min): holder worker",
+                      still_line("lock", 2, observation))
+        self.assertIn("held by pid 999999 (build); 1 waiter(s) ahead",
+                      wait_line("lock", "exclusive", 1, 0, 0, observation))
