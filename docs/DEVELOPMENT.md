@@ -685,18 +685,19 @@ preempted, so a long run outside the gate (a native replay, a campaign) holds
 the machine from every gate until it ends: start one only when no gate is
 waiting (`status`). Speedup lanes, whose work makes later runs faster, and the
 yield that lets one go ahead use `--priority`; nothing else does. While
-waiting, a line names the holders and how many waiters (gates and priority
-waiters among them) are ahead, again whenever that changes, and every
-`WAIT_REPORT_S` while nothing does, a line says how long it has waited and each
-holder's class, age and command line. The first line names the holders whose
-descriptors this user can read; the second, when it finds none, and `status`
-also read /proc/locks, for another user's, which takes seconds a read while the
-machine holds tens of thousands of locks (#383). A gate waiting for the gate lock with
-`--wait` reports the same way, so a job runner that stops a job gone quiet
-sees it waiting. A gate that finds the gate lock held, and refuses or waits,
-names its holder the way the repeated line does (#387).
-`python3 tools/heavy_lock.py status` prints the holders and waiters with each
-pid's command line.
+waiting, an immediate line reports how many waiters (gates and priority waiters
+among them) are ahead, again whenever that changes. Holder diagnostics begin
+as pending. Every `WAIT_REPORT_S`, a line says how long it has waited and uses
+the latest completed observation of each holder's class, age and command line.
+All diagnostic discovery, including fdinfo, `/proc/locks` and process metadata,
+runs beside the granting loop; formatting never reads `/proc`. Observations
+refresh once per minute, and pending discovery is not a free-lock verdict.
+A gate waiting for its lock with `--wait` reports the same way, so a job runner
+that stops a job gone quiet sees it waiting. Without `--wait`, a held gate
+still refuses and names its holder (#387).
+`python3 tools/heavy_lock.py status` prints a complete holder/waiter census or
+an explicit pending notice after one second; it never publishes a partial
+census as complete.
 
 Transition: a waiter started from a checkout older than the gate rank writes
 ranks 0 (priority) and 1 (normal) and ignores rank-2 entries. The current code
