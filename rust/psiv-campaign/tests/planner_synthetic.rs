@@ -20,6 +20,7 @@ fn ground_warp(rect: CellRect, to: u16) -> Warp {
         target_map: MapId(to),
         target_cell: Cell::new(0, 0),
         facing: Direction::Down,
+        alignment: None,
     }
 }
 

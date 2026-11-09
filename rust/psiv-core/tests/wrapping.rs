@@ -187,6 +187,7 @@ fn a_warp_rect_may_straddle_the_seam() {
         target_map: MapId(0x13),
         target_cell: Cell::new(2, 2),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "D..D", "....", "...."], vec![warp], vec![]);
 
@@ -204,6 +205,7 @@ fn a_warp_rect_may_straddle_the_seam() {
                 target_map: MapId(0x13),
                 target_cell: Cell::new(2, 2),
                 facing: Direction::Down,
+                alignment: None,
             }),
             "the wrapped rect should cover ({}, {})",
             landed.x,
@@ -220,6 +222,7 @@ fn a_seam_straddling_rect_does_not_cover_the_cells_in_between() {
         target_map: MapId(0x13),
         target_cell: Cell::new(2, 2),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "DDDD", "....", "...."], vec![warp], vec![]);
 
@@ -283,6 +286,7 @@ fn unreachable_warp_diagnostics_follow_the_seam() {
         target_map: MapId(0x13),
         target_cell: Cell::new(0, 0),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "D...", "....", "...."], vec![warp], vec![]);
 
@@ -460,6 +464,7 @@ fn a_wrapping_map_replays_identically() {
         target_map: MapId(0x13),
         target_cell: Cell::new(1, 1),
         facing: Direction::Down,
+        alignment: None,
     };
     let npcs = vec![
         Npc::new(NpcId(1), Cell::new(0, 2), Direction::Down),
