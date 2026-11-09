@@ -50,9 +50,23 @@ decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMA
 | `battle-status-2` | **0.000000** | clone t200 (poisoned, dead, asleep+sealed) ↔ the same frame, other patches |
 | `battle-fusion` | **0.000000** | clone t758 (a defended round of formation `$D2`, blink seed 21/0) ↔ tape-33 frame 25560, the MetaSlug |
 
-The mid-round attack ([#52](https://github.com/TusanHomichi/PSIV/issues/52)) is
-not certified: its fixture reads `rmse=20.254240` against tape-34 frame 25377
-([BATTLE_COMMAND_UI.md](../battle/BATTLE_COMMAND_UI.md#mid-round-attack-52)).
+Three full-frame mid-round attack pairs joined them with
+[#427](https://github.com/TusanHomichi/PSIV/pull/427), resolving
+[#52](https://github.com/TusanHomichi/PSIV/issues/52):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `battle-attack-last-first-mapping` | **0.000000** | clone t139 ↔ tape-34 frame 25370 |
+| `battle-attack-next-mapping` | **0.000000** | clone t140 ↔ tape-34 frame 25371 |
+| `battle-attack-strike` | **0.000000** | clone t147 ↔ tape-34 frame 25378 |
+
+These use `top,timeline=attack`, phase 419, with the 1280×800 native viewport
+normalized to the full 320×224 retail surface. The frame-offset control in
+attack region `108,104,8,24` gives **0.000000** for t139 against frame 25370
+and **80.813851** when t140 is substituted against that same oracle frame.
+Timing and remaining choreography limits are recorded in
+[BATTLE_COMMAND_UI.md](../battle/BATTLE_COMMAND_UI.md#mid-round-attack-52);
+these isolated fixtures do not certify the complete windup/recovery or a campaign route.
 Each battle pair names a `Session` fixture (`PSIV_DEBUG_BATTLE_WINDOW`,
 `rust/psiv-runtime/src/session/battle/fixture.rs`).
 

@@ -1,9 +1,10 @@
 //! `battle/art/`: the port of `psiv_tools/battle_art_pack.py` and the
 //! modules it calls, which own the reasons for each file (#216, slice 6e).
 //! This part writes the command-window and damage-number tiles, the Fusion
-//! frames, the enemy bodies and the character poses; the overlays, the attack
-//! sheets and the backgrounds follow.
+//! frames, the enemy bodies, the character poses and the backgrounds; the
+//! overlays and the attack sheets follow.
 
+mod backgrounds;
 mod characters;
 pub(super) mod enemies;
 mod fusion;
@@ -152,8 +153,9 @@ fn write_checked<T: serde::de::DeserializeOwned>(
 }
 
 /// `battle/art/command_ui.json`, `battle/art/damage_digits.json`,
-/// `battle/art/fusion.json`, `battle/art/enemies.json` and
-/// `battle/art/characters.json`, each index with its PNGs.
+/// `battle/art/fusion.json`, `battle/art/enemies.json`,
+/// `battle/art/characters.json` and `battle/art/backgrounds.json`, each index
+/// with its PNGs.
 pub fn build(rom: &[u8], root: &Path) -> Result<(), PackError> {
     write_checked::<psiv_data::CommandUiArt>(
         root,
@@ -175,6 +177,11 @@ pub fn build(rom: &[u8], root: &Path) -> Result<(), PackError> {
         root,
         "battle/art/characters.json",
         &characters::write(rom, root)?,
+    )?;
+    crate::write_json(
+        root,
+        "battle/art/backgrounds.json",
+        &backgrounds::write(rom, root)?,
     )
     .map(drop)
 }
