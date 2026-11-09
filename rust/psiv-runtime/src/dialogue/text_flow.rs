@@ -232,11 +232,11 @@ impl TextFlow {
         !self.closed
     }
 
-    /// Whether a `$F9` delay is running.
+    /// Whether a delay or blocking action is running.
     #[cfg(test)]
     #[must_use]
     pub fn is_holding(&self) -> bool {
-        self.hold > 0
+        self.hold > 0 || self.action_hold > 0
     }
 
     /// Tick an already launched blocking action before dispatching new actions.

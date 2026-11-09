@@ -341,10 +341,11 @@ mod tests {
         use crate::pad::{Button, Pad};
         use psiv_data::{ActionKind, Ctrl, DialogueEntry, Segment};
 
-        let Some(base) = runtime() else {
+        if !pack_dir().join("manifest.json").is_file() {
             eprintln!("skipping: no runtime pack");
             return;
-        };
+        }
+        let base = runtime().expect("the present runtime pack loads for the palette regression");
         for phase in 0..4 {
             for opening in [false, true] {
                 for controls in [false, true] {
@@ -437,6 +438,18 @@ mod tests {
                         }
                     }
                     assert_eq!(launches, [0, 40]);
+                    // Control: once the blocking loops end, a fresh press
+                    // really advances or dismisses the finished page.
+                    for _ in 0..40 {
+                        rt.dialogue_frame(Pad::NEUTRAL);
+                        rt.dialogue_tick();
+                    }
+                    rt.dialogue_frame(Pad::new(Button::Speak));
+                    if controls {
+                        assert_eq!(rt.dialogue_view().expect("next page").lines, ["after"]);
+                    } else {
+                        assert!(!rt.dialogue_open());
+                    }
                 }
             }
         }

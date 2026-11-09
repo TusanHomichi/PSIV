@@ -134,6 +134,7 @@ pub(super) fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
         }
         let mut guard = 0;
         while flow.is_holding() {
+            flow.tick_action(&game);
             flow.tick(&game);
             while let Some(action) = flow.take_pending_action() {
                 flow.resume_after_action(action, &game);
