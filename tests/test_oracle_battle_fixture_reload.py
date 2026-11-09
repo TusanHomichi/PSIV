@@ -194,6 +194,9 @@ class PcTraceCase(unittest.TestCase):
                 result = self.run_probe(mode)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertTrue(result.stderr.strip())
+        if Path("/dev/full").exists():
+            result = self.run_probe(path="/dev/full")
+            self.assertNotEqual(result.returncode, 0, "buffered output errors must fail")
 
     def test_invalid_trace_configuration_is_rejected(self):
         for watch, start, path in [("-", "3", None), ("051791", "3", None),
