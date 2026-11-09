@@ -112,6 +112,19 @@ agility and dexterity, and enemy paralysis clearing each turn.
 
 ## Other recorded deviations
 
+- **Zoran Bult strike-only choreography (enemy `$0A`).** Ordinary runtime
+  attacks and the certification fixture use the same limited strike lifecycle:
+  entering the sixteen-frame attack immediately selects overlay piece 0's
+  frame 2, retaining its current idle timer, rather than waiting for that frame
+  as USA `BattleObj_ZoranBultAtk` does (`$01528A..$0152C2`). The port releases
+  that freeze and restores the displaced target to its party seat when the
+  visible attack expires; retail retains the freeze through the target's
+  damage wait and restores the target through its reaction/recovery routine.
+  This is a deliberate incomplete presentation path, not full-sequence parity.
+  The [strike explanation](../battle/BATTLE_COMMAND_UI.md#mid-round-attack-52)
+  and [#421](https://github.com/TusanHomichi/PSIV/issues/421) own the remaining
+  windup, freeze-release and target displacement/restoration work.
+
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -125,14 +126,14 @@ def _zoran_attack_state(rom):
     """Verify the USA strike contract and decode its palette selection."""
     from .battle_art import BattleArtError
 
+    # Lengths and digests pin the local USA anchors without distributing ROM bytes.
     signatures = {
-        0x010D68: "32bc007845f8fb40357c0e8a0014357c0e480016357c08260018",
-        0x01519A: "08d40007661e4ebad476426c0014197c00400013066c0010002e",
-        0x01528A: "082c000700046632522c00110c2c000e00116d32226c003c266900260c2b0002000e662208eb00030002",
+        0x010D68: (26, "ba630e95fb3db3b0f2a55c1ea0455d5314fa525ad5d5c430d621685507b3aa92"),
+        0x01519A: (26, "e3a77c9ac2f74dbc4462a4d6e0c5164d3f7d204d8416eb625179839b386a0983"),
+        0x01528A: (42, "150b528807e1b082448bd3c6bfc455736a2254b42794a371d91cab99524080cd"),
     }
-    for offset, signature in signatures.items():
-        expected = bytes.fromhex(signature)
-        if rom[offset:offset + len(expected)] != expected:
+    for offset, (length, digest) in signatures.items():
+        if sha256(rom[offset:offset + length]).hexdigest() != digest:
             raise BattleArtError(f"Zoran attack choreography changed at 0x{offset:06X}")
     return {
         "palette_line": 2,  # The object's $13 attribute is $40.
