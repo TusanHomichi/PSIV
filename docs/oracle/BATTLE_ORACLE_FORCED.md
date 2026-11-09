@@ -645,12 +645,10 @@ number at all.
 
 ### 6.3 What these captures do not prove
 
-- **Juza's own battle.** 114 Juza is event battle 3 (the boss block of
-  `generated/formations.json`), which no map's group reaches and this tool does
-  not drive: his ZAN and FORCEFLASH arms are the same `EnemyAttack_Juza` arms
-  100 TechMaster's and 115 Greneris's captures exercise, and the port's own
-  ZAN row for 114 is the same object chain, but no fixture replays *his*
-  battle. The campaign route's own run of it is the check for that.
+- **Juza's own battle, past its first round.** 114 Juza is event battle 3,
+  which no map's group reaches; [section 8](#8-forcing-an-event-battle---event)'s
+  `--event` drives it, and section 6.4's two captures show his ZAN and
+  FORCEFLASH, one round each. His later rounds are read, not observed.
 - **A win, or a round the party lives through.** Every capture here ends in the
   party's defeat, so the fixtures prove the enemies' turns and the damage they
   deal, not what the party's commands did afterwards.
@@ -663,6 +661,35 @@ number at all.
   both, and their captures run each event battle's own script:
   `replay_fixtures/endgame/profound_darkness*.json` and
   `replay_fixtures/zio_event06_psycho.json`.
+
+### 6.4 The carriers issue #58 named
+
+The four captures above saw FIREBREATH on 83 Ripper, ZAN on 100 TechMaster and
+FORCEFLASH on 115 Greneris. Five more show the carriers #58 listed, each
+through the same recipe (no `--durable`, the tape's party, a `--delay` series
+where the first draw missed), and each replays exactly
+(`replay_fixtures/routed_pairs/`):
+
+```sh
+python3 -m oracle.force --out build/forced/stoneheads --formation 354 --max-rounds 3 --require-ability 33
+python3 -m oracle.force --out build/forced/bladeright_d1 --formation 362 --max-rounds 3 --require-ability 33 --delay 1
+python3 -m oracle.force --out build/forced/juza_zan --event 3 --max-rounds 1 --require-ability 71
+python3 -m oracle.force --out build/forced/juza_ff_d1 --event 3 --max-rounds 1 --require-ability 86 --delay 1
+python3 -m oracle.force --out build/forced/gylaguiah --event 5 --max-rounds 3 --require-ability 33
+```
+
+| ability | carrier | the ability's own action | fixture | outcome |
+|---|---|---|---|---|
+| `$21` FIREBREATH | 59 StoneHeads ×2, formation 354 (`$162`) | fighter 7, round 1 at f24871 and round 2 at f25227 | `forced_162_stoneheads.json` | defeat in 2 rounds |
+| `$21` FIREBREATH | 84 BladeRight ×2, formation 362 (`$16A`), `--delay 1` | fighter 6, round 2 at f25228 | `forced_16a_bladeright_d1.json` | defeat in 2 rounds |
+| `$21` FIREBREATH | 117 GyLaguiah, event battle 5 | fighter 6, round 3 at f25611 | `event05_gylaguiah.json` | defeat in 3 rounds |
+| `$47` ZAN | 114 Juza, event battle 3 | fighter 6, round 1 at f24971, three party slots | `event03_juza_zan.json` | truncated after round 1 |
+| `$56` FORCEFLASH | 114 Juza, event battle 3, `--delay 1` | fighter 6, round 1 at f24972, three party slots | `event03_juza_forceflash_d1.json` | truncated after round 1 |
+
+The extraction is section 6.1's, with `--event-battle N` for the two event
+captures ([BATTLE_ORACLE_REPLAY.md](BATTLE_ORACLE_REPLAY.md)). BladeRight's
+undelayed fight and Juza's undelayed second capture never drew the ability;
+the delays above are the first that did.
 
 ## 7. The durable patch's frame
 
