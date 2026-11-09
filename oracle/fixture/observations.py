@@ -231,7 +231,8 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
             continue
         command = action_command(log, current, frame)
         prefix = next((name for name, id_ in PARTY_IDS if id_ == current), None)
-        eligible = prefix is not None and log.num(frame, prefix + "_status") & 0xEE == 0
+        eligible = (prefix is not None and log.has(prefix + "_status")
+                    and log.num(frame, prefix + "_status") & 0xEE == 0)
         # No-RNG party turns still copy Current_Command after the live/status
         # checks. Require the command word to move while both menus are idle;
         # list scratch aliases this address during command selection.
