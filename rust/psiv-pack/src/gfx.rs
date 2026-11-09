@@ -228,6 +228,96 @@ pub fn render_sheet(
     )?)
 }
 
+/// `_gap_bounds`: for each wanted offset, the distance to the next nonzero
+/// landmark (or the image's end).
+pub fn gap_bounds(
+    landmarks: &[usize],
+    rom_size: usize,
+    wanted: &[usize],
+) -> std::collections::BTreeMap<usize, usize> {
+    let landmarks: std::collections::BTreeSet<usize> =
+        landmarks.iter().copied().filter(|&o| o != 0).collect();
+    wanted
+        .iter()
+        .copied()
+        .filter(|&o| o != 0)
+        .map(|offset| {
+            let next = landmarks
+                .range(offset + 1..)
+                .next()
+                .copied()
+                .unwrap_or(rom_size);
+            (offset, next - offset)
+        })
+        .collect()
+}
+
+/// What `decompress_art` checked and reports about one Nemesis blob.
+pub struct ArtRecord {
+    pub data: Vec<u8>,
+    /// The documented size when one was given, else what the decoder read.
+    pub compressed_size: usize,
+    pub tile_count: u16,
+    pub compressed_sha256: String,
+    pub decompressed_sha256: String,
+}
+
+/// `decompress_art`: one Nemesis blob, held to its header's pattern count and
+/// to an exact documented size or an upper bound. `NemDecomp` may read one
+/// lookahead byte it never uses, so either allows one byte more.
+pub fn decompress_art(
+    rom: &[u8],
+    offset: usize,
+    label: &str,
+    exact: Option<usize>,
+    bound: Option<usize>,
+) -> Result<ArtRecord, crate::PackError> {
+    use sha2::{Digest, Sha256};
+    let refuse = |message: String| Err(crate::PackError(message));
+    let header = crate::decode::nemesis::read_header(rom, offset)?;
+    let (data, consumed) = crate::decode::nemesis::decompress(rom, offset)?;
+    let declared = usize::from(header.row_count) * 4;
+    if data.len() != declared {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decoded {} bytes but the header declares {} patterns \
+             ({declared} bytes)",
+            data.len(),
+            header.tile_count
+        ));
+    }
+    if let Some(size) = exact
+        && consumed != size
+        && consumed != size + 1
+    {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decompressor consumed {consumed} bytes, but the \
+             documented stream is {size} bytes (a trailing lookahead byte would allow at most \
+             one more)"
+        ));
+    }
+    if let Some(bound) = bound
+        && consumed > bound + 1
+    {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decompressor consumed {consumed} bytes and ran into the \
+             next blob, which starts {bound} bytes in"
+        ));
+    }
+    let size = exact.unwrap_or(consumed);
+    let compressed = rom.get(offset..offset + size).ok_or_else(|| {
+        crate::PackError(format!(
+            "{label} at 0x{offset:06X} (+{size}) runs past the end of the ROM"
+        ))
+    })?;
+    Ok(ArtRecord {
+        compressed_size: size,
+        tile_count: header.tile_count,
+        compressed_sha256: crate::png::hex(&Sha256::digest(compressed)),
+        decompressed_sha256: crate::png::hex(&Sha256::digest(&data)),
+        data,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

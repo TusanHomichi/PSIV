@@ -38,6 +38,7 @@ use std::sync::mpsc;
 
 pub mod battle;
 pub mod decode;
+pub mod dialogue;
 pub mod game_start;
 pub mod gfx;
 pub mod install;
@@ -123,6 +124,18 @@ pub const SECTIONS: &[Section] = &[
         name: "game_start",
         claims: &["game_start.json"],
         build: game_start::build,
+    },
+    Section {
+        name: "dialogue",
+        claims: &[
+            "dialogue/font.json",
+            "dialogue/font.png",
+            "dialogue/menu_font.png",
+            "dialogue/portraits",
+            "dialogue/portraits.json",
+            "dialogue/scroll_arrow.png",
+        ],
+        build: dialogue::build,
     },
     Section {
         name: "scene_tables",
