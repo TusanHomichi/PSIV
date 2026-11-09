@@ -288,7 +288,7 @@ fn the_macros_follow_the_exchange() {
     assert_eq!(
         got[2],
         MacroCommand {
-            character_id: friend(0).0.0,
+            character_id: (friend(0).0).0,
             command_index: 1,
             ability_id: 0,
             reserved: 0,

@@ -418,7 +418,7 @@ fn the_anger_tower_illusion_and_chaz_step_by_retails_table() {
         );
         assert_eq!(
             end.0,
-            (start.0.0 - 16 * lx, start.0.1 - 16 * ly),
+            ((start.0).0 - 16 * lx, (start.0).1 - 16 * ly),
             "Chaz one cell back ({leader:?})"
         );
         // Every step frame moves something: 32 frames, no pause between loops.
