@@ -60,7 +60,7 @@ def _regenerate(data: bytes, output: Path) -> None:
             started = time.monotonic()
             step()
             print(f"regenerate: {name} done in {time.monotonic() - started:.1f}s")
-    print(f"regenerate: {output} rebuilt and stamped (layouts/ is written by export_map_pngs and is not touched)")
+    print(f"regenerate: {output} rebuilt and stamped")
 
 
 def main() -> int:

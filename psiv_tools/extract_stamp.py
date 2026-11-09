@@ -337,7 +337,7 @@ def write_png_stamp(directory: str | Path, kind: str, written: Iterable[str | Pa
     """Stamp a PNG directory, listing the files the exporter wrote (with their hashes).
 
     `keep_previous` is for an exporter that adds to a directory it does not
-    rebuild (`export_map_pngs`): the files the existing stamp lists stay listed.
+    rebuild: the files the existing stamp lists stay listed.
     """
     directory = Path(directory)
     stamp_path = directory / STAMP_FILE
