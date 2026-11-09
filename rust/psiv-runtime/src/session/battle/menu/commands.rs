@@ -232,7 +232,9 @@ impl CommandsMenu {
     /// the row is blue whatever the blink timers last decided; they stay
     /// paused through that frame too ([`CommandsMenu::red_cursor_window`]).
     pub(crate) fn list_cursor_shown(&self) -> bool {
-        !self.growing() && !self.whole_unread
+        !matches!(self.phase, Some(Phase::Grow { .. }))
+            && self.box_width().is_none()
+            && !self.whole_unread
     }
 
     /// Fixture entry: the window as the cartridge leaves it once `page` is
@@ -353,6 +355,9 @@ impl CommandsMenu {
                 None
             }
             After::CloseStrip => {
+                self.cursor = self
+                    .command_slot()
+                    .map_or(0, |slot| self.memory.cursor(slot, MenuPage::Actions));
                 self.page = MenuPage::Actions;
                 self.age = 0;
                 self.phase = Some(Phase::shrink(16, After::Record));
@@ -947,3 +952,7 @@ mod view;
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "closing_tests.rs"]
+mod closing_tests;

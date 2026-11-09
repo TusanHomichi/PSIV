@@ -68,7 +68,11 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
             .is_some_and(|beat| beat.waits_for_confirm)
             .then_some(Button::Speak);
     }
-    match view.menu.as_ref()? {
+    let menu = view.menu.as_ref()?;
+    if menu_settling(menu) {
+        return None;
+    }
+    match menu {
         // The main options: row 0 is COMD (ATTAC when mounted).
         MenuView::Top { cursor, .. } => {
             let boss = driver.battles().last().is_some_and(|b| b.kind == "event");
@@ -92,6 +96,15 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
             Some(toward(*cursor, wanted))
         }
         MenuView::Commands(menu) => command_button(menu, driver.runtime(), policy),
+    }
+}
+
+/// A changing window reads no pad and must not advance the policy either.
+fn menu_settling(menu: &MenuView) -> bool {
+    match menu {
+        MenuView::Top { width, .. } => width.is_some(),
+        MenuView::Commands(menu) => menu.settling,
+        MenuView::VehicleSkills { .. } => false,
     }
 }
 
@@ -238,6 +251,50 @@ fn command_button(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_settling_command_page_waits_even_when_the_whole_window_is_visible() {
+        for page in [
+            MenuPage::Actions,
+            MenuPage::Techniques,
+            MenuPage::Skills,
+            MenuPage::Items,
+            MenuPage::Targets(TargetKind::Attack),
+        ] {
+            let mut menu = CommandMenuView {
+                growing: None,
+                settling: true,
+                strip: None,
+                list: None,
+                title: String::new(),
+                page,
+                rows: vec![],
+                cursor: 7,
+                actor: Some(1),
+                character: Some(0),
+                party: vec![],
+                enemies: vec![],
+                techniques: vec![],
+                skills: vec![],
+                targets: vec![],
+            };
+            assert!(menu_settling(&MenuView::Commands(Box::new(menu.clone()))));
+            menu.settling = false;
+            assert!(!menu_settling(&MenuView::Commands(Box::new(menu))));
+        }
+        for width in [0, 2, 4, 6] {
+            assert!(menu_settling(&MenuView::Top {
+                cursor: 0,
+                width: Some(width),
+                full_width: 8
+            }));
+        }
+        assert!(!menu_settling(&MenuView::Top {
+            cursor: 0,
+            width: None,
+            full_width: 8
+        }));
+    }
 
     #[test]
     fn the_wrapping_main_options_take_the_short_way() {
