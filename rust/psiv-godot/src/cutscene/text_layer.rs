@@ -4,8 +4,6 @@ use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
 use psiv_data::{DialogueEntry, DialogueSet};
 
-use super::SCREEN;
-
 /// The opening crawl is a separate drawable child so its CRAM text ramp does
 /// not modulate the opaque black/title image behind it.
 #[derive(GodotClass)]
@@ -124,15 +122,11 @@ impl OpeningTextLayer {
     }
 
     pub(super) fn place(&mut self) {
-        let viewport = self.base().get_viewport_rect();
-        let canvas = self.base().get_canvas_transform().affine_inverse();
-        let top_left = canvas * viewport.position;
-        let bottom_right = canvas * (viewport.position + viewport.size);
-        let visible = bottom_right - top_left;
-        self.base_mut().set_position(Vector2::new(
-            (top_left.x + (visible.x - SCREEN.x) / 2.0).floor(),
-            (top_left.y + (visible.y - SCREEN.y) / 2.0).floor(),
-        ));
+        let position = crate::retail_surface::surface_origin(
+            self.base().get_canvas_transform().affine_inverse(),
+            self.base().get_viewport_rect(),
+        );
+        self.base_mut().set_position(position);
     }
 
     pub(super) fn draw_entry(&mut self, entry: &DialogueEntry) {

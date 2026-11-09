@@ -39,7 +39,7 @@ use text_layer::OpeningTextLayer;
 
 pub(crate) use state::{MusicRestore, PresentationState};
 
-const SCREEN: Vector2 = Vector2::new(320.0, 224.0);
+const SCREEN: Vector2 = crate::retail_surface::SURFACE;
 
 /// The scene presentation node the field shell drives: staged panel planes,
 /// the opening image and its narration layer, the generic cutscene window and
@@ -135,14 +135,9 @@ impl CutsceneLayer {
     }
 
     pub(crate) fn place(&mut self) {
-        let viewport = self.base().get_viewport_rect();
-        let canvas = self.base().get_canvas_transform().affine_inverse();
-        let top_left = canvas * viewport.position;
-        let bottom_right = canvas * (viewport.position + viewport.size);
-        let visible = bottom_right - top_left;
-        let position = Vector2::new(
-            (top_left.x + (visible.x - SCREEN.x) / 2.0).floor(),
-            (top_left.y + (visible.y - SCREEN.y) / 2.0).floor(),
+        let position = crate::retail_surface::surface_origin(
+            self.base().get_canvas_transform().affine_inverse(),
+            self.base().get_viewport_rect(),
         );
         self.base_mut().set_position(position);
         if let Some(text) = self.text_layer.as_mut() {

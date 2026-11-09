@@ -7,7 +7,6 @@ from typing import Any
 SCROLL_LINE_COUNT = 224
 SCROLL_WINDOW_FIRST_LINE = 160
 HINT_RTE_ADDRESS = 0x758
-RETAIL_PLANE_RESIDUE_PIXELS = {"x": 1, "y": 1}
 
 
 class ScrollDecodeError(ValueError):
@@ -243,10 +242,5 @@ def decode_scroll_state(
             "plane_b_source": "HInt2 + Chunk_Table + Camera_Y_Pos_BG"
             if h_int["enabled"]
             else "VDP VSRAM[1]",
-        },
-        "placement_provenance": {
-            "grand_cross": grand_cross,
-            "plane_window_residue_pixels": RETAIL_PLANE_RESIDUE_PIXELS,
-            "basis": "MeetingRika frame 7250 normalized plane/window edge comparison after camera and H-int decode",
         },
     }
