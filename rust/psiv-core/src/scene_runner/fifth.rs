@@ -83,6 +83,8 @@ impl SceneRunner {
                     facing: turned,
                 });
                 self.pc += 1;
+                // `Event_UpdateObjFacing`, one frame.
+                self.blocked = super::Blocked::Ticks(super::ops::FACING_FRAMES);
             }
             FifthOp::RunLine { offset } => {
                 let entry = table.rows[self.fifth_row].first_line + offset;

@@ -16,6 +16,11 @@ use crate::state::{CharId, GameState, PARTY_SLOTS};
 /// `loc_4BC80`'s `FieldObj_Step_Offset` 2: `$0400` a frame.
 const ROCKY_STEP_FRAMES: u8 = 4;
 
+/// `Event_UpdateObjFacing` (`$5A936`) ends with `jsr VInt_Prepare` on US
+/// retail (`$5A972`: `4E B9 00 04 20 4C`, the `if grand_cross=0` arm), so
+/// every facing change costs the scene one frame (#164).
+pub(super) const FACING_FRAMES: u16 = 1;
+
 impl SceneRunner {
     /// Spend a runtime-resolved setup/refresh interval before the next op.
     /// The initiating op remains the owner of whether map updates run.
@@ -65,6 +70,7 @@ impl SceneRunner {
                 walker.facing = facing;
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
+                self.blocked = Blocked::Ticks(FACING_FRAMES);
             }
             SceneOp::RunDialogue { source, window } => {
                 self.dialogue_window = window;
@@ -381,6 +387,7 @@ impl SceneRunner {
                 walker.facing = facing;
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
+                self.blocked = Blocked::Ticks(FACING_FRAMES);
             }
             SceneOp::PlaceActor { actor, x, y } => {
                 let cell = pixel_cell(x, y);

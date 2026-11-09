@@ -170,15 +170,22 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            // `loc_5A97C` walks `Character_1..5` and calls
+            // `Event_UpdateObjFacing` for each object present, a frame each.
             SceneOp::FaceParty { facing } => {
+                let mut faced = 0;
                 for slot in 0..PARTY_SLOTS {
                     let actor = ActorRef::PartyMember(slot);
                     if let Some(member) = self.actor_mut(actor) {
                         member.facing = facing;
                         effects.push(SceneEffect::ActorFaced { actor, facing });
+                        faced += 1;
                     }
                 }
                 self.pc += 1;
+                if faced > 0 {
+                    self.blocked = Blocked::Ticks(faced * super::ops::FACING_FRAMES);
+                }
             }
             SceneOp::PlacePartyY { dy } => {
                 let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
