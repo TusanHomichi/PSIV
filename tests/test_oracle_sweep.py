@@ -161,7 +161,7 @@ class Commands(SweepFixture):
         # The paved invocation: a module of the `oracle` package, run from the
         # repository root (`oracle/README.md`, "Layout").
         self.assertEqual(argv[:3], [sys.executable, "-m", "oracle.force"])
-        self.assertEqual(argv[argv.index("--formation") + 1], "0x05")
+        self.assertEqual(argv[argv.index("--formation") + 1], "0x5")
         self.assertIn("--durable", argv)
         self.assertEqual(argv[argv.index("--max-rounds") + 1], "5")
         self.assertEqual(argv[argv.index("--scout") + 1],
@@ -208,7 +208,7 @@ class Recording(SweepFixture):
         self.assertEqual(self.record()["summary"]["captured"], len(MINI_LIST))
         # Both commands are in the record, so a formation's capture can be
         # re-run exactly as the sweep ran it.
-        self.assertEqual(entry["commands"]["force"][-1], "--durable")
+        self.assertIn("--durable", entry["commands"]["force"])
         self.assertEqual(entry["commands"]["extract"][-1], "999")
 
     def test_a_capture_that_fails_is_recorded_with_its_stage_and_error(self):

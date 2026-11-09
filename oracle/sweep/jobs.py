@@ -19,10 +19,10 @@ import hashlib
 import json
 import pathlib
 import subprocess
-import sys
 
 from ..force.errors import ForceError
 from .plan import Formation
+from . import forced_cases as capture_runner
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 #: The two tools a formation's run is, as modules run from the repository root
@@ -59,38 +59,23 @@ def fixture_path(options: Options, formation: int) -> pathlib.Path:
     return options.fixtures / f"formation_{formation:02X}.json"
 
 
+def case_for(entry: Formation, options: Options) -> capture_runner.Case:
+    """The formation scheduler supplies data to the common capture engine."""
+    return capture_runner.Case(
+        f"formation_{entry.formation:02X}", "Motavia formation sweep", None,
+        options.max_rounds, formation=entry.formation, vehicle=entry.vehicle,
+        repeats=options.repeats, durable=options.durable, policy=options.policy,
+        base_tape=str(options.base_tape), data_dir=str(options.data_dir),
+        ram_map=str(options.ram_map))
+
+
 def force_argv(entry: Formation, options: Options) -> list[str]:
-    """The capture command: the force tool, with this sweep's own options."""
-    argv = [sys.executable, "-m", FORCE, "--formation", entry.hex,
-            "--out", str(options.work / f"formation_{entry.formation:02X}"),
-            "--base-tape", str(options.base_tape),
-            "--data-dir", str(options.data_dir),
-            "--ram-map", str(options.ram_map),
-            "--scout", str(options.scout),
-            "--policy", options.policy, "--repeats", str(options.repeats),
-            "--max-rounds", str(options.max_rounds)]
-    if options.durable:
-        argv.append("--durable")
-    if entry.vehicle is not None:
-        argv += ["--vehicle", str(entry.vehicle)]
-    return argv
+    return capture_runner.capture_argv(case_for(entry, options), options.work, options.scout)
 
 
-def extractor_argv(report: dict, entry: Formation,
-                   options: Options) -> list[str]:
-    """The extraction command, for the log the capture just wrote."""
-    argv = [sys.executable, "-m", FX, "--trace", report["trace"],
-            "--log", report["log"],
-            "--out", str(fixture_path(options, entry.formation)),
-            "--tape", report["tape"],
-            "--ram-map", str(options.ram_map),
-            "--battle-first", str(report["battle_first"]),
-            "--battle-last", str(report["battle_last"]),
-            "--max-rounds", str(options.max_rounds), "--minified"]
-    if options.durable:
-        argv += ["--hp-patch", str(report["durable"]["hp"])
-                 if report.get("durable") else "999"]
-    return argv
+def extractor_argv(report: dict, entry: Formation, options: Options) -> list[str]:
+    return capture_runner.extract_argv(case_for(entry, options), options.work,
+                                      fixture_path(options, entry.formation), report)
 
 
 def run(argv: list[str], log: pathlib.Path) -> subprocess.CompletedProcess:
@@ -139,36 +124,24 @@ def sha256(path: pathlib.Path) -> str:
 
 
 def run_formation(entry: Formation, options: Options) -> dict:
-    """Capture this formation and extract its fixture; the record entry either way."""
-    work = options.work / f"formation_{entry.formation:02X}"
-    record = {**entry.as_json(), "status": "failed", "stage": "capture"}
-    capture_argv = force_argv(entry, options)
-    record["commands"] = {"force": capture_argv}
-    proc = run(capture_argv, work / "force.log")
-    record["force_status"] = proc.returncode
-    if proc.returncode != 0:
-        record["error"] = tail(work / "force.log")
+    """Schedule the shared runner and adapt its receipt to the sweep census."""
+    case = case_for(entry, options)
+    result = capture_runner.run_case(
+        case, options.work, options.fixtures, scout=options.scout,
+        execute=lambda argv, log: capture_runner.command(argv, log, runner=run))
+    attempt = result["attempts"][-1]
+    record = {**entry.as_json(), "status": "failed", "stage": attempt["stage"],
+              "commands": attempt["commands"]}
+    for stage, key in (("force", "force_status"), ("extract", "extract_status")):
+        if stage in attempt:
+            record[key] = attempt[stage]["exit"]
+    if result["status"] != "captured":
+        log = options.work / case.name / ("force.log" if attempt["stage"] == "capture" else "extract.log")
+        record["error"] = attempt.get("error", "capture failed") + "\n" + tail(log)
         return record
-    try:
-        report = json.loads((work / "report.json").read_text())
-    except (OSError, ValueError) as error:
-        record["error"] = f"the capture wrote no readable report.json: {error}"
-        return record
-    extract = extractor_argv(report, entry, options)
-    record["commands"]["extract"] = extract
-    record["stage"] = "extract"
-    proc = run(extract, work / "extract.log")
-    record["extract_status"] = proc.returncode
-    if proc.returncode != 0:
-        record["error"] = tail(work / "extract.log")
-        return record
-    fixture = fixture_path(options, entry.formation)
-    try:
-        document = json.loads(fixture.read_text())
-    except (OSError, ValueError) as error:
-        record["error"] = f"the extractor wrote no readable fixture: {error}"
-        return record
-    record.update(captured(report, fixture, document))
+    fixture = pathlib.Path(result["fixture"])
+    record.update(captured(load_report(options.work / case.name), fixture,
+                           json.loads(fixture.read_text())))
     return record
 
 

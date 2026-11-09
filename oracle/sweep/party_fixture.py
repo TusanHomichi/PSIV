@@ -1,19 +1,8 @@
-"""Run explicit player-ability cases through the stock cartridge and extractor.
-
-Recipes and RAM images stay ignored. Commands use oracle.force's live menu
-driver; replay state comes from two identical stock-host RAM observations,
-never from this recipe. A selected command is not proof that it executed.
-"""
+"""Declared party fixtures and independent stock-capture validation."""
 from __future__ import annotations
 
-import argparse
-import datetime
 import hashlib
-import json
 import pathlib
-import subprocess
-import sys
-import time
 
 from oracle.force.script import party_state
 
@@ -102,21 +91,6 @@ def require_executed(case: dict, fixture: dict) -> None:
         raise ValueError(f"selected abilities did not execute: {sorted(missing)}")
 
 
-def run(command: list[str], output: pathlib.Path, receipts: pathlib.Path) -> None:
-    start = time.monotonic()
-    with output.open("w") as log:
-        result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
-    receipt = {"command": command, "exit": result.returncode,
-               "seconds": round(time.monotonic() - start, 3),
-               "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-               "log": str(output), "log_sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
-    with receipts.open("a") as handle:
-        handle.write(json.dumps(receipt) + "\n")
-    print(json.dumps(receipt), flush=True)
-    if result.returncode:
-        raise ValueError(f"command exited {result.returncode}; see {output}")
-
-
 def verify_report(report: dict) -> None:
     """A resumed extraction must still have both independent stock runs."""
     for key in ("trace", "log", "rerun_log", "start_ram", "party_script"):
@@ -125,70 +99,3 @@ def verify_report(report: dict) -> None:
             raise ValueError(f"capture {key} hash changed: {path}")
     if report["log_sha256"] != report["rerun_log_sha256"]:
         raise ValueError("stock capture and verification logs differ")
-
-
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--cases", type=pathlib.Path, required=True)
-    parser.add_argument("--scout", type=pathlib.Path, required=True)
-    parser.add_argument("--out", type=pathlib.Path, required=True)
-    parser.add_argument("--fixtures", type=pathlib.Path, required=True)
-    parser.add_argument("--only", help="one case name, otherwise every case")
-    parser.add_argument("--extract-only", action="store_true",
-                        help="reuse a completed, hash-verified stock capture")
-    args = parser.parse_args(argv)
-    try:
-        facts = json.loads(args.scout.read_text())
-        raw = pathlib.Path(facts["script_state"]["path"]).read_bytes()
-        if hashlib.sha256(raw).hexdigest() != facts["script_state"]["sha256"]:
-            raise ValueError("scout RAM digest changed")
-        cases = json.loads(args.cases.read_text())
-        names = [c["name"] for c in cases]
-        if len(names) != len(set(names)) or any(pathlib.Path(n).name != n for n in names):
-            raise ValueError("case names must be distinct basenames")
-        if args.only and args.only not in names:
-            raise ValueError(f"no case named {args.only}")
-        args.out.mkdir(parents=True, exist_ok=True)
-        args.fixtures.mkdir(parents=True, exist_ok=True)
-        receipts = args.out / "commands.jsonl"
-        for case in cases:
-            if args.only and case["name"] != args.only:
-                continue
-            out = args.out / case["name"]
-            out.mkdir(parents=True, exist_ok=True)
-            script = out / "commands.json"
-            script_text = json.dumps({"rounds": case["rounds"]}, indent=2) + "\n"
-            if args.extract_only:
-                if script.read_text() != script_text:
-                    raise ValueError(f"case commands changed since capture: {case['name']}")
-            else:
-                script.write_text(script_text)
-            command = [sys.executable, "-m", "oracle.force", "--scout", str(args.scout),
-                       "--out", str(out), "--party-script", str(script),
-                       "--max-rounds", str(len(case["rounds"])), "--repeats", "900"]
-            selector = "--event" if "event" in case else "--formation"
-            command += [selector, str(case[selector[2:]])]
-            for patch in patches(case, raw, facts["battle_first"] + 1):
-                command += ["--ram-patch", patch]
-            if not args.extract_only:
-                run(command, out / "force.log", receipts)
-            report = json.loads((out / "report.json").read_text())
-            verify_report(report)
-            target = args.fixtures / f"{case['name']}.json"
-            extract = [sys.executable, "-m", "oracle.fixture", "--trace", report["trace"],
-                       "--log", report["log"], "--ram-map", report["script_ram_map"],
-                       "--tape", report["tape"], "--battle-first", str(report["battle_first"]),
-                       "--battle-last", str(report["battle_last"]),
-                       "--max-rounds", str(len(case["rounds"])), "--start-ram", report["start_ram"],
-                       "--start-ram-sha256", report["start_ram_sha256"],
-                       "--out", str(target), "--minified"]
-            run(extract, out / "extract.log", receipts)
-            require_executed(case, json.loads(target.read_text()))
-        return 0
-    except (OSError, ValueError, KeyError) as error:
-        print(f"player_capture: {error}", file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

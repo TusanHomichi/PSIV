@@ -73,7 +73,7 @@ GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibilit
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
 SCENE = {"PSIV_DEBUG_AUTOCLOSE_SCENE": "1", "PSIV_DEBUG_RETAIL_PACE": "1"}
 
-# Tape 28 enters MeetingRika by explicit fixture patches (oracle/README.md,
+# Tape 28 enters MeetingRika by explicit fixture patches (oracle/CAPTURE.md,
 # "Deterministic scene fixtures").
 TAPE_28 = {
     "tape": "oracle/tapes/28_meeting_rika_retail_probe.tape",
@@ -106,7 +106,7 @@ TAPE_32 = {
 
 # The same tape's command-idle frame with three status bytes patched in
 # `Character_Stats` one frame earlier: Chaz asleep ($08), Alys paralyzed ($02),
-# Hahn tech-sealed ($10). The patches are fixture operations (oracle/README.md,
+# Hahn tech-sealed ($10). The patches are fixture operations (oracle/CAPTURE.md,
 # "Deterministic scene fixtures"), not tape input.
 TAPE_32_STATUS = {
     "tape": "oracle/tapes/32_battle_command_windows.tape",

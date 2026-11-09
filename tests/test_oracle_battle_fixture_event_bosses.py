@@ -4,7 +4,7 @@ import json
 import unittest
 
 from oracle.sweep import event_bosses
-from oracle.sweep.player_capture import patches
+from oracle.sweep.party_fixture import patches
 from oracle.sweep.forced_cases import FIXTURE_ROOT, observed
 
 

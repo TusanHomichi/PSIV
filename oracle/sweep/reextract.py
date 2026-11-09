@@ -21,6 +21,8 @@ import json
 import pathlib
 import sys
 
+from .forced_cases import Case, extract_argv as case_extract_argv
+
 from . import jobs
 
 def captures(directory: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
@@ -42,19 +44,14 @@ def extractor_argv(work: pathlib.Path, directory: pathlib.Path,
     report = json.loads((directory / "report.json").read_text())
     log, trace = captures(directory)
     formation = int(report["formation"])
-    argv = [sys.executable, "-m", jobs.FX, "--trace", str(trace),
-            "--log", str(log),
-            "--out", str(jobs.fixture_path(options, formation)),
-            "--tape", pathlib.Path(report["tape"]).name,
-            "--ram-map", str(options.ram_map),
-            "--battle-first", str(report["battle_first"]),
-            "--battle-last", str(report["battle_last"]),
-            "--max-rounds", str(report.get("max_rounds") or options.max_rounds),
-            "--minified"]
-    durable = report.get("durable") or {}
-    if options.durable and durable.get("hp"):
-        argv += ["--hp-patch", str(durable["hp"])]
-    return argv
+    report = {**report, "log": str(log), "trace": str(trace),
+              "tape": pathlib.Path(report["tape"]).name}
+    if not options.durable:
+        report["durable"] = None
+    case = Case(directory.name, "reextract Motavia capture", None,
+                report.get("max_rounds") or options.max_rounds,
+                formation=formation, ram_map=str(options.ram_map))
+    return case_extract_argv(case, work, jobs.fixture_path(options, formation), report)
 
 
 def directories(work: pathlib.Path) -> list[pathlib.Path]:

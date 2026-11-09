@@ -111,7 +111,7 @@ teardown closes
 Measured on the oracle with
 [`oracle/tapes/36_teleport_windows.tape`](../../oracle/tapes/36_teleport_windows.tape):
 Tape 22's prelude to Chaz alone on Piata Academy F1, then the fixture patches
-(see [the oracle guide](../../oracle/README.md#deterministic-scene-fixtures))
+(see [the oracle guide](../../oracle/CAPTURE.md#deterministic-scene-fixtures))
 `7600:FFFFF410:84` (a TELEPIPE), `7600:FFFFF160:FFFF` (every Motavia town
 visited) and `7600:FFFFF101:08` (`EventFlag_PrincipalConfession`, which keeps
 `Event_PiataGuardsReprimand` from carrying the party back into Piata), and
