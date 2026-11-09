@@ -71,7 +71,7 @@ are the reload, `Pal_FadeIn` included. Two runs per map:
 
 | Capture | Map | Organic | Fixture |
 |---|---|---:|---|
-| tape 07, `Cutscene_PiataPrincipal` end (rows 10692-10746, control 10747) | `$14` | 55 | A 54, B 55: the scene clears the saved word, so it takes branch B |
+| tape 07, `Cutscene_PiataPrincipal` end (1-based frames 10693-10747, control 10748) | `$14` | 55 | A 54, B 55: the scene clears the saved word, so it takes branch B |
 | tape 35, Mota to Zelan landing (`docs/scenes/41_InsideSpaceship.md`) | `$18D` | 36 + 16 | A 52, B 53 |
 | tape 35, Zelan to Mota landing | `$BF` | 26 + 16 | A 42, B 43 |
 
