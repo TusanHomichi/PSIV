@@ -21,18 +21,25 @@ use crate::{PackError, png};
 const TABLE: usize = 0x010FCE;
 const ENTRY_COUNT: usize = 153;
 const DATA_START: usize = 0x011100;
-const TABLE_SIGNATURE: [u8; 4] = [0x09, 0x96, 0x09, 0x96];
+/// Each pinned region is held by its length and SHA-256, not its bytes: the
+/// source carries no cartridge content, and the provenance below reports the
+/// verified bytes as the ROM holds them.
+const TABLE_PIN: (usize, &str) = (
+    4,
+    "d9f6c61dee63a66347c722a426f939a835a39ca8ccc55eac6a01c90783d8091d",
+);
 /// `EnemySprites_Animate`, pinned by its first opcodes.
 const ANIMATE: usize = 0x040F66;
-const ANIMATE_SIGNATURE: [u8; 12] = [
-    0x08, 0xec, 0x00, 0x05, 0x00, 0x02, 0x30, 0x2c, 0x00, 0x04, 0x22, 0x6c,
-];
+const ANIMATE_PIN: (usize, &str) = (
+    12,
+    "b0755648ab3345540abc2326f36cccd1b4e58a97ae328199e6641a8d65364416",
+);
 /// `Mappings_ZoranBult`, which the tenth entry must reach.
 const ZORAN: usize = 0x01190C;
-const ZORAN_SIGNATURE: [u8; 20] = [
-    0x00, 0x02, 0x11, 0x02, 0x00, 0x01, 0x19, 0x20, 0x0d, 0x04, 0x00, 0x01, 0x19, 0x2a, 0x04, 0x09,
-    0x00, 0x01, 0x19, 0x34,
-];
+const ZORAN_PIN: (usize, &str) = (
+    20,
+    "79ec0f5fdadedb652be1147e7a7b93a356722481f307174e81cc19d1d6f619a9",
+);
 const PNG_DIRECTORY: &str = "battle/art/enemy_overlays";
 const DISABLED: u32 = 0x8000_0000;
 
@@ -70,17 +77,31 @@ fn long(rom: &[u8], at: usize, what: &str) -> Result<u32, PackError> {
     Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 
-/// `verify_enemy_overlay_sources`: the table, ZoranBult's entry and the
-/// animation routine, byte-pinned before anything is decoded.
-fn provenance(rom: &[u8]) -> Result<Json, PackError> {
-    let first = slice(rom, TABLE, 4, "EnemySpriteMappingsOffs")?;
-    if first != TABLE_SIGNATURE {
-        return refuse(format!(
-            "EnemySpriteMappingsOffs at 0x{TABLE:06X}: retail signature changed ({}); refusing \
-             to decode the reference clone",
-            hex(first)
-        ));
+/// A pinned region of the ROM, refused unless its digest matches.
+fn pinned<'a>(
+    rom: &'a [u8],
+    at: usize,
+    (len, digest): (usize, &str),
+    what: &str,
+    refusal: &str,
+) -> Result<&'a [u8], PackError> {
+    let bytes = slice(rom, at, len, what)?;
+    if sha256(bytes) != digest {
+        return refuse(format!("{refusal} ({})", hex(bytes)));
     }
+    Ok(bytes)
+}
+
+/// `verify_enemy_overlay_sources`: the table, ZoranBult's entry and the
+/// animation routine, pinned before anything is decoded.
+fn provenance(rom: &[u8]) -> Result<Json, PackError> {
+    let first = pinned(
+        rom,
+        TABLE,
+        TABLE_PIN,
+        "EnemySpriteMappingsOffs",
+        &format!("EnemySpriteMappingsOffs at 0x{TABLE:06X}: retail signature changed"),
+    )?;
     let zoran = TABLE + usize::from(word(rom, TABLE + 10 * 2, "ZoranBult table entry")?);
     if zoran != ZORAN {
         return refuse(format!(
@@ -88,25 +109,20 @@ fn provenance(rom: &[u8]) -> Result<Json, PackError> {
              0x{ZORAN:06X}"
         ));
     }
-    let bytes = slice(rom, ZORAN, ZORAN_SIGNATURE.len(), "Mappings_ZoranBult")?;
-    if bytes != ZORAN_SIGNATURE {
-        return refuse(format!(
-            "Mappings_ZoranBult: retail descriptor signature changed ({})",
-            hex(bytes)
-        ));
-    }
-    let animate = slice(
+    let descriptors = pinned(
+        rom,
+        ZORAN,
+        ZORAN_PIN,
+        "Mappings_ZoranBult",
+        "Mappings_ZoranBult: retail descriptor signature changed",
+    )?;
+    let animate = pinned(
         rom,
         ANIMATE,
-        ANIMATE_SIGNATURE.len(),
+        ANIMATE_PIN,
         "EnemySprites_Animate",
+        "EnemySprites_Animate: retail opcode signature changed",
     )?;
-    if animate != ANIMATE_SIGNATURE {
-        return refuse(format!(
-            "EnemySprites_Animate: retail opcode signature changed ({})",
-            hex(animate)
-        ));
-    }
     Ok(Json::object()
         .with("rom_sha256", sha256(rom))
         .with("table_signature", hex(first))
@@ -114,13 +130,13 @@ fn provenance(rom: &[u8]) -> Result<Json, PackError> {
             "table_signature_sha256",
             sha256(slice(rom, TABLE, 8, "EnemySpriteMappingsOffs")?),
         )
-        .with("zoran_mapping_signature", hex(&ZORAN_SIGNATURE))
+        .with("zoran_mapping_signature", hex(descriptors))
         .with(
             "animation_routine",
             Json::object()
                 .with("label", "EnemySprites_Animate")
                 .with("rom_offset", hex6(ANIMATE))
-                .with("signature", hex(&ANIMATE_SIGNATURE))
+                .with("signature", hex(animate))
                 .with("signature_sha256", sha256(animate)),
         ))
 }
@@ -718,6 +734,19 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Json, PackError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pinned_region_must_match_its_digest() {
+        let rom = [1u8, 2, 3, 4];
+        let pin = (
+            2,
+            "a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222",
+        );
+        assert_eq!(pinned(&rom, 0, pin, "x", "changed").unwrap(), [1, 2]);
+        let error = pinned(&rom, 1, pin, "x", "changed").err().unwrap();
+        assert_eq!(error.0, "changed (0203)");
+        assert!(pinned(&rom, 3, pin, "x", "changed").is_err());
+    }
 
     #[test]
     fn a_placement_finds_the_run_in_any_flip() {

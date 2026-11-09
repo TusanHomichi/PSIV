@@ -12,7 +12,7 @@
 
 pub(super) mod mapping;
 mod movement;
-mod objects;
+pub(super) mod objects;
 mod receipts;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -472,7 +472,11 @@ fn animation(
             unique.push(load);
         }
     }
-    let (plc_ranges, plc_evidence) = objects::plc_art(rom, &unique);
+    let objects::PlcArt {
+        ranges: plc_ranges,
+        evidence: plc_evidence,
+        ..
+    } = objects::plc_art(rom, &unique);
     let Some(exact) = writes
         .iter()
         .find(|w| string(w, "dispatch") == Some("Sound_Index"))
