@@ -223,25 +223,28 @@ class TestEmittedFiles(unittest.TestCase):
         cls.attacks = json.loads((cls.root / ENEMY_ATTACK_ART_NAME).read_text())
         cls.characters = json.loads((cls.root / CHARACTER_ART_NAME).read_text())
 
-    def test_zoran_attack_uses_the_frozen_overlay_and_retail_palette(self):
+    def test_zoran_attack_uses_art1_and_the_retail_palette(self):
         attack = self.attacks["enemies"][10]
-        self.assertEqual(attack["frozen_overlay"]["frame"], 2)
         self.assertEqual(attack["palette_line"], 2)
         self.assertEqual(attack["palette_overrides"], {"10": 0xE8A, "11": 0xE48, "12": 0x826})
         from psiv_tools.battle_animation_art import _zoran_attack_state
-        from psiv_tools.battle_art import BattleArtError, build_tile_bank, enemy_art_bounds, enemy_records
+        from psiv_tools.battle_art import BattleArtError, build_attack_tile_bank, build_tile_bank, enemy_art_bounds, enemy_records
         rom = read_rom(ROM)
         records = enemy_records(rom)
         bounds = enemy_art_bounds(records, len(rom))
-        tiles, _ = build_tile_bank(rom, records[10], bounds)
-        before = tiles[17:19]
-        _zoran_attack_state(rom, records[10], bounds, tiles)
-        self.assertNotEqual(tiles[17:19], before, "the frozen replacement changes actual patterns")
+        body, _ = build_tile_bank(rom, records[10], bounds)
+        tiles, sources = build_attack_tile_bank(rom, records[10], bounds)
+        self.assertEqual(len(tiles), 23)
+        self.assertEqual(tiles, body[4:27])
+        self.assertNotEqual(tiles[0], body[0], "body staging is not the sprite-pattern base")
+        self.assertEqual(sources[0]["first_pattern"], 0)
+        self.assertEqual(sources[0]["field"], "+0x02")
+        _zoran_attack_state(rom)
         for offset in [0x010D68, 0x01519A, 0x01528A]:
             mutated = bytearray(rom)
             mutated[offset] ^= 1
             with self.subTest(offset=offset), self.assertRaises(BattleArtError):
-                _zoran_attack_state(bytes(mutated), records[10], bounds, tiles)
+                _zoran_attack_state(bytes(mutated))
 
     def test_the_fragment_describes_every_file_on_disk(self):
         files = self.fragment["files"]

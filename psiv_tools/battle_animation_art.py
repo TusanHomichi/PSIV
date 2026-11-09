@@ -121,10 +121,9 @@ def _render_attack_mapping(
     return png.encode_indexed(width, height, pixels, palette, (0,))
 
 
-def _zoran_attack_state(rom, art_record, bounds, tiles):
-    """Apply the USA object's frozen VRAM and palette before drawing mappings."""
+def _zoran_attack_state(rom):
+    """Verify the USA strike contract and decode its palette selection."""
     from .battle_art import BattleArtError
-    from .battle_enemy_overlays import decode_enemy_overlay_records
 
     signatures = {
         0x010D68: "32bc007845f8fb40357c0e8a0014357c0e480016357c08260018",
@@ -135,16 +134,7 @@ def _zoran_attack_state(rom, art_record, bounds, tiles):
         expected = bytes.fromhex(signature)
         if rom[offset:offset + len(expected)] != expected:
             raise BattleArtError(f"Zoran attack choreography changed at 0x{offset:06X}")
-    # The first overlay piece waits on frame two and is then frozen. Its
-    # destination is used by the attack's mapping as well as the enemy body.
-    _, overlays = decode_enemy_overlay_records(rom, [art_record], bounds)
-    overlay = overlays[0]
-    piece = overlay.pieces[0]
-    source = piece.source_patterns[2]
-    for index in range(piece.tile_count):
-        tiles[piece.destination_tile + index] = overlay.art2_tiles[source + index]
     return {
-        "frozen_overlay": {"piece": 0, "frame": 2, "routine_rom_offset": "0x01528A"},
         "palette_line": 2,  # The object's $13 attribute is $40.
         "palette_overrides": {
             index: int.from_bytes(rom[offset:offset + 2], "big")
@@ -159,7 +149,7 @@ def emit_enemy_attack_art(
     animations_payload: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int, int]:
     """Emit exact frame PNGs, including proven attack PLC pattern sources."""
-    from .battle_art import build_tile_bank, enemy_art_bounds, enemy_records
+    from .battle_art import build_attack_tile_bank, enemy_art_bounds, enemy_records
     from .battle_art_pack import enemy_palette
     from .battle_animations import build_enemy_animations
 
@@ -221,9 +211,9 @@ def emit_enemy_attack_art(
             continue
 
         art_record = by_id[enemy_id]
-        tiles, art_sources = build_tile_bank(rom, art_record, bounds)
+        tiles, art_sources = build_attack_tile_bank(rom, art_record, bounds)
         if animation["routine_offset"] == "0x010D68":
-            entry.update(_zoran_attack_state(rom, art_record, bounds, tiles))
+            entry.update(_zoran_attack_state(rom))
         plc_tiles, _, _ = decode_plc_art(rom, animation["attack_plc"]["loads"])
         if plc_tiles:
             if len(tiles) < len(plc_tiles):
@@ -291,7 +281,7 @@ def emit_enemy_attack_art(
             "mapping_consumer": "Battle_FillSpriteAttributes",
             "mapping_header_bytes": MAPPING_HEADER_BYTES,
             "mapping_entry_bytes": MAPPING_ENTRY_BYTES,
-            "art_bank_order": [3, 1, 2],
+            "art_bank_order": [1],
             "rom_sha256": payload["source"].get("rom_sha256", EXPECTED_SHA256),
             "grand_cross": 0,
         },

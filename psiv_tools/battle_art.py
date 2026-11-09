@@ -313,6 +313,22 @@ def build_tile_bank(
     return tiles, sources
 
 
+def build_attack_tile_bank(
+    data: bytes, record: dict[str, Any], bounds: dict[int, int] | None = None
+) -> tuple[list[bytes], list[dict[str, Any]]]:
+    """The fighter's sprite-pattern base addresses Art #1, not its body bank.
+
+    loc_7BFA uploads field +$02 at fighter+$10; loc_12618 copies that base
+    into an attack object. Art #3/overlay staging has a separate DMA base.
+    """
+    offset = record["art_offsets"][0]
+    label = f"ArtNem_{record['symbol'] or record['id']}Battle1"
+    decompressed, source = _art_record(data, offset, label, None if bounds is None else bounds.get(offset))
+    source.update(field="+0x02", first_pattern=0)
+    return [decode_tile(decompressed[i:i + TILE_SIZE])
+            for i in range(0, len(decompressed), TILE_SIZE)], [source]
+
+
 def enemy_mapping(data: bytes, record: dict[str, Any]) -> tuple[list[int], dict[str, Any]]:
     """Read an enemy's body mapping. Returns (pattern-name words, metadata)."""
     offset = record["mapping_offset"]
