@@ -21,7 +21,7 @@ fn load() -> Option<GameData> {
     Some(GameData::load(Path::new(PACK)).expect("pack loads and validates"))
 }
 
-pub(super) fn stats(index: u8) -> Stats {
+pub(crate) fn stats(index: u8) -> Stats {
     Stats {
         name_bytes: [index, index + 1, index + 2, index + 3, 0xFE, 0],
         profession: 1,

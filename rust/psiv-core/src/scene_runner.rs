@@ -26,6 +26,8 @@ use crate::scene::{
 };
 use crate::trigger::PixelPos;
 pub(crate) mod actor;
+#[cfg(test)]
+mod belt_freeze_tests;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;

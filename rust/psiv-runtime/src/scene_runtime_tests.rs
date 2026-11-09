@@ -139,13 +139,29 @@ fn a_dead_or_paralysed_member_holds_its_walk_and_no_other_status_does() {
     )
     .unwrap();
     let leader = runtime.game.party_slot(0).expect("a leader");
+    if runtime.game.roster().get(leader).is_none() {
+        runtime
+            .game
+            .roster_mut()
+            .seat(leader, crate::suites::save::stats(leader.0))
+            .unwrap();
+    }
     let set = |runtime: &mut Runtime, status: u8| {
         runtime.game.roster_mut().get_mut(leader).unwrap().status = status;
     };
     use psiv_core::battle::status::{DEAD, PARALYZED, POISONED};
-    for (status, frozen) in [(0, false), (POISONED, false), (PARALYZED, true), (DEAD, true)] {
+    for (status, frozen) in [
+        (0, false),
+        (POISONED, false),
+        (PARALYZED, true),
+        (DEAD, true),
+    ] {
         set(&mut runtime, status);
-        assert_eq!(runtime.member_walk_frozen(0), frozen, "status {status:#04x}");
+        assert_eq!(
+            runtime.member_walk_frozen(0),
+            frozen,
+            "status {status:#04x}"
+        );
     }
     assert!(!runtime.member_walk_frozen(4), "an empty slot");
 }
