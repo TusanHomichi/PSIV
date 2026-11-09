@@ -1,5 +1,5 @@
-//! A battle window opening or closing: `Battle_CreateWindow` and
-//! `Battle_DestroyWindow` (`ps4.asm:1657`, `1678`) as frame state.
+//! A battle window opening or closing, as frame state: `Battle_CreateWindow`
+//! (`ps4.asm:1657`) and `Battle_DestroyWindow` (`ps4.asm:1678`).
 //!
 //! Both keep the width in `$FFFF418C` and change it by two cells a call, one
 //! call a frame. `Battle_CreateWindow` draws an empty window that wide until

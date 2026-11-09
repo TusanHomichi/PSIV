@@ -68,8 +68,8 @@ pub(crate) enum TopChoice {
     Run,
 }
 
-/// The main options window's width in cells: `moveq #8, d1` before its
-/// `Battle_CreateWindow` (`ps4.asm:1904`), 9 for the mounted one
+/// The main options window's width in cells, the `d1` its window calls take:
+/// `moveq #8, d1` (`ps4.asm:1904`), and 9 for the mounted one
 /// (`ps4.asm:2027`).
 pub(crate) const fn top_width(vehicle: bool) -> u8 {
     if vehicle { 9 } else { 8 }
