@@ -138,7 +138,7 @@ TAPE_33 = {
 TAPE_34 = {
     "tape": "oracle/tapes/34_battle_enemy_attack.tape",
     "patches": [],
-    "frames": [25369, 25370, 25377],
+    "frames": [25370, 25371, 25378],
 }
 
 # Tape 35 is tape 28's input schedule with the ship's destination menu entered
@@ -280,17 +280,17 @@ PAIRS = [
      "build/certify/oracle/battle-windows/frame_25400.png",
      "7a6b67ab078e88db3ff9bbbe066a7e2e6070102ff352efc7fea039d16a66bcdc", TAPE_32),
     ("battle-attack-last-first-mapping", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
-                                          "PSIV_DEBUG_BATTLE_PHASE": "418"}, 138,
-     "build/certify/oracle/battle-attack/frame_25369.png",
-     "7bb465ee75929187bc7ddadeb3991de83e63c39fa56e5af7caad46f793336786", TAPE_34),
-    ("battle-attack-next-mapping", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
-                                    "PSIV_DEBUG_BATTLE_PHASE": "418"}, 139,
+                                          "PSIV_DEBUG_BATTLE_PHASE": "419"}, 138,
      "build/certify/oracle/battle-attack/frame_25370.png",
      "1a0dc03cd07f2971e151ee0674191e242a00166a560a091bd1beb244121001bd", TAPE_34),
+    ("battle-attack-next-mapping", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
+                                    "PSIV_DEBUG_BATTLE_PHASE": "419"}, 139,
+     "build/certify/oracle/battle-attack/frame_25371.png",
+     "c63ec731c1283def9d3a31cdd345e312443c412b45f5c275807631f2ddca6a79", TAPE_34),
     ("battle-attack-strike", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
-                             "PSIV_DEBUG_BATTLE_PHASE": "418"}, 146,
-     "build/certify/oracle/battle-attack/frame_25377.png",
-     "b6360398509836fbf11133a0690fa1ed3c0a62c6f2adf1f55f9d9fe69df1c749", TAPE_34),
+                             "PSIV_DEBUG_BATTLE_PHASE": "419"}, 146,
+     "build/certify/oracle/battle-attack/frame_25378.png",
+     "756579f187572b75b2c7167894ec20c5e3349b83216f713b58a6208e03a3e5b0", TAPE_34),
     # The ship's destination menu at the Mota Spaceport: the cursor hidden, the
     # marker blink and the clone's runtime clock aligned so the frame is the
     # oracle's frame 7293. The pair is the menu's own draw (the planetary map,

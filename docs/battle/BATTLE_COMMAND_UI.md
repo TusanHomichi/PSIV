@@ -215,8 +215,9 @@ the pack-independent `battle::attacks` tests.
 
 The retail order is `Battle_UpdateFighters`, followed by the objects' first
 run, which draws mapping zero (`GameMode_Battle`, `ps4.asm:947-966`). Tape 34
-shows Zoran attack sprites for sixteen frames, 25368-25383, with two frames per
-mapping. Its object's coordinates are relative to the fighter's centre
+shows Zoran attack sprites in the displayed VDP table for sixteen frames,
+25369-25384, with two frames per mapping. The RAM sprite buffer describes
+one frame ahead (25368-25383); capture comparisons use the displayed table. Its object's coordinates are relative to the fighter's centre
 (`loc_12618`), rather than the body's right edge. During the strike the first
 overlay piece is frozen at frame 2/timer 6; its VRAM replacement is also read
 by the attack mapping. `EnemyAttack_ZoranBult` writes line 2 colours 10-12,
