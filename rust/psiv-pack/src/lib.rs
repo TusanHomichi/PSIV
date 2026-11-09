@@ -135,6 +135,7 @@ pub const SECTIONS: &[Section] = &[
             "dialogue/portraits",
             "dialogue/portraits.json",
             "dialogue/scroll_arrow.png",
+            "dialogue/trees.json",
             "dialogue/window.json",
             "dialogue/window.png",
         ],
