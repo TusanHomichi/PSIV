@@ -25,6 +25,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from oracle import reload_frames
+from tests import scratch_git
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = ROOT / "rust/psiv-core/src/scenes/field_reload.rs"
@@ -166,8 +167,7 @@ class PatchBytesCase(unittest.TestCase):
         # already committed legacy patch that text=auto leaves alone.
         raw = b"--- a/probe.c\n+++ b/probe.c\n@@ -1 +1 @@\n-old\r\n+new\r\n"
         with tempfile.TemporaryDirectory() as scratch:
-            root = Path(scratch)
-            subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            root = scratch_git.init(scratch)
             (root / ".gitattributes").write_text(attributes)
             relative = "oracle/patches/probe.patch"
             (root / relative).parent.mkdir(parents=True)
