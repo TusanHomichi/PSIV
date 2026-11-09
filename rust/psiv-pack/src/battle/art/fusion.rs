@@ -258,4 +258,14 @@ mod tests {
         assert_eq!((pixels[0], pixels[7]), (0, 1));
         assert!(render(&tiles, &[at(0, 0, 0, 1, false)]).is_err());
     }
+
+    #[test]
+    fn a_vertically_flipped_sprite_reads_its_rows_bottom_up() {
+        let mut flipped = at(0, 0, 0b0001, 0, false);
+        flipped.v_flip = true;
+        // One column, two rows: tile 0 on top, tile 1 below, then flipped.
+        let (_, size, pixels) = render(&[tile(1), tile(2)], &[flipped]).unwrap();
+        assert_eq!(size, [8, 16]);
+        assert_eq!((pixels[15 * 8], pixels[7 * 8]), (1, 2));
+    }
 }
