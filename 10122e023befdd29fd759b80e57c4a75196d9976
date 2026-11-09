@@ -8,7 +8,7 @@
   "pr": 427,
   "url": "https://github.com/tusanhomichi/psiv/pull/427",
   "summary": "battle: own enemy attack ages in the runtime timeline",
-  "task": "TusanHomichi/PSIV#52",
+  "task": "tusanhomichi/psiv#52",
   "author": {
     "kind": "bot",
     "login": "fieldmouseworks-workers[bot]",
@@ -181,6 +181,18 @@
       "check": "gate",
       "result": "pass",
       "source": "https://github.com/TusanHomichi/PSIV/pull/427"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#427)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42577558286"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#427)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42577558286"
     }
   ]
 }
