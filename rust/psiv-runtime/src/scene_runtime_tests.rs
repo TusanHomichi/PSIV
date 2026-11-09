@@ -82,16 +82,22 @@ fn saved_sound_word_resets_at_start_and_follows_field_but_not_refresh_loads() {
     .unwrap();
     assert_eq!(runtime.saved_sound_index(), map_music, "field entry");
     runtime.saved_sound_index = 0x8D;
-    runtime
+    let refreshed = runtime
         .change_map_refresh(MapId(0), Cell::new(114, 177), Direction::Down, 0, 0)
         .unwrap();
     assert_eq!(runtime.saved_sound_index(), 0x8D, "RefreshMap keeps word");
+    assert_eq!(refreshed.music_change(), None, "RefreshMap raises no edge");
     runtime.map_load_flags |= crate::map_change::LOAD_FLAG_AFTER_BATTLE;
-    runtime
+    let after_battle = runtime
         .change_map(MapId(0), Cell::new(114, 177), Direction::Down)
         .unwrap();
     assert_eq!(runtime.saved_sound_index(), 0x8D, "battle keep bit");
-    runtime
+    assert_eq!(
+        after_battle.music_change(),
+        None,
+        "battle return raises no edge"
+    );
+    let field = runtime
         .change_map(MapId(0), Cell::new(114, 177), Direction::Down)
         .unwrap();
     assert_eq!(
@@ -99,4 +105,16 @@ fn saved_sound_word_resets_at_start_and_follows_field_but_not_refresh_loads() {
         map_music,
         "ordinary field load"
     );
+    assert_eq!(
+        field.music_change(),
+        Some(map_music),
+        "the write raises the edge"
+    );
+    // The same track again: the raw id equals the saved word, so no write
+    // and no edge (`$051800`'s `cmp.b`), and no replay of the track.
+    let again = runtime
+        .change_map(MapId(0), Cell::new(114, 177), Direction::Down)
+        .unwrap();
+    assert_eq!(again.music_change(), None, "raw id equal to the saved word");
+    assert_eq!(runtime.saved_sound_index(), map_music);
 }

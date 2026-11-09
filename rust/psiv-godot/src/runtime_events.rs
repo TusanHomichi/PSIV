@@ -47,10 +47,16 @@ impl Field {
                         layer.bind_mut().panel_destroy_all();
                     }
                     self.load_map_visuals();
+                    // The load's own music edge, decided by the runtime: a
+                    // new saved word is played, anything else leaves the
+                    // music already playing (`LoadedMap::music_change`).
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_print!("scene map reload retains scene music");
-                    } else if !self.restore_saved_music() {
-                        self.play_map_music();
+                    } else if let Some(id) = map.music_change() {
+                        // `Sound_StopAll`, a frame, then the word: a music
+                        // request stops everything before it installs.
+                        self.play_sound(id);
+                        godot_print!("map music change: {id:#04x}");
                     }
                     if matches!(trigger, WarpTrigger::MapChange) {
                         self.start_transition(TransitionKind::Doorway);
