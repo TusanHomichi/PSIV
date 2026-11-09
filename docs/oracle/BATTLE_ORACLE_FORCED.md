@@ -112,7 +112,7 @@ Three details the tool insists on, because each was found the hard way:
 ### 1.3 The policy
 
 `--party-script` gives per-round commands through the live cartridge menus.
-The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts),
+The format is in [battle capture guide](../../oracle/BATTLES.md#party-command-scripts),
 and what a scripted capture guarantees is
 [section 9](#9-party-command-scripts-what-a-capture-guarantees).
 The two existing `--policy` inputs below are unchanged.
@@ -135,8 +135,7 @@ surviving member at f25439, which is the same retail DEFEND clobber
 runs are byte-identical.
 
 `--delay N` inserts N idle frames between the field prefix and the policy. The
-encounter has already fired, so the formation stays forced, while every roll in
-the fight shifts (`Main_Frame_Count` advances and the seed evolves frame by
+encounter has already fired, so the formation stays forced, while the fight's rolls can shift (`Main_Frame_Count` advances and the seed evolves frame by
 frame): the knob for a battle whose enemy never rolls the ability a capture is
 for. The probe and the seed patch are re-derived for each delay, because the
 draw's frame moves with it. Formation `$5E` with `--delay 5` is the measurement: still two Helex, but the
@@ -146,6 +145,9 @@ seed patch is `$0006` rather than `$001C`; the fight's own rolls differ (trace
 f25003/f25125) and the battle ends at f25621 instead of f25616. None of the
 three captures needed it - every ability fired on the first delay tried - but
 the knob is measured rather than assumed.
+
+Event/script loading can absorb this delay without changing rolls; see the
+[delay limitation and longer-round alternative](../../oracle/BATTLES.md#forced-battles-capturing-any-formation-on-demand).
 
 The retarget rule's **mirror** loop (a single-target technique ordered at an
 enemy that falls before it resolves) is captured through a party command
@@ -253,7 +255,7 @@ The logs are pinned by sha256 above. A log's bytes change with its column set
 (a group gaining columns changes every later capture's log, not any pinned one),
 and the trace's do not. Neither depends on where the inputs sit: the host records
 `# rom=`, `# tape=` and `# rng-trace=` by file name
-([log format](../../oracle/README.md#log-format)), so a capture replayed from
+([log format](../../oracle/FORMATS.md#log-format)), so a capture replayed from
 another directory with the same patches and groups is byte-identical, log and
 trace.
 
@@ -572,7 +574,7 @@ these captures add is the option combination and the reason for it.
 
 | option | why |
 |---|---|
-| `--require-ability <id>` | the capture is only worth taking if the enemy *used* the ability, and the tool refuses the run otherwise. A roll is one of eight, so a series of `--delay` values is taken until one lands on it: `--delay` shifts every roll in the fight, and the attempts that miss are discarded (the reports that carry
+| `--require-ability <id>` | the capture is only worth taking if the enemy *used* the ability, and the tool refuses the run otherwise. A roll is one of eight, so a series of `--delay` values is taken until one lands on it: `--delay` can shift the fight's rolls, and the attempts that miss are discarded (the reports that carry
 `require_ability_met: false` are what says so while the series runs). |
 | `--max-rounds 1` (ZAN, FORCEFLASH, CORRSION) or `3` (FIREBREATH) | the cap is what keeps a fight's *other* actions inside abilities the port runs: 100 TechMaster's `$3E` GIRES and its `$46` SAR condition, 115 Greneris's `$28`/`$29`/`$2A`/`$2F`/`$57` and 106 Haunt's `$4C` EVIL EYE are none of these four, and one of them in a captured round is one fixture the replay cannot hold. FIREBREATH's carrier needs no cap for that (83 Ripper's list is five zeros and three `$21`) — its three rounds are the long capture. |
 | no `--durable` | the tape's own party fights and keeps its own HP, so nothing in the fixture is the capture's invention. The party is level 1-7 and every one of these formations wipes it, which is why all four captures are **defeats**: the enemies act first (their agility is higher) and the log holds their whole round. A `--durable` run is refused for these formations anyway — the probe draws the group's own entry, whose enemy count can differ from the forced one's by a frame of load, and the tool then reads the patch one frame late (`--durable wrote 999 to alys_hp at f24818, but the capture reads 53 at f24817`). |
@@ -649,7 +651,7 @@ number at all.
   TechMaster and Greneris. Section 6.4 adds 114 Juza himself, event battle 3,
   which no map's group reaches; [section 8](#8-forcing-an-event-battle---event)'s
   `--event` drives it. Those two captures show ZAN and FORCEFLASH, one round
-  each. The separate [event-boss recipe](../../oracle/README.md#early-event-bosses)
+  each. The separate [event-boss recipe](../../oracle/BATTLES.md#early-event-bosses)
   captures sixteen scripted defending rounds against Juza, including both
   abilities; its later-round evidence belongs to that fixture set.
 - **A win, or a round the party lives through.** Every capture here ends in the
@@ -761,7 +763,7 @@ The first captures: event 8 (the Chaos Sorcerer of the sabotage scene), event
 ## 9. Party command scripts: what a capture guarantees
 
 The format and menu rules have one owner:
-[oracle/README.md](../../oracle/README.md#party-command-scripts).
+[battle capture guide](../../oracle/BATTLES.md#party-command-scripts).
 `script.py` validates every written round against a hashed observation of the
 base tape's actual party, TP, learned lists and inventory. `script_menu.py`
 reads live cursor/list state and expands commands to joypad presses.

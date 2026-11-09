@@ -19,7 +19,7 @@ places an unrelated event at the same id and rejects duplicate battle objects.
 Definitions and signed equipment bonuses come from the ignored decoded pack;
 no new runtime ability table is copied into source.
 
-`oracle.sweep.player_capture` calls `oracle.force --party-script` for explicit
+`oracle.sweep.forced_cases` calls `oracle.force --party-script` for explicit
 cases. Party substitutions and resource/status fixtures are declared RAM
 patches; they are isolated battles, not an earned campaign route. Replay start
 records come from a hashed stock-host RAM dump, checked against live log cells.
