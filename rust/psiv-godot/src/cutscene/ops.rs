@@ -14,7 +14,7 @@ impl Field {
     /// Consume one presentation op in the exact event order the runtime
     /// emitted it. State-changing scene ops remain in the runtime; this only
     /// updates the shell's drawable/audio surfaces.
-    pub(crate) fn consume_scene_op(&mut self, op: SceneOp) {
+    pub(crate) fn consume_scene_op(&mut self, op: SceneOp, panel_dialogue_mode: bool) {
         self.presentation.op_count = self.presentation.op_count.saturating_add(1);
         // The tick prefix is what lets a debug capture be paired with an
         // oracle tape frame: the op log becomes a timeline, not just an order.
@@ -89,8 +89,9 @@ impl Field {
             SceneOp::PlaySound { id } => self.play_scene_sound(id),
             SceneOp::SetSavedMusic { id } => self.save_scene_music(id),
             SceneOp::SetRenderSpritesInCutscene { .. } => {
-                // The runtime owns the panel byte; the sprites follow it.
-                self.apply_scene_sprite_visibility();
+                // Apply the byte at this op, not the end of Session::frame.
+                let visible = self.presentation.scene_sprites_visible(panel_dialogue_mode);
+                self.apply_scene_sprite_visibility_value(visible);
             }
             SceneOp::WaitFrames { frames } => {
                 godot_print!("scene wait-frames: {frames}");
@@ -359,6 +360,10 @@ impl Field {
         let event = self.runtime().and_then(|rt| rt.scene_event());
         let panel = self.runtime().is_some_and(|rt| rt.panel_dialogue_mode());
         let visible = self.presentation.sprites_visible(event, panel);
+        self.apply_scene_sprite_visibility_value(visible);
+    }
+
+    fn apply_scene_sprite_visibility_value(&mut self, visible: bool) {
         if let Some(party) = self.party.as_mut() {
             party.set_visible(visible);
         }

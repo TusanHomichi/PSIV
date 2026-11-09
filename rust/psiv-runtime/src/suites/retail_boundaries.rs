@@ -88,7 +88,8 @@ fn raja_sick_transcription_reaches_the_retail_handoff() {
             RuntimeEvent::ScenePresentation {
                 op: SceneOp::Presentation {
                     op: psiv_core::PresentationOp::RajaSickArrangeParty { .. }
-                }
+                },
+                ..
             }
         )
     }));
@@ -109,7 +110,8 @@ fn rykros_transcription_reaches_the_tower_flag() {
         matches!(
             item,
             RuntimeEvent::ScenePresentation {
-                op: SceneOp::PanelCreate { id: 0x18F }
+                op: SceneOp::PanelCreate { id: 0x18F },
+                ..
             }
         )
     }));
@@ -119,7 +121,8 @@ fn rykros_transcription_reaches_the_tower_flag() {
             RuntimeEvent::ScenePresentation {
                 op: SceneOp::Presentation {
                     op: psiv_core::PresentationOp::RykrosPaletteCycle { .. }
-                }
+                },
+                ..
             }
         )
     }));

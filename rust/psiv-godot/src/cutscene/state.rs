@@ -75,7 +75,12 @@ impl PresentationState {
         scene_event: Option<psiv_core::EventIndex>,
         panel_mode: bool,
     ) -> bool {
-        scene_event.is_none() || (!panel_mode && !self.vram_blanked)
+        scene_event.is_none() || self.scene_sprites_visible(panel_mode)
+    }
+
+    /// Visibility while consuming a scene op, independent of the final frame state.
+    pub(crate) fn scene_sprites_visible(&self, panel_mode: bool) -> bool {
+        !panel_mode && !self.vram_blanked
     }
 
     pub(crate) fn set_vram_blanked(&mut self, blanked: bool) {

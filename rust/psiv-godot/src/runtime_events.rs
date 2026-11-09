@@ -92,7 +92,10 @@ impl Field {
                         self.start_transition(TransitionKind::SceneStart);
                     }
                 }
-                RuntimeEvent::ScenePresentation { op } => self.consume_scene_op(op),
+                RuntimeEvent::ScenePresentation {
+                    op,
+                    panel_dialogue_mode,
+                } => self.consume_scene_op(op, panel_dialogue_mode),
                 RuntimeEvent::SceneMusicRetained => self.presentation.retain_scene_music(),
                 RuntimeEvent::SceneEnded => {
                     godot_print!("scene ended");

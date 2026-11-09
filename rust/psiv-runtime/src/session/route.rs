@@ -99,12 +99,14 @@ impl Session {
                 // the session opens the window (`destination.rs`).
                 RuntimeEvent::ScenePresentation {
                     op: psiv_core::SceneOp::DestinationMenu { mask, .. },
+                    ..
                 } => {
                     self.open_destination(mask);
                     routed.push(Routed::DestinationMenu);
                 }
                 RuntimeEvent::ScenePresentation {
                     op: psiv_core::SceneOp::JobBoard(step),
+                    ..
                 } => self.job_board_step(step),
                 RuntimeEvent::SceneChoiceRequested => {
                     self.runtime.open_scene_choice();

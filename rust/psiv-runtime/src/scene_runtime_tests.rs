@@ -30,9 +30,11 @@ fn all_three_boarding_frames_skip_same_track_and_emit_both_writes_on_mismatch() 
                     match emitted {
                         RuntimeEvent::ScenePresentation {
                             op: SceneOp::PlaySound { id },
+                            ..
                         } => sound_writes.push(SceneOp::PlaySound { id }),
                         RuntimeEvent::ScenePresentation {
                             op: SceneOp::SetSavedMusic { id },
+                            ..
                         } => sound_writes.push(SceneOp::SetSavedMusic { id }),
                         RuntimeEvent::SceneMusicRetained => retained += 1,
                         _ => {}

@@ -60,7 +60,7 @@ fn scene_frame(rt: &mut Runtime) -> Vec<SceneOp> {
     checked_tick(rt, Input::Neutral)
         .into_iter()
         .filter_map(|event| match event {
-            RuntimeEvent::ScenePresentation { op } => Some(op),
+            RuntimeEvent::ScenePresentation { op, .. } => Some(op),
             _ => None,
         })
         .collect()
