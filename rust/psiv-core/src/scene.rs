@@ -782,13 +782,8 @@ pub enum SceneOp {
         /// The retail panel id.
         id: u16,
     },
-    /// Destroy one panel image (`Panel_Destroy`).
-    PanelDestroy {
-        /// The retail panel id.
-        id: u16,
-    },
-    /// Pop the most recently created panel (`Panel_Destroy` with no id in the
-    /// source). The allocator is stack based; the caller supplies no literal.
+    /// Pop the most recently created panel (`Panel_Destroy`, retail $06B168).
+    /// The allocator restores its backup stack; it takes no art-ID operand.
     PanelDestroyLast,
     /// Destroy every panel image currently staged by the scene.
     PanelDestroyAll,

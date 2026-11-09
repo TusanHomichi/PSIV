@@ -436,7 +436,7 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | Op | Retail primitive | Used by |
 |---|---|---|
 | `MoveActorToActor{who, target}` | copy a live object's position before `Event_MoveObjectStatic` | Tonoe basement door |
-| `PanelCreate{id}` / `PanelDestroy{id}` / `DmaPlanes` | `Panel_Create`, `Panel_Destroy`, `DMAPlanes_VInt` | Alshline |
+| `PanelCreate{id}` / `PanelDestroyLast` / `DmaPlanes` | `Panel_Create`, `Panel_Destroy`, `DMAPlanes_VInt` | Alshline |
 | `LoadArt{rom_addr, tile}` | `LoadVRAMAddressFromTileNumber` + `NemDecomp` | RuneFlaeli, Alshline |
 | `ObjectAnimation{slot, object_id, art_tile, frames}` | temporary field-object construction and keyframe loops | MeetingDorin, RuneFlaeli, Alshline, Saya |
 | `RemoveItem{item}` | `GetItem` + clear slot + `ReorderInventory` | Alshline |
@@ -459,7 +459,8 @@ by the new records rather than hidden in runtime-specific scene names.
 | `SetCharacterEquipment{who, slots}` | retail partial equipment write | Elsydeon |
 | `SavePartySlots` / `RestorePartySlots` | transient `Saved_Char_ID_Mem_1/_5` bridge | Before Elsydeon, Elsydeon, Anger Tower |
 
-`PanelCreate` and `PanelDestroy` carry the full retail panel word, not a byte;
+`PanelCreate` carries the full retail panel word, not a byte;
+`PanelDestroyLast` takes no operand and pops the allocator backup stack.
 Dezo panels such as `$10D`, `$13F` and `$18F` are the proof cases. The saved
 party bridge is deliberately absent from `StateSnapshot`; the native save
 carries it while it is pending (`$F026..$F02D`), because retail's work RAM is
