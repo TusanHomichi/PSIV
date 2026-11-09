@@ -48,6 +48,37 @@ except ImportError:  # pragma: no cover - invoked as tests.test_pack_*
     )
 
 
+def assert_files_have_categories(case, files, manifest):
+    """Every directory belongs to a manifest section; root files stand alone."""
+    categories = {
+        name for name, census in manifest.items()
+        if isinstance(census, (dict, list))
+    }
+    uncategorised = [
+        file for file in files
+        if len(file.parts) > 1 and file.parts[0] not in categories
+    ]
+    case.assertEqual(uncategorised, [], "files outside the manifest census")
+
+
+class TestManifestCategories(unittest.TestCase):
+    def test_a_new_manifest_section_counts_its_directory(self):
+        assert_files_have_categories(
+            self,
+            [Path(MANIFEST_NAME), Path("new_lane/index.json")],
+            {"new_lane": {"count": 1}},
+        )
+
+    def test_a_file_outside_every_census_entry_fails(self):
+        with self.assertRaisesRegex(AssertionError, "outside the manifest census"):
+            assert_files_have_categories(
+                self,
+                [Path(MANIFEST_NAME), Path("new_lane/index.json"),
+                 Path("undeclared/extra.json")],
+                {"new_lane": {"count": 1}},
+            )
+
+
 class TestImportSurface(unittest.TestCase):
     """`psiv_tools.pack` is one import, whatever the file layout underneath.
 
@@ -293,25 +324,8 @@ class TestManifest(PackFixtureCase):
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + patches + len(palette_images),
             )
-            # Whatever is left is top-level JSON, manifest included.
-            categorised = sum(
-                len(under(prefix))
-                for prefix in (
-                    "dialogue",
-                    "title",
-                    "battle",
-                    "sprites",
-                    "maps",
-                    "sound",
-                    "presentation",
-                    "shops",
-                    "ship_menu",
-                    "guild",
-                    "fifth",
-                )
-            )
+            assert_files_have_categories(self, first_files, self.manifest)
             top_level = [f for f in first_files if len(f.parts) == 1]
-            self.assertEqual(len(first_files), categorised + len(top_level))
             self.assertIn(Path(MANIFEST_NAME), top_level)
             for name in first_files:
                 with self.subTest(file=str(name)):
