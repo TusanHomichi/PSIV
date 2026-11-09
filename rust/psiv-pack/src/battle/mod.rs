@@ -52,11 +52,8 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         "battle/enemies.json",
         &enemies::build(data, &enemy_names)?,
     )?;
-    crate::write_json(
-        root,
-        "battle/enemy_animations.json",
-        &animations::build(data, &enemy_names)?,
-    )?;
+    let enemy_animations = animations::build(data, &enemy_names)?;
+    crate::write_json(root, "battle/enemy_animations.json", &enemy_animations)?;
     crate::write_json(
         root,
         "battle/abilities.json",
@@ -97,5 +94,5 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         "battle/characters.json",
         &characters::build(data, &init, &rules, &types, &items, &names, &seated)?,
     )?;
-    art::build(data, root)
+    art::build(data, root, &enemy_animations)
 }

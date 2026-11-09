@@ -135,6 +135,8 @@ pub const SECTIONS: &[Section] = &[
             "battle/art/damage_digits.json",
             "battle/art/enemies",
             "battle/art/enemies.json",
+            "battle/art/enemy_attacks",
+            "battle/art/enemy_attacks.json",
             "battle/art/enemy_overlays",
             "battle/art/enemy_overlays.json",
             "battle/art/fusion",
