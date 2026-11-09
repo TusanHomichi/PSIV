@@ -10,7 +10,7 @@ use crate::geom::Direction;
 use crate::scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
 };
-use crate::scene_presentation::{CameraSubject, PresentationOp};
+use crate::scene_presentation::CameraSubject;
 use crate::scene_runner::Scene;
 use crate::scene_runner::drift::{CoordCmp, NpcDrift};
 use crate::state::Flag;
