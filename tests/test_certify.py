@@ -31,7 +31,7 @@ from tools import certify
 from tools.heavy_lock import Hold
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "ending-elsydeon",
-       "title", "battle-0x88", "camp-root"]
+       "ending-elsydeon-tone", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
@@ -103,8 +103,9 @@ class PairTableCase(unittest.TestCase):
         # Only these are cropped; the others certify whole frames. The
         # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
-        self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message",
-                                   "teleport-close", "teleport-close-towns", "recovery-flash"])
+        self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", "teleport-towns",
+                                   "teleport-message", "teleport-close", "teleport-close-towns",
+                                   "recovery-flash"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

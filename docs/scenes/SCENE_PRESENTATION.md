@@ -45,10 +45,14 @@ camera other than (0,0):
 | pair | rmse | pairing |
 |---|---:|---|
 | `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t638 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
 panels one pixel down ([placement findings](#placement-findings), the surface origin).
+Every plateau of the break's tone matches inside that region, ticks 622-657
+against frames 8968-9003, four frames a step; the untoned frame scores
+`rmse=161.656685` against the peak, and the step before it `rmse=30.119675`.
 
 The recovery tile's flashes joined them on 2026-11-09
 ([#101](https://github.com/TusanHomichi/PSIV/issues/101)):
@@ -401,11 +405,13 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   palette is a `LoadSceneAsset` write the CRAM model does not take), scene
   temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **One oracle pair for the palette scenes:** `$99`'s held tone
-  (`anger-tower-barrier`); frames of Rykros's tone and cycle, the ending's
-  Elsydeon break mid-tone and the Zio barrier ramp against the oracle are still
+- **Three oracle pairs for the palette scenes:** `$99`'s held tone
+  (`anger-tower-barrier`), the ending's Elsydeon break
+  (`ending-elsydeon-tone`) and the recovery tile's flash (`recovery-flash`); frames of Rykros's tone and cycle and the Zio
+  barrier ramp against the oracle are still
   [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
-  [#68](https://github.com/TusanHomichi/PSIV/issues/68).
+  [#68](https://github.com/TusanHomichi/PSIV/issues/68). The Zio pair waits on
+  the barrier beams' sprites ([#471](https://github.com/TusanHomichi/PSIV/issues/471)).
 
 ## CRAM state
 
