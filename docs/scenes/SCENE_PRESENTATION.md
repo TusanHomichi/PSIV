@@ -54,6 +54,19 @@ Every plateau of the break's tone matches inside that region, ticks 622-657
 against frames 8968-9003, four frames a step; the untoned frame scores
 `rmse=161.656685` against the peak, and the step before it `rmse=30.119675`.
 
+The recovery tile's flashes joined them on 2026-11-09
+([#101](https://github.com/TusanHomichi/PSIV/issues/101)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `recovery-flash` | **0.000000** | clone t78 (`PSIV_DEBUG_EVENT=0x21`) ↔ tape-42 frame 7246: `Event_Recovery`'s second flash at its peak; region `1,72,319,152` (the map's wandering NPC above, and #409's first column) |
+
+Each step captured matches inside that region: the first flash's rise, peak
+and restore (ticks 30-58 against frames 7194-7226, the restore's first step
+not the brighten's mirror), the second's start and peak (62, 66, 78), and the
+untoned frame again after the third (142). The untoned frame scores `rmse=78.342520` against the
+peak, and the step before it `rmse=16.148053`.
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 
@@ -392,9 +405,9 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   palette is a `LoadSceneAsset` write the CRAM model does not take), scene
   temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **Two oracle pairs for the palette scenes:** `$99`'s held tone
-  (`anger-tower-barrier`) and the ending's Elsydeon break
-  (`ending-elsydeon-tone`); frames of Rykros's tone and cycle and the Zio
+- **Three oracle pairs for the palette scenes:** `$99`'s held tone
+  (`anger-tower-barrier`), the ending's Elsydeon break
+  (`ending-elsydeon-tone`) and the recovery tile's flash (`recovery-flash`); frames of Rykros's tone and cycle and the Zio
   barrier ramp against the oracle are still
   [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
   [#68](https://github.com/TusanHomichi/PSIV/issues/68). The Zio pair waits on
