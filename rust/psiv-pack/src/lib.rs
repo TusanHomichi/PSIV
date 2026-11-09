@@ -127,8 +127,12 @@ pub const SECTIONS: &[Section] = &[
         name: "battle",
         claims: &[
             "battle/abilities.json",
+            "battle/art/characters",
+            "battle/art/characters.json",
             "battle/art/command_ui.json",
             "battle/art/damage_digits.json",
+            "battle/art/enemies",
+            "battle/art/enemies.json",
             "battle/art/fusion",
             "battle/art/fusion.json",
             "battle/characters.json",

@@ -437,7 +437,6 @@ impl Runtime {
         let Some(destination) = self.pending_travel.take() else {
             return Ok(Vec::new());
         };
-        let music = self.saved_sound_index;
         let loaded = self.change_map_from(
             MapId(destination.map),
             destination.cell,
@@ -445,7 +444,7 @@ impl Runtime {
             destination.previous_map,
         )?;
         // The load's music branch costs a frame when it writes a new word.
-        let music_written = self.saved_sound_index != music;
+        let music_written = loaded.music_change().is_some();
         let reload_frames = psiv_core::field_reload_rows(loaded.id().0, music_written)
             .unwrap_or(TELEPORT_FADE_IN_FRAMES);
         Ok(vec![

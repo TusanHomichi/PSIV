@@ -432,6 +432,7 @@ impl Runtime {
                         psiv_core::PresentationOp::RebuildSprites,
                     ] {
                         events.push(RuntimeEvent::ScenePresentation {
+                            panel_dialogue_mode: self.panel_dialogue_mode(),
                             op: SceneOp::Presentation { op },
                         });
                     }
@@ -571,7 +572,10 @@ impl Runtime {
                             self.saved_sound_index = id;
                             for chosen in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }]
                             {
-                                events.push(RuntimeEvent::ScenePresentation { op: chosen });
+                                events.push(RuntimeEvent::ScenePresentation {
+                                    panel_dialogue_mode: self.panel_dialogue_mode(),
+                                    op: chosen,
+                                });
                             }
                         }
                         events.push(RuntimeEvent::SceneMusicRetained);
@@ -666,7 +670,10 @@ impl Runtime {
                     }
                     _ => {}
                 }
-                events.push(RuntimeEvent::ScenePresentation { op });
+                events.push(RuntimeEvent::ScenePresentation {
+                    panel_dialogue_mode: self.panel_dialogue_mode(),
+                    op,
+                });
             }
             SceneEffect::GameCleared => {
                 self.game_cleared = true;

@@ -497,6 +497,7 @@ impl Driver {
             match event {
                 RuntimeEvent::ScenePresentation {
                     op: psiv_core::SceneOp::WaitForStart,
+                    ..
                 } => {
                     self.note(format!("{event:?}"));
                     continue;

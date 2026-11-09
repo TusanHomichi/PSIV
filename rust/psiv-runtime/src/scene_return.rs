@@ -84,6 +84,7 @@ impl Runtime {
         let loaded = setup + fade;
         let window = self.place_name_applies();
         events.push(RuntimeEvent::ScenePresentation {
+            panel_dialogue_mode: self.panel_dialogue_mode(),
             op: SceneOp::Presentation {
                 op: PresentationOp::FieldReload { setup, fade },
             },
@@ -123,6 +124,7 @@ impl Runtime {
         } = *tail;
         if window_at == Some(elapsed) {
             events.push(RuntimeEvent::ScenePresentation {
+                panel_dialogue_mode: self.panel_dialogue_mode(),
                 op: SceneOp::Presentation {
                     op: PresentationOp::PlaceNameWindow,
                 },

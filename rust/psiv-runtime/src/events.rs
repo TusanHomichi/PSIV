@@ -311,6 +311,8 @@ pub enum RuntimeEvent {
     ScenePresentation {
         /// The scene operation to apply in order.
         op: SceneOp,
+        /// Panel layout at this operation, before later dialogue/frame changes.
+        panel_dialogue_mode: bool,
     },
     /// The scene interpreter rejected an op. A fault is never a successful
     /// scene completion; the shell can surface the exact actor/jump/write

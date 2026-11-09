@@ -203,6 +203,7 @@ fn alarm_blocks_for_eight_stages_in_each_direction_before_dialogue() {
                                 psiv_core::PresentationOp::FadeToRed { .. }
                                 | psiv_core::PresentationOp::FadeFromRed { .. },
                         },
+                    ..
                 } => fade_ticks.push(tick),
                 RuntimeEvent::SceneDialogue { .. } => {
                     dialogue_tick = Some(tick);
