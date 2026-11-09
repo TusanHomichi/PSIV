@@ -175,6 +175,95 @@ class CompareCase(unittest.TestCase):
         self.assertEqual(self.problems(), ["sec/b.bin: psiv-pack wrote a symbolic link"])
 
 
+class ManifestCase(unittest.TestCase):
+    """`manifest.json` records PNG byte totals, which another deflate changes:
+    each must sum its own pack's PNGs, and every other byte must match."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="psiv-pack-parity-")
+        root = Path(self.tmp.name)
+        self.rust, self.python = root / "rust", root / "python"
+        image = encode_indexed(4, 2, bytes([0, 1, 1, 0, 1, 0, 0, 1]), PALETTE, [0])
+        self.sizes = {}
+        for pack, level in ((self.rust, 0), (self.python, 9)):
+            for _, directory in pack_parity.PNG_TOTALS:
+                (pack / directory).mkdir(parents=True, exist_ok=True)
+                (pack / directory / "a.png").write_bytes(recompressed(image, level))
+            self.sizes[pack] = len(recompressed(image, level))
+        self.write(self.rust)
+        self.write(self.python)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def document(self, pack, **changes):
+        sprites = len(list((pack / "sprites").rglob("*.png"))) * self.sizes[pack]
+        document = {
+            "battle": {"art": {"files": {
+                name: {"png_bytes": self.sizes[pack], "count": 1}
+                for name in ("backgrounds", "characters", "enemies", "enemy_attacks",
+                             "enemy_overlays", "fusion")}}},
+            "dialogue": {"portraits": {"bytes": self.sizes[pack], "count": 1}},
+            "sprites": {"bytes": sprites, "npc_sheet_count": 2},
+            "rom": {"size_bytes": 3},
+        }
+        for path, value in changes.items():
+            node = document
+            *keys, last = path.split("__")
+            for key in keys:
+                node = node[key]
+            node[last] = value
+        return document
+
+    def write(self, pack, **changes):
+        text = json.dumps(self.document(pack, **changes), indent=2, sort_keys=True) + "\n"
+        (pack / "manifest.json").write_text(text, encoding="utf-8")
+
+    def claims(self):
+        return ["manifest.json", *(directory for _, directory in pack_parity.PNG_TOTALS)]
+
+    def problems(self):
+        return compare(self.rust, self.python, self.claims())[0]
+
+    def test_totals_from_another_deflate_match(self):
+        self.assertNotEqual(self.sizes[self.rust], self.sizes[self.python])
+        self.assertEqual(compare(self.rust, self.python, self.claims()),
+                         ([], 1 + len(pack_parity.PNG_TOTALS)))
+
+    def test_a_total_that_is_not_its_packs_png_bytes_fails(self):
+        for pack, name in ((self.rust, "psiv-pack"), (self.python, "Python")):
+            with self.subTest(name):
+                self.write(pack, sprites__bytes=self.sizes[pack] + 1)
+                problems = self.problems()
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn(f"{name}'s sprites.bytes", problems[0])
+                self.write(pack)
+
+    def test_another_value_fails(self):
+        self.write(self.rust, sprites__npc_sheet_count=3)
+        self.assertTrue(self.problems()[0].startswith("manifest.json: bytes differ"))
+
+    def test_a_count_beside_a_total_fails(self):
+        self.write(self.rust, dialogue__portraits__count=2)
+        self.assertTrue(self.problems()[0].startswith("manifest.json: bytes differ"))
+
+    def test_formatting_fails(self):
+        path = self.rust / "manifest.json"
+        path.write_text(path.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8")
+        self.assertTrue(self.problems()[0].startswith("manifest.json: bytes differ"))
+
+    def test_a_missing_total_fails(self):
+        document = self.document(self.rust)
+        del document["sprites"]["bytes"]
+        (self.rust / "manifest.json").write_text(
+            json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        self.assertIn("psiv-pack's sprites.bytes is None", self.problems()[0])
+
+    def test_unreadable_manifest_fails(self):
+        (self.rust / "manifest.json").write_text("{", encoding="utf-8")
+        self.assertTrue(self.problems()[0].startswith("manifest.json: not JSON"))
+
+
 class NoClaimsCase(unittest.TestCase):
     """With nothing claimed the Python build is skipped, not the output check."""
 

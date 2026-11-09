@@ -15,7 +15,10 @@ release and checks it against the Python builder from the same ROM:
    the ROM, and each file under a claimed path must be in both packs, with
    byte-identical bytes, or for a PNG the same `image_sha256` (its decoded
    content: zlib implementations deflate alike rows differently,
-   `psiv_tools/png.py`). A claim the Python pack lacks fails, and so does a
+   `psiv_tools/png.py`). `manifest.json` is the one JSON file that records
+   PNG sizes (`PNG_TOTALS`): each builder's totals must equal the PNGs in its
+   own pack, and the Python manifest with psiv-pack's totals in their place
+   must be byte-identical to psiv-pack's. A claim the Python pack lacks fails, and so does a
    file `psiv-pack` writes outside its claims. A claim names a file, a
    directory, or with a `*` the matching files directly in a directory. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
@@ -257,6 +260,58 @@ def check_output(rust_root: Path, claims: list[str]) -> list[str]:
     return problems
 
 
+#: The manifest's PNG byte totals, by key path, each with the directory whose
+#: PNGs it sums. Deflate output differs between encoders, so each total is
+#: held to its own pack's files rather than to the other builder's number.
+PNG_TOTALS = (
+    *((("battle", "art", "files", name, "png_bytes"), f"battle/art/{name}")
+      for name in ("backgrounds", "characters", "enemies", "enemy_attacks",
+                   "enemy_overlays", "fusion")),
+    (("dialogue", "portraits", "bytes"), "dialogue/portraits"),
+    (("sprites", "bytes"), "sprites"),
+)
+
+
+def _png_bytes(root: Path, directory: str) -> int:
+    return sum(path.stat().st_size for path in (root / directory).rglob("*.png")
+               if path.is_file() and not path.is_symlink())
+
+
+def _compare_manifest(rust_root: Path, python_root: Path, ours: bytes,
+                      theirs: bytes) -> list[str]:
+    """`manifest.json`: every value byte for byte but the PNG totals, which
+    must each sum their own pack's files."""
+    try:
+        documents = {"psiv-pack": json.loads(ours), "Python": json.loads(theirs)}
+    except ValueError as error:
+        return [f"manifest.json: not JSON ({error})"]
+    problems = []
+    for keys, directory in PNG_TOTALS:
+        for (name, document), root in zip(documents.items(), (rust_root, python_root)):
+            value = functools.reduce(
+                lambda node, key: node.get(key) if isinstance(node, dict) else None,
+                keys, document)
+            actual = _png_bytes(root, directory)
+            if value != actual:
+                problems.append(f"manifest.json: {name}'s {'.'.join(keys)} is {value}, but "
+                                f"its {directory} PNGs hold {actual} bytes")
+    if problems:
+        return problems
+    expected = documents["Python"]
+    for keys, _ in PNG_TOTALS:
+        node, rust_node = expected, documents["psiv-pack"]
+        for key in keys[:-1]:
+            node, rust_node = node[key], rust_node[key]
+        node[keys[-1]] = rust_node[keys[-1]]
+    text = (json.dumps(expected, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if text != ours:
+        offset = next((i for i, (a, b) in enumerate(zip(ours, text)) if a != b),
+                      min(len(ours), len(text)))
+        problems.append(f"manifest.json: bytes differ from offset {offset} "
+                        f"({len(ours)} bytes against {len(text)}, PNG totals aside)")
+    return problems
+
+
 def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list[str], int]:
     """The differences between the two packs under `claims`, and how many
     claimed files matched. Empty problems is parity."""
@@ -280,7 +335,12 @@ def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list
         if rust[relative].is_symlink():
             continue
         ours, theirs = rust[relative].read_bytes(), python[relative].read_bytes()
-        if relative.endswith(".png"):
+        if relative == "manifest.json":
+            found = _compare_manifest(rust_root, python_root, ours, theirs)
+            if found:
+                problems.extend(found)
+                continue
+        elif relative.endswith(".png"):
             try:
                 same = image_sha256(ours) == image_sha256(theirs)
             except ValueError as error:

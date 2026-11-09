@@ -226,7 +226,8 @@ fn counter<'a>(
 }
 
 /// The whole file and the portraits beside it, under `root`.
-pub fn build(rom: &Rom, root: &Path, maps: &[ShopMap]) -> Result<(), PackError> {
+/// Returns `emit_shops`' manifest fragment.
+pub fn build(rom: &Rom, root: &Path, maps: &[ShopMap]) -> Result<Json, PackError> {
     let data = rom.bytes();
     let flow = read_flow(rom)?;
     let lists = tables::inventories(data)?;
@@ -326,7 +327,25 @@ pub fn build(rom: &Rom, root: &Path, maps: &[ShopMap]) -> Result<(), PackError> 
                 .collect::<Vec<_>>(),
         );
     overlay(&mut out, &research);
-    crate::write_json(root, FILE, &out).map(drop)
+    let sha = crate::write_json(root, FILE, &out)?;
+    let prices = out.at(&["rules", "prices"])?;
+    Ok(Json::object()
+        .with("file", FILE)
+        .with("sha256", sha)
+        .with("counters", out.at(&["counter_count"])?.clone())
+        .with("inventories", out.at(&["inventory_count"])?.clone())
+        .with("inns", out.at(&["inn_count"])?.clone())
+        .with(
+            "prices",
+            Json::object()
+                .with("offset", prices.at(&["price_offset"])?.clone())
+                .with("sell_divisor", prices.at(&["sell", "divisor"])?.clone())
+                .with(
+                    "unlimited_stock",
+                    prices.at(&["stock", "unlimited"])?.clone(),
+                ),
+        )
+        .with("census", out.at(&["census"])?.clone()))
 }
 
 /// One `RunText` line in the dialogue charset, up to its `$FF`.

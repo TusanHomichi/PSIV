@@ -315,7 +315,9 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. A ported extractor that no claimed section writes yet is a probe:
+claims. `manifest.json` records PNG byte totals, which differ between deflate
+implementations, so each builder's totals must equal its own pack's PNGs and
+every other byte must match (`PNG_TOTALS` in the tool). A ported extractor that no claimed section writes yet is a probe:
 `examples/probe.rs` prints its records as one JSON document, `PROBES` in the
 tool builds the same from the Python extractors, and the two must be the same
 text. It also decodes every Nemesis, Kosinski and Enigma call a full

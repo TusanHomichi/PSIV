@@ -11,12 +11,13 @@ use std::sync::{Mutex, PoisonError};
 
 use sha2::{Digest, Sha256};
 
-use super::draw::{priority_overlay, render_layout};
+use super::draw::{PriorityCounts, priority_overlay, render_layout};
 use super::effects::{MapEffects, extract_map_effects, field, int, text};
 use super::file::map_file;
 use super::layouts::{
     Layout, MapLayout, Plane, decode_collision, map_palette_rgb, unloaded_patterns,
 };
+use super::manifest::{self, MapPart};
 use super::overworld::{MapSection, decode_map_section};
 use super::patches::{
     PatchCounts, atlas_json, index_overworld_patches, index_writes, patch_atlas,
@@ -181,6 +182,14 @@ pub struct Pictures {
     pub patch_tiles: Option<Json>,
     /// `map_update_images`, when an update needs palette-index renders.
     pub update_images: Option<Vec<(String, String)>>,
+    /// The above-sprites layer's counts, and whether it has a file.
+    pub priority: PriorityCounts,
+    pub has_overlay: bool,
+    /// The chunks a write or scene patch changes; whether a patch atlas was
+    /// built, and whether it has an above-sprites half.
+    pub patched_chunks: usize,
+    pub atlas: bool,
+    pub atlas_over: bool,
 }
 
 /// `bind_updates`: only programs that rewrite CRAM need palette-index renders.
@@ -219,7 +228,7 @@ pub fn map_pictures(
         &decoded.patterns,
         &palette,
     )?;
-    let (overlay, _) = priority_overlay(decoded, &palette)?;
+    let (overlay, priority) = priority_overlay(decoded, &palette)?;
     let mut files = vec![(format!("maps/{stem}.png"), image)];
     let has_overlay = overlay.is_some();
     if let Some(overlay) = overlay {
@@ -259,7 +268,9 @@ pub fn map_pictures(
     let scene_chunks = scene_patch_chunks(rom, record)?;
     let patched: BTreeSet<u8> = written.iter().chain(&scene_chunks).copied().collect();
     let mut patch_tiles = None;
-    if !patched.is_empty() || !composite_pairs.is_empty() {
+    let atlas = !patched.is_empty() || !composite_pairs.is_empty();
+    let mut atlas_over = false;
+    if atlas {
         let (base, over, tiles) = patch_atlas(decoded, &patched, &palette, &composite_pairs)?;
         index_writes(&mut map_effects, &tiles)?;
         index_overworld_patches(&mut overworld_patches, &tiles)?;
@@ -275,6 +286,7 @@ pub fn map_pictures(
             over.as_deref(),
         )?);
         files.push((base_name, base));
+        atlas_over = over.is_some();
         if let (Some(name), Some(image)) = (over_name, over) {
             files.push((name, image));
         }
@@ -305,6 +317,11 @@ pub fn map_pictures(
         variants,
         patch_tiles,
         update_images,
+        priority,
+        has_overlay,
+        patched_chunks: patched.len(),
+        atlas,
+        atlas_over,
     })
 }
 
@@ -330,12 +347,12 @@ pub fn map_inputs(rom: &[u8], decodes: &Decodes) -> Result<MapInputs, PackError>
 /// The section: sheets in map order, then every real map, on one thread per
 /// core. A failure stops further maps from starting and is returned once the
 /// running ones end.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
     let data = rom.bytes();
     let decodes = Decodes::new(data);
     let inputs = map_inputs(data, &decodes)?;
     let field = field_sprites(data, &decodes, &inputs)?;
-    write_sprites(data, &decodes, root, &field)?;
+    let written = write_sprites(data, &decodes, root, &field)?;
     let records: Vec<(&MapRecord, &MapSprites)> = inputs.maps.real().zip(&field.maps).collect();
     let next = AtomicUsize::new(0);
     let stop = AtomicBool::new(false);
@@ -375,8 +392,22 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let mut shop_maps = shop_maps
         .into_inner()
         .unwrap_or_else(PoisonError::into_inner);
-    shop_maps.sort_by_key(|map| map.id);
-    crate::shops::build(rom, root, &shop_maps)
+    shop_maps.sort_by_key(|(map, _)| map.id);
+    let (shop_maps, parts): (Vec<ShopMap>, Vec<MapPart>) = shop_maps.into_iter().unzip();
+    let shops = crate::shops::build(rom, root, &shop_maps)?;
+    manifest::fragment(
+        data,
+        root,
+        parts,
+        manifest::Inputs {
+            maps: &inputs.maps,
+            field: &field,
+            sprites: written,
+            effects_census: &inputs.effects.census,
+            updates_census: &inputs.updates.census,
+            shops,
+        },
+    )
 }
 
 /// One map's pictures and file; what the shops need from it.
@@ -387,7 +418,7 @@ fn write_map(
     record: &MapRecord,
     sprites: &MapSprites,
     inputs: &MapInputs,
-) -> Result<ShopMap, PackError> {
+) -> Result<(ShopMap, MapPart), PackError> {
     let section = decode_map_section(data, decodes, record)?;
     let pictures = map_pictures(
         data,
@@ -406,13 +437,17 @@ fn write_map(
         .per_map
         .get(&record.id)
         .map_or(&[][..], Vec::as_slice);
-    let (file, _anomalies, typed) = map_file(data, record, &section, &pictures, sprites, programs)?;
-    crate::write_json(root, &format!("maps/{}.json", map_stem(record)), &file)?;
-    Ok(ShopMap {
-        id: typed.id.0,
-        npcs: typed.npcs,
-        collision: typed.collision.grid,
-    })
+    let (file, anomalies, typed) = map_file(data, record, &section, &pictures, sprites, programs)?;
+    let sha = crate::write_json(root, &format!("maps/{}.json", map_stem(record)), &file)?;
+    let part = manifest::map_part(record, &section, &pictures, &file, sha, anomalies)?;
+    Ok((
+        ShopMap {
+            id: typed.id.0,
+            npcs: typed.npcs,
+            collision: typed.collision.grid,
+        },
+        part,
+    ))
 }
 
 #[cfg(test)]

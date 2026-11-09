@@ -443,9 +443,16 @@ fn write_typed(
 }
 
 /// Write `sound/` under `root`: the raw files, the three record files and
-/// the index that lists them all.
-pub fn emit(rom: &[u8], map_music_ids: &[u8], root: &Path) -> Result<(), PackError> {
+/// the index that lists them all. Returns the manifest's sound fragment.
+pub fn emit(rom: &[u8], map_music_ids: &[u8], root: &Path) -> Result<crate::json::Json, PackError> {
+    use crate::json::Json;
     let extracted = extract(rom, map_music_ids)?;
+    let census = serde_json::to_value(&extracted.census)
+        .map_err(|e| error(format!("cannot serialize the sound census: {e}")))?;
+    let census = Json::from(&census);
+    let music_records = extracted.music.records.records.len();
+    let regular_records = extracted.sfx.records.regular.records.len();
+    let special_records = extracted.sfx.records.special.records.len();
     let mut files = Vec::new();
     for (relative, data) in &extracted.raw_files.0 {
         let file = format!("{SOUND_DIRECTORY}/{relative}");
@@ -477,12 +484,53 @@ pub fn emit(rom: &[u8], map_music_ids: &[u8], root: &Path) -> Result<(), PackErr
     files.extend([driver, music, sfx]);
     files.sort_by(|a, b| a.file.cmp(&b.file));
     let index = IndexFile { files, ..index };
-    write_typed(root, "sound/index.json", &index)?;
-    Ok(())
+    let written = write_typed(root, "sound/index.json", &index)?;
+    let mut files = index.files;
+    files.push(written.clone());
+    files.sort_by(|a, b| a.file.cmp(&b.file));
+    let listed = serde_json::to_value(&files)
+        .map_err(|e| error(format!("cannot serialize the sound files: {e}")))?;
+    let fragment = Json::object()
+        .with("directory", SOUND_DIRECTORY)
+        .with("index", "sound/index.json")
+        .with("index_sha256", written.sha256)
+        .with(
+            "driver",
+            Json::object()
+                .with("file", index.driver.file.as_str())
+                .with("sha256", index.driver.sha256.as_str()),
+        )
+        .with(
+            "music",
+            Json::object()
+                .with("file", index.music.file.as_str())
+                .with("sha256", index.music.sha256.as_str())
+                .with("records", music_records),
+        )
+        .with(
+            "sfx",
+            Json::object()
+                .with("file", index.sfx.file.as_str())
+                .with("sha256", index.sfx.sha256.as_str())
+                .with("regular_records", regular_records)
+                .with("special_records", special_records),
+        )
+        .with("track_count", census.at(&["track_count"])?.clone())
+        .with(
+            "command_vocabulary_size",
+            census.at(&["command_vocabulary_size"])?.clone(),
+        )
+        .with(
+            "command_opcodes_seen",
+            census.at(&["command_opcodes_seen"])?.clone(),
+        )
+        .with("unresolved", census.at(&["unresolved"])?.clone())
+        .with("files", Json::from(&listed));
+    Ok(Json::object().with("sound", fragment))
 }
 
 /// The section: every field map's music id, then `sound/`.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
     let decodes = crate::decode::Decodes::new(rom.bytes());
     let maps = crate::maps::extract_maps(rom.bytes(), &decodes)?;
     let ids: Vec<u8> = maps.real().map(|record| record.music_id).collect();

@@ -5,7 +5,9 @@ use std::io::Write as _;
 use std::path::Path;
 use std::process::ExitCode;
 
-use psiv_pack::{PackError, Rom, SECTIONS, build_sections, claims, default_workers, install};
+use psiv_pack::{
+    PackError, Rom, SECTIONS, build_sections, claims, default_workers, install, write_manifest,
+};
 
 const USAGE: &str = "usage: psiv-pack <rom> <pack> | psiv-pack --claims";
 
@@ -30,6 +32,7 @@ fn run(args: &[String]) -> Result<(), PackError> {
                         let _ = out.flush();
                     },
                 )
+                .and_then(|parts| write_manifest(&rom, root, parts))
             })?;
             for warning in installed.warnings {
                 eprintln!("psiv-pack: warning: {warning}");

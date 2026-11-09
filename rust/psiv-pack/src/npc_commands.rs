@@ -19,7 +19,8 @@ const FIXED_POINT: i32 = 256;
 const FACING_UNCHANGED: u8 = 0xFF;
 const COLLISION_CELL_PIXELS: u8 = 16;
 /// `PACK_FORMAT_VERSION`.
-const FORMAT_VERSION: u32 = 2;
+const FORMAT_VERSION: u32 = crate::PACK_FORMAT_VERSION;
+const NAME: &str = "npc_commands.json";
 
 fn refuse<T>(message: String) -> Result<T, PackError> {
     Err(PackError(message))
@@ -393,10 +394,45 @@ pub fn extract_npc_commands(rom: &[u8]) -> Result<Json, PackError> {
 }
 
 /// The section.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let mut file = Json::object().with("format_version", FORMAT_VERSION);
     crate::json::overlay(&mut file, &extract_npc_commands(rom.bytes())?);
-    crate::write_json(root, "npc_commands.json", &file).map(drop)
+    let sha = crate::write_json(root, NAME, &file)?;
+    Ok(Json::object().with("npc_commands", headline(&file, sha)?))
+}
+
+/// The manifest's headline of the table: the counts and each speed's
+/// frames per cell.
+fn headline(file: &Json, sha256: String) -> Result<Json, PackError> {
+    let missing = |what: &str| PackError(format!("npc_commands.json has no {what}"));
+    let speeds = match file.get("speeds") {
+        Some(Json::Array(speeds)) => speeds,
+        _ => return Err(missing("speeds")),
+    };
+    let first_frames = speeds
+        .iter()
+        .map(|speed| match speed.get("frames_per_cell") {
+            Some(Json::Array(frames)) => frames.first().cloned().ok_or_else(|| missing("frames")),
+            _ => Err(missing("frames_per_cell")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json::object()
+        .with("file", NAME)
+        .with("sha256", sha256)
+        .with(
+            "command_count",
+            file.get("command_count")
+                .cloned()
+                .ok_or_else(|| missing("command_count"))?,
+        )
+        .with(
+            "speed_count",
+            file.get("dispatch")
+                .and_then(|d| d.get("speed_count"))
+                .cloned()
+                .ok_or_else(|| missing("dispatch.speed_count"))?,
+        )
+        .with("frames_per_cell", Json::Array(first_frames)))
 }
 
 #[cfg(test)]

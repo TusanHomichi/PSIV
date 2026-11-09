@@ -731,7 +731,12 @@ fn interaction() -> Json {
 }
 
 /// `dialogue/trees.json`.
-pub fn write(rom: &[u8], root: &std::path::Path, scroll_arrow: &Json) -> Result<(), PackError> {
+/// Returns the document and its digest.
+pub fn write(
+    rom: &[u8],
+    root: &std::path::Path,
+    scroll_arrow: &Json,
+) -> Result<(Json, String), PackError> {
     let decodes = Decodes::new(rom);
     let (trees, total, region) = trees(rom, &decodes)?;
     let mut controls = Json::object();
@@ -757,7 +762,18 @@ pub fn write(rom: &[u8], root: &std::path::Path, scroll_arrow: &Json) -> Result<
         .with("world_interaction", selection(rom, &decodes)?)
         .with("portraits", "dialogue/portraits.json")
         .with("trees", trees);
-    crate::write_json(root, "dialogue/trees.json", &payload).map(drop)
+    let sha = crate::write_json(root, "dialogue/trees.json", &payload)?;
+    Ok((payload, sha))
+}
+
+/// The control codes `CTRL_NAMES` names.
+pub fn control_codes() -> Vec<u8> {
+    CONTROLS.iter().map(|(code, _, _)| *code).collect()
+}
+
+/// The text window record the tree file and the manifest carry.
+pub fn window_record(scroll_arrow: &Json) -> Json {
+    window(scroll_arrow)
 }
 
 #[cfg(test)]
