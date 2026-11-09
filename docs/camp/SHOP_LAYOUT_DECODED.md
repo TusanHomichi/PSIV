@@ -27,7 +27,7 @@ party stands one cell below the keeper and faces up. This matters: the table is
 bound to the keeper's object position, not to the `$C` collision tile in front
 of it.
 
-The exploratory route tape `oracle/tapes/24_piata_route_probe.tape` is retained
+The exploratory route tape `oracle/tapes/41_piata_route_probe.tape` is retained
 as negative evidence. The offline route planner/navigator stopped on live
 object state; it is not used as the authoritative shop route.
 
