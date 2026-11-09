@@ -79,9 +79,30 @@ initializer, the ship's destination menu and Sabotage's copy of it, and five
 scenes. `Runtime::set_world_index` cites each one it makes,
 `rust/psiv-runtime/tests/world_index_writes.rs` holds that list to the disassembly, and the
 whole-route runner test checks the world and map of every chapter that lands
-on a new planet. Still open: general map-entry follower alignment
-([#127](https://github.com/TusanHomichi/PSIV/issues/127)); and the ITEM and
-TECH paths' own windows, which the teleport's teardown closes
+on a new planet.
+
+A warp lines the followers up as the cartridge does (#127). Its record's
+byte 9 (`Map_Start_Char_Align`, written at `ps4.asm:112568`) picks one of
+`loc_53642`'s five entries (0 none, 4 down, 8 up, `$C` left, `$10` right),
+and `loc_535D4` (`ps4.asm:110848-110885`) gives each member behind the
+leader a destination one cell along it, which the members walk during the
+load. On tape 06, with two members patched into slots three and four before
+the Academy's stairs to map `$14` (byte 4), the four stand in one column a
+cell apart below the leader when control returns; the stairs back (byte 0)
+stack them. The pack's warps carry the byte (`character_alignment`: 691 of
+0, 234 of 4, 4 of 8, one of `$10`); the bridge decodes it into
+`Warp::alignment` and `Party::line_up` places the followers on the load.
+A saved game's load (`ps4.asm:110816`), the loader's map redirects
+(`111759-111796`) and a town teleport (`124182`) write 0, and HINAS takes its
+exit table's byte (`129039`), 0 for all 34 exits; those loads keep the stack. The tests are
+`a_warps_alignment_lines_the_followers_up_behind_the_leader`
+(`rust/psiv-core/tests/party.rs`) and
+`a_warps_alignment_lines_the_party_up_on_arrival`
+(`rust/psiv-runtime/src/field_entry_tests.rs`). No capture pair compares it
+yet: no native fixture walks a party through a warp.
+
+Still open: the ITEM and TECH paths' own windows, which the teleport's
+teardown closes
 ([#403](https://github.com/TusanHomichi/PSIV/issues/403),
 [below](#teleport-windows-and-effect)).
 
