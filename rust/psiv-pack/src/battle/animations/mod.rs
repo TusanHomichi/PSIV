@@ -10,7 +10,7 @@
 //! directly and then reads it back as `psiv_data::EnemyAnimationsFile`, the
 //! type the game loads, before it is written.
 
-mod mapping;
+pub(super) mod mapping;
 mod movement;
 mod objects;
 mod receipts;

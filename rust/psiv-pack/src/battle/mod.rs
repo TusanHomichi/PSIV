@@ -1,11 +1,12 @@
 //! `battle/`: the port of `psiv_tools/battle_pack.py`, which owns the reasons
 //! for each file's shape (#216, slice 6). This slice writes the enemies, the
 //! formations, the level tables, the abilities, the characters with their
-//! STATUS portraits, the equipment and the enemy animations; the battle art
-//! follows.
+//! STATUS portraits, the equipment, the enemy animations and the first of the
+//! battle art; the rest of `battle/art/` follows.
 
 mod abilities;
 mod animations;
+mod art;
 mod characters;
 mod enemies;
 mod equipment;
@@ -40,7 +41,7 @@ fn serialize<T: serde::Serialize>(value: &T, what: &str) -> Result<Json, PackErr
 /// `battle/enemies.json`, `battle/formations.json`, `battle/levels.json`,
 /// `battle/abilities.json`, `battle/characters.json` with
 /// `battle/status_portraits/`, `battle/equipment.json` and
-/// `battle/enemy_animations.json`.
+/// `battle/enemy_animations.json`, and [`art`]'s part of `battle/art/`.
 pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let data = rom.bytes();
     let decodes = Decodes::new(data);
@@ -95,6 +96,6 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         root,
         "battle/characters.json",
         &characters::build(data, &init, &rules, &types, &items, &names, &seated)?,
-    )
-    .map(drop)
+    )?;
+    art::build(data, root)
 }

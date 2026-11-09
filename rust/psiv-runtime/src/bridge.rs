@@ -51,6 +51,22 @@ impl fmt::Display for BridgeError {
 
 impl std::error::Error for BridgeError {}
 
+/// A warp record's character alignment byte as the direction the followers
+/// line up in: `loc_535D4` jumps into `loc_53642`'s five-entry table by it
+/// (`ps4.asm:110886-110918`): 0 none, 4 down, 8 up, `$C` left, `$10` right.
+fn warp_alignment(map: u16, warp: u32, byte: u8) -> Result<Option<Direction>, BridgeError> {
+    match byte {
+        0 => Ok(None),
+        4 => Ok(Some(Direction::Down)),
+        8 => Ok(Some(Direction::Up)),
+        12 => Ok(Some(Direction::Left)),
+        16 => Ok(Some(Direction::Right)),
+        _ => Err(BridgeError::Rejected(format!(
+            "map {map:#05x} warp {warp}: alignment byte {byte:#04x} is not one of 0/4/8/$C/$10"
+        ))),
+    }
+}
+
 fn cell_u16(x: u32, y: u32, what: &str) -> Result<Cell, BridgeError> {
     let x = u16::try_from(x).map_err(|_| BridgeError::OutOfRange(format!("{what} x={x}")))?;
     let y = u16::try_from(y).map_err(|_| BridgeError::OutOfRange(format!("{what} y={y}")))?;
@@ -267,6 +283,7 @@ pub(super) fn field_map_retaining_objects(
                 "warp destination",
             )?,
             facing,
+            alignment: warp_alignment(record.id.0, warp.index, warp.character_alignment)?,
         });
     }
 

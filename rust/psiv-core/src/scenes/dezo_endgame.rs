@@ -5,7 +5,7 @@
 //! tower flags, the transient party-slot bridge, Elsydeon, Reunion and the
 //! Profound Darkness battle handoff.
 
-use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, cutscene3, retained};
+use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{PaletteHold, PresentationOp};
@@ -18,7 +18,6 @@ const LEADER: ActorRef = ActorRef::PartyMember(0);
 const MUSIC_TOWER: u8 = 0x9A;
 const MUSIC_TAKE_OFF_LANDALE: u8 = 0x9B;
 const MUSIC_MACHINE_CENTER: u8 = 0x89;
-const MUSIC_THE_AGE_OF_FABLES: u8 = 0xA1;
 const MUSIC_BLACK_BLOOD: u8 = 0xA8;
 const MUSIC_MYSTERY: u8 = 0xAB;
 /// `MusicID_RyucrossField` (`ps4.constants.asm:933`).
@@ -30,12 +29,7 @@ const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_DOOR_OPENED: u8 = 0xE2;
 const SFX_STAIRS: u8 = 0xDF;
 const SFX_TELEPORT: u8 = 0xDE;
-/// `SFXID_Deban` (`ps4.constants.asm:1016`). `Cutscene_Elsydeon` plays it
-/// under `if revision>0` (`ps4.asm:157483`), between the `$31` dialogue's
-/// wait and the `$12B` panel.
-const SFX_DEBAN: u8 = 0xDC;
 
-const ITEM_ELSYDEON: u8 = 0x77;
 const ITEM_MAHLAY_DAGGER: u8 = 0x71;
 const ITEM_MAHLAY_SHIELD: u8 = 0x88;
 const ITEM_MAHLAY_RING: u8 = 0xA0;
@@ -377,78 +371,6 @@ pub static BEFORE_ELSYDEON_CAVE: Scene = Scene {
             start_x: 0x3C,
             start_y: 0x32,
             facing: Direction::Up,
-            align: 0,
-            clear_load_flags: 0x08,
-        },
-        SceneOp::Return { value: 0 },
-    ],
-};
-
-/// `$801E`, `Cutscene_Elsydeon`, `$078584..$078A7B`.
-pub static ELSYDEON: Scene = Scene {
-    name: "Cutscene_Elsydeon",
-    event: EventIndex(0x801E),
-    ops: &[
-        SceneOp::InitVramAndCram,
-        SceneOp::FadeIn,
-        SceneOp::PanelCreate { id: 0x129 },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 160 },
-        // `$0785B2`: `jsr Event_GetAndRunDialogue3`.
-        cutscene3(0x31),
-        SceneOp::WaitFrames { frames: 120 },
-        SceneOp::PlaySound { id: SFX_DEBAN },
-        SceneOp::PanelCreate { id: 0x12B },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 30 },
-        SceneOp::PanelCreate { id: 0x12C },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 120 },
-        SceneOp::PlaySound {
-            id: MUSIC_THE_AGE_OF_FABLES,
-        },
-        SceneOp::PanelDestroyAll,
-        SceneOp::DmaPlanes,
-        SceneOp::PanelCreate { id: 0x12E },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 20 },
-        SceneOp::RunDialogueResume,
-        SceneOp::PanelCreate { id: 0x12F },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 240 },
-        SceneOp::PanelDestroyAll,
-        SceneOp::DmaPlanes,
-        SceneOp::PanelCreate { id: 0x130 },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 20 },
-        SceneOp::RunDialogueResume,
-        SceneOp::PanelDestroyAll,
-        SceneOp::DmaPlanes,
-        SceneOp::InitVramAndCram,
-        SceneOp::Wait { ticks: 60 },
-        SceneOp::FadeIn,
-        SceneOp::PanelCreate { id: 0x139 },
-        SceneOp::DmaPlanes,
-        SceneOp::PanelCreate { id: 0x13A },
-        SceneOp::DmaPlanes,
-        SceneOp::PanelCreate { id: 0x13B },
-        SceneOp::DmaPlanes,
-        cutscene(0x32),
-        SceneOp::SetFlag {
-            flag: Flag::event(0xD9),
-            value: true,
-        },
-        SceneOp::SetCharacterEquipment {
-            who: CHAZ,
-            slots: [Some(ITEM_ELSYDEON), Some(0), None, None],
-        },
-        SceneOp::RestorePartySlots,
-        SceneOp::LoadMap {
-            map: 0x16F,
-            prev_map: 0xFFFF,
-            start_x: 0x3C,
-            start_y: 0x32,
-            facing: Direction::Down,
             align: 0,
             clear_load_flags: 0x08,
         },

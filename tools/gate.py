@@ -364,8 +364,8 @@ def gate_lock(lock_file, wait=False):
     """Hold `lock_file` exclusively for the run.
 
     When someone else holds it: refuse (GateRefused), or with `wait` print a
-    line naming the holder and block until it is free, saying how long it has
-    waited and on whom every `WAIT_REPORT_S` (heavy_lock's `wait_reporting`).
+    pending notice and block until it is free. Completed background observations
+    report elapsed time and holder details every `WAIT_REPORT_S` (`wait_reporting`).
     """
     lock_file = Path(lock_file)
     lock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -374,17 +374,16 @@ def gate_lock(lock_file, wait=False):
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
-            # Named from fdinfo, reading /proc/locks only for a holder it
-            # can't see (another user's): that read takes seconds while the
-            # machine holds tens of thousands of locks (#383, #387).
-            holders = ", ".join(str(pid) for pid in lock_holders(lock_file, read=WHEN_UNSEEN)) \
-                or "unknown"
             if not wait:
+                holders = ", ".join(str(pid) for pid in lock_holders(lock_file, read=WHEN_UNSEEN)) \
+                    or "unknown"
                 raise GateRefused(
                     f"gate refuses to start: another gate (pid {holders}) holds {lock_file} "
                     f"({exc.strerror or exc}); heavy runs are serialized one at a time"
                 ) from exc
-            print(f"gate: waiting for {lock_file} held by pid {holders}", flush=True)
+            # Holder discovery belongs to wait_reporting's advisory snapshot,
+            # so the kernel waiter starts even while /proc is unresponsive.
+            print(f"gate: waiting for {lock_file}; holder diagnostics pending", flush=True)
             os.close(handle)
             handle = None
             handle = wait_reporting(lock_file, fcntl.LOCK_EX, sys.stdout,

@@ -125,6 +125,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
   and [#421](https://github.com/TusanHomichi/PSIV/issues/421) own the remaining
   windup, freeze-release and target displacement/restoration work.
 
+- **`Cutscene_Elsydeon`'s two inline pages close at the button (#414).** The
+  scene reopens its saved text twice through its own window code (`popdlg`,
+  `Window_Create`, `RunText`, a button wait at `$078740` and `$07892A`) and
+  leaves each window on screen until the next `Window_Destroy`, a few panels
+  and up to 400 frames later. The port runs them through the
+  `Event_GetAndRunDialogue3` window, which closes when the page is
+  dismissed; the scene's dialogue windows are not modelled apart from their
+  routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the

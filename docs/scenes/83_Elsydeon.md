@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$1E]`; scene `$801E`.
 - **Trigger:** the Elsydeon cave interaction after `$801D`; Reunion `$DA` is
   still clear.
-- **Data:** `dezo_endgame.rs`, `ELSYDEON` (47 ops).
+- **Data:** `elsydeon.rs`, `ELSYDEON` (114 ops).
 
 ## Clone audit
 
@@ -15,11 +15,19 @@ is excluded. ROM range: `$078584..$078A7C` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-19 | `$078584..$0786D8` | panels `$129/$12B/$12C/$12E/$12F/$130`, waits, Age of Fables and the revision>0 `SFXID_Deban` at `$157483` | panel/sound/dialogue |
-| 20-36 | `$0786D9..$0789A4` | panels `$139/$13A/$13B`, dialogue `$32`, palette/map presentation | presentation/dialogue |
-| 37-41 | `$0789A5..$078A5D` | set Elsydeon `$D9`; put Elsydeon `$77` in Chaz equipment | flag/equipment |
-| 42-46 | `$078A5E..$078A7B` | restore saved party slots; load Inner Sanctuary B1; return | transient party/map |
+| 0-15 | `$078584..$078604` | fresh screen, panel `$129`, 160 frames; sprites on and dialogue `$31` through `Event_GetAndRunDialogue3` (`$0785B2`); 120 frames, the revision>0 `SFXID_Deban`; panels `$12B` and `$12C` with 30 and 120 frames; `MusicID_TheAgeOfFables` | panel/dialogue/sound |
+| 16-29 | `loc_78608..$078698` | forty frames of `Pal_IncreaseTone`; four `Panel_Destroy`; panel `$12D`; line 4 saved to `Palette_2_Line_4` and filled white (`loc_78652`); 60 frames; forty of `loc_58666` (`loc_7866A`); 60 frames | `PaletteIncreaseTone`, `PanelDestroyLast`, `PaletteCopy`, `PaletteRestoreTone` |
+| 30-49 | `$07869C..$078760` | panel `$12E`, 20 frames, the `Event_RunDialogue3` resume (`$0786AC`); 30 frames, panel `$12F`, 240 frames; the whole buffer saved and filled white (`loc_786F2`), two `Panel_Destroy`, forty restore frames (`loc_7870C`), 60 frames; panel `$130`, 20 frames; the first inline page (`popdlg` at `$078740`) | panel/palette/dialogue |
+| 50-77 | `loc_7878A..$0788AE` | 30 frames, panel `$131`, 50 frames, panel `$132`, 240 frames; buffer saved and filled white (`loc_787E4`), three `Panel_Destroy`, the windows' teardown; forty restore frames (`loc_7882E`), 60 frames; panels `$18C`, `$133`, `$134`, `$135`, 160 frames each | panel/palette |
+| 78-96 | `loc_788B2..$078996` | forty tone frames, five `Panel_Destroy`, panel `$136`; lines 0 and 1 saved and filled white (`loc_78902`); 120 frames; forty restore frames (`loc_7891A`); the second inline page (`popdlg` at `$07892A`); map update 60; forty tone frames (`loc_7897E`); `Panel_DestroyAll` | palette/panel/dialogue |
+| 97-108 | `$0789AE..$078A23` | fresh screen, map update 60, fade in; panels `$139`, `$13A`, `$13B` with 120 and 160 frames; dialogue `$32` through `Event_GetAndRunDialogue5` (`$078A1E`) | panel/dialogue |
+| 109-113 | `$078A24..$078A7B` | set Elsydeon `$D9`; Elsydeon `$77` in Chaz's hand; restore the saved party slots; load Inner Sanctuary B1; return | flag/equipment/party/map |
 
+The two inline pages run in the scene's own window code (`Window_Create`,
+`RunText`, a button wait) and the cartridge leaves each window up until the
+next `Window_Destroy` (`$078810`, `$0789A2`). The port draws them through the
+`Event_GetAndRunDialogue3` window, which closes at the button
+([source notes](../source-notes/README.md#other-recorded-deviations)).
 
 ## Revision-conditional ops
 

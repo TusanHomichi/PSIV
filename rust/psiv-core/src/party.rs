@@ -167,12 +167,8 @@ impl Party {
     /// tile with `Map_Start_Facing_Dir` (`ps4.asm:110862-110865`). The party
     /// unspools again as the leader walks.
     ///
-    /// One detail is deliberately not modelled: the fresh-load path also queues
-    /// each follower a one-cell nudge chosen by `Map_Start_Char_Align`
-    /// (`ps4.asm:110871`, offsets `±$10` from `loc_53656`), the little
-    /// spread-out-from-the-doorway shuffle. It needs a per-map alignment byte
-    /// the engine is not given, it is cosmetic, and it resolves within one
-    /// step of walking. Filed rather than guessed.
+    /// A warp's load then lines the followers up behind the leader
+    /// ([`Party::line_up`]).
     ///
     /// # Errors
     ///
@@ -192,6 +188,31 @@ impl Party {
             follower.walk = Walk::Trail;
         }
         Ok(())
+    }
+
+    /// Lines the followers up behind the leader, one cell apart in `toward`,
+    /// each at rest and facing the leader's way: a warp's load
+    /// (`loc_535D4`, `ps4.asm:110848-110885`). Every member is placed on the
+    /// start cell, and each gives the member behind it a destination one cell
+    /// along `Map_Start_Char_Align` (`loc_53642`'s table: 0 none, 4 down,
+    /// 8 up, 12 left, 16 right). They walk it during the load, so on tape 06
+    /// (members patched into slots three and four before the door into map
+    /// `$14`, whose warp aligns down) the four stand at pixel rows 304, 320,
+    /// 336 and 352 in one column by the load's end, before control. The cells
+    /// follow the map's topology: on a globe the line crosses the seam, and at
+    /// a bounded map's edge a member keeps the cell of the one ahead.
+    pub fn line_up(&mut self, map: &FieldMap, toward: Direction) {
+        let mut ahead = self.leader.cell();
+        let facing = self.leader.facing();
+        for follower in &mut self.followers {
+            let cell = map.neighbor(ahead, toward).unwrap_or(ahead);
+            follower.cell = cell;
+            follower.facing = facing;
+            follower.step = None;
+            follower.dest = cell;
+            follower.walk = Walk::Trail;
+            ahead = cell;
+        }
     }
 
     /// Advances the whole party one tick.

@@ -205,7 +205,8 @@ class SharedLockCase(unittest.TestCase):
             stop(holder)
             thread.join(timeout=TIMEOUT)
         self.assertFalse(thread.is_alive())
-        self.assertIn(f"waiting for {lock_file} held by pid {holder.pid}", output.getvalue())
+        self.assertIn(f"gate: waiting for {lock_file}; holder diagnostics pending",
+                      output.getvalue())
         self.assertEqual(outcome["receipt"]["exit_code"], 0)
         self.assertTrue(marker.exists())
 
@@ -261,7 +262,7 @@ class AcquireCase(unittest.TestCase):
                                  text=True, env=self.env)
         self.addCleanup(stop, child)
         waiting = child.stderr.readline()
-        self.assertIn(f"waiting for {self.lock} held by pid {holder.pid}", waiting)
+        self.assertIn(f"waiting for {self.lock}; holder diagnostics pending", waiting)
         time.sleep(0.5)
         self.assertIsNone(child.poll(), "the acquire must wait for an unrelated holder")
         stop(holder)
@@ -362,6 +363,11 @@ class LockProcesses(unittest.TestCase):
         process.first_line = read_until(process.stderr, "\n")
         return process
 
+    def assert_pending_holder(self, waiter, holder, lock_class):
+        self.assertIn("holder diagnostics pending", waiter.first_line)
+        self.assertIn((holder.pid, lock_class), heavy_lock_module.lock_modes(
+            self.lock, read=heavy_lock_module.flock_holders.NEVER))
+
     @staticmethod
     def release(process):
         process.stdin.close()
@@ -407,7 +413,7 @@ class QueueCase(LockProcesses):
         """Holder, then waiter `first`, then waiter `second`; release; the grant order."""
         holder = self.holder()
         first = self.waiter("first")
-        self.assertIn(f"held by pid {holder.pid} (exclusive)", first.first_line)
+        self.assert_pending_holder(first, holder, "exclusive")
         second = self.waiter("second", *second_flags, env=second_env)
         self.assertEqual(self.granted(), [], "a holder is never preempted")
         self.release(holder)
@@ -442,7 +448,7 @@ class QueueCase(LockProcesses):
         self.assertIn("0 waiter(s) ahead", second.first_line)
         # The earlier waiter reprints when a priority waiter queues ahead of it.
         line = read_until(first.stderr, "1 waiter(s) ahead, 1 of them priority")
-        self.assertIn(f"held by pid {holder.pid}", line.splitlines()[-1])
+        self.assertIn("holder diagnostics pending", line.splitlines()[-1])
         self.release(holder)
         self.finish(first, second)
 
@@ -450,7 +456,7 @@ class QueueCase(LockProcesses):
         cap = {GODOT_SLOTS_ENV: "2"}
         one, two = self.holder("godot", cap), self.holder("godot", cap)  # both at once
         third = self.waiter("third", "--class", "godot", env=cap)
-        self.assertIn(f"{one.pid} (godot)", third.first_line)
+        self.assert_pending_holder(third, one, "godot")
         exclusive = self.waiter("exclusive", env=cap)
         self.release(one)
         self.assertEqual(third.wait(timeout=TIMEOUT), 0)
@@ -466,7 +472,7 @@ class QueueCase(LockProcesses):
     def test_an_exclusive_holder_excludes_godot_runs(self):
         holder = self.holder()
         godot = self.waiter("godot", "--class", "godot")
-        self.assertIn(f"held by pid {holder.pid} (exclusive)", godot.first_line)
+        self.assert_pending_holder(godot, holder, "exclusive")
         self.assertEqual(self.granted(), [])
         self.release(holder)
         self.assertEqual(self.finish(godot), ["godot"])

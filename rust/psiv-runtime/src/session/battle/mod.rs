@@ -164,6 +164,9 @@ pub(crate) struct BattleMode {
     command_open: bool,
     /// The COMD / MACR / RUN cursor (`Battle_Main_Option_Index`).
     cursor: usize,
+    /// The main options window opening or closing, while it is; the choice
+    /// it closed on happens when it is gone.
+    top_phase: Option<menu::window_phase::Phase<menu::TopChoice>>,
     /// The sub-window that is open, if any.
     window: Option<Window>,
     /// Set once the epilogue has run: the presentation closes when idle.
@@ -213,6 +216,7 @@ impl BattleMode {
             blink: blink::CursorBlink::default(),
             command_open: false,
             cursor: 0,
+            top_phase: None,
             window: None,
             close_when_idle: false,
             close_ready: false,
@@ -294,7 +298,8 @@ impl BattleMode {
         // they run: the main options, the lists and the mounted skills. The
         // strip and the target pickers move a sprite instead.
         let ticks = match &self.window {
-            None | Some(Window::VehicleSkills(_)) => true,
+            None => self.top_phase.is_none(),
+            Some(Window::VehicleSkills(_)) => true,
             Some(Window::Commands(commands)) => commands.red_cursor_window(),
         };
         if ticks {
@@ -325,6 +330,10 @@ impl BattleMode {
             };
             if keep {
                 self.window = Some(window);
+            } else if orders.is_none() {
+                // Back to the main options (`Battle_PreviousChar` from the
+                // first member, `loc_1806`): they grow open again.
+                self.top_phase = Some(menu::window_phase::Phase::grow());
             }
             if orders.is_some() {
                 self.command_open = false;
@@ -332,14 +341,36 @@ impl BattleMode {
             return orders;
         }
         let vehicle = runtime.vehicle_active();
-        match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
+        let full = menu::top_width(vehicle);
+        let choice = match self.top_phase.as_mut().map(|phase| phase.step(full)) {
+            None => match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
+                menu::TopChoice::Nothing => return None,
+                // The window closes before the choice happens
+                // (`Battle_DestroyWindow`, `ps4.asm:1950`).
+                choice => {
+                    self.top_phase = Some(menu::window_phase::Phase::shrink(full, choice));
+                    return None;
+                }
+            },
+            Some(menu::window_phase::Step::Running) => return None,
+            Some(menu::window_phase::Step::Whole) => {
+                self.top_phase = None;
+                return None;
+            }
+            Some(menu::window_phase::Step::Gone(choice)) => {
+                self.top_phase = None;
+                choice
+            }
+        };
+        match choice {
             menu::TopChoice::Nothing => None,
             menu::TopChoice::Commands => {
-                let commands = menu::CommandsMenu::with_command_bytes(
+                let mut commands = menu::CommandsMenu::with_command_bytes(
                     runtime,
                     self.command_bytes,
                     self.cursor_memory,
                 );
+                commands.delay_first_growth();
                 if let Some(orders) = commands.no_actor_orders() {
                     self.command_open = false;
                     Some(orders)
@@ -493,6 +524,10 @@ impl BattleMode {
                     // the whole command table before it.
                     self.command_bytes = [0; 5];
                     self.cursor_memory.end_round();
+                }
+                if !self.command_open {
+                    // `Battle_OpenMainOptions` grows the window open.
+                    self.top_phase = Some(menu::window_phase::Phase::grow());
                 }
                 self.command_open = true;
                 self.message.clear();

@@ -55,16 +55,23 @@ pub struct FieldLoad {
     pub facing: Direction,
     /// `Field_Map_Index_2`: the map the party left.
     pub previous_map: u16,
+    /// `Map_Start_Char_Align`: the direction a warp lines the followers up
+    /// in ([`psiv_core::Party::line_up`]).
+    pub alignment: Option<Direction>,
 }
 
 impl FieldLoad {
-    /// The load a start word pair and a facing code name.
+    /// The load a start word pair and a facing code name. A redirect that
+    /// writes one also writes 0 to `Map_Start_Char_Align`
+    /// (`ps4.asm:111759`, `:111769`, `:111785`, `:111796`), so the party
+    /// arrives stacked.
     fn start(map: u16, (x, y): (u16, u16), facing: Direction, previous_map: u16) -> FieldLoad {
         FieldLoad {
             map: MapId(map),
             cell: crate::start_cell(x, y),
             facing,
             previous_map,
+            alignment: None,
         }
     }
 }
@@ -144,6 +151,8 @@ mod tests {
             cell: Cell::new(7, 8),
             facing: Direction::Up,
             previous_map,
+            // An aligned warp: a redirect that rewrites the start clears it.
+            alignment: Some(Direction::Down),
         }
     }
 
@@ -176,7 +185,10 @@ mod tests {
         let before = load(RESHEL_1, 0);
         let second = adjust_field_load(&with(&[DARK_FORCE_2]), before);
         assert_eq!(second.map, MapId(RESHEL_1 + 1));
-        assert_eq!((second.cell, second.facing), (before.cell, before.facing));
+        assert_eq!(
+            (second.cell, second.facing, second.alignment),
+            (before.cell, before.facing, before.alignment)
+        );
         // Dark Force 3 defeated wins, and `bra.s` skips the Dark Force 2 test.
         let third = adjust_field_load(&with(&[DARK_FORCE_2, DARK_FORCE_3_DEFEATED]), before);
         assert_eq!(third.map, MapId(RESHEL_1 + 2));
@@ -196,6 +208,7 @@ mod tests {
                 cell: Cell::new(30, 35),
                 facing: Direction::Left,
                 previous_map: DEZOLIS,
+                alignment: None,
             }
         );
         let out = adjust_field_load(&game, load(GUMBIOUS_B1, GUMBIOUS_B2));
@@ -206,6 +219,7 @@ mod tests {
                 cell: Cell::new(125, 70),
                 facing: Direction::Down,
                 previous_map: GUMBIOUS_B2,
+                alignment: None,
             }
         );
         // B1 from anywhere else is left alone (the temple's own stairs).
@@ -226,6 +240,11 @@ mod tests {
             (out.map, out.cell, out.facing),
             (MapId(MOTAVIA), Cell::new(56, 95), Direction::Down)
         );
+        assert_eq!(
+            (in_.alignment, out.alignment),
+            (None, None),
+            "both rewrite the start and clear the alignment"
+        );
         let elsewhere = load(ZIO_FORT, 0x83);
         assert_eq!(adjust_field_load(&game, elsewhere), elsewhere);
     }
@@ -235,6 +254,10 @@ mod tests {
         let before = load(MILE, 0);
         let after = adjust_field_load(&with(&[REUNION]), before);
         assert_eq!(after.map, MapId(MILE_DEAD));
-        assert_eq!((after.cell, after.facing), (before.cell, before.facing));
+        assert_eq!(
+            (after.cell, after.facing, after.alignment),
+            (before.cell, before.facing, before.alignment),
+            "a map-only substitution keeps the warp's start, alignment included"
+        );
     }
 }
