@@ -1,0 +1,131 @@
+Our optional instruction-boundary PC/master-cycle trace for the pinned
+Genesis Plus GX core. No game-specific addresses or modeled-cycle changes.
+The host configures watched PCs and drains the bounded records every frame.
+All core source context/additions retain the upstream CRLF line endings.
+Exports use psiv_*, already enabled by 0001-rng-hv-trace.patch in link.T.
+Upstream: https://github.com/libretro/Genesis-Plus-GX (gpgx-src/LICENSE.txt).
+
+--- a/core/m68k/m68kcpu.c
++++ b/core/m68k/m68kcpu.c
+@@ -30,6 +30,102 @@
+ static int irq_latency;
+ 
+ m68ki_cpu_core m68k;
++
++/* PSIV oracle addition: optional instruction-boundary timing observations.
++ * This records the current PC before opcode fetch and the existing master-
++ * cycle counter. It never changes modeled CPU, VDP or memory state. Disabled
++ * tracing costs only a host branch; watches contain no game-specific PCs.
++ * system_frame_gen() rebases m68k.cycles once per frame, so the host must
++ * pair this raw counter with the frame in which it drains the records.
++ */
++#define PSIV_PC_TRACE_CAPACITY (1 << 16)
++#define PSIV_PC_TRACE_MAX_WATCHES 64
++
++struct psiv_pc_trace_record
++{
++  unsigned int pc;
++  unsigned int cycles;
++};
++
++static struct psiv_pc_trace_record psiv_pc_trace_buffer[PSIV_PC_TRACE_CAPACITY];
++static unsigned int psiv_pc_trace_watches[PSIV_PC_TRACE_MAX_WATCHES];
++static unsigned int psiv_pc_trace_watch_count;
++static unsigned int psiv_pc_trace_records;
++static unsigned int psiv_pc_trace_dropped_records;
++static int psiv_pc_trace_on;
++
++/* Configuration is metadata only; success is zero, invalid input is -1. */
++int psiv_pc_trace_configure(const unsigned int *pcs, unsigned int count)
++{
++  unsigned int i, j;
++  if (!pcs || !count || count > PSIV_PC_TRACE_MAX_WATCHES)
++    return -1;
++  for (i = 0; i < count; i++)
++  {
++    if (pcs[i] > 0xffffff || (pcs[i] & 1))
++      return -1;
++    for (j = 0; j < i; j++)
++      if (pcs[j] == pcs[i])
++        return -1;
++  }
++  for (i = 0; i < count; i++)
++    psiv_pc_trace_watches[i] = pcs[i];
++  psiv_pc_trace_watch_count = count;
++  return 0;
++}
++
++void psiv_pc_trace_enable(int on)
++{
++  psiv_pc_trace_on = on ? 1 : 0;
++}
++
++void psiv_pc_trace_reset(void)
++{
++  psiv_pc_trace_records = 0;
++  psiv_pc_trace_dropped_records = 0;
++}
++
++unsigned int psiv_pc_trace_count(void)
++{
++  return psiv_pc_trace_records;
++}
++
++unsigned int psiv_pc_trace_dropped(void)
++{
++  return psiv_pc_trace_dropped_records;
++}
++
++int psiv_pc_trace_get(unsigned int index, unsigned int *pc, unsigned int *cycles)
++{
++  if (index >= psiv_pc_trace_records)
++    return 0;
++  if (pc)
++    *pc = psiv_pc_trace_buffer[index].pc;
++  if (cycles)
++    *cycles = psiv_pc_trace_buffer[index].cycles;
++  return 1;
++}
++
++static void psiv_pc_trace_instruction(void)
++{
++  unsigned int i;
++  unsigned int pc = REG_PC & 0xffffff;
++  for (i = 0; i < psiv_pc_trace_watch_count; i++)
++  {
++    if (pc == psiv_pc_trace_watches[i])
++    {
++      if (psiv_pc_trace_records < PSIV_PC_TRACE_CAPACITY)
++      {
++        psiv_pc_trace_buffer[psiv_pc_trace_records].pc = pc;
++        psiv_pc_trace_buffer[psiv_pc_trace_records].cycles = m68k.cycles;
++        psiv_pc_trace_records++;
++      }
++      else if (psiv_pc_trace_dropped_records != ~0u)
++        psiv_pc_trace_dropped_records++;
++      return;
++    }
++  }
++}
+ 
+ 
+ /* ======================================================================== */
+@@ -236,6 +332,8 @@
+       irq_latency = 1;
+       m68ki_trace_t1() /* auto-disable (see m68kcpu.h) */
+       m68ki_use_data_space() /* auto-disable (see m68kcpu.h) */
++      if (psiv_pc_trace_on)
++        psiv_pc_trace_instruction();
+       REG_IR = m68ki_read_imm_16();
+       m68ki_instruction_jump_table[REG_IR]();
+       m68ki_exception_if_trace() /* auto-disable (see m68kcpu.h) */
+@@ -295,6 +393,9 @@
+     if (UNLIKELY(cpu_hook))
+       cpu_hook(HOOK_M68K_E, 0, REG_PC, 0);
+ #endif
++
++    if (psiv_pc_trace_on)
++      psiv_pc_trace_instruction();
+ 
+     /* Decode next instruction */
+     REG_IR = m68ki_read_imm_16();

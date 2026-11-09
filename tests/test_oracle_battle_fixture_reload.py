@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -154,6 +155,52 @@ class MethodCase(unittest.TestCase):
                 if (attempt / "stdout.log").read_bytes() == b"host output":
                     self.assertTrue((attempt / "frames.csv").is_file())
             self.assertEqual(sorted(statuses), [0, 0, 0, 0, 0, 0, 7])
+
+
+@unittest.skipUnless(shutil.which("gcc"), "PC trace transport probe needs gcc")
+class PcTraceCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.scratch.name)
+        cls.binary = cls.root / "probe"
+        subprocess.run(["gcc", "-Wall", "-Wextra", "-Werror", "-rdynamic",
+                        "-I", str(ROOT / "oracle/host"),
+                        str(ROOT / "tests/fixtures/pc_trace_probe.c"),
+                        str(ROOT / "oracle/host/pc_trace.c"), "-ldl",
+                        "-o", str(cls.binary)], check=True, capture_output=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.scratch.cleanup()
+
+    def run_probe(self, mode="capture", watch="051790", start="3", path=None):
+        path = str(path if path is not None else self.root / f"{mode}.csv")
+        return subprocess.run([str(self.binary), mode, path, watch, start],
+                              capture_output=True, text=True)
+
+    def test_trace_records_instruction_cycles_only_from_requested_frame(self):
+        result = self.run_probe()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([line for line in (self.root / "capture.csv").read_text().splitlines()
+                          if not line.startswith("#")],
+                         ["frame,pc,cycles", "3,051790,100", "3,051790,200"])
+
+    def test_incomplete_captures_fail_instead_of_looking_exact(self):
+        for mode in ("drop", "badget", "missing"):
+            with self.subTest(mode=mode):
+                result = self.run_probe(mode)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(result.stderr.strip())
+
+    def test_invalid_trace_configuration_is_rejected(self):
+        for watch, start, path in [("-", "3", None), ("051791", "3", None),
+                                   ("1000000", "3", None), ("junk", "3", None),
+                                   ("051790", "0", None), ("051790", "-1", None),
+                                   ("051790", "3", "-")]:
+            with self.subTest(watch=watch, start=start, path=path):
+                self.assertNotEqual(self.run_probe("config", watch, start, path).returncode, 0)
+        self.assertNotEqual(self.run_probe("short").returncode, 0)
 
 
 class OracleCase(unittest.TestCase):

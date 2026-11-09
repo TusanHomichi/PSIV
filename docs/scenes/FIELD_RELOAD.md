@@ -154,6 +154,22 @@ before a formula can certify a row:
   DMA, Z80 and sound work affect timing. A cycle model needs the CPU/VDP phase
   entering the load as well as the work between waits.
 
+The preceding scene's full instruction history need not determine that entry
+phase. On the non-battle return path, `FieldRoutine_Cutscene` ends with
+`jmp VInt_Prepare` (`:120758`); `MainGameLoop` (`:411-416`) dispatches the load
+after that wait. This is a synchronization boundary. The interrupt's remaining
+work still varies: `VInt` processes queued DMA and calls `JumpTo_UpdateSound`
+before `rte` (`:613-635`). Palette/DMA work and the sound driver's current
+commands, tempo and tracks must be modelled, or bounded tightly enough to
+prove they cannot move the load into another frame bucket.
+
+The oracle's [instruction-boundary timing trace](../../oracle/CAPTURE.md#instruction-boundary-timing)
+can observe that boundary and the stages of the load without replacing it with
+a forced first load. Watching the load entry, decompressor entries, DMA/wait
+entries and fade entry separates elapsed work into measured segments. Those
+observations support deriving a formula; a trace or three matching totals by
+itself does not certify a formula for all maps.
+
 Even the fade's fixed 16 is a property of the measured palettes.
 `Pal_FadeIn` (`$421D4`, `:85897-85947`) clears the current palette and increments
 each differing nibble toward the target. For maximum target nibble `M`, it

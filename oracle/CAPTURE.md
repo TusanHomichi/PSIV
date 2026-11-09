@@ -2,6 +2,31 @@
 
 [Oracle setup and index](README.md)
 
+### Instruction-boundary timing
+
+The host's optional `--pc-trace <path.csv>` records the instruction boundaries
+selected by repeated `--pc-watch <hex>` arguments. It requires a core rebuilt
+with `oracle/build_core.sh`; older cores remain usable when the option is off.
+Use `--pc-trace-from <frame>` to leave tracing disabled during a long tape's
+prefix. Frames are positive, 1-based tape frames, and the start must be within
+the tape. Watches must be distinct, even, 24-bit addresses, at most 64.
+
+The CSV has `frame,pc,cycles`: `pc` is the watched instruction's address before
+opcode fetch, and `cycles` is Genesis Plus GX's frame-relative **master-cycle**
+counter, not elapsed host time or 68000 clock ticks. Preserve record order:
+the counter may include instruction overshoot carried from the preceding
+emulated frame. A difference within one frame measures elapsed emulated work
+between those boundaries, including intervening stalls and interrupts; it
+does not isolate decompression from them. Do not subtract counters across a
+frame boundary without accounting for the core's frame length.
+
+This is a read-only observation hook. It neither patches the cartridge nor
+changes its cycle counter. Missing hooks, buffer overflow, unreadable records
+and output failures make the host fail. `--cpu-trace` remains the separate
+frame-end register/stack diagnostic. For field reload boundaries and the
+timing model these observations support, see
+[the reload note](../docs/scenes/FIELD_RELOAD.md#inputs-to-an-exact-timing-model).
+
 ### Video frame capture
 
 The host can save exact, player-visible reference frames directly from the

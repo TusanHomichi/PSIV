@@ -58,7 +58,7 @@ for p in "$PATCH_DIR"/*.patch; do
 	fi
 done
 
-make -C gpgx-src -f Makefile.libretro platform=unix -j"$(nproc)"
+make -C gpgx-src -f Makefile.libretro platform=unix -j"${HEAVY_JOBS:-$(nproc)}"
 
 mkdir -p core
 cp gpgx-src/genesis_plus_gx_libretro.so core/
