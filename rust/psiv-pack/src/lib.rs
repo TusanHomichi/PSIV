@@ -56,6 +56,7 @@ pub mod sound;
 mod sound_defs;
 pub mod sprites;
 pub mod text;
+pub mod title;
 pub mod travel;
 pub mod warps;
 
@@ -143,6 +144,11 @@ pub const SECTIONS: &[Section] = &[
         name: "scene_tables",
         claims: &["fifth", "guild"],
         build: scene_tables::build,
+    },
+    Section {
+        name: "title",
+        claims: &["title"],
+        build: title::build,
     },
     Section {
         name: "battle",
