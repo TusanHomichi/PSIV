@@ -749,4 +749,18 @@ mod tests {
         assert!(sequence(&rom, 0x10, "test").is_err());
         assert!(sequence(&rom, 0x11, "test").is_err());
     }
+
+    #[test]
+    fn a_vertically_flipped_run_is_found_bottom_up() {
+        // A 1x2 body: tile 6 above tile 5, both v-flipped.
+        let words = [0x1000 | 6u16, 0x1000 | 5];
+        let found = placements(&words, 1, 2, 5, 2);
+        let found: Vec<serde_json::Value> = found.iter().map(serde_json::Value::from).collect();
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            (found[0]["flip_v"].clone(), found[0]["flip_h"].clone()),
+            (true.into(), false.into())
+        );
+        assert_eq!(found[0]["cell_indices"], serde_json::json!([0, 1]));
+    }
 }
