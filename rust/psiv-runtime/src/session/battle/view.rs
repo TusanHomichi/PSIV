@@ -298,6 +298,11 @@ pub struct CommandMenuView {
     /// (when the strip is the one opening) or [`Self::list`] is `None`, and
     /// the window reads no input.
     pub growing: Option<GrowingWindow>,
+    /// A window is opening or closing, whether or not this frame draws it
+    /// as a box (a close's first frame, and the strip's frame between a list
+    /// closing and the strip closing, show the window whole): the window
+    /// reads no button.
+    pub settling: bool,
     /// The strip, on the actions page.
     pub strip: Option<StripView>,
     /// The list window, on the technique, skill and item pages.
@@ -344,6 +349,13 @@ pub enum MenuView {
     Top {
         /// The selected row.
         cursor: usize,
+        /// While the window opens or closes (`Battle_CreateWindow`,
+        /// `Battle_DestroyWindow`): this frame's width in cells, an empty
+        /// window centred on the whole one; 0 draws nothing. `None` once it
+        /// is whole.
+        width: Option<u8>,
+        /// The whole window's width in cells: 8, or 9 for the mounted one.
+        full_width: u8,
     },
     /// The command window of the actor whose turn it is.
     Commands(Box<CommandMenuView>),
@@ -468,7 +480,11 @@ impl BattleView {
         let mut bytes = [0; 5];
         let panes = super::panes::refresh(&mut bytes, &party);
         BattleView {
-            menu: Some(MenuView::Top { cursor: 0 }),
+            menu: Some(MenuView::Top {
+                cursor: 0,
+                width: None,
+                full_width: 8,
+            }),
             ready: true,
             panes,
             party,

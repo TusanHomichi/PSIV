@@ -24,33 +24,23 @@ use std::path::Path;
 use psiv_core::battle::{BattleEvent, Priority, Side, status};
 use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{
-    BattleView, Button, CommandMenuView, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session,
-};
+use psiv_runtime::{BattleView, Button, MenuPage, MenuView, Pad, RuntimeEvent, Session};
 
-const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
+#[allow(dead_code)]
+mod battle_session;
+
+use battle_session::*;
 
 /// `AcademyBasement`, the first basement floor.
 const BASEMENT: u16 = 0x15;
 /// The pinned walk's start: open floor, away from the floor's two doorways at
 /// `(28..29, 13)` and `(16..17, 20..21)`.
 const BASEMENT_SPAWN: Cell = Cell { x: 20, y: 10 };
-/// Tape 07's formation: two Zoran Bults at positions `$0E` and `$1A`.
-const TAPE_07_FORMATION: u16 = 0x8A;
 /// `RES`, the single-target cure Chaz starts with — the technique this test
 /// picks and aims, so the target cursor is exercised.
 const RES: u8 = 24;
 /// The item the connected Zio route must keep until the first player round.
 const PSYCHO_WAND: u8 = 0x39;
-
-fn pack() -> Option<&'static Path> {
-    let pack = Path::new(PACK);
-    if !pack.join("manifest.json").is_file() {
-        eprintln!("runtime pack not present; skipping");
-        return None;
-    }
-    Some(pack)
-}
 
 /// Tape 07's post-opening party on the basement floor, battles armed.
 fn basement_session(pack: &Path) -> Session {
@@ -122,12 +112,6 @@ fn zio_ambush_session(pack: &Path) -> Session {
             },
         })
         .expect("the Nurvus save loads")
-}
-
-/// One frame the way the shipped shell runs it: one call, the session's
-/// frame, which routes its own windows.
-fn tick(session: &mut Session, pad: Pad) -> Frame {
-    session.frame(pad)
 }
 
 /// Presses through whatever the map opens with.
@@ -225,58 +209,6 @@ fn fight_press(view: &BattleView) -> Pad {
     }
 }
 
-/// Presses one button and releases it, so the press is a fresh edge, then
-/// waits out any window the press opened: `Battle_CreateWindow` grows it for
-/// a few frames that read no button (#51).
-fn tap(session: &mut Session, button: Button) -> Frame {
-    let frame = tick(session, Pad::new(button));
-    let mut released = tick(session, Pad::NEUTRAL);
-    for _ in 0..16 {
-        if !growing(&released) {
-            break;
-        }
-        released = tick(session, Pad::NEUTRAL);
-    }
-    frame
-}
-
-/// Whether the frame's command window is still opening.
-fn growing(frame: &Frame) -> bool {
-    matches!(
-        view_of(frame).and_then(|view| view.menu.as_ref()),
-        Some(MenuView::Commands(menu)) if menu.growing.is_some()
-    )
-}
-
-/// The view of a battle frame, for the caller's assertions.
-fn view(frame: &Frame) -> &BattleView {
-    frame
-        .battle
-        .as_ref()
-        .and_then(|battle| battle.view.as_ref())
-        .expect("a battle frame carries a view")
-}
-
-fn view_of(frame: &Frame) -> Option<&BattleView> {
-    frame
-        .battle
-        .as_ref()
-        .and_then(|battle| battle.view.as_ref())
-}
-
-/// Waits out the dwell beats until the command window is open.
-fn wait_for_menu(session: &mut Session) -> BattleView {
-    for _ in 0..2_000 {
-        let frame = tick(session, Pad::NEUTRAL);
-        if let Some(view) = view_of(&frame)
-            && view.ready
-        {
-            return view.clone();
-        }
-    }
-    panic!("the command window never opened");
-}
-
 fn living_enemies(session: &Session) -> Vec<u8> {
     session
         .runtime()
@@ -365,7 +297,10 @@ fn zio_ambush_uses_no_command_or_item_before_the_first_player_round() {
         );
     }
     assert!(saw_barrier, "Zio's first enemy-only action was presented");
-    assert_eq!(first_player_menu, Some(MenuView::Top { cursor: 0 }));
+    assert!(
+        matches!(first_player_menu, Some(MenuView::Top { cursor: 0, .. })),
+        "{first_player_menu:?}"
+    );
     assert_eq!(item_count(&session, PSYCHO_WAND), 1);
 }
 
@@ -397,7 +332,14 @@ fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press(
     let started = session.debug_battle(TAPE_07_FORMATION);
     assert!(started.fault.is_none());
     let top = wait_for_menu(&mut session);
-    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(
+        top.menu,
+        Some(MenuView::Top {
+            cursor: 0,
+            width: None,
+            full_width: 8
+        })
+    );
     let roster = session.runtime().battle_roster().unwrap();
     assert_eq!(roster.living(Side::Party).count(), 3);
     assert!(
@@ -406,7 +348,17 @@ fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press(
             .all(|fighter| !fighter.stats.can_act()),
         "the `$6E` scan has no actor to command"
     );
-    let after_comd = tick(&mut session, Pad::new(Button::Speak));
+    // The main options close first (`Battle_DestroyWindow`: 6, 4, 2 cells),
+    // and the round goes on the frame they are gone.
+    tick(&mut session, Pad::new(Button::Speak));
+    for _ in 0..3 {
+        let closing = tick(&mut session, Pad::NEUTRAL);
+        assert!(matches!(
+            view(&closing).menu,
+            Some(MenuView::Top { width: Some(_), .. })
+        ));
+    }
+    let after_comd = tick(&mut session, Pad::NEUTRAL);
     let after_comd = view(&after_comd);
     assert!(!after_comd.ready, "the single COMD press submits the round");
     assert_eq!(after_comd.menu, None, "there is no empty actor page");
@@ -452,7 +404,14 @@ fn the_first_basement_battle_is_fought_with_pad_presses() {
     // The menu opens when the opening beat's dwell runs out, on the top menu:
     // SPEAK presses COMD.
     let top = wait_for_menu(&mut session);
-    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(
+        top.menu,
+        Some(MenuView::Top {
+            cursor: 0,
+            width: None,
+            full_width: 8
+        })
+    );
     assert_eq!(top.cursor, 0);
 
     // COMD opens the command window on the first actor's ATTACK row.
@@ -688,153 +647,6 @@ fn cancelling_out_of_a_target_list_returns_to_the_menu() {
     );
 }
 
-/// The command menu of `frame`, which must have one.
-fn commands_of(frame: &Frame) -> CommandMenuView {
-    match view(frame).menu.clone() {
-        Some(MenuView::Commands(menu)) => *menu,
-        other => panic!("the command window is open: {other:?}"),
-    }
-}
-
-/// Neutral frames while the window grows: the width each one drew, and the
-/// first frame it was whole.
-fn grow(session: &mut Session) -> (Vec<u8>, CommandMenuView) {
-    let mut widths = Vec::new();
-    for _ in 0..16 {
-        let menu = commands_of(&tick(session, Pad::NEUTRAL));
-        match menu.growing {
-            Some(growing) => widths.push(growing.width),
-            None => return (widths, menu),
-        }
-    }
-    panic!("the window never finished growing: {widths:?}");
-}
-
-/// #51: `Battle_CreateWindow` (`ps4.asm:1657`) grows a window two cells a
-/// frame, centred, draws it whole once the width reaches the window's, and
-/// only then does the window's routine read a button. Tape 32: TECH accepted
-/// at f25165 (`Battle_Routine_2` 7), the window `8007` growing f25166-f25170
-/// and whole at f25171, `Battle_TechWindow` (8) from f25172; the video shows
-/// 2, 4, 6, 8 and 10 cells at f25167-f25171 and the list at f25172.
-#[test]
-fn the_strip_and_the_technique_window_grow_before_they_read_a_button() {
-    let Some(pack) = pack() else {
-        return;
-    };
-    let files = BattleFiles::load(pack).expect("battle files load");
-    let mut session = Session::start(GameData::load(pack).expect("pack loads"))
-        .with_battles(files)
-        .field()
-        .expect("the pack boots");
-    let opening = session.debug_battle_window(TAPE_07_FORMATION, "top");
-    assert!(opening.fault.is_none(), "{:?}", opening.fault);
-    tick(&mut session, Pad::NEUTRAL);
-
-    // COMD: the 16-cell strip grows from nothing; no icons, no cursor.
-    let opened = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
-    let growing = opened.growing.expect("the strip opens growing");
-    assert_eq!(
-        (growing.window, growing.width, growing.full_width),
-        (MenuPage::Actions, 0, 16)
-    );
-    assert!(opened.strip.is_none());
-    let (widths, strip) = grow(&mut session);
-    assert_eq!(widths, [2, 4, 6, 8, 10, 12, 14]);
-    let drawn = strip.strip.expect("the whole strip, icons and all");
-    assert_eq!(drawn.age, 0, "the cursor object is created on this frame");
-
-    // Right to TECH, then accept: the 12-cell window grows over the strip.
-    tick(&mut session, Pad::new(Button::Right));
-    tick(&mut session, Pad::NEUTRAL);
-    let accepted = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
-    assert_eq!(accepted.page, MenuPage::Techniques);
-    let growing = accepted.growing.expect("the list opens growing");
-    assert_eq!((growing.width, growing.full_width), (0, 12));
-    assert!(accepted.strip.is_some() && accepted.list.is_none());
-    let mut widths = Vec::new();
-    for frame in 0..5 {
-        // A Down pressed while the window grows is not read.
-        let pad = if frame == 2 {
-            Pad::new(Button::Down)
-        } else {
-            Pad::NEUTRAL
-        };
-        let menu = commands_of(&tick(&mut session, pad));
-        let growing = menu.growing.expect("still growing");
-        widths.push((growing.width, growing.left_offset()));
-        assert!(menu.list.is_none());
-    }
-    assert_eq!(widths, [(2, 5), (4, 4), (6, 3), (8, 2), (10, 1)]);
-    let whole_frame = tick(&mut session, Pad::NEUTRAL);
-    let whole = commands_of(&whole_frame);
-    assert!(whole.growing.is_none());
-    assert!(
-        !view(&whole_frame).cursor_red,
-        "the list's routine has not run: its row is blue"
-    );
-    assert_eq!(
-        whole.list.expect("the list, whole").cursor,
-        0,
-        "the Down was not read"
-    );
-    let moved_frame = tick(&mut session, Pad::new(Button::Down));
-    assert!(
-        view(&moved_frame).cursor_red,
-        "the routine runs and a held button shows red"
-    );
-    let moved = commands_of(&moved_frame);
-    assert_eq!(
-        moved.list.expect("the list").cursor,
-        1,
-        "the next frame reads it"
-    );
-}
-
-/// #51: the frame a list is drawn whole is `Battle_CreateWindow`'s, not the
-/// list routine's, so its selected row is blue whatever the blink last
-/// showed; the routine runs the next frame and decides it
-/// (`Battle_UpdateRedCursor2`, `ps4.asm:1572`). The strip fixture starts the
-/// blink red, so a stale value would show. TECH is covered above; this is
-/// SKILL and ITEM.
-#[test]
-fn the_skill_and_item_windows_show_no_red_cursor_until_their_routine_runs() {
-    let Some(pack) = pack() else {
-        return;
-    };
-    let files = BattleFiles::load(pack).expect("battle files load");
-    for (icon, page) in [(2, MenuPage::Skills), (3, MenuPage::Items)] {
-        let mut session = Session::start(GameData::load(pack).expect("pack loads"))
-            .with_battles(files.clone())
-            .field()
-            .expect("the pack boots");
-        let opening =
-            session.debug_battle_window(TAPE_07_FORMATION, &format!("strip,cursor={icon}"));
-        assert!(opening.fault.is_none(), "{:?}", opening.fault);
-        tick(&mut session, Pad::NEUTRAL);
-        let accepted = commands_of(&tick(&mut session, Pad::new(Button::Speak)));
-        assert_eq!(accepted.page, page);
-        let mut frames = 0;
-        let whole = loop {
-            let frame = tick(&mut session, Pad::NEUTRAL);
-            if commands_of(&frame).growing.is_none() {
-                break frame;
-            }
-            frames += 1;
-            assert!(frames < 16, "{page:?} never finished growing");
-        };
-        assert!(commands_of(&whole).list.is_some(), "{page:?} is whole");
-        assert!(
-            !view(&whole).cursor_red,
-            "{page:?}: the whole frame's row is blue"
-        );
-        let next = tick(&mut session, Pad::new(Button::Down));
-        assert!(
-            view(&next).cursor_red,
-            "{page:?}: the routine runs and a held button shows red"
-        );
-    }
-}
-
 /// Plays tape 07's first round with pad presses only: Alys opens TECH and
 /// picks the first entry, Chaz and Hahn defend. `spec` seeds the fixture
 /// (`PSIV_DEBUG_BATTLE_WINDOW`). Returns the narration lines the round showed,
@@ -849,22 +661,11 @@ fn alys_casts_her_first_technique(spec: &str) -> Option<(Vec<String>, u16, bool)
         .expect("the pack boots");
     let opening = session.debug_battle_window(TAPE_07_FORMATION, spec);
     assert!(opening.fault.is_none(), "{:?}", opening.fault);
-    tick(&mut session, Pad::NEUTRAL);
-    let tap = |session: &mut Session, button: Button| {
-        let down = tick(session, Pad::new(button));
-        let mut up = tick(session, Pad::NEUTRAL);
-        for _ in 0..16 {
-            if !growing(&up) {
-                break;
-            }
-            up = tick(session, Pad::NEUTRAL);
-        }
-        (down, up)
-    };
+    wait_for_menu(&mut session);
     // COMD opens Alys's strip; Right is TECH; Speak opens the list.
     tap(&mut session, Button::Speak);
     tap(&mut session, Button::Right);
-    let (_, listed) = tap(&mut session, Button::Speak);
+    let listed = tap(&mut session, Button::Speak);
     let Some(MenuView::Commands(menu)) = view(&listed).menu.clone() else {
         panic!("TECH opens the technique list");
     };

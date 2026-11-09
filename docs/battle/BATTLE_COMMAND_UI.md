@@ -130,17 +130,53 @@ carries that to the view's `cursor_red`. Tests:
 ITEM and a next page) and
 `the_skill_and_item_windows_show_no_red_cursor_until_their_routine_runs`.
 
+### The windows close the same way, and the main options too
+
+`Battle_DestroyWindow` (`ps4.asm:1678`) takes two cells off `$FFFF418C` each
+frame and draws the narrower empty window; at zero it draws nothing and
+returns past its caller's `rts`, the frame the routine moves on. It starts from
+the width the growth stopped at: the first even number not below `d1`, so the
+15-cell skill window closes from 16. The main options window (`moveq #8,d1`,
+`ps4.asm:1904`; 9 for the mounted one, `ps4.asm:2027`) grows when it opens
+and closes on every choice the same way. With A the press frame:
+
+| path | routine | the windows |
+| --- | --- | --- |
+| COMD (or any main option) | `ps4.asm:1950` | options 6, 4, 2 at A+1..A+3, gone at A+4; the strip's setup frame A+5, its 2 cells at A+6 |
+| B in a list | `Battle_BackFromTechs` (`ps4.asm:2792`) | list 10..2 at A+1..A+5; the strip at A+6, its cursor recreated; read from A+7 |
+| a list entry with no target | `Battle_TechSelected` (`ps4.asm:2771`) | list 10..2 at A+1..A+5; the strip whole at A+6; 14..2 at A+7..A+13; gone at A+14; the next strip's 2 cells at A+15 |
+| DEFEND | `Battle_CharComdSelected` (`ps4.asm:2404`) | strip 14..2 at A+1..A+7; gone at A+8; the next strip's 2 cells at A+9 |
+| B on a strip | `Battle_PreviousChar` (`ps4.asm:2415`) | the same, to the previous member's strip, or from the first member's to the main options, which grow again |
+| Left to a previous page | `Battle_TechPrevWin` (`ps4.asm:2760`) | list 10..2, then the previous page whole |
+| the round's end | `Battle_OpenMainOptions` (`ps4.asm:1847`) | a setup frame, then 2, 4, 6 and the options whole |
+
+Receipts: tape 37 (`oracle/tapes/37_battle_window_closing.tape`: tape 32,
+then B in the list at f25505, DEFEND at f25605, B on Chaz's strip at f25689,
+SANER at f25853, two DEFENDs and the round) and tape 32 (COMD at f25001). The
+video shows each width a frame after the RAM frame above: the list at
+f25507-f25511, the strip 14..2 at f25607-f25613 and Chaz's first two cells at
+f25615, the options growing at f26507-f26509 and whole at f26510.
+
+The strip COMD opens takes the one setup frame more (tape 32: the options
+gone at f25005, the strip's first cells at f25007, where every later strip
+draws its first cells the frame after the last one closes).
+`CommandsMenu::delay_first_growth` carries it. The previous page is read from
+`Battle_TechPrevWin` only; no tape flips back a page.
+
+`menu/window_phase.rs` is the one model of both routines. `CommandsMenu`
+keeps the chosen command until its windows are gone; the view's `settling`
+says a window is opening or closing (no button is read), `growing` the box it
+draws, and `MenuView::Top`'s `width` the main options' box. Tests:
+`the_windows_close_two_cells_a_frame_before_the_next_one_opens` and the COMD
+half of `the_strip_and_the_technique_window_grow_before_they_read_a_button`.
+
 ### Not modelled, named
 
-- The closing side: `Battle_DestroyWindow` (`ps4.asm:1678`) shrinks a window
-  the same way when the main options give way to the strip (f25003-f25005 in
-  tape 32), when a list closes on a choice or a cancel, and on a previous-page
-  flip (`Battle_TechPrevWin`). The port removes those windows at once.
-- The frames between COMD and the strip's growth: the main options' shrink,
-  `Battle_ProcessCOMD`'s frame and `Battle_OpenCharComd`'s setup frame, which
-  in tape 32 also runs long enough to drop a video frame. The port's strip
-  starts growing the frame after COMD, so it is whole five frames earlier than
-  the cartridge's.
+- The port's own target pages (below) record the order at once: the
+  cartridge picks a target over its strip and closes the strip after, which
+  the port's one-list page does not draw.
+- The mounted surface's skill window keeps the port's own layout and opens
+  and closes at once.
 - The skill and item windows are decoded from their routines and drawn by the
   same code, but no oracle frame certifies them.
 - Target selection is the cartridge's sprite cursor over the enemies or party

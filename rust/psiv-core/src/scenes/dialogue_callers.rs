@@ -62,16 +62,7 @@ pub(super) const ROUTINE_WINDOWS: &[(u32, DialogueWindow)] = &[
 /// Resume calls a scene's transcription skips, by call (or inline `popdlg`)
 /// address, with the issue that transcribes them: the census does not ask the
 /// scene for them, and fails when one stops being a resume call of the scene.
-pub(super) const UNTRANSCRIBED_RESUMES: &[(&str, &[u32], u32)] = &[
-    // `$075B10..$075D72`, Demi's BioPlant sequence.
-    (
-        "Cutscene_ZioDefeated",
-        &[0x075BA0, 0x075C56, 0x075C94, 0x075CD4],
-        414,
-    ),
-    // The tail after panel `$130`, built on #162's palette loops.
-    ("Cutscene_Elsydeon", &[0x07892A], 414),
-];
+pub(super) const UNTRANSCRIBED_RESUMES: &[(&str, &[u32], u32)] = &[];
 
 /// Which [`DialogueWindow`] a resume through each `Event_RunDialogue*` entry
 /// draws in: its `Get` routine's exit, which it shares. `R5`'s is
@@ -649,8 +640,8 @@ fn control_a_missing_inline_resume_is_reported() {
     assert_eq!(
         problems,
         vec![
-            "Cutscene_Elsydeon: 0 resume(s) beyond its resume calls' windows, its bytes have \
-             1 inline resume(s) (`popdlg` into its own window code)"
+            "Cutscene_Elsydeon: 1 resume(s) beyond its resume calls' windows, its bytes have \
+             2 inline resume(s) (`popdlg` into its own window code)"
         ]
     );
 }
@@ -665,14 +656,6 @@ fn control_a_stale_untranscribed_resume_is_reported() {
               one of its resume calls"
                 .to_owned()
         ),
-        "{problems:#?}"
-    );
-    // Without the list, ZioDefeated's skipped pages are reported.
-    let problems = caller_problems(SCENES, DIALOGUE_CALLERS, &[]);
-    assert!(
-        problems
-            .iter()
-            .any(|p| p.starts_with("Cutscene_ZioDefeated: 0 resume(s) in DialogueWindow::Standard")),
         "{problems:#?}"
     );
 }
