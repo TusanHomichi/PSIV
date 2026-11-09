@@ -282,6 +282,19 @@
           python3 -m unittest $(printf '%s\n' tests/test_oracle_battle_fixture*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
+        # The certify pair table's tests (every tests/test_certify*.py),
+        # which read the tracked recipes and tapes and need no local inputs.
+        # They run here so a PR that adds or changes a certified pair can
+        # show its test edit fails on its base (burrow's negative), which a
+        # suite no check runs can't. Found by name, like gate-tests.
+        certify-tests = pkgs.runCommand "psiv-certify-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_certify*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
         # The 1,000-line rule (tools/size_guard.py).
         size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
