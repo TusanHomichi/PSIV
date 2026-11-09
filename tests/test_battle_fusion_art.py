@@ -50,6 +50,20 @@ class Synthetic(unittest.TestCase):
         corners = [pixels[y * 24 + x] for y, x in ((0, 0), (8, 0), (0, 8), (8, 8), (0, 16), (8, 16))]
         self.assertEqual(corners, [1, 2, 3, 4, 5, 6])
 
+    def test_rendering_needs_decoded_dimensions_not_the_raw_size_byte(self):
+        # Size is decoder evidence; rendering consumes normalized dimensions.
+        # This also keeps Fusion from growing its own size-byte reader again.
+        for size, dimensions in [(0x09, [24, 16]), (0x06, [16, 24]), (0x0C, [32, 8])]:
+            for flipped in (False, True):
+                with self.subTest(size=size, flipped=flipped):
+                    decoded = entry(size, 0, h_flip=flipped)
+                    tiles = self.tiles(decoded["width_tiles"] * decoded["height_tiles"])
+                    expected = render_record(tiles, {"entries": [decoded]})
+                    del decoded["size"]
+                    actual = render_record(tiles, {"entries": [decoded]})
+                    self.assertEqual(actual["size"], dimensions)
+                    self.assertEqual(actual, expected)
+
     def test_a_flipped_entry_mirrors_its_own_columns(self):
         image = render_record(self.tiles(6), {"entries": [entry(0x09, 0, h_flip=True)]})
         self.assertEqual(image["pixels"][0], 5)
