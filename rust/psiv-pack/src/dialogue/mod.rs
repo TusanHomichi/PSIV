@@ -1,7 +1,7 @@
 //! `dialogue/`: the port of `psiv_tools/dialogue_pack/`, whose package docs
 //! walk the proof of every number (#216, slice 7b). This part writes the
-//! dialogue font and its strip, the menu font, the waiting arrow and the
-//! portraits; the window chrome and the trees follow.
+//! dialogue font and its strip, the menu font, the waiting arrow, the window
+//! chrome and the portraits; the trees follow.
 //!
 //! Nothing is written until every routine the package transcribes is the
 //! retail one (`check_signatures`). The opcode runs are pinned here by
@@ -9,6 +9,7 @@
 //! content (#461).
 
 mod art;
+mod chrome;
 
 use std::path::Path;
 
@@ -261,7 +262,8 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
     let palette = palette(data)?;
     art::font(data, root, &palette)?;
     art::menu_font(data, root, &palette)?;
-    art::scroll_arrow(data, root, &palette)?;
+    let scroll_arrow = art::scroll_arrow(data, root, &palette)?;
+    chrome::write(data, root, &palette, &scroll_arrow)?;
     art::portraits(data, root, &palette)
 }
 

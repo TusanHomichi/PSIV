@@ -2,11 +2,69 @@
 //! game's `KosDecomp`. Description fields are little-endian words consumed
 //! LSB first, and a field is reloaded only after its sixteenth bit is taken,
 //! so `consumed` matches the routine's own read count.
+//!
+//! [`Work`] counts the intrinsic instruction work of US retail `KosDecomp`,
+//! ROM `$041BEA..=$041C89` (`ps4.asm:85262-85346`). It excludes interrupts,
+//! CPU refresh, DMA/bus stalls and the caller's JSR. These are CPU clock
+//! cycles, not the oracle's master cycles (seven per CPU clock).
 
 use super::DecodeError;
 
 fn error(message: String) -> DecodeError {
     DecodeError(message)
+}
+
+/// Data-dependent paths taken by one successful retail decompression.
+///
+/// Each successful stream includes one setup and one terminating token.
+/// `descriptor_reloads` excludes the initial descriptor read, but includes
+/// the immediate refill after bit 16 even when that bit ends the stream.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Work {
+    pub literals: u64,
+    pub inline_matches: u64,
+    pub full_matches: u64,
+    pub extended_matches: u64,
+    pub noops: u64,
+    pub match_bytes: u64,
+    pub descriptor_reloads: u64,
+}
+
+impl Work {
+    /// Intrinsic MC68000 clock cycles, including routine setup and RTS.
+    ///
+    /// US setup at `$041BEA`: stack allocation, two descriptor-byte moves,
+    /// descriptor load and bit-counter initialization cost
+    /// 8+16+12+8+4 = 48. Restoring SP and RTS cost 8+16.
+    /// Verify the instruction bytes locally; cartridge excerpts stay out of Git.
+    /// The pinned Genesis Plus GX `core/m68k/m68ki_cycles.h` opcode table,
+    /// with `m68kops.h`'s branch/DBF/shift adjustments, supplies the costs:
+    ///
+    /// - Saved-CCR bit: LSR #1 (8), MOVE SR (6), DBF taken (10), MOVE CCR
+    ///   (12) = 36. Inline count bit adds ROXL #1 (8) to LSR+DBF = 26.
+    /// - Descriptor expiry costs 44 extra: DBF expired (14) instead of
+    ///   taken (10), plus the four descriptor-read instructions (40).
+    /// - A copied match byte costs indexed MOVE (14), postincrement MOVE
+    ///   (8), DBF taken (10) = 32; the final DBF costs 4 extra and the
+    ///   return BRA costs 10. These 14 are in each match's overhead.
+    /// - Full offset construction uses LSL #5 = 6+2*5 = 16, not its base 6.
+    ///   Conditional branches cost 10 taken, 8 untaken short, 12 untaken
+    ///   word (`BEQ.W` after the extended count's `CMPI`).
+    ///
+    /// Token costs including bit tests: literal 66; inline 172+14+32*n;
+    /// full 164+14+32*n; extended 208+14+32*n; no-op 192; terminator
+    /// 176+24. Thus setup+terminator is the fixed 248 below. Hardware wait
+    /// costs must be modeled separately; this is not an elapsed-frame count.
+    #[must_use]
+    pub fn cpu_cycles(self) -> u64 {
+        248 + 66 * self.literals
+            + 186 * self.inline_matches
+            + 178 * self.full_matches
+            + 222 * self.extended_matches
+            + 192 * self.noops
+            + 32 * self.match_bytes
+            + 44 * self.descriptor_reloads
+    }
 }
 
 /// The `d5`/`d4` description-field pair.
@@ -15,6 +73,7 @@ struct BitReader<'a> {
     pos: usize,
     field: u16,
     remaining: u32,
+    reloads: u64,
 }
 
 impl<'a> BitReader<'a> {
@@ -24,6 +83,7 @@ impl<'a> BitReader<'a> {
             pos: offset,
             field: 0,
             remaining: 0,
+            reloads: 0,
         };
         reader.reload()?;
         Ok(reader)
@@ -50,6 +110,7 @@ impl<'a> BitReader<'a> {
         self.remaining -= 1;
         if self.remaining == 0 {
             self.reload()?;
+            self.reloads += 1;
         }
         Ok(value)
     }
@@ -82,23 +143,38 @@ fn copy_match(out: &mut Vec<u8>, displacement: i32, count: usize) -> Result<(), 
 /// Decompress the stream at `offset`: the output and the bytes the routine
 /// read, its terminator included.
 pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), DecodeError> {
+    let (bytes, consumed, _) = decompress_with_work(data, offset)?;
+    Ok((bytes, consumed))
+}
+
+/// The same decode with the retail instruction-path statistics. No emulated
+/// CPU, hardware state or elapsed-time assumptions enter this calculation.
+pub fn decompress_with_work(
+    data: &[u8],
+    offset: usize,
+) -> Result<(Vec<u8>, usize, Work), DecodeError> {
     if offset > data.len() {
         return Err(error(format!("Offset 0x{offset:X} is outside the input")));
     }
     let mut reader = BitReader::new(data, offset)?;
     let mut out = Vec::new();
+    let mut work = Work::default();
     loop {
         if reader.bit()? == 1 {
             // KosDecomp_ChkBit: copy one byte as is.
             let byte = reader.byte()?;
             out.push(byte);
+            work.literals += 1;
             continue;
         }
         if reader.bit()? == 0 {
             // KosDecomp_Match: high count bit, then low.
             let count = (reader.bit()? << 1) | reader.bit()?;
             let displacement = i32::from(reader.byte()?) - 0x100;
-            copy_match(&mut out, displacement, usize::from(count) + 2)?;
+            let count = usize::from(count) + 2;
+            copy_match(&mut out, displacement, count)?;
+            work.inline_matches += 1;
+            work.match_bytes += count as u64;
             continue;
         }
         // KosDecomp_FullMatch: $E000 | ((byte1 & $F8) << 5) | byte0, sign
@@ -109,18 +185,27 @@ pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), Decode
         let displacement = i32::from(word as i16);
         let count = high & 7;
         if count != 0 {
-            copy_match(&mut out, displacement, usize::from(count) + 2)?;
+            let count = usize::from(count) + 2;
+            copy_match(&mut out, displacement, count)?;
+            work.full_matches += 1;
+            work.match_bytes += count as u64;
             continue;
         }
         // KosDecomp_FullMatch2
         match reader.byte()? {
             0 => break,
             // Back to the main loop; the field is refilled only when empty.
-            1 => continue,
-            extended => copy_match(&mut out, displacement, usize::from(extended) + 1)?,
+            1 => work.noops += 1,
+            extended => {
+                let count = usize::from(extended) + 1;
+                copy_match(&mut out, displacement, count)?;
+                work.extended_matches += 1;
+                work.match_bytes += count as u64;
+            }
         }
     }
-    Ok((out, reader.pos - offset))
+    work.descriptor_reloads = reader.reloads;
+    Ok((out, reader.pos - offset, work))
 }
 
 #[cfg(test)]

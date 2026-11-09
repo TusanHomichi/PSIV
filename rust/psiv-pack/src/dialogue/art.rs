@@ -252,11 +252,11 @@ pub fn menu_font(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), Pac
     crate::write_file(root, "dialogue/menu_font.png", &image)
 }
 
-/// `emit_scroll_arrow`'s PNG: the 2x1 sprite's two tiles side by side.
-/// Its record goes into the window and tree files, which a later part
-/// writes.
-pub fn scroll_arrow(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), PackError> {
-    let tiles = gfx::decode_tiles(&menu_font_art(rom)?.data)?;
+/// `emit_scroll_arrow`: the 2x1 sprite's two tiles side by side, and the
+/// record the window and tree files carry.
+pub fn scroll_arrow(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<Json, PackError> {
+    let art = menu_font_art(rom)?;
+    let tiles = gfx::decode_tiles(&art.data)?;
     let end = ARROW_TILE + ARROW_TILES;
     if tiles.len() != 87 || end > tiles.len() {
         return refuse(format!(
@@ -289,7 +289,54 @@ pub fn scroll_arrow(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), 
         palette,
         &[0],
     )?;
-    crate::write_file(root, "dialogue/scroll_arrow.png", &image)
+    crate::write_file(root, "dialogue/scroll_arrow.png", &image)?;
+    let source = Json::object()
+        .with("label", MENU_FONT_LABEL)
+        .with("rom_offset", hex6(MENU_FONT))
+        .with("rom_end_exclusive", hex6(MENU_FONT + MENU_FONT_SIZE))
+        .with("compression", "nemesis")
+        .with("compressed_size", art.compressed_size)
+        .with("compressed_sha256", art.compressed_sha256.as_str())
+        .with("decompressed_sha256", art.decompressed_sha256.as_str())
+        .with("font_vram_tile", format!("0x{ARROW_FONT_VRAM_TILE:03X}"))
+        .with("sprite_vram_tile", format!("0x{ARROW_VRAM_TILE:03X}"))
+        .with(
+            "tile_indices",
+            (0..ARROW_TILES)
+                .map(|i| format!("0x{:02X}", ARROW_TILE + i))
+                .collect::<Vec<_>>(),
+        )
+        .with("tile_count", ARROW_TILES)
+        .with("loader", "FieldObj_ScrollTextArrow")
+        .with("mapping_rom_offset", hex6(ARROW_MAPPING))
+        .with("mapping_hex", crate::png::hex(mapping))
+        .with("mapping_width_cells", ARROW_TILES)
+        .with("mapping_height_cells", 1u8)
+        .with(
+            "palette",
+            Json::object()
+                .with("source", "Pal_Init_Line_3")
+                .with("cram_line", DIALOGUE_CRAM_LINE)
+                .with("transparent_index", 0u8),
+        )
+        .with(
+            "note",
+            "FieldObj_ScrollTextArrow writes art tile $7F6 and the retail mapping is a 2x1 \
+             sprite; the indexed PNG preserves both tiles.",
+        );
+    Ok(Json::object()
+        .with("png", "dialogue/scroll_arrow.png")
+        .with("png_sha256", png::image_sha256(&image)?)
+        .with("width", TILE_PIXELS * ARROW_TILES)
+        .with("height", TILE_PIXELS)
+        .with("screen_x", 0x188 - 128)
+        .with("screen_y", 0x14A - 128)
+        .with(
+            "note",
+            "A sprite, so its stored position is VDP sprite space; the routine also subtracts \
+             the camera's sub-tile scroll so it stays locked to the window.",
+        )
+        .with("source", source))
 }
 
 // ---------------------------------------------------------------------------
