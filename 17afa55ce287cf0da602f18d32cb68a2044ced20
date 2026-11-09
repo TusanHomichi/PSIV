@@ -1,0 +1,54 @@
+{
+  "conary": "note v1",
+  "change": "3sfn19ey3173caqx2gf9r38mmt",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 485,
+  "url": "https://github.com/tusanhomichi/psiv/pull/485",
+  "summary": "psiv-pack: claim the title screen, its palette cycle and replay frames (#216, slice 7e)",
+  "task": "tusanhomichi/psiv#216",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "class": "R0",
+  "landing": {
+    "revision": "c0e6ab040df4cd75afa6ad9cce1cec29d4a44f450a0be9e0fe4c7ae8954e63a2",
+    "before": "4a442be795dad059945fcb1d765db9ad27c1b7cb",
+    "after": "17afa55ce287cf0da602f18d32cb68a2044ced20",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1794250075637
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42671391334/job/129347875823"
+    },
+    {
+      "kind": "ci",
+      "check": "pack-builder (windows-latest, 3.13)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42671391062/job/129347873722"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/485#pullrequestreview-5830539150"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/485"
+    }
+  ]
+}
