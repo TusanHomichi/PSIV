@@ -402,14 +402,14 @@ def _table_bytes(directory: Path, name: str, command: str) -> tuple[bytes, str]:
     """`(bytes, sha256)` of a table the current stamp lists and the bytes match.
 
     `FileNotFoundError` only when there is nothing to judge: no `metadata.json`
-    and no table (a checkout without `generated/`), or a current stamp that does
+    and no JSON table (a checkout without an extract), or a current stamp that does
     not list the name and no such file. Otherwise the stamp decides first, so an
     old extract is refused for any table name, including one the new extractor
     adds, and a table the current stamp lists but which is missing is refused
     rather than skipped.
     """
     path = directory / f"{name}.json"
-    if not path.is_file() and not (directory / METADATA_FILE).is_file():
+    if not path.is_file() and not any(table.is_file() for table in directory.glob("*.json")):
         raise FileNotFoundError(f"{path} is not present (local input; build it with: {command})")
     try:
         record = check_tables(directory, command)

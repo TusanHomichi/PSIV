@@ -206,6 +206,20 @@ TAPE_36_CLOSE = {
     "region": [56, 168, 208, 40],
 }
 
+# Tape 42 is tape 28's input schedule with Event_Recovery ($21) started by
+# fixture at frame 7200 on map $13, where tape 28 leaves Chaz. Its three
+# flashes (`loc_6D3BA` brightens, `loc_6D40A` restores, sixteen frames each)
+# step every fourth frame from 7202: the peaks hold 7214, 7246 and 7278.
+TAPE_42 = {
+    "tape": "oracle/tapes/42_recovery_flash.tape",
+    "patches": ["7200:FFFFECA8:0021", "7200:FFFFEC20:000C"],
+    "frames": [7246],
+    # Rows 72 down, all but the first column: the map's wandering NPC above
+    # stands where its own walk left it, which neither fixture pins, and the
+    # native field's first column is black (#409).
+    "region": [1, 72, 319, 152],
+}
+
 # Then the town list's own close: 8365 is its second step, 10 cells wide at
 # column 20, the field uncovered on both sides.
 TAPE_36_CLOSE_TOWNS = {
@@ -351,6 +365,11 @@ PAIRS = [
     ("teleport-close-towns", {"PSIV_DEBUG_CAMP": "telepipe-close"}, 40,
      "build/certify/oracle/teleport-close-towns/frame_8365.png",
      "28524733090391752cf562879b1fc59abfe4556ee94369a415edef289f7965c3", TAPE_36_CLOSE_TOWNS),
+    # The recovery tile's second flash at its peak: the native flashes run
+    # from tick 30 in the cartridge's 4-frame steps, 78-81 the second peak.
+    ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
+     "build/certify/oracle/recovery-flash/frame_7246.png",
+     "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

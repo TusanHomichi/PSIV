@@ -265,7 +265,7 @@
           cd tree
           git init -q
           export HOME=$TMPDIR
-          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap
+          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap tests.test_extract_stamp
           touch $out
         '';
         # Oracle fixture extraction and reload timing tests (every
