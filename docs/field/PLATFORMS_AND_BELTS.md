@@ -220,7 +220,8 @@ a belt chunk (`$06CEEA`), and restore every status byte when the carry ends. The
 runtime answers `Runtime::member_walk_frozen` from the member's status and the
 runner's `belt_freezes`, and the field shell holds a frozen member on its first
 frame and starts the sequence over when it thaws. The port tests a follower's
-standing cell rather than its pixel mid-step.
+standing cell rather than its pixel mid-step; the scope and timing consequence
+are recorded in [the source notes](../source-notes/README.md#other-recorded-deviations).
 
 ## What is not modelled
 
