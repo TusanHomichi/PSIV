@@ -134,6 +134,8 @@ pub const SECTIONS: &[Section] = &[
             "dialogue/portraits",
             "dialogue/portraits.json",
             "dialogue/scroll_arrow.png",
+            "dialogue/window.json",
+            "dialogue/window.png",
         ],
         build: dialogue::build,
     },
