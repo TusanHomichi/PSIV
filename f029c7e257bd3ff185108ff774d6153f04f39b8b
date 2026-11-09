@@ -1,0 +1,108 @@
+{
+  "conary": "note v1",
+  "change": "2k0ppw4yr6537btq7xd2mz89ky",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 478,
+  "url": "https://github.com/tusanhomichi/psiv/pull/478",
+  "summary": "Scenes: certify the Elsydeon break's tone at its peak (#162)",
+  "task": "tusanhomichi/psiv#345",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "class": "R0",
+  "landing": {
+    "revision": "bf841116a8212757374135a2daab7da477b0c55103f4c82dab437fc3b402f766",
+    "before": "ab964501a748bf8c78387e5d31d81e08997e8d19",
+    "after": "f029c7e257bd3ff185108ff774d6153f04f39b8b",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1794246657124
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663539299/job/129321076888"
+    },
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663539299/job/129321076715"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866/job/129321074348"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "ci",
+      "check": "house/guide-size (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#478)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663538866"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/478#pullrequestreview-5829858504"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663539299/job/129321126995"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42663539299/job/129321076371"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/478"
+    }
+  ]
+}
