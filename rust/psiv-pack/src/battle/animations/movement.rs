@@ -127,15 +127,16 @@ pub fn coordinate_sites(rom: &[u8], start: usize, end: usize, object_id: i128) -
             }
             continue;
         }
-        // addq/subq.w #n,d16(a4), read as the Python decoder reads it.
+        // addq/subq.w #n,d16(a4): `0101 qqq s 01 101 100`, the quick value in
+        // bits 11-9 (0 means 8) and subtract in bit 8 (#410).
         if (0x5000..=0x5FFF).contains(&opcode) && opcode & 0x00FF == 0x6C {
             let field = w(at + 2);
             if field == FIGHTER_X || field == FIGHTER_Y {
-                let quick = match (opcode >> 1) & 0x07 {
+                let quick = match (opcode >> 9) & 0x07 {
                     0 => 8,
                     n => i64::from(n),
                 };
-                let add = opcode & 0x0001 == 0;
+                let add = opcode & 0x0100 == 0;
                 sites.push(
                     site(object_id, at, field, "delta")
                         .with("delta", if add { quick } else { -quick })
@@ -381,20 +382,38 @@ mod tests {
         assert_eq!(movement["tracks"][0]["writes"][0]["axis"], "y");
     }
 
-    /// Pinned to the Python decoder, which reads the quick value from the
-    /// effective-address bits: every `addq`/`subq.w #n,d16(a4)` decodes as
-    /// `addq.w #6` (#410). Fixing it changes both builders together.
+    /// #410: the quick value is bits 11-9 (0 means 8) and bit 8 subtracts.
+    /// The decoder once read the effective-address bits, so every one of
+    /// these came out `addq.w #6`.
     #[test]
-    fn addq_and_subq_decode_as_the_python_decoder_reads_them() {
-        let mut rom = vec![0u8; 0x20];
-        put(&mut rom, 0, &[0x5F6C, 0x002C, 0x536C, 0x002E]);
-        let sites = coordinate_sites(&rom, 0, 0x10, 0x40);
-        let sites: Vec<serde_json::Value> = sites.iter().map(serde_json::Value::from).collect();
-        assert_eq!(sites.len(), 2);
-        assert!(
-            sites
-                .iter()
-                .all(|s| s["delta"] == 6 && s["operation"] == "addq.w")
+    fn addq_and_subq_decode_their_own_quick_value_and_direction() {
+        let mut rom = vec![0u8; 0x30];
+        put(
+            &mut rom,
+            0,
+            &[
+                0x5F6C, 0x002C, 0x536C, 0x002E, 0x506C, 0x002C, 0x5A6C, 0x002E,
+            ],
+        );
+        let sites = coordinate_sites(&rom, 0, 0x20, 0x40);
+        let sites: Vec<(i64, String)> = sites
+            .iter()
+            .map(serde_json::Value::from)
+            .map(|s| {
+                (
+                    s["delta"].as_i64().unwrap(),
+                    s["operation"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            sites,
+            [
+                (-7, "subq.w".to_string()),
+                (-1, "subq.w".to_string()),
+                (8, "addq.w".to_string()),
+                (5, "addq.w".to_string()),
+            ]
         );
     }
 }

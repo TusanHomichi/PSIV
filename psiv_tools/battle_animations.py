@@ -300,13 +300,14 @@ def _coordinate_sites(rom: bytes, start: int, end: int, object_id: int) -> list[
                     operation="addi.w" if opcode == 0x066C else "subi.w",
                 )
             continue
-        # addq/subq.w #n,d16(a4), where the quick value is in bits 3..1 of
-        # the high byte.  The low byte is the a4 displacement mode.
+        # addq/subq.w #n,d16(a4): `0101 qqq s 01 101 100`, the quick value in
+        # bits 11-9 (0 means 8) and subtract in bit 8 (#410). The low byte is
+        # the word size and the a4 displacement mode.
         if 0x5000 <= opcode <= 0x5FFF and (opcode & 0x00FF) == 0x6C:
             field = _u16(rom, offset + 2)
             if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
-                quick = (opcode >> 1) & 0x07 or 8
-                is_add = not bool(opcode & 0x0001)
+                quick = (opcode >> 9) & 0x07 or 8
+                is_add = not bool(opcode & 0x0100)
                 add_site(
                     offset,
                     field,
