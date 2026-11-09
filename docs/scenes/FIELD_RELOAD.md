@@ -184,6 +184,22 @@ wrapped zero row count: the byte decoder's existing empty-output behavior
 does not reproduce the retail row-counter underflow. Neither component yet
 provides an elapsed-frame count for the loader.
 
+The [record decompression work](../../rust/psiv-pack/src/maps/load_work.rs)
+composition selects these decoders from the existing parsed map record in
+loader order: tilesets, sprite art, sprite data, retained vehicle art, chunks,
+both chest streams, local layouts and dialogue. It keeps each call's source,
+destination, consumed/output lengths and work, including repeated calls to
+the same source. Tileset transfers are annotated separately from their RAM
+decompression. Chest art selection shares the renderer's source selection;
+the vehicle source comes from the retail pointer table.
+
+This covers the record-driven decompressor calls, not the whole load.
+Overworld layout pages are raw copies, and extra art loaded by map-manager
+effects or live objects is outside this composition. Caller loops, DMA,
+interrupts, refresh, palette waits and the return-to-load interval remain
+separate inputs. Summing intrinsic decompressor clocks does not certify any
+map's elapsed frames or remove a proxy row.
+
 The preceding scene's full instruction history need not determine that entry
 phase. On the non-battle return path, `FieldRoutine_Cutscene` ends with
 `jmp VInt_Prepare` (`:120758`); `MainGameLoop` (`:411-416`) dispatches the load

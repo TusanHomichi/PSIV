@@ -5,7 +5,7 @@
 //! its branches one for one.
 //!
 //! [`Work`] describes US retail `NemDecomp` / `NemDecomp_ToRAM`
-//! (`$041740` / `$041752`, `ps4.asm:84605-84851`) instruction work. It is
+//! (`$041740` / `$041752`, `ps4.asm:84605-84797`) instruction work. It is
 //! not elapsed time: IRQ, refresh and VDP/bus stalls are separate concerns.
 
 use super::DecodeError;
