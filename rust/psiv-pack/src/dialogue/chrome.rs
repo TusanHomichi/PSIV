@@ -214,22 +214,26 @@ pub fn write(
     crate::write_file(root, "dialogue/window.png", &image)?;
 
     let records = window_records(rom)?;
-    let (box_json, [bx, by, bw, bh]) = &records[DIALOGUE_WINDOW];
+    let (_, [bx, by, bw, bh]) = &records[DIALOGUE_WINDOW];
     let box_interior = interior(*bx, *by, *bw, *bh);
-    let expected = Json::object()
-        .with("x_cell", TEXT_X)
-        .with("y_cell", TEXT_Y)
-        .with("width_cells", TEXT_WIDTH)
-        .with("height_cells", TEXT_HEIGHT);
-    if crate::json::dumps(&box_interior, true) != crate::json::dumps(&expected, true) {
+    // The window's interior and TextBufferToPlane's rectangle are two
+    // unrelated pieces of the cartridge describing the same area.
+    let found = (
+        bx + BORDER_CELLS,
+        by + BORDER_CELLS,
+        bw - 2 * BORDER_CELLS,
+        bh - 2 * BORDER_CELLS,
+    );
+    let expected = (TEXT_X, TEXT_Y, TEXT_WIDTH, TEXT_HEIGHT);
+    if found != expected {
+        let cells =
+            |(x, y, w, h): (usize, usize, usize, usize)| format!("{w}x{h} cells at ({x}, {y})");
         return refuse(format!(
-            "WinGroup_Dialogue record {DIALOGUE_WINDOW} at {} has interior {}, but \
+            "WinGroup_Dialogue record {DIALOGUE_WINDOW} at {} has an interior of {}, but \
              TextBufferToPlane writes {}",
-            box_json
-                .get("record_offset")
-                .map_or(String::new(), |j| crate::json::dumps(j, true)),
-            crate::json::dumps(&box_interior, true),
-            crate::json::dumps(&expected, true)
+            hex6(WIN_GROUP_DIALOGUE + DIALOGUE_WINDOW * RECORD_SIZE),
+            cells(found),
+            cells(expected)
         ));
     }
     let [px, py, pw, ph] = records[PORTRAIT_WINDOW].1;
