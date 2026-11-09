@@ -347,13 +347,17 @@ impl Runtime {
         Ok(())
     }
 
+    /// A field load from the current map with no alignment: the tests' way
+    /// to stand the party somewhere. Every warp loads through
+    /// [`Runtime::change_map_aligned`].
+    #[cfg(test)]
     pub(crate) fn change_map(
         &mut self,
         target: MapId,
         cell: Cell,
         facing: Direction,
     ) -> Result<LoadedMap, BridgeError> {
-        self.change_map_from(target, cell, facing, self.map.id().0)
+        self.change_map_aligned(target, cell, facing, None)
     }
 
     /// Loads `target` the way a scene's `LoadMap` op does: `RefreshMap`, whose
