@@ -336,6 +336,113 @@ mod tests {
     }
 
     #[test]
+    fn blocking_palette_actions_keep_the_runner_and_cram_clocks_aligned() {
+        use crate::dialogue::{DialogueSignal, Opening, TextFlow};
+        use crate::pad::{Button, Pad};
+        use psiv_data::{ActionKind, Ctrl, DialogueEntry, Segment};
+
+        let Some(base) = runtime() else {
+            eprintln!("skipping: no runtime pack");
+            return;
+        };
+        for phase in 0..4 {
+            for opening in [false, true] {
+                for controls in [false, true] {
+                    let mut rt = Runtime::new(
+                        base.data.clone(),
+                        0x010,
+                        psiv_core::Cell::new(31, 8),
+                        psiv_core::Direction::Down,
+                        StepFrames::default(),
+                    )
+                    .expect("runtime");
+                    let action = Segment::Control(Ctrl::Action {
+                        code: 0xF2,
+                        operands: vec![12],
+                        action: ActionKind::ElsydeonBroken,
+                        action_id: 12,
+                        sound: None,
+                        panel: None,
+                        flag: None,
+                    });
+                    let before = if opening { "" } else { "before" };
+                    let mut segments = vec![Segment::Text(before.into()), action.clone(), action];
+                    if controls {
+                        segments.push(Segment::Control(Ctrl::Wait {
+                            code: 0xFD,
+                            operands: vec![],
+                        }));
+                        segments.push(Segment::Text("after".into()));
+                    } else {
+                        segments.push(Segment::Text("after".into()));
+                    }
+                    let entry = DialogueEntry {
+                        id: 0,
+                        text: String::new(),
+                        segments,
+                        pages: vec![],
+                    };
+                    let Opening::Window(flow) = TextFlow::open_at(&entry, &rt.game) else {
+                        panic!("window");
+                    };
+                    rt.dialogue.start(Opening::Window(flow), "test");
+                    rt.dialogue.revealed = before.len();
+                    if !opening {
+                        rt.dialogue.open_cells = rt.dialogue.full_cells();
+                    }
+                    rt.frames = phase;
+                    let mut launches = Vec::new();
+                    let mut expected = rt.effects.cram.clone();
+                    // Real frame order: input, field palette clock, window dispatch.
+                    for frame in 0..=80 {
+                        let pad = if frame % 3 == 0 {
+                            Pad::NEUTRAL
+                        } else {
+                            Pad::new(Button::Speak)
+                        };
+                        rt.dialogue_frame(pad);
+                        rt.tick(psiv_core::Input::Neutral);
+                        expected.tick(rt.frames);
+                        let signals = rt.dialogue_tick();
+                        if signals.iter().any(|signal| {
+                            matches!(
+                                signal,
+                                DialogueSignal::Action(
+                                    crate::dialogue::DialogueAction::ElsydeonBroken
+                                )
+                            )
+                        }) {
+                            launches.push(frame);
+                            expected.tone_and_back(20, rt.frames);
+                        }
+                        assert_eq!(
+                            rt.cram().words,
+                            expected.view().words,
+                            "palette frame {frame}"
+                        );
+                        let view = rt.dialogue_view().expect("window stays open");
+                        if frame < 80 {
+                            assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
+                            assert_eq!(
+                                view.revealed,
+                                before.len(),
+                                "Speak preserves glyphs on frame {frame}"
+                            );
+                            assert_eq!(view.page_end, None);
+                            assert_eq!(view.choice, None);
+                        } else if controls {
+                            assert_eq!(view.page_end, Some(psiv_data::PageEnd::Wait));
+                        } else {
+                            assert_eq!(view.lines, [format!("{before}after")]);
+                        }
+                    }
+                    assert_eq!(launches, [0, 40]);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn a_scene_tree_address_resolves_through_the_packs_own_table() {
         let Some(mut rt) = runtime() else {
             return;

@@ -572,10 +572,10 @@ fn the_elsydeon_break_holds_the_text_for_its_forty_frames() {
     assert_eq!(action, super::DialogueAction::ElsydeonBroken);
     flow.resume_after_action(action, &game);
     for frame in 1..40 {
-        flow.tick(&game);
+        flow.tick_action(&game);
         assert_eq!(flow.lines(), ["before"], "frame {frame}");
     }
-    flow.tick(&game);
+    flow.tick_action(&game);
     assert_eq!(
         flow.lines(),
         ["beforeafter"],
