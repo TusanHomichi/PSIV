@@ -42,7 +42,8 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 
 | Retail route | Runtime/presentation route | Status |
 |---|---|---|
-| Map arrival `music.id`; zero means keep current | `Field::ready` and `MapChanged` call `play_map_music` | Wired |
+| Map arrival: `GameMode_LoadFieldMap`'s change edge (`$FFFFECED`, set at `$051812` when the music branch writes `Saved_Sound_Index`; at `$051958` a set edge sends `Sound_StopAll`, one `VInt_Prepare` and the saved word, a clear one nothing) | The runtime's `LoadedMap::music_change` on `MapChanged`; the shell plays exactly that id, and a load that raised no edge leaves the music playing. `Field::ready` and CONTINUE still play the map's raw request | Wired |
+| Restore edges (battle close `$033E0C`, scene end): `Saved_Sound_Index` copied to `Sound_Index` | `restore_saved_music` reads the runtime word; a zero word keeps the current music (the driver's queue drops ids below `$81`), never the map's raw id | Wired |
 | Normal field battle `$8F` `MeetThemHeadOn` | `EncounterRolled`; debug random battle uses the same ID | Wired |
 | Event battle `EventBattleMusicData` | `SceneBattleStarted`, all 27 ROM table entries preserved | Wired |
 | Victory `$8B` `Winners` | `service_battle_finish` on `Outcome::Victory` | Wired |

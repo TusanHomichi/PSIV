@@ -109,7 +109,7 @@ fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
         .iter()
         .position(|frame| {
             frame.events.iter().any(|event| {
-                matches!(event, RuntimeEvent::ScenePresentation { op: SceneOp::Presentation { op } } if pick(op))
+                matches!(event, RuntimeEvent::ScenePresentation { op: SceneOp::Presentation { op }, .. } if pick(op))
             })
         })
         .expect("the record is emitted")

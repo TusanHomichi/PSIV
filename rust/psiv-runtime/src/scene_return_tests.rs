@@ -89,6 +89,7 @@ impl Run {
                         SceneOp::Presentation {
                             op: PresentationOp::FieldReload { setup, fade },
                         },
+                    ..
                 } => Some((*tick, *setup, *fade)),
                 _ => None,
             })

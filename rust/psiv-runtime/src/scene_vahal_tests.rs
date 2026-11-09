@@ -95,6 +95,7 @@ fn collect(rt: &mut Runtime, events: &[RuntimeEvent], tick: usize, run: &mut Run
             RuntimeEvent::MapRefreshed => run.writes.push((tick, rt.effects.chunk_patches.clone())),
             RuntimeEvent::ScenePresentation {
                 op: SceneOp::PlaySound { id },
+                ..
             } => run.sounds.push(*id),
             RuntimeEvent::SceneDialogue { entry } => {
                 run.dialogues.push(*entry);

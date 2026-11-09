@@ -259,8 +259,13 @@ establishes is owned by [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-
 
 ## Map-music transition boundary
 
-The retail `$ECED` music-change edge and the zero saved-sound restore policy are
-not modeled yet: [#73](https://github.com/TusanHomichi/PSIV/issues/73) owns the
-source references (the US image sets the edge at `$051812`, consumes it at
-`$051958` and restores the saved byte at `$05197A`; the battle-return copy is at
-`$033E0C`) and the acceptance.
+The runtime owns the map-music decision. A field load's music branch writes
+`Saved_Sound_Index` and raises the `$ECED` edge (`$051812`); the load's tail
+consumes it (`$051958`) with `Sound_StopAll`, a frame and the saved word
+(`$05197A`). The runtime reports that as `LoadedMap::music_change` on
+`MapChanged`, and the shell plays only it, so a load that raised no edge leaves
+the music playing. At the restore edges (the battle return's copy at `$033E0C`,
+a scene's end) the shell copies the runtime's saved word; a zero word is no
+request, since the driver's queue drops every id below `$81`, and is never
+replaced by the map's raw id ([#73](https://github.com/TusanHomichi/PSIV/issues/73);
+`docs/sound/SOUND_INTEGRATION.md`).
