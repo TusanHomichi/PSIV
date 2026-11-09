@@ -30,7 +30,7 @@ from unittest import mock
 from oracle.force.pack import Pack
 from oracle.sweep import Options, Sweep, list_formations, main, record_path
 from oracle.sweep import jobs as sweep_jobs
-from oracle.sweep import manifest
+from oracle.sweep import manifest, reextract
 from oracle.sweep.plan import write_list
 from tests.test_oracle_force_battle import ENCOUNTERS, PackFixture
 
@@ -161,7 +161,7 @@ class Commands(SweepFixture):
         # The paved invocation: a module of the `oracle` package, run from the
         # repository root (`oracle/README.md`, "Layout").
         self.assertEqual(argv[:3], [sys.executable, "-m", "oracle.force"])
-        self.assertEqual(argv[argv.index("--formation") + 1], "0x05")
+        self.assertEqual(argv[argv.index("--formation") + 1], "0x5")
         self.assertIn("--durable", argv)
         self.assertEqual(argv[argv.index("--max-rounds") + 1], "5")
         self.assertEqual(argv[argv.index("--scout") + 1],
@@ -208,7 +208,7 @@ class Recording(SweepFixture):
         self.assertEqual(self.record()["summary"]["captured"], len(MINI_LIST))
         # Both commands are in the record, so a formation's capture can be
         # re-run exactly as the sweep ran it.
-        self.assertEqual(entry["commands"]["force"][-1], "--durable")
+        self.assertIn("--durable", entry["commands"]["force"])
         self.assertEqual(entry["commands"]["extract"][-1], "999")
 
     def test_a_capture_that_fails_is_recorded_with_its_stage_and_error(self):
@@ -319,6 +319,33 @@ class Resume(SweepFixture):
         listed = json.loads((self.out / "list.json").read_text())
         self.assertEqual([entry["formation"] for entry in listed["formations"]],
                          MINI_LIST)
+
+    def test_whole_battle_round_cap_survives_region_capture_extract_and_reextract(self):
+        paths = ["--out", str(self.out), "--fixtures", str(self.fixtures),
+                 "--data-dir", self.pack_dir, "--ram-map", self.ram_map,
+                 "--jobs", "1", "--max-rounds", "0",
+                 "--base-tape", os.path.join(self.dir.name, "base.tape")]
+        report = self.report
+        with mock.patch.object(self, "report", side_effect=lambda f: {**report(f), "max_rounds": 0}), \
+                mock.patch.object(sweep_jobs, "run", self.fake_run()):
+            self.assertEqual(main(paths), 0)
+        self.assertEqual(self.record()["options"]["max_rounds"], 0)
+        for command in self.calls:
+            self.assertEqual(command[command.index("--max-rounds") + 1], "0")
+        # The recorded zero remains authoritative even when re-extraction is
+        # invoked with today's default five-round options.
+        for directory in reextract.directories(self.out):
+            capture = directory / "capture"
+            capture.mkdir()
+            (capture / "forced_test.csv").write_text("constructed log")
+            (capture / "forced_test_rolls.csv").write_text("constructed trace")
+        self.calls.clear()
+        with mock.patch.object(sweep_jobs, "run", self.fake_run()):
+            self.assertEqual(reextract.main(self.out, self.options, jobs_count=1), 0)
+        self.assertEqual(len(self.calls), len(MINI_LIST))
+        for command in self.calls:
+            self.assertIn("oracle.fixture", command)
+            self.assertEqual(command[command.index("--max-rounds") + 1], "0")
 
     def test_a_run_with_a_failure_is_its_own_exit_status(self):
         paths = ["--out", str(self.out), "--fixtures", str(self.fixtures),

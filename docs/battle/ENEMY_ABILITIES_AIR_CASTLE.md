@@ -123,8 +123,7 @@ HakenLeft won the race (`$3B`).
 
 `python3 -m oracle.sweep.air_castle --capture --extract --work <dir>` reproduces
 the set (one case at a time, `--only NAME`); its cases are listed with `--list`.
-Party-script cases declare their party fixture (`oracle.sweep.player_capture`'s
-patches) and use a `--prepare-script` scout. Every capture ran twice
+Party-script cases declare their party fixture (`oracle.sweep.party_fixture.patches`) and use a `--prepare-script` scout. Every capture ran twice
 byte-identical and passed `python3 -m oracle.rng_trace check`; the fixtures are in
 `rust/psiv-core/src/battle/replay_fixtures/air_castle/` and replay exactly
 through `every_fixture_replays_as_recorded`, with `divergences.json` still empty.

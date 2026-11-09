@@ -740,7 +740,7 @@ no capture could show this rule (the force tool had only the attack and defend
 policies, no party knew a single-target non-damaging technique, and the
 extractor named no command). Party command scripts closed all three
 (`docs/oracle/BATTLE_ORACLE_FORCED.md` section 9), and the recipe driver
-`python3 -m oracle.sweep.player_capture` teaches a member the technique its
+`python3 -m oracle.sweep.forced_cases` teaches a member the technique its
 script names. Formation 2's undelayed draw opens with an ambush, so the
 capture is the `oracle.force` command the driver records in its
 `commands.jsonl`, rerun with `--delay 1`.

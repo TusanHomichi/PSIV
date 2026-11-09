@@ -240,7 +240,7 @@ still empty.
 fixtures and the work directory's reports. The party is tape 07's (Alys, Chaz,
 Hahn; `spark` and `spark_two` seat Wren, and Wren and Demi, through the
 `characters` fixture), with `--durable` HP; scripted cases patch the stats their
-`script` names (`oracle.sweep.player_capture.patches`). Notes:
+`script` names (`oracle.sweep.party_fixture.patches`). Notes:
 
 - Rounds where a turn is filed as an attack resolving no slot - COMBINE's
   reloads that clear `$24(a4)`, InfantWorm's NOTHING, the form changes, the

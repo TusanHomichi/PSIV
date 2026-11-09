@@ -9,7 +9,7 @@ The recipe for `docs/battle/ENEMY_ABILITIES_AIR_CASTLE.md`. Every case is one
 `python3 -m oracle.force` capture with `--require-ability`: a formation, or with
 `event` an event battle's `Event_Battle_Index`. A case with a `script` drives the
 party through the cartridge's own menus (`--party-script`); its party fixture is
-the declared RAM patch `oracle.sweep.player_capture.patches` builds, and its
+the declared RAM patch `oracle.sweep.party_fixture.patches` builds, and its
 `--prepare-script` scout is `<work>/script-scout.json`. The rest keep the base
 tape's party with `--durable` HP. The set of abilities the cases exist for is
 derived, not listed: `python3 -m oracle.sweep.route_abilities --stretch
@@ -20,8 +20,6 @@ the command line - is `oracle.sweep.forced_cases`, shared with the endgame
 recipe.
 """
 from __future__ import annotations
-
-import pathlib
 
 from .forced_cases import (FIXTURE_ROOT, ROOT, Case, capture_argv, extract_argv,
                            run_cases, seated_in, used_in)
