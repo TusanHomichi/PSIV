@@ -389,7 +389,7 @@ pub static ZIO_FORT_BARRIER: Scene = Scene {
         SceneOp::BranchFlag {
             flag: Flag::event(0x63),
             if_set: 1,
-            if_clear: 33,
+            if_clear: 34,
         },
         // `$06EC6E`: dialogue `$44` on the map's own tree.
         SceneOp::RunDialogue {

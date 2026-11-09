@@ -442,6 +442,11 @@ fn zio_ramp_reaches_the_live_scene_palette() {
             }
         )
     });
+    assert_eq!(
+        frames[ramp].beams.len(),
+        4,
+        "all four routines must be represented"
+    );
     assert_eq!(reveal - main, 40);
     assert_eq!(ramp - reveal, 1);
     for (before, after) in frames[main].beams.iter().zip(&frames[reveal].beams) {
