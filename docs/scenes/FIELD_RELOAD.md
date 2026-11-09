@@ -30,7 +30,7 @@ some scenes set bit 7) are already in it when bit 2 joins them.
 | music | `:107536-107547` | a map with music, bit 0 **clear** and a raw id other than `Saved_Sound_Index` asks `AdjustMusicIDs`; a zero answer writes the saved word and sets `$FFFFECED` | `write_map_music` |
 | party placement | `loc_53546`, `:110805-110823` | bit 2: `rts`. The party is not re-placed. | not run |
 | `LoadMapObjects` | `:110924-110930` | bit 2: skipped. **No object is reloaded**; the live objects (a scene's despawns, moves and `$14` dialogue ids) stay. | `rewalk_map_retaining_objects` keeps the live `Npc`s and their dialogue ids |
-| `LoadTreasureChests` | `:110966-110983` | bit 2: skipped; lids stay | `attach_chests` keeps the live lids |
+| `LoadTreasureChests` | `:110966-110983` | chest art is decompressed before the bit-2 test; object creation is skipped, so lids stay | `attach_chests` keeps the live lids |
 | `LoadTileAnimations` | `:111029` | runs (adds entries to the retained memory) | not modelled |
 | `MapDataManager` | in the load | runs again over the retained objects | `effects::evaluate` |
 | camera | `loc_53854`, `:111049` | zeroes all four cameras and re-seats them on `Character_1` | `camera_for_record` on the leader (or the vehicle) |
@@ -54,7 +54,7 @@ chunk walk, `MapDataManager`) that the CPU spends between `VInt_Prepare` waits,
 so they differ per map: **34 to 92 rows** across the pack's 361 maps. They are measured, not
 modelled.
 
-**Method.** `tests/reload_frames.py` runs the oracle host over tape 35's field
+**Method.** `oracle/reload_frames.py` runs the oracle host over tape 35's field
 prefix (the fixture `tools/certify.py` `TAPE_35` pins). Frame 7000 loads the map
 (mode 8); frame 7200 puts the field in Events with `Event_Index = $8000`, whose
 `Event_NoEvent` is an immediate return with zero in `d0` (`CutscenePtrs[0]`,
@@ -80,7 +80,7 @@ Both landings took the music branch for real (`Saved_Sound_Index` goes `$9B` to
 with two extra RAM-map rows over `oracle/ship_flight.py`'s two legs), and still spent 52 and 42: the extra frame
 was absorbed by the load's alignment there, while the principal's own load
 spent it. The table therefore pins those three maps' music column to the
-organic counts (`ORGANIC_MUSIC_TAKEN` in `tests/reload_frames.py`: 55, 52, 42).
+organic counts (`ORGANIC_MUSIC_TAKEN` in `oracle/reload_frames.py`: 55, 52, 42).
 Whether a load absorbs the frame depends on the load's alignment, and the
 fixture shows it on 347 of 361 maps, both landings included, where the flights
 did not spend it: the music column elsewhere is the fixture's and good to a
@@ -88,6 +88,16 @@ frame.
 
 The fixture also shows bit 7 removing exactly the 16 fade frames (map `$14`,
 54 to 38) and bit 0 removing the music frame (55 to 54).
+
+**Evidence retention.** Each `run_one` attempt now has its own directory in
+the requested output root, including retries at other cells and first-load
+proxies. It keeps `frames.csv`, `input.tape`, `stdout.log` and `receipt.json`.
+The receipt records the command, working directory, exit status, elapsed time
+and SHA-256 of the ROM, core, host, RAM map, tape and pack manifest. A failed
+host's stdout and receipt also remain. These are forced fixtures; retaining
+them does not make them organic captures. The oracle test checks their actual
+A/B counts (54/55, 52/53 and 42/43), independently of the table's organic
+overrides. It does not replay tape 07's end or tape 35's landings.
 
 **Coverage.** All 361 pack maps have a row. 330 were measured with the
 cutscene firing at the fixture's own load cell; 14 needed another cell (the
@@ -119,6 +129,44 @@ landings measured. `SceneEnded` comes on the last of them.
   name's draw may differ.
 - `LoadTileAnimations` re-adding entries and `Sound_StopAll`'s effect on audio
   are not modelled. The shell plays map music from its own state.
+
+### Inputs to an exact timing model
+
+[#95](https://github.com/TusanHomichi/PSIV/issues/95) tracks replacing the
+approximate rows. Object/chest counts and map-data lengths alone do not
+determine the load's elapsed frames. The following work must be accounted for
+before a formula can certify a row:
+
+- `GameMode_LoadFieldMap` (`$51790`, `:107505`) retains object and animation
+  memory with bit 2 set. `LoadMapObjects` (`$536C0`, `:110924`) scans past
+  object records, while `LoadTreasureChests` (`$5373E`, `:110966`) still
+  decompresses both chest art streams before skipping creation.
+- `loc_51A7A` adds vehicle art decompression when `Vehicle_Index` is nonzero.
+  Nemesis (`:84605`) and Kosinski (`:85262`) execute content-dependent paths;
+  their decoded sizes alone are insufficient.
+- `MapDataManager` (`:107815`) branches on story state; `LoadTileAnimations`
+  (`:111029`) scans retained allocation slots. `Field_UpdateObjects`
+  (`:88893`) runs the retained objects through `Field_RunObjects` (`:89477`).
+  Camera position also selects branches in `RefreshPlaneFG/BG`
+  (`:111815`, `:111854`).
+- `VInt_Prepare` (`:85745`) waits for the next hardware VBlank, rather than
+  consuming a fixed duration. Its palette comparison and `VInt` (`:549`)
+  DMA, Z80 and sound work affect timing. A cycle model needs the CPU/VDP phase
+  entering the load as well as the work between waits.
+
+Even the fade's fixed 16 is a property of the measured palettes.
+`Pal_FadeIn` (`$421D4`, `:85897-85947`) clears the current palette and increments
+each differing nibble toward the target. For maximum target nibble `M`, it
+calls `VInt_Prepare` **`M + 2` times**: one in `VDP_EnableDisplay`, `M`
+incrementing iterations and one unchanged iteration. Turning those waits into
+elapsed frames additionally requires that the work between waits fits before
+the next VBlank. The measured 16 corresponds to `M = 14`.
+
+The addresses above were checked against the US retail ROM with SHA-256
+`511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`;
+fork-only scene rewrites do not establish these timing rules. Neither a new
+forced fixture nor agreement with the three table overrides removes the
+17 proxies or certifies the other maps' organic timing.
 
 ## The port
 

@@ -1,8 +1,8 @@
 """Measure the cartridge's cutscene-return field reload, one map at a time.
 
-    PYTHONPATH=. python3 -m tests.reload_frames --out build/s8-reload/oracle
-    PYTHONPATH=. python3 -m tests.reload_frames --maps 0x14 0x18d --out ...
-    PYTHONPATH=. python3 -m tests.reload_frames --emit-rust build/.../table.json
+    PYTHONPATH=. python3 -m oracle.reload_frames --out build/s8-reload/oracle
+    PYTHONPATH=. python3 -m oracle.reload_frames --maps 0x14 0x18d --out ...
+    PYTHONPATH=. python3 -m oracle.reload_frames --emit-rust build/.../table.json
 
 `FieldRoutine_Cutscene` (`ps4.asm:120739-120758`) answers a zero return with
 `bset #2, Map_Load_Flags` and `GameMode_LoadFieldMap` (mode 8). The frames that
@@ -21,19 +21,21 @@ mode 8 are the reload. Two states are measured per map:
   the frame is absorbed by the load's own alignment, so both are tabled. The
   three organic captures pin their maps' B (`ORGANIC_MUSIC_TAKEN`).
 
-Anchors the method reproduces: the principal's own organic end (tape 07, map
-$14, 55 rows, music word cleared by the scene so it takes branch B) and tape
-35's landings (map $18D 52 rows, $BF 42 rows).
+The table also has three overrides from organic captures: the principal's end
+(tape 07, map $14, 55 rows) and tape 35's landings ($18D 52, $BF 42). This
+forced fixture does not replay those captures: its B counts on the landings
+are 53 and 43. See `docs/scenes/FIELD_RELOAD.md` for that distinction.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import subprocess
 import sys
-import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -102,10 +104,21 @@ def run_one(map_id: int, saved: int, tape: Path, out: Path, bits: int = 0,
     is the tape's own position, which on some maps lands on a trigger that
     starts an event before the cutscene can fire. `first_load` measures the
     fixture's own frame-7000 load instead: the same `GameMode_LoadFieldMap`,
-    for the maps whose entry event owns the field before frame 7200 (it equals
-    the cutscene reload on every map both could measure, see `FIELD_RELOAD.md`).
+    for the maps whose entry event owns the field before frame 7200. This is
+    a proxy, not an organic cutscene return (see `FIELD_RELOAD.md`).
+
+    Keep each attempt's CSV, stdout and command receipt, including unsuccessful
+    cells. Different cells and first-load attempts must not overwrite evidence.
     """
-    log = out / f"m{map_id:03X}_s{saved:02X}_b{bits:02X}.csv"
+    cell = "default" if at is None else f"x{at[0]}_y{at[1]}"
+    kind = "first" if first_load else "reload"
+    stem = f"m{map_id:03X}_s{saved:02X}_b{bits:02X}_{cell}_{kind}"
+    # A separate directory per attempt also preserves evidence across reruns.
+    attempt = out.resolve() / f"{stem}_{time.time_ns()}"
+    attempt.mkdir(parents=True)
+    log = attempt / "frames.csv"
+    retained_tape = attempt / "input.tape"
+    retained_tape.write_bytes(tape.read_bytes())
     patches = [
         f"{LOAD_FRAME}:FFFFEC28:{map_id:04X}",
         f"{LOAD_FRAME}:FFFFEC2A:0000",
@@ -125,16 +138,26 @@ def run_one(map_id: int, saved: int, tape: Path, out: Path, bits: int = 0,
     command = [
         str(host_binary.ensure()),
         "--core", CORE, "--rom", ROM, "--map", "oracle/ram_map.tsv",
-        "--tape", str(tape), "--groups", "core", "--out", str(log),
+        "--tape", str(retained_tape), "--groups", "core", "--out", str(log),
     ]
     for patch in patches:
         command += ["--ram-patch", patch]
+    inputs = {"rom": ROOT / ROM, "core": ROOT / CORE,
+              "pack_manifest": PACK / "manifest.json", "tape": retained_tape,
+              "ram_map": ROOT / "oracle/ram_map.tsv", "host": Path(command[0])}
+    hashes = {name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for name, path in inputs.items()}
+    started = time.monotonic()
     done = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (attempt / "stdout.log").write_bytes(done.stdout)
+    receipt = {"command": command, "cwd": str(ROOT), "input_sha256": hashes,
+               "exit_status": done.returncode, "elapsed_seconds": time.monotonic() - started,
+               "measurement": "forced_first_load_proxy" if first_load else "forced_cutscene_return"}
+    (attempt / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     if done.returncode:
         raise RuntimeError(f"oracle exited {done.returncode}: {done.stdout.decode()[-400:]}")
     with log.open() as handle:
         rows = list(csv.DictReader(line for line in handle if not line.startswith("#")))
-    log.unlink()
     return reload_rows(rows, LOAD_FRAME if first_load else CUTSCENE_FRAME)
 
 
@@ -196,7 +219,7 @@ def write_table(receipt: dict, path: Path) -> None:
         for row in receipt["maps"]
     ]}
     for begin, end, body in (
-        ("// BEGIN GENERATED: python3 -m tests.reload_frames --write-table <this file>",
+        ("// BEGIN GENERATED: python3 -m oracle.reload_frames --write-table <this file>",
          "// END GENERATED\n", emit_rust(receipt["maps"])),
         ("// BEGIN GENERATED PROXY\n", "// END GENERATED PROXY",
          "\n".join(f"    {m:#05x}," for m in proxies)),
@@ -244,20 +267,19 @@ def main(argv=None) -> int:
     else:
         maps = pack_maps()
     args.out.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as scratch:
-        tape = reload_tape(Path(scratch))
-        results, failures = [], []
+    tape = reload_tape(args.out)
+    results, failures = [], []
 
-        def job(map_id):
-            try:
-                return measure_map(map_id, tape, args.out)
-            except (RuntimeError, ValueError, KeyError) as error:
-                return {"map": map_id, "error": str(error)}
+    def job(map_id):
+        try:
+            return measure_map(map_id, tape, args.out)
+        except (RuntimeError, ValueError, KeyError) as error:
+            return {"map": map_id, "error": str(error)}
 
-        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            for row in pool.map(job, maps):
-                (failures if "error" in row else results).append(row)
-                print(row, flush=True)
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        for row in pool.map(job, maps):
+            (failures if "error" in row else results).append(row)
+            print(row, flush=True)
     partial = args.retry_failures or bool(args.maps)
     merged = merge(previous, results, failures) if partial else {
         "maps": results,

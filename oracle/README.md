@@ -80,6 +80,7 @@ oracle/
 │                           derivation, the observations, the fixture's shape);
 │                           `__main__.py` is `python3 -m oracle.fixture`
 ├── decode_layout.py        decodes a --dump-state receipt into a layout
+├── reload_frames.py       forced field-reload measurements and retained evidence
 ├── scroll_state.py         the camera and VDP scroll receipt that reads
 ├── checks.py               shared helpers for verify.sh's two lanes
 ├── core/…_libretro.so      built core (not committed)
