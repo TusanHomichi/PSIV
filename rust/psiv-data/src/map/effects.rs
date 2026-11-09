@@ -56,8 +56,35 @@ pub struct EffectPath {
 pub struct PaletteEffect {
     /// The extractor currently resolves `palette_write` here.
     pub resolved_as: String,
+    /// The CRAM line the copy fills: `Palette_Table_Buffer + $20 * line`.
+    /// The extractors accept only whole-line copies.
+    pub cram_line: usize,
+    /// The sixteen words the copy writes, as `0xNNNN`.
+    pub words_hex: Vec<String>,
     /// Sprite replacements produced with the copied palette.
     pub affects: PaletteAffectedSprites,
+}
+
+impl PaletteEffect {
+    /// The copy as its first `Palette_Table_Buffer` slot and the words it
+    /// writes there; `None` when the line or a word does not fit the buffer.
+    #[must_use]
+    pub fn copy(&self) -> Option<(usize, Vec<u16>)> {
+        const LINE_WORDS: usize = 16;
+        if self.cram_line >= 4 || self.words_hex.len() != LINE_WORDS {
+            return None;
+        }
+        let words = self
+            .words_hex
+            .iter()
+            .map(|word| {
+                word.strip_prefix("0x")
+                    .filter(|hex| hex.len() == 4)
+                    .and_then(|hex| u16::from_str_radix(hex, 16).ok())
+            })
+            .collect::<Option<Vec<u16>>>()?;
+        Some((self.cram_line * LINE_WORDS, words))
+    }
 }
 
 /// The NPC assets affected by a palette copy. Map pixels use other CRAM lines.
@@ -161,4 +188,40 @@ pub struct ResolvedCell {
     pub y: u32,
     /// The 4-bit collision type the written chunk imposes.
     pub collision: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn effect(cram_line: usize, words_hex: &[&str]) -> PaletteEffect {
+        PaletteEffect {
+            resolved_as: "palette_write".into(),
+            cram_line,
+            words_hex: words_hex.iter().map(|&word| word.to_owned()).collect(),
+            affects: PaletteAffectedSprites {
+                npc_sheets: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn a_copy_is_one_whole_line_of_sixteen_words() {
+        let words: Vec<String> = (0..16).map(|i| format!("0x{:04X}", i * 0x0111)).collect();
+        let words: Vec<&str> = words.iter().map(String::as_str).collect();
+        let (start, copied) = effect(3, &words).copy().expect("fits");
+        assert_eq!(start, 48);
+        assert_eq!(copied, (0..16).map(|i| i * 0x0111).collect::<Vec<u16>>());
+        assert_eq!(effect(0, &words).copy().map(|(start, _)| start), Some(0));
+        // Negative controls: past the buffer, short, malformed.
+        assert_eq!(effect(4, &words).copy(), None);
+        assert_eq!(effect(3, &words[..15]).copy(), None);
+        let mut bad = words.clone();
+        bad[5] = "0EEE";
+        assert_eq!(effect(3, &bad).copy(), None);
+        bad[5] = "0x0EEEE";
+        assert_eq!(effect(3, &bad).copy(), None);
+        bad[5] = "0xZZZZ";
+        assert_eq!(effect(3, &bad).copy(), None);
+    }
 }

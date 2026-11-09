@@ -89,6 +89,7 @@ mod geom;
 mod inventory;
 mod map;
 mod map_load;
+pub mod palette;
 mod party;
 mod replay;
 mod roster;
@@ -126,6 +127,7 @@ pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use inventory::{EMPTY, INVENTORY_SLOTS, Inventory};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
 pub use map_load::{apply_map_load, flag_clears_for_entry};
+pub use palette::palette_cycle_writes;
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
 pub use replay::{
     Buttons, COLUMNS, Column, Coverage, DiffReport, Divergence, FrameSample, OBJECT_COLUMN_KINDS,
@@ -146,8 +148,8 @@ pub use scene::{
     SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
 pub use scene_presentation::{
-    CameraSubject, CreditsPlane, PaletteHold, PresentationAsset, PresentationOp,
-    palette_cycle_writes,
+    CameraSubject, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource, PresentationAsset,
+    PresentationOp,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scene_types::{

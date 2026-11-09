@@ -44,11 +44,10 @@ impl Field {
                 self.set_field_map_visible(false);
                 self.presentation.set_vram_blanked(true);
             }
-            SceneOp::LoadPalette { rom_addr, words } => {
+            // The runtime's CRAM model applies the words from the pack and
+            // lists any palette the pack lacks (`Runtime::cram`).
+            SceneOp::LoadPalette { rom_addr, words, .. } => {
                 self.presentation.loaded_palettes.insert(rom_addr, words);
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind().load_palette(rom_addr, words);
-                }
                 godot_print!("scene palette: {words} words from {rom_addr:#08x}");
             }
             SceneOp::LoadArt { rom_addr, tile } => {
@@ -269,12 +268,14 @@ impl Field {
                 self.presentation
                     .step_field_object(slot, step_x, step_y, u16::MAX);
             }
-            PresentationOp::FadeToRed { lines } => self.start_red_palette(lines, false),
-            PresentationOp::FadeFromRed { lines } => self.start_red_palette(lines, true),
-            op @ (PresentationOp::CopyRamWords { .. }
-            | PresentationOp::ClearRamWords { .. }
-            | PresentationOp::ClearRamLongs { .. }
-            | PresentationOp::FillRamWords { .. }
+            // Palette records are applied by the runtime's CRAM model
+            // (`Runtime::cram`), and the map, sprites, panels and dialogue
+            // window draw from it (`cram_art`).
+            op @ (PresentationOp::PaletteCopy { .. }
+            | PresentationOp::FadeToRed { .. }
+            | PresentationOp::FadeFromRed { .. }
+            | PresentationOp::PaletteRestoreTone { .. }
+            | PresentationOp::ShadowHighlight { .. }
             | PresentationOp::ClearPlanes
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
@@ -282,7 +283,6 @@ impl Field {
             | PresentationOp::PaletteToneFlash { .. }
             | PresentationOp::AddPaletteWord { .. }
             | PresentationOp::GaruberkEyeArtCycle { .. }
-            | PresentationOp::ClearPaletteLine { .. }
             | PresentationOp::VariablePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
@@ -334,7 +334,6 @@ impl Field {
     }
 
     pub(crate) fn finish_cutscene_presentation(&mut self) {
-        self.clear_red_palette();
         let restored = if self.presentation.scene_music_retained() {
             // Runtime already settled this scene's Saved_Sound_Index decision.
             // Boarding has no cartridge restore at exit; discard the shell's

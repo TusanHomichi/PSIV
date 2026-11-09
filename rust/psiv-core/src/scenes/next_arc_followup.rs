@@ -82,15 +82,18 @@ pub static GIRLS_SNEAKING_OUT: Scene = Scene {
             op: PresentationOp::SavePartySpriteX { parked_x: 0x65 },
         },
         SceneOp::Presentation {
+            // `lea Palette_Table_Buffer+$44, a1` / `move.w #$AAA, (a1)+` /
+            // `move.w #$666, (a1)`: words $22 and $23.
             op: PresentationOp::SetPaletteWords {
-                offset: 0x44,
+                offset: 0x22,
                 first: 0x0AAA,
                 second: 0x0666,
             },
         },
         SceneOp::Presentation {
+            // `lea Palette_Table_Buffer+$5C, a1`: words $2E and $2F.
             op: PresentationOp::SetPaletteWords {
-                offset: 0x5C,
+                offset: 0x2E,
                 first: 0x0620,
                 second: 0x0EEE,
             },
@@ -388,8 +391,10 @@ pub static MEETING_RIKA: Scene = Scene {
         SceneOp::PlaySound { id: SFX_RADAR },
         SceneOp::Wait { ticks: 60 },
         SceneOp::Presentation {
+            // `lea Palette_Table_Buffer+$18, a0` / `move.w #$E, d0` / two
+            // `move.w d0`: words $0C and $0D.
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x000E,
                 second: 0x000E,
             },

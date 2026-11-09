@@ -313,12 +313,10 @@ pub static ZIO_NURVUS: Scene = Scene {
     ops: &[
         SceneOp::PlaySound { id: MUSIC_STOP },
         SceneOp::Wait { ticks: 40 },
+        // `$06F2FA`: `move.w #$8C89, (a6)`, VDP register 12 with
+        // shadow/highlight on. A register write, not palette words.
         SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
-                first: 0x8C89,
-                second: 0x8C81,
-            },
+            op: PresentationOp::ShadowHighlight { enabled: true },
         },
         SceneOp::ObjectAnimation {
             slot: 1,
@@ -337,6 +335,10 @@ pub static ZIO_NURVUS: Scene = Scene {
         },
         SceneOp::Wait { ticks: 126 },
         SceneOp::Wait { ticks: 20 },
+        // `$06F3AA`: `move.w #$8C81, (a6)`, shadow/highlight off again.
+        SceneOp::Presentation {
+            op: PresentationOp::ShadowHighlight { enabled: false },
+        },
         SceneOp::ObjectAnimation {
             slot: 1,
             object_id: 0x1E8,

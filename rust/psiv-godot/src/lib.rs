@@ -15,6 +15,7 @@ mod audio_shutdown;
 mod battle;
 mod boot;
 mod camp;
+mod cram_art;
 mod cutscene;
 #[path = "debug.rs"]
 mod debug;
@@ -29,7 +30,6 @@ mod job_board;
 mod menu_font;
 mod named_caches;
 mod pack_setup;
-mod red_palette;
 mod resident_memory;
 mod runtime_events;
 mod rust_heap;
@@ -49,7 +49,7 @@ use destination::DestinationScreen;
 use dialogue::DialogueWindow;
 use input::requested_save_slot;
 use job_board::JobBoardScreen;
-use save_dir::save_directory;
+use save_dir::session_store;
 use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView};
@@ -65,22 +65,6 @@ struct PsivExtension;
 unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
-
-/// The run's save directory as a store, or the logged refusal.
-///
-/// The policy is the shell's (`save_dir.rs`): a scripted run that named no
-/// directory gets no store, and the session refuses every slot operation
-/// instead of falling back to a default path. Resolved once per boot, so the
-/// fixtures and the constructors share one answer.
-pub(crate) fn session_store() -> Option<SaveStore> {
-    match save_directory() {
-        Ok(directory) => Some(SaveStore::new(directory)),
-        Err(error) => {
-            godot_error!("save slot scan refused: {error}");
-            None
-        }
-    }
-}
 
 /// The cinema letterbox: four bars, made the first time a scene needs them.
 pub(crate) const LETTERBOX_BARS: usize = 4;
@@ -199,6 +183,9 @@ struct Field {
     /// slot and are hidden as soon as the presentation state expires them.
     temporary_nodes: BTreeMap<usize, Gd<Sprite2D>>,
     sheet_views: HashMap<String, SheetView>,
+    /// The live palette sprite sheets and scene panels draw from
+    /// (`cram_art`), refreshed from `Runtime::cram` every drawn frame.
+    cram: cram_art::SharedCram,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
     status_presentation: field_status::StatusPresentation,
@@ -224,7 +211,6 @@ struct Field {
     transition: Option<transitions::Transition>,
     /// ColorRect pieces used by the active transition cover.
     transition_nodes: Vec<Gd<ColorRect>>,
-    red_palette: red_palette::RedPalette,
     /// Set when a zero-return cutscene's `FieldReload` op has already torn the
     /// scene down and drawn the field; the scene's `SceneEnded` then only
     /// hands control back. Cleared by that `SceneEnded`.
@@ -323,6 +309,7 @@ impl INode2D for Field {
             follower_nodes: Vec::new(),
             temporary_nodes: BTreeMap::new(),
             sheet_views: HashMap::new(),
+            cram: cram_art::SharedCram::default(),
             camera: None,
             dialogue: None,
             status_presentation: field_status::StatusPresentation::default(),
@@ -343,7 +330,6 @@ impl INode2D for Field {
             letterbox: Vec::new(),
             transition: None,
             transition_nodes: Vec::new(),
-            red_palette: red_palette::RedPalette::default(),
             field_reload_presented: false,
             leader_char: 0,
             party_sequence: String::new(),
@@ -577,6 +563,9 @@ impl INode2D for Field {
                 godot_error!("scene presentation pack failed to load: {e}");
             }
         }
+        cutscene_layer
+            .bind_mut()
+            .set_cram(std::rc::Rc::clone(&self.cram));
         self.base_mut().add_child(&cutscene_layer);
         self.cutscene_layer = Some(cutscene_layer);
 
@@ -619,7 +608,6 @@ impl INode2D for Field {
         self.anim_tick += 1;
         self.clear_poison_flash();
         self.tick_transition();
-        self.tick_red_palette();
         self.tick_cutscene_presentation();
         // The modes the session owns are presented in the order the shell's own
         // dispatcher ran them: the title first (its driver ran before the field
@@ -986,7 +974,7 @@ impl Field {
             let view = self
                 .runtime()
                 .and_then(|runtime| runtime.data().party_sheet(leader as usize))
-                .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
+                .and_then(|sheet| SheetView::build(&self.pack_dir, sheet, Some(&self.cram)));
             self.party_view = view;
             if self.party_view.is_some() {
                 godot_print!("party leader is now sheet {leader}");

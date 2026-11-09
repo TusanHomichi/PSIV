@@ -130,42 +130,10 @@ pub fn encode_indexed(
 
 /// `index_png`: an indexed PNG with its palette replaced by `(index, 0, 0)`,
 /// IDAT, dimensions and transparency preserved. The renderer samples the CRAM
-/// index from red, never guessing a slot from an RGB value.
+/// index from red, never guessing a slot from an RGB value. One owner,
+/// [`psiv_data::color::index_png`], which the shell also uses.
 pub fn index_png(data: &[u8]) -> Result<Vec<u8>, PngError> {
-    if !data.starts_with(SIGNATURE) {
-        return Err(PngError("palette-index input is not a PNG".into()));
-    }
-    let mut out = Vec::with_capacity(data.len());
-    out.extend_from_slice(SIGNATURE);
-    let mut at = SIGNATURE.len();
-    let mut found = false;
-    while at < data.len() {
-        let truncated = || PngError("palette-index input is truncated".into());
-        let head: [u8; 4] = data
-            .get(at..at + 4)
-            .and_then(|bytes| bytes.try_into().ok())
-            .ok_or_else(truncated)?;
-        let size = u32::from_be_bytes(head) as usize;
-        let whole = data.get(at..at + size + 12).ok_or_else(truncated)?;
-        let kind = &whole[4..8];
-        if kind == b"IHDR" && whole.get(17) != Some(&COLOR_TYPE_INDEXED) {
-            return Err(PngError(
-                "palette-index input must be an indexed PNG".into(),
-            ));
-        }
-        if kind == b"PLTE" {
-            let palette: Vec<u8> = (0..size / 3).flat_map(|i| [i as u8, 0, 0]).collect();
-            chunk(&mut out, b"PLTE", &palette);
-            found = true;
-        } else {
-            out.extend_from_slice(whole);
-        }
-        at += size + 12;
-    }
-    if !found {
-        return Err(PngError("palette-index input has no palette".into()));
-    }
-    Ok(out)
+    psiv_data::color::index_png(data).map_err(PngError)
 }
 
 /// An 8-bit-per-channel truecolour image; `pixels` is RGB triples.

@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `retail_endgame.rs`, `ENDING` (370 typed ops).
+- **Data:** `retail_endgame.rs`, `ENDING` (371 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -240,8 +240,8 @@ scroller is equivalent to the retail plane map loops.
 |---|---|---|
 | `$07A13A..$07A15E` | load map `$07B`, previous map `$FFFF`, start `$36,$28`, facing down, align 0; clear map-load bit 3; `RefreshMap` | `LoadMap` |
 | `$07A164..$07A1A6` | clear `Character_1` `$FFFFC000` (0x50 longwords), secondary `$FFFFC300` (0x70), scratch `$FFFFC540` (0x10); rebuild Plane A/B, width `$18`, height `$1C`, flags `$8002` | `EndingFinaleFieldPrep` |
-| `$07A1A6` | copy 64 words `$FFFFFB00` -> `$FFFFFB80` | `CopyRamWords` |
-| `$07A1C4` | fill 64 words at `$FFFFFB00` with `$0EEE` | `FillRamWords` |
+| `$07A1A6` | copy 64 words `$FFFFFB00` -> `$FFFFFB80` | `PaletteCopy` |
+| `$07A1C4` | fill 64 words at `$FFFFFB00` with `$0EEE` | `PaletteCopy` (fill) |
 | `$07A1E0..$07A20E` | upload `ArtNem_Fin` `$1DEEB8` to tile `$580`; Enigma map `$1DF52C` -> VRAM `$C580`; palette `$1DF59A` -> Palette 2 line 3 | `EndingFinale` |
 | `$07A218..$07A21E` | raw `$27` lightning loop, corrected 40 frames | `EndingFinale.lightning_frames` |
 | `$07A228..$07A25A` | update field objects and wait for `ButtonStart` | `WaitForStart` |
@@ -261,7 +261,7 @@ dialogue.
 
 ## Census
 
-The ending's transcription is 370 ops, and its 50 post-battle panels are
+The ending's transcription is 371 ops, and its 50 post-battle panels are
 among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and

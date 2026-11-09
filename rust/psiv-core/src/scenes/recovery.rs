@@ -9,7 +9,7 @@
 //! instruction word matches `ps4.asm:146852-146934`.
 
 use crate::scene::SceneOp;
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{PaletteBuffer, PaletteSource, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::trigger::EventIndex;
 
@@ -45,13 +45,16 @@ const DOWN: [SceneOp; 2] = flash(false);
 /// `Event_RuneHealingChaz`.
 pub(crate) const RECOVERY_OPS: [SceneOp; 16] = [
     // $06D37C..$06D389: `lea Palette_Table_Buffer, a0` / `lea
-    // Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1`, a copy
-    // of 32 longwords (all 64 palette words) to the second buffer.
+    // Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1`. `trap #1`
+    // copies words (`move.w (a0)+, (a1)+`), so this is 32 words: the first two
+    // lines, the ones the flashes step. Lines 2 and 3 of the copy keep what
+    // they held.
     SceneOp::Presentation {
-        op: PresentationOp::CopyRamWords {
-            source_ram: 0xFFFF_FB00,
-            destination_ram: 0xFFFF_FB80,
-            words: 64,
+        op: PresentationOp::PaletteCopy {
+            source: PaletteSource::Buffer(PaletteBuffer::Live),
+            destination: PaletteBuffer::Saved,
+            start: 0,
+            words: 32,
         },
     },
     // $06D38A..$06D391: `move.b #SFXID_Recovery, (Sound_Index).l`.

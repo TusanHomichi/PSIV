@@ -24,7 +24,9 @@ and `170` on green, not `255`.
 The single implementation choke point is `psiv_tools.gfx.palette_rgb`.
 `decode_color` records the logical levels and calls that function; all pack
 emitters that turn decoded CRAM into pixels must call `palette_rgb` as well.
-The receipt-backed constants are `GPGX_RGB565_RAMP` in `psiv_tools/gfx.py`.
+The receipt-backed constants are `GPGX_RGB565_RAMP` in `psiv_tools/gfx.py`;
+the Rust side reads the same ramps from `psiv_data::color` (`cram_rgb`), which
+the pack builder, the field shell's live palette and the battle shell share.
 
 ## Receipt derivation
 

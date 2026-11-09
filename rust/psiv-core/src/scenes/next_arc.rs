@@ -378,9 +378,12 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
         rom_addr: 0x001D6BC8,
         tile: 0x20C,
     },
+    // $06D81A..$06D829: `lea loc_1DE0B8, a0` / `lea Palette_Line_4, a1` /
+    // `move.w #$F, d7` / `trap #1`.
     SceneOp::LoadPalette {
         rom_addr: 0x001DE0B8,
         words: 16,
+        start: 48,
     },
     SceneOp::RunDialogue {
         source: DialogueSource::Entry(DialogueId(0x26)),

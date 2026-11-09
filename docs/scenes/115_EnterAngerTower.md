@@ -24,7 +24,7 @@ no `DialogueTreesToRAM`.
 | 8 | `$073820..$073827` | `loc_73820`: `moveq #6, d0` / `jsr Event_GetAndRunDialogue` | entry 6 |
 | 9 | `$073828..$07382F` | `move.b #SFXID_BarrierBroken ($E6), Sound_Index` | `PlaySound` `$E6` |
 | 10-11 | `$073830..$073855` | `moveq #$27, d7`; per iteration `jsr Pal_IncreaseTone` (`$58608`), `lea Pal_Init_Line_3 ($296300), a0` / `lea Palette_Line_3 ($FFFFFB40), a1` / `move.w #$F, d7` / `trap #1`, `jsr VInt_Prepare`, `dbf` | `PaletteIncreaseTone` 40 frames with `hold` (`$296300` -> `$FFFFFB40`, 16 words); `WaitFrames` 40 |
-| 12-13 | `$073856..$073867` | `moveq #$27, d7`; per iteration `jsr loc_58666`, `jsr VInt_Prepare`, `dbf` | `PaletteToneFlash` back toward `Palette_Table_Buffer_2`, 64 words, 40 frames; `WaitFrames` 40 |
+| 12-13 | `$073856..$073867` | `moveq #$27, d7`; per iteration `jsr loc_58666`, `jsr VInt_Prepare`, `dbf` | `PaletteRestoreTone` 40 frames; `WaitFrames` 40 |
 | 14 | `$073868..$073875` | `popdlg` / `jsr Event_RunDialogue` | `RunDialogueResume` |
 | 15 | `$073876..$07387F` | `move.b #EventFlag_AngerTower ($E0), d0` / `jmp EventFlags_Set` | `SetFlag` `$E0` |
 
@@ -35,7 +35,8 @@ The loop then copies the sixteen words of `Pal_Init_Line_3` over the third
 palette line before the frame is shown, so that line never brightens: the
 `hold` of `PresentationOp::PaletteIncreaseTone`. `loc_58666` is the reverse,
 one step per component toward `Palette_Table_Buffer_2` on the same frames,
-the record [`Event_Recovery`](102_Recovery.md) already uses for its flash.
+subtracting from the whole word (`PaletteRestoreTone`); it is not
+[`Event_Recovery`](102_Recovery.md)'s flash back, which masks blue out.
 
 The route reaches the Elsydeon arm only: the Reunion ([84](84_Reunion.md))
 comes after Elsydeon.

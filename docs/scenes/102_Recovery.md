@@ -21,7 +21,7 @@ matches `ps4.asm:146852-146934`. No `revision` or `grand_cross` conditional touc
 
 | Ops | ROM offsets | Retail primitive | Scene record |
 |---:|---|---|---|
-| 0 | `$06D37C..$06D389` | `lea Palette_Table_Buffer, a0` / `lea Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1` (32 longwords) | `Presentation` `CopyRamWords` `$FB00` to `$FB80`, 64 words |
+| 0 | `$06D37C..$06D389` | `lea Palette_Table_Buffer, a0` / `lea Palette_Table_Buffer_2, a1` / `move.w #$1F, d7` / `trap #1` (`trap #1` copies words: 32) | `Presentation` `PaletteCopy` live to saved, words 0-31 |
 | 1 | `$06D38A..$06D391` | `move.b #SFXID_Recovery ($CD), (Sound_Index).l` | `PlaySound` `$CD` |
 | 2-13 | `$06D392..$06D3A9` | `bsr loc_6D3BA` / `bsr loc_6D40A`, three times | `Presentation` `PaletteToneFlash` (brighten, then back) and `WaitFrames` 16 after each |
 | 14 | `$06D3AA..$06D3B1` | `move.b #SFXID_Res ($CC), (Sound_Index).l` | `PlaySound` `$CC` |
@@ -31,7 +31,8 @@ matches `ps4.asm:146852-146934`. No `revision` or `grand_cross` conditional touc
 `moveq #$F, d7` (16) times around one `VInt_Prepare`, so each is 16 frames with no map update:
 `WaitFrames`. On a frame whose `Main_Frame_Count & 3` is zero the first steps each of the first
 `$1F + 1` = 32 palette words one tone toward white, and the second steps them back toward the
-copy op 0 saved. The scene spends 96 frames before the cure.
+copy op 0 saved; both step red and green only and keep blue (`andi.w #$E00, d3` with no add or
+subtract). The scene spends 96 frames before the cure.
 
 `RecoverStats` refills HP, TP and skill uses and writes 0 to the status byte of every member in
 `Current_Party_Slots` (`DoCharRecovery`, `ps4.asm:136522-136534`), so an android shut down by
@@ -39,8 +40,8 @@ bit 6 (`StatusAndroidDead`) comes back; it then refills the three vehicles' skil
 (`DoVehicleRecovery`). The event returns through `loc_5A27A`, which ignores `d0`
 (`ps4.asm:120553-120568`).
 
-`PaletteToneFlash` is a new presentation record: Godot logs it with the other palette records it
-does not draw (`rust/psiv-godot/src/cutscene/ops.rs`).
+The runtime's CRAM model steps `PaletteToneFlash` frame by frame
+([CRAM state](SCENE_PRESENTATION.md#cram-state)); Godot does not draw it per line yet.
 
 ## In the route
 `air-castle-xe-athoul-room` walks the party over `AirCastle_F1_Part9`'s tile on the way to the

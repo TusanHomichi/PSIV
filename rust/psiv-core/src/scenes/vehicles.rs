@@ -32,7 +32,7 @@
 //! existing camera glide completing before `Vehicle_Index` is set.
 
 use crate::scene::{DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{PaletteBuffer, PaletteSource, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::scene_types::{GetOffOp, SystemLine};
 use crate::trigger::EventIndex;
@@ -150,9 +150,10 @@ pub static BOARDING_HYDROFOIL: Scene = Scene {
 
 /// `Pal_Init_Line_3`, copied to `Palette_Line_3` (`$FFFFFB40`) on the way
 /// down: `moveq #$10, d7 / trap #1` moves seventeen words, one into line 4.
+/// `Palette_Line_3` is word 32 of `Palette_Table_Buffer`.
 const PAL_INIT_LINE_3: u32 = 0x0029_6300;
 /// See [`PAL_INIT_LINE_3`].
-const PALETTE_LINE_3: u32 = 0xFFFF_FB40;
+const PALETTE_LINE_3: u8 = 32;
 
 /// `$0010`, `Event_GettingOffVehicle`, EventPtrs[`$10`], retail
 /// `$06BEF8..$06C023` (`ps4.asm:145343-145413`; record
@@ -180,9 +181,10 @@ pub static GETTING_OFF_VEHICLE: Scene = Scene {
         SceneOp::WaitFrames { frames: 1 },
         // 3
         SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: PAL_INIT_LINE_3,
-                destination_ram: PALETTE_LINE_3,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Rom(PAL_INIT_LINE_3),
+                destination: PaletteBuffer::Live,
+                start: PALETTE_LINE_3,
                 words: 17,
             },
         },

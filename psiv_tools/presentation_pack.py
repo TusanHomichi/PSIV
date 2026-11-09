@@ -133,10 +133,24 @@ OPENING_ART = 0x001C_F1F2
 OPENING_MAPPING = 0x001D_25BE
 OPENING_PALETTE = 0x001D_2A3C
 # Palette words a scene reads from the ROM, by address and word count. The
-# third is `Event_PlateSysEngine`'s light table `loc_6E908` through the first
-# word of `loc_6E922`, which its loop reads past the table (`$06E908..$06E924`).
+# runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`) reads them from the
+# pack; Panel_Create's own sixteen-word palettes are added per panel record.
+# `Event_PlateSysEngine`'s light table is `loc_6E908` through the first word of
+# `loc_6E922`, which its loop reads past the table (`$06E908..$06E924`).
 PLATE_ENGINE_LIGHT = (0x0006_E908, 14)
-PALETTE_REQUESTS = ((0x001D_2A3C, 64), (0x001D_E0B8, 16), PLATE_ENGINE_LIGHT)
+PALETTE_REQUESTS = (
+    (0x001D_2A3C, 64),  # the opening's LoadPalette (`$073C12`)
+    (0x001D_E0B8, 16),  # Event_RuneFlaeli's LoadPalette to line 4 (`$06D81A`)
+    PLATE_ENGINE_LIGHT,
+    (0x0009_F2BC, 64),  # Pal_Init: InitVRAMAndCRAM's 32 longwords (`$05A68A`)
+    # Pal_Init_Line_3: Event_EnterAngerTower's 16-word hold (`$07383A`) and
+    # Event_GettingOffVehicle's `moveq #$10, d7 / trap #1`, 17 words (`$06BF2A`).
+    (0x0029_6300, 17),
+    (0x0007_82DA, 54),  # loc_782DA: Rykros's six nine-word frames (`$078296`)
+    (0x0006_EE16, 21),  # loc_6EE16: Zio Fort's barrier ramp, 7 steps x 3 (`$06ED42`)
+    (0x002E_EA04, 16),  # loc_2EEA04: the ending's line to Buffer_2 (`$0796D4`)
+    (0x0007_30FC, 16),  # loc_730FC: Sekreas's line to line 4 (`$073054`)
+)
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The
 # source and destination are kept here rather than inferred from the object
@@ -467,9 +481,28 @@ def decode_opening_background(data: bytes, output: Path) -> dict[str, object]:
     }
 
 
-def decode_palette_requests(data: bytes) -> list[dict[str, object]]:
+def panel_palette_requests(panels: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    """Each distinct sixteen-word palette `Panel_Draw` copies for a panel layer
+    it draws (art tile not `$FFFF`: `ps4.asm:144392-144401`), in address order,
+    leaving out the addresses `PALETTE_REQUESTS` already names."""
+    named = {address for address, _ in PALETTE_REQUESTS}
+    found = set()
+    for panel in panels:
+        for tile, palette in (
+            (panel["art_tile_a"], panel["palette_a"]),
+            (panel["art_tile_b"], panel["palette_b"]),
+        ):
+            if tile != 0xFFFF:
+                found.add(int(palette, 16))
+    return [(address, 16) for address in sorted(found - named)]
+
+
+def decode_palette_requests(
+    data: bytes, panels: list[dict[str, Any]] | None = None
+) -> list[dict[str, object]]:
     records = []
-    for address, words in PALETTE_REQUESTS:
+    requests = list(PALETTE_REQUESTS) + panel_palette_requests(panels or [])
+    for address, words in requests:
         raw = data[address : address + words * 2]
         if len(raw) != words * 2:
             raise ValueError(f"palette at 0x{address:06X} runs past the ROM")
@@ -783,7 +816,7 @@ def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object
         ],
         "screen": [SCREEN_WIDTH, SCREEN_HEIGHT],
         "opening_background": opening,
-        "palettes": decode_palette_requests(rom_bytes),
+        "palettes": decode_palette_requests(rom_bytes, records),
         "panels": records,
         "load_art": load_art,
         "temporary_objects": temporary_objects,

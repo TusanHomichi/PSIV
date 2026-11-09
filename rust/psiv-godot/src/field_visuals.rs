@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use godot::classes::{ColorRect, ShaderMaterial, Sprite2D};
+use godot::classes::{ColorRect, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -83,7 +83,7 @@ impl Field {
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)
                     && let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, None)
                 {
                     self.sheet_views.insert(sheet_id.clone(), view);
                 }
@@ -163,7 +163,7 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram))
                 {
                     self.sheet_views.insert(sheet_id, view);
                 }
@@ -374,46 +374,56 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Copies the runtime's CRAM model into the field's live palette
+    /// (`cram_art`), which sprite sheets and scene panels draw from, and
+    /// uploads lines 0 and 1 to the indexed map shader. A legacy record
+    /// without the 64-word shadow is not live ([`psiv_runtime::CramView`]),
+    /// and every surface keeps its baked colours.
     fn sync_map_palette(&mut self) {
-        let Some(view) = self.runtime().map(psiv_runtime::Runtime::map_updates) else {
+        let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
-        if view.palette.len() != 64 {
+        let view = runtime.cram();
+        let live = view.live;
+        let changed = {
+            let mut cram = self.cram.borrow_mut();
+            let changed = cram.live != live || cram.revision != view.revision;
+            cram.live = live;
+            cram.words = view.words;
+            cram.revision = view.revision;
+            changed
+        };
+        if changed {
+            if let Some(layer) = self.cutscene_layer.as_mut() {
+                layer.bind_mut().palette_changed();
+            }
+            // The window's art is baked in line 2's `Pal_Init_Line_3`
+            // colours; with no live palette it draws them as baked.
+            let baked = runtime
+                .data()
+                .scene_palettes()
+                .words(crate::cram_art::WINDOW_LINE_ROM)
+                .unwrap_or(&[]);
+            if baked.len() >= 16
+                && let Some(window) = self.dialogue.as_mut()
+            {
+                let line = if live {
+                    &view.words[32..48]
+                } else {
+                    &baked[..16]
+                };
+                window.bind_mut().set_palette_line(&baked[..16], line);
+            }
+        }
+        if !live {
             return;
         }
-        let revision = view.palette_revision as i64;
-        // The repository's measured GPGX RGB565 ramps (COLOR_PIPELINE.md).
-        const RB: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
-        const G: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
-        let mut colors = PackedColorArray::new();
-        for &word in &view.palette[..32] {
-            colors.push(Color::from_rgba(
-                f32::from(RB[usize::from((word >> 1) & 7)]) / 255.0,
-                f32::from(G[usize::from((word >> 5) & 7)]) / 255.0,
-                f32::from(RB[usize::from((word >> 9) & 7)]) / 255.0,
-                1.0,
-            ));
-        }
+        let palette = super::field_map::map_palette_colors(&view.words, view.revision);
         for sprite in [&mut self.map_sprite, &mut self.overlay_sprite]
             .into_iter()
             .flatten()
         {
-            let Some(mut material) = sprite
-                .get_material()
-                .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
-            else {
-                continue;
-            };
-            if material
-                .get_shader_parameter("revision")
-                .try_to::<i64>()
-                .ok()
-                == Some(revision)
-            {
-                continue;
-            }
-            material.set_shader_parameter("palette", &colors.to_variant());
-            material.set_shader_parameter("revision", &revision.to_variant());
+            super::field_map::upload_map_palette(sprite, &palette);
         }
     }
 }

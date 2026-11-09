@@ -28,6 +28,9 @@ use std::collections::BTreeMap;
 use godot::classes::{INode2D, ImageTexture, Node2D};
 use godot::prelude::*;
 use psiv_data::DialogueSet;
+use psiv_data::color::IndexLayout;
+
+use crate::cram_art::{IndexedArt, SharedCram};
 
 use manifest::SceneAssets;
 use temporary_sprite_asset::TemporarySpriteAsset;
@@ -45,8 +48,13 @@ const SCREEN: Vector2 = Vector2::new(320.0, 224.0);
 pub(crate) struct CutsceneLayer {
     base: Base<Node2D>,
     textures: BTreeMap<u16, Gd<ImageTexture>>,
+    /// Each panel's PNG and layer lines, and its indices once first drawn
+    /// (`None`: the load failed, so the baked texture draws).
+    indexed_panels: BTreeMap<u16, (String, IndexLayout)>,
+    panel_art: BTreeMap<u16, Option<IndexedArt>>,
+    /// The field's live palette; `None` until the field hands it over.
+    cram: Option<SharedCram>,
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
-    palettes: BTreeMap<u32, Vec<u16>>,
     staged: Vec<u16>,
     visible: Vec<u16>,
     opening_background: Option<Gd<ImageTexture>>,
@@ -69,8 +77,10 @@ impl INode2D for CutsceneLayer {
         Self {
             base,
             textures: BTreeMap::new(),
+            indexed_panels: BTreeMap::new(),
+            panel_art: BTreeMap::new(),
+            cram: None,
             temporary_assets: BTreeMap::new(),
-            palettes: BTreeMap::new(),
             staged: Vec::new(),
             visible: Vec::new(),
             opening_background: None,
@@ -107,8 +117,8 @@ impl CutsceneLayer {
         if let Some(screen_y) = assets.opening_screen_y {
             self.opening_screen_y = screen_y;
         }
-        self.palettes.extend(assets.palettes);
         self.textures.extend(assets.textures);
+        self.indexed_panels.extend(assets.indexed_panels);
         self.temporary_assets.extend(assets.temporary_assets);
         self.opening_background = assets.opening_background;
         if assets.generic_portrait_named {

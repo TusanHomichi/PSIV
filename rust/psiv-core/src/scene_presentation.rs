@@ -17,39 +17,6 @@ pub enum PresentationAsset {
     ShopkeeperDialPortrait2,
 }
 
-/// The `(first, second)` palette words each pass of a
-/// [`PresentationOp::PaletteCycleFromTable`] writes, read from `words`, the
-/// big-endian words from its `source_rom_addr` on (the pack's copy). `None`
-/// when `words` ends before a read the cartridge makes, or when a pass finds
-/// no non-negative word to write (the cartridge would loop forever).
-#[must_use]
-pub fn palette_cycle_writes(words: &[u16], second_skip: u8, steps: u8) -> Option<Vec<(u16, u16)>> {
-    if !second_skip.is_multiple_of(2) {
-        return None;
-    }
-    let skip = usize::from(second_skip / 2);
-    let mut writes = Vec::with_capacity(usize::from(steps));
-    let mut next = 0usize;
-    for _ in 0..steps {
-        let mut restarted = false;
-        let first = loop {
-            let word = *words.get(next)?;
-            next += 1;
-            if word & 0x8000 == 0 {
-                break word;
-            }
-            if restarted {
-                return None;
-            }
-            restarted = true;
-            next = 0;
-        };
-        let second = *words.get(next + skip)?;
-        writes.push((first, second));
-    }
-    Some(writes)
-}
-
 /// What a [`crate::SceneOp::PanCamera`] frames: `Event_MoveCamera`'s `d0`/`d1`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraSubject {
@@ -147,9 +114,16 @@ pub enum PresentationOp {
     },
     /// Restore the five party sprite X positions saved by the scene.
     RestorePartySpriteX,
+    /// `move.w #$8C89, (a6)` / `move.w #$8C81, (a6)`: VDP register 12 with
+    /// shadow/highlight on or off (`Event_ZioNurvus`, `$06F2FA`, `$06F3AA`).
+    ShadowHighlight {
+        /// Register 12's `$08` bit.
+        enabled: bool,
+    },
     /// Write two consecutive palette words.
     SetPaletteWords {
-        /// Word offset from `Palette_Table_Buffer`.
+        /// Word offset from `Palette_Table_Buffer`: the `lea`/displacement
+        /// byte offset halved.
         offset: u16,
         /// First word.
         first: u16,
@@ -248,42 +222,20 @@ pub enum PresentationOp {
         /// Retail portrait selector.
         portrait: u8,
     },
-    /// Copy literal words between the work buffers used by a retail scene.
-    CopyRamWords {
-        /// Source work-RAM address.
-        source_ram: u32,
-        /// Destination work-RAM address.
-        destination_ram: u32,
-        /// Number of words copied.
-        words: u16,
-    },
-    /// Clear a work-RAM word range with a literal value.
-    ClearRamWords {
-        /// Destination work-RAM address.
-        destination_ram: u32,
-        /// Number of words cleared.
-        words: u16,
-        /// Value written to each word.
-        value: u16,
-    },
-    /// Clear a retail longword range with `trap #0` semantics.
-    ClearRamLongs {
-        /// Destination work-RAM address.
-        destination_ram: u32,
-        /// Number of longwords cleared.
-        longs: u16,
-        /// Value written to each longword.
-        value: u32,
-    },
-    /// Fill a word range with a nonzero literal, as the ending's `$EEE`
-    /// palette wash does after loading Termi.
-    FillRamWords {
-        /// Destination work-RAM address.
-        destination_ram: u32,
-        /// Number of words written.
-        words: u16,
-        /// Value written to each word.
-        value: u16,
+    /// A `trap #1` copy, `trap #0` clear or literal fill into one of the two
+    /// palette buffers (`move.w (a0)+, (a1)+` per word: `Trap01Exception`).
+    /// Every scene write of this shape targets `Palette_Table_Buffer`
+    /// (`$FFFFFB00`) or `Palette_Table_Buffer_2` (`$FFFFFB80`); the runtime's
+    /// CRAM model applies it.
+    PaletteCopy {
+        /// Where the words come from.
+        source: PaletteSource,
+        /// The buffer written.
+        destination: PaletteBuffer,
+        /// First word written (and, for a buffer source, read).
+        start: u8,
+        /// Words written: the `trap #1` count plus one.
+        words: u8,
     },
     /// Clear both field planes before the staff roll text is drawn.
     ClearPlanes,
@@ -318,7 +270,8 @@ pub enum PresentationOp {
     /// does to the palette: for `frames` VBlanks, on each frame whose
     /// `Main_Frame_Count & 3` is zero, every one of the 64 `Palette_Table_Buffer`
     /// words not already `$EEE` steps one tone per component toward white
-    /// (each capped at `$E`). The record describes the palette only; the
+    /// (each capped at `$E`; [`crate::palette::increase_tone`]). The record
+    /// describes the palette only; the
     /// frames themselves are the scene's following [`crate::SceneOp::WaitFrames`]
     /// (`VInt_Prepare` with no map update), which the registry guard
     /// `every_palette_tone_loop_is_followed_by_its_frames` holds it to.
@@ -329,6 +282,17 @@ pub enum PresentationOp {
         /// A palette range the loop rewrites from ROM after every tone step,
         /// before the frame's `VInt_Prepare`, so it never brightens.
         hold: Option<PaletteHold>,
+    },
+    /// The `loc_58666` (`$058666`) / `VInt_Prepare` loop that follows a tone
+    /// loop: for `frames` VBlanks, on each frame whose `Main_Frame_Count & 3`
+    /// is zero, every one of the 64 `Palette_Table_Buffer` words steps each
+    /// component one level back toward its copy in `Palette_Table_Buffer_2`
+    /// ([`crate::palette::restore_tone`]). Blue included, and the step is on
+    /// the whole word; it is not the recovery flash's restore. The frames are
+    /// the scene's following [`crate::SceneOp::WaitFrames`].
+    PaletteRestoreTone {
+        /// Corrected loop count (`moveq #$27, d7`: 40).
+        frames: u16,
     },
     /// `addi.w #add` on one `Palette_Table_Buffer` word
     /// (`Event_WreckageEngine`'s brightening screens, `$06DD6C`).
@@ -341,10 +305,11 @@ pub enum PresentationOp {
     /// `Event_Recovery`'s flash (`loc_6D3BA` and `loc_6D40A`, `ps4.asm:146867-146934`,
     /// ROM `$06D3BA..$06D467`): for `frames` VBlanks, on each frame whose
     /// `Main_Frame_Count & 3` is zero, every one of the first `words` words of
-    /// `Palette_Table_Buffer` steps one tone per component, toward white
-    /// (`brighten`, each of red, green and blue up by one until it reaches `$E`)
-    /// or back toward its copy in `Palette_Table_Buffer_2` (down by one until it
-    /// equals the copy). The frames themselves are the scene's following
+    /// `Palette_Table_Buffer` steps one tone, toward white (`brighten`: red and
+    /// green up by one level until `$E`, [`crate::palette::flash_brighten`])
+    /// or back toward its copy in `Palette_Table_Buffer_2` (red and green down
+    /// by one until each equals the copy's, [`crate::palette::flash_restore`]).
+    /// Blue is masked and kept by both. The frames themselves are the scene's following
     /// [`crate::SceneOp::WaitFrames`]: `VInt_Prepare` with no map update.
     PaletteToneFlash {
         /// Toward white, or back toward the saved buffer.
@@ -366,21 +331,26 @@ pub enum PresentationOp {
         /// Corrected loop count (`moveq #$3B, d7`: 60; `move.w #$77, d7`: 120).
         frames: u16,
     },
-    /// Copy the ending's temporary palette line to zero before panel 171.
-    ClearPaletteLine {
-        /// Palette line index.
-        line: u8,
-        /// Number of words cleared.
-        words: u8,
-    },
-    /// `Pal_VariableFadeIn`/`Pal_VariableFadeOut` with the raw mode byte.
+    /// `Pal_VariableFadeIn` (`$05B1B0`) / `Pal_VariableFadeOut` (`$05B168`)
+    /// with the `$FFFFED52` delay byte. Each first copies all 64 words to
+    /// `Palette_Table_Buffer_2`; the fade-in then clears the buffer and spends
+    /// one `VDP_EnableDisplay` frame. A pass steps every nibble one level and
+    /// waits `mode + 1` frames, and the loop ends on the pass that leaves the
+    /// palette black (out) or changes nothing (in), so its length depends on
+    /// the palette's contents: the scene blocks until the runtime, which holds
+    /// the palette, releases it with the count
+    /// ([`crate::SceneRunner::release_palette`]).
     VariablePaletteFade {
         /// True for fade-in, false for fade-out.
         fade_in: bool,
         /// Raw `Palette_Variable_Fade` mode value.
         mode: u8,
     },
-    /// Rykros's six-step palette animation from `loc_78296`.
+    /// Rykros's six-step palette animation, `loc_78296` (`$078296..$0782D1`):
+    /// for each delay byte of `loc_782D2` up to its `$FF`, nine words of the
+    /// table at `source_rom_addr` (`$12` bytes a frame) go to
+    /// `destination_ram`, then `VInt_Prepare` runs `delay + 1` times (`dbf
+    /// d0`). The op blocks for every frame.
     RykrosPaletteCycle {
         /// ROM table containing the six nine-word palette frames.
         source_rom_addr: u32,
@@ -388,7 +358,8 @@ pub enum PresentationOp {
         destination_ram: u32,
         /// Words copied for each frame.
         words_per_frame: u8,
-        /// `dbra` delays, already corrected to frame counts.
+        /// The `dbf` waits, already corrected to frame counts (each raw
+        /// `loc_782D2` byte plus one).
         delays: &'static [u8],
     },
     /// Zio Fort's barrier ramp: `steps` writes of three consecutive palette
@@ -414,7 +385,8 @@ pub enum PresentationOp {
     /// pointer to the two palette words at `offset`, and waits `frame_delay`
     /// frames (`loc_6E922`, `VInt_Prepare` only: no map update). The words
     /// are the cartridge's and live in the pack, never in source; expand them
-    /// with [`palette_cycle_writes`]. The op blocks for all the passes.
+    /// with [`crate::palette::palette_cycle_writes`]. The op blocks for all
+    /// the passes.
     PaletteCycleFromTable {
         /// ROM table the passes read.
         source_rom_addr: u32,
@@ -560,6 +532,29 @@ pub enum PresentationOp {
     },
 }
 
+impl PresentationOp {
+    /// The frames a palette loop that waits inside its own body spends, so
+    /// the scene blocks for them: `loc_6ED4E`'s barrier ramp (`steps` passes
+    /// of `frame_delay`), `loc_6E842`'s engine light (the same) and
+    /// `loc_78296`'s Rykros cycle (the sum of its delays, each already the
+    /// frames its `dbf` spends). `None` for every other record.
+    #[must_use]
+    pub fn palette_loop_frames(&self) -> Option<u16> {
+        match *self {
+            Self::PaletteRampFromTable {
+                steps, frame_delay, ..
+            }
+            | Self::PaletteCycleFromTable {
+                steps, frame_delay, ..
+            } => Some(u16::from(steps) * frame_delay),
+            Self::RykrosPaletteCycle { delays, .. } => {
+                Some(delays.iter().map(|&delay| u16::from(delay)).sum())
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The `trap #1` copy a tone loop makes each frame after `Pal_IncreaseTone`
 /// (`$58608`): `Event_EnterAngerTower`'s `lea Pal_Init_Line_3, a0` / `lea
 /// Palette_Line_3, a1` / `move.w #$F, d7` / `trap #1` (`$07383A..$073849`).
@@ -573,6 +568,39 @@ pub struct PaletteHold {
     pub words: u8,
 }
 
+/// One of the two palette buffers a scene writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaletteBuffer {
+    /// `Palette_Table_Buffer` (`$FFFFFB00`), the words `VInt` uploads to CRAM.
+    Live,
+    /// `Palette_Table_Buffer_2` (`$FFFFFB80`), the copy fades and restores
+    /// step back toward.
+    Saved,
+}
+
+impl PaletteBuffer {
+    /// The buffer at a work-RAM address, when it is one of the two.
+    #[must_use]
+    pub const fn at(ram: u32) -> Option<Self> {
+        match ram {
+            0xFFFF_FB00 => Some(Self::Live),
+            0xFFFF_FB80 => Some(Self::Saved),
+            _ => None,
+        }
+    }
+}
+
+/// Where a [`PresentationOp::PaletteCopy`] reads its words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaletteSource {
+    /// The same words of a palette buffer.
+    Buffer(PaletteBuffer),
+    /// A ROM palette the pack carries (`presentation/panels.json`).
+    Rom(u32),
+    /// One literal value in every word (`trap #0` writes zero).
+    Fill(u16),
+}
+
 /// Plane selected by a credits scroll stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreditsPlane {
@@ -581,3 +609,25 @@ pub enum CreditsPlane {
     /// Plane B is the star field/background plane.
     B,
 }
+
+/// `trap #1` of all 64 words from `Palette_Table_Buffer_2` back to
+/// `Palette_Table_Buffer` (`move.w #$3F, d7`): the restore after a
+/// palette effect.
+pub(crate) const RESTORE_PALETTE: crate::SceneOp = crate::SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Buffer(PaletteBuffer::Saved),
+        destination: PaletteBuffer::Live,
+        start: 0,
+        words: 64,
+    },
+};
+
+/// The same 64 words the other way, saving the live palette first.
+pub(crate) const SAVE_PALETTE: crate::SceneOp = crate::SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Buffer(PaletteBuffer::Live),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 64,
+    },
+};

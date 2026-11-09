@@ -172,13 +172,6 @@ impl Field {
                 0,
                 crate::field_visuals::TRANSITION_RECTS,
             ),
-            // The effect's node, plus its material and shader.
-            CacheReport::pool(
-                "red_palette",
-                usize::from(self.red_palette.made()),
-                if self.red_palette.made() { 2 } else { 0 },
-                1,
-            ),
             CacheReport::pool("poison_flash", self.status_presentation.objects(), 0, 1),
         ]);
         let map: serde_json::Map<String, serde_json::Value> = reports
@@ -199,6 +192,7 @@ impl Field {
         let title = self.session.as_ref().and_then(Session::title);
         let dialogue = rt.dialogue_open();
         let dialogue_view = rt.dialogue_view();
+        let cram = self.cram.borrow().clone();
         let state = serde_json::json!({
             "tick": self.anim_tick, "map": rt.map_id().0,
             "previous_map": rt.previous_map_id(), "world": rt.world_index(),
@@ -229,7 +223,7 @@ impl Field {
             "temporary_objects": self.presentation.temporary_draws().iter().filter(|(_, o)| o.frames_left > 0).map(|(slot, o)| serde_json::json!({"slot": slot, "id": o.object_id, "elapsed": o.elapsed, "position":o.destination})).collect::<Vec<_>>(),
             "map_patches": rt.map_effects().patch_blits.len(),
             "chunk_patches": rt.map_effects().chunk_patches,
-            "red_palette": self.red_palette_probe(),
+            "cram": {"live": cram.live, "revision": cram.revision, "words": cram.words.to_vec()},
             "leader": self.leader_char,
             "active_npcs": rt.map().npcs().iter().enumerate().filter_map(|(i, npc)| npc.active.then_some(i)).collect::<Vec<_>>(),
             "npc_sheets": self.npc_nodes.iter().map(|npc| serde_json::json!({"index":npc.index,"sheet":npc.sheet})).collect::<Vec<_>>(),
@@ -365,6 +359,16 @@ impl Field {
                     // A map-entry trigger that already started a scene would
                     // make `start_event` refuse and the capture show the wrong
                     // scene (#44): say so instead of blaming the event.
+                    // A fixture whose map trigger starts the very scene asked
+                    // for (`$99`) is already where the selector would put it.
+                    if self
+                        .runtime()
+                        .and_then(psiv_runtime::Runtime::scene_event)
+                        .is_some_and(|running| running.0 == event)
+                    {
+                        godot_print!("debug event {value}: started by its map trigger");
+                        return;
+                    }
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_error!(
                             "debug event {value} refused: a map-entry trigger already started a scene; \

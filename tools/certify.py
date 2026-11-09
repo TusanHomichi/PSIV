@@ -170,6 +170,25 @@ TAPE_36_MESSAGE = {
     "region": [56, 168, 208, 40],
 }
 
+# Tape 37 is tape 28's input schedule with the Anger Tower entered by explicit
+# fixture patches (Field_Map_Index $FC from Rykros $2 at the doorway's cell,
+# EventFlag_Elsydeon $D9 set, a map reload at frame 7000); the map's own
+# trigger starts Event_EnterAngerTower ($99) and C taps close its dialogue.
+# Pal_IncreaseTone runs from about frame 7354; by 7374 lines 0, 1 and 3 are
+# white and stay so until the restore at 7394, while line 2, held at
+# Pal_Init_Line_3, keeps Chaz's colours (docs/scenes/115_EnterAngerTower.md).
+TAPE_37 = {
+    "tape": "oracle/tapes/37_anger_tower_barrier.tape",
+    "patches": ["7000:FFFFEC28:00FC", "7000:FFFFEC2A:0002", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF406:01F0", "7000:FFFFF408:0310",
+                "7000:FFFFF11B:40"],
+    "frames": [7384],
+    # All but the frame's top row and left column: the native field leaves
+    # the first device pixel of each black, a shell edge separate from the
+    # palette this pair certifies (#409).
+    "region": [1, 1, 319, 223],
+}
+
 # The same tape's message closing after the acknowledgement on 8355: frame
 # 8358 shows `DestroyAllWindows`'s third step, the blank window 18 cells wide
 # at column 11, with the meseta and the town list's foot uncovered beside it.
@@ -200,6 +219,11 @@ PAIRS = [
     ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 160,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
+    # The barrier's tone at saturation: every line but the held one white
+    # (the native tone runs ticks 76-115, white from about 96).
+    ("anger-tower-barrier", {"PSIV_DEBUG_EVENT": "0x99", **SCENE}, 108,
+     "build/certify/oracle/anger-tower-barrier/frame_7384.png",
+     "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),

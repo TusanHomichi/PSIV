@@ -59,6 +59,22 @@ pub fn scene_fixture(
                 None,
             ],
         ),
+        // `Event_EnterAngerTower` (`PSIV_DEBUG_EVENT=0x99`): the Anger Tower
+        // (`$FC`) at the cell the Rykros doorway lands on (31,49), Elsydeon
+        // (`$D9`) held and `EventFlag_AngerTower` (`$E0`) clear, so the map's
+        // entry trigger (`RunEvent_EnterAngerTower`, `ps4.asm:116397`) starts
+        // the scene on load, as on the cartridge, and the barrier breaks.
+        // Chaz alone, as tape 37 (`tools/certify.py` TAPE_37) leaves him: a
+        // line-2 sprite, the line the scene holds.
+        0x0099 => {
+            flags = &[0xD9];
+            (
+                0x00FC,
+                31 * 16,
+                49 * 16,
+                [Some(CharId(0)), None, None, None, None],
+            )
+        }
         _ => return None,
     };
     let mut game = GameState::new();

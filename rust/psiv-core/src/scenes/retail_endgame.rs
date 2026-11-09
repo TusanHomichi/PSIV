@@ -6,7 +6,9 @@
 
 use crate::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CreditsPlane, PresentationOp};
+use crate::scene_presentation::{
+    CreditsPlane, PaletteBuffer, PaletteSource, PresentationOp, RESTORE_PALETTE, SAVE_PALETTE,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -25,7 +27,10 @@ const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_STAIRS: u8 = 0xDF;
 const SFX_RED_ALERT: u8 = 0xA9;
 
-const RYKROS_PALETTE_DELAYS: &[u8] = &[7, 5, 7, 7, 7, 7];
+/// Frame durations derived from `loc_782D2` at US `$0782D2`:
+/// each `dbf` count spends one frame more than its byte.
+/// The ROM-backed presentation test checks these against local retail input.
+const RYKROS_PALETTE_DELAYS: &[u8] = &[8, 6, 8, 8, 8, 8];
 const RAJA_SICK_COMPANIONS: &[crate::CharId] = &[CHAZ, RUNE, RIKA, WREN];
 
 /// `$8012`, `Cutscene_RajaSick`, `$07734C..$077787`.
@@ -221,13 +226,7 @@ pub static RYKROS: Scene = Scene {
         SceneOp::PanelCreate { id: 0x190 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB00,
-                destination_ram: 0xFFFF_FB80,
-                words: 64,
-            },
-        },
+        SAVE_PALETTE,
         SceneOp::Presentation {
             op: PresentationOp::PaletteIncreaseTone {
                 frames: 30,
@@ -237,6 +236,11 @@ pub static RYKROS: Scene = Scene {
         SceneOp::WaitFrames { frames: 30 },
         SceneOp::PlaySound {
             id: SFX_BARRIER_BROKEN,
+        },
+        // $078220..$078231: `moveq #$1D, d7` / `jsr loc_58666` / `jsr
+        // VInt_Prepare` / `dbf`: thirty frames back toward the copy.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteRestoreTone { frames: 30 },
         },
         SceneOp::WaitFrames { frames: 30 },
         SceneOp::RunDialogueResume,
@@ -530,19 +534,19 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x169 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
+        SAVE_PALETTE,
         SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB00,
-                destination_ram: 0xFFFF_FB80,
-                words: 64,
-            },
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0x002E_EA04,
-                destination_ram: 0xFFFF_FB80,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Rom(0x002E_EA04),
+                destination: PaletteBuffer::Saved,
+                start: 0,
                 words: 16,
             },
+        },
+        // $0796E4..$0796F5: `moveq #$27, d7` / `jsr loc_58666` / `jsr
+        // VInt_Prepare` / `dbf`: forty frames toward the copy just loaded.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteRestoreTone { frames: 40 },
         },
         SceneOp::WaitFrames { frames: 40 },
         SceneOp::WaitFrames { frames: 30 },
@@ -601,7 +605,14 @@ pub static ENDING: Scene = Scene {
         },
         SceneOp::InitVramAndCram,
         SceneOp::Presentation {
-            op: PresentationOp::ClearPaletteLine { line: 3, words: 15 },
+            // $07987A..$079887: `lea Palette_Line_3, a0` / `moveq #0, d0` /
+            // `moveq #$E, d7`: fifteen zero words from `$FFFFFB40`.
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Fill(0),
+                destination: PaletteBuffer::Live,
+                start: 32,
+                words: 15,
+            },
         },
         SceneOp::PanelCreate { id: 0x171 },
         SceneOp::DmaPlanes,
@@ -628,13 +639,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x173 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -659,13 +664,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x175 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -690,13 +689,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x177 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -721,13 +714,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x179 },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -753,13 +740,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x17C },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -784,13 +765,7 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
-        SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB80,
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-            },
-        },
+        RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x17E },
         SceneOp::DmaPlanes,
         SceneOp::Presentation {
@@ -818,10 +793,11 @@ pub static ENDING: Scene = Scene {
         },
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
-            op: PresentationOp::ClearRamWords {
-                destination_ram: 0xFFFF_FB80,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Fill(0),
+                destination: PaletteBuffer::Saved,
+                start: 0,
                 words: 64,
-                value: 0,
             },
         },
         SceneOp::Presentation {
@@ -945,18 +921,13 @@ pub static ENDING: Scene = Scene {
                 plane_flags: 0x8002,
             },
         },
+        SAVE_PALETTE,
         SceneOp::Presentation {
-            op: PresentationOp::CopyRamWords {
-                source_ram: 0xFFFF_FB00,
-                destination_ram: 0xFFFF_FB80,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Fill(0x0EEE),
+                destination: PaletteBuffer::Live,
+                start: 0,
                 words: 64,
-            },
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::FillRamWords {
-                destination_ram: 0xFFFF_FB00,
-                words: 64,
-                value: 0x0EEE,
             },
         },
         SceneOp::Presentation {
