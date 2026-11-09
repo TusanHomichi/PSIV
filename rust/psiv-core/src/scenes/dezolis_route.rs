@@ -10,7 +10,7 @@ use crate::geom::Direction;
 use crate::scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
 };
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::scene_runner::drift::{CoordCmp, NpcDrift};
 use crate::state::Flag;
@@ -135,6 +135,22 @@ pub(crate) static GRAVE_DRIFT: &[NpcDrift] = &[
     },
 ];
 
+/// `Event_MoveCamera` (`$5AAEE`) to the leader's X plus 4: the grave scene's
+/// camera lead, a blocking glide at speed 4.
+const LEAD_CAMERA: SceneOp = SceneOp::PanCamera {
+    subject: CameraSubject::ActorShifted {
+        actor: LEADER,
+        dx: 4,
+    },
+    speed: 4,
+};
+
+/// The glide back onto the leader after [`LEAD_CAMERA`].
+const BACK_CAMERA: SceneOp = SceneOp::PanCamera {
+    subject: CameraSubject::Actor(LEADER),
+    speed: 4,
+};
+
 /// `$0044`, `Event_TylerGraveOpening`, retail `$06FC94..$06FE1B`.
 ///
 /// Reached by dialogue `$F6` (`DialogueTree14` entry 35, the grave's
@@ -171,21 +187,10 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
             id: SFX_GRAVE_OPENING,
         },
         // 4-5: `Event_MoveCamera` to the leader's (x + 4, y), then (x, y), speed
-        // 4 (`$06FCBE..$06FCE0`). The 4 px intermediate is not modelled: the
-        // camera op reads the leader's cell, and the glide it replaces ends at
-        // the leader either way.
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 4,
-            },
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 4,
-            },
-        },
+        // 4 (`$06FCBE..$06FCE0`): `addq.w #4, d0`, the call, `subq.w #4, d0`,
+        // the call. Each blocks until the camera arrives.
+        LEAD_CAMERA,
+        BACK_CAMERA,
         // 6: `GetMapLayoutOffset(d1 = $A, d2 = $C, d3 = 1)` (BG), `move.b #$47,
         // (a1)`, `RefreshPlaneBG` ($06FCE4..$06FCFE): the stair chunk.
         SceneOp::WriteMapChunks {
@@ -210,19 +215,9 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        // 11-12: the camera again ($06FDC0..$06FDE0).
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 4,
-            },
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 4,
-            },
-        },
+        // 11-12: the camera again, the same pair ($06FDC0..$06FDE0).
+        LEAD_CAMERA,
+        BACK_CAMERA,
         // 13: `moveq #$3B, d0 / jsr DoMapUpdateLoop` ($06FDE6).
         SceneOp::Wait { ticks: 60 },
         // 14: `EventFlags_Test $84` / `bne.b loc_6FE08` ($06FDEE).
