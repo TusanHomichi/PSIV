@@ -113,6 +113,109 @@ class Runner(unittest.TestCase):
         self.assertEqual(self.run_case(capture=False)['status'], 'captured')
         self.assertEqual([a[2] for a in self.calls], ['oracle.fixture'])
 
+    def test_failed_extraction_and_failed_reextractions_keep_later_capture_resumable(self):
+        self.case = dataclasses.replace(self.case, max_delay=1)
+        execute = self.execute
+        def capture_then_fail_extract(argv, log):
+            if 'oracle.force' in argv:
+                if argv[argv.index('--delay') + 1] == '0':
+                    return {'exit': 1, 'command': argv}
+                return execute(argv, log)
+            self.calls.append(argv)
+            return {'exit': 2, 'command': argv}
+        self.execute = capture_then_fail_extract
+        result = self.run_case()
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual([a['delay'] for a in result['attempts']], [0, 1])
+        captured = self.work / 'delay-1' / 'sample'
+        self.assertTrue((captured / 'case.sha256').exists())
+
+        # Neither a failed hash verification nor rejected extracted evidence
+        # changes which delay has a successful, matching capture.
+        self.execute = execute
+        trace = captured / 'trace.csv'
+        original = trace.read_bytes()
+        trace.write_bytes(b'tampered')
+        self.calls.clear()
+        self.assertEqual(self.run_case(capture=False)['status'], 'failed')
+        self.assertEqual(self.calls, [])
+        trace.write_bytes(original)
+        def missing_ability(argv, log):
+            result = execute(argv, log)
+            target = pathlib.Path(argv[argv.index('--out') + 1])
+            target.write_text(json.dumps({'rounds': [{'round': 1, 'actions': []}]}))
+            return result
+        self.execute = missing_ability
+        self.assertEqual(self.run_case(capture=False)['status'], 'failed')
+        self.execute = execute
+        self.calls.clear()
+        result = self.run_case(capture=False)
+        self.assertEqual(result['status'], 'captured')
+        self.assertEqual([a[2] for a in self.calls], ['oracle.fixture'])
+        self.assertIn('delay-1', result['report'])
+        # Overwriting a successful receipt with a failed subprocess verdict
+        # must not discard the capture identity either.
+        self.execute = lambda argv, log: {'exit': 2, 'command': argv}
+        self.assertEqual(self.run_case(capture=False)['status'], 'failed')
+        self.execute = execute
+        self.calls.clear()
+        self.assertEqual(self.run_case(capture=False)['status'], 'captured')
+        self.assertEqual([a[2] for a in self.calls], ['oracle.fixture'])
+
+    def test_earlier_invalid_capture_does_not_hide_later_matching_capture(self):
+        self.case = dataclasses.replace(self.case, max_delay=1)
+        execute = self.execute
+        def first_fixture_absent(argv, log):
+            result = execute(argv, log)
+            if 'oracle.fixture' in argv and 'delay-0' in str(log):
+                target = pathlib.Path(argv[argv.index('--out') + 1])
+                target.write_text(json.dumps({'rounds': [{'round': 1, 'actions': []}]}))
+            return result
+        self.execute = first_fixture_absent
+        self.assertEqual(self.run_case()['status'], 'captured')
+        (self.work / 'delay-0' / 'sample' / 'trace.csv').write_text('tampered')
+        self.execute = execute
+        self.calls.clear()
+        result = self.run_case(capture=False)
+        self.assertEqual(result['status'], 'captured')
+        self.assertIn('hash changed', result['attempts'][0]['error'])
+        self.assertEqual([a[2] for a in self.calls], ['oracle.fixture'])
+        self.assertIn('delay-1', result['report'])
+
+    def test_failed_changed_case_recapture_cannot_reuse_later_old_delay(self):
+        self.case = dataclasses.replace(self.case, max_delay=1)
+        execute = self.execute
+        def first_absent(argv, log):
+            if 'oracle.force' in argv and argv[argv.index('--delay') + 1] == '0':
+                return {'exit': 1, 'command': argv}
+            return execute(argv, log)
+        self.execute = first_absent
+        self.assertEqual(self.run_case()['status'], 'captured')
+        self.case = dataclasses.replace(self.case, rounds=3)
+        self.execute = lambda argv, log: {'exit': 2, 'command': argv}
+        self.assertEqual(self.run_case()['status'], 'failed')
+        self.execute = execute
+        self.calls.clear()
+        result = self.run_case(capture=False)
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('case changed', result['attempts'][1]['error'])
+        self.assertEqual(self.calls, [])
+
+    def test_whole_battle_keeps_script_execution_checks_and_optional_bounded_keep(self):
+        case = dataclasses.replace(self.case, rounds=0, script={'rounds': [
+            {'1': {'command': 'technique', 'id': 1}}]})
+        fixture = {'rounds': [{'round': 1, 'actions': [
+            {'actor': 6, 'kind': 'ability', 'ability': 12}]}]}
+        with self.assertRaisesRegex(ValueError, 'did not execute'):
+            runner.validate(case, fixture)
+        fixture['rounds'][0]['actions'].append({'actor': 1, 'kind': 'technique', 'ability': 1})
+        runner.validate(case, fixture)
+        self.assertEqual(case.kept, 0)
+        self.assertEqual(dataclasses.replace(case, keep=2).kept, 2)
+        for rounds, keep in ((-1, None), (2, -1), (2, 0), (2, 3), (0, -1), (0, 0)):
+            with self.subTest(rounds=rounds, keep=keep), self.assertRaises(ValueError):
+                dataclasses.replace(self.case, rounds=rounds, keep=keep)
+
     def test_infrastructure_failure_stops_retry(self):
         self.case = dataclasses.replace(self.case, max_delay=2)
         self.execute = lambda argv, log: {'exit': 2, 'command': argv}

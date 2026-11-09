@@ -49,7 +49,7 @@ def extractor_argv(work: pathlib.Path, directory: pathlib.Path,
     if not options.durable:
         report["durable"] = None
     case = Case(directory.name, "reextract Motavia capture", None,
-                report.get("max_rounds") or options.max_rounds,
+                report["max_rounds"] if report.get("max_rounds") is not None else options.max_rounds,
                 formation=formation, ram_map=str(options.ram_map))
     return case_extract_argv(case, work, jobs.fixture_path(options, formation), report)
 

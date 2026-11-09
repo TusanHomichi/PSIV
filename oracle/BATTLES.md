@@ -285,7 +285,8 @@ A minimal case file is:
 ```
 
 Each case selects exactly one `formation` or `event`. `rounds` bounds capture;
-`keep` optionally retains fewer rounds. `ability` and `also` require observed
+zero captures the whole battle. `keep` optionally retains a positive number of
+rounds (at most the capture limit when bounded). `ability` and `also` require observed
 enemy actions, `damage` additionally requires observed damage, and `allowed`
 restricts the kept abilities. `seated` validates a reload's observed enemy
 instead of an ability byte. `script` holds party commands and explicit party

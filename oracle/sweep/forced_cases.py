@@ -82,8 +82,9 @@ class Case:
             raise ValueError("case names must be basenames")
         if (self.formation is None) == (self.event is None):
             raise ValueError("case needs exactly one formation or event")
-        if self.rounds < 1 or not 1 <= self.kept <= self.rounds:
-            raise ValueError("case needs positive rounds and keep <= rounds")
+        if (self.rounds < 0 or (self.keep is not None and self.keep <= 0)
+                or (self.rounds > 0 and not 1 <= self.kept <= self.rounds)):
+            raise ValueError("case needs nonnegative rounds (0 = whole battle); bounded keep must be 1..rounds")
         if self.delay < 0 or (self.max_delay is not None and self.max_delay < self.delay):
             raise ValueError("case delay range must be nonnegative and ordered")
         if self.event is not None and self.script is not None and self.max_delay not in (None, self.delay):
@@ -266,7 +267,8 @@ def validate(case: Case, fixture: dict) -> None:
     if observed(case, fixture) is None:
         raise ValueError("required enemy ability or seated enemy absent in kept rounds")
     if case.script:
-        require_executed({**case.script, "rounds": case.script["rounds"][:case.kept]}, fixture)
+        commands = case.script["rounds"]
+        require_executed({**case.script, "rounds": commands[:case.kept] if case.kept else commands}, fixture)
     if case.damage and any(not observed_rounds(fixture, ability) for ability in case.required):
         raise ValueError("required damage ability absent in kept rounds")
     if case.allowed is not None and out_of_lane(fixture, set(case.allowed)):
@@ -278,9 +280,10 @@ def run_case(case: Case, work: pathlib.Path, fixtures: pathlib.Path, *,
              scout: pathlib.Path | None = None, execute=command) -> dict:
     """The only capture/extract loop. Publish a fixture only after validation.
 
-    Explicit delay ranges retry absence (force status 1) or rejected evidence;
-    infrastructure errors stop immediately. Extract-only verifies existing
-    capture hashes and the exact case fingerprint before reusing evidence.
+    Fresh delay ranges retry absence (force status 1) or rejected evidence;
+    infrastructure errors stop fresh captures immediately. Extract-only checks
+    each delay's successful capture identity and hashes, continuing past failed
+    candidates so an earlier failure cannot hide a later reusable capture.
     """
     scout = scout or work / ("script-scout.json" if case.script else "scout.json")
     work.mkdir(parents=True, exist_ok=True)
@@ -288,11 +291,9 @@ def run_case(case: Case, work: pathlib.Path, fixtures: pathlib.Path, *,
     result = {"name": case.name, "status": "failed", "attempts": []}
     fingerprint = hashlib.sha256(json.dumps(dataclasses.asdict(case), sort_keys=True).encode()).hexdigest()
     delays = range(case.delay, (case.max_delay if case.max_delay is not None else case.delay) + 1)
-    receipt_path = work / f"{case.name}.receipt.json"
-    if not capture and case.max_delay is not None and receipt_path.exists():
-        previous = json.loads(receipt_path.read_text())
-        if previous.get("status") == "captured" and previous.get("attempts"):
-            delays = [previous["attempts"][-1]["delay"]]
+    # Successful capture identities survive extraction failures. Inspect every
+    # delay's own marker rather than deriving resumability from the latest
+    # receipt's extraction verdict (which may describe a failed re-extraction).
     for delay in delays:
         attempt_case = dataclasses.replace(case, delay=delay)
         attempt_work = work if case.max_delay is None else work / f"delay-{delay}"
@@ -331,6 +332,8 @@ def run_case(case: Case, work: pathlib.Path, fixtures: pathlib.Path, *,
             attempt["commands"]["extract"] = attempt["extract"]["command"]
             if attempt["extract"]["exit"]:
                 attempt["error"] = "extraction failed"
+                if not capture:
+                    continue
                 break
             if case.augment_cells:
                 from .arc_cells import augment
@@ -349,6 +352,8 @@ def run_case(case: Case, work: pathlib.Path, fixtures: pathlib.Path, *,
             break
         except (OSError, ValueError, KeyError, TypeError) as error:
             attempt["error"] = str(error)
+            if not capture:
+                continue
             break
     (work / f"{case.name}.receipt.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
