@@ -278,6 +278,24 @@ mod tests {
     }
 
     #[test]
+    fn a_non_square_entry_is_columns_in_bits_3_2_and_rows_in_bits_1_0() {
+        // #364: the VDP's reading; size $09 is three columns of two rows.
+        for (size, expected) in [(0x09, (3, 2)), (0x06, (2, 3)), (0x0C, (4, 1))] {
+            let rom = [0, 0, size, 0x00, 0x10, 0, 0];
+            let record = decode_record(&rom, 0).unwrap();
+            let value = serde_json::Value::from(&entries_of(&record)[0]);
+            assert_eq!(
+                (
+                    value["width_tiles"].as_u64(),
+                    value["height_tiles"].as_u64()
+                ),
+                (Some(expected.0), Some(expected.1)),
+                "size {size:#04x}"
+            );
+        }
+    }
+
+    #[test]
     fn a_record_past_the_rom_or_too_long_is_refused_with_its_message() {
         let rom = [0x02u8, 0, 0];
         assert_eq!(
