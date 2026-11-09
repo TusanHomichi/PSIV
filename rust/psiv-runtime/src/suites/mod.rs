@@ -42,6 +42,7 @@ mod next_arc;
 mod next_arc_battles;
 mod next_arc_scenes;
 mod opening;
+mod palette;
 mod player_abilities;
 mod presentation_order;
 mod progression;

@@ -1,6 +1,7 @@
 """ROM-backed assertions for the scene presentation extraction."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -11,8 +12,10 @@ from psiv_tools.presentation_pack import (
     ENDING_PANEL_IDS,
     PANEL_IDS,
     PANEL_RECORD_SIZE,
+    PALETTE_REQUESTS,
     PLATE_ENGINE_LIGHT,
     decode_palette_requests,
+    panel_palette_requests,
     panel_record_offset,
 )
 
@@ -24,6 +27,35 @@ MANIFEST = ROOT / "runtime-pack/presentation/panels.json"
 
 def _word(data: bytes, offset: int) -> int:
     return int.from_bytes(data[offset : offset + 2], "big")
+
+
+# The 68000 instructions the palette-request sites use, assembled from their
+# operands (M68000 Programmer's Reference Manual encodings), so a test states
+# the listing rather than a copy of the cartridge's bytes.
+PALETTE_TABLE_BUFFER = 0xFFFB00
+MOVE_L_POSTINC = (0x22D8).to_bytes(2, "big")  # move.l (a0)+, (a1)+
+TRAP_1 = (0x4E41).to_bytes(2, "big")  # trap #1
+
+
+def _lea_l(address: int, an: int) -> bytes:
+    """`lea (address).l, An`."""
+    return (0x41F9 | an << 9).to_bytes(2, "big") + address.to_bytes(4, "big")
+
+
+def _lea_w(address: int, an: int) -> bytes:
+    """`lea (address).w, An`, for a work-RAM address the word sign-extends to."""
+    assert address >= 0xFF8000
+    return (0x41F8 | an << 9).to_bytes(2, "big") + (address & 0xFFFF).to_bytes(2, "big")
+
+
+def _moveq(value: int, dn: int) -> bytes:
+    """`moveq #value, Dn`."""
+    return (0x7000 | dn << 9 | value).to_bytes(2, "big")
+
+
+def _move_w_imm(value: int, dn: int) -> bytes:
+    """`move.w #value, Dn`."""
+    return (0x303C | dn << 9).to_bytes(2, "big") + value.to_bytes(2, "big")
 
 
 class PresentationPackTests(unittest.TestCase):
@@ -98,6 +130,98 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(deepest, words - 1, "the window ends at the deepest read")
         # That read is past the table: the address of `loc_6E922`'s code.
         self.assertEqual(address + 2 * deepest, 0x06E922)
+
+    def test_scene_palette_requests_are_the_words_the_cartridge_reads(self):
+        # Each request beside the instructions that read it, from the US
+        # image: at each site, the listing's instructions, assembled here from
+        # their operands (a `lea` of the table and its destination, then the
+        # count), and the words the site copies.
+        data = ROM.read_bytes()
+        sites = {
+            # InitVRAMAndCRAM: lea Pal_Init / lea Palette_Table_Buffer /
+            # moveq #$1F, d0 / move.l (a0)+, (a1)+: 64 words.
+            0x09F2BC: (0x05A68A, [
+                _lea_l(0x09F2BC, 0), _lea_w(PALETTE_TABLE_BUFFER, 1),
+                _moveq(0x1F, 0), MOVE_L_POSTINC,
+            ], 64),
+            # Pal_Init_Line_3, at its deepest read: Event_GettingOffVehicle's
+            # lea Pal_Init_Line_3 / lea Palette_Line_3 / moveq #$10, d7 /
+            # trap #1, 17 words. Event_EnterAngerTower's hold ($07383A,
+            # move.w #$F, d7) reads the first 16.
+            0x296300: (0x06BF2A, [
+                _lea_l(0x296300, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x40, 1),
+                _moveq(0x10, 7), TRAP_1,
+            ], 17),
+            # loc_78296: lea loc_782D2 / lea Palette_Table_Buffer+$2E /
+            # moveq #0, d7 / ... / moveq #8, d6 / lea loc_782DA: one frame
+            # of nine words per delay byte before the $FF at $0782D2.
+            0x0782DA: (0x0782AE, [_moveq(8, 6), _lea_l(0x0782DA, 3)], 54),
+            # Event_ZioFortBarrier: lea Palette_Line_4 / lea loc_6EE16 /
+            # moveq #6, d7: seven steps reading words n, n+7, n+14.
+            0x06EE16: (0x06ED42, [
+                _lea_w(PALETTE_TABLE_BUFFER + 0x60, 1), _lea_l(0x06EE16, 2),
+                _moveq(6, 7),
+            ], 21),
+            # Cutscene_Ending: lea loc_2EEA04 / lea Palette_Table_Buffer_2 /
+            # move.w #$F, d7 / trap #1: 16 words.
+            0x2EEA04: (0x0796D4, [
+                _lea_l(0x2EEA04, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x80, 1),
+                _move_w_imm(0xF, 7), TRAP_1,
+            ], 16),
+            # Event_KingRappyDefeated: lea Palette_Line_4 / lea loc_730FC,
+            # copied to the $FFFF after its sixteenth word.
+            0x0730FC: (0x073054, [
+                _lea_w(PALETTE_TABLE_BUFFER + 0x60, 0), _lea_l(0x0730FC, 1),
+            ], 16),
+        }
+        requests = dict(PALETTE_REQUESTS)
+        records = {r["rom_addr"]: r for r in decode_palette_requests(data)}
+        for address, (site, listing, words) in sites.items():
+            with self.subTest(address=f"0x{address:06X}"):
+                code = b"".join(listing)
+                self.assertEqual(data[site : site + len(code)], code)
+                self.assertEqual(requests[address], words)
+                record = records[f"0x{address:06X}"]
+                self.assertEqual(
+                    bytes.fromhex(record["raw_hex"]),
+                    data[address : address + 2 * words],
+                )
+        # loc_782D2's delays: six frames, each a nonzero byte, then $FF.
+        delays = data[0x0782D2 : data.index(0xFF, 0x0782D2)]
+        self.assertEqual(len(delays), 6)
+        self.assertNotIn(0, delays)
+        # Verify the runtime's derived frame counts without copying ROM bytes.
+        source = (ROOT / "rust/psiv-core/src/scenes/retail_endgame.rs").read_text()
+        durations = re.search(r"const RYKROS_PALETTE_DELAYS: &\[u8\] = &\[([^]]+)\]", source)
+        self.assertIsNotNone(durations)
+        self.assertEqual(
+            [int(value.strip()) for value in durations.group(1).split(",")],
+            [delay + 1 for delay in delays],
+        )
+        self.assertEqual(requests[0x0782DA], 9 * len(delays))
+        self.assertEqual(_word(data, 0x0730FC + 32), 0xFFFF)
+
+    def test_every_drawn_panel_layer_has_its_palette(self):
+        # Panel_Draw copies sixteen words of a layer's palette whenever its
+        # art tile is not $FFFF; each such address is a palette record.
+        panels = [
+            {"art_tile_a": 0x8100, "palette_a": "0x09F37C",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+            {"art_tile_a": 0x8100, "palette_a": "0x09F37C",
+             "art_tile_b": 0xA100, "palette_b": "0x09F39C"},
+            {"art_tile_a": 0xFFFF, "palette_a": "0x0A0000",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+            # Already a named request: not repeated.
+            {"art_tile_a": 0x8100, "palette_a": "0x296300",
+             "art_tile_b": 0xFFFF, "palette_b": None},
+        ]
+        self.assertEqual(
+            panel_palette_requests(panels), [(0x09F37C, 16), (0x09F39C, 16)]
+        )
+        data = ROM.read_bytes()
+        records = {r["rom_addr"] for r in decode_palette_requests(data, panels)}
+        self.assertIn("0x09F39C", records)
+        self.assertNotIn("0x0A0000", records)
 
     def test_opening_background_manifest_matches_game_start_addresses(self):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))

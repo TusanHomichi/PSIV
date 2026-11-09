@@ -95,7 +95,7 @@ fn strip_lights_use_the_local_duration_byte_and_park_it_in_a_menu() {
         );
         if frame % 8 == 0 {
             assert_eq!(
-                view.palette[26],
+                session.runtime().cram().words[26],
                 frames[((frame / 8 - 1) % 6) as usize][0].word
             );
         }
@@ -138,7 +138,10 @@ fn shutdown_gates_stop_counters_and_reunion_bypasses_both() {
                 panic!("shutdown recipe")
             };
             for write in stopped {
-                assert_eq!(view.palette[usize::from(write.slot)], write.word);
+                assert_eq!(
+                    session.runtime().cram().words[usize::from(write.slot)],
+                    write.word
+                );
             }
         }
     }
@@ -156,7 +159,7 @@ fn edge_clear_rotate_and_blob_copies_follow_the_map_list_order() {
     let UpdateProgram::EdgeLine { frames, .. } = &updates[1].program else {
         panic!("line recipe")
     };
-    let mut expected = session.runtime().map_updates().palette.clone();
+    let mut expected = session.runtime().cram().words;
     for frame in 1..=116 {
         session.frame(Pad::NEUTRAL);
         expected[..14].fill(0);
@@ -172,7 +175,7 @@ fn edge_clear_rotate_and_blob_copies_follow_the_map_list_order() {
             }
         }
         assert_eq!(
-            session.runtime().map_updates().palette,
+            session.runtime().cram().words,
             expected,
             "ordered writes frame {frame}"
         );
@@ -210,7 +213,10 @@ fn edge_sliding_blob_and_signed_scroll_keep_separate_counters() {
                 .iter()
                 .filter(|w| w.slot >= 16)
             {
-                assert_eq!(view.palette[usize::from(write.slot)], write.word);
+                assert_eq!(
+                    session.runtime().cram().words[usize::from(write.slot)],
+                    write.word
+                );
             }
         }
     }
@@ -220,13 +226,13 @@ fn edge_sliding_blob_and_signed_scroll_keep_separate_counters() {
 fn no_update_entry_has_no_palette_or_state_side_effects() {
     let Some(data) = data() else { return };
     let mut session = session(data, 17, &[]);
-    let before = session.runtime().map_updates().palette.clone();
+    let before = session.runtime().cram().clone();
     let state = session.runtime().game().snapshot();
     for _ in 0..32 {
         session.frame(Pad::NEUTRAL);
     }
-    assert_eq!(session.runtime().map_updates().palette, before);
-    assert_eq!(session.runtime().map_updates().palette_revision, 0);
+    assert_eq!(session.runtime().cram().words, before.words);
+    assert_eq!(session.runtime().cram().revision, before.revision);
     assert_eq!(session.runtime().map_updates().counters, [0; 3]);
     assert_eq!(session.runtime().game().snapshot(), state);
     assert_eq!(session.runtime().map_updates().calls, 32);

@@ -26,8 +26,8 @@ event pointer is `$06D616`.
 | 4 | `$06D4D6..$06D4DB` | `DMAPlane_A_VInt` | `DmaPlanes` |
 | 5 | `$06D4DC..$06D4E7` | `Field_BuildSprites`; one VInt prep | `Presentation(RebuildSprites)` |
 | 6 | `$06D4E8..$06D502` | save five `$2C` X words; park each at `$65` | `Presentation(SavePartySpriteX { parked_x: $65 })` |
-| 7 | `$06D506..$06D510` | palette `$FB44/$FB46` ← `$AAA/$666` | `Presentation(SetPaletteWords { offset: $44 })` |
-| 8 | `$06D512..$06D51C` | palette `$FB5C/$FB5E` ← `$620/$EEE` | `Presentation(SetPaletteWords { offset: $5C })` |
+| 7 | `$06D506..$06D510` | palette `$FB44/$FB46` ← `$AAA/$666` | `Presentation(SetPaletteWords { offset: $22 })` (word offset) |
+| 8 | `$06D512..$06D51C` | palette `$FB5C/$FB5E` ← `$620/$EEE` | `Presentation(SetPaletteWords { offset: $2E })` (word offset) |
 | 9 | `$06D51E..$06D523` | `Pal_FadeIn` | `FadeIn` |
 | 10 | `$06D524..$06D52B` | `Sound_Index ← SFXID_DoorOpened ($E2)` | `PlaySound($E2)` |
 | 11 | `$06D52C..$06D533` | `DoMapUpdateLoop($3B)`, 60 updates | `Wait(60)` |

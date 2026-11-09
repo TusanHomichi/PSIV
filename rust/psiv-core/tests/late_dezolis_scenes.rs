@@ -418,7 +418,7 @@ fn the_anger_tower_illusion_and_chaz_step_by_retails_table() {
         );
         assert_eq!(
             end.0,
-            (start.0.0 - 16 * lx, start.0.1 - 16 * ly),
+            ((start.0).0 - 16 * lx, (start.0).1 - 16 * ly),
             "Chaz one cell back ({leader:?})"
         );
         // Every step frame moves something: 32 frames, no pause between loops.
@@ -647,11 +647,7 @@ fn with_elsydeon_the_barrier_breaks_and_sets_e0() {
             },
             SceneOp::WaitFrames { frames: 40 },
             SceneOp::Presentation {
-                op: PresentationOp::PaletteToneFlash {
-                    brighten: false,
-                    words: 64,
-                    frames: 40,
-                },
+                op: PresentationOp::PaletteRestoreTone { frames: 40 },
             },
             SceneOp::WaitFrames { frames: 40 },
         ]

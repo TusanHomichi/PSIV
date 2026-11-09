@@ -41,7 +41,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_ZemaServantBattle", 4),
         ("Event_ZemaOldMan", 3),
         ("Event_ZemaOldManAfterMission", 3),
-        ("Event_MeetingSaya", 12),
+        ("Event_MeetingSaya", 18),
         ("Event_TonoeBasementDoor", 19),
         ("Event_BioPlantAlarm", 6),
         ("Event_BioPlantDoorOpening", 8),
@@ -52,14 +52,14 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_LeavingChazHouse", 1),
         ("Cutscene_MeetingRika", 107),
         ("Cutscene_DemiRescue", 26),
-        ("Cutscene_AlysWounded", 57),
+        ("Cutscene_AlysWounded", 59),
         ("Event_GettingLandRover", 31),
         ("Event_MachineCenterAppearing", 14),
         ("Event_RuneLadaeTower", 9),
         ("Event_PsycoWandChest", 20),
-        ("Cutscene_PsycoWand", 110),
+        ("Cutscene_PsycoWand", 112),
         ("Event_ZioFortBarrier", 35),
-        ("Event_ZioNurvus", 17),
+        ("Event_ZioNurvus", 18),
         ("Cutscene_ZioDefeated", 46),
         ("Cutscene_MeetingWren", 16),
         ("Cutscene_InsideSpaceship", 44),
@@ -130,7 +130,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_DarkForce2", 6),
         ("Cutscene_LutzRevelation", 30),
         ("Event_EclipseTorchStolen", 58),
-        ("Cutscene_DarkForce2Defeated", 33),
+        ("Cutscene_DarkForce2Defeated", 46),
         ("Cutscene_MeetingSeth", 11),
         ("Cutscene_AeroPrism", 27),
         ("Event_DarkForce3Defeated", 2),
@@ -163,8 +163,8 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_AngerTowerExitTop", 10),
         ("Cutscene_ProfoundDarkness", 20),
         ("Cutscene_RajaSick", 54),
-        ("Cutscene_Rykros", 27),
-        ("Cutscene_Ending", 370),
+        ("Cutscene_Rykros", 28),
+        ("Cutscene_Ending", 371),
         ("Event_RockyOwner", 3),
         ("Event_GirlPrison", 3),
         ("Event_GirlsBail", 3),
@@ -213,13 +213,20 @@ fn every_scene_matches_its_docs_op_count() {
         expected.len(),
         "every act scene is registered"
     );
-    for (name, ops) in expected {
-        let scene = SCENES
-            .iter()
-            .find(|s| s.name == *name)
-            .unwrap_or_else(|| panic!("{name} is missing from the registry"));
-        assert_eq!(scene.ops.len(), *ops, "{name} op count");
-    }
+    // Every disagreement at once, so one change that moves several counts
+    // is fixed in one pass.
+    let wrong: Vec<String> = expected
+        .iter()
+        .filter_map(|(name, ops)| {
+            let scene = SCENES
+                .iter()
+                .find(|s| s.name == *name)
+                .unwrap_or_else(|| panic!("{name} is missing from the registry"));
+            (scene.ops.len() != *ops)
+                .then(|| format!("{name}: {} ops, the docs say {ops}", scene.ops.len()))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "op counts: {wrong:#?}");
 }
 
 /// The op indices of `ops` whose `WalkObject` order disagrees with the
@@ -421,6 +428,7 @@ fn tone_loop_frames(op: &SceneOp) -> Option<u16> {
         SceneOp::Presentation {
             op:
                 crate::scene_presentation::PresentationOp::PaletteIncreaseTone { frames, .. }
+                | crate::scene_presentation::PresentationOp::PaletteRestoreTone { frames }
                 | crate::scene_presentation::PresentationOp::PaletteToneFlash { frames, .. },
         } => Some(*frames),
         _ => None,
@@ -560,6 +568,130 @@ fn a_spawn_without_its_rebuild_is_reported() {
             wait,
         ])
         .is_empty()
+    );
+}
+
+/// Why a palette record cannot be what the cartridge writes: a word
+/// offset past the 64-word buffer, a destination outside
+/// `Palette_Table_Buffer`, or a literal with bits outside a CRAM word's
+/// `----bbb-ggg-rrr-` (a byte offset or a VDP register write recorded
+/// as palette words).
+fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
+    const CRAM: u16 = 0x0EEE;
+    let buffer = |ram: u32, words: u32| {
+        (0xFFFF_FB00..0xFFFF_FB80).contains(&ram) && ram + 2 * words <= 0xFFFF_FB80
+    };
+    match *op {
+        PresentationOp::SetPaletteWords {
+            offset,
+            first,
+            second,
+        } => {
+            if offset > 62 {
+                Some("offset past the buffer")
+            } else if (first | second) & !CRAM != 0 {
+                Some("not CRAM words")
+            } else {
+                None
+            }
+        }
+        PresentationOp::AddPaletteWord { offset, .. } => {
+            (offset > 63).then_some("offset past the buffer")
+        }
+        PresentationOp::PaletteCopy {
+            start,
+            words,
+            source,
+            ..
+        } => {
+            if usize::from(start) + usize::from(words) > 64 {
+                Some("copy past the buffer")
+            } else if matches!(source, crate::PaletteSource::Fill(v) if v & !CRAM != 0) {
+                Some("not a CRAM word")
+            } else {
+                None
+            }
+        }
+        PresentationOp::PaletteIncreaseTone {
+            hold: Some(hold), ..
+        } => (!buffer(hold.destination_ram, u32::from(hold.words))).then_some("hold outside"),
+        PresentationOp::RykrosPaletteCycle {
+            destination_ram,
+            words_per_frame,
+            ..
+        } => (!buffer(destination_ram, u32::from(words_per_frame))).then_some("cycle outside"),
+        PresentationOp::PaletteRampFromTable {
+            destination_ram, ..
+        } => (!buffer(destination_ram + 2, 3)).then_some("ramp outside"),
+        PresentationOp::PaletteCycleFromTable { offset, .. } => {
+            (offset > 62).then_some("offset past the buffer")
+        }
+        _ => None,
+    }
+}
+
+/// Every palette record in the registry is one the 64-word buffer can
+/// take. `SetPaletteWords` once held byte offsets (`$44`, `$5C`) and a
+/// VDP register write (`$8C89`) as palette words.
+#[test]
+fn every_palette_record_fits_the_palette_buffer() {
+    for scene in SCENES {
+        for (index, op) in scene.ops.iter().enumerate() {
+            if let SceneOp::Presentation { op } = op {
+                assert_eq!(
+                    palette_record_fault(op),
+                    None,
+                    "{} op {index}: {op:?}",
+                    scene.name
+                );
+            }
+            if let SceneOp::LoadPalette { words, start, .. } = op {
+                assert!(
+                    usize::from(*start) + usize::from(*words) <= 64,
+                    "{} op {index}",
+                    scene.name
+                );
+            }
+        }
+    }
+}
+
+/// Negative control: each mistake the check names is caught.
+#[test]
+fn a_palette_record_that_cannot_fit_is_reported() {
+    let words = |offset, first, second| PresentationOp::SetPaletteWords {
+        offset,
+        first,
+        second,
+    };
+    assert_eq!(
+        palette_record_fault(&words(0x5C, 0x0620, 0x0EEE)),
+        Some("offset past the buffer")
+    );
+    assert_eq!(
+        palette_record_fault(&words(0x18, 0x8C89, 0x8C81)),
+        Some("not CRAM words")
+    );
+    assert_eq!(palette_record_fault(&words(0x2E, 0x0620, 0x0EEE)), None);
+    assert_eq!(
+        palette_record_fault(&PresentationOp::PaletteCopy {
+            source: crate::PaletteSource::Fill(0),
+            destination: crate::PaletteBuffer::Live,
+            start: 32,
+            words: 64,
+        }),
+        Some("copy past the buffer")
+    );
+    assert_eq!(
+        palette_record_fault(&PresentationOp::PaletteIncreaseTone {
+            frames: 1,
+            hold: Some(crate::PaletteHold {
+                source_rom_addr: 0,
+                destination_ram: 0xFFFF_FB78,
+                words: 16,
+            }),
+        }),
+        Some("hold outside")
     );
 }
 

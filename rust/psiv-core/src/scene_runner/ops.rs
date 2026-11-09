@@ -853,32 +853,30 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
             }
-            // The barrier ramp's own `dbra` waits are inside the loop, so the
-            // op blocks for the whole ramp exactly as the cartridge does.
+            // The barrier ramp, the engine light and Rykros's cycle wait
+            // inside their loops: the op blocks for every frame the cartridge
+            // spends in it ([`crate::PresentationOp::palette_loop_frames`]).
             SceneOp::Presentation {
                 op:
-                    crate::PresentationOp::PaletteRampFromTable {
-                        steps, frame_delay, ..
-                    },
+                    palette @ (crate::PresentationOp::PaletteRampFromTable { .. }
+                    | crate::PresentationOp::PaletteCycleFromTable { .. }
+                    | crate::PresentationOp::RykrosPaletteCycle { .. }),
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
-                self.blocked = Blocked::Ticks(u16::from(steps) * frame_delay);
-            }
-            // The engine light's eight-frame `VInt_Prepare` waits are inside
-            // its loop: the op blocks for every pass, with no map update.
-            SceneOp::Presentation {
-                op:
-                    crate::PresentationOp::PaletteCycleFromTable {
-                        steps, frame_delay, ..
-                    },
-            } => {
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
-                let frames = u16::from(steps) * frame_delay;
+                let frames = palette.palette_loop_frames().unwrap_or(0);
                 if frames > 0 {
                     self.blocked = Blocked::Ticks(frames);
                 }
+            }
+            // A variable fade's length is in the palette, which the runtime
+            // holds: it answers with [`SceneRunner::release_palette`].
+            SceneOp::Presentation {
+                op: crate::PresentationOp::VariablePaletteFade { .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Palette;
             }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }

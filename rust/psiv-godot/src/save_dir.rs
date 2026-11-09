@@ -4,6 +4,9 @@
 //! scripted run must explicitly name a separate directory with `PSIV_SAVE_DIR`
 //! before any save access; the override also applies to interactive launches.
 
+use godot::prelude::godot_error;
+use psiv_runtime::SaveStore;
+
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -70,6 +73,22 @@ pub(crate) fn save_directory() -> Result<PathBuf, SaveDirError> {
         std::env::var_os(SAVE_DIR_ENV).as_deref(),
         &PathBuf::from(Os::singleton().get_user_data_dir().to_string()).join("saves"),
     )
+}
+
+/// The run's save directory as a store, or the logged refusal.
+///
+/// The policy is the shell's (`save_dir.rs`): a scripted run that named no
+/// directory gets no store, and the session refuses every slot operation
+/// instead of falling back to a default path. Resolved once per boot, so the
+/// fixtures and the constructors share one answer.
+pub(crate) fn session_store() -> Option<SaveStore> {
+    match save_directory() {
+        Ok(directory) => Some(SaveStore::new(directory)),
+        Err(error) => {
+            godot_error!("save slot scan refused: {error}");
+            None
+        }
+    }
 }
 
 #[cfg(test)]

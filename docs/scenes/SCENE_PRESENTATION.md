@@ -24,6 +24,15 @@ The ordering contract is covered by
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
+The palette scenes' first pair joined them on 2026-11-08
+([#162](https://github.com/TusanHomichi/PSIV/issues/162)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `anger-tower-barrier` | **0.000000** | clone t108 (`PSIV_DEBUG_EVENT=0x99`) ↔ tape-37 frame 7384: `Event_EnterAngerTower`'s tone at saturation, lines 0, 1 and 3 white and line 2 held; region `1,1,319,223` (the native field's first row and column are black, [#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+
+With the hold dropped from the CRAM model the pair fails (`rmse=12.012963`).
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 
@@ -268,7 +277,8 @@ border at `(37,2)`.
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
 | `ReplaceMapLayout` | Implemented through `MapRefreshed` | The runtime installs the pack's layout variant decoded from the two ROM sources and emits `MapRefreshed`; Godot's existing handler redraws the map from the runtime view, which names the variant's PNG. `Event_GaruberkTwEyeAction1` ([104](104_GaruberkTowerEyes.md)). |
-| `PresentationOp::PaletteToneFlash`, `GaruberkEyeArtCycle` | Logged, not drawn | Godot consumes both with the other palette and art records it does not draw (`cutscene/ops.rs`): `Event_Recovery`'s white flash ([102](102_Recovery.md)) and the Garuberk eyes' art cycle. The frames are the scene's `WaitFrames`, so timing is unaffected. |
+| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `VariablePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and dialogue window draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
+| `GaruberkEyeArtCycle`, `ShadowHighlight` | Logged, not drawn | Godot consumes both (`cutscene/ops.rs`): the Garuberk eyes' art cycle and `Event_ZioNurvus`'s VDP register 12 writes. The frames are the scene's waits, so timing is unaffected. |
 | palette-word/red-fade/window/portrait records | Implemented for the decoded generic set | Generic `WindowDestroy/Create`, `LoadWindowTiles`, `LoadPortrait`, and `DrawPortrait` now drive the runtime window layer. The Meseta window roles come from `dialogue/set.window.png`; `shopkeeper_2` is emitted as a 48x48, 36-tile portrait from art `$29DE1E`, mapping `$2A2B36`, destination tile `$55C`. |
 
 ### Additive asset coverage
@@ -329,8 +339,10 @@ The shell-only selectors `PSIV_DEBUG_TITLE_AUTOSTART=1` (real title START) and
 `PSIV_DEBUG_RETAIL_PACE=1` preserves retail dialogue cadence for frame pairing.
 All are evaluation switches and are never used by normal play. The old
 `PSIV_DEBUG_EVENT=0x9f` fixture is gone (#44); `PSIV_DEBUG_EVENT` still serves
-MeetingRika (`0x8007`) and refuses to boot a scene a map-entry trigger has
-already pre-empted.
+MeetingRika (`0x8007`) and the ship's menu (`0x800D`), and refuses to boot a
+scene a map-entry trigger has already pre-empted. `0x99` loads the Anger
+Tower with Elsydeon held, where the map's own entry trigger starts
+`Event_EnterAngerTower`: the barrier's tone with line 2 held.
 
 ## Remaining deferrals
 
@@ -340,7 +352,94 @@ already pre-empted.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Palette-baked raster limit:** `UpdatePalette` and the three bespoke red
-  effects use the decoded cutscene-layer redraw/overlay seam. A future CRAM
-  renderer can replace that shell effect without changing the dialogue action
-  timing or dispatch contract.
+- **Surfaces outside the live palette:** vehicle sprites (their line-3
+  palette is a `LoadSceneAsset` write the CRAM model does not take), scene
+  temporary objects, the shop, camp and choice menus, and the dialogue
+  action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
+- **One oracle pair for the palette scenes:** `$99`'s held tone
+  (`anger-tower-barrier`); frames of Rykros's tone and cycle, an ending tone
+  loop and the Zio barrier ramp against the oracle are still
+  [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
+  [#68](https://github.com/TusanHomichi/PSIV/issues/68).
+
+## CRAM state
+
+`Runtime::cram()` is `Palette_Table_Buffer` (`$FFFFFB00`, 64 words) as `VInt`
+would upload it this frame, with a revision for upload suppression and the
+list of ROM palettes a scene asked for that the pack lacks. Its one writer is
+`rust/psiv-runtime/src/cram.rs`; the arithmetic is `rust/psiv-core/src/palette.rs`,
+each function transcribed from the routine it names with its own masks and
+borrows. Writers:
+
+- a map load fills both buffers from the record's 64-word shadow (lines 0, 1
+  and 3 from the map, line 2 `Pal_Init_Line_3`), then makes each
+  `MapDataManager` palette copy whose path's gates hold, in dispatcher order,
+  into both buffers: the load's `Pal_FadeIn` copies the live buffer to the
+  second after `MapDataManager` runs (`ps4.asm:107579-107630`). Rescued Zema's
+  and petrified Birth Valley's NPC sheets draw from those words. The map
+  update programs write single words;
+- `InitVramAndCram` copies the live buffer to the second one and loads
+  `Pal_Init` (`$09F2BC`, the `lea` at `$05A68A`); `LoadPalette` and
+  `ReloadMapPalette` write the live buffer; `Panel_Create` (scene ops and
+  dialogue `$F2` panels) copies sixteen words per drawn layer to
+  `(art tile >> 8) & $70` bytes in (`ps4.asm:144392-144401`);
+- `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
+  `SetPaletteWords` and `AddPaletteWord` take word offsets;
+- the loops step once per runtime tick, starting on the tick the scene emits
+  them, with that tick's `Main_Frame_Count`: `Pal_IncreaseTone` and its
+  per-frame hold copy, the `loc_58666` restore, the recovery flashes (red and
+  green only: both mask blue and keep it), the Rykros cycle, the Zio ramp, the
+  engine light, both red fades and both variable fades.
+
+The ROM words come from the pack: `presentation/panels.json`'s `palettes`
+(`PALETTE_REQUESTS` in `psiv_tools/presentation_pack.py`, and every drawn panel
+layer's palette), read by `psiv_data::ScenePalettes`.
+
+Corrections this model brought, each checked against the US image:
+
+- `Event_Recovery`'s copy is `move.w #$1F, d7` / `trap #1` at `$06D384`, and
+  `trap #1` copies words: 32 words, not 64.
+- `loc_58666`, the restore after `Pal_IncreaseTone` (`$073856`, `$078220`,
+  `$0796E4`), steps all three components of the whole word with a borrow; it
+  was recorded as the recovery flash's restore. It is `PaletteRestoreTone`, and
+  Rykros and the ending gained the record their restore loops lacked.
+- `loc_78296`'s delays (`$0782D2`: `$07,$05,$07,$07,$07,$07,$FF`) are `dbf`
+  counts, 46 frames in all, and the cycle now blocks the scene for them; the
+  record held the raw bytes and did not block.
+- `Pal_VariableFadeIn`/`Out` last as long as the palette's largest nibble
+  needs: the scene blocks on `Blocked::Palette` until the runtime answers with
+  the count (`SceneRunner::release_palette`). `Event_Phonon` and the ending
+  grew by those frames.
+- `SetPaletteWords` offsets are word offsets: Vahal's barrier (`$0732EC`), the
+  girls' sneaking-out palette (`$06D506`) and MeetingRika's (`$074826`) were
+  byte offsets. `Event_ZioNurvus`'s `$8C89`/`$8C81` (`$06F2FA`, `$06F3AA`) are
+  VDP register 12 writes, now `ShadowHighlight`.
+
+### Drawing the CRAM
+
+The field shell copies `Runtime::cram()` into one shared palette at the top
+of every drawn frame (`Field::sync_map_palette`), and every surface whose
+art is indexed draws from it:
+
+- the map's index textures, lines 0 and 1, through the map shader
+  (`field_map.rs`), its palette set when the shader is installed;
+- field sprite sheets (party, followers, NPCs) on the line their pack record
+  names (`palette.cram_line`, from the object's `$13` byte);
+- scene panels, each layer on its art tile's line (bits 13-14);
+- the dialogue window, whose tiles, glyphs and portraits are line 2.
+
+Sheets and panels keep each pixel's palette index
+(`psiv_data::color::index_png`) and are recoloured
+(`psiv_data::color::recolor`) when the words change, on the frame they are
+drawn (`rust/psiv-godot/src/cram_art.rs`). A map record without the 64-word
+shadow is not live (`CramView::live`): every surface on it, the map's base,
+overlay, layout variant and patch atlas pictures included, draws its baked
+colours. The window's art is baked in
+`Pal_Init_Line_3`'s colours, which are distinct, so its shader finds each
+pixel's index by colour. The red fades are the CRAM model's too: the
+screen-space red effect that stood in for them is gone, since it would now
+apply twice.
+
+Deviation: the fades whose frames the scene does not spend (`FadeIn`,
+`FadeOut`, `InitVramAndCram`'s fade) write only their copy
+([source notes](../source-notes/README.md#other-recorded-deviations)).

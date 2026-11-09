@@ -19,6 +19,13 @@ impl Field {
         };
         let id = runtime.map_id().0;
         let palette_images = runtime.map_record().map(|r| &r.map_update_images);
+        // Map pictures draw from the live CRAM only once it holds the map's
+        // palette; a record without the 64-word shadow keeps its baked
+        // colours on every picture (base, overlay, variant, patch atlas).
+        let cram = runtime.cram();
+        let palette = cram
+            .live
+            .then(|| map_palette_colors(&cram.words, cram.revision));
         // Surface every gap the effect layer knows about — silence here
         // would read as "fully patched" when it is not.
         let fx = runtime.map_effects();
@@ -56,18 +63,22 @@ impl Field {
 
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
-                let indexed = palette_images.and_then(|images| images.get(&name));
-                let path = format!("/{}", indexed.unwrap_or(&name));
-                let path = format!("{}{path}", self.pack_dir);
-                match Image::load_from_file(&GString::from(path.as_str())) {
+                let source = map_image_source(palette.is_some(), palette_images, &name);
+                let (loaded, indexed) = load_map_image(&self.pack_dir, source, &name);
+                let path = format!("{}/{name}", self.pack_dir);
+                match loaded {
                     Some(mut image) => {
                         if let Some(tiles) = &atlas {
-                            let atlas_name = palette_images
-                                .and_then(|images| images.get(&tiles.png))
-                                .unwrap_or(&tiles.png);
-                            let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
-                            match Image::load_from_file(&GString::from(atlas_path.as_str())) {
-                                Some(atlas_img) => {
+                            let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
+                            let source =
+                                map_image_source(palette.is_some(), palette_images, &tiles.png);
+                            match load_map_image(&self.pack_dir, source, &tiles.png) {
+                                (Some(_), atlas_indexed) if atlas_indexed != indexed => {
+                                    godot_error!(
+                                        "patch atlas {atlas_path} does not match the map's colours"
+                                    );
+                                }
+                                (Some(atlas_img), _) => {
                                     let edge = tiles.tile_pixels as i32;
                                     for &(cx, cy, index) in &blits {
                                         let Some(tile) =
@@ -90,7 +101,7 @@ impl Field {
                                         blits.len()
                                     );
                                 }
-                                None => {
+                                (None, _) => {
                                     godot_error!("could not load patch atlas {atlas_path}");
                                 }
                             }
@@ -99,7 +110,7 @@ impl Field {
                             && let Some(sprite) = self.map_sprite.as_mut()
                         {
                             sprite.set_texture(&texture);
-                            install_palette_material(sprite, indexed.is_some());
+                            install_palette_material(sprite, palette.as_ref().filter(|_| indexed));
                             // A scene's InitVramAndCram may have blanked the
                             // field; a map redraw is what restores it — the
                             // actor sprites ride the same reload.
@@ -122,23 +133,26 @@ impl Field {
         if let Some(sprite) = self.overlay_sprite.as_mut() {
             match over {
                 Some(name) => {
-                    let indexed = palette_images.and_then(|images| images.get(&name));
-                    let path = format!("/{}", indexed.unwrap_or(&name));
-                    let path = format!("{}{path}", self.pack_dir);
-                    match Image::load_from_file(&GString::from(path.as_str())) {
+                    let source = map_image_source(palette.is_some(), palette_images, &name);
+                    let (loaded, indexed) = load_map_image(&self.pack_dir, source, &name);
+                    let path = format!("{}/{name}", self.pack_dir);
+                    match loaded {
                         Some(mut image) => {
                             // The overlay atlas mirrors the base one: same
                             // indices, above-sprites pixels only.
                             if let Some(tiles) = &atlas
                                 && let Some(over_png) = &tiles.png_over
                             {
-                                let atlas_name = palette_images
-                                    .and_then(|images| images.get(over_png))
-                                    .unwrap_or(over_png);
-                                let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
-                                if let Some(atlas_img) =
-                                    Image::load_from_file(&GString::from(atlas_path.as_str()))
-                                {
+                                let atlas_path = format!("{}/{over_png}", self.pack_dir);
+                                let source =
+                                    map_image_source(palette.is_some(), palette_images, over_png);
+                                let (atlas_img, atlas_indexed) =
+                                    load_map_image(&self.pack_dir, source, over_png);
+                                if atlas_img.is_some() && atlas_indexed != indexed {
+                                    godot_error!(
+                                        "overlay atlas {atlas_path} does not match the map's colours"
+                                    );
+                                } else if let Some(atlas_img) = atlas_img {
                                     let edge = tiles.tile_pixels as i32;
                                     for &(cx, cy, index) in &blits {
                                         if let Some(tile) =
@@ -161,7 +175,10 @@ impl Field {
                             match ImageTexture::create_from_image(&image) {
                                 Some(texture) => {
                                     sprite.set_texture(&texture);
-                                    install_palette_material(sprite, indexed.is_some());
+                                    install_palette_material(
+                                        sprite,
+                                        palette.as_ref().filter(|_| indexed),
+                                    );
                                     sprite.set_visible(true);
                                 }
                                 None => {
@@ -250,7 +267,7 @@ impl Field {
                 .collect();
             for sheet_id in missing {
                 if let Some(sheet) = runtime.data().sheet(&sheet_id) {
-                    if let Some(view) = SheetView::build(&self.pack_dir, sheet) {
+                    if let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram)) {
                         self.sheet_views.insert(sheet_id, view);
                     } else {
                         godot_error!("sheet {sheet_id} png failed to load");
@@ -308,14 +325,139 @@ void fragment() {
 }
 "#;
 
-fn install_palette_material(sprite: &mut Gd<Sprite2D>, indexed: bool) {
-    if indexed {
+/// Where a map picture's pixels come from.
+#[derive(Debug, PartialEq, Eq)]
+enum MapImageSource<'a> {
+    /// The pack's own index image for it, by file name.
+    PackIndex(&'a str),
+    /// The picture itself, rewritten to indices at load
+    /// ([`crate::cram_art::load_index_image`]).
+    Rewrite,
+    /// The picture's baked colours: the palette is not live.
+    Baked,
+}
+
+/// How a map picture `name` (base, overlay, layout variant or patch atlas)
+/// is drawn: from the live CRAM, through the map shader, only while `live`
+/// (the record carries the 64-word shadow the shader's palette comes from).
+fn map_image_source<'a>(
+    live: bool,
+    images: Option<&'a std::collections::BTreeMap<String, String>>,
+    name: &str,
+) -> MapImageSource<'a> {
+    if !live {
+        return MapImageSource::Baked;
+    }
+    match images.and_then(|images| images.get(name)) {
+        Some(indexed) => MapImageSource::PackIndex(indexed),
+        None => MapImageSource::Rewrite,
+    }
+}
+
+/// The picture `name` from `source`, with whether its pixels are palette
+/// indices for the map shader. A picture that is not an indexed PNG falls
+/// back to its baked colours.
+fn load_map_image(
+    pack_dir: &str,
+    source: MapImageSource<'_>,
+    name: &str,
+) -> (Option<Gd<Image>>, bool) {
+    let path = format!("{pack_dir}/{name}");
+    match source {
+        MapImageSource::PackIndex(indexed) => {
+            let path = format!("{pack_dir}/{indexed}");
+            (Image::load_from_file(&GString::from(path.as_str())), true)
+        }
+        MapImageSource::Rewrite => match crate::cram_art::load_index_image(&path) {
+            Some(image) => (Some(image), true),
+            None => (Image::load_from_file(&GString::from(path.as_str())), false),
+        },
+        MapImageSource::Baked => (Image::load_from_file(&GString::from(path.as_str())), false),
+    }
+}
+
+/// The map shader's palette, lines 0 and 1 of `words`, with the revision it
+/// was made from.
+pub(crate) struct MapPalette {
+    colors: PackedColorArray,
+    revision: i64,
+}
+
+pub(crate) fn map_palette_colors(words: &[u16; 64], revision: u64) -> MapPalette {
+    let mut colors = PackedColorArray::new();
+    for &word in &words[..32] {
+        let [r, g, b] = psiv_data::color::cram_rgb(word);
+        colors.push(Color::from_rgba8(r, g, b, 255));
+    }
+    MapPalette {
+        colors,
+        revision: revision as i64,
+    }
+}
+
+/// Points a map sprite's shader at `palette`, unless it already holds that
+/// revision. A sprite without the shader is left alone.
+pub(crate) fn upload_map_palette(sprite: &mut Gd<Sprite2D>, palette: &MapPalette) {
+    let Some(mut material) = sprite
+        .get_material()
+        .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
+    else {
+        return;
+    };
+    if material
+        .get_shader_parameter("revision")
+        .try_to::<i64>()
+        .ok()
+        == Some(palette.revision)
+    {
+        return;
+    }
+    material.set_shader_parameter("palette", &palette.colors.to_variant());
+    material.set_shader_parameter("revision", &palette.revision.to_variant());
+}
+
+/// Draws an indexed map picture through the palette shader, its palette set
+/// before the first frame draws it; `None` draws the baked colours.
+fn install_palette_material(sprite: &mut Gd<Sprite2D>, palette: Option<&MapPalette>) {
+    if let Some(palette) = palette {
         let mut shader = Shader::new_gd();
         shader.set_code(MAP_PALETTE_SHADER);
         let mut material = ShaderMaterial::new_gd();
         material.set_shader(&shader);
         sprite.set_material(&material);
+        upload_map_palette(sprite, palette);
     } else {
         sprite.set_material(Gd::<Material>::null_arg());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{MapImageSource, map_image_source};
+
+    /// Indexed pictures only with a live palette, for every picture of the
+    /// map alike; the pack's index image wins over the load-time rewrite.
+    #[test]
+    fn map_pictures_are_indexed_only_with_a_live_palette() {
+        let images: BTreeMap<String, String> =
+            [("map.png".to_owned(), "map_indices.png".to_owned())].into();
+        for name in ["map.png", "map_over.png", "atlas.png"] {
+            assert_eq!(
+                map_image_source(false, Some(&images), name),
+                MapImageSource::Baked
+            );
+            assert_eq!(map_image_source(false, None, name), MapImageSource::Baked);
+            assert_eq!(map_image_source(true, None, name), MapImageSource::Rewrite);
+        }
+        assert_eq!(
+            map_image_source(true, Some(&images), "map.png"),
+            MapImageSource::PackIndex("map_indices.png")
+        );
+        assert_eq!(
+            map_image_source(true, Some(&images), "atlas.png"),
+            MapImageSource::Rewrite
+        );
     }
 }

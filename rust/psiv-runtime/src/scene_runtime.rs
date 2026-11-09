@@ -528,6 +528,19 @@ impl Runtime {
             // state (it feeds the RNG stream through the on-screen tests), so
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
+                // The palette's one writer applies every palette record on
+                // the frame the scene emits it; a variable fade answers with
+                // the frames it spends.
+                let record = self.data.map(psiv_data::MapId(self.map.id().0));
+                let palette_frames =
+                    self.effects
+                        .cram
+                        .apply(&op, self.frames, self.data.scene_palettes(), record);
+                if let Some(frames) = palette_frames
+                    && let Some(runner) = self.scene.as_mut()
+                {
+                    runner.release_palette(frames);
+                }
                 match op {
                     SceneOp::FlightPlanet => {
                         // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8

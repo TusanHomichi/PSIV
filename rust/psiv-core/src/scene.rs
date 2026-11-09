@@ -231,12 +231,15 @@ pub enum SceneOp {
         /// Loop iterations.
         frames: u16,
     },
-    /// Load a palette from ROM (intro only).
+    /// Copy a ROM palette into `Palette_Table_Buffer`.
     LoadPalette {
         /// The palette's ROM address.
         rom_addr: u32,
         /// How many words to copy.
         words: u16,
+        /// First `Palette_Table_Buffer` word written (`lea` destination
+        /// minus `$FFFFFB00`, halved).
+        start: u8,
     },
     /// Decompress one Nemesis art blob into a tile (`LoadVRAMAddressFromTileNumber`
     /// plus `NemDecomp`).

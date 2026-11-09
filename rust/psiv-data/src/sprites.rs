@@ -98,6 +98,14 @@ pub struct SequenceFrame {
 }
 
 impl Sheet {
+    /// The CRAM line the sheet's pixels index (`palette.cram_line`, from the
+    /// object's `$13` palette byte), when the pack records one.
+    #[must_use]
+    pub fn cram_line(&self) -> Option<u8> {
+        let line = self.research.get("palette")?.get("cram_line")?.as_u64()?;
+        u8::try_from(line).ok().filter(|line| *line < 4)
+    }
+
     /// The named sequence, if the sheet defines it.
     #[must_use]
     pub fn sequence(&self, name: &str) -> Option<&Sequence> {
@@ -120,6 +128,7 @@ mod tests {
         let file: SheetFile = serde_json::from_str(text).unwrap();
         assert!(file.research.contains_key("field_objects"));
         assert!(file.sheets[0].research.contains_key("palette"));
+        assert_eq!(file.sheets[0].cram_line(), Some(2));
         let back = serde_json::to_value(&file).unwrap();
         assert_eq!(back, serde_json::from_str::<Value>(text).unwrap());
         // A file with no variants writes none: only vehicles.json has the key.

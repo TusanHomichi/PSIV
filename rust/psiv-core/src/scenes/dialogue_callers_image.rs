@@ -34,14 +34,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 use super::dialogue_callers::{
-    D1, D2, D3, D4, D5, DIALOGUE_CALLERS, DYN, INLINE, ROUTINE_WINDOWS, Row, routine_name,
+    D1, D2, D3, D4, D5, DIALOGUE_CALLERS, DYN, INLINE, R1, R2, R3, R4, R5, RESUME, ROUTINE_WINDOWS,
+    Row, routine_name,
 };
 use super::documented_ranges::{Ranges, documented_ranges, repo};
 use crate::scene::DialogueWindow;
 
 /// The five entries, each opening with `jsr GetDialogueByID`
 /// (`ps4.asm:121603..121718`), in image order.
-const ROUTINES: [u32; 5] = [D1, D2, D3, D4, D5];
+pub(super) const ROUTINES: [u32; 5] = [D1, D2, D3, D4, D5];
+/// The five `Event_RunDialogue*` resume entries, each its `Get` routine's
+/// body after the opening `jsr GetDialogueByID` (`ps4.asm:121603..121718`).
+pub(super) const RESUMES: [u32; 5] = [R1, R2, R3, R4, R5];
 /// The routines themselves, through `Panel_DestroyAll` (`$5AE74`): their own
 /// `jsr GetDialogueByID` are not callers.
 const ROUTINE_SPAN: (usize, usize) = (0x5AC66, 0x5AE74);
@@ -56,7 +60,12 @@ const fn call(opcode: u16, target: u32) -> [u8; 6] {
     [o[0], o[1], t[0], t[1], t[2], t[3]]
 }
 
-const GET_DIALOGUE_BY_ID: [u8; 6] = call(JSR, INLINE);
+pub(super) const GET_DIALOGUE_BY_ID: [u8; 6] = call(JSR, INLINE);
+/// `popdlg` (`ps4.macrosetup.asm`, compressed dialogue): `moveq #-1, d0` /
+/// `move.w Saved_Dialogue_Addr, d0` / `movea.l d0, a0`.
+const POPDLG: [u8; 8] = [0x70, 0xFF, 0x30, 0x38, 0xEC, 0xF0, 0x20, 0x40];
+/// How far after a `popdlg` the call that runs the text it reopened sits.
+const POPDLG_REACH: usize = 0x50;
 const PANEL_DESTROY_ALL: [u8; 6] = call(JSR, 0x5AE74);
 const WINDOW_DESTROY: [u8; 6] = call(JSR, 0x687CC);
 const PAL_FADE_OUT: [u8; 6] = call(JSR, 0x4223E);
@@ -233,9 +242,45 @@ fn rom_callers(rom: &[u8]) -> Callers {
         let target = u32::from_be_bytes([rom[at + 2], rom[at + 3], rom[at + 4], rom[at + 5]]);
         if ROUTINES.contains(&target) || (target == INLINE && opcode == JSR) {
             found.insert((at, target), d0_entries(rom, at));
+        } else if RESUMES.contains(&target) {
+            found.insert((at, target), BTreeSet::from([RESUME]));
         }
     }
+    for at in inline_resumes(rom) {
+        found.insert((at, INLINE), BTreeSet::from([RESUME]));
+    }
     found
+}
+
+/// Every `popdlg` whose reopened text the scene's own window code runs (`jsr
+/// RunText`/`RunText3` before any `Event_RunDialogue*` call): an inline
+/// resume, keyed by the `popdlg`. A `popdlg` followed by neither only peeks
+/// at the saved address (`Event_MeetingDorin`'s `cmpi.b #$FF, -1(a0)`).
+fn inline_resumes(rom: &[u8]) -> Vec<usize> {
+    let resume_calls: Vec<[u8; 6]> = RESUMES
+        .iter()
+        .flat_map(|r| [call(JSR, *r), call(JMP, *r)])
+        .collect();
+    (0..rom.len().saturating_sub(POPDLG.len()))
+        .step_by(2)
+        .filter(|&at| rom[at..at + POPDLG.len()] == POPDLG)
+        .filter(|&at| {
+            let end = (at + POPDLG_REACH).min(rom.len() - 6);
+            let calls = (at + POPDLG.len()..end).step_by(2).map(|j| &rom[j..j + 6]);
+            calls
+                .map(|w| {
+                    if resume_calls.iter().any(|c| c == w) {
+                        Some(false)
+                    } else if w == RUN_TEXT || w == RUN_TEXT3 {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                })
+                .find_map(|kind| kind)
+                .unwrap_or(false)
+        })
+        .collect()
 }
 
 /// One routine's bytes, from its entry to the next routine (or `$5AE74`).
@@ -295,6 +340,11 @@ fn routine_const(routine: u32) -> &'static str {
         D3 => "D3",
         D4 => "D4",
         D5 => "D5",
+        R1 => "R1",
+        R2 => "R2",
+        R3 => "R3",
+        R4 => "R4",
+        R5 => "R5",
         _ => "INLINE",
     }
 }
@@ -302,6 +352,8 @@ fn routine_const(routine: u32) -> &'static str {
 fn entry_text(entry: u16) -> String {
     if entry == DYN {
         "DYN".into()
+    } else if entry == RESUME {
+        "RESUME".into()
     } else {
         format!("0x{entry:02X}")
     }
@@ -449,7 +501,7 @@ fn audit_doc() -> String {
 }
 
 /// The US image, or `None` (with a note) when the local input is absent.
-fn rom() -> Option<&'static [u8]> {
+pub(super) fn rom() -> Option<&'static [u8]> {
     static ROM: OnceLock<Option<Vec<u8>>> = OnceLock::new();
     let rom = ROM.get_or_init(|| {
         let path = repo().join("Phantasy Star IV (USA).md");
@@ -514,7 +566,7 @@ fn the_image_caller_counts() {
         return;
     };
     let mut counts = BTreeMap::new();
-    for routine in ROUTINES {
+    for routine in ROUTINES.into_iter().chain(RESUMES) {
         let mut n = 0;
         for opcode in [JSR, JMP] {
             let needle = call(opcode, routine);
@@ -526,7 +578,18 @@ fn the_image_caller_counts() {
         }
         counts.insert(routine_const(routine), n);
     }
-    let want = BTreeMap::from([("D1", 155), ("D2", 14), ("D3", 8), ("D4", 3), ("D5", 23)]);
+    let want = BTreeMap::from([
+        ("D1", 155),
+        ("D2", 14),
+        ("D3", 8),
+        ("D4", 3),
+        ("D5", 23),
+        ("R1", 76),
+        ("R2", 4),
+        ("R3", 7),
+        ("R4", 22),
+        ("R5", 11),
+    ]);
     assert_eq!(counts, want);
     let mut decoded = BTreeMap::new();
     for (_, routine) in rom_callers(rom).keys() {

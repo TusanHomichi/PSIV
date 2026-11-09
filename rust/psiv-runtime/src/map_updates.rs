@@ -24,19 +24,17 @@ pub struct ScrollWrite {
     pub word: u16,
 }
 
-/// Read-only map-update presentation and volatile field state.
+/// Read-only map-update presentation and volatile field state. The palette
+/// words the programs write live in the runtime's CRAM model
+/// ([`crate::Runtime::cram`]), their one writer.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct MapUpdateView {
-    /// The 64-word CRAM shadow; empty for a legacy pack.
-    pub palette: Vec<u16>,
     /// $ECF2, $ECF3 and $ECFF. Byte arithmetic always wraps.
     pub counters: [u8; 3],
     /// Last field frame that actually called RunMapUpdates.
     pub last_frame: Option<u16>,
     /// Number of calls since the map was loaded/refreshed.
     pub calls: u64,
-    /// Changes to CRAM, for renderer upload suppression.
-    pub palette_revision: u64,
     /// Scroll staging-buffer writes from the most recent call.
     pub scroll_writes: Vec<ScrollWrite>,
     /// The writes target VSRAM rather than the horizontal-scroll table.
@@ -50,7 +48,6 @@ pub struct MapUpdateView {
 impl MapUpdateView {
     pub(crate) fn loaded(record: &MapRecord) -> Self {
         Self {
-            palette: record.map_update_palette.clone().unwrap_or_default(),
             unsupported: record
                 .map_updates
                 .iter()
@@ -70,21 +67,14 @@ impl MapUpdateView {
         }
     }
 
-    fn write(&mut self, slot: usize, word: u16) {
-        if self.palette[slot] != word {
-            self.palette[slot] = word;
-            self.palette_revision = self.palette_revision.wrapping_add(1);
-        }
-    }
-
-    fn writes(&mut self, writes: &[PaletteWrite]) {
-        for write in writes {
-            self.write(usize::from(write.slot), write.word);
-        }
-    }
-
     fn scroll(&mut self, offset: u16, word: u16) {
         self.scroll_writes.push(ScrollWrite { offset, word });
+    }
+}
+
+fn writes(cram: &mut crate::cram::Cram, writes: &[PaletteWrite]) {
+    for write in writes {
+        cram.write(usize::from(write.slot), write.word);
     }
 }
 
@@ -114,7 +104,11 @@ impl Runtime {
         let Some(updates) = &record.map_updates else {
             return;
         };
-        let view = &mut self.effects.updates;
+        let crate::EffectOutcome {
+            updates: view,
+            cram,
+            ..
+        } = &mut self.effects;
         view.last_frame = Some(self.frames);
         view.calls += 1;
         view.scroll_writes.clear();
@@ -134,7 +128,7 @@ impl Runtime {
                             .iter()
                             .all(|g| self.game.is_set(flag(g.bank, g.flag)) == g.set);
                     if !active {
-                        view.writes(stopped);
+                        writes(cram, stopped);
                         continue;
                     }
                     for cycle in cycles {
@@ -161,7 +155,7 @@ impl Runtime {
                                 phase
                             }
                         };
-                        view.writes(&cycle.frames[phase]);
+                        writes(cram, &cycle.frames[phase]);
                     }
                 }
                 UpdateProgram::Flags {
@@ -238,8 +232,8 @@ impl Runtime {
                 UpdateProgram::Crystals { colors, rest } => {
                     view.counters[0] = view.counters[0].wrapping_sub(1);
                     if view.counters[0] != 0 {
-                        view.write(2, *rest);
-                        view.write(18, *rest);
+                        cram.write(2, *rest);
+                        cram.write(18, *rest);
                     } else if self.frames & 3 != 0 {
                         view.counters[0] = 1;
                     } else if view.counters[1] == 4 {
@@ -248,29 +242,29 @@ impl Runtime {
                         view.counters[1] = 0;
                     } else {
                         let color = colors[usize::from(view.counters[1])];
-                        view.write(2, color);
-                        view.write(18, color);
+                        cram.write(2, color);
+                        cram.write(18, color);
                         view.counters[1] = view.counters[1].wrapping_add(1);
                         view.counters[0] = 1;
                     }
                 }
                 UpdateProgram::Edge { colors } => {
                     for slot in 0..14 {
-                        view.write(slot, 0);
+                        cram.write(slot, 0);
                     }
                     if self.frames & 1 == 0 {
                         if view.counters[0] >= 13 {
                             view.counters[0] = 0;
                         }
                         for (i, &color) in colors.iter().enumerate() {
-                            view.write(1 + (usize::from(view.counters[0]) + i) % 13, color);
+                            cram.write(1 + (usize::from(view.counters[0]) + i) % 13, color);
                         }
                         view.counters[0] = view.counters[0].wrapping_add(1);
                     }
                 }
                 UpdateProgram::EdgeLine { frames, .. } => {
                     if self.frames & 3 == 0 {
-                        view.writes(&frames[usize::from(view.counters[1])]);
+                        writes(cram, &frames[usize::from(view.counters[1])]);
                         view.counters[1] = view.counters[1].wrapping_add(1);
                         if usize::from(view.counters[1]) >= frames.len() {
                             view.counters[1] = 0;

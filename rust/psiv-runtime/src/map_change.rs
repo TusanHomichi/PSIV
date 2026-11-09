@@ -215,6 +215,7 @@ impl Runtime {
         for (&index, &id) in &self.effects.dialogue_overrides {
             effects.dialogue_overrides.entry(index).or_insert(id);
         }
+        effects.cram.follow(&self.effects.cram);
         let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
         bridge::reconcile_controllers(
@@ -458,7 +459,8 @@ impl Runtime {
         // tape 18 measured. Cleared flags resurrect gated objects on OTHER
         // maps at their next build; this map's own build below already sees
         // the post-clear state.
-        let effects = effects::evaluate(record, &mut self.game);
+        let mut effects = effects::evaluate(record, &mut self.game);
+        effects.cram.follow(&self.effects.cram);
         let map = bridge::field_map_entered(record, &effects, &self.game)?;
         clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;

@@ -1,0 +1,12 @@
+[package]
+name = "psiv-float-guard"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ra-ap-rustc_lexer = "0.184"
+pulldown-cmark = { version = "0.13", default-features = false }

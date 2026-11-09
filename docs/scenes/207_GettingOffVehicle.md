@@ -24,7 +24,7 @@ the `revision>0` side, in the window charset; the pack carries it (`trees.json`,
 |---:|---|---|
 | 0 | `jsr loc_4587A` (`GetChunkAndCollision` at `Character_1`, the machine); nonzero `d7` to `loc_6BFB4` | `GetOff(BranchIfBlocked)` |
 | 1-2 | `Field_BuildSprites`, `VInt_Prepare` | `RebuildSprites`, `WaitFrames(1)` |
-| 3 | `Pal_Init_Line_3` to `Palette_Line_3`, `moveq #$10, d7 / trap #1`: seventeen words | `CopyRamWords` |
+| 3 | `Pal_Init_Line_3` to `Palette_Line_3`, `moveq #$10, d7 / trap #1`: seventeen words | `PaletteCopy` |
 | 4 | `loc_6BF4E`: every party object rebuilt on `Character_1`'s position, destination and facing; `Vehicle_Index := 0` | `SetVehicleIndex(0)` (the runtime stacks the party on the machine) |
 | 5 | the map record's music byte, `AdjustMusicIDs`, `d0` to `Saved_Sound_Index` and `Sound_Index` | `GetOff(PlayMapMusic)` |
 | 6 | `rts` | `End` |

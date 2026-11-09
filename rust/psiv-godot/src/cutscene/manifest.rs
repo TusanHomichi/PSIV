@@ -1,6 +1,6 @@
 //! The presentation pack: `presentation/panels.json` and the art it names.
 //!
-//! The manifest lists the panel planes, palettes, temporary objects and
+//! The manifest lists the panel planes, temporary objects and
 //! shopkeeper portrait the pack decoded; this module turns that file and the
 //! PNGs beside it into the texture tables the layer draws from. It decides no
 //! scene semantics: what is on screen is the runtime's op order.
@@ -14,12 +14,11 @@ use psiv_data::{DialogueSet, Role};
 use serde::Deserialize;
 
 use super::temporary_sprite_asset::TemporarySpriteAsset;
+use psiv_data::color::IndexLayout;
 
 #[derive(Debug, Deserialize)]
 struct PanelManifest {
     panels: Vec<PanelRecord>,
-    #[serde(default)]
-    palettes: Vec<PaletteRecord>,
     #[serde(default)]
     opening_background: Option<OpeningBackgroundRecord>,
     #[serde(default)]
@@ -38,13 +37,16 @@ struct OpeningBackgroundRecord {
 struct PanelRecord {
     id: u16,
     png: String,
+    /// Layer A's art tile; its palette select is the line A draws from.
+    #[serde(default = "no_layer")]
+    art_tile_a: u16,
+    /// Layer B's art tile, `$FFFF` when the panel has one layer.
+    #[serde(default = "no_layer")]
+    art_tile_b: u16,
 }
 
-#[derive(Debug, Deserialize)]
-struct PaletteRecord {
-    rom_addr: String,
-    words: u16,
-    raw_hex: String,
+const fn no_layer() -> u16 {
+    0xFFFF
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,8 +97,10 @@ pub(super) struct SceneAssets {
     /// Oracle-measured top of the narration image band, when the manifest
     /// carries an opening background at all.
     pub(super) opening_screen_y: Option<f32>,
-    pub(super) palettes: BTreeMap<u32, Vec<u16>>,
     pub(super) textures: BTreeMap<u16, Gd<ImageTexture>>,
+    /// Each panel's PNG and the lines its layers draw from, for the live
+    /// palette (`cram_art`); loaded on the panel's first draw.
+    pub(super) indexed_panels: BTreeMap<u16, (String, IndexLayout)>,
     pub(super) temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     pub(super) opening_background: Option<Gd<ImageTexture>>,
     pub(super) generic_portrait: Option<Gd<ImageTexture>>,
@@ -112,8 +116,8 @@ impl SceneAssets {
     pub(super) fn load(pack_dir: &str, set: &DialogueSet) -> SceneAssets {
         let mut assets = SceneAssets {
             opening_screen_y: None,
-            palettes: BTreeMap::new(),
             textures: BTreeMap::new(),
+            indexed_panels: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
             opening_background: None,
             generic_portrait: None,
@@ -130,34 +134,15 @@ impl SceneAssets {
                 if let Some(opening) = &manifest.opening_background {
                     assets.opening_screen_y = Some(opening.screen_y);
                 }
-                for palette in &manifest.palettes {
-                    let Ok(address) =
-                        u32::from_str_radix(palette.rom_addr.trim_start_matches("0x"), 16)
-                    else {
-                        godot_error!("scene palette address is invalid: {}", palette.rom_addr);
-                        continue;
-                    };
-                    let bytes = palette.raw_hex.as_bytes();
-                    let words: Vec<u16> = bytes
-                        .as_chunks::<4>()
-                        .0
-                        .iter()
-                        .filter_map(|chunk| {
-                            let word = std::str::from_utf8(chunk).ok()?;
-                            u16::from_str_radix(word, 16).ok()
-                        })
-                        .collect();
-                    if words.len() != usize::from(palette.words) {
-                        godot_error!(
-                            "scene palette {address:#08x} decoded {} words, expected {}",
-                            words.len(),
-                            palette.words
-                        );
-                    }
-                    assets.palettes.insert(address, words);
-                }
                 for panel in manifest.panels {
                     let path = format!("{pack_dir}/{}", panel.png);
+                    let layout = IndexLayout::Panel {
+                        a: IndexLayout::art_tile_line(panel.art_tile_a),
+                        b: IndexLayout::art_tile_line(panel.art_tile_b),
+                    };
+                    assets
+                        .indexed_panels
+                        .insert(panel.id, (path.clone(), layout));
                     if let Some(image) = Image::load_from_file(&GString::from(path.as_str()))
                         && let Some(texture) = ImageTexture::create_from_image(&image)
                     {

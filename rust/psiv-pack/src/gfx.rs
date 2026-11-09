@@ -13,10 +13,8 @@ pub const COLORS_PER_LINE: usize = 16;
 /// The bits of a CRAM word the VDP reads.
 pub const CRAM_DEFINED_MASK: u16 = 0x0EEE;
 
-/// `GPGX_RGB565_RAMP`: each channel's eight levels.
-pub const RAMP_R: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
-pub const RAMP_G: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
-pub const RAMP_B: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
+/// `GPGX_RGB565_RAMP`: each channel's eight levels (`psiv_data::color`).
+pub use psiv_data::color::{RAMP_B, RAMP_G, RAMP_R};
 
 /// `GRAYSCALE_RAMP`: the fallback for art whose palette line is not pinned.
 pub const GRAYSCALE_RAMP: [[u8; 3]; 16] = {

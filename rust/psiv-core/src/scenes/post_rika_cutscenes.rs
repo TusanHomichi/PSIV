@@ -70,7 +70,10 @@ pub static DEMI_RESCUE: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogueResume,
+        // `$074B10`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Retained,
+        },
         SceneOp::RestorePartyHp { amount: 0x1C },
         SceneOp::SetFlag {
             flag: Flag::event(0x42),
@@ -114,16 +117,20 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 70 },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogueResume,
+        // `$074C48`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::PlaySound { id: SFX_TELEPORT },
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 26,
+            if_set: 29,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
-        // heals Alys through the field object sequence, then resumes twice.
+        // heals Alys through the field object sequence, then resumes three
+        // times.
         SceneOp::LoadMap {
             map: 0x3F,
             prev_map: 0x00,
@@ -147,6 +154,12 @@ pub static ALYS_WOUNDED: Scene = Scene {
             source: DialogueSource::Entry(DialogueId(0x2C)),
             window: DialogueWindow::Standard,
         },
+        // `$074D96`, `$074E26`, `$074E40`: three `popdlg` /
+        // `Event_RunDialogue`. Between the first two the cartridge plays
+        // `SFXID_HealTechCast` (`$BD`, `$074DB2`) and runs the sparkle object
+        // `$1A0` to its end (`loc_74DD4`), which is not drawn here.
+        SceneOp::RunDialogueResume,
+        SceneOp::PlaySound { id: 0xBD },
         SceneOp::RunDialogueResume,
         SceneOp::RunDialogueResume,
         SceneOp::SetFlag {
@@ -394,6 +407,13 @@ pub static PSYCO_WAND: Scene = Scene {
         // resume's lines are tree 6's too.
         SceneOp::SetDialogueTree { rom_addr: TREE_6 },
         SceneOp::RunDialogueResume,
+        // `$075904..$0759A8`: the cartridge walks object `$C600` and Chaz,
+        // swaps Chaz's art and turns him (not drawn here), waits out
+        // `DoMapUpdateLoop` `$3B`, then `popdlg` / `Event_RunDialogue` at
+        // `$0759A8`: the scene's last page. Chaz's two walks and the camera
+        // after it are not drawn either.
+        SceneOp::Wait { ticks: 60 },
+        SceneOp::RunDialogueResume,
         SceneOp::SetFlag {
             flag: Flag::event(0x63),
             value: true,
@@ -483,7 +503,10 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogueResume,
+        // `$075DF8`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::RemovePartyMember { who: GRYZ },
         SceneOp::ClearCharacterStatus { who: GRYZ },
         SceneOp::RemovePartyMember { who: DEMI },

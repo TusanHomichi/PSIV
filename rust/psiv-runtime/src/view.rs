@@ -36,6 +36,13 @@ impl Runtime {
     pub fn map_updates(&self) -> &crate::MapUpdateView {
         &self.effects.updates
     }
+    /// The palette: `Palette_Table_Buffer`'s 64 words as the cartridge would
+    /// upload them to CRAM this frame, with a revision for upload suppression
+    /// ([`crate::cram`]).
+    #[must_use]
+    pub fn cram(&self) -> &crate::CramView {
+        self.effects.cram.view()
+    }
     /// The currently loaded map.
     #[must_use]
     pub fn map_id(&self) -> MapId {

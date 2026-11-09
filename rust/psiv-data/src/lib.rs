@@ -41,6 +41,7 @@
 mod battle;
 mod camera;
 mod collision;
+pub mod color;
 mod dialogue;
 mod error;
 mod field_objects;
@@ -51,6 +52,7 @@ mod ids;
 mod manifest;
 mod map;
 mod new_game;
+mod presentation;
 mod ship_menu;
 mod shops;
 pub mod sound;
@@ -106,6 +108,7 @@ pub use new_game::{
     Handoff as TitleHandoff, Init as NewGameInit, NewGame, Settings as NewGameSettings,
     Slot as PartySlot,
 };
+pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use ship_menu::{
     BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,
     PaletteEntry, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu, ShipMenuFile, ShipMenuJson, ShipPalette,

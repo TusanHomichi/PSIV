@@ -60,6 +60,13 @@ pub(super) fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
                     palette.resolved_as
                 )));
             }
+            if palette.copy().is_none() {
+                return Err(reject(format!(
+                    "copy to line {} of {} words does not fit the palette buffer",
+                    palette.cram_line,
+                    palette.words_hex.len()
+                )));
+            }
             for replacement in &palette.affects.npc_sheets {
                 let sprite = record
                     .npcs

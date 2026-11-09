@@ -82,6 +82,14 @@ pub enum DataError {
         /// What is wrong, naming the tree/entry/glyph.
         message: String,
     },
+    /// The scene-presentation manifest is defective: a palette record whose
+    /// words do not decode, or a panel naming a palette the file lacks.
+    Presentation {
+        /// The manifest file.
+        path: PathBuf,
+        /// What is wrong, naming the record.
+        message: String,
+    },
     /// The extracted sound pack is missing a required record or raw file.
     Sound {
         /// The sound file or directory associated with the defect.
@@ -135,7 +143,8 @@ impl DataError {
             DataError::Io { path, .. }
             | DataError::Json { path, .. }
             | DataError::ManifestMismatch { path, .. }
-            | DataError::Sound { path, .. } => Some(path),
+            | DataError::Sound { path, .. }
+            | DataError::Presentation { path, .. } => Some(path),
             _ => None,
         }
     }
@@ -179,6 +188,9 @@ impl fmt::Display for DataError {
             }
             DataError::Sound { path, message } => {
                 write!(f, "sound pack {}: {message}", path.display())
+            }
+            DataError::Presentation { path, message } => {
+                write!(f, "scene presentation {}: {message}", path.display())
             }
         }
     }

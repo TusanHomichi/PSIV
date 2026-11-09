@@ -80,7 +80,7 @@ palette dies away and the leader steps back. No battle, no map change.
 | 26 | `$0732C6..$0732CD` | `moveq #5, d0` / `jsr Event_GetAndRunDialogue` | `RunDialogue` entry 5 |
 | 27 | `$0732CE..$0732E3` | 120 x (`RunMapUpdates`, `VInt_Prepare`) | `Wait 120` |
 | 28 | `$0732E4..$0732EB` | `SFXID_PowerDown` (`$E4`) | `PlaySound $E4` |
-| 29-30 | `$0732EC..$073301` | `Palette_Line_2` words 12 and 13 (`$FFFFFB00 + $18/$1A`) set to `$06CE`, `$0CE0`; `VInt_Prepare` | `SetPaletteWords`, `WaitFrames 1` |
+| 29-30 | `$0732EC..$073301` | line 0 words 12 and 13 (`$FFFFFB00 + $18/$1A`) set to `$06CE`, `$0CE0`; `VInt_Prepare` | `SetPaletteWords` (word offset `$0C`), `WaitFrames 1` |
 | 31-38 | `$073302..$073327` | the table loop: rows `($06CE,$0CE0)`, `($04AC,$0AC0)`, `($028A,$08A0)`, `($0068,$0680)` (`$07339A`, `$0733A4`), `bsr loc_733AC` (16 `VInt_Prepare`) after each | four `SetPaletteWords` + `WaitFrames 16` |
 | 39 | `$073310` | the `$FFFF` terminator's `VInt_Prepare` | `WaitFrames 1` |
 | 40 | `$073328..$073331` | `loc_5A79C` with `d0 = $1D`: 30 x `DMAPlanes_VInt`, no map updates | `WaitFrames 30` |

@@ -147,11 +147,12 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         // `$0732CE..$0732E0`: 120 iterations of `RunMapUpdates` and `VInt_Prepare`.
         wait(120),
         sound(SFX_POWER_DOWN),
-        // `$0732EC..$073326`: the barrier palette (`Palette_Line_2`, words 12
-        // and 13) steps down a four-row table, sixteen frames a row.
+        // `$0732EC..$073326`: the barrier palette (`lea Palette_Table_Buffer,
+        // a0` / `move.w ..., $18(a0)` and `$1A(a0)`: line 0, words 12 and 13)
+        // steps down a four-row table, sixteen frames a row.
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x06CE,
                 second: 0x0CE0,
             },
@@ -159,7 +160,7 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x06CE,
                 second: 0x0CE0,
             },
@@ -167,7 +168,7 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 16 },
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x04AC,
                 second: 0x0AC0,
             },
@@ -175,7 +176,7 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 16 },
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x028A,
                 second: 0x08A0,
             },
@@ -183,7 +184,7 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 16 },
         SceneOp::Presentation {
             op: PresentationOp::SetPaletteWords {
-                offset: 0x18,
+                offset: 0x0C,
                 first: 0x0068,
                 second: 0x0680,
             },
