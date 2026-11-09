@@ -376,10 +376,11 @@ the issue that transcribes them.
   lacked its last page with the screen before it (panels `$116` and `$A8`,
   `MusicID_Explosion`, `MusicID_RedAlert`). The actors' moves and facings
   between those pages are still not drawn.
-- **Still skipped,** with
-  [#414](https://github.com/TusanHomichi/PSIV/issues/414):
-  `Cutscene_ZioDefeated`'s Demi sequence (`$075B10..$075D72`, four pages)
-  and `Cutscene_Elsydeon`'s tail after panel `$130` (one inline page).
+- **Skipped stretches transcribed** ([#414](https://github.com/TusanHomichi/PSIV/issues/414)):
+  `Cutscene_Elsydeon` in full, its palette loops, panels and both inline
+  pages included, and `Cutscene_ZioDefeated`'s Demi sequence
+  (`$075B10..$075CE6`, four pages), whose map refresh, camera, steps and
+  elevator objects are not drawn yet. `UNTRANSCRIBED_RESUMES` is empty.
   Several of these scenes' panels are not in the pack yet
   ([#413](https://github.com/TusanHomichi/PSIV/issues/413)).
 
@@ -417,8 +418,8 @@ the issue that transcribes them.
 | `Cutscene_AlysWounded` | R1 (`Standard`) | `$074D96`, `$074E26`, `$074E40`, `$07506C`, `$07508A`, `$0750B4`, `$0750CE`, `$0750F8`, `$075116`, `$075134`, `$075162`, `$075180`, `$07519E` |
 | `Cutscene_PsycoWand` | INLINE (`inline`) | `$0753B6`, `$075484`, `$07563E`, `$075706` |
 | `Cutscene_PsycoWand` | R1 (`Standard`) | `$0758FE`, `$0759A8` |
-| `Cutscene_ZioDefeated` | R1 (`Standard`) | `$075BA0` (#414), `$075C56` (#414), `$075C94` (#414) |
-| `Cutscene_ZioDefeated` | R5 (`Cutscene5`) | `$075CD4` (#414), `$075DF8` |
+| `Cutscene_ZioDefeated` | R1 (`Standard`) | `$075BA0`, `$075C56`, `$075C94` |
+| `Cutscene_ZioDefeated` | R5 (`Cutscene5`) | `$075CD4`, `$075DF8` |
 | `Cutscene_SpaceshipSabotage` | R2 (`Retained`) | `$0764C0` |
 | `Cutscene_CrashLaanding` | R1 (`Standard`) | `$076C26`, `$076C68`, `$076C9A`, `$076D50`, `$076D9A` |
 | `Cutscene_RajaSick` | R1 (`Standard`) | `$07761C`, `$077700` |
@@ -433,7 +434,7 @@ the issue that transcribes them.
 | `Cutscene_Rykros` | R5 (`Cutscene5`) | `$078282` |
 | `Cutscene_LeRoofAgain` | R3 (`Cutscene3`) | `$078454` |
 | `Cutscene_Elsydeon` | R3 (`Cutscene3`) | `$0786AC` |
-| `Cutscene_Elsydeon` | INLINE (`inline`) | `$078740`, `$07892A` (#414) |
+| `Cutscene_Elsydeon` | INLINE (`inline`) | `$078740`, `$07892A` |
 | `Cutscene_Ending` | R4 (`Ending`) | `$07914C`, `$079170`, `$079226`, `$079244`, `$0792F2`, `$079384`, `$0793D6`, `$0793F4`, `$07945A`, `$0794BE`, `$0794F6`, `$07958A`, `$079660`, `$079728`, `$0797A6`, `$079830`, `$07992C`, `$0799AC`, `$079A2C`, `$079AAC`, `$079B32`, `$079BB2` |
 
 ## Callers with no scene
