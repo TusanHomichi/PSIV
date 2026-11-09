@@ -114,7 +114,7 @@ uses a constructed Tyler field fixture with flag `$84` already set, so the
 inscription dialogue is skipped; it is not a campaign-route proof. The
 frame-boundary trace records lead/back at 7200/7201, first/last slab updates
 at 7204/7267, selectors 8/$C and second lead at 7268, back at 7269 and field
-routine return at 7330. `oracle/tyler_grave.py` verifies that 131-frame retail
+routine return at 7330. `rust/psiv-compare/src/tyler_grave.rs` verifies that 131-frame retail
 envelope and the mapping-index chain. The runtime regression checks the
 four one-frame pans, 64 consecutive object updates and 60-frame map-update
 hold. Map-refresh CPU/DMA overhead between 7201 and 7204 and the event-dispatch
