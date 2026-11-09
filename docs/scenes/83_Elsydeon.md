@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$1E]`; scene `$801E`.
 - **Trigger:** the Elsydeon cave interaction after `$801D`; Reunion `$DA` is
   still clear.
-- **Data:** `dezo_endgame.rs`, `ELSYDEON` (114 ops).
+- **Data:** `elsydeon.rs`, `ELSYDEON` (114 ops).
 
 ## Clone audit
 
