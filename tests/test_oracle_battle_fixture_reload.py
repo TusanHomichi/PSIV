@@ -16,6 +16,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -157,7 +158,8 @@ class MethodCase(unittest.TestCase):
             self.assertEqual(sorted(statuses), [0, 0, 0, 0, 0, 0, 7])
 
 
-@unittest.skipUnless(shutil.which("gcc"), "PC trace transport probe needs gcc")
+@unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("gcc"),
+                     "Linux oracle hook probes need gcc")
 class PcTraceCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
