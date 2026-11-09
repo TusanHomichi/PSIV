@@ -8,11 +8,12 @@
 
 use std::path::Path;
 
-use super::enemies::{bank, bounds, records};
+use super::enemies::{attack_bank, bounds, records};
 use super::{enemy_palette, safe};
 use crate::battle::animations::objects::plc_art;
 use crate::json::Json;
 use crate::{PackError, png};
+use sha2::{Digest, Sha256};
 
 const BASE_OBJECT_Y: i128 = 0x00D8;
 const PNG_DIRECTORY: &str = "battle/art/enemy_attacks";
@@ -95,6 +96,7 @@ struct Sprite {
     tile: i128,
     h_flip: bool,
     v_flip: bool,
+    priority: bool,
 }
 
 fn sprites(record: &Json) -> Vec<Sprite> {
@@ -107,6 +109,7 @@ fn sprites(record: &Json) -> Vec<Sprite> {
             height: int(entry, "height_tiles").unwrap_or(0),
             tile: int(entry, "tile_index").unwrap_or(0),
             h_flip: matches!(entry.get("h_flip"), Some(Json::Bool(true))),
+            priority: matches!(entry.get("priority"), Some(Json::Bool(true))),
             v_flip: matches!(entry.get("v_flip"), Some(Json::Bool(true))),
         })
         .collect()
@@ -159,7 +162,7 @@ fn canvas(records: &[Json], body_width: i128, body_height: i128, pivot: (i128, i
     }
 }
 
-/// `_render_attack_mapping`: one record's sprites (tiles row-major within a
+/// `_render_attack_mapping`: one record's sprites (tiles column-major within a
 /// sprite), or an empty canvas for a hidden frame.
 fn render(
     tiles: &[[u8; 64]],
@@ -167,8 +170,10 @@ fn render(
     canvas: Canvas,
     pivot: (i128, i128),
     palette: &[[u8; 3]],
+    priority: Option<bool>,
 ) -> Result<Vec<u8>, PackError> {
     let mut pixels = vec![0u8; (canvas.width * canvas.height) as usize];
+    let mut occupied = vec![false; pixels.len()];
     if !matches!(record.get("hidden"), Some(Json::Bool(true))) {
         for s in sprites(record) {
             let (sx0, sy0) = (pivot.0 + s.x - canvas.min_x, pivot.1 + s.y - canvas.min_y);
@@ -176,7 +181,7 @@ fn render(
                 let source_y = if s.v_flip { s.height * 8 - 1 - y } else { y };
                 for x in 0..s.width * 8 {
                     let source_x = if s.h_flip { s.width * 8 - 1 - x } else { x };
-                    let index = s.tile + (source_y / 8) * s.width + source_x / 8;
+                    let index = s.tile + (source_x / 8) * s.height + source_y / 8;
                     let tile = usize::try_from(index)
                         .ok()
                         .and_then(|i| tiles.get(i))
@@ -184,8 +189,12 @@ fn render(
                             PackError(format!("attack sprite pattern {index} is outside its bank"))
                         })?;
                     let pixel = tile[((source_y % 8) * 8 + source_x % 8) as usize];
-                    if pixel != 0 {
-                        pixels[((sy0 + y) * canvas.width + sx0 + x) as usize] = pixel;
+                    let target = ((sy0 + y) * canvas.width + sx0 + x) as usize;
+                    if pixel != 0 && !occupied[target] {
+                        occupied[target] = true;
+                        if priority.is_none_or(|p| p == s.priority) {
+                            pixels[target] = pixel;
+                        }
                     }
                 }
             }
@@ -198,6 +207,43 @@ fn render(
         palette,
         &[0],
     )?)
+}
+
+/// Pin the USA strike choreography before exposing its palette writes.
+fn zoran_state(rom: &[u8], entry: &mut Json) -> Result<(), PackError> {
+    for (at, len, digest) in [
+        (
+            0x010D68,
+            26,
+            "ba630e95fb3db3b0f2a55c1ea0455d5314fa525ad5d5c430d621685507b3aa92",
+        ),
+        (
+            0x01519A,
+            26,
+            "e3a77c9ac2f74dbc4462a4d6e0c5164d3f7d204d8416eb625179839b386a0983",
+        ),
+        (
+            0x01528A,
+            42,
+            "150b528807e1b082448bd3c6bfc455736a2254b42794a371d91cab99524080cd",
+        ),
+    ] {
+        let bytes = rom
+            .get(at..at + len)
+            .ok_or_else(|| PackError("Zoran attack region outside ROM".into()))?;
+        if png::hex(&Sha256::digest(bytes)) != digest {
+            return Err(PackError(format!(
+                "Zoran attack choreography changed at 0x{at:06X}"
+            )));
+        }
+    }
+    let mut overrides = Json::object();
+    for (index, at) in [(10, 0x010D72), (11, 0x010D78), (12, 0x010D7E)] {
+        overrides.insert(index.to_string(), crate::m68k::w(rom, at)?);
+    }
+    entry.insert("palette_line", 2u8);
+    entry.insert("palette_overrides", overrides);
+    Ok(())
 }
 
 /// `emit_enemy_attack_art`: write the frames and return the index, from the
@@ -260,7 +306,10 @@ pub fn write(rom: &[u8], root: &Path, animations: &Json) -> Result<Json, PackErr
             continue;
         }
         let record = &records[id];
-        let (mut tiles, sources) = bank(rom, record, &bounds)?;
+        let (mut tiles, sources) = attack_bank(rom, record, &bounds)?;
+        if string(&animation, "routine_offset") == Some("0x010D68") {
+            zoran_state(rom, &mut entry)?;
+        }
         let plc = field(&animation, "attack_plc");
         let ranges = list(&plc, "ranges");
         let plc_tiles = plc_art(rom, &list(&plc, "loads")).tiles();
@@ -286,7 +335,7 @@ pub fn write(rom: &[u8], root: &Path, animations: &Json) -> Result<Json, PackErr
         let body_width = columns as i128 * 8;
         let rows = (words.len() / columns) as i128;
         let body_top = (15 - rows) * 8;
-        let pivot = (body_width, BASE_OBJECT_Y - 0x80 - body_top);
+        let pivot = (body_width / 2, BASE_OBJECT_Y - 0x80 - body_top);
         let mapping_records = list(&sequence, "mapping_records");
         let canvas = canvas(&mapping_records, body_width, rows * 8, pivot);
         let palette = enemy_palette(rom, id)?;
@@ -294,24 +343,27 @@ pub fn write(rom: &[u8], root: &Path, animations: &Json) -> Result<Json, PackErr
         let symbol = string(&animation, "symbol").unwrap_or_default().to_owned();
         let mut frames = Vec::new();
         for (index, mapping_record) in mapping_records.iter().enumerate() {
-            let image = render(&tiles, mapping_record, canvas, pivot, &palette)?;
-            let path = format!(
-                "{PNG_DIRECTORY}/{id:03}_{}_frame{index:02}.png",
-                safe(&symbol)
-            );
-            crate::write_file(root, &path, &image)?;
+            let stem = format!("{PNG_DIRECTORY}/{id:03}_{}_frame{index:02}", safe(&symbol));
+            let mut frame = Json::object()
+                .with("index", index)
+                .with("mapping_rom_offset", field(mapping_record, "rom_offset"))
+                .with(
+                    "duration",
+                    durations.get(index).cloned().unwrap_or(Json::Null),
+                );
+            for (key, suffix, priority) in [
+                ("png", "", None),
+                ("low_priority_png", "_low", Some(false)),
+                ("high_priority_png", "_high", Some(true)),
+            ] {
+                let image = render(&tiles, mapping_record, canvas, pivot, &palette, priority)?;
+                let path = format!("{stem}{suffix}.png");
+                crate::write_file(root, &path, &image)?;
+                frame.insert(key, path);
+                frame.insert(format!("{key}_sha256"), png::image_sha256(&image)?);
+            }
             frame_total += 1;
-            frames.push(
-                Json::object()
-                    .with("index", index)
-                    .with("mapping_rom_offset", field(mapping_record, "rom_offset"))
-                    .with("png", path)
-                    .with("png_sha256", png::image_sha256(&image)?)
-                    .with(
-                        "duration",
-                        durations.get(index).cloned().unwrap_or(Json::Null),
-                    ),
-            );
+            frames.push(frame);
         }
         let mut art: Vec<Json> = sources
             .iter()
@@ -356,7 +408,8 @@ pub fn write(rom: &[u8], root: &Path, animations: &Json) -> Result<Json, PackErr
         .with("exact", count("exact"))
         .with("partial", count("partial"))
         .with("deferred", count("deferred"))
-        .with("frames", frame_total);
+        .with("frames", frame_total)
+        .with("priority_pngs", frame_total * 2);
     let rom_sha256 = animations
         .get("source")
         .map(|s| field(s, "rom_sha256"))
@@ -373,7 +426,7 @@ pub fn write(rom: &[u8], root: &Path, animations: &Json) -> Result<Json, PackErr
                 .with("mapping_consumer", "Battle_FillSpriteAttributes")
                 .with("mapping_header_bytes", 1u8)
                 .with("mapping_entry_bytes", 6u8)
-                .with("art_bank_order", vec![3u8, 1, 2])
+                .with("art_bank_order", vec![1u8])
                 .with("rom_sha256", rom_sha256)
                 .with("grand_cross", 0u8),
         )
@@ -410,7 +463,7 @@ mod tests {
     }
 
     #[test]
-    fn a_sprite_reads_its_tiles_row_major_and_a_hidden_frame_is_empty() {
+    fn a_sprite_reads_its_tiles_column_major_and_a_hidden_frame_is_empty() {
         let mut tiles = [[0u8; 64]; 2];
         tiles[0][0] = 1;
         tiles[1][0] = 2;
@@ -420,12 +473,108 @@ mod tests {
             width: 16,
             height: 8,
         };
-        let image = render(&tiles, &record(0, 0, 2, 1), c, (0, 0), &[[0, 0, 0]; 16]).unwrap();
+        let image = render(
+            &tiles,
+            &record(0, 0, 2, 1),
+            c,
+            (0, 0),
+            &[[0, 0, 0]; 16],
+            None,
+        )
+        .unwrap();
         let decoded = png::decode(&image).unwrap();
         assert_eq!((decoded.pixels[0], decoded.pixels[8]), (1, 2));
         let hidden = record(0, 0, 2, 1).with("hidden", true);
-        let image = render(&tiles, &hidden, c, (0, 0), &[[0, 0, 0]; 16]).unwrap();
+        let image = render(&tiles, &hidden, c, (0, 0), &[[0, 0, 0]; 16], None).unwrap();
         assert!(png::decode(&image).unwrap().pixels.iter().all(|&p| p == 0));
+    }
+
+    #[test]
+    fn column_order_flips_and_priority_obey_first_opaque_sprite() {
+        let tiles = [[1u8; 64], [2u8; 64], [3u8; 64], [4u8; 64]];
+        let c = Canvas {
+            min_x: 0,
+            min_y: 0,
+            width: 16,
+            height: 16,
+        };
+        for (h, v, expected) in [
+            (false, false, [1, 3, 2, 4]),
+            (true, false, [3, 1, 4, 2]),
+            (false, true, [2, 4, 1, 3]),
+            (true, true, [4, 2, 3, 1]),
+        ] {
+            let sprite = Json::object()
+                .with("x", 0u8)
+                .with("y", 0u8)
+                .with("width_tiles", 2u8)
+                .with("height_tiles", 2u8)
+                .with("tile_index", 0u8)
+                .with("h_flip", h)
+                .with("v_flip", v);
+            let r = Json::object().with("entries", vec![sprite]);
+            let image = render(&tiles, &r, c, (0, 0), &[[0; 3]; 16], None).unwrap();
+            let p = png::decode(&image).unwrap().pixels;
+            assert_eq!([p[0], p[8], p[128], p[136]], expected);
+        }
+        let sprite = |tile: u8, priority| {
+            Json::object()
+                .with("x", 0u8)
+                .with("y", 0u8)
+                .with("width_tiles", 1u8)
+                .with("height_tiles", 1u8)
+                .with("tile_index", tile)
+                .with("priority", priority)
+        };
+        for (first, second) in [(false, true), (true, false)] {
+            let r = Json::object().with("entries", vec![sprite(0, first), sprite(1, second)]);
+            for priority in [None, Some(false), Some(true)] {
+                let image = render(&tiles, &r, c, (0, 0), &[[0; 3]; 16], priority).unwrap();
+                let p = png::decode(&image).unwrap().pixels;
+                assert_eq!(
+                    p[0],
+                    if priority.is_none_or(|p| p == first) {
+                        1
+                    } else {
+                        0
+                    }
+                );
+            }
+        }
+        let r = Json::object().with("entries", vec![sprite(0, false), sprite(1, true)]);
+        let mut transparent = tiles;
+        transparent[0] = [0; 64];
+        let image = render(&transparent, &r, c, (0, 0), &[[0; 3]; 16], Some(true)).unwrap();
+        assert_eq!(png::decode(&image).unwrap().pixels[0], 2);
+    }
+
+    #[test]
+    fn zoran_choreography_rejects_missing_and_changed_regions() {
+        assert!(zoran_state(&[], &mut Json::object()).is_err());
+        assert!(zoran_state(&vec![0; 0x16000], &mut Json::object()).is_err());
+    }
+
+    #[test]
+    fn retail_zoran_palette_and_each_choreography_anchor() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Phantasy Star IV (USA).md");
+        let Ok(rom) = std::fs::read(path) else {
+            eprintln!("local ROM absent: Zoran retail test skipped");
+            return;
+        };
+        let mut entry = Json::object();
+        zoran_state(&rom, &mut entry).unwrap();
+        assert_eq!(int(&entry, "palette_line"), Some(2));
+        for (index, at) in [(10, 0x010D72), (11, 0x010D78), (12, 0x010D7E)] {
+            assert_eq!(
+                int(&field(&entry, "palette_overrides"), &index.to_string()),
+                Some(i128::from(crate::m68k::w(&rom, at).unwrap()))
+            );
+        }
+        for at in [0x010D68, 0x01519A, 0x01528A] {
+            let mut changed = rom.clone();
+            changed[at] ^= 1;
+            assert!(zoran_state(&changed, &mut Json::object()).is_err());
+        }
     }
 
     #[test]
