@@ -11,6 +11,22 @@ use godot::prelude::*;
 use psiv_core::battle::FighterId;
 use psiv_runtime::{BattleView, PartyStatus};
 
+// Distinct global groups preserve VDP plane priority for every enemy,
+// independently of the scene-tree order of their sibling bodies.
+pub(super) const ENEMY_PLANE_Z: i32 = -12;
+pub(super) const LOW_ATTACK_Z: i32 = -11;
+pub(super) const PARTY_PLANE_Z: i32 = -10;
+pub(super) const HIGH_ATTACK_Z: i32 = -9;
+
+pub(super) const fn attack_layer_offset(high_priority: bool) -> i32 {
+    let layer = if high_priority {
+        HIGH_ATTACK_Z
+    } else {
+        LOW_ATTACK_Z
+    };
+    layer - ENEMY_PLANE_Z
+}
+
 /// The column the transient narration uses when the beat names no fighter:
 /// the shell's own default, which the runtime's view spells as `transient:
 /// None` (`BattleView::transient`).
@@ -136,6 +152,20 @@ mod tests {
     use serde_json::Value;
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn attack_layers_surround_all_enemy_and_party_planes() {
+        let enemy_bodies = [ENEMY_PLANE_Z; 5];
+        let party_bodies = [PARTY_PLANE_Z; 5];
+        for parent in enemy_bodies {
+            let low = parent + attack_layer_offset(false);
+            let high = parent + attack_layer_offset(true);
+            // Every enemy's attack covers every low-priority enemy body,
+            // including siblings drawn later, while party pixels cover it.
+            assert!(enemy_bodies.iter().all(|body| *body < low));
+            assert!(party_bodies.iter().all(|body| low < *body && *body < high));
+        }
+    }
 
     fn oracle(name: &str) -> Option<Value> {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -87,7 +87,10 @@ fn pattern_sources(first: i128, last: i128, bank: Option<i128>, plc: &[Json]) ->
                     .with("first_pattern", Json::Int(cursor))
                     .with("pattern_count", Json::Int(stop - cursor))
                     .with("last_pattern_exclusive", Json::Int(stop))
-                    .with("source", "loc_27F3AE bank order Art #3, Art #1, Art #2"),
+                    .with(
+                        "source",
+                        "loc_7BFA Art #1 upload at the fighter sprite-pattern base",
+                    ),
             );
             cursor = stop;
             continue;
@@ -291,6 +294,31 @@ mod tests {
                 ),
                 (Some(expected.0), Some(expected.1)),
                 "size {size:#04x}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_square_sprite_sizes_keep_vdp_width_and_height_bitfields() {
+        // The SAT size byte puts width in bits 3-2 and height in bits 1-0.
+        for (size, width, height) in [
+            (0x01, 1, 2),
+            (0x04, 2, 1),
+            (0x03, 1, 4),
+            (0x0C, 4, 1),
+            (0x07, 2, 4),
+            (0x0D, 4, 2),
+        ] {
+            let rom = [0, 0, size, 0, 0, 0, 0];
+            let record = decode_record(&rom, 0).unwrap();
+            let entry = serde_json::Value::from(&entries_of(&record)[0]);
+            assert_eq!(
+                (
+                    entry["width_tiles"].as_u64(),
+                    entry["height_tiles"].as_u64()
+                ),
+                (Some(width), Some(height)),
+                "size {size:#04X}"
             );
         }
     }

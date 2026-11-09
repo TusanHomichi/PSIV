@@ -32,7 +32,8 @@ from tools.heavy_lock import Hold
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "title",
        "battle-0x88", "camp-root"]
-BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
+BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
+          "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                          "teleport-close-towns"]
 ROOT = Path(__file__).resolve().parent.parent

@@ -15,11 +15,8 @@ import unittest
 from PIL import Image
 
 from psiv_tools.battle_animation_art import _render_attack_mapping
-from psiv_tools.battle_animation_mapping import (
-    decode_mapping_record,
-    vdp_sprite_size,
-    vdp_sprite_tile,
-)
+from psiv_tools.battle_animation_mapping import decode_mapping_record
+from psiv_tools.gfx import vdp_size, vdp_pattern
 
 
 def record(size: int, tile: int = 0) -> bytes:
@@ -29,10 +26,10 @@ def record(size: int, tile: int = 0) -> bytes:
 
 class SizeByte(unittest.TestCase):
     def test_columns_are_bits_3_2_and_rows_bits_1_0(self):
-        self.assertEqual(vdp_sprite_size(0x09), (3, 2))
-        self.assertEqual(vdp_sprite_size(0x06), (2, 3))
-        self.assertEqual(vdp_sprite_size(0x0C), (4, 1))
-        self.assertEqual(vdp_sprite_size(0x00), (1, 1))
+        self.assertEqual(vdp_size(0x09), (3, 2))
+        self.assertEqual(vdp_size(0x06), (2, 3))
+        self.assertEqual(vdp_size(0x0C), (4, 1))
+        self.assertEqual(vdp_size(0x00), (1, 1))
 
     def test_the_decoder_reads_a_non_square_entry_the_vdp_way(self):
         entry = decode_mapping_record(record(0x09, 0x010), 0)["entries"][0]
@@ -43,9 +40,9 @@ class SizeByte(unittest.TestCase):
 
     def test_tiles_run_down_each_column_first(self):
         # A 3x2 sprite: column 1, row 0 is the third pattern, not the second.
-        self.assertEqual(vdp_sprite_tile(0x20, 1, 0, 2), 0x22)
-        self.assertEqual(vdp_sprite_tile(0x20, 0, 1, 2), 0x21)
-        self.assertEqual(vdp_sprite_tile(0x20, 2, 1, 2), 0x25)
+        self.assertEqual(vdp_pattern(0x20, 1, 0, 2), 0x22)
+        self.assertEqual(vdp_pattern(0x20, 0, 1, 2), 0x21)
+        self.assertEqual(vdp_pattern(0x20, 2, 1, 2), 0x25)
 
 
 class AttackRenderer(unittest.TestCase):

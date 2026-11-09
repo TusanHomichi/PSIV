@@ -69,7 +69,8 @@ Y, size, tile word, X, mirrored-X
 ```
 
 The tile word uses `$07FF` for the pattern index, `$0800` for H flip, `$1000`
-for V flip, `$8000` for priority, and `$6000` for palette selection. The
+for V flip, `$8000` for priority, and `$6000` for palette selection. The VDP size byte stores width in bits 3-2 and height in
+bits 1-0, and patterns advance down each column before the next column. The
 palette bits remain explicitly non-renderable for the line-relative PNG
 surface.
 
@@ -84,9 +85,11 @@ The enemy art table is `$27F3AE`, 20 bytes per enemy:
 +$12 byte half-width   +$13 byte height
 ```
 
-The proven upload order is **Art #3, Art #1, Art #2**. Every exact selected
-mapping rectangle is checked against that concatenated bank. When the pattern
-range is outside the enemy bank, the extractor follows proven `LoadPLC1` art:
+The enemy body's staging bank is **Art #3, Art #1, Art #2**. Attack objects
+instead copy the fighter's sprite-pattern base (`loc_12618`), where
+`loc_7BFA` uploads **Art #1**. Every exact selected attack mapping is checked
+against that upload's pattern count. When a pattern range is outside Art #1,
+the extractor follows proven `LoadPLC1` art:
 
 - loader target `$00B790` (`LoadPLC1`);
 - PLC pointer table `$27E88A`;
@@ -96,11 +99,20 @@ range is outside the enemy bank, the extractor follows proven `LoadPLC1` art:
 
 Those ranges are emitted as `tile_sources` with `kind: "attack_plc"`, and the
 art index repeats their PLC call, record, stream, pattern start, and count.
-There are 339 selected mapping source spans backed by attack PLC art; none is
-silently treated as an enemy-bank hole. Across the per-enemy graph evidence,
+Selected mapping source spans backed by attack PLC art are retained rather
+than silently treated as enemy-bank holes. Across the per-enemy graph evidence,
 383 `LoadPLC1` loads are retained and 122 distinct PLC table records decode
 exactly. The duplicated load count is intentional because shared object
 graphs are recorded for each enemy record.
+
+Each mapping frame retains a canonical indexed PNG and mandatory low/high
+priority surfaces on one shared canvas and pivot. Opaque pixels claim their
+SAT position before priority is split: an earlier low-priority sprite hides
+an overlapping later high-priority sprite, while transparent colour zero
+claims nothing (`make_lut_bgobj`, `make_lut_obj` in the pinned GPGX renderer).
+Godot places the low surface above the enemy's low-priority plane and below
+the party's high-priority plane, and the high surface above the party.
+An art pack without the priority surfaces is rejected with a rebuild message.
 
 Exact PNGs are emitted under `battle/art/enemy_attacks/`, rendered from the
 ROM for 121 records. The 16 receipt-backed routine bodies (32 records) ship

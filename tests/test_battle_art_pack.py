@@ -49,7 +49,6 @@ from psiv_tools.battle_art_pack import (
     ENEMY_ATTACK_ART_NAME,
     ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
-    ENEMY_PNG_DIRECTORY,
     LINE_DEPENDENT_INDEX,
     PLACEHOLDER_COLOR,
     POSE_LABEL_SOURCE,
@@ -197,6 +196,29 @@ class TestEmittedFiles(unittest.TestCase):
         cls.attacks = json.loads((cls.root / ENEMY_ATTACK_ART_NAME).read_text())
         cls.characters = json.loads((cls.root / CHARACTER_ART_NAME).read_text())
 
+    def test_zoran_attack_uses_art1_and_the_retail_palette(self):
+        attack = self.attacks["enemies"][10]
+        self.assertEqual(attack["palette_line"], 2)
+        self.assertEqual(attack["palette_overrides"], {"10": 0xE8A, "11": 0xE48, "12": 0x826})
+        from psiv_tools.battle_animation_art import _zoran_attack_state
+        from psiv_tools.battle_art import BattleArtError, build_attack_tile_bank, build_tile_bank, enemy_art_bounds, enemy_records
+        rom = read_rom(ROM)
+        records = enemy_records(rom)
+        bounds = enemy_art_bounds(records, len(rom))
+        body, _ = build_tile_bank(rom, records[10], bounds)
+        tiles, sources = build_attack_tile_bank(rom, records[10], bounds)
+        self.assertEqual(len(tiles), 23)
+        self.assertEqual(tiles, body[4:27])
+        self.assertNotEqual(tiles[0], body[0], "body staging is not the sprite-pattern base")
+        self.assertEqual(sources[0]["first_pattern"], 0)
+        self.assertEqual(sources[0]["field"], "+0x02")
+        _zoran_attack_state(rom)
+        for offset in [0x010D68, 0x01519A, 0x01528A]:
+            mutated = bytearray(rom)
+            mutated[offset] ^= 1
+            with self.subTest(offset=offset), self.assertRaises(BattleArtError):
+                _zoran_attack_state(bytes(mutated))
+
     def test_the_fragment_describes_every_file_on_disk(self):
         files = self.fragment["files"]
         self.assertEqual(self.fragment["directory"], ART_DIRECTORY)
@@ -237,7 +259,9 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertEqual(files["count"], 153)
         # 1,355 before #214, less the 395 receipt frames (16 bodies, 32
         # enemy records) that were copies of oracle captures.
-        self.assertEqual(files["png_count"], 960)
+        self.assertEqual(self.attacks["census"]["frames"], 960)
+        # Each timed frame retains the canonical image and two priority surfaces.
+        self.assertEqual(files["png_count"], 960 * 3)
         by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
         for enemy_id in (2, 24, 39, 149):
             with self.subTest(enemy_id=enemy_id):
@@ -245,10 +269,9 @@ class TestEmittedFiles(unittest.TestCase):
                 self.assertEqual(entry["status"], "exact")
                 self.assertTrue(entry["frames"])
                 for frame in entry["frames"]:
-                    image = (self.root / frame["png"]).read_bytes()
-                    self.assertEqual(
-                        frame["png_sha256"], png.image_sha256(image)
-                    )
+                    for key in ("png", "low_priority_png", "high_priority_png"):
+                        image = (self.root / frame[key]).read_bytes()
+                        self.assertEqual(frame[f"{key}_sha256"], png.image_sha256(image))
         worker = by_id[24]
         self.assertTrue(any(source["field"] == "attack_plc" for source in worker["art"]))
         self.assertEqual(by_id[130]["status"], "exact")

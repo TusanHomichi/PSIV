@@ -86,8 +86,8 @@ pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, Runtime
 pub use pad::{Button, Pad};
 pub use save::{RuntimeSaveError, SaveStore, SessionSaveError};
 pub use session::{
-    Activity, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
-    CampPage, CampSaveFailure, CampView, CommandMenuView, CursorMemory, DamageView,
+    Activity, AttackView, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView,
+    BeatView, CampPage, CampSaveFailure, CampView, CommandMenuView, CursorMemory, DamageView,
     DestinationPhase, DestinationView, EnemyStatus, FALLBACK_SPAWN, FieldNoticeOpened, Frame,
     FrameMode, Fusion, FusionPiece, GAME_OVER_FADE_FRAMES, GameOverFrame, GrowingWindow,
     JobBoardView, MenuPage, MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS,

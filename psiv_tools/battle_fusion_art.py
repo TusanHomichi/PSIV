@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from . import png
-from .battle_animation_mapping import decode_mapping_record, vdp_sprite_tile
+from .battle_animation_mapping import decode_mapping_record
+from .gfx import vdp_pattern
 from .core import be16, be32
 from .nemesis import decompress
 
@@ -126,7 +127,7 @@ def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, A
             source_y = rows * 8 - 1 - y if entry["v_flip"] else y
             for x in range(columns * 8):
                 source_x = columns * 8 - 1 - x if entry["h_flip"] else x
-                tile = tiles[vdp_sprite_tile(entry["tile_index"], source_x // 8, source_y // 8, rows)]
+                tile = tiles[vdp_pattern(entry["tile_index"], source_x // 8, source_y // 8, rows)]
                 pixel = tile[(source_y % 8) * 8 + source_x % 8]
                 if pixel:
                     pixels[(entry["y"] - top + y) * width + entry["x"] - left + x] = pixel
