@@ -202,6 +202,19 @@ class PcTraceCase(unittest.TestCase):
                 self.assertNotEqual(self.run_probe("config", watch, start, path).returncode, 0)
         self.assertNotEqual(self.run_probe("short").returncode, 0)
 
+    def test_core_buffer_reports_loss_without_mutating_cpu_state(self):
+        # Compile the observer's actual added C, not a second implementation.
+        patch_text = (ROOT / "oracle/patches/0002-pc-cycle-trace.patch").read_text()
+        added = "\n".join(line[1:] for line in patch_text.splitlines()
+                          if line.startswith("+") and not line.startswith("+++"))
+        observer = re.split(r"\n\s+if \(psiv_pc_trace_on\)", added, maxsplit=1)[0]
+        (self.root / "core_observer.h").write_text(observer)
+        binary = self.root / "core-probe"
+        subprocess.run(["gcc", "-Wall", "-Wextra", "-Werror", "-I", str(self.root),
+                        str(ROOT / "tests/fixtures/pc_trace_core_probe.c"),
+                        "-o", str(binary)], check=True, capture_output=True)
+        subprocess.run([str(binary)], check=True, capture_output=True)
+
 
 class OracleCase(unittest.TestCase):
     @classmethod
