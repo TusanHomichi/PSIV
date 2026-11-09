@@ -75,6 +75,26 @@ pub fn scene_fixture(
                 [Some(CharId(0)), None, None, None, None],
             )
         }
+        // `Event_ZioFortBarrier` (`PSIV_DEBUG_EVENT=0x30`): Zio Fort (`$82`)
+        // below the courtyard's barrier, the scene's five (Chaz, Rune, Gryz,
+        // Rika, Demi) and After Alys Death (`$63`), the flag its first op
+        // tests, as tape 39's patches (#471) set up the cartridge. Its `$F408` is the leader object's Y, `$3A0`; a
+        // location's `char_y` is the standing row, one row below.
+        0x0030 => {
+            flags = &[0x63];
+            (
+                0x0082,
+                0x2F0,
+                0x3A0 + 16,
+                [
+                    Some(CharId(0)),
+                    Some(CharId(3)),
+                    Some(CharId(4)),
+                    Some(CharId(5)),
+                    Some(CharId(6)),
+                ],
+            )
+        }
         // `Cutscene_Ending` (`PSIV_DEBUG_EVENT=0x8021`): where tape 28 leaves
         // the cartridge at frame 7200, Chaz alone on map `$13` at pixel
         // (768, 288), so the field sprite the cutscene draws over its panels
