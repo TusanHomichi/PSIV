@@ -74,8 +74,14 @@ the footprint of the stair chunk `(10,12)` (BG chunk 10 x 2 cells, row 12 x 2).
 `DriftNpcs` applies exactly that per frame to the named map objects and reports
 each whole-pixel position (`PresentationOp::NpcPixelPosition`); the runtime
 writes it to the field map (`FieldMap::set_npc_pixel_position`), so occupancy
-and collision follow the drift frame by frame and the renderer draws the
-positions from the runtime.
+and collision follow the drift frame by frame. The scene's own actor for each
+object takes the same position as its cell and its offset into it
+(`ScriptedActor::place_at_pixel`, the `slide` `Event_StepObject` leaves too),
+and the renderer draws a scene actor at that cell plus offset, so the stone
+halves glide a pixel at a time. Before #163 the actor took the cell alone and
+jumped a cell at a time
+(`a_drifting_actor_is_drawn_at_its_pixel_every_frame`,
+`rust/psiv-core/src/scene_runner/drift_tests.rs`).
 
 **Not modelled (presentation only, no state):**
 

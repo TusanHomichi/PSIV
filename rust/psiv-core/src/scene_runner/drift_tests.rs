@@ -222,6 +222,44 @@ fn a_wrong_step_constant_misses_the_cartridges_end_position() {
     assert_eq!(*frames.last().unwrap().first().unwrap(), 0x110);
 }
 
+/// The renderer draws a scene actor at its cell plus its offset in
+/// sixteenths, so a drifting object's offset follows its whole-pixel
+/// position every frame, as a stepped object's does: it glides a pixel at a
+/// time and never jumps a cell (#163).
+#[test]
+fn a_drifting_actor_is_drawn_at_its_pixel_every_frame() {
+    let mut map = map_of(&[(18, 25), (22, 25)]);
+    let mut state = GameState::new();
+    let mut runner = SceneRunner::new(SLIDE, cast(2), StepFrames::default());
+    let mut drawn = Vec::new();
+    for _ in 0..65 {
+        let effects = runner.tick(&map, &mut state, SceneInput::None);
+        apply(&mut map, &effects);
+        let at = |npc: usize| {
+            let actor = runner.actor(ActorRef::Npc(npc)).unwrap();
+            let (dx, _) = actor.render_offset_16ths(StepFrames::default());
+            i32::from(actor.cell.x) * 16 + dx
+        };
+        drawn.push(vec![at(0), at(1)]);
+    }
+    let (reported, _, _) = slide(SLIDE, 2);
+    // Frame 0 runs the op itself and moves nothing; the drift's 64 frames
+    // follow.
+    assert_eq!(
+        drawn[1..],
+        reported[1..],
+        "drawn where the drift reports, every frame"
+    );
+    // A cell boundary is crossed one pixel at a time: $11F, then $11E.
+    assert_eq!((drawn[4][0], drawn[5][0]), (0x11F, 0x11E));
+    assert!(
+        drawn[1..]
+            .windows(2)
+            .all(|pair| (pair[1][0] - pair[0][0]).abs() <= 1),
+        "never more than a pixel a frame"
+    );
+}
+
 #[test]
 fn a_drift_reports_positions_to_the_runtime_every_frame() {
     let map = map_of(&[(18, 25), (22, 25)]);
