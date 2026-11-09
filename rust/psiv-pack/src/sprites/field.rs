@@ -329,6 +329,15 @@ pub fn vehicle_sprites(
     Ok(sprites)
 }
 
+/// `LoadTreasureChests` selects the alternate normal chest for map family $32.
+pub(crate) fn chest_art_source(white: bool, general_var: u8) -> usize {
+    match (white, general_var == 0x32) {
+        (true, _) => 0x297674,
+        (false, true) => 0x2976FA,
+        (false, false) => 0x2975AE,
+    }
+}
+
 /// `chest_sprite`: `LoadTreasureChests` stages normal art at `$4DC` and plant or
 /// white art at `$4E6`. The `$32` map family selects a second normal chest and
 /// CRAM line 1.
@@ -340,11 +349,7 @@ pub fn chest_sprite(
     general_var: u8,
 ) -> Result<Sheet, PackError> {
     let special = general_var == 0x32 && !white;
-    let offset = match (white, special) {
-        (true, _) => 0x297674,
-        (false, true) => 0x2976FA,
-        (false, false) => 0x2975AE,
-    };
+    let offset = chest_art_source(white, general_var);
     let (tile, table): (u16, usize) = if white {
         (0x4E6, 0x51442)
     } else {
