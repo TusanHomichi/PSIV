@@ -17,7 +17,7 @@ from typing import Any, Iterable
 from . import png
 from .battle_animation_receipts import receipt_file
 from .battle_art_pack import enemy_palette
-from .gfx import decode_tile
+from .gfx import decode_tile, vdp_pattern, vdp_size
 
 SCREEN_WIDTH = 320
 SCREEN_HEIGHT = 224
@@ -69,8 +69,7 @@ def render_state(state: dict[str, Any], rom: bytes, enemy_id: int) -> bytes:
     vram = _region_bytes(state, "vdp_vram", VRAM_BYTES)
     pixels = bytearray(SCREEN_WIDTH * SCREEN_HEIGHT)
     for y, size, tile_word, x, _ in _linked_sprites(state):
-        width_tiles = (size & 0x03) + 1
-        height_tiles = ((size >> 2) & 0x03) + 1
+        width_tiles, height_tiles = vdp_size(size)
         tile_index = tile_word & 0x07FF
         h_flip = bool(tile_word & 0x0800)
         v_flip = bool(tile_word & 0x1000)
@@ -82,7 +81,7 @@ def render_state(state: dict[str, Any], rom: bytes, enemy_id: int) -> bytes:
             for output_x in range(width_tiles * 8):
                 source_x = width_tiles * 8 - 1 - output_x if h_flip else output_x
                 tile_column, pixel_x = divmod(source_x, 8)
-                pattern = tile_index + tile_row * width_tiles + tile_column
+                pattern = vdp_pattern(tile_index, tile_column, tile_row, height_tiles)
                 start = pattern * 32
                 if start + 32 > len(vram):
                     raise BattleOracleRenderError(

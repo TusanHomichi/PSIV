@@ -631,7 +631,7 @@ round's draw count.
 ShadowSabr's routine casts DEBAN on its conditional slot 7,
 `EnemyAI_PhysicalAtkReceived`: the sabre must have been *hit* since its last
 action. The tape party never hit a BloodSaber, so this capture scripts it:
-`python3 -m oracle.sweep.player_capture` on formation `$1C6` (two BloodSaber),
+`python3 -m oracle.sweep.forced_cases` on formation `$1C6` (two BloodSaber),
 Chaz attacking enemy 6 with agility and dexterity 255 so his swing lands before
 its turn, the others defending, every member at 999 HP, two rounds. Its
 report records the cast (`e1=0x2D` at f25201).
@@ -642,7 +642,7 @@ report records the cast (`e1=0x2D` at f25201).
 
 ### A sealed caster, and DTHSPELL on 112 Illusionst (party-script captures, `enemy_scripted/`)
 
-Both are `python3 -m oracle.sweep.player_capture` recipes over tape 07's
+Both are `python3 -m oracle.sweep.forced_cases` recipes over tape 07's
 party at 999 HP; DTHSPELL's is the `oracle.force` command the driver records
 in its `commands.jsonl`, rerun with `--delay 2` (the undelayed fight rolls
 `$52`, not DTHSPELL).

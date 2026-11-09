@@ -18,7 +18,7 @@ and
 the harness the two share is
 [`engine_tests_replay.rs`](../../rust/psiv-core/src/battle/engine_tests_replay.rs).
 The capture has its own account in
-[`oracle/README.md`](../../oracle/README.md#rng-trace-the-cartridges-own-battle-rolls),
+[battle capture guide](../../oracle/BATTLES.md#rng-trace-the-cartridges-own-battle-rolls),
 and the disassembly notes `docs/source-notes/README.md` refers to are the topic files under
 [`docs/source-notes/`](../source-notes/).
 
@@ -462,7 +462,7 @@ load a save.
 #### What the oracle measures
 
 `enemy_ability_index` was added to `oracle/ram_map.json` (`$FFFFEEA8`, size 2,
-group `battle`; see [`oracle/README.md`](../../oracle/README.md#ram-map)) and
+group `battle`; see [oracle formats](../../oracle/FORMATS.md#ram-map)) and
 `ram_map.tsv` regenerated with `oracle/gen_ram_map.py`. With it in the log the
 word's whole life is visible frame by frame - the transitions below are read
 from captures of these tapes with the current map:

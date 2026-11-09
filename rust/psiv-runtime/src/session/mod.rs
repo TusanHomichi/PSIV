@@ -128,7 +128,7 @@ mod title;
 
 pub use activity::Activity;
 pub use battle::{
-    BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
+    AttackView, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
     CommandMenuView, CursorMemory, DamageView, EnemyStatus, Fusion, FusionPiece, GrowingWindow,
     MenuPage, MenuRow, MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind,
     TechniqueEntry, battle_dwell_frames,

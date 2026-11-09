@@ -14,6 +14,26 @@ use psiv_core::{
     TriggerContext, TriggerResult, scene_for,
 };
 
+/// The next tick's input: the camera arrives at once (this harness has no
+/// runtime to glide it; `PanCamera` waits for it) and every window closes at
+/// once.
+fn answer(runner: &SceneRunner, effects: &[SceneEffect]) -> SceneInput {
+    if runner.is_waiting_for_camera() {
+        SceneInput::CameraArrived
+    } else if effects.iter().any(|e| {
+        matches!(
+            e,
+            SceneEffect::DialogueOpen(_)
+                | SceneEffect::DialogueOpenFromNpc { .. }
+                | SceneEffect::DialogueResume
+        )
+    }) {
+        SceneInput::DialogueClosed
+    } else {
+        SceneInput::None
+    }
+}
+
 fn run(event: u16, state: &mut GameState) -> Vec<SceneEffect> {
     let map = map_with(
         &["........", "........", "........", "........"],
@@ -32,14 +52,11 @@ fn run(event: u16, state: &mut GameState) -> Vec<SceneEffect> {
     ];
     let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::new(8).unwrap());
     let mut log: Vec<SceneEffect> = Vec::new();
+    let mut input = SceneInput::None;
     for _ in 0..2_000 {
-        let input = match log.last() {
-            Some(SceneEffect::DialogueOpen(_) | SceneEffect::DialogueOpenFromNpc { .. }) => {
-                SceneInput::DialogueClosed
-            }
-            _ => SceneInput::None,
-        };
-        log.extend(runner.tick(&map, state, input));
+        let effects = runner.tick(&map, state, input);
+        input = answer(&runner, &effects);
+        log.extend(effects);
         if runner.is_finished() {
             break;
         }
@@ -220,14 +237,10 @@ fn run_grave(map: &mut psiv_core::FieldMap, state: &mut GameState) -> (Vec<Scene
     let mut runner = grave_runner(map);
     let mut log: Vec<SceneEffect> = Vec::new();
     let mut ticks = 0;
+    let mut input = SceneInput::None;
     while !runner.is_finished() && ticks < 2_000 {
-        let input = match log.last() {
-            Some(SceneEffect::DialogueOpen(_) | SceneEffect::DialogueResume) => {
-                SceneInput::DialogueClosed
-            }
-            _ => SceneInput::None,
-        };
         let effects = runner.tick(map, state, input);
+        input = answer(&runner, &effects);
         apply_to_map(map, &effects);
         log.extend(effects);
         ticks += 1;
@@ -293,13 +306,7 @@ fn cells_open_part_way_through_the_slide_follow_the_drift_frame_by_frame() {
     let mut halfway = None;
     while !runner.is_finished() {
         let effects = runner.tick(&map, &mut state, input);
-        input = SceneInput::None;
-        if effects
-            .iter()
-            .any(|e| matches!(e, SceneEffect::DialogueOpen(_)))
-        {
-            input = SceneInput::DialogueClosed;
-        }
+        input = answer(&runner, &effects);
         if effects.iter().any(|e| {
             matches!(
                 e,
@@ -315,12 +322,6 @@ fn cells_open_part_way_through_the_slide_follow_the_drift_frame_by_frame() {
         apply_to_map(&mut map, &effects);
         if drift_frames == 32 && halfway.is_none() {
             halfway = Some((pixel_x(&map, 2), pixel_x(&map, 3), pixel_x(&map, 7)));
-        }
-        if effects
-            .iter()
-            .any(|e| matches!(e, SceneEffect::DialogueResume))
-        {
-            input = SceneInput::DialogueClosed;
         }
     }
     assert_eq!(halfway, Some((0x118, 0x170, 0x150 + 16)));
@@ -396,10 +397,12 @@ fn the_slide_takes_64_frames_and_the_pause_after_it_60() {
     let mut state = GameState::new();
     let (_, ticks) = run_grave(&mut map, &mut state);
     // Tick 1 branches and opens entry $1E; tick 2 closes it and starts the
-    // drift; ticks 3..=66 are the 64 `DoMainUpdatesLoop` frames; ticks
-    // 67..=126 the 60 of `DoMapUpdateLoop($3B)`, ending in the resume; tick
-    // 127 closes it and sets the flag.
-    assert_eq!(ticks, 127);
+    // first camera pair, each `Event_MoveCamera` waiting a tick for its
+    // arrival (4 px at speed 4: one frame on the cartridge too); then the 64
+    // `DoMainUpdatesLoop` frames, the second pair's two waits, the 60 of
+    // `DoMapUpdateLoop($3B)` ending in the resume, and the tick that closes
+    // it and sets the flag. Without the camera waits it was 127.
+    assert_eq!(ticks, 131);
 }
 
 /// Whether `cell` holds an object after each of the 64 drift frames.
@@ -411,16 +414,7 @@ fn occupancy_by_frame(cell: Cell) -> Vec<bool> {
     let mut seen = Vec::new();
     while !runner.is_finished() {
         let effects = runner.tick(&map, &mut state, input);
-        input = if effects.iter().any(|e| {
-            matches!(
-                e,
-                SceneEffect::DialogueOpen(_) | SceneEffect::DialogueResume
-            )
-        }) {
-            SceneInput::DialogueClosed
-        } else {
-            SceneInput::None
-        };
+        input = answer(&runner, &effects);
         let reported = effects.iter().any(|e| {
             matches!(
                 e,

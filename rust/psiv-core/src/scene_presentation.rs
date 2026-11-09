@@ -37,6 +37,15 @@ pub enum CameraSubject {
         /// `d1`.
         y: i32,
     },
+    /// An object's live `$30` plus `dx`, and its `$34`:
+    /// `Event_TylerGraveOpening`'s `move.w $30(a4), d0 / addq.w #4, d0`, the
+    /// camera's lead past the leader (`$06FCC6`).
+    ActorShifted {
+        /// Whose position.
+        actor: ActorRef,
+        /// Added to `d0`.
+        dx: i32,
+    },
 }
 
 /// One renderer-owned operation preserved by a scene transcription.

@@ -743,3 +743,13 @@ def export_art_pngs(data: bytes, out_dir: str | Path, columns: int = 16) -> list
 
     write_png_stamp(directory, "gfx", [entry["path"] for entry in written])
     return written
+
+
+def vdp_size(size: int) -> tuple[int, int]:
+    """VDP sprite tile columns/rows: width in bits 3-2, height in bits 1-0."""
+    return ((size >> 2) & 0x03) + 1, (size & 0x03) + 1
+
+
+def vdp_pattern(base: int, column: int, row: int, rows: int) -> int:
+    """Sprites consume consecutive patterns down a column before moving right."""
+    return base + column * rows + row

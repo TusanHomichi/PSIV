@@ -112,6 +112,34 @@ agility and dexterity, and enemy paralysis clearing each turn.
 
 ## Other recorded deviations
 
+- **Conveyor follower walk-freeze timing uses committed cells.** For every
+  follower slot (1 through 4), all four conveyor events (`$1D` down, `$1E` up,
+  `$1F` right and `$20` left) retain the same approximation:
+  `SceneRunner::freeze_belt_riders` probes `PixelPos::from_cell(actor.cell)`
+  with the standing-point y offset, discarding the in-progress movement
+  offset. Retail's follower loop (`loc_6CEB6`, with the down routine's status
+  bit write at `$06CEEA`) uses `GetChunkAndCollision` on the live pixel
+  position instead. Entering a belt to the left or up can therefore freeze
+  the follower later, when its cell commits, rather than when its pixel first
+  crosses the chunk boundary. Once set, the freeze lasts until the carry
+  ends. This is a retained timing deviation, not pixel-accurate parity;
+  the leader's immediate freeze is separate. See
+  [the walk freeze](../field/PLATFORMS_AND_BELTS.md#the-walk-freeze) and
+  [#99](https://github.com/TusanHomichi/PSIV/issues/99).
+
+- **Zoran Bult strike-only choreography (enemy `$0A`).** Ordinary runtime
+  attacks and the certification fixture use the same limited strike lifecycle:
+  entering the sixteen-frame attack immediately selects overlay piece 0's
+  frame 2, retaining its current idle timer, rather than waiting for that frame
+  as USA `BattleObj_ZoranBultAtk` does (`$01528A..$0152C2`). The port releases
+  that freeze and restores the displaced target to its party seat when the
+  visible attack expires; retail retains the freeze through the target's
+  damage wait and restores the target through its reaction/recovery routine.
+  This is a deliberate incomplete presentation path, not full-sequence parity.
+  The [strike explanation](../battle/BATTLE_COMMAND_UI.md#mid-round-attack-52)
+  and [#421](https://github.com/TusanHomichi/PSIV/issues/421) own the remaining
+  windup, freeze-release and target displacement/restoration work.
+
 - **`Cutscene_Elsydeon`'s two inline pages close at the button (#414).** The
   scene reopens its saved text twice through its own window code (`popdlg`,
   `Window_Create`, `RunText`, a button wait at `$078740` and `$07892A`) and

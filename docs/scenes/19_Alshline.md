@@ -28,10 +28,10 @@ counts corrected to frame counts:
 2. Create panels `$1A,$1B,$1C,$1D,$1E`, DMA after each; wait
    `20,60,10,10,90` frames, playing `SFX_BarrierBroken` (`$E6`) on panels
    `$1B..$1E`.
-3. Destroy all panels, DMA, wait 40; create `$1F`, DMA, play
+3. Pop five panels from the backup stack, then DMA, wait 40; create `$1F`, DMA, play
    `Music_AHappySettlement` (`$9E`), wait 60; create `$20`, DMA, wait 120.
-4. Destroy panels one-by-one in the retail loop (represented by the explicit
-   destroy/DMA edge), create `$21` and `$22`, DMA each, play barrier SFX on
+4. Pop two panels one-by-one in the retail loop, DMA after each (one then
+   zero visible), create `$21` and `$22`, DMA each, play barrier SFX on
    `$22`, wait 90.
 5. Load tree 3, enable cutscene sprites, run entry `$67`; copy the palette
    buffer, stop music, wait 60 map-update ticks, fade in and wait 90 frames.

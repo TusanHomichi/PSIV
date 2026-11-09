@@ -879,7 +879,6 @@ impl SceneRunner {
                 self.blocked = Blocked::Palette;
             }
             SceneOp::PanelCreate { .. }
-            | SceneOp::PanelDestroy { .. }
             | SceneOp::PanelDestroyLast
             | SceneOp::PanelDestroyAll
             | SceneOp::CreateFieldObject { .. }

@@ -65,6 +65,11 @@ pub(super) struct BeltRun {
     last_chunk: u8,
     /// Whether the scan has run and the leader is walking its target.
     resolved: bool,
+    /// The party slots whose status bit 2 the belt has set (`bset #2,
+    /// $16(a0,d0.w)`): the leader's at the start (`$06CEA8`), a follower's
+    /// once the chunk under it is a belt chunk (`$06CEEA`). It stays set
+    /// until the routine restores every status byte after the carry.
+    frozen: [bool; PARTY_SLOTS],
 }
 
 impl SceneRunner {
@@ -261,6 +266,7 @@ impl SceneRunner {
                     first_chunk,
                     last_chunk,
                     resolved: false,
+                    frozen: [false; PARTY_SLOTS],
                 });
                 self.pc += 1;
                 self.blocked = Blocked::Belt;
@@ -362,8 +368,51 @@ impl SceneRunner {
         });
         if let Some(run) = self.belt.as_mut() {
             run.resolved = true;
+            run.frozen[0] = true;
         }
         self.blocked = Blocked::Actor(leader);
+    }
+
+    /// One frame of the belt's follower test (`loc_6CEB6`): a follower whose
+    /// standing chunk (`GetChunkAndCollision` at `curr_y_pos + $10`) is one of
+    /// the belt's has its status bit 2 set, so `FieldObj_UpdateStatus` holds
+    /// its walk on the sequence's first frame. The port reads the follower's
+    /// standing cell rather than its pixel mid-step.
+    pub(super) fn freeze_belt_riders(&mut self, chunks: Option<&dyn Fn(PixelPos) -> Option<u16>>) {
+        let (Some(run), Some(chunks)) = (self.belt, chunks) else {
+            return;
+        };
+        if !run.resolved {
+            return;
+        }
+        let covered = |id: u16| id >= u16::from(run.first_chunk) && id <= u16::from(run.last_chunk);
+        let mut frozen = run.frozen;
+        for (slot, flag) in frozen.iter_mut().enumerate().skip(1) {
+            let Some(at) = self
+                .actor(ActorRef::PartyMember(slot))
+                .map(|a| PixelPos::from_cell(a.cell))
+            else {
+                continue;
+            };
+            let probe = PixelPos {
+                x: at.x,
+                y: at.y + CELL_PIXELS,
+            };
+            if chunks(probe).is_some_and(covered) {
+                *flag = true;
+            }
+        }
+        if let Some(run) = self.belt.as_mut() {
+            run.frozen = frozen;
+        }
+    }
+
+    /// Whether a conveyor belt has set party slot `slot`'s status bit 2 for
+    /// its carry ([`BeltRun`]), freezing its walk animation.
+    #[must_use]
+    pub fn belt_freezes(&self, slot: usize) -> bool {
+        self.belt
+            .is_some_and(|run| run.frozen.get(slot).copied().unwrap_or(false))
     }
 
     /// Ends a carry the leader has finished: the belt's pace goes with it.

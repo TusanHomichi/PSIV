@@ -10,20 +10,21 @@ section 10): one `python3 -m oracle.force
 `Event_Battle_Index`), extracted by `python3 -m oracle.fixture` into
 `rust/psiv-core/src/battle/replay_fixtures/arc_zelan/` and finished with the
 same battle-cell augmentation as `oracle.sweep.arc` (the machinery is shared:
-`arc.run_recipe`). The set of abilities these fixtures exist for is derived,
+`oracle.sweep.forced_cases`). The set of abilities these fixtures exist for is derived,
 not listed: `python3 -m oracle.sweep.route_abilities`.
 """
 from __future__ import annotations
 
 import pathlib
 
-from .arc import Entry, run_recipe
+from .arc import Entry
+from .forced_cases import Case, run_cases
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = (ROOT / "rust" / "psiv-core" / "src" / "battle"
             / "replay_fixtures" / "arc_zelan")
 
-ENTRIES: tuple[Entry, ...] = (
+ENTRIES: tuple[Case, ...] = (
     Entry(0x9A, 0, 8, 8, "THREAD: three CarrionCr (the crawler arm, through enemy_effect)"),
     Entry(0x61, 0, 8, 8, "POISONMIST: two Mistralgec"),
     Entry(0x11E, 0, 8, 8, "SLEEP GAS: three GerotLux"),
@@ -37,7 +38,8 @@ ENTRIES: tuple[Entry, ...] = (
 
 
 def main(argv: list[str] | None = None) -> int:
-    return run_recipe(ENTRIES, FIXTURES, "zelan", __doc__.splitlines()[0], argv)
+    return run_cases(ENTRIES, FIXTURES, ROOT / "build" / "zelan",
+                     __doc__.splitlines()[0], argv)
 
 
 if __name__ == "__main__":

@@ -4,13 +4,13 @@
 //! subtracts HP, chooses a target, or awards anything. It draws the runtime's
 //! [`BattleView`] — the command window, the narration page, the status strip,
 //! the damage block — and advances the art clocks that have no game meaning
-//! (the enemy overlay animation and the decoded attack layers).
+//! (the idle enemy overlay animation). Attack layers draw runtime ages.
 //!
 //! The split from `psiv-godot/src/battle/`'s single 1,000-line file:
 //!
 //! - `build.rs` builds the background, enemy and party sprites for a setup;
 //! - `draw.rs` composes one frame of plane-A quads from the view;
-//! - this file owns the node, its art, and the two clocks.
+//! - this file owns the node, its art, and the idle overlay clock.
 
 mod build;
 mod draw;
@@ -22,7 +22,7 @@ use godot::prelude::*;
 
 use psiv_core::battle::FighterId;
 use psiv_data::DialogueSet;
-use psiv_runtime::{BattleAnimationEvent, BattleView, CommandMenuView, MenuView, PartyStatus};
+use psiv_runtime::{BattleView, CommandMenuView, MenuView, PartyStatus};
 
 use super::BattleSetup;
 use super::art::BattleArt;
@@ -305,8 +305,35 @@ impl BattleScreen {
         for actor in &view.poses {
             self.set_party_pose(*actor, true);
         }
-        for animation in &view.animations {
-            self.start_enemy_animation(animation);
+        for enemy in &mut self.enemy_nodes {
+            let attack = view
+                .attacks
+                .iter()
+                .find(|attack| attack.event.actor == enemy.fighter);
+            if let Some(animation) = enemy.animation.as_mut()
+                && let Some(texture) =
+                    animation.set_frozen_piece(attack.and_then(|attack| attack.frozen_overlay))
+            {
+                enemy.node.set_texture(&texture);
+            }
+            enemy.set_attack(
+                view.attacks
+                    .iter()
+                    .find(|attack| attack.event.actor == enemy.fighter),
+            );
+        }
+        for attack in &view.attacks {
+            if let Some((target, pivot_x)) = attack.target_x
+                && let Some(party) = self
+                    .party_nodes
+                    .iter_mut()
+                    .find(|party| party.fighter == target)
+            {
+                // The party sheet's pivot is its centre (48-pixel canvas).
+                party
+                    .node
+                    .set_position(Vector2::new(f32::from(pivot_x) - 24.0, PARTY_ROW_Y));
+            }
         }
         self.draw_fusion(&view.fusion);
         self.view = Some(view);
@@ -342,7 +369,7 @@ impl BattleScreen {
     }
 
     /// Advances the art clocks that carry no game state: the enemy overlay
-    /// animation and any live attack layer.
+    /// animation. Attack layers use the runtime view instead.
     pub(crate) fn advance_animation(&mut self) {
         for enemy in &mut self.enemy_nodes {
             if let Some(animation) = enemy.animation.as_mut()
@@ -350,7 +377,6 @@ impl BattleScreen {
             {
                 enemy.node.set_texture(&texture);
             }
-            enemy.advance_attack();
         }
     }
 
@@ -385,6 +411,11 @@ impl BattleScreen {
     fn restore_party_pose(&mut self) {
         for party in &mut self.party_nodes {
             party.node.set_texture(&party.idle);
+            let column = PARTY_COLUMNS[usize::from(party.fighter.get() - 1)];
+            party.node.set_position(Vector2::new(
+                column as f32 * BATTLE_CELL_PIXELS as f32,
+                PARTY_ROW_Y,
+            ));
         }
     }
 
@@ -405,19 +436,6 @@ impl BattleScreen {
             }
         } else {
             party.node.set_texture(&party.idle);
-        }
-    }
-
-    fn start_enemy_animation(&mut self, animation: &BattleAnimationEvent) {
-        if animation.actor.side() != psiv_core::battle::Side::Enemy {
-            return;
-        }
-        if let Some(enemy) = self
-            .enemy_nodes
-            .iter_mut()
-            .find(|enemy| enemy.fighter == animation.actor)
-        {
-            enemy.begin_attack(animation);
         }
     }
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import be16, be32
+from .core import be16
+from .gfx import vdp_size
 
 MAPPING_HEADER_BYTES = 1
 MAPPING_ENTRY_BYTES = 6
@@ -48,8 +49,7 @@ def decode_mapping_record(
         tile_word = _u16(rom, entry_offset + 2)
         x = _signed_byte(rom[entry_offset + 4])
         x_mirror = _signed_byte(rom[entry_offset + 5])
-        width_tiles = (size & 0x03) + 1
-        height_tiles = ((size >> 2) & 0x03) + 1
+        width_tiles, height_tiles = vdp_size(size)
         tile_index = tile_word & 0x07FF
         tile_span_end = tile_index + width_tiles * height_tiles
         entries.append({

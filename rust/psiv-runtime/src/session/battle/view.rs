@@ -115,6 +115,26 @@ pub struct BeatView {
     pub waits_for_confirm: bool,
 }
 
+/// An enemy attack object on the runtime's beat timeline.
+///
+/// Rendering this view again never advances the object. Its first frame is
+/// elapsed zero, even when its beat replaced another on this game frame
+/// (`GameMode_Battle`, `ps4.asm:947-966`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttackView {
+    /// Identity within this battle, so consecutive identical attacks restart.
+    pub id: u64,
+    /// The decoded attack object dispatched by the beat.
+    pub event: BattleAnimationEvent,
+    /// Frames since dispatch: zero on the dispatch frame.
+    pub elapsed: u16,
+    /// A frozen enemy overlay piece: piece and mapping frame. Its art timer
+    /// remains at the value it had when the object froze it.
+    pub frozen_overlay: Option<(usize, usize)>,
+    /// The struck party fighter and its horizontal pivot in screen pixels.
+    pub target_x: Option<(FighterId, i16)>,
+}
+
 /// The damage block to draw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DamageView {
@@ -426,6 +446,8 @@ pub struct BattleView {
     pub sounds: Vec<u8>,
     /// Enemy attack animation cues this frame started.
     pub animations: Vec<BattleAnimationEvent>,
+    /// Live enemy attack objects and their absolute runtime ages.
+    pub attacks: Vec<AttackView>,
     /// The Zol slugs' Fusion pieces this frame draws, in the pack's Fusion
     /// frames (`battle/art/fusion.json`); empty outside a Fusion.
     pub fusion: Vec<FusionPiece>,
@@ -458,6 +480,7 @@ impl Default for BattleView {
             transient: None,
             sounds: Vec::new(),
             animations: Vec::new(),
+            attacks: Vec::new(),
             fusion: Vec::new(),
             close_ready: false,
             fault: None,

@@ -35,8 +35,10 @@ call start from the seed the log holds for the frame before it.
 which takes COMD -> ATTACK -> the default target per member - and `defend` is
 tape 14's horizontal menu walk to DEFEND. `--delay N` pads N idle frames at the
 seam, after the encounter has fired and before the policy: the formation is
-already fixed, but every roll in the fight shifts, which is the knob for a
-battle whose enemy never rolls the ability the capture is for.
+already fixed. This can change the fight's rolls, but event battles with a
+party script can absorb the idle inputs during loading and keep the same rolls.
+For those captures, extend the rounds and script/frame budget instead; see
+`oracle/BATTLES.md` for the limitation and the recorded event observation.
 
 `--vehicle N` chooses which `VehicleData` record the forced battle loads, for a
 formation that sits in one of the four vehicle tables; `selectors` carries the

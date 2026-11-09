@@ -114,8 +114,9 @@ apart. The runtime's beat lasts until the seat and the view carries the
 pieces; Godot draws them. Tests: `rust/psiv-runtime/tests/battle_fusion.rs`
 (the timeline) and `a_fusion_plays_the_slide_and_seats_the_metaslug_at_retail_frames`
 (through the session). The pieces' size bytes are read the VDP way, columns in
-bits 3-2; the shared attack decoder reads them the other way round
-([#364](https://github.com/TusanHomichi/PSIV/issues/364)).
+bits 3-2 and tiles down each column first, by the same reader every battle
+mapping goes through (`psiv_tools/gfx.py`'s `vdp_size` and `vdp_pattern`,
+[#364](https://github.com/TusanHomichi/PSIV/issues/364)).
 
 ## COMBINE
 

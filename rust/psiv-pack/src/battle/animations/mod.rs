@@ -279,17 +279,35 @@ fn walk(
     out
 }
 
-/// The patterns in each enemy's tile bank: `build_tile_bank`'s length, from
-/// the battle art's own decoder.
+/// The attack sprite bank length, matching `build_attack_tile_bank`.
+/// Art #1 is uploaded at fighter+$10 (`loc_7BFA`), then copied to an
+/// attack object by `loc_12618`. The other blobs belong to the body bank.
 fn art_banks(rom: &[u8]) -> Result<Vec<i128>, PackError> {
     let records = crate::battle::art::enemies::records(rom)?;
     let bounds = crate::battle::art::enemies::bounds(&records, rom.len());
     records
         .iter()
         .map(|record| {
-            Ok(crate::battle::art::enemies::bank(rom, record, &bounds)?
-                .0
-                .len() as i128)
+            let offset = record.art[0];
+            let label = format!("ArtNem_{}Battle1", record.symbol);
+            let header = crate::decode::nemesis::read_header(rom, offset)?;
+            let (data, consumed) = crate::decode::nemesis::decompress(rom, offset)?;
+            if data.len() != usize::from(header.row_count) * 4 {
+                return refuse(format!(
+                    "{label} at 0x{offset:06X}: decoded {} bytes but the header declares {} \
+                     patterns",
+                    data.len(),
+                    header.tile_count
+                ));
+            }
+            if consumed > bounds[&offset] + 1 {
+                return refuse(format!(
+                    "{label} at 0x{offset:06X}: consumed {consumed} bytes and ran into the \
+                     next blob, which starts {} bytes in",
+                    bounds[&offset]
+                ));
+            }
+            Ok(data.len().div_ceil(32) as i128)
         })
         .collect()
 }
@@ -788,6 +806,29 @@ pub fn build(rom: &[u8], names: &Display) -> Result<Json, PackError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attack_patterns_start_at_art_one_instead_of_the_concatenated_body_bank() {
+        let mut rom = vec![0u8; 0x27F3AE + ENEMY_ATTACK_COUNT * ENEMY_ART_STRIDE];
+        // Synthetic Nemesis streams: one-bit code zero repeats palette index
+        // five across each row. Different lengths distinguish all three banks.
+        for (offset, tiles) in [(0x40, 2u8), (0x60, 3), (0x80, 4)] {
+            let mut stream = vec![0, tiles, 0x85, 0x71, 0, 0xFF];
+            stream.resize(usize::from(tiles) + 8, 0);
+            rom[offset..offset + stream.len()].copy_from_slice(&stream);
+        }
+        for id in 0..ENEMY_ATTACK_COUNT {
+            let at = 0x27F3AE + id * ENEMY_ART_STRIDE;
+            for (field, offset) in [(2, 0x40u32), (6, 0x60), (10, 0x80), (14, 0xA0)] {
+                rom[at + field..at + field + 4].copy_from_slice(&offset.to_be_bytes());
+            }
+        }
+        assert_eq!(
+            art_banks(&rom).unwrap(),
+            vec![2; ENEMY_ATTACK_COUNT],
+            "loc_7BFA uploads only Art #1 at the fighter base copied by loc_12618"
+        );
+    }
 
     #[test]
     fn a_sound_write_is_absolute_or_object_local() {
