@@ -314,6 +314,50 @@ fn entering_a_map_restacks_the_party_on_the_leader() {
     }
 }
 
+/// A warp's alignment lines the followers up behind the leader, one cell
+/// apart, at rest and facing the leader's way (`loc_535D4`); tape 06's four
+/// members through the door into map `$14` stand in one column, a cell
+/// apart, below the leader. At the map's edge a member keeps the cell of the
+/// one ahead.
+#[test]
+fn a_warps_alignment_lines_the_followers_up_behind_the_leader() {
+    let map = open_map();
+    let mut party = party_of(&map, 0, 0, 3);
+    party
+        .enter_map(&map, Cell::new(3, 2), Direction::Up)
+        .expect("valid placement");
+    party.line_up(&map, Direction::Down);
+    assert_eq!(
+        cells(&party),
+        [(3, 2), (3, 3), (3, 4), (3, 5)].map(|(x, y)| Cell::new(x, y))
+    );
+    for member in party.members() {
+        assert_eq!(member.facing, Direction::Up);
+        assert!(!member.is_stepping);
+    }
+
+    party
+        .enter_map(&map, Cell::new(1, 5), Direction::Down)
+        .expect("valid placement");
+    party.line_up(&map, Direction::Left);
+    assert_eq!(
+        cells(&party),
+        [(1, 5), (0, 5), (0, 5), (0, 5)].map(|(x, y)| Cell::new(x, y)),
+        "no cell left of column 0"
+    );
+
+    // The trail still holds: the first step pulls everyone a cell along.
+    party
+        .enter_map(&map, Cell::new(3, 2), Direction::Up)
+        .expect("valid placement");
+    party.line_up(&map, Direction::Down);
+    step(&mut party, &map, Direction::Up);
+    assert_eq!(
+        cells(&party),
+        [(3, 1), (3, 2), (3, 3), (3, 4)].map(|(x, y)| Cell::new(x, y))
+    );
+}
+
 #[test]
 fn entering_a_map_mid_step_cancels_every_members_step() {
     let map = open_map();
@@ -539,6 +583,7 @@ fn a_party_replays_identically() {
         target_map: MapId(0x13),
         target_cell: Cell::new(1, 1),
         facing: Direction::Down,
+        alignment: None,
     };
     let npcs = vec![Npc::new(NpcId(1), Cell::new(6, 6), Direction::Up)];
 

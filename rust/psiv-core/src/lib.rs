@@ -54,6 +54,7 @@
 //!             target_map: MapId(0x13),
 //!             target_cell: Cell::new(2, 6),
 //!             facing: Direction::Up,
+//!             alignment: None,
 //!         },
 //!     ],
 //! );

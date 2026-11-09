@@ -10,7 +10,7 @@ mod common;
 use common::{map_with, party, party_at_rate, party_facing, run, torus, torus_with, walk_one_step};
 use psiv_core::{
     Cell, CellRect, CollisionGrid, Direction, Effect, FieldMap, Input, InteractReach, MapError,
-    MapId, Npc, NpcId, StepFrames, SubCellOffset, Topology, Warp, WarpTrigger,
+    MapId, Npc, NpcId, Party, StepFrames, SubCellOffset, Topology, Warp, WarpTrigger,
 };
 
 fn open_torus() -> FieldMap {
@@ -187,6 +187,7 @@ fn a_warp_rect_may_straddle_the_seam() {
         target_map: MapId(0x13),
         target_cell: Cell::new(2, 2),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "D..D", "....", "...."], vec![warp], vec![]);
 
@@ -204,6 +205,7 @@ fn a_warp_rect_may_straddle_the_seam() {
                 target_map: MapId(0x13),
                 target_cell: Cell::new(2, 2),
                 facing: Direction::Down,
+                alignment: None,
             }),
             "the wrapped rect should cover ({}, {})",
             landed.x,
@@ -220,6 +222,7 @@ fn a_seam_straddling_rect_does_not_cover_the_cells_in_between() {
         target_map: MapId(0x13),
         target_cell: Cell::new(2, 2),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "DDDD", "....", "...."], vec![warp], vec![]);
 
@@ -283,6 +286,7 @@ fn unreachable_warp_diagnostics_follow_the_seam() {
         target_map: MapId(0x13),
         target_cell: Cell::new(0, 0),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = torus_with(&["....", "D...", "....", "...."], vec![warp], vec![]);
 
@@ -460,6 +464,7 @@ fn a_wrapping_map_replays_identically() {
         target_map: MapId(0x13),
         target_cell: Cell::new(1, 1),
         facing: Direction::Down,
+        alignment: None,
     };
     let npcs = vec![
         Npc::new(NpcId(1), Cell::new(0, 2), Direction::Down),
@@ -541,4 +546,36 @@ fn a_degenerate_one_cell_world_does_not_panic() {
             .all(|e| matches!(e, Effect::StepCompleted { .. })),
         "stepping onto itself should be an ordinary, if pointless, step"
     );
+}
+
+/// A warp's line-up crosses every seam: each follower steps along the
+/// alignment through the map's own topology (#127).
+#[test]
+fn a_warps_line_up_crosses_the_seams() {
+    let map = open_torus();
+    let mut party = Party::new(
+        &map,
+        Cell::new(1, 1),
+        Direction::Up,
+        StepFrames::default(),
+        3,
+    )
+    .expect("valid party");
+    for (start, toward, expected) in [
+        ((1, 2), Direction::Down, [(1, 3), (1, 0), (1, 1)]),
+        ((1, 1), Direction::Up, [(1, 0), (1, 3), (1, 2)]),
+        ((2, 1), Direction::Right, [(3, 1), (0, 1), (1, 1)]),
+        ((1, 1), Direction::Left, [(0, 1), (3, 1), (2, 1)]),
+    ] {
+        party
+            .enter_map(&map, Cell::new(start.0, start.1), Direction::Up)
+            .expect("valid placement");
+        party.line_up(&map, toward);
+        let cells: Vec<Cell> = party.members()[1..].iter().map(|m| m.cell).collect();
+        assert_eq!(
+            cells,
+            expected.map(|(x, y)| Cell::new(x, y)),
+            "{toward:?} from {start:?}"
+        );
+    }
 }
