@@ -671,11 +671,11 @@ where the first draw missed), and each replays exactly
 (`replay_fixtures/routed_pairs/`):
 
 ```sh
-python3 -m oracle.force --formation 354 --max-rounds 3 --require-ability 33
-python3 -m oracle.force --formation 362 --max-rounds 3 --require-ability 33 --delay 1
-python3 -m oracle.force --event 3 --max-rounds 1 --require-ability 71
-python3 -m oracle.force --event 3 --max-rounds 1 --require-ability 86 --delay 1
-python3 -m oracle.force --event 5 --max-rounds 3 --require-ability 33
+python3 -m oracle.force --out build/forced/stoneheads --formation 354 --max-rounds 3 --require-ability 33
+python3 -m oracle.force --out build/forced/bladeright_d1 --formation 362 --max-rounds 3 --require-ability 33 --delay 1
+python3 -m oracle.force --out build/forced/juza_zan --event 3 --max-rounds 1 --require-ability 71
+python3 -m oracle.force --out build/forced/juza_ff_d1 --event 3 --max-rounds 1 --require-ability 86 --delay 1
+python3 -m oracle.force --out build/forced/gylaguiah --event 5 --max-rounds 3 --require-ability 33
 ```
 
 | ability | carrier | the ability's own action | fixture | outcome |
