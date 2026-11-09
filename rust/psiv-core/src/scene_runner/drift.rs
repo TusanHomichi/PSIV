@@ -174,7 +174,7 @@ impl SceneRunner {
                 .iter_mut()
                 .find(|actor| actor.actor == ActorRef::Npc(npc))
             {
-                actor.cell = super::pixel_cell(at.0, at.1);
+                actor.place_at_pixel(at);
             }
             self.record_npc_pixel(npc, at, effects);
         }

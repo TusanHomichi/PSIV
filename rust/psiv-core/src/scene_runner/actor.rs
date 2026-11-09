@@ -88,6 +88,18 @@ impl ScriptedActor {
         self.cell = Cell::new(clamp(column), clamp(row));
     }
 
+    /// Stands the actor at whole pixel `at` (`curr_x_pos`/`curr_y_pos`'s
+    /// integer words): the cell it falls in, and its offset into that cell
+    /// as the slide, as [`ScriptedActor::slide_by`] leaves a stepped object.
+    /// A drift reports its objects this way every frame, so they glide a
+    /// pixel at a time rather than jumping a cell (#163).
+    pub(crate) fn place_at_pixel(&mut self, at: (i32, i32)) {
+        let cell = super::pixel_cell(at.0, at.1);
+        let origin = crate::trigger::PixelPos::from_cell(cell);
+        self.cell = cell;
+        self.slide = (at.0 - origin.x, at.1 - origin.y);
+    }
+
     /// Whether it still has walking to do.
     #[must_use]
     pub const fn is_walking(&self) -> bool {
