@@ -35,8 +35,8 @@ pub fn decode_record(rom: &[u8], offset: usize) -> Result<Json, String> {
         let at = offset + HEADER_BYTES + index * ENTRY_BYTES;
         let size = rom[at + 1];
         let tile_word = u16::from_be_bytes([rom[at + 2], rom[at + 3]]);
-        let width_tiles = usize::from(size & 0x03) + 1;
-        let height_tiles = usize::from((size >> 2) & 0x03) + 1;
+        let width_tiles = usize::from((size >> 2) & 0x03) + 1;
+        let height_tiles = usize::from(size & 0x03) + 1;
         let tile_index = usize::from(tile_word & 0x07FF);
         let tile_span_end = tile_index + width_tiles * height_tiles;
         entries.push(
@@ -88,7 +88,10 @@ fn pattern_sources(first: i128, last: i128, bank: Option<i128>, plc: &[Json]) ->
                     .with("first_pattern", Json::Int(cursor))
                     .with("pattern_count", Json::Int(stop - cursor))
                     .with("last_pattern_exclusive", Json::Int(stop))
-                    .with("source", "loc_27F3AE bank order Art #3, Art #1, Art #2"),
+                    .with(
+                        "source",
+                        "loc_7BFA Art #1 upload at the fighter sprite-pattern base",
+                    ),
             );
             cursor = stop;
             continue;
@@ -276,6 +279,31 @@ mod tests {
         assert_eq!(value["attributes_valid"], true);
         assert_eq!(value["x"], -4);
         assert_eq!(serde_json::Value::from(&record)["record_end"], "0x000009");
+    }
+
+    #[test]
+    fn non_square_sprite_sizes_keep_vdp_width_and_height_bitfields() {
+        // The SAT size byte puts width in bits 3-2 and height in bits 1-0.
+        for (size, width, height) in [
+            (0x01, 1, 2),
+            (0x04, 2, 1),
+            (0x03, 1, 4),
+            (0x0C, 4, 1),
+            (0x07, 2, 4),
+            (0x0D, 4, 2),
+        ] {
+            let rom = [0, 0, size, 0, 0, 0, 0];
+            let record = decode_record(&rom, 0).unwrap();
+            let entry = serde_json::Value::from(&entries_of(&record)[0]);
+            assert_eq!(
+                (
+                    entry["width_tiles"].as_u64(),
+                    entry["height_tiles"].as_u64()
+                ),
+                (Some(width), Some(height)),
+                "size {size:#04X}"
+            );
+        }
     }
 
     #[test]
