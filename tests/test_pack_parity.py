@@ -259,6 +259,30 @@ class ManifestCase(unittest.TestCase):
             json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         self.assertIn("psiv-pack's sprites.bytes is None", self.problems()[0])
 
+    def test_a_python_file_not_in_pack_form_fails(self):
+        path = self.python / "manifest.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for name, text in (
+                ("no final newline", json.dumps(document, indent=2, sort_keys=True)),
+                ("compact", json.dumps(document, sort_keys=True) + "\n"),
+                ("unsorted", json.dumps(dict(reversed(document.items())), indent=2) + "\n")):
+            with self.subTest(name):
+                path.write_text(text, encoding="utf-8")
+                problems = self.problems()
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn("the Python pack's file is not in the pack JSON form",
+                              problems[0])
+
+    def test_a_total_that_is_not_an_integer_fails(self):
+        for pack, name in ((self.rust, "psiv-pack"), (self.python, "Python")):
+            for value in (float(self.sizes[pack]), str(self.sizes[pack]), True):
+                with self.subTest(name, value=value):
+                    self.write(pack, dialogue__portraits__bytes=value)
+                    problems = self.problems()
+                    self.assertTrue(problems)
+                    self.assertIn(f"{name}'s dialogue.portraits.bytes is {value!r}", problems[0])
+                    self.write(pack)
+
     def test_unreadable_manifest_fails(self):
         (self.rust / "manifest.json").write_text("{", encoding="utf-8")
         self.assertTrue(self.problems()[0].startswith("manifest.json: not JSON"))
@@ -403,20 +427,32 @@ class DecodeCase(unittest.TestCase):
 
 
 class ProgressCase(unittest.TestCase):
-    def test_one_line_per_section_then_installed(self):
-        out = "progress 1/2 sound\nprogress 2/2 maps\ninstalled runtime-pack\n"
-        self.assertEqual(check_progress(out, 2), [])
-        self.assertEqual(check_progress("installed runtime-pack\n", 0), [])
+    NAMES = ["sound", "maps", "manifest"]
+
+    def test_one_line_per_claimed_entry_then_installed(self):
+        out = ("progress 1/3 maps\nprogress 2/3 sound\nprogress 3/3 manifest\n"
+               "installed runtime-pack\n")
+        self.assertEqual(check_progress(out, self.NAMES), [])
+        self.assertEqual(check_progress("installed runtime-pack\n", []), [])
 
     def test_bad_progress_fails(self):
-        for out in ("progress 1/2 sound\nprogress 2/2 maps\n",  # never installed
-                    "progress 1/2 sound\ninstalled p\n",  # a section unreported
-                    "progress 1/3 sound\nprogress 2/3 maps\ninstalled p\n",  # wrong total
-                    "progress 2/2 sound\nprogress 1/2 maps\ninstalled p\n",  # out of order
-                    "progress 1/2 sound\nsound done\nprogress 2/2 maps\ninstalled p\n",
+        for out in ("progress 1/3 sound\nprogress 2/3 maps\nprogress 3/3 manifest\n",  # never installed
+                    # the manifest claimed but not reported: three entries, two lines
+                    "progress 1/2 sound\nprogress 2/2 maps\ninstalled p\n",
+                    "progress 1/3 sound\nprogress 2/3 maps\ninstalled p\n",
+                    "progress 1/4 sound\nprogress 2/4 maps\nprogress 3/4 manifest\n"
+                    "installed p\n",  # wrong total
+                    "progress 2/3 sound\nprogress 1/3 maps\nprogress 3/3 manifest\n"
+                    "installed p\n",  # out of order
+                    "progress 1/3 sound\nprogress 2/3 sound\nprogress 3/3 manifest\n"
+                    "installed p\n",  # a name twice, another missing
+                    "progress 1/3 sound\nprogress 2/3 title\nprogress 3/3 manifest\n"
+                    "installed p\n",  # a name not claimed
+                    "progress 1/3 sound\nsound done\nprogress 2/3 maps\nprogress 3/3 manifest\n"
+                    "installed p\n",
                     ""):
             with self.subTest(out=out):
-                self.assertNotEqual(check_progress(out, 2), [])
+                self.assertNotEqual(check_progress(out, self.NAMES), [])
 
 
 class WrongRomCase(unittest.TestCase):

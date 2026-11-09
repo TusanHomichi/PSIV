@@ -15,15 +15,17 @@
 //! output is the interface the setup screen reads:
 //!
 //! - stdout: `progress <done>/<total> <section>` as each section finishes,
-//!   then `installed <pack>` once the pack is in place;
+//!   then `progress <total>/<total> manifest` once `manifest.json` is
+//!   written ([`build_pack`]), then `installed <pack>` once the pack is in
+//!   place. There is one progress line for each entry `--claims` lists;
 //! - stderr: `psiv-pack: error: <message>` and exit status 2 on any failure,
 //!   with `<pack>` left as it was. A wrong ROM is refused in the Python
 //!   builder's words ([`rom::wrong_rom`]). A problem in the cleanup after the
 //!   new pack is in place is a `psiv-pack: warning: ...` line on stderr, and
 //!   the exit status stays 0.
 //!
-//! `psiv-pack --claims` prints the sections and the pack-relative paths each
-//! claims, as JSON ([`claims`]): a path names a file, a directory and
+//! `psiv-pack --claims` prints the sections, then the manifest, and the
+//! pack-relative paths each claims, as JSON ([`claims`]): a path names a file, a directory and
 //! everything in it, or (`maps/*.png`) the matching files directly in a
 //! directory.
 
@@ -208,7 +210,7 @@ pub fn claims(sections: &[Section]) -> json::Json {
         .collect();
     listed.push(
         json::Json::object()
-            .with("name", "manifest")
+            .with("name", MANIFEST_STEP)
             .with("claims", vec![MANIFEST_NAME]),
     );
     json::Json::object().with("sections", listed)
@@ -301,6 +303,28 @@ fn merge_parts(
         }
     }
     Ok(json::Json::Object(merged))
+}
+
+/// The name the manifest's claim and progress line carry.
+pub const MANIFEST_STEP: &str = "manifest";
+
+/// The whole pack: `sections` on up to `workers` threads, then the manifest
+/// from their parts. `progress(done, total, name)` is called once for every
+/// entry [`claims`] lists, the manifest last, so the two always agree.
+pub fn build_pack(
+    rom: &Rom,
+    root: &Path,
+    sections: &[Section],
+    workers: usize,
+    mut progress: impl FnMut(usize, usize, &str),
+) -> Result<(), PackError> {
+    let total = sections.len() + 1;
+    let parts = build_sections(rom, root, sections, workers, |done, _, name| {
+        progress(done, total, name)
+    })?;
+    write_manifest(rom, root, parts)?;
+    progress(total, total, MANIFEST_STEP);
+    Ok(())
 }
 
 /// `write_manifest`: the sections' parts under the format, the generator and
@@ -495,6 +519,49 @@ mod tests {
         write_file(&root, "e/d.png", &[0; 11]).unwrap();
         assert_eq!(png_census(&root, "d").unwrap(), (2, 8));
         assert!(png_census(&root, "missing").is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_pack_reports_one_progress_line_per_claimed_entry() {
+        let root = scratch("pack");
+        let sections = [
+            Section {
+                name: "a",
+                claims: &["a"],
+                build: ok_a,
+            },
+            Section {
+                name: "b",
+                claims: &["b.bin"],
+                build: ok_b,
+            },
+        ];
+        let mut seen = Vec::new();
+        build_pack(&rom(), &root, &sections, 2, |done, total, name| {
+            seen.push((done, total, name.to_owned()));
+        })
+        .unwrap();
+        let claimed = serde_json::Value::from(&claims(&sections));
+        let names: Vec<&str> = claimed["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(seen.len(), names.len());
+        assert!(seen.iter().all(|s| s.1 == names.len()));
+        assert_eq!(
+            seen.iter().map(|s| s.0).collect::<Vec<_>>(),
+            (1..=names.len()).collect::<Vec<_>>()
+        );
+        let mut printed: Vec<&str> = seen.iter().map(|s| s.2.as_str()).collect();
+        printed.sort_unstable();
+        let mut expected = names.clone();
+        expected.sort_unstable();
+        assert_eq!(printed, expected);
+        assert_eq!(seen.last().unwrap().2, MANIFEST_STEP);
+        assert!(root.join(MANIFEST_NAME).is_file());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
