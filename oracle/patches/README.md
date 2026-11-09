@@ -45,3 +45,26 @@ drains the buffer once per frame and writes them out; `oracle/README.md`
 
 The buffer holds 65,536 records, far more than one frame of HV reads, and the
 host drains it every frame and refuses a capture that dropped any.
+
+## 0002-pc-cycle-trace.patch
+
+Adds an optional observation immediately before opcode fetch in `m68k_run`
+and the main CPU's IRQ-latency dispatch path.
+The host supplies up to 64 distinct even 24-bit PCs. A matching instruction
+appends its PC and the existing `m68k.cycles` value to a 65,536-record buffer;
+overflow increments a saturating dropped counter. No game addresses are
+embedded, and neither recording nor configuration changes emulated cycles,
+registers, memory, interrupt dispatch or instruction execution.
+
+`psiv_pc_trace_configure` returns zero on success and -1 for invalid watches.
+The other exports are `psiv_pc_trace_enable/reset/count/dropped/get`; they use
+the `psiv_*` export rule installed in `libretro/link.T` by patch 0001.
+
+`oracle/host/pc_trace.c` enables recording only when the requested tape frame
+begins and drains it after every subsequent frame. It writes `frame,pc,cycles`
+CSV and refuses missing hooks, lost records, failed reads and output errors.
+The cycle value is the core's **frame-relative master-cycle counter**, sampled
+before opcode fetch and any refresh delay for that instruction. It is not
+68000 clock ticks or host elapsed time. Pair it with the CSV frame: the core
+rebases the counter once per frame and an instruction may overshoot a frame
+boundary. See [the oracle guide](../README.md) for the host interface.

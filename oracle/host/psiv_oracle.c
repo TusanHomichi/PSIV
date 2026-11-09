@@ -28,6 +28,7 @@
 #include "core_vdp.h"
 #include "libretro.h"
 #include "provenance.h"
+#include "pc_trace.h"
 #include "ram_patch.h"
 #include "ram_dump.h"
 #include "rng_trace.h"
@@ -464,6 +465,8 @@ static void usage(void)
 		"                   [--dump-ram <frame>:<path>]\n"
 	        "                   [--dump-state <frame>:<path>]\n"
 	        "                   [--rng-trace <path.csv>]\n"
+	        "                   [--pc-trace <path.csv> --pc-watch <hex> ... "
+	        "[--pc-trace-from <frame>]]\n"
 	        "                   [--cpu-trace]\n"
 	        "                   [--load-sram <path>]\n"
 	        "                   [--build-id]\n");
@@ -476,6 +479,7 @@ int main(int argc, char **argv)
 	const char *dump_frames = NULL, *dump_frames_dir = NULL;
 	const char *load_sram_path = NULL;
 	const char *rng_trace_path = NULL;
+	const char *pc_trace_path = NULL;
 	int probe_endian = 0, cpu_trace = 0;
 	FILE *out = stdout;
 	struct retro_system_info sysinfo;
@@ -530,9 +534,37 @@ int main(int argc, char **argv)
 			load_sram_path = argv[++i];
 		else if (!strcmp(argv[i], "--rng-trace") && i + 1 < argc)
 			rng_trace_path = argv[++i];
+		else if (!strcmp(argv[i], "--pc-trace") && i + 1 < argc) {
+			if (pc_trace_path) {
+				fprintf(stderr, "psiv_oracle: duplicate --pc-trace\n");
+				return 2;
+			}
+			pc_trace_path = argv[++i];
+		}
+		else if (!strcmp(argv[i], "--pc-watch") && i + 1 < argc) {
+			if (pc_trace_add_watch(argv[++i]) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
+				return 2;
+			}
+		}
+		else if (!strcmp(argv[i], "--pc-trace-from") && i + 1 < argc) {
+			if (pc_trace_set_from(argv[++i]) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
+				return 2;
+			}
+		}
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
 		else if (!strcmp(argv[i], "--cpu-trace")) cpu_trace = 1;
 		else { usage(); return 2; }
+	}
+	if (pc_trace_validate(pc_trace_path) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
+		return 2;
+	}
+	if (pc_trace_path && (g_dump_options || probe_endian)) {
+		fprintf(stderr, "psiv_oracle: --pc-trace requires a tape run, "
+		        "not --dump-options or --probe-endian\n");
+		return 2;
 	}
 	if ((dump_frames && !dump_frames_dir) ||
 	    (!dump_frames && dump_frames_dir)) {
@@ -747,6 +779,12 @@ int main(int argc, char **argv)
 		fprintf(stderr, "psiv_oracle: %s\n", ram_patch_error());
 		return 2;
 	}
+	if (pc_trace_path &&
+	    (pc_trace_validate_total(psiv_tape_total_frames()) != 0 ||
+	     pc_trace_begin(g_core, pc_trace_path) != 0)) {
+		fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
+		return 2;
+	}
 
 	if (out_path) {
 		out = fopen(out_path, "w");
@@ -771,6 +809,8 @@ int main(int argc, char **argv)
 	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
 	if (rng_trace_enabled())
 		fprintf(out, "# rng-trace=%s\n", path_basename(rng_trace_path));
+	if (pc_trace_enabled())
+		fprintf(out, "# pc-trace=%s\n", path_basename(pc_trace_path));
 	fprintf(out, "frame,mark,buttons");
 	if (cpu_trace) {
 		fprintf(out, ",cpu_pc,cpu_sp,cpu_d0,cpu_d7");
@@ -796,8 +836,14 @@ int main(int argc, char **argv)
 				count_before = ram_u16(g_rng_frame_count_addr);
 			}
 			frame_dump_begin_frame(frame + 1);
+			pc_trace_prepare_frame(frame + 1);
 			rt_run();
 			frame++;
+			if (pc_trace_frame(frame) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
+				pc_trace_finish();
+				return 1;
+			}
 			if (rng_trace_enabled() &&
 			    rng_trace_frame(frame, seed_before, count_before,
 			                    ram_u32(g_rng_seed_addr),
@@ -875,6 +921,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
 	if (rng_trace_enabled() && rng_trace_finish() != 0) {
 		fprintf(stderr, "psiv_oracle: %s\n", rng_trace_error());
+		frame_dump_status = 1;
+	}
+	if (pc_trace_enabled() && pc_trace_finish() != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", pc_trace_error());
 		frame_dump_status = 1;
 	}
 	if (out != stdout)

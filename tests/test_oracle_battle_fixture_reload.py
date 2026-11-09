@@ -2,9 +2,10 @@
 
     PYTHONPATH=. python3 -m unittest tests.test_oracle_battle_fixture_reload -v
 
-Two groups. The table cases need only the repository: the Rust table parses,
-is sorted, and names exactly the maps the pack has; the maps whose row is a
-first-load proxy are listed. The oracle cases re-measure forced fixtures;
+The table cases need only the repository: the Rust table parses, is sorted,
+and names exactly the maps the pack has; first-load proxies are listed.
+PC trace probes compile the observer and exercise its transport without a ROM.
+The oracle cases re-measure forced fixtures;
 they do not replay the organic captures and skip with a
 message when the ROM, the emulation core or the pack is absent.
 """
@@ -14,7 +15,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -22,6 +25,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from oracle import reload_frames
+from tests import scratch_git
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = ROOT / "rust/psiv-core/src/scenes/field_reload.rs"
@@ -154,6 +158,97 @@ class MethodCase(unittest.TestCase):
                 if (attempt / "stdout.log").read_bytes() == b"host output":
                     self.assertTrue((attempt / "frames.csv").is_file())
             self.assertEqual(sorted(statuses), [0, 0, 0, 0, 0, 0, 7])
+
+
+class PatchBytesCase(unittest.TestCase):
+    @staticmethod
+    def staged_patch(attributes):
+        # A fresh mixed-EOL patch must survive Git's first add, not merely an
+        # already committed legacy patch that text=auto leaves alone.
+        raw = b"--- a/probe.c\n+++ b/probe.c\n@@ -1 +1 @@\n-old\r\n+new\r\n"
+        with tempfile.TemporaryDirectory() as scratch:
+            root = scratch_git.init(scratch)
+            (root / ".gitattributes").write_text(attributes)
+            relative = "oracle/patches/probe.patch"
+            (root / relative).parent.mkdir(parents=True)
+            (root / relative).write_bytes(raw)
+            subprocess.run(["git", "-C", str(root), "add", relative],
+                           check=True, capture_output=True)
+            staged = subprocess.check_output(["git", "-C", str(root), "show", f":{relative}"])
+        return raw, staged
+
+    def test_new_core_patches_keep_their_exact_upstream_bytes(self):
+        raw, staged = self.staged_patch((ROOT / ".gitattributes").read_text())
+        self.assertEqual(staged, raw)
+
+    def test_negative_control_normalization_changes_the_patch_payload(self):
+        attributes = "\n".join(line for line in (ROOT / ".gitattributes").read_text().splitlines()
+                               if not line.startswith("oracle/patches/"))
+        raw, staged = self.staged_patch(attributes)
+        self.assertNotEqual(staged, raw)
+
+
+@unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("gcc"),
+                     "Linux oracle hook probes need gcc")
+class PcTraceCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.scratch.name)
+        cls.binary = cls.root / "probe"
+        subprocess.run(["gcc", "-Wall", "-Wextra", "-Werror", "-rdynamic",
+                        "-I", str(ROOT / "oracle/host"),
+                        str(ROOT / "tests/fixtures/pc_trace_probe.c"),
+                        str(ROOT / "oracle/host/pc_trace.c"), "-ldl",
+                        "-o", str(cls.binary)], check=True, capture_output=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.scratch.cleanup()
+
+    def run_probe(self, mode="capture", watch="051790", start="3", path=None):
+        path = str(path if path is not None else self.root / f"{mode}.csv")
+        return subprocess.run([str(self.binary), mode, path, watch, start],
+                              capture_output=True, text=True)
+
+    def test_trace_records_instruction_cycles_only_from_requested_frame(self):
+        result = self.run_probe()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([line for line in (self.root / "capture.csv").read_text().splitlines()
+                          if not line.startswith("#")],
+                         ["frame,pc,cycles", "3,051790,100", "3,051790,200"])
+
+    def test_incomplete_captures_fail_instead_of_looking_exact(self):
+        for mode in ("drop", "badget", "missing"):
+            with self.subTest(mode=mode):
+                result = self.run_probe(mode)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(result.stderr.strip())
+        if Path("/dev/full").exists():
+            result = self.run_probe(path="/dev/full")
+            self.assertNotEqual(result.returncode, 0, "buffered output errors must fail")
+
+    def test_invalid_trace_configuration_is_rejected(self):
+        for watch, start, path in [("-", "3", None), ("051791", "3", None),
+                                   ("1000000", "3", None), ("junk", "3", None),
+                                   ("051790", "0", None), ("051790", "-1", None),
+                                   ("051790", "3", "-")]:
+            with self.subTest(watch=watch, start=start, path=path):
+                self.assertNotEqual(self.run_probe("config", watch, start, path).returncode, 0)
+        self.assertNotEqual(self.run_probe("short").returncode, 0)
+
+    def test_core_buffer_reports_loss_without_mutating_cpu_state(self):
+        # Compile the observer's actual added C, not a second implementation.
+        patch_text = (ROOT / "oracle/patches/0002-pc-cycle-trace.patch").read_text()
+        added = "\n".join(line[1:] for line in patch_text.splitlines()
+                          if line.startswith("+") and not line.startswith("+++"))
+        observer = re.split(r"\n\s+if \(psiv_pc_trace_on\)", added, maxsplit=1)[0]
+        (self.root / "core_observer.h").write_text(observer)
+        binary = self.root / "core-probe"
+        subprocess.run(["gcc", "-Wall", "-Wextra", "-Werror", "-I", str(self.root),
+                        str(ROOT / "tests/fixtures/pc_trace_core_probe.c"),
+                        "-o", str(binary)], check=True, capture_output=True)
+        subprocess.run([str(binary)], check=True, capture_output=True)
 
 
 class OracleCase(unittest.TestCase):

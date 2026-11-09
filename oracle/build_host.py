@@ -47,6 +47,7 @@ SOURCES = (
     "ram_dump.c",
     "core_vdp.c",
     "rng_trace.c",
+    "pc_trace.c",
     "state_dump.c",
     "tape.c",
 )
