@@ -29,7 +29,7 @@ fn retail_plane_scroll_offset() -> Vector2 {
 impl CutsceneLayer {
     /// Draws the panels the last `DmaPlanes` made visible.
     pub(super) fn draw_planes(&mut self) {
-        let visible = self.visible.clone();
+        let visible = self.panels.visible.clone();
         for id in visible {
             let live = self.live_panel(id);
             if let Some(texture) = live.or_else(|| self.textures.get(&id).cloned()) {
@@ -49,7 +49,7 @@ impl CutsceneLayer {
 
     /// The live palette changed: redraw any visible panel in it.
     pub(crate) fn palette_changed(&mut self) {
-        if !self.visible.is_empty() {
+        if !self.panels.visible.is_empty() {
             self.base_mut().queue_redraw();
         }
     }
@@ -74,27 +74,17 @@ impl CutsceneLayer {
 
     pub(crate) fn panel_create(&mut self, id: u16) {
         if self.textures.contains_key(&id) {
-            self.staged.push(id);
+            self.panels.staged.push(id);
             godot_print!("scene panel staged: {id:#05x}");
         } else {
             godot_error!("scene panel {id:#05x} is not decoded in the runtime pack");
         }
     }
 
-    pub(crate) fn panel_destroy(&mut self, id: u16) {
-        if let Some(actual) = self.staged.pop()
-            && actual != id
-        {
-            godot_warn!(
-                "Panel_Destroy({id:#05x}) popped staged panel {actual:#05x}; retail allocator is stack based"
-            );
-        }
-        godot_print!("scene panel destroyed: {id:#05x}");
-    }
-
     pub(crate) fn panel_destroy_last(&mut self) {
-        if let Some(id) = self.staged.pop() {
-            godot_print!("scene panel destroyed: last {id:#05x}");
+        match self.panels.pop() {
+            Some(id) => godot_print!("scene panel destroyed: last {id:#05x}"),
+            None => godot_warn!("Panel_Destroy stack underflow: no staged panel"),
         }
     }
 
@@ -113,8 +103,7 @@ impl CutsceneLayer {
     }
 
     pub(crate) fn panel_destroy_all(&mut self) {
-        self.staged.clear();
-        self.visible.clear();
+        self.panels.clear();
         let opening_visible = self.opening_visible;
         let generic_window_visible = self.generic_window_visible;
         self.base_mut()
@@ -124,12 +113,15 @@ impl CutsceneLayer {
     }
 
     pub(crate) fn dma_planes(&mut self) {
-        self.visible.clone_from(&self.staged);
+        self.panels.dma();
         let visible =
-            self.opening_visible || self.generic_window_visible || !self.visible.is_empty();
+            self.opening_visible || self.generic_window_visible || !self.panels.visible.is_empty();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
-        godot_print!("scene DMA planes: {} visible panel(s)", self.visible.len());
+        godot_print!(
+            "scene DMA planes: {} visible panel(s)",
+            self.panels.visible.len()
+        );
     }
 
     /// Draws the red-palette overlay while `red_flash` frames remain.

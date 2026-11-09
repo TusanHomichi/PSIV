@@ -299,7 +299,7 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
         SceneOp::Wait { ticks: 120 },
         SceneOp::PlaySound { id: SFX_DEBAN },
         SceneOp::Wait { ticks: 40 },
-        SceneOp::PanelDestroy { id: 0x10D },
+        SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::LoadArt {
             rom_addr: 0x001D_712C,

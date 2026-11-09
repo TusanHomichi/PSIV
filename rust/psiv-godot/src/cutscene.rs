@@ -15,6 +15,7 @@
 mod manifest;
 mod opening;
 mod ops;
+mod panel_stack;
 mod panels;
 mod state;
 mod window;
@@ -55,8 +56,7 @@ pub(crate) struct CutsceneLayer {
     /// The field's live palette; `None` until the field hands it over.
     cram: Option<SharedCram>,
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
-    staged: Vec<u16>,
-    visible: Vec<u16>,
+    panels: panel_stack::PanelStack,
     opening_background: Option<Gd<ImageTexture>>,
     /// Oracle-measured top of the narration image band, from the pack
     /// manifest (`presentation/panels.json`, `opening_background.screen_y`).
@@ -81,8 +81,7 @@ impl INode2D for CutsceneLayer {
             panel_art: BTreeMap::new(),
             cram: None,
             temporary_assets: BTreeMap::new(),
-            staged: Vec::new(),
-            visible: Vec::new(),
+            panels: panel_stack::PanelStack::default(),
             opening_background: None,
             opening_screen_y: 40.0,
             opening_visible: false,

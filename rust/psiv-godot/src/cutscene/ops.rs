@@ -107,11 +107,6 @@ impl Field {
                     layer.bind_mut().panel_create(id);
                 }
             }
-            SceneOp::PanelDestroy { id } => {
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind_mut().panel_destroy(id);
-                }
-            }
             SceneOp::PanelDestroyLast => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_destroy_last();
