@@ -42,9 +42,9 @@ fn stats() -> Stats {
     }
 }
 
-const CHAZ: u8 = 0;
+pub(super) const CHAZ: u8 = 0;
 const HAHN: u8 = 2;
-const RUNE: u8 = 3;
+pub(super) const RUNE: u8 = 3;
 const GRYZ: u8 = 4;
 const RIKA: u8 = 5;
 const DEMI: u8 = 6;
@@ -54,7 +54,7 @@ const KYRA: u8 = 9;
 const SETH: u8 = 10;
 
 /// A party of `members` in slot order, each with a roster seat.
-fn state_with(members: &[u8]) -> GameState {
+pub(super) fn state_with(members: &[u8]) -> GameState {
     let mut state = GameState::default();
     let mut slots = [None; PARTY_SLOTS];
     for (slot, &id) in members.iter().enumerate() {
@@ -72,7 +72,7 @@ fn cast_at(members: usize, at: Cell) -> Vec<ScriptedActor> {
         .collect()
 }
 
-fn big_map() -> FieldMap {
+pub(super) fn big_map() -> FieldMap {
     FieldMap::new(
         MapId(0xCA),
         CollisionGrid::filled(96, 96, 0).unwrap(),
@@ -592,7 +592,7 @@ fn a_ride_that_ends_between_cells_is_a_fault_not_a_stranded_party() {
 /// A layout whose belt chunks (`first..=last`, cycled through to mimic the
 /// belts' animation) fill the chunk rectangle `cols x rows`, with chunk `0`
 /// everywhere else. The probe reads a pixel as `GetChunkAndCollision` does.
-fn belt_layout(
+pub(super) fn belt_layout(
     cols: std::ops::RangeInclusive<i32>,
     rows: std::ops::RangeInclusive<i32>,
     first: u16,

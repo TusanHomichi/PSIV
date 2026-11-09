@@ -56,7 +56,13 @@ impl Field {
             .camp_menu
             .as_ref()
             .is_some_and(|menu| menu.bind().is_open() && !menu.bind().is_loot());
-        if sequence != self.party_sequence {
+        // A paralysed or dead member, or one a conveyor belt carries, holds
+        // its sequence's first frame (`FieldObj_UpdateStatus`); it starts
+        // the sequence over when it thaws.
+        let frozen: Vec<bool> = (0..psiv_core::PARTY_SLOTS)
+            .map(|slot| runtime.member_walk_frozen(slot))
+            .collect();
+        if sequence != self.party_sequence || frozen[0] {
             self.party_sequence = sequence;
             self.party_seq_start = self.anim_tick;
         }
@@ -189,7 +195,7 @@ impl Field {
             };
             let (node, seq, start) = &mut self.follower_nodes[idx];
             let name = sequence_name(draw.kind, draw.facing);
-            if *seq != name {
+            if *seq != name || frozen.get(idx + 1).copied().unwrap_or(false) {
                 *seq = name;
                 *start = self.anim_tick;
             }

@@ -47,6 +47,6 @@ mod player_abilities;
 mod presentation_order;
 mod progression;
 mod retail_boundaries;
-mod save;
+pub(crate) mod save;
 mod talk_repro;
 mod visibility;
