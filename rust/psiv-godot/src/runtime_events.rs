@@ -291,10 +291,9 @@ impl Field {
                 // released the action, so this is the log line only.
                 godot_print!("dialogue action: SetEventFlag({flag:#04x})");
             }
+            // The runtime's CRAM model runs the tone and its way back; the
+            // panels, window and backdrop draw them from it.
             DialogueAction::ElsydeonBroken => {
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind_mut().red_flash(12);
-                }
                 godot_print!("dialogue action: ElsydeonBroken");
             }
         }

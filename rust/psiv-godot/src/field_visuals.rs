@@ -397,6 +397,17 @@ impl Field {
             if let Some(layer) = self.cutscene_layer.as_mut() {
                 layer.bind_mut().palette_changed();
             }
+            // The VDP's backdrop is CRAM word 0 (register 7 `$8700`: palette
+            // 0, colour 0, `ps4.asm:86053`): it shows wherever no plane or
+            // sprite pixel does, so a tone or a fade reaches it too. With no
+            // live palette it stays the project's black.
+            let [r, g, b] = if live {
+                psiv_data::color::cram_rgb(view.words[0])
+            } else {
+                [0, 0, 0]
+            };
+            godot::classes::RenderingServer::singleton()
+                .set_default_clear_color(Color::from_rgba8(r, g, b, 255));
             // The window's art is baked in line 2's `Pal_Init_Line_3`
             // colours; with no live palette it draws them as baked.
             let baked = runtime

@@ -46,6 +46,7 @@ mod tests;
 #[cfg(test)]
 mod tests_corpus;
 
+pub(crate) use text_flow::ELSYDEON_BROKEN_FRAMES;
 pub use text_flow::{DialogueAction, Opening, TextFlow};
 pub use view::{DialogueChoiceView, DialogueView};
 

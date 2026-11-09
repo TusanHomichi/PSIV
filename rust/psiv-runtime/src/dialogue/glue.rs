@@ -155,8 +155,18 @@ impl Runtime {
     /// to the palette as a scene panel's do.
     fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
         for signal in signals {
-            if let DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) = signal {
-                self.effects.cram.panel(*id, self.data.scene_palettes());
+            match signal {
+                DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {
+                    self.effects.cram.panel(*id, self.data.scene_palettes());
+                }
+                // The Elsydeon breaking: a tone to white and back, on every
+                // line, while the text waits (`TextFlow`'s hold).
+                DialogueSignal::Action(super::DialogueAction::ElsydeonBroken) => {
+                    self.effects
+                        .cram
+                        .tone_and_back(super::ELSYDEON_BROKEN_FRAMES, self.frames);
+                }
+                _ => {}
             }
         }
     }

@@ -30,6 +30,9 @@ pub enum Opening {
     Silent,
 }
 
+/// Frames of each of `TextAction_ElsydeonBroken`'s two loops (`moveq #$13, d7`).
+pub(crate) const ELSYDEON_BROKEN_FRAMES: u16 = 20;
+
 /// One retail `$F2` action, released when the typewriter reaches its byte
 /// position. Payload-bearing variants keep the decoder's word/byte widths;
 /// the runtime applies `SetEventFlag` to [`GameState`] itself, and the
@@ -555,6 +558,11 @@ impl TextFlow {
                     ActionKind::ElsydeonBroken => Some(DialogueAction::ElsydeonBroken),
                 };
                 if let Some(action) = action {
+                    // `TextAction_ElsydeonBroken` runs its two loops inside
+                    // `RunText`: the text waits for both.
+                    if action == DialogueAction::ElsydeonBroken {
+                        self.hold = 2 * ELSYDEON_BROKEN_FRAMES;
+                    }
                     self.pending_action = Some(action);
                     true
                 } else {
