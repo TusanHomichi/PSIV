@@ -105,6 +105,15 @@ than silently treated as enemy-bank holes. Across the per-enemy graph evidence,
 exactly. The duplicated load count is intentional because shared object
 graphs are recorded for each enemy record.
 
+Each mapping frame retains a canonical indexed PNG and mandatory low/high
+priority surfaces on one shared canvas and pivot. Opaque pixels claim their
+SAT position before priority is split: an earlier low-priority sprite hides
+an overlapping later high-priority sprite, while transparent colour zero
+claims nothing (`make_lut_bgobj`, `make_lut_obj` in the pinned GPGX renderer).
+Godot places the low surface above the enemy's low-priority plane and below
+the party's high-priority plane, and the high surface above the party.
+An art pack without the priority surfaces is rejected with a rebuild message.
+
 Exact PNGs are emitted under `battle/art/enemy_attacks/`, rendered from the
 ROM for 121 records. The 16 receipt-backed routine bodies (32 records) ship
 no attack frames and are `deferred` in the art index (#214): their oracle

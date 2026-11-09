@@ -30,11 +30,13 @@ pub(super) struct EnemyAttackState {
     elapsed: u16,
     frame_durations: Vec<u8>,
     frames: Vec<Gd<ImageTexture>>,
+    high_frames: Vec<Gd<ImageTexture>>,
     /// The sprite layer an attack with a proven sheet draws its frames on,
     /// parented to the enemy's node. A flash-only attack has none: it only
     /// tints the body (#92: it once allocated a layer it never parented or
     /// freed, one orphan node per flash attack).
     layer: Option<Gd<Sprite2D>>,
+    high_layer: Option<Gd<Sprite2D>>,
     origin_pixels: Vector2i,
     initial_offset_pixels: Vector2i,
     step_pixels: Vector2i,
@@ -61,24 +63,35 @@ impl EnemySprite {
             })
             && frame_count > 0
             && usize::from(frame_count) == spec.frames.len()
+            && spec.frames.len() == spec.high_frames.len()
             && frame_durations.len() == spec.frames.len()
             && frame_durations.iter().all(|duration| *duration > 0)
         {
             let mut layer = Sprite2D::new_alloc();
             layer.set_centered(false);
-            layer.set_z_index(1);
+            // Low-priority sprite pixels cover the low-priority enemy plane,
+            // but the later party plane (priority bit set) covers them.
+            layer.set_z_index(0);
             layer.set_texture(&spec.frames[0]);
             layer.set_position(Vector2::new(
                 (spec.origin_pixels.x + spec.initial_offset_pixels.x) as f32,
                 (spec.origin_pixels.y + spec.initial_offset_pixels.y) as f32,
             ));
             self.node.add_child(&layer);
+            let mut high_layer = Sprite2D::new_alloc();
+            high_layer.set_centered(false);
+            high_layer.set_z_index(1);
+            high_layer.set_texture(&spec.high_frames[0]);
+            high_layer.set_position(layer.get_position());
+            self.node.add_child(&high_layer);
             self.attack = Some(EnemyAttackState {
                 id,
                 elapsed: 0,
                 frame_durations,
                 frames: spec.frames,
+                high_frames: spec.high_frames,
                 layer: Some(layer),
+                high_layer: Some(high_layer),
                 origin_pixels: spec.origin_pixels,
                 initial_offset_pixels: spec.initial_offset_pixels,
                 step_pixels: spec.step_pixels,
@@ -94,7 +107,9 @@ impl EnemySprite {
                 elapsed: 0,
                 frame_durations: vec![1],
                 frames: Vec::new(),
+                high_frames: Vec::new(),
                 layer: None,
+                high_layer: None,
                 origin_pixels: Vector2i::ZERO,
                 initial_offset_pixels: Vector2i::ZERO,
                 step_pixels: Vector2i::ZERO,
@@ -134,6 +149,10 @@ impl EnemySprite {
                 (attack.origin_pixels.x + offset.x) as f32,
                 (attack.origin_pixels.y + offset.y) as f32,
             ));
+            if let Some(high_layer) = attack.high_layer.as_mut() {
+                high_layer.set_texture(&attack.high_frames[frame]);
+                high_layer.set_position(layer.get_position());
+            }
         }
     }
 
@@ -141,7 +160,7 @@ impl EnemySprite {
     /// (`BattleScreen::debug_menu`): `attack` is `null` between attacks,
     /// `"sheet"` while a sheet layer draws and `"flash"` while the body is only
     /// tinted; `tint` is the body's `self_modulate` as 8-bit RGBA and
-    /// `children` its child count (a sheet layer is one child; the flash
+    /// `children` its child count (a sheet uses two priority children; the flash
     /// branch adds none). `tools/verify_native_flash_attack.py` reads it.
     pub(super) fn debug_attack(&self) -> serde_json::Value {
         let attack = self.attack.as_ref().map(|attack| {
@@ -163,8 +182,10 @@ impl EnemySprite {
     }
 
     pub(super) fn clear_attack(&mut self) {
-        if let Some(mut layer) = self.attack.take().and_then(|attack| attack.layer) {
-            layer.queue_free();
+        if let Some(attack) = self.attack.take() {
+            for mut layer in [attack.layer, attack.high_layer].into_iter().flatten() {
+                layer.queue_free();
+            }
         }
         self.node
             .set_self_modulate(Color::from_rgba8(255, 255, 255, 255));

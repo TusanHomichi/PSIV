@@ -97,9 +97,11 @@ def _render_attack_mapping(
     canvas: tuple[int, int, int, int],
     pivot: tuple[int, int],
     palette: list[tuple[int, int, int]],
+    priority: bool | None = None,
 ) -> bytes:
     min_x, min_y, width, height = canvas
     pixels = bytearray(width * height)
+    occupied = bytearray(width * height)
     if record.get("hidden"):
         return png.encode_indexed(width, height, pixels, palette, (0,))
     pivot_x, pivot_y = pivot
@@ -117,8 +119,14 @@ def _render_attack_mapping(
                 tile_col, pixel_x = divmod(source_x, 8)
                 tile = tiles[vdp_pattern(tile_index, tile_col, tile_row, height_tiles)]
                 pixel = tile[pixel_y * 8 + pixel_x]
-                if pixel:
-                    pixels[(sprite_y + y) * width + sprite_x + x] = pixel
+                target = (sprite_y + y) * width + sprite_x + x
+                # SAT order wins before sprite/plane priority is considered
+                # (GPGX make_lut_bgobj/make_lut_obj). A later high-priority
+                # sprite cannot replace an earlier opaque low-priority one.
+                if pixel and not occupied[target]:
+                    occupied[target] = 1
+                    if priority is None or bool(entry.get("priority", False)) == priority:
+                        pixels[target] = pixel
     return png.encode_indexed(width, height, pixels, palette, (0,))
 
 
@@ -231,19 +239,20 @@ def emit_enemy_attack_art(
         palette = enemy_palette(rom, enemy_id)
         durations = animation["frame_sequence"]["frame_durations"]
         for frame_index, record in enumerate(animation["frame_sequence"]["mapping_records"]):
-            image = _render_attack_mapping(tiles, record, canvas, pivot, palette)
-            name = f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_frame{frame_index:02d}.png"
-            relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{name}"
-            (directory / relative).write_bytes(image)
-            total_bytes += len(image)
-            png_count += 1
-            entry["frames"].append({
-                "index": frame_index,
-                "mapping_rom_offset": record["rom_offset"],
-                "png": relative,
-                "png_sha256": png.image_sha256(image),
-                "duration": durations[frame_index],
-            })
+            stem = f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_frame{frame_index:02d}"
+            frame = {"index": frame_index, "mapping_rom_offset": record["rom_offset"],
+                     "duration": durations[frame_index]}
+            for key, suffix, priority in [("png", "", None),
+                                          ("low_priority_png", "_low", False),
+                                          ("high_priority_png", "_high", True)]:
+                image = _render_attack_mapping(tiles, record, canvas, pivot, palette, priority)
+                relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{stem}{suffix}.png"
+                (directory / relative).write_bytes(image)
+                total_bytes += len(image)
+                png_count += 1
+                frame[key] = relative
+                frame[f"{key}_sha256"] = png.image_sha256(image)
+            entry["frames"].append(frame)
         entry.update({
             "origin_pixels": [canvas[0], canvas[1]],
             "width_pixels": canvas[2],
@@ -291,7 +300,8 @@ def emit_enemy_attack_art(
             "exact": sum(entry["status"] == "exact" for entry in entries),
             "partial": sum(entry["status"] == "partial" for entry in entries),
             "deferred": sum(entry["status"] == "deferred" for entry in entries),
-            "frames": png_count,
+            "frames": sum(len(entry["frames"]) for entry in entries),
+            "priority_pngs": png_count * 2 // 3,
         },
         "enemies": entries,
     }, total_bytes, png_count

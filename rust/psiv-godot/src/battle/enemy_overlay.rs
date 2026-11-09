@@ -84,7 +84,8 @@ pub(super) struct EnemyAttackRuntimeMotion {
 #[derive(Clone, Deserialize)]
 pub(super) struct EnemyAttackFrameFile {
     pub(super) index: usize,
-    pub(super) png: String,
+    pub(super) low_priority_png: String,
+    pub(super) high_priority_png: String,
     pub(super) duration: u8,
 }
 
@@ -111,6 +112,7 @@ pub(super) struct AnimationPiece {
 #[derive(Clone)]
 pub(super) struct AttackAnimation {
     pub(super) frames: Vec<Gd<ImageTexture>>,
+    pub(super) high_frames: Vec<Gd<ImageTexture>>,
     pub(super) origin_pixels: Vector2i,
     pub(super) initial_offset_pixels: Vector2i,
     pub(super) step_pixels: Vector2i,
@@ -277,7 +279,22 @@ fn clock_at_phase(frame_count: usize, durations: &[u8], phase: usize) -> (usize,
 
 #[cfg(test)]
 mod tests {
-    use super::{advance_clock, clock_at_phase};
+    use super::{EnemyAttackFrameFile, advance_clock, clock_at_phase};
+
+    #[test]
+    fn attack_frames_require_both_priority_surfaces() {
+        let old = r#"{"index":0,"png":"canonical.png","duration":2}"#;
+        let error = serde_json::from_str::<EnemyAttackFrameFile>(old)
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("low_priority_png"));
+        let current = r#"{"index":0,"png":"canonical.png","low_priority_png":"low.png","high_priority_png":"high.png","duration":2}"#;
+        let frame = serde_json::from_str::<EnemyAttackFrameFile>(current).unwrap();
+        assert_eq!(frame.low_priority_png, "low.png");
+        assert_eq!(frame.high_priority_png, "high.png");
+        let missing_high = r#"{"index":0,"low_priority_png":"low.png","duration":2}"#;
+        assert!(serde_json::from_str::<EnemyAttackFrameFile>(missing_high).is_err());
+    }
 
     #[test]
     fn zero_phase_preserves_the_initial_frame() {

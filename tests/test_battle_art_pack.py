@@ -259,7 +259,9 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertEqual(files["count"], 153)
         # 1,355 before #214, less the 395 receipt frames (16 bodies, 32
         # enemy records) that were copies of oracle captures.
-        self.assertEqual(files["png_count"], 960)
+        self.assertEqual(self.attacks["census"]["frames"], 960)
+        # Each timed frame retains the canonical image and two priority surfaces.
+        self.assertEqual(files["png_count"], 960 * 3)
         by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
         for enemy_id in (2, 24, 39, 149):
             with self.subTest(enemy_id=enemy_id):
@@ -267,10 +269,9 @@ class TestEmittedFiles(unittest.TestCase):
                 self.assertEqual(entry["status"], "exact")
                 self.assertTrue(entry["frames"])
                 for frame in entry["frames"]:
-                    image = (self.root / frame["png"]).read_bytes()
-                    self.assertEqual(
-                        frame["png_sha256"], png.image_sha256(image)
-                    )
+                    for key in ("png", "low_priority_png", "high_priority_png"):
+                        image = (self.root / frame[key]).read_bytes()
+                        self.assertEqual(frame[f"{key}_sha256"], png.image_sha256(image))
         worker = by_id[24]
         self.assertTrue(any(source["field"] == "attack_plc" for source in worker["art"]))
         self.assertEqual(by_id[130]["status"], "exact")

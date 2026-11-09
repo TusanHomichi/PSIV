@@ -263,6 +263,16 @@ init and freeze signatures before emitting its strike contract. Attack mappings
 address the Art #1 upload at the fighter's sprite-pattern base (`loc_7BFA`,
 `loc_12618`), independently of the body's Art #3/overlay staging bank.
 
+The capture selector reads the previous rendered viewport. The fixture starts
+and drives its first Session frame at tick 30; three 36-frame defend beats
+put attack age zero in tick 137's render. Thus shots 139, 140 and 147 observe
+ages 1, 2 and 9, compared to displayed oracle frames 25370, 25371 and 25378.
+The earlier pins were one shot tick early; the runtime ages themselves do
+not change. The strike's SAT words `$427B`/`$427D` have priority clear, while
+Alys's plane words such as `$E189` have it set, so she covers the low-priority
+starburst. Attack art preserves both priority surfaces rather than raising
+the whole sprite layer above the party.
+
 The strike fixture also supplies the displaced target's horizontal pivot and
 the frozen overlay pose through the runtime view. The full windup, target
 reaction and overlay release are a separate gap:

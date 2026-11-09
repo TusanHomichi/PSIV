@@ -134,7 +134,10 @@ impl BattleArt {
     pub(crate) fn load(pack_dir: &str) -> Result<BattleArt, String> {
         let enemy_file: EnemyFile = read_json(pack_dir, "battle/art/enemies.json")?;
         let overlay_file: EnemyOverlayFile = read_json(pack_dir, "battle/art/enemy_overlays.json")?;
-        let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")?;
+        let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")
+            .map_err(|error| {
+                format!("{error}; rebuild runtime pack for attack priority surfaces")
+            })?;
         let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
         let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
         let fusion = psiv_data::FusionArt::load(Path::new(pack_dir)).map_err(|e| e.to_string())?;
@@ -370,14 +373,28 @@ impl BattleArt {
             return None;
         };
         let mut textures = Vec::with_capacity(entry.frames.len());
+        let mut high_textures = Vec::with_capacity(entry.frames.len());
         for (expected_index, frame) in entry.frames.iter().enumerate() {
             if frame.index != expected_index || frame.duration == 0 {
                 godot_error!("battle enemy {enemy_id} attack frame index/timing is malformed");
                 return None;
             }
-            let image =
-                self.enemy_image_with_palette(pack_dir, art, &frame.png, position, Some(entry))?;
+            let image = self.enemy_image_with_palette(
+                pack_dir,
+                art,
+                &frame.low_priority_png,
+                position,
+                Some(entry),
+            )?;
             textures.push(ImageTexture::create_from_image(&image)?);
+            let high = self.enemy_image_with_palette(
+                pack_dir,
+                art,
+                &frame.high_priority_png,
+                position,
+                Some(entry),
+            )?;
+            high_textures.push(ImageTexture::create_from_image(&high)?);
         }
         let runtime = &entry.movement.runtime;
         let initial = if entry.movement.status == "exact" {
@@ -388,6 +405,7 @@ impl BattleArt {
         let _motion_kind = runtime.kind.as_str();
         Some(Some(AttackAnimation {
             frames: textures,
+            high_frames: high_textures,
             origin_pixels: Vector2i::new(origin[0], origin[1]),
             initial_offset_pixels: Vector2i::new(initial[0], initial[1]),
             step_pixels: Vector2i::new(runtime.step_pixels[0], runtime.step_pixels[1]),

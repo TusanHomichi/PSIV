@@ -34,3 +34,32 @@ class TestAttackMapping(unittest.TestCase):
         _, _, flipped = png_pixels(image)
         self.assertEqual([flipped[y * width + x] for y in [0, 8, 16] for x in [0, 8]],
                          [6, 3, 5, 2, 4, 1])
+
+    def test_sat_order_wins_before_priority_partition_and_transparency_does_not_claim(self):
+        from psiv_tools.battle_animation_art import _render_attack_mapping
+        front = bytearray([1] * 64)
+        front[0] = 0
+        tiles = [bytes(front), bytes([2] * 64)]
+        palette = [(index, 0, 0) for index in range(16)]
+        palette[1] = (0, 0, 0)  # Opaque index 1 still owns its pixels, even when RGB is black.
+        for first_priority in (False, True):
+            entries = [{"tile_index": index, "width_tiles": 1, "height_tiles": 1,
+                        "h_flip": False, "v_flip": False, "x": 0, "y": 0,
+                        "priority": priority}
+                       for index, priority in [(0, first_priority), (1, not first_priority)]]
+            record = {"entries": entries}
+            def pixels(priority):
+                args = (tiles, record, (0, 0, 8, 8), (0, 0), palette)
+                image = _render_attack_mapping(*args) if priority is None else _render_attack_mapping(*args, priority)
+                return png_pixels(image)[2]
+            with self.subTest(first_priority=first_priority):
+                # The existing canonical-render API must get SAT ownership
+                # right, independently of the newly added split surfaces.
+                combined = pixels(None)
+                self.assertEqual(list(combined), [2] + [1] * 63)
+                low, high = pixels(False), pixels(True)
+                first_surface, later_surface = (high, low) if first_priority else (low, high)
+                self.assertEqual(list(first_surface), [0] + [1] * 63)
+                self.assertEqual(list(later_surface), [2] + [0] * 63)
+                self.assertTrue(all(not (a and b) for a, b in zip(low, high)))
+                self.assertEqual(bytes(a or b for a, b in zip(low, high)), combined)

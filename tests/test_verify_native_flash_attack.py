@@ -78,10 +78,10 @@ class Verdict(unittest.TestCase):
 
     def test_a_sheet_enemy_fails(self):
         # The fixture hits a sheet enemy: tape 07's Zoran Bult (10), whose
-        # sheet layer is one child of its body.
+        # sheet uses two priority children of its body.
         def sheet(report):
             report["idle"] = [body(6, 10), body(7, 10)]
-            report["attacks"] = [attack(188, 6, 10, "sheet", WHITE, 1)] * 3
+            report["attacks"] = [attack(188, 6, 10, "sheet", WHITE, 2)] * 3
             report["final"] = [body(6, 10), body(7, 10)]
         self.assertEqual(self.failures(sheet), [
             "0 flash attacks, not 3",
