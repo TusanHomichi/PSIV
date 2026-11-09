@@ -283,9 +283,9 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
 
 - **A sealed caster's cast fizzles.** GIRES/RES (`loc_2141C`, frame `$F`) and
   ShadowSabr's DEBAN (`loc_1D83A`, frame `$14`) test `btst #4, $16(a1)` on the
-  caster and skip the effect when it is sealed. The port has no way to seal an enemy
-  yet (no party technique with effect `$08` is supported), so the branch is
-  unreachable; it needs the test the day one exists.
+  caster and skip the effect when it is sealed. The party's SEALS (technique 22,
+  effect `$08`) reaches the branch, and a capture shows it
+  (`enemy_scripted/sealed_techmaster.json`, [section 10](#10-what-the-captures-show)).
 - **The enemies' battle attack and defence cells.** The extractor's
   `EFFECT_FIELDS` (`oracle/fixture/observations.py`) read an enemy's `atk_bat`
   and `dfs_bat` (`$26`, `$2A`) wherever the log has them, and a party-script
@@ -640,6 +640,18 @@ report records the cast (`e1=0x2D` at f25201).
 |---|---:|---|
 | `enemy_scripted/deban_bloodsaber.json` | 2 | Chaz hits fighter 6 (232 → 231); fighter 6 DEBAN, round 1, f25201; `dfs_bat` of fighters 6 and 7 22 → 76; round 2 both sabres swing |
 
+### A sealed caster, and DTHSPELL on 112 Illusionst (party-script captures, `enemy_scripted/`)
+
+Both are `python3 -m oracle.sweep.player_capture` recipes over tape 07's
+party at 999 HP; DTHSPELL's is the `oracle.force` command the driver records
+in its `commands.jsonl`, rerun with `--delay 2` (the undelayed fight rolls
+`$52`, not DTHSPELL).
+
+| fixture | rounds | observed use |
+|---|---:|---|
+| `enemy_scripted/sealed_techmaster.json` | 2 | formation `$110` (two TechMaster); Alys (agility and mental 255) casts SEALS at f25013 and both casters' status goes `$00` → `$10`; then fighter 7 FOI (f25191), fighter 6 FOI (f25286), fighter 6 `$40` (f25504) and fighter 7 FOI (f25549) each end with no damage word and no cell moving |
+| `enemy_scripted/dthspell_illusionst_d2.json` | 1 | formation `$1BC` (one Illusionst), `--delay 2`, the party defending; fighter 6 DTHSPELL at f24865, two rolls, Alys 999 → 0 |
+
 ### Cartridge findings from the captures
 
 - **WARNING is a refill, not a spent turn.** `EnemyInit_Tower` clears the objects beside
@@ -687,7 +699,8 @@ captured pair; no capture shows them.
 - The formations are real, but the party is not a campaign party and the
   encounters are not natural; event battles are random encounters with
   `Event_Battle_Index` written over them.
-- No capture shows a sealed enemy caster's fizzle on one of these arms, or the
-  animations' timing.
+- A sealed enemy caster's fizzle is captured on TechMaster's FOI and `$40`
+  arms only (`enemy_scripted/sealed_techmaster.json`); the other sealable arms
+  are read, not observed. No capture shows the animations' timing.
 - Spector's and TechPlant's wake-up through a round-end roll, and Haunt's other
   formations, are read, not observed.
