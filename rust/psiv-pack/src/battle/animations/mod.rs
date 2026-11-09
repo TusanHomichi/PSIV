@@ -11,7 +11,7 @@
 //! type the game loads, before it is written.
 
 pub(super) mod mapping;
-mod movement;
+pub mod movement;
 mod objects;
 mod receipts;
 

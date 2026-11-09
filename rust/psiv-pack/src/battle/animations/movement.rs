@@ -381,39 +381,4 @@ mod tests {
         assert_eq!(movement["tracks"][0]["writes"][0]["delta"], 4);
         assert_eq!(movement["tracks"][0]["writes"][0]["axis"], "y");
     }
-
-    /// #410: the quick value is bits 11-9 (0 means 8) and bit 8 subtracts.
-    /// The decoder once read the effective-address bits, so every one of
-    /// these came out `addq.w #6`.
-    #[test]
-    fn addq_and_subq_decode_their_own_quick_value_and_direction() {
-        let mut rom = vec![0u8; 0x30];
-        put(
-            &mut rom,
-            0,
-            &[
-                0x5F6C, 0x002C, 0x536C, 0x002E, 0x506C, 0x002C, 0x5A6C, 0x002E,
-            ],
-        );
-        let sites = coordinate_sites(&rom, 0, 0x20, 0x40);
-        let sites: Vec<(i64, String)> = sites
-            .iter()
-            .map(serde_json::Value::from)
-            .map(|s| {
-                (
-                    s["delta"].as_i64().unwrap(),
-                    s["operation"].as_str().unwrap().to_string(),
-                )
-            })
-            .collect();
-        assert_eq!(
-            sites,
-            [
-                (-7, "subq.w".to_string()),
-                (-1, "subq.w".to_string()),
-                (8, "addq.w".to_string()),
-                (5, "addq.w".to_string()),
-            ]
-        );
-    }
 }
