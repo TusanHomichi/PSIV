@@ -191,6 +191,27 @@ impl Runtime {
         self.scene.as_ref()?.actor(ActorRef::PartyMember(slot))
     }
 
+    /// Whether party slot `slot`'s field sprite holds its sequence's first
+    /// frame. Every character object runs `FieldObj_UpdateStatus` before
+    /// `FieldObj_Animate` (`FieldObj_ChazMain` and its siblings): with status
+    /// bit 1 (paralysed) or bit 2 (dead) set it rewinds `mappings_idx` to 0
+    /// and `mappings_duration` to 6 every frame, so the walk never advances.
+    /// A conveyor belt sets bit 2 for its carry ([`SceneRunner::belt_freezes`]).
+    #[must_use]
+    pub fn member_walk_frozen(&self, slot: usize) -> bool {
+        use psiv_core::battle::status::{DEAD, PARALYZED};
+        let status = self
+            .game
+            .party_slot(slot)
+            .and_then(|id| self.game.roster().get(id))
+            .map_or(0, |stats| stats.status);
+        status & (DEAD | PARALYZED) != 0
+            || self
+                .scene
+                .as_ref()
+                .is_some_and(|runner| runner.belt_freezes(slot))
+    }
+
     /// Rebuilds the walking party to match the game state's composition,
     /// stacked at the leader's cell exactly as retail stacks on entry.
     pub(crate) fn resize_party(&mut self) {

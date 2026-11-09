@@ -482,6 +482,7 @@ impl SceneRunner {
         self.unblock(input);
         self.run(state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
+        self.freeze_belt_riders(chunks);
         effects
     }
 
