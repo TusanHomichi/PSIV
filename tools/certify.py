@@ -224,6 +224,17 @@ TAPE_38 = {
     "frames": [8930],
 }
 
+# The same tape at the Elsydeon break's peak: `TextAction_ElsydeonBroken`
+# (`$06A76C`) tones every line up a `$222` step each fourth frame from 8968
+# and back from 8988; 8984-8987 hold the brightest, the backdrop at `$AAA`.
+TAPE_38_TONE = {
+    **TAPE_38,
+    "frames": [8984],
+    # All but the frame's top row and left column: the native field leaves
+    # the first device pixel of each black (#409), as for the barrier pair.
+    "region": [1, 1, 319, 223],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -248,6 +259,11 @@ PAIRS = [
     ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
+    # The break's tone at its peak: the native tone runs ticks 622-657 in the
+    # cartridge's 4-frame steps, 638-641 the brightest.
+    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
+     "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
+     "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),
