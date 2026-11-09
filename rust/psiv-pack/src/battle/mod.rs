@@ -5,7 +5,7 @@
 //! battle art; the rest of `battle/art/` follows.
 
 mod abilities;
-mod animations;
+pub mod animations;
 mod art;
 mod characters;
 mod enemies;
