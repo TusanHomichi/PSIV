@@ -447,7 +447,7 @@ impl DialogueRunner {
             }
             self.signals.push(DialogueSignal::Action(action));
             if let Some(flow) = self.flow.as_mut() {
-                flow.resume_after_action(game);
+                flow.resume_after_action(action, game);
             }
             self.service_flow(game);
             self.drain_flow_log();

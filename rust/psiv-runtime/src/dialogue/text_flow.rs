@@ -378,8 +378,15 @@ impl TextFlow {
         self.pending_action.take()
     }
 
-    /// Resumes the retail text loop after the shell has applied one action.
-    pub fn resume_after_action(&mut self, game: &GameState) {
+    /// Resumes the retail text loop after the shell has applied `action`.
+    /// `TextAction_ElsydeonBroken` runs its two 20-frame loops inside
+    /// `RunText`, so the text waits for them: the loop resumes when that
+    /// hold runs down ([`TextFlow::tick`]).
+    pub fn resume_after_action(&mut self, action: DialogueAction, game: &GameState) {
+        if action == DialogueAction::ElsydeonBroken {
+            self.hold = 2 * ELSYDEON_BROKEN_FRAMES;
+            return;
+        }
         self.pump(game);
     }
 
@@ -558,11 +565,6 @@ impl TextFlow {
                     ActionKind::ElsydeonBroken => Some(DialogueAction::ElsydeonBroken),
                 };
                 if let Some(action) = action {
-                    // `TextAction_ElsydeonBroken` runs its two loops inside
-                    // `RunText`: the text waits for both.
-                    if action == DialogueAction::ElsydeonBroken {
-                        self.hold = 2 * ELSYDEON_BROKEN_FRAMES;
-                    }
                     self.pending_action = Some(action);
                     true
                 } else {
