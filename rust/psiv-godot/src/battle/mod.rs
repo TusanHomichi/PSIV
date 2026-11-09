@@ -3,8 +3,8 @@
 //! The runtime owns the battle: its menu, its beats, its epilogue and its end
 //! (`psiv-runtime/src/session/battle/`). This module builds the art for the
 //! battle the session started, hands the node the session's view every frame,
-//! and advances the two clocks that are pure presentation — the enemy overlay
-//! animation and the decoded attack layers.
+//! and advances the idle enemy overlay clock. Attack layers draw the
+//! runtime's absolute object ages.
 //!
 //! The only crossing is [`Frame::battle`](psiv_runtime::Frame::battle): a view
 //! to draw, the retail sound cues the frame raised, the battle that began and
@@ -253,8 +253,8 @@ impl Field {
         // first run only draws its first frame, so an animation a frame's
         // view starts is shown at its start and first advances on the frame
         // after (`GameMode_Battle`, `ps4.asm:947-966`; #52). The clocks carry
-        // presentation only: the idle overlay animation and any live attack
-        // layer.
+        // presentation only: the idle overlay animation. Attack objects draw
+        // the runtime view's absolute age and never tick in the shell.
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.bind_mut().advance_animation();
         }

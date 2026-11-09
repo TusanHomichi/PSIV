@@ -17,13 +17,12 @@ import hashlib
 from collections import Counter
 from typing import Any
 
+from .battle_animation_art import emit_enemy_attack_art as emit_enemy_attack_art
 from .battle_animation_mapping import BattleMappingError
 from .battle_animation_mapping import MAPPING_ENTRY_BYTES, MAPPING_HEADER_BYTES
 from .battle_animation_mapping import decode_mapping_record
-from .battle_animation_objects import frame_sequences as decode_frame_sequences
 from .battle_animation_objects import object_evidence as decode_object_evidence
 from .battle_animation_objects import plc_art as decode_plc_art
-from .battle_animation_objects import plc_loads as decode_plc_loads
 from .core import EXPECTED_SHA256, EXPECTED_SIZE, be16, be32
 from .decode_cache import memoized
 from .sound_defs import SFX_NAMES
@@ -526,7 +525,7 @@ def _frame_sequence_evidence(
                     "first_pattern": cursor,
                     "pattern_count": stop - cursor,
                     "last_pattern_exclusive": stop,
-                    "source": "loc_27F3AE bank order Art #3, Art #1, Art #2",
+                    "source": "loc_7BFA Art #1 upload at the fighter sprite-pattern base",
                 })
                 cursor = stop
                 continue
@@ -682,13 +681,13 @@ def _decode_enemy_animations(rom: bytes) -> dict[str, Any]:
     # classify a mapping record as exact/partial/deferred.  Import locally so
     # the animation scout remains usable without creating an art-module import
     # cycle during pack construction.
-    from .battle_art import build_tile_bank, enemy_art_bounds, enemy_records
+    from .battle_art import build_attack_tile_bank, enemy_art_bounds, enemy_records
 
     art_records = enemy_records(rom)
     art_bounds = enemy_art_bounds(art_records, len(rom))
     art_banks: dict[int, int] = {}
     for record in art_records:
-        art_banks[record["id"]] = len(build_tile_bank(rom, record, art_bounds)[0])
+        art_banks[record["id"]] = len(build_attack_tile_bank(rom, record, art_bounds)[0])
     animations: list[dict[str, Any]] = []
 
     for enemy_id, routine in enumerate(routines):
@@ -988,6 +987,3 @@ def _decode_enemy_animations(rom: bytes) -> dict[str, Any]:
             "attack_plc_distinct_records": len(attack_plc_records),
         },
     }
-
-# Art emission is deliberately kept out of the census module.
-from .battle_animation_art import emit_enemy_attack_art

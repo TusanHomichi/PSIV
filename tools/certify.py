@@ -133,6 +133,14 @@ TAPE_33 = {
     "frames": [25560],
 }
 
+# Tape 34's mid-round Zoran strike, after Alys has defended. The native
+# fixture queues those beats through Session rather than starting an art layer.
+TAPE_34 = {
+    "tape": "oracle/tapes/34_battle_enemy_attack.tape",
+    "patches": [],
+    "frames": [25370, 25371, 25378],
+}
+
 # Tape 35 is tape 28's input schedule with the ship's destination menu entered
 # by explicit fixture patches (`Cutscene_InsideSpaceship`, event `$800D`, at the
 # Mota Spaceport with `EventFlag_AlysFound` set): frame 7000 reloads the map,
@@ -271,6 +279,22 @@ PAIRS = [
     ("battle-tech", {"PSIV_DEBUG_BATTLE_WINDOW": "tech,cursor=0,blink=14/1", "PSIV_DEBUG_BATTLE_PHASE": "5567"}, 600,
      "build/certify/oracle/battle-windows/frame_25400.png",
      "7a6b67ab078e88db3ff9bbbe066a7e2e6070102ff352efc7fea039d16a66bcdc", TAPE_32),
+    # At tick 30 the fixture starts and drives Session once. Its three
+    # 36-frame defend beats put attack age 0 in the render of tick 137.
+    # capture_debug_shot reads the previous render: shot 138 is age 0,
+    # so ages 1, 2 and 9 are shots 139, 140 and 147 respectively.
+    ("battle-attack-last-first-mapping", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
+                                          "PSIV_DEBUG_BATTLE_PHASE": "419"}, 139,
+     "build/certify/oracle/battle-attack/frame_25370.png",
+     "1a0dc03cd07f2971e151ee0674191e242a00166a560a091bd1beb244121001bd", TAPE_34),
+    ("battle-attack-next-mapping", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
+                                    "PSIV_DEBUG_BATTLE_PHASE": "419"}, 140,
+     "build/certify/oracle/battle-attack/frame_25371.png",
+     "c63ec731c1283def9d3a31cdd345e312443c412b45f5c275807631f2ddca6a79", TAPE_34),
+    ("battle-attack-strike", {"PSIV_DEBUG_BATTLE_WINDOW": "top,timeline=attack",
+                             "PSIV_DEBUG_BATTLE_PHASE": "419"}, 147,
+     "build/certify/oracle/battle-attack/frame_25378.png",
+     "756579f187572b75b2c7167894ec20c5e3349b83216f713b58a6208e03a3e5b0", TAPE_34),
     # The ship's destination menu at the Mota Spaceport: the cursor hidden, the
     # marker blink and the clone's runtime clock aligned so the frame is the
     # oracle's frame 7293. The pair is the menu's own draw (the planetary map,

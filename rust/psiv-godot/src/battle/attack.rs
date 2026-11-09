@@ -2,7 +2,7 @@
 //!
 //! `BattleAnimationEvent` remains the dispatch surface. The art index loaded
 //! by `BattleArt` supplies exact mapping frames; this module advances the
-//! decoded clock and moves the child layer. An event with partial/deferred
+//! absolute runtime age and moves the child layer. An event with partial/deferred
 //! composition retains the body flash as an explicit fallback.
 
 use godot::builtin::{Vector2, Vector2i};
@@ -10,9 +10,10 @@ use godot::classes::{ImageTexture, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::battle::FighterId;
-use psiv_runtime::BattleAnimationEvent;
+use psiv_runtime::{AttackView, BattleAnimationEvent};
 
 use super::enemy_overlay::EnemyAnimation;
+use super::layout::attack_layer_offset;
 
 /// One enemy body and its already-decoded idle overlay animation.
 pub(super) struct EnemySprite {
@@ -26,15 +27,17 @@ pub(super) struct EnemySprite {
 
 /// Live attack layer and its event clock.
 pub(super) struct EnemyAttackState {
-    remaining: u16,
+    id: u64,
     elapsed: u16,
     frame_durations: Vec<u8>,
     frames: Vec<Gd<ImageTexture>>,
+    high_frames: Vec<Gd<ImageTexture>>,
     /// The sprite layer an attack with a proven sheet draws its frames on,
     /// parented to the enemy's node. A flash-only attack has none: it only
     /// tints the body (#92: it once allocated a layer it never parented or
     /// freed, one orphan node per flash attack).
     layer: Option<Gd<Sprite2D>>,
+    high_layer: Option<Gd<Sprite2D>>,
     origin_pixels: Vector2i,
     initial_offset_pixels: Vector2i,
     step_pixels: Vector2i,
@@ -42,9 +45,9 @@ pub(super) struct EnemyAttackState {
 }
 
 impl EnemySprite {
-    pub(super) fn begin_attack(&mut self, event: &BattleAnimationEvent) {
+    fn begin_attack(&mut self, id: u64, event: &BattleAnimationEvent) {
         self.clear_attack();
-        let Some(total_frames) = event.total_frames.filter(|frames| *frames > 0) else {
+        let Some(_) = event.total_frames.filter(|frames| *frames > 0) else {
             return;
         };
         if event.sprite_sheet_proven
@@ -61,24 +64,35 @@ impl EnemySprite {
             })
             && frame_count > 0
             && usize::from(frame_count) == spec.frames.len()
+            && spec.frames.len() == spec.high_frames.len()
             && frame_durations.len() == spec.frames.len()
             && frame_durations.iter().all(|duration| *duration > 0)
         {
             let mut layer = Sprite2D::new_alloc();
             layer.set_centered(false);
-            layer.set_z_index(1);
+            // Low-priority sprite pixels cover the low-priority enemy plane,
+            // but the later party plane (priority bit set) covers them.
+            layer.set_z_index(attack_layer_offset(false));
             layer.set_texture(&spec.frames[0]);
             layer.set_position(Vector2::new(
                 (spec.origin_pixels.x + spec.initial_offset_pixels.x) as f32,
                 (spec.origin_pixels.y + spec.initial_offset_pixels.y) as f32,
             ));
             self.node.add_child(&layer);
+            let mut high_layer = Sprite2D::new_alloc();
+            high_layer.set_centered(false);
+            high_layer.set_z_index(attack_layer_offset(true));
+            high_layer.set_texture(&spec.high_frames[0]);
+            high_layer.set_position(layer.get_position());
+            self.node.add_child(&high_layer);
             self.attack = Some(EnemyAttackState {
-                remaining: total_frames,
+                id,
                 elapsed: 0,
                 frame_durations,
                 frames: spec.frames,
+                high_frames: spec.high_frames,
                 layer: Some(layer),
+                high_layer: Some(high_layer),
                 origin_pixels: spec.origin_pixels,
                 initial_offset_pixels: spec.initial_offset_pixels,
                 step_pixels: spec.step_pixels,
@@ -90,11 +104,13 @@ impl EnemySprite {
             self.node
                 .set_self_modulate(Color::from_rgba8(255, 224, 224, 255));
             self.attack = Some(EnemyAttackState {
-                remaining: total_frames,
+                id,
                 elapsed: 0,
                 frame_durations: vec![1],
                 frames: Vec::new(),
+                high_frames: Vec::new(),
                 layer: None,
+                high_layer: None,
                 origin_pixels: Vector2i::ZERO,
                 initial_offset_pixels: Vector2i::ZERO,
                 step_pixels: Vector2i::ZERO,
@@ -103,37 +119,49 @@ impl EnemySprite {
         }
     }
 
-    pub(super) fn advance_attack(&mut self) {
+    /// Draws the absolute runtime age; repeated views cannot advance or restart
+    /// a live layer, and a missing view removes it on the runtime's expiry frame.
+    pub(super) fn set_attack(&mut self, view: Option<&AttackView>) {
+        let Some(view) = view else {
+            self.clear_attack();
+            return;
+        };
+        if self
+            .attack
+            .as_ref()
+            .is_none_or(|attack| attack.id != view.id)
+        {
+            self.begin_attack(view.id, &view.event);
+        }
         let Some(attack) = self.attack.as_mut() else {
             return;
         };
-        if attack.remaining > 1 {
-            attack.remaining -= 1;
-            if let Some(layer) = attack.layer.as_mut() {
-                attack.elapsed = attack.elapsed.saturating_add(1);
-                let frame = frame_index(attack.elapsed, &attack.frame_durations);
-                layer.set_texture(&attack.frames[frame]);
-                let offset = motion_offset(
-                    attack.elapsed,
-                    attack.initial_offset_pixels,
-                    attack.step_pixels,
-                    attack.limit_offset_pixels,
-                );
-                layer.set_position(Vector2::new(
-                    (attack.origin_pixels.x + offset.x) as f32,
-                    (attack.origin_pixels.y + offset.y) as f32,
-                ));
+        attack.elapsed = view.elapsed;
+        if let Some(layer) = attack.layer.as_mut() {
+            let frame = frame_index(view.elapsed, &attack.frame_durations);
+            layer.set_texture(&attack.frames[frame]);
+            let offset = motion_offset(
+                view.elapsed,
+                attack.initial_offset_pixels,
+                attack.step_pixels,
+                attack.limit_offset_pixels,
+            );
+            layer.set_position(Vector2::new(
+                (attack.origin_pixels.x + offset.x) as f32,
+                (attack.origin_pixels.y + offset.y) as f32,
+            ));
+            if let Some(high_layer) = attack.high_layer.as_mut() {
+                high_layer.set_texture(&attack.high_frames[frame]);
+                high_layer.set_position(layer.get_position());
             }
-            return;
         }
-        self.clear_attack();
     }
 
     /// The attack this body is drawing now, for the native drivers
     /// (`BattleScreen::debug_menu`): `attack` is `null` between attacks,
     /// `"sheet"` while a sheet layer draws and `"flash"` while the body is only
     /// tinted; `tint` is the body's `self_modulate` as 8-bit RGBA and
-    /// `children` its child count (a sheet layer is one child; the flash
+    /// `children` its child count (a sheet uses two priority children; the flash
     /// branch adds none). `tools/verify_native_flash_attack.py` reads it.
     pub(super) fn debug_attack(&self) -> serde_json::Value {
         let attack = self.attack.as_ref().map(|attack| {
@@ -148,14 +176,17 @@ impl EnemySprite {
             "fighter": self.fighter.get(),
             "enemy_id": self.enemy_id,
             "attack": attack,
+            "attack_elapsed": self.attack.as_ref().map(|attack| attack.elapsed),
             "tint": [tint.r8(), tint.g8(), tint.b8(), tint.a8()],
             "children": self.node.get_child_count(),
         })
     }
 
     pub(super) fn clear_attack(&mut self) {
-        if let Some(mut layer) = self.attack.take().and_then(|attack| attack.layer) {
-            layer.queue_free();
+        if let Some(attack) = self.attack.take() {
+            for mut layer in [attack.layer, attack.high_layer].into_iter().flatten() {
+                layer.queue_free();
+            }
         }
         self.node
             .set_self_modulate(Color::from_rgba8(255, 255, 255, 255));
@@ -202,7 +233,7 @@ fn motion_offset(
 }
 
 /// Converts the formation position byte and the art record's half-width into
-/// a top-left pixel. The position byte is the body's right-edge anchor; the
+/// a top-left pixel. The position byte is the body's centre anchor; the
 /// rendered body is `2 * half_width_cells` wide.
 pub(super) fn enemy_sprite_origin(
     position: u8,

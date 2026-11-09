@@ -57,6 +57,10 @@ pub(super) struct EnemyAttackArtFileEntry {
     pub(super) status: String,
     pub(super) movement: EnemyAttackMovementFile,
     #[serde(default)]
+    pub(super) palette_line: Option<u8>,
+    #[serde(default)]
+    pub(super) palette_overrides: std::collections::BTreeMap<usize, u16>,
+    #[serde(default)]
     pub(super) origin_pixels: Option<[i32; 2]>,
     #[serde(default)]
     pub(super) frames: Vec<EnemyAttackFrameFile>,
@@ -80,7 +84,8 @@ pub(super) struct EnemyAttackRuntimeMotion {
 #[derive(Clone, Deserialize)]
 pub(super) struct EnemyAttackFrameFile {
     pub(super) index: usize,
-    pub(super) png: String,
+    pub(super) low_priority_png: String,
+    pub(super) high_priority_png: String,
     pub(super) duration: u8,
 }
 
@@ -91,6 +96,7 @@ struct RuntimePiece {
     placements: Vec<EnemyOverlayPlacementFile>,
     frame: usize,
     timer: u8,
+    frozen: bool,
 }
 
 pub(super) struct AnimationPiece {
@@ -106,6 +112,7 @@ pub(super) struct AnimationPiece {
 #[derive(Clone)]
 pub(super) struct AttackAnimation {
     pub(super) frames: Vec<Gd<ImageTexture>>,
+    pub(super) high_frames: Vec<Gd<ImageTexture>>,
     pub(super) origin_pixels: Vector2i,
     pub(super) initial_offset_pixels: Vector2i,
     pub(super) step_pixels: Vector2i,
@@ -143,6 +150,7 @@ impl EnemyAnimation {
                     placements: piece.placements,
                     frame,
                     timer,
+                    frozen: false,
                 }
             })
             .collect();
@@ -179,12 +187,36 @@ impl EnemyAnimation {
     pub(super) fn advance(&mut self) -> Option<Gd<ImageTexture>> {
         let mut changed = false;
         for piece in &mut self.pieces {
-            changed |= advance_clock(&mut piece.frame, &mut piece.timer, &piece.durations);
+            if !piece.frozen {
+                changed |= advance_clock(&mut piece.frame, &mut piece.timer, &piece.durations);
+            }
         }
         if !changed {
             return None;
         }
         self.rebuild().map(|_| self.texture())
+    }
+
+    /// Applies an object pose after the art update, in the frame's view order.
+    pub(super) fn set_frozen_piece(
+        &mut self,
+        pose: Option<(usize, usize)>,
+    ) -> Option<Gd<ImageTexture>> {
+        for piece in &mut self.pieces {
+            piece.frozen = false;
+        }
+        if let Some((index, frame)) = pose {
+            let piece = self.pieces.get_mut(index)?;
+            let changed = piece.frame != frame;
+            piece.frame = frame;
+            piece.frozen = true;
+            if !changed {
+                return None;
+            }
+            self.rebuild()?;
+            return Some(self.texture());
+        }
+        None
     }
 
     fn rebuild(&mut self) -> Option<()> {
@@ -247,7 +279,22 @@ fn clock_at_phase(frame_count: usize, durations: &[u8], phase: usize) -> (usize,
 
 #[cfg(test)]
 mod tests {
-    use super::{advance_clock, clock_at_phase};
+    use super::{EnemyAttackFrameFile, advance_clock, clock_at_phase};
+
+    #[test]
+    fn attack_frames_require_both_priority_surfaces() {
+        let old = r#"{"index":0,"png":"canonical.png","duration":2}"#;
+        let error = serde_json::from_str::<EnemyAttackFrameFile>(old)
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("low_priority_png"));
+        let current = r#"{"index":0,"png":"canonical.png","low_priority_png":"low.png","high_priority_png":"high.png","duration":2}"#;
+        let frame = serde_json::from_str::<EnemyAttackFrameFile>(current).unwrap();
+        assert_eq!(frame.low_priority_png, "low.png");
+        assert_eq!(frame.high_priority_png, "high.png");
+        let missing_high = r#"{"index":0,"low_priority_png":"low.png","duration":2}"#;
+        assert!(serde_json::from_str::<EnemyAttackFrameFile>(missing_high).is_err());
+    }
 
     #[test]
     fn zero_phase_preserves_the_initial_frame() {

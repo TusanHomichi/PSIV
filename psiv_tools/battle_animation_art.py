@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from . import png
 from .battle_animation_objects import plc_art as decode_plc_art
 from .core import EXPECTED_SHA256
 from .nemesis import TILE_SIZE
+from .gfx import vdp_pattern
 
 BASE_OBJECT_Y = 0x00D8
 MAPPING_HEADER_BYTES = 1
@@ -64,7 +66,8 @@ def _attack_canvas(
     """Find one stable transparent canvas for all of an enemy's frames."""
     body_width = 2 * art_record["half_width_cells"] * 8
     body_top = (15 - art_record["height_cells"]) * 8
-    pivot_x = body_width
+    # loc_12618 copies the fighter anchor, the centre of its body.
+    pivot_x = body_width // 2
     pivot_y = BASE_OBJECT_Y - 0x80 - body_top
     positions: list[tuple[int, int, int, int]] = []
     sequence = animation["frame_sequence"]
@@ -94,9 +97,11 @@ def _render_attack_mapping(
     canvas: tuple[int, int, int, int],
     pivot: tuple[int, int],
     palette: list[tuple[int, int, int]],
+    priority: bool | None = None,
 ) -> bytes:
     min_x, min_y, width, height = canvas
     pixels = bytearray(width * height)
+    occupied = bytearray(width * height)
     if record.get("hidden"):
         return png.encode_indexed(width, height, pixels, palette, (0,))
     pivot_x, pivot_y = pivot
@@ -112,11 +117,39 @@ def _render_attack_mapping(
             for x in range(width_tiles * 8):
                 source_x = width_tiles * 8 - 1 - x if entry["h_flip"] else x
                 tile_col, pixel_x = divmod(source_x, 8)
-                tile = tiles[tile_index + tile_row * width_tiles + tile_col]
+                tile = tiles[vdp_pattern(tile_index, tile_col, tile_row, height_tiles)]
                 pixel = tile[pixel_y * 8 + pixel_x]
-                if pixel:
-                    pixels[(sprite_y + y) * width + sprite_x + x] = pixel
+                target = (sprite_y + y) * width + sprite_x + x
+                # SAT order wins before sprite/plane priority is considered
+                # (GPGX make_lut_bgobj/make_lut_obj). A later high-priority
+                # sprite cannot replace an earlier opaque low-priority one.
+                if pixel and not occupied[target]:
+                    occupied[target] = 1
+                    if priority is None or bool(entry.get("priority", False)) == priority:
+                        pixels[target] = pixel
     return png.encode_indexed(width, height, pixels, palette, (0,))
+
+
+def _zoran_attack_state(rom):
+    """Verify the USA strike contract and decode its palette selection."""
+    from .battle_art import BattleArtError
+
+    # Lengths and digests pin the local USA anchors without distributing ROM bytes.
+    signatures = {
+        0x010D68: (26, "ba630e95fb3db3b0f2a55c1ea0455d5314fa525ad5d5c430d621685507b3aa92"),
+        0x01519A: (26, "e3a77c9ac2f74dbc4462a4d6e0c5164d3f7d204d8416eb625179839b386a0983"),
+        0x01528A: (42, "150b528807e1b082448bd3c6bfc455736a2254b42794a371d91cab99524080cd"),
+    }
+    for offset, (length, digest) in signatures.items():
+        if sha256(rom[offset:offset + length]).hexdigest() != digest:
+            raise BattleArtError(f"Zoran attack choreography changed at 0x{offset:06X}")
+    return {
+        "palette_line": 2,  # The object's $13 attribute is $40.
+        "palette_overrides": {
+            index: int.from_bytes(rom[offset:offset + 2], "big")
+            for index, offset in [(10, 0x010D72), (11, 0x010D78), (12, 0x010D7E)]
+        },
+    }
 
 
 def emit_enemy_attack_art(
@@ -125,7 +158,7 @@ def emit_enemy_attack_art(
     animations_payload: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int, int]:
     """Emit exact frame PNGs, including proven attack PLC pattern sources."""
-    from .battle_art import build_tile_bank, enemy_art_bounds, enemy_records
+    from .battle_art import build_attack_tile_bank, enemy_art_bounds, enemy_records
     from .battle_art_pack import enemy_palette
     from .battle_animations import build_enemy_animations
 
@@ -187,7 +220,9 @@ def emit_enemy_attack_art(
             continue
 
         art_record = by_id[enemy_id]
-        tiles, art_sources = build_tile_bank(rom, art_record, bounds)
+        tiles, art_sources = build_attack_tile_bank(rom, art_record, bounds)
+        if animation["routine_offset"] == "0x010D68":
+            entry.update(_zoran_attack_state(rom))
         plc_tiles, _, _ = decode_plc_art(rom, animation["attack_plc"]["loads"])
         if plc_tiles:
             if len(tiles) < len(plc_tiles):
@@ -200,23 +235,24 @@ def emit_enemy_attack_art(
         canvas = _attack_canvas(animation, art_record)
         body_width = 2 * art_record["half_width_cells"] * 8
         body_top = (15 - art_record["height_cells"]) * 8
-        pivot = (body_width, BASE_OBJECT_Y - 0x80 - body_top)
+        pivot = (body_width // 2, BASE_OBJECT_Y - 0x80 - body_top)
         palette = enemy_palette(rom, enemy_id)
         durations = animation["frame_sequence"]["frame_durations"]
         for frame_index, record in enumerate(animation["frame_sequence"]["mapping_records"]):
-            image = _render_attack_mapping(tiles, record, canvas, pivot, palette)
-            name = f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_frame{frame_index:02d}.png"
-            relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{name}"
-            (directory / relative).write_bytes(image)
-            total_bytes += len(image)
-            png_count += 1
-            entry["frames"].append({
-                "index": frame_index,
-                "mapping_rom_offset": record["rom_offset"],
-                "png": relative,
-                "png_sha256": png.image_sha256(image),
-                "duration": durations[frame_index],
-            })
+            stem = f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_frame{frame_index:02d}"
+            frame = {"index": frame_index, "mapping_rom_offset": record["rom_offset"],
+                     "duration": durations[frame_index]}
+            for key, suffix, priority in [("png", "", None),
+                                          ("low_priority_png", "_low", False),
+                                          ("high_priority_png", "_high", True)]:
+                image = _render_attack_mapping(tiles, record, canvas, pivot, palette, priority)
+                relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{stem}{suffix}.png"
+                (directory / relative).write_bytes(image)
+                total_bytes += len(image)
+                png_count += 1
+                frame[key] = relative
+                frame[f"{key}_sha256"] = png.image_sha256(image)
+            entry["frames"].append(frame)
         entry.update({
             "origin_pixels": [canvas[0], canvas[1]],
             "width_pixels": canvas[2],
@@ -255,7 +291,7 @@ def emit_enemy_attack_art(
             "mapping_consumer": "Battle_FillSpriteAttributes",
             "mapping_header_bytes": MAPPING_HEADER_BYTES,
             "mapping_entry_bytes": MAPPING_ENTRY_BYTES,
-            "art_bank_order": [3, 1, 2],
+            "art_bank_order": [1],
             "rom_sha256": payload["source"].get("rom_sha256", EXPECTED_SHA256),
             "grand_cross": 0,
         },
@@ -264,7 +300,8 @@ def emit_enemy_attack_art(
             "exact": sum(entry["status"] == "exact" for entry in entries),
             "partial": sum(entry["status"] == "partial" for entry in entries),
             "deferred": sum(entry["status"] == "deferred" for entry in entries),
-            "frames": png_count,
+            "frames": sum(len(entry["frames"]) for entry in entries),
+            "priority_pngs": png_count * 2 // 3,
         },
         "enemies": entries,
     }, total_bytes, png_count
