@@ -48,6 +48,7 @@ pub fn pack() -> Option<&'static Pack> {
 pub fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
     psiv_runtime::CommandMenuView {
         growing: None,
+        settling: false,
         strip: None,
         list: None,
         title: String::new(),
