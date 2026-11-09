@@ -332,6 +332,109 @@ All four now have scenes (rows 11 to 14).
 | KingRappy `$88` | `$05A4D4` -> `$072FDC` | `$072FDC..$073017` | `$072FE8`: `7036 4EB9 0005 ACDC` |
 | DaughterTerminal `$8F` | `$05A4F0` -> `$0731B2` | `$0731B2..$0731D9` | `$0731B2`: `7004 4EB9 0005 ACDC` |
 
+## The resume census
+
+The five `Event_RunDialogue*` entries (`$5AC6C`, `$5ACE2`, `$5AD38`, `$5ADA8`,
+`$5ADFE`; R1 to R5) are their `Get` routines' bodies after the opening `jsr
+GetDialogueByID`, six bytes in: they run the text already in `a0`, which the
+`popdlg` before every one of their 120 calls reloads from
+`Saved_Dialogue_Addr`, and they exit exactly as their routine does. R5's
+window is the port's `Cutscene5`, the `Get5` exit reached through the resume.
+Six more `popdlg`s open the scene's own window code instead (`jsr RunText`
+before any resume call): inline resumes, in `Cutscene_PsycoWand` and
+`Cutscene_Elsydeon`. Four `popdlg`s run neither and only peek at the saved
+address (`Event_MeetingDorin`'s `cmpi.b #$FF, -1(a0)` and three like it).
+
+**Checked:** each scene runs, per window, as many resumes as its bytes call
+the resume entry whose exit that window is; the extra resumes it runs beyond
+those are exactly its inline resumes. A bare `RunDialogueResume` counts in the
+window the scene's last dialogue left (the runner keeps it); a resume that
+must change window names it (`RunDialogueResumeWithWindow`). A window whose
+`Get` caller has a computed entry may run more resumes than the bytes call,
+since the port unrolls that call into a branch per entry (`Event_CatchingRocky`).
+Resume calls a transcription skips are named in `UNTRANSCRIBED_RESUMES` with
+the issue that transcribes them.
+
+### Resume findings
+
+- **Thirteen resumes were in the wrong window**, each a bare resume that kept
+  the window before it. Now named: `Cutscene_Alshline` `$0743EA`,
+  `Cutscene_MeetingRika` `$074750`, `Cutscene_AlysWounded` `$074C48`,
+  `Cutscene_MeetingKyra` `$077810`, `Cutscene_LutzRevelation` `$0779EA`,
+  `Cutscene_LashiecDefeated` `$077B28`, `Cutscene_DarkForce2Defeated`
+  `$077CD6` and `Cutscene_ZioDefeated` `$075DF8` on `Cutscene5`;
+  `Cutscene_DemiRescue` `$074B10`, `Event_PsycoWandChest` `$06EB6C`,
+  `Cutscene_SpaceshipSabotage` `$0764C0` and `Cutscene_AeroPrism` `$0780A4` on
+  `Retained`; `Cutscene_LeRoofAgain` `$078454` on `Cutscene3`; and
+  `Cutscene_CrashLaanding`'s five (`$076C26` on) back on `Standard`.
+- **Pages the transcriptions skipped,** so each later resume showed the page
+  before the cartridge's: `Event_MeetingSaya` ran two of six (now all six,
+  with `SFXID_Res` and `SFXID_HealTechCast`); `Cutscene_AlysWounded` two of
+  the three after `$2C` (now three, with `SFXID_HealTechCast`);
+  `Cutscene_PsycoWand` one of its last two; `Cutscene_DarkForce2Defeated`
+  lacked its last page with the screen before it (panels `$116` and `$A8`,
+  `MusicID_Explosion`, `MusicID_RedAlert`). The actors' moves and facings
+  between those pages are still not drawn.
+- **Still skipped,** with
+  [#414](https://github.com/TusanHomichi/PSIV/issues/414):
+  `Cutscene_ZioDefeated`'s Demi sequence (`$075B10..$075D72`, four pages)
+  and `Cutscene_Elsydeon`'s tail after panel `$130` (one inline page).
+  Several of these scenes' panels are not in the pack yet
+  ([#413](https://github.com/TusanHomichi/PSIV/issues/413)).
+
+| Scene | Routine (window) | Resumes: `jsr`/`jmp` or inline `popdlg` address |
+|---|---|---|
+| `Event_MeetingSaya` | R1 (`Standard`) | `$06BCE2`, `$06BD0C`, `$06BD6E`, `$06BD8A`, `$06BDA6`, `$06BDEC` |
+| `Event_AiedoManCrushOnAlys` | R1 (`Standard`) | `$06BED0` |
+| `Event_AiedoManSavings` | R1 (`Standard`) | `$06D48E` |
+| `Event_FaintingPriest` | R1 (`Standard`) | `$06D6A6` |
+| `Event_AfterIgglanova` | R1 (`Standard`) | `$06D6EE`, `$06D748` |
+| `Event_RuneFlaeli` | R1 (`Standard`) | `$06D8FA`, `$06D9B2` |
+| `Event_WreckageEngine` | R1 (`Standard`) | `$06DCD8`, `$06DDA4` |
+| `Event_GettingLandRover` | R1 (`Standard`) | `$06DF1E`, `$06DFA6` |
+| `Event_MonsenEarthquake` | R1 (`Standard`) | `$06E2CE`, `$06E318`, `$06E342`, `$06E378`, `$06E39A`, `$06E408`, `$06E47E`, `$06E4D0`, `$06E58C` |
+| `Event_PlateSysEngine` | R1 (`Standard`) | `$06E8B6` |
+| `Event_PsycoWandChest` | R2 (`Retained`) | `$06EB6C` |
+| `Event_MeetingDorin` | R1 (`Standard`) | `$06F032`, `$06F04E`, `$06F0E8`, `$06F132` |
+| `Event_TonoeBasementDoor` | R1 (`Standard`) | `$06F1C0`, `$06F224`, `$06F2DA` |
+| `Event_TylerGraveOpening` | R1 (`Standard`) | `$06FE02` |
+| `Event_EclipseTorchStolen` | R1 (`Standard`) | `$06FFC2`, `$0700AA`, `$070156` |
+| `Event_ReFaze` | R1 (`Standard`) | `$07166E` |
+| `Event_Phonon` | R1 (`Standard`) | `$0723F2` |
+| `Event_Hijammer` | R1 (`Standard`) | `$07248C` |
+| `Event_Burstroc` | R1 (`Standard`) | `$072508` |
+| `Event_PosiBolt` | R1 (`Standard`) | `$072584` |
+| `Event_CatchingRocky` | R1 (`Standard`) | `$0727B4` |
+| `Event_DyingBoy` | R1 (`Standard`) | `$072EC0`, `$072F4C`, `$072F76` |
+| `Event_KingRappyDefeated` | R1 (`Standard`) | `$07304E`, `$0730D0` |
+| `Event_DominatorsDefeated` | R1 (`Standard`) | `$07334A` |
+| `Event_EnterAngerTower` | R1 (`Standard`) | `$073870` |
+| `Cutscene_Alshline` | R5 (`Cutscene5`) | `$0743EA` |
+| `Cutscene_MeetingRika` | R5 (`Cutscene5`) | `$074750` |
+| `Cutscene_DemiRescue` | R2 (`Retained`) | `$074B10` |
+| `Cutscene_AlysWounded` | R5 (`Cutscene5`) | `$074C48` |
+| `Cutscene_AlysWounded` | R1 (`Standard`) | `$074D96`, `$074E26`, `$074E40`, `$07506C`, `$07508A`, `$0750B4`, `$0750CE`, `$0750F8`, `$075116`, `$075134`, `$075162`, `$075180`, `$07519E` |
+| `Cutscene_PsycoWand` | INLINE (`inline`) | `$0753B6`, `$075484`, `$07563E`, `$075706` |
+| `Cutscene_PsycoWand` | R1 (`Standard`) | `$0758FE`, `$0759A8` |
+| `Cutscene_ZioDefeated` | R1 (`Standard`) | `$075BA0` (#414), `$075C56` (#414), `$075C94` (#414) |
+| `Cutscene_ZioDefeated` | R5 (`Cutscene5`) | `$075CD4` (#414), `$075DF8` |
+| `Cutscene_SpaceshipSabotage` | R2 (`Retained`) | `$0764C0` |
+| `Cutscene_CrashLaanding` | R1 (`Standard`) | `$076C26`, `$076C68`, `$076C9A`, `$076D50`, `$076D9A` |
+| `Cutscene_RajaSick` | R1 (`Standard`) | `$07761C`, `$077700` |
+| `Cutscene_MeetingKyra` | R5 (`Cutscene5`) | `$077810` |
+| `Cutscene_LutzRevelation` | R5 (`Cutscene5`) | `$0779EA` |
+| `Cutscene_LashiecDefeated` | R5 (`Cutscene5`) | `$077B28` |
+| `Cutscene_DarkForce2Defeated` | R3 (`Cutscene3`) | `$077CA6` |
+| `Cutscene_DarkForce2Defeated` | R5 (`Cutscene5`) | `$077CD6`, `$077D42` |
+| `Cutscene_AeroPrism` | R3 (`Cutscene3`) | `$077FB8`, `$07803C` |
+| `Cutscene_AeroPrism` | R2 (`Retained`) | `$0780A4` |
+| `Cutscene_Rykros` | R3 (`Cutscene3`) | `$078240`, `$07826A` |
+| `Cutscene_Rykros` | R5 (`Cutscene5`) | `$078282` |
+| `Cutscene_LeRoofAgain` | R3 (`Cutscene3`) | `$078454` |
+| `Cutscene_Elsydeon` | R3 (`Cutscene3`) | `$0786AC` |
+| `Cutscene_Elsydeon` | INLINE (`inline`) | `$078740`, `$07892A` (#414) |
+| `Cutscene_Ending` | R4 (`Ending`) | `$07914C`, `$079170`, `$079226`, `$079244`, `$0792F2`, `$079384`, `$0793D6`, `$0793F4`, `$07945A`, `$0794BE`, `$0794F6`, `$07958A`, `$079660`, `$079728`, `$0797A6`, `$079830`, `$07992C`, `$0799AC`, `$079A2C`, `$079AAC`, `$079B32`, `$079BB2` |
+
 ## Callers with no scene
 
 None. The three events that had callers no scene held (`Event_FaintingPriest`
@@ -409,8 +512,9 @@ no ordinary-native-input, persistence or connected-route evidence.
   `no_scene_resumes_before_it_opens_a_dialogue`.
   `cargo test --manifest-path rust/Cargo.toml -p psiv-core --lib scenes::dialogue_callers::`.
 
-Not covered: the `Event_RunDialogue*` entries (`$5AC6C`, `$5ACE2`, `$5AD38`,
-`$5ADA8`, `$5ADFE`), which run a text pointer already in `a0`, mostly a
-`popdlg` resume; their windows are the same five exits and the port records
-them as `RunDialogueResume` or `RunDialogueResumeWithWindow`. Their census is
-[#354](https://github.com/TusanHomichi/PSIV/issues/354).
+- The resume census (above) is the same two tests' second half:
+  `each_resume_entry_exits_as_its_routine` and the resume rows of
+  `DIALOGUE_CALLERS`, with controls for a resume back on the last window, a
+  dropped resume, an extra resume, a missing inline resume, a stale
+  `UNTRANSCRIBED_RESUMES` entry and a resume entry given another routine's
+  window.

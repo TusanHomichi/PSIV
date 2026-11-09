@@ -1,7 +1,8 @@
 //! The dialogue-entry caller census: every `jsr`/`jmp` to the five
-//! `Event_GetAndRunDialogue*` entries in the US image, and every inline
-//! `jsr GetDialogueByID` inside a transcribed scene's bytes, as a row of
-//! [`DIALOGUE_CALLERS`]; and the test that holds the registry to it.
+//! `Event_GetAndRunDialogue*` entries and their five `Event_RunDialogue*`
+//! resume entries in the US image, and every inline `jsr GetDialogueByID`
+//! inside a transcribed scene's bytes, as a row of [`DIALOGUE_CALLERS`]; and
+//! the test that holds the registry to it.
 //!
 //! The rows are re-derived from the image by the census in
 //! `dialogue_callers_image.rs`, which also reads each routine's exit from the
@@ -32,6 +33,21 @@ pub(super) const INLINE: u32 = 0x59164;
 /// `d0` is not a literal at the call (read off an object or out of a table).
 pub(super) const DYN: u16 = 0xFFFF;
 
+/// `Event_RunDialogue`, `D1`'s resume entry: its own body after `jsr
+/// GetDialogueByID`, so it reopens `Saved_Dialogue_Addr` and exits as `D1`.
+pub(super) const R1: u32 = D1 + 6;
+/// `Event_RunDialogue2`, `D2`'s resume entry.
+pub(super) const R2: u32 = D2 + 6;
+/// `Event_RunDialogue3`, `D3`'s resume entry.
+pub(super) const R3: u32 = D3 + 6;
+/// `Event_RunDialogue4`, `D4`'s resume entry.
+pub(super) const R4: u32 = D4 + 6;
+/// `Event_RunDialogue5`, `D5`'s resume entry.
+pub(super) const R5: u32 = D5 + 6;
+/// A resume row's entry: the call reads no `d0`, it reopens
+/// `Saved_Dialogue_Addr`.
+pub(super) const RESUME: u16 = 0xFFFE;
+
 /// Which [`DialogueWindow`] each routine is. Five routines, five variants;
 /// `Cutscene5` (`Event_RunDialogue5`'s resume) and `EndingIntro` (an inline
 /// `RunText3` window) belong to no `Get` entry.
@@ -43,241 +59,32 @@ pub(super) const ROUTINE_WINDOWS: &[(u32, DialogueWindow)] = &[
     (D5, DialogueWindow::Cutscene),
 ];
 
-/// `(scene, routine, call address, entry)`, in image order. A call that more
-/// than one `d0` load reaches has a row per entry.
-pub(super) const DIALOGUE_CALLERS: &[(&str, u32, u32, u16)] = &[
-    ("Event_AlysFound", D1, 0x06B32C, DYN),
-    ("Event_MeetingHahn", D1, 0x06B438, 0x11),
-    ("Event_MachineCenterAppearing", D1, 0x06B564, 0x0B),
-    ("Event_BasementContainers", D1, 0x06BC46, 0x0F),
-    ("Event_MeetingSaya", D1, 0x06BC6C, 0x0E),
-    ("Event_AiedoManCrushOnAlys", D1, 0x06BE90, 0x3C),
-    ("Event_SuspicionOnPrincipal", D1, 0x06BEEA, 0x6E),
-    ("Event_BioPlantAlarm", D1, 0x06C29E, 0x0A),
-    ("Event_AiedoManSavings", D1, 0x06D46A, 0x3D),
-    ("Event_GirlsSneakingOut", D1, 0x06D53C, 0x3E),
-    ("Event_FaintingPriest", D1, 0x06D62E, 0x45),
-    ("Event_AfterIgglanova", D1, 0x06D6CA, 0x12),
-    ("Event_PrincipalConfession", D1, 0x06D7A4, 0x13),
-    ("Event_RuneFlaeli", D1, 0x06D830, 0x26),
-    ("Event_AlshlineFound", D1, 0x06DBDA, 0x27),
-    ("Event_WreckageEngine", D1, 0x06DBF4, 0x48),
-    ("Event_WreckageEngine", D1, 0x06DBFC, 0x47),
-    ("Event_CancellerReminder", D1, 0x06DEB0, 0x0C),
-    ("Event_GettingLandRover", D1, 0x06DEC0, 0x09),
-    ("Event_GettingLandRover", D1, 0x06E0A8, 0x0C),
-    ("Event_MonsenEarthquake", D1, 0x06E102, 0x40),
-    ("Event_PlateSysEngine", D1, 0x06E828, 0x41),
-    ("Event_RuneLadaeTower", D1, 0x06E9E0, 0x06),
-    ("Event_PsycoWandChest", D1, 0x06EA18, 0x07),
-    ("Event_PsycoWandChest", D1, 0x06EACC, 0x08),
-    ("Event_ZioFortBarrier", D1, 0x06EC70, 0x44),
-    ("Event_ZioFortBarrier", D1, 0x06EDC4, 0x45),
-    ("Event_ZioFortBarrier", D1, 0x06EE10, 0x4A),
-    ("Event_ZioFanatic", D1, 0x06EE58, 0x49),
-    ("Event_ZioFanatic", D1, 0x06EEB8, 0x1F),
-    ("Event_MeetingDorin", D1, 0x06EEEE, 0x18),
-    ("Event_TonoeBasementDoor", D1, 0x06F1A6, 0x24),
-    ("Event_ZioNurvus", D2, 0x06F3D4, 0x0B),
-    ("Event_ChazHouse", INLINE, 0x06FA42, 0x31),
-    ("Event_ChazHouse", D1, 0x06FA50, 0x31),
-    ("Event_KuranArrival", D1, 0x06FAD6, 0x04),
-    ("Event_NearDarkForce1", D1, 0x06FAE8, 0x05),
-    ("Event_DarkForce1", D2, 0x06FAFA, 0x06),
-    ("Event_Juza", D2, 0x06FB42, 0x48),
-    ("Event_OutsideRajaTemple", D1, 0x06FC84, 0x06),
-    ("Event_TylerGraveOpening", D1, 0x06FCB0, 0x1E),
-    ("Event_TylerGraveOpening", D1, 0x06FE16, 0x22),
-    ("Event_PersistentEsperGuards", D1, 0x06FE2A, 0x2E),
-    ("Event_EclipseTorchStolen", D1, 0x06FE8A, 0x32),
-    ("Event_EclipseTorchUsed", D1, 0x070460, 0x2A),
-    ("Event_MeetingLeRoof", D1, 0x070566, 0x00),
-    ("Event_MuskCatsGuarding", D1, 0x0706A0, 0x1C),
-    ("Event_MuskCatElder", D1, 0x0706DC, 0x2E),
-    ("Event_MuskCatElder", D1, 0x0706E4, 0x2D),
-    ("Event_PenguinOwner", D1, 0x07073A, 0x12),
-    ("Event_CarnivorousTrees", D1, 0x070820, 0x34),
-    ("Event_SavingKyra", D1, 0x070902, 0x34),
-    ("Event_SavingKyra", D2, 0x070936, 0x26),
-    ("Event_DarkForce2", D2, 0x070978, 0x3A),
-    ("Event_EsperGuardPermission", D1, 0x0709E8, 0x00),
-    ("Event_EsperGuardPermission", D1, 0x0709F0, 0x02),
-    ("Event_EsperGuardPermission", D1, 0x070A0A, 0x01),
-    ("Event_DarkForce3Defeated", D1, 0x070A2C, 0x02),
-    ("Event_InnerSanctGuard", D1, 0x070A66, 0x35),
-    ("Event_InnerSanctGuardBeforeElsydeon", D1, 0x070A8E, 0x36),
-    ("Event_ClmCenterAfterBattle", D1, 0x070ADC, 0x31),
-    ("Event_DElmLars", D1, 0x070AEE, 0x33),
-    ("Event_AfterDElmLarsBattle", D1, 0x070B0E, 0x34),
-    ("Event_AirCastleArrival", D1, 0x070B20, 0x35),
-    ("Event_XeAThoulBeforeBattle", D2, 0x070B32, 0x36),
-    ("Event_AirCastleFakeChest", D2, 0x070B58, 0x3C),
-    ("Event_RajaSick", D1, 0x070C72, 0x5D),
-    ("Event_RajaSick", D1, 0x070C72, 0x5E),
-    ("Event_RajaSick", D1, 0x070C72, 0x5F),
-    ("Event_RajaSick", D1, 0x070C7C, 0x60),
-    ("Event_Gyuna", D1, 0x070C94, 0x31),
-    ("Event_Gyuna", D1, 0x070C94, 0x32),
-    ("Event_LashiecAppearance", D2, 0x070E1E, 0x37),
-    ("Event_DeVars", D1, 0x07144C, 0x03),
-    ("Event_SaLews", D1, 0x07146C, 0x01),
-    ("Event_AngerTowerAlys", D1, 0x07148C, 0x07),
-    ("Event_AngerTowerAlys", D2, 0x071538, 0x08),
-    ("Event_ReFaze", D1, 0x07157C, 0x09),
-    ("Event_DeVarsDefeated", D1, 0x07175C, 0x04),
-    ("Event_SaLewsDefeated", D1, 0x071824, 0x02),
-    ("Event_HuntersGuild", D1, 0x071946, 0x12),
-    ("Event_HuntersGuild", D1, 0x07196A, DYN),
-    ("Event_HuntersGuild", D1, 0x07199C, DYN),
-    ("Event_HuntersGuild", D1, 0x0719E8, DYN),
-    ("Event_HuntersGuild", INLINE, 0x071A24, 0x0F),
-    ("Event_HuntersGuild", INLINE, 0x071B4E, 0x10),
-    ("Event_HuntersGuild", INLINE, 0x071BAC, 0x13),
-    ("Event_HuntersGuild", INLINE, 0x071C38, DYN),
-    ("Event_HuntersGuild", INLINE, 0x071C88, 0x12),
-    ("Event_HuntersGuild", INLINE, 0x071CCA, DYN),
-    ("Event_HuntersGuild", INLINE, 0x071CFA, 0x11),
-    ("Event_RuneHealingChaz", D1, 0x071E58, 0x2B),
-    ("Event_PickingFifthCharacter", D1, 0x071F34, DYN),
-    ("Event_PickingFifthCharacter", D1, 0x071F44, DYN),
-    ("Event_PickingFifthCharacter", D1, 0x071F86, DYN),
-    ("Event_Phonon", D1, 0x072320, 0x4E),
-    ("Event_Phonon", D1, 0x072406, 0x4F),
-    ("Event_Hijammer", D1, 0x072446, 0x0A),
-    ("Event_Burstroc", D1, 0x0724C2, 0x08),
-    ("Event_PosiBolt", D1, 0x07253E, 0x06),
-    ("Event_RanchOwner", D1, 0x0725DE, 0x20),
-    ("Event_RanchOwnerAfterBattle", D1, 0x072690, 0x21),
-    ("Event_RockyFound", D1, 0x0726B6, 0x2C),
-    ("Event_CatchingRocky", D1, 0x07273A, DYN),
-    ("Event_CatchingRocky", D1, 0x0727E8, DYN),
-    ("Event_CatchingRocky", D1, 0x07285E, 0x46),
-    ("Event_RockyOwner", D1, 0x07288A, 0x5E),
-    ("Event_PiataDormOwner", D1, 0x0728B0, 0x6C),
-    ("Event_MissingStudentFound", D1, 0x0728E0, 0x52),
-    ("Event_MissingStudentFound", D1, 0x0728E8, 0x4C),
-    ("Event_MissingStudentFound", D1, 0x072964, 0x4D),
-    ("Event_MissingStudentFound", D1, 0x0729DE, 0x53),
-    ("Event_OldManNearMissingStudent", D1, 0x072A10, 0x4F),
-    ("Event_OldManNearMissingStudent", D1, 0x072A20, 0x53),
-    ("Event_MissingStudentInBed", D1, 0x072A48, 0x50),
-    ("Event_MissingStudentInBed", D1, 0x072A50, 0x54),
-    ("Event_MissingStudentInBed", D1, 0x072ACA, 0x5B),
-    ("Event_TallasMom", D1, 0x072AE8, 0x2D),
-    ("Event_TallasMomAfterRescue", D1, 0x072B0E, 0x2E),
-    ("Event_InsideMonsenHole", D1, 0x072B1E, 0x24),
-    ("Event_FractOozeFound", D2, 0x072B2E, 0x2F),
-    ("Event_TallasRescued", D1, 0x072B54, 0x27),
-    ("Event_LostGirlsMother", D1, 0x072C20, 0x13),
-    ("Event_GirlPrison", D1, 0x072C46, 0x5F),
-    ("Event_GirlsBail", D1, 0x072C6C, 0x50),
-    ("Event_PayingGirlsBail", D1, 0x072CAE, 0x51),
-    ("Event_GirlsBailedOut", D1, 0x072CDE, 0x61),
-    ("Event_GirlsBailedOut", D1, 0x072D3E, 0x0A),
-    ("Event_DyingBoyFather", D1, 0x072D5C, 0x39),
-    ("Event_FatherAfterBoyRecovery", D1, 0x072D84, 0x3A),
-    ("Event_DyingBoy", D1, 0x072DDE, 0x33),
-    ("Event_DyingBoy", D1, 0x072FA6, 0x3B),
-    ("Event_DyingBoy", D1, 0x072FAE, 0x3E),
-    ("Event_MeetingSekreas", D1, 0x072FCC, 0x3C),
-    ("Event_KingRappy", D2, 0x072FEA, 0x36),
-    ("Event_KingRappy", D1, 0x073012, 0x35),
-    ("Event_KingRappyDefeated", D1, 0x07302E, 0x37),
-    ("Event_KingRappyDefeated", D1, 0x0730EC, 0x38),
-    ("Event_ZemaOldMan", D1, 0x073156, 0x6C),
-    ("Event_ZemaOldManAfterMission", D1, 0x07317E, 0x6D),
-    ("Event_VahalFortEntrance", D1, 0x073190, 0x00),
-    ("Event_VahalFortMidway", D1, 0x0731A2, 0x03),
-    ("Event_DaughterTerminal", D2, 0x0731B4, 0x04),
-    ("Event_VahalFortBarrier", D1, 0x0731E8, 0x01),
-    ("Event_VahalFortBarrier", D1, 0x0731FA, 0x02),
-    ("Event_DominatorsDefeated", D1, 0x0732C8, 0x05),
-    ("Event_WeaponPlantArrival", D1, 0x0733BC, 0x07),
-    ("Event_MeeseClinicSickWoman", D1, 0x07341A, 0x3C),
-    ("Event_MeeseClinicSickWoman", D1, 0x07341A, 0x3D),
-    ("Event_PenguinFeedStolen", D1, 0x0736B4, 0x10),
-    ("Event_Pennant", D1, 0x0736EC, 0x64),
-    ("Event_WoodCarving", D1, 0x073756, 0x66),
-    ("Event_EnterAngerTower", D1, 0x0737CE, 0x05),
-    ("Event_EnterAngerTower", D1, 0x073822, 0x06),
-    ("Event_SoldiersTempleCaveDialogue1", D1, 0x073882, 0x0E),
-    ("Event_SoldiersTempleCaveDialogue2", D1, 0x073894, 0x0F),
-    ("Event_SoldiersTempleReached", D1, 0x0738A6, 0x10),
-    ("Event_AeroPrismFound", D1, 0x0738B8, 0x11),
-    ("Event_PiataGuardsReprimand", D1, 0x073932, 0x10),
-    ("Event_GameStart", D1, 0x073960, 0x36),
-    ("Event_GameStart", D1, 0x073A78, 0x37),
-    ("Event_GameStart", D1, 0x073AF8, 0x38),
-    ("Event_GameStart", D1, 0x073BD6, 0x39),
-    ("Event_GameStart", INLINE, 0x073CA8, 0x3A),
-    ("Event_GameStart", INLINE, 0x073CC8, 0x3B),
-    ("Event_GameStart", INLINE, 0x073CE8, 0x3C),
-    ("Event_GameStart", INLINE, 0x073D08, 0x3D),
-    ("Event_GameStart", INLINE, 0x073D5C, 0x3E),
-    ("Event_GameStart", INLINE, 0x073D7C, 0x3F),
-    ("Event_GameStart", INLINE, 0x073D9C, 0x40),
-    ("Event_GameStart", INLINE, 0x073DBC, 0x41),
-    ("Event_PiataChazAlone", D1, 0x073ED0, 0x6D),
-    ("Cutscene_PiataPrincipal", D5, 0x073F04, 0x17),
-    ("Cutscene_ProfHolt", D5, 0x073F3E, 0x66),
-    ("Cutscene_MeetingRune", D5, 0x073FCE, 0x03),
-    ("Cutscene_Dorin", D5, 0x074048, 0x25),
-    ("Cutscene_Alshline", D5, 0x074362, 0x67),
-    ("Cutscene_Alshline", D2, 0x074502, 0x68),
-    ("Cutscene_ZemaIgglanovaDefeated", D5, 0x07458E, 0x69),
-    ("Cutscene_MeetingRika", D5, 0x074618, 0x00),
-    ("Cutscene_MeetingRika", D1, 0x0746FC, 0x01),
-    ("Cutscene_MeetingRika", D1, 0x07480E, 0x02),
-    ("Cutscene_MeetingRika", D5, 0x0749C4, 0x03),
-    ("Cutscene_MeetingRika", D5, 0x074A28, 0x04),
-    ("Cutscene_DemiRescue", D3, 0x074A92, 0x42),
-    ("Cutscene_AlysWounded", INLINE, 0x074B86, 0x43),
-    ("Cutscene_AlysWounded", D1, 0x074D6C, 0x2C),
-    ("Cutscene_AlysWounded", D1, 0x075052, 0x2D),
-    ("Cutscene_PsycoWand", D5, 0x075214, 0x05),
-    ("Cutscene_PsycoWand", D1, 0x07534E, 0x2E),
-    ("Cutscene_ZioDefeated", INLINE, 0x075A76, 0x00),
-    ("Cutscene_MeetingWren", D5, 0x07600C, 0x01),
-    ("Cutscene_SpaceshipSabotage", D3, 0x07643C, 0x02),
-    ("Cutscene_CrashLaanding", INLINE, 0x076622, 0x03),
-    ("Cutscene_CrashLaanding", D5, 0x076774, 0x07),
-    ("Cutscene_CrashLaanding", D5, 0x076B40, 0x08),
-    ("Cutscene_Landale", D5, 0x07717E, 0x24),
-    ("Cutscene_DarkForce1Defeated", D5, 0x0771F6, 0x07),
-    ("Cutscene_DarkForce1Defeated", D5, 0x0772D0, 0x08),
-    ("Cutscene_RajaSick", D1, 0x077364, 0x59),
-    ("Cutscene_RajaSick", D1, 0x0774AE, 0x62),
-    ("Cutscene_RajaSick", D1, 0x07769E, 0x63),
-    ("Cutscene_MeetingKyra", D1, 0x0777A6, 0x27),
-    ("Cutscene_MeetingKyra", D3, 0x0777D8, 0x28),
-    ("Cutscene_LutzRevelation", D1, 0x077898, 0x2A),
-    ("Cutscene_LutzRevelation", D1, 0x0779B0, 0x2F),
-    ("Cutscene_FindingAirCastle", D5, 0x077A52, 0x18),
-    ("Cutscene_LashiecDefeated", D3, 0x077A8C, 0x38),
-    ("Cutscene_LashiecDefeated", D1, 0x077BC4, 0x39),
-    ("Cutscene_DarkForce2Defeated", D3, 0x077C70, 0x3B),
-    ("Cutscene_GumbiousBishop", D1, 0x077DC8, 0x33),
-    ("Cutscene_GumbiousBishop", D1, 0x077E68, 0x17),
-    ("Cutscene_MeetingSeth", D5, 0x077EDC, 0x00),
-    ("Cutscene_AeroPrism", D3, 0x077F8C, 0x01),
-    ("Cutscene_Rykros", D3, 0x0781D8, 0x16),
-    ("Cutscene_LeRoofAgain", D1, 0x078424, 0x0B),
-    ("Cutscene_LeRoofAgain", D5, 0x078496, 0x0C),
-    ("Cutscene_BeforeElsydeonCave", D5, 0x078520, 0x30),
-    ("Cutscene_Elsydeon", D3, 0x0785B2, 0x31),
-    ("Cutscene_Elsydeon", D5, 0x078A1E, 0x32),
-    ("Cutscene_Reunion", D5, 0x078ADC, 0x00),
-    ("Cutscene_Reunion", D5, 0x078C02, 0x01),
-    ("Cutscene_ProfoundDarkness", D2, 0x078E9C, 0x03),
-    ("Cutscene_Ending", INLINE, 0x078F70, 0x09),
-    ("Cutscene_Ending", D4, 0x079084, 0x0A),
-    ("Cutscene_Ending", D4, 0x079114, 0x0B),
-    ("Cutscene_Ending", D4, 0x0798AC, 0x0C),
-    ("Cutscene_Ending", INLINE, 0x079C18, 0x12),
-    ("Cutscene_Ending", INLINE, 0x079C36, 0x13),
-    ("Cutscene_Ending", INLINE, 0x079C54, 0x14),
-    ("Cutscene_Ending", INLINE, 0x079C72, 0x15),
+/// Resume calls a scene's transcription skips, by call (or inline `popdlg`)
+/// address, with the issue that transcribes them: the census does not ask the
+/// scene for them, and fails when one stops being a resume call of the scene.
+pub(super) const UNTRANSCRIBED_RESUMES: &[(&str, &[u32], u32)] = &[
+    // `$075B10..$075D72`, Demi's BioPlant sequence.
+    (
+        "Cutscene_ZioDefeated",
+        &[0x075BA0, 0x075C56, 0x075C94, 0x075CD4],
+        414,
+    ),
+    // The tail after panel `$130`, built on #162's palette loops.
+    ("Cutscene_Elsydeon", &[0x07892A], 414),
 ];
+
+/// Which [`DialogueWindow`] a resume through each `Event_RunDialogue*` entry
+/// draws in: its `Get` routine's exit, which it shares. `R5`'s is
+/// `Cutscene5`, the port's name for `Cutscene` reached through the resume.
+pub(super) const RESUME_WINDOWS: &[(u32, DialogueWindow)] = &[
+    (R1, DialogueWindow::Standard),
+    (R2, DialogueWindow::Retained),
+    (R3, DialogueWindow::Cutscene3),
+    (R4, DialogueWindow::Ending),
+    (R5, DialogueWindow::Cutscene5),
+];
+
+pub(super) use super::dialogue_caller_rows::DIALOGUE_CALLERS;
 
 pub(super) type Row = (&'static str, u32, u32, u16);
 
@@ -288,6 +95,11 @@ pub(super) fn routine_name(routine: u32) -> &'static str {
         D3 => "Event_GetAndRunDialogue3",
         D4 => "Event_GetAndRunDialogue4",
         D5 => "Event_GetAndRunDialogue5",
+        R1 => "Event_RunDialogue",
+        R2 => "Event_RunDialogue2",
+        R3 => "Event_RunDialogue3",
+        R4 => "Event_RunDialogue4",
+        R5 => "Event_RunDialogue5",
         _ => "GetDialogueByID (inline)",
     }
 }
@@ -296,7 +108,13 @@ pub(super) fn routine_name(routine: u32) -> &'static str {
 /// the entry is read off an object or out of a table. The table-driven ops
 /// open `Event_GetAndRunDialogue`'s window (`Standard`) on the line they
 /// compute: the guild's row line, the fifth-character row's `$5(a0)` lines.
+///
+/// A resume is `(window, RESUME)`, in the window it draws in: the one it
+/// names, or for a bare `RunDialogueResume` the one the scene's last dialogue
+/// left (the runner keeps it), in op order from `Standard`, the runner's
+/// first.
 fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
+    let mut current = DialogueWindow::Standard;
     scene
         .ops
         .iter()
@@ -305,17 +123,29 @@ fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
             // out of a tree, so it is no `GetDialogueByID` caller.
             SceneOp::RunDialogue {
                 source: DialogueSource::System(_),
-                ..
-            } => None,
-            SceneOp::RunDialogue { source, window } => Some((
-                *window,
-                match source {
-                    DialogueSource::Entry(DialogueId(entry)) => *entry,
-                    DialogueSource::NpcDialogueId(_) | DialogueSource::System(_) => DYN,
-                },
-            )),
+                window,
+            } => {
+                current = *window;
+                None
+            }
+            SceneOp::RunDialogue { source, window } => {
+                current = *window;
+                Some((
+                    *window,
+                    match source {
+                        DialogueSource::Entry(DialogueId(entry)) => *entry,
+                        DialogueSource::NpcDialogueId(_) | DialogueSource::System(_) => DYN,
+                    },
+                ))
+            }
+            SceneOp::RunDialogueResumeWithWindow { window } => {
+                current = *window;
+                Some((*window, RESUME))
+            }
+            SceneOp::RunDialogueResume => Some((current, RESUME)),
             SceneOp::Guild(GuildOp::RunLine { .. })
             | SceneOp::FifthCharacter(FifthOp::RunLine { .. } | FifthOp::RunLeaverLine) => {
+                current = DialogueWindow::Standard;
                 Some((DialogueWindow::Standard, DYN))
             }
             _ => None,
@@ -331,11 +161,16 @@ fn dialogue_ops(scene: &Scene) -> Vec<(DialogueWindow, u16)> {
 /// with a `DYN` row only needs its literal entries present (the port unrolls
 /// the table `d0` came from). A `RunDialogue` in a window with no routine row
 /// is an error, so a scene cannot claim a routine its bytes do not call.
-fn caller_problems(scenes: &[Scene], table: &[Row]) -> Vec<String> {
+fn caller_problems(
+    scenes: &[Scene],
+    table: &[Row],
+    untranscribed: &[(&str, &[u32], u32)],
+) -> Vec<String> {
     let mut problems = Vec::new();
     let window_of = |routine: u32| {
         ROUTINE_WINDOWS
             .iter()
+            .chain(RESUME_WINDOWS)
             .find(|(r, _)| *r == routine)
             .map(|(_, w)| *w)
     };
@@ -357,27 +192,86 @@ fn caller_problems(scenes: &[Scene], table: &[Row]) -> Vec<String> {
             ));
         }
     }
+    for (name, calls, issue) in untranscribed {
+        for at in *calls {
+            if !table
+                .iter()
+                .any(|row| row.0 == *name && row.2 == *at && row.3 == RESUME)
+            {
+                problems.push(format!(
+                    "UNTRANSCRIBED_RESUMES lists ${at:06X} for {name} (#{issue}), which is \
+                     not one of its resume calls"
+                ));
+            }
+        }
+    }
     for scene in scenes {
-        let rows: Vec<&Row> = table.iter().filter(|row| row.0 == scene.name).collect();
+        let skipped: &[u32] = untranscribed
+            .iter()
+            .find(|(name, ..)| *name == scene.name)
+            .map_or(&[], |(_, calls, _)| *calls);
+        let rows: Vec<&Row> = table
+            .iter()
+            .filter(|row| row.0 == scene.name && !(row.3 == RESUME && skipped.contains(&row.2)))
+            .collect();
         let inline: Vec<u16> = rows
             .iter()
             .filter(|row| row.1 == INLINE)
             .map(|row| row.3)
             .collect();
         let ran = dialogue_ops(scene);
+        let inline_resumes = inline.iter().filter(|e| **e == RESUME).count();
+        let mut extra_resumes = 0;
         let mut windows: Vec<DialogueWindow> = ran.iter().map(|(w, _)| *w).collect();
-        windows.extend(ROUTINE_WINDOWS.iter().map(|(_, w)| *w));
+        windows.extend(
+            ROUTINE_WINDOWS
+                .iter()
+                .chain(RESUME_WINDOWS)
+                .map(|(_, w)| *w),
+        );
         windows.sort();
         windows.dedup();
         for window in windows {
+            // Resumes: at least as many in this window as its bytes call the
+            // resume entry whose exit it is; the rest are inline resumes,
+            // counted after the loop.
+            let resumes: Vec<&&Row> = rows
+                .iter()
+                .filter(|row| row.3 == RESUME && window_of(row.1) == Some(window))
+                .collect();
+            let resumed = ran
+                .iter()
+                .filter(|(w, e)| *w == window && *e == RESUME)
+                .count();
+            // A `Get` call with a computed entry may be unrolled into a branch
+            // per entry, each with its own resumes (`Event_CatchingRocky`'s
+            // per-map rows): the extra ones are those branches'.
+            let unrolled = rows
+                .iter()
+                .any(|row| row.3 == DYN && window_of(row.1) == Some(window));
+            if resumed > resumes.len() && !unrolled {
+                extra_resumes += resumed - resumes.len();
+            } else if resumed < resumes.len() {
+                let at: Vec<String> = resumes
+                    .iter()
+                    .map(|row| format!("${:06X} {}", row.2, routine_name(row.1)))
+                    .collect();
+                problems.push(format!(
+                    "{}: {resumed} resume(s) in DialogueWindow::{window:?}, its bytes resume \
+                     there {} time(s) [{}]",
+                    scene.name,
+                    resumes.len(),
+                    at.join(", ")
+                ));
+            }
             let mut want: Vec<(u16, u32, u32)> = rows
                 .iter()
-                .filter(|row| window_of(row.1) == Some(window))
+                .filter(|row| row.3 != RESUME && window_of(row.1) == Some(window))
                 .map(|row| (row.3, row.1, row.2))
                 .collect();
             let mut have: Vec<u16> = ran
                 .iter()
-                .filter(|(w, _)| *w == window)
+                .filter(|(w, e)| *w == window && *e != RESUME)
                 .map(|(_, e)| *e)
                 .collect();
             let dynamic = want.iter().any(|(entry, _, _)| *entry == DYN);
@@ -416,13 +310,20 @@ fn caller_problems(scenes: &[Scene], table: &[Row]) -> Vec<String> {
                 }
             }
         }
+        if extra_resumes != inline_resumes {
+            problems.push(format!(
+                "{}: {extra_resumes} resume(s) beyond its resume calls' windows, its bytes \
+                 have {inline_resumes} inline resume(s) (`popdlg` into its own window code)",
+                scene.name
+            ));
+        }
     }
     problems
 }
 
 #[test]
 fn every_dialogue_entry_caller_runs_its_window() {
-    let problems = caller_problems(SCENES, DIALOGUE_CALLERS);
+    let problems = caller_problems(SCENES, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
@@ -508,12 +409,15 @@ fn control_a_scene_back_on_resume_is_reported() {
             SceneOp::RunDialogueResume,
         ),
     );
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
             "Event_ZioNurvus: $06F3D4 runs entry 0xB through Event_GetAndRunDialogue2, the \
-             scene has no RunDialogue { Entry(0xB), DialogueWindow::Retained }"
+             scene has no RunDialogue { Entry(0xB), DialogueWindow::Retained }",
+            // and the resume stands where no resume call is.
+            "Event_ZioNurvus: 1 resume(s) beyond its resume calls' windows, its bytes have 0 \
+             inline resume(s) (`popdlg` into its own window code)"
         ]
     );
 }
@@ -529,7 +433,7 @@ fn control_a_wrong_variant_is_reported_both_ways() {
             run(0x28, DialogueWindow::Cutscene),
         ),
     );
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(problems.len(), 2, "{problems:#?}");
     let reported = |needle: &str| problems.iter().any(|p| p.contains(needle));
     assert!(reported(
@@ -549,7 +453,7 @@ fn control_a_wrong_entry_is_reported() {
             run(0x47, DialogueWindow::Retained),
         ),
     );
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(problems.len(), 2, "{problems:#?}");
 }
 
@@ -560,7 +464,7 @@ fn control_a_duplicated_op_is_reported() {
     let mut ops = ops_of("Event_DarkForce2");
     ops.push(run(0x3A, DialogueWindow::Retained));
     let scenes = replaced("Event_DarkForce2", ops);
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
@@ -577,7 +481,7 @@ fn control_a_dropped_row_is_reported() {
         .copied()
         .filter(|row| row.2 != 0x06FB42)
         .collect();
-    let problems = caller_problems(SCENES, &table);
+    let problems = caller_problems(SCENES, &table, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
@@ -591,7 +495,7 @@ fn control_a_dropped_row_is_reported() {
 fn control_a_caller_claimed_by_two_scenes_is_reported() {
     let mut table = DIALOGUE_CALLERS.to_vec();
     table.push(("Event_DarkForce2", D2, 0x06F3D4, 0x0B));
-    let problems = caller_problems(SCENES, &table);
+    let problems = caller_problems(SCENES, &table, UNTRANSCRIBED_RESUMES);
     assert!(
         problems[0].starts_with("$06F3D4 Event_GetAndRunDialogue2 entry 0xB is claimed by both"),
         "{problems:#?}"
@@ -602,7 +506,7 @@ fn control_a_caller_claimed_by_two_scenes_is_reported() {
 fn control_a_row_for_an_unregistered_scene_is_reported() {
     let mut table = DIALOGUE_CALLERS.to_vec();
     table.push(("Event_NotYetTranscribed", D1, 0x073400, 0x33));
-    let problems = caller_problems(SCENES, &table);
+    let problems = caller_problems(SCENES, &table, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
@@ -621,7 +525,7 @@ fn control_a_dynamic_caller_with_no_window_is_reported() {
         },
         other => *other,
     });
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(problems.len(), 2, "{problems:#?}");
     assert!(problems[0].contains("computed entry"));
 }
@@ -637,7 +541,7 @@ fn control_an_inline_entry_does_not_excuse_another_entry() {
             run(0x04, DialogueWindow::Cutscene),
         ),
     );
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
@@ -658,12 +562,117 @@ fn control_a_table_driven_line_is_a_window_the_census_counts() {
         }
         other => *other,
     });
-    let problems = caller_problems(&scenes, DIALOGUE_CALLERS);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
             "Event_PickingFifthCharacter: its bytes call the Standard routine with a computed \
              entry, the scene runs no Standard dialogue"
         ]
+    );
+}
+
+const fn resume_in(window: DialogueWindow) -> SceneOp {
+    SceneOp::RunDialogueResumeWithWindow { window }
+}
+
+/// The `n`th resume op of `name` replaced by `to`.
+fn with_resume(name: &str, n: usize, to: Option<SceneOp>) -> Vec<Scene> {
+    let mut ops = ops_of(name);
+    let at = ops
+        .iter()
+        .enumerate()
+        .filter(|(_, op)| {
+            matches!(
+                op,
+                SceneOp::RunDialogueResume | SceneOp::RunDialogueResumeWithWindow { .. }
+            )
+        })
+        .nth(n)
+        .map(|(i, _)| i)
+        .unwrap_or_else(|| panic!("{name} has no resume {n}"));
+    match to {
+        Some(op) => ops[at] = op,
+        None => {
+            ops.remove(at);
+        }
+    }
+    replaced(name, ops)
+}
+
+#[test]
+fn control_a_resume_back_on_the_last_window_is_reported() {
+    // `Cutscene_DemiRescue`'s `Event_RunDialogue2` as the bare resume it was:
+    // it kept the `Get3` window before it.
+    let scenes = with_resume("Cutscene_DemiRescue", 0, Some(SceneOp::RunDialogueResume));
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
+    assert_eq!(problems.len(), 2, "{problems:#?}");
+    assert!(problems.iter().any(|p| p.contains(
+        "0 resume(s) in DialogueWindow::Retained, its bytes resume there 1 time(s) \
+         [$074B10 Event_RunDialogue2]"
+    )));
+}
+
+#[test]
+fn control_a_dropped_resume_is_reported() {
+    // `Cutscene_AlysWounded`'s third page after `$2C`, as it was.
+    let scenes = with_resume("Cutscene_AlysWounded", 3, None);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
+    assert_eq!(problems.len(), 1, "{problems:#?}");
+    assert!(problems[0].starts_with(
+        "Cutscene_AlysWounded: 12 resume(s) in DialogueWindow::Standard, its bytes resume \
+         there 13 time(s)"
+    ));
+}
+
+#[test]
+fn control_an_extra_resume_is_reported() {
+    let mut ops = ops_of("Cutscene_MeetingKyra");
+    let last = ops.len() - 1;
+    ops.insert(last, resume_in(DialogueWindow::Cutscene5));
+    let scenes = replaced("Cutscene_MeetingKyra", ops);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
+    assert_eq!(
+        problems,
+        vec![
+            "Cutscene_MeetingKyra: 1 resume(s) beyond its resume calls' windows, its bytes \
+             have 0 inline resume(s) (`popdlg` into its own window code)"
+        ]
+    );
+}
+
+#[test]
+fn control_a_missing_inline_resume_is_reported() {
+    // `Cutscene_Elsydeon`'s inline page at `$078740` (its second resume).
+    let scenes = with_resume("Cutscene_Elsydeon", 1, None);
+    let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
+    assert_eq!(
+        problems,
+        vec![
+            "Cutscene_Elsydeon: 0 resume(s) beyond its resume calls' windows, its bytes have \
+             1 inline resume(s) (`popdlg` into its own window code)"
+        ]
+    );
+}
+
+#[test]
+fn control_a_stale_untranscribed_resume_is_reported() {
+    let stale: &[(&str, &[u32], u32)] = &[("Cutscene_Elsydeon", &[0x07892A, 0x078000], 414)];
+    let problems = caller_problems(SCENES, DIALOGUE_CALLERS, stale);
+    assert!(
+        problems.contains(
+            &"UNTRANSCRIBED_RESUMES lists $078000 for Cutscene_Elsydeon (#414), which is not \
+              one of its resume calls"
+                .to_owned()
+        ),
+        "{problems:#?}"
+    );
+    // Without the list, ZioDefeated's skipped pages are reported.
+    let problems = caller_problems(SCENES, DIALOGUE_CALLERS, &[]);
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.starts_with("Cutscene_ZioDefeated: 0 resume(s) in DialogueWindow::Standard")),
+        "{problems:#?}"
     );
 }

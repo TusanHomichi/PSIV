@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$0A]` at `$05A580`; scene event is `$800A`.
 - **Trigger:** Ladea Tower F5 `$91`, `RunEvent_PsycoWandFound` (`$1E`):
   Psycho Wand chest set and After Alys Death 2 `$67` clear.
-- **Data:** `post_rika_cutscenes.rs`, `PSYCO_WAND` (110 ops).
+- **Data:** `post_rika_cutscenes.rs`, `PSYCO_WAND` (112 ops).
 
 ## Clone audit
 
@@ -32,8 +32,8 @@ edge; the renderer still receives the panel operations in order.
 | 81-87 | `$075700..$0757CA` | panel `$6C`, wait 120, fade, stop music `$FB`, destroy all, `RecoverStats`, wait 60 | final panel/wait/state |
 | 88-93 | `$0757D0..$075840` | load Krup `$39`, previous Motavia `$00`, start `($28,$1C)`, face left, align `$10`; `GetMapLayoutOffset` writes FG (9,5)←`$8F` and BG (9,6)←`$90`, then `RefreshPlaneBG` | `LoadMap`, `WriteMapChunks`, reload chunks |
 | 93-97 | `$075840..$0758E4` | load art `$2B8`; stage temporary objects; Motabia Village `$83`; fade | art/object/sound/fade |
-| 98-105 | `$0758EA..$0759A8` | temporary movements and map-update `$3B+1=60`; load tree 6 again (revision>0); resume dialogue | presentation/tree/dialogue/wait |
-| 106-108 | `$0759F2..$075A10` | set After Alys Death `$63` and `$67`; load tree 5; return 1 | flags/tree/return |
+| 98-107 | `$0758EA..$0759AD` | temporary movements and map-update `$3B+1=60`; load tree 6 again (revision>0); resume dialogue (`$0758FE`); map update `$3B+1=60` and the last page (`$0759A8`); the moves around both are not drawn | presentation/tree/dialogue/wait |
+| 108-110 | `$0759F2..$075A10` | set After Alys Death `$63` and `$67`; load tree 5; return 1 | flags/tree/return |
 
 `RecoverStats` now writes the occupied roster records (HP, TP and status) and
 also emits the normal typed roster effects. The temporary Krup objects remain

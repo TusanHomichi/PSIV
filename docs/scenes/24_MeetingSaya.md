@@ -20,10 +20,13 @@ map NPCs and were not misidentified as stable map indices.
 2. Copy Hahn's field object into the temporary `$C480` object and hide the
    party copy; move it to `($190,$1F0)`. Face Saya's field object left, move
    the party group to `($190,$210)`, and resume dialogue.
-3. Face Saya and temporary Hahn down; load the sparkle object `$1A0`, play
-   the `Res` SFX (`$CC`), and run the embrace/update loop. Resume dialogue,
-   rotate the two actors through the retail left/right beats, and run the
-   healing/presentation waits.
+3. Face Saya and temporary Hahn down and resume (`$06BD0C`); load the
+   sparkle object `$1A0`, play the `Res` SFX (`$CC`, `$06BD28`), and run the
+   embrace/update loop. Resume three times (`$06BD6E`, `$06BD8A`,
+   `$06BDA6`) through the retail left/right facing beats, step the actors,
+   play `SFXID_HealTechCast` (`$BD`, `$06BDD4`) and resume the last page
+   (`$06BDEC`): six resumes in all after the first dialogue. The facing beats
+   and steps between the pages are not drawn.
 4. Restore Hahn's party object, clear the temporary object, and set
    `EventFlag_Saya` (`$12`).
 

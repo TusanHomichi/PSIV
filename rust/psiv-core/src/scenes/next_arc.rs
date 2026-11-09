@@ -633,7 +633,10 @@ static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::DmaPlanes,
     SceneOp::WaitFrames { frames: 10 },
     SceneOp::SetRenderSpritesInCutscene { enabled: true },
-    SceneOp::RunDialogueResume,
+    // `$0743EA`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+    SceneOp::RunDialogueResumeWithWindow {
+        window: DialogueWindow::Cutscene5,
+    },
     SceneOp::RecoverStats,
     SceneOp::SetMapLoadFlags {
         set: 0,
@@ -862,11 +865,16 @@ static MEETING_SAYA_OPS: &[SceneOp] = &[
         y: 0x210,
         wait: true,
     },
+    // `$06BCE2`: `popdlg` / `Event_RunDialogue`, the first of six.
     SceneOp::RunDialogueResume,
     SceneOp::Face {
         actor: NPC_0,
         facing: Direction::Down,
     },
+    // `$06BD0C`: the second page, before the sparkle.
+    SceneOp::RunDialogueResume,
+    // `$06BD28`: `SFXID_Res` (`$CC`) as the sparkle object `$1A0` runs.
+    SceneOp::PlaySound { id: 0xCC },
     SceneOp::ObjectAnimation {
         slot: 7,
         object_id: 0x1A0,
@@ -874,6 +882,14 @@ static MEETING_SAYA_OPS: &[SceneOp] = &[
         frames: 90,
     },
     SceneOp::Wait { ticks: 30 },
+    // `$06BD6E`, `$06BD8A`, `$06BDA6`: three pages, the actors' facing beats
+    // between them not drawn here.
+    SceneOp::RunDialogueResume,
+    SceneOp::RunDialogueResume,
+    SceneOp::RunDialogueResume,
+    // `$06BDD4`: `SFXID_HealTechCast` (`$BD`) between the two steps, then
+    // the last page at `$06BDEC`.
+    SceneOp::PlaySound { id: 0xBD },
     SceneOp::RunDialogueResume,
     SceneOp::SetFlag {
         flag: Flag::event(0x12),

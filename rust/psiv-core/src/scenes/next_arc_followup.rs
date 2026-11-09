@@ -334,7 +334,10 @@ pub static MEETING_RIKA: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogueResume,
+        // `$074750`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
         SceneOp::SetMapLoadFlags {
             set: 0x08,
             clear: 0,
