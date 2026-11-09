@@ -375,7 +375,31 @@ fn the_drift_loop_runs_map_updates_like_do_main_updates_loop() {
     let mut state = GameState::new();
     let mut runner = SceneRunner::new(SLIDE, cast(2), StepFrames::default());
     runner.tick(&map, &mut state, SceneInput::None);
-    assert!(runner.runs_map_updates());
+    assert!(
+        !runner.runs_map_updates(),
+        "setup has not run an object update yet"
+    );
+    let mut update_frames = 0;
+    for frame in 1..=64 {
+        let completes_loop = runner.completes_map_update_loop();
+        runner.tick(&map, &mut state, SceneInput::None);
+        assert!(
+            completes_loop,
+            "object update {frame} owns RunMapUpdates, including the last"
+        );
+        if completes_loop || runner.runs_map_updates() {
+            update_frames += 1;
+        }
+    }
+    assert_eq!(update_frames, 64);
+    assert!(
+        !runner.runs_map_updates(),
+        "the last drift frame has unblocked the loop"
+    );
+    assert!(
+        !runner.completes_map_update_loop(),
+        "the caller's next frame is outside the loop"
+    );
 }
 
 /// `PlaceActor` is an absolute write to `$30`/`$34`: whatever sub-cell slide

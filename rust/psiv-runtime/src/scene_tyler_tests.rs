@@ -91,9 +91,9 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
     assert_eq!(pans.len(), 4);
     for (index, &frame) in pans.iter().enumerate() {
         assert_eq!(
-            cameras[frame],
+            cameras[frame + 1],
             (home.0 + if index % 2 == 0 { 4 } else { 0 }, home.1),
-            "camera pan {index}"
+            "camera pan {index} arrives on the following frame"
         );
     }
     assert_eq!(pans[1] - pans[0], 1, "outward 4px at speed4 blocks a frame");
