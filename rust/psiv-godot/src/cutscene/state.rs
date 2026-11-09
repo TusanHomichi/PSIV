@@ -130,11 +130,16 @@ impl PresentationState {
 
     /// The runtime word is persistent across restores. The one-shot cue is
     /// consulted only when no runtime exists (static debug fixtures).
-    pub(crate) fn restore_music_id(&mut self, runtime_saved: Option<u8>) -> Option<u8> {
+    /// What a restore edge does with the saved word: the runtime's
+    /// `Saved_Sound_Index` when a session runs (a zero word keeps the current
+    /// music, never the map's raw id), else the debug fixture's one-shot cue.
+    pub(crate) fn restore_music_id(&mut self, runtime_saved: Option<u8>) -> MusicRestore {
         match runtime_saved {
-            Some(0) => None,
-            Some(id) => Some(id),
-            None => self.take_debug_saved_music(),
+            Some(0) => MusicRestore::Keep,
+            Some(id) => MusicRestore::Play(id),
+            None => self
+                .take_debug_saved_music()
+                .map_or(MusicRestore::None, MusicRestore::Play),
         }
     }
 
@@ -258,9 +263,21 @@ impl PresentationState {
     }
 }
 
+/// A restore edge's answer ([`PresentationState::restore_music_id`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MusicRestore {
+    /// Request this id.
+    Play(u8),
+    /// The saved word is zero: a request the driver drops, so the music
+    /// already playing goes on.
+    Keep,
+    /// A runtime-less fixture with no cue: the caller decides.
+    None,
+}
+
 #[cfg(test)]
 mod tests {
-    use super::PresentationState;
+    use super::{MusicRestore, PresentationState};
 
     #[test]
     fn field_object_keeps_its_identity_and_fractional_position_until_despawn() {
@@ -364,11 +381,13 @@ mod tests {
     fn runtime_music_restore_never_consumes_the_debug_cue_or_the_saved_word() {
         let mut state = PresentationState::default();
         state.set_debug_saved_music(0x91);
-        assert_eq!(state.restore_music_id(Some(0x8D)), Some(0x8D));
-        assert_eq!(state.restore_music_id(Some(0x8D)), Some(0x8D));
-        assert_eq!(state.restore_music_id(Some(0)), None);
-        assert_eq!(state.restore_music_id(None), Some(0x91));
-        assert_eq!(state.restore_music_id(None), None);
+        assert_eq!(state.restore_music_id(Some(0x8D)), MusicRestore::Play(0x8D));
+        assert_eq!(state.restore_music_id(Some(0x8D)), MusicRestore::Play(0x8D));
+        // A zero word keeps the current music: no raw-map substitution, and
+        // the debug cue stays untouched for its own fixture.
+        assert_eq!(state.restore_music_id(Some(0)), MusicRestore::Keep);
+        assert_eq!(state.restore_music_id(None), MusicRestore::Play(0x91));
+        assert_eq!(state.restore_music_id(None), MusicRestore::None);
     }
 
     #[test]

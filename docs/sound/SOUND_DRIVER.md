@@ -201,7 +201,7 @@ these ranges (`ps4.sound_driver.asm:602-633`):
 
 | ID range | Action |
 |---|---|
-| `$00..$7F` | Stop-all path for values below `$80` |
+| `$00..$7F` | Stop-all path for values below `$80`; never reached from the queue, which drops every id below `$81` (`DoSoundQueue`'s `subi.b #$81 / bcs`, `ps4.sound_driver.asm:586-587`), so a zero `Sound_Index` is no request |
 | `$80` | No-op/ignored request |
 | `$81..$B4` | Music; index into `MusicPtrs` after subtracting `$81` |
 | `$B5..$F7` | Regular SFX; index into `SFXPtrs` after subtracting `$B5` |

@@ -36,7 +36,7 @@ use manifest::SceneAssets;
 use temporary_sprite_asset::TemporarySpriteAsset;
 use text_layer::OpeningTextLayer;
 
-pub(crate) use state::PresentationState;
+pub(crate) use state::{MusicRestore, PresentationState};
 
 const SCREEN: Vector2 = Vector2::new(320.0, 224.0);
 
