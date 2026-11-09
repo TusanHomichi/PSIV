@@ -384,17 +384,6 @@ mod tests {
         assert!(state.sprites_visible(cutscene, false));
     }
 
-    #[test]
-    fn an_ordered_panel_op_uses_its_snapshot_even_after_the_scene_ended() {
-        let mut state = PresentationState::default();
-        assert!(!state.scene_sprites_visible(true));
-        assert!(state.sprites_visible(None, false));
-        assert!(state.sprites_visible(None, true));
-        assert!(state.scene_sprites_visible(false));
-        state.set_vram_blanked(true);
-        assert!(!state.scene_sprites_visible(false));
-    }
-
     /// `FieldObj_GetAutoInput`'s order: the X gap closes first, then Y, two
     /// pixels a frame, and the object stays where it stops.
     #[test]

@@ -12,6 +12,10 @@ later dialogue close or scene end from the completed frame.
 The ordering contract is covered by
 `presentation_events_keep_scene_order_and_tick_boundaries` in
 `rust/psiv-runtime/src/suites/presentation_order.rs`.
+The ROM-free renderer snapshot regression is
+`rust/psiv-godot/tests/scene_visibility.rs`, run with
+`cargo test --manifest-path rust/Cargo.toml -p psiv-godot --test scene_visibility`
+under the [extension lock](../DEVELOPMENT.md#heavy-run-lock).
 
 ## Certified pairs
 
