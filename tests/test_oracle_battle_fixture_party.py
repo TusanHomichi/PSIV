@@ -82,6 +82,29 @@ class PartyFixture(unittest.TestCase):
         self.assertEqual(action_windows(log(self.turn_rows(menu="0011"), hex_fields),
                                         1, 4, cuts=[1]), [])
 
+    def test_optional_party_slots_require_observed_status_and_idle_menus(self):
+        fields = ("battle_actor", "current_command", "battle_routine_2")
+        for actor in (4, 5):
+            for menu in ("0000", "0011"):
+                with self.subTest(actor=actor, menu=menu):
+                    rows = self.turn_rows(menu=menu)
+                    for row in rows[1:]:
+                        row.update(battle_actor=f"{actor:04x}", current_command="0500")
+                    # Legacy logs lack these slots even when menu scratch
+                    # happens to hold their ids. Neither path may read them.
+                    self.assertEqual(action_windows(log(rows, fields), 1, 4, cuts=[1]), [])
+                    for row in rows:
+                        row[f"party{actor}_status"] = "0"
+                    expected = [(actor, 2, 4)] if menu == "0000" else []
+                    self.assertEqual(action_windows(log(rows, fields), 1, 4, cuts=[1]),
+                                     expected)
+                    # A real observed action with RNG must remain detectable.
+                    if menu == "0000":
+                        rows[1]["current_command"] = "0100"
+                        self.assertEqual(action_windows(log(rows, fields), 1, 4,
+                                                        cuts=[1], roll_frames=[2]),
+                                         [(actor, 2, 4)])
+
     def test_wake_draws_close_the_last_action_and_never_open_a_phantom_attack(self):
         rows = self.turn_rows()
         for row, routine in zip(rows, (0, 0, 0x1C, 6)):

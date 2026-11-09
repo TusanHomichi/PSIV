@@ -145,6 +145,8 @@ class MenuSequence(unittest.TestCase):
     def test_initialized_results_confirm_but_high_bit_command_lists_do_not(self):
         self.assertTrue(confirmation_ready(0x2D))
         self.assertTrue(confirmation_ready(0x802D))
+        self.assertTrue(confirmation_ready(0x2E))
+        self.assertTrue(confirmation_ready(0x802E))
         self.assertTrue(confirmation_ready(0x802F))
         self.assertTrue(confirmation_ready(0x8020))
         for routine in (0x8005, 0x8011, 0x8017, 0x8001, 0):

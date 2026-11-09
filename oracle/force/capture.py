@@ -83,6 +83,12 @@ def enemy_slots(rows: list[dict], window: tuple[int, int]) -> list[dict]:
             for slot in range(1, 5) if slot <= count]
 
 
+def party_names(row: dict) -> list[str]:
+    """Observed slot aliases; old captures have only the first three."""
+    return [name for name in ("chaz", "alys", "hahn", "party4", "party5")
+            if name + "_hp" in row]
+
+
 def classify(rows: list[dict], window: tuple[int, int],
              vehicle: bool = False) -> str:
     """What the log says the battle did, from HP and the victory declaration.
@@ -107,7 +113,7 @@ def classify(rows: list[dict], window: tuple[int, int],
         return "victory"
     if vehicle and hp_of(end, "vehicle_fighter_hp") <= 0:
         return "defeat"
-    if all(hp_of(end, f"{who}_hp") <= 0 for who in ("chaz", "alys", "hahn")):
+    if all(hp_of(end, f"{who}_hp") <= 0 for who in party_names(end)):
         return "defeat"
     return "withdrawal"
 
@@ -146,7 +152,7 @@ def read_capture(run: Run, draw_frame: int, vehicle: bool = False,
         outcome=classify(rows, window, vehicle),
         enemies=enemy_slots(rows, window),
         party=[{"who": who, "hp": hp_of(end, f"{who}_hp")}
-               for who in ("chaz", "alys", "hahn")],
+               for who in party_names(end)],
         vehicle_hp=hp_of(end, "vehicle_fighter_hp")
         if "vehicle_fighter_hp" in end else 0,
         abilities=ability_uses(rows, window, draw_frame + 1),

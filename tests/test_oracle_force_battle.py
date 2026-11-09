@@ -476,6 +476,15 @@ class LogReading(PackFixture):
         rows = self.capture_rows((25, 25), (0, 0, 0))
         self.assertEqual(fb.classify(rows, (40, 60)), "defeat")
 
+    def test_five_member_wipe_needs_every_observed_member(self):
+        rows = self.capture_rows((25, 25), (0, 0, 0))
+        for row in rows:
+            row.update(party4_hp="0", party5_hp="37")
+        self.assertEqual(fb.classify(rows, (40, 60)), "withdrawal")
+        for row in rows:
+            row["party5_hp"] = "65511"
+        self.assertEqual(fb.classify(rows, (40, 60)), "defeat")
+
     def test_a_wrecked_vehicle_is_a_defeat_even_with_the_party_untouched(self):
         rows = self.capture_rows((25, 25), vehicle_hp=0)
         self.assertEqual(fb.classify(rows, (40, 60), vehicle=True), "defeat")

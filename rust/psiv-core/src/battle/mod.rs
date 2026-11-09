@@ -86,6 +86,7 @@ mod player_animation;
 mod player_effect;
 #[cfg(test)]
 mod player_tests;
+mod preview;
 mod records;
 mod retarget;
 mod rewards;

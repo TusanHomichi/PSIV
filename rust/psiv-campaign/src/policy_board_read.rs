@@ -69,6 +69,7 @@ impl<'r> Board<'r> {
             }
         }
         Some(Board {
+            roster: Some(roster),
             data,
             actor: actor.get(),
             party,

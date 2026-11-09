@@ -44,8 +44,8 @@
 //!    plain attack, every damaging technique, skill or item, an instant-death
 //!    effect (its chance to land times the HP it removes), a sleep (its chance
 //!    times what the enemy does in a turn), and in scripted battles an
-//!    attack-down on the enemies or an attack- or defence-up on the party (the
-//!    damage it adds or saves over the rounds the fight has left, at most
+//!    attack-down on the enemies or buffs to the party's attack, defence or
+//!    magic defence (the damage added or saved over the rounds left, at most
 //!    [`BUFF_ROUNDS`]). A single-target command takes its best target.
 //! 4. ATTACK, or DEFEND for a member with no weapon.
 //!
@@ -286,6 +286,10 @@ impl Planner {
     }
 
     fn plan_round(&mut self, board: &Board) {
+        if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
+            let enemies: Vec<_> = board.enemies.iter().map(|e| (e.id(), e.hp())).collect();
+            eprintln!("  plan round enemies {enemies:?}");
+        }
         let mut free = Self::ready(board);
         if !free.contains(&board.actor) {
             free.push(board.actor);
