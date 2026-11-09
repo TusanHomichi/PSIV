@@ -16,16 +16,6 @@ use crate::cram_art::{IndexedArt, SharedCram};
 
 use super::{CutsceneLayer, SCREEN};
 
-/// Retail `grand_cross=0` keeps the plane origin one pixel right/down of the
-/// window coordinate origin in the settled MeetingRika receipt.  Camera and
-/// VDP scroll values are decoded in `oracle/scroll_state.py`; this is the
-/// remaining hardware-origin term, not a camera adjustment.
-const RETAIL_PLANE_SCROLL_RESIDUE: Vector2 = Vector2::new(1.0, 1.0);
-
-fn retail_plane_scroll_offset() -> Vector2 {
-    RETAIL_PLANE_SCROLL_RESIDUE
-}
-
 impl CutsceneLayer {
     /// Draws the panels the last `DmaPlanes` made visible.
     pub(super) fn draw_planes(&mut self) {
@@ -35,7 +25,7 @@ impl CutsceneLayer {
             if let Some(texture) = live.or_else(|| self.textures.get(&id).cloned()) {
                 self.base_mut().draw_texture_rect(
                     &texture,
-                    Rect2::new(retail_plane_scroll_offset(), SCREEN),
+                    Rect2::new(Vector2::ZERO, SCREEN),
                     true,
                 );
             }

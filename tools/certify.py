@@ -213,6 +213,17 @@ TAPE_36_CLOSE_TOWNS = {
     "frames": [8365],
 }
 
+# Tape 38 is tape 28's input schedule with Cutscene_Ending ($8021) started by
+# fixture at frame 7200 (Event_Index, then the field routine to Events), Chaz
+# alone on map $13 where tape 28 leaves him. C taps page through the first
+# dialogue: frames 8930-8967 are byte-identical, the scene's panels and its
+# window settled before the Elsydeon break whitens the screen.
+TAPE_38 = {
+    "tape": "oracle/tapes/38_ending_elsydeon.tape",
+    "patches": ["7200:FFFFECA8:8021", "7200:FFFFEC20:000C"],
+    "frames": [8930],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -232,6 +243,11 @@ PAIRS = [
     ("anger-tower-barrier", {"PSIV_DEBUG_EVENT": "0x99", **SCENE}, 108,
      "build/certify/oracle/anger-tower-barrier/frame_7384.png",
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
+    # The ending's panels and window over map $13's camera, which is not
+    # (0,0): the pair that places the scene layers at any camera position.
+    ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
+     "build/certify/oracle/ending-elsydeon/frame_8930.png",
+     "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),
