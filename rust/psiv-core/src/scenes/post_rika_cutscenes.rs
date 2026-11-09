@@ -456,6 +456,59 @@ pub static ZIO_DEFEATED: Scene = Scene {
             op: PresentationOp::ReloadMapChunks,
         },
         SceneOp::Wait { ticks: 60 },
+        // `$075B10..$075CE6`, Demi's sequence in BioPlant B4 (#414). The
+        // cartridge clears two objects, places Demi at `($1E8,$1C0)`,
+        // refreshes the map with load-flag bit 3 set, fades in and turns the
+        // camera and Demi to each other; those, her steps and the two elevator
+        // object loops (`loc_75EE0`, `loc_75F54`) are not drawn here. The
+        // pages, sounds, palette write, panel and waits are the cartridge's.
+        SceneOp::FadeIn,
+        SceneOp::Wait { ticks: 10 },
+        // `$075BA0`: `popdlg` / `clr.b Render_Sprites_In_Cutscenes` /
+        // `jsr Event_RunDialogue`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Standard,
+        },
+        SceneOp::Wait { ticks: 60 },
+        // `$075C04`, `$075C3A`: `SFXID_RidingElevator`, each beside its
+        // elevator loop, with the map-update waits around them.
+        SceneOp::PlaySound { id: 0xE0 },
+        SceneOp::Wait { ticks: 60 },
+        SceneOp::Wait { ticks: 60 },
+        SceneOp::PlaySound { id: 0xE0 },
+        SceneOp::Wait { ticks: 60 },
+        // `$075C56`.
+        SceneOp::RunDialogueResume,
+        // `$075C5C`: `SFXID_PowerDown`, map update `$77+1`, then two words of
+        // `Palette_Line_2` (`$075C70`, `$075C76`) and sixty frames.
+        SceneOp::PlaySound { id: 0xE4 },
+        SceneOp::Wait { ticks: 120 },
+        SceneOp::Presentation {
+            op: PresentationOp::SetPaletteWords {
+                offset: 0x1C,
+                first: 0x0024,
+                second: 0x0240,
+            },
+        },
+        SceneOp::WaitFrames { frames: 60 },
+        // `$075C94`.
+        SceneOp::RunDialogueResume,
+        // A fresh screen, panel `$70`, `$13+1` frames, and the `Get5` page
+        // at `$075CD4`.
+        SceneOp::FadeOut,
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
+        SceneOp::PanelCreate { id: 0x70 },
+        SceneOp::DmaPlanes,
+        SceneOp::WaitFrames { frames: 20 },
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Cutscene5,
+        },
+        // `$075CDA`: `Sound_StopMusic`, map update `$13+1`.
+        SceneOp::PlaySound { id: 0xFB },
+        SceneOp::Wait { ticks: 20 },
         SceneOp::LoadMap {
             map: 0x00,
             prev_map: 0xAC,
