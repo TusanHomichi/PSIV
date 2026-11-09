@@ -467,3 +467,64 @@ fn the_strip_club_customer_turns_and_rewrites_his_line_every_256_frames() {
     assert_eq!(seen[512], up);
     assert_eq!(map.npcs()[0].cell, Cell::new(2, 2), "he never steps");
 }
+
+#[test]
+fn barrier_beams_keep_their_timer_visibility_and_pose_between_calls() {
+    let mut map = map_with_object_pair();
+    let mut set = BespokeSet::build(
+        &map,
+        &[
+            (0, BespokeKind::BarrierBeam { even: false }),
+            (1, BespokeKind::BarrierBeam { even: true }),
+        ],
+    )
+    .unwrap();
+    assert_eq!(set.actors()[0].beam_draw(), Some((true, 0)));
+    assert_eq!(set.actors()[1].beam_draw(), Some((false, 0)));
+    let mut rolls = SliceRolls::new(&[]);
+    let mut ctx = context(&[], BespokeFlags::default(), 0);
+    ctx.driver_pixels = (0x2F0, 0x380);
+    for _ in 0..2 {
+        for index in 0..2 {
+            set.tick_one_for_npc(index, &mut map, &mut rolls, ctx);
+        }
+    }
+    assert_eq!(set.actors()[0].beam_draw(), Some((false, 2)));
+    assert_eq!(set.actors()[1].beam_draw(), Some((true, 2)));
+    set.reveal_beams();
+    for index in 0..2 {
+        set.tick_one_for_npc(index, &mut map, &mut rolls, ctx);
+    }
+    assert_eq!(set.actors()[0].beam_draw(), Some((false, 3)));
+    assert_eq!(set.actors()[1].beam_draw(), Some((true, 3)));
+    ctx.driver_pixels = (0x2CF, 0x380);
+    for index in 0..2 {
+        set.tick_one_for_npc(index, &mut map, &mut rolls, ctx);
+    }
+    assert!(
+        set.actors()
+            .iter()
+            .all(|actor| actor.beam_draw() == Some((false, 4)))
+    );
+    assert_eq!(rolls.drawn(), 0);
+    for (x, y, visible) in [
+        (0x2D0, 0x380, true),
+        (0x320, 0x380, true),
+        (0x321, 0x380, false),
+        (0x2F0, 0x381, false),
+        (0x2F0, 0, true),
+    ] {
+        let mut actor =
+            BespokeSet::build(&map, &[(0, BespokeKind::BarrierBeam { even: true })]).unwrap();
+        let mut ctx = context(&[], BespokeFlags::default(), 0);
+        ctx.driver_pixels = (x, y);
+        actor.reveal_beams();
+        actor.tick_one_for_npc(0, &mut map, &mut rolls, ctx);
+        assert_eq!(
+            actor.actors()[0].beam_draw(),
+            Some((visible, 1)),
+            "({x:#x}, {y:#x})"
+        );
+    }
+    assert_eq!(rolls.drawn(), 0);
+}

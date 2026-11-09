@@ -54,6 +54,13 @@ impl Runtime {
             }
         };
         let mut events = Vec::new();
+        if self
+            .scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::runs_barrier_beams)
+        {
+            self.tick_barrier_beams(false);
+        }
         self.tick_quake(&mut events);
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
@@ -543,6 +550,11 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::BarrierBeamUpdates { reveal, .. },
+                    } => {
+                        self.tick_barrier_beams(reveal);
+                    }
                     SceneOp::FlightPlanet => {
                         // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8
                         // background 18, loc_644AE sprites 2/4, RunText2 3/2

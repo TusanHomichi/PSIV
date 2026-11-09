@@ -463,8 +463,20 @@ pub static ZIO_FORT_BARRIER: Scene = Scene {
             actor: ActorRef::Character(DEMI),
             facing: Direction::Up,
         },
-        // `$06ED0A`: `DoMainUpdatesLoop` with d0 = $27.
-        SceneOp::Wait { ticks: 40 },
+        // `$06ED0A`: forty object updates, then reveal and one final update
+        // (`$06ED12..$06ED40`) before the map-only ramp freezes the sprites.
+        SceneOp::Presentation {
+            op: PresentationOp::BarrierBeamUpdates {
+                frames: 40,
+                reveal: false,
+            },
+        },
+        SceneOp::Presentation {
+            op: PresentationOp::BarrierBeamUpdates {
+                frames: 1,
+                reveal: true,
+            },
+        },
         SceneOp::PlaySound { id: SFX_TANDLE },
         // `$06ED42`: `Palette_Line_4` ramped from `loc_6EE16` over seven
         // steps, each waiting `DoMapUpdateLoop($1D)` = 30 frames. The four

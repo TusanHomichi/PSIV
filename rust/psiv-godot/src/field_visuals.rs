@@ -31,6 +31,11 @@ impl Field {
             .presentation
             .sprites_visible(runtime.scene_event(), runtime.panel_dialogue_mode());
         let active_npcs: Vec<bool> = runtime.map().npcs().iter().map(|npc| npc.active).collect();
+        let beams: Vec<_> = runtime
+            .bespoke_actors()
+            .iter()
+            .filter_map(|actor| actor.beam_draw().map(|draw| (actor.npc_index(), draw)))
+            .collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
         // A scene that drives the leader displaces the party draw: position,
@@ -227,6 +232,13 @@ impl Field {
             let Some(view) = self.sheet_views.get(&entry.sheet) else {
                 continue;
             };
+            if let Some((_, (_, age))) = beams.iter().find(|(index, _)| *index == entry.index) {
+                // Init writes duration 4; Animate2 decrements before testing,
+                // so call 5 advances to mapping 1 (`ps4.asm:88830-88857`).
+                let frame = view.frame_at("walk_down", *age);
+                view.apply(&mut entry.node, frame);
+                continue;
+            }
             let motion = motions.iter().find(|m| m.npc_index == entry.index);
             match motion {
                 Some(w) => {
@@ -267,6 +279,11 @@ impl Field {
             let psiv_core::ActorRef::Npc(index) = actor.actor else {
                 continue;
             };
+            // A scene cast includes the map's stationary NPCs too. Their
+            // generic idle pose must not overwrite the beam routine's mapping.
+            if beams.iter().any(|(beam, _)| *beam == index) {
+                continue;
+            }
             for entry in &mut self.npc_nodes {
                 if entry.index == index
                     && let Some(view) = self.sheet_views.get(&entry.sheet)
@@ -370,8 +387,15 @@ impl Field {
         }
         for npc in &mut self.npc_nodes {
             let active = active_npcs.get(npc.index).copied().unwrap_or(false);
-            npc.node
-                .set_visible(scene_sprites_visible && active && !custom_slots.contains(&npc.index));
+            npc.node.set_visible(
+                scene_sprites_visible
+                    && active
+                    && !custom_slots.contains(&npc.index)
+                    && beams
+                        .iter()
+                        .find(|(index, _)| *index == npc.index)
+                        .is_none_or(|(_, (visible, _))| *visible),
+            );
         }
         for (slot, node) in &mut self.temporary_nodes {
             node.set_visible(scene_sprites_visible && custom_slots.contains(slot));

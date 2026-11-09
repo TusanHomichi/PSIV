@@ -61,6 +61,7 @@ struct Frame {
     count: u16,
     events: Vec<RuntimeEvent>,
     words: [u16; 64],
+    beams: Vec<(bool, u64)>,
 }
 
 /// Runs `event` to its end, closing every window at once, and records every
@@ -90,6 +91,11 @@ fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
             count: runtime.frames,
             events,
             words: runtime.cram().words,
+            beams: runtime
+                .bespoke_actors()
+                .iter()
+                .filter_map(|actor| actor.beam_draw())
+                .collect(),
         });
         if !runtime.scene_active() {
             assert!(
@@ -257,6 +263,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
         count: first,
         events: Vec::new(),
         words: cram.view().words,
+        beams: Vec::new(),
     });
     for k in 1..40u16 {
         cram.tick(first.wrapping_add(k));
@@ -264,6 +271,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
             count: first.wrapping_add(k),
             events: Vec::new(),
             words: cram.view().words,
+            beams: Vec::new(),
         });
     }
     let failures = check_anger_tower(&start, &held, &frames);
@@ -316,6 +324,24 @@ fn the_rykros_cycle_blocks_its_frames() {
         .words(0x0007_82DA)
         .expect("Rykros table")
         .to_vec();
+    // Check the scene's actual emitted ids, including panels outside the
+    // dialogue-action census. An empty pack is the negative control.
+    let missing_panels = |palettes: &psiv_data::ScenePalettes| {
+        psiv_core::scene_for(psiv_core::EventIndex(0x801B))
+            .unwrap()
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                SceneOp::PanelCreate { id } if palettes.panel(*id).is_none() => Some(*id),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        missing_panels(&psiv_data::ScenePalettes::default()),
+        [0x18B, 0x18F, 0x190]
+    );
+    assert!(missing_panels(runtime.data().scene_palettes()).is_empty());
     let (_, frames) = trace(&mut runtime, 0x801B);
     let cycle = emitted(&frames, |op| {
         matches!(op, PresentationOp::RykrosPaletteCycle { .. })
@@ -374,4 +400,62 @@ fn a_variable_fade_blocks_for_the_palette_it_fades() {
         matches!(event, RuntimeEvent::ScenePresentation { .. })
     });
     assert_eq!(next - fade, spent + 40);
+}
+
+#[test]
+fn zio_ramp_reaches_the_live_scene_palette() {
+    if !pack_present() {
+        return;
+    }
+    let mut runtime = runtime_on(
+        0x82,
+        [
+            Some(CharId(0)),
+            Some(CharId(5)),
+            Some(CharId(3)),
+            Some(CharId(4)),
+            Some(CharId(6)),
+        ],
+        &[Flag::event(0x63)],
+    );
+    let (_, frames) = trace(&mut runtime, 0x30);
+    let ramp = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteRampFromTable { .. })
+    });
+    assert_eq!(frames[ramp].words[49..52], [0xCCC, 0xCA, 0x88]);
+    assert_eq!(frames[ramp + 30].words[49..52], [0xAAA, 0xA8, 0x66]);
+    let main = emitted(&frames, |op| {
+        matches!(
+            op,
+            PresentationOp::BarrierBeamUpdates {
+                frames: 40,
+                reveal: false
+            }
+        )
+    });
+    let reveal = emitted(&frames, |op| {
+        matches!(
+            op,
+            PresentationOp::BarrierBeamUpdates {
+                frames: 1,
+                reveal: true
+            }
+        )
+    });
+    assert_eq!(reveal - main, 40);
+    assert_eq!(ramp - reveal, 1);
+    for (before, after) in frames[main].beams.iter().zip(&frames[reveal].beams) {
+        assert_eq!(
+            after.1 - before.1,
+            40,
+            "40 further calls after the first update"
+        );
+    }
+    assert_eq!(frames[ramp].beams, frames[reveal].beams);
+    for frame in &frames[ramp..ramp + 210] {
+        assert_eq!(
+            frame.beams, frames[ramp].beams,
+            "map-only ramp must freeze the SAT pose"
+        );
+    }
 }
