@@ -39,7 +39,7 @@ and do not occur in this corpus. The handler provenance is:
 | `ResumeMusic` | `:143245` | Writes the retail resume command to `$FF5007`, then prepares VInt. | `AudioOutput::resume_music`. |
 | `SabotageAlarmRedPalette` | `:143252` | Plays Alarm (`$DB`) through three red/fade cycles. | Alarm through `AudioOutput`, red overlay through `CutsceneLayer`. |
 | `SetEventFlag` | `:143275` | Calls `EventFlags_Set` immediately with the operand byte. | `Runtime::set_event_flag` writes `GameState`; the live `TextFlow` flag bank is updated before it resumes. |
-| `ElsydeonBroken` | `:143348` | Runs the synchronous Elsydeon palette-break sequence. | Cutscene layer red-palette effect. |
+| `ElsydeonBroken` | `:143348` | Saves all 64 palette words, then 20 frames of `Pal_IncreaseTone` and 20 of `loc_58666` back, inside `RunText`. | The runtime's CRAM model (`Cram::tone_and_back`); the text holds for the 40 frames. |
 
 `Panel_Create` itself is at `:144284`; `Panel_Destroy` is at `:144449`; and
 the word-id lookup is `Panel_GetData` at `:144570`. `Panel_GetData` uses the

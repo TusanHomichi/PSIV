@@ -103,6 +103,9 @@ pub(crate) struct Cram {
     view: CramView,
     saved: [u16; PALETTE_WORDS],
     program: Option<Program>,
+    /// The loop that starts on the tick after `program` ends: the second
+    /// half of a routine that runs two loops back to back.
+    queued: Option<Program>,
 }
 
 impl Default for Cram {
@@ -111,6 +114,7 @@ impl Default for Cram {
             view: CramView::default(),
             saved: [0; PALETTE_WORDS],
             program: None,
+            queued: None,
         }
     }
 }
@@ -141,6 +145,7 @@ impl Cram {
             },
             saved: words,
             program: None,
+            queued: None,
         }
     }
 
@@ -215,10 +220,26 @@ impl Cram {
     /// Steps the running program by one frame; the runtime calls it once at
     /// the top of every tick.
     pub(crate) fn tick(&mut self, main_frame_count: u16) {
-        let Some(program) = self.program.take() else {
+        let Some(program) = self.program.take().or_else(|| self.queued.take()) else {
             return;
         };
         self.program = self.step(program, main_frame_count);
+    }
+
+    /// `TextAction_ElsydeonBroken` (`$06A76C`): the whole buffer to the
+    /// second one (`move.w #$3F, d7 / trap #1`), `frames` of
+    /// `Pal_IncreaseTone`, then `frames` of `loc_58666` back toward the copy
+    /// (`moveq #$13, d7` each: 20). The first tone frame runs now.
+    pub(crate) fn tone_and_back(&mut self, frames: u16, main_frame_count: u16) {
+        self.saved = self.view.words;
+        self.queued = Some(Program::Restore { left: frames });
+        self.start(
+            Program::Tone {
+                left: frames,
+                hold: None,
+            },
+            main_frame_count,
+        );
     }
 
     /// Starts `program` and runs its first frame now: the scene emitted it on

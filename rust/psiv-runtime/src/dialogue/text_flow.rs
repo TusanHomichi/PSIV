@@ -30,6 +30,9 @@ pub enum Opening {
     Silent,
 }
 
+/// Frames of each of `TextAction_ElsydeonBroken`'s two loops (`moveq #$13, d7`).
+pub(crate) const ELSYDEON_BROKEN_FRAMES: u16 = 20;
+
 /// One retail `$F2` action, released when the typewriter reaches its byte
 /// position. Payload-bearing variants keep the decoder's word/byte widths;
 /// the runtime applies `SetEventFlag` to [`GameState`] itself, and the
@@ -82,6 +85,8 @@ pub struct TextFlow {
     portrait: Option<u8>,
     /// Frames left on a `$F9`.
     hold: u16,
+    /// Blocking action frames, clocked even while the window opens.
+    action_hold: u16,
     /// Set while a finished page is on screen.
     stop: Option<PageEnd>,
     /// No segments left to run.
@@ -158,6 +163,7 @@ impl TextFlow {
             column: 0,
             portrait: None,
             hold: 0,
+            action_hold: 0,
             stop: None,
             done: false,
             closed: false,
@@ -226,11 +232,21 @@ impl TextFlow {
         !self.closed
     }
 
-    /// Whether a `$F9` delay is running.
+    /// Whether a delay or blocking action is running.
     #[cfg(test)]
     #[must_use]
     pub fn is_holding(&self) -> bool {
-        self.hold > 0
+        self.hold > 0 || self.action_hold > 0
+    }
+
+    /// Tick an already launched blocking action before dispatching new actions.
+    pub(crate) fn tick_action(&mut self, game: &GameState) {
+        if self.action_hold > 0 {
+            self.action_hold -= 1;
+            if self.action_hold == 0 {
+                self.pump(game);
+            }
+        }
     }
 
     /// One engine tick: runs down a `$F9` delay. Returns whether anything
@@ -375,8 +391,15 @@ impl TextFlow {
         self.pending_action.take()
     }
 
-    /// Resumes the retail text loop after the shell has applied one action.
-    pub fn resume_after_action(&mut self, game: &GameState) {
+    /// Resumes the retail text loop after the shell has applied `action`.
+    /// `TextAction_ElsydeonBroken` runs its two 20-frame loops inside
+    /// `RunText`, so the text waits for them: the loop resumes when that
+    /// hold runs down ([`TextFlow::tick_action`]).
+    pub fn resume_after_action(&mut self, action: DialogueAction, game: &GameState) {
+        if action == DialogueAction::ElsydeonBroken {
+            self.action_hold = 2 * ELSYDEON_BROKEN_FRAMES;
+            return;
+        }
         self.pump(game);
     }
 

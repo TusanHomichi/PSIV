@@ -46,6 +46,7 @@ mod tests;
 #[cfg(test)]
 mod tests_corpus;
 
+pub(crate) use text_flow::ELSYDEON_BROKEN_FRAMES;
 pub use text_flow::{DialogueAction, Opening, TextFlow};
 pub use view::{DialogueChoiceView, DialogueView};
 
@@ -287,6 +288,11 @@ impl DialogueRunner {
     /// been applied — the point the window node's own `physics_process` held
     /// before the window moved here.
     pub(crate) fn window(&mut self, game: &mut GameState) {
+        // Actions launch after this tick, so frame zero is never consumed here.
+        // Their palette clock runs during the opening animation too.
+        if let Some(flow) = self.flow.as_mut() {
+            flow.tick_action(game);
+        }
         self.pump_actions(game);
         if self.flow.is_none() {
             return;
@@ -355,6 +361,9 @@ impl DialogueRunner {
         let Some(flow) = self.flow.as_mut() else {
             return;
         };
+        if !flow.is_dismissable() {
+            return;
+        }
         let reopen = flow.page_end() == Some(PageEnd::Close);
         if self.revealed < flow.visible_chars() {
             // A press mid-typewriter neither completes the page nor advances
@@ -446,7 +455,7 @@ impl DialogueRunner {
             }
             self.signals.push(DialogueSignal::Action(action));
             if let Some(flow) = self.flow.as_mut() {
-                flow.resume_after_action(game);
+                flow.resume_after_action(action, game);
             }
             self.service_flow(game);
             self.drain_flow_log();

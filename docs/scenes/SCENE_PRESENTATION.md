@@ -458,7 +458,9 @@ art is indexed draws from it:
 - field sprite sheets (party, followers, NPCs) on the line their pack record
   names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
-- the dialogue window, whose tiles, glyphs and portraits are line 2.
+- the dialogue window, whose tiles, glyphs and portraits are line 2;
+- the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
+  as the renderer's clear colour.
 
 Sheets and panels keep each pixel's palette index
 (`psiv_data::color::index_png`) and are recoloured
