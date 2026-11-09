@@ -34,7 +34,7 @@ impl AttackTimeline {
                 elapsed: 0,
                 // USA BattleObj_ZoranBultAtk waits for this first piece and
                 // freezes it before its strike ($01528A..$0152C2).
-                frozen_overlay: (event.enemy_id == 10).then_some((0, 2, 6)),
+                frozen_overlay: (event.enemy_id == 10).then_some((0, 2)),
                 target_x,
             });
             self.next_id += 1;

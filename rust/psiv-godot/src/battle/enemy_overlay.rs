@@ -198,16 +198,15 @@ impl EnemyAnimation {
     /// Applies an object pose after the art update, in the frame's view order.
     pub(super) fn set_frozen_piece(
         &mut self,
-        pose: Option<(usize, usize, u8)>,
+        pose: Option<(usize, usize)>,
     ) -> Option<Gd<ImageTexture>> {
         for piece in &mut self.pieces {
             piece.frozen = false;
         }
-        if let Some((index, frame, timer)) = pose {
+        if let Some((index, frame)) = pose {
             let piece = self.pieces.get_mut(index)?;
-            let changed = piece.frame != frame || piece.timer != timer;
+            let changed = piece.frame != frame;
             piece.frame = frame;
-            piece.timer = timer;
             piece.frozen = true;
             if !changed {
                 return None;

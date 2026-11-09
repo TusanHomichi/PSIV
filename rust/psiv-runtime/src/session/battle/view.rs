@@ -128,8 +128,9 @@ pub struct AttackView {
     pub event: BattleAnimationEvent,
     /// Frames since dispatch: zero on the dispatch frame.
     pub elapsed: u16,
-    /// A frozen enemy overlay piece: piece, mapping frame and timer byte.
-    pub frozen_overlay: Option<(usize, usize, u8)>,
+    /// A frozen enemy overlay piece: piece and mapping frame. Its art timer
+    /// remains at the value it had when the object froze it.
+    pub frozen_overlay: Option<(usize, usize)>,
     /// The struck party fighter and its horizontal pivot in screen pixels.
     pub target_x: Option<(FighterId, i16)>,
 }

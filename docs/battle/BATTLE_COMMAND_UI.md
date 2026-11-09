@@ -219,8 +219,10 @@ shows Zoran attack sprites in the displayed VDP table for sixteen frames,
 25369-25384, with two frames per mapping. The RAM sprite buffer describes
 one frame ahead (25368-25383); capture comparisons use the displayed table. Its object's coordinates are relative to the fighter's centre
 (`loc_12618`), rather than the body's right edge. During the strike the first
-overlay piece is frozen at frame 2/timer 6; its VRAM replacement is also read
-by the attack mapping. `EnemyAttack_ZoranBult` writes line 2 colours 10-12,
+overlay piece is frozen at frame 2 (the oracle observes timer 6); its VRAM
+replacement is also read by the attack mapping. The runtime requests the
+frozen mapping frame, retaining the current art timer rather than assigning
+the fixture's observed timer to every attack. `EnemyAttack_ZoranBult` writes line 2 colours 10-12,
 while the object's init selects that line. The extractor pins the USA routine,
 init and freeze signatures before emitting those tiles and palette changes.
 
