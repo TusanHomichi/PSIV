@@ -54,7 +54,7 @@ chunk walk, `MapDataManager`) that the CPU spends between `VInt_Prepare` waits,
 so they differ per map: **34 to 92 rows** across the pack's 361 maps. They are measured, not
 modelled.
 
-**Method.** `tests/reload_frames.py` runs the oracle host over tape 35's field
+**Method.** `oracle/reload_frames.py` runs the oracle host over tape 35's field
 prefix (the fixture `tools/certify.py` `TAPE_35` pins). Frame 7000 loads the map
 (mode 8); frame 7200 puts the field in Events with `Event_Index = $8000`, whose
 `Event_NoEvent` is an immediate return with zero in `d0` (`CutscenePtrs[0]`,
@@ -80,7 +80,7 @@ Both landings took the music branch for real (`Saved_Sound_Index` goes `$9B` to
 with two extra RAM-map rows over `oracle/ship_flight.py`'s two legs), and still spent 52 and 42: the extra frame
 was absorbed by the load's alignment there, while the principal's own load
 spent it. The table therefore pins those three maps' music column to the
-organic counts (`ORGANIC_MUSIC_TAKEN` in `tests/reload_frames.py`: 55, 52, 42).
+organic counts (`ORGANIC_MUSIC_TAKEN` in `oracle/reload_frames.py`: 55, 52, 42).
 Whether a load absorbs the frame depends on the load's alignment, and the
 fixture shows it on 347 of 361 maps, both landings included, where the flights
 did not spend it: the music column elsewhere is the fixture's and good to a

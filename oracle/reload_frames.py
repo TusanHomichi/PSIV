@@ -1,8 +1,8 @@
 """Measure the cartridge's cutscene-return field reload, one map at a time.
 
-    PYTHONPATH=. python3 -m tests.reload_frames --out build/s8-reload/oracle
-    PYTHONPATH=. python3 -m tests.reload_frames --maps 0x14 0x18d --out ...
-    PYTHONPATH=. python3 -m tests.reload_frames --emit-rust build/.../table.json
+    PYTHONPATH=. python3 -m oracle.reload_frames --out build/s8-reload/oracle
+    PYTHONPATH=. python3 -m oracle.reload_frames --maps 0x14 0x18d --out ...
+    PYTHONPATH=. python3 -m oracle.reload_frames --emit-rust build/.../table.json
 
 `FieldRoutine_Cutscene` (`ps4.asm:120739-120758`) answers a zero return with
 `bset #2, Map_Load_Flags` and `GameMode_LoadFieldMap` (mode 8). The frames that
@@ -219,7 +219,7 @@ def write_table(receipt: dict, path: Path) -> None:
         for row in receipt["maps"]
     ]}
     for begin, end, body in (
-        ("// BEGIN GENERATED: python3 -m tests.reload_frames --write-table <this file>",
+        ("// BEGIN GENERATED: python3 -m oracle.reload_frames --write-table <this file>",
          "// END GENERATED\n", emit_rust(receipt["maps"])),
         ("// BEGIN GENERATED PROXY\n", "// END GENERATED PROXY",
          "\n".join(f"    {m:#05x}," for m in proxies)),

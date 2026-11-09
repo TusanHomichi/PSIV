@@ -1,6 +1,6 @@
 """The cutscene-return reload table (`rust/psiv-core/src/scenes/field_reload.rs`).
 
-    PYTHONPATH=. python3 -m unittest tests.test_reload_frames -v
+    PYTHONPATH=. python3 -m unittest tests.test_oracle_battle_fixture_reload -v
 
 Two groups. The table cases need only the repository: the Rust table parses,
 is sorted, and names exactly the maps the pack has; the maps whose row is a
@@ -21,7 +21,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tests import reload_frames
+from oracle import reload_frames
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = ROOT / "rust/psiv-core/src/scenes/field_reload.rs"
@@ -111,6 +111,7 @@ class MethodCase(unittest.TestCase):
             for name in ("rom", "core", "manifest.json", "host", "source.tape"):
                 (root / name).write_text(name)
             out = root / "results"
+            out.mkdir()
 
             def run(command, **kwargs):
                 log = Path(command[command.index("--out") + 1])
