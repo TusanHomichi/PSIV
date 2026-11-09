@@ -4,18 +4,22 @@
 
 Two groups. The table cases need only the repository: the Rust table parses,
 is sorted, and names exactly the maps the pack has; the maps whose row is a
-first-load proxy are listed. The oracle cases re-measure the three anchor maps through
-`tests/reload_frames.py` and compare them with the table; they skip with a
+first-load proxy are listed. The oracle cases re-measure forced fixtures;
+they do not replay the organic captures and skip with a
 message when the ROM, the emulation core or the pack is absent.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests import reload_frames
 
@@ -27,6 +31,8 @@ PACK = ROOT / "runtime-pack/manifest.json"
 
 #: The two flight landings (tape 35) and the principal's office (tape 07).
 ANCHORS = {0x18D: (52, 52), 0xBF: (42, 42), 0x14: (54, 55)}
+# These are forced fixture observations, before any organic table override.
+FIXTURE_ANCHORS = {0x18D: (52, 53), 0xBF: (42, 43), 0x14: (54, 55)}
 
 
 def table_rows() -> dict[int, tuple[int, int]]:
@@ -97,6 +103,57 @@ class MethodCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             reload_frames.reload_rows(self.log([8, 8, 8]))
 
+    def test_attempts_retain_distinct_replayable_evidence_even_when_they_fail(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / "oracle").mkdir()
+            (root / "oracle/ram_map.tsv").write_text("ram map")
+            for name in ("rom", "core", "manifest.json", "host", "source.tape"):
+                (root / name).write_text(name)
+            out = root / "results"
+
+            def run(command, **kwargs):
+                log = Path(command[command.index("--out") + 1])
+                log.write_text("frame,game_mode\n7000,0008\n7001,000C\n"
+                               "7200,0008\n7201,0008\n7202,000C\n")
+                return subprocess.CompletedProcess(command, 0, b"host output")
+
+            with (patch.object(reload_frames, "ROOT", root),
+                  patch.object(reload_frames, "ROM", "rom"),
+                  patch.object(reload_frames, "CORE", "core"),
+                  patch.object(reload_frames, "PACK", root),
+                  patch.object(reload_frames.host_binary, "ensure", return_value=root / "host"),
+                  patch.object(reload_frames.subprocess, "run", side_effect=run) as runner):
+                for at in (None, (1, 2), (3, 4), None):
+                    self.assertEqual(reload_frames.run_one(0x14, 1, root / "source.tape", out,
+                                                         at=at), 2)
+                self.assertEqual(reload_frames.run_one(0x14, 1, root / "source.tape", out,
+                                                     first_load=True), 1)
+                runner.side_effect = None
+                runner.return_value = subprocess.CompletedProcess([], 7, b"failed host")
+                with self.assertRaisesRegex(RuntimeError, "oracle exited 7"):
+                    reload_frames.run_one(0x14, 1, root / "source.tape", out)
+                runner.side_effect = lambda command, **kwargs: subprocess.CompletedProcess(
+                    command, 0, b"no log produced")
+                with self.assertRaises(FileNotFoundError):
+                    reload_frames.run_one(0x14, 1, root / "source.tape", out)
+
+            attempts = list(out.iterdir())
+            self.assertEqual(len(attempts), 7)
+            statuses = []
+            for attempt in attempts:
+                receipt = json.loads((attempt / "receipt.json").read_text())
+                statuses.append(receipt["exit_status"])
+                self.assertEqual((attempt / "input.tape").read_bytes(), b"source.tape")
+                self.assertEqual(receipt["input_sha256"]["tape"],
+                                 hashlib.sha256(b"source.tape").hexdigest())
+                self.assertEqual(Path(receipt["command"][receipt["command"].index("--tape") + 1]),
+                                 attempt / "input.tape")
+                self.assertTrue((attempt / "stdout.log").is_file())
+                if (attempt / "stdout.log").read_bytes() == b"host output":
+                    self.assertTrue((attempt / "frames.csv").is_file())
+            self.assertEqual(sorted(statuses), [0, 0, 0, 0, 0, 0, 7])
+
 
 class OracleCase(unittest.TestCase):
     @classmethod
@@ -105,28 +162,26 @@ class OracleCase(unittest.TestCase):
         if missing:
             raise unittest.SkipTest(f"local inputs absent: {', '.join(missing)}")
 
-    def test_the_oracle_reproduces_the_anchor_rows_the_music_frame_and_the_fade_skip(self):
+    def test_the_forced_fixture_counts_and_flag_effects(self):
         rows = table_rows()
-        with tempfile.TemporaryDirectory() as scratch:
-            out = Path(scratch)
-            tape = reload_frames.reload_tape(out)
-            for map_id in ANCHORS:
-                music = reload_frames.raw_music(map_id)
-                same = reload_frames.run_one(map_id, music, tape, out)
-                other = reload_frames.run_one(map_id, (music + 1) & 0xFF, tape, out)
-                # The table pins B to the organic capture, where the fixture's
-                # own B can be a frame longer (`ORGANIC_MUSIC_TAKEN`).
-                organic = reload_frames.ORGANIC_MUSIC_TAKEN[map_id]
-                self.assertEqual(rows[map_id], (same, organic), f"{map_id:#x} table row")
-                self.assertIn(other - same, (0, 1), f"{map_id:#x} music frame")
-            # Bit 7 of Map_Load_Flags skips Pal_FadeIn's 16 frames.
-            map_id = 0x14
+        out = ROOT / "build/reload-tests" / str(time.time_ns())
+        out.mkdir(parents=True)
+        print(f"reload fixture evidence: {out}", flush=True)
+        tape = reload_frames.reload_tape(out)
+        for map_id in ANCHORS:
             music = reload_frames.raw_music(map_id)
-            skipped = reload_frames.run_one(map_id, music, tape, out, bits=0x80)
-            self.assertEqual(skipped, rows[map_id][0] - 16)
-            # Bit 0 keeps the music branch from running at all.
-            bit0 = reload_frames.run_one(map_id, (music + 1) & 0xFF, tape, out, bits=0x01)
-            self.assertEqual(bit0, rows[map_id][0])
+            same = reload_frames.run_one(map_id, music, tape, out)
+            other = reload_frames.run_one(map_id, (music + 1) & 0xFF, tape, out)
+            self.assertEqual((same, other), FIXTURE_ANCHORS[map_id],
+                             f"{map_id:#x} forced fixture (not organic)")
+        # Bit 7 of Map_Load_Flags skips Pal_FadeIn's 16 frames.
+        map_id = 0x14
+        music = reload_frames.raw_music(map_id)
+        skipped = reload_frames.run_one(map_id, music, tape, out, bits=0x80)
+        self.assertEqual(skipped, rows[map_id][0] - 16)
+        # Bit 0 keeps the music branch from running at all.
+        bit0 = reload_frames.run_one(map_id, (music + 1) & 0xFF, tape, out, bits=0x01)
+        self.assertEqual(bit0, rows[map_id][0])
 
 
 if __name__ == "__main__":
