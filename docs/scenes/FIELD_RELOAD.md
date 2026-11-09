@@ -173,6 +173,17 @@ descriptor refill is part of the work even though that bit ends the stream.
 These are decompressor-component fixtures, not organic campaign captures or
 an all-map elapsed-frame formula.
 
+Nemesis's [Rust decoder](../../rust/psiv-pack/src/decode/nemesis.rs) likewise
+collects instruction work along its byte-decoding path. Its `Work::cpu_cycles`
+distinguishes the RAM and VDP entry points, code-table construction, variable
+shift counts, lookup and inline tokens, refills, row writes and XOR mode.
+The final row returns immediately, including when it cuts a repeat short;
+unwritten pixels do not contribute work. The result excludes caller JSR,
+interrupts, refresh and VDP/bus stalls. It returns no timing result for a
+wrapped zero row count: the byte decoder's existing empty-output behavior
+does not reproduce the retail row-counter underflow. Neither component yet
+provides an elapsed-frame count for the loader.
+
 The preceding scene's full instruction history need not determine that entry
 phase. On the non-battle return path, `FieldRoutine_Cutscene` ends with
 `jmp VInt_Prepare` (`:120758`); `MainGameLoop` (`:411-416`) dispatches the load
