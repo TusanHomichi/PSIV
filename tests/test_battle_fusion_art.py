@@ -14,15 +14,18 @@ from psiv_tools.battle_fusion_art import (
     fusion_art_offset,
     fusion_mappings,
     render_record,
-    vdp_size,
 )
+from psiv_tools.battle_animation_mapping import vdp_sprite_size
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 
 
 def entry(size: int, tile: int, x: int = 0, y: int = 0, h_flip: bool = False) -> dict:
+    """An entry as `decode_mapping_record` writes it."""
+    columns, rows = vdp_sprite_size(size)
     return {"rom_offset": "0x000000", "y": y, "size": size, "tile_index": tile,
-            "h_flip": h_flip, "v_flip": False, "attributes_valid": True, "x": x}
+            "h_flip": h_flip, "v_flip": False, "attributes_valid": True, "x": x,
+            "width_tiles": columns, "height_tiles": rows}
 
 
 class Synthetic(unittest.TestCase):
@@ -33,10 +36,10 @@ class Synthetic(unittest.TestCase):
         return [[min(n + 1, 15)] * 64 for n in range(count)]
 
     def test_the_size_byte_is_columns_in_bits_3_2_and_rows_in_bits_1_0(self):
-        self.assertEqual(vdp_size(0x09), (3, 2))
-        self.assertEqual(vdp_size(0x06), (2, 3))
-        self.assertEqual(vdp_size(0x0F), (4, 4))
-        self.assertEqual(vdp_size(0x00), (1, 1))
+        self.assertEqual(vdp_sprite_size(0x09), (3, 2))
+        self.assertEqual(vdp_sprite_size(0x06), (2, 3))
+        self.assertEqual(vdp_sprite_size(0x0F), (4, 4))
+        self.assertEqual(vdp_sprite_size(0x00), (1, 1))
 
     def test_a_sprite_reads_its_tiles_down_each_column_first(self):
         image = render_record(self.tiles(6), {"entries": [entry(0x09, 0)]})

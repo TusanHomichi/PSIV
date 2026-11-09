@@ -82,13 +82,22 @@ pub struct Piece {
     pub x: i8,
 }
 
+/// A sprite's (columns, rows) of tiles from its size byte: the VDP keeps the
+/// horizontal count in bits 3-2 and the vertical one in bits 1-0, in a
+/// mapping entry and in the sprite table alike (#364). Its tiles run down each
+/// column before moving right.
+#[must_use]
+pub const fn vdp_sprite_size(size: u8) -> (usize, usize) {
+    (((size >> 2) & 3) as usize + 1, (size & 3) as usize + 1)
+}
+
 impl Piece {
     pub fn width_tiles(&self) -> usize {
-        usize::from((self.size_byte >> 2) & 3) + 1
+        vdp_sprite_size(self.size_byte).0
     }
 
     pub fn height_tiles(&self) -> usize {
-        usize::from(self.size_byte & 3) + 1
+        vdp_sprite_size(self.size_byte).1
     }
 }
 

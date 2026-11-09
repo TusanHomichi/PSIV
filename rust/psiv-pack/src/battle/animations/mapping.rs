@@ -35,8 +35,7 @@ pub fn decode_record(rom: &[u8], offset: usize) -> Result<Json, String> {
         let at = offset + HEADER_BYTES + index * ENTRY_BYTES;
         let size = rom[at + 1];
         let tile_word = u16::from_be_bytes([rom[at + 2], rom[at + 3]]);
-        let width_tiles = usize::from(size & 0x03) + 1;
-        let height_tiles = usize::from((size >> 2) & 0x03) + 1;
+        let (width_tiles, height_tiles) = crate::sprites::records::vdp_sprite_size(size);
         let tile_index = usize::from(tile_word & 0x07FF);
         let tile_span_end = tile_index + width_tiles * height_tiles;
         entries.push(

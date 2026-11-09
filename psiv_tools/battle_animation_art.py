@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from . import png
+from .battle_animation_mapping import vdp_sprite_tile
 from .battle_animation_objects import plc_art as decode_plc_art
 from .core import EXPECTED_SHA256
 from .nemesis import TILE_SIZE
@@ -112,7 +113,7 @@ def _render_attack_mapping(
             for x in range(width_tiles * 8):
                 source_x = width_tiles * 8 - 1 - x if entry["h_flip"] else x
                 tile_col, pixel_x = divmod(source_x, 8)
-                tile = tiles[tile_index + tile_row * width_tiles + tile_col]
+                tile = tiles[vdp_sprite_tile(tile_index, tile_col, tile_row, height_tiles)]
                 pixel = tile[pixel_y * 8 + pixel_x]
                 if pixel:
                     pixels[(sprite_y + y) * width + sprite_x + x] = pixel

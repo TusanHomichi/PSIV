@@ -28,6 +28,23 @@ def _signed_byte(value: int) -> int:
     return value - 0x100 if value & 0x80 else value
 
 
+def vdp_sprite_size(size: int) -> tuple[int, int]:
+    """A sprite's (columns, rows) of tiles from its size byte.
+
+    The VDP keeps the horizontal count in bits 3-2 and the vertical one in
+    bits 1-0, in a mapping entry and in the sprite table alike (#364). Oracle
+    tape 33's frames of the Fusion pieces fit only this reading, pixel for
+    pixel.
+    """
+    return ((size >> 2) & 0x03) + 1, (size & 0x03) + 1
+
+
+def vdp_sprite_tile(first: int, column: int, row: int, rows: int) -> int:
+    """The pattern a sprite draws at tile (`column`, `row`): a VDP sprite's
+    tiles run down each column before moving right."""
+    return first + column * rows + row
+
+
 def decode_mapping_record(
     rom: bytes, offset: int, bank_patterns: int | None = None
 ) -> dict[str, Any]:
@@ -48,8 +65,7 @@ def decode_mapping_record(
         tile_word = _u16(rom, entry_offset + 2)
         x = _signed_byte(rom[entry_offset + 4])
         x_mirror = _signed_byte(rom[entry_offset + 5])
-        width_tiles = (size & 0x03) + 1
-        height_tiles = ((size >> 2) & 0x03) + 1
+        width_tiles, height_tiles = vdp_sprite_size(size)
         tile_index = tile_word & 0x07FF
         tile_span_end = tile_index + width_tiles * height_tiles
         entries.append({

@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from . import png
-from .battle_animation_mapping import decode_mapping_record
+from .battle_animation_mapping import decode_mapping_record, vdp_sprite_tile
 from .core import be16, be32
 from .nemesis import decompress
 
@@ -102,13 +102,6 @@ def _tile_pixels(data: bytes) -> list[list[int]]:
     return tiles
 
 
-def vdp_size(size: int) -> tuple[int, int]:
-    """A sprite's (columns, rows) of tiles: the VDP's size byte keeps the
-    horizontal count in bits 3-2 and the vertical one in bits 1-0. Tape 33's
-    frames of these pieces fit only this reading, pixel for pixel."""
-    return ((size >> 2) & 0x03) + 1, (size & 0x03) + 1
-
-
 def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, Any]:
     """One mapping record as an indexed image and its origin.
 
@@ -116,11 +109,8 @@ def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, A
     its own tiles mirrored. `origin` is the record's top-left relative to the
     object's position (the record's smallest x and y).
     """
-    entries = [
-        {**entry, "width_tiles": vdp_size(entry["size"])[0],
-         "height_tiles": vdp_size(entry["size"])[1]}
-        for entry in record["entries"]
-    ]
+    # `decode_mapping_record` reads the size byte the VDP's way (#364).
+    entries = record["entries"]
     left = min(entry["x"] for entry in entries)
     top = min(entry["y"] for entry in entries)
     right = max(entry["x"] + entry["width_tiles"] * 8 for entry in entries)
@@ -136,7 +126,7 @@ def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, A
             source_y = rows * 8 - 1 - y if entry["v_flip"] else y
             for x in range(columns * 8):
                 source_x = columns * 8 - 1 - x if entry["h_flip"] else x
-                tile = tiles[entry["tile_index"] + (source_x // 8) * rows + source_y // 8]
+                tile = tiles[vdp_sprite_tile(entry["tile_index"], source_x // 8, source_y // 8, rows)]
                 pixel = tile[(source_y % 8) * 8 + source_x % 8]
                 if pixel:
                     pixels[(entry["y"] - top + y) * width + entry["x"] - left + x] = pixel
