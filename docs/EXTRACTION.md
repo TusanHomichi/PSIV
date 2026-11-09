@@ -86,9 +86,7 @@ generated/
 │   └── extract_stamp.json
 ├── planes/                      (composed plane screens, PNG)
 │   └── extract_stamp.json
-├── battle_art/                  (enemies/ and characters/, PNG)
-│   └── extract_stamp.json
-└── layouts/                     (map renders, PNG; not rebuilt by regenerate, see below)
+└── battle_art/                  (enemies/ and characters/, PNG)
     └── extract_stamp.json
 ```
 
@@ -116,7 +114,7 @@ use an older extract without noticing:
   each table the same modules and a per-file stamp would claim precision the
   graph does not have. Each PNG directory carries its own `extract_stamp.json`,
   written by the exporter that writes the images (`export_art_pngs`,
-  `export_plane_pngs`, `export_battle_art_pngs` and `export_map_pngs`).
+  `export_plane_pngs` and `export_battle_art_pngs`).
 - The stamp also lists every file its producer wrote, with the file's SHA-256, so
   it vouches for contents and not only for the directory. A table the stamp does
   not list, or whose bytes differ from the listed hash, is refused: an old table
@@ -146,11 +144,6 @@ use an older extract without noticing:
   the JSON tables have readers (the battle-forcing pack, the route and player
   ability derivations, the replay pack, the sweep coverage and the dialogue
   census).
-- `layouts/` is written by `export_map_pngs` for the maps someone chooses and
-  has no command of its own, so `regenerate` does not touch it
-  ([#106](https://github.com/TusanHomichi/PSIV/issues/106) tracks the missing
-  producer). The exporter stamps it, and refuses to add a map to a directory
-  that holds images from another source.
 
 ## Proven retail-layout tables
 
@@ -203,6 +196,16 @@ Art composes now: `psiv_tools/enigma.py` (transcribed from the game's own `EniDe
 
 ## Map layouts and collision
 
+Reproduce the layout and collision checks with the local US retail ROM in place
+(see [local prerequisites](DEVELOPMENT.md#prepare-the-local-pack)):
+
+```bash
+python3 tools/heavy_lock.py run --class python -- python3 -m unittest tests.test_layouts
+```
+
+The former hand-selected layout PNG directory is retired; these checks render
+in memory and need no saved map images. Existing local images are not inputs.
+
 Per-map `MapUpdateJmpTbl` lists now ship as ordered `map_updates` programs,
 with extracted CRAM tables/sine inputs, a 64-word palette shadow and additive
 index-image sidecars. `manifest.map_updates` accounts for all 64 entries and
@@ -211,7 +214,7 @@ Original map images and all pre-existing map fields remain unchanged.
 See [the census and frame contract](field/MAP_UPDATES.md) for retail citations,
 supported classes, negative controls and full-pack comparison evidence.
 
-Field maps are built from 32×32-pixel chunks: 16 Mega Drive pattern-name words each, Kosinski-compressed and loaded back to back into `Chunk_Table`. Each plane's layout is one byte per chunk, also Kosinski, and the map record says which plane the collision reader uses. Bit 14 of a chunk word — the bit that would be the high palette-select bit — is a collision flag the game masks off before the VDP sees it (so field tiles can only use CRAM lines 0–1), and the four flags of a 2×2-tile cell spell out a 4-bit collision type per 16 pixels (0 normal, 1 map change, 2 recovery, 8 solid, 9 water, $A sand, $B ice, $C shop; 8–C block). Proven on Piata, PiataItemShop and IslandCave; `generated/layouts/piata.png` renders the town from the cartridge, all six of its doorways land on collision type 1, and the shop-location table's counter position lands on a shop cell. The two overworlds use a paged format: uncompressed 1,024-byte pages of chunk ids streamed through a rolling 4KB window as the camera moves, 128×128 chunks per plane, wrapping at 4,096 px on both axes — the planet is a globe. Nine page-copy hooks rewrite layout cells from event flags (spaceports appearing, the Bio Plant sealing); the pack emits those as `layout_patches`. Priority tiles (bit 15, which survives the collision-bit mask) draw above sprites on hardware; every map with priority tiles gets a transparent overlay PNG so the renderer reproduces that ordering.
+Field maps are built from 32×32-pixel chunks: 16 Mega Drive pattern-name words each, Kosinski-compressed and loaded back to back into `Chunk_Table`. Each plane's layout is one byte per chunk, also Kosinski, and the map record says which plane the collision reader uses. Bit 14 of a chunk word — the bit that would be the high palette-select bit — is a collision flag the game masks off before the VDP sees it (so field tiles can only use CRAM lines 0–1), and the four flags of a 2×2-tile cell spell out a 4-bit collision type per 16 pixels (0 normal, 1 map change, 2 recovery, 8 solid, 9 water, $A sand, $B ice, $C shop; 8–C block). Proven on Piata, PiataItemShop and IslandCave; `tests/test_layouts.py` checks the composed town pixels against a pinned digest, all six doorways against collision type 1, and the shop-location table's counter position against a shop cell. The two overworlds use a paged format: uncompressed 1,024-byte pages of chunk ids streamed through a rolling 4KB window as the camera moves, 128×128 chunks per plane, wrapping at 4,096 px on both axes — the planet is a globe. Nine page-copy hooks rewrite layout cells from event flags (spaceports appearing, the Bio Plant sealing); the pack emits those as `layout_patches`. Priority tiles (bit 15, which survives the collision-bit mask) draw above sprites on hardware; every map with priority tiles gets a transparent overlay PNG so the renderer reproduces that ordering.
 
 Live scene writes use the same `patch_tiles` atlas as load-time effects;
 `map_effects.scene_patch_chunks` in the manifest records each map's extracted

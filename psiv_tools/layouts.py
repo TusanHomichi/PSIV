@@ -44,7 +44,6 @@ from __future__ import annotations
 import hashlib
 import struct
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from . import png
@@ -62,7 +61,6 @@ from .chunk_draw import (
     overlay_chunk,
     prepare_chunk,
 )
-from .extract_stamp import check_accumulating_png_directory, write_png_stamp
 from .gfx import GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
 from .kosinski import decompress as kos_decompress
 
@@ -866,41 +864,3 @@ def decode_map_layout(
     patterns = decode_tilesets(rom, spec.tilesets) if with_tiles else None
     return MapLayout(spec=spec, chunks=chunks, fg=fg, bg=bg,
                      collision=collision, patterns=patterns)
-
-
-def export_map_pngs(
-    rom: bytes, spec: MapLayoutSpec, out_dir: str | Path, name: str | None = None
-) -> dict[str, Any]:
-    """Render one map's composited planes and its collision grid to PNGs.
-
-    Pixel output never enters committed files; this writes under whatever
-    directory it is given, which for this project is `generated/`.
-    """
-    decoded = decode_map_layout(rom, spec, with_tiles=True)
-    if decoded.patterns is None or not spec.tilesets:
-        raise LayoutError("Rendering needs the map's tileset list")
-
-    palette = chunk_palette(rom, spec.palette) if spec.palette is not None else None
-    # Plane A is always in front of plane B, whichever of the two carries the
-    # collision data, so the compositing order never depends on EC24.
-    base, over = decoded.bg, decoded.fg
-
-    directory = Path(out_dir)
-    directory.mkdir(parents=True, exist_ok=True)
-    stem = name or spec.label or "map"
-    # The directory grows one map at a time: its stamp can only vouch for images
-    # this source wrote, so images from older source must be cleared first.
-    check_accumulating_png_directory(directory, "layouts", {f"{stem}.png", f"{stem}_collision.png"})
-
-    layout_png = directory / f"{stem}.png"
-    layout_png.write_bytes(
-        render_layout(decoded.chunks, base, decoded.patterns, palette, overlay=over)
-    )
-    collision_png = directory / f"{stem}_collision.png"
-    collision_png.write_bytes(render_collision(decoded.collision))
-    write_png_stamp(directory, "layouts", [layout_png, collision_png], keep_previous=True)
-
-    result = decoded.to_json()
-    result["png"] = {"layout": str(layout_png), "collision": str(collision_png)}
-    result["composited"] = {"base_plane": base.plane, "overlay_plane": over.plane}
-    return result
