@@ -139,6 +139,25 @@ class Loader(TempDirectory):
                 self.assertIn(f"{name}.json", str(caught.exception))
                 self.assertIn("python3 -m psiv_tools regenerate", str(caught.exception))
 
+    def test_an_interrupted_extract_refuses_a_brand_new_table_name(self):
+        write_json(self.directory / "enemies.json", [])
+        self.assertFalse((self.directory / "metadata.json").exists())
+        with self.assertRaises(StaleExtractError) as caught:
+            load_table(self.directory, "brand_new_table")
+        self.assertIn("brand_new_table.json", str(caught.exception))
+        self.assertIn("no stamp", str(caught.exception))
+        self.assertIn(stamp.REBUILD_COMMAND, str(caught.exception))
+        with self.assertRaises(StaleExtractError):
+            stamp.table_sha256(self.directory, "brand_new_table")
+
+    def test_negative_control_only_json_files_make_an_absent_extract_stale(self):
+        (self.directory / "notes.txt").write_text("not a table")
+        (self.directory / "directory.json").mkdir()
+        for directory in (self.directory, self.root / "absent"):
+            with self.subTest(directory=directory):
+                with self.assertRaises(FileNotFoundError):
+                    load_table(directory, "brand_new_table")
+
     def test_a_table_the_current_stamp_lists_but_is_missing_is_refused(self):
         write_json(self.directory / "enemies.json", [])
         write_json(self.directory / "items.json", [])
@@ -360,9 +379,11 @@ class WriteExtract(TempDirectory):
         return fake_result(without)
 
     def test_the_written_extract_carries_the_stamp_and_loads(self):
-        with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
+        result = self.fake_result()
+        with mock.patch.object(core, "extract_all", return_value=result):
             core.write_extract(b"", self.directory)
         metadata = json.loads((self.directory / "metadata.json").read_text())
+        self.assert_metadata_body(metadata, result["metadata"])
         record = metadata["extract_stamp"]
         self.assertEqual({k: record[k] for k in ("kind", "stamp", "modules")}, stamp.table_stamp())
         self.assertEqual(sorted(record["files"]), sorted(["metadata.json", *(f"{k}.json" for k in core.TABLE_KEYS)]))
@@ -371,6 +392,23 @@ class WriteExtract(TempDirectory):
                              hashlib.sha256((self.directory / f"{key}.json").read_bytes()).hexdigest())
         self.assertEqual(load_table(self.directory, "enemies"), {"key": "enemies"})
         self.assertEqual(load_table(self.directory, "metadata")["key"], "metadata")
+
+    def assert_metadata_body(self, document, expected):
+        self.assertEqual({key: value for key, value in document.items()
+                          if key != "extract_stamp"}, expected)
+
+    def test_negative_control_a_writer_that_changes_metadata_body_is_caught(self):
+        finish = core.finish_table_export
+
+        def change_body(directory, metadata, written, previous):
+            finish(directory, {**metadata, "unexpected": True}, written, previous)
+
+        # This mutation still writes a valid stamp: freshness alone cannot pin
+        # the producer's metadata body because the stamp writer is not stamped.
+        with mock.patch.object(core, "finish_table_export", side_effect=change_body):
+            with self.assertRaises(AssertionError):
+                self.test_the_written_extract_carries_the_stamp_and_loads()
+        self.assertTrue(load_table(self.directory, "metadata")["unexpected"])
 
     def test_an_extract_that_stops_half_way_is_not_vouched_for(self):
         with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
