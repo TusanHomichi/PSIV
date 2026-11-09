@@ -84,7 +84,9 @@ impl CutsceneLayer {
     pub(crate) fn panel_destroy_last(&mut self) {
         match self.panels.pop() {
             Some(id) => godot_print!("scene panel destroyed: last {id:#05x}"),
-            None => godot_warn!("Panel_Destroy stack underflow: no staged panel"),
+            None => {
+                godot_warn!("Panel_Destroy stack underflow: no staged panel");
+            }
         }
     }
 
