@@ -194,8 +194,8 @@ fn slide(ops: &'static [SceneOp], objects: usize) -> (Vec<Vec<i32>>, GameState, 
 fn objects_drift_at_their_step_constants_and_the_scene_waits_for_the_loop() {
     let (frames, state, _) = slide(SLIDE, 2);
     // Tick 1 runs the op; ticks 2..=65 are the 64 loop iterations, and the
-    // scene's next op runs on the last of them.
-    assert_eq!(frames.len(), 65);
+    // caller resumes on tick 66, after the final update's VInt_Prepare.
+    assert_eq!(frames.len(), 66);
     assert_eq!(frames[0], vec![0x120, 0x160], "the op itself moves nothing");
     // -0.25 px a frame: $120.0000 - $4000 is $11F.C000, so the first frame
     // already shows $11F; four frames make a whole pixel.
@@ -210,6 +210,37 @@ fn objects_drift_at_their_step_constants_and_the_scene_waits_for_the_loop() {
     // End: 16 px left, 32 px right.
     assert_eq!(frames[64], vec![0x110, 0x180]);
     assert!(state.is_set(Flag::event(0x01)), "the next op ran");
+
+    let map = map_of(&[(18, 25), (22, 25)]);
+    let mut state = GameState::new();
+    let mut runner = SceneRunner::new(SLIDE, cast(2), StepFrames::default());
+    for tick in 1..=65 {
+        let effects = runner.tick(&map, &mut state, SceneInput::None);
+        assert!(
+            !state.is_set(Flag::event(0x01)),
+            "next op waited through tick {tick}"
+        );
+        assert!(
+            !runner.is_finished(),
+            "final update is presented before return"
+        );
+        assert!(
+            !effects
+                .iter()
+                .any(|effect| matches!(effect, SceneEffect::Finished))
+        );
+    }
+    let effects = runner.tick(&map, &mut state, SceneInput::None);
+    assert!(
+        state.is_set(Flag::event(0x01)),
+        "next tick runs the caller's flag write"
+    );
+    assert!(runner.is_finished());
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, SceneEffect::Finished))
+    );
 }
 
 #[test]
@@ -232,7 +263,7 @@ fn a_drifting_actor_is_drawn_at_its_pixel_every_frame() {
     let mut state = GameState::new();
     let mut runner = SceneRunner::new(SLIDE, cast(2), StepFrames::default());
     let mut drawn = Vec::new();
-    for _ in 0..65 {
+    for _ in 0..66 {
         let effects = runner.tick(&map, &mut state, SceneInput::None);
         apply(&mut map, &effects);
         let at = |npc: usize| {
@@ -244,7 +275,7 @@ fn a_drifting_actor_is_drawn_at_its_pixel_every_frame() {
     }
     let (reported, _, _) = slide(SLIDE, 2);
     // Frame 0 runs the op itself and moves nothing; the drift's 64 frames
-    // follow.
+    // follow, then the caller resumes with the final position held.
     assert_eq!(
         drawn[1..],
         reported[1..],
