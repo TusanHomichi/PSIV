@@ -17,13 +17,12 @@ import hashlib
 from collections import Counter
 from typing import Any
 
+from .battle_animation_art import emit_enemy_attack_art as emit_enemy_attack_art
 from .battle_animation_mapping import BattleMappingError
 from .battle_animation_mapping import MAPPING_ENTRY_BYTES, MAPPING_HEADER_BYTES
 from .battle_animation_mapping import decode_mapping_record
-from .battle_animation_objects import frame_sequences as decode_frame_sequences
 from .battle_animation_objects import object_evidence as decode_object_evidence
 from .battle_animation_objects import plc_art as decode_plc_art
-from .battle_animation_objects import plc_loads as decode_plc_loads
 from .core import EXPECTED_SHA256, EXPECTED_SIZE, be16, be32
 from .decode_cache import memoized
 from .sound_defs import SFX_NAMES
@@ -988,6 +987,3 @@ def _decode_enemy_animations(rom: bytes) -> dict[str, Any]:
             "attack_plc_distinct_records": len(attack_plc_records),
         },
     }
-
-# Art emission is deliberately kept out of the census module.
-from .battle_animation_art import emit_enemy_attack_art

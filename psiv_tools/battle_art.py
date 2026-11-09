@@ -384,7 +384,7 @@ def enemy_cram_line(data: bytes, enemy_id: int, line: int = 1) -> list[int]:
     for i, value in enumerate(words):
         colors[ENEMY_PALETTE_FIRST_INDEX + i] = value
     colors[14] = UI_COLOR_14
-    colors[15] = next(v for _, l, i, v in UI_COLOR_SITES if l == line and i == 15)
+    colors[15] = next(value for _, color_line, index, value in UI_COLOR_SITES if color_line == line and index == 15)
     return colors
 
 
