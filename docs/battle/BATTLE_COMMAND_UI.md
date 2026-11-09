@@ -150,7 +150,7 @@ and closes on every choice the same way. With A the press frame:
 | Left to a previous page | `Battle_TechPrevWin` (`ps4.asm:2760`) | list 10..2, then the previous page whole |
 | the round's end | `Battle_OpenMainOptions` (`ps4.asm:1847`) | a setup frame, then 2, 4, 6 and the options whole |
 
-Receipts: tape 37 (`oracle/tapes/37_battle_window_closing.tape`: tape 32,
+Receipts: tape 40 (`oracle/tapes/40_battle_window_closing.tape`: tape 32,
 then B in the list at f25505, DEFEND at f25605, B on Chaz's strip at f25689,
 SANER at f25853, two DEFENDs and the round) and tape 32 (COMD at f25001). The
 video shows each width a frame after the RAM frame above: the list at

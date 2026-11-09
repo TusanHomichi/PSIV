@@ -4,6 +4,9 @@
 
 ## Tapes
 
+Each tape takes the next free number: prose names tapes by number, and
+`rust/psiv-core/tests/oracle_tape_numbers.rs` fails when two share one.
+
 | tape | what it proves |
 |---|---|
 | `01_newgame_to_first_control.tape` | the boot path is reachable deterministically from power-on; new-game starting state |

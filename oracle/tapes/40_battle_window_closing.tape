@@ -1,4 +1,4 @@
-# Tape 37 - the battle command windows closing (#51).
+# Tape 40 - the battle command windows closing (#51).
 #
 # Tape 32 verbatim to frame 25500 (Alys's technique window at rest), then
 # every way a strip or list window closes: Cancel out of the technique list,
