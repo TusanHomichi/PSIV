@@ -87,7 +87,7 @@ class Verdict(unittest.TestCase):
             "0 flash attacks, not 3",
             *["tick 188 fighter 6 enemy 10: drew a sheet attack, not the flash branch",
               "tick 188 fighter 6 enemy 10: enemy 10 is not a receipt enemy",
-              "tick 188 fighter 6 enemy 10: 1 children, idle 0"] * 3])
+              "tick 188 fighter 6 enemy 10: 2 children, idle 0"] * 3])
 
     def test_a_flash_attack_outside_the_receipts_fails(self):
         def stranger(report):
