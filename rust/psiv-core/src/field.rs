@@ -145,6 +145,8 @@ pub enum Effect {
         target_cell: Cell,
         /// Which way the party faces on arrival.
         facing: Direction,
+        /// Where the followers line up ([`Warp::alignment`]).
+        alignment: Option<Direction>,
     },
     /// The party landed on a map-change cell that no map-change warp covers.
     ///
@@ -292,6 +294,7 @@ fn warp_effect(from: Cell, warp: &Warp) -> Effect {
         target_map: warp.target_map,
         target_cell: warp.target_cell,
         facing: warp.facing,
+        alignment: warp.alignment,
     }
 }
 

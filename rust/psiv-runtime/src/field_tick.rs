@@ -127,6 +127,7 @@ impl Runtime {
                     target_map,
                     target_cell,
                     facing,
+                    alignment,
                     ..
                 } => {
                     // On foot `FieldRoutine_Controls` runs `RunEvents` before
@@ -140,7 +141,7 @@ impl Runtime {
                             return events;
                         }
                     }
-                    match self.change_map(target_map, target_cell, facing) {
+                    match self.change_map_aligned(target_map, target_cell, facing, alignment) {
                         Ok(loaded) => {
                             map_changed = true;
                             events.push(loaded.event(trigger));

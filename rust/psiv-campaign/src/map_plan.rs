@@ -327,6 +327,7 @@ impl<'a> MapGraph<'a> {
                 cell: warp.target_cell,
                 facing: warp.facing,
                 previous_map: from,
+                alignment: warp.alignment,
             },
         )
     }

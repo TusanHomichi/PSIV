@@ -42,6 +42,7 @@ fn stepping_onto_a_mapped_doorway_warps_on_the_landing_tick() {
                 target_map: MapId(0x13),
                 target_cell: Cell::new(2, 6),
                 facing: Direction::Down,
+                alignment: None,
             },
         ],
         "StepCompleted must precede the Warp it caused"
@@ -150,6 +151,7 @@ fn a_warp_rect_over_a_non_map_change_cell_does_not_fire() {
         target_map: MapId(0x13),
         target_cell: Cell::new(2, 6),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = doorway_map(vec![warp]);
 
@@ -194,6 +196,7 @@ fn a_multi_cell_warp_rect_covers_every_doorway_cell_it_spans() {
         target_map: MapId(0x20),
         target_cell: Cell::new(1, 1),
         facing: Direction::Left,
+        alignment: None,
     };
     let map = map_with(&["DDD", "...", "..."], vec![warp], vec![]);
 
@@ -208,6 +211,7 @@ fn a_multi_cell_warp_rect_covers_every_doorway_cell_it_spans() {
                 target_map: MapId(0x20),
                 target_cell: Cell::new(1, 1),
                 facing: Direction::Left,
+                alignment: None,
             }),
             "doorway cell ({x}, 0)"
         );
@@ -223,6 +227,7 @@ fn overlapping_warps_resolve_to_the_first_in_data_order() {
         target_map: MapId(0x01),
         target_cell: Cell::new(0, 0),
         facing: Direction::Up,
+        alignment: None,
     };
     let second = Warp {
         source: CellRect::new(1, 0, 1, 1),
@@ -230,6 +235,7 @@ fn overlapping_warps_resolve_to_the_first_in_data_order() {
         target_map: MapId(0x02),
         target_cell: Cell::new(2, 2),
         facing: Direction::Down,
+        alignment: None,
     };
     let map = doorway_map(vec![first, second]);
     let mut state = party(&map, 1, 1);
@@ -244,6 +250,7 @@ fn overlapping_warps_resolve_to_the_first_in_data_order() {
             target_map: MapId(0x01),
             target_cell: Cell::new(0, 0),
             facing: Direction::Up,
+            alignment: None,
         })
     );
 }
@@ -305,6 +312,7 @@ fn the_full_round_trip_through_a_warp_lands_where_the_data_says() {
             target_map: MapId(0x00),
             target_cell: Cell::new(1, 1),
             facing: Direction::Down,
+            alignment: None,
         })
     );
 }
@@ -328,6 +336,7 @@ fn walking_along_a_wide_doorway_fires_once_not_once_per_cell() {
         target_map: MapId(0x20),
         target_cell: Cell::new(1, 1),
         facing: Direction::Left,
+        alignment: None,
     };
     let map = map_with(&["DDD", "...", "..."], vec![warp], vec![]);
     let mut state = party(&map, 0, 1);
@@ -439,6 +448,7 @@ fn a_normal_ground_transition_fires_from_ordinary_cells() {
                 target_map: MapId(0x31),
                 target_cell: Cell::new(1, 0),
                 facing: Direction::Down,
+                alignment: None,
             },
         ],
         "a recovery cell inside a normal-ground rect still transitions"
@@ -481,6 +491,7 @@ fn a_map_change_warp_never_fires_from_ordinary_ground() {
         target_map: MapId(0x20),
         target_cell: Cell::new(1, 1),
         facing: Direction::Left,
+        alignment: None,
     };
     let map = map_with(&["...", "...", "..."], vec![doorway], vec![]);
     let mut state = party(&map, 1, 1);
@@ -517,6 +528,7 @@ fn the_two_tables_coexist_on_one_map() {
             target_map: MapId(0x20),
             target_cell: Cell::new(0, 0),
             facing: Direction::Up,
+            alignment: None,
         })
     );
 
@@ -530,6 +542,7 @@ fn the_two_tables_coexist_on_one_map() {
             target_map: MapId(0x31),
             target_cell: Cell::new(2, 2),
             facing: Direction::Down,
+            alignment: None,
         })
     );
 }

@@ -389,3 +389,52 @@ fn a_scene_refresh_into_another_map_takes_its_gate_bytes() {
     assert_eq!((kuran.ec24, kuran.ec25, kuran.ec26), (0, 1, 0));
     assert_eq!(rt.camera.raw_step_on(CameraPlane::Background), (0, 0));
 }
+
+/// The Academy's way up to map `$14` aligns down (its record's byte 9 is
+/// 4), so the party arrives lined up below the leader, as tape 06's members
+/// stood after the same load (`loc_535D4`); its way back down aligns none,
+/// and they arrive stacked (#127).
+#[test]
+fn a_warps_alignment_lines_the_party_up_on_arrival() {
+    let Some(mut rt) = runtime(0x13, Cell::new(31, 11)) else {
+        return;
+    };
+    rt.game.set_party([
+        Some(CharId(0)),
+        Some(CharId(1)),
+        Some(CharId(2)),
+        Some(CharId(3)),
+        None,
+    ]);
+    rt.resize_party();
+    assert_eq!(rt.members().len(), 4, "tape 06's four, as patched");
+    let mut arrived = false;
+    for _ in 0..32 {
+        let events = rt.tick(Input::Direction(Direction::Up));
+        if events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::MapChanged { map, .. } if map.id() == MapId(0x14)))
+        {
+            arrived = true;
+            break;
+        }
+    }
+    assert!(arrived, "the Academy's stairs lead to map $14");
+    let members = rt.members();
+    let leader = members[0].cell;
+    for (behind, member) in members.iter().enumerate().skip(1) {
+        assert_eq!(
+            member.cell,
+            Cell::new(leader.x, leader.y + behind as u16),
+            "member {behind} one cell further down"
+        );
+        assert_eq!(member.facing, members[0].facing);
+        assert!(!member.is_stepping);
+    }
+
+    // An unaligned warp stacks them on the leader.
+    rt.change_map(MapId(0x14), Cell::new(15, 20), Direction::Up)
+        .unwrap();
+    let members = rt.members();
+    assert!(members.iter().all(|member| member.cell == members[0].cell));
+}

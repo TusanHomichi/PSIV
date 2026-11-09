@@ -70,9 +70,20 @@ pub struct Warp {
     pub target_cell: Cell,
     /// Which way the party faces on arrival.
     pub facing: Direction,
+    /// The record's character alignment (byte 9 of `DoMapTransitionData`'s
+    /// record, `Map_Start_Char_Align`): the direction the followers line up
+    /// in behind the leader, or `None` to stack them on the leader's cell
+    /// ([`crate::Party::line_up`]).
+    pub alignment: Option<Direction>,
 }
 
 impl Warp {
+    /// The same warp, lining the followers up in `alignment`.
+    #[must_use]
+    pub const fn aligned(self, alignment: Option<Direction>) -> Warp {
+        Warp { alignment, ..self }
+    }
+
     /// A doorway: a single map-change cell, [`WarpTrigger::MapChange`].
     #[must_use]
     pub const fn door(
@@ -87,6 +98,7 @@ impl Warp {
             target_map,
             target_cell,
             facing,
+            alignment: None,
         }
     }
 
@@ -104,6 +116,7 @@ impl Warp {
             target_map,
             target_cell,
             facing,
+            alignment: None,
         }
     }
 }
