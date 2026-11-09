@@ -40,11 +40,8 @@ const OBJECT_TABLES: [(&str, usize, usize, usize); 7] = [
 ];
 const SOUND_INDEX_ADDRESS: [u8; 4] = [0x00, 0xFF, 0x50, 0x0A];
 
-/// `ENEMY_ART_TABLE` in `battle_art.py`: the records whose three Nemesis
-/// blobs make each enemy's tile bank.
-const ENEMY_ART_TABLE: usize = 0x27F3AE;
+/// `ENEMY_ART_TABLE`'s record size, which the source names.
 const ENEMY_ART_STRIDE: usize = 20;
-const ENEMY_ART_BANK_ORDER: [usize; 3] = [2, 0, 1];
 
 fn refuse<T>(message: String) -> Result<T, PackError> {
     Err(PackError(message))
@@ -282,60 +279,17 @@ fn walk(
     out
 }
 
-/// The patterns in each enemy's tile bank: `build_tile_bank`'s length, with
-/// `_art_record`'s two checks.
-fn art_banks(rom: &[u8], symbols: &[&str]) -> Result<Vec<i128>, PackError> {
-    let records: Vec<([usize; 3], usize)> = (0..ENEMY_ATTACK_COUNT)
-        .map(|id| {
-            let at = ENEMY_ART_TABLE + id * ENEMY_ART_STRIDE;
-            let art = [0, 1, 2].map(|i| long(rom, at + 2 + 4 * i).map(|v| v as usize));
-            let mapping = long(rom, at + 14).map(|v| v as usize);
-            match (art, mapping) {
-                ([Some(a), Some(b), Some(c)], Some(m)) => Ok(([a, b, c], m)),
-                _ => refuse(format!(
-                    "Pointer at 0x{at:06X} runs past the end of the ROM"
-                )),
-            }
-        })
-        .collect::<Result<_, _>>()?;
-    let landmarks: Vec<usize> = records
-        .iter()
-        .flat_map(|(art, mapping)| art.iter().copied().chain([*mapping]))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let bound = |offset: usize| {
-        let i = landmarks.binary_search(&offset).expect("a landmark");
-        landmarks.get(i + 1).copied().unwrap_or(rom.len()) - offset
-    };
+/// The patterns in each enemy's tile bank: `build_tile_bank`'s length, from
+/// the battle art's own decoder.
+fn art_banks(rom: &[u8]) -> Result<Vec<i128>, PackError> {
+    let records = crate::battle::art::enemies::records(rom)?;
+    let bounds = crate::battle::art::enemies::bounds(&records, rom.len());
     records
         .iter()
-        .enumerate()
-        .map(|(id, (art, _))| {
-            let mut patterns = 0i128;
-            for field in ENEMY_ART_BANK_ORDER {
-                let offset = art[field];
-                let label = format!("ArtNem_{}Battle{}", symbols[id], field + 1);
-                let header = crate::decode::nemesis::read_header(rom, offset)?;
-                let (data, consumed) = crate::decode::nemesis::decompress(rom, offset)?;
-                if data.len() != usize::from(header.row_count) * 4 {
-                    return refuse(format!(
-                        "{label} at 0x{offset:06X}: decoded {} bytes but the header declares {} \
-                         patterns",
-                        data.len(),
-                        header.tile_count
-                    ));
-                }
-                if consumed > bound(offset) + 1 {
-                    return refuse(format!(
-                        "{label} at 0x{offset:06X}: consumed {consumed} bytes and ran into the \
-                         next blob, which starts {} bytes in",
-                        bound(offset)
-                    ));
-                }
-                patterns += data.len().div_ceil(32) as i128;
-            }
-            Ok(patterns)
+        .map(|record| {
+            Ok(crate::battle::art::enemies::bank(rom, record, &bounds)?
+                .0
+                .len() as i128)
         })
         .collect()
 }
@@ -805,7 +759,7 @@ pub fn build(rom: &[u8], names: &Display) -> Result<Json, PackError> {
         pointers,
         object_spans,
         attack_spans,
-        banks: art_banks(rom, &symbols)?,
+        banks: art_banks(rom)?,
     };
     let mut animations = Vec::new();
     for (id, &routine) in routines.iter().enumerate() {
