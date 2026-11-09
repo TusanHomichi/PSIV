@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use super::{compose, safe};
-use crate::decode::{enigma, nemesis};
+use crate::decode::enigma;
 use crate::json::Json;
 use crate::{PackError, gfx, png};
 
@@ -130,24 +130,6 @@ fn hex6(value: usize) -> String {
 fn slice(rom: &[u8], at: usize, len: usize) -> Result<&[u8], PackError> {
     rom.get(at..at + len)
         .ok_or_else(|| PackError(format!("0x{at:06X} (+{len}) runs past the end of the ROM")))
-}
-
-/// `_gap_bounds`: from each wanted offset to the next landmark.
-fn gap_bounds(landmarks: &[usize], rom_size: usize, wanted: &[usize]) -> BTreeMap<usize, usize> {
-    let landmarks: BTreeSet<usize> = landmarks.iter().copied().filter(|&o| o != 0).collect();
-    wanted
-        .iter()
-        .copied()
-        .filter(|&o| o != 0)
-        .map(|offset| {
-            let next = landmarks
-                .range(offset + 1..)
-                .next()
-                .copied()
-                .unwrap_or(rom_size);
-            (offset, next - offset)
-        })
-        .collect()
 }
 
 /// The selection record and its three tables: event, field map, Motavia.
@@ -271,35 +253,6 @@ fn reachable(event: &[u8], field: &[u8], mota: &[u8]) -> BTreeMap<u8, [usize; 3]
     counts
 }
 
-/// `decompress_art` with an exact documented length: the tiles, the
-/// documented size and the header's pattern count.
-fn art(
-    rom: &[u8],
-    offset: usize,
-    label: &str,
-    size: usize,
-) -> Result<(Vec<[u8; 64]>, u16), PackError> {
-    let header = nemesis::read_header(rom, offset)?;
-    let (data, consumed) = nemesis::decompress(rom, offset)?;
-    let declared = usize::from(header.row_count) * 4;
-    if data.len() != declared {
-        return refuse(format!(
-            "{label} at 0x{offset:06X}: decoded {} bytes but the header declares {} patterns \
-             ({declared} bytes)",
-            data.len(),
-            header.tile_count
-        ));
-    }
-    if consumed != size && consumed != size + 1 {
-        return refuse(format!(
-            "{label} at 0x{offset:06X}: decompressor consumed {consumed} bytes, but the \
-             documented stream is {size} bytes (a trailing lookahead byte would allow at most \
-             one more)"
-        ));
-    }
-    Ok((gfx::decode_tiles(&data)?, header.tile_count))
-}
-
 /// `decode_mapping` with an exact documented length and cell count.
 fn mapping(rom: &[u8], offset: usize, label: &str, size: usize) -> Result<Vec<u16>, PackError> {
     let (words, consumed) = enigma::decompress(rom, offset, 0, Some(PLANE_BUFFER_WORDS))?;
@@ -347,8 +300,8 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Json, PackError> {
         .copied()
         .chain(EXTRA_LANDMARKS)
         .collect();
-    let map_bounds = gap_bounds(&landmarks, rom.len(), &maps);
-    let art_bounds = gap_bounds(&landmarks, rom.len(), &arts);
+    let map_bounds = gfx::gap_bounds(&landmarks, rom.len(), &maps);
+    let art_bounds = gfx::gap_bounds(&landmarks, rom.len(), &arts);
     let (selection_json, event, field, mota) = selection(rom)?;
     let reachable = reachable(&event, &field, &mota);
 
@@ -360,12 +313,14 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Json, PackError> {
         let (art_symbol, symbol) = (ART_SYMBOLS[index], PALETTE_SYMBOLS[index]);
         let art_size = art_bounds[&art_at];
         let map_size = map_bounds[&map_at];
-        let (tiles, patterns) = art(
+        let art_record = gfx::decompress_art(
             rom,
             art_at,
             &format!("ArtNem_{art_symbol}BattleBG"),
-            art_size,
+            Some(art_size),
+            None,
         )?;
+        let (tiles, patterns) = (gfx::decode_tiles(&art_record.data)?, art_record.tile_count);
         let words = mapping(
             rom,
             map_at,
@@ -473,7 +428,7 @@ mod tests {
 
     #[test]
     fn a_gap_runs_to_the_next_nonzero_landmark() {
-        let bounds = gap_bounds(&[0, 10, 30, 20], 100, &[10, 30, 0]);
+        let bounds = gfx::gap_bounds(&[0, 10, 30, 20], 100, &[10, 30, 0]);
         assert_eq!(bounds.into_iter().collect::<Vec<_>>(), [(10, 10), (30, 70)]);
     }
 
