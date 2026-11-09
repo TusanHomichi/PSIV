@@ -531,6 +531,20 @@ impl Driver {
         }
         if let Some(battle) = frame.battle {
             if let Some(view) = battle.view {
+                if self.trace
+                    && self.battle_view.as_ref().is_none_or(|previous| {
+                        previous.current.map(|b| b.beat) != view.current.map(|b| b.beat)
+                            || previous.message != view.message
+                    })
+                {
+                    let party: Vec<_> = view.party.iter().map(|m| (m.fighter, m.hp)).collect();
+                    eprintln!(
+                        "f{}: battle beat {:?} message {:?} party {party:?}",
+                        self.frames(),
+                        view.current.map(|b| b.beat),
+                        view.message
+                    );
+                }
                 self.track_rewards(&view);
                 self.battle_view = Some(view);
             }

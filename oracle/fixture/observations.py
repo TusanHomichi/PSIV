@@ -25,16 +25,16 @@ ROLL_COLUMNS = ["frame", "roll", "role", "target", "pass", "round", "action"]
 
 PARTY_NAMES = ["level", "hp", "maxhp", "tp", "maxtp", "status", "str",
                "agi", "agi_bat", "dex", "atk", "dfs", "men", "exp"]
-PARTY_IDS = [("alys", 1), ("chaz", 2), ("hahn", 3)]
+PARTY_IDS = [("alys", 1), ("chaz", 2), ("hahn", 3), ("party4", 4), ("party5", 5)]
 ENEMY_NAMES = ["id", "hp", "maxhp", "status", "agi_bat", "atk", "dfs",
                "str_bat", "men_bat", "dex_bat"]
 
-#: The log maps three named party members and four numbered enemy slots, so
-#: the one-based fighter ids that have an HP column are 1..=3 and 6..=9. A
+#: Legacy logs map three named party slots; scripted five-member captures add
+#: party4/party5 aliases. Enemy slots are numbered 6..=9. A
 #: vehicle battle's party-side fighter is id 1 and its HP lives in another
 #: column entirely (`vehicle_fighter_hp`); `oracle/fixture/vehicle.py` is that
 #: section.
-HP_COLUMNS = {1: "alys_hp", 2: "chaz_hp", 3: "hahn_hp",
+HP_COLUMNS = {1: "alys_hp", 2: "chaz_hp", 3: "hahn_hp", 4: "party4_hp", 5: "party5_hp",
               6: "e1_hp", 7: "e2_hp", 8: "e3_hp", 9: "e4_hp"}
 
 
@@ -57,6 +57,8 @@ def battle_start(log, frame):
     """The party's and enemies' live state at the battle's first frame."""
     party = []
     for prefix, index in PARTY_IDS:
+        if index > 3 and not log.has(prefix + "_hp"):
+            continue
         block = stat_block(log, frame, prefix, PARTY_NAMES)
         party.append({
             "id": index,

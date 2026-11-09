@@ -242,6 +242,8 @@ pub struct Kit {
 /// What the player sees when a member's window opens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board<'d> {
+    /// The immutable live roster for local support/damage previews.
+    pub roster: Option<&'d psiv_core::battle::Roster>,
     /// The battle records the engine reads (the weapons' element factors).
     pub data: &'d BattleData,
     /// The acting fighter id.
