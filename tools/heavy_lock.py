@@ -88,11 +88,11 @@ own `build/`. Stdlib only, Python 3, Linux (/proc).
 
 from __future__ import annotations
 
-import argparse
 import fcntl
 import itertools
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -661,14 +661,25 @@ def runner_wait(what, environ=None):
     folder = environ.get(RUNNER_WAIT_ENV)
     path = handle = None
     if folder:
-        path = Path(folder) / f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}"
+        # The pid alone doesn't name a waiter: a job's commands can each run
+        # as the same pid in a sandbox of their own while sharing the folder,
+        # so the name is random beyond it, made only if new (`O_EXCL`), and
+        # never waited on (`LOCK_NB`). One waiter that blocked here on
+        # another's file held the heavy lock's mutex until it was killed.
+        path = Path(folder) / (
+            f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}-{secrets.token_hex(4)}"
+        )
         try:
-            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-            fcntl.flock(handle, fcntl.LOCK_EX)
-            os.write(handle, f"{what}\n".encode())
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         except OSError:
-            _close_runner_wait(path, handle)
-            handle = None
+            path = None  # not this waiter's file to remove
+        else:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                os.write(handle, f"{what}\n".encode())
+            except OSError:
+                _close_runner_wait(path, handle)
+                handle = None
     try:
         yield
     finally:
@@ -935,63 +946,10 @@ def _git(cwd, *args):
     return completed.stdout.strip() if completed.returncode == 0 else ""
 
 
-def run_parser():
-    parser = argparse.ArgumentParser(
-        prog="python3 tools/heavy_lock.py run",
-        description="Run a command holding the heavy lock.")
-    parser.add_argument("--priority", action="store_true",
-                        help="go ahead of every normal waiter (speedup lanes, a yield)")
-    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES,
-                        help="required; see CLASS_HELP")
-    return parser
-
-
-#: What `run` prints when no class is given, one line per class.
-CLASS_HELP = {
-    EXCLUSIVE: "the whole machine: the opt-level-3 extension build",
-    BUILD: "a cargo build, test or clippy run that does not compile psiv-godot",
-    EXTENSION: "a cargo build, test or clippy run that compiles psiv-godot (or the workspace)",
-    GODOT: "one Godot/Xvfb run",
-    PYTHON: "the Python suite, or part of it",
-    PACK: "a pack build (`python3 -m psiv_tools pack`)",
-}
-
-
-def class_usage():
-    """`run`'s usage line and one line per class with its units."""
-    lines = ["usage: python3 tools/heavy_lock.py run [--priority] --class CLASS "
-             "-- <command...>", "classes (docs/DEVELOPMENT.md, \"Heavy-run lock\"):"]
-    for name in LOCK_CLASSES:
-        units = "every unit" if name == EXCLUSIVE else f"{CLASS_UNITS[name]} unit(s)"
-        lines.append(f"  {name:<9} {units:<12} {CLASS_HELP[name]}")
-    return "\n".join(lines)
-
-
 def main(argv=None):
-    """Print a lock path or the lock's status, or `run --class CLASS -- <cmd>`
-    under the heavy lock (its exit code)."""
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if argv[:1] == ["run"]:
-        options, command = (argv[1:argv.index("--")], argv[argv.index("--") + 1:]) \
-            if "--" in argv else ([], argv[1:])
-        args = run_parser().parse_args(options)
-        if not command or args.lock_class is None:
-            print(class_usage(), file=sys.stderr)
-            return 2
-        with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
-            return subprocess.run(command).returncode
-    if argv[:1] == ["status"]:
-        status()
-        return 0
-    parser = argparse.ArgumentParser(
-        prog="python3 tools/heavy_lock.py",
-        description="Print the repository-wide heavy-run lock path; `status` for its "
-                    "holders and waiters, or `run -- <command>` holding it.")
-    parser.add_argument("--gate", action="store_true",
-                        help="print the gate lock instead of the heavy lock")
-    args = parser.parse_args(argv)
-    print(gate_lock_path() if args.gate else heavy_lock_path())
-    return 0
+    from heavy_lock_cli import main as cli_main
+
+    return cli_main(sys.modules[__name__], argv)
 
 
 if __name__ == "__main__":
