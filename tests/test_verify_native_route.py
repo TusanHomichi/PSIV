@@ -198,6 +198,17 @@ class Main(unittest.TestCase):
         self.assertNotIn("--stop-at", asked[0])
         self.assertIn("--checkpoints", asked[0])
 
+    def test_frame_addressed_observations_reach_the_tape_driver(self):
+        asked = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            observations = root / "observations.json"
+            observations.write_text('[{"frame": 2, "label": "mid-run", "capture": true}]')
+            code, _ = self.run_main(root, ("--observations", str(observations)),
+                                    self.fake_driver([True, True, True], record=asked))
+        self.assertEqual(code, 0)
+        self.assertEqual(asked[0][asked[0].index("--observations") + 1], str(observations))
+
     def test_one_chapter_differing_fails_the_whole_route(self):
         with tempfile.TemporaryDirectory() as directory:
             code, out = self.run_main(Path(directory), driver=self.fake_driver(

@@ -399,3 +399,63 @@ whole route is `#[ignore]`d:
 `cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
 runner -- --ignored`. Cases that need the pack skip with a
 message when it is absent.
+
+### Frame-addressed presentation observations
+
+`verify_native_route.py --observations REQUESTS.json` passes the same request
+list as `verify_native_tape.py --observations`. Each entry names the number of
+**consumed gameplay Session frames**, not a zero-based pad offset or a Godot
+shell tick. For example:
+
+```json
+[
+  {"frame": 100, "label": "before-rescue"},
+  {"frame": 104, "label": "rescue-page", "capture": true}
+]
+```
+
+Frames must ascend (multiple labels may share a frame); labels must be unique
+letters, digits, underscores or hyphens. A request always records the full
+read-only `debug_play_state` state in `native-tape/native.json` under
+`observations`. `capture: true` also writes
+`native-tape/observations/LABEL.png`. The replay automatically selects Xvfb and
+the Compatibility renderer when any request needs pixels. State-only requests
+work headlessly. Requests outside a replay prefix fail rather than disappear.
+
+The Field physics callback stops at the requested boundary while the renderer
+finishes drawing. The capture is read after `frame_post_draw`, the consumed
+frame is checked again, and replay resumes with the next tape pad; no neutral
+pad or extra Session frame is inserted. The receipt checks every requested
+label/frame, state result and capture file SHA-256. Captures therefore address the
+gameplay state after pad byte `frame - 1`, including at the final tape frame.
+
+The presentation comparators read the tape output, once a request list has
+captured their required labels:
+
+```sh
+python3 tools/verify_native_route.py --run-dir RUN --out OUT \
+  --observations REQUESTS.json --pack runtime-pack
+python3 tools/native/verify_native_alarm.py OUT/native-tape
+python3 tools/native/verify_native_zema.py OUT/native-tape --pack runtime-pack
+```
+
+The alarm comparator needs `alarm-out-1` through `alarm-out-8` and
+`alarm-in-1` through `alarm-in-8`, four gameplay frames apart. Zema needs
+`zema-page-01` through `zema-page-50`, `igglanova-halfway`,
+`igglanova-arrived` and `zema-restored`; each must request a capture.
+A request file can also be a manifest with exactly `tape_sha256` and
+`requests` fields. The verifier requires its lowercase SHA-256 to match the
+input tape before accepting the requests, so changed pads cannot silently
+reuse old addresses.
+
+The named BioPlant/Zema frame profile remains
+[#93](https://github.com/TusanHomichi/PSIV/issues/93); generic requests and
+comparators alone do not replace the retired campaign observations.
+
+The alarm comparison retains the restored native frame as its reference and
+checks the original component ramps and four-frame cadence over the whole
+captured viewport. Zema checks 50 distinct ready dialogue pages, Igglanova at
+both entrance positions, seven restored residents, their selected sheets and
+CRAM line 3 against the pack's US `$051E56` palette copy. Its PNGs retain the
+presentation evidence; these state checks do not certify whole-scene visual
+parity with the cartridge.
