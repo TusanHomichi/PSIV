@@ -318,6 +318,7 @@ impl Runtime {
                 cell: leader.cell(),
                 facing: leader.facing(),
                 previous_map: self.saved_map_index_2,
+                alignment: None,
             },
         )
     }
@@ -417,6 +418,7 @@ impl Runtime {
             cell,
             facing,
             previous_map,
+            alignment,
         } = match kind {
             MapLoad::Field => adjust_field_load(
                 &self.game,
@@ -425,6 +427,7 @@ impl Runtime {
                     cell,
                     facing,
                     previous_map,
+                    alignment,
                 },
             ),
             MapLoad::Refresh => FieldLoad {
@@ -432,6 +435,7 @@ impl Runtime {
                 cell,
                 facing,
                 previous_map,
+                alignment,
             },
         };
         let keep_old_music =

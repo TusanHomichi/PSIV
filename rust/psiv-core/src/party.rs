@@ -198,16 +198,14 @@ impl Party {
     /// 8 up, 12 left, 16 right). They walk it during the load, so on tape 06
     /// (members patched into slots three and four before the door into map
     /// `$14`, whose warp aligns down) the four stand at pixel rows 304, 320,
-    /// 336 and 352 in one column by the load's end, before control. A cell off the map keeps its member
-    /// on the one ahead.
+    /// 336 and 352 in one column by the load's end, before control. The cells
+    /// follow the map's topology: on a globe the line crosses the seam, and at
+    /// a bounded map's edge a member keeps the cell of the one ahead.
     pub fn line_up(&mut self, map: &FieldMap, toward: Direction) {
         let mut ahead = self.leader.cell();
         let facing = self.leader.facing();
         for follower in &mut self.followers {
-            let cell = ahead
-                .neighbor(toward)
-                .filter(|cell| cell.x < map.width() && cell.y < map.height())
-                .unwrap_or(ahead);
+            let cell = map.neighbor(ahead, toward).unwrap_or(ahead);
             follower.cell = cell;
             follower.facing = facing;
             follower.step = None;
