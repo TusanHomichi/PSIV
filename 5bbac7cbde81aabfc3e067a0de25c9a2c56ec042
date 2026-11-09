@@ -1,0 +1,108 @@
+{
+  "conary": "note v1",
+  "change": "3j3fdejtz01vsd52b0yafk1zd3",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 454,
+  "url": "https://github.com/tusanhomichi/psiv/pull/454",
+  "summary": "Docs: the Fusion pieces and the attack decoder read sizes the same way (#364)",
+  "task": "tusanhomichi/psiv#364",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "class": "R0",
+  "landing": {
+    "revision": "989dec56c43b15f477c3bb9e321a0709159dbd1efe032ce549fd1da0d57ec8af",
+    "before": "bdde5458e8250fe5224acad37d1b389519fc6749",
+    "after": "5bbac7cbde81aabfc3e067a0de25c9a2c56ec042",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1794226042836
+  },
+  "evidence": [
+    {
+      "kind": "ci",
+      "check": "check / commits",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407747/job/129083455941"
+    },
+    {
+      "kind": "ci",
+      "check": "check / lane into main",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407747/job/129083455899"
+    },
+    {
+      "kind": "ci",
+      "check": "check / negative",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407747/job/129083455803"
+    },
+    {
+      "kind": "ci",
+      "check": "house",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392/job/129083453622"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "house/file-size (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "house/guide-size (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "house/model-names (#454)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407392"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42594407747/job/129083493549"
+    },
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/454#pullrequestreview-5824260813"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/454"
+    }
+  ]
+}
