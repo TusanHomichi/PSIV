@@ -2,9 +2,10 @@
 
     PYTHONPATH=. python3 -m unittest tests.test_oracle_battle_fixture_reload -v
 
-Two groups. The table cases need only the repository: the Rust table parses,
-is sorted, and names exactly the maps the pack has; the maps whose row is a
-first-load proxy are listed. The oracle cases re-measure forced fixtures;
+The table cases need only the repository: the Rust table parses, is sorted,
+and names exactly the maps the pack has; first-load proxies are listed.
+PC trace probes compile the observer and exercise its transport without a ROM.
+The oracle cases re-measure forced fixtures;
 they do not replay the organic captures and skip with a
 message when the ROM, the emulation core or the pack is absent.
 """

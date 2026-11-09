@@ -170,6 +170,31 @@ entries and fade entry separates elapsed work into measured segments. Those
 observations support deriving a formula; a trace or three matching totals by
 itself does not certify a formula for all maps.
 
+The counted mode-8 span also includes work **before** `GameMode_LoadFieldMap`
+starts. The three organic returns distinguish these boundaries (tape frames
+are 1-based; cycles are the oracle's frame-relative master cycles):
+
+| Capture | After mode-8 write, `$5A558` | Before jump to wait, `$5A57A` | Load entry, `$51790` |
+|---|---|---|---|
+| tape 07, principal | 10693 / 895708 | 10694 / 47541 | 10695 / 56193 |
+| tape 35, Mota to Zelan | 9086 / 426390 | 9086 / 427818 | 9087 / 72343 |
+| tape 35, Zelan to Mota | 8831 / 185224 | 8831 / 186652 | 8832 / 99515 |
+
+The pinned core's NTSC frame is 262 lines of 3,420 master cycles, or 896,040.
+The principal's mode write finishes only 332 cycles before that frame ends;
+VInt interrupts the short tail **before** it reaches `VInt_Prepare`. The wait
+is armed in the next frame and dispatches the load in the frame after that.
+The flights arm the wait in their mode-write frame. Thus the principal has
+two logged mode-8 rows before load entry, the flights one. A formula for the
+table's metric must include this return-to-load interval, not only work inside
+the load routine. The observed totals remain 55, 52 and 42.
+
+For interrupt-body observations, the retail VInt sound call is at `$632`
+(`jsr $D0000`), its register restore at `$638`, and its common `rte` at `$63C`.
+Watching these with the entry at `$524` partitions the handler. The entry-to-
+RTE interval alone excludes exception entry and RTE execution overhead, so
+subtracting it from a stage does not yet give intrinsic decompression cost.
+
 Even the fade's fixed 16 is a property of the measured palettes.
 `Pal_FadeIn` (`$421D4`, `:85897-85947`) clears the current palette and increments
 each differing nibble toward the target. For maximum target nibble `M`, it
