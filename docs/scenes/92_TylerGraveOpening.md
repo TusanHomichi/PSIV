@@ -118,9 +118,14 @@ routine return at 7330. `oracle/tyler_grave.py` verifies that 131-frame retail
 envelope and the mapping-index chain. The runtime regression checks the
 four one-frame pans, 64 consecutive object updates and 60-frame map-update
 hold. Map-refresh CPU/DMA overhead between 7201 and 7204 and the event-dispatch
-return boundary are outside that runtime timing claim. Relative to the first
-pan, the runtime's first slab update is one frame earlier than retail; equal
-131-frame totals counted from different entry boundaries do not prove parity.
+return boundary are outside that runtime timing claim. The runtime requests
+pans on ticks 1/2/68/69; their visible arrivals are 2/3/69/70, the stair write
+is tick 3, the slab updates are 4..67, facing writes are 68 and scene end is
+130 (with installation warmup tick 0). Aligning the first visible lead at
+runtime tick 2 with retail frame 7200, the runtime's slide starts two frames
+early, its second visible lead one frame early and its return two frames
+early. Equal 131-frame totals counted from different entry boundaries do not
+prove parity; operation requests and visible arrivals are distinct boundaries.
 The refresh/return timing gap is tracked in
 [#489](https://github.com/TusanHomichi/PSIV/issues/489).
 
