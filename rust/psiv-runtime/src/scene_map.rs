@@ -59,7 +59,12 @@ impl Runtime {
             });
             return;
         };
-        match self.change_map(warp.target_map, warp.target_cell, warp.facing) {
+        match self.change_map_aligned(
+            warp.target_map,
+            warp.target_cell,
+            warp.facing,
+            warp.alignment,
+        ) {
             Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {

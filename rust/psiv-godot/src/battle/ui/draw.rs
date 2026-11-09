@@ -37,7 +37,27 @@ pub(super) fn compose(screen: &mut BattleScreen) {
             quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
         }
         match view.menu.as_ref() {
-            Some(MenuView::Top { cursor }) => {
+            // The main options opening or closing: an empty window centred on
+            // the whole one, at its plane cell (`$FFFF8286`, row 4 column 3),
+            // two cells wider or narrower a frame.
+            Some(MenuView::Top {
+                width: Some(width),
+                full_width,
+                ..
+            }) => {
+                if *width > 0 {
+                    let offset = f32::from((full_width.saturating_sub(*width) & !1) / 2);
+                    if let Some(frame) = chrome.frame(WindowRect {
+                        x: COMMAND_RECT.x + offset * cell,
+                        y: COMMAND_RECT.y,
+                        w: f32::from(*width) * cell,
+                        h: COMMAND_RECT.h,
+                    }) {
+                        quads.extend(frame);
+                    }
+                }
+            }
+            Some(MenuView::Top { cursor, .. }) => {
                 if let Some(frame) = chrome.frame(COMMAND_RECT) {
                     quads.extend(frame);
                     let labels = if screen.vehicle_index.is_some() {

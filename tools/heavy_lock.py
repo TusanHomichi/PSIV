@@ -56,13 +56,13 @@ first, then priority waiters (`--priority`, or `PSIV_LOCK_PRIORITY=1` for code
 that calls `hold_heavy_lock`), then the rest, each in arrival order. A holder
 is never preempted; the next grant goes to the head, which waits in flock(2)
 itself, so a release wakes it together with any raw `flock(1)` waiter instead
-of that waiter winning every race against a poll. While waiting, a line names
-the holders and how many waiters (gates and priority waiters among them) are
-ahead, again whenever that changes, and every `WAIT_REPORT_S` while nothing
-does, a line says how long it has waited and each holder's class, age and
-command line (`wait_reporting` does the same for any flock, such as the gate
-lock), so a job runner that stops a job gone quiet sees it waiting, and on
-whom. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
+of that waiter winning every race against a poll. While waiting, an immediate
+line reports how many waiters (gates and priority waiters among them) are
+ahead, with holder diagnostics pending. Every `WAIT_REPORT_S` a line shows
+elapsed time and the latest completed holder observation: class, age and
+command line. All diagnostic discovery runs beside the granting loop;
+formatting uses completed values only (`wait_reporting` does the same for the
+gate lock), so a job runner sees both the wait and its progress. A job runner that sets `PROJ_WAIT_DIR` (burrow's proj, for each turn
 of a job) also gets a file there for each wait, held flocked and saying what
 it waits for (`runner_wait`): the runner doesn't count time spent waiting in
 line against the job's time limit, and a file whose waiter died is no
@@ -88,11 +88,11 @@ own `build/`. Stdlib only, Python 3, Linux (/proc).
 
 from __future__ import annotations
 
-import argparse
 import fcntl
 import itertools
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -103,6 +103,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import flock_holders  # noqa: E402
+from lock_reporting import Snapshot, bounded_output, observe_holders, still_line, wait_line  # noqa: E402
+# Retain the formatter name used by callers and its existing contract tests.
+from lock_reporting import duration as _duration  # noqa: E402, F401
 
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
@@ -661,14 +664,25 @@ def runner_wait(what, environ=None):
     folder = environ.get(RUNNER_WAIT_ENV)
     path = handle = None
     if folder:
-        path = Path(folder) / f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}"
+        # The pid alone doesn't name a waiter: a job's commands can each run
+        # as the same pid in a sandbox of their own while sharing the folder,
+        # so the name is random beyond it, made only if new (`O_EXCL`), and
+        # never waited on (`LOCK_NB`). One waiter that blocked here on
+        # another's file held the heavy lock's mutex until it was killed.
+        path = Path(folder) / (
+            f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}-{secrets.token_hex(4)}"
+        )
         try:
-            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-            fcntl.flock(handle, fcntl.LOCK_EX)
-            os.write(handle, f"{what}\n".encode())
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         except OSError:
-            _close_runner_wait(path, handle)
-            handle = None
+            path = None  # not this waiter's file to remove
+        else:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                os.write(handle, f"{what}\n".encode())
+            except OSError:
+                _close_runner_wait(path, handle)
+                handle = None
     try:
         yield
     finally:
@@ -695,53 +709,36 @@ def wait_reporting(lock, mode, report, what, environ=None):
     the holding handle, which the caller closes; raises when the flock
     fails."""
     began = time.monotonic()
+    holders = None
     with runner_wait(what, environ):
         blocker = _Blocker(lock, mode)
         try:
             while not blocker.done.wait(WAIT_REPORT_S):
-                print(_still_line(lock, time.monotonic() - began), file=report, flush=True)
+                holders = holders or Snapshot(lambda: observe_holders(lock, lock_modes, flock_holders, COMMAND_CHARS))
+                print(_still_line(lock, time.monotonic() - began, holders.value()),
+                      file=report, flush=True)
         except BaseException:
             blocker.abandon()
             raise
+        finally:
+            if holders is not None:
+                holders.close()
         return blocker.grant()
 
 
 _RANK_NAMES = {GATE_RANK: "gate", PRIORITY_RANK: "priority"}
 
 
-def _wait_line(lock, lock_class, rank, ahead):
-    """One "waiting for" line: the holders fdinfo sees with their class (see
-    `flock_holders.held_locks`; `_still_line` names another user's), the
-    queue ahead."""
-    holders = ", ".join(f"{pid} ({mode})"
-                        for pid, mode in lock_modes(lock, read=flock_holders.NEVER)
-                        if pid != os.getpid()) or "none"  # a godot head holds it shared
+def _wait_line(lock, lock_class, rank, ahead, observation=None):
+    """Queue summary using only completed diagnostic values, or pending."""
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == PRIORITY_RANK)
     gates = sum(1 for name in ahead if _entry_key(name)[0] == GATE_RANK)
     me = ", ".join([lock_class, *([_RANK_NAMES[rank]] if rank in _RANK_NAMES else [])])
-    return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
-            f"{urgent} of them priority, {gates} gate(s); this waiter: {me}")
+    return wait_line(lock, me, len(ahead), urgent, gates, observation)
 
 
-def _still_line(lock, waited):
-    """The line a waiter repeats while its wait does not change: how long it has
-    waited, and each holder's class, age and command line (on one line)."""
-    holders = "; ".join(
-        f"pid {pid} ({mode}, up {_duration(flock_holders.process_age(pid))}): "
-        f"{' '.join(flock_holders.cmdline(pid).split())[:COMMAND_CHARS]}"
-        for pid, mode in lock_modes(lock, read=flock_holders.WHEN_UNSEEN)
-        if pid != os.getpid())
-    return f"still waiting for {lock} after {_duration(waited)}; held by {holders or 'nobody'}"
-
-
-def _duration(seconds):
-    """`seconds` for a person: `40 s`, `12 min`, `2 h 05 min`; `?` for None."""
-    if seconds is None:
-        return "?"
-    if seconds < 60:
-        return f"{seconds:.0f} s"
-    minutes = int(seconds // 60)
-    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d} min"
+def _still_line(lock, waited, observation):
+    return still_line(lock, waited, observation)
 
 
 def _acquire(lock, need, rank, report, environ):
@@ -764,7 +761,7 @@ def _acquire(lock, need, rank, report, environ):
     blocker = None
     shown = None
     began = reported = time.monotonic()
-    check = None
+    check = holders = None
     waits = ExitStack()
     try:
         while True:
@@ -802,21 +799,24 @@ def _acquire(lock, need, rank, report, environ):
             if parent is not None:
                 print(refuse_message(lock, parent), file=report, flush=True)
                 raise SystemExit(EXIT_HELD_BY_PARENT)
-            # Named outside the mutex: naming the holders reads /proc, which
-            # a loaded machine slows, and the other waiters need the mutex.
-            line = _wait_line(lock, lock_class, rank, ahead)
+            # Formatting consumes only completed observations; discovery and
+            # all process metadata stay beside the granting loop.
+            line = _wait_line(lock, lock_class, rank, ahead, holders.value() if holders else None)
             now = time.monotonic()
             if line != shown:
                 print(line, file=report, flush=True)
                 shown, reported = line, now
             elif now - reported >= WAIT_REPORT_S:
-                print(_still_line(lock, now - began), file=report, flush=True)
+                holders = holders or Snapshot(lambda: observe_holders(lock, lock_modes, flock_holders, COMMAND_CHARS))
+                print(_still_line(lock, now - began, holders.value()), file=report, flush=True)
                 reported = now
             if blocker is not None and not blocker.done.is_set():
                 blocker.done.wait(POLL_S)
             else:
                 time.sleep(POLL_S)
     finally:
+        if holders is not None:
+            holders.close()
         if check is not None:
             check.stop(wait=entry is not None)  # a grant does not wait for it
         if blocker is not None:
@@ -896,6 +896,15 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
 
 
 def status(path=None, out=None):
+    """Print diagnostics within one second, even while /proc/locks is slow."""
+    stopped = threading.Event()
+    try:
+        bounded_output(lambda stream: _status(path, stream, stopped), out or sys.stdout)
+    finally:
+        stopped.set()
+
+
+def _status(path=None, out=None, stopped=None):
     """Print the lock's holders and waiters, each with its pid and command line."""
     out = out or sys.stdout
     path = Path(path or heavy_lock_path())
@@ -913,6 +922,8 @@ def status(path=None, out=None):
     print("holders:" + ("" if holders else " none"), file=out)
     for pid, mode in holders:
         print(f"  {pid} {mode}: {flock_holders.cmdline(pid)}", file=out)
+    if stopped is not None and stopped.is_set():
+        return
     queue = _Queue(path.resolve())
     with queue.locked():
         waiting = queue.entries()
@@ -935,63 +946,10 @@ def _git(cwd, *args):
     return completed.stdout.strip() if completed.returncode == 0 else ""
 
 
-def run_parser():
-    parser = argparse.ArgumentParser(
-        prog="python3 tools/heavy_lock.py run",
-        description="Run a command holding the heavy lock.")
-    parser.add_argument("--priority", action="store_true",
-                        help="go ahead of every normal waiter (speedup lanes, a yield)")
-    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES,
-                        help="required; see CLASS_HELP")
-    return parser
-
-
-#: What `run` prints when no class is given, one line per class.
-CLASS_HELP = {
-    EXCLUSIVE: "the whole machine: the opt-level-3 extension build",
-    BUILD: "a cargo build, test or clippy run that does not compile psiv-godot",
-    EXTENSION: "a cargo build, test or clippy run that compiles psiv-godot (or the workspace)",
-    GODOT: "one Godot/Xvfb run",
-    PYTHON: "the Python suite, or part of it",
-    PACK: "a pack build (`python3 -m psiv_tools pack`)",
-}
-
-
-def class_usage():
-    """`run`'s usage line and one line per class with its units."""
-    lines = ["usage: python3 tools/heavy_lock.py run [--priority] --class CLASS "
-             "-- <command...>", "classes (docs/DEVELOPMENT.md, \"Heavy-run lock\"):"]
-    for name in LOCK_CLASSES:
-        units = "every unit" if name == EXCLUSIVE else f"{CLASS_UNITS[name]} unit(s)"
-        lines.append(f"  {name:<9} {units:<12} {CLASS_HELP[name]}")
-    return "\n".join(lines)
-
-
 def main(argv=None):
-    """Print a lock path or the lock's status, or `run --class CLASS -- <cmd>`
-    under the heavy lock (its exit code)."""
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if argv[:1] == ["run"]:
-        options, command = (argv[1:argv.index("--")], argv[argv.index("--") + 1:]) \
-            if "--" in argv else ([], argv[1:])
-        args = run_parser().parse_args(options)
-        if not command or args.lock_class is None:
-            print(class_usage(), file=sys.stderr)
-            return 2
-        with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
-            return subprocess.run(command).returncode
-    if argv[:1] == ["status"]:
-        status()
-        return 0
-    parser = argparse.ArgumentParser(
-        prog="python3 tools/heavy_lock.py",
-        description="Print the repository-wide heavy-run lock path; `status` for its "
-                    "holders and waiters, or `run -- <command>` holding it.")
-    parser.add_argument("--gate", action="store_true",
-                        help="print the gate lock instead of the heavy lock")
-    args = parser.parse_args(argv)
-    print(gate_lock_path() if args.gate else heavy_lock_path())
-    return 0
+    from heavy_lock_cli import main as cli_main
+
+    return cli_main(sys.modules[__name__], argv)
 
 
 if __name__ == "__main__":

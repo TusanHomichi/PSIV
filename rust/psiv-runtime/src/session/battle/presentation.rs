@@ -68,9 +68,17 @@ impl BattleMode {
             Some(match self.window.as_ref() {
                 Some(Window::Commands(commands)) => MenuView::Commands(Box::new(commands.view())),
                 Some(Window::VehicleSkills(skills)) => skills.view(runtime),
-                None => MenuView::Top {
-                    cursor: self.cursor,
-                },
+                None => {
+                    let full_width = super::menu::top_width(runtime.vehicle_active());
+                    MenuView::Top {
+                        cursor: self.cursor,
+                        width: self
+                            .top_phase
+                            .as_ref()
+                            .and_then(|phase| phase.box_width(full_width)),
+                        full_width,
+                    }
+                }
             })
         } else {
             None

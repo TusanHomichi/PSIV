@@ -9,10 +9,10 @@ to read the more locks the machine holds (#383: 3 s a read under another job's
 mostly under a fake /proc/locks (`flock_holders.PROC_LOCKS`) that names a pid
 fdinfo can't see, as another user's would be:
 
-- `UnseenHolderCase`: the line a waiter prints on every change never reads it;
-  the line it repeats reads it only when fdinfo shows nobody else holding the
-  lock; `status` reads it always (the negative control); the holder line is
-  built outside the queue mutex.
+- `UnseenHolderCase`: the immediate line formats a pending notice without
+  discovery; a completed observation reads /proc/locks only when fdinfo shows
+  nobody else holding the lock. `status` reads it always (the negative
+  control); formatting stays outside the queue mutex.
 - `RawParentCase`: the raw-parent check always reads it, so a parent fdinfo
   can't see is found alone and beside a shared holder fdinfo does see (the
   control: a pid that is no ancestor is not), and an exclusive request under
@@ -114,14 +114,17 @@ class UnseenHolderCase(FakeProcLocks):
 
     def waiting_lines(self):
         lock = str(self.lock)
+        observation = heavy_lock_module.observe_holders(
+            lock, heavy_lock_module.lock_modes, heavy_lock_module.flock_holders,
+            heavy_lock_module.COMMAND_CHARS)
         return (heavy_lock_module._wait_line(lock, "exclusive", NORMAL_RANK, []),
-                heavy_lock_module._still_line(lock, 5))
+                heavy_lock_module._still_line(lock, 5, observation))
 
-    def test_a_holder_fdinfo_sees_is_named_without_reading_proc_locks(self):
+    def test_completed_observation_names_a_visible_holder_without_reading_proc_locks(self):
         holder = self.holder()
         self.fake_proc_locks(UNSEEN_PID)
         line, still = self.waiting_lines()
-        self.assertIn(f"held by pid {holder.pid} (exclusive); 0 waiter(s)", line)
+        self.assertIn("holder diagnostics pending; 0 waiter(s)", line)
         self.assertIn(f"held by pid {holder.pid} (exclusive, up ", still)
         self.assertNotIn(str(UNSEEN_PID), line + still)
 
@@ -139,7 +142,7 @@ class UnseenHolderCase(FakeProcLocks):
         self.lock.touch()
         self.fake_proc_locks(UNSEEN_PID)
         line, still = self.waiting_lines()
-        self.assertIn(" held by pid none; ", line)
+        self.assertIn("holder diagnostics pending", line)
         self.assertIn(f"held by pid {UNSEEN_PID} (exclusive, up ", still)
 
     def test_a_waiter_names_its_holders_outside_the_queue_mutex(self):
@@ -301,7 +304,7 @@ class RawParentCase(FakeProcLocks):
             deadline = time.monotonic() + TIMEOUT
             while "waiting for" not in report.getvalue() and time.monotonic() < deadline:
                 time.sleep(0.05)
-            self.assertIn(f"held by pid {holder.pid} (exclusive)", report.getvalue())
+            self.assertIn("holder diagnostics pending", report.getvalue())
             self.release(holder)
             thread.join(TIMEOUT)
         self.assertFalse(thread.is_alive(), "the grant waited for the check")
@@ -493,7 +496,7 @@ class GateLockCase(FakeProcLocks):
         self.assertEqual(refused.exception.exit_code, 2)
         return str(refused.exception)
 
-    def test_a_holder_fdinfo_sees_is_named_without_reading_proc_locks(self):
+    def test_completed_observation_names_a_visible_holder_without_reading_proc_locks(self):
         holder = self.holder()
         self.fake_proc_locks(UNSEEN_PID)
         message = self.refusal()

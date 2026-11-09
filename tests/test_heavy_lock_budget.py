@@ -109,7 +109,7 @@ class BudgetCase(LockProcesses):
         budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION])}
         godot = self.holder("godot", budget)
         build = self.waiter("build", "--class", EXTENSION, env=budget)
-        self.assertIn(f"{godot.pid} (godot)", build.first_line)
+        self.assert_pending_holder(build, godot, 'godot')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(godot)
@@ -118,7 +118,7 @@ class BudgetCase(LockProcesses):
     def test_a_build_holder_excludes_an_exclusive_run(self):
         build = self.holder("build")
         exclusive = self.waiter("exclusive")
-        self.assertIn(f"held by pid {build.pid} (build)", exclusive.first_line)
+        self.assert_pending_holder(exclusive, build, 'build')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(build)
@@ -127,7 +127,7 @@ class BudgetCase(LockProcesses):
     def test_an_exclusive_holder_excludes_a_build(self):
         holder = self.holder()
         build = self.waiter("build", "--class", "build")
-        self.assertIn(f"held by pid {holder.pid} (exclusive)", build.first_line)
+        self.assert_pending_holder(build, holder, 'exclusive')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(holder)
@@ -146,7 +146,7 @@ class BudgetCase(LockProcesses):
         budget = int(PAIR_BUDGET[UNITS_ENV])
         self.assertEqual(units_in_use(self.lock), budget)
         second_godot = self.waiter("second-godot", "--class", "godot", env=PAIR_BUDGET)
-        self.assertIn(f"{build.pid} (extension)", second_godot.first_line)
+        self.assert_pending_holder(second_godot, build, 'extension')
         time.sleep(0.5)
         self.assertLessEqual(units_in_use(self.lock), budget)
         self.assertEqual(self.granted(), [])
@@ -236,7 +236,7 @@ class BudgetCase(LockProcesses):
         self.assertEqual(sorted(lock_modes(self.lock)),
                          sorted(zip((h.pid for h in holders), (BUILD, GODOT, GODOT, PYTHON))))
         second = self.waiter("second-cargo", "--class", BUILD)
-        self.assertIn(f"{holders[0].pid} (build)", second.first_line)
+        self.assert_pending_holder(second, holders[0], 'build')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [], "a second cargo run would exceed the budget")
         self.release(holders[0])
@@ -394,7 +394,7 @@ class BudgetCase(LockProcesses):
         """12 + 7 = 19 of 16: it waits until the build ends."""
         build = self.holder(BUILD)
         waiter = self.waiter("extension", "--class", EXTENSION)
-        self.assertIn(f"{build.pid} (build)", waiter.first_line)
+        self.assert_pending_holder(waiter, build, 'build')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(build)
@@ -405,12 +405,12 @@ class BudgetCase(LockProcesses):
         for lock_class in (BUILD, GODOT, PYTHON, PACK):
             holder = self.holder()
             waiter = self.waiter(lock_class, "--class", lock_class)
-            self.assertIn(f"held by pid {holder.pid} (exclusive)", waiter.first_line)
+            self.assert_pending_holder(waiter, holder, 'exclusive')
             self.release(holder)
             self.assertEqual(waiter.wait(timeout=TIMEOUT), 0)
             shared = self.holder(lock_class)
             exclusive = self.waiter(f"exclusive-after-{lock_class}")
-            self.assertIn(f"held by pid {shared.pid} ({lock_class})", exclusive.first_line)
+            self.assert_pending_holder(exclusive, shared, lock_class)
             self.release(shared)
             self.assertEqual(exclusive.wait(timeout=TIMEOUT), 0)
         self.assertEqual(self.granted(), [step for name in (BUILD, GODOT, PYTHON, PACK)
@@ -500,7 +500,7 @@ class BudgetCase(LockProcesses):
         budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION])}
         holder = self.holder(EXTENSION, budget)
         waiter = self.waiter("waiter", "--class", EXTENSION, env=budget)
-        self.assertIn(f"{holder.pid} (extension)", waiter.first_line)
+        self.assert_pending_holder(waiter, holder, 'extension')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(holder)
@@ -526,7 +526,7 @@ class BudgetCase(LockProcesses):
         """The same build declared exclusive, as before #145, waits."""
         reader = self.holder(PYTHON)
         waiter = self.waiter("pack")
-        self.assertIn(f"{reader.pid} (python)", waiter.first_line)
+        self.assert_pending_holder(waiter, reader, 'python')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(reader)
@@ -575,7 +575,7 @@ class NoBudgetCase(LockProcesses):
     def test_negative_control_under_the_host_budget_the_second_extension_build_waits(self):
         first = self.holder(EXTENSION, HOST_BUDGET)
         second = self.waiter("second-extension", "--class", EXTENSION, env=HOST_BUDGET)
-        self.assertIn(f"{first.pid} (extension)", second.first_line)
+        self.assert_pending_holder(second, first, 'extension')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(first)
@@ -584,7 +584,7 @@ class NoBudgetCase(LockProcesses):
     def test_an_exclusive_run_still_waits_for_a_shared_holder_named_by_its_class(self):
         build = self.holder(BUILD)
         exclusive = self.waiter("exclusive")
-        self.assertIn(f"held by pid {build.pid} (build)", exclusive.first_line)
+        self.assert_pending_holder(exclusive, build, 'build')
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(build)

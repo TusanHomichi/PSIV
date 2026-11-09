@@ -75,15 +75,15 @@ fn individual_commands_keep_fighter_slots_and_selected_targets() {
         return;
     };
     menu.move_cursor(1);
-    menu.accept(); // Chaz TECH
-    menu.accept(); // RES
+    menu.accept_settled(); // Chaz TECH
+    menu.accept_settled(); // RES
     menu.move_cursor(1);
-    menu.accept(); // Alys recipient
+    menu.accept_settled(); // Alys recipient
     menu.move_cursor(4);
-    menu.accept(); // Alys DEFEND
-    menu.accept(); // Hahn ATTACK
+    menu.accept_settled(); // Alys DEFEND
+    menu.accept_settled(); // Hahn ATTACK
     menu.move_cursor(1);
-    let orders = menu.accept().unwrap();
+    let orders = menu.accept_settled().unwrap();
     assert_eq!(
         orders,
         RoundOrders::Commands(vec![
@@ -110,18 +110,18 @@ fn cancel_unwinds_targets_techniques_and_prior_character_without_submitting() {
         return;
     };
     menu.move_cursor(1);
-    menu.accept();
-    menu.accept();
-    menu.cancel();
+    menu.accept_settled();
+    menu.accept_settled();
+    menu.cancel_settled();
     assert_eq!(menu.page, MenuPage::Techniques);
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!(menu.page, MenuPage::Actions);
     menu.move_cursor(4);
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(menu.actor_id(), Some(id(2)));
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!(menu.actor_id(), Some(id(1)));
-    menu.cancel();
+    menu.cancel_settled();
     assert!(!menu.open);
 }
 
@@ -132,9 +132,9 @@ fn insufficient_tp_disables_accept_and_leaves_selection_open() {
     };
     menu.roster.get_mut(id(1)).unwrap().stats.curr_tp = 2;
     menu.move_cursor(1);
-    menu.accept();
+    menu.accept_settled();
     assert!(!menu.rows()[0].1);
-    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.accept_settled(), None);
     assert_eq!(menu.page, MenuPage::Techniques);
     assert!(menu.open);
 }
@@ -152,7 +152,7 @@ fn res_round(sealed: bool) -> Option<(CommandsMenu, Vec<BattleEvent>)> {
     runtime.set_rng_seed(0x1234_5678);
     let mut menu = CommandsMenu::new(&runtime);
     menu.move_cursor(1);
-    menu.accept(); // Chaz TECH
+    menu.accept_settled(); // Chaz TECH
     assert_eq!(menu.page, MenuPage::Techniques);
     let view = menu.view();
     let rows = menu.rows();
@@ -166,14 +166,14 @@ fn res_round(sealed: bool) -> Option<(CommandsMenu, Vec<BattleEvent>)> {
     }
     assert_eq!(view.techniques[0].id, 24);
     assert!(rows[0].1, "the window offers RES to a member with the TP");
-    assert_eq!(menu.accept(), None); // RES
+    assert_eq!(menu.accept_settled(), None); // RES
     menu.move_cursor(1);
-    assert_eq!(menu.accept(), None); // Alys recipient
+    assert_eq!(menu.accept_settled(), None); // Alys recipient
     // Everyone else defends; the last order submits the round.
     let orders = (0..4)
         .find_map(|_| {
             menu.move_cursor(4);
-            menu.accept()
+            menu.accept_settled()
         })
         .expect("the last member's order submits");
     let timeline = runtime.battle_round_timeline(&orders).unwrap();
@@ -261,7 +261,8 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
         age: 0,
         bytes: [0; 5],
         memory: CursorMemory::default(),
-        growth: None,
+        phase: None,
+        pending: None,
         whole_unread: false,
         open: true,
     };
@@ -273,12 +274,12 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
         .collect();
     assert_eq!(menu.actor_id(), Some(id(2)));
     menu.move_cursor(1);
-    menu.accept();
+    menu.accept_settled();
     assert!(
         menu.rows()[0].0.starts_with("SANER"),
         "retail lists newest learned first"
     );
-    let RoundOrders::Commands(orders) = menu.accept().unwrap() else {
+    let RoundOrders::Commands(orders) = menu.accept_settled().unwrap() else {
         panic!("commands")
     };
     assert_eq!(
@@ -325,12 +326,12 @@ fn skills_keep_ids_and_targets_without_spending_uses_in_the_menu() {
     ] {
         assert_eq!(menu.actor_id(), Some(id(actor)));
         menu.move_cursor(2);
-        menu.accept();
+        menu.accept_settled();
         assert_eq!(menu.rows(), vec![(name.into(), true)]);
-        let mut result = menu.accept();
+        let mut result = menu.accept_settled();
         if let Some(cursor) = target {
             menu.move_cursor(cursor);
-            result = menu.accept();
+            result = menu.accept_settled();
         }
         if actor == 3 {
             assert_eq!(
@@ -369,11 +370,11 @@ fn skills_reject_exhausted_unarmed_and_unsupported_but_work_when_tech_sealed() {
     menu.roster.get_mut(id(1)).unwrap().stats.status = status::TECH_SEALED;
     menu.roster.get_mut(id(1)).unwrap().stats.curr_tp = 0;
     menu.move_cursor(2);
-    menu.accept();
+    menu.accept_settled();
     assert!(menu.rows()[0].1);
     menu.roster.get_mut(id(1)).unwrap().stats.curr_skill_uses[0] = 0;
     assert_eq!(menu.rows()[0], ("EARTH 0 OF 3".into(), false));
-    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.accept_settled(), None);
     assert_eq!(menu.page, MenuPage::Skills);
     menu.roster.get_mut(id(1)).unwrap().stats.curr_skill_uses[0] = 3;
     menu.armed_fighters.clear();
@@ -389,22 +390,22 @@ fn cancel_returns_to_the_selected_skill_without_spending_a_use() {
         return;
     };
     menu.move_cursor(2);
-    menu.accept();
-    menu.accept();
+    menu.accept_settled();
+    menu.accept_settled();
     assert_eq!(menu.page, MenuPage::Targets(TargetKind::Skill(31)));
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!(menu.page, MenuPage::Skills);
     assert_eq!(menu.cursor, 0);
     assert_eq!(menu.rows()[0].0, "EARTH 3 OF 3");
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!(menu.page, MenuPage::Actions);
-    menu.cancel();
+    menu.cancel_settled();
     assert!(!menu.open);
 }
 
 fn select_item(menu: &mut CommandsMenu, source: ItemSource) {
     menu.move_cursor(3);
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(menu.page, MenuPage::Items);
     let row = menu
         .known_items()
@@ -424,11 +425,11 @@ fn item_reservations_distinguish_copies_and_keep_inventory_holes() {
     slots[7] = 125;
     menu.inventory = psiv_core::Inventory::from_slots(slots);
     select_item(&mut menu, ItemSource::Inventory(7));
-    menu.accept();
-    menu.accept(); // Chaz -> Monomate in slot 7 -> Chaz
+    menu.accept_settled();
+    menu.accept_settled(); // Chaz -> Monomate in slot 7 -> Chaz
     select_item(&mut menu, ItemSource::Inventory(7));
     assert!(!menu.rows()[menu.cursor].1);
-    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.accept_settled(), None);
     assert_eq!(menu.page, MenuPage::Items);
     let free = menu
         .known_items()
@@ -437,11 +438,11 @@ fn item_reservations_distinguish_copies_and_keep_inventory_holes() {
         .unwrap();
     menu.cursor = free;
     assert!(menu.rows()[free].1);
-    menu.accept();
+    menu.accept_settled();
     menu.move_cursor(2);
-    menu.accept(); // Alys -> slot 0 -> Hahn
+    menu.accept_settled(); // Alys -> slot 0 -> Hahn
     menu.move_cursor(4);
-    let RoundOrders::Commands(orders) = menu.accept().unwrap() else {
+    let RoundOrders::Commands(orders) = menu.accept_settled().unwrap() else {
         panic!("orders");
     };
     assert_eq!(
@@ -474,15 +475,15 @@ fn backing_up_and_replacing_an_order_releases_its_item_reservation() {
     };
     menu.inventory.add(125).unwrap();
     select_item(&mut menu, ItemSource::Inventory(0));
-    menu.accept();
-    menu.cancel();
+    menu.accept_settled();
+    menu.cancel_settled();
     assert_eq!(menu.page, MenuPage::Items);
     assert_eq!(menu.known_items()[menu.cursor].0, ItemSource::Inventory(0));
-    menu.accept();
-    menu.accept(); // commit Chaz
-    menu.cancel(); // back from Alys to Chaz
+    menu.accept_settled();
+    menu.accept_settled(); // commit Chaz
+    menu.cancel_settled(); // back from Alys to Chaz
     menu.move_cursor(4);
-    menu.accept(); // replace Chaz with Defend
+    menu.accept_settled(); // replace Chaz with Defend
     select_item(&mut menu, ItemSource::Inventory(0));
     assert!(menu.rows()[menu.cursor].1);
     assert_eq!(menu.inventory.get(0), Some(125));
@@ -497,7 +498,7 @@ fn item_targets_include_downed_allies_and_unusable_items_stay_disabled() {
     menu.inventory.add(132).unwrap();
     menu.roster.get_mut(id(3)).unwrap().stats.status = status::DEAD;
     select_item(&mut menu, ItemSource::Inventory(0));
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(
         menu.targets(TargetKind::Item {
             item: 130,
@@ -506,7 +507,7 @@ fn item_targets_include_downed_allies_and_unusable_items_stay_disabled() {
         vec![id(1), id(2), id(3)]
     );
     menu.move_cursor(2);
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(
         menu.orders[0],
         Command::Item {
@@ -517,7 +518,7 @@ fn item_targets_include_downed_allies_and_unusable_items_stay_disabled() {
     );
     select_item(&mut menu, ItemSource::Inventory(1));
     assert!(!menu.rows()[menu.cursor].1);
-    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.accept_settled(), None);
 }
 
 /// The main options are the cartridge's own window: Up/Down wrap
@@ -614,13 +615,39 @@ fn the_post_battle_pages_confirm_on_any_face_button() {
     assert!(!confirm_pressed(held, held));
 }
 
-/// One press, once any window opening has finished: the frames
-/// `Battle_CreateWindow` takes read no button.
-fn press(menu: &mut CommandsMenu, button: Button) -> Option<RoundOrders> {
-    while menu.growing() {
-        assert_eq!(menu.input(Pad::NEUTRAL, Pad::NEUTRAL), None);
+impl CommandsMenu {
+    /// Neutral frames until no window is opening or closing; the orders the
+    /// last close handed back, if any.
+    fn settle(&mut self) -> Option<RoundOrders> {
+        let mut orders = None;
+        for _ in 0..64 {
+            if !self.growing() {
+                break;
+            }
+            orders = orders.or(self.input(Pad::NEUTRAL, Pad::NEUTRAL));
+        }
+        orders
     }
-    menu.input(Pad::NEUTRAL, Pad::new(button))
+
+    /// `accept`, then the frames its windows take to close and open.
+    fn accept_settled(&mut self) -> Option<RoundOrders> {
+        let orders = self.accept();
+        orders.or_else(|| self.settle())
+    }
+
+    /// `cancel`, then the frames its windows take.
+    fn cancel_settled(&mut self) {
+        self.cancel();
+        self.settle();
+    }
+}
+
+/// One press, once any window opening or closing has finished, and the
+/// frames the windows it starts take: those frames read no button.
+fn press(menu: &mut CommandsMenu, button: Button) -> Option<RoundOrders> {
+    assert_eq!(menu.settle(), None);
+    let orders = menu.input(Pad::NEUTRAL, Pad::new(button));
+    orders.or_else(|| menu.settle())
 }
 
 /// The strip is the cartridge's `Battle_CharCommand` (`ps4.asm:2192`): the
@@ -691,7 +718,8 @@ fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
     );
     press(&mut menu, Button::Left);
     assert_eq!(menu.cursor, 0, "no previous page: Left does nothing");
-    press(&mut menu, Button::Right);
+    menu.settle();
+    menu.input(Pad::NEUTRAL, Pad::new(Button::Right));
     assert_eq!(menu.cursor, 4, "Right flips to the next page's first row");
     // `Battle_TechNextWin` grows the next page's window from nothing.
     assert!(menu.view().list.is_none() && menu.growing());
@@ -715,9 +743,9 @@ fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
     // An empty row ignores accept; leaving the list returns to the strip on
     // the icon that opened it.
     menu.cursor = 7;
-    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.accept_settled(), None);
     assert_eq!(menu.page, MenuPage::Techniques);
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!((menu.page, menu.cursor), (MenuPage::Actions, 1));
 }
 
@@ -794,7 +822,7 @@ fn a_list_drawn_whole_shows_its_cursor_only_from_the_next_frame() {
     }
     grow_whole(&mut menu);
     press(&mut menu, Button::Right);
-    press(&mut menu, Button::Speak);
+    menu.input(Pad::NEUTRAL, Pad::new(Button::Speak));
     grow_whole(&mut menu);
     menu.input(Pad::NEUTRAL, Pad::NEUTRAL);
     assert!(menu.list_cursor_shown());
@@ -826,12 +854,12 @@ fn command_bytes_follow_the_cartridge_writes() {
         "opening a strip clears the next record"
     );
     menu.cursor = 1;
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(menu.bytes[menu.command_slot().unwrap()], 2);
-    menu.cancel();
+    menu.cancel_settled();
     assert_eq!(menu.bytes[menu.command_slot().unwrap()], 0);
     menu.cursor = 4;
-    menu.accept();
+    menu.accept_settled();
     assert_eq!(menu.bytes[0], 5, "defend writes its own byte");
 }
 

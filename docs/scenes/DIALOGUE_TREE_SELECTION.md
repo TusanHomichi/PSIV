@@ -111,12 +111,13 @@ selected tree numbers and the number of areas differing from the map tree.
 `—` means the map has no type-0 area. On W0, a mixed `28/29` cell means the
 map has parameters on both sides of the decoded unsigned cutoff.
 
-[Issue #42](https://github.com/TusanHomichi/PSIV/issues/42)'s trigger-census Tree
-column in [opening triggers](TRIGGER_CENSUS.md#which-maps-check-which-triggers)
-is correct **as a map-loaded NPC/default-scene binding**, not as the tree for
-all interactions. Piata's map tree 2 and Academy's tree 1 remain correct;
-their type-0 areas select tree 28 on World_Index 0. Thus the ambiguous column
-has the same root cause as #79.
+The former Tree columns in the [trigger census](TRIGGER_CENSUS.md#which-maps-check-which-triggers)
+meant map-loaded NPC/default-scene bindings. The opening Piata bindings were
+correct, but the later-arc table contained stale values, including Aiedo
+([issue #42](https://github.com/TusanHomichi/PSIV/issues/42)). Those duplicate
+columns have been removed in favor of the pack's `dialogue_tree` field and
+this generated census. Type-0 selection is a separate concern: Piata's map
+tree 2 and Academy's tree 1 differ from their type-0 tree 28 on World_Index 0.
 
 <!-- BEGIN GENERATED SELECTION CENSUS -->
 | Map | NPC/default scene tree | Type-0 areas | W0 | W1 | W2 | W3 | W4 | W5 |

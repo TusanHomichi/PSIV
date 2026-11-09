@@ -12,20 +12,18 @@ impl CommandsMenu {
             MenuPage::Targets(action) => self.targets(action),
             _ => Vec::new(),
         };
-        let growing = self
-            .growth
-            .zip(window_width(self.page))
-            .and_then(|(width, full_width)| {
-                Some(GrowingWindow {
-                    window: self.page,
-                    slot: self.comd_slot()?,
-                    width,
-                    full_width,
-                })
-            });
+        let growing = self.box_width().and_then(|(width, full_width)| {
+            Some(GrowingWindow {
+                window: self.page,
+                slot: self.comd_slot()?,
+                width,
+                full_width,
+            })
+        });
         let strip_growing = growing.is_some() && self.page == MenuPage::Actions;
         CommandMenuView {
             growing,
+            settling: self.growing(),
             strip: self.strip_view().filter(|_| !strip_growing),
             list: self.list_view().filter(|_| growing.is_none()),
             title: self.title(),

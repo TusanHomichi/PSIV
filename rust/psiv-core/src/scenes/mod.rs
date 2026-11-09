@@ -58,6 +58,7 @@ pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod dying_boy;
+mod elsydeon;
 pub(crate) mod esper_events;
 mod field_reload;
 pub mod fifth_character;
@@ -296,7 +297,7 @@ pub static SCENES: &[Scene] = &[
     dezo_endgame::DE_VARS_DEFEATED,
     dezo_endgame::SA_LEWS_DEFEATED,
     dezo_endgame::BEFORE_ELSYDEON_CAVE,
-    dezo_endgame::ELSYDEON,
+    elsydeon::ELSYDEON,
     dezo_endgame::REUNION,
     dezo_endgame::SILENCE_TM_DOOR_OPENING,
     dezo_endgame::ENTER_ANGER_TOWER,

@@ -267,6 +267,8 @@ pub enum VehicleEffect {
         target_cell: Cell,
         /// Destination facing.
         facing: Direction,
+        /// Where the followers line up on the load ([`crate::Warp::alignment`]).
+        alignment: Option<Direction>,
     },
     /// A map-change tile had no corresponding transition record.
     WarpUnmapped {
@@ -453,6 +455,7 @@ impl VehicleState {
                         target_map: warp.target_map,
                         target_cell: warp.target_cell,
                         facing: warp.facing,
+                        alignment: warp.alignment,
                     });
                 } else {
                     effects.push(VehicleEffect::WarpUnmapped { cell: self.cell });
@@ -470,6 +473,7 @@ impl VehicleState {
                 target_map: warp.target_map,
                 target_cell: warp.target_cell,
                 facing: warp.facing,
+                alignment: warp.alignment,
             });
         }
         effects

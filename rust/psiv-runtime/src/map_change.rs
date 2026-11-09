@@ -321,6 +321,7 @@ impl Runtime {
                 cell: leader.cell(),
                 facing: leader.facing(),
                 previous_map: self.saved_map_index_2,
+                alignment: None,
             },
         )
     }
@@ -349,13 +350,17 @@ impl Runtime {
         Ok(())
     }
 
+    /// A field load from the current map with no alignment: the tests' way
+    /// to stand the party somewhere. Every warp loads through
+    /// [`Runtime::change_map_aligned`].
+    #[cfg(test)]
     pub(crate) fn change_map(
         &mut self,
         target: MapId,
         cell: Cell,
         facing: Direction,
     ) -> Result<LoadedMap, BridgeError> {
-        self.change_map_from(target, cell, facing, self.map.id().0)
+        self.change_map_aligned(target, cell, facing, None)
     }
 
     /// Loads `target` the way a scene's `LoadMap` op does: `RefreshMap`, whose
@@ -370,7 +375,7 @@ impl Runtime {
     ) -> Result<LoadedMap, BridgeError> {
         // The scene's own `bclr`/`bset` writes precede the load call.
         self.map_load_flags &= !clear_load_flags;
-        self.change_map_kind(target, cell, facing, previous_map, MapLoad::Refresh)
+        self.change_map_kind(target, cell, facing, previous_map, MapLoad::Refresh, None)
     }
 
     pub(crate) fn change_map_from(
@@ -380,7 +385,27 @@ impl Runtime {
         facing: Direction,
         previous_map: u16,
     ) -> Result<LoadedMap, BridgeError> {
-        self.change_map_kind(target, cell, facing, previous_map, MapLoad::Field)
+        self.change_map_kind(target, cell, facing, previous_map, MapLoad::Field, None)
+    }
+
+    /// A warp's load: [`Runtime::change_map`], then the followers line up in
+    /// the record's alignment ([`psiv_core::Party::line_up`]).
+    pub(crate) fn change_map_aligned(
+        &mut self,
+        target: MapId,
+        cell: Cell,
+        facing: Direction,
+        alignment: Option<Direction>,
+    ) -> Result<LoadedMap, BridgeError> {
+        let previous_map = self.map.id().0;
+        self.change_map_kind(
+            target,
+            cell,
+            facing,
+            previous_map,
+            MapLoad::Field,
+            alignment,
+        )
     }
 
     fn change_map_kind(
@@ -390,6 +415,7 @@ impl Runtime {
         facing: Direction,
         previous_map: u16,
         kind: MapLoad,
+        alignment: Option<Direction>,
     ) -> Result<LoadedMap, BridgeError> {
         // `GameMode_LoadFieldMap` redirects four maps from the event flags
         // before it reads the record (`ps4.asm:107526-107529`); `RefreshMap`
@@ -399,6 +425,7 @@ impl Runtime {
             cell,
             facing,
             previous_map,
+            alignment,
         } = match kind {
             MapLoad::Field => adjust_field_load(
                 &self.game,
@@ -407,6 +434,7 @@ impl Runtime {
                     cell,
                     facing,
                     previous_map,
+                    alignment,
                 },
             ),
             MapLoad::Refresh => FieldLoad {
@@ -414,6 +442,7 @@ impl Runtime {
                 cell,
                 facing,
                 previous_map,
+                alignment,
             },
         };
         let keep_old_music =
@@ -452,6 +481,9 @@ impl Runtime {
         self.party
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        if let Some(toward) = alignment {
+            self.party.line_up(&map, toward);
+        }
         self.wander = build_wander(&map, record)?;
         self.bespoke = build_bespoke(&map, record)?;
         // Map entry places the view rather than scrolling it in, so the camera
