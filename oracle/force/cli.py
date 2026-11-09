@@ -47,7 +47,7 @@ def parser() -> argparse.ArgumentParser:
                              "battle_first+1; never command or cursor RAM")
     parsed.add_argument("--delay", type=int, default=0,
                         help="idle frames between the field prefix and the "
-                             "policy; shifts every roll in the fight")
+                             "policy; may change rolls, but event/script loading can absorb it")
     parsed.add_argument("--repeats", type=int, default=900,
                         help="policy blocks (attack: one 16-frame press)")
     parsed.add_argument("--max-rounds", type=int, default=0,

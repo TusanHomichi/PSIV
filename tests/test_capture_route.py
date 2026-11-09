@@ -1,7 +1,7 @@
 """A requested ability must occur inside the extracted capture, not the probe."""
 import unittest
 
-from oracle.sweep.capture_route import observed_rounds, out_of_lane
+from oracle.sweep.capture_checks import observed_rounds, out_of_lane
 
 
 class CaptureRouteTests(unittest.TestCase):

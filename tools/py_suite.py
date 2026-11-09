@@ -72,7 +72,7 @@ PATTERN = "test*.py"
 SLOW_PYTHON_MODULES = {
     "test_pack_inputs": 44.3,
     "test_pack_maps": 37.1,
-    "test_reload_frames": 32.0,
+    "test_oracle_battle_fixture_reload": 32.0,
     "test_battle_art_pack": 14.7,
     "test_pack_manifest": 14.2,
     "test_map_patches": 12.8,

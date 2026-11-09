@@ -11,7 +11,7 @@ from unittest import mock
 from oracle.fixture import FixtureError
 from oracle.fixture.player_state import attach_start_ram
 from oracle.sweep import player_abilities as ledger
-from oracle.sweep.player_capture import patches, require_executed, verify_report
+from oracle.sweep.party_fixture import patches, require_executed, verify_report
 from oracle.fixture.observations import battle_start
 from oracle.sweep.player_chains import Chains
 from oracle.force.script import patch_state, party_state
