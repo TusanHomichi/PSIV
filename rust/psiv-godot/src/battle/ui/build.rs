@@ -11,6 +11,7 @@ use psiv_core::battle::FighterId;
 
 use super::super::attack::{EnemySprite, enemy_sprite_origin};
 use super::super::enemy_overlay::EnemyAnimation;
+use super::super::layout::{ENEMY_PLANE_Z, PARTY_PLANE_Z};
 use super::super::vehicle::texture as vehicle_texture;
 use super::{BATTLE_BACKGROUND_HEIGHT, BATTLE_BACKGROUND_WIDTH, BATTLE_CELL_PIXELS, BattleScreen};
 use crate::battle::{BattleSetup, EnemyPlacement};
@@ -166,7 +167,7 @@ impl BattleScreen {
                 .unwrap_or((0, 0));
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
-            node.set_z_index(-10);
+            node.set_z_index(ENEMY_PLANE_Z);
             let (x, y) = enemy_sprite_origin(enemy.position, width, height);
             node.set_position(Vector2::new(x as f32, y as f32));
             let mut animation = self.art.as_ref().and_then(|art| {
@@ -287,7 +288,7 @@ impl BattleScreen {
             };
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
-            node.set_z_index(-10);
+            node.set_z_index(PARTY_PLANE_Z);
             let column = member
                 .fighter_id
                 .checked_sub(1)

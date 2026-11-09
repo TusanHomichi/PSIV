@@ -13,6 +13,7 @@ use psiv_core::battle::FighterId;
 use psiv_runtime::{AttackView, BattleAnimationEvent};
 
 use super::enemy_overlay::EnemyAnimation;
+use super::layout::attack_layer_offset;
 
 /// One enemy body and its already-decoded idle overlay animation.
 pub(super) struct EnemySprite {
@@ -71,7 +72,7 @@ impl EnemySprite {
             layer.set_centered(false);
             // Low-priority sprite pixels cover the low-priority enemy plane,
             // but the later party plane (priority bit set) covers them.
-            layer.set_z_index(0);
+            layer.set_z_index(attack_layer_offset(false));
             layer.set_texture(&spec.frames[0]);
             layer.set_position(Vector2::new(
                 (spec.origin_pixels.x + spec.initial_offset_pixels.x) as f32,
@@ -80,7 +81,7 @@ impl EnemySprite {
             self.node.add_child(&layer);
             let mut high_layer = Sprite2D::new_alloc();
             high_layer.set_centered(false);
-            high_layer.set_z_index(1);
+            high_layer.set_z_index(attack_layer_offset(true));
             high_layer.set_texture(&spec.high_frames[0]);
             high_layer.set_position(layer.get_position());
             self.node.add_child(&high_layer);
