@@ -111,9 +111,27 @@ pub fn bank(
     record: &Record,
     bounds: &BTreeMap<usize, usize>,
 ) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
+    bank_order(rom, record, bounds, &BANK_ORDER)
+}
+
+/// loc_7BFA uploads Art #1 at the fighter base copied by loc_12618.
+pub fn attack_bank(
+    rom: &[u8],
+    record: &Record,
+    bounds: &BTreeMap<usize, usize>,
+) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
+    bank_order(rom, record, bounds, &[0])
+}
+
+fn bank_order(
+    rom: &[u8],
+    record: &Record,
+    bounds: &BTreeMap<usize, usize>,
+    order: &[usize],
+) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
     let mut tiles = Vec::new();
     let mut sources: Vec<Option<Source>> = vec![None, None, None];
-    for field in BANK_ORDER {
+    for &field in order {
         let offset = record.art[field];
         let label = format!("ArtNem_{}Battle{}", record.symbol, field + 1);
         let header = nemesis::read_header(rom, offset)?;
@@ -141,13 +159,7 @@ pub fn bank(
         });
         tiles.extend(gfx::decode_tiles(&data)?);
     }
-    Ok((
-        tiles,
-        sources
-            .into_iter()
-            .map(|s| s.expect("every field"))
-            .collect(),
-    ))
+    Ok((tiles, sources.into_iter().flatten().collect()))
 }
 
 /// `enemy_mapping`: the body's pattern-name words, its format and size.

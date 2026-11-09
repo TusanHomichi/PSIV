@@ -48,6 +48,7 @@ pub mod maps;
 pub mod npc_commands;
 pub mod png;
 pub mod rom;
+mod scene_tables;
 pub mod ship_menu;
 pub mod shops;
 pub mod sound;
@@ -124,6 +125,11 @@ pub const SECTIONS: &[Section] = &[
         build: game_start::build,
     },
     Section {
+        name: "scene_tables",
+        claims: &["fifth", "guild"],
+        build: scene_tables::build,
+    },
+    Section {
         name: "battle",
         claims: &[
             "battle/abilities.json",
@@ -135,6 +141,8 @@ pub const SECTIONS: &[Section] = &[
             "battle/art/damage_digits.json",
             "battle/art/enemies",
             "battle/art/enemies.json",
+            "battle/art/enemy_attacks",
+            "battle/art/enemy_attacks.json",
             "battle/art/enemy_overlays",
             "battle/art/enemy_overlays.json",
             "battle/art/fusion",
