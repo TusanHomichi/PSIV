@@ -154,6 +154,25 @@ before a formula can certify a row:
   DMA, Z80 and sound work affect timing. A cycle model needs the CPU/VDP phase
   entering the load as well as the work between waits.
 
+Kosinski's instruction-work component is derived by the
+[existing Rust decoder](../../rust/psiv-pack/src/decode/kosinski.rs):
+`decompress_with_work` counts the executed token paths while producing the
+bytes, and `Work::cpu_cycles` owns the cited US instruction-cost formula.
+The byte-only API uses the same decoding path. This is CPU clock work,
+including setup and RTS but excluding the caller's JSR, interrupts, refresh
+and hardware stalls; multiplying it by seven does not by itself give the
+load's elapsed master cycles.
+
+Isolated executions of the unchanged retail routine (`$41BEA..$41C89`) with
+interrupts masked verify that distinction. Two literals producing `ab` cost
+380 CPU clocks, observed as 2,702 master cycles including three 14-cycle
+refresh delays. A full-short match and an extended match producing the same
+four `x` bytes cost 588 and 632 CPU clocks respectively. Fourteen literals
+whose terminator consumes descriptor bit 16 cost 1,216 clocks: the immediate
+descriptor refill is part of the work even though that bit ends the stream.
+These are decompressor-component fixtures, not organic campaign captures or
+an all-map elapsed-frame formula.
+
 The preceding scene's full instruction history need not determine that entry
 phase. On the non-battle return path, `FieldRoutine_Cutscene` ends with
 `jmp VInt_Prepare` (`:120758`); `MainGameLoop` (`:411-416`) dispatches the load
