@@ -155,7 +155,10 @@ impl Runtime {
         let (id, _) = adjust_music_ids(self.map.id(), raw, &self.game, self.saved_sound_index);
         self.saved_sound_index = id;
         for op in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }] {
-            events.push(RuntimeEvent::ScenePresentation { op });
+            events.push(RuntimeEvent::ScenePresentation {
+                op,
+                panel_dialogue_mode: self.panel_dialogue_mode(),
+            });
         }
     }
 

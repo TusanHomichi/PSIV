@@ -75,7 +75,12 @@ impl PresentationState {
         scene_event: Option<psiv_core::EventIndex>,
         panel_mode: bool,
     ) -> bool {
-        scene_event.is_none() || (!panel_mode && !self.vram_blanked)
+        scene_event.is_none() || self.scene_sprites_visible(panel_mode)
+    }
+
+    /// Visibility while consuming a scene op, independent of the final frame state.
+    pub(crate) fn scene_sprites_visible(&self, panel_mode: bool) -> bool {
+        !panel_mode && !self.vram_blanked
     }
 
     pub(crate) fn set_vram_blanked(&mut self, blanked: bool) {
@@ -377,6 +382,17 @@ mod tests {
         assert!(!state.sprites_visible(cutscene, false));
         state.set_vram_blanked(false);
         assert!(state.sprites_visible(cutscene, false));
+    }
+
+    #[test]
+    fn an_ordered_panel_op_uses_its_snapshot_even_after_the_scene_ended() {
+        let mut state = PresentationState::default();
+        assert!(!state.scene_sprites_visible(true));
+        assert!(state.sprites_visible(None, false));
+        assert!(state.sprites_visible(None, true));
+        assert!(state.scene_sprites_visible(false));
+        state.set_vram_blanked(true);
+        assert!(!state.scene_sprites_visible(false));
     }
 
     /// `FieldObj_GetAutoInput`'s order: the X gap closes first, then Y, two

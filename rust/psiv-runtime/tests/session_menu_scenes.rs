@@ -759,7 +759,8 @@ fn getting_off_asks_for_no_exit_music() {
                     event,
                     RuntimeEvent::ScenePresentation {
                         op: psiv_core::SceneOp::PlaySound { .. }
-                            | psiv_core::SceneOp::SetSavedMusic { .. }
+                            | psiv_core::SceneOp::SetSavedMusic { .. },
+                        ..
                     }
                 )
             })

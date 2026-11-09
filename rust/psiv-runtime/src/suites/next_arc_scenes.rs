@@ -180,7 +180,8 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
             if matches!(
                 item,
                 RuntimeEvent::ScenePresentation {
-                    op: SceneOp::WaitForStart
+                    op: SceneOp::WaitForStart,
+                    ..
                 }
             ) {
                 start_pressed = true;

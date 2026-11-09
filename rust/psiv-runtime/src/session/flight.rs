@@ -19,6 +19,7 @@ impl Session {
         match event {
             RuntimeEvent::ScenePresentation {
                 op: SceneOp::FlightPlanet,
+                ..
             } => {
                 self.flight = Some(FlightView {
                     caption: None,
@@ -27,6 +28,7 @@ impl Session {
             }
             RuntimeEvent::ScenePresentation {
                 op: SceneOp::SetTextColour { colour: 0 },
+                ..
             } if self.flight.is_some() => {
                 // RunText2's final FF queues the completed line's DMA, after
                 // the setup interval, immediately before Pal_FadeIn.
@@ -44,6 +46,7 @@ impl Session {
                     SceneOp::Presentation {
                         op: PresentationOp::PlaceNameWindow,
                     },
+                ..
             } => {
                 let arrival = self
                     .runtime

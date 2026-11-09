@@ -5,11 +5,13 @@ owns scene control, blocking, actor semantics, flags, and map changes. The
 runtime translates each `SceneEffect::Presentation` into one
 `RuntimeEvent::ScenePresentation` at the same tick and in the same vector
 position. `rust/psiv-godot/src/runtime_events.rs` consumes that event in order;
-it does not replay or infer scene operations.
+it does not replay or infer scene operations. Each event captures
+`panel_dialogue_mode` at that operation, so the op’s sprite visibility never reads a
+later dialogue close or scene end from the completed frame.
 
 The ordering contract is covered by
 `presentation_events_keep_scene_order_and_tick_boundaries` in
-`rust/psiv-runtime/src/suites/next_arc.rs`.
+`rust/psiv-runtime/src/suites/presentation_order.rs`.
 
 ## Certified pairs
 

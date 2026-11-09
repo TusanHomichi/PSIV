@@ -144,6 +144,7 @@ fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
 fn answer_ship_menu(runtime: &mut Runtime, item: &RuntimeEvent) {
     if let RuntimeEvent::ScenePresentation {
         op: SceneOp::DestinationMenu { mask, .. },
+        ..
     } = item
     {
         let world = match mask {
@@ -186,7 +187,8 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
             if matches!(
                 item,
                 RuntimeEvent::ScenePresentation {
-                    op: SceneOp::WaitForStart
+                    op: SceneOp::WaitForStart,
+                    ..
                 }
             ) {
                 // The next frame presses Start; the session's input path turns
@@ -892,7 +894,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
         matches!(
             item,
             RuntimeEvent::ScenePresentation {
-                op: SceneOp::PanelCreate { id: 0x17E }
+                op: SceneOp::PanelCreate { id: 0x17E },
+                ..
             }
         )
     }));
