@@ -28,13 +28,14 @@ navigation only.
 | 3 | `$06FCB6` | `move.b #$DD, Sound_Index` (`SFXID_GraveOpening`) | `PlaySound` |
 | 4-5 | `$06FCBE..$06FCE0` | `Event_MoveCamera` (`$5AAEE`) to `Character_1` (x + 4, y) then (x, y), speed 4 (`addq.w #4, d0` / call / `subq.w #4, d0` / call) | `PanCamera` `ActorShifted` +4, then `PanCamera` `Actor`; each blocks until the camera arrives |
 | 6 | `$06FCE4..$06FCFE` | `GetMapLayoutOffset(d1=$A, d2=$C, d3=1)` (BG), `move.b #$47, (a1)`, `RefreshPlaneBG`, `DMAPlane_B_VInt` | `WriteMapChunks` `(10,12) <- $47` |
-| 7 | `$06FD04..$06FD8A` | twelve `move.l d0, $20(a4)` step constants, then `moveq #$3F, d0 / jsr DoMainUpdatesLoop` | `DriftNpcs` (64 frames) |
-| 8-9 | `$06FD90..$06FDB2` | `move.l #0, $20(a4)` on the twelve; `$6(a4) = 8` on `$C380`, `$C` on `$C3C0` | `Face` objects 2 (right) and 3 (left) |
-| 10-12 | `$06FDB8..$06FDE0` | sound `$DD`, the same camera pair again | `PlaySound`, the two `PanCamera` |
-| 13 | `$06FDE6` | `moveq #$3B, d0 / jsr DoMapUpdateLoop` | `Wait` 60 |
-| 14-15 | `$06FDEE..$06FE02` | `EventFlags_Test $84`, `bne`; else `popdlg / Event_RunDialogue` | `BranchFlag`, `RunDialogueResume` |
-| 16-17 | `$06FE08..$06FE0C` | `move.b #$84, d0 / jmp EventFlags_Set` | `SetFlag` `$84`, `End` |
-| 18 | `$06FE12..$06FE16` | `moveq #$22, d0 / jmp Event_GetAndRunDialogue` | standard `RunDialogue` `$22` |
+| 7-8 | `$06FD0E..$06FD18`, `$06FD50..$06FD5A` | selector words `$10/$14`, duration bytes 4 | `SetActorAnimation` for each slab |
+| 9 | `$06FD04..$06FD8A` | twelve `move.l d0, $20(a4)` step constants, then `moveq #$3F, d0 / jsr DoMainUpdatesLoop` | `DriftNpcs` (64 frames) |
+| 10-11 | `$06FD90..$06FDB2` | `move.l #0, $20(a4)` on the twelve; `$6(a4) = 8` on `$C380`, `$C` on `$C3C0` | `Face` objects 2 (right) and 3 (left) |
+| 12-14 | `$06FDB8..$06FDE0` | sound `$DD`, the same camera pair again | `PlaySound`, the two `PanCamera` |
+| 15 | `$06FDE6` | `moveq #$3B, d0 / jsr DoMapUpdateLoop` | `Wait` 60 |
+| 16-17 | `$06FDEE..$06FE02` | `EventFlags_Test $84`, `bne`; else `popdlg / Event_RunDialogue` | `BranchFlag`, `RunDialogueResume` |
+| 18-19 | `$06FE08..$06FE0C` | `move.b #$84, d0 / jmp EventFlags_Set` | `SetFlag` `$84`, `End` |
+| 20 | `$06FE12..$06FE16` | `moveq #$22, d0 / jmp Event_GetAndRunDialogue` | standard `RunDialogue` `$22` |
 
 `DialogueTree14` entry `$1E` is the grave scene's text ("So this is Tyler's
 grave..."), yielding at one `$F7`; the part after it is what `popdlg /
@@ -117,8 +118,11 @@ routine return at 7330. `oracle/tyler_grave.py` verifies that 131-frame retail
 envelope and the mapping-index chain. The runtime regression checks the
 four one-frame pans, 64 consecutive object updates and 60-frame map-update
 hold. Map-refresh CPU/DMA overhead between 7201 and 7204 and the event-dispatch
-return boundary are outside that runtime timing claim; fixed artificial waits
-are not substituted for those unmodelled boundaries.
+return boundary are outside that runtime timing claim. Relative to the first
+pan, the runtime's first slab update is one frame earlier than retail; equal
+131-frame totals counted from different entry boundaries do not prove parity.
+The refresh/return timing gap is tracked in
+[#489](https://github.com/TusanHomichi/PSIV/issues/489).
 
 `InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
 stands at the grave, so all twelve are on screen; the op does not model the
