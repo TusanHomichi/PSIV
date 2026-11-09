@@ -37,6 +37,11 @@ impl TileSource {
         self.tiles.insert(index, tile);
     }
 
+    /// The pattern at `index`, when the source holds one.
+    pub fn tile(&self, index: usize) -> Option<&[u8; 64]> {
+        self.tiles.get(&index)
+    }
+
     pub fn len(&self) -> usize {
         self.tiles.len()
     }

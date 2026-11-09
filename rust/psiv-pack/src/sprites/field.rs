@@ -84,17 +84,17 @@ pub fn sprite_palette(
 }
 
 /// How a set of sequences reads its art.
-struct SheetRequest<'a> {
-    source: &'a TileSource,
-    reading: Reading,
-    palette: &'a [[u8; 3]],
-    palette_line: u8,
-    required: &'a [&'a str],
+pub(crate) struct SheetRequest<'a> {
+    pub source: &'a TileSource,
+    pub reading: Reading,
+    pub palette: &'a [[u8; 3]],
+    pub palette_line: u8,
+    pub required: &'a [&'a str],
 }
 
 /// `_sheet_for_sequences`: the named sequences in one sheet. A sequence whose
 /// frames name patterns the source lacks is dropped, unless it is required.
-fn sheet_for_sequences(
+pub(crate) fn sheet_for_sequences(
     rom: &[u8],
     wanted: &[(String, usize)],
     request: &SheetRequest,
@@ -160,7 +160,7 @@ fn sheet_for_sequences(
     ))
 }
 
-fn table_sequences(
+pub(crate) fn table_sequences(
     rom: &[u8],
     table: usize,
     facings: usize,

@@ -43,7 +43,7 @@ const SPRITE_TRANSPARENT_INDEX: u8 = 0;
 const SHEET_ID_LENGTH: usize = 8;
 
 /// `sheet_png`: frames left to right, the object's CRAM line baked in.
-fn sheet_png(sheet: &Sheet) -> Result<Vec<u8>, PackError> {
+pub(crate) fn sheet_png(sheet: &Sheet) -> Result<Vec<u8>, PackError> {
     let (width, height, pixels) = sheet.strip();
     if sheet.palette.len() != 16 {
         return Err(PackError(format!(
