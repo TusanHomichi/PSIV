@@ -1,0 +1,48 @@
+{
+  "conary": "note v1",
+  "change": "7p81z8mepms0b9vkhd83caenmk",
+  "repo": {
+    "owner": "tusanhomichi",
+    "name": "psiv"
+  },
+  "pr": 484,
+  "url": "https://github.com/tusanhomichi/psiv/pull/484",
+  "summary": "Scenes: certify the recovery tile's flash against the oracle (#101)",
+  "task": "tusanhomichi/psiv#101",
+  "author": {
+    "kind": "person",
+    "login": "TusanHomichi",
+    "session": null
+  },
+  "class": "R0",
+  "landing": {
+    "revision": "3d5df20a3a7ee3959ea43b0635ac52dee8524b41a0fa5176a22f040c1251a1ca",
+    "before": "a6724b0ba407acf49fea666ff3f346e5c6cc2e72",
+    "after": "4a442be795dad059945fcb1d765db9ad27c1b7cb",
+    "by": {
+      "kind": "status",
+      "login": "fieldmouseworks-steward[bot]"
+    },
+    "at": 1794249096523
+  },
+  "evidence": [
+    {
+      "kind": "review",
+      "check": "codex",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/484#pullrequestreview-5830506879"
+    },
+    {
+      "kind": "ci",
+      "check": "check / check",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/42671378829/job/129348072264"
+    },
+    {
+      "kind": "ci",
+      "check": "gate",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/pull/484"
+    }
+  ]
+}
