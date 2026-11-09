@@ -20,7 +20,7 @@ fn the_pack_carries_both_inline_formations_into_the_battle_data() {
     assert!(
         !files.formations.inline_formations.is_empty(),
         "battle/formations.json has no inline_formations: the pack predates them; \
-         rebuild it with `python3 -m psiv_tools pack`"
+         rebuild it with `psiv-pack` (docs/DEVELOPMENT.md, \"Prepare the local pack\")"
     );
     let data = battle_data(&files).unwrap();
     for (label, enemy) in [("loc_1A2F4", 36), ("loc_23D00", 87)] {

@@ -2,7 +2,7 @@
 //!
 //! Gated on the pack existing, exactly like `runtime_pack.rs`: the pack is
 //! Sega-derived and never committed, so a fresh clone must not fail this.
-//! Build one with `python -m psiv_tools pack <rom> runtime-pack/`, or set
+//! Build one with `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md), or set
 //! `PSIV_RUNTIME_PACK` to point somewhere else.
 
 use psiv_data::{BattleFiles, ELEMENT_SLOTS};
@@ -24,7 +24,7 @@ fn require_battle() -> Option<PathBuf> {
     }
     eprintln!(
         "skipping: no battle/ under {}. Build a pack with \
-         `python -m psiv_tools pack <rom> runtime-pack/`, or set PSIV_RUNTIME_PACK.",
+         `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md), or set PSIV_RUNTIME_PACK.",
         dir.display()
     );
     None

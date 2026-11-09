@@ -96,7 +96,7 @@ impl Field {
             Ok(art) => art,
             Err(error) => {
                 godot_error!(
-                    "runtime pack at {} has missing or invalid battle command art: {error}. Rebuild this local pack with `python3 -m psiv_tools pack <rom> <pack-dir>`.",
+                    "runtime pack at {} has missing or invalid battle command art: {error}. Rebuild this local pack with `psiv-pack <rom> <pack-dir>` (docs/DEVELOPMENT.md, \"Prepare the local pack\").",
                     self.pack_dir
                 );
                 let mut tree = self

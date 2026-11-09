@@ -60,7 +60,7 @@ Mega Drive ROM extension, not Markdown.)
 git clone https://github.com/TusanHomichi/PSIV.git
 cd PSIV
 ./oracle/build_core.sh
-python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
+cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- "/path/to/Phantasy Star IV (USA).md" runtime-pack
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 export PSIV_GODOT=/path/to/godot
 python3 tools/godot.py prepare
@@ -70,8 +70,8 @@ PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 1. `./oracle/build_core.sh` fetches the pinned Genesis Plus GX sources into
    `oracle/gpgx-src/`. The game compiles one file of them, the sound chip
    emulation, into itself.
-2. `pack` builds the data pack from your ROM into `runtime-pack/`. The ROM is an
-   argument; it can live anywhere.
+2. `psiv-pack` builds the data pack from your ROM into `runtime-pack/`, in a
+   few seconds. The ROM is an argument; it can live anywhere.
 3. `cargo build` compiles the game's library for Godot.
 4. `PSIV_GODOT` names your Godot executable (or put it on `PATH` as `godot` and
    skip that line). `python3 tools/godot.py prepare` checks it (a missing file,
