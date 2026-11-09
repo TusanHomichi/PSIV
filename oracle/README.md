@@ -473,6 +473,29 @@ formation. [`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md)
 owns the mechanism with its citations, every option, the output directory, the
 captures and what they prove.
 
+### Early event bosses
+
+The event selector tests and party menu pilot also cover bosses with no
+formation draw. To capture Juza's ZAN/FORCEFLASH and Zio's complete initial
+barrier → nightmare → BLACK WAVE sequence:
+
+```sh
+python3 -m oracle.force --event 3 --prepare-script \
+  --scout build/event-bosses/script-scout.json --out build/event-bosses/base
+python3 -m oracle.sweep.event_bosses --capture --extract
+```
+
+The recipe writes `commands.json` and passes explicit `--ram-patch` party
+fixtures at the encounter seam. All three party members DEFEND through the
+ordinary menus. Juza uses 999 HP/defence/mental defence to survive sixteen
+rounds; Zio uses 999 HP for three rounds. No phase counter or command RAM is
+patched. These are isolated event fixtures, not a campaign route. The generic
+Rust replay discovers `replay_fixtures/event_bosses/` automatically; the Python
+recipe guard also requires both Juza abilities and Zio's ordered phases.
+The `zio_psycho` case installs item `$39` in inventory (`$FFFFF410`) and uses
+it through the item menu to change Zio's form, then captures CORRSION.
+`zio_event06_psycho.json` is the earlier capture of that interaction.
+
 ### Capture sets
 
 Every committed capture is a fixture under

@@ -645,12 +645,10 @@ number at all.
 
 ### 6.3 What these captures do not prove
 
-- **Juza's own battle.** 114 Juza is event battle 3 (the boss block of
-  `generated/formations.json`), which no map's group reaches and this tool does
-  not drive: his ZAN and FORCEFLASH arms are the same `EnemyAttack_Juza` arms
-  100 TechMaster's and 115 Greneris's captures exercise, and the port's own
-  ZAN row for 114 is the same object chain, but no fixture replays *his*
-  battle. The campaign route's own run of it is the check for that.
+- **Juza's own battle in this original set.** The captures above use
+  TechMaster and Greneris. The event-boss recipe now captures Juza himself
+  (event 3), including both ZAN and FORCEFLASH; see
+  [the recipe](../../oracle/README.md#early-event-bosses).
 - **A win, or a round the party lives through.** Every capture here ends in the
   party's defeat, so the fixtures prove the enemies' turns and the damage they
   deal, not what the party's commands did afterwards.
