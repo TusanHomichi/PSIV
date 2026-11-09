@@ -63,7 +63,7 @@ const COVER_KURAN: usize = 2;
 const COVER_AIR_CASTLE: usize = 4;
 /// `WinGroup_Event`: the window ids this screen creates.
 const WINDOW_IDS: [u8; 6] = [5, 6, 7, 8, 9, 10];
-const WIN_GROUP_EVENT: usize = 0x0693A0;
+pub(crate) const WIN_GROUP_EVENT: usize = 0x0693A0;
 const WIN_GROUP_EVENT_HEAD: [[u8; 4]; 7] = [
     [0x19, 0x04, 0x07, 0x15],
     [0x21, 0x05, 0x03, 0x14],
