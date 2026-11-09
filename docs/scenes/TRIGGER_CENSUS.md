@@ -47,28 +47,35 @@ From the per-map event byte lists (`generated/maps.json`, field `events`; these
 are `$FF`-terminated byte lists of *trigger indexes*, not event indexes). The
 whole Piata area:
 
-| Map | id | Map-loaded NPC/default scene tree | Trigger list |
-|---|---|---|---|
-| Piata | `$10` | 2 | `$00` (null) |
-| PiataAcademy | `$11` | 1 | `$00` |
-| PiataAcademyNearBasement | `$12` | 33 | `$00` |
-| **PiataAcademy_F1** | `$13` | 1 | **`$03` FindingAlys, `$0A` SuspicionOnPrincipal, `$7C` PiataChazAlone** |
-| AcademyPrincipalOffice | `$14` | 33 | `$04` (null) |
-| AcademyBasement | `$15` | 33 | `$00` |
-| AcademyBasement_B1 | `$16` | 33 | `$00` |
-| **AcademyBasement_B2** | `$17` | 33 | **`$08` BasementContainers, `$13` AfterIgglanova**, `$00` |
-| PiataDorm | `$18` | 2 | `$00` |
-| PiataInn | `$19` | 1 | `$00` |
-| PiataHouse1 | `$1A` | 1 | `$00` |
-| PiataItemShop | `$1B` | 1 | `$00` |
-| PiataHouse2 | `$1C` | 1 | `$00` |
+| Map | id | Trigger list |
+|---|---|---|
+| Piata | `$10` | `$00` (null) |
+| PiataAcademy | `$11` | `$00` |
+| PiataAcademyNearBasement | `$12` | `$00` |
+| **PiataAcademy_F1** | `$13` | **`$03` FindingAlys, `$0A` SuspicionOnPrincipal, `$7C` PiataChazAlone** |
+| AcademyPrincipalOffice | `$14` | `$04` (null) |
+| AcademyBasement | `$15` | `$00` |
+| AcademyBasement_B1 | `$16` | `$00` |
+| **AcademyBasement_B2** | `$17` | **`$08` BasementContainers, `$13` AfterIgglanova**, `$00` |
+| PiataDorm | `$18` | `$00` |
+| PiataInn | `$19` | `$00` |
+| PiataHouse1 | `$1A` | `$00` |
+| PiataItemShop | `$1B` | `$00` |
+| PiataHouse2 | `$1C` | `$00` |
 
 Two whole floors carry the entire act's positional logic. Everything else in
 Piata enters scenes through dialogue, not position.
 
-The tree column is the map-loaded NPC/default-scene binding. Type-0
-interaction areas use the live `World_Index` table instead; see the
-[full selection census and issue #42 correction](DIALOGUE_TREE_SELECTION.md#census-and-issue-42).
+The former tree columns meant the map-loaded NPC/default-scene binding,
+not the tree used by every interaction. Read that binding from each
+`runtime-pack/maps/*.json` record's
+[`dialogue_tree` field](../../rust/psiv-data/src/map.rs), resolved by the
+[map extractor](../../rust/psiv-pack/src/maps/records.rs) from the ROM's
+compressed-tree pointer. The
+[generated selection census](DIALOGUE_TREE_SELECTION.md#census-and-issue-42)
+lists those bindings by map id and distinguishes type-0 areas, which use the
+live `World_Index` table. Tree values are omitted here so this trigger census
+does not maintain a second copy of dialogue-selection data.
 
 ### Piata gate through the Dezo endgame boundary
 
@@ -79,38 +86,38 @@ The pointer table authority is retail `EventPtrs` at `$05A2B4` (161 entries,
 `$00..$A0`) and `CutscenePtrs` at `$05A580` (34 entries). The rows after
 MeetingRika are retail dispatch order, not a story-wiki ordering.
 
-| Map | id | tree | per-map events | dispatch |
-|---|---:|---:|---|---|
-| BioPlant Part2 | `$A3` / 163 | 12 | `$0C` | `$0012` / BioPlant alarm |
-| BioPlant B4 Part2 | `$AC` / 172 | 34 | `$1A` | `$8007` / Meeting Rika |
-| Aiedo | `$54` / 84 | 5 | `$27` | `$003C` / leaving ChazHouse |
-| ChazHouse | `$5E` / 94 | 10 | `$26` | `$003B` / ChazHouse rest |
-| Zema | `$24` / 36 | 4 | `$15,$17,$74` | `$8005`, `$8006`, `$008A` |
-| BirthValley | `$2B` / 43 | 3 | `$00` | null; no scene |
-| BirthValley B1 | `$2C` / 44 | 3 | `$00` | null; no scene |
-| KrupKindergarten | `$3A` / 58 | 5 | `$16` | `$000D` / Saya |
-| TonoeStorageRoom | `$42` / 66 | 7 | `$00` | null; direct door control below |
-| TonoeGryzHouse | `$43` / 67 | 7 | `$14` | `$8004` after Dorin flag |
-| TonoeBasement B3 | `$4A` / 74 | 7 | `$18` | `$0028` / Alshline found |
-| ValleyMaze parts | `$9B..$A1` / 155..161 | 7 | `$00` | null |
-| ValleyMazeOutside | `$D8` / 216 | 7 | `$30` | `$0027` / Rune Flaeli |
-| ValleyMazeOutside2 | `$D9` / 217 | 7 | `$00` | null |
-| MachineCenter B1 Part2 | `$B9` / 185 | 7 | `$1B` | `$002B` / Getting Land Rover |
-| Motavia overworld | `$00` / 0 | 5 | `$06,$3A,$3B,$3C,$5B` | `$0006`; house/old Piata controls |
-| ZioFort F4 | `$8B` / 139 | 3 | `$1C,$1D` | `$8008`, `$8009` |
-| LadeaTower F2 | `$8E` / 142 | 5 | `$19` | `$002E` / Rune reunion |
-| LadeaTower F5 | `$91` / 145 | 3 | `$2A,$1E` | `$002F`, `$800A` |
-| Nurvus B4 Part2 | `$D3` / 211 | 3 | `$1F,$20` | `$0034`, `$800B` |
-| Molcum | `$40` / 64 | 1 | `$00` | null; no retail scene body |
-| Mota Spaceport | `$BF` / 191 | 3 | `$12,$21,$00` | `$800D` / spaceship |
-| Zelan Space | `$18C` / 396 | 1 | `$29` | `$800F` / crash |
-| Zelan | `$18D` / 397 | 3 | `$0D,$28,$23` | `$800E`; spaceship |
-| Zelan F1 | `$18E` / 398 | 3 | `$0D,$55,$00` | dialogue/Wren handoff |
-| Kuran Space | `$18F` / 399 | 1 | `$00` | null |
-| Kuran | `$190` / 400 | 3 | `$0D,$23,$2C` | `$003D` / Kuran arrival |
-| Dezolis | `$001` / 1 | 3 | `$31,$35,$36` | later Dezo controls |
-| Raja Temple | `$14C` / 332 | 1 | `$00` | null; cutscene landing target |
-| Hangar | `$15F` / 351 | 1 | `$2B` | `$8010` / Landale |
+| Map | id | per-map events | dispatch |
+|---|---:|---|---|
+| BioPlant Part2 | `$A3` / 163 | `$0C` | `$0012` / BioPlant alarm |
+| BioPlant B4 Part2 | `$AC` / 172 | `$1A` | `$8007` / Meeting Rika |
+| Aiedo | `$54` / 84 | `$27` | `$003C` / leaving ChazHouse |
+| ChazHouse | `$5E` / 94 | `$26` | `$003B` / ChazHouse rest |
+| Zema | `$24` / 36 | `$15,$17,$74` | `$8005`, `$8006`, `$008A` |
+| BirthValley | `$2B` / 43 | `$00` | null; no scene |
+| BirthValley B1 | `$2C` / 44 | `$00` | null; no scene |
+| KrupKindergarten | `$3A` / 58 | `$16` | `$000D` / Saya |
+| TonoeStorageRoom | `$42` / 66 | `$00` | null; direct door control below |
+| TonoeGryzHouse | `$43` / 67 | `$14` | `$8004` after Dorin flag |
+| TonoeBasement B3 | `$4A` / 74 | `$18` | `$0028` / Alshline found |
+| ValleyMaze parts | `$9B..$A1` / 155..161 | `$00` | null |
+| ValleyMazeOutside | `$D8` / 216 | `$30` | `$0027` / Rune Flaeli |
+| ValleyMazeOutside2 | `$D9` / 217 | `$00` | null |
+| MachineCenter B1 Part2 | `$B9` / 185 | `$1B` | `$002B` / Getting Land Rover |
+| Motavia overworld | `$00` / 0 | `$06,$3A,$3B,$3C,$5B` | `$0006`; house/old Piata controls |
+| ZioFort F4 | `$8B` / 139 | `$1C,$1D` | `$8008`, `$8009` |
+| LadeaTower F2 | `$8E` / 142 | `$19` | `$002E` / Rune reunion |
+| LadeaTower F5 | `$91` / 145 | `$2A,$1E` | `$002F`, `$800A` |
+| Nurvus B4 Part2 | `$D3` / 211 | `$1F,$20` | `$0034`, `$800B` |
+| Molcum | `$40` / 64 | `$00` | null; no retail scene body |
+| Mota Spaceport | `$BF` / 191 | `$12,$21,$00` | `$800D` / spaceship |
+| Zelan Space | `$18C` / 396 | `$29` | `$800F` / crash |
+| Zelan | `$18D` / 397 | `$0D,$28,$23` | `$800E`; spaceship |
+| Zelan F1 | `$18E` / 398 | `$0D,$55,$00` | dialogue/Wren handoff |
+| Kuran Space | `$18F` / 399 | `$00` | null |
+| Kuran | `$190` / 400 | `$0D,$23,$2C` | `$003D` / Kuran arrival |
+| Dezolis | `$001` / 1 | `$31,$35,$36` | later Dezo controls |
+| Raja Temple | `$14C` / 332 | `$00` | null; cutscene landing target |
+| Hangar | `$15F` / 351 | `$2B` | `$8010` / Landale |
 
 The list entries are not scene ids. For example, Zema's `$15` calls
 `RunEvent_UsingAlshline`, which writes cutscene `$8005`; treating `$15` as an
