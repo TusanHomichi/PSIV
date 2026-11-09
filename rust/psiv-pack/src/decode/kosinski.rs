@@ -33,8 +33,10 @@ pub struct Work {
 impl Work {
     /// Intrinsic MC68000 clock cycles, including routine setup and RTS.
     ///
-    /// US bytes at `$041BEA` start `558F 1F58 0001 1E98 3A17 780F`:
-    /// setup = 8+16+12+8+4 = 48. Restoring SP and RTS cost 8+16.
+    /// US setup at `$041BEA`: stack allocation, two descriptor-byte moves,
+    /// descriptor load and bit-counter initialization cost
+    /// 8+16+12+8+4 = 48. Restoring SP and RTS cost 8+16.
+    /// Verify the instruction bytes locally; cartridge excerpts stay out of Git.
     /// The pinned Genesis Plus GX `core/m68k/m68ki_cycles.h` opcode table,
     /// with `m68kops.h`'s branch/DBF/shift adjustments, supplies the costs:
     ///
