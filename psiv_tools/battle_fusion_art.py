@@ -26,6 +26,7 @@ from typing import Any
 
 from . import png
 from .battle_animation_mapping import decode_mapping_record
+from .gfx import vdp_pattern, vdp_size
 from .core import be16, be32
 from .nemesis import decompress
 
@@ -102,13 +103,6 @@ def _tile_pixels(data: bytes) -> list[list[int]]:
     return tiles
 
 
-def vdp_size(size: int) -> tuple[int, int]:
-    """A sprite's (columns, rows) of tiles: the VDP's size byte keeps the
-    horizontal count in bits 3-2 and the vertical one in bits 1-0. Tape 33's
-    frames of these pieces fit only this reading, pixel for pixel."""
-    return ((size >> 2) & 0x03) + 1, (size & 0x03) + 1
-
-
 def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, Any]:
     """One mapping record as an indexed image and its origin.
 
@@ -136,7 +130,7 @@ def render_record(tiles: list[list[int]], record: dict[str, Any]) -> dict[str, A
             source_y = rows * 8 - 1 - y if entry["v_flip"] else y
             for x in range(columns * 8):
                 source_x = columns * 8 - 1 - x if entry["h_flip"] else x
-                tile = tiles[entry["tile_index"] + (source_x // 8) * rows + source_y // 8]
+                tile = tiles[vdp_pattern(entry["tile_index"], source_x // 8, source_y // 8, rows)]
                 pixel = tile[(source_y % 8) * 8 + source_x % 8]
                 if pixel:
                     pixels[(entry["y"] - top + y) * width + entry["x"] - left + x] = pixel

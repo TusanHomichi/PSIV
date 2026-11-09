@@ -2,7 +2,7 @@
 //!
 //! `BattleAnimationEvent` remains the dispatch surface. The art index loaded
 //! by `BattleArt` supplies exact mapping frames; this module advances the
-//! decoded clock and moves the child layer. An event with partial/deferred
+//! absolute runtime age and moves the child layer. An event with partial/deferred
 //! composition retains the body flash as an explicit fallback.
 
 use godot::builtin::{Vector2, Vector2i};
@@ -10,7 +10,7 @@ use godot::classes::{ImageTexture, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::battle::FighterId;
-use psiv_runtime::BattleAnimationEvent;
+use psiv_runtime::{AttackView, BattleAnimationEvent};
 
 use super::enemy_overlay::EnemyAnimation;
 
@@ -26,7 +26,7 @@ pub(super) struct EnemySprite {
 
 /// Live attack layer and its event clock.
 pub(super) struct EnemyAttackState {
-    remaining: u16,
+    id: u64,
     elapsed: u16,
     frame_durations: Vec<u8>,
     frames: Vec<Gd<ImageTexture>>,
@@ -42,9 +42,9 @@ pub(super) struct EnemyAttackState {
 }
 
 impl EnemySprite {
-    pub(super) fn begin_attack(&mut self, event: &BattleAnimationEvent) {
+    fn begin_attack(&mut self, id: u64, event: &BattleAnimationEvent) {
         self.clear_attack();
-        let Some(total_frames) = event.total_frames.filter(|frames| *frames > 0) else {
+        let Some(_) = event.total_frames.filter(|frames| *frames > 0) else {
             return;
         };
         if event.sprite_sheet_proven
@@ -74,7 +74,7 @@ impl EnemySprite {
             ));
             self.node.add_child(&layer);
             self.attack = Some(EnemyAttackState {
-                remaining: total_frames,
+                id,
                 elapsed: 0,
                 frame_durations,
                 frames: spec.frames,
@@ -90,7 +90,7 @@ impl EnemySprite {
             self.node
                 .set_self_modulate(Color::from_rgba8(255, 224, 224, 255));
             self.attack = Some(EnemyAttackState {
-                remaining: total_frames,
+                id,
                 elapsed: 0,
                 frame_durations: vec![1],
                 frames: Vec::new(),
@@ -103,30 +103,38 @@ impl EnemySprite {
         }
     }
 
-    pub(super) fn advance_attack(&mut self) {
+    /// Draws the absolute runtime age; repeated views cannot advance or restart
+    /// a live layer, and a missing view removes it on the runtime's expiry frame.
+    pub(super) fn set_attack(&mut self, view: Option<&AttackView>) {
+        let Some(view) = view else {
+            self.clear_attack();
+            return;
+        };
+        if self
+            .attack
+            .as_ref()
+            .is_none_or(|attack| attack.id != view.id)
+        {
+            self.begin_attack(view.id, &view.event);
+        }
         let Some(attack) = self.attack.as_mut() else {
             return;
         };
-        if attack.remaining > 1 {
-            attack.remaining -= 1;
-            if let Some(layer) = attack.layer.as_mut() {
-                attack.elapsed = attack.elapsed.saturating_add(1);
-                let frame = frame_index(attack.elapsed, &attack.frame_durations);
-                layer.set_texture(&attack.frames[frame]);
-                let offset = motion_offset(
-                    attack.elapsed,
-                    attack.initial_offset_pixels,
-                    attack.step_pixels,
-                    attack.limit_offset_pixels,
-                );
-                layer.set_position(Vector2::new(
-                    (attack.origin_pixels.x + offset.x) as f32,
-                    (attack.origin_pixels.y + offset.y) as f32,
-                ));
-            }
-            return;
+        attack.elapsed = view.elapsed;
+        if let Some(layer) = attack.layer.as_mut() {
+            let frame = frame_index(view.elapsed, &attack.frame_durations);
+            layer.set_texture(&attack.frames[frame]);
+            let offset = motion_offset(
+                view.elapsed,
+                attack.initial_offset_pixels,
+                attack.step_pixels,
+                attack.limit_offset_pixels,
+            );
+            layer.set_position(Vector2::new(
+                (attack.origin_pixels.x + offset.x) as f32,
+                (attack.origin_pixels.y + offset.y) as f32,
+            ));
         }
-        self.clear_attack();
     }
 
     /// The attack this body is drawing now, for the native drivers
@@ -148,6 +156,7 @@ impl EnemySprite {
             "fighter": self.fighter.get(),
             "enemy_id": self.enemy_id,
             "attack": attack,
+            "attack_elapsed": self.attack.as_ref().map(|attack| attack.elapsed),
             "tint": [tint.r8(), tint.g8(), tint.b8(), tint.a8()],
             "children": self.node.get_child_count(),
         })
@@ -202,7 +211,7 @@ fn motion_offset(
 }
 
 /// Converts the formation position byte and the art record's half-width into
-/// a top-left pixel. The position byte is the body's right-edge anchor; the
+/// a top-left pixel. The position byte is the body's centre anchor; the
 /// rendered body is `2 * half_width_cells` wide.
 pub(super) fn enemy_sprite_origin(
     position: u8,

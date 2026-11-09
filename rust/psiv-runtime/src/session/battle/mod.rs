@@ -37,8 +37,10 @@
 //! Presentation. This module says a beat is a `Hide` for fighter 6; the shell
 //! decides that fighter 6's sprite node goes invisible. It says the frame
 //! raised `Sound_Index` `$8B`; the shell plays it. Art, chrome, layout and
-//! animation frames stay in `psiv-godot/src/battle/`.
+//! textures stay in `psiv-godot/src/battle/`; attack object ages and poses
+//! travel in the view rather than ticking a second clock in the shell.
 
+mod attacks;
 mod blink;
 mod fixture;
 mod fusion;
@@ -56,9 +58,9 @@ mod view;
 
 pub use menu::CursorMemory;
 pub use view::{
-    BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView, EnemyStatus,
-    GrowingWindow, MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry,
-    SkillSlotView, TargetKind, TechniqueEntry,
+    AttackView, BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView,
+    EnemyStatus, GrowingWindow, MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus,
+    SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
 };
 pub use view::{Fusion, FusionPiece};
 
@@ -172,6 +174,8 @@ pub(crate) struct BattleMode {
     sounds: Vec<u8>,
     /// This frame's enemy attack animation cues.
     animations: Vec<BattleAnimationEvent>,
+    /// Attack objects advance before this frame can dispatch a new beat.
+    attacks: attacks::AttackTimeline,
     /// The battle this mode began, until the first frame reports it.
     start: Option<BattleStart>,
     /// A fault raised this frame, for the shell to log.
@@ -214,6 +218,7 @@ impl BattleMode {
             close_ready: false,
             sounds: Vec::new(),
             animations: Vec::new(),
+            attacks: attacks::AttackTimeline::default(),
             start: Some(start),
             fault: None,
             previous_pad: Pad::NEUTRAL,
@@ -245,6 +250,7 @@ impl BattleMode {
     pub(crate) fn frame(&mut self, runtime: &mut Runtime, pad: Pad) -> BattleFrame {
         self.sounds.clear();
         self.animations.clear();
+        self.attacks.advance();
         self.fault = None;
         let previous = std::mem::replace(&mut self.previous_pad, pad);
         // Battles still consume the shared vblank/RNG stream. No field input
@@ -510,6 +516,21 @@ impl BattleMode {
             }
         }
         self.sounds.extend(queued.sounds);
+        for event in &queued.animations {
+            // Enemy_Attack copies the attacker's horizontal pivot to its
+            // target (Enemy_Attack); the shell only draws that pivot.
+            let target_x = match &queued.event {
+                BattleEvent::Attacked { actor, targets } if event.enemy_id == 10 => {
+                    self.positions.get(&actor.get()).and_then(|position| {
+                        targets
+                            .first()
+                            .map(|target| (*target, i16::from(position & 0x7F) * 8))
+                    })
+                }
+                _ => None,
+            };
+            self.attacks.start(event, target_x);
+        }
         self.animations.extend(queued.animations);
         let event = queued.event;
         let fused = self.fusion.take().is_some();

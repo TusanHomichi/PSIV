@@ -49,7 +49,6 @@ from psiv_tools.battle_art_pack import (
     ENEMY_ATTACK_ART_NAME,
     ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
-    ENEMY_PNG_DIRECTORY,
     LINE_DEPENDENT_INDEX,
     PLACEHOLDER_COLOR,
     POSE_LABEL_SOURCE,
@@ -125,6 +124,33 @@ def png_pixels(data: bytes) -> tuple[int, int, bytes]:
     return width, height, rows
 
 
+class TestAttackMapping(unittest.TestCase):
+    def test_vdp_size_bits_keep_width_and_height_in_cartridge_order(self):
+        from psiv_tools.battle_animation_mapping import decode_mapping_record
+        for size, expected in [(1, (1, 2)), (4, (2, 1)), (6, (2, 3))]:
+            record = decode_mapping_record(bytes([0, 0, size, 0, 0, 0, 0]), 0)
+            entry = record["entries"][0]
+            self.assertEqual((entry["width_tiles"], entry["height_tiles"]), expected)
+            self.assertNotEqual(expected, tuple(reversed(expected)), "non-square control")
+
+    def test_vdp_patterns_run_down_columns_before_the_next_column(self):
+        from psiv_tools.battle_animation_art import _render_attack_mapping
+        entry = {"tile_index": 0, "width_tiles": 2, "height_tiles": 3,
+                 "h_flip": False, "v_flip": False, "x": 0, "y": 0}
+        tiles = [bytes([index]) * 64 for index in range(1, 7)]
+        palette = [(index, 0, 0) for index in range(16)]
+        image = _render_attack_mapping(tiles, {"entries": [entry]}, (0, 0, 16, 24), (0, 0), palette)
+        width, height, pixels = png_pixels(image)
+        self.assertEqual((width, height), (16, 24))
+        self.assertEqual([pixels[y * width + x] for y in [0, 8, 16] for x in [0, 8]],
+                         [1, 4, 2, 5, 3, 6])
+        entry.update(h_flip=True, v_flip=True)
+        image = _render_attack_mapping(tiles, {"entries": [entry]}, (0, 0, 16, 24), (0, 0), palette)
+        _, _, flipped = png_pixels(image)
+        self.assertEqual([flipped[y * width + x] for y in [0, 8, 16] for x in [0, 8]],
+                         [6, 3, 5, 2, 4, 1])
+
+
 class TestPoseLabels(unittest.TestCase):
     """The label table itself, which needs no ROM."""
 
@@ -196,6 +222,26 @@ class TestEmittedFiles(unittest.TestCase):
         cls.enemies = json.loads((cls.root / ENEMY_ART_NAME).read_text())
         cls.attacks = json.loads((cls.root / ENEMY_ATTACK_ART_NAME).read_text())
         cls.characters = json.loads((cls.root / CHARACTER_ART_NAME).read_text())
+
+    def test_zoran_attack_uses_the_frozen_overlay_and_retail_palette(self):
+        attack = self.attacks["enemies"][10]
+        self.assertEqual(attack["frozen_overlay"]["frame"], 2)
+        self.assertEqual(attack["palette_line"], 2)
+        self.assertEqual(attack["palette_overrides"], {"10": 0xE8A, "11": 0xE48, "12": 0x826})
+        from psiv_tools.battle_animation_art import _zoran_attack_state
+        from psiv_tools.battle_art import BattleArtError, build_tile_bank, enemy_art_bounds, enemy_records
+        rom = read_rom(ROM)
+        records = enemy_records(rom)
+        bounds = enemy_art_bounds(records, len(rom))
+        tiles, _ = build_tile_bank(rom, records[10], bounds)
+        before = tiles[17:19]
+        _zoran_attack_state(rom, records[10], bounds, tiles)
+        self.assertNotEqual(tiles[17:19], before, "the frozen replacement changes actual patterns")
+        for offset in [0x010D68, 0x01519A, 0x01528A]:
+            mutated = bytearray(rom)
+            mutated[offset] ^= 1
+            with self.subTest(offset=offset), self.assertRaises(BattleArtError):
+                _zoran_attack_state(bytes(mutated), records[10], bounds, tiles)
 
     def test_the_fragment_describes_every_file_on_disk(self):
         files = self.fragment["files"]

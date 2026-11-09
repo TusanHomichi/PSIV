@@ -57,6 +57,10 @@ pub(super) struct EnemyAttackArtFileEntry {
     pub(super) status: String,
     pub(super) movement: EnemyAttackMovementFile,
     #[serde(default)]
+    pub(super) palette_line: Option<u8>,
+    #[serde(default)]
+    pub(super) palette_overrides: std::collections::BTreeMap<usize, u16>,
+    #[serde(default)]
     pub(super) origin_pixels: Option<[i32; 2]>,
     #[serde(default)]
     pub(super) frames: Vec<EnemyAttackFrameFile>,
@@ -91,6 +95,7 @@ struct RuntimePiece {
     placements: Vec<EnemyOverlayPlacementFile>,
     frame: usize,
     timer: u8,
+    frozen: bool,
 }
 
 pub(super) struct AnimationPiece {
@@ -143,6 +148,7 @@ impl EnemyAnimation {
                     placements: piece.placements,
                     frame,
                     timer,
+                    frozen: false,
                 }
             })
             .collect();
@@ -179,12 +185,37 @@ impl EnemyAnimation {
     pub(super) fn advance(&mut self) -> Option<Gd<ImageTexture>> {
         let mut changed = false;
         for piece in &mut self.pieces {
-            changed |= advance_clock(&mut piece.frame, &mut piece.timer, &piece.durations);
+            if !piece.frozen {
+                changed |= advance_clock(&mut piece.frame, &mut piece.timer, &piece.durations);
+            }
         }
         if !changed {
             return None;
         }
         self.rebuild().map(|_| self.texture())
+    }
+
+    /// Applies an object pose after the art update, in the frame's view order.
+    pub(super) fn set_frozen_piece(
+        &mut self,
+        pose: Option<(usize, usize, u8)>,
+    ) -> Option<Gd<ImageTexture>> {
+        for piece in &mut self.pieces {
+            piece.frozen = false;
+        }
+        if let Some((index, frame, timer)) = pose {
+            let piece = self.pieces.get_mut(index)?;
+            let changed = piece.frame != frame || piece.timer != timer;
+            piece.frame = frame;
+            piece.timer = timer;
+            piece.frozen = true;
+            if !changed {
+                return None;
+            }
+            self.rebuild()?;
+            return Some(self.texture());
+        }
+        None
     }
 
     fn rebuild(&mut self) -> Option<()> {

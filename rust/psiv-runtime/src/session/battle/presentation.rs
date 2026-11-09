@@ -124,6 +124,7 @@ impl BattleMode {
             transient: self.transient,
             sounds: self.sounds.clone(),
             animations: self.animations.clone(),
+            attacks: self.attacks.views().to_vec(),
             fusion: match (self.fusion, self.current) {
                 (Some(fusion), Some(active)) => {
                     fusion.pieces(u32::from(active.total - active.remaining))

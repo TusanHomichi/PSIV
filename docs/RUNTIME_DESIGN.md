@@ -169,7 +169,8 @@ pages' confirm waits, the epilogue that pays the pools and levels the party, and
 the frame the map refresh returns on. `Frame::battle` carries the loop's
 read-only `BattleView` — the menu and its cursor, the narration window, the
 damage block, the party strip, the enemies with their visibility, the beat and
-its progress, plus the retail sound cues the frame raised — and Godot draws it,
+its progress, live enemy attack objects with absolute ages and poses, plus the
+retail sound cues the frame raised — and Godot draws it,
 deciding nothing. The buttons are the cartridge's own where its routines name
 them (`Battle_MainOptions`, `Battle_CharCommand`, the tech/skill/item windows,
 `Battle_VehSkills`; dispatched from `RunBattleRoutines2`, `ps4.asm:1123`), and the per-character window's

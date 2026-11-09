@@ -375,7 +375,8 @@ impl BattleArt {
                 godot_error!("battle enemy {enemy_id} attack frame index/timing is malformed");
                 return None;
             }
-            let image = self.enemy_image(pack_dir, art, &frame.png, position)?;
+            let image =
+                self.enemy_image_with_palette(pack_dir, art, &frame.png, position, Some(entry))?;
             textures.push(ImageTexture::create_from_image(&image)?);
         }
         let runtime = &entry.movement.runtime;
@@ -403,8 +404,26 @@ impl BattleArt {
         relative_path: &str,
         position: u8,
     ) -> Option<Gd<Image>> {
-        let line = enemy_cram_line(position);
-        let palette = assemble_enemy_palette(&art.palette_words, line, &self.enemy_palette)?;
+        self.enemy_image_with_palette(pack_dir, art, relative_path, position, None)
+    }
+
+    fn enemy_image_with_palette(
+        &self,
+        pack_dir: &str,
+        art: &EnemyArt,
+        relative_path: &str,
+        position: u8,
+        attack: Option<&EnemyAttackArtFileEntry>,
+    ) -> Option<Gd<Image>> {
+        let line = attack
+            .and_then(|attack| attack.palette_line)
+            .unwrap_or_else(|| enemy_cram_line(position));
+        let mut palette = assemble_enemy_palette(&art.palette_words, line, &self.enemy_palette)?;
+        if let Some(attack) = attack {
+            for (&index, &word) in &attack.palette_overrides {
+                *palette.get_mut(index)? = word;
+            }
+        }
         let source_palette = assemble_enemy_palette(&art.palette_words, 1, &self.enemy_palette)?;
         let path = format!("{pack_dir}/{relative_path}");
         let mut image = Image::load_from_file(&GString::from(path.as_str()))?;

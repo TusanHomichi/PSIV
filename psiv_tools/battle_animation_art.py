@@ -9,6 +9,7 @@ from . import png
 from .battle_animation_objects import plc_art as decode_plc_art
 from .core import EXPECTED_SHA256
 from .nemesis import TILE_SIZE
+from .gfx import vdp_pattern
 
 BASE_OBJECT_Y = 0x00D8
 MAPPING_HEADER_BYTES = 1
@@ -64,7 +65,8 @@ def _attack_canvas(
     """Find one stable transparent canvas for all of an enemy's frames."""
     body_width = 2 * art_record["half_width_cells"] * 8
     body_top = (15 - art_record["height_cells"]) * 8
-    pivot_x = body_width
+    # loc_12618 copies the fighter anchor, the centre of its body.
+    pivot_x = body_width // 2
     pivot_y = BASE_OBJECT_Y - 0x80 - body_top
     positions: list[tuple[int, int, int, int]] = []
     sequence = animation["frame_sequence"]
@@ -112,11 +114,43 @@ def _render_attack_mapping(
             for x in range(width_tiles * 8):
                 source_x = width_tiles * 8 - 1 - x if entry["h_flip"] else x
                 tile_col, pixel_x = divmod(source_x, 8)
-                tile = tiles[tile_index + tile_row * width_tiles + tile_col]
+                tile = tiles[vdp_pattern(tile_index, tile_col, tile_row, height_tiles)]
                 pixel = tile[pixel_y * 8 + pixel_x]
                 if pixel:
                     pixels[(sprite_y + y) * width + sprite_x + x] = pixel
     return png.encode_indexed(width, height, pixels, palette, (0,))
+
+
+def _zoran_attack_state(rom, art_record, bounds, tiles):
+    """Apply the USA object's frozen VRAM and palette before drawing mappings."""
+    from .battle_art import BattleArtError
+    from .battle_enemy_overlays import decode_enemy_overlay_records
+
+    signatures = {
+        0x010D68: "32bc007845f8fb40357c0e8a0014357c0e480016357c08260018",
+        0x01519A: "08d40007661e4ebad476426c0014197c00400013066c0010002e",
+        0x01528A: "082c000700046632522c00110c2c000e00116d32226c003c266900260c2b0002000e662208eb00030002",
+    }
+    for offset, signature in signatures.items():
+        expected = bytes.fromhex(signature)
+        if rom[offset:offset + len(expected)] != expected:
+            raise BattleArtError(f"Zoran attack choreography changed at 0x{offset:06X}")
+    # The first overlay piece waits on frame two and is then frozen. Its
+    # destination is used by the attack's mapping as well as the enemy body.
+    _, overlays = decode_enemy_overlay_records(rom, [art_record], bounds)
+    overlay = overlays[0]
+    piece = overlay.pieces[0]
+    source = piece.source_patterns[2]
+    for index in range(piece.tile_count):
+        tiles[piece.destination_tile + index] = overlay.art2_tiles[source + index]
+    return {
+        "frozen_overlay": {"piece": 0, "frame": 2, "routine_rom_offset": "0x01528A"},
+        "palette_line": 2,  # The object's $13 attribute is $40.
+        "palette_overrides": {
+            index: int.from_bytes(rom[offset:offset + 2], "big")
+            for index, offset in [(10, 0x010D72), (11, 0x010D78), (12, 0x010D7E)]
+        },
+    }
 
 
 def emit_enemy_attack_art(
@@ -188,6 +222,8 @@ def emit_enemy_attack_art(
 
         art_record = by_id[enemy_id]
         tiles, art_sources = build_tile_bank(rom, art_record, bounds)
+        if animation["routine_offset"] == "0x010D68":
+            entry.update(_zoran_attack_state(rom, art_record, bounds, tiles))
         plc_tiles, _, _ = decode_plc_art(rom, animation["attack_plc"]["loads"])
         if plc_tiles:
             if len(tiles) < len(plc_tiles):
@@ -200,7 +236,7 @@ def emit_enemy_attack_art(
         canvas = _attack_canvas(animation, art_record)
         body_width = 2 * art_record["half_width_cells"] * 8
         body_top = (15 - art_record["height_cells"]) * 8
-        pivot = (body_width, BASE_OBJECT_Y - 0x80 - body_top)
+        pivot = (body_width // 2, BASE_OBJECT_Y - 0x80 - body_top)
         palette = enemy_palette(rom, enemy_id)
         durations = animation["frame_sequence"]["frame_durations"]
         for frame_index, record in enumerate(animation["frame_sequence"]["mapping_records"]):

@@ -266,9 +266,9 @@ fn a_fusion_round_leaves_a_metaslug_in_slot_one() {
 }
 
 /// #52: an enemy attack animation cue rides the first frame of its beat, once.
-/// The shell shows that frame's art at its start and first advances it on the
+/// The runtime starts its object at age zero and first advances it on the
 /// next frame (`ps4.asm:947-966`), so the cue frame is the start the layer's
-/// sixteen frames are counted from. This pins the runtime half: the cue is in
+/// sixteen frames are counted from. This pins the timeline: the cue is in
 /// the view of the beat's first frame (`remaining == total`) and nowhere else,
 /// and the beat that follows the defenders' three comes after the cartridge's
 /// defend beats, not before them.
@@ -280,6 +280,7 @@ fn an_attack_animation_cue_rides_the_first_frame_of_its_beat() {
     let frame = session.debug_battle_window(0x8A, "top,timeline=attack");
     let mut view = battle_view(&frame).clone();
     let mut cues = Vec::new();
+    let mut ages = Vec::new();
     for tick in 0..400 {
         if !view.animations.is_empty() {
             let beat = view.current.expect("a beat is playing");
@@ -289,6 +290,10 @@ fn an_attack_animation_cue_rides_the_first_frame_of_its_beat() {
             );
             assert!(matches!(beat.beat, crate::BattleBeat::Attack(_)));
             cues.push(tick);
+        }
+        for attack in &view.attacks {
+            assert_eq!(attack.event.actor.get(), 6);
+            ages.push((tick, attack.id, attack.elapsed));
         }
         let frame = session.frame(Pad::NEUTRAL);
         view = frame
@@ -301,6 +306,13 @@ fn an_attack_animation_cue_rides_the_first_frame_of_its_beat() {
     }
     // Three defend beats of 36 frames, then the attack.
     assert_eq!(cues, [108]);
+    assert_eq!(
+        ages,
+        (0..16)
+            .map(|age| (108 + age, 0, age as u16))
+            .collect::<Vec<_>>(),
+        "the attack lives for exactly sixteen runtime frames, starting at age zero"
+    );
 }
 
 /// Only the bodies that have acted are on the plane while a round plays, and

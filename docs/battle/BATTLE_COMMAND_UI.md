@@ -4,7 +4,7 @@ Decoded 2026-10-02 against the retail cartridge for issues #51, #52 and #64.
 Every value cites a routine in `reference/ps4disasm/ps4.asm` (retail `loc_`
 addresses, per [BATTLE_GEOMETRY.md](BATTLE_GEOMETRY.md)) and the oracle frame it
 was read from. Five new pairs in `tools/certify.py` hold the result at
-`rmse=0.000000`; the mid-round attack (#52) is certified only in part, see
+`rmse=0.000000`; the mid-round attack (#52) is described separately, see
 [Mid-round attack](#mid-round-attack-52).
 
 ## The layout authority
@@ -205,43 +205,29 @@ Fusion whatever it rolls. The two pieces sliding together and growing
 
 ## Mid-round attack (#52)
 
-**Fixed.** The shell applied a frame's view before advancing the art clock, so
-an attack animation a beat started advanced on its own start frame. The
-cartridge creates the attack object in `Battle_UpdateFighters` and the object's
-first run only draws frame 0 (`GameMode_Battle`, `ps4.asm:947-966`). Oracle
-evidence, tape 34: the Zoran attack's sprites are on the sprite table for
-exactly 16 frames (25368-25383), two frames per mapping (tiles `$276`, `$278`,
-`$27B`, `$27B` flipped, ...). Godot now advances the clocks first and applies
-the view second, so a cue is shown at its start, each frame lasts two ticks and
-the layer is on screen 16 ticks. The runtime side is pinned by
-`an_attack_animation_cue_rides_the_first_frame_of_its_beat`.
+The runtime owns each live attack object's identity and absolute age in
+`BattleView.attacks`: dispatch starts at age zero and subsequent game frames
+advance it. Reading or applying the same view cannot advance an object.
+Godot advances the idle overlay art before applying the frame's runtime view,
+then draws the attack's mapping and motion at the supplied age. The transition
+is covered by `an_attack_animation_cue_rides_the_first_frame_of_its_beat` and
+the pack-independent `battle::attacks` tests.
 
-**Not certified.** `PSIV_DEBUG_BATTLE_WINDOW=top,timeline=attack` with
-`PSIV_DEBUG_BATTLE_PHASE=418` at tick 146 against tape 34 frame 25377 reads
-`rmse=20.254240` (63 cells). It is left out of `PAIRS`. Residual regions and
-causes, found by this pair:
+The retail order is `Battle_UpdateFighters`, followed by the objects' first
+run, which draws mapping zero (`GameMode_Battle`, `ps4.asm:947-966`). Tape 34
+shows Zoran attack sprites for sixteen frames, 25368-25383, with two frames per
+mapping. Its object's coordinates are relative to the fighter's centre
+(`loc_12618`), rather than the body's right edge. During the strike the first
+overlay piece is frozen at frame 2/timer 6; its VRAM replacement is also read
+by the attack mapping. `EnemyAttack_ZoranBult` writes line 2 colours 10-12,
+while the object's init selects that line. The extractor pins the USA routine,
+init and freeze signatures before emitting those tiles and palette changes.
 
-1. **Attack art is not the art on screen** (rows 15-20, columns 12-22). The
-   Zoran attack sprites use tiles of the enemy's own art bank, which the idle
-   overlay animation rewrites: `loc_1528A` (`ps4.asm:30119`) waits until the
-   attacker's first overlay piece shows frame 2, then sets bit 3 of its
-   `Enemy_Sprites` entry to freeze it, so the lightning is drawn from the
-   frozen piece. `enemy_attacks.json` frames for enemy 10 were decoded from
-   the static bank (a block of sparks; the oracle shows a starburst and a
-   vertical streak), and the layer sits 24 px right of the oracle's sprites
-   (oracle `(96,120)`, port `(120,104)` with y equal): `origin_pixels` is
-   `[0,0]` where the canvas origin is the body origin minus 24.
-2. **The attacker's first overlay piece freezes** (rows 13-14, columns 13-14).
-   Oracle `Enemy_Sprites` entry 0 holds `(frame 2, timer 6)` from 25358 to 25395
-   while its siblings run (RAM dumps in tape 34): windup 10 frames, the 16
-   animation frames, then the target's damage wait (`loc_15360`,
-   `ps4.asm:30180`).
-3. **The target steps under the attacker**: `Enemy_Attack` writes the target's
-   `fighter_x_pos` from the attacker's (`ps4.asm:19170-19180`); Alys is drawn
-   about 40 px left of her seat during the strike.
-
-Causes 1 and 2 need the extractor (`psiv_tools/battle_animation_*.py`) and a per-attack-routine choreography; cause 3 is
-presentation of the target's `Character_Targeted` routine.
+The strike fixture also supplies the displaced target's horizontal pivot and
+the frozen overlay pose through the runtime view. The full windup, target
+reaction and overlay release are a separate gap:
+[#421](https://github.com/TusanHomichi/PSIV/issues/421). A strike capture does
+not certify that complete sequence or a connected campaign route.
 
 ## The art comes from the pack
 
