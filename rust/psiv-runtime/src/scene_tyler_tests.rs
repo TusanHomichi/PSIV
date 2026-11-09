@@ -18,6 +18,7 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
     let mut drift = Vec::new();
     let mut frames = 0;
     let mut writes = Vec::new();
+    let mut cameras = Vec::new();
     while rt.scene_active() {
         let events = checked_tick(&mut rt, Input::Neutral);
         for event in events {
@@ -60,6 +61,7 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
             }
         }
         let (x, y) = rt.camera().raw();
+        cameras.push((x >> 16, y >> 16));
         assert_eq!(y >> 16, home.1);
         assert!((home.0..=home.0 + 4).contains(&(x >> 16)));
         frames += 1;
@@ -87,6 +89,13 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
         drift[0].0, drift[63].0
     );
     assert_eq!(pans.len(), 4);
+    for (index, &frame) in pans.iter().enumerate() {
+        assert_eq!(
+            cameras[frame],
+            (home.0 + if index % 2 == 0 { 4 } else { 0 }, home.1),
+            "camera pan {index}"
+        );
+    }
     assert_eq!(pans[1] - pans[0], 1, "outward 4px at speed4 blocks a frame");
     assert_eq!(
         drift[0].0 - pans[1],
