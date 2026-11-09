@@ -50,6 +50,19 @@ With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
 panels one pixel down ([placement findings](#placement-findings), the surface origin).
 
+The recovery tile's flashes joined them on 2026-11-09
+([#101](https://github.com/TusanHomichi/PSIV/issues/101)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `recovery-flash` | **0.000000** | clone t78 (`PSIV_DEBUG_EVENT=0x21`) ↔ tape-42 frame 7246: `Event_Recovery`'s second flash at its peak; region `1,72,319,152` (the map's wandering NPC above, and #409's first column) |
+
+Each step captured matches inside that region: the first flash's rise, peak
+and restore (ticks 30-58 against frames 7194-7226, the restore's first step
+not the brighten's mirror), the second's start and peak (62, 66, 78), and the
+untoned frame again after the third (142). The untoned frame scores `rmse=78.342520` against the
+peak, and the step before it `rmse=16.148053`.
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 

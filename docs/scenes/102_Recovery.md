@@ -41,7 +41,9 @@ bit 6 (`StatusAndroidDead`) comes back; it then refills the three vehicles' skil
 (`ps4.asm:120553-120568`).
 
 The runtime's CRAM model steps `PaletteToneFlash` frame by frame
-([CRAM state](SCENE_PRESENTATION.md#cram-state)); Godot does not draw it per line yet.
+([CRAM state](SCENE_PRESENTATION.md#cram-state)), and the field draws every line from it, so the
+flashes need nothing of the shell's own. The `recovery-flash` certify pair checks the second flash's
+peak against tape 42's frame 7246 ([certified pairs](SCENE_PRESENTATION.md#certified-pairs)).
 
 ## In the route
 `air-castle-xe-athoul-room` walks the party over `AirCastle_F1_Part9`'s tile on the way to the

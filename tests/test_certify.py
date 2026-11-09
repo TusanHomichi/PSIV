@@ -35,7 +35,7 @@ SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "endin
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
-                         "teleport-close-towns"]
+                         "teleport-close-towns", "recovery-flash"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -104,7 +104,7 @@ class PairTableCase(unittest.TestCase):
         # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
         self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message",
-                                   "teleport-close", "teleport-close-towns"])
+                                   "teleport-close", "teleport-close-towns", "recovery-flash"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
