@@ -8,6 +8,8 @@ against its limit while a file there is held).
 `RunnerWaitCase` checks `runner_wait` alone: for the block, one file, held
 flocked, whose line says what the wait is for, gone afterwards; nothing
 without the variable, and a directory that is gone does not stop the wait.
+Two waiters with the same pid (each in a pid namespace of its own, sharing
+the folder) neither block on nor remove each other's file.
 `LockWaitCase` waits behind a real holder: a heavy-lock waiter and a gate
 waiting for the gate lock each keep one held file naming their lock while
 they wait, and none once granted; the negative control, a free lock, never
@@ -19,6 +21,7 @@ directory: their waits are the gate's work.
 import contextlib
 import fcntl
 import io
+import itertools
 import os
 import subprocess
 import sys
@@ -112,6 +115,32 @@ class RunnerWaitCase(WaitDir):
                 raise ValueError("the wait's own")
         self.assertEqual(len(self.files()), 2)
         self.assertFalse(any(held(path) for path in self.files()))
+
+
+    def test_waiters_with_one_pid_neither_block_nor_remove_each_other(self):
+        """A job's sandboxed commands can share a pid and the folder. The
+        second waiter must not wait on the first's file (it once held the
+        heavy lock's mutex doing so), nor remove it when it is done."""
+        environ = {RUNNER_WAIT_ENV: str(self.waits)}
+        seen = []
+
+        def second():
+            with runner_wait("PSIV's heavy-run lock", environ):
+                seen.append(sorted((path.name, held(path)) for path in self.files()))
+
+        with mock.patch("tools.heavy_lock.os.getpid", return_value=3), \
+                mock.patch("tools.heavy_lock._RUNNER_WAITS", itertools.repeat(0)):
+            with runner_wait("PSIV's gate lock", environ):
+                [first] = self.files()
+                thread = threading.Thread(target=second, daemon=True)  # a hang must not hold the run
+                thread.start()
+                thread.join(TIMEOUT)
+                self.assertFalse(thread.is_alive(), "the second waiter blocked on the first's file")
+                self.assertEqual(len(seen[0]), 2)
+                self.assertTrue(all(holding for _, holding in seen[0]))
+                self.assertEqual(self.files(), [first])
+                self.assertTrue(held(first))
+        self.assertEqual(self.files(), [])
 
 
 class LockWaitCase(WaitDir):

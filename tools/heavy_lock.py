@@ -93,6 +93,7 @@ import fcntl
 import itertools
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -661,14 +662,25 @@ def runner_wait(what, environ=None):
     folder = environ.get(RUNNER_WAIT_ENV)
     path = handle = None
     if folder:
-        path = Path(folder) / f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}"
+        # The pid alone doesn't name a waiter: a job's commands can each run
+        # as the same pid in a sandbox of their own while sharing the folder,
+        # so the name is random beyond it, made only if new (`O_EXCL`), and
+        # never waited on (`LOCK_NB`). One waiter that blocked here on
+        # another's file held the heavy lock's mutex until it was killed.
+        path = Path(folder) / (
+            f"psiv-{os.getpid()}-{next(_RUNNER_WAITS)}-{secrets.token_hex(4)}"
+        )
         try:
-            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-            fcntl.flock(handle, fcntl.LOCK_EX)
-            os.write(handle, f"{what}\n".encode())
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         except OSError:
-            _close_runner_wait(path, handle)
-            handle = None
+            path = None  # not this waiter's file to remove
+        else:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                os.write(handle, f"{what}\n".encode())
+            except OSError:
+                _close_runner_wait(path, handle)
+                handle = None
     try:
         yield
     finally:
