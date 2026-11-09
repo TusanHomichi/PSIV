@@ -97,10 +97,10 @@ pub fn bounds(records: &[Record], rom_size: usize) -> BTreeMap<usize, usize> {
 /// Where one blob landed in the bank (`_art_record`'s source, as the index
 /// keeps it).
 pub struct Source {
-    field: usize,
-    offset: usize,
-    tile_count: u16,
-    first_pattern: usize,
+    pub field: usize,
+    pub offset: usize,
+    pub tile_count: u16,
+    pub first_pattern: usize,
 }
 
 /// `build_tile_bank`: the three blobs in `BANK_ORDER`, each checked against
@@ -151,7 +151,7 @@ pub fn bank(
 }
 
 /// `enemy_mapping`: the body's pattern-name words, its format and size.
-fn mapping(rom: &[u8], record: &Record) -> Result<(Vec<u16>, &'static str, usize), PackError> {
+pub fn mapping(rom: &[u8], record: &Record) -> Result<(Vec<u16>, &'static str, usize), PackError> {
     let columns = 2 * usize::from(record.half_width);
     let expected = columns * usize::from(record.height);
     let (words, format) = if RAW_MAPPING_IDS.contains(&record.id) {
