@@ -66,7 +66,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_SpaceshipSabotage", 36),
         ("Cutscene_CrashLaanding", 131),
         ("Event_OutsideRajaTemple", 3),
-        ("Event_TylerGraveOpening", 19),
+        ("Event_TylerGraveOpening", 21),
         ("Event_Gyuna", 7),
         ("Event_CancellerReminder", 2),
         ("Event_MileSandWormBattle", 5),
