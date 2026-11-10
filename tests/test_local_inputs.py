@@ -650,7 +650,8 @@ class EmbedCase(unittest.TestCase):
 
     def test_every_embedded_file_is_keyed(self):
         pack = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
-        crates = [tree for tree in pack.trees if tree.startswith("rust/psiv-")]
+        crates = [tree for tree in pack.trees
+                  if tree.startswith("rust/") and not tree.endswith((".toml", ".lock"))]
         self.assertEqual(crates, ["rust/psiv-data", "rust/psiv-pack"])
         self.assertEqual(self.outside(self.ROOT, crates, pack.trees), [])
 
