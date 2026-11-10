@@ -113,7 +113,7 @@ const MOTA_INDEXES: usize = 0x0586EC;
 const MOTA_COUNT: usize = 214;
 /// `FieldRoutine_Interaction: bra.w`, the end of the Motavia table.
 const FIELD_ROUTINE_INTERACTION: usize = 0x0587C2;
-const NO_BACKGROUND: u8 = 0xFF;
+pub(super) const NO_BACKGROUND: u8 = 0xFF;
 /// `loc_6C24`: index 4 becomes 5 once `EventFlag_DarkForce2` is set.
 const DARK_FORCE_2_SWAP: (u8, u8) = (4, 5);
 /// `GetMotaBattleBGIndex` stores index+1 and keeps 0 for index 0.

@@ -601,10 +601,18 @@ fn effects_of(effects: &MapEffects, record: &MapRecord) -> Vec<Json> {
 }
 
 /// A sheet index file, as the Python builder writes it.
-fn write_sheet_file(root: &Path, name: &str, file: &SheetFile) -> Result<(), PackError> {
+fn write_sheet_file(root: &Path, name: &str, file: &SheetFile) -> Result<String, PackError> {
     let value = serde_json::to_value(file)
         .map_err(|error| PackError(format!("cannot serialize {name}: {error}")))?;
-    crate::write_json(root, name, &Json::from(&value)).map(drop)
+    crate::write_json(root, name, &Json::from(&value))
+}
+
+/// What [`write_sprites`] wrote, for the manifest.
+pub struct SpritesWritten {
+    /// `(index file, its SHA-256, its sheet count)`: party, NPCs, vehicles.
+    pub files: [(&'static str, String, usize); 3],
+    /// Each NPC sheet's CRAM line and how many placed objects draw it.
+    pub npc_lines: Vec<(u8, usize)>,
 }
 
 /// Every sheet and the three index files.
@@ -613,9 +621,10 @@ pub fn write_sprites(
     decodes: &Decodes,
     root: &Path,
     field: &FieldSprites,
-) -> Result<(), PackError> {
+) -> Result<SpritesWritten, PackError> {
     let party = emit_party(root, data, &field.routines)?;
-    write_sheet_file(
+    let party_count = party.len();
+    let party_sha = write_sheet_file(
         root,
         PARTY_NAME,
         &SheetFile {
@@ -628,12 +637,21 @@ pub fn write_sprites(
         },
     )?;
     let npcs = field.registry.emit(root)?;
+    let npc_lines = npcs
+        .iter()
+        .map(|sheet| {
+            let line = sheet.research["palette"]["cram_line"].as_u64().unwrap_or(0) as u8;
+            let placed = sheet.research["placements"].as_u64().unwrap_or(0) as usize;
+            (line, placed)
+        })
+        .collect();
+    let npc_count = npcs.len();
     let mut research = Map::new();
     research.insert(
         "field_objects".into(),
         field_objects(&field.routines, &field.placements),
     );
-    write_sheet_file(
+    let npc_sha = write_sheet_file(
         root,
         NPC_NAME,
         &SheetFile {
@@ -651,7 +669,16 @@ pub fn write_sprites(
         ));
     };
     let vehicles = vehicle_file(data, decodes, root, base, &field.vehicle_variants)?;
-    write_sheet_file(root, VEHICLE_NAME, &vehicles)
+    let vehicle_count = vehicles.sheets.len();
+    let vehicle_sha = write_sheet_file(root, VEHICLE_NAME, &vehicles)?;
+    Ok(SpritesWritten {
+        files: [
+            (PARTY_NAME, party_sha, party_count),
+            (NPC_NAME, npc_sha, npc_count),
+            (VEHICLE_NAME, vehicle_sha, vehicle_count),
+        ],
+        npc_lines,
+    })
 }
 
 #[cfg(test)]

@@ -356,7 +356,7 @@ struct PanelPalettes {
 }
 
 /// Everything `emit_presentation` writes, `panels.json` last.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let data = rom.bytes();
     let mut panels = Vec::new();
     let mut drawn = Vec::new();
@@ -394,6 +394,15 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
             })
         })
         .collect();
+    let palette_records = palettes(data, &drawn)?;
+    let part = Json::object()
+        .with("record_table", hex6(ROM_PANEL_TABLE))
+        .with("record_size", PANEL_RECORD_SIZE)
+        .with("panels", panels.len())
+        .with("palettes", palette_records.len())
+        .with("load_art", load_art.len())
+        .with("temporary_objects", temporary.len())
+        .with("portraits", portraits.len());
     let coverage = Json::object()
         .with("panel_records", panels.len())
         .with("load_art_records", load_art.len())
@@ -407,15 +416,17 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         .with("record_banks", banks)
         .with("screen", vec![SCREEN_WIDTH, SCREEN_HEIGHT])
         .with("opening_background", opening)
-        .with("palettes", palettes(data, &drawn)?)
+        .with("palettes", palette_records)
         .with("panels", panels)
         .with("load_art", load_art)
         .with("temporary_objects", temporary)
         .with("portraits", portraits)
-        .with("coverage", coverage);
+        .with("coverage", coverage.clone());
     let mut text = crate::json::dumps(&manifest, false);
     text.push('\n');
-    crate::write_file(root, "presentation/panels.json", text.as_bytes())
+    crate::write_file(root, "presentation/panels.json", text.as_bytes())?;
+    // The manifest records what was emitted; panels.json holds the rest.
+    Ok(Json::object().with("presentation", part.with("coverage", coverage)))
 }
 
 #[cfg(test)]
