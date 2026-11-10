@@ -82,3 +82,75 @@ class Observations(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'missing or stale'):
                     native_verifier.verify({'operation': 'requests'})
                 exchange.assert_called_once_with(binary, {'operation': 'identity'})
+
+    def test_prepare_rebuilds_cold_and_stale_artifacts_and_checks_result_identity(self):
+        import contextlib
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from tools import native_verifier
+        for initial in ('cold', 'stale'):
+            with self.subTest(initial=initial), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                expected = {}
+                for name in native_verifier.INPUTS:
+                    path = root / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text('current source')
+                    expected[name] = 'current source'
+                target = root / 'isolated-target'
+                binary = target / 'debug/psiv-native-verify'
+                binary.parent.mkdir(parents=True)
+                if initial == 'stale':
+                    binary.touch()
+                fresh = False
+                def build(command, **kwargs):
+                    nonlocal fresh
+                    if command[:2] == ['cargo', 'clean']:
+                        self.assertFalse(fresh)
+                        binary.unlink()
+                        return SimpleNamespace(returncode=0, stderr='', stdout='')
+                    self.assertEqual(command[:3], ['cargo', 'build', '--quiet'])
+                    self.assertIn('psiv-native-verify', command)
+                    fresh = True
+                    binary.touch()
+                    return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps({
+                        'reason': 'compiler-artifact', 'target': {'name': 'psiv-native-verify'},
+                        'executable': str(binary)}))
+                with patch.object(native_verifier, 'ROOT', root), \
+                        patch.dict('os.environ', {'CARGO_TARGET_DIR': str(target)}, clear=True), \
+                        patch.object(native_verifier, '_exchange', side_effect=lambda *args: expected if fresh else {}), \
+                        patch.object(native_verifier.subprocess, 'run', side_effect=build) as cargo, \
+                        patch('tools.heavy_lock.heavy_lock_path', return_value=root / 'lock'), \
+                        patch('tools.heavy_lock.hold_heavy_lock', return_value=contextlib.nullcontext()):
+                    self.assertEqual(native_verifier.prepare(), binary)
+                    expected_calls = 2 if initial == 'stale' else 1
+                    self.assertEqual(cargo.call_count, expected_calls)
+                    self.assertEqual(native_verifier.prepare(), binary)
+                    self.assertEqual(cargo.call_count, expected_calls)  # no second build
+
+    def test_prepare_packaged_override_needs_no_cargo_or_local_source(self):
+        from unittest.mock import patch
+        from tools import native_verifier
+        with patch.dict('os.environ', {'PSIV_NATIVE_VERIFY_BINARY': '/packaged/verifier'}), \
+                patch.object(native_verifier, '_inputs', side_effect=AssertionError('source lookup')), \
+                patch.object(native_verifier.subprocess, 'run', side_effect=AssertionError('cargo')):
+            self.assertEqual(native_verifier.prepare(), Path('/packaged/verifier'))
+
+    def test_stale_cleanup_failure_aborts_before_build(self):
+        import contextlib
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from tools import native_verifier
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / 'stale'
+            binary.touch()
+            with patch.object(native_verifier, '_resolve', return_value=None), \
+                    patch.object(native_verifier, '_inputs', return_value={}), \
+                    patch.object(native_verifier, '_candidates', return_value=[binary]), \
+                    patch('tools.heavy_lock.heavy_lock_path', return_value=Path(tmp) / 'lock'), \
+                    patch('tools.heavy_lock.hold_heavy_lock', return_value=contextlib.nullcontext()), \
+                    patch.object(native_verifier.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stderr='clean failed')) as cargo:
+                with self.assertRaisesRegex(ValueError, 'cannot clean stale'):
+                    native_verifier.prepare()
+                cargo.assert_called_once()
+                self.assertEqual(cargo.call_args.args[0][:2], ['cargo', 'clean'])

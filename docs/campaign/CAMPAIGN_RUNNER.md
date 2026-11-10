@@ -451,7 +451,11 @@ reuse old addresses.
 Observation request schemas, pinned tape SHA-256, result frames and capture-file
 identity, and the Zema state checks are owned by
 [`psiv-native-verify`](../../rust/psiv-native-verify/src/lib.rs). Build it under
-the build lock before the Python native entry points; a stale local binary is
+the build lock before the Python native entry points. The fast and full gates
+provision it once at Python-suite startup, before spawning workers; standalone
+validation remains read-only and never builds inside Godot. Standalone suite
+startup needs a build reservation; prepare the binary before entering a narrow
+Python or Godot holder. A stale local binary is
 rejected by a source-identity handshake. `PSIV_NATIVE_VERIFY_BINARY` selects an
 explicit packaged binary (as the Nix platform check does). Python retains
 Pillow image decoding and NumPy pixel comparisons.
