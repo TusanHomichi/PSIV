@@ -136,6 +136,18 @@ fn scene(name: &str) -> &'static crate::Scene {
         .unwrap_or_else(|| panic!("{name} is not a registered scene"))
 }
 
+/// The frames one retail loop of `op` waits, for an op that is not a
+/// `Wait` but waits a library loop out between its own steps: a palette
+/// loop's per-step delay. `None` for an op that waits nothing.
+fn within_ticks(op: &SceneOp) -> Option<u32> {
+    match op {
+        SceneOp::Presentation {
+            op: crate::PresentationOp::PaletteRampFromTable { frame_delay, .. },
+        } => Some(u32::from(*frame_delay)),
+        _ => None,
+    }
+}
+
 #[test]
 fn every_wait_of_a_censused_scene_is_claimed_once() {
     let mut problems = Vec::new();
@@ -146,12 +158,8 @@ fn every_wait_of_a_censused_scene_is_claimed_once() {
                 .iter()
                 .filter(|row| row.scene == name && row.claim == Wait(index))
                 .count();
-            match (matches!(op, SceneOp::Wait { .. }), claims) {
-                (true, 0) => problems.push(format!("{name} op {index}: a Wait no row claims")),
-                (false, n) if n > 0 => {
-                    problems.push(format!("{name} op {index}: claimed as a Wait, is {op:?}"));
-                }
-                _ => {}
+            if matches!(op, SceneOp::Wait { .. }) && claims != 1 {
+                problems.push(format!("{name} op {index}: a Wait with {claims} claims"));
             }
         }
     }
@@ -159,16 +167,30 @@ fn every_wait_of_a_censused_scene_is_claimed_once() {
         if !CENSUSED.contains(&row.scene) {
             problems.push(format!("{}: a row for a scene not censused", row.scene));
         }
-        if let Within(index) = row.claim {
-            match scene(row.scene).ops.get(index) {
-                Some(SceneOp::Wait { .. }) | None => {
+        let ops = scene(row.scene).ops;
+        match row.claim {
+            Wait(index) => {
+                if !matches!(ops.get(index), Some(SceneOp::Wait { .. })) {
                     problems.push(format!(
-                        "{} op {index}: Within names no other op",
-                        row.scene
+                        "{} op {index}: claimed as a Wait, is {:?}",
+                        row.scene,
+                        ops.get(index)
                     ));
                 }
-                Some(_) => {}
             }
+            Within(index) => {
+                if ops.get(index).and_then(within_ticks).is_none() {
+                    problems.push(format!(
+                        "{} op {index}: Within names an op that waits no loop, {:?}",
+                        row.scene,
+                        ops.get(index)
+                    ));
+                }
+                if !matches!(row.retail, Map(_) | Main(_)) {
+                    problems.push(format!("{} op {index}: Within an own loop", row.scene));
+                }
+            }
+            Missing(_) => {}
         }
     }
     assert!(problems.is_empty(), "{problems:#?}");
@@ -181,8 +203,14 @@ fn jsr_target(rom: &[u8], at: usize) -> Option<u32> {
 }
 
 /// The word-loaded tick count before a loop call: `moveq #n,d0` or
-/// `move.w #n,d0` ending at `at`, as the `dbf` runs it (n + 1).
+/// `move.w #n,d0` ending at `at`, or before a `move.l d7,-(sp)` that saves
+/// an outer loop's counter there, as the `dbf` runs it (n + 1).
 fn loop_ticks(rom: &[u8], at: usize) -> Option<u32> {
+    let at = if rom[at - 2..at] == [0x2F, 0x07] {
+        at - 2
+    } else {
+        at
+    };
     if rom[at - 2] == 0x70 {
         return Some(u32::from(rom[at - 1]) + 1);
     }
@@ -224,11 +252,12 @@ fn every_row_is_the_retail_wait_it_names() {
     let mut problems = Vec::new();
     for row in ROWS {
         let ticks = match row.claim {
-            Wait(index) => match scene(row.scene).ops[index] {
-                SceneOp::Wait { ticks } => Some(u32::from(ticks)),
+            Wait(index) => match scene(row.scene).ops.get(index) {
+                Some(SceneOp::Wait { ticks }) => Some(u32::from(*ticks)),
                 _ => None,
             },
-            _ => None,
+            Within(index) => scene(row.scene).ops.get(index).and_then(within_ticks),
+            Missing(_) => None,
         };
         match row.retail {
             Map(at) | Main(at) => {
@@ -240,7 +269,11 @@ fn every_row_is_the_retail_wait_it_names() {
                 if jsr_target(rom, at as usize) != Some(want) {
                     problems.push(format!("{} ${at:06X}: not a jsr to ${want:06X}", row.scene));
                 }
-                if let (Some(ticks), Some(retail)) = (ticks, loop_ticks(rom, at as usize))
+                let retail = loop_ticks(rom, at as usize);
+                if matches!(row.claim, Within(_)) && retail.is_none() {
+                    problems.push(format!("{} ${at:06X}: no loop count to check", row.scene));
+                }
+                if let (Some(ticks), Some(retail)) = (ticks, retail)
                     && ticks != retail
                     && row.defect.is_none()
                 {
