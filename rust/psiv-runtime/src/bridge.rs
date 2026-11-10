@@ -644,9 +644,10 @@ fn bespoke_kind(symbol: Option<&str>) -> Option<BespokeKind> {
         // movement is not a cell walk and belongs to the visual/special-object
         // lane. MileSandWorm's later draw is gated by visual animation state,
         // which this field lane deliberately does not synthesize.
-        "Barrier" | "BarrierBeam1" | "BarrierBeam2" | "BarrierBeam3" | "BarrierBeam4"
-        | "BigDuck" | "Blindheads" | "ChestBarrier" | "GiLeFarg" | "XeAThoulAirCastle"
-        | "MileSandWorm" => PresentationOnly,
+        "BarrierBeam1" | "BarrierBeam3" => BespokeKind::BarrierBeam { even: false },
+        "BarrierBeam2" | "BarrierBeam4" => BespokeKind::BarrierBeam { even: true },
+        "Barrier" | "BigDuck" | "Blindheads" | "ChestBarrier" | "GiLeFarg"
+        | "XeAThoulAirCastle" | "MileSandWorm" => PresentationOnly,
         _ => return None,
     })
 }

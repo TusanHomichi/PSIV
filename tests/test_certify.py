@@ -35,7 +35,7 @@ SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "endin
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
-                         "teleport-close-towns", "recovery-flash"]
+                         "teleport-close-towns", "recovery-flash", "rykros-palette-cycle", "zio-barrier-ramp"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -105,7 +105,7 @@ class PairTableCase(unittest.TestCase):
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
         self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
-                                   "recovery-flash"])
+                                   "recovery-flash", "zio-barrier-ramp"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
@@ -124,6 +124,20 @@ class PairTableCase(unittest.TestCase):
             if name in ("battle-strip", "battle-tech", "battle-status", "battle-status-2"):
                 with self.subTest(pair=name):
                     self.assertIn("PSIV_DEBUG_BATTLE_PHASE", env)
+
+    def test_table_palette_pairs_capture_active_rows_and_real_scene_art(self):
+        pairs = {p[0]: p for p in certify.PAIRS}
+        rykros = pairs["rykros-palette-cycle"]
+        zio = pairs["zio-barrier-ramp"]
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1270))
+        self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
+        self.assertNotIn("region", rykros[5])
+        self.assertEqual(zio[5]["region"], [1, 1, 319, 223])
+        self.assertEqual(rykros[5]["frames"], [8580])
+        self.assertEqual(zio[5]["frames"], [7462])
+        # Source fixture inputs, with no palette, timer or mapping patches.
+        self.assertEqual(rykros[5]["patches"], ["7200:FFFFECA8:801B", "7200:FFFFEC20:000C"])
+        self.assertEqual(zio[5]["patches"][-2:], ["7202:FFFFECA8:0030", "7202:FFFFEC20:000C"])
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

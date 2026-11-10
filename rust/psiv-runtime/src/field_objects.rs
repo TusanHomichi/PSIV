@@ -115,6 +115,47 @@ impl Runtime {
         }
     }
 
+    /// The Zio scene's object-update calls. The palette ramp only runs map
+    /// updates, so the last visible beam mapping remains in the SAT throughout.
+    pub(crate) fn tick_barrier_beams(&mut self, reveal: bool) {
+        if reveal {
+            self.bespoke.reveal_beams();
+        }
+        let driver_pixels = self.scene_party_actor(0).map_or_else(
+            || {
+                let p = driver_of(self.party.leader());
+                (p.x >> 16, p.y >> 16)
+            },
+            |actor| {
+                (
+                    i32::from(actor.cell.x) * 16,
+                    (i32::from(actor.cell.y) - 1) * 16,
+                )
+            },
+        );
+        let indices: Vec<_> = self
+            .bespoke
+            .actors()
+            .iter()
+            .filter(|actor| actor.beam_draw().is_some())
+            .map(|actor| actor.npc_index())
+            .collect();
+        let flags = self.bespoke_flags();
+        for index in indices {
+            self.bespoke.tick_one_for_npc(
+                index,
+                &mut self.map,
+                &mut self.rng,
+                BespokeContext {
+                    frame: self.frames,
+                    driver_pixels,
+                    party: &[],
+                    flags,
+                },
+            );
+        }
+    }
+
     fn bespoke_flags(&self) -> BespokeFlags {
         BespokeFlags {
             principal_confession: self.game.is_set(Flag::event(0x0C)),

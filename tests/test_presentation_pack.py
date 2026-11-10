@@ -74,7 +74,7 @@ class PresentationPackTests(unittest.TestCase):
         }
         records = {record["id"]: record for record in manifest["panels"]}
         self.assertEqual(len(records), len(PANEL_IDS))
-        self.assertEqual(len(records), 228)
+        self.assertEqual(len(records), 231)
         self.assertTrue(set(DIALOGUE_ACTION_PANEL_IDS) <= set(records))
         self.assertTrue(set(ENDING_PANEL_IDS) <= set(records))
         self.assertEqual(manifest["record_table"], "0x07B000")
@@ -258,7 +258,7 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(
             manifest["coverage"],
             {
-                "panel_records": 228,
+                "panel_records": 231,
                 "load_art_records": 7,
                 "temporary_object_keys": 9,
                 "generic_portraits": 1,

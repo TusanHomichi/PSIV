@@ -36,6 +36,21 @@ pub fn scene_fixture(
     // list is the post-Zio one (`ps4.asm:133728-133735`), a Chaz and Alys party.
     let mut flags: &[u16] = &[];
     let (map, char_x, char_y, party) = match event {
+        0x0030 => {
+            flags = &[0x63];
+            (
+                0x0082,
+                0x2F0,
+                0x380 + 16,
+                [
+                    Some(CharId(0)),
+                    Some(CharId(5)),
+                    Some(CharId(3)),
+                    Some(CharId(4)),
+                    Some(CharId(6)),
+                ],
+            )
+        }
         0x800D => {
             flags = &[0x08];
             (
@@ -81,6 +96,9 @@ pub fn scene_fixture(
         // (`Render_Sprites_In_Cutscenes`) stands where the oracle's does
         // (`tools/certify.py` TAPE_38).
         0x8021 => (0x0013, 768, 288, [Some(CharId(0)), None, None, None, None]),
+        // `Cutscene_Rykros`: tape 43's explicit fixture shares the ending's
+        // post-opening map and leader position; its panels replace the field.
+        0x801B => (0x0013, 768, 288, [Some(CharId(0)), None, None, None, None]),
         // `Event_Recovery` (`PSIV_DEBUG_EVENT=0x21`): the same state, which
         // tape 42 (`tools/certify.py` TAPE_42) starts the event in; the
         // flashes are palette writes, so any map shows them. The event
@@ -94,10 +112,10 @@ pub fn scene_fixture(
         ),
         _ => return None,
     };
-    // The ending's and the recovery tile's fixtures stand in tape 28's
-    // state: the opening done (`post_opening_game`), so no map-entry
-    // trigger on `$13` pre-empts them.
-    let mut game = if matches!(event, 0x8021 | 0x0021) {
+    // The new palette fixtures and the ending/recovery fixtures use tape
+    // 28's retail initializer with the opening completed. Their explicit
+    // scene-specific edits above are applied to that base, never blank banks.
+    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021) {
         match post_opening_game(&data, step_frames) {
             Ok(game) => game,
             Err(error) => return Some(Err(error)),
