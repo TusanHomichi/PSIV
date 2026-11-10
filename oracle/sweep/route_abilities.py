@@ -46,7 +46,7 @@ group the party can only reach with a vehicle (`vehicle_groups`) is listed apart
 from the groups on foot, because the route crosses Dezolis on foot until the Ice
 Digger (`Cutscene_DarkForce1Defeated`, scene 48) hands it over. `--out` writes
 the JSON with the SHA-256 of every input; it is local evidence, not source data,
-and `oracle.sweep.capture_route` reads the same ledger classes to refuse a
+and `oracle.sweep.capture_checks` reads the same ledger classes to refuse a
 capture that carries an ability outside its lane.
 """
 from __future__ import annotations
@@ -439,7 +439,7 @@ def ledger_classes(text: str | None = None) -> dict[int, dict]:
 
 
 def classes(text: str | None = None) -> dict[int, str]:
-    """Ability id -> class, the one column `oracle.sweep.capture_route` needs."""
+    """Ability id -> class, the one column `oracle.sweep.capture_checks` needs."""
     return {ability: row["class"] for ability, row in ledger_classes(text).items()}
 
 

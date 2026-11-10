@@ -155,8 +155,18 @@ impl Runtime {
     /// to the palette as a scene panel's do.
     fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
         for signal in signals {
-            if let DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) = signal {
-                self.effects.cram.panel(*id, self.data.scene_palettes());
+            match signal {
+                DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {
+                    self.effects.cram.panel(*id, self.data.scene_palettes());
+                }
+                // The Elsydeon breaking: a tone to white and back, on every
+                // line, while the text waits (`TextFlow`'s hold).
+                DialogueSignal::Action(super::DialogueAction::ElsydeonBroken) => {
+                    self.effects
+                        .cram
+                        .tone_and_back(super::ELSYDEON_BROKEN_FRAMES, self.frames);
+                }
+                _ => {}
             }
         }
     }
@@ -323,6 +333,126 @@ mod tests {
         )
         .ok()?;
         Some(rt)
+    }
+
+    #[test]
+    fn blocking_palette_actions_keep_the_runner_and_cram_clocks_aligned() {
+        use crate::dialogue::{DialogueSignal, Opening, TextFlow};
+        use crate::pad::{Button, Pad};
+        use psiv_data::{ActionKind, Ctrl, DialogueEntry, Segment};
+
+        if !pack_dir().join("manifest.json").is_file() {
+            eprintln!("skipping: no runtime pack");
+            return;
+        }
+        let base = runtime().expect("the present runtime pack loads for the palette regression");
+        for phase in 0..4 {
+            for opening in [false, true] {
+                for controls in [false, true] {
+                    let mut rt = Runtime::new(
+                        base.data.clone(),
+                        0x010,
+                        psiv_core::Cell::new(31, 8),
+                        psiv_core::Direction::Down,
+                        StepFrames::default(),
+                    )
+                    .expect("runtime");
+                    let action = Segment::Control(Ctrl::Action {
+                        code: 0xF2,
+                        operands: vec![12],
+                        action: ActionKind::ElsydeonBroken,
+                        action_id: 12,
+                        sound: None,
+                        panel: None,
+                        flag: None,
+                    });
+                    let before = if opening { "" } else { "before" };
+                    let mut segments = vec![Segment::Text(before.into()), action.clone(), action];
+                    if controls {
+                        segments.push(Segment::Control(Ctrl::Wait {
+                            code: 0xFD,
+                            operands: vec![],
+                        }));
+                        segments.push(Segment::Text("after".into()));
+                    } else {
+                        segments.push(Segment::Text("after".into()));
+                    }
+                    let entry = DialogueEntry {
+                        id: 0,
+                        text: String::new(),
+                        segments,
+                        pages: vec![],
+                    };
+                    let Opening::Window(flow) = TextFlow::open_at(&entry, &rt.game) else {
+                        panic!("window");
+                    };
+                    rt.dialogue.start(Opening::Window(flow), "test");
+                    rt.dialogue.revealed = before.len();
+                    if !opening {
+                        rt.dialogue.open_cells = rt.dialogue.full_cells();
+                    }
+                    rt.frames = phase;
+                    let mut launches = Vec::new();
+                    let mut expected = rt.effects.cram.clone();
+                    // Real frame order: input, field palette clock, window dispatch.
+                    for frame in 0..=80 {
+                        let pad = if frame % 3 == 0 {
+                            Pad::NEUTRAL
+                        } else {
+                            Pad::new(Button::Speak)
+                        };
+                        rt.dialogue_frame(pad);
+                        rt.tick(psiv_core::Input::Neutral);
+                        expected.tick(rt.frames);
+                        let signals = rt.dialogue_tick();
+                        if signals.iter().any(|signal| {
+                            matches!(
+                                signal,
+                                DialogueSignal::Action(
+                                    crate::dialogue::DialogueAction::ElsydeonBroken
+                                )
+                            )
+                        }) {
+                            launches.push(frame);
+                            expected.tone_and_back(20, rt.frames);
+                        }
+                        assert_eq!(
+                            rt.cram().words,
+                            expected.view().words,
+                            "palette frame {frame}"
+                        );
+                        let view = rt.dialogue_view().expect("window stays open");
+                        if frame < 80 {
+                            assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
+                            assert_eq!(
+                                view.revealed,
+                                before.len(),
+                                "Speak preserves glyphs on frame {frame}"
+                            );
+                            assert_eq!(view.page_end, None);
+                            assert_eq!(view.choice, None);
+                        } else if controls {
+                            assert_eq!(view.page_end, Some(psiv_data::PageEnd::Wait));
+                        } else {
+                            assert_eq!(view.lines, [format!("{before}after")]);
+                        }
+                    }
+                    assert_eq!(launches, [0, 40]);
+                    // Control: once the blocking loops end, a fresh press
+                    // really advances or dismisses the finished page.
+                    for _ in 0..40 {
+                        rt.dialogue_frame(Pad::NEUTRAL);
+                        rt.dialogue_tick();
+                    }
+                    rt.dialogue_frame(Pad::new(Button::Speak));
+                    if controls {
+                        assert_eq!(rt.dialogue_view().expect("next page").lines, ["after"]);
+                    } else {
+                        assert!(!rt.dialogue_open());
+                    }
+                }
+            }
+        }
     }
 
     #[test]

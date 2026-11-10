@@ -21,6 +21,7 @@ fn cram(live: [u16; 64], saved: [u16; 64]) -> Cram {
         },
         saved,
         program: None,
+        queued: None,
     }
 }
 
@@ -527,4 +528,33 @@ fn scene_loads_read_the_pack() {
     let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None);
     assert_eq!(cram.saved(), &live);
     assert_eq!(cram.view().words, live);
+}
+
+#[test]
+fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
+    // `TextAction_ElsydeonBroken`: the buffer to the copy, twenty frames of
+    // `Pal_IncreaseTone`, twenty of `loc_58666`. From frame 0 the steps land
+    // on frames 0, 4, 8, 12, 16 (up) and 20, 24, 28, 32, 36 (back): a level-1
+    // word (`$222`) rises five levels to `$CCC` and returns.
+    let mut cram = cram(filled(0x0222), filled(0));
+    cram.tone_and_back(20, 0);
+    assert_eq!(
+        cram.saved(),
+        &filled(0x0222),
+        "the whole buffer is copied first"
+    );
+    assert_eq!(cram.view().words, filled(0x0444), "frame 0 steps at once");
+    for frame in 1..20 {
+        cram.tick(frame);
+    }
+    assert_eq!(cram.view().words, filled(0x0CCC), "the top, after frame 19");
+    cram.tick(20);
+    assert_eq!(cram.view().words, filled(0x0AAA), "frame 20 starts back");
+    for frame in 21..40 {
+        cram.tick(frame);
+    }
+    assert_eq!(cram.view().words, filled(0x0222), "back on the copy");
+    assert!(!cram.running(), "both loops are done");
+    cram.tick(40);
+    assert_eq!(cram.view().words, filled(0x0222));
 }

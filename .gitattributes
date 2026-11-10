@@ -22,3 +22,5 @@
 *.so binary
 *.dylib binary
 *.pck binary
+# Unified patches contain prefixed blank context lines and upstream CRLF bytes.
+oracle/patches/*.patch -text whitespace=-blank-at-eol

@@ -1,12 +1,15 @@
 //! `battle/art/`: the port of `psiv_tools/battle_art_pack.py` and the
 //! modules it calls, which own the reasons for each file (#216, slice 6e).
 //! This part writes the command-window and damage-number tiles, the Fusion
-//! frames, the enemy bodies and the character poses; the overlays, the attack
-//! sheets and the backgrounds follow.
+//! frames, the enemy bodies, their overlays and attack sheets, the character
+//! poses and the backgrounds.
 
+mod attacks;
+mod backgrounds;
 mod characters;
 pub(super) mod enemies;
 mod fusion;
+mod overlays;
 mod tiles;
 
 use std::path::Path;
@@ -84,59 +87,7 @@ pub fn enemy_palette(rom: &[u8], enemy_id: usize) -> Result<Vec<[u8; 3]>, PackEr
     Ok(colors)
 }
 
-/// `planes.compose`: `words` drawn row-major, `columns` across, each cell's
-/// pattern (counted from `art_vram_tile`) flipped as its word says and moved
-/// onto its CRAM line; pattern index 0 stays the backdrop. Returns the width,
-/// the height and the CRAM indices.
-pub fn compose(
-    words: &[u16],
-    columns: usize,
-    tiles: &[[u8; 64]],
-    art_vram_tile: usize,
-) -> Result<(usize, usize, Vec<u8>), PackError> {
-    if columns == 0 {
-        return Err(PackError(format!(
-            "A plane needs at least one column, got {columns}"
-        )));
-    }
-    if words.is_empty() {
-        return Err(PackError("Cannot compose a plane from zero cells".into()));
-    }
-    if !words.len().is_multiple_of(columns) {
-        return Err(PackError(format!(
-            "{} cells is not a whole number of {columns}-cell rows",
-            words.len()
-        )));
-    }
-    let (width, height) = (columns * 8, words.len() / columns * 8);
-    let mut pixels = vec![0u8; width * height];
-    for (index, &word) in words.iter().enumerate() {
-        let tile = usize::from(word & 0x07FF);
-        let art = tile
-            .checked_sub(art_vram_tile)
-            .and_then(|i| tiles.get(i))
-            .ok_or_else(|| {
-                PackError(format!(
-                    "Cell {index} references VRAM tile 0x{tile:03X}, which is art index {} of a \
-                     {}-pattern blob loaded at VRAM tile 0x{art_vram_tile:03X}",
-                    tile as i64 - art_vram_tile as i64,
-                    tiles.len()
-                ))
-            })?;
-        let (h_flip, v_flip) = (word & 0x0800 != 0, word & 0x1000 != 0);
-        let base = ((word >> 13) & 3) as u8 * 16;
-        let (ox, oy) = ((index % columns) * 8, (index / columns) * 8);
-        for y in 0..8 {
-            for x in 0..8 {
-                let sx = if h_flip { 7 - x } else { x };
-                let sy = if v_flip { 7 - y } else { y };
-                let p = art[sy * 8 + sx];
-                pixels[(oy + y) * width + ox + x] = if p == 0 { 0 } else { base + p };
-            }
-        }
-    }
-    Ok((width, height, pixels))
-}
+pub use crate::gfx::compose;
 
 /// Write a file after reading it back as the type the game loads.
 fn write_checked<T: serde::de::DeserializeOwned>(
@@ -152,9 +103,12 @@ fn write_checked<T: serde::de::DeserializeOwned>(
 }
 
 /// `battle/art/command_ui.json`, `battle/art/damage_digits.json`,
-/// `battle/art/fusion.json`, `battle/art/enemies.json` and
-/// `battle/art/characters.json`, each index with its PNGs.
-pub fn build(rom: &[u8], root: &Path) -> Result<(), PackError> {
+/// `battle/art/fusion.json`, `battle/art/enemies.json`,
+/// `battle/art/characters.json`, `battle/art/backgrounds.json`,
+/// `battle/art/enemy_overlays.json` and `battle/art/enemy_attacks.json`
+/// (drawn from `enemy_animations`, the file this pack writes beside it), each
+/// index with its PNGs.
+pub fn build(rom: &[u8], root: &Path, enemy_animations: &Json) -> Result<(), PackError> {
     write_checked::<psiv_data::CommandUiArt>(
         root,
         "battle/art/command_ui.json",
@@ -175,6 +129,21 @@ pub fn build(rom: &[u8], root: &Path) -> Result<(), PackError> {
         root,
         "battle/art/characters.json",
         &characters::write(rom, root)?,
+    )?;
+    crate::write_json(
+        root,
+        "battle/art/backgrounds.json",
+        &backgrounds::write(rom, root)?,
+    )?;
+    crate::write_json(
+        root,
+        "battle/art/enemy_overlays.json",
+        &overlays::write(rom, root)?,
+    )?;
+    crate::write_json(
+        root,
+        "battle/art/enemy_attacks.json",
+        &attacks::write(rom, root, enemy_animations)?,
     )
     .map(drop)
 }

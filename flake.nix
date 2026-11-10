@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=4f941f7e6d966f6ec18578eea8bab0a804b89e0a";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=c9099069c5ac7e293064e237dd77f37a54d9b559";
 
   outputs = { self, burrow }:
     let
@@ -266,20 +266,34 @@
           cd tree
           git init -q
           export HOME=$TMPDIR
-          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_verify_native_route tests.test_tape_observations tests.test_native_presentations tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap
+          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_verify_native_route tests.test_tape_observations tests.test_native_presentations tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap tests.test_extract_stamp
           touch $out
         '';
-        # The battle fixture extractor's tests (every
+        # Oracle fixture extraction and reload timing tests (every
         # tests/test_oracle_battle_fixture*.py), which read fake logs and
         # the tracked fixtures and need no local inputs. They run here so a
         # change to the extractor can show its new tests fail on its base
         # (burrow's negative), which a check that only reads them can't.
-        # Found by name, like gate-tests.
-        oracle-fixture-tests = pkgs.runCommand "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        # Found by name, like gate-tests. runCommandCC supplies the compiler
+        # for the actual observer and host transport probes.
+        oracle-fixture-tests = pkgs.runCommandCC "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           export HOME=$TMPDIR
           python3 -m unittest $(printf '%s\n' tests/test_oracle_battle_fixture*.py | sed 's/\.py$//; s#/#.#g')
+          touch $out
+        '';
+        # The certify pair table's tests (every tests/test_certify*.py),
+        # which read the tracked recipes and tapes and need no local inputs.
+        # They run here so a PR that adds or changes a certified pair can
+        # show its test edit fails on its base (burrow's negative), which a
+        # suite no check runs can't. Found by name, like gate-tests.
+        certify-tests = pkgs.runCommand "psiv-certify-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+          cp -r --no-preserve=mode ${self} tree
+          cd tree
+          git init -q
+          export HOME=$TMPDIR
+          python3 -m unittest $(printf '%s\n' tests/test_certify*.py | sed 's/\.py$//; s#/#.#g')
           touch $out
         '';
         # The 1,000-line rule (tools/size_guard.py).

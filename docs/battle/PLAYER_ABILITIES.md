@@ -19,7 +19,7 @@ places an unrelated event at the same id and rejects duplicate battle objects.
 Definitions and signed equipment bonuses come from the ignored decoded pack;
 no new runtime ability table is copied into source.
 
-`oracle.sweep.player_capture` calls `oracle.force --party-script` for explicit
+`oracle.sweep.forced_cases` calls `oracle.force --party-script` for explicit
 cases. Party substitutions and resource/status fixtures are declared RAM
 patches; they are isolated battles, not an earned campaign route. Replay start
 records come from a hashed stock-host RAM dump, checked against live log cells.
@@ -95,7 +95,7 @@ writes when no victory boundary is observed.
 
 The owning regression families are `battle::player_tests`,
 `suites::player_abilities`, `session::battle::player_tests`,
-`tests.test_player_abilities` and `tests.test_oracle_party_fixture`.
+`tests.test_player_abilities` and `tests.test_oracle_battle_fixture_party`.
 Existing field offerings remain unchanged; `suites::camp_abilities` covers
 their learned order, confirmation, costs, caster stat, human/android/dead
 eligibility and RNG consumption. No new field surface is introduced.

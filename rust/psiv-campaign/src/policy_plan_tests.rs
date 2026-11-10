@@ -162,6 +162,7 @@ fn board(
     abilities: Vec<Ability>,
 ) -> Board<'static> {
     Board {
+        roster: None,
         data: &DATA,
         actor: 1,
         party,
@@ -413,6 +414,7 @@ fn the_round_book_spreads_damage_over_the_enemies() {
     let mut second = renumbered(chaz(), 3);
     second.fighter.name = "Gryz".into();
     let mut round = Board {
+        roster: None,
         data: &DATA,
         actor: 1,
         party: vec![chaz(), second],
@@ -457,6 +459,7 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
     weak.fighter.name = "Hahn".into();
     let enemies = vec![foe(200)];
     let mut round = Board {
+        roster: None,
         data: &DATA,
         actor: 1,
         party: vec![chaz(), hurt.clone(), weak.clone()],
@@ -480,6 +483,7 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
     );
 
     let mut alone = Board {
+        roster: None,
         data: &DATA,
         actor: 1,
         party: vec![chaz(), hurt, weak],
@@ -549,6 +553,7 @@ fn a_round_that_only_probably_kills_still_cures() {
     let mut gryz = renumbered(chaz(), 3);
     gryz.fighter.name = "Gryz".into();
     let round = |enemy_hp| Board {
+        roster: None,
         data: &DATA,
         actor: 1,
         party: vec![chaz(), hurt.clone(), gryz.clone()],
@@ -570,4 +575,90 @@ fn a_round_that_only_probably_kills_still_cures() {
     );
     let chosen = scripted().decide(&round(2 * least));
     assert_eq!(tech_id(&chosen), Some(1), "a certain kill: {chosen:?}");
+}
+
+#[test]
+fn magic_defence_is_valued_against_damage_requests_and_is_not_recast() {
+    use psiv_core::battle::{EnemyRecord, EnemySkill, Roster, Side};
+    for (magic, conditional, buffed, resistance, wants_buff) in [
+        (true, false, false, 7, true),
+        (false, false, false, 7, false),
+        (false, true, false, 7, true),
+        (true, false, true, 7, false),
+        (true, false, false, 6, false),
+    ] {
+        let enemy = EnemyRecord {
+            id: 123,
+            name: "constructed caster".into(),
+            hp: 2000,
+            strength: 40,
+            mental: 100,
+            agility: 20,
+            dexterity: 20,
+            attack: 40,
+            defence: 0,
+            mental_defence: 0,
+            attack_element: 1,
+            attack_status: 0,
+            properties: [2; ELEMENT_SLOTS],
+            regular_abilities: if magic { [0x35; 8] } else { [0; 8] },
+            condition_ids: if conditional { [0x12, 0, 0, 0] } else { [0; 4] },
+            conditional_abilities: [0x5C, 0, 0, 0],
+            experience: 0,
+            meseta: 0,
+        };
+        let data = DATA
+            .clone()
+            .with_enemies([enemy])
+            .with_enemy_skills([0x35, 0x5C].map(|id| EnemySkill {
+                id,
+                name: "constructed magic".into(),
+                effect: 1,
+                power_stat: 0x82,
+                target: 9,
+                power: 64,
+                resistance,
+                element: 3,
+            }));
+        let mut member = chaz();
+        if buffed {
+            member.fighter.stats.mental_defence.battle = 120;
+        }
+        let mut roster = Roster::new();
+        roster.add_party_member(0, "Chaz".into(), member.fighter.stats.clone());
+        for slot in 1..=if conditional { 3 } else { 1 } {
+            roster.add_enemy(slot, data.enemy(123).unwrap());
+        }
+        let enemies = roster
+            .living(Side::Enemy)
+            .map(|f| Combatant::from_fighter(f, data.enemy(f.stats.enemy_id).ok()))
+            .collect();
+        let buff = Ability {
+            source: Source::Skill(60),
+            effect: 11,
+            range: 9,
+            power_stat: 100,
+            power: 0,
+            resistance: 0,
+            element: 0,
+            single: false,
+            tp_cost: 0,
+            targets: vec![1],
+        };
+        let board = Board {
+            roster: Some(&roster),
+            data: &data,
+            actor: 1,
+            party: vec![member],
+            enemies,
+            kits: vec![kit(1, vec![buff])],
+            stock: vec![],
+        };
+        let chosen = scripted().decide(&board);
+        assert_eq!(
+            matches!(chosen, Intent::Skill { id: 60, .. }),
+            wants_buff,
+            "magic={magic} conditional={conditional} buffed={buffed}: {chosen:?}"
+        );
+    }
 }

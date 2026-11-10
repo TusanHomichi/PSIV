@@ -30,7 +30,7 @@ some scenes set bit 7) are already in it when bit 2 joins them.
 | music | `:107536-107547` | a map with music, bit 0 **clear** and a raw id other than `Saved_Sound_Index` asks `AdjustMusicIDs`; a zero answer writes the saved word and sets `$FFFFECED` | `write_map_music` |
 | party placement | `loc_53546`, `:110805-110823` | bit 2: `rts`. The party is not re-placed. | not run |
 | `LoadMapObjects` | `:110924-110930` | bit 2: skipped. **No object is reloaded**; the live objects (a scene's despawns, moves and `$14` dialogue ids) stay. | `rewalk_map_retaining_objects` keeps the live `Npc`s and their dialogue ids |
-| `LoadTreasureChests` | `:110966-110983` | bit 2: skipped; lids stay | `attach_chests` keeps the live lids |
+| `LoadTreasureChests` | `:110966-110983` | chest art is decompressed before the bit-2 test; object creation is skipped, so lids stay | `attach_chests` keeps the live lids |
 | `LoadTileAnimations` | `:111029` | runs (adds entries to the retained memory) | not modelled |
 | `MapDataManager` | in the load | runs again over the retained objects | `effects::evaluate` |
 | camera | `loc_53854`, `:111049` | zeroes all four cameras and re-seats them on `Character_1` | `camera_for_record` on the leader (or the vehicle) |
@@ -54,7 +54,7 @@ chunk walk, `MapDataManager`) that the CPU spends between `VInt_Prepare` waits,
 so they differ per map: **34 to 92 rows** across the pack's 361 maps. They are measured, not
 modelled.
 
-**Method.** `tests/reload_frames.py` runs the oracle host over tape 35's field
+**Method.** `oracle/reload_frames.py` runs the oracle host over tape 35's field
 prefix (the fixture `tools/certify.py` `TAPE_35` pins). Frame 7000 loads the map
 (mode 8); frame 7200 puts the field in Events with `Event_Index = $8000`, whose
 `Event_NoEvent` is an immediate return with zero in `d0` (`CutscenePtrs[0]`,
@@ -71,7 +71,7 @@ are the reload, `Pal_FadeIn` included. Two runs per map:
 
 | Capture | Map | Organic | Fixture |
 |---|---|---:|---|
-| tape 07, `Cutscene_PiataPrincipal` end (rows 10692-10746, control 10747) | `$14` | 55 | A 54, B 55: the scene clears the saved word, so it takes branch B |
+| tape 07, `Cutscene_PiataPrincipal` end (1-based frames 10693-10747, control 10748) | `$14` | 55 | A 54, B 55: the scene clears the saved word, so it takes branch B |
 | tape 35, Mota to Zelan landing (`docs/scenes/41_InsideSpaceship.md`) | `$18D` | 36 + 16 | A 52, B 53 |
 | tape 35, Zelan to Mota landing | `$BF` | 26 + 16 | A 42, B 43 |
 
@@ -80,7 +80,7 @@ Both landings took the music branch for real (`Saved_Sound_Index` goes `$9B` to
 with two extra RAM-map rows over `oracle/ship_flight.py`'s two legs), and still spent 52 and 42: the extra frame
 was absorbed by the load's alignment there, while the principal's own load
 spent it. The table therefore pins those three maps' music column to the
-organic counts (`ORGANIC_MUSIC_TAKEN` in `tests/reload_frames.py`: 55, 52, 42).
+organic counts (`ORGANIC_MUSIC_TAKEN` in `oracle/reload_frames.py`: 55, 52, 42).
 Whether a load absorbs the frame depends on the load's alignment, and the
 fixture shows it on 347 of 361 maps, both landings included, where the flights
 did not spend it: the music column elsewhere is the fixture's and good to a
@@ -88,6 +88,16 @@ frame.
 
 The fixture also shows bit 7 removing exactly the 16 fade frames (map `$14`,
 54 to 38) and bit 0 removing the music frame (55 to 54).
+
+**Evidence retention.** Each `run_one` attempt now has its own directory in
+the requested output root, including retries at other cells and first-load
+proxies. It keeps `frames.csv`, `input.tape`, `stdout.log` and `receipt.json`.
+The receipt records the command, working directory, exit status, elapsed time
+and SHA-256 of the ROM, core, host, RAM map, tape and pack manifest. A failed
+host's stdout and receipt also remain. These are forced fixtures; retaining
+them does not make them organic captures. The oracle test checks their actual
+A/B counts (54/55, 52/53 and 42/43), independently of the table's organic
+overrides. It does not replay tape 07's end or tape 35's landings.
 
 **Coverage.** All 361 pack maps have a row. 330 were measured with the
 cutscene firing at the fixture's own load cell; 14 needed another cell (the
@@ -119,6 +129,131 @@ landings measured. `SceneEnded` comes on the last of them.
   name's draw may differ.
 - `LoadTileAnimations` re-adding entries and `Sound_StopAll`'s effect on audio
   are not modelled. The shell plays map music from its own state.
+
+### Inputs to an exact timing model
+
+[#95](https://github.com/TusanHomichi/PSIV/issues/95) tracks replacing the
+approximate rows. Object/chest counts and map-data lengths alone do not
+determine the load's elapsed frames. The following work must be accounted for
+before a formula can certify a row:
+
+- `GameMode_LoadFieldMap` (`$51790`, `:107505`) retains object and animation
+  memory with bit 2 set. `LoadMapObjects` (`$536C0`, `:110924`) scans past
+  object records, while `LoadTreasureChests` (`$5373E`, `:110966`) still
+  decompresses both chest art streams before skipping creation.
+- `loc_51A7A` adds vehicle art decompression when `Vehicle_Index` is nonzero.
+  Nemesis (`:84605`) and Kosinski (`:85262`) execute content-dependent paths;
+  their decoded sizes alone are insufficient.
+- `MapDataManager` (`:107815`) branches on story state; `LoadTileAnimations`
+  (`:111029`) scans retained allocation slots. `Field_UpdateObjects`
+  (`:88893`) runs the retained objects through `Field_RunObjects` (`:89477`).
+  Camera position also selects branches in `RefreshPlaneFG/BG`
+  (`:111815`, `:111854`).
+- `VInt_Prepare` (`:85745`) waits for the next hardware VBlank, rather than
+  consuming a fixed duration. Its palette comparison and `VInt` (`:549`)
+  DMA, Z80 and sound work affect timing. A cycle model needs the CPU/VDP phase
+  entering the load as well as the work between waits.
+
+Kosinski's instruction-work component is derived by the
+[existing Rust decoder](../../rust/psiv-pack/src/decode/kosinski.rs):
+`decompress_with_work` counts the executed token paths while producing the
+bytes, and `Work::cpu_cycles` owns the cited US instruction-cost formula.
+The byte-only API uses the same decoding path. This is CPU clock work,
+including setup and RTS but excluding the caller's JSR, interrupts, refresh
+and hardware stalls; multiplying it by seven does not by itself give the
+load's elapsed master cycles.
+
+Isolated executions of the unchanged retail routine (`$41BEA..$41C89`) with
+interrupts masked verify that distinction. Two literals producing `ab` cost
+380 CPU clocks, observed as 2,702 master cycles including three 14-cycle
+refresh delays. A full-short match and an extended match producing the same
+four `x` bytes cost 588 and 632 CPU clocks respectively. Fourteen literals
+whose terminator consumes descriptor bit 16 cost 1,216 clocks: the immediate
+descriptor refill is part of the work even though that bit ends the stream.
+These are decompressor-component fixtures, not organic campaign captures or
+an all-map elapsed-frame formula.
+
+Nemesis's [Rust decoder](../../rust/psiv-pack/src/decode/nemesis.rs) likewise
+collects instruction work along its byte-decoding path. Its `Work::cpu_cycles`
+distinguishes the RAM and VDP entry points, code-table construction, variable
+shift counts, lookup and inline tokens, refills, row writes and XOR mode.
+The final row returns immediately, including when it cuts a repeat short;
+unwritten pixels do not contribute work. The result excludes caller JSR,
+interrupts, refresh and VDP/bus stalls. It returns no timing result for a
+wrapped zero row count: the byte decoder's existing empty-output behavior
+does not reproduce the retail row-counter underflow. Neither component yet
+provides an elapsed-frame count for the loader.
+
+The [record decompression work](../../rust/psiv-pack/src/maps/load_work.rs)
+composition selects these decoders from the existing parsed map record in
+loader order: tilesets, sprite art, sprite data, retained vehicle art, chunks,
+both chest streams, local layouts and dialogue. It keeps each call's source,
+destination, consumed/output lengths and work, including repeated calls to
+the same source. Tileset transfers are annotated separately from their RAM
+decompression. Chest art selection shares the renderer's source selection;
+the vehicle source comes from the retail pointer table.
+
+This covers the record-driven decompressor calls, not the whole load.
+Overworld layout pages are raw copies, and extra art loaded by map-manager
+effects or live objects is outside this composition. Caller loops, DMA,
+interrupts, refresh, palette waits and the return-to-load interval remain
+separate inputs. Summing intrinsic decompressor clocks does not certify any
+map's elapsed frames or remove a proxy row.
+
+The preceding scene's full instruction history need not determine that entry
+phase. On the non-battle return path, `FieldRoutine_Cutscene` ends with
+`jmp VInt_Prepare` (`:120758`); `MainGameLoop` (`:411-416`) dispatches the load
+after that wait. This is a synchronization boundary. The interrupt's remaining
+work still varies: `VInt` processes queued DMA and calls `JumpTo_UpdateSound`
+before `rte` (`:613-635`). Palette/DMA work and the sound driver's current
+commands, tempo and tracks must be modelled, or bounded tightly enough to
+prove they cannot move the load into another frame bucket.
+
+The oracle's [instruction-boundary timing trace](../../oracle/CAPTURE.md#instruction-boundary-timing)
+can observe that boundary and the stages of the load without replacing it with
+a forced first load. Watching the load entry, decompressor entries, DMA/wait
+entries and fade entry separates elapsed work into measured segments. Those
+observations support deriving a formula; a trace or three matching totals by
+itself does not certify a formula for all maps.
+
+The counted mode-8 span also includes work **before** `GameMode_LoadFieldMap`
+starts. The three organic returns distinguish these boundaries (tape frames
+are 1-based; cycles are the oracle's frame-relative master cycles):
+
+| Capture | After mode-8 write, `$5A558` | Before jump to wait, `$5A57A` | Load entry, `$51790` |
+|---|---|---|---|
+| tape 07, principal | 10693 / 895708 | 10694 / 47541 | 10695 / 56193 |
+| tape 35, Mota to Zelan | 9086 / 426390 | 9086 / 427818 | 9087 / 72343 |
+| tape 35, Zelan to Mota | 8831 / 185224 | 8831 / 186652 | 8832 / 99515 |
+
+The pinned core's NTSC frame is 262 lines of 3,420 master cycles, or 896,040.
+The principal's mode write finishes only 332 cycles before that frame ends;
+VInt interrupts the short tail **before** it reaches `VInt_Prepare`. The wait
+is armed in the next frame and dispatches the load in the frame after that.
+The flights arm the wait in their mode-write frame. Thus the principal has
+two logged mode-8 rows before load entry, the flights one. A formula for the
+table's metric must include this return-to-load interval, not only work inside
+the load routine. The observed totals remain 55, 52 and 42.
+
+For interrupt-body observations, the retail VInt sound call is at `$632`
+(`jsr $D0000`), its register restore at `$638`, and its common `rte` at `$63C`.
+Watching these with the entry at `$524` partitions the handler. The entry-to-
+RTE interval alone excludes exception entry and RTE execution overhead, so
+subtracting it from a stage does not yet give intrinsic decompression cost.
+
+Even the fade's fixed 16 is a property of the measured palettes.
+`Pal_FadeIn` (`$421D4`, `:85897-85947`) clears the current palette and increments
+each differing nibble toward the target. For maximum target nibble `M`, it
+calls `VInt_Prepare` **`M + 2` times**: one in `VDP_EnableDisplay`, `M`
+incrementing iterations and one unchanged iteration. Turning those waits into
+elapsed frames additionally requires that the work between waits fits before
+the next VBlank. The measured 16 corresponds to `M = 14`.
+
+The addresses above were checked against the US retail ROM with SHA-256
+`511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`;
+fork-only scene rewrites do not establish these timing rules. Neither a new
+forced fixture nor agreement with the three table overrides removes the
+17 proxies or certifies the other maps' organic timing.
 
 ## The port
 

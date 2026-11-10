@@ -24,7 +24,10 @@ use psiv_runtime::DialogueView;
 
 /// The Genesis's visible frame. The pack states window positions in it, so a
 /// wider viewport keeps the box's margins rather than its coordinates.
-const SCREEN: (f32, f32) = (320.0, 224.0);
+const SCREEN: (f32, f32) = (
+    crate::retail_surface::SURFACE.x,
+    crate::retail_surface::SURFACE.y,
+);
 
 /// `TextBufferToPlane` writes the 32x4 text map at screen tile (4,21).
 const RETAIL_TEXT_ORIGIN: Vector2 = Vector2::new(8.0, 8.0);
@@ -299,20 +302,15 @@ impl DialogueWindow {
             return;
         };
         let margin = self.view.as_ref().map_or(0.0, |view| view.bottom_margin);
-        let viewport = self.base().get_viewport_rect();
-        let canvas = self.base().get_canvas_transform().affine_inverse();
-        let top_left = canvas * viewport.position;
-        let bottom_right = canvas * (viewport.position + viewport.size);
-        let visible = bottom_right - top_left;
-        let surface_top = top_left.y + (visible.y - SCREEN.1) / 2.0;
-        // The window plane carries the same one-pixel horizontal origin
-        // residue the scene panels do (oracle receipt: the settled
-        // MeetingRika window matches at a +1 X shift, rows 176..208
-        // dropping 62→13 RMSE; Y needs none).
-        let position = Vector2::new(
-            (top_left.x + (visible.x - size.x) / 2.0).floor() + 1.0,
-            (surface_top + SCREEN.1 - margin - size.y).floor(),
+        let origin = crate::retail_surface::surface_origin(
+            self.base().get_canvas_transform().affine_inverse(),
+            self.base().get_viewport_rect(),
         );
+        let position = origin
+            + Vector2::new(
+                ((SCREEN.0 - size.x) / 2.0).floor(),
+                (SCREEN.1 - margin - size.y).floor(),
+            );
         self.base_mut().set_position(position);
     }
 
@@ -407,11 +405,8 @@ impl DialogueWindow {
             {
                 // The portrait art covers its own frame completely: the PNGs
                 // carry the border, so no chrome is drawn under them.
-                // The portrait rides the window plane: the box's own +1 X
-                // origin already applies through the node position, and
-                // adding the scene-plane (1,1) residue on top double-shifts
-                // it (frame-7250 receipt: correlation wants exactly (-1,-1)
-                // back).
+                // The portrait rides the window plane: the node position
+                // places it with the box.
                 quads.push(Quad {
                     texture: texture.clone(),
                     dest: Rect2::new(

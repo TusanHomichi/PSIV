@@ -97,10 +97,10 @@ pub fn bounds(records: &[Record], rom_size: usize) -> BTreeMap<usize, usize> {
 /// Where one blob landed in the bank (`_art_record`'s source, as the index
 /// keeps it).
 pub struct Source {
-    field: usize,
-    offset: usize,
-    tile_count: u16,
-    first_pattern: usize,
+    pub field: usize,
+    pub offset: usize,
+    pub tile_count: u16,
+    pub first_pattern: usize,
 }
 
 /// `build_tile_bank`: the three blobs in `BANK_ORDER`, each checked against
@@ -111,9 +111,27 @@ pub fn bank(
     record: &Record,
     bounds: &BTreeMap<usize, usize>,
 ) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
+    bank_order(rom, record, bounds, &BANK_ORDER)
+}
+
+/// loc_7BFA uploads Art #1 at the fighter base copied by loc_12618.
+pub fn attack_bank(
+    rom: &[u8],
+    record: &Record,
+    bounds: &BTreeMap<usize, usize>,
+) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
+    bank_order(rom, record, bounds, &[0])
+}
+
+fn bank_order(
+    rom: &[u8],
+    record: &Record,
+    bounds: &BTreeMap<usize, usize>,
+    order: &[usize],
+) -> Result<(Vec<[u8; 64]>, Vec<Source>), PackError> {
     let mut tiles = Vec::new();
     let mut sources: Vec<Option<Source>> = vec![None, None, None];
-    for field in BANK_ORDER {
+    for &field in order {
         let offset = record.art[field];
         let label = format!("ArtNem_{}Battle{}", record.symbol, field + 1);
         let header = nemesis::read_header(rom, offset)?;
@@ -141,17 +159,11 @@ pub fn bank(
         });
         tiles.extend(gfx::decode_tiles(&data)?);
     }
-    Ok((
-        tiles,
-        sources
-            .into_iter()
-            .map(|s| s.expect("every field"))
-            .collect(),
-    ))
+    Ok((tiles, sources.into_iter().flatten().collect()))
 }
 
 /// `enemy_mapping`: the body's pattern-name words, its format and size.
-fn mapping(rom: &[u8], record: &Record) -> Result<(Vec<u16>, &'static str, usize), PackError> {
+pub fn mapping(rom: &[u8], record: &Record) -> Result<(Vec<u16>, &'static str, usize), PackError> {
     let columns = 2 * usize::from(record.half_width);
     let expected = columns * usize::from(record.height);
     let (words, format) = if RAW_MAPPING_IDS.contains(&record.id) {

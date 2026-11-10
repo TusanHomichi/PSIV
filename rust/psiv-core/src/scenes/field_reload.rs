@@ -8,7 +8,7 @@
 //! constant. [`field_reload_rows`] is the measured count per map: the rows
 //! the oracle log spends in game mode 8, `Pal_FadeIn`'s 16 included.
 //!
-//! The values come from `python3 -m tests.reload_frames` (tape 35's field
+//! The values come from `python3 -m oracle.reload_frames` (tape 35's field
 //! prefix with a map patch, `Event_Index = $8000` firing `Event_NoEvent`).
 //! Each row carries two counts: the saved music word equal to the map's own
 //! (the load's music branch not taken) and different (taken: one more
@@ -20,7 +20,7 @@
 
 /// `(map id, rows, rows with the music branch taken)`, sorted by map id.
 static ROWS: &[(u16, u16, u16)] = &[
-    // BEGIN GENERATED: python3 -m tests.reload_frames --write-table <this file>
+    // BEGIN GENERATED: python3 -m oracle.reload_frames --write-table <this file>
     (0x000, 60, 61),
     (0x001, 52, 53),
     (0x002, 41, 42),

@@ -109,8 +109,8 @@ record is copied into new committed fixtures.
 
 Captures use `python3 -m oracle.force`, `--require-ability`, durable HP, a
 bounded round cap, and repeated byte-identical logs/traces. Only an ability
-**actually used in an extracted round** counts. `oracle.sweep.capture_route`
-rejects turns outside the abilities a capture is for. A forced preview's measured
+**actually used in an extracted round** counts. `oracle.sweep.forced_cases`
+uses the case’s explicit `allowed` set to reject turns outside its scope. A forced preview's measured
 load frame calibrates the durable HP patch.
 
 The 16 captures are committed fixtures under

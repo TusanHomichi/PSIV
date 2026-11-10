@@ -73,7 +73,7 @@ GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibilit
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
 SCENE = {"PSIV_DEBUG_AUTOCLOSE_SCENE": "1", "PSIV_DEBUG_RETAIL_PACE": "1"}
 
-# Tape 28 enters MeetingRika by explicit fixture patches (oracle/README.md,
+# Tape 28 enters MeetingRika by explicit fixture patches (oracle/CAPTURE.md,
 # "Deterministic scene fixtures").
 TAPE_28 = {
     "tape": "oracle/tapes/28_meeting_rika_retail_probe.tape",
@@ -106,7 +106,7 @@ TAPE_32 = {
 
 # The same tape's command-idle frame with three status bytes patched in
 # `Character_Stats` one frame earlier: Chaz asleep ($08), Alys paralyzed ($02),
-# Hahn tech-sealed ($10). The patches are fixture operations (oracle/README.md,
+# Hahn tech-sealed ($10). The patches are fixture operations (oracle/CAPTURE.md,
 # "Deterministic scene fixtures"), not tape input.
 TAPE_32_STATUS = {
     "tape": "oracle/tapes/32_battle_command_windows.tape",
@@ -206,11 +206,47 @@ TAPE_36_CLOSE = {
     "region": [56, 168, 208, 40],
 }
 
+# Tape 42 is tape 28's input schedule with Event_Recovery ($21) started by
+# fixture at frame 7200 on map $13, where tape 28 leaves Chaz. Its three
+# flashes (`loc_6D3BA` brightens, `loc_6D40A` restores, sixteen frames each)
+# step every fourth frame from 7202: the peaks hold 7214, 7246 and 7278.
+TAPE_42 = {
+    "tape": "oracle/tapes/42_recovery_flash.tape",
+    "patches": ["7200:FFFFECA8:0021", "7200:FFFFEC20:000C"],
+    "frames": [7246],
+    # Rows 72 down, all but the first column: the map's wandering NPC above
+    # stands where its own walk left it, which neither fixture pins, and the
+    # native field's first column is black (#409).
+    "region": [1, 72, 319, 152],
+}
+
 # Then the town list's own close: 8365 is its second step, 10 cells wide at
 # column 20, the field uncovered on both sides.
 TAPE_36_CLOSE_TOWNS = {
     **TAPE_36,
     "frames": [8365],
+}
+
+# Tape 38 is tape 28's input schedule with Cutscene_Ending ($8021) started by
+# fixture at frame 7200 (Event_Index, then the field routine to Events), Chaz
+# alone on map $13 where tape 28 leaves him. C taps page through the first
+# dialogue: frames 8930-8967 are byte-identical, the scene's panels and its
+# window settled before the Elsydeon break whitens the screen.
+TAPE_38 = {
+    "tape": "oracle/tapes/38_ending_elsydeon.tape",
+    "patches": ["7200:FFFFECA8:8021", "7200:FFFFEC20:000C"],
+    "frames": [8930],
+}
+
+# The same tape at the Elsydeon break's peak: `TextAction_ElsydeonBroken`
+# (`$06A76C`) tones every line up a `$222` step each fourth frame from 8968
+# and back from 8988; 8984-8987 hold the brightest, the backdrop at `$AAA`.
+TAPE_38_TONE = {
+    **TAPE_38,
+    "frames": [8984],
+    # All but the frame's top row and left column: the native field leaves
+    # the first device pixel of each black (#409), as for the barrier pair.
+    "region": [1, 1, 319, 223],
 }
 
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
@@ -232,6 +268,16 @@ PAIRS = [
     ("anger-tower-barrier", {"PSIV_DEBUG_EVENT": "0x99", **SCENE}, 108,
      "build/certify/oracle/anger-tower-barrier/frame_7384.png",
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
+    # The ending's panels and window over map $13's camera, which is not
+    # (0,0): the pair that places the scene layers at any camera position.
+    ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
+     "build/certify/oracle/ending-elsydeon/frame_8930.png",
+     "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
+    # The break's tone at its peak: the native tone runs ticks 622-657 in the
+    # cartridge's 4-frame steps, 638-641 the brightest.
+    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
+     "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
+     "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),
@@ -319,6 +365,11 @@ PAIRS = [
     ("teleport-close-towns", {"PSIV_DEBUG_CAMP": "telepipe-close"}, 40,
      "build/certify/oracle/teleport-close-towns/frame_8365.png",
      "28524733090391752cf562879b1fc59abfe4556ee94369a415edef289f7965c3", TAPE_36_CLOSE_TOWNS),
+    # The recovery tile's second flash at its peak: the native flashes run
+    # from tick 30 in the cartridge's 4-frame steps, 78-81 the second peak.
+    ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
+     "build/certify/oracle/recovery-flash/frame_7246.png",
+     "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

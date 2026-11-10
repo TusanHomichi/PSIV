@@ -74,8 +74,13 @@ shares the route uncaptured.
   wins. `Roster::highest_party_agility` took the unsigned maximum; the AIRSLASH
   capture's party (agility 255) opened with an ambush the port called a
   preemptive strike.
-- **`EnemyAI_ThreeXeAThouls` clears bit 4 before it reads the slots**
-  (`ps4.asm:20366-20371`), so a failed scan still clears it.
+- **THNDRBLAST reacts to multi-target magic while the trio stands.**
+  `EnemyAI_ThreeXeAThouls` first tests the acting enemy's reaction bit 4
+  (`ps4.asm:20365-20368`); three living Xe-A-Thouls alone do not trigger it.
+  It clears that bit on all three slots before checking their occupants
+  (`ps4.asm:20369-20397`), so a failed scan still clears it. Breaking the trio
+  prevents the reaction; merely increasing damage spread across all three
+  can provoke it again before any falls.
 - **The caster's seal.** Sixteen objects test `btst #4, $16(a1)` on the caster and
   end the turn without their effect when it is set (`ps4.asm:38047`, `38228`,
   `38389`, `39984`, `40129`, `41375`, `44729`, `45257`, `46636`, `46778`, `54387`,
@@ -123,8 +128,7 @@ HakenLeft won the race (`$3B`).
 
 `python3 -m oracle.sweep.air_castle --capture --extract --work <dir>` reproduces
 the set (one case at a time, `--only NAME`); its cases are listed with `--list`.
-Party-script cases declare their party fixture (`oracle.sweep.player_capture`'s
-patches) and use a `--prepare-script` scout. Every capture ran twice
+Party-script cases declare their party fixture (`oracle.sweep.party_fixture.patches`) and use a `--prepare-script` scout. Every capture ran twice
 byte-identical and passed `python3 -m oracle.rng_trace check`; the fixtures are in
 `rust/psiv-core/src/battle/replay_fixtures/air_castle/` and replay exactly
 through `every_fixture_replays_as_recorded`, with `divergences.json` still empty.

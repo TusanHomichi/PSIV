@@ -1,5 +1,5 @@
 """End-of-round state observed independently of transient hit/damage scratch."""
-from .observations import HP_COLUMNS, victory_declared
+from .observations import HP_COLUMNS, PARTY_IDS, victory_declared
 
 
 def round_end_frame(log, first, last):
@@ -26,7 +26,7 @@ def round_state(log, frame, occupied):
     if not log.has("menu_party_0"):
         return None
     values = []
-    names = {1: "alys", 2: "chaz", 3: "hahn"}
+    names = {index: prefix for prefix, index in PARTY_IDS}
     for fighter in sorted(occupied):
         column = f"menu_object_{fighter}"
         if fighter > 5 and log.has(column) and log.num(frame, column) == 0:

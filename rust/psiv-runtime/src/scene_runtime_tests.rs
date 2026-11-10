@@ -120,3 +120,48 @@ fn saved_sound_word_resets_at_start_and_follows_field_but_not_refresh_loads() {
     assert_eq!(again.music_change(), None, "raw id equal to the saved word");
     assert_eq!(runtime.saved_sound_index(), map_music);
 }
+
+#[test]
+fn a_dead_or_paralysed_member_holds_its_walk_and_no_other_status_does() {
+    // `FieldObj_UpdateStatus` tests status bits 1 and 2 only.
+    let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let data = psiv_data::GameData::load(&pack).expect("pack loads");
+    let mut runtime = Runtime::new(
+        data,
+        0,
+        Cell::new(114, 177),
+        Direction::Down,
+        StepFrames::default(),
+    )
+    .unwrap();
+    let leader = runtime.game.party_slot(0).expect("a leader");
+    if runtime.game.roster().get(leader).is_none() {
+        runtime
+            .game
+            .roster_mut()
+            .seat(leader, crate::suites::save::stats(leader.0))
+            .unwrap();
+    }
+    let set = |runtime: &mut Runtime, status: u8| {
+        runtime.game.roster_mut().get_mut(leader).unwrap().status = status;
+    };
+    use psiv_core::battle::status::{DEAD, PARALYZED, POISONED};
+    for (status, frozen) in [
+        (0, false),
+        (POISONED, false),
+        (PARALYZED, true),
+        (DEAD, true),
+    ] {
+        set(&mut runtime, status);
+        assert_eq!(
+            runtime.member_walk_frozen(0),
+            frozen,
+            "status {status:#04x}"
+        );
+    }
+    assert!(!runtime.member_walk_frozen(4), "an empty slot");
+}

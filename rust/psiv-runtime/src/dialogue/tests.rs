@@ -129,14 +129,15 @@ pub(super) fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
     };
     let mut pages = Vec::new();
     while flow.is_open() {
-        while flow.take_pending_action().is_some() {
-            flow.resume_after_action(&game);
+        while let Some(action) = flow.take_pending_action() {
+            flow.resume_after_action(action, &game);
         }
         let mut guard = 0;
         while flow.is_holding() {
+            flow.tick_action(&game);
             flow.tick(&game);
-            while flow.take_pending_action().is_some() {
-                flow.resume_after_action(&game);
+            while let Some(action) = flow.take_pending_action() {
+                flow.resume_after_action(action, &game);
             }
             guard += 1;
             assert!(guard < 1_000, "a delay that never ends");
@@ -516,7 +517,7 @@ fn an_action_stops_at_its_retail_byte_position() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(387))
     );
-    flow.resume_after_action(&game);
+    flow.resume_after_action(super::DialogueAction::LoadPanel(387), &game);
     assert_eq!(flow.lines(), ["after the panel"]);
 }
 
@@ -544,8 +545,43 @@ fn an_action_after_text_waits_for_the_typewriter() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(0x30))
     );
-    flow.resume_after_action(&game);
+    flow.resume_after_action(super::DialogueAction::LoadPanel(0x30), &game);
     assert_eq!(flow.lines(), ["beforeafter"]);
+}
+
+#[test]
+fn the_elsydeon_break_holds_the_text_for_its_forty_frames() {
+    // `TextAction_ElsydeonBroken` runs twenty tone frames and twenty back
+    // inside `RunText`: the text after it waits for both.
+    let game = no_flags();
+    let entry = entry(vec![
+        text("before"),
+        Segment::Control(Ctrl::Action {
+            code: 0xF2,
+            operands: vec![12],
+            action: ActionKind::ElsydeonBroken,
+            action_id: 12,
+            sound: None,
+            panel: None,
+            flag: None,
+        }),
+        text("after"),
+    ]);
+    let mut flow = open(&entry);
+    assert!(flow.action_ready(6));
+    let action = flow.take_pending_action().expect("the action");
+    assert_eq!(action, super::DialogueAction::ElsydeonBroken);
+    flow.resume_after_action(action, &game);
+    for frame in 1..40 {
+        flow.tick_action(&game);
+        assert_eq!(flow.lines(), ["before"], "frame {frame}");
+    }
+    flow.tick_action(&game);
+    assert_eq!(
+        flow.lines(),
+        ["beforeafter"],
+        "the text resumes on frame 40"
+    );
 }
 
 /// `Event_WreckageEngine` writes `$1(a0)` after `popdlg`: the operand of the

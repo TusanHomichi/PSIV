@@ -208,13 +208,23 @@ onto the leader exactly as the routine does. The layout is read through
 `SceneRunner::tick_with`; a runner ticked without one, or a belt that never
 ends, faults with `SceneFault::NoLayout` instead of moving anyone.
 
+## The walk freeze
+
+Every character object calls `FieldObj_UpdateStatus` before `FieldObj_Animate`
+(`FieldObj_ChazMain` and its siblings). With status bit 1 (paralysed) or bit 2
+(dead) set in its stats record, it rewinds `mappings_idx` to 0 and
+`mappings_duration` to 6 every frame, so the sprite holds its sequence's first
+frame. The belts borrow the dead bit for the carry: they set it on the leader
+before the first frame (`$06CEA8`), on each follower once the chunk under it is
+a belt chunk (`$06CEEA`), and restore every status byte when the carry ends. The
+runtime answers `Runtime::member_walk_frozen` from the member's status and the
+runner's `belt_freezes`, and the field shell holds a frozen member on its first
+frame and starts the sequence over when it thaws. The port tests a follower's
+standing cell rather than its pixel mid-step; the scope and timing consequence
+are recorded in [the source notes](../source-notes/README.md#other-recorded-deviations).
+
 ## What is not modelled
 
-- **The dead-status trick.** The belts set status bit 2 (the *dead* bit) in the
-  party members' records so `FieldObj_UpdateStatus` freezes their walk
-  animation while they are carried, and restore every byte afterwards. Nothing
-  reads the bit but the sprite code, so the port leaves the roster alone and
-  the carried party shows its ordinary walk animation. Cosmetic.
 - **The platform's sprite.** Object `$124` has no map placement and the pack's
   sprite catalogue has no sheet for it (`sprites/npcs.json`, object type 73,
   `placements: 0`), so the renderer receives the platform's motion as a

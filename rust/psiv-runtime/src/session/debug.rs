@@ -75,9 +75,36 @@ pub fn scene_fixture(
                 [Some(CharId(0)), None, None, None, None],
             )
         }
+        // `Cutscene_Ending` (`PSIV_DEBUG_EVENT=0x8021`): where tape 28 leaves
+        // the cartridge at frame 7200, Chaz alone on map `$13` at pixel
+        // (768, 288), so the field sprite the cutscene draws over its panels
+        // (`Render_Sprites_In_Cutscenes`) stands where the oracle's does
+        // (`tools/certify.py` TAPE_38).
+        0x8021 => (0x0013, 768, 288, [Some(CharId(0)), None, None, None, None]),
+        // `Event_Recovery` (`PSIV_DEBUG_EVENT=0x21`): the same state, which
+        // tape 42 (`tools/certify.py` TAPE_42) starts the event in; the
+        // flashes are palette writes, so any map shows them. The event
+        // keeps the field's camera, so the leader stands where tape 28
+        // leaves him: object Y 288, whose standing row is one row below.
+        0x0021 => (
+            0x0013,
+            768,
+            288 + 16,
+            [Some(CharId(0)), None, None, None, None],
+        ),
         _ => return None,
     };
-    let mut game = GameState::new();
+    // The ending's and the recovery tile's fixtures stand in tape 28's
+    // state: the opening done (`post_opening_game`), so no map-entry
+    // trigger on `$13` pre-empts them.
+    let mut game = if matches!(event, 0x8021 | 0x0021) {
+        match post_opening_game(&data, step_frames) {
+            Ok(game) => game,
+            Err(error) => return Some(Err(error)),
+        }
+    } else {
+        GameState::new()
+    };
     game.set_party(party);
     for &flag in flags {
         if let Err(error) = game.set(Flag::event(flag)) {

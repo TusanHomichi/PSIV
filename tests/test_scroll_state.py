@@ -74,11 +74,7 @@ class TestScrollState(unittest.TestCase):
         self.assertEqual(decoded["hardware"]["hscroll_table"]["plane_a"], "0x0056")
         self.assertEqual(decoded["hardware"]["vsram"]["plane_b"], "0x0034")
         self.assertEqual(decoded["window_rows"]["plane_a_source"], "VDP VSRAM[0]")
-        self.assertEqual(decoded["placement_provenance"]["grand_cross"], 0)
-        self.assertEqual(
-            decoded["placement_provenance"]["plane_window_residue_pixels"],
-            {"x": 1, "y": 1},
-        )
+        self.assertNotIn("placement_provenance", decoded)
 
 
 if __name__ == "__main__":

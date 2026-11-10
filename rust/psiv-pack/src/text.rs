@@ -706,9 +706,9 @@ pub fn extract_names(data: &[u8]) -> Result<Json, TextError> {
     Ok(names)
 }
 
-const DIALOGUE_REGION_START: usize = 0x1DF600;
+pub(crate) const DIALOGUE_REGION_START: usize = 0x1DF600;
 const DIALOGUE_TREE_COUNT: usize = 43;
-const DIALOGUE_BLOB_ALIGNMENT: usize = 16;
+pub(crate) const DIALOGUE_BLOB_ALIGNMENT: usize = 16;
 
 /// One Kosinski dialogue tree of the region.
 pub struct TreeSpec {

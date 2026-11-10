@@ -39,6 +39,34 @@ The palette scenes' first pair joined them on 2026-11-08
 
 With the hold dropped from the CRAM model the pair fails (`rmse=12.012963`).
 
+The ending's first scene joined them on 2026-11-09, the first scene pair at a
+camera other than (0,0):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t638 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+
+With the old floored surface origin and its one-pixel compensation, the pair
+fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
+panels one pixel down ([placement findings](#placement-findings), the surface origin).
+Every plateau of the break's tone matches inside that region, ticks 622-657
+against frames 8968-9003, four frames a step; the untoned frame scores
+`rmse=161.656685` against the peak, and the step before it `rmse=30.119675`.
+
+The recovery tile's flashes joined them on 2026-11-09
+([#101](https://github.com/TusanHomichi/PSIV/issues/101)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `recovery-flash` | **0.000000** | clone t78 (`PSIV_DEBUG_EVENT=0x21`) ↔ tape-42 frame 7246: `Event_Recovery`'s second flash at its peak; region `1,72,319,152` (the map's wandering NPC above, and #409's first column) |
+
+Each step captured matches inside that region: the first flash's rise, peak
+and restore (ticks 30-58 against frames 7194-7226, the restore's first step
+not the brighten's mirror), the second's start and peak (62, 66, 78), and the
+untoned frame again after the third (142). The untoned frame scores `rmse=78.342520` against the
+peak, and the step before it `rmse=16.148053`.
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 
@@ -141,7 +169,7 @@ x,y,width,height`; the identity-path check is `rmse=0.000000`.
 - **Text origin.** `TextBufferToPlane` writes screen tile `(4,$15)`
   (`ps4.asm:143409`), a 32x4 map of 8x16 glyphs: an 8-pixel text origin and a
   16-pixel line pitch (`dialogue.rs`).
-- **The plane residue.** The `--dump-state` receipt of the MeetingRika fixture at retail frame 7250
+- **The plane scroll.** The `--dump-state` receipt of the MeetingRika fixture at retail frame 7250
 gives the scroll. The host resolves the
 Genesis Plus GX local VDP symbols from the loaded ELF; it does not change the
 third-party core ABI. `oracle/decode_layout.py` reports these numbers with
@@ -162,15 +190,16 @@ third-party core ABI. `oracle/decode_layout.py` reports these numbers with
 
 The dialogue window occupies scanlines **160..223**; the H-int/VDP receipt
 covers all 224 scanlines. H-int split is false, so both planes use the live VDP
-VSRAM words for this frame. The remaining
-screen-space term is the measured retail plane/window residue
-`(x=1,y=1)` pixel at `grand_cross=0`; its provenance is recorded in the JSON
-as `placement_provenance`, not disguised as camera motion. The clone applies
-that term only to scene panel planes and portraits. Dialogue window chrome,
-glyphs, arrows, and the opening background retain their independent retail
-origins.
-  The dialogue window takes the same +1 X residue as the panels; the portrait
-  is window chrome and does not.
+VSRAM words for this frame. No screen-space term remains: panels, the window
+and its portrait sit at their retail coordinates in the surface.
+- **The surface origin.** Every screen-space layer (panels, the opening text,
+  the dialogue window) is placed at the top-left of the centred 320x224
+  surface, read back through the inverse canvas transform and rounded to a
+  whole pixel (`retail_surface.rs`). A 1280-wide viewport is 426.67 world
+  pixels at 3x, so the read-back carries f32 error; flooring it lost a pixel at
+  camera (0,0), which this document once recorded as a measured `(1,1)`
+  plane/window residue, and the compensation drew every other camera position
+  one pixel right and down (the `ending-elsydeon` pair).
 - **The scroll arrow** is two 8x8 `ArtNem_Font` tiles (`$36`/`$37`)
   row-interleaved as a 2x1 VDP sprite.
 - **Scenes draw over a blanked field.** `InitVramAndCram` hides the map layers
@@ -376,11 +405,13 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   palette is a `LoadSceneAsset` write the CRAM model does not take), scene
   temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **One oracle pair for the palette scenes:** `$99`'s held tone
-  (`anger-tower-barrier`); frames of Rykros's tone and cycle, an ending tone
-  loop and the Zio barrier ramp against the oracle are still
+- **Three oracle pairs for the palette scenes:** `$99`'s held tone
+  (`anger-tower-barrier`), the ending's Elsydeon break
+  (`ending-elsydeon-tone`) and the recovery tile's flash (`recovery-flash`); frames of Rykros's tone and cycle and the Zio
+  barrier ramp against the oracle are still
   [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
-  [#68](https://github.com/TusanHomichi/PSIV/issues/68).
+  [#68](https://github.com/TusanHomichi/PSIV/issues/68). The Zio pair waits on
+  the barrier beams' sprites ([#471](https://github.com/TusanHomichi/PSIV/issues/471)).
 
 ## CRAM state
 
@@ -446,7 +477,9 @@ art is indexed draws from it:
 - field sprite sheets (party, followers, NPCs) on the line their pack record
   names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
-- the dialogue window, whose tiles, glyphs and portraits are line 2.
+- the dialogue window, whose tiles, glyphs and portraits are line 2;
+- the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
+  as the renderer's clear colour.
 
 Sheets and panels keep each pixel's palette index
 (`psiv_data::color::index_png`) and are recoloured

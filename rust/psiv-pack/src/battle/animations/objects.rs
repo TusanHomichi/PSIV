@@ -432,9 +432,34 @@ fn merged(base: &Json, over: &Json) -> Json {
     out
 }
 
-/// `plc_art` without the tiles: the pattern ranges the loads fill, and the
-/// evidence for each load.
-pub fn plc_art(rom: &[u8], loads: &[Json]) -> (Vec<Json>, Vec<Json>) {
+/// What `plc_art` decodes: the pattern ranges the loads fill, the evidence
+/// for each load, and the patterns themselves, by VRAM pattern.
+pub struct PlcArt {
+    pub ranges: Vec<Json>,
+    pub evidence: Vec<Json>,
+    pub patterns: std::collections::BTreeMap<i128, [u8; 64]>,
+}
+
+impl PlcArt {
+    /// Python's `tiles` list: every pattern up to the highest, blank where
+    /// no load put one.
+    pub fn tiles(&self) -> Vec<[u8; 64]> {
+        let Some((&last, _)) = self.patterns.last_key_value() else {
+            return Vec::new();
+        };
+        let mut tiles = vec![[0u8; 64]; usize::try_from(last + 1).unwrap_or(0)];
+        for (&pattern, tile) in &self.patterns {
+            if let Ok(index) = usize::try_from(pattern) {
+                tiles[index] = *tile;
+            }
+        }
+        tiles
+    }
+}
+
+/// `plc_art`: decode the loads' PLC streams into their patterns.
+pub fn plc_art(rom: &[u8], loads: &[Json]) -> PlcArt {
+    let mut patterns = std::collections::BTreeMap::new();
     let mut ranges = Vec::new();
     let mut evidence = Vec::new();
     let mut seen = BTreeSet::new();
@@ -499,7 +524,15 @@ pub fn plc_art(rom: &[u8], loads: &[Json]) -> (Vec<Json>, Vec<Json>) {
                 continue;
             }
             let first = pattern;
-            pattern += tiles;
+            for chunk in data.chunks(TILE_SIZE) {
+                let mut tile = [0u8; 64];
+                for (i, byte) in chunk.iter().enumerate() {
+                    tile[i * 2] = byte >> 4;
+                    tile[i * 2 + 1] = byte & 0x0F;
+                }
+                patterns.insert(pattern, tile);
+                pattern += 1;
+            }
             load_ranges.push(
                 Json::object()
                     .with("kind", "attack_plc")
@@ -523,7 +556,11 @@ pub fn plc_art(rom: &[u8], loads: &[Json]) -> (Vec<Json>, Vec<Json>) {
         ranges.extend(load_ranges);
         evidence.push(load_evidence);
     }
-    (ranges, evidence)
+    PlcArt {
+        ranges,
+        evidence,
+        patterns,
+    }
 }
 
 /// `object_evidence`: helpers, sequences, PLC loads and assignments for one

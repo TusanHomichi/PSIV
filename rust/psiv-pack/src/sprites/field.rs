@@ -84,17 +84,17 @@ pub fn sprite_palette(
 }
 
 /// How a set of sequences reads its art.
-struct SheetRequest<'a> {
-    source: &'a TileSource,
-    reading: Reading,
-    palette: &'a [[u8; 3]],
-    palette_line: u8,
-    required: &'a [&'a str],
+pub(crate) struct SheetRequest<'a> {
+    pub source: &'a TileSource,
+    pub reading: Reading,
+    pub palette: &'a [[u8; 3]],
+    pub palette_line: u8,
+    pub required: &'a [&'a str],
 }
 
 /// `_sheet_for_sequences`: the named sequences in one sheet. A sequence whose
 /// frames name patterns the source lacks is dropped, unless it is required.
-fn sheet_for_sequences(
+pub(crate) fn sheet_for_sequences(
     rom: &[u8],
     wanted: &[(String, usize)],
     request: &SheetRequest,
@@ -160,7 +160,7 @@ fn sheet_for_sequences(
     ))
 }
 
-fn table_sequences(
+pub(crate) fn table_sequences(
     rom: &[u8],
     table: usize,
     facings: usize,
@@ -329,6 +329,15 @@ pub fn vehicle_sprites(
     Ok(sprites)
 }
 
+/// `LoadTreasureChests` selects the alternate normal chest for map family $32.
+pub(crate) fn chest_art_source(white: bool, general_var: u8) -> usize {
+    match (white, general_var == 0x32) {
+        (true, _) => 0x297674,
+        (false, true) => 0x2976FA,
+        (false, false) => 0x2975AE,
+    }
+}
+
 /// `chest_sprite`: `LoadTreasureChests` stages normal art at `$4DC` and plant or
 /// white art at `$4E6`. The `$32` map family selects a second normal chest and
 /// CRAM line 1.
@@ -340,11 +349,7 @@ pub fn chest_sprite(
     general_var: u8,
 ) -> Result<Sheet, PackError> {
     let special = general_var == 0x32 && !white;
-    let offset = match (white, special) {
-        (true, _) => 0x297674,
-        (false, true) => 0x2976FA,
-        (false, false) => 0x2975AE,
-    };
+    let offset = chest_art_source(white, general_var);
     let (tile, table): (u16, usize) = if white {
         (0x4E6, 0x51442)
     } else {

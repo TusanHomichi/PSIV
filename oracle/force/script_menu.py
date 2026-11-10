@@ -19,15 +19,16 @@ COMMAND_INDEX = {"attack": 0, "technique": 1, "skill": 2, "item": 3, "defend": 4
 LIST_MENU = {8: ("technique", 0x412E, 16, 1, 0x41AE),
              0x11: ("skill", 0x4142, 8, 2, 0x41BA),
              0x17: ("item", 0x4152, 44, 1, 0x41C4)}
-READY = {2, 5, *LIST_MENU, 0xC, 0xD, 0x1F, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2F}
-CONFIRM = {0x1F, 0x20, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2F}
+READY = {2, 5, *LIST_MENU, 0xC, 0xD, 0x1F, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2E, 0x2F}
+CONFIRM = {0x1F, 0x20, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2E, 0x2F}
 
 
 def confirmation_ready(routine: int) -> bool:
     """Confirm text/results in either initialized state, never a busy list.
 
     RunBattleRoutines2 masks bit 15 (ps4.asm:1123-1134); results sets it on
-    initialization and continues through that state (5894-5908).
+    initialization and continues through that state (5894-5908). Android
+    recovery ($2E, ps4.asm:6304-6356) also waits for confirmation.
     """
     return routine & 0x7FFF in CONFIRM
 
@@ -74,7 +75,7 @@ def extra_fields() -> list[tuple[str, int, int]]:
 def party_address(name: str, address: int, party: dict | None) -> int:
     """Legacy CSV prefixes name fighter slots, not a substituted character.
 
-    Keep the extractor's existing three-slot schema while observing the actual
+    Keep the extractor's legacy slot aliases while observing the actual
     selected records. Equipment/menu fields retain their literal addresses.
     """
     if party is None:
@@ -92,8 +93,8 @@ def write_map(base: pathlib.Path, out: pathlib.Path, party: dict | None = None) 
     # capture's enabled groups; including the full field-object map exhausts
     # its bounded field table when support-state observations are added.
     groups = set(GROUPS.split(","))
-    if party is not None and set(party) != {1, 2, 3}:
-        raise ForceError("script capture's observed schema needs exactly three occupied slots")
+    if party is not None and not {1, 2, 3} <= set(party):
+        raise ForceError("script capture needs the first three occupied slots")
     lines = []
     for line in base.read_text().splitlines():
         if not line or line.startswith("#"):
@@ -105,9 +106,35 @@ def write_map(base: pathlib.Path, out: pathlib.Path, party: dict | None = None) 
         address = party_address(cells[0], int(cells[1], 16) & 0xFFFF, party)
         cells[1] = f"FFFF{address:04X}"
         lines.append("\t".join(cells))
+    # Extend the legacy slot aliases with the same observed fields for the
+    # remaining occupied slots. They point at the selected character records,
+    # not at an assumed party composition.
+    extras = []
+    if party is not None:
+        for slot in (4, 5):
+            if slot not in party:
+                continue
+            for line in lines:
+                cells = line.split("\t")
+                if len(cells) < 5 or not cells[0].startswith("alys_"):
+                    continue
+                cells[0] = "party" + str(slot) + cells[0][4:]
+                address = int(cells[1], 16) & 0xFFFF
+                address += (party[slot]["character"] - party[1]["character"]) * 0x80
+                cells[1] = f"FFFF{address:04X}"
+                extras.append(cells)
+    lines += ["\t".join(cells) for cells in extras]
+    extra_menu = []
+    if party is not None:
+        for slot in (4, 5):
+            if slot in party:
+                extra_menu += [("party" + str(slot) + name[4:],
+                                address + (party[slot]["character"] - 1) * 0x80, size)
+                               for name, address, size in extra_fields()
+                               if name.startswith("alys_player_")]
     out.write_text("\n".join(lines) + "\n" + "".join(
         f"{name}\tFFFF{party_address(name, address, party):04X}\t{size}\tmenu\t-\n"
-        for name, address, size in extra_fields()))
+        for name, address, size in extra_fields() + extra_menu))
     fields = [field for field in json.loads(base.with_suffix(".json").read_text())["fields"]
               if field["group"] in groups]
     fields += [{"name": name, "addr": f"FFFF{address:04X}", "size": size,
@@ -116,6 +143,10 @@ def write_map(base: pathlib.Path, out: pathlib.Path, party: dict | None = None) 
     for field in fields:
         address = int(field["addr"], 16) & 0xFFFF
         field["addr"] = f"FFFF{party_address(field['name'], address, party):04X}"
+    fields += [{"name": cells[0], "addr": cells[1], "size": int(cells[2]),
+                "group": cells[3], "hex": cells[4] == "hex"} for cells in extras]
+    fields += [{"name": name, "addr": f"FFFF{address:04X}", "size": size,
+                "group": "menu", "hex": False} for name, address, size in extra_menu]
     out.with_suffix(".json").write_text(json.dumps({"fields": fields}, indent=2) + "\n")
     return out
 

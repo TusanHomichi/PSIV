@@ -38,6 +38,7 @@ use std::sync::mpsc;
 
 pub mod battle;
 pub mod decode;
+pub mod dialogue;
 pub mod game_start;
 pub mod gfx;
 pub mod install;
@@ -47,13 +48,16 @@ mod map_symbols;
 pub mod maps;
 pub mod npc_commands;
 pub mod png;
+pub mod presentation;
 pub mod rom;
+mod scene_tables;
 pub mod ship_menu;
 pub mod shops;
 pub mod sound;
 mod sound_defs;
 pub mod sprites;
 pub mod text;
+pub mod title;
 pub mod travel;
 pub mod warps;
 
@@ -124,15 +128,51 @@ pub const SECTIONS: &[Section] = &[
         build: game_start::build,
     },
     Section {
+        name: "dialogue",
+        claims: &[
+            "dialogue/font.json",
+            "dialogue/font.png",
+            "dialogue/menu_font.png",
+            "dialogue/portraits",
+            "dialogue/portraits.json",
+            "dialogue/scroll_arrow.png",
+            "dialogue/trees.json",
+            "dialogue/window.json",
+            "dialogue/window.png",
+        ],
+        build: dialogue::build,
+    },
+    Section {
+        name: "scene_tables",
+        claims: &["fifth", "guild"],
+        build: scene_tables::build,
+    },
+    Section {
+        name: "title",
+        claims: &["title"],
+        build: title::build,
+    },
+    Section {
+        name: "presentation",
+        claims: &["presentation"],
+        build: presentation::build,
+    },
+    Section {
         name: "battle",
         claims: &[
             "battle/abilities.json",
+            "battle/art/backgrounds",
+            "battle/art/backgrounds.json",
             "battle/art/characters",
             "battle/art/characters.json",
             "battle/art/command_ui.json",
             "battle/art/damage_digits.json",
             "battle/art/enemies",
             "battle/art/enemies.json",
+            "battle/art/enemy_attacks",
+            "battle/art/enemy_attacks.json",
+            "battle/art/enemy_overlays",
+            "battle/art/enemy_overlays.json",
             "battle/art/fusion",
             "battle/art/fusion.json",
             "battle/characters.json",

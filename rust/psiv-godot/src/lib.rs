@@ -31,6 +31,7 @@ mod menu_font;
 mod named_caches;
 mod pack_setup;
 mod resident_memory;
+mod retail_surface;
 mod runtime_events;
 mod rust_heap;
 mod save_dir;

@@ -228,6 +228,160 @@ pub fn render_sheet(
     )?)
 }
 
+/// `_gap_bounds`: for each wanted offset, the distance to the next nonzero
+/// landmark (or the image's end).
+pub fn gap_bounds(
+    landmarks: &[usize],
+    rom_size: usize,
+    wanted: &[usize],
+) -> std::collections::BTreeMap<usize, usize> {
+    let landmarks: std::collections::BTreeSet<usize> =
+        landmarks.iter().copied().filter(|&o| o != 0).collect();
+    wanted
+        .iter()
+        .copied()
+        .filter(|&o| o != 0)
+        .map(|offset| {
+            let next = landmarks
+                .range(offset + 1..)
+                .next()
+                .copied()
+                .unwrap_or(rom_size);
+            (offset, next - offset)
+        })
+        .collect()
+}
+
+/// What `decompress_art` checked and reports about one Nemesis blob.
+pub struct ArtRecord {
+    pub data: Vec<u8>,
+    /// What the decoder read, which may be one more than the stream.
+    pub consumed: usize,
+    pub xor_mode: bool,
+    /// The header word as stored.
+    pub header_word: u16,
+    /// The documented size when one was given, else what the decoder read.
+    pub compressed_size: usize,
+    pub tile_count: u16,
+    pub compressed_sha256: String,
+    pub decompressed_sha256: String,
+}
+
+/// `decompress_art`: one Nemesis blob, held to its header's pattern count and
+/// to an exact documented size or an upper bound. `NemDecomp` may read one
+/// lookahead byte it never uses, so either allows one byte more.
+pub fn decompress_art(
+    rom: &[u8],
+    offset: usize,
+    label: &str,
+    exact: Option<usize>,
+    bound: Option<usize>,
+) -> Result<ArtRecord, crate::PackError> {
+    use sha2::{Digest, Sha256};
+    let refuse = |message: String| Err(crate::PackError(message));
+    let header = crate::decode::nemesis::read_header(rom, offset)?;
+    let (data, consumed) = crate::decode::nemesis::decompress(rom, offset)?;
+    let declared = usize::from(header.row_count) * 4;
+    if data.len() != declared {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decoded {} bytes but the header declares {} patterns \
+             ({declared} bytes)",
+            data.len(),
+            header.tile_count
+        ));
+    }
+    if let Some(size) = exact
+        && consumed != size
+        && consumed != size + 1
+    {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decompressor consumed {consumed} bytes, but the \
+             documented stream is {size} bytes (a trailing lookahead byte would allow at most \
+             one more)"
+        ));
+    }
+    if let Some(bound) = bound
+        && consumed > bound + 1
+    {
+        return refuse(format!(
+            "{label} at 0x{offset:06X}: decompressor consumed {consumed} bytes and ran into the \
+             next blob, which starts {bound} bytes in"
+        ));
+    }
+    let size = exact.unwrap_or(consumed);
+    let compressed = rom.get(offset..offset + size).ok_or_else(|| {
+        crate::PackError(format!(
+            "{label} at 0x{offset:06X} (+{size}) runs past the end of the ROM"
+        ))
+    })?;
+    Ok(ArtRecord {
+        consumed,
+        xor_mode: header.xor_mode,
+        header_word: u16::from_be_bytes([rom[offset], rom[offset + 1]]),
+        compressed_size: size,
+        tile_count: header.tile_count,
+        compressed_sha256: crate::png::hex(&Sha256::digest(compressed)),
+        decompressed_sha256: crate::png::hex(&Sha256::digest(&data)),
+        data,
+    })
+}
+
+/// `planes.compose`: `words` drawn row-major, `columns` across, each cell's
+/// pattern (counted from `art_vram_tile`) flipped as its word says and moved
+/// onto its CRAM line; pattern index 0 stays the backdrop. Returns the width,
+/// the height and the CRAM indices.
+pub fn compose(
+    words: &[u16],
+    columns: usize,
+    tiles: &[[u8; 64]],
+    art_vram_tile: usize,
+) -> Result<(usize, usize, Vec<u8>), crate::PackError> {
+    if columns == 0 {
+        return Err(crate::PackError(format!(
+            "A plane needs at least one column, got {columns}"
+        )));
+    }
+    if words.is_empty() {
+        return Err(crate::PackError(
+            "Cannot compose a plane from zero cells".into(),
+        ));
+    }
+    if !words.len().is_multiple_of(columns) {
+        return Err(crate::PackError(format!(
+            "{} cells is not a whole number of {columns}-cell rows",
+            words.len()
+        )));
+    }
+    let (width, height) = (columns * 8, words.len() / columns * 8);
+    let mut pixels = vec![0u8; width * height];
+    for (index, &word) in words.iter().enumerate() {
+        let tile = usize::from(word & 0x07FF);
+        let art = tile
+            .checked_sub(art_vram_tile)
+            .and_then(|i| tiles.get(i))
+            .ok_or_else(|| {
+                crate::PackError(format!(
+                    "Cell {index} references VRAM tile 0x{tile:03X}, which is art index {} of a \
+                     {}-pattern blob loaded at VRAM tile 0x{art_vram_tile:03X}",
+                    tile as i64 - art_vram_tile as i64,
+                    tiles.len()
+                ))
+            })?;
+        let (h_flip, v_flip) = (word & 0x0800 != 0, word & 0x1000 != 0);
+        let base = ((word >> 13) & 3) as u8 * 16;
+        let (ox, oy) = ((index % columns) * 8, (index / columns) * 8);
+        for y in 0..8 {
+            for x in 0..8 {
+                let sx = if h_flip { 7 - x } else { x };
+                let sy = if v_flip { 7 - y } else { y };
+                let p = art[sy * 8 + sx];
+                pixels[(oy + y) * width + ox + x] = if p == 0 { 0 } else { base + p };
+            }
+        }
+    }
+    Ok((width, height, pixels))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

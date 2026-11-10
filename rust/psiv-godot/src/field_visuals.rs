@@ -56,7 +56,13 @@ impl Field {
             .camp_menu
             .as_ref()
             .is_some_and(|menu| menu.bind().is_open() && !menu.bind().is_loot());
-        if sequence != self.party_sequence {
+        // A paralysed or dead member, or one a conveyor belt carries, holds
+        // its sequence's first frame (`FieldObj_UpdateStatus`); it starts
+        // the sequence over when it thaws.
+        let frozen: Vec<bool> = (0..psiv_core::PARTY_SLOTS)
+            .map(|slot| runtime.member_walk_frozen(slot))
+            .collect();
+        if sequence != self.party_sequence || frozen[0] {
             self.party_sequence = sequence;
             self.party_seq_start = self.anim_tick;
         }
@@ -189,7 +195,7 @@ impl Field {
             };
             let (node, seq, start) = &mut self.follower_nodes[idx];
             let name = sequence_name(draw.kind, draw.facing);
-            if *seq != name {
+            if *seq != name || frozen.get(idx + 1).copied().unwrap_or(false) {
                 *seq = name;
                 *start = self.anim_tick;
             }
@@ -397,6 +403,17 @@ impl Field {
             if let Some(layer) = self.cutscene_layer.as_mut() {
                 layer.bind_mut().palette_changed();
             }
+            // The VDP's backdrop is CRAM word 0 (register 7 `$8700`: palette
+            // 0, colour 0, `ps4.asm:86053`): it shows wherever no plane or
+            // sprite pixel does, so a tone or a fade reaches it too. With no
+            // live palette it stays the project's black.
+            let [r, g, b] = if live {
+                psiv_data::color::cram_rgb(view.words[0])
+            } else {
+                [0, 0, 0]
+            };
+            godot::classes::RenderingServer::singleton()
+                .set_default_clear_color(Color::from_rgba8(r, g, b, 255));
             // The window's art is baked in line 2's `Pal_Init_Line_3`
             // colours; with no live palette it draws them as baked.
             let baked = runtime

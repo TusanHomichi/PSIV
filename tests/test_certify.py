@@ -30,12 +30,12 @@ from unittest import mock
 from tools import certify
 from tools.heavy_lock import Hold
 
-SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "title",
-       "battle-0x88", "camp-root"]
+SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "ending-elsydeon",
+       "ending-elsydeon-tone", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
-                         "teleport-close-towns"]
+                         "teleport-close-towns", "recovery-flash"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -79,6 +79,19 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7000:FFFFEC28:00BF", recipe["patches"])
         self.assertIn("7000:FFFFF101:80", recipe["patches"])
 
+    def test_the_ending_pair_names_its_event_fixture_and_a_regenerable_frame(self):
+        pair = next(p for p in certify.PAIRS if p[0] == "ending-elsydeon")
+        _, env, tick, frame, _, recipe = pair
+        # The scene layers at a camera other than (0,0): the ending's map $13.
+        self.assertEqual(env["PSIV_DEBUG_EVENT"], "0x8021")
+        self.assertIs(recipe, certify.TAPE_38)
+        self.assertEqual(tick, 600)
+        self.assertEqual(recipe["frames"], [8930])
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertTrue(frame.startswith("build/certify/oracle/"))
+        self.assertIn("7200:FFFFECA8:8021", recipe["patches"])
+        self.assertNotIn("region", recipe)
+
     def test_the_teleport_pair_certifies_its_window_region_only(self):
         pair = next(p for p in certify.PAIRS if p[0] == "teleport-towns")
         _, env, _, frame, _, recipe = pair
@@ -90,8 +103,9 @@ class PairTableCase(unittest.TestCase):
         # Only these are cropped; the others certify whole frames. The
         # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
-        self.assertEqual(cropped, ["anger-tower-barrier", "teleport-towns", "teleport-message",
-                                   "teleport-close", "teleport-close-towns"])
+        self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", "teleport-towns",
+                                   "teleport-message", "teleport-close", "teleport-close-towns",
+                                   "recovery-flash"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

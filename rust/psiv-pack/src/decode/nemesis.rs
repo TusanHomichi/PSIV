@@ -3,6 +3,10 @@
 //! from the routine (the header fixes the output length; one byte of
 //! lookahead may be read; XOR mode accumulates across rows). This port keeps
 //! its branches one for one.
+//!
+//! [`Work`] describes US retail `NemDecomp` / `NemDecomp_ToRAM`
+//! (`$041740` / `$041752`, `ps4.asm:84605-84797`) instruction work. It is
+//! not elapsed time: IRQ, refresh and VDP/bus stalls are separate concerns.
 
 use super::DecodeError;
 
@@ -12,6 +16,87 @@ const INLINE_MARKER: u8 = 0xFC;
 
 fn error(message: String) -> DecodeError {
     DecodeError(message)
+}
+
+/// Retail entry point: VDP writes keep a4 fixed, RAM writes increment it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Destination {
+    Ram,
+    Vdp,
+}
+
+/// Executed data-dependent paths, counted by the one byte decoder.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Work {
+    pub xor_mode: bool,
+    pub palettes: u64,
+    pub full_codes: u64,
+    pub short_codes: u64,
+    pub table_shift_bits: u64,
+    pub table_slots: u64,
+    pub lookup_tokens: u64,
+    pub inline_tokens: u64,
+    pub peek_shift_bits: u64,
+    pub inline_shift_bits: u64,
+    pub lookup_refills: u64,
+    pub inline_marker_refills: u64,
+    pub inline_payload_refills: u64,
+    pub pixels: u64,
+    pub rows: u64,
+}
+
+impl Work {
+    /// Intrinsic MC68000 clock cycles, including saved registers and RTS,
+    /// excluding the caller's JSR, interrupts, refresh and hardware stalls.
+    ///
+    /// Costs follow the retail routine and the pinned core's
+    /// `core/m68k/m68ki_cycles.h`, with `m68kops.h`'s dynamic adjustments:
+    /// shifts add 2 per actual bit; DBF is 10 taken / 14 expired; short Bcc
+    /// is 10 taken / 8 untaken. MOVEM saves/restores thirteen registers
+    /// (112 / 116). RAM entry costs 124, VDP 146; the common header,
+    /// two BSRs, priming and epilogue add 274. XOR adds 10 to the header.
+    ///
+    /// Table building costs 40 fixed, 48 per palette, 138 per 8-bit code,
+    /// and 150+4*shift+28*slots per shorter code (two variable shifts and
+    /// the terminal DBF correction included).
+    ///
+    /// Lookup tokens cost 134+2*peek_shift; inline tokens cost
+    /// 124+2*(peek_shift+payload_shift). A refill adds 32, except the inline
+    /// payload refill adds 42 because it also executes a BRA. Pixel work
+    /// costs 34 per pixel plus 6 per row boundary; row writers cost 42 per
+    /// continuing row / 48 for the last, plus 8 per XOR row. DBF and the
+    /// token-return BRA add 10*pixels+14*tokens-24: the final row returns
+    /// immediately, even when its token's repeat count has not expired.
+    /// Collecting those terms gives the formula below.
+    ///
+    /// Zero wrapped row counts return None: the existing byte API returns
+    /// empty output there, whereas retail enters the pixel loop and its row
+    /// counter underflows. This API does not certify that behavior's timing.
+    #[must_use]
+    pub fn cpu_cycles(self, destination: Destination) -> Option<u64> {
+        if self.rows == 0 {
+            return None;
+        }
+        Some(
+            420 + if destination == Destination::Vdp {
+                22
+            } else {
+                0
+            } + if self.xor_mode { 10 + 8 * self.rows } else { 0 }
+                + 48 * self.palettes
+                + 138 * self.full_codes
+                + 150 * self.short_codes
+                + 4 * self.table_shift_bits
+                + 28 * self.table_slots
+                + 148 * self.lookup_tokens
+                + 138 * self.inline_tokens
+                + 2 * (self.peek_shift_bits + self.inline_shift_bits)
+                + 32 * (self.lookup_refills + self.inline_marker_refills)
+                + 42 * self.inline_payload_refills
+                + 44 * self.pixels
+                + 48 * self.rows,
+        )
+    }
 }
 
 /// The header word, decoded the way `NemDecomp_Main` decodes it.
@@ -72,15 +157,16 @@ impl Reader<'_> {
     }
 
     /// The `cmpi.w #9,d6` refill: `asl.w #8,d5` drops the consumed byte.
-    fn refill(&mut self) -> Result<(), DecodeError> {
+    fn refill(&mut self) -> Result<bool, DecodeError> {
         if self.bits < 9 {
             self.bits += 8;
             self.window = (self.window << 8) | u16::from(self.byte()?);
+            return Ok(true);
         }
-        Ok(())
+        Ok(false)
     }
 
-    fn take(&mut self, count: u32) -> Result<(), DecodeError> {
+    fn take(&mut self, count: u32) -> Result<bool, DecodeError> {
         self.bits -= count;
         self.refill()
     }
@@ -94,6 +180,7 @@ type Code = (u8, u8, u8);
 fn build_code_table(
     data: &[u8],
     offset: usize,
+    work: &mut Work,
 ) -> Result<([Option<Code>; 256], usize), DecodeError> {
     let mut table = [None; 256];
     let mut pos = offset;
@@ -112,6 +199,7 @@ fn build_code_table(
         }
         // Nem_BCT_NewPalIndex: andi.w #$F keeps the low nybble.
         let palette_index = marker & 0x0F;
+        work.palettes += 1;
         loop {
             let descriptor = read()?;
             // cmpi.b #$80 / bcc: a set sign bit is the next palette marker.
@@ -136,6 +224,13 @@ fn build_code_table(
                      expands past the 256-entry table"
                 )));
             }
+            if length == 8 {
+                work.full_codes += 1;
+            } else {
+                work.short_codes += 1;
+                work.table_shift_bits += u64::from(shift);
+                work.table_slots += span as u64;
+            }
             for slot in &mut table[base..base + span] {
                 *slot = Some((length, repeat, palette_index));
             }
@@ -146,14 +241,28 @@ fn build_code_table(
 /// Decompress the stream at `offset`: the output and the bytes the 68000
 /// routine would have read (the stream's length, or one more).
 pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), DecodeError> {
+    let (bytes, consumed, _) = decompress_with_work(data, offset)?;
+    Ok((bytes, consumed))
+}
+
+/// Decode bytes and intrinsic work together. RAM and VDP entry points share
+/// decoding; choose the entry's cost with [`Work::cpu_cycles`].
+pub fn decompress_with_work(
+    data: &[u8],
+    offset: usize,
+) -> Result<(Vec<u8>, usize, Work), DecodeError> {
     if offset > data.len() {
         return Err(error(format!("Offset 0x{offset:X} is outside the input")));
     }
     let header = read_header(data, offset)?;
-    let (table, pos) = build_code_table(data, offset + 2)?;
+    let mut work = Work {
+        xor_mode: header.xor_mode,
+        ..Work::default()
+    };
+    let (table, pos) = build_code_table(data, offset + 2, &mut work)?;
     let mut out = Vec::with_capacity(usize::from(header.row_count) * 4);
     if header.row_count == 0 {
-        return Ok((out, pos - offset));
+        return Ok((out, pos - offset, work));
     }
     let mut reader = Reader {
         data,
@@ -169,15 +278,18 @@ pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), Decode
     let mut previous: u32 = 0; // d2, the XOR accumulator
 
     loop {
+        work.peek_shift_bits += u64::from(reader.bits - 8);
         let lookahead = reader.peek8();
         let (repeat, palette_index) = if lookahead >= INLINE_MARKER {
             // Nem_PCD_InlineData: 6 marker bits, then 7 payload bits, taken
             // in two steps with a refill check between.
-            reader.take(6)?;
+            work.inline_tokens += 1;
+            work.inline_marker_refills += u64::from(reader.take(6)?);
             reader.bits -= 7;
+            work.inline_shift_bits += u64::from(reader.bits);
             let payload = reader.window >> reader.bits;
             let entry = ((payload & 0x70) >> 4, payload & 0x0F);
-            reader.refill()?;
+            work.inline_payload_refills += u64::from(reader.refill()?);
             (entry.0 as u8, entry.1 as u8)
         } else {
             let (length, repeat, palette_index) =
@@ -188,11 +300,13 @@ pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), Decode
                         reader.pos
                     ))
                 })?;
-            reader.take(u32::from(length))?;
+            work.lookup_tokens += 1;
+            work.lookup_refills += u64::from(reader.take(u32::from(length))?);
             (repeat, palette_index)
         };
         // Nem_PCD_WritePixel: dbf runs repeat+1 times.
         for _ in 0..=repeat {
+            work.pixels += 1;
             row = (row << 4) | u32::from(palette_index);
             nybbles_left -= 1;
             if nybbles_left != 0 {
@@ -206,8 +320,9 @@ pub fn decompress(data: &[u8], offset: usize) -> Result<(Vec<u8>, usize), Decode
                 out.extend_from_slice(&row.to_be_bytes());
             }
             rows_left -= 1;
+            work.rows += 1;
             if rows_left == 0 {
-                return Ok((out, reader.pos - offset));
+                return Ok((out, reader.pos - offset, work));
             }
             // Nem_PCD_NewRow
             row = 0;
