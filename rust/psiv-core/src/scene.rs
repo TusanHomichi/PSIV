@@ -693,6 +693,11 @@ pub enum SceneOp {
     ///
     /// The retail loop is a `dbra`, so a scene's literal `d0` runs `d0 + 1`
     /// times; transcriptions record the **already-corrected** tick count.
+    ///
+    /// Retail scenes also block in `DoMainUpdatesLoop` (`$5A73C`, which
+    /// updates field objects first) and in loops of their own, and both are
+    /// transcribed as this op today. `scenes/wait_census.rs` records which
+    /// retail wait each `Wait` of a censused scene stands for (#470).
     Wait {
         /// How many.
         ticks: u16,
