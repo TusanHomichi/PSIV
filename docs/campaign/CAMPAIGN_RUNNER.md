@@ -450,7 +450,9 @@ reuse old addresses.
 
 `tools/native/campaign_presentations.json` declares the 69 captures for a
 continuous New Game prefix through the BioPlant alarm. It pins the tape hash;
-a changed route or runtime requires rediscovering the addresses. The prefix
+a changed route or runtime requires rediscovering the addresses with the
+[`presentation_frames` example](../../rust/psiv-campaign/examples/presentation_frames.rs).
+Review its output before replacing the pinned manifest. The prefix
 keeps the main route through objective 7 of `bioplant-elevators` (arrival on
 map `$A4`), then ends. It does not exercise the later elevators or Rika. Prepare
 that route from its owning data, without duplicating its chapter bodies:
