@@ -60,3 +60,25 @@ class Observations(unittest.TestCase):
             self.assertFalse(passed(requests, {"observations": [result]}, root))
             shot.unlink()
             self.assertFalse(passed(requests, {"observations": [result]}, root))
+
+    def test_local_bootstrap_refuses_missing_or_stale_binary_before_validation(self):
+        from unittest.mock import patch
+        from tools import native_verifier
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in native_verifier.INPUTS:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('current source')
+            with patch.object(native_verifier, 'ROOT', root), \
+                    patch.dict('os.environ', {}, clear=True), \
+                    patch.object(native_verifier, '_exchange', return_value={}) as exchange:
+                with self.assertRaisesRegex(ValueError, 'missing or stale'):
+                    native_verifier.verify({'operation': 'requests'})
+                exchange.assert_not_called()
+                binary = root / 'rust/target/debug/psiv-native-verify'
+                binary.parent.mkdir(parents=True)
+                binary.touch()
+                with self.assertRaisesRegex(ValueError, 'missing or stale'):
+                    native_verifier.verify({'operation': 'requests'})
+                exchange.assert_called_once_with(binary, {'operation': 'identity'})

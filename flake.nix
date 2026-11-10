@@ -181,6 +181,19 @@
           strictDeps = true;
         };
 
+      nativeVerifyFor = pkgs:
+        let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
+        craneLib.buildPackage {
+          src = lib.cleanSource self;
+          pname = "psiv-native-verify";
+          version = "0.1.0";
+          cargoToml = ./rust/Cargo.toml;
+          cargoLock = ./rust/Cargo.lock;
+          postUnpack = "cd $sourceRoot/rust && sourceRoot=.";
+          cargoExtraArgs = "--locked -p psiv-native-verify";
+          strictDeps = true;
+        };
+
       floatGuardFor = pkgs:
         let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
         craneLib.buildPackage {
@@ -261,6 +274,7 @@
         platform-tests = pkgs.runCommand "psiv-platform-tests" {
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_MEMORY_VERDICT_BINARY = "${memoryVerdictFor pkgs}/bin/psiv-memory-verdict";
+          PSIV_NATIVE_VERIFY_BINARY = "${nativeVerifyFor pkgs}/bin/psiv-native-verify";
         } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree

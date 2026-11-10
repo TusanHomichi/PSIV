@@ -81,7 +81,7 @@ joypad byte per frame until each objective is met, reading the session's
 views to decide the next press.
 
 ```text
-cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign -p psiv-native-verify
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
     --save-dir build/campaign/run1
 rust/target/release/psiv-campaign replay build/campaign/run1/run.tape
@@ -335,7 +335,7 @@ for 6,260,544 frames). The flag reaches `--continue-probes` too.
 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
   python3 tools/heavy_lock.py run --class exclusive -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run --class build -- \
-  cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+  cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign -p psiv-native-verify
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
   --save-dir build/r2-route --tape build/r2-route/run.tape --report build/r2-route/report.json
 # Each verifier takes its own godot-class slot of the heavy-run lock.
@@ -447,6 +447,14 @@ A request file can also be a manifest with exactly `tape_sha256` and
 `requests` fields. The verifier requires its lowercase SHA-256 to match the
 input tape before accepting the requests, so changed pads cannot silently
 reuse old addresses.
+
+Observation request schemas, pinned tape SHA-256, result frames and capture-file
+identity, and the Zema state checks are owned by
+[`psiv-native-verify`](../../rust/psiv-native-verify/src/lib.rs). Build it under
+the build lock before the Python native entry points; a stale local binary is
+rejected by a source-identity handshake. `PSIV_NATIVE_VERIFY_BINARY` selects an
+explicit packaged binary (as the Nix platform check does). Python retains
+Pillow image decoding and NumPy pixel comparisons.
 
 `tools/native/campaign_presentations.json` declares the 69 captures for a
 continuous New Game prefix through the BioPlant alarm. It pins the tape hash;

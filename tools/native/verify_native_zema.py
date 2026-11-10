@@ -12,52 +12,22 @@ from pathlib import Path
 
 from PIL import Image
 
+# Direct script execution puts tools/native, rather than the repository, on sys.path.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from native_verifier import verify as rust_verify
+
 
 def verify(native: dict, pack: Path) -> dict:
-    rows = {row["label"]: row for row in native["observations"]}
-    pages = []
-    frames = []
-    for number in range(1, 51):
-        row = rows[f"zema-page-{number:02d}"]
-        state = row["state"]
-        page = state["dialogue_page"]
-        if state["map"] != 0x24 or not page or not page["ready"]:
-            raise ValueError(f"Zema page {number} is not a ready page in Zema")
-        pages.append(json.dumps([page["tree"], page["lines"]], sort_keys=True))
-        frames.append(row["frame"])
-    if len(set(pages)) != 50 or any(a >= b for a, b in zip(frames, frames[1:])):
-        raise ValueError("Zema must have 50 distinct pages at increasing tape frames")
-    for label, y in (("igglanova-halfway", 176), ("igglanova-arrived", 192)):
-        state = rows[label]["state"]
-        if state["map"] != 0x24 or not any(
-                obj["id"] == 0x188 and obj.get("position") == [480, y]
-                for obj in state["temporary_objects"]):
-            raise ValueError(f"{label}: missing Igglanova at the recorded entrance position")
-    restored = rows["zema-restored"]["state"]
-    if restored["map"] != 0x24 or 0x37 not in restored["flags"] or len(restored["active_npcs"]) != 7:
-        raise ValueError("Zema aftermath did not restore seven residents")
-    record = json.loads((pack / "maps/024_Zema.json").read_text())
-    copies = [effect for entry in record["map_effects"] for path in entry["paths"]
-              for effect in path.get("deferred_effects", []) if effect.get("at") == "0x051E56"]
-    if len(copies) != 1:
-        raise ValueError("pack must contain the US Zema palette copy at $051E56")
-    copy = copies[0]
-    words = [int(word, 16) for word in copy["words_hex"]]
-    if restored["cram"].get("live") is not True or restored["cram"]["words"][48:64] != words:
-        raise ValueError("restored Zema CRAM line 3 differs from the extracted palette copy")
-    sheets = {row["index"]: row["sheet"] for row in restored["npc_sheets"]}
-    for sheet in copy["affects"]["npc_sheets"]:
-        if sheets.get(sheet["npc_index"]) != sheet["to"]:
-            raise ValueError(f"resident {sheet['npc_index']} has not taken its restored palette sheet")
-    labels = [f"zema-page-{n:02d}" for n in range(1, 51)] + [
-        "igglanova-halfway", "igglanova-arrived", "zema-restored"]
-    for label in labels:
-        with Image.open(rows[label]["capture"]) as picture:
+    result = rust_verify({"operation": "zema", "native": native,
+                          "map": json.loads((pack / "maps/024_Zema.json").read_text())})
+    # Pillow owns decoding and viewport dimensions, not recorded game state.
+    for capture in result.pop("captures"):
+        with Image.open(capture["path"]) as picture:
             if picture.size != (1280, 800):
-                raise ValueError(f"{label}: expected a 1280x800 rendered capture")
+                raise ValueError(f"{capture['label']}: expected a 1280x800 rendered capture")
             picture.load()
-    return {"pass": True, "pages": 50, "resident_sheets": len(copy["affects"]["npc_sheets"]),
-            "palette_copy": copy["at"], "cram_line": 3, "frames": frames}
+    return result
 
 
 def main(argv=None):

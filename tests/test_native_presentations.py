@@ -98,3 +98,46 @@ class Zema(unittest.TestCase):
                 mutate(bad['observations'])
                 with self.assertRaises((ValueError, KeyError)):
                     zema.verify(bad, root)
+
+    def test_replacement_mapping_covers_every_active_resident_with_negative_controls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            native = self.fixture(root)
+            path = root / 'maps/024_Zema.json'
+            original = json.loads(path.read_text())
+            self.assertEqual(zema.verify(native, root)['resident_sheets'], 7)
+            for count in (0, 1, 6):
+                bad_map = copy.deepcopy(original)
+                replacements = bad_map['map_effects'][0]['paths'][0]['deferred_effects'][0]['affects']['npc_sheets']
+                del replacements[count:]
+                path.write_text(json.dumps(bad_map))
+                petrified = copy.deepcopy(native)
+                for sheet in petrified['observations'][-1]['state']['npc_sheets']:
+                    sheet['sheet'] = 'petrified'
+                for capture in (native, petrified):
+                    with self.subTest(count=count), self.assertRaises(ValueError):
+                        zema.verify(capture, root)
+            for index in (1, 7):
+                bad_map = copy.deepcopy(original)
+                bad_map['map_effects'][0]['paths'][0]['deferred_effects'][0]['affects']['npc_sheets'][0]['npc_index'] = index
+                path.write_text(json.dumps(bad_map))
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    zema.verify(native, root)
+            path.write_text(json.dumps(original))
+            for field, key in (('active_npcs', None), ('npc_sheets', 'index')):
+                bad = copy.deepcopy(native)
+                rows = bad['observations'][-1]['state'][field]
+                if key:
+                    rows[0][key] = 1
+                else:
+                    rows[0] = 1
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    zema.verify(bad, root)
+            extra = copy.deepcopy(native)
+            extra['observations'][-1]['state']['npc_sheets'].append({'index': 7, 'sheet': 'extra'})
+            with self.assertRaises(ValueError):
+                zema.verify(extra, root)
+            wrong = copy.deepcopy(native)
+            wrong['observations'][-1]['state']['npc_sheets'][0]['index'] = 7
+            with self.assertRaises(ValueError):
+                zema.verify(wrong, root)
