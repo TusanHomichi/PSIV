@@ -454,7 +454,12 @@ a changed route or runtime requires rediscovering the addresses with the
 [`presentation_frames` example](../../rust/psiv-campaign/examples/presentation_frames.rs).
 Review its output before replacing the pinned manifest. The prefix
 keeps the main route through objective 7 of `bioplant-elevators` (arrival on
-map `$A4`), then ends. It does not exercise the later elevators or Rika. Prepare
+map `$A4`), then ends. On arrival at `$A3`, it inserts an ordinary `wait`
+objective for 80 frames so the [doorway transition](../field/TRANSITIONS_DECODED.md#doorway-fade-through-black)
+finishes before walking into the alarm. Inputs match the main route through
+arrival at `$A3`; the dwell makes the remainder a presentation route rather
+than a byte-identical main tape prefix. It does not exercise the later
+elevators or Rika. Prepare
 that route from its owning data, without duplicating its chapter bodies:
 
 ```sh
@@ -467,9 +472,13 @@ index = next(i for i, c in enumerate(route["chapters"])
              if c["id"] == "bioplant-elevators")
 route["chapters"] = route["chapters"][:index + 1]
 chapter = route["chapters"][-1]
+assert chapter["objectives"][6]["do"] == "go_to_map"
+assert chapter["objectives"][6]["map"] == 0xA3
 assert chapter["objectives"][7]["do"] == "go_to_map"
 assert chapter["objectives"][7]["map"] == 0xA4
-chapter.update(id="bioplant-alarm", objectives=chapter["objectives"][:8], closing=[])
+objectives = (chapter["objectives"][:7] + [{"do": "wait", "frames": 80}]
+              + chapter["objectives"][7:8])
+chapter.update(id="bioplant-alarm", objectives=objectives, closing=[])
 Path("build/presentation-prefix/route.json").write_text(json.dumps(route))
 PYCODE
 heavy -- rust/target/debug/psiv-campaign run build/presentation-prefix/route.json \
