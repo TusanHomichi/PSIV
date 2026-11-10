@@ -5,7 +5,7 @@
 - **Reach:** Zio Fort `$82`, the courtyard's four `InvisibleBlock` objects at
   `(46..49,55)` each carry dialogue 73; tree 13 entry 73's action runs this
   event. No `RunEvent_*` writer starts it.
-- **Data:** `post_rika_events.rs`, `ZIO_FORT_BARRIER` (35 ops).
+- **Data:** `post_rika_events.rs`, `ZIO_FORT_BARRIER` (36 ops).
 
 ## Clone audit
 
@@ -26,18 +26,18 @@ same label is not used.
 | 8 | `$06ECE0..$06ECEA` | `bset #0` (follow chain off) and `bset #2` (scene owns the camera) on `Char_Move_Flags` | `SetFollowMode(0b101)` |
 | 9 | `$06ECEC..$06ED00` | `Event_MoveObjectStatic` on Rune to `($2F0,$370)`: destination plus a spin of *all* field objects, which is how the other four walk their own targets | `MoveActorTo(Rune, wait)` |
 | 10-14 | `$06ED02..$06ED08` | `loc_5A97C` with `d0 = 4`: `Event_UpdateObjFacing` on each character object — all five face up | five `Face` |
-| 15 | `$06ED0A` | `DoMainUpdatesLoop($27)` | `Wait(40)` |
-| 16 | `$06ED34` | `SFXID_Tandle` `$CE` | `PlaySound($CE)` |
-| 17 | `$06ED42..$06ED6C` | `Palette_Line_4` (`$FFFFFB60`) ramped from `loc_6EE16` over seven steps, each waiting `DoMapUpdateLoop($1D)`: 3 words per step, `$0CCC→$0000`, `$0000→$0020`, `$0088→$0000` | `PaletteRampFromTable{7, 30}` |
-| 18 | `$06ED6E..$06ED74` | `DoMapUpdateLoop($3B)` | `Wait(60)` |
-| 19 | `$06ED76..$06ED84` | `clr.w` over eight object slots from `$FFFFC400`: this map's record objects 4 to 11 — `BarrierBeam1..4` and the four `InvisibleBlock` triggers | `DespawnNpc{4, 8}` |
-| 20-23 | `$06ED8C..$06EDC0` | face Rune down; `Event_MoveSingleObject` Demi to `($300,$370)`; face her down; `DoMapUpdateLoop($1D)` | face/move/face/`Wait(30)` |
-| 24 | `$06EDC2..$06EDC8` | dialogue `$45` | `RunDialogue($45)` |
-| 25-28 | `$06EDCA..$06EDEE` | `bclr #0`; `Character_1` — the leader — to `($2F0,$350)`; `bclr #2`; `DoMainUpdatesLoop($3B)` | `SetFollowMode(0b100)`, `MoveActorTo(leader)`, `SetFollowMode(0b000)`, `Wait(60)` |
-| 29 | `$06EDF0..$06EDFA` | `Event_MoveCamera` reading the leader's live `$30/$34`, speed 1 | `CameraToActor(leader, 1)` |
-| 30-31 | `$06EE00..$06EE08` | `FieldObj_Step_Offset = 1`; `EventFlags_Set($64)` — Zio Fort Barrier | `SetStepOffset(1)`, `SetFlag($64)` |
-| 32 | `$06EE06..$06EE08` | `jmp (EventFlags_Set)` restores `d0`, so the event returns the flag id | `Return(1)` |
-| 33-34 | `$06EE0E..$06EE14` | `loc_6EE0E`: dialogue `$4A`, then the dialogue routine's return | `RunDialogue($4A)`, `Return(0)` |
+| 15-16 | `$06ED0A..$06ED40` | `DoMainUpdatesLoop($27)`; clear beam render flag bit 1; `Field_UpdateObjects` and one `VInt_Prepare` | `BarrierBeamUpdates{40, false}`, then `{1, true}` |
+| 17 | `$06ED34` | `SFXID_Tandle` `$CE` | `PlaySound($CE)` |
+| 18 | `$06ED42..$06ED6C` | `Palette_Line_4` (`$FFFFFB60`) ramped from `loc_6EE16` over seven steps, each waiting `DoMapUpdateLoop($1D)`: 3 words per step, `$0CCC→$0000`, `$0000→$0020`, `$0088→$0000` | `PaletteRampFromTable{7, 30}` |
+| 19 | `$06ED6E..$06ED74` | `DoMapUpdateLoop($3B)` | `Wait(60)` |
+| 20 | `$06ED76..$06ED84` | `clr.w` over eight object slots from `$FFFFC400`: this map's record objects 4 to 11 — `BarrierBeam1..4` and the four `InvisibleBlock` triggers | `DespawnNpc{4, 8}` |
+| 21-24 | `$06ED8C..$06EDC0` | face Rune down; `Event_MoveSingleObject` Demi to `($300,$370)`; face her down; `DoMapUpdateLoop($1D)` | face/move/face/`Wait(30)` |
+| 25 | `$06EDC2..$06EDC8` | dialogue `$45` | `RunDialogue($45)` |
+| 26-29 | `$06EDCA..$06EDEE` | `bclr #0`; `Character_1` — the leader — to `($2F0,$350)`; `bclr #2`; `DoMainUpdatesLoop($3B)` | `SetFollowMode(0b100)`, `MoveActorTo(leader)`, `SetFollowMode(0b000)`, `Wait(60)` |
+| 30 | `$06EDF0..$06EDFA` | `Event_MoveCamera` reading the leader's live `$30/$34`, speed 1 | `CameraToActor(leader, 1)` |
+| 31-32 | `$06EE00..$06EE08` | `FieldObj_Step_Offset = 1`; `EventFlags_Set($64)` — Zio Fort Barrier | `SetStepOffset(1)`, `SetFlag($64)` |
+| 33 | `$06EE06..$06EE08` | `jmp (EventFlags_Set)` restores `d0`, so the event returns the flag id | `Return(1)` |
+| 34-35 | `$06EE0E..$06EE14` | `loc_6EE0E`: dialogue `$4A`, then the dialogue routine's return | `RunDialogue($4A)`, `Return(0)` |
 
 ### The ring
 
@@ -74,3 +74,20 @@ on Zio Fort `$82` with the campaign's roster and `$63` set, asserts both
 dialogues in order, the five ring cells *and* the leader's `(47,54)` when
 `$45` opens, flag `$64`, all eight objects cleared, and then walks up into the
 courtyard to arrive on Nurvus `$D7` at `(32,35)`.
+
+### Beam presentation
+
+`FieldObj_BarrierBeam1..4` (`ps4.asm:99228-99400`) keep a word timer,
+render-flag bit 1 and a mapping countdown. The first/third toggle on odd
+calls, the second/fourth on even calls, only while leader X is `$2D0..$320`
+and Y is at most `$380`; outside that rectangle all four hide. Their indexed
+sheets draw on CRAM line 3. `FieldObj_Animate2` decrements the initial duration
+4 before testing its sign, so the fifth call advances the first mapping.
+
+Runtime's bespoke actors own those counters and visibility. The initial
+actor-motion loop and the forty main updates advance them; the scene then
+reveals all four and runs their routines once. The following palette ramp and
+sixty-frame map-only wait keep that last sprite pose. Godot reads the routine's
+age and visibility, including during the scene's generic NPC draw pass.
+The full scene's beam/camera choreography is compared by the `zio-barrier-ramp`
+pair in [scene presentation](SCENE_PRESENTATION.md).

@@ -618,3 +618,25 @@ fn control_a_leader_walk_fails_the_party_move_check() {
         "{result:?}"
     );
 }
+
+/// `$06EC62` branches to `$06EE0E` while AfterAlysDeath is clear: only
+/// dialogue `$4A`, no beam update/ramp, barrier flag write or actor walk.
+#[test]
+fn zio_barrier_before_alys_death_is_only_its_refusal_dialogue() {
+    let map = map_with(&["...", "...", "..."], vec![], vec![]);
+    let mut state = GameState::new();
+    let before = state.snapshot();
+    let scene = psiv_core::scene_for(psiv_core::EventIndex(0x30)).unwrap();
+    let mut runner = SceneRunner::new(scene.ops, vec![], frames());
+    assert_eq!(
+        runner.tick(&map, &mut state, SceneInput::None),
+        vec![SceneEffect::DialogueOpen(psiv_core::DialogueId(0x4A))]
+    );
+    assert_eq!(
+        runner.tick(&map, &mut state, SceneInput::DialogueClosed),
+        vec![SceneEffect::Returned { value: 0 }, SceneEffect::Finished]
+    );
+    assert!(runner.is_finished());
+    assert_eq!(state.snapshot(), before);
+    assert!(!state.is_set(Flag::event(0x64)));
+}

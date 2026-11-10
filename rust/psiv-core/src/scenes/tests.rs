@@ -58,7 +58,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_RuneLadaeTower", 9),
         ("Event_PsycoWandChest", 20),
         ("Cutscene_PsycoWand", 112),
-        ("Event_ZioFortBarrier", 35),
+        ("Event_ZioFortBarrier", 36),
         ("Event_ZioNurvus", 18),
         ("Cutscene_ZioDefeated", 72),
         ("Cutscene_MeetingWren", 16),

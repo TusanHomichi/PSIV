@@ -240,6 +240,25 @@ impl SceneRunner {
         matches!(self.blocked, Blocked::Actor(_) | Blocked::Camera) || self.drift.is_some()
     }
 
+    /// Whether this frame belongs to the beam routines' object-update loop.
+    #[must_use]
+    pub fn runs_barrier_beams(&self) -> bool {
+        matches!(self.blocked, Blocked::Actor(_))
+            || (matches!(self.blocked, Blocked::Ticks(n) if n > 1)
+                && self
+                    .pc
+                    .checked_sub(1)
+                    .and_then(|pc| self.scene.get(pc))
+                    .is_some_and(|op| {
+                        matches!(
+                            op,
+                            SceneOp::Presentation {
+                                op: crate::PresentationOp::BarrierBeamUpdates { .. }
+                            }
+                        )
+                    }))
+    }
+
     /// Whether the post-tick block runs the retail map-update loop.
     /// Drift frames are captured before the tick by `completes_map_update_loop`,
     /// so installing a drift does not add a map update before its first object update.
@@ -257,6 +276,9 @@ impl SceneRunner {
                     matches!(
                         op,
                         SceneOp::Wait { .. }
+                            | SceneOp::Presentation {
+                                op: crate::PresentationOp::BarrierBeamUpdates { reveal: false, .. }
+                            }
                             | SceneOp::StepObjectAlongFacing { .. }
                             | SceneOp::Ride(RideOp::Platform { .. })
                     )

@@ -105,12 +105,17 @@ pub enum BespokeRandom {
 pub enum BespokeKind {
     /// Position and animation only; no movement or RNG state is consumed.
     StaticAnimation,
+    /// Zio Fort's `FieldObj_BarrierBeam1..4` (`ps4.asm:99228-99400`).
+    BarrierBeam {
+        /// Beams 1/3 toggle on odd timer words; beams 2/4 on even ones.
+        even: bool,
+    },
     /// The routine takes input from the scene/field-object controller. The
     /// scene lane owns it, so the field tick deliberately does not synthesize
     /// input here.
     SceneDriven,
     /// The routine has deterministic presentation state not represented by
-    /// the cell movement core (barrier beams, flicker, one-shot art, etc.).
+    /// the cell movement core (flicker, one-shot art, etc.).
     PresentationOnly,
     /// A fixed raw command, including routines whose boundary rejects it.
     Fixed {
@@ -225,6 +230,7 @@ impl BespokeKind {
         match self {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
+            | BespokeKind::BarrierBeam { .. }
             | BespokeKind::PresentationOnly
             | BespokeKind::FacingToggle { .. } => Leash::ZERO,
             BespokeKind::Fixed { leash, .. }
@@ -244,6 +250,7 @@ impl BespokeKind {
         match self {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
+            | BespokeKind::BarrierBeam { .. }
             | BespokeKind::PresentationOnly
             | BespokeKind::FacingToggle { .. } => WanderSpeed::Selector0,
             BespokeKind::Fixed { speed, .. }
@@ -293,6 +300,8 @@ pub struct BespokeActor {
     step: Option<BespokeStep>,
     frames: u8,
     dialogue: Option<u16>,
+    hidden: bool,
+    animation_age: u64,
 }
 
 impl BespokeActor {
@@ -311,6 +320,8 @@ impl BespokeActor {
                 .unwrap_or(StepFrames::DEFAULT)
                 .get(),
             dialogue: None,
+            hidden: matches!(kind, BespokeKind::BarrierBeam { even: true }),
+            animation_age: 0,
         }
     }
 
@@ -324,6 +335,16 @@ impl BespokeActor {
     #[must_use]
     pub const fn kind(&self) -> BespokeKind {
         self.kind
+    }
+
+    /// Beam sprite draw state, parked whenever the routine is not called.
+    #[must_use]
+    pub const fn beam_draw(&self) -> Option<(bool, u64)> {
+        if matches!(self.kind, BespokeKind::BarrierBeam { .. }) {
+            Some((!self.hidden, self.animation_age))
+        } else {
+            None
+        }
     }
 
     /// Current boundary bytes.
@@ -488,6 +509,15 @@ impl BespokeSet {
         }
     }
 
+    /// The scene clears render flag bit 1 on all four beam objects.
+    pub fn reveal_beams(&mut self) {
+        for actor in &mut self.actors {
+            if matches!(actor.kind, BespokeKind::BarrierBeam { .. }) {
+                actor.hidden = false;
+            }
+        }
+    }
+
     /// Ticks one actor. The caller supplies visibility and invokes this in
     /// ascending map-object index order so all RNG consumers share the one
     /// cartridge stream.
@@ -506,6 +536,19 @@ impl BespokeSet {
             return;
         };
         if !map.npcs().get(npc_index).is_some_and(|npc| npc.active) {
+            return;
+        }
+
+        if let BespokeKind::BarrierBeam { even } = self.actors[index].kind {
+            let actor = &mut self.actors[index];
+            actor.timer = actor.timer.wrapping_add(1);
+            let (x, y) = context.driver_pixels;
+            if !(0x2D0..=0x320).contains(&x) || y > 0x380 {
+                actor.hidden = true;
+            } else if (actor.timer as u16 & 1 == 0) == even {
+                actor.hidden = !actor.hidden;
+            }
+            actor.animation_age = actor.animation_age.wrapping_add(1);
             return;
         }
 
@@ -600,6 +643,7 @@ impl BespokeSet {
         match kind {
             BespokeKind::StaticAnimation
             | BespokeKind::SceneDriven
+            | BespokeKind::BarrierBeam { .. }
             | BespokeKind::PresentationOnly
             | BespokeKind::FacingToggle { .. } => 0,
             BespokeKind::Fixed { command, .. } | BespokeKind::Departing { command, .. } => command,

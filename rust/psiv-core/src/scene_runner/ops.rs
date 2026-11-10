@@ -860,6 +860,15 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
             }
+            SceneOp::Presentation {
+                op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
+            }
             // The barrier ramp, the engine light and Rykros's cycle wait
             // inside their loops: the op blocks for every frame the cartridge
             // spends in it ([`crate::PresentationOp::palette_loop_frames`]).
