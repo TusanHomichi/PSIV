@@ -1,0 +1,350 @@
+{
+  "tape_sha256": "eeb2f136d497849cd74fadb2901be255cf8f240ec4c7e07f8e5529b641071623",
+  "requests": [
+    {
+      "frame": 112964,
+      "label": "zema-page-01",
+      "capture": true
+    },
+    {
+      "frame": 113133,
+      "label": "zema-page-02",
+      "capture": true
+    },
+    {
+      "frame": 113188,
+      "label": "zema-page-03",
+      "capture": true
+    },
+    {
+      "frame": 113306,
+      "label": "zema-page-04",
+      "capture": true
+    },
+    {
+      "frame": 113466,
+      "label": "zema-page-05",
+      "capture": true
+    },
+    {
+      "frame": 113602,
+      "label": "zema-page-06",
+      "capture": true
+    },
+    {
+      "frame": 113648,
+      "label": "zema-page-07",
+      "capture": true
+    },
+    {
+      "frame": 113802,
+      "label": "zema-page-08",
+      "capture": true
+    },
+    {
+      "frame": 113959,
+      "label": "zema-page-09",
+      "capture": true
+    },
+    {
+      "frame": 113972,
+      "label": "zema-page-10",
+      "capture": true
+    },
+    {
+      "frame": 113994,
+      "label": "zema-page-11",
+      "capture": true
+    },
+    {
+      "frame": 114061,
+      "label": "zema-page-12",
+      "capture": true
+    },
+    {
+      "frame": 114200,
+      "label": "zema-page-13",
+      "capture": true
+    },
+    {
+      "frame": 114237,
+      "label": "zema-page-14",
+      "capture": true
+    },
+    {
+      "frame": 114361,
+      "label": "zema-page-15",
+      "capture": true
+    },
+    {
+      "frame": 114428,
+      "label": "zema-page-16",
+      "capture": true
+    },
+    {
+      "frame": 114555,
+      "label": "zema-page-17",
+      "capture": true
+    },
+    {
+      "frame": 114703,
+      "label": "zema-page-18",
+      "capture": true
+    },
+    {
+      "frame": 114797,
+      "label": "zema-page-19",
+      "capture": true
+    },
+    {
+      "frame": 114891,
+      "label": "zema-page-20",
+      "capture": true
+    },
+    {
+      "frame": 115042,
+      "label": "zema-page-21",
+      "capture": true
+    },
+    {
+      "frame": 115142,
+      "label": "zema-page-22",
+      "capture": true
+    },
+    {
+      "frame": 115149,
+      "label": "zema-page-23",
+      "capture": true
+    },
+    {
+      "frame": 115480,
+      "label": "zema-page-24",
+      "capture": true
+    },
+    {
+      "frame": 115643,
+      "label": "zema-page-25",
+      "capture": true
+    },
+    {
+      "frame": 115701,
+      "label": "zema-page-26",
+      "capture": true
+    },
+    {
+      "frame": 115762,
+      "label": "zema-page-27",
+      "capture": true
+    },
+    {
+      "frame": 115937,
+      "label": "zema-page-28",
+      "capture": true
+    },
+    {
+      "frame": 115998,
+      "label": "zema-page-29",
+      "capture": true
+    },
+    {
+      "frame": 116107,
+      "label": "zema-page-30",
+      "capture": true
+    },
+    {
+      "frame": 116192,
+      "label": "zema-page-31",
+      "capture": true
+    },
+    {
+      "frame": 116451,
+      "label": "zema-page-32",
+      "capture": true
+    },
+    {
+      "frame": 116620,
+      "label": "zema-page-33",
+      "capture": true
+    },
+    {
+      "frame": 116714,
+      "label": "zema-page-34",
+      "capture": true
+    },
+    {
+      "frame": 116733,
+      "label": "zema-page-35",
+      "capture": true
+    },
+    {
+      "frame": 116773,
+      "label": "zema-page-36",
+      "capture": true
+    },
+    {
+      "frame": 116831,
+      "label": "zema-page-37",
+      "capture": true
+    },
+    {
+      "frame": 117017,
+      "label": "igglanova-halfway",
+      "capture": true
+    },
+    {
+      "frame": 117049,
+      "label": "igglanova-arrived",
+      "capture": true
+    },
+    {
+      "frame": 117243,
+      "label": "zema-page-38",
+      "capture": true
+    },
+    {
+      "frame": 117316,
+      "label": "zema-page-39",
+      "capture": true
+    },
+    {
+      "frame": 117329,
+      "label": "zema-page-40",
+      "capture": true
+    },
+    {
+      "frame": 117850,
+      "label": "zema-page-41",
+      "capture": true
+    },
+    {
+      "frame": 117938,
+      "label": "zema-page-42",
+      "capture": true
+    },
+    {
+      "frame": 118068,
+      "label": "zema-page-43",
+      "capture": true
+    },
+    {
+      "frame": 118216,
+      "label": "zema-page-44",
+      "capture": true
+    },
+    {
+      "frame": 118343,
+      "label": "zema-page-45",
+      "capture": true
+    },
+    {
+      "frame": 118485,
+      "label": "zema-page-46",
+      "capture": true
+    },
+    {
+      "frame": 118507,
+      "label": "zema-page-47",
+      "capture": true
+    },
+    {
+      "frame": 118535,
+      "label": "zema-page-48",
+      "capture": true
+    },
+    {
+      "frame": 118617,
+      "label": "zema-page-49",
+      "capture": true
+    },
+    {
+      "frame": 118690,
+      "label": "zema-page-50",
+      "capture": true
+    },
+    {
+      "frame": 118764,
+      "label": "zema-restored",
+      "capture": true
+    },
+    {
+      "frame": 192098,
+      "label": "alarm-out-1",
+      "capture": true
+    },
+    {
+      "frame": 192102,
+      "label": "alarm-out-2",
+      "capture": true
+    },
+    {
+      "frame": 192106,
+      "label": "alarm-out-3",
+      "capture": true
+    },
+    {
+      "frame": 192110,
+      "label": "alarm-out-4",
+      "capture": true
+    },
+    {
+      "frame": 192114,
+      "label": "alarm-out-5",
+      "capture": true
+    },
+    {
+      "frame": 192118,
+      "label": "alarm-out-6",
+      "capture": true
+    },
+    {
+      "frame": 192122,
+      "label": "alarm-out-7",
+      "capture": true
+    },
+    {
+      "frame": 192126,
+      "label": "alarm-out-8",
+      "capture": true
+    },
+    {
+      "frame": 192130,
+      "label": "alarm-in-1",
+      "capture": true
+    },
+    {
+      "frame": 192134,
+      "label": "alarm-in-2",
+      "capture": true
+    },
+    {
+      "frame": 192138,
+      "label": "alarm-in-3",
+      "capture": true
+    },
+    {
+      "frame": 192142,
+      "label": "alarm-in-4",
+      "capture": true
+    },
+    {
+      "frame": 192146,
+      "label": "alarm-in-5",
+      "capture": true
+    },
+    {
+      "frame": 192150,
+      "label": "alarm-in-6",
+      "capture": true
+    },
+    {
+      "frame": 192154,
+      "label": "alarm-in-7",
+      "capture": true
+    },
+    {
+      "frame": 192158,
+      "label": "alarm-in-8",
+      "capture": true
+    }
+  ]
+}

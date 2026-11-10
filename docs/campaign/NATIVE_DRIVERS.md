@@ -51,11 +51,11 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_tonoe` | Holt to Rune and Dorin, the paid inn, the Dorin YES/NO prompts, Gryz joining | `rune-dorin` (2) | Retired |
 | `native_alshline` | Gryz's door, the basement, the Alshline chest, an ordinary SAVE back in town | `alshline` (4); the chest is the route's first `open_chest`. The grinding of `basement-training` (3) is the route's own addition | Retired |
 | `native_alshline_retreat` | The same quest using RUN on random encounters | The `run_unless_boss` policy of `rune-dorin` (2), `alshline` (4) and `zema-rescue` (5) presses RUN from the battle menu | Retired |
-| `native_zema_return` | Rest, back through the pass, Zema's rescue boss, the post-battle conversation, SAVE | `zema-rescue` (5) | Retired. The generic tape requests and `verify_native_zema.py` can check its resident palette, 50 pages and Igglanova entrance; named frames remain [#93](https://github.com/TusanHomichi/PSIV/issues/93) |
+| `native_zema_return` | Rest, back through the pass, Zema's rescue boss, the post-battle conversation, SAVE | `zema-rescue` (5) | Retired. The named tape captures in `campaign_presentations.json` and `verify_native_zema.py` check its resident palette, 50 pages and Igglanova entrance |
 | `native_zema_outfit` | Purchases at two counters with exact prices, equipping through the camp, a paid rest, SAVE | `zema-outfit` (6): 6 buys, 7 equips, one `rest_inn` | Retired. Its hand-selector cancel check is now `cancelling_the_hand_selector_changes_neither_equipment_nor_the_pack` in `rust/psiv-runtime/tests/session_menus/hand_cancel.rs`, through ordinary pad input |
 | `native_zema_training` | Birth Valley battles and paid Zema rests to a target level | `zema-training` (7), policy `train_with_inn` | Retired |
 | `native_zema_armour` | Carbon suits bought and equipped for Alys and Chaz | `zema-armour` (8) | Retired |
-| `native_bioplant` | The BioPlant doors, elevators, encounters, poison cures and dialogue to Rika, with the alarm palette captures | `bioplant-elevators` (9), `bioplant-rika` (11), policy `bioplant_survival` | Retired. `verify_native_alarm.py` reads generic tape captures; its named frame requests remain [#93](https://github.com/TusanHomichi/PSIV/issues/93) |
+| `native_bioplant` | The BioPlant doors, elevators, encounters, poison cures and dialogue to Rika, with the alarm palette captures | `bioplant-elevators` (9), `bioplant-rika` (11), policy `bioplant_survival` | Retired. The named alarm tape captures in `campaign_presentations.json` feed `verify_native_alarm.py` |
 | `native_bioplant_recovery` | One BioPlant encounter, normal recovery, SAVE | `bioplant-elevators` (9): 4 battles, each followed by the camp recovery | Retired |
 | `native_post_rika` | Zema's inn, then the opened northern crossing to the bank | `north-bank` (12) | Retired |
 
@@ -123,12 +123,10 @@ says nothing about dialogue pacing, sound or controller hardware.
 
 The remaining limits of the retirement are:
 
-The generic frame-addressed API and comparators support BioPlant's alarm and
-Zema's resident-palette, 50-page and Igglanova entrance observations
-([commands and required labels](CAMPAIGN_RUNNER.md#frame-addressed-presentation-observations)). Their named frame profile is still
-[#93](https://github.com/TusanHomichi/PSIV/issues/93), so those retired checks
-are not yet restored by a declared campaign capture run. Other former per-leg
-screenshots are not automatically requested by a replay.
+BioPlant's alarm and Zema's resident-palette, 50-page and Igglanova entrance
+observations have named tape captures and comparators
+([commands and required labels](CAMPAIGN_RUNNER.md#frame-addressed-presentation-observations)).
+Other former per-leg screenshots are not automatically requested by a replay.
 
 - **Per-chapter replay.** A chapter cannot be replayed alone, because a save
   holds no RNG state ([why](CAMPAIGN_RUNNER.md#native-tape-replay)).

@@ -448,9 +448,44 @@ A request file can also be a manifest with exactly `tape_sha256` and
 input tape before accepting the requests, so changed pads cannot silently
 reuse old addresses.
 
-The named BioPlant/Zema frame profile remains
-[#93](https://github.com/TusanHomichi/PSIV/issues/93); generic requests and
-comparators alone do not replace the retired campaign observations.
+`tools/native/campaign_presentations.json` declares the 69 captures for a
+continuous New Game prefix through the BioPlant alarm. It pins the tape hash;
+a changed route or runtime requires rediscovering the addresses. The prefix
+keeps the main route through objective 7 of `bioplant-elevators` (arrival on
+map `$A4`), then ends. It does not exercise the later elevators or Rika. Prepare
+that route from its owning data, without duplicating its chapter bodies:
+
+```sh
+mkdir -p build/presentation-prefix
+python3 - <<'PYCODE'
+import json
+from pathlib import Path
+route = json.loads(Path("rust/psiv-campaign/routes/main.json").read_text())
+index = next(i for i, c in enumerate(route["chapters"])
+             if c["id"] == "bioplant-elevators")
+route["chapters"] = route["chapters"][:index + 1]
+chapter = route["chapters"][-1]
+assert chapter["objectives"][7]["do"] == "go_to_map"
+assert chapter["objectives"][7]["map"] == 0xA4
+chapter.update(id="bioplant-alarm", objectives=chapter["objectives"][:8], closing=[])
+Path("build/presentation-prefix/route.json").write_text(json.dumps(route))
+PYCODE
+heavy -- rust/target/debug/psiv-campaign run build/presentation-prefix/route.json \
+  --pack runtime-pack --save-dir build/presentation-prefix/run \
+  --tape build/presentation-prefix/run/run.tape \
+  --report build/presentation-prefix/run/report.json
+heavy -- python3 tools/verify_native_route.py --run-dir build/presentation-prefix/run \
+  --out build/presentation-prefix/native --pack runtime-pack \
+  --observations tools/native/campaign_presentations.json
+python3 tools/native/verify_native_alarm.py build/presentation-prefix/native/native-tape
+python3 tools/native/verify_native_zema.py build/presentation-prefix/native/native-tape \
+  --pack runtime-pack
+```
+
+Build the current runner and extension first, and run heavy commands through
+[the development entry points](../DEVELOPMENT.md#heavy-run-lock). This prefix's
+last ordinary SAVE is in `zema-armour`; the final `bioplant-alarm` chapter is a
+read-only snapshot, so its comparison does not claim a SAVE at the alarm.
 
 The alarm comparison retains the restored native frame as its reference and
 checks the original component ramps and four-frame cadence over the whole

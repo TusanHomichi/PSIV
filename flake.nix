@@ -66,6 +66,7 @@
 
           xvfb = pkgs.runCommand "xvfb-swrast" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             makeWrapper ${pkgs.xvfb}/bin/Xvfb $out/bin/Xvfb --set LIBGL_DRIVERS_PATH ${driPath}
+            makeWrapper ${pkgs.xvfb-run}/bin/xvfb-run $out/bin/xvfb-run --set LIBGL_DRIVERS_PATH ${driPath}
           '';
         };
 
