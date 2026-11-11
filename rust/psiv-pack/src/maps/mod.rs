@@ -15,6 +15,7 @@ pub mod encounters;
 pub mod file;
 pub mod layouts;
 pub mod load_work;
+pub mod manifest;
 pub mod overworld;
 pub mod patches;
 pub mod pictures;

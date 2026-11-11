@@ -5,7 +5,7 @@ use std::io::Write as _;
 use std::path::Path;
 use std::process::ExitCode;
 
-use psiv_pack::{PackError, Rom, SECTIONS, build_sections, claims, default_workers, install};
+use psiv_pack::{PackError, Rom, SECTIONS, build_pack, claims, default_workers, install};
 
 const USAGE: &str = "usage: psiv-pack <rom> <pack> | psiv-pack --claims";
 
@@ -19,7 +19,7 @@ fn run(args: &[String]) -> Result<(), PackError> {
             let rom = Rom::read(Path::new(rom))?;
             let stdout = std::io::stdout();
             let installed = install::install_atomically(Path::new(pack), |root| {
-                build_sections(
+                build_pack(
                     &rom,
                     root,
                     SECTIONS,

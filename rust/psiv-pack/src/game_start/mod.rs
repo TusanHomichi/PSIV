@@ -846,7 +846,7 @@ pub fn extract_new_game<'a>(
 }
 
 /// The section.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
     let data = rom.bytes();
     let decodes = Decodes::new(data);
     let maps = extract_maps(data, &decodes)?;
@@ -855,7 +855,76 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         .map_err(|error| PackError(format!("cannot serialize game_start.json: {error}")))?;
     let mut file = Json::from(&value);
     overlay(&mut file, &research);
-    crate::write_json(root, "game_start.json", &file).map(drop)
+    let sha = crate::write_json(root, NAME, &file)?;
+    Ok(Json::object().with("game_start", headline(&file, sha)?))
+}
+
+const NAME: &str = "game_start.json";
+
+/// `write_manifest`'s headline of the file: where a new game begins, so
+/// the manifest alone answers it.
+fn headline(file: &Json, sha256: String) -> Result<Json, PackError> {
+    let start = file.at(&["first_control"])?;
+    let list = |key: &str| -> Result<Vec<&Json>, PackError> {
+        match start.at(&[key])? {
+            Json::Array(items) => Ok(items.iter().collect()),
+            _ => Err(PackError(format!("first_control.{key} is not a list"))),
+        }
+    };
+    let mut party = Vec::new();
+    for slot in list("party")? {
+        if slot.at(&["empty"])? == &Json::Bool(false) {
+            party.push(slot.at(&["symbol"])?.clone());
+        }
+    }
+    let flags = list("event_flags_set")?
+        .into_iter()
+        .map(|flag| flag.at(&["id"]).cloned())
+        .collect::<Result<Vec<_>, _>>()?;
+    let Json::Object(banks) = start.at(&["flag_banks"])? else {
+        return Err(PackError(
+            "first_control.flag_banks is not an object".into(),
+        ));
+    };
+    let mut flag_banks = Json::object();
+    for (bank, value) in banks {
+        flag_banks.insert(
+            bank.clone(),
+            Json::object()
+                .with("address", value.at(&["address"])?.clone())
+                .with("raw_hex", value.at(&["raw_hex"])?.clone()),
+        );
+    }
+    let chain = list("scene_chain")?
+        .into_iter()
+        .map(|scene| scene.at(&["event_hex"]).cloned())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json::object()
+        .with("file", NAME)
+        .with("sha256", sha256)
+        .with("map", start.at(&["map"])?.clone())
+        .with("x_cell", start.at(&["position", "x_cell"])?.clone())
+        .with("y_cell", start.at(&["position", "y_cell"])?.clone())
+        .with("facing", start.at(&["facing"])?.clone())
+        .with("party", Json::Array(party))
+        .with("music", start.at(&["music"])?.clone())
+        .with("event_flags_set", Json::Array(flags))
+        .with(
+            "extended_event_flags_set",
+            start.at(&["extended_event_flags_set"])?.clone(),
+        )
+        .with("town_flags_set", start.at(&["town_flags_set"])?.clone())
+        .with("chest_flags_set", start.at(&["chest_flags_set"])?.clone())
+        .with("flag_banks", flag_banks)
+        .with("scene_chain", Json::Array(chain))
+        .with(
+            "note",
+            "the first controllable moment, after the two scenes the title screen's event \
+             0x9F chains through. The party the new-game initialiser writes (Chaz and Alys) \
+             does not survive them, and neither scene ends the flag state -- \
+             Event_PiataChazAlone sets the flag its own trigger tests, which is what stops \
+             the chain.",
+        ))
 }
 
 mod chain;

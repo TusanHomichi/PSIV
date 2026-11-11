@@ -503,7 +503,7 @@ fn cell(x: u8, y: u8, w: u8, h: u8) -> Json {
 }
 
 /// `emit_title`.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
     let data = rom.bytes();
     let raw = data
         .get(PALETTE..PALETTE + 128)
@@ -554,5 +554,61 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
                 .with("press_start", cell(11, 22, 18, 1))
                 .with("copyright", cell(12, 25, 17, 1)),
         );
-    crate::write_json(root, "title/layout.json", &layout).map(drop)
+    let sha = crate::write_json(root, LAYOUT, &layout)?;
+    Ok(Json::object().with("title", summary(&layout, sha)?))
+}
+
+const LAYOUT: &str = "title/layout.json";
+
+/// `emit_title`'s return: the manifest's index of the title files.
+fn summary(layout: &Json, sha256: String) -> Result<Json, PackError> {
+    let pick = |value: &Json, keys: &[&str]| -> Result<Json, PackError> {
+        let mut picked = Json::object();
+        for key in keys {
+            picked.insert(*key, value.at(&[key])?.clone());
+        }
+        Ok(picked)
+    };
+    let Json::Object(asset_list) = layout.at(&["assets"])? else {
+        return Err(PackError("title assets are not an object".into()));
+    };
+    let mut assets = Json::object();
+    for (name, asset) in asset_list {
+        assets.insert(
+            name.clone(),
+            pick(asset, &["png", "png_sha256", "size_pixels"])?,
+        );
+    }
+    let pieces = match layout.at(&["background_pieces"])? {
+        Json::Object(pieces) => pieces.len(),
+        _ => {
+            return Err(PackError(
+                "title background pieces are not an object".into(),
+            ));
+        }
+    };
+    Ok(Json::object()
+        .with("format_version", 1u8)
+        .with("directory", "title")
+        .with(
+            "layout",
+            Json::object()
+                .with("path", LAYOUT)
+                .with("sha256", sha256)
+                .with("screen", vec![SCREEN.0, SCREEN.1])
+                .with("asset_count", ASSETS.len()),
+        )
+        .with(
+            "background",
+            pick(layout.at(&["background"])?, &["png", "png_sha256"])?.with("pieces", pieces),
+        )
+        .with(
+            "background_transfer",
+            pick(
+                layout.at(&["background_transfer"])?,
+                &["png", "png_sha256", "size_pixels"],
+            )?,
+        )
+        .with("palette_cycle", layout.at(&["palette_cycle"])?.clone())
+        .with("assets", assets))
 }

@@ -9,9 +9,11 @@
 //! content (#461).
 
 mod art;
+mod census;
 mod chrome;
 mod trees;
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use sha2::{Digest, Sha256};
@@ -219,7 +221,9 @@ fn sha256(bytes: &[u8]) -> String {
 }
 
 /// `check_signatures`: every transcribed routine is the retail one.
-fn check_signatures(rom: &[u8]) -> Result<(), PackError> {
+/// `check_signatures`: each run, as the manifest records it.
+fn check_signatures(rom: &[u8]) -> Result<Vec<Json>, PackError> {
+    let mut checked = Vec::with_capacity(SIGNATURES.len());
     for (name, at, len, digest, note) in SIGNATURES {
         let actual = slice(rom, at, len, name)?;
         if sha256(actual) != digest {
@@ -229,8 +233,15 @@ fn check_signatures(rom: &[u8]) -> Result<(), PackError> {
                 crate::png::hex(actual)
             ));
         }
+        checked.push(
+            Json::object()
+                .with("name", name)
+                .with("rom_offset", format!("0x{at:06X}"))
+                .with("opcodes", crate::png::hex(actual))
+                .with("proves", note),
+        );
     }
-    Ok(())
+    Ok(checked)
 }
 
 /// `dialogue_palette`: `Pal_Init_Line_3`, re-proved as a copy of `Pal_Init`'s
@@ -257,16 +268,105 @@ fn colours(palette: &[[u8; 3]]) -> Json {
 }
 
 /// The dialogue section's files so far.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+/// The dialogue section, and `emit_dialogue`'s manifest fragment.
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let data = rom.bytes();
-    check_signatures(data)?;
+    let signatures = check_signatures(data)?;
     let palette = palette(data)?;
-    art::font(data, root, &palette)?;
-    art::menu_font(data, root, &palette)?;
+    let (font, font_sha) = art::font(data, root, &palette)?;
+    let (menu_sha, menu_tiles) = art::menu_font(data, root, &palette)?;
     let scroll_arrow = art::scroll_arrow(data, root, &palette)?;
-    chrome::write(data, root, &palette, &scroll_arrow)?;
-    trees::write(data, root, &scroll_arrow)?;
-    art::portraits(data, root, &palette)
+    let (window, window_sha) = chrome::write(data, root, &palette, &scroll_arrow)?;
+    let (trees, trees_sha) = trees::write(data, root, &scroll_arrow)?;
+    let (portraits, portraits_sha, portrait_bytes) = art::portraits(data, root, &palette)?;
+
+    let mut census = census::Census::default();
+    for tree in trees.at(&["trees"])?.items()? {
+        let id = tree.at(&["tree"])?.int()?;
+        for entry in tree.at(&["entries"])?.items()? {
+            census.add_entry(id, entry)?;
+        }
+    }
+    let portrait_ids = portraits
+        .at(&["portraits"])?
+        .items()?
+        .iter()
+        .map(|p| p.at(&["id"])?.int())
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let mut blank = BTreeSet::new();
+    for glyph in font.at(&["glyphs"])?.items()? {
+        if glyph.at(&["blank"])? == &Json::Bool(true) {
+            blank.insert(glyph.at(&["byte"])?.int()? as u8);
+        }
+    }
+    let Json::Object(roles) = window.at(&["roles"])? else {
+        return refuse("window roles are not an object".into());
+    };
+    let mut role_tiles = Json::object();
+    for (name, role) in roles {
+        role_tiles.insert(name.clone(), role.at(&["tile"])?.clone());
+    }
+    let fragment = Json::object()
+        .with("format_version", FORMAT_VERSION)
+        .with("directory", "dialogue")
+        .with(
+            "trees",
+            Json::object()
+                .with("path", "dialogue/trees.json")
+                .with("sha256", trees_sha)
+                .with("tree_count", trees.at(&["tree_count"])?.clone())
+                .with("entry_count", trees.at(&["entry_count"])?.clone())
+                .with(
+                    "system_message_count",
+                    trees.at(&["system_messages", "count"])?.clone(),
+                ),
+        )
+        .with(
+            "font",
+            Json::object()
+                .with("path", "dialogue/font.json")
+                .with("sha256", font_sha)
+                .with("png", "dialogue/font.png")
+                .with("png_sha256", font.at(&["png_sha256"])?.clone())
+                .with("glyph_count", art::GLYPH_COUNT)
+                .with("glyph_size", vec![art::GLYPH_WIDTH, art::GLYPH_HEIGHT]),
+        )
+        .with(
+            "chrome",
+            Json::object()
+                .with("path", "dialogue/window.json")
+                .with("sha256", window_sha)
+                .with("png", "dialogue/window.png")
+                .with("png_sha256", window.at(&["png_sha256"])?.clone())
+                .with("tile_count", window.at(&["tile", "count"])?.clone())
+                .with("roles", role_tiles)
+                .with("rect", window.at(&["text_window", "rect"])?.clone())
+                .with("scroll_arrow", scroll_arrow.clone()),
+        )
+        .with(
+            "menu_font",
+            Json::object()
+                .with("path", "dialogue/menu_font.png")
+                .with("png_sha256", menu_sha)
+                .with("tile_count", menu_tiles),
+        )
+        .with(
+            "portraits",
+            Json::object()
+                .with("path", "dialogue/portraits.json")
+                .with("sha256", portraits_sha)
+                .with("directory", "dialogue/portraits")
+                .with("count", portraits.at(&["count"])?.clone())
+                .with("distinct_art", portraits.at(&["distinct_art"])?.clone())
+                .with("bytes", portrait_bytes),
+        )
+        .with("window", trees::window_record(&scroll_arrow))
+        .with("signatures", signatures)
+        .with(
+            "census",
+            census.to_json(&portrait_ids, &blank, &trees::control_codes()),
+        );
+    Ok(Json::object().with("dialogue", fragment))
 }
 
 #[cfg(test)]

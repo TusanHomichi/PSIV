@@ -13,10 +13,10 @@ use crate::{PackError, gfx, png};
 /// `Art_DialogueFont`: 80 1bpp glyphs of 8x16.
 const FONT: usize = 0x2A3542;
 const FONT_SIZE: usize = 1280;
-const GLYPH_WIDTH: usize = 8;
-const GLYPH_HEIGHT: usize = 16;
+pub(super) const GLYPH_WIDTH: usize = 8;
+pub(super) const GLYPH_HEIGHT: usize = 16;
 const GLYPH_BYTES: usize = 16;
-const GLYPH_COUNT: usize = FONT_SIZE / GLYPH_BYTES;
+pub(super) const GLYPH_COUNT: usize = FONT_SIZE / GLYPH_BYTES;
 const GLYPH_INDEX_MASK: u8 = 0x7F;
 /// `ParseText`: set bits are `$F`, clear bits `$E`.
 const TEXT_COLOR: u8 = 0xF;
@@ -136,7 +136,7 @@ fn font_strip(raw: &[u8]) -> (usize, Vec<u8>, Vec<bool>) {
 }
 
 /// `font.png` and `font_json`.
-pub fn font(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), PackError> {
+pub fn font(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(Json, String), PackError> {
     let raw = slice(rom, FONT, FONT_SIZE, "Art_DialogueFont")?;
     let (width, pixels, blank) = font_strip(raw);
     let image = png::encode_indexed(
@@ -233,7 +233,8 @@ pub fn font(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), PackErro
                 .filter(|&i| charset.glyph(i as u8).is_none())
                 .collect::<Vec<_>>(),
         );
-    crate::write_json(root, "dialogue/font.json", &json).map(drop)
+    let sha = crate::write_json(root, "dialogue/font.json", &json)?;
+    Ok((json, sha))
 }
 
 // ---------------------------------------------------------------------------
@@ -245,11 +246,17 @@ fn menu_font_art(rom: &[u8]) -> Result<gfx::ArtRecord, PackError> {
 }
 
 /// `menu_font.png`: `ArtNem_Font` sixteen tiles across.
-pub fn menu_font(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), PackError> {
+/// Returns the image's digest and its pattern count.
+pub fn menu_font(
+    rom: &[u8],
+    root: &Path,
+    palette: &[[u8; 3]],
+) -> Result<(String, usize), PackError> {
     let tiles = gfx::decode_tiles(&menu_font_art(rom)?.data)?;
     let (width, height, pixels) = gfx::compose_sheet(&tiles, 16)?;
     let image = png::encode_indexed(width as u32, height as u32, &pixels, palette, &[])?;
-    crate::write_file(root, "dialogue/menu_font.png", &image)
+    crate::write_file(root, "dialogue/menu_font.png", &image)?;
+    Ok((png::image_sha256(&image)?, tiles.len()))
 }
 
 /// `emit_scroll_arrow`: the 2x1 sprite's two tiles side by side, and the
@@ -345,7 +352,13 @@ pub fn scroll_arrow(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<Json
 
 /// `emit_portraits` with `extract_dialogue_portraits`: one 48x48 PNG per id
 /// the retail table names, and the index.
-pub fn portraits(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), PackError> {
+/// Returns the index, its digest, and the bytes of every portrait PNG.
+pub fn portraits(
+    rom: &[u8],
+    root: &Path,
+    palette: &[[u8; 3]],
+) -> Result<(Json, String, usize), PackError> {
+    let mut bytes = 0;
     let pointers = (0..PORTRAIT_ENTRIES)
         .map(|i| Ok(crate::m68k::l(rom, PORTRAIT_TABLE + i * 4)? as usize))
         .collect::<Result<Vec<_>, PackError>>()?;
@@ -382,6 +395,7 @@ pub fn portraits(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), Pac
         let name = safe(symbol.unwrap_or(&format!("Portrait{index:02X}")));
         let path = format!("dialogue/portraits/{index:02X}_{name}.png");
         crate::write_file(root, &path, &image)?;
+        bytes += image.len();
         entries.push(
             Json::object()
                 .with("id", index)
@@ -456,7 +470,8 @@ pub fn portraits(rom: &[u8], root: &Path, palette: &[[u8; 3]]) -> Result<(), Pac
         .with("count", entries.len())
         .with("distinct_art", records.len())
         .with("portraits", entries);
-    crate::write_json(root, "dialogue/portraits.json", &json).map(drop)
+    let sha = crate::write_json(root, "dialogue/portraits.json", &json)?;
+    Ok((json, sha, bytes))
 }
 
 #[cfg(test)]

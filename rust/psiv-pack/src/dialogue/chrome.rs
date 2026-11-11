@@ -200,7 +200,7 @@ pub fn write(
     root: &Path,
     palette: &[[u8; 3]],
     scroll_arrow: &Json,
-) -> Result<(), PackError> {
+) -> Result<(Json, String), PackError> {
     let art = gfx::decompress_art(rom, ART, "ArtNem_WindowTiles", Some(ART_SIZE), None)?;
     let tiles = gfx::decode_tiles(&art.data)?;
     if tiles.len() != ART_TILES {
@@ -373,7 +373,8 @@ pub fn write(
                 ),
         )
         .with("scroll_arrow", scroll_arrow.clone());
-    crate::write_json(root, "dialogue/window.json", &document).map(drop)
+    let sha = crate::write_json(root, "dialogue/window.json", &document)?;
+    Ok((document, sha))
 }
 
 #[cfg(test)]

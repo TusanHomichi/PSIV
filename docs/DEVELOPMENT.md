@@ -208,6 +208,15 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 
 ## Run checks
 
+Both gate tiers start the Python suite by provisioning the Rust native
+observation verifier under a build-class reservation (nested under the gate's
+exclusive hold). This happens before workers start, so cold or stale Cargo
+targets need no manual warm-up. If only stale executables exist, preparation
+cleans this crate’s disposable Cargo output before rebuilding, since cached
+Cargo timestamps can otherwise retain the stale file. A packaged `PSIV_NATIVE_VERIFY_BINARY` remains
+an explicit dependency and skips the build; direct native verification still
+requires a current artifact ([native replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)).
+
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.
@@ -315,7 +324,9 @@ not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
 PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. A ported extractor that no claimed section writes yet is a probe:
+claims. `manifest.json` records PNG byte totals, which differ between deflate
+implementations, so each builder's totals must equal its own pack's PNGs and
+every other byte must match (`PNG_TOTALS` in the tool). A ported extractor that no claimed section writes yet is a probe:
 `examples/probe.rs` prints its records as one JSON document, `PROBES` in the
 tool builds the same from the Python extractors, and the two must be the same
 text. It also decodes every Nemesis, Kosinski and Enigma call a full

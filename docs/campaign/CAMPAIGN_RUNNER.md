@@ -81,7 +81,7 @@ joypad byte per frame until each objective is met, reading the session's
 views to decide the next press.
 
 ```text
-cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign -p psiv-native-verify
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
     --save-dir build/campaign/run1
 rust/target/release/psiv-campaign replay build/campaign/run1/run.tape
@@ -335,7 +335,7 @@ for 6,260,544 frames). The flag reaches `--continue-probes` too.
 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
   python3 tools/heavy_lock.py run --class exclusive -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run --class build -- \
-  cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+  cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign -p psiv-native-verify
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
   --save-dir build/r2-route --tape build/r2-route/run.tape --report build/r2-route/report.json
 # Each verifier takes its own godot-class slot of the heavy-run lock.
@@ -399,3 +399,121 @@ whole route is `#[ignore]`d:
 `cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
 runner -- --ignored`. Cases that need the pack skip with a
 message when it is absent.
+
+### Frame-addressed presentation observations
+
+`verify_native_route.py --observations REQUESTS.json` passes the same request
+list as `verify_native_tape.py --observations`. Each entry names the number of
+**consumed gameplay Session frames**, not a zero-based pad offset or a Godot
+shell tick. For example:
+
+```json
+[
+  {"frame": 100, "label": "before-rescue"},
+  {"frame": 104, "label": "rescue-page", "capture": true}
+]
+```
+
+Frames must ascend (multiple labels may share a frame); labels must be unique
+letters, digits, underscores or hyphens. A request always records the full
+read-only `debug_play_state` state in `native-tape/native.json` under
+`observations`. `capture: true` also writes
+`native-tape/observations/LABEL.png`. The replay automatically selects Xvfb and
+the Compatibility renderer when any request needs pixels. State-only requests
+work headlessly. Requests outside a replay prefix fail rather than disappear.
+
+The Field physics callback stops at the requested boundary while the renderer
+finishes drawing. The capture is read after `frame_post_draw`, the consumed
+frame is checked again, and replay resumes with the next tape pad; no neutral
+pad or extra Session frame is inserted. The receipt checks every requested
+label/frame, state result and capture file SHA-256. Captures therefore address the
+gameplay state after pad byte `frame - 1`, including at the final tape frame.
+
+The presentation comparators read the tape output, once a request list has
+captured their required labels:
+
+```sh
+python3 tools/verify_native_route.py --run-dir RUN --out OUT \
+  --observations REQUESTS.json --pack runtime-pack
+python3 tools/native/verify_native_alarm.py OUT/native-tape
+python3 tools/native/verify_native_zema.py OUT/native-tape --pack runtime-pack
+```
+
+The alarm comparator needs `alarm-out-1` through `alarm-out-8` and
+`alarm-in-1` through `alarm-in-8`, four gameplay frames apart. Zema needs
+`zema-page-01` through `zema-page-50`, `igglanova-halfway`,
+`igglanova-arrived` and `zema-restored`; each must request a capture.
+A request file can also be a manifest with exactly `tape_sha256` and
+`requests` fields. The verifier requires its lowercase SHA-256 to match the
+input tape before accepting the requests, so changed pads cannot silently
+reuse old addresses.
+
+Observation request schemas, pinned tape SHA-256, result frames and capture-file
+identity, and the Zema state checks are owned by
+[`psiv-native-verify`](../../rust/psiv-native-verify/src/lib.rs). Build it under
+the build lock before the Python native entry points. The fast and full gates
+provision it once at Python-suite startup, before spawning workers; standalone
+validation remains read-only and never builds inside Godot. Standalone suite
+startup needs a build reservation; prepare the binary before entering a narrow
+Python or Godot holder. A stale local binary is
+rejected by a source-identity handshake. `PSIV_NATIVE_VERIFY_BINARY` selects an
+explicit packaged binary (as the Nix platform check does). Python retains
+Pillow image decoding and NumPy pixel comparisons.
+
+`tools/native/campaign_presentations.json` declares the 69 captures for a
+continuous New Game prefix through the BioPlant alarm. It pins the tape hash;
+a changed route or runtime requires rediscovering the addresses with the
+[`presentation_frames` example](../../rust/psiv-campaign/examples/presentation_frames.rs).
+Review its output before replacing the pinned manifest. The prefix
+keeps the main route through objective 7 of `bioplant-elevators` (arrival on
+map `$A4`), then ends. On arrival at `$A3`, it inserts an ordinary `wait`
+objective for 80 frames so the [doorway transition](../field/TRANSITIONS_DECODED.md#doorway-fade-through-black)
+finishes before walking into the alarm. Inputs match the main route through
+arrival at `$A3`; the dwell makes the remainder a presentation route rather
+than a byte-identical main tape prefix. It does not exercise the later
+elevators or Rika. Prepare
+that route from its owning data, without duplicating its chapter bodies:
+
+```sh
+mkdir -p build/presentation-prefix
+python3 - <<'PYCODE'
+import json
+from pathlib import Path
+route = json.loads(Path("rust/psiv-campaign/routes/main.json").read_text())
+index = next(i for i, c in enumerate(route["chapters"])
+             if c["id"] == "bioplant-elevators")
+route["chapters"] = route["chapters"][:index + 1]
+chapter = route["chapters"][-1]
+assert chapter["objectives"][6]["do"] == "go_to_map"
+assert chapter["objectives"][6]["map"] == 0xA3
+assert chapter["objectives"][7]["do"] == "go_to_map"
+assert chapter["objectives"][7]["map"] == 0xA4
+objectives = (chapter["objectives"][:7] + [{"do": "wait", "frames": 80}]
+              + chapter["objectives"][7:8])
+chapter.update(id="bioplant-alarm", objectives=objectives, closing=[])
+Path("build/presentation-prefix/route.json").write_text(json.dumps(route))
+PYCODE
+heavy -- rust/target/debug/psiv-campaign run build/presentation-prefix/route.json \
+  --pack runtime-pack --save-dir build/presentation-prefix/run \
+  --tape build/presentation-prefix/run/run.tape \
+  --report build/presentation-prefix/run/report.json
+heavy -- python3 tools/verify_native_route.py --run-dir build/presentation-prefix/run \
+  --out build/presentation-prefix/native --pack runtime-pack \
+  --observations tools/native/campaign_presentations.json
+python3 tools/native/verify_native_alarm.py build/presentation-prefix/native/native-tape
+python3 tools/native/verify_native_zema.py build/presentation-prefix/native/native-tape \
+  --pack runtime-pack
+```
+
+Build the current runner and extension first, and run heavy commands through
+[the development entry points](../DEVELOPMENT.md#heavy-run-lock). This prefix's
+last ordinary SAVE is in `zema-armour`; the final `bioplant-alarm` chapter is a
+read-only snapshot, so its comparison does not claim a SAVE at the alarm.
+
+The alarm comparison retains the restored native frame as its reference and
+checks the original component ramps and four-frame cadence over the whole
+captured viewport. Zema checks 50 distinct ready dialogue pages, Igglanova at
+both entrance positions, seven restored residents, their selected sheets and
+CRAM line 3 against the pack's US `$051E56` palette copy. Its PNGs retain the
+presentation evidence; these state checks do not certify whole-scene visual
+parity with the cartridge.

@@ -412,7 +412,7 @@ pub fn extract_ship_menu(
 }
 
 /// The section.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let decodes = Decodes::new(rom.bytes());
     let stamp = hex(&Sha256::digest(rom.bytes()));
     let (record, research, backgrounds) = extract_ship_menu(rom.bytes(), &decodes, &stamp)?;
@@ -423,7 +423,9 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         .map_err(|error| PackError(format!("cannot serialize ship_menu.json: {error}")))?;
     let mut file = Json::from(&value);
     overlay(&mut file, &research);
-    crate::write_json(root, &format!("{DIRECTORY}/ship_menu.json"), &file).map(drop)
+    let path = format!("{DIRECTORY}/ship_menu.json");
+    let sha = crate::write_json(root, &path, &file)?;
+    Ok(crate::file_part("ship_menu", &path, sha))
 }
 
 #[cfg(test)]

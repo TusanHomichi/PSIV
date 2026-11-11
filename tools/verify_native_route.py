@@ -239,6 +239,8 @@ def parser() -> argparse.ArgumentParser:
                               "holds run.tape, report.json and the NN-id chapter saves")
     command.add_argument("--out", type=Path, required=True,
                          help="a fresh directory for the receipts")
+    command.add_argument("--observations", type=Path,
+                         help="named frame-addressed capture/state requests (native tape JSON)")
     command.add_argument("--until-chapter",
                          help="replay the prefix of the tape that ends with this chapter")
     command.add_argument("--pack", type=Path, default=verify_native_tape.ROOT / "runtime-pack")
@@ -277,6 +279,8 @@ def main(argv: list[str] | None = None) -> int:
 
 def verify_route(args: argparse.Namespace) -> int:
     """The run `main` parsed, checked while it holds its godot slot."""
+    if args.continue_probes and args.observations:
+        parser().error("--observations addresses the continuous replay, not --continue-probes")
     if args.rss_bound_mb is not None and (
             args.rss_every is None or args.rss_warmup_frames is None
             or args.rss_warmup_frames < args.rss_every):
@@ -310,6 +314,8 @@ def verify_route(args: argparse.Namespace) -> int:
     tape_args = ["--tape", str(tape), "--pack", str(args.pack), "--out", str(out / "native-tape"),
                  "--timeout", str(args.timeout), "--checkpoints", str(checkpoints),
                  "--expect-save", str(chapters[-1]["save"])]
+    if args.observations is not None:
+        tape_args += ["--observations", str(args.observations.resolve(strict=True))]
     if args.library is not None:
         tape_args += ["--library", str(args.library)]
     if not full_run:
