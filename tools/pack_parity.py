@@ -15,7 +15,10 @@ release and checks it against the Python builder from the same ROM:
    the ROM, and each file under a claimed path must be in both packs, with
    byte-identical bytes, or for a PNG the same `image_sha256` (its decoded
    content: zlib implementations deflate alike rows differently,
-   `psiv_tools/png.py`). A claim the Python pack lacks fails, and so does a
+   `psiv_tools/png.py`). `manifest.json` is the one JSON file that records
+   PNG sizes (`PNG_TOTALS`): each builder's totals must equal the PNGs in its
+   own pack, and the Python manifest with psiv-pack's totals in their place
+   must be byte-identical to psiv-pack's. A claim the Python pack lacks fails, and so does a
    file `psiv-pack` writes outside its claims. A claim names a file, a
    directory, or with a `*` the matching files directly in a directory. With no claims, the Python
    build is skipped, and the output is still checked: it must be an
@@ -257,6 +260,76 @@ def check_output(rust_root: Path, claims: list[str]) -> list[str]:
     return problems
 
 
+#: The manifest's PNG byte totals, by key path, each with the directory whose
+#: PNGs it sums. Deflate output differs between encoders, so each total is
+#: held to its own pack's files rather than to the other builder's number.
+PNG_TOTALS = (
+    *((("battle", "art", "files", name, "png_bytes"), f"battle/art/{name}")
+      for name in ("backgrounds", "characters", "enemies", "enemy_attacks",
+                   "enemy_overlays", "fusion")),
+    (("dialogue", "portraits", "bytes"), "dialogue/portraits"),
+    (("sprites", "bytes"), "sprites"),
+)
+
+
+def _png_bytes(root: Path, directory: str) -> int:
+    return sum(path.stat().st_size for path in (root / directory).rglob("*.png")
+               if path.is_file() and not path.is_symlink())
+
+
+def _pack_json(document) -> bytes:
+    """A pack JSON file's bytes: `json.dumps(indent=2, sort_keys=True)` and a
+    final newline, as both builders write every JSON file."""
+    return (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _first_difference(ours: bytes, theirs: bytes) -> int:
+    return next((i for i, (a, b) in enumerate(zip(ours, theirs)) if a != b),
+                min(len(ours), len(theirs)))
+
+
+def _compare_manifest(rust_root: Path, python_root: Path, ours: bytes,
+                      theirs: bytes) -> list[str]:
+    """`manifest.json`: byte for byte but for the eight PNG totals.
+
+    Each builder's totals must be integers equal to its own pack's PNG sizes.
+    The Python file must be exactly the pack JSON form of its document, and
+    psiv-pack's file exactly that form with psiv-pack's totals in their
+    place, so the two files can differ in those eight integers and nowhere
+    else: not key order, whitespace, escaping, number form or final newline."""
+    try:
+        documents = {"psiv-pack": json.loads(ours), "Python": json.loads(theirs)}
+    except ValueError as error:
+        return [f"manifest.json: not JSON ({error})"]
+    problems = []
+    for keys, directory in PNG_TOTALS:
+        for (name, document), root in zip(documents.items(), (rust_root, python_root)):
+            value = functools.reduce(
+                lambda node, key: node.get(key) if isinstance(node, dict) else None,
+                keys, document)
+            actual = _png_bytes(root, directory)
+            if type(value) is not int or value != actual:
+                problems.append(f"manifest.json: {name}'s {'.'.join(keys)} is {value!r}, "
+                                f"but its {directory} PNGs hold {actual} bytes")
+    if problems:
+        return problems
+    if _pack_json(documents["Python"]) != theirs:
+        canonical = _pack_json(documents["Python"])
+        return [f"manifest.json: the Python pack's file is not in the pack JSON form "
+                f"from offset {_first_difference(theirs, canonical)}"]
+    expected = documents["Python"]
+    for keys, _ in PNG_TOTALS:
+        node, rust_node = expected, documents["psiv-pack"]
+        for key in keys[:-1]:
+            node, rust_node = node[key], rust_node[key]
+        node[keys[-1]] = rust_node[keys[-1]]
+    text = _pack_json(expected)
+    if text != ours:
+        problems.append(f"manifest.json: bytes differ from offset {_first_difference(ours, text)} "
+                        f"({len(ours)} bytes against {len(text)}, PNG totals aside)")
+    return problems
+
+
 def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list[str], int]:
     """The differences between the two packs under `claims`, and how many
     claimed files matched. Empty problems is parity."""
@@ -280,7 +353,12 @@ def compare(rust_root: Path, python_root: Path, claims: list[str]) -> tuple[list
         if rust[relative].is_symlink():
             continue
         ours, theirs = rust[relative].read_bytes(), python[relative].read_bytes()
-        if relative.endswith(".png"):
+        if relative == "manifest.json":
+            found = _compare_manifest(rust_root, python_root, ours, theirs)
+            if found:
+                problems.extend(found)
+                continue
+        elif relative.endswith(".png"):
             try:
                 same = image_sha256(ours) == image_sha256(theirs)
             except ValueError as error:
@@ -535,22 +613,28 @@ def check_wrong_rom(binary: Path, scratch: Path) -> list[str]:
     return problems
 
 
-def check_progress(stdout: str, sections: int) -> list[str]:
-    """`psiv-pack`'s stdout: a progress line per section, then `installed`."""
+def check_progress(stdout: str, names: list[str]) -> list[str]:
+    """`psiv-pack`'s stdout: one progress line for each entry `--claims`
+    lists (`names`, the manifest's included), each named once and counted
+    1..n of n, then `installed`."""
+    sections = len(names)
     lines = stdout.splitlines()
     if not lines or not lines[-1].startswith("installed "):
         return [f"psiv-pack's last line is not `installed <pack>`: {lines[-1:]!r}"]
-    problems, seen = [], []
+    problems, seen, named = [], [], []
     for line in lines[:-1]:
         match = PROGRESS.match(line)
         if not match:
             problems.append(f"not a progress line: {line!r}")
             continue
         seen.append(int(match.group(1)))
+        named.append(match.group(3))
         if int(match.group(2)) != sections:
             problems.append(f"progress total {match.group(2)}, not {sections}: {line!r}")
     if seen != list(range(1, sections + 1)):
         problems.append(f"progress counted {seen}, not 1..{sections}")
+    if sorted(named) != sorted(names):
+        problems.append(f"progress named {sorted(named)}, not the claimed {sorted(names)}")
     return problems
 
 
@@ -592,7 +676,7 @@ def run_parity(rom: Path, keep: Path | None) -> int:
                 problems.append(f"psiv-pack exited {rust.returncode}: {rust.stderr.strip()}")
             elif not claims:
                 problems += check_output(scratch / "rust", claims)
-            problems += check_progress(rust.stdout, len(sections))
+            problems += check_progress(rust.stdout, [section["name"] for section in sections])
             matched = 0
             if claims:
                 start = time.monotonic()

@@ -249,10 +249,16 @@ fn fifth(rom: &[u8]) -> Result<Json, PackError> {
 }
 
 /// `guild/guild.json` and `fifth/fifth.json`.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let data = rom.bytes();
-    crate::write_json(root, "guild/guild.json", &guild(data)?)?;
-    crate::write_json(root, "fifth/fifth.json", &fifth(data)?).map(drop)
+    let guild_sha = crate::write_json(root, "guild/guild.json", &guild(data)?)?;
+    let fifth_sha = crate::write_json(root, "fifth/fifth.json", &fifth(data)?)?;
+    let mut part = crate::file_part("guild", "guild/guild.json", guild_sha);
+    crate::json::overlay(
+        &mut part,
+        &crate::file_part("fifth", "fifth/fifth.json", fifth_sha),
+    );
+    Ok(part)
 }
 
 #[cfg(test)]

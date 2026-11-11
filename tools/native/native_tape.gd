@@ -25,6 +25,10 @@ var checkpoints: Array = []
 var next_checkpoint := 0
 var checkpoint_results: Array = []
 var replay_started_ms := 0
+var observations: Array = []
+var observation_results: Array = []
+var next_observation := 0
+var observing := false
 # Resident-memory samples (#92): every PSIV_TAPE_RSS_EVERY gameplay frames the
 # process's resident memory is recorded, so a long replay shows whether memory stays flat.
 var rss_every := 0
@@ -87,6 +91,8 @@ func _prepare_tape() -> void:
         expected_count = int(stop_at)
         report["frames_limit"] = expected_count
     if not _load_checkpoints():
+        return
+    if not _load_observations():
         return
     var every := OS.get_environment("PSIV_TAPE_RSS_EVERY")
     if not every.is_empty():
@@ -154,6 +160,44 @@ func _load_checkpoints() -> bool:
         checkpoints.append({"frame": frame, "label": str(entry["label"]),
                 "expect_save": str(entry["expect_save"])})
     report["checkpoints_declared"] = checkpoints.size()
+    return true
+
+# The Python entry point validates this schema and snapshots the request file.
+# Repeat boundary validation here so a direct driver invocation cannot silently
+# skip a request outside the replay prefix.
+func _load_observations() -> bool:
+    var path := OS.get_environment("PSIV_TAPE_OBSERVATIONS")
+    if path.is_empty():
+        return true
+    var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+    if typeof(parsed) != TYPE_ARRAY or parsed.is_empty():
+        _fail("observations must be a non-empty array")
+        return false
+    var previous := 0
+    var labels := {}
+    var safe_label := RegEx.new()
+    safe_label.compile("^[A-Za-z0-9_-]+$")
+    for point in parsed:
+        if typeof(point) != TYPE_DICTIONARY or not point.has("frame") or not point.has("label"):
+            _fail("observation needs frame and label")
+            return false
+        if typeof(point["frame"]) not in [TYPE_INT, TYPE_FLOAT] or float(point["frame"]) != floor(float(point["frame"])) \
+                or typeof(point["label"]) != TYPE_STRING or safe_label.search(point["label"]) == null \
+                or typeof(point.get("capture", false)) != TYPE_BOOL:
+            _fail("observation needs an integer frame, a safe label and a boolean capture")
+            return false
+        for key in point:
+            if key not in ["frame", "label", "capture"]:
+                _fail("unknown observation field: " + str(key))
+                return false
+        var frame := int(point["frame"])
+        var label := str(point["label"])
+        if frame < 1 or frame < previous or frame > expected_count or labels.has(label):
+            _fail("observation frames must ascend within the replay and labels must be unique")
+            return false
+        previous = frame
+        labels[label] = true
+        observations.append(point)
     return true
 
 func _load_probe() -> bool:
@@ -345,7 +389,7 @@ func _start_game() -> void:
         _fail("resident memory is unavailable from the extension bridge")
 
 func _physics_process(_delta: float) -> bool:
-    if failed or game == null:
+    if failed or game == null or observing:
         return false
     var boundary: PackedInt64Array = game.debug_tape_boundary()
     if boundary.size() != 6:
@@ -409,13 +453,58 @@ func _physics_process(_delta: float) -> bool:
         report["first_gameplay_shell_tick"] = int(boundary[5])
         report["first_gameplay_session_frame"] = count
         report["first_pad"] = actual
+    if next_observation < observations.size() and int(observations[next_observation]["frame"]) == consumed:
+        observing = true
+        game.set_physics_process(false)
+        _observe.call_deferred()
+        return false
+    _advance_replay(boundary, actual)
+    return false
+
+func _advance_replay(boundary: PackedInt64Array, actual: int) -> void:
     if consumed == expected_count:
         report["last_pad"] = actual
         report["stop_shell_tick"] = int(boundary[5])
         _freeze_at_end()
     else:
         _apply_game_pad(consumed)
-    return false
+
+# Stop only the Field's physics callback; no neutral pad or Session tick is
+# inserted. Drawing finishes while the Session remains at the requested frame.
+func _observe() -> void:
+    var render := false
+    var index := next_observation
+    while index < observations.size() and int(observations[index]["frame"]) == consumed:
+        render = render or bool(observations[index].get("capture", false))
+        index += 1
+    if render:
+        await RenderingServer.frame_post_draw
+    var boundary: PackedInt64Array = game.debug_tape_boundary()
+    if int(boundary[0]) != consumed:
+        _fail("Session advanced while capturing a frame-addressed observation")
+        return
+    while next_observation < observations.size() and int(observations[next_observation]["frame"]) == consumed:
+        var point: Dictionary = observations[next_observation]
+        var state = JSON.parse_string(str(game.debug_play_state()))
+        if typeof(state) != TYPE_DICTIONARY or not state.has("map") or not state.has("cell"):
+            _fail("frame-addressed state probe unavailable")
+            return
+        var result := {"label": point["label"], "frame": consumed, "state": state}
+        if point.get("capture", false):
+            var path := OS.get_environment("PSIV_TAPE_OBSERVATION_DIR").path_join(str(point["label"]) + ".png")
+            var image := game.get_viewport().get_texture().get_image()
+            if image == null or image.save_png(path) != OK:
+                _fail("frame-addressed rendered capture failed")
+                return
+            result["capture"] = path
+            result["capture_file_sha256"] = _sha256_hex(FileAccess.get_file_as_bytes(path))
+        observation_results.append(result)
+        next_observation += 1
+    report["observations"] = observation_results
+    _write_report()
+    observing = false
+    game.set_physics_process(true)
+    _advance_replay(boundary, int(boundary[1]))
 
 func _check_checkpoint() -> bool:
     if next_checkpoint >= checkpoints.size() or consumed != int(checkpoints[next_checkpoint]["frame"]):
@@ -536,6 +625,9 @@ func _finish() -> void:
     var boundary: PackedInt64Array = game.debug_tape_boundary()
     if int(boundary[0]) != expected_count:
         _fail("frozen boundary differs from declared frame count")
+        return
+    if next_observation != observations.size():
+        _fail("replay ended before all frame-addressed observations")
         return
     if next_checkpoint != checkpoints.size():
         _fail("replay ended before checkpoint %s" % checkpoints[next_checkpoint]["label"])

@@ -65,6 +65,34 @@ impl Json {
         }
     }
 
+    /// The value at a path of keys, or an error naming the path: for reading
+    /// back a file this pack built, where a missing key is a bug.
+    pub fn at(&self, path: &[&str]) -> Result<&Json, crate::PackError> {
+        let mut value = self;
+        for key in path {
+            value = value
+                .get(key)
+                .ok_or_else(|| crate::PackError(format!("no {} in the value", path.join("."))))?;
+        }
+        Ok(value)
+    }
+
+    /// The items of a list, or an error.
+    pub fn items(&self) -> Result<&[Json], crate::PackError> {
+        match self {
+            Json::Array(items) => Ok(items),
+            _ => Err(crate::PackError("expected a list".into())),
+        }
+    }
+
+    /// An integer, or an error.
+    pub fn int(&self) -> Result<i128, crate::PackError> {
+        match self {
+            Json::Int(n) => Ok(*n),
+            _ => Err(crate::PackError("expected an integer".into())),
+        }
+    }
+
     /// Set `key` on an object. Panics on a non-object: that is a bug in the
     /// section building it, not a property of the ROM.
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<Json>) {
@@ -89,7 +117,7 @@ macro_rules! from_int {
         }
     )*};
 }
-from_int!(i8, i16, i32, i64, u8, u16, u32, u64);
+from_int!(i8, i16, i32, i64, i128, u8, u16, u32, u64);
 
 impl From<usize> for Json {
     fn from(value: usize) -> Self {

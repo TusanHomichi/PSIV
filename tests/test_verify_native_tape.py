@@ -54,6 +54,12 @@ class NativeTapeIdentityGuard(unittest.TestCase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn("--tape", run.stdout)
 
+    def test_frame_addressed_requests_are_accepted_by_the_replay_entrypoint(self):
+        args = verify_native_tape.parser().parse_args([
+            "--tape", "run.tape", "--out", "native-output",
+            "--observations", "requests.json"])
+        self.assertEqual(args.observations, Path("requests.json"))
+
     def test_changed_extension_or_driver_cannot_keep_a_stable_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

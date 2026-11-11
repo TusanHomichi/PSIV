@@ -47,7 +47,7 @@ const FIELD_OBJECT_STRIDE: u16 = 4;
 const INTERACTION_ROUTINES: u8 = 8;
 
 const MUSIC_ID_BASE: i32 = 0x81;
-const XY_RANGES: [&str; 15] = [
+pub(crate) const XY_RANGES: [&str; 15] = [
     "Null",
     "XYPlus40",
     "XYPlus20",

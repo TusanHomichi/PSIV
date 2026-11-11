@@ -249,6 +249,27 @@ TAPE_38_TONE = {
     "region": [1, 1, 319, 223],
 }
 
+# Rykros's third cycle row: the planet has appeared but is still dark,
+# between the preceding message's close and the next window's open.
+TAPE_43 = {
+    "tape": "oracle/tapes/43_rykros_palette_cycle.tape",
+    "patches": ["7200:FFFFECA8:801B", "7200:FFFFEC20:000C"],
+    "frames": [8580],
+}
+
+# Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
+# The reload reaches control at 7173; entering at 7202 gives the native
+# selector's thirty field-object calls before the scene. No pose is patched.
+TAPE_44 = {
+    "tape": "oracle/tapes/44_zio_barrier_palette.tape",
+    "patches": ["7000:FFFFEC28:0082", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF406:02F0", "7000:FFFFF408:0380",
+                "7000:FFFFF40A:0005030406", "7000:FFFFF10C:10",
+                "7202:FFFFECA8:0030", "7202:FFFFEC20:000C"],
+    "frames": [7462],
+    "region": [1, 1, 319, 223],  # The field surface edge, #409.
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -370,6 +391,12 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1270,
+     "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
+     "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
+    ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
+     "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
+     "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

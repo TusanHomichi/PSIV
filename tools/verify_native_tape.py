@@ -26,7 +26,7 @@ import time
 
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
-    from tools import native_rss
+    from tools import native_rss, tape_observations
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
     from tools.godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
@@ -34,6 +34,7 @@ try:  # imported as `tools.verify_native_tape` by tests
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     import native_rss
+    import tape_observations
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
     from godot import (GodotError, create_run_root, exit_leaks_binary, godot_command,
@@ -243,6 +244,8 @@ def parser() -> argparse.ArgumentParser:
                          help="the save the memory bracket loads through the title's CONTINUE "
                               "before and after the tape (copied into the isolated slot "
                               f"{native_rss.PROBE_SLOT + 1}); required with --rss-bound-mb")
+    command.add_argument("--observations", type=Path,
+                         help="JSON list of {frame, label, capture?}; state after frame pads, optional PNG")
     command.add_argument("--render-capture", action="store_true")
     command.add_argument("--drop-pad-at", type=int, help="negative control: replace one byte with neutral")
     return command
@@ -328,6 +331,19 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     run_log = out / "godot-run.log"
     godot_log = out / "godot.log"
     capture = out / "selected-1280x800.png"
+    tape_sha_before = sha256(tape)
+    observations_path = getattr(args, "observations", None)
+    try:
+        observations = tape_observations.load_requests(observations_path, tape_sha_before) if observations_path else []
+    except (OSError, ValueError) as error:
+        print(f"native tape: invalid observations: {error}")
+        return 1
+    observations_file = out / "observations.json"
+    if observations:
+        observations_file.write_text(json.dumps(observations, indent=2) + "\n")
+    observation_dir = out / "observations"
+    observation_dir.mkdir()
+    rendered = args.render_capture or any(item.get("capture", False) for item in observations)
     source_before = sha256(source) if source else None
     probe_sha = sha256(probe_save) if probe_save else None
     if probe_save:
@@ -356,6 +372,8 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
         "PSIV_TAPE_SNAPSHOT_OUT": str(snapshot),
         "PSIV_TAPE_CAPTURE": str(capture) if args.render_capture else "",
         "PSIV_TAPE_CHECKPOINTS": str(checkpoints) if checkpoints else "",
+        "PSIV_TAPE_OBSERVATIONS": str(observations_file) if observations else "",
+        "PSIV_TAPE_OBSERVATION_DIR": str(observation_dir),
         "PSIV_TAPE_STOP_AT": str(args.stop_at) if args.stop_at is not None else "",
         "PSIV_TAPE_RSS_EVERY": str(args.rss_every) if args.rss_every is not None else "",
         **({"PSIV_TAPE_PROBE_SLOT": str(native_rss.PROBE_SLOT), "PSIV_TAPE_PROBE_SHA256": probe_sha,
@@ -370,7 +388,7 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     })
     if args.drop_pad_at is not None:
         env["PSIV_TAPE_DROP_AT"] = str(args.drop_pad_at)
-    if args.render_capture:
+    if rendered:
         prefix = ("xvfb-run", "-a")
         flags = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                  "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -390,7 +408,6 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     code_before = {name: file_identity(path) for name, path in code_paths.items()}
     git_before = source_identity()
     pack_manifest_before = sha256(pack / "manifest.json")
-    tape_sha_before = sha256(tape)
     saves_before = checkpoint_save_hashes(checkpoints)
     start = time.monotonic()
     started_at_utc = datetime.now(timezone.utc).isoformat()
@@ -469,6 +486,8 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
     receipt["checkpoint_saves_sha256"] = saves_before
     receipt["checkpoint_saves_stable"] = saves_before == saves_after
     receipt["checkpoints_passed"] = checkpoints_passed(result, checkpoints)
+    receipt["observations"] = observations
+    receipt["observations_passed"] = tape_observations.passed(observations, result, observation_dir)
     receipt["host_power"] = host_power()
     receipt["rss_probe_save"] = str(probe_save) if probe_save else None
     receipt["rss_probe_save_sha256_before"] = probe_sha
@@ -487,6 +506,7 @@ def replay_from(args, run_root, tape, source, expected, written, pack, probe_sav
                                 and result.get("source_copied") is True))
         and snapshot.is_file()
         and receipt["checkpoints_passed"] and receipt["checkpoint_saves_stable"]
+        and receipt["observations_passed"]
         and (receipt["rss"] is None or receipt["rss"]["pass"])
         and (expected is None or receipt["snapshot_sha256"] == expected_sha)
         and (written is None or (receipt["ordinary_save_acknowledged"]

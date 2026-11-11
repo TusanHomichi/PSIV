@@ -67,6 +67,23 @@ not the brighten's mirror), the second's start and peak (62, 66, 78), and the
 untoned frame again after the third (142). The untoned frame scores `rmse=78.342520` against the
 peak, and the step before it `rmse=16.148053`.
 
+The table-driven scenes have two further pairs
+([#68](https://github.com/TusanHomichi/PSIV/issues/68)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `rykros-palette-cycle` | **0.000000** | clone t1270 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface |
+| `zio-barrier-ramp` | **0.000000** | clone t270 (`PSIV_DEBUG_EVENT=0x30`) ↔ tape-44 frame 7462: second three-word row, `$AAA/$0A8/$066`, and the scene's frozen beam mapping; region `1,1,319,223` (#409) |
+
+Rykros's scene-owned panels `$18B/$18F/$190` are extracted alongside the
+other panels; the runtime palette test checks every `PanelCreate` in that
+scene against the pack, with an empty palette pack as its negative control.
+The Zio fixture sets `$63`, the five-person party and the courtyard position.
+Its oracle reload settles before the event; the recipe gives both fixtures
+thirty field-object calls before entry rather than injecting an animation pose.
+The beam routines' counters and the scene's object-update/map-update distinction
+are described in [Zio Fort Barrier](90_ZioFortBarrier.md#beam-presentation).
+
 Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
 decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
 
@@ -337,10 +354,10 @@ The rebuilt pack reports this exact census in
 
 | Surface | Count | Result |
 |---|---:|---|
-| scene-owned panel records | 15 | exact decoded scene records |
+| scene-owned panel records | 18 | exact decoded scene records |
 | dialogue action panel records | 163 | every distinct `$F2 LoadPanel` id, including `$30` |
 | ending-only panel records | 50 | `$8021` post-battle story sequence |
-| total panel records | 228 | all PNGs present in the runtime manifest |
+| total panel records | 231 | all PNGs present in the runtime manifest |
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
@@ -361,7 +378,7 @@ power-on-to-first-control schedule for `Event_GameStart ($9F)`. Its captures
 are in `oracle/frames/opening/`; the frame-4000 state is
 `oracle/states/opening/frame_4000.json`.
 
-The pack decoder asserts all 228 panel records (15 scene-owned, 163
+The pack decoder asserts all 231 panel records (18 scene-owned, 163
 dialogue-action records and 50 ending-only records), all 7 `LoadArt` source /
 destination pairs, the 6 temporary-object keys, the generic portrait's art /
 mapping / tile contract, both Enigma planes for each panel, their retail
@@ -405,13 +422,9 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   palette is a `LoadSceneAsset` write the CRAM model does not take), scene
   temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **Three oracle pairs for the palette scenes:** `$99`'s held tone
-  (`anger-tower-barrier`), the ending's Elsydeon break
-  (`ending-elsydeon-tone`) and the recovery tile's flash (`recovery-flash`); frames of Rykros's tone and cycle and the Zio
-  barrier ramp against the oracle are still
-  [#162](https://github.com/TusanHomichi/PSIV/issues/162) and
-  [#68](https://github.com/TusanHomichi/PSIV/issues/68). The Zio pair waits on
-  the barrier beams' sprites ([#471](https://github.com/TusanHomichi/PSIV/issues/471)).
+- **Rykros's tone:** its cycle has a certified frame above; the preceding tone
+  still needs its own oracle pair
+  ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
 
 ## CRAM state
 

@@ -184,14 +184,15 @@ pub fn extract_travel(rom: &[u8], stamp: &str) -> Result<(TravelData, Json), Pac
 }
 
 /// The section.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let stamp = hex(&Sha256::digest(rom.bytes()));
     let (data, research) = extract_travel(rom.bytes(), &stamp)?;
     let value = serde_json::to_value(&data)
         .map_err(|error| PackError(format!("cannot serialize travel.json: {error}")))?;
     let mut file = Json::from(&value);
     overlay(&mut file, &research);
-    crate::write_json(root, "travel.json", &file).map(drop)
+    let sha = crate::write_json(root, "travel.json", &file)?;
+    Ok(crate::file_part("travel", "travel.json", sha))
 }
 
 #[cfg(test)]

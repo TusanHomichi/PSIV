@@ -426,7 +426,11 @@ impl Field {
             "map": runtime.map_id().0,
             "cell": [runtime.state().cell().x, runtime.state().cell().y],
             "scene_active": runtime.scene_active(),
+            "cram": {"live": runtime.cram().live, "revision": runtime.cram().revision,
+                "words": runtime.cram().words.to_vec(), "missing": runtime.cram().missing},
             "leader_sheet": self.leader_char,
+            "beam_draws": runtime.bespoke_actors().iter().filter_map(|actor|
+                actor.beam_draw().map(|(visible, age)| serde_json::json!({"index": actor.npc_index(), "visible": visible, "age": age}))).collect::<Vec<_>>(),
             "visible_followers": self.follower_nodes.iter().filter(|(node, _, _)| node.is_visible()).count(),
             "characters": state.characters.iter().enumerate().filter_map(|(id, stats)| stats.as_ref().map(|stats| serde_json::json!({
                 "id": id, "hp": stats.curr_hp, "tp": stats.curr_tp, "status": stats.status,

@@ -60,7 +60,7 @@ const ENDING_PANEL_IDS: [u16; 50] = [
 ];
 
 /// The transcribed story scenes' own panels.
-const SCENE_PANEL_IDS: [u16; 6] = [0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C];
+const SCENE_PANEL_IDS: [u16; 9] = [0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C, 0x18B, 0x18F, 0x190];
 
 /// The opening narration's art, mapping and palette.
 const OPENING_ART: usize = 0x1C_F1F2;
@@ -356,7 +356,7 @@ struct PanelPalettes {
 }
 
 /// Everything `emit_presentation` writes, `panels.json` last.
-pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
+pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let data = rom.bytes();
     let mut panels = Vec::new();
     let mut drawn = Vec::new();
@@ -394,6 +394,15 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
             })
         })
         .collect();
+    let palette_records = palettes(data, &drawn)?;
+    let part = Json::object()
+        .with("record_table", hex6(ROM_PANEL_TABLE))
+        .with("record_size", PANEL_RECORD_SIZE)
+        .with("panels", panels.len())
+        .with("palettes", palette_records.len())
+        .with("load_art", load_art.len())
+        .with("temporary_objects", temporary.len())
+        .with("portraits", portraits.len());
     let coverage = Json::object()
         .with("panel_records", panels.len())
         .with("load_art_records", load_art.len())
@@ -407,15 +416,17 @@ pub fn build(rom: &Rom, root: &Path) -> Result<(), PackError> {
         .with("record_banks", banks)
         .with("screen", vec![SCREEN_WIDTH, SCREEN_HEIGHT])
         .with("opening_background", opening)
-        .with("palettes", palettes(data, &drawn)?)
+        .with("palettes", palette_records)
         .with("panels", panels)
         .with("load_art", load_art)
         .with("temporary_objects", temporary)
         .with("portraits", portraits)
-        .with("coverage", coverage);
+        .with("coverage", coverage.clone());
     let mut text = crate::json::dumps(&manifest, false);
     text.push('\n');
-    crate::write_file(root, "presentation/panels.json", text.as_bytes())
+    crate::write_file(root, "presentation/panels.json", text.as_bytes())?;
+    // The manifest records what was emitted; panels.json holds the rest.
+    Ok(Json::object().with("presentation", part.with("coverage", coverage)))
 }
 
 #[cfg(test)]
@@ -426,7 +437,8 @@ mod tests {
     fn panel_ids_are_sorted_distinct_and_banked() {
         let ids = panel_ids();
         assert!(ids.windows(2).all(|w| w[0] < w[1]));
-        assert_eq!(ids.len(), 228);
+        assert_eq!(ids.len(), 231);
+        assert!([0x18B, 0x18F, 0x190].iter().all(|id| ids.contains(id)));
         assert_eq!(
             panel_record_offset(0x41).unwrap(),
             0x09F940 + PANEL_RECORD_SIZE
