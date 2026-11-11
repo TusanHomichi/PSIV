@@ -436,7 +436,7 @@ pub(crate) mod test_support {
     #[test]
     fn retail_fixture_skips_only_not_found() {
         use std::io::{Error, ErrorKind};
-        let path = std::path::Path::new("fixture.md");
+        let path = std::path::Path::new("fixture.rom");
         assert!(retail_rom_from_read(path, "missing", Err(ErrorKind::NotFound.into())).is_none());
         for kind in [
             ErrorKind::PermissionDenied,

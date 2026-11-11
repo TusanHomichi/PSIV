@@ -341,7 +341,9 @@ mod tests {
         // Compare each row in order with the local cartridge table at
         // loc_72182; no extracted table cells belong in tracked source.
         let table = &data[0x072182..0x072182 + FIFTH_ROWS * FIFTH_ROW_BYTES];
-        for (row, raw) in rows.iter().zip(table.chunks_exact(FIFTH_ROW_BYTES)) {
+        let (raw_rows, remainder) = table.as_chunks::<FIFTH_ROW_BYTES>();
+        assert!(remainder.is_empty());
+        for (row, raw) in rows.iter().zip(raw_rows) {
             for (key, offset) in [("character", 4), ("first_line", 5), ("picked_flag", 6)] {
                 assert_eq!(row[key].as_u64().unwrap(), u64::from(raw[offset]), "{key}");
             }
