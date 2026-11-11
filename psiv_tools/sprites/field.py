@@ -262,10 +262,11 @@ def _sheet_for_sequences(
 def _table_sequences(
     rom: bytes, table: int, facings: int
 ) -> list[tuple[str, int, int]]:
-    return [
-        (name, facing, _u32(rom, table + facing))
-        for facing, name in FACINGS[:facings]
-    ]
+    selectors = list(FACINGS[:facings])
+    # Grave scene $06FD0E/$06FD50 selects the two extra table entries.
+    if table == 0x04DF1C:
+        selectors += [(0x10, "facing_0x10"), (0x14, "facing_0x14")]
+    return [(name, facing, _u32(rom, table + facing)) for facing, name in selectors]
 
 
 # ---------------------------------------------------------------------------

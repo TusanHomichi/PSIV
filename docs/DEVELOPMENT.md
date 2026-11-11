@@ -213,7 +213,9 @@ observation verifier under a build-class reservation (nested under the gate's
 exclusive hold). This happens before workers start, so cold or stale Cargo
 targets need no manual warm-up. If only stale executables exist, preparation
 cleans this crate’s disposable Cargo output before rebuilding, since cached
-Cargo timestamps can otherwise retain the stale file. A packaged `PSIV_NATIVE_VERIFY_BINARY` remains
+Cargo timestamps can otherwise retain the stale file. Preparation builds and
+cleans only in `native-verifier/` under the Cargo target directory, keeping
+workspace test executables safe while the gate's Rust lane runs. A packaged `PSIV_NATIVE_VERIFY_BINARY` remains
 an explicit dependency and skips the build; direct native verification still
 requires a current artifact ([native replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)).
 

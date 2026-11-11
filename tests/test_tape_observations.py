@@ -85,11 +85,12 @@ class Observations(unittest.TestCase):
 
     def test_prepare_rebuilds_cold_and_stale_artifacts_and_checks_result_identity(self):
         import contextlib
+        import itertools
         from types import SimpleNamespace
         from unittest.mock import patch
         from tools import native_verifier
-        for initial in ('cold', 'stale'):
-            with self.subTest(initial=initial), tempfile.TemporaryDirectory() as tmp:
+        for initial, configured in itertools.product(('cold', 'stale', 'workspace-stale'), (False, True)):
+            with self.subTest(initial=initial, configured=configured), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 expected = {}
                 for name in native_verifier.INPUTS:
@@ -97,17 +98,29 @@ class Observations(unittest.TestCase):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text('current source')
                     expected[name] = 'current source'
-                target = root / 'isolated-target'
-                binary = target / 'debug/psiv-native-verify'
+                target = root / ('configured-target' if configured else 'rust/target')
+                environment = {'CARGO_TARGET_DIR': str(target)} if configured else {}
+                workspace_test = target / 'debug/deps/workspace-test'
+                workspace_test.parent.mkdir(parents=True)
+                workspace_test.write_bytes(b'workspace executable')
+                workspace_binary = target / 'debug/psiv-native-verify'
+                if initial == 'workspace-stale':
+                    workspace_binary.touch()
+                private_target = target / 'native-verifier'
+                binary = private_target / 'debug/psiv-native-verify'
                 binary.parent.mkdir(parents=True)
                 if initial == 'stale':
                     binary.touch()
                 fresh = False
                 def build(command, **kwargs):
                     nonlocal fresh
+                    # A missing/wrong --target-dir reproduces the gate race:
+                    # cargo clean would delete the running lane's executables.
+                    self.assertIn('--target-dir', command)
+                    self.assertEqual(Path(command[command.index('--target-dir') + 1]), private_target)
                     if command[:2] == ['cargo', 'clean']:
                         self.assertFalse(fresh)
-                        binary.unlink()
+                        binary.unlink(missing_ok=True)
                         return SimpleNamespace(returncode=0, stderr='', stdout='')
                     self.assertEqual(command[:3], ['cargo', 'build', '--quiet'])
                     self.assertIn('psiv-native-verify', command)
@@ -117,16 +130,18 @@ class Observations(unittest.TestCase):
                         'reason': 'compiler-artifact', 'target': {'name': 'psiv-native-verify'},
                         'executable': str(binary)}))
                 with patch.object(native_verifier, 'ROOT', root), \
-                        patch.dict('os.environ', {'CARGO_TARGET_DIR': str(target)}, clear=True), \
+                        patch.dict('os.environ', environment, clear=True), \
                         patch.object(native_verifier, '_exchange', side_effect=lambda *args: expected if fresh else {}), \
                         patch.object(native_verifier.subprocess, 'run', side_effect=build) as cargo, \
                         patch('tools.heavy_lock.heavy_lock_path', return_value=root / 'lock'), \
                         patch('tools.heavy_lock.hold_heavy_lock', return_value=contextlib.nullcontext()):
                     self.assertEqual(native_verifier.prepare(), binary)
-                    expected_calls = 2 if initial == 'stale' else 1
+                    expected_calls = 1 if initial == 'cold' else 2
                     self.assertEqual(cargo.call_count, expected_calls)
                     self.assertEqual(native_verifier.prepare(), binary)
                     self.assertEqual(cargo.call_count, expected_calls)  # no second build
+                    self.assertEqual(workspace_test.read_bytes(), b'workspace executable')
+                    self.assertEqual(workspace_binary.exists(), initial == 'workspace-stale')
 
     def test_prepare_packaged_override_needs_no_cargo_or_local_source(self):
         from unittest.mock import patch

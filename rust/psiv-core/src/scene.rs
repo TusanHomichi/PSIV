@@ -218,6 +218,13 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_not: usize,
     },
+    /// Select an explicit object sequence before `DriftNpcs`; `Face` replaces it.
+    SetActorAnimation {
+        /// Object whose sequence is selected.
+        actor: ActorRef,
+        /// Selector, mapping index, countdown and ROM durations.
+        animation: ActorAnimation,
+    },
     /// `DoMainUpdatesLoop` (`$5A73C`) over map objects that carry step
     /// constants: each frame `FieldObj_UpdatePosition` (`$04501C`) adds the
     /// object's `x_step_constant` (`$20`) and `y_step_constant` (`$24`), signed
@@ -990,4 +997,4 @@ pub enum SceneOp {
     End,
 }
 
-pub use crate::scene_runner::actor::ScriptedActor;
+pub use crate::scene_runner::actor::{ActorAnimation, ScriptedActor};

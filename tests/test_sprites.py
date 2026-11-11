@@ -849,5 +849,29 @@ class TestInteractableAgainstTheDisassembly(unittest.TestCase):
         self.assertEqual(checked, 215)
 
 
+class GraveSlideSequences(unittest.TestCase):
+    def test_only_the_grave_table_adds_its_scripted_selectors(self):
+        from psiv_tools.sprites.field import _table_sequences
+        import struct
+        rom = bytearray(0x04DF40)
+        for index in range(6):
+            struct.pack_into(">I", rom, 0x04DF1C + 4 * index, 0x100 + index)
+        wanted = _table_sequences(bytes(rom), 0x04DF1C, 4)
+        self.assertEqual(wanted[-2:], [("facing_0x10", 0x10, 0x104), ("facing_0x14", 0x14, 0x105)])
+        self.assertEqual(len(_table_sequences(bytes(rom), 0x04DF18, 4)), 4)
+
+    @unittest.skipUnless(ROM.is_file(), "local US ROM absent")
+    def test_grave_slide_sequence_chain_from_retail_bytes(self):
+        from psiv_tools.sprites.field import _table_sequences
+        rom = read_rom(ROM)
+        wanted = _table_sequences(rom, 0x04DF1C, 4)
+        self.assertEqual([offset for _, _, offset in wanted[-2:]], [0x04E5D0, 0x04E5E6])
+        for _, _, offset in wanted[-2:]:
+            sequence = decode_sequence(rom, offset)
+            self.assertEqual([f.ticks for f in sequence.frames], [5, 5, 5, 53])
+        self.assertEqual([f.mapping_offset for f in decode_sequence(rom, wanted[-2][2]).frames], [0x4F844, 0x4F884, 0x4F8DC, 0x4F928])
+        self.assertEqual([f.mapping_offset for f in decode_sequence(rom, wanted[-1][2]).frames], [0x4F864, 0x4F8B0, 0x4F902, 0x4F954])
+
+
 if __name__ == "__main__":
     unittest.main()

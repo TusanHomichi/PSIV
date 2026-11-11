@@ -280,6 +280,8 @@ name = "psiv-compare"
 version = "0.1.0"
 dependencies = [
  "psiv-pack",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

@@ -402,7 +402,8 @@ fn the_slide_takes_64_frames_and_the_pause_after_it_60() {
     // `DoMainUpdatesLoop` frames, the second pair's two waits, the 60 of
     // `DoMapUpdateLoop($3B)` ending in the resume, and the tick that closes
     // it and sets the flag. Without the camera waits it was 127.
-    assert_eq!(ticks, 131);
+    // The last drift mapping is presented before the following facing writes.
+    assert_eq!(ticks, 132);
 }
 
 /// Whether `cell` holds an object after each of the 64 drift frames.
