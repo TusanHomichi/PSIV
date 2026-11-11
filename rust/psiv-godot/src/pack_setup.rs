@@ -596,7 +596,7 @@ mod tests {
     fn a_checkout_gets_the_command_and_no_picker_text() {
         let text = introduction(Path::new("/tmp/run-root/runtime-pack"), None, false, false);
         assert!(!text.contains("run-root"), "{text}");
-        assert!(text.contains("python3 -m psiv_tools pack"), "{text}");
+        assert!(text.contains("-p psiv-pack -- /path/to/your/ROM"), "{text}");
         assert!(!text.contains("Choose your ROM file"), "{text}");
     }
 

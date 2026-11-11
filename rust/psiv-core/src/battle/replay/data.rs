@@ -359,7 +359,7 @@ fn write_manifest_entries(dump_path: &Path, pack_dir: &Path) -> usize {
         panic!(
             "no runtime pack at {}: the manifest dump is read from it, so this tool \
              fails rather than leave {} as it was (build one with \
-             `python -m psiv_tools pack`, or set PSIV_RUNTIME_PACK)",
+             `psiv-pack`: docs/DEVELOPMENT.md, \"Prepare the local pack\"; or set PSIV_RUNTIME_PACK)",
             pack_dir.display(),
             dump_path.display()
         )

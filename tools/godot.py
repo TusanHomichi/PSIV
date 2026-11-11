@@ -59,7 +59,7 @@ that is the file every `cargo build` of psiv-godot relinks. A run root holds
   resolves the same `res://../` to it, so all of one run's workers load one
   snapshot;
 - `runtime-pack`: a symbolic link to the pack's real path, resolved once at
-  creation, so a pack swapped in while the run lasts (`psiv_tools pack`) is
+  creation, so a pack swapped in while the run lasts (`psiv-pack`) is
   not seen half-way;
 - `run-root.json`: what it holds, with the library's sha256.
 
