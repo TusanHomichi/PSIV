@@ -407,6 +407,30 @@ pub(crate) mod test_support {
 
     static CALLS: AtomicUsize = AtomicUsize::new(0);
 
+    /// The checkout's retail ROM, for a test of what the pack holds; `None`,
+    /// with a line saying `what` was skipped, on a clone without it.
+    pub fn retail_rom(what: &str) -> Option<crate::Rom> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../Phantasy Star IV (USA).md");
+        match crate::Rom::read(&path) {
+            Ok(rom) => Some(rom),
+            Err(_) => {
+                eprintln!("local retail ROM absent: {what} skipped");
+                None
+            }
+        }
+    }
+
+    /// Text from the cartridge, pinned without quoting it: its length in
+    /// characters and its SHA-256.
+    pub fn text_pin(text: &str) -> (usize, String) {
+        use sha2::Digest;
+        (
+            text.chars().count(),
+            crate::png::hex(&sha2::Sha256::digest(text.as_bytes())),
+        )
+    }
+
     /// A fresh directory path for one test call; the caller creates it.
     pub fn scratch(name: &str) -> PathBuf {
         let n = CALLS.fetch_add(1, Ordering::Relaxed);

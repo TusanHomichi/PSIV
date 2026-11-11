@@ -127,3 +127,179 @@ fn the_vocabulary_documents_every_primary_command_once() {
     assert_eq!(vocabulary["primary"]["0xE0"].get("variable"), None);
     assert_eq!(vocabulary["total_documented_entries"], 33);
 }
+
+/// Ported from tests/test_sound.py's documentation check (#216): every
+/// primary command and the one meta opcode are named in the sound docs.
+#[test]
+fn the_sound_docs_name_every_command() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/sound/SOUND_EXTRACTION.md");
+    let document = std::fs::read_to_string(path).unwrap();
+    for spec in COMMAND_SPECS.iter() {
+        let name = format!("`{:02X}`", spec.opcode);
+        assert!(document.contains(&name), "{name}");
+    }
+    assert!(document.contains("`00`"));
+}
+
+fn read_json(root: &std::path::Path, relative: &str) -> serde_json::Value {
+    serde_json::from_slice(&std::fs::read(root.join(relative)).unwrap()).unwrap()
+}
+
+fn records(file: &serde_json::Value, path: &[&str]) -> Vec<serde_json::Value> {
+    let mut node = &file["records"];
+    for key in path {
+        node = &node[*key];
+    }
+    node["records"].as_array().unwrap().clone()
+}
+
+/// Ported from tests/test_sound.py (#216): what the retail driver data holds,
+/// read back from the files the section writes.
+#[test]
+fn retail_sound_records_census_and_raw_slices() {
+    use sha2::Digest;
+    let Some(rom) = crate::test_support::retail_rom("sound retail test") else {
+        return;
+    };
+    let data = rom.bytes();
+    let root = crate::test_support::scratch("sound");
+    build(&rom, &root).unwrap();
+    let music = read_json(&root, "sound/music.json");
+    let sfx = read_json(&root, "sound/sfx.json");
+    let index = read_json(&root, "sound/index.json");
+    let groups = [
+        records(&music, &[]),
+        records(&sfx, &["regular"]),
+        records(&sfx, &["special"]),
+    ];
+
+    // The complete id space and the track inventory.
+    let census = &index["census"];
+    assert_eq!(groups.iter().map(Vec::len).collect::<Vec<_>>(), [52, 67, 3]);
+    for (key, count) in [
+        ("music_track_count", 468),
+        ("regular_sfx_track_count", 86),
+        ("special_sfx_track_count", 3),
+        ("track_count", 557),
+    ] {
+        assert_eq!(census[key], count, "{key}");
+    }
+    assert_eq!(census["unresolved"], serde_json::json!([]));
+    assert_eq!(index["unresolved"], serde_json::json!([]));
+
+    // The command census is the documented vocabulary's.
+    let seen: std::collections::BTreeSet<u8> = census["command_opcodes_seen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u8::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap())
+        .collect();
+    assert_eq!(census["command_vocabulary_size"], seen.len());
+    assert!(
+        seen.iter()
+            .all(|op| COMMAND_SPECS.iter().any(|s| s.opcode == *op))
+    );
+    assert_eq!(census["meta_opcodes_seen"], serde_json::json!(["0x00"]));
+
+    // Every track carries a sorted, distinct instrument census.
+    let tracks = census["instruments_used_per_track"].as_array().unwrap();
+    assert_eq!(tracks.len(), 557);
+    let ids: std::collections::BTreeSet<String> =
+        tracks.iter().map(|t| t["track_id"].to_string()).collect();
+    assert_eq!(ids.len(), 557);
+    for track in tracks {
+        for key in ["instruments_used", "psg_instruments_used"] {
+            let list: Vec<i64> = track[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_i64().unwrap())
+                .collect();
+            let mut sorted = list.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(list, sorted, "{key}");
+        }
+    }
+
+    // Every voice table emits all its definitions, padded by at most a byte.
+    let mut voices = Vec::new();
+    for group in &groups {
+        let mut sum = 0;
+        for record in group {
+            let count = record["voices"].as_array().unwrap().len();
+            assert_eq!(record["header"]["voice_count"], count);
+            assert!(matches!(
+                record["header"]["voice_padding_bytes"].as_u64(),
+                Some(0 | 1)
+            ));
+            sum += count;
+        }
+        voices.push(sum);
+    }
+    assert_eq!(voices, [234, 88, 5]);
+
+    // The raw record slices are the ROM's bytes.
+    let hex = |v: &serde_json::Value| {
+        usize::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap()
+    };
+    for record in groups.iter().flatten() {
+        let source = &record["record"];
+        let (start, end) = (
+            hex(&source["rom_offset"]),
+            hex(&source["end_offset_exclusive"]),
+        );
+        let raw = std::fs::read(
+            root.join("sound")
+                .join(source["raw_file"].as_str().unwrap()),
+        )
+        .unwrap();
+        assert_eq!(raw, &data[start..end], "{}", record["symbol"]);
+        assert_eq!(
+            source["raw_sha256"].as_str().unwrap(),
+            crate::png::hex(&sha2::Sha256::digest(&raw))
+        );
+    }
+
+    // The index hashes every file it lists.
+    for entry in index["files"].as_array().unwrap() {
+        let bytes = std::fs::read(root.join(entry["file"].as_str().unwrap())).unwrap();
+        assert_eq!(entry["size_bytes"], bytes.len());
+        assert_eq!(
+            entry["sha256"].as_str().unwrap(),
+            crate::png::hex(&sha2::Sha256::digest(&bytes))
+        );
+    }
+
+    // A second build writes the same files.
+    let again = crate::test_support::scratch("sound-again");
+    build(&rom, &again).unwrap();
+    let listing = |dir: &std::path::Path| {
+        let mut files = Vec::new();
+        let mut stack = vec![dir.join("sound")];
+        while let Some(path) = stack.pop() {
+            for entry in std::fs::read_dir(&path).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else {
+                    files.push((
+                        path.strip_prefix(dir).unwrap().to_owned(),
+                        std::fs::read(&path).unwrap(),
+                    ));
+                }
+            }
+        }
+        files.sort();
+        files
+    };
+    assert!(listing(&root) == listing(&again), "two builds differ");
+    std::fs::remove_dir_all(&root).unwrap();
+    std::fs::remove_dir_all(&again).unwrap();
+
+    // Provenance refuses drift.
+    let mut changed = data.to_vec();
+    changed[0xD1C40] ^= 0x01;
+    assert!(extract(&changed, &[]).is_err());
+}
