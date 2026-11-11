@@ -422,11 +422,25 @@ pub(crate) mod test_support {
 
     /// [`retail_rom`] for the file at `path`.
     pub fn retail_rom_at(path: &std::path::Path, what: &str) -> Option<crate::Rom> {
-        if !path.exists() {
-            eprintln!("local retail ROM absent: {what} skipped");
-            return None;
-        }
-        match crate::Rom::read(path) {
+        retail_rom_from_read(path, what, std::fs::read(path))
+    }
+
+    // Keep the I/O error kind until the skip decision; Rom::read formats it
+    // into PackError, which cannot distinguish absence from other failures.
+    pub fn retail_rom_from_read(
+        path: &std::path::Path,
+        what: &str,
+        read: std::io::Result<Vec<u8>>,
+    ) -> Option<crate::Rom> {
+        let bytes = match read {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("local retail ROM absent: {what} skipped");
+                return None;
+            }
+            Err(error) => panic!("cannot read {} for {what}: {error}", path.display()),
+        };
+        match crate::Rom::verify(path, bytes) {
             Ok(rom) => Some(rom),
             Err(error) => panic!("the local ROM is there but unusable for {what}: {error}"),
         }
@@ -604,14 +618,48 @@ mod tests {
     fn only_an_absent_rom_skips_a_retail_test() {
         let root = scratch("retail-rom");
         std::fs::create_dir_all(&root).unwrap();
-        assert!(test_support::retail_rom_at(&root.join("missing.md"), "absent").is_none());
-        let wrong = root.join("wrong.md");
+        assert!(test_support::retail_rom_at(&root.join("missing-rom"), "absent").is_none());
+        let wrong = root.join("wrong-rom");
         std::fs::write(&wrong, [0u8; 16]).unwrap();
         let refused = std::panic::catch_unwind(|| test_support::retail_rom_at(&wrong, "wrong"));
         assert!(
             refused.is_err(),
             "a present but wrong ROM must fail, not skip"
         );
+        // A directory is an existing input that cannot be read as a file.
+        assert!(
+            std::panic::catch_unwind(|| test_support::retail_rom_at(&root, "directory")).is_err()
+        );
+        #[cfg(unix)]
+        {
+            let loop_path = root.join("loop-rom");
+            std::os::unix::fs::symlink(&loop_path, &loop_path).unwrap();
+            assert!(
+                std::panic::catch_unwind(|| test_support::retail_rom_at(
+                    &loop_path,
+                    "symlink loop"
+                ))
+                .is_err(),
+                "a metadata failure following a symlink must not skip"
+            );
+        }
+        // Inject errors so this remains effective under elevated users and on
+        // platforms where permission bits do not prevent reads. Metadata
+        // errors (including symlink traversal) now surface in the same read.
+        for kind in [
+            std::io::ErrorKind::PermissionDenied,
+            std::io::ErrorKind::NotADirectory,
+            std::io::ErrorKind::Other,
+        ] {
+            let refused = std::panic::catch_unwind(|| {
+                test_support::retail_rom_from_read(
+                    &wrong,
+                    "read failure",
+                    Err(std::io::Error::new(kind, "injected read failure")),
+                )
+            });
+            assert!(refused.is_err(), "{kind:?} must fail, not skip");
+        }
         std::fs::remove_dir_all(&root).unwrap();
     }
 
