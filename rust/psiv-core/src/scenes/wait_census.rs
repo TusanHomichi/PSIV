@@ -116,12 +116,13 @@ const ROWS: &[Row] = &[
     row("Event_PsycoWandChest", Map(0x06_EAB6), Missing(496)),
     Row { defect: Some(496), ..row("Event_PsycoWandChest", own(0x06_EB32, true, false), Wait(14)) },
     row("Event_PsycoWandChest", Map(0x06_EB5E), Missing(496)),
-    row("Event_ZioFortBarrier", Main(0x06_ED0C), Wait(15)),
+    // The beams' own updates run through the `DoMainUpdatesLoop($27)`.
+    row("Event_ZioFortBarrier", Main(0x06_ED0C), Within(15)),
     // `Palette_Line_4`'s ramp waits `DoMapUpdateLoop($1D)` between steps.
-    row("Event_ZioFortBarrier", Map(0x06_ED62), Within(17)),
-    row("Event_ZioFortBarrier", Map(0x06_ED70), Wait(18)),
-    row("Event_ZioFortBarrier", Map(0x06_EDBC), Wait(23)),
-    row("Event_ZioFortBarrier", Main(0x06_EDEA), Wait(28)),
+    row("Event_ZioFortBarrier", Map(0x06_ED62), Within(18)),
+    row("Event_ZioFortBarrier", Map(0x06_ED70), Wait(19)),
+    row("Event_ZioFortBarrier", Map(0x06_EDBC), Wait(24)),
+    row("Event_ZioFortBarrier", Main(0x06_EDEA), Wait(29)),
     row("Event_ZioNurvus", Map(0x06_F2F4), Wait(1)),
     row("Event_ZioNurvus", Map(0x06_F300), Missing(496)),
     row("Event_ZioNurvus", own(0x06_F384, true, true), Wait(6)),
@@ -137,13 +138,17 @@ fn scene(name: &str) -> &'static crate::Scene {
 }
 
 /// The frames one retail loop of `op` waits, for an op that is not a
-/// `Wait` but waits a library loop out between its own steps: a palette
-/// loop's per-step delay. `None` for an op that waits nothing.
+/// `Wait` but waits a library loop out itself: a palette loop's per-step
+/// delay, or the barrier beams' updates through one `DoMainUpdatesLoop`.
+/// `None` for an op that waits nothing.
 fn within_ticks(op: &SceneOp) -> Option<u32> {
     match op {
         SceneOp::Presentation {
             op: crate::PresentationOp::PaletteRampFromTable { frame_delay, .. },
         } => Some(u32::from(*frame_delay)),
+        SceneOp::Presentation {
+            op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
+        } => Some(u32::from(*frames)),
         _ => None,
     }
 }
