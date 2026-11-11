@@ -72,7 +72,7 @@ git clone https://github.com/alechenninger/ps4disasm reference/ps4disasm
 git -C reference/ps4disasm checkout --detach 5d8dcb56943d2d9430b702950daab4436fb109e8
 ./oracle/build_core.sh
 python3 -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
-python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
+cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- "/path/to/Phantasy Star IV (USA).md" runtime-pack
 ```
 
 The disassembly is a research reference: the tests, the oracle and the
@@ -318,10 +318,9 @@ distinction with the result.
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
 
-The last step, `tools/pack_parity.py`, holds `psiv-pack`, the Rust pack
-builder that replaces `python3 -m psiv_tools pack` at 1.0
-([#216](https://github.com/TusanHomichi/PSIV/issues/216)), to the Python
-builder. It builds `psiv-pack` in release, runs both builders on a file that is
+The last step, `tools/pack_parity.py`, holds `psiv-pack`, the pack builder
+every caller runs, to the Python builder it replaced, until that builder
+retires ([#216](https://github.com/TusanHomichi/PSIV/issues/216)). It builds `psiv-pack` in release, runs both builders on a file that is
 not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
 a section (`psiv-pack --claims` lists each section's paths), builds both packs
 from the ROM: every claimed JSON or binary file must be byte-identical, every
@@ -543,7 +542,7 @@ lane runs out of memory sets one, as the 13.5 GB development host sets 16
 | `extension` | 12 units | a dev cargo invocation that compiles `psiv-godot` (`-p psiv-godot`, `--workspace` build, test or clippy, or no `-p` at the workspace root): certify's build and `heavy_lock.py run --class extension -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 3 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
-| `pack` | 1 unit | a pack build: `heavy_lock.py run --class pack -- python3 -m psiv_tools pack ...` |
+| `pack` | 1 unit | a pack build with a built `psiv-pack`: `heavy_lock.py run --class pack -- rust/target/release/psiv-pack ...` (`cargo run`, which may compile it, is `build`) |
 
 The caller declares the class, and the lock trusts it. A wrong declaration, a
 `psiv-godot` build in `build`, costs memory headroom, not a crash: every Godot
@@ -557,8 +556,8 @@ sized for its largest job, the cold workspace test build, so an incremental
 waits for any `build` holder (12 + 7) and for a second extension build.
 
 A pack build shares the machine with the runs that read the pack:
-`psiv_tools pack` builds into a sibling directory and swaps it in whole
-(`psiv_tools/pack_swap.py`), so a reader sees the old pack or the new one,
+`psiv-pack` builds into a sibling directory and swaps it in whole
+(`rust/psiv-pack/src/install.rs`), so a reader sees the old pack or the new one,
 never a half-written one, and a killed build leaves the old pack in place.
 `runtime-pack` becomes a link to the newest of three kept versions,
 `.runtime-pack.v<UTC stamp>-<pid>` beside it. A reader that must see one
@@ -659,7 +658,8 @@ the same way with `tools/tree_rss.py`, at `6da25cd` plus the suite runner:
 | the same, 8 workers, #166, 2.6 GHz, load 8.5 | 100 s | 1,639 MB | - | reads | `exclusive` |
 | the fast tier's Python step before the runner (`build/py-par/base-tools/gate.py --quick-unittest`, 1,593 tests), #166, 2.5 GHz | 154 s | 883 MB | - | reads | `exclusive` (the gate) |
 | `py_suite.py --fast`, 4 workers, #166, 2.9 GHz, load 2.9 | 56 s | 1,197 MB | - | reads | `exclusive` (the gate) |
-| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `pack` (sizes it) |
+| a full pack build (`python3 -m psiv_tools pack`, the Python builder parity runs) | 47 s | 129 MB | 130 MB | writes | `pack` (sizes it) |
+| a full pack build (`psiv-pack`, release), #216, 4.0 GHz, load 15 | 3.2 s | 320 MB | - | writes | `pack` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |
 

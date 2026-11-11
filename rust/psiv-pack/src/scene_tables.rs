@@ -356,6 +356,16 @@ mod tests {
             crate::test_support::text_pin(&triples.join(";")).1,
             "e7b49c08a195e3adb63656cd4970bc609607bb0112e9f0379e7ad631508ce958"
         );
+        // Compare each row in order with the local cartridge table at
+        // loc_72182; no extracted table cells belong in tracked source.
+        let table = &data[0x072182..0x072182 + FIFTH_ROWS * FIFTH_ROW_BYTES];
+        let (raw_rows, remainder) = table.as_chunks::<FIFTH_ROW_BYTES>();
+        assert!(remainder.is_empty());
+        for (row, raw) in rows.iter().zip(raw_rows) {
+            for (key, offset) in [("character", 4), ("first_line", 5), ("picked_flag", 6)] {
+                assert_eq!(row[key].as_u64().unwrap(), u64::from(raw[offset]), "{key}");
+            }
+        }
         for offset in [FIFTH_EVENT + 2, ROWS_LEA, RECORDS_LEA, CLEARS, CLEARS + 3] {
             let mut broken = data.to_vec();
             broken[offset] ^= 0xFF;

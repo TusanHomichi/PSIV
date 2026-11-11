@@ -1,11 +1,11 @@
 //! `psiv-pack`: the runtime pack, built from the ROM alone (#216).
 //!
-//! The port of `python3 -m psiv_tools pack`, a section at a time. Until the
-//! switch, the Python builder is the one the game, the lanes and the gate
-//! use, and this crate builds only the sections it claims ([`SECTIONS`]):
-//! its output is not a pack the game can load. The full gate's parity step,
-//! `tools/pack_parity.py`, builds both from the ROM and holds every claimed
-//! path to the Python builder's bytes (a PNG to its decoded image).
+//! The pack builder: the setup screen, the shared input cache
+//! (`tools/local_inputs.py`) and the documented commands all run it. It is
+//! the port of `python3 -m psiv_tools pack`, and until that builder retires
+//! the full gate's parity step, `tools/pack_parity.py`, builds both from the
+//! ROM and holds every path [`SECTIONS`] claims to the Python builder's bytes
+//! (a PNG to its decoded image).
 //!
 //! # The program
 //!
@@ -443,6 +443,36 @@ pub(crate) mod test_support {
         match crate::Rom::verify(path, bytes) {
             Ok(rom) => Some(rom),
             Err(error) => panic!("the local ROM is there but unusable for {what}: {error}"),
+        }
+    }
+
+    #[test]
+    fn retail_fixture_skips_only_not_found() {
+        use std::io::{Error, ErrorKind};
+        let path = std::path::Path::new("fixture.rom");
+        assert!(retail_rom_from_read(path, "missing", Err(ErrorKind::NotFound.into())).is_none());
+        for kind in [
+            ErrorKind::PermissionDenied,
+            ErrorKind::InvalidData,
+            ErrorKind::UnexpectedEof,
+            ErrorKind::Other,
+        ] {
+            assert!(
+                std::panic::catch_unwind(|| {
+                    retail_rom_from_read(path, "unreadable", Err(Error::from(kind)))
+                })
+                .is_err(),
+                "{kind:?} must fail"
+            );
+        }
+        for bytes in [Vec::new(), vec![0; 128], vec![0; 3 * 1024 * 1024]] {
+            assert!(
+                std::panic::catch_unwind(|| {
+                    retail_rom_from_read(path, "invalid or truncated", Ok(bytes))
+                })
+                .is_err(),
+                "verification errors must fail"
+            );
         }
     }
 

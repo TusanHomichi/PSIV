@@ -3,7 +3,11 @@
 [Project overview](../README.md) · [Documentation index](README.md)
 
 The Python extractor decodes the verified US cartridge into local data and assets.
-Commands below run from the repository root.
+Commands below run from the repository root. `psiv-pack`
+([`rust/psiv-pack`](../rust/psiv-pack/)) is its Rust port: it builds the same
+runtime pack, is what the release downloads run on a player's ROM, and the
+gate holds it to the Python builder's output
+([build, run and verify](DEVELOPMENT.md#run-checks)).
 
 ## Supported ROM
 
@@ -36,7 +40,7 @@ The ROM is **not included** and should never be committed to this project.
 - per-map encounter binding: the 416-byte map→group table plus the two Kosinski position grids for the overworlds, cross-validated against the 68 encounter groups
 - map layouts and collision: 32×32-pixel chunks, per-plane layouts, and the 4-bit-per-cell collision grid, proven by rendering Piata/PiataItemShop/IslandCave and cross-checking warp doorways against collision type 1
 - 35 Enigma-compressed plane mappings (35,436 cells): 20 battle backgrounds, the title screen, the Sega logo and the four title portraits, composed against their art and palettes into finished PNGs by `python -m psiv_tools planes`
-- a runtime pack (`python -m psiv_tools pack`, gitignored output): all 361 maps — every interior plus both overworld planets — as lean per-map JSON + composed PNG + a priority-overlay PNG for the Rust runtime — collision grids, warp trigger rects transcribed from the 15 `XYRangeJmpTbl` routines (retail uses 9), NPCs, treasure, and a census of what the data actually contains vs what the code permits
+- a runtime pack (`psiv-pack`, gitignored output; the Python builder it replaced is `python -m psiv_tools pack`): all 361 maps — every interior plus both overworld planets — as lean per-map JSON + composed PNG + a priority-overlay PNG for the Rust runtime — collision grids, warp trigger rects transcribed from the 15 `XYRangeJmpTbl` routines (retail uses 9), NPCs, treasure, and a census of what the data actually contains vs what the code permits
 - field sprites (pack format 1): all 11 party sheets and 183 deduplicated NPC sheets with animation sequences transcribed from the cartridge's own `SprMapsPtrs_*`/`FieldObj_Animate` tables — per-frame tick durations, H-flip mirrors, per-object CRAM-line palettes proven from the `$13(a4)` byte, and the 91 invisible trigger objects classified with reasons instead of drawn
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build

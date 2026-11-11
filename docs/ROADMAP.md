@@ -32,28 +32,34 @@ The open items are the
   ([#92](https://github.com/TusanHomichi/PSIV/issues/92); the full-route RSS
   bracket ran on 2026-10-21 and passed at the tightened 8 MB/64 bounds,
   [#155](https://github.com/TusanHomichi/PSIV/issues/155)).
-- [ ] **No untranscribed trigger scenes.** The event census allowlists reach
+- [x] **No untranscribed trigger scenes.** The event census allowlists reach
   zero ([#56](https://github.com/TusanHomichi/PSIV/issues/56),
   [#71](https://github.com/TusanHomichi/PSIV/issues/71),
   [#81](https://github.com/TusanHomichi/PSIV/issues/81),
   [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
-- [ ] **Hosted CI** for the checks that need no ROM
+- [ ] **Scene palette tones**: the tone flashes and held lines scenes draw
+  with ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
+- [x] **Hosted CI** for the checks that need no ROM
   ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-- [ ] **The latest Godot and gdext**, one pinned engine version
+- [x] **The latest Godot and gdext**, one pinned engine version
   ([#133](https://github.com/TusanHomichi/PSIV/issues/133)).
-- [ ] **Windows and macOS builds**
+- [x] **Windows and macOS builds**, built and started by CI on each system
   ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
-- [ ] **A self-check** that compares a player's build against the reference
-  results, so testers on other platforms can report a verdict
-  ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
+- [x] **A pack builder that needs no Python**: `psiv-pack`, in Rust, ships in
+  every release download ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
 - [ ] **A release package** for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
-- [ ] **Documentation for public readers**
+  The release workflow builds the archives; the first release is not published
+  yet.
+- [x] **Documentation for public readers**
   ([#132](https://github.com/TusanHomichi/PSIV/issues/132)).
 - [x] **A README for players:** build the pack, run the game, controls, known
   differences ([README](../README.md)).
 
 ## After 1.0
 
+- A self-check that compares a player's build against the reference results,
+  so testers on Windows and macOS can report a verdict
+  ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
 - A mod overlay loader, so mods sit beside the original pack instead of
   editing it ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
 - Presentation fidelity: whole-scene staging, ability animations, audio timing

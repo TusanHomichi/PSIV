@@ -104,6 +104,8 @@ mod dialogue_callers_image;
 mod dialogue_resumes_image;
 #[cfg(test)]
 mod documented_ranges;
+#[cfg(test)]
+mod wait_census;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;

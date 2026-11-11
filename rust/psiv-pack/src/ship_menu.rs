@@ -311,34 +311,7 @@ pub fn extract_ship_menu(
         None => (suffix, &[][..]),
     };
 
-    let mut flight_captions = Vec::with_capacity(WORLD_NAMES);
-    let mut caption_notes = Vec::with_capacity(WORLD_NAMES);
-    for world in 0..WORLD_NAMES {
-        let entry = FLIGHT_CAPTION_PTRS + world * 4;
-        let offset = rom
-            .get(entry..entry + 4)
-            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize)
-            .unwrap_or(usize::MAX);
-        if offset >= rom.len() {
-            return refuse(format!("flight caption {world} pointer is outside the ROM"));
-        }
-        let window = &rom[offset..(offset + 33).min(rom.len())];
-        let raw = match window.iter().position(|&b| b == 0xFF) {
-            Some(end) if end > 0 && window[..end].iter().all(|&b| b < 0xF0) => &window[..end],
-            _ => {
-                return refuse(format!(
-                    "flight caption {world} is not a bounded RunText2 line"
-                ));
-            }
-        };
-        flight_captions.push(FlightCaption {
-            world: world as u8,
-            text: decode_name(raw, "dialogue")?,
-            glyph_count: raw.len(),
-            instant: true,
-        });
-        caption_notes.push(Json::object().with("rom_offset", format!("0x{offset:06X}")));
-    }
+    let (flight_captions, caption_notes) = flight_captions(rom)?;
 
     let record = ShipMenuJson {
         format_version: 1,
@@ -428,9 +401,85 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     Ok(crate::file_part("ship_menu", &path, sha))
 }
 
+/// The six flight captions, in pointer order: each a bounded `RunText2`
+/// line in the dialogue charset, drawn at once. Also each one's ROM offset.
+fn flight_captions(rom: &[u8]) -> Result<(Vec<FlightCaption>, Vec<Json>), PackError> {
+    let mut captions = Vec::with_capacity(WORLD_NAMES);
+    let mut notes = Vec::with_capacity(WORLD_NAMES);
+    for world in 0..WORLD_NAMES {
+        let entry = FLIGHT_CAPTION_PTRS + world * 4;
+        let offset = rom
+            .get(entry..entry + 4)
+            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize)
+            .unwrap_or(usize::MAX);
+        if offset >= rom.len() {
+            return refuse(format!("flight caption {world} pointer is outside the ROM"));
+        }
+        let window = &rom[offset..(offset + 33).min(rom.len())];
+        let raw = match window.iter().position(|&b| b == 0xFF) {
+            Some(end) if end > 0 && window[..end].iter().all(|&b| b < 0xF0) => &window[..end],
+            _ => {
+                return refuse(format!(
+                    "flight caption {world} is not a bounded RunText2 line"
+                ));
+            }
+        };
+        captions.push(FlightCaption {
+            world: world as u8,
+            text: decode_name(raw, "dialogue")?,
+            glyph_count: raw.len(),
+            instant: true,
+        });
+        notes.push(Json::object().with("rom_offset", format!("0x{offset:06X}")));
+    }
+    Ok((captions, notes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ported from tests/test_ship_flight.py (#216): pointer order, the
+    /// dialogue charset (`$1B` is `a` there and blank in the window's), the
+    /// leading space kept; a dangling pointer and an unbounded line refused.
+    #[test]
+    fn captions_follow_their_pointers_in_the_dialogue_charset() {
+        let mut rom = vec![0u8; FLIGHT_CAPTION_PTRS + 128];
+        for world in 0..WORLD_NAMES {
+            let entry = FLIGHT_CAPTION_PTRS + world * 4;
+            let at = FLIGHT_CAPTION_PTRS + 24 + world * 4;
+            rom[entry..entry + 4].copy_from_slice(&(at as u32).to_be_bytes());
+            rom[at..at + 4].copy_from_slice(&[0, 27, world as u8 + 1, 0xFF]);
+        }
+        let (captions, _) = flight_captions(&rom).unwrap();
+        assert_eq!(
+            captions.iter().map(|c| c.world).collect::<Vec<_>>(),
+            (0..WORLD_NAMES as u8).collect::<Vec<_>>()
+        );
+        assert_eq!(captions[0].text, " aA");
+        assert!(captions.iter().all(|c| c.instant && c.glyph_count == 3));
+        let len = rom.len() as u32;
+        rom[FLIGHT_CAPTION_PTRS..FLIGHT_CAPTION_PTRS + 4].copy_from_slice(&len.to_be_bytes());
+        assert!(flight_captions(&rom).unwrap_err().0.contains("outside"));
+        let open = (FLIGHT_CAPTION_PTRS + 64) as u32;
+        rom[FLIGHT_CAPTION_PTRS..FLIGHT_CAPTION_PTRS + 4].copy_from_slice(&open.to_be_bytes());
+        assert!(flight_captions(&rom).unwrap_err().0.contains("bounded"));
+    }
+
+    #[test]
+    fn retail_captions_are_six_whole_instant_lines() {
+        let Some(rom) = crate::test_support::retail_rom("flight caption retail test") else {
+            return;
+        };
+        let (captions, _) = flight_captions(rom.bytes()).unwrap();
+        assert_eq!(captions.len(), 6);
+        assert!(
+            captions
+                .iter()
+                .all(|c| c.glyph_count > 0 && c.glyph_count <= 32)
+        );
+        assert!(captions.iter().all(|c| c.text.starts_with(' ')));
+    }
 
     #[test]
     fn a_plane_wraps_at_its_edges() {

@@ -40,8 +40,8 @@ pub(crate) fn data() -> Option<&'static BattleData> {
     let data = DATA.get_or_init(|| load(&pack_dir())).as_ref();
     if data.is_none() {
         eprintln!(
-            "skipping: no runtime pack at {} (build one with `python -m psiv_tools pack`, \
-             or set PSIV_RUNTIME_PACK)",
+            "skipping: no runtime pack at {} (build one with `psiv-pack`: \
+             docs/DEVELOPMENT.md, \"Prepare the local pack\"; or set PSIV_RUNTIME_PACK)",
             pack_dir().display()
         );
     }
