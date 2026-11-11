@@ -19,9 +19,9 @@ main checkout's `build/inputs/`, keyed by what builds them:
   built with `cargo run --release -p psiv-pack -- ROM OUT`. Its snapshot holds
   all of `rust/` at that commit, so the workspace loads, and its key only what
   the program is built from, so a change to another crate reuses the pack.
-  Cargo builds it into `CARGO_TARGET` under the main checkout, shared by
-  every pack build and outside the cache, so a prune never removes it under a
-  build.
+  Cargo builds it into a target of its own inside the snapshot
+  (`CARGO_TARGET`), removed with it: two builds of different keys share no
+  artifact, not even the `release/psiv-pack` that `cargo run` runs.
 
 The builders read nothing else that Git does not track
 (`tests/test_pack_inputs.py` fails if the Python builder does;
@@ -98,8 +98,9 @@ HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 #: Bumped when what goes into a key changes.
 KEY_FORMAT = 3
 
-#: Where cargo builds `psiv-pack` for the cache, under the main checkout.
-CARGO_TARGET = Path("build") / "psiv-pack-target"
+#: Where cargo builds `psiv-pack` for the cache: inside the build's own
+#: snapshot, so no other build can uplift its binary over this one's.
+CARGO_TARGET = "cargo-target"
 
 #: Where the entries live, under the main checkout.
 CACHE_DIR = Path("build") / "inputs"
@@ -131,7 +132,7 @@ class Entry:
     from the Git `trees` it reads (directories or files) and the ROM. The
     snapshot holds `copies`, the trees around them, when the build needs more
     than it reads (a cargo workspace); otherwise `trees`. With `cargo`, the
-    build's `CARGO_TARGET_DIR` is `CARGO_TARGET` under the main checkout."""
+    build's `CARGO_TARGET_DIR` is `CARGO_TARGET` inside its snapshot."""
 
     name: str
     trees: tuple[str, ...]
@@ -203,7 +204,7 @@ def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) ->
                              capture_output=True, text=True, check=True).stdout.strip()
     env[HEAVY_LOCK_ENV] = str((worktree / printed).resolve())
     if entry.cargo:
-        env["CARGO_TARGET_DIR"] = str(main_checkout(worktree) / CARGO_TARGET)
+        env["CARGO_TARGET_DIR"] = str(source / CARGO_TARGET)
     subprocess.run([sys.executable, str(heavy_lock), "run", "--class", entry.lock_class,
                     "--", *command], cwd=source, env=env, check=True)
 

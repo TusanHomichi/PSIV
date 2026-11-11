@@ -117,7 +117,7 @@ EXEMPT: dict[str, frozenset[str] | None] = {
                                              "oracle/fixtures/new.json",
                                              "rust/psiv-pack/lib.rs", "rust/psiv-data/lib.rs",
                                              "rust/psiv-core/lib.rs", "rust/psiv-pack/new.rs",
-                                             "a.md"}),
+                                             "a.md", "../psiv-data"}),
     # The launcher census's cases: launchers it reads from strings, not files.
     "tests/test_run_root.py": None,
     "tests/test_size_guard.py": None,

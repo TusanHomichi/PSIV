@@ -23,8 +23,9 @@ and snapshot leave out the evidence frames it no longer reads. `SnapshotCase` sh
 what its key names (the pack's, all of `rust/` at that commit), so an edit while it runs does not reach it, and
 `WaitCase` that a job checks its inputs again once it holds the lock.
 `BuildCommandCase` checks the command, directory, lock and cargo target each
-build runs with, and `EmbedCase` that `psiv-pack` embeds no file its key
-leaves out.
+build runs with, `CargoTargetCase`, with real cargo, that two revisions'
+snapshots made before either builds each build their own program, and
+`EmbedCase` that `psiv-pack` embeds no file its key leaves out.
 """
 
 import fcntl
@@ -598,9 +599,9 @@ class BuildCommandCase(ScratchCase):
             os.environ.pop("CARGO_TARGET_DIR", None)
             runs = self.runs()
         rom, lock = str(self.source / ROM_NAME), str((self.tree / "build" / "heavy.lock").resolve())
-        # psiv-pack builds into one target under the main checkout, outside the
-        # cache, never the worktree's own rust/target.
-        target = str(self.main.resolve() / local_inputs.CARGO_TARGET)
+        # psiv-pack builds into a target inside its own snapshot, never one
+        # another build shares, nor the worktree's own rust/target.
+        target = str(self.source / local_inputs.CARGO_TARGET)
         self.assertEqual(runs, [
             ["source", lock, ["run", "--class", "python", "--", "python3", "-m", "psiv_tools",
                               "regenerate", rom, str(self.output)], None],
@@ -608,7 +609,7 @@ class BuildCommandCase(ScratchCase):
                               "--locked", "--quiet", "--manifest-path", "rust/Cargo.toml", "-p",
                               "psiv-pack", "--", rom, str(self.output)], target],
         ])
-        self.assertFalse(Path(target).is_relative_to(self.main / CACHE_DIR))
+        self.assertTrue(Path(target).is_relative_to(self.source))
 
     def test_an_override_keeps_naming_the_callers_lock_from_the_snapshot(self):
         caller = self.scratch / "caller"
@@ -625,6 +626,91 @@ class BuildCommandCase(ScratchCase):
                 finally:
                     os.chdir(cwd)
                 self.assertEqual([run[1] for run in runs], [expected, expected])
+
+
+@unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+class CargoTargetCase(unittest.TestCase):
+    """Real cargo, two revisions of a stand-in workspace, both snapshots made
+    before either builds (two keys built at once, or one that waited). Each
+    pack must come from its own revision. The negative control is the same
+    timing with one shared target: cargo judges the second snapshot's older
+    sources fresh against the first's artifacts and builds the first
+    revision's program into the second pack."""
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        repo = self.root / "repo"
+        rust = repo / "rust"
+        (rust / "psiv-data" / "src").mkdir(parents=True)
+        (rust / "psiv-pack" / "src").mkdir(parents=True)
+        (repo / "oracle" / "fixtures").mkdir(parents=True)
+        (repo / "oracle" / "fixtures" / "receipt.json").write_text("{}\n")
+        (rust / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["psiv-data", "psiv-pack"]\nresolver = "2"\n')
+        (rust / "psiv-data" / "Cargo.toml").write_text(
+            '[package]\nname = "psiv-data"\nversion = "0.1.0"\nedition = "2021"\n')
+        (rust / "psiv-pack" / "Cargo.toml").write_text(
+            '[package]\nname = "psiv-pack"\nversion = "0.1.0"\nedition = "2021"\n'
+            '[dependencies]\npsiv-data = { path = "../psiv-data" }\n')
+        (rust / "psiv-pack" / "src" / "main.rs").write_text(
+            "fn main() {\n"
+            "    let out = std::env::args().nth(2).unwrap();\n"
+            "    std::fs::create_dir_all(&out).unwrap();\n"
+            "    std::fs::write(format!(\"{out}/revision\"), psiv_data::REVISION).unwrap();\n"
+            "}\n")
+        self.lib = rust / "psiv-data" / "src" / "lib.rs"
+        self.lib.write_text('pub const REVISION: &str = "a";\n')
+        subprocess.run(["cargo", "generate-lockfile", "--offline", "--manifest-path",
+                        str(rust / "Cargo.toml")], check=True, capture_output=True)
+        scratch_git.init(repo)
+        git(repo, "config", "user.email", "test@example.invalid")
+        git(repo, "config", "user.name", "test")
+        # The worktree's heavy lock prints its path, then runs what it is given.
+        (repo / "tools").mkdir()
+        (repo / "tools" / "heavy_lock.py").write_text(
+            "import subprocess, sys\n"
+            "if len(sys.argv) == 1:\n"
+            "    print('heavy.lock')\n"
+            "    sys.exit(0)\n"
+            "sys.exit(subprocess.run(sys.argv[sys.argv.index('--') + 1:]).returncode)\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "a")
+        self.repo = repo
+        self.entry = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
+
+    def snapshot(self, revision):
+        """A snapshot of the pack's inputs at `revision`, as `_build` takes it."""
+        if revision != "a":
+            self.lib.write_text(f'pub const REVISION: &str = "{revision}";\n')
+            git(self.repo, "commit", "-q", "-am", revision)
+        trees = self.entry.trees_at(self.repo)
+        source = self.root / f"source-{revision}"
+        ids = local_inputs.snapshot_trees(self.entry, self.repo, trees)
+        local_inputs.snapshot(self.repo, ids, self.repo / "oracle" / "fixtures" / "receipt.json",
+                              source)
+        return source
+
+    def build_both(self):
+        sources = {revision: self.snapshot(revision) for revision in ("a", "b")}
+        built = {}
+        with mock.patch.dict(os.environ, {"RUSTC_WRAPPER": ""}):
+            os.environ.pop("PSIV_HEAVY_LOCK", None)
+            os.environ.pop("CARGO_TARGET_DIR", None)
+            for revision, source in sources.items():
+                output = self.root / f"pack-{revision}"
+                build_with_lock(self.entry, self.repo, source, output)
+                built[revision] = (output / "revision").read_text()
+        return built
+
+    def test_each_pack_comes_from_its_own_revision(self):
+        self.assertEqual(self.build_both(), {"a": "a", "b": "b"})
+
+    def test_negative_control_a_shared_target_builds_the_wrong_revision(self):
+        shared = self.root / "shared-target"
+        with mock.patch.object(local_inputs, "CARGO_TARGET", str(shared)):
+            self.assertEqual(self.build_both(), {"a": "a", "b": "a"})
 
 
 class EmbedCase(unittest.TestCase):
