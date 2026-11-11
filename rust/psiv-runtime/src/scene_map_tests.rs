@@ -10,6 +10,8 @@ mod garuberk;
 mod landale;
 #[path = "scene_strip_club_tests.rs"]
 mod strip_club;
+#[path = "scene_tyler_tests.rs"]
+mod tyler;
 #[path = "scene_vahal_tests.rs"]
 mod vahal;
 

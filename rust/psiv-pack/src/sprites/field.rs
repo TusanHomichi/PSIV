@@ -165,7 +165,12 @@ pub(crate) fn table_sequences(
     table: usize,
     facings: usize,
 ) -> Result<Vec<(String, usize)>, PackError> {
-    FACINGS[..facings]
+    let mut selectors = FACINGS[..facings].to_vec();
+    // Grave scene $06FD0E/$06FD50 selects two additional sequence pointers.
+    if table == 0x04DF1C {
+        selectors.extend([(0x10, "facing_0x10"), (0x14, "facing_0x14")]);
+    }
+    selectors
         .iter()
         .map(|&(facing, name)| {
             Ok((
@@ -616,4 +621,23 @@ pub fn object_sprite(
         reason: None,
         missing_patterns: Vec::new(),
     })
+}
+
+#[cfg(test)]
+mod scripted_sequences_tests {
+    use super::*;
+    #[test]
+    fn grave_table_includes_both_scripted_sequence_words() {
+        let mut rom = vec![0; 0x4df40];
+        for i in 0..6 {
+            rom[0x4df1c + i * 4..0x4df20 + i * 4]
+                .copy_from_slice(&(0x100u32 + i as u32).to_be_bytes());
+        }
+        let sequences = table_sequences(&rom, 0x4df1c, 4).unwrap();
+        assert_eq!(
+            &sequences[4..],
+            &[("facing_0x10".into(), 0x104), ("facing_0x14".into(), 0x105)]
+        );
+        assert_eq!(table_sequences(&rom, 0x4df18, 4).unwrap().len(), 4);
+    }
 }

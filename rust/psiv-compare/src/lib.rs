@@ -237,3 +237,6 @@ pub fn compare(
 
 #[cfg(test)]
 mod tests;
+
+/// Cartridge capture and timing checks for Tyler's grave.
+pub mod tyler_grave;
