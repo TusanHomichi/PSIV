@@ -2,10 +2,10 @@
 
 **Phantasy Star IV, rebuilt as a native game.** PSIV reads the game's data out
 of your own copy of the US Genesis/Mega Drive cartridge and runs it natively:
-Python extracts the maps, graphics, sound, dialogue and battle tables into a
-local data pack, Rust reproduces the game's rules frame by frame, and Godot draws
-it and reads your controller. No emulator runs while you play, and the goal is
-the original game's behavior, quirks included.
+a pack builder extracts the maps, graphics, sound, dialogue and battle tables
+into a local data pack, Rust reproduces the game's rules frame by frame, and
+Godot draws it and reads your controller. No emulator runs while you play, and
+the goal is the original game's behavior, quirks included.
 
 **How far it plays.** An automated playthrough, pressing the same buttons a
 player would, plays from New Game to the Ending's final gate headlessly, in 84
@@ -21,9 +21,11 @@ battle documents list the ones that are not
 animations, whole-scene staging, audio timing) still differs from the original
 in places; the [known differences](#known-differences) are listed.
 
-**Platforms.** Linux and the Steam Deck today. Windows and macOS are part of 1.0
-([#117](https://github.com/TusanHomichi/PSIV/issues/117)); the
-[roadmap](docs/ROADMAP.md) owns the release bar and the platform list.
+**Platforms.** Linux and the Steam Deck today. Windows and macOS builds come
+out of CI ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), which
+starts each one on its own system as far as the setup screen; nobody has
+played them through yet. The [roadmap](docs/ROADMAP.md) owns the release bar
+and the platform list.
 
 | I want to… | Start here |
 | --- | --- |
@@ -34,8 +36,11 @@ in places; the [known differences](#known-differences) are listed.
 
 ## Quick start (Linux)
 
-PSIV runs from a source checkout until the release package lands
-([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+PSIV runs from a source checkout until the first release is published
+([#115](https://github.com/TusanHomichi/PSIV/issues/115)). The release
+downloads need no Python, Rust or Godot: they build the pack with `psiv-pack`,
+the Rust port of the Python builder below, held to the same tables and images
+by the gate ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
 
 **You bring the ROM.** PSIV builds the game's graphics, sound, maps, text and
 data tables from a ROM image of the US retail release that you supply, and does
@@ -154,8 +159,8 @@ Third-party code is fetched at build time, never committed:
   game, with one exception:
 - **Nuked OPN2** (`ym3438.c`, from the same checkout) is compiled into the game's
   library for the sound chip. It is under the LGPL-2.1-or-later; its notice is
-  in the source, and how the release package carries it is
-  [#115](https://github.com/TusanHomichi/PSIV/issues/115).
+  in the source, and each release download carries its license in
+  `THIRD-PARTY-NOTICES.txt` and its source in `nuked-opn2/`.
 - **The `ps4disasm` disassembly**
   ([alechenninger/ps4disasm](https://github.com/alechenninger/ps4disasm)) is a
   research reference for developers; the game does not use it.

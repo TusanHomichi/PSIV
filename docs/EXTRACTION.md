@@ -3,7 +3,11 @@
 [Project overview](../README.md) · [Documentation index](README.md)
 
 The Python extractor decodes the verified US cartridge into local data and assets.
-Commands below run from the repository root.
+Commands below run from the repository root. `psiv-pack`
+([`rust/psiv-pack`](../rust/psiv-pack/)) is its Rust port: it builds the same
+runtime pack, is what the release downloads run on a player's ROM, and the
+gate holds it to the Python builder's output
+([build, run and verify](DEVELOPMENT.md#run-checks)).
 
 ## Supported ROM
 
