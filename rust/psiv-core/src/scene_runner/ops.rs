@@ -58,11 +58,18 @@ impl SceneRunner {
                 effects.push(SceneEffect::ActorMoveStarted { actor, to });
                 self.pc += 1;
             }
+            SceneOp::SetActorAnimation { actor, animation } => {
+                if let Some(fault) = self.select_actor_animation(actor, animation) {
+                    return Some(fault);
+                }
+                self.pc += 1;
+            }
             SceneOp::Face { actor, facing } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
                 walker.facing = facing;
+                walker.animation = None;
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
             }
@@ -852,6 +859,15 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
+            }
+            SceneOp::Presentation {
+                op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
             }
             // The barrier ramp, the engine light and Rykros's cycle wait
             // inside their loops: the op blocks for every frame the cartridge

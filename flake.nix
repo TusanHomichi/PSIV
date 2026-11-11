@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=e3f2dd174964bb5d35ec7cb2be4199c2c13377c7";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=c9099069c5ac7e293064e237dd77f37a54d9b559";
 
   outputs = { self, burrow }:
     let
@@ -66,6 +66,7 @@
 
           xvfb = pkgs.runCommand "xvfb-swrast" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
             makeWrapper ${pkgs.xvfb}/bin/Xvfb $out/bin/Xvfb --set LIBGL_DRIVERS_PATH ${driPath}
+            makeWrapper ${pkgs.xvfb-run}/bin/xvfb-run $out/bin/xvfb-run --set LIBGL_DRIVERS_PATH ${driPath}
           '';
         };
 
@@ -180,6 +181,19 @@
           strictDeps = true;
         };
 
+      nativeVerifyFor = pkgs:
+        let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
+        craneLib.buildPackage {
+          src = lib.cleanSource self;
+          pname = "psiv-native-verify";
+          version = "0.1.0";
+          cargoToml = ./rust/Cargo.toml;
+          cargoLock = ./rust/Cargo.lock;
+          postUnpack = "cd $sourceRoot/rust && sourceRoot=.";
+          cargoExtraArgs = "--locked -p psiv-native-verify";
+          strictDeps = true;
+        };
+
       floatGuardFor = pkgs:
         let craneLib = (burrow.inputs.crane.mkLib pkgs).overrideToolchain (toolchainFor pkgs [ ]); in
         craneLib.buildPackage {
@@ -260,12 +274,13 @@
         platform-tests = pkgs.runCommand "psiv-platform-tests" {
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_MEMORY_VERDICT_BINARY = "${memoryVerdictFor pkgs}/bin/psiv-memory-verdict";
+          PSIV_NATIVE_VERIFY_BINARY = "${nativeVerifyFor pkgs}/bin/psiv-native-verify";
         } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
           export HOME=$TMPDIR
-          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap tests.test_extract_stamp
+          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_verify_native_route tests.test_tape_observations tests.test_native_presentations tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap tests.test_extract_stamp
           touch $out
         '';
         # Oracle fixture extraction and reload timing tests (every

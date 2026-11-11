@@ -1,0 +1,10 @@
+[package]
+name = "psiv-native-verify"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+sha2 = "0.11"

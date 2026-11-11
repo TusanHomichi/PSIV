@@ -340,8 +340,28 @@ def main(argv=None):
                         f"cores, at most {PYTHON_MEASURED_WORKERS})")
     parser.add_argument("--start", default="tests", help="the test directory (default tests)")
     args = parser.parse_args(argv)
-    excluded = SLOW_PYTHON_MODULES if args.fast else ()
-    return run_suite(args.start, excluded, workers=args.jobs)
+    try:
+        from tools.native_verifier import prepare
+    except ModuleNotFoundError:
+        from native_verifier import prepare
+    try:
+        binary = prepare()
+    except (OSError, ValueError) as error:
+        print(f"Python suite prerequisite failed: {error}", file=sys.stderr)
+        return 1
+    # One attested artifact for this frozen suite, including spawned workers.
+    # Leave the caller's environment intact when main() runs in-process.
+    key = "PSIV_NATIVE_VERIFY_BINARY"
+    previous = os.environ.get(key)
+    os.environ[key] = str(binary)
+    try:
+        excluded = SLOW_PYTHON_MODULES if args.fast else ()
+        return run_suite(args.start, excluded, workers=args.jobs)
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
 
 
 if __name__ == "__main__":

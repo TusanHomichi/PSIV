@@ -208,6 +208,17 @@ Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
 
 ## Run checks
 
+Both gate tiers start the Python suite by provisioning the Rust native
+observation verifier under a build-class reservation (nested under the gate's
+exclusive hold). This happens before workers start, so cold or stale Cargo
+targets need no manual warm-up. If only stale executables exist, preparation
+cleans this crate’s disposable Cargo output before rebuilding, since cached
+Cargo timestamps can otherwise retain the stale file. Preparation builds and
+cleans only in `native-verifier/` under the Cargo target directory, keeping
+workspace test executables safe while the gate's Rust lane runs. A packaged `PSIV_NATIVE_VERIFY_BINARY` remains
+an explicit dependency and skips the build; direct native verification still
+requires a current artifact ([native replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)).
+
 The complete Python suite reads the ROM from a fixed place: put the supported
 image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
 symbolic link; Git ignores it), and prepare the disassembly and the full pack.

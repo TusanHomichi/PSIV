@@ -6,7 +6,7 @@
   inscription on Tyler's grave (map `$120`). Not a
   `RunEventsJmpTbl` event: the census finds it as a dialogue source
   ([EVENT_COVERAGE](EVENT_COVERAGE.md)).
-- **Data:** `dezolis_route.rs`, `TYLER_GRAVE_OPENING` (19 ops), `GRAVE_DRIFT`.
+- **Data:** `dezolis_route.rs`, `TYLER_GRAVE_OPENING` (21 ops), `GRAVE_DRIFT`.
 - **New ops:** `BranchIfActorCoord`, `DriftNpcs` (below).
 
 The route needs it: `RunEvent_FindingLandale` (`$2B`, Hangar) requires
@@ -28,13 +28,14 @@ navigation only.
 | 3 | `$06FCB6` | `move.b #$DD, Sound_Index` (`SFXID_GraveOpening`) | `PlaySound` |
 | 4-5 | `$06FCBE..$06FCE0` | `Event_MoveCamera` (`$5AAEE`) to `Character_1` (x + 4, y) then (x, y), speed 4 (`addq.w #4, d0` / call / `subq.w #4, d0` / call) | `PanCamera` `ActorShifted` +4, then `PanCamera` `Actor`; each blocks until the camera arrives |
 | 6 | `$06FCE4..$06FCFE` | `GetMapLayoutOffset(d1=$A, d2=$C, d3=1)` (BG), `move.b #$47, (a1)`, `RefreshPlaneBG`, `DMAPlane_B_VInt` | `WriteMapChunks` `(10,12) <- $47` |
-| 7 | `$06FD04..$06FD8A` | twelve `move.l d0, $20(a4)` step constants, then `moveq #$3F, d0 / jsr DoMainUpdatesLoop` | `DriftNpcs` (64 frames) |
-| 8-9 | `$06FD90..$06FDB2` | `move.l #0, $20(a4)` on the twelve; `$6(a4) = 8` on `$C380`, `$C` on `$C3C0` | `Face` objects 2 (right) and 3 (left) |
-| 10-12 | `$06FDB8..$06FDE0` | sound `$DD`, the same camera pair again | `PlaySound`, the two `PanCamera` |
-| 13 | `$06FDE6` | `moveq #$3B, d0 / jsr DoMapUpdateLoop` | `Wait` 60 |
-| 14-15 | `$06FDEE..$06FE02` | `EventFlags_Test $84`, `bne`; else `popdlg / Event_RunDialogue` | `BranchFlag`, `RunDialogueResume` |
-| 16-17 | `$06FE08..$06FE0C` | `move.b #$84, d0 / jmp EventFlags_Set` | `SetFlag` `$84`, `End` |
-| 18 | `$06FE12..$06FE16` | `moveq #$22, d0 / jmp Event_GetAndRunDialogue` | standard `RunDialogue` `$22` |
+| 7-8 | `$06FD0E..$06FD18`, `$06FD50..$06FD5A` | selector words `$10/$14`, duration bytes 4 | `SetActorAnimation` for each slab |
+| 9 | `$06FD04..$06FD8A` | twelve `move.l d0, $20(a4)` step constants, then `moveq #$3F, d0 / jsr DoMainUpdatesLoop` | `DriftNpcs` (64 frames) |
+| 10-11 | `$06FD90..$06FDB2` | `move.l #0, $20(a4)` on the twelve; `$6(a4) = 8` on `$C380`, `$C` on `$C3C0` | `Face` objects 2 (right) and 3 (left) |
+| 12-14 | `$06FDB8..$06FDE0` | sound `$DD`, the same camera pair again | `PlaySound`, the two `PanCamera` |
+| 15 | `$06FDE6` | `moveq #$3B, d0 / jsr DoMapUpdateLoop` | `Wait` 60 |
+| 16-17 | `$06FDEE..$06FE02` | `EventFlags_Test $84`, `bne`; else `popdlg / Event_RunDialogue` | `BranchFlag`, `RunDialogueResume` |
+| 18-19 | `$06FE08..$06FE0C` | `move.b #$84, d0 / jmp EventFlags_Set` | `SetFlag` `$84`, `End` |
+| 20 | `$06FE12..$06FE16` | `moveq #$22, d0 / jmp Event_GetAndRunDialogue` | standard `RunDialogue` `$22` |
 
 `DialogueTree14` entry `$1E` is the grave scene's text ("So this is Tyler's
 grave..."), yielding at one `$F7`; the part after it is what `popdlg /
@@ -83,21 +84,60 @@ jumped a cell at a time
 (`a_drifting_actor_is_drawn_at_its_pixel_every_frame`,
 `rust/psiv-core/src/scene_runner/drift_tests.rs`).
 
-**Not modelled (presentation only, no state):**
+### Slab animation and camera timing
 
-- The stone halves' slide sequences: `$6(a4)` = `$10` and `$14` select two
-  entries of the object's sequence table past the four facings, which the
-  pack's `GravestoneHalf` sheet does not carry, so the halves draw their idle
-  frames while they slide ([#84](https://github.com/TusanHomichi/PSIV/issues/84)).
+`$06FD0E..$06FD18` writes selector word `$10` and duration byte 4 on
+`$C380`; `$06FD50..$06FD5A` writes `$14` and 4 on `$C3C0`. The US bytes
+at `$04DF1C` form the six-entry sequence pointer table used by
+`FieldObj_GravestoneHalf` (`$04DDAE`). Entries `$10/$14` point to
+`$04E5D0/$04E5E6`: both begin `84 04 04 04 34`, then padding and four
+mapping pointers. Left: `$04F844,$04F884,$04F8DC,$04F928`; right:
+`$04F864,$04F8B0,$04F902,$04F954`.
 
-The camera's 4 px lead and `Event_MoveCamera`'s wait are modelled: both pairs
-are `PanCamera`, X then Y at speed 4, the scene waiting for each arrival
-(`CameraSubject::ActorShifted` for the lead).
-- `InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
-  stands at the grave, so all twelve are on screen; the op does not model the
-  off-screen skip.
+`FieldObj_Animate2` (`$04472E`, `loc_4477E` for per-frame durations)
+subtracts one from the countdown byte, advances `mappings_idx` only when
+that byte is signed-negative, and reloads the new index's duration. From
+initial index 0/countdown 4, updates 1..4 draw mapping 0, 5..9 mapping 1,
+10..14 mapping 2 and 15..64 mapping 3. The selector then becomes 8/$C;
+these point at the final single-frame mappings. `SetActorAnimation` carries
+the literal selector/countdown, `DriftNpcs` advances it on object updates,
+and `Face` replaces it. Both pack builders include the two scripted selectors
+as `walk_facing_0x10/14`; Godot selects the runtime's mapping index.
+
+Both camera pairs use `PanCamera`: `Event_MoveCamera` (`$05AAEE`) subtracts
+`$98/$58`, pans X before Y, and blocks at speed 4 until each target is reached.
+`CameraSubject::ActorShifted` retains the leader's 4 px lead. From a camera
+already framing the leader, each outward/return pan consumes one frame.
+
+The reproducible [oracle recipe](../../oracle/CAPTURE.md#tylers-grave)
+uses a constructed Tyler field fixture with flag `$84` already set, so the
+inscription dialogue is skipped; it is not a campaign-route proof. The
+frame-boundary trace records lead/back at 7200/7201, first/last slab updates
+at 7204/7267, selectors 8/$C and second lead at 7268, back at 7269 and field
+routine return at 7330. `rust/psiv-compare/src/tyler_grave.rs` verifies that 131-frame retail
+envelope and the mapping-index chain. The runtime regression checks the
+four one-frame pans, 64 consecutive object updates and 60-frame map-update
+hold. Map-refresh CPU/DMA overhead between 7201 and 7204 and the event-dispatch
+return boundary are outside that runtime timing claim. The runtime requests
+pans on ticks 1/2/68/69; their visible arrivals are 2/3/69/70, the stair write
+is tick 3, the slab updates are 4..67, facing writes are 68 and scene end is
+130 (with installation warmup tick 0). Aligning the first visible lead at
+runtime tick 2 with retail frame 7200, the runtime's slide starts two frames
+early, its second visible lead one frame early and its return two frames
+early. Equal 131-frame totals counted from different entry boundaries do not
+prove parity; operation requests and visible arrivals are distinct boundaries.
+The refresh/return timing gap is tracked in
+[#489](https://github.com/TusanHomichi/PSIV/issues/489).
+
+`InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
+stands at the grave, so all twelve are on screen; the op does not model the
+off-screen skip.
 
 ## New ops
+
+- **`SetActorAnimation { actor, animation }`**: object sequence
+  selector and countdown writes before a `DriftNpcs` loop. The runner owns
+  advancement; Godot consumes its current mapping index.
 
 - **`BranchIfActorCoord { actor, axis, cmp, value, if_true, if_false }`**: the
   `cmpi.w #value, $30/$34(a4)` / `Bcc` pair. `CoordCmp` is the unsigned-word

@@ -13,5 +13,11 @@ path = "src/lib.rs"
 name = "presentation-rmse"
 path = "src/main.rs"
 
+[[bin]]
+name = "tyler-grave"
+path = "src/bin/tyler-grave.rs"
+
 [dependencies]
 psiv-pack = { path = "../psiv-pack" }
+serde_json.workspace = true
+sha2 = "0.11"

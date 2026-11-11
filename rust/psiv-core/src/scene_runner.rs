@@ -232,15 +232,36 @@ impl SceneRunner {
         self.blocked == Blocked::EndingContinue
     }
 
-    /// Motion-loop frames update the map before testing arrival, including
-    /// the final frame that unblocks into dialogue or ends the scene
+    /// Motion/drift-loop frames update the map before testing completion,
+    /// including the final frame that unblocks into dialogue or ends the scene
     /// (ps4.asm:121117-121146,121484-121514).
     #[must_use]
     pub fn completes_map_update_loop(&self) -> bool {
-        matches!(self.blocked, Blocked::Actor(_) | Blocked::Camera)
+        matches!(self.blocked, Blocked::Actor(_) | Blocked::Camera) || self.drift.is_some()
     }
 
-    /// Whether this blocked scene frame runs the retail map-update loop.
+    /// Whether this frame belongs to the beam routines' object-update loop.
+    #[must_use]
+    pub fn runs_barrier_beams(&self) -> bool {
+        matches!(self.blocked, Blocked::Actor(_))
+            || (matches!(self.blocked, Blocked::Ticks(n) if n > 1)
+                && self
+                    .pc
+                    .checked_sub(1)
+                    .and_then(|pc| self.scene.get(pc))
+                    .is_some_and(|op| {
+                        matches!(
+                            op,
+                            SceneOp::Presentation {
+                                op: crate::PresentationOp::BarrierBeamUpdates { .. }
+                            }
+                        )
+                    }))
+    }
+
+    /// Whether the post-tick block runs the retail map-update loop.
+    /// Drift frames are captured before the tick by `completes_map_update_loop`,
+    /// so installing a drift does not add a map update before its first object update.
     /// DoMapUpdateLoop/actor and camera loops call RunMapUpdates; dialogue,
     /// VInt_PrepareLoop, map loads and panel-only waits do not
     /// (ps4.asm:120957-121055,121117-121130,121484-121501).
@@ -255,7 +276,9 @@ impl SceneRunner {
                     matches!(
                         op,
                         SceneOp::Wait { .. }
-                            | SceneOp::DriftNpcs { .. }
+                            | SceneOp::Presentation {
+                                op: crate::PresentationOp::BarrierBeamUpdates { reveal: false, .. }
+                            }
                             | SceneOp::StepObjectAlongFacing { .. }
                             | SceneOp::Ride(RideOp::Platform { .. })
                     )
@@ -471,7 +494,9 @@ impl SceneRunner {
             }
         }
         self.tick_follow_chain();
+        let was_drifting = self.drift.is_some();
         self.tick_drift(&mut effects);
+        let drift_frame_completed = was_drifting && self.drift.is_none();
         self.tick_step(&mut effects);
         self.tick_ride();
         self.end_belt_if_arrived();
@@ -482,6 +507,12 @@ impl SceneRunner {
             self.blocked = Blocked::No;
         }
         self.unblock(input);
+        // DoMainUpdatesLoop presents its last object update through VInt_Prepare
+        // before the caller's next writes. Keep that mapping visible for the
+        // whole final drift frame (Tyler oracle 7267 -> facing write 7268).
+        if drift_frame_completed {
+            return effects;
+        }
         self.run(state, &mut effects);
         self.resolve_belt(map, chunks, &mut effects);
         self.freeze_belt_riders(chunks);

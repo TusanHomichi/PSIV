@@ -60,7 +60,7 @@ const ENDING_PANEL_IDS: [u16; 50] = [
 ];
 
 /// The transcribed story scenes' own panels.
-const SCENE_PANEL_IDS: [u16; 6] = [0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C];
+const SCENE_PANEL_IDS: [u16; 9] = [0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C, 0x18B, 0x18F, 0x190];
 
 /// The opening narration's art, mapping and palette.
 const OPENING_ART: usize = 0x1C_F1F2;
@@ -437,7 +437,8 @@ mod tests {
     fn panel_ids_are_sorted_distinct_and_banked() {
         let ids = panel_ids();
         assert!(ids.windows(2).all(|w| w[0] < w[1]));
-        assert_eq!(ids.len(), 228);
+        assert_eq!(ids.len(), 231);
+        assert!([0x18B, 0x18F, 0x190].iter().all(|id| ids.contains(id)));
         assert_eq!(
             panel_record_offset(0x41).unwrap(),
             0x09F940 + PANEL_RECORD_SIZE

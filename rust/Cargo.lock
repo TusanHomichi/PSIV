@@ -280,6 +280,8 @@ name = "psiv-compare"
 version = "0.1.0"
 dependencies = [
  "psiv-pack",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -331,6 +333,14 @@ name = "psiv-memory-verdict"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "psiv-native-verify"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

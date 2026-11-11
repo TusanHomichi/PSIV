@@ -164,3 +164,22 @@ Tape 29 is a fixture for the mounted field and battle surface (RAM patches
 install the Land Rover), and tape 31 its natural-input companion from power-on.
 Their commands and what they show are in
 [VEHICLES.md](../docs/field/VEHICLES.md#vehicle-tapes-29-and-31).
+
+### Tyler's grave
+
+`cargo run --manifest-path rust/Cargo.toml -p psiv-compare --bin tyler-grave --`
+reuses tape 28's boot/input schedule with
+explicit map `$120`, party-position and event `$44` RAM fixtures. Flag `$84`
+is pre-set so dialogue dwell is excluded. The cartridge executes the event
+unmodified; this is an isolated event fixture, not a campaign route.
+The command captures RAM and video, checks every slab update and the camera
+and event-return boundaries, and writes a hashed receipt under
+`build/tyler-grave/`. `--log PATH` checks a retained CSV without recapturing.
+The Rust checker and its boundary/negative controls live in
+`rust/psiv-compare/src/tyler_grave.rs`; its CLI rejection test is
+`rust/psiv-compare/tests/tyler_grave_cli.rs`. The Rust launcher uses the existing
+`oracle.host_binary --path` Python seam solely to resolve a fresh host binary.
+Build/test the binary through the [build-class lock](../docs/DEVELOPMENT.md#heavy-run-lock);
+after building, `rust/target/debug/tyler-grave` takes the same arguments.
+The measured boundaries and comparison limits belong to the
+[scene transcription](../docs/scenes/92_TylerGraveOpening.md).

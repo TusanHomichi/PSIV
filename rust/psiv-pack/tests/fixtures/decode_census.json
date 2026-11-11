@@ -919,6 +919,18 @@
       "offset": 786312
     },
     {
+      "base_tile": 57496,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 786348
+    },
+    {
+      "base_tile": 32920,
+      "decoder": "enigma",
+      "max_words": 117,
+      "offset": 786386
+    },
+    {
       "base_tile": 41426,
       "decoder": "enigma",
       "max_words": 150,
@@ -2057,6 +2069,18 @@
       "decoder": "enigma",
       "max_words": 112,
       "offset": 2853150
+    },
+    {
+      "base_tile": 49442,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 2853446
+    },
+    {
+      "base_tile": 41250,
+      "decoder": "enigma",
+      "max_words": 72,
+      "offset": 2853480
     },
     {
       "base_tile": 49240,
@@ -3221,6 +3245,18 @@
       "decoder": "enigma",
       "max_words": 72,
       "offset": 3084292
+    },
+    {
+      "base_tile": 32784,
+      "decoder": "enigma",
+      "max_words": 299,
+      "offset": 3084322
+    },
+    {
+      "base_tile": 40976,
+      "decoder": "enigma",
+      "max_words": 299,
+      "offset": 3084470
     },
     {
       "decoder": "kosinski",
@@ -7004,6 +7040,10 @@
     },
     {
       "decoder": "nemesis",
+      "offset": 768522
+    },
+    {
+      "decoder": "nemesis",
       "offset": 779104
     },
     {
@@ -7785,6 +7825,10 @@
     {
       "decoder": "nemesis",
       "offset": 2135542
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 2135910
     },
     {
       "decoder": "nemesis",
@@ -8872,6 +8916,10 @@
     },
     {
       "decoder": "nemesis",
+      "offset": 2611064
+    },
+    {
+      "decoder": "nemesis",
       "offset": 2611296
     },
     {
@@ -9132,6 +9180,10 @@
     },
     {
       "decoder": "nemesis",
+      "offset": 2827404
+    },
+    {
+      "decoder": "nemesis",
       "offset": 2828670
     },
     {
@@ -9365,6 +9417,10 @@
     {
       "decoder": "nemesis",
       "offset": 3078158
+    },
+    {
+      "decoder": "nemesis",
+      "offset": 3081322
     }
   ],
   "source": "tools/pack_parity.py --write-census"

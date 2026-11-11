@@ -8,7 +8,7 @@
 
 use crate::geom::Direction;
 use crate::scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
+    ActorAnimation, ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SavedByte, SceneOp,
 };
 use crate::scene_presentation::CameraSubject;
 use crate::scene_runner::Scene;
@@ -169,7 +169,7 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
             cmp: CoordCmp::Equal,
             value: 0x120,
             if_true: 1,
-            if_false: 18,
+            if_false: 20,
         },
         // 1: `EventFlags_Test $84` / `bne.b loc_6FCB6` ($06FCA2).
         SceneOp::BranchFlag {
@@ -186,7 +186,7 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        // 4-5: `Event_MoveCamera` to the leader's (x + 4, y), then (x, y), speed
+        // 4-7: `Event_MoveCamera` to the leader's (x + 4, y), then (x, y), speed
         // 4 (`$06FCBE..$06FCE0`): `addq.w #4, d0`, the call, `subq.w #4, d0`,
         // the call. Each blocks until the camera arrives.
         LEAD_CAMERA,
@@ -196,12 +196,32 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
         SceneOp::WriteMapChunks {
             chunks: &[(10, 12, 0x47)],
         },
-        // 7: the twelve step constants, then `DoMainUpdatesLoop($3F)` (64 frames).
+        // 7-8: the slabs' animation words and duration.
+        // `$06FD0E..$06FD18`, `$06FD50..$06FD5A`: sequence words and duration.
+        SceneOp::SetActorAnimation {
+            actor: ActorRef::Npc(STONE_LEFT),
+            animation: ActorAnimation {
+                word: 0x10,
+                index: 0,
+                duration: 4,
+                durations: &[4, 4, 4, 0x34],
+            },
+        },
+        SceneOp::SetActorAnimation {
+            actor: ActorRef::Npc(STONE_RIGHT),
+            animation: ActorAnimation {
+                word: 0x14,
+                index: 0,
+                duration: 4,
+                durations: &[4, 4, 4, 0x34],
+            },
+        },
+        // 9: twelve step constants, then `DoMainUpdatesLoop($3F)` (64 frames).
         SceneOp::DriftNpcs {
             drifts: GRAVE_DRIFT,
             frames: 64,
         },
-        // 8-9: after zeroing the steps, `$6(a4)` = 8 on `$C380`, `$C` on `$C3C0`
+        // 10-11: after zeroing the steps, `$6(a4)` = 8 on `$C380`, `$C` on `$C3C0`
         // ($06FDA4..$06FDB2): the halves face each other across the opening.
         SceneOp::Face {
             actor: ActorRef::Npc(STONE_LEFT),
@@ -211,31 +231,31 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
             actor: ActorRef::Npc(STONE_RIGHT),
             facing: Direction::Left,
         },
-        // 10: `$06FDB8`.
+        // 12: `$06FDB8`.
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        // 11-12: the camera again, the same pair ($06FDC0..$06FDE0).
+        // 13-14: the camera again, the same pair ($06FDC0..$06FDE0).
         LEAD_CAMERA,
         BACK_CAMERA,
-        // 13: `moveq #$3B, d0 / jsr DoMapUpdateLoop` ($06FDE6).
+        // 15: `moveq #$3B, d0 / jsr DoMapUpdateLoop` ($06FDE6).
         SceneOp::Wait { ticks: 60 },
-        // 14: `EventFlags_Test $84` / `bne.b loc_6FE08` ($06FDEE).
+        // 16: `EventFlags_Test $84` / `bne.b loc_6FE08` ($06FDEE).
         SceneOp::BranchFlag {
             flag: Flag::event(FLAG_TYLER_GRAVE),
-            if_set: 16,
-            if_clear: 15,
+            if_set: 18,
+            if_clear: 17,
         },
-        // 15: `popdlg / Event_RunDialogue`: the rest of entry `$1E` ($06FDFA).
+        // 17: `popdlg / Event_RunDialogue`: the rest of entry `$1E` ($06FDFA).
         SceneOp::RunDialogueResume,
-        // 16: `loc_6FE08`: tail `jmp EventFlags_Set` with `$84`.
+        // 18: `loc_6FE08`: tail `jmp EventFlags_Set` with `$84`.
         SceneOp::SetFlag {
             flag: Flag::event(FLAG_TYLER_GRAVE),
             value: true,
         },
-        // 17.
+        // 19.
         SceneOp::End,
-        // 18: `loc_6FE12`: `moveq #$22, d0 / jmp Event_GetAndRunDialogue`.
+        // 20: `loc_6FE12`: `moveq #$22, d0 / jmp Event_GetAndRunDialogue`.
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x22)),
             window: DialogueWindow::Standard,

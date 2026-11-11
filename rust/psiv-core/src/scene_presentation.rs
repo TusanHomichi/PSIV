@@ -51,6 +51,13 @@ pub enum CameraSubject {
 /// One renderer-owned operation preserved by a scene transcription.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationOp {
+    /// Zio's object-update loop, distinct from the map-only palette waits.
+    BarrierBeamUpdates {
+        /// Corrected number of object-update/VInt iterations.
+        frames: u16,
+        /// Clear all four render flag bit-1 latches before the first update.
+        reveal: bool,
+    },
     /// `FieldRoutine_Cutscene`'s zero return reaching `GameMode_LoadFieldMap`
     /// (`ps4.asm:120745-120746`, `:107505-107635`): the scene is over for the
     /// renderer, the field map is loaded under black, and `Pal_FadeIn`

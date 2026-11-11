@@ -111,6 +111,7 @@ PANEL_IDS = tuple(sorted(set(
     + (0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C)
     + DIALOGUE_ACTION_PANEL_IDS
     + ENDING_PANEL_IDS
+    + (0x18B, 0x18F, 0x190)  # Cutscene_Rykros ($07819A, $0781B4, $0781DE).
 )))
 
 
