@@ -40,10 +40,16 @@ def _current(binary, expected):
         return False
 
 
+def _target():
+    # The Python gate lane may rebuild while workspace tests are executing.
+    # Its stale-output cleanup must never remove those test executables.
+    return Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "rust/target")).resolve() / "native-verifier"
+
+
 def _candidates():
-    target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "rust/target"))
+    target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "rust/target")).resolve()
     name = "psiv-native-verify.exe" if os.name == "nt" else "psiv-native-verify"
-    return [target / profile / name for profile in ("debug", "release")]
+    return [base / profile / name for base in (_target(), target) for profile in ("debug", "release")]
 
 
 def _resolve(expected=None):
@@ -76,12 +82,14 @@ def prepare():
         # target moved between checkouts. Invalidate only this crate's output.
         if any(path.is_file() for path in _candidates()):
             cleaned = subprocess.run(["cargo", "clean", "--manifest-path",
-                                      str(ROOT / "rust/Cargo.toml"), "-p", "psiv-native-verify"],
+                                      str(ROOT / "rust/Cargo.toml"), "--target-dir", str(_target()),
+                                      "-p", "psiv-native-verify"],
                                      capture_output=True, text=True, check=False)
             if cleaned.returncode:
                 raise ValueError("cannot clean stale Rust native verifier: " + cleaned.stderr.strip())
         built = subprocess.run(["cargo", "build", "--quiet", "--locked", "--manifest-path",
-                                str(ROOT / "rust/Cargo.toml"), "-p", "psiv-native-verify",
+                                str(ROOT / "rust/Cargo.toml"), "--target-dir", str(_target()),
+                                "-p", "psiv-native-verify",
                                 "--message-format=json"], capture_output=True, text=True, check=False)
     if built.returncode:
         raise ValueError("cannot build Rust native verifier: " + built.stderr.strip())
