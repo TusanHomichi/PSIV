@@ -92,6 +92,11 @@ const CENSUSED: &[&str] = &[
     "Event_PsycoWandChest",
     "Event_ZioFortBarrier",
     "Event_ZioNurvus",
+    // post_rika_cutscenes.rs
+    "Cutscene_DemiRescue",
+    "Cutscene_AlysWounded",
+    "Cutscene_PsycoWand",
+    "Cutscene_ZioDefeated",
 ];
 
 use Claim::{Missing, Wait, Within};
@@ -128,6 +133,25 @@ const ROWS: &[Row] = &[
     row("Event_ZioNurvus", own(0x06_F384, true, true), Wait(6)),
     row("Event_ZioNurvus", Map(0x06_F3A4), Wait(7)),
     row("Event_ZioNurvus", Map(0x06_F3CC), Wait(11)),
+    // post_rika_cutscenes.rs
+    row("Cutscene_AlysWounded", Map(0x07_4C0E), Wait(8)),
+    row("Cutscene_AlysWounded", Map(0x07_4C58), Wait(17)),
+    // The sparkle object `$1A0` run to its end: `RunSingleObject`, not the
+    // field's object update, and no map updates.
+    row("Cutscene_AlysWounded", own(0x07_4DD4, false, false), Missing(502)),
+    row("Cutscene_AlysWounded", Map(0x07_4DFC), Missing(502)),
+    row("Cutscene_PsycoWand", Map(0x07_5256), Wait(5)),
+    row("Cutscene_PsycoWand", Map(0x07_5538), Wait(45)),
+    row("Cutscene_PsycoWand", Map(0x07_598A), Wait(106)),
+    row("Cutscene_ZioDefeated", Map(0x07_5AC0), Wait(13)),
+    row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(17)),
+    row("Cutscene_ZioDefeated", Map(0x07_5B7E), Wait(19)),
+    row("Cutscene_ZioDefeated", Map(0x07_5BFE), Wait(22)),
+    row("Cutscene_ZioDefeated", Map(0x07_5C12), Wait(24)),
+    row("Cutscene_ZioDefeated", Map(0x07_5C34), Wait(25)),
+    row("Cutscene_ZioDefeated", Map(0x07_5C48), Wait(27)),
+    row("Cutscene_ZioDefeated", Map(0x07_5C66), Wait(30)),
+    row("Cutscene_ZioDefeated", Map(0x07_5CE4), Wait(43)),
 ];
 
 fn scene(name: &str) -> &'static crate::Scene {
