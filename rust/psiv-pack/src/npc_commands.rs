@@ -458,6 +458,172 @@ mod tests {
         rom
     }
 
+    fn decoded(raw: [u8; 8]) -> serde_json::Value {
+        serde_json::Value::from(&decode(0, raw).unwrap().to_json())
+    }
+
+    /// Ported from tests/test_npc_commands.py's record-format cases (#216).
+    #[test]
+    fn a_record_decodes_its_direction_frames_and_facing() {
+        // 16 pixels at 256/256 is 16 frames, what `FieldObj_UpdateStepDuration`
+        // counts down.
+        let down = decoded(record(0, 16, 0, 256, 0));
+        assert_eq!(
+            (
+                &down["direction"],
+                &down["frames"],
+                &down["y_pixels"],
+                &down["facing"]["byte"]
+            ),
+            (&"down".into(), &16.into(), &16.into(), &0.into())
+        );
+        let up = decoded(record(0, 16, 0, -256, 4));
+        assert_eq!(
+            (&up["direction"], &up["y_velocity"], &up["frames"]),
+            (&"up".into(), &(-256).into(), &16.into())
+        );
+        let left = decoded(record(16, 0, -256, 0, 0xC));
+        assert_eq!(
+            (&left["direction"], &left["x_velocity"]),
+            (&"left".into(), &(-256).into())
+        );
+        let idle = decoded(record(0, 0, 0, 0, FACING_UNCHANGED));
+        assert_eq!(idle["moves"], false);
+        assert!(idle["direction"].is_null() && idle["frames"].is_null());
+        assert_eq!(idle["facing"]["unchanged"], true);
+        assert_eq!((RECORD_BYTES, FIXED_POINT), (8, 256));
+        // A velocity without a distance never arrives.
+        assert!(decode(0, record(0, 0, 256, 0, 0)).is_err());
+    }
+
+    fn retail() -> Option<(Vec<u8>, serde_json::Value)> {
+        let rom = crate::test_support::retail_rom("npc commands retail test")?;
+        let data = rom.bytes().to_vec();
+        let payload = serde_json::Value::from(&extract_npc_commands(&data).unwrap());
+        Some((data, payload))
+    }
+
+    /// Ported from tests/test_npc_commands.py's ROM cases (#216).
+    #[test]
+    fn retail_dispatch_speeds_and_commands() {
+        let Some((data, payload)) = retail() else {
+            return;
+        };
+        // The table is named by the routine that reads it:
+        // `lea (abs).l,a1 / add.w d7,d7 / add.w d7,d7 / movea.l (a1,d7.w),a1`.
+        assert_eq!(dispatch_site(&data).unwrap(), (0x04A168, 0x04A202));
+        assert_eq!(&data[0x04A168..0x04A16A], [0x43, 0xF9]);
+        assert_eq!(long(&data, 0x04A16A).unwrap(), 0x04A202);
+        assert_eq!(payload["dispatch"]["speed_table"], "0x04A202");
+        // Three speeds of eleven commands, the tables flush against each other.
+        assert_eq!(payload["dispatch"]["speed_count"], 3);
+        assert_eq!(payload["command_count"], 11);
+        let speeds = payload["speeds"].as_array().unwrap();
+        assert_eq!(speeds[0]["rom_offset"], "0x04A20E");
+        for pair in speeds.windows(2) {
+            assert_eq!(pair[0]["rom_end"], pair[1]["rom_offset"]);
+        }
+        assert_eq!(speeds[2]["rom_end"], "0x04A316");
+        // Half, one and two pixels a frame; the fastest is the party's $0200.
+        let field = |key: &str| speeds.iter().map(|s| s[key].clone()).collect::<Vec<_>>();
+        assert_eq!(
+            field("velocity"),
+            [128, 256, 512].map(serde_json::Value::from)
+        );
+        assert_eq!(
+            field("pixels_per_frame"),
+            [0.5, 1.0, 2.0].map(serde_json::Value::from)
+        );
+        assert_eq!(
+            field("frames_per_cell"),
+            [[32], [16], [8]].map(|f| serde_json::json!(f))
+        );
+        // Command two is one step down at every speed: what sent this
+        // extraction looking.
+        for speed in speeds {
+            let down = &speed["commands"][2];
+            assert_eq!(
+                (&down["direction"], &down["y_cells"], &down["x_pixels"]),
+                (&"down".into(), &1.into(), &0.into())
+            );
+            assert_eq!(down["y_pixels"], COLLISION_CELL_PIXELS);
+            assert_eq!(
+                down["facing"],
+                serde_json::json!({"byte": 0, "name": "down", "unchanged": false})
+            );
+            assert!(down["y_velocity"].as_i64().unwrap() > 0);
+        }
+        // Four directions and three idles; every move crosses one cell.
+        let census = &payload["census"];
+        assert_eq!(census["standing_still"], serde_json::json!([0, 3, 7]));
+        assert_eq!(
+            census["duplicate_directions"],
+            serde_json::json!({"up": [1], "down": [2], "left": [4, 5, 6], "right": [8, 9, 10]})
+        );
+        assert_eq!(census["pixels_per_command"], serde_json::json!([16]));
+        // The same commands at every speed.
+        let shapes: Vec<Vec<String>> = speeds
+            .iter()
+            .map(|s| {
+                s["commands"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|c| {
+                        format!(
+                            "{} {} {} {}",
+                            c["direction"], c["x_pixels"], c["y_pixels"], c["facing"]["byte"]
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+        assert!(shapes.windows(2).all(|pair| pair[0] == pair[1]));
+        // A moved dispatch is refused, and so are tables of unequal length.
+        let mut moved = data.clone();
+        moved[0x04A168..0x04A170].fill(0);
+        assert!(dispatch_site(&moved).is_err());
+        assert!(extract_npc_commands(&moved).is_err());
+        let mut unequal = data.clone();
+        unequal[0x04A20A..0x04A20E].copy_from_slice(&0x04A400u32.to_be_bytes());
+        assert!(extract_npc_commands(&unequal).is_err());
+    }
+
+    /// Ported from tests/test_npc_commands.py's pack case (#216): the
+    /// manifest's headline names the file it wrote.
+    #[test]
+    fn retail_manifest_headline_names_the_file() {
+        use sha2::Digest;
+        let Some(rom) = crate::test_support::retail_rom("npc commands part") else {
+            return;
+        };
+        let root = crate::test_support::scratch("npc-commands");
+        let part = serde_json::Value::from(&build(&rom, &root).unwrap());
+        let headline = &part["npc_commands"];
+        let blob = std::fs::read(root.join(NAME)).unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(headline["file"], NAME);
+        assert_eq!(
+            headline["sha256"].as_str().unwrap(),
+            crate::png::hex(&sha2::Sha256::digest(&blob))
+        );
+        let file: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+        assert_eq!(
+            (&file["format_version"], &file["kind"]),
+            (&FORMAT_VERSION.into(), &"npc_movement_commands".into())
+        );
+        assert_eq!(
+            (&headline["command_count"], &headline["speed_count"]),
+            (&11.into(), &3.into())
+        );
+        assert_eq!(headline["frames_per_cell"], serde_json::json!([32, 16, 8]));
+        let down = &file["speeds"][1]["commands"][2];
+        assert_eq!(
+            (&down["direction"], &down["y_cells"]),
+            (&"down".into(), &1.into())
+        );
+    }
+
     #[test]
     fn a_table_reads_its_speeds_and_counts_from_its_extents() {
         let still = record(0, 0, 0, 0, FACING_UNCHANGED);

@@ -205,6 +205,87 @@ mod tests {
         assert!(error.0.contains("guard failed at 0x6115a"), "{}", error.0);
     }
 
+    /// Ported from tests/test_travel.py (#216): what the retail tables hold.
+    #[test]
+    fn retail_destinations_entries_and_messages() {
+        use crate::test_support::{retail_rom, scratch, text_pin};
+        let Some(rom) = retail_rom("travel retail test") else {
+            return;
+        };
+        let root = scratch("travel");
+        build(&rom, &root).unwrap();
+        let file = std::fs::read_to_string(root.join("travel.json")).unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+        let travel: serde_json::Value = serde_json::from_str(&file).unwrap();
+        let (towns, dungeons, entries) = (
+            travel["towns"].as_array().unwrap(),
+            travel["dungeons"].as_array().unwrap(),
+            travel["entries"].as_array().unwrap(),
+        );
+        // Destinations keep the cartridge's eight-pixel units.
+        assert_eq!((towns.len(), dungeons.len(), entries.len()), (26, 34, 62));
+        let first = &towns[0];
+        assert_eq!(
+            text_pin(first["name"].as_str().unwrap()),
+            (
+                5,
+                "50d77b542949db99856840dda8ea1ec26ddde9e7fae35421270bfd60e9d3c192".to_owned()
+            )
+        );
+        assert_eq!(
+            (&first["previous_map"], &first["x"], &first["y"]),
+            (&0x10.into(), &0x5C.into(), &0x11E.into())
+        );
+        assert_eq!(towns[13]["rom_offset"], towns[16]["rom_offset"], "an alias");
+        assert_eq!(
+            (&towns[25]["town_flag"], &towns[25]["world"]),
+            (&25.into(), &2.into())
+        );
+        assert_eq!(
+            (&dungeons[5]["map"], &dungeons[11]["map"]),
+            (&0x42.into(), &0x12.into())
+        );
+        // The maze entrances choose opposite Hinas returns.
+        let mazes: Vec<(u64, u64, u64)> = entries
+            .iter()
+            .filter(|e| e["place_id"] == 7)
+            .map(|e| {
+                let n = |k: &str| e[k].as_u64().unwrap();
+                (n("map"), n("previous_map"), n("selector"))
+            })
+            .collect();
+        assert_eq!(mazes, [(0x9B, 0xD8, 0x83), (0xA1, 0xD9, 0x84)]);
+        assert_eq!(
+            (&dungeons[3]["x"], &dungeons[3]["y"]),
+            (&0x100.into(), &0xF2.into())
+        );
+        assert_eq!(
+            (&dungeons[4]["x"], &dungeons[4]["y"]),
+            (&0x128.into(), &0xBA.into())
+        );
+        // The messages: a three-cell label, a two-line ready message, and
+        // one-line refusals.
+        let messages = &travel["messages"];
+        let text = |key: &str| messages[key].as_str().unwrap().to_owned();
+        assert_eq!(messages.as_object().unwrap().len(), 4);
+        assert_eq!(text("towns_label").chars().count(), 3);
+        let ready = text("teleported");
+        assert_eq!(ready.split('\n').count(), 2);
+        assert!(ready.split('\n').all(|line| !line.is_empty()));
+        for key in ["cannot_be_used", "not_enough_tp"] {
+            assert!(!text(key).contains('\n'), "{key}");
+        }
+        // A table the guard does not recognise builds nothing.
+        let mut wrong = rom.bytes().to_vec();
+        wrong[0x6115A] = 99;
+        assert!(
+            extract_travel(&wrong, "")
+                .unwrap_err()
+                .0
+                .contains("travel table guard")
+        );
+    }
+
     #[test]
     fn a_window_string_reads_its_line_breaks_and_tp_tiles() {
         // `A` `$FC` `b` `$7A` `$79` `!`, then the terminator and a byte past it.

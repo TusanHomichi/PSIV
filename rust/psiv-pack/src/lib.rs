@@ -407,6 +407,72 @@ pub(crate) mod test_support {
 
     static CALLS: AtomicUsize = AtomicUsize::new(0);
 
+    /// The checkout's retail ROM, for a test of what the pack holds; `None`,
+    /// with a line saying `what` was skipped, on a clone without it.
+    pub fn retail_rom(what: &str) -> Option<crate::Rom> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../Phantasy Star IV (USA).md");
+        retail_rom_from_read(&path, what, std::fs::read(&path))
+    }
+
+    fn retail_rom_from_read(
+        path: &std::path::Path,
+        what: &str,
+        read: std::io::Result<Vec<u8>>,
+    ) -> Option<crate::Rom> {
+        match read {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("local retail ROM absent: {what} skipped");
+                None
+            }
+            Err(error) => panic!("cannot read retail ROM {}: {error}", path.display()),
+            Ok(bytes) => Some(
+                crate::Rom::verify(path, bytes)
+                    .unwrap_or_else(|error| panic!("retail ROM verification failed: {error}")),
+            ),
+        }
+    }
+
+    #[test]
+    fn retail_fixture_skips_only_not_found() {
+        use std::io::{Error, ErrorKind};
+        let path = std::path::Path::new("fixture.rom");
+        assert!(retail_rom_from_read(path, "missing", Err(ErrorKind::NotFound.into())).is_none());
+        for kind in [
+            ErrorKind::PermissionDenied,
+            ErrorKind::InvalidData,
+            ErrorKind::UnexpectedEof,
+            ErrorKind::Other,
+        ] {
+            assert!(
+                std::panic::catch_unwind(|| {
+                    retail_rom_from_read(path, "unreadable", Err(Error::from(kind)))
+                })
+                .is_err(),
+                "{kind:?} must fail"
+            );
+        }
+        for bytes in [Vec::new(), vec![0; 128], vec![0; 3 * 1024 * 1024]] {
+            assert!(
+                std::panic::catch_unwind(|| {
+                    retail_rom_from_read(path, "invalid or truncated", Ok(bytes))
+                })
+                .is_err(),
+                "verification errors must fail"
+            );
+        }
+    }
+
+    /// Text from the cartridge, pinned without quoting it: its length in
+    /// characters and its SHA-256.
+    pub fn text_pin(text: &str) -> (usize, String) {
+        use sha2::Digest;
+        (
+            text.chars().count(),
+            crate::png::hex(&sha2::Sha256::digest(text.as_bytes())),
+        )
+    }
+
     /// A fresh directory path for one test call; the caller creates it.
     pub fn scratch(name: &str) -> PathBuf {
         let n = CALLS.fetch_add(1, Ordering::Relaxed);

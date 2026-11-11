@@ -265,6 +265,131 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
 mod tests {
     use super::*;
 
+    fn value(json: &Json) -> serde_json::Value {
+        serde_json::Value::from(json)
+    }
+
+    /// Ported from tests/test_guild_pack.py (#216).
+    #[test]
+    fn retail_guild_jobs_window_and_anchors() {
+        let Some(rom) = crate::test_support::retail_rom("guild retail test") else {
+            return;
+        };
+        let data = rom.bytes();
+        let record = value(&guild(data).unwrap());
+        for key in ["names", "rows", "money"] {
+            assert_eq!(record[key].as_array().unwrap().len(), 8, "{key}");
+        }
+        assert!(
+            record["names"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|n| !n.as_str().unwrap().is_empty())
+        );
+        for line in ["font_line", "done_line", "closed_line"] {
+            assert_eq!(record[line].as_array().unwrap().len(), 16, "{line}");
+        }
+        // `InitWindowCursor` at x $108, y $98: the window's first box cell,
+        // with the sprite plane's $80 origin.
+        let window = &record["window"];
+        assert_eq!((window["x"].as_u64().unwrap() + 1) * 8 + 0x80, 0x108);
+        assert_eq!((window["y"].as_u64().unwrap() + 1) * 8 + 0x80, 0x98);
+        for offset in [GUILD_EVENT + 2, PENDING_LEA + 2, MAP_PALETTE_POINTER] {
+            let mut broken = data.to_vec();
+            broken[offset] ^= 0xFF;
+            assert!(guild(&broken).is_err(), "0x{offset:X}");
+        }
+    }
+
+    /// Ported from tests/test_fifth_pack.py (#216).
+    #[test]
+    fn retail_fifth_rows_records_and_anchors() {
+        let Some(rom) = crate::test_support::retail_rom("fifth retail test") else {
+            return;
+        };
+        let data = rom.bytes();
+        let record = value(&fifth(data).unwrap());
+        let rows = record["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), FIFTH_ROWS);
+        let mut characters: Vec<String> = rows.iter().map(|r| r["character"].to_string()).collect();
+        characters.sort();
+        let mut records: Vec<String> = match &record["records"] {
+            serde_json::Value::Object(map) => map.keys().map(|k| format!("\"{k}\"")).collect(),
+            serde_json::Value::Array(list) => list.iter().map(|r| r.to_string()).collect(),
+            other => panic!("records: {other}"),
+        };
+        records.sort();
+        assert_eq!(
+            characters, records,
+            "each row names a record the routine refills"
+        );
+        let distinct = |key: &str| {
+            rows.iter()
+                .map(|r| r[key].to_string())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+        };
+        let stands: std::collections::BTreeSet<(u64, u64)> = rows
+            .iter()
+            .map(|r| (r["x"].as_u64().unwrap(), r["y"].as_u64().unwrap()))
+            .collect();
+        assert_eq!(stands.len(), FIFTH_ROWS);
+        assert!(stands.iter().all(|(x, y)| x % 16 == 0 && y % 16 == 0));
+        assert_eq!(distinct("picked_flag"), FIFTH_ROWS);
+        assert_eq!(distinct("first_line"), FIFTH_ROWS);
+        // Compare each row in order with the local cartridge table at
+        // loc_72182; no extracted table cells belong in tracked source.
+        let table = &data[0x072182..0x072182 + FIFTH_ROWS * FIFTH_ROW_BYTES];
+        let (raw_rows, remainder) = table.as_chunks::<FIFTH_ROW_BYTES>();
+        assert!(remainder.is_empty());
+        for (row, raw) in rows.iter().zip(raw_rows) {
+            for (key, offset) in [("character", 4), ("first_line", 5), ("picked_flag", 6)] {
+                assert_eq!(row[key].as_u64().unwrap(), u64::from(raw[offset]), "{key}");
+            }
+        }
+        for offset in [FIFTH_EVENT + 2, ROWS_LEA, RECORDS_LEA, CLEARS, CLEARS + 3] {
+            let mut broken = data.to_vec();
+            broken[offset] ^= 0xFF;
+            assert!(fifth(&broken).is_err(), "0x{offset:X}");
+        }
+        // A record that is no character is refused.
+        let at = usize::from_str_radix(
+            record["provenance"]["records"]
+                .as_str()
+                .unwrap()
+                .trim_start_matches("0x"),
+            16,
+        )
+        .unwrap();
+        let mut broken = data.to_vec();
+        broken[at + 3] ^= 0x01;
+        assert!(fifth(&broken).is_err());
+    }
+
+    /// Ported from the two files' manifest-entry tests: each part names the
+    /// file it wrote by its digest.
+    #[test]
+    fn retail_parts_name_the_files_they_wrote() {
+        use sha2::Digest;
+        let Some(rom) = crate::test_support::retail_rom("guild and fifth parts") else {
+            return;
+        };
+        let root = crate::test_support::scratch("scene-tables");
+        let part = value(&build(&rom, &root).unwrap());
+        for (key, kind) in [("guild", "guild"), ("fifth", "fifth")] {
+            let path = root.join(part[key]["path"].as_str().unwrap());
+            let bytes = std::fs::read(&path).unwrap();
+            assert_eq!(
+                part[key]["sha256"].as_str().unwrap(),
+                crate::png::hex(&sha2::Sha256::digest(&bytes))
+            );
+            let file: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(file["kind"], kind);
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
     #[test]
     fn a_job_name_ends_at_its_fe_within_32_bytes() {
         let mut rom = vec![0u8; 0x40];
