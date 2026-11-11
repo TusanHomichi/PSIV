@@ -116,7 +116,7 @@ fn every_retail_entry_pages_exactly_as_the_extractor_says() {
     if !dir.join("dialogue").join("trees.json").is_file() {
         eprintln!(
             "skipping: no dialogue pack at {}. Build one with \
-             `python -m psiv_tools pack <rom> runtime-pack/`.",
+             `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md, \"Prepare the local pack\").",
             dir.display()
         );
         return;

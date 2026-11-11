@@ -165,15 +165,21 @@ pub(crate) fn builder_command(
     }
 }
 
-/// What a checkout run with no usable pack tells its developer: the run
-/// cannot find the checkout's `psiv_tools` (a run root holds only the
+/// How a checkout builds `psiv-pack` and runs it, from the repository root
+/// (docs/DEVELOPMENT.md, "Prepare the local pack"); the ROM and the pack
+/// directory follow.
+pub(crate) const CHECKOUT_BUILDER: &str =
+    "cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack --";
+
+/// What a checkout run with no usable pack tells its developer: a checkout
+/// has no `psiv-pack` beside its executable (a run root holds only the
 /// project and the library), so the pack is built the documented way, into
 /// `named` (the directory `PSIV_RUNTIME_PACK` names) or the checkout's own.
 pub(crate) fn checkout_instructions(named: Option<&Path>) -> String {
     let pack = named.map_or_else(|| PACK_NAME.to_owned(), |path| path.display().to_string());
     format!(
         "Build it from your checkout's root, then start the game again:\n\n\
-         python3 -m psiv_tools pack /path/to/your/ROM {pack}"
+         {CHECKOUT_BUILDER} /path/to/your/ROM {pack}"
     )
 }
 
@@ -312,12 +318,15 @@ mod tests {
     fn a_checkout_is_told_the_documented_command() {
         let text = checkout_instructions(None);
         assert!(
-            text.ends_with("python3 -m psiv_tools pack /path/to/your/ROM runtime-pack"),
+            text.ends_with(
+                "cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- \
+                 /path/to/your/ROM runtime-pack"
+            ),
             "{text}"
         );
         let text = checkout_instructions(Some(Path::new("/mods/pack")));
         assert!(
-            text.ends_with("python3 -m psiv_tools pack /path/to/your/ROM /mods/pack"),
+            text.ends_with(&format!("{CHECKOUT_BUILDER} /path/to/your/ROM /mods/pack")),
             "{text}"
         );
     }

@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+import zlib
 
 from psiv_tools import png
 from psiv_tools.shop_portraits import emit_shop_portraits
@@ -29,5 +31,14 @@ class ShopPortraitTests(unittest.TestCase):
                 ('0x29FC66', 'dialogue/portraits/12_Baker.png'),
                 ('0x29DE1E', 'presentation/portraits/shopkeeper_2.png'),
             ]:
-                self.assertEqual((root / by_art[art]['png']).read_bytes(),
-                                 (ROOT / 'runtime-pack' / existing).read_bytes())
+                self.assertEqual(
+                    png.image_sha256((root / by_art[art]['png']).read_bytes()),
+                    png.image_sha256((ROOT / 'runtime-pack' / existing).read_bytes()),
+                )
+
+    def test_shared_portraits_agree_with_another_compression_level(self):
+        # The Python extractor and Rust pack writer need not use the same deflate.
+        with mock.patch.object(
+            png, '_idat', side_effect=lambda raw: png._chunk(b'IDAT', zlib.compress(raw, 0)),
+        ):
+            self.test_all_counter_portraits_decode_and_shared_portraits_agree()

@@ -26,7 +26,7 @@ Run the standalone extractor with:
 python3 -m psiv_tools sound "Phantasy Star IV (USA).md" runtime-pack/
 ```
 
-`python3 -m psiv_tools pack ... runtime-pack/` emits the same `sound/` tree
+`psiv-pack ... runtime-pack/` emits the same `sound/` tree
 as part of the pack. `runtime-pack/` is generated and ignored; the raw blobs
 are the canonical output, not the JSON's `raw_hex` convenience fields.
 

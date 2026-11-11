@@ -3,7 +3,7 @@
 //! Gated on the pack existing, mirroring the Python suite's ROM gating: the
 //! pack is Sega-derived and never committed (docs/RUNTIME_DESIGN.md, "Data and
 //! runtime layers"), so a fresh clone must not fail this. Build one with
-//! `python -m psiv_tools pack <rom> runtime-pack/` and the test starts running.
+//! `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md) and the test starts running.
 //!
 //! Set `PSIV_RUNTIME_PACK` to test a pack somewhere else -- a subset built for
 //! one town, say, which is what `build_pack`'s `map_ids` argument is for.
@@ -31,7 +31,7 @@ fn require_pack() -> Option<PathBuf> {
     }
     eprintln!(
         "skipping: no runtime pack at {}. Build one with \
-         `python -m psiv_tools pack <rom> runtime-pack/`, or set PSIV_RUNTIME_PACK.",
+         `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md), or set PSIV_RUNTIME_PACK.",
         dir.display()
     );
     None

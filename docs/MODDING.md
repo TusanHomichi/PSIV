@@ -4,8 +4,8 @@
 
 PSIV's game data is not compiled in (its rules and event scripts are). The game
 reads the data at start-up from a **data pack**, a directory of JSON tables, PNG
-images and sound data that `python3 -m psiv_tools pack <ROM> runtime-pack`
-builds from your ROM. Edit those
+images and sound data that `psiv-pack <ROM> runtime-pack` builds from your
+ROM (in a checkout, `cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- <ROM> runtime-pack`). Edit those
 files and the game plays your edits, as long as they still fit the pack's schema.
 The pack is built from the ROM, so a mod is shared as a description or a script
 of its edits, never as pack files.
@@ -34,7 +34,7 @@ PSIV_RUNTIME_PACK="$PWD/my-mod-pack" PSIV_SAVE_DIR="$PWD/saves" python3 tools/go
 `run` inherits `PSIV_RUNTIME_PACK`, and the game prefers that override over the
 run root's link to the checkout's pack, so the copy above is the one that loads.
 
-**`pack` replaces.** Running `python3 -m psiv_tools pack` into a directory
+**`psiv-pack` replaces.** Running `psiv-pack` into a directory
 builds a new pack beside it and swaps it in whole: the directory becomes a
 link to the new version, and the previous versions, edits included, are kept
 as `.<name>.v<stamp>-<pid>` beside it until three newer builds prune them. On

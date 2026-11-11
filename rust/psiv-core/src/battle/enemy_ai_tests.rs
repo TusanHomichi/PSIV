@@ -158,7 +158,7 @@ fn only_the_two_arms_without_a_d1_leave_the_scan_running() {
 /// The pack is Sega-derived and never committed (`psiv-data`'s
 /// `runtime_pack.rs` has the same gate, #149), so a fresh clone skips this.
 /// It reads every record, so it covers every enemy a replay fixture seats. Build one with
-/// `python -m psiv_tools pack <rom> runtime-pack/`, or point
+/// `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md), or point
 /// `PSIV_RUNTIME_PACK` at an existing one.
 #[test]
 fn every_condition_id_the_pack_names_maps_to_an_arm() {
