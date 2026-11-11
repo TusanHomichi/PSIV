@@ -97,6 +97,18 @@ const CENSUSED: &[&str] = &[
     "Cutscene_AlysWounded",
     "Cutscene_PsycoWand",
     "Cutscene_ZioDefeated",
+    // post_zio_cutscenes.rs
+    "Cutscene_MeetingWren",
+    // Cutscene_InsideSpaceship's documented bytes are its 18-byte dispatch;
+    // its six waits live in the destination menu's code, censused with it.
+    "Cutscene_CrashLaanding",
+    "Cutscene_Landale",
+    "Event_KuranArrival",
+    "Event_NearDarkForce1",
+    "Event_DarkForce1",
+    "Cutscene_DarkForce1Defeated",
+    "Event_Juza",
+    "Event_JuzaDefeated",
 ];
 
 use Claim::{Missing, Wait, Within};
@@ -152,6 +164,28 @@ const ROWS: &[Row] = &[
     row("Cutscene_ZioDefeated", Map(0x07_5C48), Wait(27)),
     row("Cutscene_ZioDefeated", Map(0x07_5C66), Wait(30)),
     row("Cutscene_ZioDefeated", Map(0x07_5CE4), Wait(43)),
+    // post_zio_cutscenes.rs
+    row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
+    row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(51)),
+    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(63)),
+    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(65)) },
+    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(68)),
+    // `bsr loc_76E00`: five frames of the wreck, each followed by six passes
+    // of `RunMapUpdates` and `DMAPlane_B_VInt`, no objects.
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(71)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(73)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(75)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(77)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(79)),
+    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(80)),
+    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(100)),
+    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(119)),
+    // The shared `$170 + 1` pass loop the scene calls at `$0771C8`, split at
+    // the BG chunk's beat (d7 `$3D`).
+    row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(16)),
+    row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(18)),
+    row("Cutscene_DarkForce1Defeated", Map(0x07_71FE), Wait(6)),
+    row("Cutscene_DarkForce1Defeated", Map(0x07_720E), Wait(8)),
 ];
 
 fn scene(name: &str) -> &'static crate::Scene {
