@@ -338,6 +338,25 @@ mod tests {
         assert!(stands.iter().all(|(x, y)| x % 16 == 0 && y % 16 == 0));
         assert_eq!(distinct("picked_flag"), FIFTH_ROWS);
         assert_eq!(distinct("first_line"), FIFTH_ROWS);
+        // Each row's character, picked flag and first line, as the retail
+        // table holds them (event flags $DB..$DF, lines two entries apart).
+        let triples: Vec<(u64, u64, u64)> = rows
+            .iter()
+            .map(|r| {
+                let n = |k: &str| r[k].as_u64().unwrap();
+                (n("character"), n("picked_flag"), n("first_line"))
+            })
+            .collect();
+        assert_eq!(
+            triples,
+            [
+                (4, 220, 6),
+                (2, 219, 2),
+                (6, 221, 10),
+                (8, 222, 14),
+                (9, 223, 18)
+            ]
+        );
         for offset in [FIFTH_EVENT + 2, ROWS_LEA, RECORDS_LEA, CLEARS, CLEARS + 3] {
             let mut broken = data.to_vec();
             broken[offset] ^= 0xFF;
