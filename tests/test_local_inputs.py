@@ -6,8 +6,9 @@ runtime pack built once per extractor and shared between worktrees.
 Each case makes a scratch repository with a stand-in ROM and inputs, and a
 fake builder that records what it built. `SharedCacheCase` links two
 worktrees at one commit: each input is built once and both link the same
-entry; its negative control, a commit that changes `psiv_tools/`, builds both
-again, and one that changes only `oracle/fixtures/` builds only the pack.
+entry; its negative controls: a commit that changes `psiv_tools/` builds only
+`generated/`, one that changes `psiv-pack`'s sources or `oracle/fixtures/`
+builds only the pack, and one that changes another crate builds nothing.
 `ConcurrentCase` starts two worktrees at once: the second waits on the
 entry's lock, saying so, and links what the first built. `FailureCase` shows a
 failed build caches nothing. `RefusalCase` refuses a worktree with
@@ -19,10 +20,12 @@ entries and abandoned staging, judging each under its entry's lock.
 `ReadOnlyCase` shows a built entry refuses writes through the link and an
 in-place `regenerate` replaces the link instead. `FramesCase` shows the pack's key
 and snapshot leave out the evidence frames it no longer reads. `SnapshotCase` shows a build reads a copy of
-what its key names, so an edit while it runs does not reach it, and
+what its key names (the pack's, all of `rust/` at that commit), so an edit while it runs does not reach it, and
 `WaitCase` that a job checks its inputs again once it holds the lock.
-`BuildCommandCase` checks the command, directory and lock each build runs
-with.
+`BuildCommandCase` checks the command, directory, lock and cargo target each
+build runs with, `CargoTargetCase`, with real cargo, that two revisions'
+snapshots made before either builds each build their own program, and
+`EmbedCase` that `psiv-pack` embeds no file its key leaves out.
 """
 
 import fcntl
@@ -80,7 +83,11 @@ class Builds:
 
     def __call__(self, entry, worktree, source, output):
         frames = source / FRAMES
-        read = {"extractor": (source / "psiv_tools" / "core.py").read_text(),
+        builder = source / ("rust/psiv-pack/lib.rs" if entry.name == "runtime-pack"
+                            else "psiv_tools/core.py")
+        read = {"extractor": builder.read_text(),
+                "workspace": sorted(p.name for p in (source / "rust").glob("*"))
+                if entry.name == "runtime-pack" else [],
                 "rom": (source / ROM_NAME).read_bytes(),
                 "frames": {path.name: path.read_bytes() for path in sorted(frames.glob("*.png"))}}
         with self.lock:
@@ -123,6 +130,11 @@ class ScratchCase(unittest.TestCase):
         (self.main / ".gitignore").write_text(IGNORED)
         (self.main / "psiv_tools").mkdir()
         (self.main / "psiv_tools" / "core.py").write_text("EXTRACTOR = 1\n")
+        for crate in ("psiv-pack", "psiv-data", "psiv-core"):
+            (self.main / "rust" / crate).mkdir(parents=True)
+            (self.main / "rust" / crate / "lib.rs").write_text("// 1\n")
+        (self.main / "rust" / "Cargo.toml").write_text("[workspace]\n")
+        (self.main / "rust" / "Cargo.lock").write_text("# lock\n")
         (self.main / "oracle" / "fixtures" / "battle_animation_art").mkdir(parents=True)
         (self.main / "oracle" / "fixtures" / "receipt.json").write_text("{}\n")
         (self.main / "README.md").write_text("scratch\n")
@@ -172,17 +184,41 @@ class SharedCacheCase(ScratchCase):
         self.assertEqual(frame.read_bytes(), b"png")
         self.assertFalse(git(second, "status", "--porcelain"))
 
-    def test_negative_control_a_changed_extractor_builds_both_again(self):
+    def test_negative_control_a_changed_extractor_builds_only_generated(self):
         builds = Builds()
         old = self.worktree("old")
         link(old, build=builds)
         self.commit("psiv_tools/core.py", "EXTRACTOR = 2\n")
         new = self.worktree("new")
         link(new, build=builds)
-        self.assertEqual(builds.names(), ["generated", "generated", "runtime-pack", "runtime-pack"])
-        for name in ("generated", "runtime-pack"):
-            self.assertNotEqual(self.entry_of(old, name), self.entry_of(new, name))
-            self.assertEqual(builds.builder(new, name), "new")
+        self.assertEqual(builds.calls[2:], [("generated", "new")])
+        self.assertNotEqual(self.entry_of(old, "generated"), self.entry_of(new, "generated"))
+        self.assertEqual(builds.builder(new, "runtime-pack"), "old")
+
+    def test_a_change_to_what_psiv_pack_is_built_from_builds_only_the_pack(self):
+        for relative in ("rust/psiv-pack/lib.rs", "rust/psiv-data/lib.rs", "rust/Cargo.lock",
+                         "rust/Cargo.toml"):
+            with self.subTest(relative=relative):
+                builds = Builds()
+                old = self.worktree(f"old-{relative.replace('/', '-')}")
+                link(old, build=builds)
+                self.commit(relative, (self.main / relative).read_text() + "// 2\n")
+                new = self.worktree(f"new-{relative.replace('/', '-')}")
+                link(new, build=builds)
+                self.assertEqual(builds.calls[-1:], [("runtime-pack", new.name)])
+                self.assertNotEqual(self.entry_of(old, "runtime-pack"),
+                                    self.entry_of(new, "runtime-pack"))
+                self.assertEqual(self.entry_of(old, "generated"), self.entry_of(new, "generated"))
+
+    def test_negative_control_another_crate_builds_nothing(self):
+        builds = Builds()
+        old = self.worktree("old")
+        link(old, build=builds)
+        self.commit("rust/psiv-core/lib.rs", "// 2\n")
+        new = self.worktree("new")
+        link(new, build=builds)
+        self.assertEqual(builds.names(), ["generated", "runtime-pack"])
+        self.assertEqual(self.entry_of(old, "runtime-pack"), self.entry_of(new, "runtime-pack"))
 
     def test_a_changed_fixture_builds_only_the_pack(self):
         builds = Builds()
@@ -242,7 +278,8 @@ class FailureCase(ScratchCase):
 
 class RefusalCase(ScratchCase):
     def test_uncommitted_changes_under_a_keyed_path_are_refused(self):
-        for relative in ("psiv_tools/core.py", "oracle/fixtures/new.json"):
+        for relative in ("psiv_tools/core.py", "oracle/fixtures/new.json",
+                         "rust/psiv-pack/new.rs", "rust/Cargo.lock"):
             with self.subTest(relative=relative):
                 worktree = self.worktree(f"dirty-{relative.replace('/', '-')}")
                 (worktree / relative).write_text("uncommitted\n")
@@ -254,6 +291,7 @@ class RefusalCase(ScratchCase):
     def test_negative_control_changes_elsewhere_are_not(self):
         worktree = self.worktree("elsewhere")
         (worktree / "README.md").write_text("edited\n")
+        (worktree / "rust" / "psiv-core" / "lib.rs").write_text("// edited\n")
         link(worktree, build=Builds())
         self.assertTrue((worktree / "generated").is_symlink())
 
@@ -454,21 +492,40 @@ class SnapshotCase(ScratchCase):
         builds = Builds()
 
         def editing(entry, worktree, source, output):
-            extractor = Path(worktree) / "psiv_tools" / "core.py"
-            committed = extractor.read_text()
-            extractor.write_text("EXTRACTOR = 'uncommitted'\n")
+            edited = [Path(worktree) / "psiv_tools" / "core.py",
+                      Path(worktree) / "rust" / "psiv-pack" / "lib.rs"]
+            committed = [path.read_text() for path in edited]
+            for path in edited:
+                path.write_text("uncommitted\n")
             builds(entry, worktree, source, output)
-            extractor.write_text(committed)
+            for path, text in zip(edited, committed):
+                path.write_text(text)
 
         worktree = self.worktree("first")
         link(worktree, build=editing)
+        expected = {
+            "generated": {"extractor": "EXTRACTOR = 1\n", "workspace": []},
+            # all of rust/, not just what keys it, so the workspace loads
+            "runtime-pack": {"extractor": "// 1\n", "workspace": [
+                "Cargo.lock", "Cargo.toml", "psiv-core", "psiv-data", "psiv-pack"]},
+        }
         for name in ("generated", "runtime-pack"):
             with self.subTest(name=name):
                 self.assertEqual(builds.inputs(worktree, name),
-                                 {"extractor": "EXTRACTOR = 1\n", "rom": b"not a cartridge",
-                                  "frames": {}})
+                                 {**expected[name], "rom": b"not a cartridge", "frames": {}})
                 self.assertEqual(sorted(p.name for p in self.entry_of(worktree, name).iterdir()),
                                  sorted([name, "key.json", USED_FILE]))
+
+    def test_a_copy_that_does_not_hold_the_keyed_trees_fails_the_build(self):
+        worktree = self.worktree("first")
+        pack = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
+        trees = pack.trees_at(worktree)
+        self.assertEqual(set(local_inputs.snapshot_trees(pack, worktree, trees)),
+                         set(pack.copies))
+        moved = self.commit("rust/psiv-pack/lib.rs", "// 2\n")
+        git(worktree, "checkout", "-q", "--detach", moved)
+        with self.assertRaisesRegex(local_inputs.BuildFailed, "changed while they were copied"):
+            local_inputs.snapshot_trees(pack, worktree, trees)
 
 
 class WaitCase(ScratchCase):
@@ -526,7 +583,8 @@ class BuildCommandCase(ScratchCase):
             f"calls = pathlib.Path({str(self.calls)!r})\n"
             "seen = json.loads(calls.read_text()) if calls.exists() else []\n"
             "calls.write_text(json.dumps(seen + [[pathlib.Path.cwd().name,\n"
-            "                                     os.environ['PSIV_HEAVY_LOCK'], sys.argv[1:]]]))\n")
+            "                                     os.environ['PSIV_HEAVY_LOCK'], sys.argv[1:],\n"
+            "                                     os.environ.get('CARGO_TARGET_DIR')]]))\n")
         self.source, self.output = self.scratch / "source", self.scratch / "out"
         self.source.mkdir()
 
@@ -538,14 +596,20 @@ class BuildCommandCase(ScratchCase):
     def test_each_build_runs_in_its_snapshot_under_the_worktrees_heavy_lock(self):
         with mock.patch.dict(os.environ):
             os.environ.pop("PSIV_HEAVY_LOCK", None)
+            os.environ.pop("CARGO_TARGET_DIR", None)
             runs = self.runs()
         rom, lock = str(self.source / ROM_NAME), str((self.tree / "build" / "heavy.lock").resolve())
+        # psiv-pack builds into a target inside its own snapshot, never one
+        # another build shares, nor the worktree's own rust/target.
+        target = str(self.source / local_inputs.CARGO_TARGET)
         self.assertEqual(runs, [
             ["source", lock, ["run", "--class", "python", "--", "python3", "-m", "psiv_tools",
-                              "regenerate", rom, str(self.output)]],
-            ["source", lock, ["run", "--class", "pack", "--", "python3", "-m", "psiv_tools",
-                              "pack", rom, str(self.output)]],
+                              "regenerate", rom, str(self.output)], None],
+            ["source", lock, ["run", "--class", "build", "--", "cargo", "run", "--release",
+                              "--locked", "--quiet", "--manifest-path", "rust/Cargo.toml", "-p",
+                              "psiv-pack", "--", rom, str(self.output)], target],
         ])
+        self.assertTrue(Path(target).is_relative_to(self.source))
 
     def test_an_override_keeps_naming_the_callers_lock_from_the_snapshot(self):
         caller = self.scratch / "caller"
@@ -561,7 +625,133 @@ class BuildCommandCase(ScratchCase):
                     runs = self.runs()
                 finally:
                     os.chdir(cwd)
-                self.assertEqual([lock for _, lock, _ in runs], [expected, expected])
+                self.assertEqual([run[1] for run in runs], [expected, expected])
+
+
+@unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+class CargoTargetCase(unittest.TestCase):
+    """Real cargo, two revisions of a stand-in workspace, both snapshots made
+    before either builds (two keys built at once, or one that waited). Each
+    pack must come from its own revision. The negative control is the same
+    timing with one shared target: cargo judges the second snapshot's older
+    sources fresh against the first's artifacts and builds the first
+    revision's program into the second pack."""
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        repo = self.root / "repo"
+        rust = repo / "rust"
+        (rust / "psiv-data" / "src").mkdir(parents=True)
+        (rust / "psiv-pack" / "src").mkdir(parents=True)
+        (repo / "oracle" / "fixtures").mkdir(parents=True)
+        (repo / "oracle" / "fixtures" / "receipt.json").write_text("{}\n")
+        (rust / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["psiv-data", "psiv-pack"]\nresolver = "2"\n')
+        (rust / "psiv-data" / "Cargo.toml").write_text(
+            '[package]\nname = "psiv-data"\nversion = "0.1.0"\nedition = "2021"\n')
+        (rust / "psiv-pack" / "Cargo.toml").write_text(
+            '[package]\nname = "psiv-pack"\nversion = "0.1.0"\nedition = "2021"\n'
+            '[dependencies]\npsiv-data = { path = "../psiv-data" }\n')
+        (rust / "psiv-pack" / "src" / "main.rs").write_text(
+            "fn main() {\n"
+            "    let out = std::env::args().nth(2).unwrap();\n"
+            "    std::fs::create_dir_all(&out).unwrap();\n"
+            "    std::fs::write(format!(\"{out}/revision\"), psiv_data::REVISION).unwrap();\n"
+            "}\n")
+        self.lib = rust / "psiv-data" / "src" / "lib.rs"
+        self.lib.write_text('pub const REVISION: &str = "a";\n')
+        subprocess.run(["cargo", "generate-lockfile", "--offline", "--manifest-path",
+                        str(rust / "Cargo.toml")], check=True, capture_output=True)
+        scratch_git.init(repo)
+        git(repo, "config", "user.email", "test@example.invalid")
+        git(repo, "config", "user.name", "test")
+        # The worktree's heavy lock prints its path, then runs what it is given.
+        (repo / "tools").mkdir()
+        (repo / "tools" / "heavy_lock.py").write_text(
+            "import subprocess, sys\n"
+            "if len(sys.argv) == 1:\n"
+            "    print('heavy.lock')\n"
+            "    sys.exit(0)\n"
+            "sys.exit(subprocess.run(sys.argv[sys.argv.index('--') + 1:]).returncode)\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "a")
+        self.repo = repo
+        self.entry = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
+
+    def snapshot(self, revision):
+        """A snapshot of the pack's inputs at `revision`, as `_build` takes it."""
+        if revision != "a":
+            self.lib.write_text(f'pub const REVISION: &str = "{revision}";\n')
+            git(self.repo, "commit", "-q", "-am", revision)
+        trees = self.entry.trees_at(self.repo)
+        source = self.root / f"source-{revision}"
+        ids = local_inputs.snapshot_trees(self.entry, self.repo, trees)
+        local_inputs.snapshot(self.repo, ids, self.repo / "oracle" / "fixtures" / "receipt.json",
+                              source)
+        return source
+
+    def build_both(self):
+        sources = {revision: self.snapshot(revision) for revision in ("a", "b")}
+        built = {}
+        with mock.patch.dict(os.environ, {"RUSTC_WRAPPER": ""}):
+            os.environ.pop("PSIV_HEAVY_LOCK", None)
+            os.environ.pop("CARGO_TARGET_DIR", None)
+            for revision, source in sources.items():
+                output = self.root / f"pack-{revision}"
+                build_with_lock(self.entry, self.repo, source, output)
+                built[revision] = (output / "revision").read_text()
+        return built
+
+    def test_each_pack_comes_from_its_own_revision(self):
+        self.assertEqual(self.build_both(), {"a": "a", "b": "b"})
+
+    def test_negative_control_a_shared_target_builds_the_wrong_revision(self):
+        shared = self.root / "shared-target"
+        with mock.patch.object(local_inputs, "CARGO_TARGET", str(shared)):
+            self.assertEqual(self.build_both(), {"a": "a", "b": "a"})
+
+
+class EmbedCase(unittest.TestCase):
+    """`psiv-pack`'s pack is keyed by what the program is built from: a file
+    it embeds (`include_str!`, `include_bytes!`) must lie under its key, or a
+    change to that file would reuse a stale pack."""
+
+    ROOT = Path(__file__).resolve().parents[1]
+    INCLUDE = r'include_(?:str|bytes)!\(\s*"([^"]+)"'
+
+    def outside(self, root, crates, keyed):
+        import re
+        found = []
+        for crate in crates:
+            for path in sorted((root / crate).rglob("*.rs")):
+                for target in re.findall(self.INCLUDE, path.read_text(encoding="utf-8")):
+                    resolved = (path.parent / target).resolve()
+                    relative = resolved.relative_to(root.resolve()).as_posix()
+                    if not any(relative == key or relative.startswith(key + "/")
+                               for key in keyed):
+                        found.append(f"{path.relative_to(root)}: {target}")
+        return found
+
+    def test_every_embedded_file_is_keyed(self):
+        pack = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
+        crates = [tree for tree in pack.trees
+                  if tree.startswith("rust/") and not tree.endswith((".toml", ".lock"))]
+        self.assertEqual(crates, ["rust/psiv-data", "rust/psiv-pack"])
+        self.assertEqual(self.outside(self.ROOT, crates, pack.trees), [])
+
+    def test_negative_control_an_unkeyed_embed_is_named(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / "rust" / "psiv-pack" / "src").mkdir(parents=True)
+            (root / "docs").mkdir()
+            (root / "docs" / "a.md").write_text("x\n")
+            (root / "rust" / "psiv-pack" / "src" / "lib.rs").write_text(
+                'const A: &str = include_str!("../../../docs/a.md");\n'
+                'const B: &[u8] = include_bytes!(\n    "lib.rs");\n')
+            self.assertEqual(self.outside(root, ["rust/psiv-pack"], ["rust/psiv-pack"]),
+                             ["rust/psiv-pack/src/lib.rs: ../../../docs/a.md"])
 
 
 if __name__ == "__main__":

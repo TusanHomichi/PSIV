@@ -1,6 +1,6 @@
 //! Schema layer: typed access to the runtime pack. See docs/RUNTIME_DESIGN.md.
 //!
-//! The runtime pack is what `python -m psiv_tools pack <rom> runtime-pack/`
+//! The runtime pack is what `psiv-pack <rom> runtime-pack/` (`rust/psiv-pack`)
 //! emits: a manifest plus one JSON record per field map. This crate is the only
 //! thing in the workspace that knows that format. It deserializes it, validates
 //! it, and hands out a [`GameData`] that later layers can treat as already

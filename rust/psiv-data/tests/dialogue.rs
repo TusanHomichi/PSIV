@@ -34,7 +34,7 @@ fn require_dialogue() -> Option<DialogueSet> {
     if !dir.join("dialogue").join("trees.json").is_file() {
         eprintln!(
             "skipping: no dialogue pack at {}. Build one with \
-             `python -m psiv_tools pack <rom> runtime-pack/`, or set PSIV_RUNTIME_PACK.",
+             `psiv-pack <rom> runtime-pack/` (docs/DEVELOPMENT.md), or set PSIV_RUNTIME_PACK.",
             dir.display()
         );
         return None;

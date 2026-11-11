@@ -35,7 +35,7 @@ test or clippy run that does not compile psiv-godot: compilation is its peak),
 `extension` (one that does, in dev: `-p psiv-godot` or the workspace), `godot` (one
 Godot/Xvfb run, per slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot
 files), `python` (the Python suite) and `pack` (a pack build, which swaps
-the new pack in whole, psiv_tools/pack_swap.py, so its readers need no
+the new pack in whole, rust/psiv-pack/src/install.rs, so its readers need no
 exclusion). The caller declares the class and is
 trusted: a build in `build` that compiles psiv-godot costs memory headroom,
 never a crash, because every Godot a repository tool starts loads its own copy

@@ -278,7 +278,7 @@ PYTHONPATH=. python3 -m unittest discover -s tests
 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 cargo test --manifest-path rust/Cargo.toml --workspace
-PYTHONPATH=. python3 -m psiv_tools pack "Phantasy Star IV (USA).md" runtime-pack
+cargo run --release --manifest-path rust/Cargo.toml -p psiv-pack -- "Phantasy Star IV (USA).md" runtime-pack
 ```
 
 The full-pack command is the final comparison: it must regenerate the battle

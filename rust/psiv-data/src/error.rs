@@ -162,7 +162,7 @@ impl fmt::Display for DataError {
             DataError::FormatVersion { found, expected } => write!(
                 f,
                 "runtime pack format version {found} is not supported; this build reads \
-                 version {expected}. Re-run `python -m psiv_tools pack` to rebuild the pack."
+                 version {expected}. Rebuild the pack with `psiv-pack` (docs/DEVELOPMENT.md, \"Prepare the local pack\")."
             ),
             DataError::DuplicateMapId { id, detail } => {
                 write!(f, "manifest lists map {id} more than once: {detail}")
