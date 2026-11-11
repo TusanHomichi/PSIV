@@ -338,24 +338,23 @@ mod tests {
         assert!(stands.iter().all(|(x, y)| x % 16 == 0 && y % 16 == 0));
         assert_eq!(distinct("picked_flag"), FIFTH_ROWS);
         assert_eq!(distinct("first_line"), FIFTH_ROWS);
-        // Each row's character, picked flag and first line, as the retail
-        // table holds them (event flags $DB..$DF, lines two entries apart).
-        let triples: Vec<(u64, u64, u64)> = rows
+        // Each row's character, picked flag and first line, in table order,
+        // pinned by digest rather than copied: `c,f,l` per row, `;` between.
+        let triples: Vec<String> = rows
             .iter()
             .map(|r| {
                 let n = |k: &str| r[k].as_u64().unwrap();
-                (n("character"), n("picked_flag"), n("first_line"))
+                format!(
+                    "{},{},{}",
+                    n("character"),
+                    n("picked_flag"),
+                    n("first_line")
+                )
             })
             .collect();
         assert_eq!(
-            triples,
-            [
-                (4, 220, 6),
-                (2, 219, 2),
-                (6, 221, 10),
-                (8, 222, 14),
-                (9, 223, 18)
-            ]
+            crate::test_support::text_pin(&triples.join(";")).1,
+            "e7b49c08a195e3adb63656cd4970bc609607bb0112e9f0379e7ad631508ce958"
         );
         for offset in [FIFTH_EVENT + 2, ROWS_LEA, RECORDS_LEA, CLEARS, CLEARS + 3] {
             let mut broken = data.to_vec();

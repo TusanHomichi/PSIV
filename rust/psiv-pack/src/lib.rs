@@ -408,16 +408,27 @@ pub(crate) mod test_support {
     static CALLS: AtomicUsize = AtomicUsize::new(0);
 
     /// The checkout's retail ROM, for a test of what the pack holds; `None`,
-    /// with a line saying `what` was skipped, on a clone without it.
+    /// with a line saying `what` was skipped, only when no file is there. A
+    /// file that is there but cannot be read or is not the retail image
+    /// fails the test: a skip must never hide a broken input or a broken
+    /// check.
     pub fn retail_rom(what: &str) -> Option<crate::Rom> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../Phantasy Star IV (USA).md");
-        match crate::Rom::read(&path) {
+        retail_rom_at(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../Phantasy Star IV (USA).md"),
+            what,
+        )
+    }
+
+    /// [`retail_rom`] for the file at `path`.
+    pub fn retail_rom_at(path: &std::path::Path, what: &str) -> Option<crate::Rom> {
+        if !path.exists() {
+            eprintln!("local retail ROM absent: {what} skipped");
+            return None;
+        }
+        match crate::Rom::read(path) {
             Ok(rom) => Some(rom),
-            Err(_) => {
-                eprintln!("local retail ROM absent: {what} skipped");
-                None
-            }
+            Err(error) => panic!("the local ROM is there but unusable for {what}: {error}"),
         }
     }
 
@@ -586,6 +597,21 @@ mod tests {
         assert_eq!(printed, expected);
         assert_eq!(seen.last().unwrap().2, MANIFEST_STEP);
         assert!(root.join(MANIFEST_NAME).is_file());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn only_an_absent_rom_skips_a_retail_test() {
+        let root = scratch("retail-rom");
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(test_support::retail_rom_at(&root.join("missing.md"), "absent").is_none());
+        let wrong = root.join("wrong.md");
+        std::fs::write(&wrong, [0u8; 16]).unwrap();
+        let refused = std::panic::catch_unwind(|| test_support::retail_rom_at(&wrong, "wrong"));
+        assert!(
+            refused.is_err(),
+            "a present but wrong ROM must fail, not skip"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 
