@@ -275,6 +275,17 @@ mod tests {
         for key in ["cannot_be_used", "not_enough_tp"] {
             assert!(!text(key).contains('\n'), "{key}");
         }
+        // The refusal ends with the `$7A $79` tile pair and its mark, read
+        // through extraction: pinned by digest.
+        let refusal: Vec<char> = text("not_enough_tp").chars().collect();
+        let suffix: String = refusal[refusal.len() - 3..].iter().collect();
+        assert_eq!(
+            text_pin(&suffix),
+            (
+                3,
+                "8715cfd48721bf9ec11ab678ede8488c5b4dab1445a37f1c93729a42994214a3".to_owned()
+            )
+        );
         // A table the guard does not recognise builds nothing.
         let mut wrong = rom.bytes().to_vec();
         wrong[0x6115A] = 99;

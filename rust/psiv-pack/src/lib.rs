@@ -408,28 +408,41 @@ pub(crate) mod test_support {
     static CALLS: AtomicUsize = AtomicUsize::new(0);
 
     /// The checkout's retail ROM, for a test of what the pack holds; `None`,
-    /// with a line saying `what` was skipped, on a clone without it.
+    /// with a line saying `what` was skipped, only when no file is there. A
+    /// file that is there but cannot be read or is not the retail image
+    /// fails the test: a skip must never hide a broken input or a broken
+    /// check.
     pub fn retail_rom(what: &str) -> Option<crate::Rom> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../Phantasy Star IV (USA).md");
-        retail_rom_from_read(&path, what, std::fs::read(&path))
+        retail_rom_at(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../Phantasy Star IV (USA).md"),
+            what,
+        )
     }
 
-    fn retail_rom_from_read(
+    /// [`retail_rom`] for the file at `path`.
+    pub fn retail_rom_at(path: &std::path::Path, what: &str) -> Option<crate::Rom> {
+        retail_rom_from_read(path, what, std::fs::read(path))
+    }
+
+    // Keep the I/O error kind until the skip decision; Rom::read formats it
+    // into PackError, which cannot distinguish absence from other failures.
+    pub fn retail_rom_from_read(
         path: &std::path::Path,
         what: &str,
         read: std::io::Result<Vec<u8>>,
     ) -> Option<crate::Rom> {
-        match read {
+        let bytes = match read {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 eprintln!("local retail ROM absent: {what} skipped");
-                None
+                return None;
             }
-            Err(error) => panic!("cannot read retail ROM {}: {error}", path.display()),
-            Ok(bytes) => Some(
-                crate::Rom::verify(path, bytes)
-                    .unwrap_or_else(|error| panic!("retail ROM verification failed: {error}")),
-            ),
+            Err(error) => panic!("cannot read {} for {what}: {error}", path.display()),
+        };
+        match crate::Rom::verify(path, bytes) {
+            Ok(rom) => Some(rom),
+            Err(error) => panic!("the local ROM is there but unusable for {what}: {error}"),
         }
     }
 
@@ -628,6 +641,55 @@ mod tests {
         assert_eq!(printed, expected);
         assert_eq!(seen.last().unwrap().2, MANIFEST_STEP);
         assert!(root.join(MANIFEST_NAME).is_file());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn only_an_absent_rom_skips_a_retail_test() {
+        let root = scratch("retail-rom");
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(test_support::retail_rom_at(&root.join("missing-rom"), "absent").is_none());
+        let wrong = root.join("wrong-rom");
+        std::fs::write(&wrong, [0u8; 16]).unwrap();
+        let refused = std::panic::catch_unwind(|| test_support::retail_rom_at(&wrong, "wrong"));
+        assert!(
+            refused.is_err(),
+            "a present but wrong ROM must fail, not skip"
+        );
+        // A directory is an existing input that cannot be read as a file.
+        assert!(
+            std::panic::catch_unwind(|| test_support::retail_rom_at(&root, "directory")).is_err()
+        );
+        #[cfg(unix)]
+        {
+            let loop_path = root.join("loop-rom");
+            std::os::unix::fs::symlink(&loop_path, &loop_path).unwrap();
+            assert!(
+                std::panic::catch_unwind(|| test_support::retail_rom_at(
+                    &loop_path,
+                    "symlink loop"
+                ))
+                .is_err(),
+                "a metadata failure following a symlink must not skip"
+            );
+        }
+        // Inject errors so this remains effective under elevated users and on
+        // platforms where permission bits do not prevent reads. Metadata
+        // errors (including symlink traversal) now surface in the same read.
+        for kind in [
+            std::io::ErrorKind::PermissionDenied,
+            std::io::ErrorKind::NotADirectory,
+            std::io::ErrorKind::Other,
+        ] {
+            let refused = std::panic::catch_unwind(|| {
+                test_support::retail_rom_from_read(
+                    &wrong,
+                    "read failure",
+                    Err(std::io::Error::new(kind, "injected read failure")),
+                )
+            });
+            assert!(refused.is_err(), "{kind:?} must fail, not skip");
+        }
         std::fs::remove_dir_all(&root).unwrap();
     }
 
