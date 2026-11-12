@@ -188,6 +188,81 @@ mod tests {
         );
     }
 
+    fn rect(x: i32, y: i32, width: i32, height: i32) -> Option<Rect> {
+        Some(Rect {
+            x,
+            y,
+            width,
+            height,
+        })
+    }
+
+    #[test]
+    fn every_entry_is_named_and_a_box_is_its_addi_immediates() {
+        // Ported from tests/test_warps.py (#216): the sizes are the `addi.w`
+        // immediates each `XYRangeJmpTbl` routine adds before comparing.
+        let names: Vec<&str> = (0..15).map(|id| xy_range_name(id).unwrap()).collect();
+        assert_eq!(names.len(), 15);
+        assert_eq!(xy_range_name(9).unwrap(), "XPlus20_YPlus10");
+        for (id, name, pixels_x, pixels_y) in [
+            (0x1, "XYPlus40", 0x40, 0x40),
+            (0x2, "XYPlus20", 0x20, 0x20),
+            (0x9, "XPlus20_YPlus10", 0x20, 0x10),
+            (0xA, "XPlus10_YPlus60", 0x10, 0x60),
+            (0xB, "XPlus40_YPlus20", 0x40, 0x20),
+            (0xC, "XPlus10_YPlus20", 0x10, 0x20),
+            (0xD, "XPlus60_YPlus10", 0x60, 0x10),
+            (0xE, "XPlus40_YPlus10", 0x40, 0x10),
+        ] {
+            assert_eq!(xy_range_name(id).unwrap(), name);
+            let got = warp_rect(id, 4, 4, 64, 64).unwrap().unwrap();
+            assert_eq!(
+                (got.width, got.height),
+                (
+                    pixels_x / COLLISION_CELL_PIXELS,
+                    pixels_y / COLLISION_CELL_PIXELS
+                ),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_rect_starts_one_row_down_and_exact_is_one_cell() {
+        assert_eq!(warp_rect(0x9, 31, 6, 64, 64).unwrap(), rect(31, 7, 2, 1));
+        assert_eq!(warp_rect(0x3, 22, 20, 64, 64).unwrap(), rect(22, 21, 1, 1));
+    }
+
+    #[test]
+    fn half_plane_ranges_run_to_the_map_edge() {
+        // XLower/YLower accept a player at or before the coordinate,
+        // XHigher/YHigher at or after it; the other bound is the grid.
+        assert_eq!(warp_rect(0x4, 10, 20, 64, 64).unwrap(), rect(0, 0, 11, 64));
+        assert_eq!(warp_rect(0x5, 10, 20, 64, 64).unwrap(), rect(10, 0, 54, 64));
+        assert_eq!(warp_rect(0x6, 10, 20, 64, 64).unwrap(), rect(0, 0, 64, 22));
+        assert_eq!(warp_rect(0x7, 10, 20, 64, 64).unwrap(), rect(0, 21, 64, 43));
+    }
+
+    #[test]
+    fn xy_lower_with_player_y_keeps_its_2a0_floor() {
+        // `cmpi.w #$2A0,d3 / bls` returns before either coordinate is read.
+        assert_eq!(
+            warp_rect(0x8, 20, 60, 128, 128).unwrap(),
+            rect(0, 44, 21, 18)
+        );
+        assert_eq!(warp_rect(0x8, 20, 10, 128, 128).unwrap(), None);
+    }
+
+    #[test]
+    fn a_box_past_the_corner_is_clipped_and_one_off_the_map_is_none() {
+        assert_eq!(warp_rect(0x1, 62, 62, 64, 64).unwrap(), rect(62, 63, 2, 1));
+        assert_eq!(warp_rect(0x1, 70, 70, 64, 64).unwrap(), None);
+        assert_eq!(
+            interaction_rect(0x9, 30, 18, 64, 32).unwrap(),
+            rect(15, 10, 2, 1)
+        );
+    }
+
     #[test]
     fn a_rect_walks_its_cells_row_by_row() {
         let rect = Rect {

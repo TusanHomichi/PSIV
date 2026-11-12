@@ -23,7 +23,7 @@ CLASS_HELP = {
     'extension': "a cargo build, test or clippy run that compiles psiv-godot (or the workspace)",
     'godot': "one Godot/Xvfb run",
     'python': "the Python suite, or part of it",
-    'pack': "a pack build (`python3 -m psiv_tools pack`)",
+    'pack': "a pack build with a built psiv-pack (`cargo run` is build)",
 }
 
 

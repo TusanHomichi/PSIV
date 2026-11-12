@@ -13,13 +13,22 @@ main checkout's `build/inputs/`, keyed by what builds them:
 
 * `generated-<key>`: the Git tree of `psiv_tools/` and the ROM's SHA-256, built
   with `python3 -m psiv_tools regenerate`.
-* `runtime-pack-<key>`: the trees of `psiv_tools/` and `oracle/fixtures/` and
-  the ROM's SHA-256, built with `python3 -m psiv_tools pack`.
+* `runtime-pack-<key>`: what `psiv-pack` is built from (`rust/Cargo.toml`,
+  `rust/Cargo.lock`, `rust/psiv-data/`, `rust/psiv-pack/`, and
+  `oracle/fixtures/`, which it embeds a receipt from) and the ROM's SHA-256,
+  built with `cargo run --release -p psiv-pack -- ROM OUT`. Its snapshot holds
+  all of `rust/` at that commit, so the workspace loads, and its key only what
+  the program is built from, so a change to another crate reuses the pack.
+  Cargo builds it into a target of its own inside the snapshot
+  (`CARGO_TARGET`), removed with it: two builds of different keys share no
+  artifact, not even the `release/psiv-pack` that `cargo run` runs.
 
 The builders read nothing else that Git does not track
-(`tests/test_pack_inputs.py` fails if the pack does): the other linked inputs
-(the oracle's captures and evidence frames, the disassembly, saves) are for the
-tests.
+(`tests/test_pack_inputs.py` fails if the Python builder does;
+`psiv-pack` reads only the ROM it is given, and
+`tests/test_local_inputs.py` fails if it embeds a file outside its key): the
+other linked inputs (the oracle's captures and evidence frames, the
+disassembly, saves) are for the tests.
 
 A missing entry is built by the first worktree that needs it, under the
 heavy-run lock, into a staging directory that is renamed into place only once
@@ -38,7 +47,7 @@ instead.
 
 An entry is read-only once built: every worktree that links it reads the same
 files, so a write through a link fails rather than changing another job's
-inputs. `regenerate` and `pack` replace a link at their output with the
+inputs. `regenerate` and `psiv-pack` replace a link at their output with the
 checkout's own directory instead of writing through it, so rebuilding in place
 needs no unlinking first. (Permissions bind every user but root.)
 
@@ -87,7 +96,11 @@ ROM_NAME = "Phantasy Star IV (USA).md"
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 
 #: Bumped when what goes into a key changes.
-KEY_FORMAT = 2
+KEY_FORMAT = 3
+
+#: Where cargo builds `psiv-pack` for the cache: inside the build's own
+#: snapshot, so no other build can uplift its binary over this one's.
+CARGO_TARGET = "cargo-target"
 
 #: Where the entries live, under the main checkout.
 CACHE_DIR = Path("build") / "inputs"
@@ -116,12 +129,17 @@ class BuildFailed(Exception):
 @dataclass(frozen=True)
 class Entry:
     """One cached input: `name` is the worktree path it is linked as, built
-    from the Git `trees` it reads and the ROM."""
+    from the Git `trees` it reads (directories or files) and the ROM. The
+    snapshot holds `copies`, the trees around them, when the build needs more
+    than it reads (a cargo workspace); otherwise `trees`. With `cargo`, the
+    build's `CARGO_TARGET_DIR` is `CARGO_TARGET` inside its snapshot."""
 
     name: str
     trees: tuple[str, ...]
     lock_class: str
     command: tuple[str, ...]
+    copies: tuple[str, ...] = ()
+    cargo: bool = False
 
     def trees_at(self, worktree: Path) -> dict[str, str]:
         """The Git tree id of each keyed path at the worktree's HEAD."""
@@ -142,8 +160,13 @@ class Entry:
 ENTRIES = (
     Entry("generated", ("psiv_tools",), "python",
           ("python3", "-m", "psiv_tools", "regenerate", "{rom}", "{output}")),
-    Entry("runtime-pack", ("psiv_tools", "oracle/fixtures"), "pack",
-          ("python3", "-m", "psiv_tools", "pack", "{rom}", "{output}")),
+    Entry("runtime-pack",
+          ("oracle/fixtures", "rust/Cargo.lock", "rust/Cargo.toml", "rust/psiv-data",
+           "rust/psiv-pack"),
+          "build",
+          ("cargo", "run", "--release", "--locked", "--quiet", "--manifest-path",
+           "rust/Cargo.toml", "-p", "psiv-pack", "--", "{rom}", "{output}"),
+          copies=("oracle/fixtures", "rust"), cargo=True),
 )
 
 
@@ -180,8 +203,29 @@ def build_with_lock(entry: Entry, worktree: Path, source: Path, output: Path) ->
     printed = subprocess.run([sys.executable, str(heavy_lock)], cwd=worktree, env=env,
                              capture_output=True, text=True, check=True).stdout.strip()
     env[HEAVY_LOCK_ENV] = str((worktree / printed).resolve())
+    if entry.cargo:
+        env["CARGO_TARGET_DIR"] = str(source / CARGO_TARGET)
     subprocess.run([sys.executable, str(heavy_lock), "run", "--class", entry.lock_class,
                     "--", *command], cwd=source, env=env, check=True)
+
+
+def snapshot_trees(entry: Entry, worktree: Path, trees: dict[str, str]) -> dict[str, str]:
+    """The tree ids `entry`'s snapshot holds: its keyed `trees` themselves, or
+    its `copies` at HEAD, each checked to hold exactly the keyed ids (a commit
+    since the key was taken fails the build rather than mixing commits)."""
+    if not entry.copies:
+        return trees
+    ids = {copy: _git(worktree, "rev-parse", f"HEAD:{copy}") for copy in entry.copies}
+    for path, tree_id in trees.items():
+        copy = next((c for c in entry.copies if path == c or path.startswith(c + "/")), None)
+        if copy is None:
+            raise BuildFailed(f"{entry.name}: {path} is keyed but no copy holds it")
+        inner = path[len(copy) + 1:]
+        held = ids[copy] if not inner else _git(worktree, "rev-parse", f"{ids[copy]}:{inner}")
+        if held != tree_id:
+            raise BuildFailed(f"{entry.name}: its inputs changed while they were copied, "
+                              "so nothing was cached; run this again")
+    return ids
 
 
 def snapshot(worktree: Path, trees: dict[str, str], rom: Path, source: Path) -> None:
@@ -307,7 +351,7 @@ def _build(entry: Entry, worktree: Path, rom: Path, trees: dict[str, str], key: 
     _say(f"{entry.name}: building {directory.name} for this commit")
     try:
         source = staging / "source"
-        snapshot(worktree, trees, rom, source)
+        snapshot(worktree, snapshot_trees(entry, worktree, trees), rom, source)
         if entry.key(trees, source / ROM_NAME) != key:
             raise BuildFailed(f"{entry.name}: its inputs changed while they were copied, "
                               "so nothing was cached; run this again")

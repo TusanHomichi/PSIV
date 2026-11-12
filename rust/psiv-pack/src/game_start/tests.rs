@@ -72,3 +72,71 @@ fn the_flag_id_comes_from_a_moveq_or_a_move_w() {
     );
     assert!(preceding_d0(&[0, 0, 0, 0, 0], 4).is_err());
 }
+
+/// Ported from tests/test_pack_game_start.py (#216): the manifest's headline
+/// of where a new game begins, read from the file this section writes. The
+/// two scenes before control are pinned against oracle/logs/01_newgame.csv
+/// (eflags_00 = 01000400).
+#[test]
+fn retail_headline_is_where_a_new_game_begins() {
+    use sha2::Digest;
+    let Some(rom) = crate::test_support::retail_rom("game start retail test") else {
+        return;
+    };
+    let root = crate::test_support::scratch("game-start");
+    let part = serde_json::Value::from(&build(&rom, &root).unwrap());
+    let blob = std::fs::read(root.join(NAME)).unwrap();
+    std::fs::remove_dir_all(&root).unwrap();
+    let start = &part["game_start"];
+    assert_eq!(start["file"], NAME);
+    assert_eq!(
+        start["sha256"].as_str().unwrap(),
+        crate::png::hex(&sha2::Sha256::digest(&blob))
+    );
+    let file: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+    assert_eq!(
+        (&file["format_version"], &file["kind"]),
+        (&2.into(), &"game_start".into())
+    );
+    let mut sections: Vec<&str> = file
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .filter(|k| !["format_version", "kind", "note"].contains(k))
+        .collect();
+    sections.sort_unstable();
+    assert_eq!(
+        sections,
+        ["first_control", "new_game_init", "title_handoff"]
+    );
+    assert_eq!(start["party"], serde_json::json!(["Chaz"]));
+    assert_eq!(start["map"]["symbol"], "PiataAcademy_F1");
+    assert_eq!(
+        (&start["x_cell"], &start["y_cell"]),
+        (&48.into(), &19.into())
+    );
+    assert_eq!(
+        start["facing"],
+        serde_json::json!({"id": 0, "name": "down"})
+    );
+    assert_eq!(start["event_flags_set"], serde_json::json!([0x07, 0x15]));
+    assert_eq!(start["scene_chain"], serde_json::json!(["0x9F", "0xA0"]));
+    assert_eq!(
+        start["town_flags_set"],
+        serde_json::json!([0x00, 0x10, 0x19])
+    );
+    assert_eq!(
+        start["extended_event_flags_set"].as_array().unwrap().len(),
+        11
+    );
+    assert_eq!(start["chest_flags_set"], serde_json::json!([]));
+    let bank = |name: &str| {
+        start["flag_banks"][name]["raw_hex"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(bank("event_flags"), format!("01000400{}", "00".repeat(28)));
+    assert_eq!(bank("town_flags"), format!("80008040{}", "00".repeat(28)));
+}

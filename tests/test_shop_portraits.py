@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+import zlib
 
 from psiv_tools import png
 from psiv_tools.shop_portraits import emit_shop_portraits
@@ -25,9 +27,21 @@ class ShopPortraitTests(unittest.TestCase):
                 self.assertEqual(row['size_pixels'], [48, 48])
                 self.assertEqual(row['cram_line'], 2)
                 self.assertEqual(png.image_sha256((root / row['png']).read_bytes()), row['png_sha256'])
+            # The pack is psiv-pack's, whose deflate differs from this
+            # module's (psiv_tools/png.py), so the shared portraits agree as
+            # decoded images, the rule the pack's parity step uses.
             for art, existing in [
                 ('0x29FC66', 'dialogue/portraits/12_Baker.png'),
                 ('0x29DE1E', 'presentation/portraits/shopkeeper_2.png'),
             ]:
-                self.assertEqual((root / by_art[art]['png']).read_bytes(),
-                                 (ROOT / 'runtime-pack' / existing).read_bytes())
+                self.assertEqual(
+                    png.image_sha256((root / by_art[art]['png']).read_bytes()),
+                    png.image_sha256((ROOT / 'runtime-pack' / existing).read_bytes()),
+                )
+
+    def test_shared_portraits_agree_with_another_compression_level(self):
+        # The Python extractor and Rust pack writer need not use the same deflate.
+        with mock.patch.object(
+            png, '_idat', side_effect=lambda raw: png._chunk(b'IDAT', zlib.compress(raw, 0)),
+        ):
+            self.test_all_counter_portraits_decode_and_shared_portraits_agree()

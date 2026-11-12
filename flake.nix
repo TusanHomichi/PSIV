@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=c9099069c5ac7e293064e237dd77f37a54d9b559";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=202d1c06990656145a30a290b8dd134f61006b4a";
 
   outputs = { self, burrow }:
     let
@@ -228,13 +228,15 @@
           cargoArtifacts = craneLib.buildDepsOnly common;
         in
         {
-          rust-fmt = craneLib.cargoFmt (common // { cargoExtraArgs = "--all"; });
+          rust-fmt = craneLib.cargoFmt (common // { cargoExtraArgs = "--all"; passthru.testFiles = [ ]; });
           rust-clippy = craneLib.cargoClippy (common // {
             inherit cargoArtifacts;
             cargoClippyExtraArgs = "--all-targets -- -D warnings";
+            passthru.testFiles = [ ];
           });
           rust-test = craneLib.cargoTest (common // {
             inherit cargoArtifacts;
+            passthru.testFiles = [ "rust/**" ];
             cargoTestExtraArgs = "--no-fail-fast -- --exact "
               + lib.concatMapStringsSep " " (name: "--skip ${name}") packTests;
           });
@@ -245,8 +247,23 @@
       # (docs/DEVELOPMENT.md#run-checks). Both list the change's files with
       # git (tools/repo_files.py), so they run in a fresh repository holding
       # the tree.
-      docsCheck = pkgs: {
-        docs = pkgs.runCommand "psiv-docs" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+      docsCheck = pkgs:
+        let
+          platformTests = [
+            "tests.test_native_rss"
+            "tests.test_verify_native_tape"
+            "tests.test_verify_native_route"
+            "tests.test_tape_observations"
+            "tests.test_native_presentations"
+            "tests.test_memory_policy_startup"
+            "tests.test_release"
+            "tests.test_text_files"
+            "tests.test_pack_swap"
+            "tests.test_extract_stamp"
+          ];
+        in {
+
+        docs = pkgs.runCommand "psiv-docs" { passthru.testFiles = [ ]; nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
@@ -260,6 +277,12 @@
         # only reads them can't. Found by name, so a new gate test file joins
         # without this list changing (the negative runs the base's flake).
         gate-tests = pkgs.runCommand "psiv-gate-tests" {
+          passthru.testFiles = [
+            "tests/test_gate*.py"
+            "tests/test_heavy_lock.py"
+            "tests/test_heavy_lock_runner_wait.py"
+            "tests/test_pack_parity.py"
+          ];
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_FLOAT_GUARD_BINARY = "${floatGuardFor pkgs}/bin/psiv-float-guard";
         } ''
@@ -272,6 +295,7 @@
         # ROM-free native platform verdicts and release archive checks. These
         # use synthetic samples and stand-in archives, never local game assets.
         platform-tests = pkgs.runCommand "psiv-platform-tests" {
+          passthru.testFiles = map (name: "${lib.replaceStrings [ "." ] [ "/" ] name}.py") platformTests;
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_MEMORY_VERDICT_BINARY = "${memoryVerdictFor pkgs}/bin/psiv-memory-verdict";
           PSIV_NATIVE_VERIFY_BINARY = "${nativeVerifyFor pkgs}/bin/psiv-native-verify";
@@ -280,7 +304,7 @@
           cd tree
           git init -q
           export HOME=$TMPDIR
-          python3 -m unittest tests.test_native_rss tests.test_verify_native_tape tests.test_verify_native_route tests.test_tape_observations tests.test_native_presentations tests.test_memory_policy_startup tests.test_release tests.test_text_files tests.test_pack_swap tests.test_extract_stamp
+          python3 -m unittest ${lib.concatStringsSep " " platformTests}
           touch $out
         '';
         # Oracle fixture extraction and reload timing tests (every
@@ -290,7 +314,7 @@
         # (burrow's negative), which a check that only reads them can't.
         # Found by name, like gate-tests. runCommandCC supplies the compiler
         # for the actual observer and host transport probes.
-        oracle-fixture-tests = pkgs.runCommandCC "psiv-oracle-fixture-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        oracle-fixture-tests = pkgs.runCommandCC "psiv-oracle-fixture-tests" { passthru.testFiles = [ "tests/test_oracle_battle_fixture*.py" ]; nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           export HOME=$TMPDIR
@@ -302,7 +326,7 @@
         # They run here so a PR that adds or changes a certified pair can
         # show its test edit fails on its base (burrow's negative), which a
         # suite no check runs can't. Found by name, like gate-tests.
-        certify-tests = pkgs.runCommand "psiv-certify-tests" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        certify-tests = pkgs.runCommand "psiv-certify-tests" { passthru.testFiles = [ "tests/test_certify*.py" ]; nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
@@ -311,7 +335,7 @@
           touch $out
         '';
         # The 1,000-line rule (tools/size_guard.py).
-        size = pkgs.runCommand "psiv-size" { nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
+        size = pkgs.runCommand "psiv-size" { passthru.testFiles = [ ]; nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ]; } ''
           cp -r --no-preserve=mode ${self} tree
           cd tree
           git init -q
