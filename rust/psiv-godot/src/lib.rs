@@ -368,10 +368,7 @@ impl INode2D for Field {
         let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {
-                // No pack at all is a first run, which the setup screen logs
-                // itself; only a pack that is there and does not load is an
-                // error (`release.py smoke` refuses a first run that logs one).
-                let problem = pack.join("manifest.json").exists().then(|| e.to_string());
+                let problem = install::pack_load_problem(&pack, &e);
                 if let Some(problem) = &problem {
                     godot_error!(
                         "runtime pack failed to load from {}: {problem}",
