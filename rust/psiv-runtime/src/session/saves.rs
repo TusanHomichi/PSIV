@@ -23,6 +23,7 @@ use std::path::PathBuf;
 use psiv_core::StepFrames;
 
 use crate::Runtime;
+use crate::pad::Button;
 use crate::save::{SaveStore, SessionSaveError};
 
 use super::{CampSaveFailure, Mode, Session};
@@ -130,8 +131,10 @@ impl Session {
     /// `Joypad_Pressed` (`FieldControls_GetInput`, `ps4.asm:114890`), so a
     /// button held over from the title never reaches it. Here `prev_pad`
     /// keeps the choice frame's pad (`Session::frame` stored it before the
-    /// title ran), so the menus see no new edge, and the confirm is blocked
-    /// until it is released, because the field's own confirm is level-driven.
+    /// title ran), so the menus see no new edge. The field's own confirm is
+    /// level-driven, so a Speak held on the choice frame is blocked until it is
+    /// released; a Speak first pressed on the field after a Camp or Start
+    /// confirm was never held across the title, and reads at once.
     fn install_runtime(&mut self, mut runtime: Runtime) -> Result<(), String> {
         if let Some(files) = self.battle_files.clone() {
             runtime
@@ -140,7 +143,7 @@ impl Session {
         }
         self.game_cleared_written = runtime.game_cleared();
         self.runtime = runtime;
-        self.accept_blocked = true;
+        self.accept_blocked = self.prev_pad.held(Button::Speak);
         self.shop = None;
         self.camp = None;
         self.menu_scene = None;
@@ -195,7 +198,7 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pad::{Button, Pad};
+    use crate::pad::Pad;
     use crate::session::menu_scene::MenuScene;
     use crate::{RuntimeEvent, TitleEntry, TitlePhase};
     use std::path::Path;
@@ -427,54 +430,97 @@ mod tests {
         Some((session, directory))
     }
 
-    /// Holds `button` across the slot's confirm and `held` field frames, then
-    /// releases it for a few frames.
-    fn continue_holding(session: &mut Session, button: Button, held: usize) {
-        let frame = session.frame(Pad::new(button));
+    /// Confirms the slot with `pad`: the frame that loads it.
+    fn confirm(session: &mut Session, pad: Pad) {
+        let frame = session.frame(pad);
         assert_eq!(
             frame.title.and_then(|title| title.entered),
             Some(TitleEntry::Continued { slot: 0 }),
-            "the press confirmed the slot"
+            "{pad} confirmed the slot"
         );
-        for frame in 0..held {
-            session.frame(Pad::new(button));
-            assert!(
-                !session.runtime().dialogue_open(),
-                "field frame {frame}: the held confirm opened a window (#537)"
-            );
-            assert!(
-                session.camp_view().is_none(),
-                "field frame {frame}: the held confirm opened the camp menu (#537)"
-            );
-        }
-        for _ in 0..4 {
-            session.frame(Pad::NEUTRAL);
-        }
-        assert!(!session.runtime().dialogue_open());
-        assert!(session.camp_view().is_none());
     }
 
-    /// #537: the Speak that confirms a CONTINUE slot is still held on the
-    /// field's first frames, and it is not a search there: the cartridge's
-    /// field reads `Joypad_Pressed`. A fresh press after the release is.
-    #[test]
-    fn a_continue_confirm_held_into_the_field_is_not_a_search() {
-        let Some((mut session, directory)) = at_the_slot_list("speak") else {
-            return;
-        };
-        // Nine frames is the 150 ms hold the issue reproduced with.
-        continue_holding(&mut session, Button::Speak, 9);
-        // Control: the field does read a fresh Speak press after the release.
-        let mut opened = false;
-        for _ in 0..8 {
-            session.frame(Pad::new(Button::Speak));
+    /// Whether `pad`, held for up to eight field frames, opens a window,
+    /// asserting it never opens the camp menu on the way.
+    fn speak_opens_a_window(session: &mut Session, pad: Pad) -> bool {
+        for frame in 0..8 {
+            session.frame(pad);
+            assert!(
+                session.camp_view().is_none(),
+                "field frame {frame}: {pad} opened the camp menu"
+            );
             if session.runtime().dialogue_open() {
-                opened = true;
-                break;
+                return true;
             }
         }
-        assert!(opened, "a fresh Speak press on the field opens its window");
-        std::fs::remove_dir_all(&directory).expect("remove only our test directory");
+        false
+    }
+
+    /// #537: the button that confirms a CONTINUE slot is still held on the
+    /// field's first frames, and it is not a press there: the cartridge's
+    /// field reads `Joypad_Pressed`. Each of the title's confirm buttons, and
+    /// two at once, held for nine frames (the 150 ms hold the issue reproduced
+    /// with) opens nothing; after the release a fresh Speak does search.
+    #[test]
+    fn a_continue_confirm_held_into_the_field_opens_nothing() {
+        let speak = Pad::new(Button::Speak);
+        for (name, held) in [
+            ("held-speak", speak),
+            ("held-camp", Pad::new(Button::Camp)),
+            ("held-start", Pad::new(Button::Start)),
+            ("held-speak-camp", speak.with(Button::Camp)),
+        ] {
+            let Some((mut session, directory)) = at_the_slot_list(name) else {
+                return;
+            };
+            confirm(&mut session, held);
+            for frame in 0..9 {
+                session.frame(held);
+                assert!(
+                    !session.runtime().dialogue_open(),
+                    "{held}, field frame {frame}: the held confirm opened a window (#537)"
+                );
+                assert!(
+                    session.camp_view().is_none(),
+                    "{held}, field frame {frame}: the held confirm opened the camp menu (#537)"
+                );
+            }
+            for _ in 0..4 {
+                session.frame(Pad::NEUTRAL);
+            }
+            assert!(!session.runtime().dialogue_open());
+            assert!(session.camp_view().is_none());
+            // Control: the field does read a fresh Speak press after the release.
+            assert!(
+                speak_opens_a_window(&mut session, speak),
+                "{held}: a fresh Speak press on the field opens its window"
+            );
+            std::fs::remove_dir_all(&directory).expect("remove only our test directory");
+        }
+    }
+
+    /// A Speak first pressed on the field after a Camp or Start confirm was
+    /// never held across the title: it searches at once, with the confirm
+    /// still held beside it or already released, and no neutral frame between.
+    #[test]
+    fn a_fresh_speak_after_a_camp_or_start_confirm_searches_at_once() {
+        let speak = Pad::new(Button::Speak);
+        for (name, confirmed, then) in [
+            ("camp-then-both", Button::Camp, speak.with(Button::Camp)),
+            ("camp-then-speak", Button::Camp, speak),
+            ("start-then-both", Button::Start, speak.with(Button::Start)),
+            ("start-then-speak", Button::Start, speak),
+        ] {
+            let Some((mut session, directory)) = at_the_slot_list(name) else {
+                return;
+            };
+            confirm(&mut session, Pad::new(confirmed));
+            assert!(
+                speak_opens_a_window(&mut session, then),
+                "{then} after a {confirmed:?} confirm: the fresh Speak was swallowed"
+            );
+            std::fs::remove_dir_all(&directory).expect("remove only our test directory");
+        }
     }
 
     /// The same hand-off for the menus' edges: a Camp (A) that confirms the
@@ -484,8 +530,17 @@ mod tests {
         let Some((mut session, directory)) = at_the_slot_list("camp") else {
             return;
         };
-        continue_holding(&mut session, Button::Camp, 9);
-        session.frame(Pad::new(Button::Camp));
+        let camp = Pad::new(Button::Camp);
+        confirm(&mut session, camp);
+        for frame in 0..9 {
+            session.frame(camp);
+            assert!(
+                session.camp_view().is_none(),
+                "field frame {frame}: the held confirm opened the camp menu (#537)"
+            );
+        }
+        session.frame(Pad::NEUTRAL);
+        session.frame(camp);
         assert!(
             session.camp_view().is_some(),
             "a fresh Camp press on the field opens the camp menu"
