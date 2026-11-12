@@ -567,11 +567,18 @@ fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
         assert!(copy < body, "palette before exposing the vehicle body");
         let mut expected = base;
         expected[48..].copy_from_slice(&source[..16]);
+        assert_eq!(
+            frames[at].words, expected,
+            "index {index}: all 64 words at the load"
+        );
+        // The normal Motavia water cycle continues during the camera pan;
+        // boarding preserves its program and keeps the vehicle line loaded.
         for frame in frames.iter().skip(at) {
             assert_eq!(
-                frame.words, expected,
-                "index {index}, frame {}: all 64 words",
-                frame.count
+                frame.words[48..],
+                expected[48..],
+                "index {index}, frame {}: vehicle line through the pan",
+                frame.count,
             );
         }
         let mut expected_saved = saved;
