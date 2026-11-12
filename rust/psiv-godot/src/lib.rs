@@ -368,8 +368,13 @@ impl INode2D for Field {
         let data = match GameData::load(&pack) {
             Ok(data) => data,
             Err(e) => {
-                godot_error!("runtime pack failed to load from {}: {e}", self.pack_dir);
-                let problem = pack.join("manifest.json").exists().then(|| e.to_string());
+                let problem = install::pack_load_problem(&pack, &e);
+                if let Some(problem) = &problem {
+                    godot_error!(
+                        "runtime pack failed to load from {}: {problem}",
+                        self.pack_dir
+                    );
+                }
                 let setup =
                     pack_setup::PackSetup::create(install, paths.rebuild, overridden, problem);
                 self.base_mut().add_child(&setup);

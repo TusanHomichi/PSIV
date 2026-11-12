@@ -115,6 +115,24 @@ impl PackPaths {
     }
 }
 
+/// Only confirmed first-run absence is quiet. Keep the loader's diagnostic
+/// for unreadable paths, broken links, and incomplete or malformed packs.
+pub(crate) fn pack_load_problem(pack: &Path, error: &psiv_data::DataError) -> Option<String> {
+    let missing_manifest = matches!(
+        error,
+        psiv_data::DataError::Io { path, source }
+            if path == &pack.join("manifest.json")
+                && source.kind() == std::io::ErrorKind::NotFound
+    );
+    let absent = missing_manifest
+        && matches!(std::fs::symlink_metadata(pack), Err(e) if e.kind() == std::io::ErrorKind::NotFound);
+    (!absent).then(|| error.to_string())
+}
+
+#[cfg(test)]
+#[path = "install/pack_load_tests.rs"]
+mod pack_load_tests;
+
 /// The command that builds the pack at `pack` from the ROM at `rom`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BuilderCommand {
