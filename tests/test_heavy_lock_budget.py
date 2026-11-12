@@ -14,7 +14,9 @@ holders never wait on one another, an exclusive run still waits for them, each
 is named by its class, and a holder with a budget does not count them. A
 /proc/locks line on another file system never counts as a unit held, whatever
 its inode number (tests/test_gate_lock_holders.py tests how its device is
-found). Each has a negative control.
+found). Census-content assertions use synchronous `_status`; the public
+`status` deadline and pending output are tested in test_gate_lock_reporting.
+Each has a negative control.
 """
 
 import fcntl
@@ -97,7 +99,7 @@ class BudgetCase(LockProcesses):
         self.assertEqual(units_in_use(self.lock), CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD])
         out = io.StringIO()
         with mock.patch.dict(os.environ, HOST_BUDGET):
-            heavy_lock_module.status(self.lock, out)
+            heavy_lock_module._status(self.lock, out)
         self.assertIn(f"{build.pid} build:", out.getvalue())
         self.assertIn(f"units in use: {CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD]} of",
                       out.getvalue())
@@ -621,7 +623,7 @@ class NoBudgetCase(LockProcesses):
         build = self.holder(BUILD)
         out = io.StringIO()
         with mock.patch.dict(os.environ, {UNITS_ENV: ""}):
-            heavy_lock_module.status(self.lock, out)
+            heavy_lock_module._status(self.lock, out)
         self.assertIn(f"budget: none ({UNITS_ENV} unset)", out.getvalue())
         self.assertNotIn("units in use", out.getvalue())
         self.assertIn(f"{build.pid} build:", out.getvalue())
@@ -630,7 +632,7 @@ class NoBudgetCase(LockProcesses):
         self.holder(BUILD, HOST_BUDGET)
         out = io.StringIO()
         with mock.patch.dict(os.environ, HOST_BUDGET):
-            heavy_lock_module.status(self.lock, out)
+            heavy_lock_module._status(self.lock, out)
         self.assertIn(f"units in use: {CLASS_UNITS[BUILD]} of 16", out.getvalue())
 
     def test_a_holder_with_a_budget_does_not_count_one_without(self):
