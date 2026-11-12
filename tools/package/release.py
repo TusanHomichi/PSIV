@@ -58,8 +58,9 @@ unpacks the archive and starts the game in it as a player's first run does,
 headless, on the platform it is for, with a scratch save directory. With no
 pack it must show the setup screen. Given a file that is not the ROM on its
 command line, it must run the `psiv-pack` beside it and show the builder's
-refusal. Each run must also exit 0. What a real ROM builds is the full
-gate's to prove, on the machine that holds one.
+refusal. Each run must also exit 0 and log no `ERROR:` line: a missing pack
+and a file that is not the ROM are what a first run expects, not errors. What
+a real ROM builds is the full gate's to prove, on the machine that holds one.
 
 Stdlib only, Python 3. `tools/godot.py` is imported only where Godot runs,
 since it needs `fcntl`, which Windows lacks.
@@ -120,6 +121,10 @@ APP_FILES = frozenset({
 SETUP_SHOWN = "pack setup: no usable runtime pack at "
 BUILD_STARTED = "pack setup: building "
 NOT_THE_ROM = "is not the US retail ROM PSIV builds from"
+
+#: How Godot starts a line `godot_error!` (or the engine) logs; a first run
+#: logs none.
+LOGGED_ERROR = "ERROR:"
 
 #: The file the smoke test offers in place of the ROM.
 NOT_THE_ROM_NAME = "not the game (portabilité).md"
@@ -502,6 +507,10 @@ def smoke(archive: Path, platform: Platform) -> list[str]:
             if missing:
                 raise ReleaseError(f"the {step} run never showed {missing}; it logged:\n"
                                    + "\n".join(lines[-40:]))
+            errors = [line for line in lines if line.startswith(LOGGED_ERROR)]
+            if errors:
+                raise ReleaseError(f"the {step} run logged an error; it logged:\n"
+                                   + "\n".join(errors[:40]))
             shown += [line for line in lines if line.startswith(("pack setup:", "pack builder:"))]
         return shown
 

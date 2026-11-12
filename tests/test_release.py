@@ -323,12 +323,12 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         self.commands = []
         self.enterContext(mock.patch.dict(os.environ, {"PSIV_SAVE_DIR": "/developer/saves"}))
 
-    def game(self, code):
+    def game(self, code, *, logged=""):
         def run(command, *, env, **options):
             self.environments.append(env)
             self.commands.append(command)
             log = pathlib.Path(command[command.index("--log-file") + 1])
-            log.write_text(f"{release.SETUP_SHOWN}x\n{release.BUILD_STARTED}x\n"
+            log.write_text(f"{logged}{release.SETUP_SHOWN}x\n{release.BUILD_STARTED}x\n"
                            f"{release.NOT_THE_ROM_NAME} {release.NOT_THE_ROM}\n")
             return subprocess.CompletedProcess(command, code, "", "Segmentation fault\n")
         return mock.patch.object(release.subprocess, "run", run)
@@ -337,6 +337,20 @@ class SmokeNeedsACleanExit(unittest.TestCase):
         with self.game(0):
             shown = release.smoke(self.archive, PLATFORMS["linux"])
         self.assertTrue(shown)
+
+    def test_a_first_run_that_logs_an_error_fails(self):
+        logged = ("ERROR: runtime pack failed to load from /p: could not read "
+                  "/p/manifest.json: No such file or directory (os error 2)\n"
+                  "   at: <psiv_godot::Field as INode2D>::ready (psiv-godot/src/lib.rs:371)\n")
+        with self.game(0, logged=logged), \
+                self.assertRaisesRegex(ReleaseError, "setup run logged an error"):
+            release.smoke(self.archive, PLATFORMS["linux"])
+
+    def test_a_warning_is_not_an_error(self):
+        logged = ("WARNING: All audio drivers failed, falling back to the dummy driver.\n"
+                  "     at: initialize (servers/audio/audio_server.cpp:258)\n")
+        with self.game(0, logged=logged):
+            self.assertTrue(release.smoke(self.archive, PLATFORMS["linux"]))
 
     def test_a_crash_after_the_lines_fails(self):
         with self.game(-11), self.assertRaisesRegex(ReleaseError, "setup run exited -11"):
