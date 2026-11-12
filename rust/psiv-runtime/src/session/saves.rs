@@ -391,12 +391,10 @@ mod tests {
             return None;
         }
         let data = psiv_data::GameData::load(&pack).expect("pack loads");
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock after epoch")
-            .as_nanos();
+        // Keyed by the caller's name and the process: one directory per test.
         let directory =
-            std::env::temp_dir().join(format!("psiv-{name}-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("psiv-title-handoff-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir(&directory).expect("new isolated save directory");
         Session::start(data.clone())
             .with_saves(SaveStore::new(&directory))
@@ -461,7 +459,7 @@ mod tests {
     /// field reads `Joypad_Pressed`. A fresh press after the release is.
     #[test]
     fn a_continue_confirm_held_into_the_field_is_not_a_search() {
-        let Some((mut session, directory)) = at_the_slot_list("continue-held-speak") else {
+        let Some((mut session, directory)) = at_the_slot_list("speak") else {
             return;
         };
         // Nine frames is the 150 ms hold the issue reproduced with.
@@ -483,7 +481,7 @@ mod tests {
     /// slot does not open the camp menu on the field, and a fresh one does.
     #[test]
     fn a_continue_confirm_held_on_camp_does_not_open_the_camp_menu() {
-        let Some((mut session, directory)) = at_the_slot_list("continue-held-camp") else {
+        let Some((mut session, directory)) = at_the_slot_list("camp") else {
             return;
         };
         continue_holding(&mut session, Button::Camp, 9);
