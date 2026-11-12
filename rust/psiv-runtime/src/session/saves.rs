@@ -23,7 +23,6 @@ use std::path::PathBuf;
 use psiv_core::StepFrames;
 
 use crate::Runtime;
-use crate::pad::Pad;
 use crate::save::{SaveStore, SessionSaveError};
 
 use super::{CampSaveFailure, Mode, Session};
@@ -122,10 +121,17 @@ impl Session {
     /// Installs a freshly built runtime as this session's game.
     ///
     /// The session's own configuration — the save store, the battle pack and
-    /// the debug switches — carries over, and the per-frame state resets to
-    /// what a fresh session had at construction: the shell's START and CONTINUE
-    /// built a whole new session there, and a held button must not read as a
-    /// press of the new game's first frame.
+    /// the debug switches — carries over, and the open windows and modes reset
+    /// to what a fresh session had at construction.
+    ///
+    /// The pad does not reset: the button that chose START or CONTINUE is
+    /// still held on the field's first frames, and it must not read as a press
+    /// there (#537). The cartridge's field reads its confirm from
+    /// `Joypad_Pressed` (`FieldControls_GetInput`, `ps4.asm:114890`), so a
+    /// button held over from the title never reaches it. Here `prev_pad`
+    /// keeps the choice frame's pad (`Session::frame` stored it before the
+    /// title ran), so the menus see no new edge, and the confirm is blocked
+    /// until it is released, because the field's own confirm is level-driven.
     fn install_runtime(&mut self, mut runtime: Runtime) -> Result<(), String> {
         if let Some(files) = self.battle_files.clone() {
             runtime
@@ -134,8 +140,7 @@ impl Session {
         }
         self.game_cleared_written = runtime.game_cleared();
         self.runtime = runtime;
-        self.accept_blocked = false;
-        self.prev_pad = Pad::NEUTRAL;
+        self.accept_blocked = true;
         self.shop = None;
         self.camp = None;
         self.menu_scene = None;
@@ -190,8 +195,9 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RuntimeEvent;
+    use crate::pad::{Button, Pad};
     use crate::session::menu_scene::MenuScene;
+    use crate::{RuntimeEvent, TitleEntry, TitlePhase};
     use std::path::Path;
 
     #[test]
@@ -372,6 +378,120 @@ mod tests {
             resumed.runtime().map_record().unwrap().music.id
         );
         assert_not_replayed(&mut resumed);
+        std::fs::remove_dir_all(&directory).expect("remove only our test directory");
+    }
+
+    /// A session over a saved slot 1, powered on at the title and settled on
+    /// its slot list, the row on that slot: the frame before the player's
+    /// confirm. Returns the session and the run directory to remove.
+    fn at_the_slot_list(name: &str) -> Option<(Session, std::path::PathBuf)> {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return None;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("psiv-{name}-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+        Session::start(data.clone())
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot")
+            .save_slot(0)
+            .expect("write the slot");
+
+        let mut session = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .power_on()
+            .expect("power on");
+        for _ in 0..2000 {
+            if session
+                .title()
+                .is_some_and(|view| view.phase == TitlePhase::Menu)
+            {
+                break;
+            }
+            session.frame(Pad::NEUTRAL);
+        }
+        let view = session.title().expect("the title is up");
+        assert_eq!(view.phase, TitlePhase::Menu, "the option window opened");
+        assert_eq!(view.cursor, 0, "CONTINUE is the first row");
+        session.frame(Pad::new(Button::Speak));
+        session.frame(Pad::NEUTRAL);
+        let view = session.title().expect("the slot list is up");
+        assert_eq!(view.phase, TitlePhase::Slots);
+        assert_eq!(view.cursor, 0, "the row is on the saved slot");
+        Some((session, directory))
+    }
+
+    /// Holds `button` across the slot's confirm and `held` field frames, then
+    /// releases it for a few frames.
+    fn continue_holding(session: &mut Session, button: Button, held: usize) {
+        let frame = session.frame(Pad::new(button));
+        assert_eq!(
+            frame.title.and_then(|title| title.entered),
+            Some(TitleEntry::Continued { slot: 0 }),
+            "the press confirmed the slot"
+        );
+        for frame in 0..held {
+            session.frame(Pad::new(button));
+            assert!(
+                !session.runtime().dialogue_open(),
+                "field frame {frame}: the held confirm opened a window (#537)"
+            );
+            assert!(
+                session.camp_view().is_none(),
+                "field frame {frame}: the held confirm opened the camp menu (#537)"
+            );
+        }
+        for _ in 0..4 {
+            session.frame(Pad::NEUTRAL);
+        }
+        assert!(!session.runtime().dialogue_open());
+        assert!(session.camp_view().is_none());
+    }
+
+    /// #537: the Speak that confirms a CONTINUE slot is still held on the
+    /// field's first frames, and it is not a search there: the cartridge's
+    /// field reads `Joypad_Pressed`. A fresh press after the release is.
+    #[test]
+    fn a_continue_confirm_held_into_the_field_is_not_a_search() {
+        let Some((mut session, directory)) = at_the_slot_list("continue-held-speak") else {
+            return;
+        };
+        // Nine frames is the 150 ms hold the issue reproduced with.
+        continue_holding(&mut session, Button::Speak, 9);
+        // Control: the field does read a fresh Speak press after the release.
+        let mut opened = false;
+        for _ in 0..8 {
+            session.frame(Pad::new(Button::Speak));
+            if session.runtime().dialogue_open() {
+                opened = true;
+                break;
+            }
+        }
+        assert!(opened, "a fresh Speak press on the field opens its window");
+        std::fs::remove_dir_all(&directory).expect("remove only our test directory");
+    }
+
+    /// The same hand-off for the menus' edges: a Camp (A) that confirms the
+    /// slot does not open the camp menu on the field, and a fresh one does.
+    #[test]
+    fn a_continue_confirm_held_on_camp_does_not_open_the_camp_menu() {
+        let Some((mut session, directory)) = at_the_slot_list("continue-held-camp") else {
+            return;
+        };
+        continue_holding(&mut session, Button::Camp, 9);
+        session.frame(Pad::new(Button::Camp));
+        assert!(
+            session.camp_view().is_some(),
+            "a fresh Camp press on the field opens the camp menu"
+        );
         std::fs::remove_dir_all(&directory).expect("remove only our test directory");
     }
 }
