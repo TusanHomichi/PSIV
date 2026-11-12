@@ -582,6 +582,11 @@ fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
         (0xFFFF_FB00..0xFFFF_FB80).contains(&ram) && ram + 2 * words <= 0xFFFF_FB80
     };
     match *op {
+        PresentationOp::LoadSceneAsset {
+            destination_ram, ..
+        } if (0xFFFF_FB00..0xFFFF_FC00).contains(&destination_ram) => {
+            Some("palette load without a word count")
+        }
         PresentationOp::SetPaletteWords {
             offset,
             first,
@@ -680,6 +685,13 @@ fn a_palette_record_that_cannot_fit_is_reported() {
         Some("not CRAM words")
     );
     assert_eq!(palette_record_fault(&words(0x2E, 0x0620, 0x0EEE)), None);
+    assert_eq!(
+        palette_record_fault(&PresentationOp::LoadSceneAsset {
+            source_rom_addr: 0x0029_754E,
+            destination_ram: 0xFFFF_FB60,
+        }),
+        Some("palette load without a word count")
+    );
     assert_eq!(
         palette_record_fault(&PresentationOp::PaletteCopy {
             source: crate::PaletteSource::Fill(0),

@@ -109,8 +109,8 @@ Where PSIV knowingly differs from the cartridge, there is an open issue:
 - [Palette effects (#162)](https://github.com/TusanHomichi/PSIV/issues/162):
   scene temporary objects, shop, camp and choice menus, and the sabotage alarm
   overlay still draw baked colours. Scene fade ramps still use a screen cover;
-  Rykros, Ending and Anger Tower tone effects need matched original-game captures
-  before palette parity is complete.
+  Rykros's tone still needs a matched original-game capture, and existing
+  single-frame comparisons do not certify complete scenes.
 - A few original bugs are fixed on purpose; each is listed in the
   [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 
