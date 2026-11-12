@@ -143,6 +143,11 @@ PALETTE_REQUESTS = (
     (0x001D_2A3C, 64),  # the opening's LoadPalette (`$073C12`)
     (0x001D_E0B8, 16),  # Event_RuneFlaeli's LoadPalette to line 4 (`$06D81A`)
     PLATE_ENGINE_LIGHT,
+    # Boarding: moveq #$10, d7 / trap #1 copies 17 words, the last into
+    # Palette_Table_Buffer_2 ($06B9EA, $06BAC2, $06BB9A).
+    (0x0029_754E, 17),
+    (0x0029_756E, 17),
+    (0x0029_758E, 17),
     (0x0009_F2BC, 64),  # Pal_Init: InitVRAMAndCRAM's 32 longwords (`$05A68A`)
     # Pal_Init_Line_3: Event_EnterAngerTower's 16-word hold (`$07383A`) and
     # Event_GettingOffVehicle's `moveq #$10, d7 / trap #1`, 17 words (`$06BF2A`).

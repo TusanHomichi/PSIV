@@ -464,3 +464,104 @@ fn zio_ramp_reaches_the_live_scene_palette() {
         );
     }
 }
+
+/// All three real boarding events: the art load precedes the counted palette
+/// copy, which precedes exposing the vehicle body, even on the camera-pan path.
+#[test]
+fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
+    use psiv_core::{PaletteBuffer, PaletteSource};
+    if !pack_present() {
+        return;
+    }
+    for (index, address) in [(1, 0x0029_754E), (2, 0x0029_756E), (3, 0x0029_758E)] {
+        let mut runtime = runtime_on(0x013, [Some(CharId(0)), None, None, None, None], &[]);
+        let source = runtime
+            .data()
+            .scene_palettes()
+            .words(address)
+            .expect("boarding palette")
+            .to_vec();
+        assert_eq!(source.len(), 17);
+        let saved = *runtime.effects.cram.saved();
+        let (base, frames) = trace(&mut runtime, 8 + index);
+        let at = emitted(&frames, |op| {
+            matches!(op, PresentationOp::PaletteCopy {
+            source: PaletteSource::Rom(a), destination: PaletteBuffer::Live,
+            start: 48, words: 17,
+        } if *a == address)
+        });
+        let art_at = emitted(&frames, |op| {
+            matches!(
+                op,
+                PresentationOp::LoadSceneAsset {
+                    destination_ram: 0xFFFF_0000,
+                    ..
+                }
+            )
+        });
+        assert!(art_at <= at);
+        let ops: Vec<_> = frames[at]
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                RuntimeEvent::ScenePresentation { op, .. } => Some(op),
+                _ => None,
+            })
+            .collect();
+        let art = ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::LoadSceneAsset { .. }
+                    }
+                )
+            })
+            .unwrap();
+        let copy = ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::PaletteCopy { .. }
+                    }
+                )
+            })
+            .unwrap();
+        assert!(art < copy, "art, then palette in the emitted tick");
+        let scene = psiv_core::scene_for(psiv_core::EventIndex(8 + index)).unwrap();
+        let copy = scene
+            .ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::PaletteCopy { .. }
+                    }
+                )
+            })
+            .unwrap();
+        let body = scene
+            .ops
+            .iter()
+            .position(|op| matches!(op, SceneOp::AlignVehicleBoarding { .. }))
+            .unwrap();
+        assert!(copy < body, "palette before exposing the vehicle body");
+        let mut expected = base;
+        expected[48..].copy_from_slice(&source[..16]);
+        for frame in frames.iter().skip(at) {
+            assert_eq!(
+                frame.words, expected,
+                "index {index}, frame {}: all 64 words",
+                frame.count
+            );
+        }
+        let mut expected_saved = saved;
+        expected_saved[0] = source[16];
+        assert_eq!(runtime.effects.cram.saved(), &expected_saved);
+        assert_eq!(runtime.game().vehicle_index(), index);
+    }
+}

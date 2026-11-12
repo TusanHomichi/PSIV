@@ -418,9 +418,7 @@ Tower with Elsydeon held, where the map's own entry trigger starts
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Surfaces outside the live palette:** vehicle sprites (their line-3
-  palette is a `LoadSceneAsset` write the CRAM model does not take), scene
-  temporary objects, the shop, camp and choice menus, and the dialogue
+- **Surfaces outside the live palette:** scene temporary objects, the shop, camp and choice menus, and the dialogue
   action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
 - **Rykros's tone:** its cycle has a certified frame above; the preceding tone
   still needs its own oracle pair
@@ -447,6 +445,10 @@ borrows. Writers:
   `ReloadMapPalette` write the live buffer; `Panel_Create` (scene ops and
   dialogue `$F2` panels) copies sixteen words per drawn layer to
   `(art tile >> 8) & $70` bytes in (`ps4.asm:144392-144401`);
+- boarding copies 17 words from each vehicle palette (`$29754E`, `$29756E`,
+  `$29758E`) at live word 48: line 3 and word 0 of the adjacent saved buffer
+  (`$06B9EA`, `$06BAC2`, `$06BB9A`). Vehicle sheets draw their indices through
+  the same live CRAM path as party and NPC sheets;
 - `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
   `SetPaletteWords` and `AddPaletteWord` take word offsets;
 - the loops step once per runtime tick, starting on the tick the scene emits

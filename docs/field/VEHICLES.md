@@ -364,7 +364,11 @@ variant: map count
 
 `GameData::vehicle_sheet_for_map` resolves the map-specific three-sheet set,
 falling back to the base selector sheet only for filtered/older packs. Both
-the field renderer and mounted battle setup use that lookup. The palette
+the field renderer and mounted battle setup use that lookup. Field sheets
+read their line-3 indices through the live CRAM path
+([palette state](../scenes/SCENE_PRESENTATION.md#cram-state)); the baked variant
+is the fallback when no live palette is available. Boarding's counted palette
+copy replaces that line before the vehicle body is exposed. The palette
 counts are disassembly/data-backed extraction results; tape 29 is a movement
 and entry oracle, not a CRAM-capture tape.
 

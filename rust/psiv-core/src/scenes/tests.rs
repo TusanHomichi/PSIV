@@ -602,9 +602,16 @@ fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
             start,
             words,
             source,
-            ..
+            destination,
         } => {
-            if usize::from(start) + usize::from(words) > 64 {
+            // Live and saved are adjacent; a live copy may continue into
+            // saved (boarding copies 17 words starting at word 48).
+            let limit = if destination == crate::PaletteBuffer::Live {
+                128
+            } else {
+                64
+            };
+            if start >= 64 || usize::from(start) + usize::from(words) > limit {
                 Some("copy past the buffer")
             } else if matches!(source, crate::PaletteSource::Fill(v) if v & !CRAM != 0) {
                 Some("not a CRAM word")
@@ -678,7 +685,7 @@ fn a_palette_record_that_cannot_fit_is_reported() {
             source: crate::PaletteSource::Fill(0),
             destination: crate::PaletteBuffer::Live,
             start: 32,
-            words: 64,
+            words: 100,
         }),
         Some("copy past the buffer")
     );

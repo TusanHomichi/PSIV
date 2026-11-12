@@ -89,9 +89,7 @@ pub(crate) struct SheetView {
 }
 
 impl SheetView {
-    /// `cram` is the field's live palette; `None` draws the baked colours
-    /// only (vehicles: their line-3 palette is a `LoadSceneAsset` write the
-    /// CRAM model does not take yet).
+    /// `cram` is the field's live palette; `None` draws the baked colours only.
     pub(crate) fn build(
         pack_dir: &str,
         sheet: &Sheet,

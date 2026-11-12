@@ -174,6 +174,12 @@ class PresentationPackTests(unittest.TestCase):
                 _lea_w(PALETTE_TABLE_BUFFER + 0x60, 0), _lea_l(0x0730FC, 1),
             ], 16),
         }
+        # Boarding uses a word-copy DBF count, including the saved-buffer spill.
+        for address, site in ((0x29754E, 0x06B9EA), (0x29756E, 0x06BAC2), (0x29758E, 0x06BB9A)):
+            sites[address] = (site, [
+                _lea_l(address, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x60, 1),
+                _moveq(0x10, 7), TRAP_1,
+            ], 17)
         requests = dict(PALETTE_REQUESTS)
         records = {r["rom_addr"]: r for r in decode_palette_requests(data)}
         for address, (site, listing, words) in sites.items():
