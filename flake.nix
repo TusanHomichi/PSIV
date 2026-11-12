@@ -344,6 +344,55 @@
         '';
       };
 
+      # The shell's Godot gets a software GLX context under the shell's Xvfb,
+      # started as tools/certify.py starts them (its XVFB_ARGS and
+      # GODOT_FLAGS, read from it), on a throwaway one-scene project. Every
+      # capture under Xvfb needs that context, and only a run shows it: a
+      # nixpkgs bump that breaks it (#538) fails here, at the bump's PR,
+      # instead of at the next certify run. Godot's wrapper puts its own Mesa
+      # first on LD_LIBRARY_PATH, so it never loads a Mesa built against a
+      # newer glibc than its own (the #538 crash: no fbconfig, then EGL, then
+      # SIGSEGV).
+      glCheck = pkgs:
+        let g = godotFor pkgs; in
+        {
+          godot-gl = pkgs.runCommand "psiv-godot-gl" {
+            passthru.testFiles = [ ];
+            nativeBuildInputs = [ (pythonFor pkgs) g.godot g.xvfb ];
+          } ''
+            set -euo pipefail
+            export HOME=$TMPDIR XDG_DATA_HOME=$TMPDIR/data XDG_CONFIG_HOME=$TMPDIR/config \
+              XDG_CACHE_HOME=$TMPDIR/cache
+            certify() {
+              python3 -c "import sys; sys.path.insert(0, 'tools'); import certify; print(' '.join(certify.$1))"
+            }
+            cd ${self}
+            read -r -a xvfb_args <<<"$(certify XVFB_ARGS)"
+            read -r -a godot_flags <<<"$(certify GODOT_FLAGS)"
+            cd $TMPDIR
+            mkdir project
+            printf '%s\n' 'config_version=5' '[application]' 'config/name="gl-check"' \
+              'run/main_scene="res://main.tscn"' >project/project.godot
+            printf '%s\n' '[gd_scene format=3]' "" '[node name="Main" type="Node2D"]' >project/main.tscn
+
+            Xvfb -displayfd 3 "''${xvfb_args[@]}" 3>display >xvfb.log 2>&1 &
+            server=$!
+            for _ in $(seq 60); do [ -s display ] && break; sleep 0.5; done
+            if [ ! -s display ]; then cat xvfb.log; echo "Xvfb reported no display in 30 s"; exit 1; fi
+            status=0
+            DISPLAY=:$(head -n 1 display) LIBGL_ALWAYS_SOFTWARE=1 timeout 120 \
+              godot --path project "''${godot_flags[@]}" --quit-after 10 >godot.log 2>&1 || status=$?
+            kill "$server"
+            cat godot.log
+            if [ "$status" != 0 ]; then echo "Godot exited $status under Xvfb"; exit 1; fi
+            if grep -q '"fbc" is null' godot.log; then echo "GLX offered Godot no fbconfig"; exit 1; fi
+            if ! grep -q '^OpenGL API .*llvmpipe' godot.log; then
+              echo "Godot got no llvmpipe OpenGL context under Xvfb"; exit 1
+            fi
+            touch $out
+          '';
+        };
+
       project = burrow.lib.project {
         inherit self;
         # The official Godot build is x86-64 Linux.
@@ -359,7 +408,7 @@
             pkgs.git
             pkgs.pkg-config
           ];
-        checks = pkgs: rustChecks pkgs // docsCheck pkgs;
+        checks = pkgs: rustChecks pkgs // docsCheck pkgs // glCheck pkgs;
       };
     in
     project // {
