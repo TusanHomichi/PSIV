@@ -383,7 +383,11 @@ name in `packTests` in `flake.nix`), the gate's own tests (every
 `tests/test_gate*.py`: fake commands in throwaway repositories), the battle
 fixture extractor's tests (every `tests/test_oracle_battle_fixture*.py`: fake
 logs and the tracked fixtures), the certify pair table's tests (every
-`tests/test_certify*.py`: the tracked recipes and tapes), plus ruff's syntax and undefined-name rules over the Python; the Rust
+`tests/test_certify*.py`: the tracked recipes and tapes), `godot-gl` (the shell's Godot
+opening a software OpenGL context under the shell's Xvfb, both started as
+`tools/certify.py` starts them, so a nixpkgs bump that breaks the captures'
+display fails at its PR:
+[#538](https://github.com/TusanHomichi/PSIV/issues/538)), plus ruff's syntax and undefined-name rules over the Python; the Rust
 build fetches the Genesis Plus GX sound core at the commit
 `oracle/build_core.sh` pins. The rest of the Python suite, much of which reads the ROM, the
 disassembly and the pack, does not run there, so a test in it cannot show it
@@ -392,7 +396,7 @@ runner. When the pack builder changes, hosted CI also runs its
 portability tests (the atomic swap and the text-file census) on Windows and
 macOS (`.github/workflows/platforms.yml`), since players build the pack there.
 The rest of [#15](https://github.com/TusanHomichi/PSIV/issues/15) (the other
-ROM-free Python tests, a Godot smoke) is open.
+ROM-free Python tests, a smoke of the game in Godot) is open.
 Hosted CI also holds each pull request to the house rules a machine can read,
 its title and body included (`.github/workflows/house.yml`).
 On a pull request, the `gate` commit status adds the rest: once the review
