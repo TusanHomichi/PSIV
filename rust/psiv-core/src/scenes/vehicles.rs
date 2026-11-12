@@ -15,7 +15,7 @@
 //! 2. rebuilds the sprite table (`Field_BuildSprites` + `VInt_Prepare`);
 //! 3. writes `MusicID_LandMaster` into `Sound_Index` and `Saved_Sound_Index`
 //!    only when `Saved_Sound_Index` differs;
-//! 4. decompresses the machine's Nemesis art into `RAM_Start` and its sixteen
+//! 4. decompresses the machine's Nemesis art into `RAM_Start` and copies sixteen
 //!    palette words into `Palette_Line_4` (`$FFFFFB60`, zero-based line 3),
 //!    plus one word into the saved buffer (`moveq #$10, d7 / trap #1`);
 //! 5. writes the machine's object id into `Character_1` and clears the four
