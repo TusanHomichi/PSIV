@@ -74,25 +74,57 @@ fn created(op: &SceneOp, id: u16) -> bool {
     matches!(op, SceneOp::CreateFieldObject { object_id, .. } if *object_id == id)
 }
 
-/// One pan, from the frame its op ran: frames until the camera stood on
-/// `target`, X before Y, one pixel a frame. Returns the ops of the last frame.
-fn follow_pan(rt: &mut Runtime, target: (i32, i32), mut before: (i32, i32)) -> (u32, Vec<SceneOp>) {
-    let mut frames = 0;
-    loop {
+/// The frame whose scene op is a pan, with the view just before it.
+struct Issued {
+    before: (i32, i32),
+    ops: Vec<SceneOp>,
+}
+
+/// Runs frames until one issues a pan; `before` is the view ahead of that frame.
+fn run_to_pan(rt: &mut Runtime) -> Issued {
+    for _ in 0..2_000 {
+        let before = view(rt);
         let ops = scene_frame(rt);
+        if ops.iter().any(is_pan) {
+            return Issued { before, ops };
+        }
+    }
+    panic!("no pan");
+}
+
+/// One pan, from the frame its op ran (which already takes the first pixel):
+/// frames, counting that one, until the camera stood on `target`, X before Y,
+/// one pixel a frame. A nonempty pan keeps the scene through its arrival frame
+/// and releases it on the next; an empty pan takes no frame and does not move.
+/// Returns the frames and the ops of the release (or, if empty, issuing) frame.
+fn follow_pan(rt: &mut Runtime, target: (i32, i32), issued: Issued) -> (u32, Vec<SceneOp>) {
+    let Issued {
+        before: mut prev,
+        ops: issuing,
+    } = issued;
+    if prev == target {
+        assert_eq!(view(rt), target, "an empty pan does not move");
+        return (0, issuing);
+    }
+    let mut frames = 0;
+    let mut ops = issuing;
+    loop {
+        if frames > 0 {
+            ops = scene_frame(rt);
+        }
         frames += 1;
         let now = view(rt);
         assert!(rt.scene_active(), "the pan holds the pad");
         assert!(!rt.game().is_set(STRIPPERS_DANCE), "the flag is last");
-        if before.0 != target.0 {
-            assert_eq!(now.1, before.1, "Y waits for X");
+        if prev.0 != target.0 {
+            assert_eq!(now.1, prev.1, "Y waits for X");
         }
         assert_eq!(
-            (now.0 - before.0).abs() + (now.1 - before.1).abs(),
-            i32::from(now != before),
-            "a pixel a frame"
+            (now.0 - prev.0).abs() + (now.1 - prev.1).abs(),
+            1,
+            "a pixel a frame, from the issuing frame on"
         );
-        before = now;
+        prev = now;
         if now == target {
             // The arrival frame keeps the pan; the next one releases it.
             let released = scene_frame(rt);
@@ -100,7 +132,7 @@ fn follow_pan(rt: &mut Runtime, target: (i32, i32), mut before: (i32, i32)) -> (
             return (frames, released);
         }
         assert!(
-            ops.is_empty(),
+            frames == 1 || ops.is_empty(),
             "nothing runs during the pan, frame {frames}: {ops:?}"
         );
         assert!(frames < 2_000, "the pan never arrived");
@@ -108,13 +140,14 @@ fn follow_pan(rt: &mut Runtime, target: (i32, i32), mut before: (i32, i32)) -> (
 }
 
 /// Runs the scene to the return pan's op, checking the view stays on the stage
-/// from the outbound pan's end.
-fn to_the_return_pan(rt: &mut Runtime, stage: (i32, i32)) {
+/// from the outbound pan's end up to the frame that issues the pan.
+fn to_the_return_pan(rt: &mut Runtime, stage: (i32, i32)) -> Issued {
     for _ in 0..2_000 {
+        let before = view(rt);
+        assert_eq!(before, stage, "the view waits on the stage");
         let ops = scene_frame(rt);
-        assert_eq!(view(rt), stage, "the view waits on the stage");
         if ops.iter().any(is_pan) {
-            return;
+            return Issued { before, ops };
         }
     }
     panic!("no return pan");
@@ -123,14 +156,15 @@ fn to_the_return_pan(rt: &mut Runtime, stage: (i32, i32)) {
 /// Runs the scene to the return pan's op, seating the camera at `seat` while
 /// the scene sits in the wait before it: a seat after the op would cancel the
 /// glide the op started.
-fn to_the_return_pan_seated_at(rt: &mut Runtime, seat: (i32, i32)) -> Vec<SceneOp> {
+fn to_the_return_pan_seated_at(rt: &mut Runtime, seat: (i32, i32)) -> Issued {
     for _ in 0..2_000 {
+        let before = view(rt);
         let ops = scene_frame(rt);
         if ops.iter().any(|op| created(op, 0x348)) {
             rt.set_camera(seat.0, seat.1);
         }
         if ops.iter().any(is_pan) {
-            return ops;
+            return Issued { before, ops };
         }
     }
     panic!("no return pan");
@@ -144,15 +178,11 @@ fn play_from(column: u16) {
     assert_eq!(rt.scene_party_actor(0).unwrap().cell.y, TRIGGER_ROW);
 
     // Up to the outbound pan's op, with the view still on the party.
-    let start = loop {
-        let at = view(&rt);
-        if scene_frame(&mut rt).iter().any(is_pan) {
-            break at;
-        }
-    };
+    let issued = run_to_pan(&mut rt);
+    let start = issued.before;
     let distance =
         (start.0 - STAGE_VIEW.0).unsigned_abs() + (start.1 - STAGE_VIEW.1).unsigned_abs();
-    let (frames, ops) = follow_pan(&mut rt, STAGE_VIEW, start);
+    let (frames, ops) = follow_pan(&mut rt, STAGE_VIEW, issued);
     assert_eq!(
         frames, distance,
         "column {column}: the outbound pan's frames"
@@ -162,9 +192,9 @@ fn play_from(column: u16) {
         "column {column}: the strippers on the arrival frame: {ops:?}"
     );
 
-    to_the_return_pan(&mut rt, STAGE_VIEW);
+    let issued = to_the_return_pan(&mut rt, STAGE_VIEW);
     let distance = (STAGE_VIEW.0 - home.0).unsigned_abs() + (STAGE_VIEW.1 - home.1).unsigned_abs();
-    let (frames, ops) = follow_pan(&mut rt, home, STAGE_VIEW);
+    let (frames, ops) = follow_pan(&mut rt, home, issued);
     assert_eq!(frames, distance, "column {column}: the return's frames");
     assert!(
         ops.iter().any(|op| created(op, 0x35C)),
@@ -210,21 +240,16 @@ fn an_empty_x_leg_goes_straight_to_y_and_the_pan_still_ends() {
     step_into_the_scene(&mut rt);
     let home = home_of(&rt);
     rt.set_camera(STAGE_VIEW.0, STAGE_VIEW.1 + 5);
-    loop {
-        if scene_frame(&mut rt).iter().any(is_pan) {
-            break;
-        }
-    }
-    let at = view(&rt);
-    let (frames, ops) = follow_pan(&mut rt, STAGE_VIEW, at);
+    let issued = run_to_pan(&mut rt);
+    assert_eq!(issued.before, (STAGE_VIEW.0, STAGE_VIEW.1 + 5));
+    let (frames, ops) = follow_pan(&mut rt, STAGE_VIEW, issued);
     assert_eq!(frames, 5);
     assert!(ops.iter().any(|op| created(op, 0x344)));
 
     // The return with an empty Y leg.
-    to_the_return_pan_seated_at(&mut rt, (home.0 + 3, home.1));
-    let at = view(&rt);
-    assert_eq!(at, (home.0 + 3, home.1));
-    let (frames, ops) = follow_pan(&mut rt, home, at);
+    let issued = to_the_return_pan_seated_at(&mut rt, (home.0 + 3, home.1));
+    assert_eq!(issued.before, (home.0 + 3, home.1));
+    let (frames, ops) = follow_pan(&mut rt, home, issued);
     assert_eq!(frames, 3);
     assert!(ops.iter().any(|op| created(op, 0x35C)));
 }
@@ -251,9 +276,33 @@ fn a_pan_with_nothing_to_do_takes_no_frame() {
     assert_eq!(view(&rt), STAGE_VIEW);
 
     // `WaitFrames(1)` follows the dancers: the scene is still running.
-    let ops = to_the_return_pan_seated_at(&mut rt, home);
+    let ops = to_the_return_pan_seated_at(&mut rt, home).ops;
     assert_eq!(view(&rt), home);
     assert!(ops.iter().any(|op| created(op, 0x35C)), "{ops:?}");
     assert!(!rt.game().is_set(STRIPPERS_DANCE));
     assert!(rt.scene_active());
+}
+
+/// A one-pixel pan is not an empty one: the issuing frame takes the pixel and
+/// the scene holds through that arrival frame, releasing on the next. An empty
+/// pan (the test above) takes no frame and does not move.
+#[test]
+fn a_one_step_pan_moves_on_its_frame_and_holds_through_arrival() {
+    if !pack_present() {
+        return;
+    }
+    let mut rt = party_below_the_stage(32);
+    step_into_the_scene(&mut rt);
+    rt.set_camera(STAGE_VIEW.0, STAGE_VIEW.1 + 1);
+    let issued = run_to_pan(&mut rt);
+    assert_eq!(issued.before, (STAGE_VIEW.0, STAGE_VIEW.1 + 1));
+    assert_eq!(view(&rt), STAGE_VIEW, "the issuing frame took the step");
+    assert!(
+        !issued.ops.iter().any(|op| created(op, 0x344)),
+        "the scene waits through the arrival frame: {:?}",
+        issued.ops
+    );
+    let (frames, ops) = follow_pan(&mut rt, STAGE_VIEW, issued);
+    assert_eq!(frames, 1);
+    assert!(ops.iter().any(|op| created(op, 0x344)), "{ops:?}");
 }

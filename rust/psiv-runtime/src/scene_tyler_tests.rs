@@ -91,22 +91,27 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
     assert_eq!(pans.len(), 4);
     for (index, &frame) in pans.iter().enumerate() {
         assert_eq!(
-            cameras[frame + 1],
+            cameras[frame],
             (home.0 + if index % 2 == 0 { 4 } else { 0 }, home.1),
-            "camera pan {index} arrives on the following frame"
+            "camera pan {index} takes its single step on its own frame, and \
+             the return is issued on the release frame, so the shake shows for a frame"
         );
     }
     assert_eq!(
         pans[1] - pans[0],
-        2,
-        "outward 4px at speed4 moves a frame, the next releases"
+        1,
+        "outward 4px at speed4 moves on its frame, the next releases it and issues the return"
+    );
+    assert_ne!(
+        cameras[pans[0]], cameras[pans[1]],
+        "the outward step is seen before the return undoes it"
     );
     assert_eq!(
         drift[0].0 - pans[1],
-        3,
+        2,
         "return pan completes, then drift is installed before its first update"
     );
-    assert_eq!(pans[3] - pans[2], 2);
+    assert_eq!(pans[3] - pans[2], 1);
     assert_eq!(
         pans[2],
         drift[63].0 + 1,
@@ -117,7 +122,7 @@ fn grave_camera_blocks_and_slab_sequences_follow_every_object_update() {
     assert_eq!(drift[63].0 - drift[0].0, 63);
     assert_eq!(
         frames - pans[3],
-        63,
+        62,
         "return pan completion, wait setup and 60 map-update frames"
     );
 }
