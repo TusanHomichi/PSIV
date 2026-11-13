@@ -25,7 +25,7 @@ whose commit isn't there, without running the gate. `LockCase` waits for
 the worktree's lock, and `StopCase` keeps the worktree the run's till
 everything it started has stopped, however the run ends, and a machine with
 no user manager is a machine failure; `ScopeCase` binds a step's scope to the
-user unit a run is in. `PostCase` keeps logs, paths and anything
+user unit a run is in, whatever escapes that unit's name holds. `PostCase` keeps logs, paths and anything
 else the receipt holds off the summary.
 """
 
@@ -691,6 +691,65 @@ class ScopeCase(unittest.TestCase):
             cgroups.write_text("0::/user.slice/user-1001.slice/session-3.scope\n")
             self.assertIsNone(pr_gate.caller_unit(cgroups))
             self.assertIsNone(pr_gate.caller_unit(Path(tmp) / "none"))
+
+    def test_a_unit_name_with_escapes_reaches_systemd_whole(self):
+        """#290: a proj job's unit is `proj-PSIV\\x2d….service`; systemd-run
+        reads a property's value as words where a backslash escapes the next
+        character, so the name's own backslashes must reach it doubled."""
+        from tools import pr_gate
+        name = "proj-PSIV\\x2d20261101\\x2d140449\\x2dFqXQ.service"
+        with tempfile.TemporaryDirectory() as tmp:
+            cgroups = Path(tmp) / "cgroup"
+            cgroups.write_text(f"0::/user.slice/user-1001.slice/user@1001.service/claude.slice/{name}\n")
+            self.assertEqual(pr_gate.caller_unit(cgroups), name)
+        self.assertEqual(pr_gate.binds_to(name), "--property=BindsTo=" + name.replace("\\", "\\\\"))
+        self.assertEqual(pr_gate.binds_to("run-7.service"), "--property=BindsTo=run-7.service")
+
+    @unittest.skipUnless(shutil.which("systemd-run") and shutil.which("systemctl")
+                         and subprocess.run(["systemctl", "--user", "show-environment"],
+                                            capture_output=True).returncode == 0,
+                         "needs the user's systemd manager")
+    def test_a_step_runs_from_a_user_unit_whose_name_has_escapes(self):
+        """A real step, run from a real user unit named `…\\x2d…`, which
+        reports its result in a file (`--wait` needs the session bus, which
+        a job may lack). The negative control, run from the same unit: its
+        name undoubled, which systemd reports not found."""
+        tag = f"psiv-test-pr-gate-{os.getpid()}"
+        caller = f"{tag}\\x2dcaller.service"
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / "result.json"
+            script = Path(tmp) / "caller.py"
+            script.write_text(
+                "import json, subprocess, sys\n"
+                "from pathlib import Path\n"
+                "from tools import pr_gate\n"
+                "said = {'unit': pr_gate.caller_unit()}\n"
+                "try:\n"
+                f"    said['step'] = pr_gate.run_step([sys.executable, '-c', 'pass'], Path('.'), {tag + '.scope'!r})\n"
+                "except Exception as error:\n"
+                "    said['step'] = repr(error)\n"
+                f"raw = subprocess.run(['systemd-run', '--user', '--scope', '--quiet', '--collect', '--unit={tag}-raw.scope',\n"
+                "                       '--property=BindsTo=' + said['unit'], '--', 'true'], capture_output=True, text=True)\n"
+                "said['raw'] = [raw.returncode, raw.stderr]\n"
+                f"Path({str(result) + '.part'!r}).write_text(json.dumps(said))\n"
+                f"Path({str(result) + '.part'!r}).rename({str(result)!r})\n")
+            started = subprocess.run(
+                ["systemd-run", "--user", "--quiet", "--collect", f"--unit={caller}",
+                 f"--working-directory={ROOT}", f"--setenv=PYTHONPATH={ROOT}",
+                 *(f"--setenv={var}" for var in ("PATH", "XDG_RUNTIME_DIR") if var in os.environ),
+                 "--", sys.executable, str(script)],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(started.returncode, 0, started.stderr)
+            self.addCleanup(subprocess.run, ["systemctl", "--user", "stop", caller], capture_output=True)
+            for _ in range(600):
+                if result.exists():
+                    break
+                time.sleep(0.1)
+            said = json.loads(result.read_text())
+        self.assertEqual(said["unit"], caller)
+        self.assertEqual(said["step"], 0)
+        self.assertNotEqual(said["raw"][0], 0, said["raw"][1])
+        self.assertIn("not found", said["raw"][1])
 
     def stop(self, show, events=None):
         """stop_scope against a systemctl that shows `show`, and a cgroup
