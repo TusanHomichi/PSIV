@@ -198,6 +198,14 @@ def caller_unit(cgroups: Path = Path("/proc/self/cgroup")) -> str | None:
     return None
 
 
+def binds_to(unit: str) -> str:
+    """systemd-run's `--property=` for a scope bound to `unit`. systemd reads
+    the value as a list of words, where a backslash escapes the character
+    after it, so a name's own backslashes (`\\x2d` for `-` in `proj-a\\x2db`)
+    are doubled to reach it whole (#290)."""
+    return "--property=BindsTo=" + unit.replace("\\", "\\\\")
+
+
 def systemctl(*args: str) -> subprocess.CompletedProcess:
     """`systemctl --user ARGS`, its output captured."""
     try:
@@ -242,7 +250,7 @@ def run_step(command: list[str], cwd: Path, scope: str, source: str | None = Non
     marks = Path(tempfile.mkdtemp(prefix="pr-gate-"))
     started = marks / "started"
     unit = caller_unit()
-    bind = [f"--property=BindsTo={unit}"] if unit else []
+    bind = [binds_to(unit)] if unit else []
     try:
         try:
             process = subprocess.Popen(
