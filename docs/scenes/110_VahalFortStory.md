@@ -64,7 +64,7 @@ party stays south of the blocks.
 - **Retail bytes:** `$073200..$0733B9` inclusive, 442 bytes (the last twelve are the `loc_733AC` wait subroutine and the two palette tables sit before it).
 - **Pointer:** `EventPtrs[$91]`; event `$0091`.
 - **Trigger:** `RunEvent_DominatorsDefeated` (`$77`, `ps4.asm:116530`), Vahal Fort F3 `$CB`: `EventFlag_Dominators` (`$B6`, set by `Event_DaughterTerminal` before its battle) set and `EventFlag_DaughterShutDown` (`$BB`) clear, so it fires on the first field frame after the Dominators battle returns.
-- **Data:** `vahal_fort.rs`, `DOMINATORS_DEFEATED` (49 ops).
+- **Data:** `vahal_fort.rs`, `DOMINATORS_DEFEATED` (42 ops).
 
 The party gathers at Daughter's terminal, Wren confronts her, the force field's
 palette dies away and the leader steps back. No battle, no map change.
@@ -81,19 +81,19 @@ palette dies away and the leader steps back. No battle, no map change.
 | 27 | `$0732CE..$0732E3` | 120 x (`RunMapUpdates`, `VInt_Prepare`) | `Wait 120` |
 | 28 | `$0732E4..$0732EB` | `SFXID_PowerDown` (`$E4`) | `PlaySound $E4` |
 | 29-30 | `$0732EC..$073301` | line 0 words 12 and 13 (`$FFFFFB00 + $18/$1A`) set to `$06CE`, `$0CE0`; `VInt_Prepare` | `SetPaletteWords` (word offset `$0C`), `WaitFrames 1` |
-| 31-38 | `$073302..$073327` | the table loop: rows `($06CE,$0CE0)`, `($04AC,$0AC0)`, `($028A,$08A0)`, `($0068,$0680)` (`$07339A`, `$0733A4`), `bsr loc_733AC` (16 `VInt_Prepare`) after each | four `SetPaletteWords` + `WaitFrames 16` |
-| 39 | `$073310` | the `$FFFF` terminator's `VInt_Prepare` | `WaitFrames 1` |
-| 40 | `$073328..$073331` | `loc_5A79C` with `d0 = $1D`: 30 x `DMAPlanes_VInt`, no map updates | `WaitFrames 30` |
-| 41 | `$073332..$073341` | `Event_GetCharacter(7)` (Wren); `Event_UpdateObjFacing` with `d0 = 0` | `Face Character(Wren) Down` |
-| 42 | `$073342..$07334F` | `popdlg` / `jsr Event_RunDialogue` | `RunDialogueResume` |
-| 43 | `$073350..$073359` | `move.b #$BB, d0` / `jsr EventFlags_Set` | `SetFlag` event `$BB` |
-| 44 | `$07335A..$073365` | `bclr #0`, `bclr #1` on `Char_Move_Flags` | `SetFollowMode 0` |
-| 45 | `$073366..$073377` | `Character_1` to `($2E0,$2F0)`: `Event_MoveSingleObject` | `MoveActorTo Leader` (`wait: true`) |
-| 46 | `$073378..$07337F` | `DoMainUpdatesLoop($3B)` | `Wait 60` |
-| 47 | `$073380..$073385` | `move.b #1, FieldObj_Step_Offset` | `SetStepOffset 1` |
-| 48 | `$073386..$073399` | `Event_MoveCamera` on `Character_1`'s live `$30/$34`, speed 2, a tail `jmp` | `PanCamera(Actor(leader), 2)` |
+| 31 | `$073302..$073327` | the table loop: four rows from `$07339A` (`(a1)+` and `$8(a1)`), `bsr loc_733AC` (16 `VInt_Prepare`) after each | `PaletteCycleFromTable` (word offset `$0C`, 4 steps, 16 frames); words in the pack’s `presentation/panels.json` palette record `$07339A` |
+| 32 | `$073310` | the `$FFFF` terminator's `VInt_Prepare` | `WaitFrames 1` |
+| 33 | `$073328..$073331` | `loc_5A79C` with `d0 = $1D`: 30 x `DMAPlanes_VInt`, no map updates | `WaitFrames 30` |
+| 34 | `$073332..$073341` | `Event_GetCharacter(7)` (Wren); `Event_UpdateObjFacing` with `d0 = 0` | `Face Character(Wren) Down` |
+| 35 | `$073342..$07334F` | `popdlg` / `jsr Event_RunDialogue` | `RunDialogueResume` |
+| 36 | `$073350..$073359` | `move.b #$BB, d0` / `jsr EventFlags_Set` | `SetFlag` event `$BB` |
+| 37 | `$07335A..$073365` | `bclr #0`, `bclr #1` on `Char_Move_Flags` | `SetFollowMode 0` |
+| 38 | `$073366..$073377` | `Character_1` to `($2E0,$2F0)`: `Event_MoveSingleObject` | `MoveActorTo Leader` (`wait: true`) |
+| 39 | `$073378..$07337F` | `DoMainUpdatesLoop($3B)` | `Wait 60` |
+| 40 | `$073380..$073385` | `move.b #1, FieldObj_Step_Offset` | `SetStepOffset 1` |
+| 41 | `$073386..$073399` | `Event_MoveCamera` on `Character_1`'s live `$30/$34`, speed 2, a tail `jmp` | `PanCamera(Actor(leader), 2)` |
 
-(Op numbers are the scene's indices; the palette loop appears as ops 29 to 38
+(Op numbers are the scene's indices; the palette sequence appears as ops 29 to 31
 because the retail initial write and the first table row are the same pair and
 both run: the loop's first iteration repeats it.)
 

@@ -159,37 +159,14 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
+            op: PresentationOp::PaletteCycleFromTable {
+                source_rom_addr: 0x0007_339A,
                 offset: 0x0C,
-                first: 0x06CE,
-                second: 0x0CE0,
+                second_skip: 8,
+                steps: 4,
+                frame_delay: 16,
             },
         },
-        SceneOp::WaitFrames { frames: 16 },
-        SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
-                offset: 0x0C,
-                first: 0x04AC,
-                second: 0x0AC0,
-            },
-        },
-        SceneOp::WaitFrames { frames: 16 },
-        SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
-                offset: 0x0C,
-                first: 0x028A,
-                second: 0x08A0,
-            },
-        },
-        SceneOp::WaitFrames { frames: 16 },
-        SceneOp::Presentation {
-            op: PresentationOp::SetPaletteWords {
-                offset: 0x0C,
-                first: 0x0068,
-                second: 0x0680,
-            },
-        },
-        SceneOp::WaitFrames { frames: 16 },
         // `$073310`: the `$FFFF` terminator's `VInt_Prepare`, then
         // `loc_5A79C` (`DMAPlanes_VInt` x30, no map updates).
         SceneOp::WaitFrames { frames: 1 },

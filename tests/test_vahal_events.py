@@ -541,6 +541,7 @@ def decode_dominators(rom: bytes, code: bytes, start: int) -> dict:
         "candidates": [int(c, 16) for c in candidates],
         "palette_start": (int(palette_start.group(1), 16), int(palette_start.group(2), 16)) if palette_start else None,
         "palette_rows": words,
+        "palette_table": first_table,
         "dialogue_entries": [int(x, 16) for x in re.findall(r"70([0-9A-F]{2})" + jsr_hex(JSR["run_dialogue"]), hexed)],
         "flag": re.search(r"103C00([0-9A-F]{2})" + jsr_hex(JSR["flag_set"]), hexed),
         "tail": hexed[hexed.index("4238ECE0") :] if "4238ECE0" in hexed else "",
@@ -580,14 +581,25 @@ def check_dominators(rom: bytes, extents, text: str, consts: dict[str, int]) -> 
     source_tests = re.findall(r"BranchIfPartyMember\s*\{\s*who:\s*([A-Z]+)", block)
     if source_tests != [CHARACTER_NAMES[c] for c in got["candidates"]]:
         problems.append(f"$91: scene tests members {source_tests}, retail {got['candidates']}")
-    # The palette rows.
+    # The immediate pair remains in the scene; table rows come from the pack.
     palette = [
         (num(a), num(b))
         for a, b in re.findall(r"first:\s*(0x[0-9A-Fa-f]+),\s*second:\s*(0x[0-9A-Fa-f]+)", block)
     ]
-    want_palette = [got["palette_start"]] + got["palette_rows"]
+    want_palette = [got["palette_start"]]
     if palette != want_palette:
         problems.append(f"$91: palette words {palette}, retail {want_palette}")
+    cycle = re.search(
+        r"PaletteCycleFromTable\s*\{\s*source_rom_addr:\s*(0x[0-9A-Fa-f_]+),"
+        r"\s*offset:\s*(0x[0-9A-Fa-f]+),\s*second_skip:\s*(\d+),"
+        r"\s*steps:\s*(\d+),\s*frame_delay:\s*(\d+)", block
+    )
+    want_cycle = (got["palette_table"], 0x18 // 2, 8, len(got["palette_rows"]), 16)
+    if cycle is None or tuple(num(v) for v in cycle.groups()) != want_cycle:
+        problems.append(f"$91: palette table loop differs from retail {want_cycle}")
+    offsets = [num(v) for v in re.findall(r"SetPaletteWords\s*\{\s*offset:\s*(0x[0-9A-Fa-f]+)", block)]
+    if offsets != [0x18 // 2]:
+        problems.append(f"$91: palette destination {offsets}, retail word 12")
     if got["dialogue_entries"][:1] != [5] or "standard(5)" not in block:
         problems.append("$91: the first dialogue is not entry 5")
     if got["flag"] is None or f"set_event(0x{int(got['flag'].group(1), 16):02X})" not in block:
@@ -754,6 +766,17 @@ class NegativeControl(unittest.TestCase):
         self.assertNotEqual(mutated, self.fort)
         problems = check_story(self.rom, self.extents, 0x8E, mutated)
         self.assertTrue(any("scene is not standard(3)" in p for p in problems), problems)
+
+    def test_a_byte_offset_or_wrong_table_stride_is_named(self) -> None:
+        for before, after, message in (
+            ("offset: 0x0C", "offset: 0x18", "palette destination"),
+            ("second_skip: 8", "second_skip: 10", "palette table loop"),
+        ):
+            with self.subTest(mutation=after):
+                mutated = self.fort.replace(before, after)
+                self.assertNotEqual(mutated, self.fort)
+                problems = check_dominators(self.rom, self.extents, mutated, self.common)
+                self.assertTrue(any(message in p for p in problems), problems)
 
     def test_a_missing_membership_test_is_named(self) -> None:
         mutated = re.sub(

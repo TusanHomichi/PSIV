@@ -43,15 +43,15 @@ fn stats() -> Stats {
 }
 
 pub(super) const CHAZ: u8 = 0;
-const HAHN: u8 = 2;
+pub(super) const HAHN: u8 = 2;
 pub(super) const RUNE: u8 = 3;
-const GRYZ: u8 = 4;
-const RIKA: u8 = 5;
-const DEMI: u8 = 6;
-const WREN: u8 = 7;
-const RAJA: u8 = 8;
-const KYRA: u8 = 9;
-const SETH: u8 = 10;
+pub(super) const GRYZ: u8 = 4;
+pub(super) const RIKA: u8 = 5;
+pub(super) const DEMI: u8 = 6;
+pub(super) const WREN: u8 = 7;
+pub(super) const RAJA: u8 = 8;
+pub(super) const KYRA: u8 = 9;
+pub(super) const SETH: u8 = 10;
 
 /// A party of `members` in slot order, each with a roster seat.
 pub(super) fn state_with(members: &[u8]) -> GameState {
@@ -66,7 +66,7 @@ pub(super) fn state_with(members: &[u8]) -> GameState {
 }
 
 /// The party's actors, stacked on `at`.
-fn cast_at(members: usize, at: Cell) -> Vec<ScriptedActor> {
+pub(super) fn cast_at(members: usize, at: Cell) -> Vec<ScriptedActor> {
     (0..members)
         .map(|slot| ScriptedActor::new(ActorRef::PartyMember(slot), at, Direction::Down))
         .collect()
@@ -83,18 +83,18 @@ pub(super) fn big_map() -> FieldMap {
 }
 
 /// What running a scene to its end produced.
-struct Played {
-    effects: Vec<SceneEffect>,
+pub(super) struct Played {
+    pub(super) effects: Vec<SceneEffect>,
     /// Every actor's cell at the end of each tick that opened or resumed a
     /// dialogue, in order.
-    at_dialogue: Vec<Vec<(ActorRef, Cell)>>,
+    pub(super) at_dialogue: Vec<Vec<(ActorRef, Cell)>>,
     /// Ticks the runner was ticked, the last one included.
     ticks: usize,
     runner: SceneRunner,
 }
 
 impl Played {
-    fn faults(&self) -> Vec<SceneFault> {
+    pub(super) fn faults(&self) -> Vec<SceneFault> {
         self.effects
             .iter()
             .filter_map(|e| match e {
@@ -104,7 +104,7 @@ impl Played {
             .collect()
     }
 
-    fn leader(&self) -> ScriptedActor {
+    pub(super) fn leader(&self) -> ScriptedActor {
         *self.runner.actor(ActorRef::PartyMember(0)).unwrap()
     }
 
@@ -118,7 +118,7 @@ impl Played {
             .collect()
     }
 
-    fn dialogues(&self) -> Vec<u16> {
+    pub(super) fn dialogues(&self) -> Vec<u16> {
         self.effects
             .iter()
             .filter_map(|e| match e {
@@ -152,7 +152,7 @@ impl Played {
 }
 
 /// Runs `event`'s scene to its end, closing every dialogue at once.
-fn play(
+pub(super) fn play(
     event: u16,
     state: &mut GameState,
     map: &FieldMap,
@@ -193,7 +193,7 @@ fn play(
     }
 }
 
-fn no_layout(_: PixelPos) -> Option<u16> {
+pub(super) fn no_layout(_: PixelPos) -> Option<u16> {
     None
 }
 
@@ -899,89 +899,4 @@ fn the_chest_events_open_the_lid_teach_wren_the_skill_and_set_their_flag() {
         // The waits: 40 + 40 + 40 + 20 + 60 ticks around the dialogue.
         assert!(played.ticks >= 200, "{} ticks", played.ticks);
     }
-}
-
-fn dominators(members: &[u8]) -> (Played, GameState) {
-    let map = big_map();
-    let mut state = state_with(members);
-    let played = play(
-        0x91,
-        &mut state,
-        &map,
-        cast_at(members.len(), Cell::new(46, 46)),
-        &no_layout,
-    );
-    (played, state)
-}
-
-/// The walk targets the scene sets, in order, as `(character, cell)`.
-fn go_targets(played: &Played) -> Vec<(u8, Cell)> {
-    played
-        .effects
-        .iter()
-        .filter_map(|e| match e {
-            SceneEffect::ActorMoveStarted {
-                actor: ActorRef::Character(CharId(who)),
-                to,
-            } => Some((*who, *to)),
-            _ => None,
-        })
-        .collect()
-}
-
-#[test]
-fn the_dominators_aftermath_seats_the_party_and_the_fifth_member_goes_to_the_gap() {
-    // Pixel targets divided by 16, plus the one-row standing shift.
-    let chaz = Cell::new(0x2C0 / 16, 0x2E0 / 16 + 1);
-    let rune = Cell::new(0x2E0 / 16, 0x2E0 / 16 + 1);
-    let rika = Cell::new(0x300 / 16, 0x2E0 / 16 + 1);
-    let wren = Cell::new(0x2E0 / 16, 0x2B0 / 16 + 1);
-    let gap = Cell::new(0x2F0 / 16, 0x2E0 / 16 + 1);
-    for fifth in [HAHN, GRYZ, DEMI, RAJA, KYRA, SETH] {
-        let members = [CHAZ, RUNE, RIKA, WREN, fifth];
-        let (played, state) = dominators(&members);
-        assert_eq!(played.faults(), vec![], "fifth {fifth}");
-        assert_eq!(
-            go_targets(&played)[..5],
-            [
-                (CHAZ, chaz),
-                (RUNE, rune),
-                (RIKA, rika),
-                (WREN, wren),
-                (fifth, gap)
-            ],
-            "fifth {fifth}"
-        );
-        // The dialogue runs to its yield, then resumes after the palette.
-        assert_eq!(played.dialogues(), vec![5]);
-        assert!(played.effects.contains(&SceneEffect::DialogueResume));
-        assert!(state.is_set(Flag::event(0xBB)), "DaughterShutDown");
-        // When the first window opens, after the 120-frame walk, each
-        // member stands where it was sent: the ring around the terminal.
-        let ring = &played.at_dialogue[0];
-        for (slot, cell) in [chaz, rune, rika, wren, gap].into_iter().enumerate() {
-            let seat = ring
-                .iter()
-                .find(|(actor, _)| *actor == ActorRef::PartyMember(slot))
-                .unwrap();
-            assert_eq!(seat.1, cell, "fifth {fifth} slot {slot}");
-        }
-        // The leader then walks to ($2E0,$2F0), the last thing it moves.
-        assert_eq!(
-            played.leader().cell,
-            Cell::new(0x2E0 / 16, 0x2F0 / 16 + 1),
-            "fifth {fifth}"
-        );
-    }
-}
-
-#[test]
-fn the_dominators_aftermath_with_four_members_never_names_a_fifth() {
-    let (played, _) = dominators(&[CHAZ, RUNE, RIKA, WREN]);
-    assert_eq!(played.faults(), vec![]);
-    assert_eq!(
-        go_targets(&played).len(),
-        4,
-        "no fifth member, no fifth walk"
-    );
 }

@@ -394,7 +394,9 @@ pub enum PresentationOp {
         /// `DoMapUpdateLoop` delay per step, already corrected to frames.
         frame_delay: u16,
     },
-    /// `Event_PlateSysEngine`'s light (`loc_6E842`, `ps4.asm:147908-147920`):
+    /// Two-word table loop, used by `Event_PlateSysEngine`'s light
+    /// (`loc_6E842`, `ps4.asm:147908-147920`) and Vahal Fort
+    /// (`loc_7330C`, `ps4.asm:153068-153077`):
     /// `steps` passes over the word table at `source_rom_addr`. Each pass
     /// reads `move.w (a1)+, d0`; a negative word (`bpl` not taken) sends the
     /// pointer back to the table's start without spending the pass. The pass
@@ -403,7 +405,8 @@ pub enum PresentationOp {
     /// frames (`loc_6E922`, `VInt_Prepare` only: no map update). The words
     /// are the cartridge's and live in the pack, never in source; expand them
     /// with [`crate::palette::palette_cycle_writes`]. The op blocks for all
-    /// the passes.
+    /// the passes. Vahal stops at its terminator; its fixed `steps` covers
+    /// the non-negative rows and a separate wait records the terminator frame.
     PaletteCycleFromTable {
         /// ROM table the passes read.
         source_rom_addr: u32,

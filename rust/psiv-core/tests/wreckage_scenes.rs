@@ -254,3 +254,23 @@ fn once_read_it_is_one_line() {
     assert!(chunk_writes(&log).is_empty());
     assert!(portraits(&log).is_empty());
 }
+
+#[test]
+fn the_radar_reset_writes_the_last_two_palette_words() {
+    let mut state = party(&[CHAZ, RIKA, DEMI]);
+    let (log, _) = play(&mut state);
+    let offsets: Vec<_> = log
+        .iter()
+        .filter_map(|effect| match effect {
+            SceneEffect::Presentation {
+                op:
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::SetPaletteWords { offset, .. },
+                    },
+            } => Some(*offset),
+            _ => None,
+        })
+        .collect();
+    // $FFFFFB7C/$FFFFFB7E, relative to Palette_Table_Buffer ($FFFFFB00).
+    assert_eq!(offsets, [0x7C / 2]);
+}
