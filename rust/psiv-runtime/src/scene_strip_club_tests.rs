@@ -94,7 +94,10 @@ fn follow_pan(rt: &mut Runtime, target: (i32, i32), mut before: (i32, i32)) -> (
         );
         before = now;
         if now == target {
-            return (frames, ops);
+            // The arrival frame keeps the pan; the next one releases it.
+            let released = scene_frame(rt);
+            assert_eq!(view(rt), target, "the release frame moves nothing");
+            return (frames, released);
         }
         assert!(
             ops.is_empty(),

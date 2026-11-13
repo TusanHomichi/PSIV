@@ -141,7 +141,7 @@ impl Runtime {
     /// (`PlaceActor`, a map load) reseats rather than chasing the jump as a
     /// one-frame velocity.
     fn tick_scene_camera(&mut self) {
-        if self.scene_camera_locked || self.camera_glide.is_some() {
+        if self.scene_camera_locked {
             return;
         }
         let Some(actor) = self.scene_party_actor(0).copied() else {
@@ -153,6 +153,12 @@ impl Runtime {
             x: (at.x + ox) * ONE_PIXEL,
             y: (at.y + oy) * ONE_PIXEL,
         };
+        if self.camera_glide.is_some() {
+            // The pan owns the camera; keep the follow driver on the leader so
+            // the hand-back does not replay movement made meanwhile.
+            self.camera.reseat(driver);
+            return;
+        }
         let (last_x, last_y) = self.camera.driver_position();
         let jumped = (driver.x - last_x).abs() > 16 * ONE_PIXEL
             || (driver.y - last_y).abs() > 16 * ONE_PIXEL;

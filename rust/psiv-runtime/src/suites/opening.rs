@@ -54,8 +54,15 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
 
     // Drive the scene: answer every dialogue request, bounded ticks.
     let mut dialogues = 0;
+    // (camera, scene ended) per frame, to separate the pan's last movement
+    // from the scene's release.
+    let mut trace = Vec::new();
     for _ in 0..4000 {
         let events = rt.tick(Input::Neutral);
+        trace.push((
+            rt.camera().effective(),
+            events.iter().any(|e| matches!(e, RuntimeEvent::SceneEnded)),
+        ));
         for e in &events {
             if matches!(
                 e,
@@ -110,6 +117,28 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
         (0x250 - 152, 0xF0 - 88),
         "camera framed on Alys when the scene ends"
     );
+
+    // The final pan frame is preserved: the scene ends a frame after the
+    // camera last moved, and the hand-back replays no leader movement.
+    let ended = trace.iter().position(|&(_, e)| e).expect("scene ended");
+    assert!(ended >= 1, "scene cannot end on its first frame");
+    assert_eq!(
+        trace[ended - 1].0,
+        (0x250 - 152, 0xF0 - 88),
+        "camera has already arrived the frame before the scene ends"
+    );
+    assert!(
+        trace[ended - 2].0 != trace[ended - 1].0,
+        "the last movement frame is separate from the release frame"
+    );
+    for _ in 0..12 {
+        rt.tick(Input::Neutral);
+        assert_eq!(
+            rt.camera().effective(),
+            (0x250 - 152, 0xF0 - 88),
+            "the follow driver was rebased, not replayed"
+        );
+    }
 
     // Trigger 3 must never re-fire; OTHER triggers may legitimately fire —
     // that's the story continuing (their conditions often require AlysFound

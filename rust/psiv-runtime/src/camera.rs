@@ -79,6 +79,12 @@ impl Runtime {
         };
         let (raw_x, raw_y) = self.camera.raw();
         let (x, y) = (raw_x >> 16, raw_y >> 16);
+        // The frame after the last movement releases the pan: the final
+        // `VInt_Prepare` (`ps4.asm:121499-121549`) has shown the arrival.
+        if x & 0xFFF == glide.target_x && y & 0xFFF == glide.target_y {
+            self.camera_glide = None;
+            return;
+        }
         let next_x = wrapped_camera_step(x, glide.target_x, glide.speed);
         // The Y loop starts only once the X loop has exited.
         let next_y = if x & 0xFFF == glide.target_x {
@@ -87,9 +93,6 @@ impl Runtime {
             y
         };
         self.camera.set_position(next_x, next_y);
-        if next_x == glide.target_x && next_y == glide.target_y {
-            self.camera_glide = None;
-        }
     }
 
     /// Applies `target`'s packed `loc_51AB2` gate write to the current camera
@@ -129,5 +132,89 @@ mod boarding_camera_tests {
         assert_eq!(wrapped_camera_step(0, 2, 2), 2);
         assert_eq!(wrapped_camera_step(2, 4094, 2), 0);
         assert_eq!(wrapped_camera_step(0, 4094, 2), 4094);
+    }
+}
+
+#[cfg(test)]
+mod pan_release_tests {
+    use std::path::Path;
+
+    use psiv_core::{Cell, Direction, StepFrames};
+    use psiv_data::GameData;
+
+    use crate::Runtime;
+
+    const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
+
+    fn runtime() -> Option<Runtime> {
+        if !Path::new(PACK).join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return None;
+        }
+        let data = GameData::load(Path::new(PACK)).expect("pack loads");
+        Some(
+            Runtime::new(
+                data,
+                0x013,
+                Cell::new(38, 18),
+                Direction::Up,
+                StepFrames::default(),
+            )
+            .expect("spawn"),
+        )
+    }
+
+    /// Ticks until the glide releases; returns the camera's pixel position.
+    fn run(rt: &mut Runtime) -> (i32, i32) {
+        for _ in 0..4000 {
+            if rt.camera_glide.is_none() {
+                let (x, y) = rt.camera().raw();
+                return (x >> 16, y >> 16);
+            }
+            rt.tick_camera_glide();
+        }
+        panic!("pan never released");
+    }
+
+    #[test]
+    fn consecutive_two_axis_pans_land_on_their_targets() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        let (cx, cy) = (cx >> 16, cy >> 16);
+        // Both axes, then a consecutive pan back.
+        for (x, y) in [(cx + 6, cy + 4), (cx, cy)] {
+            rt.scene_pan_camera(x + psiv_core::HOME_X, y + psiv_core::HOME_Y, 2);
+            assert!(rt.camera_glide.is_some());
+            assert_eq!(run(&mut rt), (x & 0xFFF, y & 0xFFF));
+        }
+    }
+
+    #[test]
+    fn final_move_frame_still_owns_the_camera() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        rt.scene_pan_camera(
+            (cx >> 16) + psiv_core::HOME_X + 4,
+            (cy >> 16) + psiv_core::HOME_Y,
+            2,
+        );
+        rt.tick_camera_glide();
+        assert!(rt.camera_glide.is_some(), "first of two steps");
+        rt.tick_camera_glide();
+        assert!(rt.camera_glide.is_some(), "arrival frame keeps the glide");
+        rt.tick_camera_glide();
+        assert!(rt.camera_glide.is_none(), "released the frame after");
+    }
+
+    #[test]
+    fn zero_distance_pan_releases_without_a_frame() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        rt.scene_pan_camera(
+            (cx >> 16) + psiv_core::HOME_X,
+            (cy >> 16) + psiv_core::HOME_Y,
+            2,
+        );
+        assert!(rt.camera_glide.is_none());
     }
 }
