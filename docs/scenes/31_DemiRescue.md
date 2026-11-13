@@ -23,7 +23,7 @@ range is the proof anchor; the body ends at `moveq #1; rts` `$074B70`.
 | 4-5 | `$074A98..$074AA3` | init/fade second panel phase | `InitVramAndCram`, `FadeIn` |
 | 6-7 | `$074AA4..$074AB3` | `Panel_Create($40)`, DMA | `PanelCreate`, `DmaPlanes` |
 | 8-9 | `$074AB4..$074AC5` | sword SFX `$F5`; VInt loop `$3B+1` | `PlaySound`, `WaitFrames(60)` |
-| 10-13 | `$074AC6..$074ADE` | destroy panel twice, DMA after each | two `PanelDestroy`, two `DmaPlanes` |
+| 10-13 | `$074AC6..$074ADE` | destroy panel twice, DMA after each | two `PanelDestroyLast` (retail `Panel_Destroy` takes no operand, #74), two `DmaPlanes` |
 | 14-17 | `$074AE2..$074AFC` | wait 10; create `$42`, DMA; wait 20 | panel/wait ops |
 | 18-19 | `$074B0A..$074B1A` | enable sprites; resume saved dialogue | render + `RunDialogueResume` |
 | 20 | `$074B1E..$074B46` | party loop: `curr_hp += $1C`, clamp to max, clear status | `RestorePartyHp(0x1C)` |
