@@ -439,7 +439,7 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | `PanelCreate{id}` / `PanelDestroyLast` / `DmaPlanes` | `Panel_Create`, `Panel_Destroy`, `DMAPlanes_VInt` | Alshline |
 | `LoadArt{rom_addr, tile}` | `LoadVRAMAddressFromTileNumber` + `NemDecomp` | RuneFlaeli, Alshline |
 | `ObjectAnimation{slot, object_id, art_tile, frames}` | temporary field-object construction and keyframe loops | MeetingDorin, RuneFlaeli, Alshline, Saya |
-| `RemoveItem{item}` | `GetItem` + clear slot + `ReorderInventory` | Alshline |
+| `RemoveItem{item}` | `GetItem` + `clr.b (a0)` + `ReorderInventory`, no test of the lookup (`Inventory::take_unchecked`) | Alshline, Air Castle fake chest, Control Key, Canceller, Hydrofoil |
 | `SetMapLoadFlags{set, clear}` | raw `Map_Load_Flags` writes around `RefreshMap` | Dorin, Alshline, servant battle |
 | `RecoverStats{}` | `RecoverStats` | Alshline, PsychoWand |
 | `MoveActorToActorAxis{who, target, axis}` | copy one live coordinate before `Event_MoveSingleObject` | MeetingRika |

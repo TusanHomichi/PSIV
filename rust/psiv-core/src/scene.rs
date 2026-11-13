@@ -855,8 +855,9 @@ pub enum SceneOp {
         /// The renderer-owned record.
         op: PresentationOp,
     },
-    /// Remove the first inventory slot containing `item`, matching the
-    /// cartridge's item-removal loop and leaving the resulting hole intact.
+    /// `GetItem`, `clr.b (a0)`, `ReorderInventory`, with no test of the
+    /// lookup between them: [`crate::Inventory::take_unchecked`], which says
+    /// what a miss behind a battle hole clears.
     RemoveItem {
         /// The item id.
         item: u8,

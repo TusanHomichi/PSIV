@@ -167,17 +167,53 @@ impl Inventory {
         Some(held)
     }
 
-    /// Field item use removes a slot, then `ReorderInventory` shifts the
-    /// first empty slot's suffix left once. Battle removal keeps its holes.
-    /// The final byte is zero, as the following Current_Money high byte is
-    /// zero throughout the cartridge's permitted money range.
+    /// Field item use removes a slot, then `ReorderInventory` closes the
+    /// first empty slot. Battle removal keeps its holes.
     pub fn remove_in_field(&mut self, slot: usize) -> Option<u8> {
         let removed = self.remove(slot)?;
+        self.reorder();
+        Some(removed)
+    }
+
+    /// `GetItem`, `clr.b (a0)`, `ReorderInventory` with no test of the
+    /// lookup between them: how the story scenes hand over a key item
+    /// (`ps4.asm:147487-147490`, `150185-150188`, `153846-153849`,
+    /// `156427-156430`, `157085-157088`). Returns the item cleared, if any.
+    ///
+    /// The slot cleared is the first `item` in [`Inventory::find_item`]'s
+    /// window. When the window misses it, `a0` is left one past the window,
+    /// at slot [`Inventory::occupied`]: empty in a list without holes, but
+    /// with a battle hole that is the first item past the window, and the
+    /// cartridge clears it. With forty items `a0` is `Current_Money`'s high
+    /// byte, zero throughout the permitted money range, so nothing changes.
+    /// With an empty list `GetItem` returns before loading `a0`, and the
+    /// cartridge clears whatever byte the caller's stale `a0` names; this
+    /// clears nothing (docs/source-notes/README.md).
+    ///
+    /// `ReorderInventory` then closes the first hole, which a battle hole
+    /// ahead of the cleared slot takes instead of it.
+    pub fn take_unchecked(&mut self, item: u8) -> Option<u8> {
+        let count = self.occupied();
+        let cleared = if count == 0 {
+            None
+        } else {
+            let slot = self.find_item(item).unwrap_or(count);
+            // Slot 40 is past the list: `remove` declines it.
+            self.remove(slot)
+        };
+        self.reorder();
+        cleared
+    }
+
+    /// `ReorderInventory` (`ps4.asm:124264`): shifts the suffix after the
+    /// first empty slot left once. The final byte is zero, as the following
+    /// Current_Money high byte is zero throughout the cartridge's permitted
+    /// money range.
+    fn reorder(&mut self) {
         if let Some(hole) = self.slots.iter().position(|id| *id == EMPTY) {
             self.slots.copy_within(hole + 1..INVENTORY_SLOTS, hole);
             self.slots[INVENTORY_SLOTS - 1] = EMPTY;
         }
-        Some(removed)
     }
 
     /// Closes holes from left to right.
@@ -297,6 +333,60 @@ mod tests {
         assert_eq!(holed.find_item(0x91), None, "past a two-byte window");
         assert!(holed.contains(0x91), "which `contains` does not limit");
         assert_eq!(holed.find_item(0x01), Some(1));
+    }
+
+    /// Builds a list from raw leading slots.
+    fn list(leading: &[u8]) -> Inventory {
+        let mut slots = [EMPTY; INVENTORY_SLOTS];
+        slots[..leading.len()].copy_from_slice(leading);
+        Inventory::from_slots(slots)
+    }
+
+    #[test]
+    fn take_unchecked_clears_the_found_slot_and_closes_up() {
+        let mut bag = list(&[0x01, 0x8D, 0x02, 0x8D]);
+        assert_eq!(bag.take_unchecked(0x8D), Some(0x8D));
+        assert_eq!(
+            bag.slots()[..4],
+            [0x01, 0x02, 0x8D, EMPTY],
+            "first one only"
+        );
+    }
+
+    #[test]
+    fn take_unchecked_closes_a_battle_hole_ahead_of_the_cleared_slot() {
+        // `ReorderInventory` closes the first hole, the battle one, and the
+        // slot `GetItem` cleared stays empty.
+        let mut bag = list(&[0x01, EMPTY, 0x8D, 0x02, 0x03]);
+        assert_eq!(bag.take_unchecked(0x8D), Some(0x8D));
+        assert_eq!(bag.slots()[..5], [0x01, EMPTY, 0x02, 0x03, EMPTY]);
+    }
+
+    #[test]
+    fn take_unchecked_behind_a_hole_clears_the_first_item_past_the_window() {
+        // Three items, so a three-byte window: `0x8D` in slot 3 is missed,
+        // `a0` stops at slot 3, and that is the slot the cartridge clears.
+        let mut bag = list(&[0x01, EMPTY, 0x02, 0x8D]);
+        assert_eq!(bag.take_unchecked(0x8D), Some(0x8D));
+        assert_eq!(bag.slots()[..4], [0x01, 0x02, EMPTY, EMPTY]);
+        // Two holes put two items past the window, and the miss takes the
+        // first of them, not the one asked for.
+        let mut bag = list(&[0x01, EMPTY, EMPTY, 0x02, 0x03, 0x8D]);
+        assert_eq!(bag.take_unchecked(0x8D), Some(0x03));
+        assert_eq!(bag.slots()[..6], [0x01, EMPTY, 0x02, EMPTY, 0x8D, EMPTY]);
+    }
+
+    #[test]
+    fn take_unchecked_of_a_missing_item_without_holes_changes_nothing() {
+        let mut bag = list(&[0x01, 0x02]);
+        assert_eq!(bag.take_unchecked(0x8D), None);
+        assert_eq!(bag, list(&[0x01, 0x02]));
+        let mut full = Inventory::from_slots([0x01; INVENTORY_SLOTS]);
+        assert_eq!(full.take_unchecked(0x8D), None, "a0 is past the list");
+        assert!(full.is_full());
+        let mut empty = Inventory::new();
+        assert_eq!(empty.take_unchecked(0x8D), None);
+        assert_eq!(empty, Inventory::new());
     }
 
     #[test]
