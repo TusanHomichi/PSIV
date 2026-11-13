@@ -55,7 +55,12 @@ resolves into pad input:
   clear (the inner guards once `$96` is set); `board` without a `step` answers the destination menu a scene
   opens by itself (`Cutscene_FindingAirCastle`);
 - fight scripted battles; random battles use a policy that issues commands
-  through the battle menu with the same pad input a player would use;
+  through the battle menu with the same pad input a player would use. The
+  running policies RUN from every random encounter on foot; mounted, where
+  the vehicle starts each battle at its static HP, they fight when copies of
+  the live battle, played on through the engine's own rounds, lose the
+  vehicle less often fighting than running (`policy_escape.rs`), and run
+  otherwise;
 - `restore` the party through the camp before a boss: the fallen are raised
   with a reviving technique (battle effect 21, `REVER`), the paralyzed freed
   (battle effect 20, `RIMPA`) and the living cured to full, with whatever TP

@@ -93,6 +93,14 @@ impl Runtime {
             .collect()
     }
 
+    /// The battle in progress, read-only: a campaign policy rolls a copy of it
+    /// forward with the engine's own rounds (`psiv-campaign`'s
+    /// `policy_escape.rs`). Nothing reached through it changes the session.
+    #[must_use]
+    pub fn battle(&self) -> Option<&Battle> {
+        self.battle.as_ref()
+    }
+
     /// Live combatants for command selection; includes current HP, TP and status.
     #[must_use]
     pub fn battle_roster(&self) -> Option<&psiv_core::battle::Roster> {

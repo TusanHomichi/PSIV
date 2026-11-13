@@ -95,6 +95,10 @@ impl Policy for OpeningItemPolicy {
         self.inner.wants_run(boss)
     }
 
+    fn runs(&mut self, boss: bool, party: &[psiv_runtime::PartyStatus], runtime: &Runtime) -> bool {
+        self.inner.runs(boss, party, runtime)
+    }
+
     fn end_round(&mut self) {
         self.current = None;
         self.inner.end_round();
