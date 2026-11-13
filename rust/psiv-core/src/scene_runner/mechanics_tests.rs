@@ -973,6 +973,48 @@ fn the_dominators_aftermath_seats_the_party_and_the_fifth_member_goes_to_the_gap
 }
 
 #[test]
+fn the_dominators_barrier_writes_line_zero_words_twelve_and_thirteen() {
+    use crate::PresentationOp;
+
+    let (played, _) = dominators(&[CHAZ, RUNE, RIKA, WREN]);
+    let palette: Vec<_> = played
+        .effects
+        .iter()
+        .filter_map(|effect| match effect {
+            SceneEffect::Presentation {
+                op: SceneOp::Presentation { op },
+            } if matches!(
+                op,
+                PresentationOp::SetPaletteWords { .. }
+                    | PresentationOp::PaletteCycleFromTable { .. }
+            ) =>
+            {
+                Some(*op)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        palette,
+        [
+            PresentationOp::SetPaletteWords {
+                offset: 0x18 / 2,
+                first: 0x06CE,
+                second: 0x0CE0
+            },
+            PresentationOp::PaletteCycleFromTable {
+                source_rom_addr: 0x0007_339A,
+                offset: 0x18 / 2,
+                second_skip: 8,
+                steps: 4,
+                frame_delay: 16,
+            },
+        ]
+    );
+    assert_eq!(palette[1].palette_loop_frames(), Some(64));
+}
+
+#[test]
 fn the_dominators_aftermath_with_four_members_never_names_a_fifth() {
     let (played, _) = dominators(&[CHAZ, RUNE, RIKA, WREN]);
     assert_eq!(played.faults(), vec![]);

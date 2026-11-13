@@ -79,7 +79,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_VahFortMovingPlatform1", 22),
         ("Event_VahFortMovingPlatform2", 22),
         ("Event_VahalFortTerminal", 8),
-        ("Event_DominatorsDefeated", 49),
+        ("Event_DominatorsDefeated", 42),
         ("Event_PosiBolt", 14),
         ("Event_WeaponPlantArrival", 2),
         ("Event_WpnPlntMovingPlatform1", 22),

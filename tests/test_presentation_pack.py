@@ -156,6 +156,11 @@ class PresentationPackTests(unittest.TestCase):
             # moveq #0, d7 / ... / moveq #8, d6 / lea loc_782DA: one frame
             # of nine words per delay byte before the $FF at $0782D2.
             0x0782DA: (0x0782AE, [_moveq(8, 6), _lea_l(0x0782DA, 3)], 54),
+            # Vahal Fort: lea Palette_Table_Buffer / lea loc_7339A.
+            # Four rows at (a1)+ and $8(a1), then the negative terminator.
+            0x07339A: (0x073302, [
+                _lea_w(PALETTE_TABLE_BUFFER, 0), _lea_l(0x07339A, 1),
+            ], 9),
             # Event_ZioFortBarrier: lea Palette_Line_4 / lea loc_6EE16 /
             # moveq #6, d7: seven steps reading words n, n+7, n+14.
             0x06EE16: (0x06ED42, [

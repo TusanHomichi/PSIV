@@ -28,7 +28,7 @@ same label is not used.
 | 10-14 | `$06ED02..$06ED08` | `loc_5A97C` with `d0 = 4`: `Event_UpdateObjFacing` on each character object — all five face up | five `Face` |
 | 15-16 | `$06ED0A..$06ED40` | `DoMainUpdatesLoop($27)`; clear beam render flag bit 1; `Field_UpdateObjects` and one `VInt_Prepare` | `BarrierBeamUpdates{40, false}`, then `{1, true}` |
 | 17 | `$06ED34` | `SFXID_Tandle` `$CE` | `PlaySound($CE)` |
-| 18 | `$06ED42..$06ED6C` | `Palette_Line_4` (`$FFFFFB60`) ramped from `loc_6EE16` over seven steps, each waiting `DoMapUpdateLoop($1D)`: 3 words per step, `$0CCC→$0000`, `$0000→$0020`, `$0088→$0000` | `PaletteRampFromTable{7, 30}` |
+| 18 | `$06ED42..$06ED6C` | `Palette_Line_4` (`$FFFFFB60`) ramped from `loc_6EE16` over seven steps, each waiting `DoMapUpdateLoop($1D)`: 3 words per step, read from the pack’s `presentation/panels.json` palette record `$06EE16` | `PaletteRampFromTable{7, 30}` |
 | 19 | `$06ED6E..$06ED74` | `DoMapUpdateLoop($3B)` | `Wait(60)` |
 | 20 | `$06ED76..$06ED84` | `clr.w` over eight object slots from `$FFFFC400`: this map's record objects 4 to 11 — `BarrierBeam1..4` and the four `InvisibleBlock` triggers | `DespawnNpc{4, 8}` |
 | 21-24 | `$06ED8C..$06EDC0` | face Rune down; `Event_MoveSingleObject` Demi to `($300,$370)`; face her down; `DoMapUpdateLoop($1D)` | face/move/face/`Wait(30)` |

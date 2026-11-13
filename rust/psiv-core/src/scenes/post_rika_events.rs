@@ -555,3 +555,25 @@ pub static ZIO_FORT_BARRIER: Scene = Scene {
         SceneOp::Return { value: 0 },
     ],
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zio_nurvus_changes_vdp_shadow_highlight_without_writing_palette_words() {
+        let mut toggles = Vec::new();
+        for op in ZIO_NURVUS.ops {
+            match op {
+                SceneOp::Presentation {
+                    op: PresentationOp::ShadowHighlight { enabled },
+                } => toggles.push(*enabled),
+                SceneOp::Presentation {
+                    op: PresentationOp::SetPaletteWords { .. },
+                } => panic!("register 12 writes are not palette words"),
+                _ => {}
+            }
+        }
+        assert_eq!(toggles, [true, false]);
+    }
+}
