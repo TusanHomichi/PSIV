@@ -112,6 +112,17 @@ agility and dexterity, and enemy paralysis clearing each turn.
 
 ## Other recorded deviations
 
+- **A key-item handover with an empty bag writes nothing.** The story scenes
+  that take a key item (`SceneOp::RemoveItem`: the Control Key, the Eclipse
+  Torch twice, the Alshline and the Canceller, `ps4.asm:147487`, `150185`,
+  `153846`, `156427`, `157085`) run `GetItem`, `clr.b (a0)` and
+  `ReorderInventory` without testing the lookup. With no item held at all,
+  `GetItem` (`ps4.asm:121975`) returns before loading `a0`, so the cartridge
+  clears whatever byte the caller's stale `a0` names. `Inventory::take_unchecked`
+  clears nothing in that case. Every other miss is matched, including the one
+  behind a battle hole, which clears the first item past `GetItem`'s window
+  ([#297](https://github.com/TusanHomichi/PSIV/issues/297)).
+
 - **Conveyor follower walk-freeze timing uses committed cells.** For every
   follower slot (1 through 4), all four conveyor events (`$1D` down, `$1E` up,
   `$1F` right and `$20` left) retain the same approximation:

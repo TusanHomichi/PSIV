@@ -835,14 +835,7 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::RemoveItem { item } => {
-                if let Some(slot) = state
-                    .inventory()
-                    .slots()
-                    .iter()
-                    .position(|&held| held == item)
-                {
-                    let _ = state.inventory_mut().remove(slot);
-                }
+                let _ = state.inventory_mut().take_unchecked(item);
                 effects.push(SceneEffect::InventoryChanged);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

@@ -642,3 +642,63 @@ fn zio_barrier_before_alys_death_is_only_its_refusal_dialogue() {
     assert_eq!(state.snapshot(), before);
     assert!(!state.is_set(Flag::event(0x64)));
 }
+
+/// Every `RemoveItem` user hands over its key item through `GetItem`,
+/// `clr.b (a0)` and `ReorderInventory` (#297). Each scene's own ops are cut at
+/// its `RemoveItem` and the one `AddItem` after it, and run on a bag with a
+/// battle hole ahead of the key item, inside `GetItem`'s window.
+#[test]
+fn each_key_item_handover_closes_the_first_hole_not_the_cleared_slot() {
+    let map = map_with(&["....", "....", "...."], vec![], vec![]);
+    let mut users = 0;
+    for scene in psiv_core::SCENES {
+        let Some(at) = scene
+            .ops
+            .iter()
+            .position(|op| matches!(op, SceneOp::RemoveItem { .. }))
+        else {
+            continue;
+        };
+        users += 1;
+        let SceneOp::RemoveItem { item } = scene.ops[at] else {
+            unreachable!()
+        };
+        let end = match scene.ops.get(at + 1) {
+            Some(SceneOp::AddItem { .. }) => at + 2,
+            _ => at + 1,
+        };
+        let mut state = GameState::new();
+        for held in [0x01, 0x02, item, 0x03, 0x04] {
+            state.inventory_mut().add(held).unwrap();
+        }
+        // A battle use leaves slot 1 empty.
+        state.inventory_mut().remove(1).unwrap();
+        let mut runner = SceneRunner::new(&scene.ops[at..end], Vec::new(), frames());
+        for _ in 0..4 {
+            if runner.is_finished() {
+                break;
+            }
+            for effect in runner.tick(&map, &mut state, SceneInput::None) {
+                assert!(
+                    !matches!(effect, SceneEffect::Faulted(_)),
+                    "{}: {effect:?}",
+                    scene.name
+                );
+            }
+        }
+        assert!(runner.is_finished(), "{}", scene.name);
+        let added = match scene.ops.get(at + 1) {
+            Some(&SceneOp::AddItem { item }) => item,
+            _ => 0,
+        };
+        // The hole at slot 1 closes; the key item's slot, now slot 1, is the
+        // first free one, which an `AddItem` fills.
+        assert_eq!(
+            state.inventory().slots()[..5],
+            [0x01, added, 0x03, 0x04, 0x00],
+            "{}",
+            scene.name
+        );
+    }
+    assert_eq!(users, 5, "RemoveItem users");
+}
