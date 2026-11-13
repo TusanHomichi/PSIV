@@ -177,6 +177,9 @@ pub(super) fn play(
         }) {
             at_dialogue.push(runner.actors().iter().map(|a| (a.actor, a.cell)).collect());
             SceneInput::DialogueClosed
+        } else if runner.is_waiting_for_camera() {
+            // The runtime's glide takes frames; here each pan arrives at once.
+            SceneInput::CameraArrived
         } else {
             SceneInput::None
         };

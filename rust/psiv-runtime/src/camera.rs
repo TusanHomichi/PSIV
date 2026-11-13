@@ -32,47 +32,39 @@ impl Runtime {
         self.camera.set_position(x, y);
     }
 
-    /// `Event_MoveCamera` (`ps4.asm:121468`): pan the camera to frame a world
-    /// position. The operands are a *subject*, not a scroll — the routine
-    /// subtracts the driver's home offset (`$98`/`$58`, `HOME_X`/`HOME_Y`) to
-    /// get the camera target, then steps toward it at `speed` px/frame per
-    /// axis. `AlysFound` ends on exactly this op to hand the view back to the
-    /// new leader; parking the raw operands instead left the party in the
-    /// top-left corner of the screen.
-    pub(crate) fn scene_move_camera(&mut self, x: i32, y: i32, speed: i32) {
-        self.scene_move_camera_ordered(x, y, speed, false);
-    }
-
-    /// Boarding uses the same glide clock but `Event_MoveCamera`'s X loop
-    /// finishes before its Y loop (`US ROM $05AAEE`). Other scene callers keep
-    /// their established timing until the separate camera-class audit.
+    /// Boarding's `Event_MoveCamera` call at speed 2 (`US ROM $05AAEE`).
     pub(crate) fn scene_move_camera_boarding(&mut self, x: i32, y: i32) {
-        // The helper masks each subject-minus-home target to twelve bits.
-        self.scene_move_camera_ordered(x, y, 2, true);
+        self.scene_move_camera(x, y, 2);
     }
 
     /// `SceneOp::PanCamera`: the routine as it stands, X then Y on the
     /// twelve-bit short path. The runner waits for the arrival; with no glide
     /// left, `Runtime::scene_tick` releases it within the frame.
     pub(crate) fn scene_pan_camera(&mut self, x: i32, y: i32, speed: i32) {
-        self.scene_move_camera_ordered(x, y, speed, true);
-        // Both of the routine's loops exit before their first frame.
+        // Both of the routine's loops exit before their first frame when the
+        // camera is already there: such a pan neither moves nor glides. Decide
+        // that before the first step, so a one-step pan still keeps its glide
+        // through the arrival frame.
+        let target_x = (x - psiv_core::HOME_X) & 0xFFF;
+        let target_y = (y - psiv_core::HOME_Y) & 0xFFF;
         let (raw_x, raw_y) = self.camera.raw();
-        if self.camera_glide.is_some_and(|glide| {
-            (raw_x >> 16) & 0xFFF == glide.target_x && (raw_y >> 16) & 0xFFF == glide.target_y
-        }) {
+        if speed > 0 && (raw_x >> 16) & 0xFFF == target_x && (raw_y >> 16) & 0xFFF == target_y {
             self.camera_glide = None;
+            return;
         }
+        self.scene_move_camera(x, y, speed);
     }
 
-    fn scene_move_camera_ordered(&mut self, x: i32, y: i32, speed: i32, x_then_y: bool) {
-        let target_x = x - psiv_core::HOME_X;
-        let target_y = y - psiv_core::HOME_Y;
-        let (target_x, target_y) = if x_then_y {
-            (target_x & 0xFFF, target_y & 0xFFF)
-        } else {
-            (target_x, target_y)
-        };
+    /// `Event_MoveCamera` (`ps4.asm:121468`): pan the camera to frame a world
+    /// position. The operands are a *subject*, not a scroll — the routine
+    /// subtracts the driver's home offset (`$98`/`$58`, `HOME_X`/`HOME_Y`) and
+    /// masks each target to twelve bits, then steps toward it at `speed`
+    /// px/frame, the X loop before the Y loop. `AlysFound` ends on exactly
+    /// this op to hand the view back to the new leader; parking the raw
+    /// operands instead left the party in the top-left corner of the screen.
+    fn scene_move_camera(&mut self, x: i32, y: i32, speed: i32) {
+        let target_x = (x - psiv_core::HOME_X) & 0xFFF;
+        let target_y = (y - psiv_core::HOME_Y) & 0xFFF;
         if speed <= 0 {
             self.set_camera(target_x, target_y);
             return;
@@ -81,8 +73,10 @@ impl Runtime {
             target_x,
             target_y,
             speed,
-            x_then_y,
         });
+        // Retail moves before its first `VInt_Prepare` (`ps4.asm:121491-121505`):
+        // the first step belongs to the frame of the call.
+        self.step_camera_glide();
     }
 
     /// One frame of an in-flight `Event_MoveCamera` pan.
@@ -92,23 +86,30 @@ impl Runtime {
         };
         let (raw_x, raw_y) = self.camera.raw();
         let (x, y) = (raw_x >> 16, raw_y >> 16);
-        let step = |from: i32, to: i32| from + (to - from).clamp(-glide.speed, glide.speed);
-        let next_x = if glide.x_then_y {
-            wrapped_camera_step(x, glide.target_x, glide.speed)
-        } else {
-            step(x, glide.target_x)
+        // The frame after the last movement releases the pan: the final
+        // `VInt_Prepare` (`ps4.asm:121499-121549`) has shown the arrival.
+        if x & 0xFFF == glide.target_x && y & 0xFFF == glide.target_y {
+            self.camera_glide = None;
+            return;
+        }
+        self.step_camera_glide();
+    }
+
+    /// One movement of the in-flight pan: X until it arrives, then Y.
+    pub(crate) fn step_camera_glide(&mut self) {
+        let Some(glide) = self.camera_glide else {
+            return;
         };
-        let next_y = if glide.x_then_y && x != glide.target_x {
-            y
-        } else if glide.x_then_y {
+        let (raw_x, raw_y) = self.camera.raw();
+        let (x, y) = (raw_x >> 16, raw_y >> 16);
+        let next_x = wrapped_camera_step(x, glide.target_x, glide.speed);
+        // The Y loop starts only once the X loop has exited.
+        let next_y = if x & 0xFFF == glide.target_x {
             wrapped_camera_step(y, glide.target_y, glide.speed)
         } else {
-            step(y, glide.target_y)
+            y
         };
         self.camera.set_position(next_x, next_y);
-        if next_x == glide.target_x && next_y == glide.target_y {
-            self.camera_glide = None;
-        }
     }
 
     /// Applies `target`'s packed `loc_51AB2` gate write to the current camera
@@ -129,7 +130,7 @@ impl Runtime {
 }
 
 /// The helper's `$FFF` target and `$7FF` shortest-path branch, one axis at a
-/// time. Kept in the existing glide tick so boarding has no second camera.
+/// time. Every pan steps through it.
 fn wrapped_camera_step(from: i32, to: i32, speed: i32) -> i32 {
     let from = from & 0xFFF;
     let to = to & 0xFFF;
@@ -148,5 +149,142 @@ mod boarding_camera_tests {
         assert_eq!(wrapped_camera_step(0, 2, 2), 2);
         assert_eq!(wrapped_camera_step(2, 4094, 2), 0);
         assert_eq!(wrapped_camera_step(0, 4094, 2), 4094);
+    }
+}
+
+#[cfg(test)]
+mod pan_release_tests {
+    use std::path::Path;
+
+    use psiv_core::{Cell, Direction, StepFrames};
+    use psiv_data::GameData;
+
+    use crate::Runtime;
+
+    const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
+
+    fn runtime() -> Option<Runtime> {
+        if !Path::new(PACK).join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return None;
+        }
+        let data = GameData::load(Path::new(PACK)).expect("pack loads");
+        Some(
+            Runtime::new(
+                data,
+                0x013,
+                Cell::new(38, 18),
+                Direction::Up,
+                StepFrames::default(),
+            )
+            .expect("spawn"),
+        )
+    }
+
+    /// Ticks until the glide releases; returns the camera's pixel position.
+    fn run(rt: &mut Runtime) -> (i32, i32) {
+        for _ in 0..4000 {
+            if rt.camera_glide.is_none() {
+                let (x, y) = rt.camera().raw();
+                return (x >> 16, y >> 16);
+            }
+            rt.tick_camera_glide();
+        }
+        panic!("pan never released");
+    }
+
+    #[test]
+    fn consecutive_two_axis_pans_land_on_their_targets() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        let (cx, cy) = (cx >> 16, cy >> 16);
+        // Both axes, then a consecutive pan back.
+        for (x, y) in [(cx + 6, cy + 4), (cx, cy)] {
+            rt.scene_pan_camera(x + psiv_core::HOME_X, y + psiv_core::HOME_Y, 2);
+            assert!(rt.camera_glide.is_some());
+            assert_eq!(run(&mut rt), (x & 0xFFF, y & 0xFFF));
+        }
+    }
+
+    #[test]
+    fn final_move_frame_still_owns_the_camera() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        rt.scene_pan_camera(
+            (cx >> 16) + psiv_core::HOME_X + 4,
+            (cy >> 16) + psiv_core::HOME_Y,
+            2,
+        );
+        // The call itself makes the first of two steps (retail moves before
+        // its first `VInt_Prepare`), so the pan takes as many ticks as steps.
+        assert_eq!(
+            rt.camera().raw().0 >> 16,
+            (cx >> 16) + 2,
+            "first step in the call"
+        );
+        rt.tick_camera_glide();
+        assert!(rt.camera_glide.is_some(), "arrival frame keeps the glide");
+        rt.tick_camera_glide();
+        assert!(rt.camera_glide.is_none(), "released the frame after");
+    }
+
+    #[test]
+    fn zero_distance_pan_releases_without_a_frame() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        rt.scene_pan_camera(
+            (cx >> 16) + psiv_core::HOME_X,
+            (cy >> 16) + psiv_core::HOME_Y,
+            2,
+        );
+        assert!(rt.camera_glide.is_none());
+    }
+
+    #[test]
+    fn one_step_pan_moves_in_the_call_and_keeps_its_arrival_frame() {
+        let Some(mut rt) = runtime() else { return };
+        let (cx, cy) = rt.camera().raw();
+        let (cx, cy) = (cx >> 16, cy >> 16);
+        // One step on X, one on Y (a speed larger than the distance), a wrapped
+        // step across the twelve-bit seam: each is nonempty.
+        for (dx, dy) in [(2, 0), (0, 2), (0, -1)] {
+            let (px, py) = rt.camera().raw();
+            let (px, py) = (px >> 16, py >> 16);
+            rt.scene_pan_camera(px + dx + psiv_core::HOME_X, py + dy + psiv_core::HOME_Y, 4);
+            let (nx, ny) = rt.camera().raw();
+            assert_eq!(
+                ((nx >> 16) - px, (ny >> 16) - py),
+                (dx, dy),
+                "moved in the call"
+            );
+            assert!(rt.camera_glide.is_some(), "arrival frame keeps the glide");
+            rt.tick_camera_glide();
+            assert!(rt.camera_glide.is_none(), "released the frame after");
+            assert_eq!(rt.camera().raw(), (nx, ny), "the release moves nothing");
+        }
+        let _ = (cx, cy);
+    }
+
+    #[test]
+    fn wrapped_one_step_pan_is_not_empty() {
+        // The map's camera bounds keep a real camera off the seam, so the
+        // step arithmetic is checked directly: one step across the twelve-bit
+        // seam arrives, and it is a move, not an empty pan.
+        assert_eq!(super::wrapped_camera_step(0xFFF, 0, 4), 0);
+        assert_eq!(super::wrapped_camera_step(0, 0xFFE, 4), 0xFFE);
+        assert_ne!(super::wrapped_camera_step(0xFFF, 0, 4), 0xFFF);
+    }
+
+    #[test]
+    fn empty_pan_does_not_move_the_camera() {
+        let Some(mut rt) = runtime() else { return };
+        let before = rt.camera().raw();
+        rt.scene_pan_camera(
+            (before.0 >> 16) + psiv_core::HOME_X,
+            (before.1 >> 16) + psiv_core::HOME_Y,
+            4,
+        );
+        assert_eq!(rt.camera().raw(), before);
+        assert!(rt.camera_glide.is_none());
     }
 }

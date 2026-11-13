@@ -467,21 +467,11 @@ pub enum SceneOp {
         /// The dialogue entry it speaks.
         dialogue_id: u16,
     },
-    /// Move the camera to a pixel position at `speed`.
-    ///
-    /// `Event_MoveCamera` (`$5AAEE`) subtracts `$98`/`$58` for the half-screen
-    /// offset itself, so these are the values the scene passes, untouched.
-    MoveCamera {
-        /// Target X in pixels.
-        x: i32,
-        /// Target Y in pixels.
-        y: i32,
-        /// Scroll speed.
-        speed: u16,
-    },
-    /// `Event_MoveCamera` as the cartridge runs it: X to its target, then Y,
-    /// and the scene waits for the arrival (`ps4.asm:121468`). The older
-    /// [`Self::MoveCamera`] and `CameraToActor` carry on at once (#267).
+    /// `Event_MoveCamera` (`$5AAEE`, `ps4.asm:121468`): X to its target, then
+    /// Y, and the scene waits for the arrival. The routine subtracts `$98`/`$58`
+    /// for the half-screen offset itself, so a literal subject carries the
+    /// values the scene passes, untouched. Every retail call returns only on
+    /// arrival, so there is no non-blocking form (#267).
     PanCamera {
         /// What to frame.
         subject: crate::scene_presentation::CameraSubject,

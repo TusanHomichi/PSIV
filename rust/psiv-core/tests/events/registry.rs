@@ -41,9 +41,15 @@ fn the_alys_scene_puts_alys_in_front_and_sets_the_flag_that_stops_the_trigger() 
 
     // Run it through, answering the one dialogue.
     let mut log = Vec::new();
+    let mut camera_waits = 0;
     for _ in 0..200 {
         let input = if matches!(log.last(), Some(SceneEffect::DialogueOpenFromNpc { .. })) {
             SceneInput::DialogueClosed
+        } else if runner.is_waiting_for_camera() {
+            // The closing pan returns on arrival; the runtime's glide is
+            // instant here.
+            camera_waits += 1;
+            SceneInput::CameraArrived
         } else {
             SceneInput::None
         };
@@ -55,6 +61,9 @@ fn the_alys_scene_puts_alys_in_front_and_sets_the_flag_that_stops_the_trigger() 
     }
 
     assert!(runner.is_finished(), "the scene should complete");
+    // `Event_AlysFound` tail-calls `Event_MoveCamera`, which returns only on
+    // arrival (`ps4.asm:183729`): the scene waits for the camera once.
+    assert_eq!(camera_waits, 1, "the closing pan blocks the scene");
     assert_eq!(state.party_slot(0), Some(CharId(1)), "Alys leads");
     assert_eq!(state.party_slot(1), Some(CharId(0)), "Chaz follows");
     assert!(

@@ -8,7 +8,7 @@
 
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -101,9 +101,9 @@ pub static ECLIPSE_TORCH_STOLEN: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_THE_BLACK_BLOOD,
         },
-        SceneOp::MoveCamera {
-            x: 0x270,
-            y: 0xF0,
+        // `ps4.asm:149405-149408`: literal `($270,$F0)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x270, y: 0xF0 },
             speed: 1,
         },
         SceneOp::PlaySound { id: SFX_TELEPORT },
@@ -150,11 +150,10 @@ pub static ECLIPSE_TORCH_STOLEN: Scene = Scene {
         // `DoMainUpdatesLoop($55)`, then `DoMapUpdateLoop($3B)`.
         wait(86),
         wait(60),
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 1,
-            },
+        // `ps4.asm:149512-149516`: `Character_1`'s live position, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
+            speed: 1,
         },
         SceneOp::PlaySound { id: STOP_MUSIC },
         wait(10),

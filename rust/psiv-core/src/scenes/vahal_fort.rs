@@ -14,7 +14,7 @@ use super::vahal_common::{
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, RIKA, RUNE, SETH, WREN};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::scene_runner::drift::CoordCmp;
 use crate::state::Flag;
@@ -194,11 +194,9 @@ pub static DOMINATORS_DEFEATED: Scene = Scene {
         SceneOp::SetStepOffset { value: 1 },
         // `$073386..$073394`: `Event_MoveCamera` on the leader's live
         // position at speed 2, a tail `jmp`.
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 2,
-            },
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
+            speed: 2,
         },
     ],
 };

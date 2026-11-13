@@ -318,6 +318,20 @@ The `(152, 88)` leader lock and the identical FG/BG cameras are measured on
 one interior map only. Overworld maps are tori with paged scrolling and may
 behave differently; the columns are logged, but no tape covers one yet.
 
+### A scene pan returns on arrival
+
+`Event_AlysFound` ends on `Event_MoveCamera` with `Character_1`'s live
+position at speed 2 (`ps4.asm:183725-183729`). Tape 04 re-logged with the
+`camera` group (`--groups core,pos,party,camera`): the party word becomes
+`0100FFFF` at f7478 with Alys, now `Character_1`, at `($250,$100)`;
+`cam_x_fg_px` steps 456 to 440 by 2 a frame over f7478-f7485 while
+`cam_y_fg_px` holds 168; and `Game_Mode_Routine` leaves the scene (`$0C` to
+`$00`) at f7486, the frame after the arrival. So the routine frames the live
+object, not a literal, and the scene waits for it: `SceneOp::PanCamera` blocks
+the runner until the runtime's glide arrives (#267). The port still seats Alys
+one row high here, because `SceneOp::MoveActorCommand` does not move the
+scripted actor (#564).
+
 ## Remaining camera debt
 
 The three accumulated camera debts are now represented end to end:

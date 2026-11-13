@@ -141,7 +141,7 @@ impl Runtime {
     /// (`PlaceActor`, a map load) reseats rather than chasing the jump as a
     /// one-frame velocity.
     fn tick_scene_camera(&mut self) {
-        if self.scene_camera_locked || self.camera_glide.is_some() {
+        if self.scene_camera_locked {
             return;
         }
         let Some(actor) = self.scene_party_actor(0).copied() else {
@@ -153,6 +153,12 @@ impl Runtime {
             x: (at.x + ox) * ONE_PIXEL,
             y: (at.y + oy) * ONE_PIXEL,
         };
+        if self.camera_glide.is_some() {
+            // The pan owns the camera; keep the follow driver on the leader so
+            // the hand-back does not replay movement made meanwhile.
+            self.camera.reseat(driver);
+            return;
+        }
         let (last_x, last_y) = self.camera.driver_position();
         let jumped = (driver.x - last_x).abs() > 16 * ONE_PIXEL
             || (driver.y - last_y).abs() > 16 * ONE_PIXEL;
@@ -573,8 +579,8 @@ impl Runtime {
                             target_x: (x >> 16) & 0xFFF,
                             target_y: ((y >> 16) + 0x100) & 0xFFF,
                             speed: 2,
-                            x_then_y: true,
                         });
+                        self.step_camera_glide();
                     }
                     SceneOp::PlayMusicIfSavedDifferent { id } => {
                         // All three boarding events compare the persistent
@@ -601,9 +607,6 @@ impl Runtime {
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },
                     } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
-                    SceneOp::MoveCamera { x, y, speed } => {
-                        self.scene_move_camera(x, y, i32::from(speed));
-                    }
                     SceneOp::PanCamera { subject, speed } => {
                         let at = match subject {
                             psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),
@@ -672,24 +675,6 @@ impl Runtime {
                         op: psiv_core::PresentationOp::NpcPixelPosition { npc, x, y },
                     } => {
                         let _ = self.map.set_npc_pixel_position(npc, x, y);
-                    }
-                    // `Event_MoveCamera` reading a live object rather than
-                    // literals (`PresentationOp::CameraToActor`). The camera is
-                    // runtime state because the on-screen tests feed the RNG
-                    // stream, so a headless run must pan exactly like a
-                    // rendered one.
-                    SceneOp::Presentation {
-                        op: psiv_core::PresentationOp::CameraToActor { actor, speed },
-                    } => {
-                        if let Some(walker) = self
-                            .scene
-                            .as_ref()
-                            .and_then(|runner| runner.actor(actor))
-                            .copied()
-                        {
-                            let at = psiv_core::PixelPos::from_cell(walker.cell);
-                            self.scene_move_camera(at.x, at.y, i32::from(speed));
-                        }
                     }
                     _ => {}
                 }

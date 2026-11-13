@@ -11,7 +11,7 @@
 use super::{ALYS, CHAZ, DEMI, GRYZ, HAHN};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -186,9 +186,10 @@ pub static ALYS_WOUNDED: Scene = Scene {
             clear_load_flags: 0x08,
         },
         SceneOp::FadeIn,
-        SceneOp::MoveCamera {
-            x: 0x1E0,
-            y: 0x1E0,
+        // `ps4.asm:154451-154456`: Chaz's live position (`Event_GetCharacter`),
+        // speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(ActorRef::Character(CHAZ)),
             speed: 2,
         },
         // `$075044` (`ps4.asm:154465`, inside `if revision>0`): the second
@@ -224,9 +225,9 @@ pub static ALYS_WOUNDED: Scene = Scene {
             y: 0x220,
             wait: true,
         },
-        SceneOp::MoveCamera {
-            x: 0x210,
-            y: 0x220,
+        // `ps4.asm:154549-154553`: `Character_1`'s live position, speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
             speed: 2,
         },
         SceneOp::SetFlag {

@@ -3,7 +3,7 @@
 use super::super::{KYRA, SETH, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::scenes::flight::with_ship_menu;
 use crate::state::Flag;
@@ -422,9 +422,9 @@ pub static LASHIEC_APPEARANCE: Scene = Scene {
             rom_addr: 0x001D_7710,
             tile: 0x371,
         },
-        SceneOp::MoveCamera {
-            x: 0x1E0,
-            y: 0x110,
+        // `ps4.asm:150292-150295`: literal `($1E0,$110)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1E0, y: 0x110 },
             speed: 1,
         },
         SceneOp::PlaySound {

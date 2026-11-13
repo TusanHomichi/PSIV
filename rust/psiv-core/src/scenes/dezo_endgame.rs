@@ -8,7 +8,7 @@
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{PaletteHold, PresentationOp};
+use crate::scene_presentation::{CameraSubject, PaletteHold, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -70,9 +70,9 @@ pub static STRENGTH_TOWER_TOP: Scene = Scene {
     name: "Event_StrengthTowerTop",
     event: EventIndex(0x005E),
     ops: &[
-        SceneOp::MoveCamera {
-            x: 0x1F0,
-            y: 0x1C8,
+        // `ps4.asm:150374-150377`: literal `($1F0,$1C8)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1F0, y: 0x1C8 },
             speed: 1,
         },
         SceneOp::Wait { ticks: 60 },
@@ -107,9 +107,9 @@ pub static STRENGTH_TOWER_TOP: Scene = Scene {
         SceneOp::Wait { ticks: 8 },
         SceneOp::PlaySound { id: 0xB9 },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::MoveCamera {
-            x: 0x1F0,
-            y: 0x270,
+        // `ps4.asm:150482-150485`: literal `($1F0,$270)`, speed 8.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1F0, y: 0x270 },
             speed: 8,
         },
         SceneOp::SetFlag {
@@ -128,9 +128,9 @@ pub static COURAGE_TOWER_TOP: Scene = Scene {
             actor: LEADER,
             facing: Direction::Up,
         },
-        SceneOp::MoveCamera {
-            x: 0x1F0,
-            y: 0x1C0,
+        // `ps4.asm:150523-150526`: literal `($1F0,$1C0)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1F0, y: 0x1C0 },
             speed: 1,
         },
         SceneOp::Wait { ticks: 60 },
@@ -521,17 +521,17 @@ pub static ANGER_TOWER_TOP: Scene = Scene {
             align: 0,
             clear_load_flags: 0x08,
         },
-        SceneOp::MoveCamera {
-            x: 0x1F0,
-            y: 0x1D0,
+        // `ps4.asm:151982-151985`: literal `($1F0,$1D0)`, speed 8.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1F0, y: 0x1D0 },
             speed: 8,
         },
         SceneOp::FadeIn,
         SceneOp::PlaySound { id: MUSIC_MYSTERY },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::MoveCamera {
-            x: 0x1C0,
-            y: 0x260,
+        // `ps4.asm:151990-151993`: literal `($1C0,$260)`, speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1C0, y: 0x260 },
             speed: 2,
         },
         SceneOp::Return { value: 0 },

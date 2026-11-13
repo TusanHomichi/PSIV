@@ -169,6 +169,8 @@ fn run_scene(name: &str, state: &mut GameState, cast: Vec<ScriptedActor>) -> Vec
             },
             Some(SceneEffect::ChoiceRequested) => SceneInput::Choice(true),
             Some(SceneEffect::MapRequested { .. }) => SceneInput::MapLoaded,
+            // Each pan returns on arrival; the runtime's glide is instant here.
+            _ if runner.is_waiting_for_camera() => SceneInput::CameraArrived,
             _ => SceneInput::None,
         };
         log.extend(runner.tick(&map, state, input));

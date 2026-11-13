@@ -9,8 +9,8 @@
 //! which the registry cases then hold the shipped scenes to.
 
 use psiv_core::{
-    ActorRef, Cell, CharId, DialogueId, DialogueSource, Direction, Flag, GameState, PixelPos,
-    SceneOp, SceneRunner, ScriptedActor, StepFrames, TriggerContext,
+    ActorRef, CameraSubject, Cell, CharId, DialogueId, DialogueSource, Direction, Flag, GameState,
+    PixelPos, SceneOp, SceneRunner, ScriptedActor, StepFrames, TriggerContext,
 };
 
 /// The step rate the scene cases run at: eight frames per cell.
@@ -64,9 +64,8 @@ static JOIN_SCENE: &[SceneOp] = &[
         npc_index: 0,
         count: 1,
     },
-    SceneOp::MoveCamera {
-        x: 0x30,
-        y: 0x10,
+    SceneOp::PanCamera {
+        subject: CameraSubject::At { x: 0x30, y: 0x10 },
         speed: 2,
     },
     SceneOp::End,

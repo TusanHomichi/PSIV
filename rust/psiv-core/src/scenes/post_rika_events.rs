@@ -10,7 +10,7 @@
 use super::{CHAZ, DEMI, GRYZ, RIKA, RUNE, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -57,9 +57,9 @@ pub static MACHINE_CENTER_APPEARING: Scene = Scene {
                 destination_ram: 0xFFFF1000,
             },
         },
-        SceneOp::MoveCamera {
-            x: 0x730,
-            y: 0xB40,
+        // `ps4.asm:144703-144706`: literal `($730,$B40)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x730, y: 0xB40 },
             speed: 1,
         },
         SceneOp::PlaySound {
@@ -95,9 +95,9 @@ pub static MACHINE_CENTER_APPEARING: Scene = Scene {
             art_tile: 0x0000,
             frames: 24,
         },
-        SceneOp::MoveCamera {
-            x: 0x730,
-            y: 0xB40,
+        // `ps4.asm:144724-144728`: back to `Character_1`'s live position, speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
             speed: 2,
         },
         SceneOp::RunDialogue {
@@ -130,9 +130,9 @@ pub static GETTING_LAND_ROVER: Scene = Scene {
             id: SFX_SPACESHIP_RADAR,
         },
         SceneOp::Wait { ticks: 40 },
-        SceneOp::MoveCamera {
-            x: 0x1E0,
-            y: 0x200,
+        // `ps4.asm:147410-147413`: literal `($1E0,$200)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1E0, y: 0x200 },
             speed: 1,
         },
         SceneOp::PlaySound {
@@ -279,9 +279,13 @@ pub static PSYCO_WAND_CHEST: Scene = Scene {
             source: DialogueSource::Entry(DialogueId(8)),
             window: DialogueWindow::Standard,
         },
-        SceneOp::MoveCamera {
-            x: 0x1E0,
-            y: 0x160,
+        // `ps4.asm:148069-148073`: `Character_1`'s live `$30` and literal `$160`,
+        // speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::ActorX {
+                actor: LEADER,
+                y: 0x160,
+            },
             speed: 1,
         },
         SceneOp::LoadArt {
@@ -533,11 +537,9 @@ pub static ZIO_FORT_BARRIER: Scene = Scene {
         // `$06EDE8`: `DoMainUpdatesLoop($3B)`.
         SceneOp::Wait { ticks: 60 },
         // `$06EDF0`: the camera reads the leader's live position.
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: LEADER,
-                speed: 1,
-            },
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
+            speed: 1,
         },
         SceneOp::SetStepOffset { value: 1 },
         SceneOp::SetFlag {

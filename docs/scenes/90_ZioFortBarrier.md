@@ -34,7 +34,7 @@ same label is not used.
 | 21-24 | `$06ED8C..$06EDC0` | face Rune down; `Event_MoveSingleObject` Demi to `($300,$370)`; face her down; `DoMapUpdateLoop($1D)` | face/move/face/`Wait(30)` |
 | 25 | `$06EDC2..$06EDC8` | dialogue `$45` | `RunDialogue($45)` |
 | 26-29 | `$06EDCA..$06EDEE` | `bclr #0`; `Character_1` — the leader — to `($2F0,$350)`; `bclr #2`; `DoMainUpdatesLoop($3B)` | `SetFollowMode(0b100)`, `MoveActorTo(leader)`, `SetFollowMode(0b000)`, `Wait(60)` |
-| 30 | `$06EDF0..$06EDFA` | `Event_MoveCamera` reading the leader's live `$30/$34`, speed 1 | `CameraToActor(leader, 1)` |
+| 30 | `$06EDF0..$06EDFA` | `Event_MoveCamera` reading the leader's live `$30/$34`, speed 1 | `PanCamera(Actor(leader), 1)` |
 | 31-32 | `$06EE00..$06EE08` | `FieldObj_Step_Offset = 1`; `EventFlags_Set($64)` — Zio Fort Barrier | `SetStepOffset(1)`, `SetFlag($64)` |
 | 33 | `$06EE06..$06EE08` | `jmp (EventFlags_Set)` restores `d0`, so the event returns the flag id | `Return(1)` |
 | 34-35 | `$06EE0E..$06EE14` | `loc_6EE0E`: dialogue `$4A`, then the dialogue routine's return | `RunDialogue($4A)`, `Return(0)` |

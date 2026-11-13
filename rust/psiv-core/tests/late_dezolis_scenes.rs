@@ -38,6 +38,8 @@ fn play(event: u16, state: &mut GameState, leader: Direction) -> Vec<SceneEffect
             Some(SceneEffect::DialogueOpen(_) | SceneEffect::DialogueResume) => {
                 SceneInput::DialogueClosed
             }
+            // Each pan returns on arrival; the runtime's glide is instant here.
+            _ if runner.is_waiting_for_camera() => SceneInput::CameraArrived,
             _ => SceneInput::None,
         };
         log.extend(runner.tick(&map, state, input));

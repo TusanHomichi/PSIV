@@ -50,7 +50,7 @@ group of `CreateFieldObject` records carries the figures' resting cells.
 | 38 | `$0700B0..$0700B7` | teleport SFX | `PlaySound` |
 | 39-44 | `$0700B8..$070101` | the six objects take ids `$288` (x 3, `bset #1, $2`) and `$290` (x 3), `$20` cleared on `$C500` and `$C580` | `CreateFieldObject` x 6 |
 | 45-46 | `$070102..$070111` | `DoMainUpdatesLoop($55)`, `DoMapUpdateLoop($3B)` | `Wait(86)`, `Wait(60)` |
-| 47 | `$070112..$070125` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `CameraToActor` |
+| 47 | `$070112..$070125` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `PanCamera(Actor(leader), 1)` |
 | - | `$070126..$07012D` | object 6 id word back to `$8038` | (renderer state, not typed) |
 | 48-51 | `$07012E..$07014D` | `Sound_StopMusic`, `DoMapUpdateLoop(9)`, `MusicID_Suspicion ($9F)`, `DoMapUpdateLoop(0)` | `PlaySound`, `Wait(10)`, `PlaySound`, `Wait(1)` |
 | 52 | `$07014E..$07015B` | `popdlg` / `Event_RunDialogue` | `RunDialogueResume` |

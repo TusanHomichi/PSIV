@@ -57,7 +57,7 @@ impl Field {
             // Camera ops are consumed by the runtime when it translates the
             // effect (the camera is simulation state, not presentation);
             // nothing to do here beyond acknowledging the op.
-            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } | SceneOp::PanCamera { .. } => {}
+            SceneOp::SetCameraPos { .. } | SceneOp::PanCamera { .. } => {}
             SceneOp::LoadTitleImage { .. } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().begin_opening();
@@ -284,7 +284,6 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::PaletteCycleFromTable { .. }
-            | PresentationOp::CameraToActor { .. }
             | PresentationOp::Quake { .. }
             | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
