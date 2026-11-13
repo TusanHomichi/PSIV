@@ -1,6 +1,6 @@
 //! FieldRoutine_PlaceName and the field HINAS/RYUKA menu handoff.
 
-use psiv_core::{Cell, CharId, Direction, Flag, MapId, WarpTrigger, battle::status};
+use psiv_core::{Cell, CharId, Direction, Flag, MapId, WarpTrigger};
 use psiv_data::TownDestination;
 
 use crate::{BridgeError, CampAbilityKind, Runtime, RuntimeEvent};
@@ -201,14 +201,11 @@ impl Runtime {
             .into_iter()
             .find(|ability| ability.id == id && matches!(id, RYUKA | HINAS))
             .ok_or("ABILITY NOT LEARNED")?;
+        if let Some(reason) = self.camp_caster_refusal(slot) {
+            return Err(reason.into());
+        }
         let who = self.game.party_slot(slot).ok_or("NO PARTY MEMBER")?;
         let stats = self.game.roster().get(who).ok_or("NO PARTY MEMBER")?;
-        if stats.status & status::DEAD != 0 {
-            return Err("CASTER IS DOWN".into());
-        }
-        if stats.status & status::PARALYZED != 0 {
-            return Err("CASTER IS PARALYZED".into());
-        }
         if stats.curr_tp < u16::from(ability.cost) {
             return Err(NOT_ENOUGH_TP.into());
         }

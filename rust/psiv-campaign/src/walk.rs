@@ -355,13 +355,16 @@ impl Driver {
         self.go_to(map, b)
     }
 
-    /// Whether the party has run out of ways to train: a member is down, or a
-    /// living member is below half HP after the camp cure had its turn.
+    /// Whether the party has run out of ways to train: a member is down, a
+    /// member is paralyzed (no turn in battle, `NO_TURN`), or a living member
+    /// is below half HP, after the camp's revive, paralysis cure and heal had
+    /// their turn ([`Driver::recover`]).
     #[must_use]
     pub fn needs_refuge(&self) -> bool {
+        use psiv_core::battle::status::{DEAD, PARALYZED};
         self.runtime().camp_state().party.iter().any(|m| {
             m.current_hp == 0
-                || m.status & psiv_core::battle::status::DEAD != 0
+                || m.status & (DEAD | PARALYZED) != 0
                 || u32::from(m.current_hp) * 100 < u32::from(m.max_hp) * 50
         })
     }
