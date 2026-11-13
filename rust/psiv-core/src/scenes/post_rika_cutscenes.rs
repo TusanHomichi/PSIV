@@ -590,3 +590,24 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::Return { value: 1 },
     ],
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zio_defeated_writes_line_two_words_twelve_and_thirteen() {
+        let offsets: Vec<_> = ZIO_DEFEATED
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                SceneOp::Presentation {
+                    op: PresentationOp::SetPaletteWords { offset, .. },
+                } => Some(*offset),
+                _ => None,
+            })
+            .collect();
+        // Palette_Line_2 ($FFFFFB20) plus $18 bytes, relative to $FFFFFB00.
+        assert_eq!(offsets, [0x38 / 2]);
+    }
+}

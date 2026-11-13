@@ -143,6 +143,7 @@ PALETTE_REQUESTS = (
     (0x001D_2A3C, 64),  # the opening's LoadPalette (`$073C12`)
     (0x001D_E0B8, 16),  # Event_RuneFlaeli's LoadPalette to line 4 (`$06D81A`)
     PLATE_ENGINE_LIGHT,
+    (0x0007_339A, 9),  # loc_7339A: Vahal barrier, 4 pairs + terminator (`$073306`)
     # Boarding: moveq #$10, d7 / trap #1 copies 17 words, the last into
     # Palette_Table_Buffer_2 ($06B9EA, $06BAC2, $06BB9A).
     (0x0029_754E, 17),

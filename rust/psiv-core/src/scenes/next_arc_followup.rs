@@ -531,3 +531,28 @@ pub static MEETING_RIKA: Scene = Scene {
         SceneOp::Return { value: 1 },
     ],
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn palette_destinations_are_word_offsets_from_the_buffer() {
+        for (scene, expected) in [
+            (&GIRLS_SNEAKING_OUT, vec![0x44 / 2, 0x5C / 2]),
+            (&MEETING_RIKA, vec![0x18 / 2]),
+        ] {
+            let offsets: Vec<_> = scene
+                .ops
+                .iter()
+                .filter_map(|op| match op {
+                    SceneOp::Presentation {
+                        op: PresentationOp::SetPaletteWords { offset, .. },
+                    } => Some(*offset),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(offsets, expected, "{}", scene.name);
+        }
+    }
+}

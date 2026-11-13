@@ -69,10 +69,11 @@ const OPENING_PALETTE: usize = 0x1D_2A3C;
 
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
-const PALETTE_REQUESTS: [(usize, usize); 12] = [
+const PALETTE_REQUESTS: [(usize, usize); 13] = [
     (0x1D_2A3C, 64),
     (0x1D_E0B8, 16),
     (0x06_E908, 14),
+    (0x07_339A, 9),
     (0x29_754E, 17),
     (0x29_756E, 17),
     (0x29_758E, 17),
