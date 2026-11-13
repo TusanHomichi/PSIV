@@ -9,6 +9,15 @@
 //! a wait whose retail loop is missing, folded into another op or only
 //! approximated is on record, with the issue that will fix it.
 //!
+//! Two shared helpers block for a fixed number of frames too, and are read
+//! by hand from the US bytes rather than counted as waits by their calls:
+//! `Event_StepObject` (`$05A99E`) runs `d2 + 1` passes of map updates with
+//! no field-object update, and `Event_UpdateObjFacing` (`$05A936`) ends in
+//! one `VInt_Prepare`. [`HELPER_CENSUSED`] scenes give each call a row.
+//! The motion helpers (`Event_MoveCamera`, `Event_MoveCharacter`,
+//! `Event_MoveObjectStatic`) block until a position is reached: those are
+//! #470's actor and camera loops, transcribed by their own ops, not waits.
+//!
 //! The native runner treats every `Wait` the same today: map updates, no
 //! field-object update. The census is what lets that change per loop
 //! without guessing (#470); this file changes no behaviour.
@@ -28,6 +37,12 @@ const MAIN_LOOP: u32 = 0x05_A73C;
 const UPDATE_OBJECTS: u32 = 0x04_47D8;
 /// `RunMapUpdates`.
 const RUN_MAP_UPDATES: u32 = 0x05_4938;
+/// `VInt_Prepare`: one frame.
+const VINT_PREPARE: u32 = 0x04_204C;
+/// `Event_StepObject`.
+const STEP_OBJECT: u32 = 0x05_A99E;
+/// `Event_UpdateObjFacing`.
+const UPDATE_OBJ_FACING: u32 = 0x05_A936;
 
 /// The retail wait a row describes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +58,11 @@ enum Retail {
         objects: bool,
         map_updates: bool,
     },
+    /// `jsr Event_StepObject` at the address: `d2 + 1` passes of map
+    /// updates, no objects.
+    Step(u32),
+    /// `jsr Event_UpdateObjFacing` at the address: one frame, no map updates.
+    Facing(u32),
 }
 
 /// What transcribes it.
@@ -52,6 +72,9 @@ enum Claim {
     Wait(usize),
     /// Another op at this index waits it out (a palette loop's own frames).
     Within(usize),
+    /// The op at this index records the loop's count in its own fields, but
+    /// the runner does not block on it; the row's `defect` adds the wait.
+    Recorded(usize),
     /// No op does: the issue that adds it.
     Missing(u32),
 }
@@ -59,6 +82,7 @@ enum Claim {
 /// One retail wait of one scene. `defect` names the issue when the claim
 /// is approximate (a fixed count for a loop that ends on state, or map
 /// updates the loop does not run).
+#[derive(Debug, Clone, Copy)]
 struct Row {
     scene: &'static str,
     retail: Retail,
@@ -109,10 +133,58 @@ const CENSUSED: &[&str] = &[
     "Cutscene_DarkForce1Defeated",
     "Event_Juza",
     "Event_JuzaDefeated",
+    // dezo_endgame.rs
+    "Event_StrengthTowerTop",
+    "Event_CourageTowerTop",
+    "Event_DeVars",
+    "Event_SaLews",
+    "Event_ReFaze",
+    "Event_DeVarsDefeated",
+    "Event_SaLewsDefeated",
+    "Cutscene_BeforeElsydeonCave",
+    "Cutscene_Reunion",
+    "Event_AngerTowerTop",
+    "Event_SilenceTmDoorOpening",
+    "Event_AngerTowerAlys",
+    "Event_EnterAngerTower",
+    "Event_AngerTowerExitTop",
+    "Cutscene_ProfoundDarkness",
 ];
 
-use Claim::{Missing, Wait, Within};
-use Retail::{Main, Map};
+/// The censused scenes whose shared-helper calls ([`Retail::Step`],
+/// [`Retail::Facing`]) have rows too. The files censused before
+/// dezo_endgame.rs wait for theirs (#572).
+const HELPER_CENSUSED: &[&str] = &[
+    "Event_StrengthTowerTop",
+    "Event_CourageTowerTop",
+    "Event_DeVars",
+    "Event_SaLews",
+    "Event_ReFaze",
+    "Event_DeVarsDefeated",
+    "Event_SaLewsDefeated",
+    "Cutscene_BeforeElsydeonCave",
+    "Cutscene_Reunion",
+    "Event_AngerTowerTop",
+    "Event_SilenceTmDoorOpening",
+    "Event_AngerTowerAlys",
+    "Event_EnterAngerTower",
+    "Event_AngerTowerExitTop",
+    "Cutscene_ProfoundDarkness",
+];
+
+/// dezo_endgame.rs's missing and approximated waits.
+const DEZO: u32 = 571;
+
+use Claim::{Missing, Recorded, Wait, Within};
+use Retail::{Facing, Main, Map, Step};
+
+/// A [`Row`] whose claim is approximate, with the issue that fixes it.
+const fn defect(issue: u32, row: Row) -> Row {
+    Row {
+        defect: Some(issue),
+        ..row
+    }
+}
 
 #[rustfmt::skip]
 const ROWS: &[Row] = &[
@@ -186,6 +258,93 @@ const ROWS: &[Row] = &[
     row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(18)),
     row("Cutscene_DarkForce1Defeated", Map(0x07_71FE), Wait(6)),
     row("Cutscene_DarkForce1Defeated", Map(0x07_720E), Wait(8)),
+    // dezo_endgame.rs
+    // Seventeen `DoMainUpdatesLoop` calls and two `Event_StepObject` calls
+    // against five `Wait`s. Each `$2AC` spawn follows a 15-frame wait its
+    // `ObjectAnimation` records without blocking.
+    row("Event_StrengthTowerTop", Main(0x07_0E60), Wait(1)),
+    defect(DEZO, row("Event_StrengthTowerTop", Main(0x07_0E7C), Recorded(2))),
+    defect(DEZO, row("Event_StrengthTowerTop", Main(0x07_0E9E), Recorded(3))),
+    defect(DEZO, row("Event_StrengthTowerTop", Main(0x07_0EC0), Recorded(4))),
+    defect(DEZO, row("Event_StrengthTowerTop", Main(0x07_0EE2), Recorded(5))),
+    row("Event_StrengthTowerTop", Main(0x07_0F04), Wait(6)),
+    row("Event_StrengthTowerTop", Main(0x07_0F16), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Main(0x07_0F28), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Main(0x07_0F30), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Step(0x07_0F44), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Step(0x07_0F58), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Main(0x07_0F60), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Main(0x07_0FB4), Wait(8)),
+    row("Event_StrengthTowerTop", Main(0x07_100C), Missing(DEZO)),
+    row("Event_StrengthTowerTop", Main(0x07_104C), Wait(10)),
+    row("Event_StrengthTowerTop", Main(0x07_10B2), Missing(DEZO)),
+    // Retail runs it after the speed-8 pan (`$071074`) and the 30-frame
+    // wait; the transcription runs it before the pan. The pan back after it
+    // is #565's.
+    defect(DEZO, row("Event_StrengthTowerTop", Main(0x07_10DE), Wait(12))),
+    // Each `$2BC` spawn is followed by a 2-frame wait its `ObjectAnimation`
+    // records; the second round of four spawns has no ops.
+    row("Event_CourageTowerTop", Facing(0x07_110A), Missing(164)),
+    row("Event_CourageTowerTop", Main(0x07_1122), Wait(2)),
+    defect(DEZO, row("Event_CourageTowerTop", Main(0x07_1152), Recorded(3))),
+    defect(DEZO, row("Event_CourageTowerTop", Main(0x07_118A), Recorded(4))),
+    defect(DEZO, row("Event_CourageTowerTop", Main(0x07_11BA), Recorded(5))),
+    defect(DEZO, row("Event_CourageTowerTop", Main(0x07_11F2), Recorded(6))),
+    row("Event_CourageTowerTop", Main(0x07_11FA), Wait(8)),
+    row("Event_CourageTowerTop", Main(0x07_122A), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_1262), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_1292), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_12CA), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_12D2), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_1332), Wait(12)),
+    row("Event_CourageTowerTop", Main(0x07_139E), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_13CA), Wait(14)),
+    row("Event_CourageTowerTop", Main(0x07_13F0), Missing(DEZO)),
+    row("Event_CourageTowerTop", Main(0x07_1414), Wait(16)),
+    // The wait before the pan back to `Character_1`.
+    row("Event_CourageTowerTop", Main(0x07_1426), Missing(565)),
+    row("Event_ReFaze", Map(0x07_1584), Wait(1)),
+    row("Event_ReFaze", Facing(0x07_1590), Missing(164)),
+    row("Event_ReFaze", Map(0x07_1598), Wait(3)),
+    row("Event_ReFaze", Facing(0x07_15A4), Missing(164)),
+    row("Event_ReFaze", Map(0x07_15AC), Wait(5)),
+    row("Event_ReFaze", Facing(0x07_15C6), Missing(164)),
+    row("Event_ReFaze", Map(0x07_15E2), Wait(9)),
+    defect(DEZO, row("Event_ReFaze", Main(0x07_160C), Recorded(10))),
+    row("Event_ReFaze", Map(0x07_162E), Wait(11)),
+    // The 64-frame `loc_58666` restore (no map updates), transcribed after
+    // the FireBreath SFX, where retail's 136-frame wait runs.
+    defect(DEZO, row("Event_ReFaze", own(0x07_1636, false, false), Wait(13))),
+    row("Event_ReFaze", Main(0x07_1652), Missing(DEZO)),
+    // The Megid branch's tone loops and restore.
+    row("Event_ReFaze", own(0x07_1688, false, false), Missing(DEZO)),
+    row("Event_ReFaze", own(0x07_16B8, false, false), Missing(DEZO)),
+    row("Event_ReFaze", Main(0x07_16E8), Missing(DEZO)),
+    row("Event_ReFaze", own(0x07_1708, false, false), Missing(DEZO)),
+    // A `FadeOut` and 40 frames of map updates stand for the first of two
+    // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
+    // the objects' 10-frame wait, have no ops.
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
+    row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
+    row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
+    row("Cutscene_Reunion", Map(0x07_8AE4), Wait(9)),
+    row("Cutscene_Reunion", Map(0x07_8AF4), Wait(11)),
+    row("Cutscene_Reunion", Map(0x07_8BBE), Wait(19)),
+    row("Event_AngerTowerTop", Map(0x07_224A), Wait(9)),
+    row("Event_AngerTowerAlys", Facing(0x07_14A2), Missing(164)),
+    row("Event_AngerTowerAlys", Step(0x07_14D0), Within(2)),
+    row("Event_AngerTowerAlys", Step(0x07_1502), Within(3)),
+    row("Event_AngerTowerAlys", Step(0x07_1530), Within(4)),
+    // `loc_78ECE`'s 600 passes: the edge's palette updates and the random
+    // white flashes with `SFXID_Tandle`, no `RunMapUpdates`.
+    defect(DEZO, row("Cutscene_ProfoundDarkness", own(0x07_8ED4, false, false), Wait(12))),
 ];
 
 fn scene(name: &str) -> &'static crate::Scene {
@@ -207,17 +366,41 @@ fn within_ticks(op: &SceneOp) -> Option<u32> {
         SceneOp::Presentation {
             op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
         } => Some(u32::from(*frames)),
+        SceneOp::StepObjectAlongFacing { frames, .. } => Some(u32::from(*frames)),
         _ => None,
     }
 }
 
-#[test]
-fn every_wait_of_a_censused_scene_is_claimed_once() {
+/// The loop count an op records without the runner blocking on it.
+fn recorded_ticks(op: &SceneOp) -> Option<u32> {
+    match op {
+        SceneOp::ObjectAnimation { frames, .. } => Some(u32::from(*frames)),
+        _ => None,
+    }
+}
+
+/// The frames the row's claim stands for, from the claimed op.
+fn claimed_ticks(row: &Row) -> Option<u32> {
+    let op = |index: usize| scene(row.scene).ops.get(index);
+    match row.claim {
+        Wait(index) => match op(index) {
+            Some(SceneOp::Wait { ticks }) => Some(u32::from(*ticks)),
+            _ => None,
+        },
+        Within(index) => op(index).and_then(within_ticks),
+        Recorded(index) => op(index).and_then(recorded_ticks),
+        Missing(_) => None,
+    }
+}
+
+/// Every `Wait` of a censused scene claimed by exactly one row, and every
+/// row's claim naming an op that can carry it.
+fn claim_problems(rows: &[Row]) -> Vec<String> {
     let mut problems = Vec::new();
     for &name in CENSUSED {
         let ops = scene(name).ops;
         for (index, op) in ops.iter().enumerate() {
-            let claims = ROWS
+            let claims = rows
                 .iter()
                 .filter(|row| row.scene == name && row.claim == Wait(index))
                 .count();
@@ -226,9 +409,15 @@ fn every_wait_of_a_censused_scene_is_claimed_once() {
             }
         }
     }
-    for row in ROWS {
+    for row in rows {
         if !CENSUSED.contains(&row.scene) {
             problems.push(format!("{}: a row for a scene not censused", row.scene));
+        }
+        if matches!(row.retail, Step(_) | Facing(_)) && !HELPER_CENSUSED.contains(&row.scene) {
+            problems.push(format!(
+                "{}: a helper row for a scene not censused for helpers",
+                row.scene
+            ));
         }
         let ops = scene(row.scene).ops;
         match row.claim {
@@ -249,13 +438,34 @@ fn every_wait_of_a_censused_scene_is_claimed_once() {
                         ops.get(index)
                     ));
                 }
-                if !matches!(row.retail, Map(_) | Main(_)) {
+                if !matches!(row.retail, Map(_) | Main(_) | Step(_)) {
                     problems.push(format!("{} op {index}: Within an own loop", row.scene));
+                }
+            }
+            Recorded(index) => {
+                if ops.get(index).and_then(recorded_ticks).is_none() {
+                    problems.push(format!(
+                        "{} op {index}: Recorded names an op that records no count, {:?}",
+                        row.scene,
+                        ops.get(index)
+                    ));
+                }
+                if row.defect.is_none() {
+                    problems.push(format!(
+                        "{} op {index}: Recorded without the defect that adds the wait",
+                        row.scene
+                    ));
                 }
             }
             Missing(_) => {}
         }
     }
+    problems
+}
+
+#[test]
+fn every_wait_of_a_censused_scene_is_claimed_once() {
+    let problems = claim_problems(ROWS);
     assert!(problems.is_empty(), "{problems:#?}");
 }
 
@@ -265,19 +475,38 @@ fn jsr_target(rom: &[u8], at: usize) -> Option<u32> {
         .then(|| u32::from_be_bytes(rom[at + 2..at + 6].try_into().unwrap()))
 }
 
-/// The word-loaded tick count before a loop call: `moveq #n,d0` or
-/// `move.w #n,d0` ending at `at`, or before a `move.l d7,-(sp)` that saves
-/// an outer loop's counter there, as the `dbf` runs it (n + 1).
-fn loop_ticks(rom: &[u8], at: usize) -> Option<u32> {
-    let at = if rom[at - 2..at] == [0x2F, 0x07] {
+/// `at`, moved back over what may sit between a count's load and its call:
+/// a `move.l d7,-(sp)` that saves an outer loop's counter, or a
+/// `move.b #n,(abs).l` sound request.
+fn before_count(rom: &[u8], at: usize) -> usize {
+    if rom[at - 2..at] == [0x2F, 0x07] {
         at - 2
+    } else if rom[at - 8..at - 6] == [0x13, 0xFC] && rom[at - 6] == 0 {
+        at - 8
     } else {
         at
-    };
+    }
+}
+
+/// The word-loaded tick count before a loop call: `moveq #n,d0` or
+/// `move.w #n,d0` ending at `at`, or before what [`before_count`] skips, as
+/// the `dbf` runs it (n + 1).
+fn loop_ticks(rom: &[u8], at: usize) -> Option<u32> {
+    let at = before_count(rom, at);
     if rom[at - 2] == 0x70 {
         return Some(u32::from(rom[at - 1]) + 1);
     }
     (rom[at - 4..at - 2] == [0x30, 0x3C])
+        .then(|| u32::from(u16::from_be_bytes([rom[at - 2], rom[at - 1]])) + 1)
+}
+
+/// `Event_StepObject`'s passes: `moveq #n,d2` or `move.w #n,d2` ending at
+/// `at`, as its `dbf` runs it (n + 1).
+fn step_ticks(rom: &[u8], at: usize) -> Option<u32> {
+    if rom[at - 2] == 0x74 {
+        return Some(u32::from(rom[at - 1]) + 1);
+    }
+    (rom[at - 4..at - 2] == [0x34, 0x3C])
         .then(|| u32::from(u16::from_be_bytes([rom[at - 2], rom[at - 1]])) + 1)
 }
 
@@ -302,49 +531,44 @@ fn loop_end(rom: &[u8], at: usize) -> Option<usize> {
 }
 
 fn calls_in(rom: &[u8], from: usize, to: usize, target: u32) -> bool {
-    (from..to)
-        .step_by(2)
-        .any(|p| jsr_target(rom, p) == Some(target))
+    calls(rom, from, to, target) > 0
 }
 
-#[test]
-fn every_row_is_the_retail_wait_it_names() {
-    let Some(rom) = rom() else {
-        return;
-    };
+fn calls(rom: &[u8], from: usize, to: usize, target: u32) -> usize {
+    (from..to)
+        .step_by(2)
+        .filter(|&p| jsr_target(rom, p) == Some(target))
+        .count()
+}
+
+/// Every row's retail call or loop as the US image has it, and every
+/// claimed count equal to the retail one unless the row names a defect.
+fn retail_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
     let mut problems = Vec::new();
-    for row in ROWS {
-        let ticks = match row.claim {
-            Wait(index) => match scene(row.scene).ops.get(index) {
-                Some(SceneOp::Wait { ticks }) => Some(u32::from(*ticks)),
-                _ => None,
-            },
-            Within(index) => scene(row.scene).ops.get(index).and_then(within_ticks),
-            Missing(_) => None,
+    for row in rows {
+        let ticks = claimed_ticks(row);
+        let call = |at: u32, want: u32, problems: &mut Vec<String>| {
+            if jsr_target(rom, at as usize) != Some(want) {
+                problems.push(format!("{} ${at:06X}: not a jsr to ${want:06X}", row.scene));
+            }
         };
-        match row.retail {
+        let retail = match row.retail {
             Map(at) | Main(at) => {
                 let want = if matches!(row.retail, Map(_)) {
                     MAP_LOOP
                 } else {
                     MAIN_LOOP
                 };
-                if jsr_target(rom, at as usize) != Some(want) {
-                    problems.push(format!("{} ${at:06X}: not a jsr to ${want:06X}", row.scene));
-                }
-                let retail = loop_ticks(rom, at as usize);
-                if matches!(row.claim, Within(_)) && retail.is_none() {
-                    problems.push(format!("{} ${at:06X}: no loop count to check", row.scene));
-                }
-                if let (Some(ticks), Some(retail)) = (ticks, retail)
-                    && ticks != retail
-                    && row.defect.is_none()
-                {
-                    problems.push(format!(
-                        "{} ${at:06X}: Wait {ticks}, the loop runs {retail}",
-                        row.scene
-                    ));
-                }
+                call(at, want, &mut problems);
+                Some((at, loop_ticks(rom, at as usize)))
+            }
+            Step(at) => {
+                call(at, STEP_OBJECT, &mut problems);
+                Some((at, step_ticks(rom, at as usize)))
+            }
+            Facing(at) => {
+                call(at, UPDATE_OBJ_FACING, &mut problems);
+                Some((at, Some(1)))
             }
             Retail::Own {
                 at,
@@ -365,17 +589,61 @@ fn every_row_is_the_retail_wait_it_names() {
                         row.scene
                     ));
                 }
+                None
+            }
+        };
+        if let Some((at, retail)) = retail {
+            if matches!(row.claim, Within(_) | Recorded(_)) && retail.is_none() {
+                problems.push(format!("{} ${at:06X}: no loop count to check", row.scene));
+            }
+            if let (Some(ticks), Some(retail)) = (ticks, retail)
+                && ticks != retail
+                && row.defect.is_none()
+            {
+                problems.push(format!(
+                    "{} ${at:06X}: claims {ticks} frames, the loop runs {retail}",
+                    row.scene
+                ));
+            }
+            if let (Recorded(_), Some(ticks), Some(retail)) = (row.claim, ticks, retail)
+                && ticks != retail
+            {
+                problems.push(format!(
+                    "{} ${at:06X}: records {ticks} frames, the loop runs {retail}",
+                    row.scene
+                ));
             }
         }
     }
-    assert!(problems.is_empty(), "{problems:#?}");
+    problems
 }
 
 #[test]
-fn every_library_loop_call_in_a_censused_scene_has_a_row() {
+fn every_row_is_the_retail_wait_it_names() {
     let Some(rom) = rom() else {
         return;
     };
+    let problems = retail_problems(rom, ROWS);
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// The retail call or loop at `at` that a censused scene must give a row:
+/// a library loop, or a shared helper in a [`HELPER_CENSUSED`] scene.
+fn needs_row(rom: &[u8], name: &str, at: usize) -> Option<Retail> {
+    let at32 = at as u32;
+    match jsr_target(rom, at)? {
+        MAP_LOOP => Some(Map(at32)),
+        MAIN_LOOP => Some(Main(at32)),
+        STEP_OBJECT if HELPER_CENSUSED.contains(&name) => Some(Step(at32)),
+        UPDATE_OBJ_FACING if HELPER_CENSUSED.contains(&name) => Some(Facing(at32)),
+        _ => None,
+    }
+}
+
+/// Every library-loop call, and every shared-helper call of a
+/// [`HELPER_CENSUSED`] scene, inside a censused scene's documented bytes
+/// without a row.
+fn coverage_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
     let ranges = documented_ranges();
     let mut problems = Vec::new();
     for &name in CENSUSED {
@@ -383,14 +651,17 @@ fn every_library_loop_call_in_a_censused_scene_has_a_row() {
             problems.push(format!("{name}: no documented retail range"));
             continue;
         };
+        // A scene's document and the registry may claim the same bytes.
+        let mut seen = std::collections::BTreeSet::new();
         for &(start, end) in spans {
             for at in (start..end.saturating_sub(5)).step_by(2) {
-                let retail = match jsr_target(rom, at) {
-                    Some(MAP_LOOP) => Map(at as u32),
-                    Some(MAIN_LOOP) => Main(at as u32),
-                    _ => continue,
+                if !seen.insert(at) {
+                    continue;
+                }
+                let Some(retail) = needs_row(rom, name, at) else {
+                    continue;
                 };
-                if !ROWS
+                if !rows
                     .iter()
                     .any(|row| row.scene == name && row.retail == retail)
                 {
@@ -399,5 +670,115 @@ fn every_library_loop_call_in_a_censused_scene_has_a_row() {
             }
         }
     }
+    problems
+}
+
+#[test]
+fn every_library_loop_call_in_a_censused_scene_has_a_row() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let problems = coverage_problems(rom, ROWS);
     assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// The two fixed-frame helpers are what [`Retail::Step`] and
+/// [`Retail::Facing`] say, read from the US bytes: `Event_StepObject`'s
+/// loop (from past its two step stores) runs map updates and no object
+/// update; `Event_UpdateObjFacing` reaches its `rts` through one
+/// `VInt_Prepare` and neither update.
+#[test]
+fn the_shared_helpers_wait_as_their_rows_say() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let step = STEP_OBJECT as usize + 8;
+    let end = loop_end(rom, step).expect("Event_StepObject's dbf");
+    assert!(calls_in(rom, step, end, RUN_MAP_UPDATES));
+    assert!(!calls_in(rom, step, end, UPDATE_OBJECTS));
+    assert_eq!(calls(rom, step, end, VINT_PREPARE), 1);
+    assert_eq!(rom[end..end + 2], [0x51, 0xCA], "dbf d2");
+
+    let facing = UPDATE_OBJ_FACING as usize;
+    let rts = (facing..facing + 0x100)
+        .step_by(2)
+        .find(|&p| rom[p..p + 2] == [0x4E, 0x75])
+        .expect("Event_UpdateObjFacing's rts");
+    assert_eq!(calls(rom, facing, rts, VINT_PREPARE), 1);
+    assert!(!calls_in(rom, facing, rts, RUN_MAP_UPDATES));
+    assert!(!calls_in(rom, facing, rts, UPDATE_OBJECTS));
+    assert_eq!(loop_end(rom, facing), None, "no loop");
+}
+
+/// The checks reject what they exist to catch: an omitted claim or call, a
+/// wrong retail count, a recorded count without its defect.
+#[test]
+fn the_checks_reject_an_omission_and_a_wrong_count() {
+    let without = |keep: &dyn Fn(&Row) -> bool| -> Vec<Row> {
+        ROWS.iter().copied().filter(|row| keep(row)).collect()
+    };
+    let strength = "Event_StrengthTowerTop";
+
+    let omitted = without(&|row| !(row.scene == strength && row.claim == Wait(1)));
+    assert_eq!(
+        claim_problems(&omitted),
+        [format!("{strength} op 1: a Wait with 0 claims")]
+    );
+
+    let mut unflagged = ROWS.to_vec();
+    for row in &mut unflagged {
+        if row.scene == strength && row.claim == Recorded(2) {
+            row.defect = None;
+        }
+    }
+    assert_eq!(
+        claim_problems(&unflagged),
+        [format!(
+            "{strength} op 2: Recorded without the defect that adds the wait"
+        )]
+    );
+
+    let Some(rom) = rom() else {
+        return;
+    };
+    // `Wait(1)` (60 frames) moved to the 15-frame call after it, and
+    // `Recorded(2)` (15) to the 39-frame one.
+    let mut miscounted = ROWS.to_vec();
+    for row in &mut miscounted {
+        if row.scene == strength && row.claim == Wait(1) {
+            row.retail = Main(0x07_0E7C);
+        }
+        if row.scene == strength && row.claim == Recorded(2) {
+            row.retail = Main(0x07_0F04);
+        }
+        if row.scene == "Event_AngerTowerAlys" && row.claim == Within(2) {
+            row.retail = Step(0x07_1502);
+        }
+    }
+    assert_eq!(
+        retail_problems(rom, &miscounted),
+        [
+            format!("{strength} $070E7C: claims 60 frames, the loop runs 15"),
+            format!("{strength} $070F04: records 15 frames, the loop runs 39"),
+            "Event_AngerTowerAlys $071502: claims 8 frames, the loop runs 16".to_owned(),
+        ]
+    );
+
+    for (scene, retail) in [
+        (strength, Main(0x07_0F16)),
+        (strength, Step(0x07_0F44)),
+        ("Event_ReFaze", Facing(0x07_1590)),
+    ] {
+        let omitted = without(&|row| !(row.scene == scene && row.retail == retail));
+        assert_eq!(
+            coverage_problems(rom, &omitted),
+            [format!(
+                "{scene} ${:06X}: {retail:?} has no row",
+                match retail {
+                    Map(at) | Main(at) | Step(at) | Facing(at) => at,
+                    Retail::Own { at, .. } => at,
+                }
+            )]
+        );
+    }
 }
