@@ -231,7 +231,7 @@ and its portrait sit at their retail coordinates in the surface.
   frame-25000 plane and VRAM cells; the battle chrome carries the
   `$0620 → $0600` fill remap in the strip, the font sheet and `palette[14]`;
   camp's HP/TP colon is menu-font glyph 51 (tile `$6B4`); and the receipt NPC
-  renders walk-down frame 1 with the retail 2px step bob.
+  renders walk-down frame 1.
 
 ### The battle and camp receipts
 
