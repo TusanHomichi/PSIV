@@ -108,7 +108,7 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_gate_worktree.py": None,
     "tests/test_oracle_battle_fixture_reload.py": frozenset({"oracle/patches/probe.patch"}),
     "tests/test_pr_gate.py": frozenset({"fake_gate.py", "summary.md", "second.md", "leave.py",
-                                       "pr_gate-main.py", "argv.py"}),
+                                       "pr_gate-main.py", "argv.py", "caller.py"}),
     # Capture-runner negative controls name a rejected path, a throwaway
     # duplicate driver, and the removed drivers whose absence they enforce.
     "tests/test_oracle_capture_runner.py": frozenset({"../escape", "fifth_runner.py",
