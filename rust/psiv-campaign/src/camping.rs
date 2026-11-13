@@ -282,7 +282,8 @@ impl Driver {
     /// # Errors
     ///
     /// [`HaltKind::MenuEntryMissing`] when the caster, the technique or the
-    /// target is not there; [`HaltKind::UnexpectedState`] when it has no effect.
+    /// target is not there; [`HaltKind::UnexpectedState`] when it has no effect
+    /// or the camp refuses it.
     pub fn use_technique(
         &mut self,
         caster: &NameOrId,
@@ -293,6 +294,8 @@ impl Driver {
         self.camp_root(ROOT_TECH)?;
         self.expect_camp_page(CampPage::AbilityCharacters)?;
         let who = self.member_row(caster)?;
+        let caster_slot = self.camp()?.snapshot.party[who].party_slot;
+        let tp_before = self.live_tp(caster_slot);
         let rows = self.camp()?.snapshot.party.len();
         self.cursor_to(
             "technique caster",
@@ -348,7 +351,26 @@ impl Driver {
                 format!("the technique did nothing: {message:?}"),
             ));
         }
+        // Every cast the camp carries out is paid for, one with no effect
+        // included (`Runtime::use_camp_ability`); one it refuses (a fallen or
+        // paralyzed caster, too little TP) costs nothing and only says why.
+        if self.live_tp(caster_slot) == tp_before {
+            return Err(Halt::new(
+                HaltKind::UnexpectedState,
+                format!("the camp refused the cast: {message:?}"),
+            ));
+        }
         self.close_camp()
+    }
+
+    /// The current TP of the member in `party_slot`, from the live roster.
+    fn live_tp(&self, party_slot: usize) -> Option<u16> {
+        self.runtime()
+            .camp_state()
+            .party
+            .iter()
+            .find(|m| m.party_slot == party_slot)
+            .map(|m| m.current_tp)
     }
 
     /// Uses `item` from the pack on `target` through ITEM.

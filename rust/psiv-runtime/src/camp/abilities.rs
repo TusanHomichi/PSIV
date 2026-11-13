@@ -96,6 +96,28 @@ impl Runtime {
         }
     }
 
+    /// Why the field refuses the member in `party_slot` as the caster of any
+    /// TECH or SKILL, or `None` when it accepts them. `loc_5FF98` checks death
+    /// and paralysis only; field TECH ignores seal. The one statement of the
+    /// rule: the camp, the travel menu and anything that plans a cast ask it.
+    #[must_use]
+    pub fn camp_caster_refusal(&self, party_slot: usize) -> Option<&'static str> {
+        let Some(stats) = self
+            .game
+            .party_slot(party_slot)
+            .and_then(|id| self.game.roster().get(id))
+        else {
+            return Some("NO PARTY MEMBER");
+        };
+        if stats.status & status::DEAD != 0 {
+            Some("CASTER IS DOWN")
+        } else if stats.status & status::PARALYZED != 0 {
+            Some("CASTER IS PARALYZED")
+        } else {
+            None
+        }
+    }
+
     /// Confirm one learned field command. Invalid commands spend no resource
     /// or RNG; an eligible no-effect target still costs the confirmed use.
     pub(crate) fn use_camp_ability(
@@ -121,6 +143,9 @@ impl Runtime {
         if kind == CampAbilityKind::Technique && matches!(id, crate::RYUKA | crate::HINAS) {
             return unavailable("USE THE TRAVEL MENU");
         }
+        if let Some(reason) = self.camp_caster_refusal(caster_slot) {
+            return unavailable(reason);
+        }
         let caster_id = self
             .game
             .party_slot(caster_slot)
@@ -130,13 +155,6 @@ impl Runtime {
             .roster()
             .get(caster_id)
             .expect("learned ability has record");
-        // loc_5FF98 checks death and paralysis only; field TECH ignores seal.
-        if stats.status & status::DEAD != 0 {
-            return unavailable("CASTER IS DOWN");
-        }
-        if stats.status & status::PARALYZED != 0 {
-            return unavailable("CASTER IS PARALYZED");
-        }
         if ability.remaining < u16::from(ability.cost) {
             return unavailable(if kind == CampAbilityKind::Technique {
                 "NOT ENOUGH TP"

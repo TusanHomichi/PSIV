@@ -26,8 +26,9 @@ resolves into pad input:
 - buy, sell, equip, rest at an inn, reorder the party;
 - `interact` with a cell (doors and elevators that open walls), and `patrol`
   between two cells until a condition holds (grinding the route requires),
-  with an optional `refuge` list the patrol runs when a member falls or a
-  living member drops under half HP;
+  with an optional `refuge` list the patrol runs when, after the camp's
+  recovery, a member is still down or paralyzed or a living member is under
+  half HP;
 - `step_onto` a cell where a map trigger starts a scene. On a warp's footprint
   the scene runs before the warp can fire (`RunEvents` runs before
   `RunMapTransitions` on foot, `ps4.asm:116768-116773`; the Hangar's Landale
@@ -56,8 +57,12 @@ resolves into pad input:
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use;
 - `restore` the party through the camp before a boss: the fallen are raised
-  with a reviving technique (battle effect 21, `REVER`) and the living cured
-  to full, with whatever TP the party has (`recovery.rs`).
+  with a reviving technique (battle effect 21, `REVER`), the paralyzed freed
+  (battle effect 20, `RIMPA`) and the living cured to full, with whatever TP
+  the party has (`recovery.rs`). The recovery after every battle does the
+  same with a lower bar for the heal (70%). Only a caster the camp accepts is
+  asked (`Runtime::camp_caster_refusal`: not fallen, not paralyzed), and a
+  `use_technique` the camp refuses halts.
 
 Chapters end with their specified assertions on flags, party, map and
 inventory taken from the scene transcriptions. The route's last chapter presses
