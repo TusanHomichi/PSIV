@@ -580,6 +580,7 @@ impl Runtime {
                             target_y: ((y >> 16) + 0x100) & 0xFFF,
                             speed: 2,
                         });
+                        self.step_camera_glide();
                     }
                     SceneOp::PlayMusicIfSavedDifferent { id } => {
                         // All three boarding events compare the persistent

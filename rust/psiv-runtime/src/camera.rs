@@ -70,6 +70,9 @@ impl Runtime {
             target_y,
             speed,
         });
+        // Retail moves before its first `VInt_Prepare` (`ps4.asm:121491-121505`):
+        // the first step belongs to the frame of the call.
+        self.step_camera_glide();
     }
 
     /// One frame of an in-flight `Event_MoveCamera` pan.
@@ -85,6 +88,16 @@ impl Runtime {
             self.camera_glide = None;
             return;
         }
+        self.step_camera_glide();
+    }
+
+    /// One movement of the in-flight pan: X until it arrives, then Y.
+    pub(crate) fn step_camera_glide(&mut self) {
+        let Some(glide) = self.camera_glide else {
+            return;
+        };
+        let (raw_x, raw_y) = self.camera.raw();
+        let (x, y) = (raw_x >> 16, raw_y >> 16);
         let next_x = wrapped_camera_step(x, glide.target_x, glide.speed);
         // The Y loop starts only once the X loop has exited.
         let next_y = if x & 0xFFF == glide.target_x {
@@ -198,8 +211,9 @@ mod pan_release_tests {
             (cy >> 16) + psiv_core::HOME_Y,
             2,
         );
-        rt.tick_camera_glide();
-        assert!(rt.camera_glide.is_some(), "first of two steps");
+        // The call itself makes the first of two steps (retail moves before
+        // its first `VInt_Prepare`), so the pan takes as many ticks as steps.
+        assert_eq!(rt.camera().raw().0 >> 16, (cx >> 16) + 2, "first step in the call");
         rt.tick_camera_glide();
         assert!(rt.camera_glide.is_some(), "arrival frame keeps the glide");
         rt.tick_camera_glide();
