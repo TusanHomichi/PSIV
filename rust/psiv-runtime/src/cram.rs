@@ -366,6 +366,7 @@ impl Cram {
                 .view
                 .words
                 .iter()
+                .chain(&self.saved)
                 .skip(start)
                 .take(count)
                 .copied()
@@ -380,7 +381,18 @@ impl Cram {
             PaletteSource::Fill(value) => vec![value; count],
         };
         match destination {
-            PaletteBuffer::Live => self.write_run(start, &values),
+            PaletteBuffer::Live => {
+                self.write_run(start, &values);
+                // The buffers are adjacent in RAM. Boarding's 17-word copy
+                // at word 48 also writes word 0 of Palette_Table_Buffer_2.
+                for (offset, &value) in values.iter().enumerate() {
+                    if let Some(slot) = (start + offset).checked_sub(PALETTE_WORDS)
+                        && let Some(word) = self.saved.get_mut(slot)
+                    {
+                        *word = value;
+                    }
+                }
+            }
             PaletteBuffer::Saved => {
                 for (offset, value) in values.into_iter().enumerate() {
                     if let Some(word) = self.saved.get_mut(start + offset) {

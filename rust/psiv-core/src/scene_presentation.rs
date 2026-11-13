@@ -246,7 +246,8 @@ pub enum PresentationOp {
     PaletteCopy {
         /// Where the words come from.
         source: PaletteSource,
-        /// The buffer written.
+        /// The buffer written. A copy past Live's end continues into Saved,
+        /// its adjacent RAM buffer (boarding writes 17 words at word 48).
         destination: PaletteBuffer,
         /// First word written (and, for a buffer source, read).
         start: u8,

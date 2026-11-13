@@ -272,4 +272,41 @@ mod tests {
         // A slot past the buffer draws nothing rather than a wrong colour.
         assert_eq!(recolor(&[1], &[255], line(64), &cram), [0, 0, 0, 0]);
     }
+    fn vehicle_recolor_failures(line: u8) -> Vec<&'static str> {
+        let mut before = [0x0222; 64];
+        before[49] = 0x000E;
+        let mut after = before;
+        after[49] = 0x0E00;
+        let indices = [1, 0, 2, 1];
+        let alpha = [255, 255, 0, 255];
+        let draw = |line, words: &[u16]| {
+            recolor(&indices, &alpha, |i| IndexLayout::Line(line).slot(i), words)
+        };
+        let first = draw(line, &before);
+        let changed = draw(line, &after);
+        let mut failures = Vec::new();
+        if first[..4] != [238, 0, 0, 255] || changed[..4] != [0, 0, 238, 255] {
+            failures.push("vehicle pixels must read line 3");
+        }
+        if first[4..12] != [0; 8] || changed[4..12] != [0; 8] {
+            failures.push("transparent pixels changed");
+        }
+        if draw(2, &before) != draw(2, &after) {
+            failures.push("another line changed");
+        }
+        failures
+    }
+
+    #[test]
+    fn vehicle_recolor_changes_only_its_line_and_keeps_transparency() {
+        assert!(vehicle_recolor_failures(3).is_empty());
+    }
+
+    #[test]
+    fn vehicle_recolor_check_rejects_a_wrong_line() {
+        assert_eq!(
+            vehicle_recolor_failures(2),
+            ["vehicle pixels must read line 3"]
+        );
+    }
 }

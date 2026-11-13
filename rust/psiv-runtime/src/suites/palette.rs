@@ -22,6 +22,10 @@ fn pack_present() -> bool {
 }
 
 fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
+    runtime_at(map, (16, 16), party, flags)
+}
+
+fn runtime_at(map: u16, pixels: (u16, u16), party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
     let initial = crate::Session::start(data.clone())
         .field()
@@ -47,8 +51,8 @@ fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
                 world_index: 0,
                 map_index_2: 0,
                 map_index: map,
-                char_x: 16,
-                char_y: 16,
+                char_x: pixels.0,
+                char_y: pixels.1,
             },
         },
         StepFrames::default(),
@@ -462,5 +466,124 @@ fn zio_ramp_reaches_the_live_scene_palette() {
             frame.beams, frames[ramp].beams,
             "map-only ramp must freeze the SAT pose"
         );
+    }
+}
+
+/// All three real boarding events: the art load precedes the counted palette
+/// copy, which precedes exposing the vehicle body, even on the camera-pan path.
+#[test]
+fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
+    use psiv_core::{PaletteBuffer, PaletteSource};
+    if !pack_present() {
+        return;
+    }
+    // Interior placements from session_menu_scenes' boarding fixtures. Each
+    // requires the real camera pan; the map corner's target cannot be reached.
+    for (index, address, cell) in [
+        (1, 0x0029_754E, (115, 177)),
+        (2, 0x0029_756E, (114, 178)),
+        (3, 0x0029_758E, (20, 20)),
+    ] {
+        let mut runtime = runtime_at(
+            0,
+            (cell.0 * 16, cell.1 * 16),
+            [Some(CharId(0)), None, None, None, None],
+            &[Flag::event(0x0C), Flag::event(0x43)],
+        );
+        let source = runtime
+            .data()
+            .scene_palettes()
+            .words(address)
+            .expect("boarding palette")
+            .to_vec();
+        assert_eq!(source.len(), 17);
+        let saved = *runtime.effects.cram.saved();
+        let (base, frames) = trace(&mut runtime, 8 + index);
+        let at = emitted(&frames, |op| {
+            matches!(op, PresentationOp::PaletteCopy {
+            source: PaletteSource::Rom(a), destination: PaletteBuffer::Live,
+            start: 48, words: 17,
+        } if *a == address)
+        });
+        let art_at = emitted(&frames, |op| {
+            matches!(
+                op,
+                PresentationOp::LoadSceneAsset {
+                    destination_ram: 0xFFFF_0000,
+                    ..
+                }
+            )
+        });
+        assert!(art_at <= at);
+        let ops: Vec<_> = frames[at]
+            .events
+            .iter()
+            .filter_map(|event| match event {
+                RuntimeEvent::ScenePresentation { op, .. } => Some(op),
+                _ => None,
+            })
+            .collect();
+        let art = ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::LoadSceneAsset { .. }
+                    }
+                )
+            })
+            .unwrap();
+        let copy = ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::PaletteCopy { .. }
+                    }
+                )
+            })
+            .unwrap();
+        assert!(art < copy, "art, then palette in the emitted tick");
+        let scene = psiv_core::scene_for(psiv_core::EventIndex(8 + index)).unwrap();
+        let copy = scene
+            .ops
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::PaletteCopy { .. }
+                    }
+                )
+            })
+            .unwrap();
+        let body = scene
+            .ops
+            .iter()
+            .position(|op| matches!(op, SceneOp::AlignVehicleBoarding { .. }))
+            .unwrap();
+        assert!(copy < body, "palette before exposing the vehicle body");
+        let mut expected = base;
+        expected[48..].copy_from_slice(&source[..16]);
+        assert_eq!(
+            frames[at].words, expected,
+            "index {index}: all 64 words at the load"
+        );
+        // The normal Motavia water cycle continues during the camera pan;
+        // boarding preserves its program and keeps the vehicle line loaded.
+        for frame in frames.iter().skip(at) {
+            assert_eq!(
+                frame.words[48..],
+                expected[48..],
+                "index {index}, frame {}: vehicle line through the pan",
+                frame.count,
+            );
+        }
+        let mut expected_saved = saved;
+        expected_saved[0] = source[16];
+        assert_eq!(runtime.effects.cram.saved(), &expected_saved);
+        assert_eq!(runtime.game().vehicle_index(), index);
     }
 }

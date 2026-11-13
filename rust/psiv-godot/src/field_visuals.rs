@@ -94,7 +94,7 @@ impl Field {
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)
                     && let Some(sheet) = runtime.data().sheet(&sheet_id)
-                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, None)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet, Some(&self.cram))
                 {
                     self.sheet_views.insert(sheet_id.clone(), view);
                 }

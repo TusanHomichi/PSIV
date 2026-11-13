@@ -15,8 +15,9 @@
 //! 2. rebuilds the sprite table (`Field_BuildSprites` + `VInt_Prepare`);
 //! 3. writes `MusicID_LandMaster` into `Sound_Index` and `Saved_Sound_Index`
 //!    only when `Saved_Sound_Index` differs;
-//! 4. decompresses the machine's Nemesis art into `RAM_Start` and its sixteen
-//!    palette words into `Palette_Line_4` (`$FFFFFB60`, CRAM line 4);
+//! 4. decompresses the machine's Nemesis art into `RAM_Start` and copies sixteen
+//!    palette words into `Palette_Line_4` (`$FFFFFB60`, zero-based line 3),
+//!    plus one word into the saved buffer (`moveq #$10, d7 / trap #1`);
 //! 5. writes the machine's object id into `Character_1` and clears the four
 //!    follower object ids, so the field draws one wide object instead of a
 //!    walking party;
@@ -43,8 +44,8 @@ const MUSIC_LAND_MASTER: u8 = 0x8D;
 /// `RAM_Start` (`ps4.constants.asm:1990`): where the machine's Nemesis art is
 /// decompressed.
 const RAM_START: u32 = 0xFFFF_0000;
-/// `Palette_Line_4` (`ps4.constants.asm:2424`): the machine's palette words.
-const PALETTE_LINE_4: u32 = 0xFFFF_FB60;
+/// `Palette_Line_4` (`ps4.constants.asm:2424`): word 48 of the live buffer.
+const PALETTE_LINE_4: u8 = 48;
 
 /// The Land Rover's art and palette (`loc_296320`, `loc_29754E`).
 const LAND_ROVER_ART: u32 = 0x0029_6320;
@@ -80,9 +81,11 @@ pub static BOARDING_LAND_ROVER: Scene = Scene {
             },
         },
         SceneOp::Presentation {
-            op: PresentationOp::LoadSceneAsset {
-                source_rom_addr: LAND_ROVER_PALETTE,
-                destination_ram: PALETTE_LINE_4,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Rom(LAND_ROVER_PALETTE),
+                destination: PaletteBuffer::Live,
+                start: PALETTE_LINE_4,
+                words: 17,
             },
         },
         SceneOp::AlignVehicleBoarding { index: 1 },
@@ -109,9 +112,11 @@ pub static BOARDING_ICE_DIGGER: Scene = Scene {
             },
         },
         SceneOp::Presentation {
-            op: PresentationOp::LoadSceneAsset {
-                source_rom_addr: ICE_DIGGER_PALETTE,
-                destination_ram: PALETTE_LINE_4,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Rom(ICE_DIGGER_PALETTE),
+                destination: PaletteBuffer::Live,
+                start: PALETTE_LINE_4,
+                words: 17,
             },
         },
         SceneOp::AlignVehicleBoarding { index: 2 },
@@ -138,9 +143,11 @@ pub static BOARDING_HYDROFOIL: Scene = Scene {
             },
         },
         SceneOp::Presentation {
-            op: PresentationOp::LoadSceneAsset {
-                source_rom_addr: HYDROFOIL_PALETTE,
-                destination_ram: PALETTE_LINE_4,
+            op: PresentationOp::PaletteCopy {
+                source: PaletteSource::Rom(HYDROFOIL_PALETTE),
+                destination: PaletteBuffer::Live,
+                start: PALETTE_LINE_4,
+                words: 17,
             },
         },
         SceneOp::AlignVehicleBoarding { index: 3 },

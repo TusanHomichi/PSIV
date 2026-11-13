@@ -558,3 +558,38 @@ fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
     cram.tick(40);
     assert_eq!(cram.view().words, filled(0x0222));
 }
+
+/// The literal boarding copy crosses the live/saved boundary. The source
+/// words are made up so this check needs no pack and catches clipping at 64.
+#[test]
+fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
+    let live = std::array::from_fn(|n| n as u16);
+    let saved = filled(0x0EEE);
+    let values: Vec<u16> = (100..117).collect();
+    let palettes = ScenePalettes::from_parts(
+        BTreeMap::from([(0x0029_754E, values.clone())]),
+        BTreeMap::new(),
+    );
+    let mut cram = cram(live, saved);
+    let copy = op(PresentationOp::PaletteCopy {
+        source: PaletteSource::Rom(0x0029_754E),
+        destination: PaletteBuffer::Live,
+        start: 48,
+        words: 17,
+    });
+    let _ = cram.apply(&copy, 0, &palettes, None);
+    let mut expected = live;
+    expected[48..].copy_from_slice(&values[..16]);
+    assert_eq!(cram.view().words, expected);
+    let mut expected_saved = saved;
+    expected_saved[0] = values[16];
+    assert_eq!(cram.saved(), &expected_saved);
+    assert!(cram.view().missing.is_empty());
+    let revision = cram.view().revision;
+    let _ = cram.apply(&copy, 1, &palettes, None);
+    assert_eq!(
+        cram.view().revision,
+        revision,
+        "identical copy changes no live word"
+    );
+}

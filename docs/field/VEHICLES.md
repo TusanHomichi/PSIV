@@ -364,9 +364,36 @@ variant: map count
 
 `GameData::vehicle_sheet_for_map` resolves the map-specific three-sheet set,
 falling back to the base selector sheet only for filtered/older packs. Both
-the field renderer and mounted battle setup use that lookup. The palette
+the field renderer and mounted battle setup use that lookup. Field sheets
+read their line-3 indices through the live CRAM path
+([palette state](../scenes/SCENE_PRESENTATION.md#cram-state)); the baked variant
+is the fallback when no live palette is available. Boarding's counted palette
+copy replaces that line before the vehicle body is exposed. The palette
 counts are disassembly/data-backed extraction results; tape 29 is a movement
 and entry oracle, not a CRAM-capture tape.
+
+### Native palette fixture
+
+`tools/native/native_vehicle_palette.gd` mounts a Land Rover in the existing
+Anger Tower `$99` fixture, where the tone holds line 2. This is an injected
+rendering fixture, not a campaign route or an original-game comparison. It
+captures the vehicle's sheet, current 40×32 frame and 1280×800 viewport before
+and during the tone; it requires live CRAM, a changed line 3, unchanged line 2,
+an unchanged alpha channel and a stationary vehicle. The wrong-line negative
+control is in `psiv-data`'s colour tests.
+
+From the repository root, with the extension and local pack built:
+
+```bash
+mkdir -p build/vehicle-palette/saves
+PSIV_DEBUG_EVENT=0x99 PSIV_DEBUG_VEHICLE_INDEX=1 PSIV_DEBUG_ROUTE=1 \
+PSIV_DEBUG_AUTOCLOSE_SCENE=1 PSIV_DEBUG_RETAIL_PACE=1 \
+PSIV_SAVE_DIR="$PWD/build/vehicle-palette/saves" \
+PSIV_VEHICLE_OUTPUT="$PWD/build/vehicle-palette" \
+python3 tools/heavy_lock.py run --class godot -- xvfb-run -a \
+python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
+  --audio-driver Dummy --script "$PWD/tools/native/native_vehicle_palette.gd"
+```
 
 ## Motavia battle backgrounds, on foot and mounted
 

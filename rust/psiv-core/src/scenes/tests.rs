@@ -582,6 +582,11 @@ fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
         (0xFFFF_FB00..0xFFFF_FB80).contains(&ram) && ram + 2 * words <= 0xFFFF_FB80
     };
     match *op {
+        PresentationOp::LoadSceneAsset {
+            destination_ram, ..
+        } if (0xFFFF_FB00..0xFFFF_FC00).contains(&destination_ram) => {
+            Some("palette load without a word count")
+        }
         PresentationOp::SetPaletteWords {
             offset,
             first,
@@ -602,9 +607,16 @@ fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
             start,
             words,
             source,
-            ..
+            destination,
         } => {
-            if usize::from(start) + usize::from(words) > 64 {
+            // Live and saved are adjacent; a live copy may continue into
+            // saved (boarding copies 17 words starting at word 48).
+            let limit = if destination == crate::PaletteBuffer::Live {
+                128
+            } else {
+                64
+            };
+            if start >= 64 || usize::from(start) + usize::from(words) > limit {
                 Some("copy past the buffer")
             } else if matches!(source, crate::PaletteSource::Fill(v) if v & !CRAM != 0) {
                 Some("not a CRAM word")
@@ -674,11 +686,18 @@ fn a_palette_record_that_cannot_fit_is_reported() {
     );
     assert_eq!(palette_record_fault(&words(0x2E, 0x0620, 0x0EEE)), None);
     assert_eq!(
+        palette_record_fault(&PresentationOp::LoadSceneAsset {
+            source_rom_addr: 0x0029_754E,
+            destination_ram: 0xFFFF_FB60,
+        }),
+        Some("palette load without a word count")
+    );
+    assert_eq!(
         palette_record_fault(&PresentationOp::PaletteCopy {
             source: crate::PaletteSource::Fill(0),
             destination: crate::PaletteBuffer::Live,
             start: 32,
-            words: 64,
+            words: 100,
         }),
         Some("copy past the buffer")
     );
