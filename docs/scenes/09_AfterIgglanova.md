@@ -103,7 +103,7 @@ Wait{ticks: 30}
 MoveActorTo{who: char(Hahn), x: 256, y: 192, mode: single_object}
 RunDialogueResume{}
 OverlapCharacters{}
-MoveCamera{x: leader.curr_x_pos, y: leader.curr_y_pos, speed: 1}
+PanCamera{subject: Character_1, speed: 1}
 Face{who: Character_1, dir: Down}
 SetStepOffset{1}
 SetFlag{EventFlag_AfterIgglanova}

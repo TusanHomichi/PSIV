@@ -573,7 +573,6 @@ impl Runtime {
                             target_x: (x >> 16) & 0xFFF,
                             target_y: ((y >> 16) + 0x100) & 0xFFF,
                             speed: 2,
-                            x_then_y: true,
                         });
                     }
                     SceneOp::PlayMusicIfSavedDifferent { id } => {
@@ -601,9 +600,6 @@ impl Runtime {
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },
                     } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
-                    SceneOp::MoveCamera { x, y, speed } => {
-                        self.scene_move_camera(x, y, i32::from(speed));
-                    }
                     SceneOp::PanCamera { subject, speed } => {
                         let at = match subject {
                             psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),
@@ -672,24 +668,6 @@ impl Runtime {
                         op: psiv_core::PresentationOp::NpcPixelPosition { npc, x, y },
                     } => {
                         let _ = self.map.set_npc_pixel_position(npc, x, y);
-                    }
-                    // `Event_MoveCamera` reading a live object rather than
-                    // literals (`PresentationOp::CameraToActor`). The camera is
-                    // runtime state because the on-screen tests feed the RNG
-                    // stream, so a headless run must pan exactly like a
-                    // rendered one.
-                    SceneOp::Presentation {
-                        op: psiv_core::PresentationOp::CameraToActor { actor, speed },
-                    } => {
-                        if let Some(walker) = self
-                            .scene
-                            .as_ref()
-                            .and_then(|runner| runner.actor(actor))
-                            .copied()
-                        {
-                            let at = psiv_core::PixelPos::from_cell(walker.cell);
-                            self.scene_move_camera(at.x, at.y, i32::from(speed));
-                        }
                     }
                     _ => {}
                 }

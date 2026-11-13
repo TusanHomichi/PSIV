@@ -12,7 +12,7 @@
 use super::{CHAZ, INSIDE_SPACESHIP_ROUTE, RAJA, RIKA, RUNE, WREN, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::Flag;
@@ -281,9 +281,9 @@ pub static CRASH_LANDING: Scene = Scene {
         },
         SceneOp::Wait { ticks: 120 },
         SceneOp::FadeIn,
-        SceneOp::MoveCamera {
-            x: 0x240,
-            y: 0x5D0,
+        // `ps4.asm:155864-155867`: literal `($240,$5D0)`, speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x240, y: 0x5D0 },
             speed: 2,
         },
         SceneOp::FadeOut,
@@ -330,9 +330,9 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::Wait { ticks: 40 },
         SceneOp::PlaySound { id: SFX_POWER_DOWN },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::MoveCamera {
-            x: 0x5F0,
-            y: 0x120,
+        // `ps4.asm:155984-155987`: literal `($5F0,$120)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x5F0, y: 0x120 },
             speed: 1,
         },
         SceneOp::Presentation {
@@ -588,9 +588,9 @@ pub static LANDALE: Scene = Scene {
                 destination_ram: 0xFFFF1000,
             },
         },
-        SceneOp::MoveCamera {
-            x: 0xC0,
-            y: 0x480,
+        // `ps4.asm:145484-145487`: literal `($C0,$480)`, speed 1.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0xC0, y: 0x480 },
             speed: 1,
         },
         SceneOp::PlaySound {
@@ -619,9 +619,9 @@ pub static LANDALE: Scene = Scene {
             art_tile: 0,
             frames: 1,
         },
-        SceneOp::MoveCamera {
-            x: 0xC0,
-            y: 0x480,
+        // `ps4.asm:145505-145509`: back to `Character_1`'s live `$30`/`$34`, speed 2.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(LEADER),
             speed: 2,
         },
         SceneOp::SetFlag {

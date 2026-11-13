@@ -91,7 +91,7 @@ palette dies away and the leader steps back. No battle, no map change.
 | 45 | `$073366..$073377` | `Character_1` to `($2E0,$2F0)`: `Event_MoveSingleObject` | `MoveActorTo Leader` (`wait: true`) |
 | 46 | `$073378..$07337F` | `DoMainUpdatesLoop($3B)` | `Wait 60` |
 | 47 | `$073380..$073385` | `move.b #1, FieldObj_Step_Offset` | `SetStepOffset 1` |
-| 48 | `$073386..$073399` | `Event_MoveCamera` on `Character_1`'s live `$30/$34`, speed 2, a tail `jmp` | `CameraToActor Leader 2` |
+| 48 | `$073386..$073399` | `Event_MoveCamera` on `Character_1`'s live `$30/$34`, speed 2, a tail `jmp` | `PanCamera(Actor(leader), 2)` |
 
 (Op numbers are the scene's indices; the palette loop appears as ops 29 to 38
 because the retail initial write and the first table row are the same pair and

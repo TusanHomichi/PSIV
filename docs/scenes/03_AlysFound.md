@@ -122,7 +122,7 @@ PromoteNpcToChar{npc: NPCAlysPiata, char_id: Alys, slot: 1,
                  position: from NPCAlysPiata}
 JoinParty{char: Alys}                                      ; Event_AddMacro
 DespawnNpc{who: NPCAlysPiata}                              ; clr.w + trap #0
-MoveCamera{x: Chaz.curr_x_pos, y: Chaz.curr_y_pos, speed: 2}
+PanCamera{subject: Character_1, speed: 2}                ; tail jmp, waits for arrival
 SetFlag{EventFlag_AlysFound}
 ```
 

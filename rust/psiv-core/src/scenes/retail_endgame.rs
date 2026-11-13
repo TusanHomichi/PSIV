@@ -7,7 +7,8 @@
 use crate::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{
-    CreditsPlane, PaletteBuffer, PaletteSource, PresentationOp, RESTORE_PALETTE, SAVE_PALETTE,
+    CameraSubject, CreditsPlane, PaletteBuffer, PaletteSource, PresentationOp, RESTORE_PALETTE,
+    SAVE_PALETTE,
 };
 use crate::scene_runner::Scene;
 use crate::state::Flag;
@@ -157,9 +158,9 @@ pub static RAJA_SICK: Scene = Scene {
         SceneOp::Wait { ticks: 1 },
         SceneOp::FadeIn,
         SceneOp::RunDialogueResume,
-        SceneOp::MoveCamera {
-            x: 0x1A0,
-            y: 0x240,
+        // `ps4.asm:156643-156646`: literal `($1A0,$240)`, speed 4.
+        SceneOp::PanCamera {
+            subject: CameraSubject::At { x: 0x1A0, y: 0x240 },
             speed: 4,
         },
         SceneOp::PlaySound { id: SFX_STAIRS },
@@ -193,11 +194,10 @@ pub static RAJA_SICK: Scene = Scene {
             actor: ActorRef::Character(WREN),
             facing: Direction::Down,
         },
-        SceneOp::Presentation {
-            op: PresentationOp::CameraToActor {
-                actor: ActorRef::PartyMember(0),
-                speed: 4,
-            },
+        // `ps4.asm:156688-156692`: `Character_1`'s live position, speed 4.
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(ActorRef::PartyMember(0)),
+            speed: 4,
         },
         SceneOp::RunDialogueResume,
         SceneOp::SetSavedMusic { id: SFX_RED_ALERT },

@@ -6,6 +6,7 @@
 use super::{ALYS, CHAZ, HAHN};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene_presentation::CameraSubject;
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -108,10 +109,10 @@ static ALYS_FOUND_OPS: &[SceneOp] = &[
         npc_index: 7,
         count: 1,
     },
-    // 10: camera to the leader's position at speed 2.
-    SceneOp::MoveCamera {
-        x: 0x260,
-        y: 0xF0,
+    // 10: camera to `Character_1`'s live position at speed 2, a tail `jmp`
+    //     (`ps4.asm:183725-183729`) that returns on arrival.
+    SceneOp::PanCamera {
+        subject: CameraSubject::Actor(LEADER),
         speed: 2,
     },
     // 11: EventFlag_AlysFound. The clone omits this; retail ends on it.
@@ -382,9 +383,10 @@ static AFTER_IGGLANOVA_OPS: &[SceneOp] = &[
     },
     SceneOp::RunDialogueResume,
     SceneOp::OverlapCharacters,
-    SceneOp::MoveCamera {
-        x: 256,
-        y: 192,
+    // `Character_1`'s live position, speed 1: US retail `ps4.asm:147129-147133`,
+    // commented out under the fork's Grand Cross rewrite.
+    SceneOp::PanCamera {
+        subject: CameraSubject::Actor(LEADER),
         speed: 1,
     },
     SceneOp::Face {

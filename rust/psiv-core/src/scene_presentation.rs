@@ -416,14 +416,6 @@ pub enum PresentationOp {
         /// Frames each pass waits.
         frame_delay: u16,
     },
-    /// Move the camera to an actor's live position. This is the dynamic form
-    /// of `Event_MoveCamera` used by the Raja Sick return beat.
-    CameraToActor {
-        /// Actor whose current coordinates are read.
-        actor: ActorRef,
-        /// Retail scroll speed.
-        speed: u16,
-    },
     /// A map object's whole-pixel position after one frame of
     /// `SceneOp::DriftNpcs` (`FieldObj_UpdatePosition`, `$04501C`). The
     /// runtime writes it to the field map so occupancy, collision and the

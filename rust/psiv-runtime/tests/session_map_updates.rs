@@ -317,7 +317,7 @@ fn tower_chest_conjunctions_set_story_flags_only_when_all_bits_hold() {
             let mut session = session_at(map, ground(map, None), &game);
             tick(&mut session, Pad::NEUTRAL);
             // Entry events own their dispatch frame before RunMapUpdates.
-            // The tower's ensuing MoveCamera/Wait loop does call the table.
+            // The tower's ensuing PanCamera/Wait loop does call the table.
             for _ in 0..3 {
                 if session.runtime().map_updates().last_frame.is_some() {
                     break;

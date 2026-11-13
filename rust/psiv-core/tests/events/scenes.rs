@@ -9,8 +9,8 @@
 use crate::common::{map_with, torus};
 use crate::fixtures::{frames, join_runner};
 use psiv_core::{
-    ActorRef, Cell, CharId, DialogueId, DialogueSource, Direction, Flag, GameState, SceneEffect,
-    SceneFault, SceneInput, SceneOp, SceneRunner, ScriptedActor,
+    ActorRef, CameraSubject, Cell, CharId, DialogueId, DialogueSource, Direction, Flag, GameState,
+    SceneEffect, SceneFault, SceneInput, SceneOp, SceneRunner, ScriptedActor,
 };
 
 #[test]
@@ -87,16 +87,24 @@ fn a_scene_runs_end_to_end_with_a_pinned_effect_log() {
                 count: 1
             },
             SceneEffect::Presentation {
-                op: SceneOp::MoveCamera {
-                    x: 0x30,
-                    y: 0x10,
+                op: SceneOp::PanCamera {
+                    subject: CameraSubject::At { x: 0x30, y: 0x10 },
                     speed: 2
                 }
             },
-            SceneEffect::Finished,
         ]
     );
 
+    // `Event_MoveCamera` returns only on arrival: the scene waits for the
+    // runtime's glide, then ends.
+    assert!(runner.is_waiting_for_camera());
+    for _ in 0..30 {
+        assert!(runner.tick(&map, &mut state, SceneInput::None).is_empty());
+    }
+    assert_eq!(
+        runner.tick(&map, &mut state, SceneInput::CameraArrived),
+        vec![SceneEffect::Finished]
+    );
     assert!(runner.is_finished());
     assert!(state.is_set(Flag::event(0x08)));
     assert_eq!(state.party_slot(0), Some(CharId(1)), "Alys leads");

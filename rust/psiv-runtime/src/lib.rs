@@ -266,13 +266,13 @@ pub struct Runtime {
     scene_tail: Option<scene_return::ReturnTail>,
 }
 
-/// See [`Runtime::scene_move_camera`].
+/// An `Event_MoveCamera` pan in flight (`camera.rs`): twelve-bit targets,
+/// X before Y.
 #[derive(Debug, Clone, Copy)]
 struct CameraGlide {
     target_x: i32,
     target_y: i32,
     speed: i32,
-    x_then_y: bool,
 }
 
 /// Everything encounters need, converted from the pack once.

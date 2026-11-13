@@ -668,10 +668,6 @@ impl SceneRunner {
                 });
                 self.pc += 1;
             }
-            SceneOp::MoveCamera { .. } => {
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
-            }
             SceneOp::Wait { ticks } => {
                 self.pc += 1;
                 if ticks > 0 {

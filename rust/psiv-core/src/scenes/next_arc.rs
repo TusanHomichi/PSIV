@@ -11,7 +11,7 @@
 use super::{ALYS, CHAZ, GRYZ, HAHN, RUNE, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -339,9 +339,9 @@ static DORIN_OPS: &[SceneOp] = &[
     },
     SceneOp::WaitForActor { actor: NPC_6 },
     SceneOp::WaitForActor { actor: NPC_0 },
-    SceneOp::MoveCamera {
-        x: 0x1E0,
-        y: 0x300,
+    // `ps4.asm:153653-153657`: `Character_1`'s live position, speed 2.
+    SceneOp::PanCamera {
+        subject: CameraSubject::Actor(LEADER),
         speed: 2,
     },
     SceneOp::SetFlag {
@@ -494,9 +494,10 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
         facing: Direction::Down,
     },
     SceneOp::SetFollowMode { bits: 0 },
-    SceneOp::MoveCamera {
-        x: 0x1F0,
-        y: 0x240,
+    // `ps4.asm:183847-183855`: Rune's live position (`Event_GetCharacter`),
+    // speed 2.
+    SceneOp::PanCamera {
+        subject: CameraSubject::Actor(ActorRef::Character(RUNE)),
         speed: 2,
     },
     SceneOp::RunDialogueResume,
@@ -508,9 +509,9 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
         wait: true,
     },
     SceneOp::SetFollowMode { bits: 0 },
-    SceneOp::MoveCamera {
-        x: 0x1F0,
-        y: 0x220,
+    // `ps4.asm:183864-183868`: `Character_1`'s live position, speed 2.
+    SceneOp::PanCamera {
+        subject: CameraSubject::Actor(LEADER),
         speed: 2,
     },
     SceneOp::MoveActorTo {
@@ -673,9 +674,9 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         wait: true,
     },
     SceneOp::SetStepOffset { value: 1 },
-    SceneOp::MoveCamera {
-        x: 0x1E0,
-        y: 0xA0,
+    // `ps4.asm:153819-153822`: literal `($1E0,$A0)`, speed 1.
+    SceneOp::PanCamera {
+        subject: CameraSubject::At { x: 0x1E0, y: 0xA0 },
         speed: 1,
     },
     SceneOp::PlaySound { id: SFX_FUSION },
@@ -685,9 +686,9 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         step_y: 0x8000,
         frames: 64,
     },
-    SceneOp::MoveCamera {
-        x: 0x1E0,
-        y: 0xE0,
+    // `ps4.asm:153829-153832`: literal `($1E0,$E0)`, speed 2.
+    SceneOp::PanCamera {
+        subject: CameraSubject::At { x: 0x1E0, y: 0xE0 },
         speed: 2,
     },
     SceneOp::SetDialogueTree { rom_addr: TREE_3 },
