@@ -20,7 +20,10 @@
 //! * `default`, `attack_all`, `heal_then_attack` and `fight_to_win` fight every
 //!   battle;
 //! * `run_unless_boss`, `run_then_win` and `bioplant_survival` RUN from every
-//!   random encounter (every round until it works) and fight scripted battles;
+//!   random encounter (every round until it works) and fight scripted battles.
+//!   Mounted, where a battle's cost ends with it, they RUN only while running
+//!   loses the vehicle no more often than fighting would
+//!   ([`crate::policy_escape`]);
 //! * `train_with_inn` fights, and RUNs from a random encounter once a member
 //!   has fallen or a living one is below [`RETREAT_PERCENT`] of their HP: the
 //!   inn or the house that follows the patrol cures what a retreat leaves, and
@@ -114,6 +117,13 @@ pub trait Policy {
         self.wants_run(boss)
     }
 
+    /// What the battle driver asks on the main options: [`Policy::wants_run_with`],
+    /// for a policy that also reads the battle itself (a mounted party,
+    /// `policy_escape.rs`).
+    fn runs(&mut self, boss: bool, party: &[PartyStatus], _runtime: &Runtime) -> bool {
+        self.wants_run_with(boss, party)
+    }
+
     /// Whether the party is cured through the camp after each battle
     /// (`recovery.rs`).
     fn recovers(&self) -> bool {
@@ -194,6 +204,9 @@ pub struct PartyPolicy {
     /// Run from a random encounter once a member has fallen or a living one is
     /// below [`RETREAT_PERCENT`].
     retreat: bool,
+    /// A mounted battle's answer for the round it was asked in: the battle's
+    /// resolved-round count and whether to RUN.
+    mounted: Option<(u16, bool)>,
 }
 
 impl Default for PartyPolicy {
@@ -212,6 +225,7 @@ impl PartyPolicy {
             current: None,
             run_encounters: false,
             retreat: false,
+            mounted: None,
         }
     }
 
@@ -242,6 +256,7 @@ impl Policy for PartyPolicy {
     fn battle_begins(&mut self, boss: bool) {
         self.planner.begin_battle(boss);
         self.current = None;
+        self.mounted = None;
     }
 
     fn choose(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Intent {
@@ -271,6 +286,40 @@ impl Policy for PartyPolicy {
                 && party.iter().any(|m| {
                     !alive(m) || u32::from(m.hp) * 100 < u32::from(m.max_hp) * RETREAT_PERCENT
                 }))
+    }
+
+    fn runs(&mut self, boss: bool, party: &[PartyStatus], runtime: &Runtime) -> bool {
+        let run = self.wants_run_with(boss, party);
+        if !(run && self.run_encounters && !boss) {
+            return run;
+        }
+        let (Some(battle), Some(data)) = (runtime.battle(), runtime.battle_data()) else {
+            return run;
+        };
+        if !battle.is_vehicle() {
+            return run;
+        }
+        let round = battle.round_number();
+        if let Some((asked, run)) = self.mounted
+            && asked == round
+        {
+            return run;
+        }
+        let choice = crate::policy_escape::weigh(battle, data);
+        let run = !choice.fight();
+        if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
+            eprintln!(
+                "  battle mounted round {}: RUN loses {}/{}, ATTAC loses {}/{}: {}",
+                round + 1,
+                choice.run.defeats,
+                choice.run.copies,
+                choice.fight.defeats,
+                choice.fight.copies,
+                if run { "RUN" } else { "ATTAC" }
+            );
+        }
+        self.mounted = Some((round, run));
+        run
     }
 
     fn end_round(&mut self) {
