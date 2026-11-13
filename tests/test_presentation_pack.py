@@ -131,6 +131,13 @@ class PresentationPackTests(unittest.TestCase):
         # That read is past the table: the address of `loc_6E922`'s code.
         self.assertEqual(address + 2 * deepest, 0x06E922)
 
+    def test_packed_scene_palette_tables_match_the_rom_requests(self):
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        packed = {r["rom_addr"]: r for r in manifest["palettes"]}
+        for record in decode_palette_requests(ROM.read_bytes()):
+            with self.subTest(address=record["rom_addr"]):
+                self.assertEqual(packed[record["rom_addr"]], record)
+
     def test_scene_palette_requests_are_the_words_the_cartridge_reads(self):
         # Each request beside the instructions that read it, from the US
         # image: at each site, the listing's instructions, assembled here from
