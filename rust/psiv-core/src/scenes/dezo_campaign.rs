@@ -8,7 +8,9 @@ use super::flight::with_ship_menu;
 use super::{KYRA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CounterCycle, PaletteBuffer, PaletteSource, PresentationOp};
+use crate::scene_presentation::{
+    CounterCycle, PaletteBuffer, PaletteSource, PresentationOp, variable_fade,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -235,7 +237,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene3,
         },
-        SceneOp::FadeOut,
+        // `$078460`: `move.b #5, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
+        variable_fade(false, 5),
         // `$07846C`: `moveq #$3B, d0` / `jsr DoMapUpdateLoop`.
         SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
@@ -512,7 +515,9 @@ pub static LUTZ_REVELATION: Scene = Scene {
             wait: true,
         },
         SceneOp::PlaySound { id: SFX_STAIRS },
-        SceneOp::FadeOut,
+        // `$0778C6`: `move.b #2, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`;
+        // `RefreshMap`; `$077902`: mode 2 / `jsr Pal_VariableFadeIn`.
+        variable_fade(false, 2),
         SceneOp::LoadMap {
             map: 0x16F,
             prev_map: 0x16E,
@@ -522,7 +527,7 @@ pub static LUTZ_REVELATION: Scene = Scene {
             align: 0,
             clear_load_flags: 0x08,
         },
-        SceneOp::FadeIn,
+        variable_fade(true, 2),
         SceneOp::MoveActorTo {
             actor: LEADER,
             x: 0x1E0,

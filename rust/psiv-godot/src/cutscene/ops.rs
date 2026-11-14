@@ -194,6 +194,10 @@ impl Field {
             PresentationOp::ReloadMapChunks | PresentationOp::RebuildSprites => {
                 self.load_map_visuals();
             }
+            // The cleared planes hide the map until a scene map redraw
+            // (`load_map_visuals`) restores it; the CRAM and the sprites
+            // stay, unlike `InitVramAndCram`.
+            PresentationOp::ClearPlanes => self.set_field_map_visible(false),
             PresentationOp::LoadSceneAsset { .. }
             | PresentationOp::SetGameMode { .. }
             | PresentationOp::ClearHeldInput
@@ -273,7 +277,6 @@ impl Field {
             | PresentationOp::FadeFromRed { .. }
             | PresentationOp::PaletteRestoreTone { .. }
             | PresentationOp::ShadowHighlight { .. }
-            | PresentationOp::ClearPlanes
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
             | PresentationOp::PaletteIncreaseTone { .. }

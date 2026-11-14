@@ -23,7 +23,7 @@ pub(super) fn pack_present() -> bool {
     present
 }
 
-fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
+pub(super) fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     runtime_at(map, (16, 16), party, flags)
 }
 
@@ -68,16 +68,16 @@ pub(super) fn runtime_at(
 }
 
 /// One tick of a scene run: the frame count, the events, the palette after.
-struct Frame {
+pub(super) struct Frame {
     count: u16,
-    events: Vec<RuntimeEvent>,
-    words: [u16; 64],
+    pub(super) events: Vec<RuntimeEvent>,
+    pub(super) words: [u16; 64],
     beams: Vec<(bool, u64)>,
 }
 
 /// Runs `event` to its end, closing every window at once, and records every
 /// tick. The palette before the first tick is the trace's base.
-fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
+pub(super) fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
     let base = runtime.cram().words;
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut frames = Vec::new();
@@ -121,7 +121,7 @@ fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
 }
 
 /// The tick a presentation record matching `pick` was emitted on.
-fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
+pub(super) fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
     frames
         .iter()
         .position(|frame| {
@@ -133,7 +133,11 @@ fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
 }
 
 /// The first tick after `from` whose events satisfy `pick`.
-fn next_event(frames: &[Frame], from: usize, pick: impl Fn(&RuntimeEvent) -> bool) -> usize {
+pub(super) fn next_event(
+    frames: &[Frame],
+    from: usize,
+    pick: impl Fn(&RuntimeEvent) -> bool,
+) -> usize {
     from + 1
         + frames[from + 1..]
             .iter()
@@ -366,51 +370,6 @@ fn the_rykros_cycle_blocks_its_frames() {
     assert_eq!(resume - cycle, 46);
     assert_eq!(frames[cycle].words[23..32], table[..9]);
     assert_eq!(frames[resume - 1].words[23..32], table[45..54]);
-}
-
-/// `Pal_VariableFadeOut` with `$ED52` = 5 in `Event_Phonon` blocks for its
-/// passes: the largest nibble of the palette it fades, six frames each.
-#[test]
-fn a_variable_fade_blocks_for_the_palette_it_fades() {
-    if !pack_present() {
-        return;
-    }
-    let party = [
-        Some(CharId(0)),
-        Some(CharId(5)),
-        Some(CharId(6)),
-        None,
-        None,
-    ];
-    let mut runtime = runtime_on(0x0BD, party, &[]);
-    let (_, frames) = trace(&mut runtime, 0x6C);
-    let fade = emitted(&frames, |op| {
-        matches!(
-            op,
-            PresentationOp::VariablePaletteFade { fade_in: false, .. }
-        )
-    });
-    let before = frames[fade - 1].words;
-    let largest = before
-        .iter()
-        .flat_map(|word| [word & 0xF, (word >> 4) & 0xF, (word >> 8) & 0xF, word >> 12])
-        .max()
-        .unwrap()
-        .max(1);
-    // `$ED52` is 5 here: a pass, then six `VInt_Prepare`s (`loc_5B1A4`).
-    let every = 6;
-    let spent = usize::from(largest) * every;
-    // Each pass writes the buffer before its wait (`ps4.asm:122042-122066`),
-    // so the last pass turns it black at the start of its six frames, and
-    // the pass before leaves a nibble lit.
-    assert_eq!(frames[fade + spent - every].words, [0; 64]);
-    assert_ne!(frames[fade + spent - every - 1].words, [0; 64]);
-    // The scene's next ops are `wait(40)` (no event) and a sound: the sound
-    // lands the fade's frames and forty more after it.
-    let next = next_event(&frames, fade, |event| {
-        matches!(event, RuntimeEvent::ScenePresentation { .. })
-    });
-    assert_eq!(next - fade, spent + 40);
 }
 
 #[test]

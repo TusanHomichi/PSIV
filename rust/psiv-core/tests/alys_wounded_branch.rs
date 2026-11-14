@@ -54,6 +54,11 @@ fn healing_path(already_met_saya: bool) {
                 _ => {}
             }
         }
+        // `Pal_VariableFadeOut` (`$074BD6`, #610) waits on the runtime's
+        // count; any count will do here.
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         if runner.is_finished() {
             break;
         }

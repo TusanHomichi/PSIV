@@ -19,7 +19,7 @@ typed dialogue effect.
 | Op(s) | ROM offset | Retail bytes / behaviour | Scene record |
 |---:|---|---|---|
 | 0-3 | `$074B72..$074BB0` | init, fade, sprites on, raw entry `$43` | init/fade/render/dialogue |
-| 4-8 | `$074BC8..$074C0E` | teleport SFX, variable fade, panel/window teardown, chunk reload, `DoMapUpdateLoop($3B)` | presentation + `Wait(60)` |
+| 4-8 | `$074BC8..$074C0E` | teleport SFX, `Pal_VariableFadeOut` (`$ED52` 3, `$074BD6`), panel/window teardown, chunk reload, `DoMapUpdateLoop($3B)` | `VariablePaletteFade` out, presentation + `Wait(60)` |
 | 9-15 | `$074C14..$074C4A` | init/fade, panel `$4A`, DMA, VInt `$45+1=70`, resume dialogue | panel/wait/dialogue ops |
 | 16-18 | `$074C4E..$074C62` | teleport SFX, `DoMapUpdateLoop($45+1=70)`, test Saya `$12` | sound/wait/`BranchFlag` |
 | 19 | `$074C6C..$074C96` | first branch loads Krup Inn F1 `$3F`, previous Motavia `$00`, start `($4C,$6C)`, up, align 4 | `LoadMap` |
