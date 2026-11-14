@@ -17,7 +17,7 @@ transcribed. Actual-ROM pointer range: `$06FB1E..$06FB5E` exclusive end.
 | Ops | ROM offsets | Retail primitive | Scene record |
 |---:|---|---|---|
 | 0 | `$06FB1E..$06FB33` | `Field_Obj_Secondary` (Juza) turns to the leader's facing with bit 2 flipped (`bchg #2`), `Event_UpdateObjFacing` | `FaceOppositeOf` object 0, of the leader |
-| 1 | `$06FB34..$06FB3F` | `$FFFFED52 = 2`; `Pal_VariableFadeOut_Lines_1_2` | typed red fade |
+| 1 | `$06FB34..$06FB3F` | `$FFFFED52 = 2`; `Pal_VariableFadeOut_Lines_1_2` (`$06FB3A`) | `TwoLinePaletteFade` out |
 | 2-3 | `$06FB40..$06FB4F` | dialogue entry `$48`; set Juza `$41` | dialogue/flag |
 | 4-5 | `$06FB50..$06FB5D` | event battle index `3`; routine-exit handoff | battle/return |
 

@@ -121,7 +121,7 @@ pub const fn fade_out_step(word: u16) -> u16 {
     d0
 }
 
-/// One pass of `Pal_FadeIn` (`$0421D4`) and `Pal_VariableFadeIn` (`$05B1B0`) on
+/// One pass of `Pal_FadeIn` (`$0421D4`) and `Pal_VariableFadeIn` (`$05B1B8`) on
 /// one word: each nibble that differs from `target`'s goes up by one. A nibble
 /// at `$F` carries into the next one (`addq.w #1, d2` / `or.w d2, d0` with no
 /// mask), as the cartridge does. The flag is the pass's `st d5`.
@@ -144,7 +144,7 @@ pub const fn fade_in_step(word: u16, target: u16) -> (u16, bool) {
     (d0, changed)
 }
 
-/// One stage of `Pal_VariableFadeToRed` (`$05B2C0`) on one word: blue down one
+/// One stage of `Pal_VariableFadeToRed` (`$05B2BE`) on one word: blue down one
 /// level while `$F00` is non-zero, then green while `$F0` is; red is kept. The
 /// test masks four bits and the step is two levels' worth of one, so an odd
 /// field borrows.
@@ -160,7 +160,7 @@ pub const fn fade_to_red_step(word: u16) -> u16 {
     word
 }
 
-/// One stage of `Pal_VariableFadeFromRed` (`$05B30C`) on one word: blue, then
+/// One stage of `Pal_VariableFadeFromRed` (`$05B30E`) on one word: blue, then
 /// green, up one level while it differs from `target`'s.
 #[must_use]
 pub const fn fade_from_red_step(word: u16, target: u16) -> u16 {

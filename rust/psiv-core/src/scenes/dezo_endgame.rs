@@ -237,7 +237,14 @@ pub static REFAZE: Scene = Scene {
             facing: Direction::Up,
         },
         SceneOp::PlaySound { id: 0xFB },
-        SceneOp::FadeOut,
+        // `$0715DA`: `move.b #5, ($FFFFED52).w` / `jsr
+        // Pal_VariableFadeOut_Lines_1_2`.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 5,
+            },
+        },
         SceneOp::Wait { ticks: 60 },
         SceneOp::ObjectAnimation {
             slot: 1,
@@ -252,7 +259,7 @@ pub static REFAZE: Scene = Scene {
         SceneOp::RunDialogueResume,
         SceneOp::BranchChoice {
             if_yes: 18,
-            if_no: 24,
+            if_no: 25,
         },
         SceneOp::Jump { to: 18 },
         SceneOp::LearnTechnique {
@@ -262,6 +269,16 @@ pub static REFAZE: Scene = Scene {
         SceneOp::PlaySound { id: 0xC0 },
         SceneOp::SetSavedMusic { id: MUSIC_TOWER },
         SceneOp::PlaySound { id: MUSIC_TOWER },
+        // `$07172C`: `move.b #2, ($FFFFED52).w` / `jsr
+        // Pal_VariableFadeToPal2`, up to the words the fade-out copied.
+        // Retail refills `Palette_Table_Buffer_2` twice in between
+        // (`$0715F0`, all 64 words; `$0716EE`, the map's 32): #574.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0xE1),
             value: true,

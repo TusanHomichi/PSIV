@@ -245,8 +245,12 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 6 },
         SceneOp::PlaySound { id: SFX_MEGID },
         SceneOp::WaitFrames { frames: 180 },
+        // `$076710`: `move.b #9, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 9 },
+            op: PresentationOp::VariablePaletteFade {
+                fade_in: false,
+                mode: 9,
+            },
         },
         SceneOp::PanelDestroyAll,
         SceneOp::PlaySound { id: MUSIC_STOP },
@@ -761,7 +765,10 @@ pub static JUZA: Scene = Scene {
         // `$06FB34..$06FB3F`: `move.b #2, ($FFFFED52).w / jsr
         // Pal_VariableFadeOut_Lines_1_2`.
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         retained(0x48),
         SceneOp::SetFlag {
@@ -854,7 +861,10 @@ mod juza_tests {
                     e,
                     SceneEffect::Presentation {
                         op: SceneOp::Presentation {
-                            op: PresentationOp::FadeToRed { lines: 2 }
+                            op: PresentationOp::TwoLinePaletteFade {
+                                fade_in: false,
+                                mode: 2
+                            }
                         }
                     }
                 )

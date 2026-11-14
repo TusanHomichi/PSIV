@@ -105,6 +105,8 @@ mod dialogue_resumes_image;
 #[cfg(test)]
 mod documented_ranges;
 #[cfg(test)]
+mod palette_fades_image;
+#[cfg(test)]
 mod wait_census;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};

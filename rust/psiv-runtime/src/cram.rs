@@ -785,7 +785,7 @@ impl Cram {
                     cycle_index,
                 );
             }
-            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
+            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B8`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
                 // A held map load's words are the buffer the fade-in copies.
                 self.saved = self.unshown.take().unwrap_or(self.view.words);
