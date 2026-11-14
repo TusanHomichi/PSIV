@@ -42,9 +42,10 @@ impl Field {
                     godot_print!("map change ({kind}) -> {:#05x}", map.id().0);
                     self.presentation.reload_field_objects();
                     // RefreshMap replaces the VDP planes; old dialogue
-                    // panels cannot remain layered over the new field.
+                    // panels or a scene picture cannot remain over the new
+                    // field.
                     if let Some(layer) = self.cutscene_layer.as_mut() {
-                        layer.bind_mut().panel_destroy_all();
+                        layer.bind_mut().clear_planes();
                     }
                     self.load_map_visuals();
                     // The load's own music edge, decided by the runtime: a

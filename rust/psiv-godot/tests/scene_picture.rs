@@ -160,3 +160,36 @@ fn a_picture_needs_its_cells_after_its_art_before_the_dma() {
         ]
     );
 }
+
+/// A teardown outside the scene's ops (its end, a field reload, a map
+/// change, the return to title: the shell's `clear_planes`) drops a staged
+/// picture as well as a shown one, so no later DMA revives either.
+#[test]
+fn a_teardown_drops_a_staged_and_a_shown_picture_for_good() {
+    let art = SceneOp::LoadArt {
+        rom_addr: GALAXY_ART.0,
+        tile: GALAXY_ART.1,
+    };
+    let cells = SceneOp::Presentation {
+        op: PresentationOp::LoadSceneAsset {
+            source_rom_addr: GALAXY,
+            destination_ram: 0xFFFF_0000,
+        },
+    };
+    let mut presentation = PresentationState::default();
+    presentation.load_art(GALAXY_ART.0, GALAXY_ART.1);
+    let loaded = |art: u32, tile: u16| presentation.art_loaded(art, tile);
+    for shown in [false, true] {
+        let mut plane = PicturePlane::default();
+        plane.consume(&art, picture_art, loaded);
+        plane.consume(&cells, picture_art, loaded);
+        if shown {
+            plane.consume(&SceneOp::DmaPlanes, picture_art, loaded);
+            assert_eq!(plane.visible, Some(GALAXY));
+        }
+        plane.clear();
+        assert_eq!(plane, PicturePlane::default());
+        plane.consume(&SceneOp::DmaPlanes, picture_art, loaded);
+        assert_eq!(plane.visible, None, "shown before the teardown: {shown}");
+    }
+}

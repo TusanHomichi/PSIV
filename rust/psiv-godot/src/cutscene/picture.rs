@@ -73,10 +73,18 @@ impl CutsceneLayer {
         self.picture.visible.is_some()
     }
 
-    /// The scene ended: no picture is staged or shown.
-    pub(crate) fn clear_picture(&mut self) {
+    /// The planes are replaced outside the scene's own ops (the scene's
+    /// end, a field reload, a map change, the return to title): no picture
+    /// is staged or shown, and no panel is. A later DMA revives neither.
+    /// Every such teardown takes this one call, so none can drop the panels
+    /// and keep the picture.
+    pub(crate) fn clear_planes(&mut self) {
+        if self.picture != PicturePlane::default() {
+            godot_print!("scene picture cleared");
+        }
         self.picture.clear();
         self.sync_picture();
+        self.panel_destroy_all();
     }
 
     /// Puts the visible picture, in the live palette, on the picture sprite.

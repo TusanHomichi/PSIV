@@ -362,8 +362,7 @@ impl Field {
         self.presentation.reset_scene();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
-            layer.bind_mut().clear_picture();
-            layer.bind_mut().panel_destroy_all();
+            layer.bind_mut().clear_planes();
         }
         if !restored {
             self.play_map_music();
