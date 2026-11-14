@@ -150,7 +150,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_CourageTowerTop", 18),
         ("Event_DeVars", 4),
         ("Event_SaLews", 4),
-        ("Event_ReFaze", 27),
+        ("Event_ReFaze", 28),
         ("Event_DeVarsDefeated", 6),
         ("Event_SaLewsDefeated", 6),
         ("Cutscene_BeforeElsydeonCave", 16),

@@ -743,10 +743,12 @@ pub static ENDING: Scene = Scene {
         RESTORE_PALETTE,
         SceneOp::PanelCreate { id: 0x17C },
         SceneOp::DmaPlanes,
+        // `$079B1E`: `move.b #1, ($FFFFED52).w` / `jsr Pal_VariableFadeIn`;
+        // mode 5 is the last panel's (`$079B9E`).
         SceneOp::Presentation {
             op: PresentationOp::VariablePaletteFade {
                 fade_in: true,
-                mode: 5,
+                mode: 1,
             },
         },
         SceneOp::RunDialogueResumeWithWindow {
