@@ -343,7 +343,7 @@ border at `(37,2)`.
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
 | `ReplaceMapLayout` | Implemented through `MapRefreshed` | The runtime installs the pack's layout variant decoded from the two ROM sources and emits `MapRefreshed`; Godot's existing handler redraws the map from the runtime view, which names the variant's PNG. `Event_GaruberkTwEyeAction1` ([104](104_GaruberkTowerEyes.md)). |
-| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `CounterPaletteCycle`, `PaletteGrowIn`, `VariablePaletteFade`, `TwoLinePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and dialogue window draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
+| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `CounterPaletteCycle`, `PaletteGrowIn`, `VariablePaletteFade`, `TwoLinePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and native windows draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
 | `GaruberkEyeArtCycle`, `ShadowHighlight` | Logged, not drawn | Godot consumes both (`cutscene/ops.rs`): the Garuberk eyes' art cycle and `Event_ZioNurvus`'s VDP register 12 writes. The frames are the scene's waits, so timing is unaffected. |
 | palette-word/red-fade/window/portrait records | Implemented for the decoded generic set | Generic `WindowDestroy/Create`, `LoadWindowTiles`, `LoadPortrait`, and `DrawPortrait` now drive the runtime window layer. The Meseta window roles come from `dialogue/set.window.png`; `shopkeeper_2` is emitted as a 48x48, 36-tile portrait from art `$29DE1E`, mapping `$2A2B36`, destination tile `$55C`. |
 
@@ -418,9 +418,9 @@ Tower with Elsydeon held, where the map's own entry trigger starts
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Surfaces outside the live palette:** the shop, camp and choice menus,
-  and the dialogue action `SabotageAlarmRedPalette`'s red overlay still draw
-  baked colours.
+- **Surfaces outside the live palette:** the Hunter's Guild board and the
+  ship's destination menu, and the dialogue action
+  `SabotageAlarmRedPalette`'s red overlay, still draw baked colours.
 - **Rykros's tone:** its cycle has a certified frame above; the preceding tone
   still needs its own oracle pair
   ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
@@ -520,7 +520,11 @@ art is indexed draws from it:
   objects (`presentation/panels.json`'s `temporary_objects`) on the line their
   pack record names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
-- the dialogue window, whose tiles, glyphs and portraits are line 2;
+- the native windows, whose tiles, glyphs and portraits are line 2: the
+  dialogue window and its YES/NO choice, the camp and chest windows with the
+  STATUS portraits, and the shop and inn windows with the innkeeper's
+  portrait (`window_palette::WindowFamily`). One material draws them all
+  (`Field::attach_window_line`);
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 
@@ -530,11 +534,47 @@ Sheets, temporary objects and panels keep each pixel's palette index
 drawn (`rust/psiv-godot/src/cram_art.rs`). A map record without the 64-word
 shadow is not live (`CramView::live`): every surface on it, the map's base,
 overlay, layout variant and patch atlas pictures included, draws its baked
-colours. The window's art is baked in
-`Pal_Init_Line_3`'s colours, which are distinct, so its shader finds each
-pixel's index by colour. The red fades are the CRAM model's too: the
+colours. The windows' art is baked in
+`Pal_Init_Line_3`'s colours, which are distinct apart from index 0's black
+(index 1 shares it, and no window pixel is an opaque index 0), so their
+shader finds each pixel's index by colour (`WindowLine::colour` is the same
+rule as data). The red fades are the CRAM model's too: the
 screen-space red effect that stood in for them is gone, since it would now
 apply twice.
+
+`rust/psiv-godot/tests/window_palette.rs` checks the windows' binding
+without Godot: a line-2 change reaches exactly the pixels of its index,
+alpha kept, while a change to lines 0, 1 or 3 or a palette that is not live
+reaches none; the same checks reject art bound to line 3 (the negative
+control). With the local pack, every family's PNGs (window strip, both
+fonts, scroll arrow, dialogue, shop and STATUS portraits) are baked in the
+words the shader is given, on the line their records name, and the field
+boot's map load puts those words on line 2 and not on line 3:
+`cargo test --manifest-path rust/Cargo.toml -p psiv-godot --test window_palette`.
+
+`tools/native/native_window_palette.gd` checks the windows in the running
+shell. `PSIV_WINDOW_FAMILY` picks the camp's STATUS page
+(`PSIV_DEBUG_CAMP=1`), a shop counter (`PSIV_DEBUG_SHOP=<counter>`) or a
+scene's YES/NO choice (`PSIV_DEBUG_EVENT`); the driver pauses the game and
+changes the windows' line 2 through `Field.debug_window_line`, an
+evaluation-only override of the windows' material (`PSIV_DEBUG_ROUTE=1`) that
+leaves the runtime's CRAM, the map and the sprites alone. It is a controlled
+change at the shell's window seam, not a scene's palette op. From captures
+before, with the window hidden, during and after, it requires every footprint
+pixel of a line-2 colour to take its index's new colour, no other pixel to
+change, and the frame to come back exactly when the override clears.
+`PSIV_WINDOW_UNBIND=1` drops the node's material first, and the run must
+fail:
+
+```bash
+mkdir -p build/window-palette/camp/saves
+PSIV_WINDOW_FAMILY=camp PSIV_DEBUG_CAMP=1 PSIV_DEBUG_ROUTE=1 \
+PSIV_SAVE_DIR="$PWD/build/window-palette/camp/saves" \
+PSIV_WINDOW_OUTPUT="$PWD/build/window-palette/camp" \
+python3 tools/heavy_lock.py run --class godot -- xvfb-run -a \
+python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
+  --audio-driver Dummy --script "$PWD/tools/native/native_window_palette.gd"
+```
 
 `tools/native/native_temporary_palette.gd` checks a temporary object in the
 running shell: `Cutscene_Alshline` from `PSIV_DEBUG_EVENT=0x8005` (the scene
