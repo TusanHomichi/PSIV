@@ -3,7 +3,7 @@
 
 use super::Claim::{Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, Row, frame, own, row};
+use super::{CAMPAIGN, DEZO, NEXT_ARC, Row, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -236,4 +236,37 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_LutzRevelation", Facing(0x07_7984), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_798C), Wait(18)),
     row("Cutscene_LutzRevelation", Frames(0x07_79D6), Within(25)),
+    // next_arc_followup.rs. `Event_BioPlantAlarm`'s red fades and
+    // `Event_LeavingChazHouse` wait nothing else.
+    // `Field_BuildSprites` then a bare frame, twice: `RebuildSprites`
+    // records each without blocking.
+    row("Event_GirlsSneakingOut", own(0x06_D4A8, false, false), Within(0)),
+    row("Event_GirlsSneakingOut", frame(0x06_D4E2, false), Missing(NEXT_ARC)),
+    row("Event_GirlsSneakingOut", Map(0x06_D52E), Wait(11)),
+    row("Event_GirlsSneakingOut", frame(0x06_D580, false), Missing(NEXT_ARC)),
+    row("Event_ChazHouse", Map(0x06_FAA2), Wait(8)),
+    row("Cutscene_MeetingRika", Facing(0x07_45FE), Missing(164)),
+    row("Cutscene_MeetingRika", frame(0x07_4652, false), Within(13)),
+    row("Cutscene_MeetingRika", Map(0x07_46F0), Wait(24)),
+    row("Cutscene_MeetingRika", Frames(0x07_4722), Within(31)),
+    row("Cutscene_MeetingRika", Frames(0x07_473C), Within(34)),
+    row("Cutscene_MeetingRika", Map(0x07_47B2), Wait(46)),
+    row("Cutscene_MeetingRika", Facing(0x07_47BE), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_47C8), Wait(48)),
+    row("Cutscene_MeetingRika", Facing(0x07_47D4), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_47DE), Wait(50)),
+    row("Cutscene_MeetingRika", Map(0x07_4802), Wait(53)),
+    row("Cutscene_MeetingRika", Map(0x07_4820), Wait(57)),
+    // `move.w #$3B,d0` and 60 bare `VInt_Prepare`s after the palette words,
+    // transcribed as a `Wait`, which runs map updates.
+    updates(NEXT_ARC, row("Cutscene_MeetingRika", own(0x07_4836, false, false), Wait(59))),
+    row("Cutscene_MeetingRika", Map(0x07_494C), Wait(75)),
+    row("Cutscene_MeetingRika", Facing(0x07_4972), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_497C), Wait(78)),
+    row("Cutscene_MeetingRika", Facing(0x07_4984), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_498E), Wait(80)),
+    row("Cutscene_MeetingRika", Facing(0x07_4996), Missing(164)),
+    row("Cutscene_MeetingRika", frame(0x07_49DE, false), Within(91)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A00), Within(95)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A1A), Within(98)),
 ];
