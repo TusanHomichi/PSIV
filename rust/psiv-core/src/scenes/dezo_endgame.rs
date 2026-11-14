@@ -374,6 +374,8 @@ pub static BEFORE_ELSYDEON_CAVE: Scene = Scene {
         SceneOp::PanelCreate { id: 0x18E },
         SceneOp::DmaPlanes,
         SceneOp::FadeIn,
+        // `$07851A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0x30),
         SceneOp::SavePartySlots,
         SceneOp::SetParty {
@@ -427,6 +429,8 @@ pub static REUNION: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x13D },
         SceneOp::DmaPlanes,
+        // `$078AD6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0),
         SceneOp::Wait { ticks: 60 },
         SceneOp::PlaySound {
@@ -466,6 +470,8 @@ pub static REUNION: Scene = Scene {
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelCreate { id: 0x13E },
         SceneOp::DmaPlanes,
+        // `$078BFC`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(1),
         SceneOp::SetFlag {
             flag: Flag::event(0xDA),

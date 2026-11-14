@@ -108,7 +108,7 @@ pub static INSIDE_SPACESHIP: Scene = Scene {
 
 /// Ops between the sabotage menu and its cancel leg: everything after the menu
 /// up to and including the final `Return { value: 1 }`.
-const SABOTAGE_CANCEL_SKIP: u16 = 28;
+const SABOTAGE_CANCEL_SKIP: u16 = 29;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -175,6 +175,8 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::PanelCreate { id: 0x7E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 10 },
+        // `$0764BA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0764C0`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Retained,
@@ -263,6 +265,8 @@ pub static CRASH_LANDING: Scene = Scene {
         },
         SceneOp::SetDialogueTree { rom_addr: TREE_14 },
         SceneOp::FadeIn,
+        // `$07676E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(7)),
             window: DialogueWindow::Cutscene,
@@ -458,6 +462,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Up,
         },
+        // `$076C5C`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::Face {
             actor: CHAZ_ACTOR,
@@ -467,6 +473,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: WREN_ACTOR,
             facing: Direction::Left,
         },
+        // `$076C8E`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::MoveActorTo {
             actor: RIKA_ACTOR,
@@ -508,6 +516,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Right,
         },
+        // `$076D44`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::Wait { ticks: 60 },
         SceneOp::Face {
@@ -522,6 +532,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Left,
         },
+        // `$076D8E`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::SetFollowMode { bits: 0 },
         SceneOp::JoinParty { slot: 4, who: RAJA },
@@ -735,6 +747,8 @@ pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
             id: SFX_SPACESHIP_RADAR,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
+        // `$0772CA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(8)),
             window: DialogueWindow::Cutscene,

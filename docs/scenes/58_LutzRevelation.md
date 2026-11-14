@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$14]`; scene `$8014`.
 - **Trigger:** `RunEventsJmpTbl[$39]`, Revelation `$97` clear at the Lutz
   position rectangle.
-- **Data:** `dezo_campaign.rs`, `LUTZ_REVELATION` (30 ops).
+- **Data:** `dezo_campaign.rs`, `LUTZ_REVELATION` (31 ops).
 
 ## Clone audit
 
@@ -18,5 +18,5 @@ include is excluded. ROM range: `$077896..$077A2E` exclusive end.
 | 0-6 | `$077896..$07791F` | dialogue `$2A`, move Chaz, stairs SFX, `Pal_VariableFadeOut` (`$ED52` 2, `$0778C6`), load Inner Sanctuary B1, `Pal_VariableFadeIn` (`$ED52` 2, `$077902`) | dialogue/`VariablePaletteFade`/map |
 | 7-18 | `$077920..$0779A9` | Kyra movement/facing choreography and waits | actor/wait |
 | 19-25 | `$0779AA..$0779F0` | dialogue `$2F`, panel `$9E`, resume; set `$97` | dialogue/flag |
-| 26-29 | `$0779F1..$077A2D` | reload Inner Sanctuary B1 with alignment `8`, return | map |
+| 26-30 | `$0779F1..$077A2D` | reload Inner Sanctuary B1 with alignment `8`, return | map |
 

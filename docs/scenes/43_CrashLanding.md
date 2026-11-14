@@ -3,7 +3,7 @@
 - **Retail bytes:** `$07658A..$07714F` inclusive, 3,014 bytes.
 - **Pointer:** `CutscenePtrs[$0F]` at `$05A580`; scene event `$800F`.
 - **Trigger:** `RunEventsJmpTbl[$29]` after Chaos Sorcerer `$71` is set.
-- **Data:** `post_zio_cutscenes.rs`, `CRASH_LANDING` (130 ops).
+- **Data:** `post_zio_cutscenes.rs`, `CRASH_LANDING` (136 ops).
 
 ## Clone audit
 

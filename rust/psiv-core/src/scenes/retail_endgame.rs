@@ -243,10 +243,16 @@ pub static RYKROS: Scene = Scene {
             op: PresentationOp::PaletteRestoreTone { frames: 30 },
         },
         SceneOp::WaitFrames { frames: 30 },
+        // $07823A, $078264, $07827C: `move.b #1, (Render_Sprites_In_Cutscenes).w`
+        // after each `popdlg`, before both `Event_RunDialogue3`s and the
+        // `Event_RunDialogue5`. The last text's return cleared it, and the
+        // panel portrait layout reads it.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::Presentation {
             op: PresentationOp::RykrosPaletteCycle {
@@ -256,6 +262,7 @@ pub static RYKROS: Scene = Scene {
                 delays: RYKROS_PALETTE_DELAYS,
             },
         },
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
         },
@@ -320,6 +327,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x14B },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 40 },
+        // `$07907E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x0A)),
             window: DialogueWindow::Ending,
@@ -340,6 +349,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x14F },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$07910E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x0B)),
             window: DialogueWindow::Ending,
@@ -348,11 +359,15 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x150 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 30 },
+        // `$079146`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
         SceneOp::PanelCreate { id: 0x187 },
         SceneOp::DmaPlanes,
+        // `$07916A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -377,10 +392,14 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x182 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$079220`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
         SceneOp::WaitFrames { frames: 120 },
+        // `$07923E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -403,6 +422,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x155 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 180 },
+        // `$0792EC`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -424,6 +445,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 90 },
         SceneOp::PanelCreate { id: 0x158 },
         SceneOp::DmaPlanes,
+        // `$07937E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -434,10 +457,14 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x15A },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$0793D0`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
         SceneOp::WaitFrames { frames: 60 },
+        // `$0793EE`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -452,6 +479,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x188 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$079454`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -465,6 +494,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x15D },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
+        // `$0794B8`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -472,6 +503,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x15F },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
+        // `$0794F0`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -491,6 +524,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 120 },
         SceneOp::PanelCreate { id: 0x163 },
         SceneOp::DmaPlanes,
+        // `$079584`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -519,6 +554,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 30 },
         SceneOp::PanelCreate { id: 0x167 },
         SceneOp::DmaPlanes,
+        // `$07965A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -553,6 +590,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x16A },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$079722`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -569,6 +608,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::PanelCreate { id: 0x16D },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
+        // `$0797A0`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -587,6 +628,8 @@ pub static ENDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 20 },
         SceneOp::PanelCreate { id: 0x16F },
         SceneOp::DmaPlanes,
+        // `$07982A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -622,6 +665,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$0798A6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x0C)),
             window: DialogueWindow::Ending,
@@ -648,6 +693,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$079926`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -673,6 +720,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$0799A6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -698,6 +747,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$079A26`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -723,6 +774,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$079AA6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -751,6 +804,8 @@ pub static ENDING: Scene = Scene {
                 mode: 1,
             },
         },
+        // `$079B2C`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
@@ -776,6 +831,8 @@ pub static ENDING: Scene = Scene {
                 mode: 5,
             },
         },
+        // `$079BAC`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Ending,
         },
