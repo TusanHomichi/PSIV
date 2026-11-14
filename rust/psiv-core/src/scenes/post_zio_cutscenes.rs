@@ -750,6 +750,16 @@ pub static JUZA: Scene = Scene {
     name: "Event_Juza",
     event: EventIndex(0x0040),
     ops: &[
+        // `$06FB1E..$06FB33`: `lea (Field_Obj_Secondary).w, a4 / lea
+        // (Character_1).w, a3 / move.w $6(a3), d0 / bchg #2, d0 / jsr
+        // Event_UpdateObjFacing`: Juza, the first secondary object, turns to
+        // the opposite of the leader's facing, to face the party.
+        SceneOp::FaceOppositeOf {
+            actor: ActorRef::Npc(0),
+            of: LEADER,
+        },
+        // `$06FB34..$06FB3F`: `move.b #2, ($FFFFED52).w / jsr
+        // Pal_VariableFadeOut_Lines_1_2`.
         SceneOp::Presentation {
             op: PresentationOp::FadeToRed { lines: 2 },
         },
@@ -798,6 +808,69 @@ pub static JUZA_DEFEATED: Scene = Scene {
         },
     ],
 };
+
+#[cfg(test)]
+mod juza_tests {
+    use super::*;
+    use crate::scene::{SceneEffect, SceneInput, ScriptedActor};
+    use crate::scene_runner::SceneRunner;
+    use crate::state::GameState;
+    use crate::{Cell, CollisionGrid, FieldMap, MapId};
+
+    /// `Event_Juza` turns Juza (object 0) to the opposite of the leader's
+    /// facing (`bchg #2`) before its fade, from each of the four facings.
+    #[test]
+    fn juza_turns_away_from_the_leaders_facing_before_the_fade() {
+        let map = FieldMap::new(
+            MapId(0x87),
+            CollisionGrid::filled(16, 16, 0).unwrap(),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        for (leader, expected) in [
+            (Direction::Up, Direction::Down),
+            (Direction::Down, Direction::Up),
+            (Direction::Left, Direction::Right),
+            (Direction::Right, Direction::Left),
+        ] {
+            let cast = vec![
+                ScriptedActor::new(LEADER, Cell::new(4, 5), leader),
+                // Juza starts facing the same way as the leader, so only
+                // the turn can make the two disagree.
+                ScriptedActor::new(ActorRef::Npc(0), Cell::new(4, 4), leader),
+            ];
+            let mut runner = SceneRunner::new(JUZA.ops, cast, crate::StepFrames::default());
+            let mut state = GameState::new();
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            let faced = effects.iter().position(|e| {
+                *e == SceneEffect::ActorFaced {
+                    actor: ActorRef::Npc(0),
+                    facing: expected,
+                }
+            });
+            let fade = effects.iter().position(|e| {
+                matches!(
+                    e,
+                    SceneEffect::Presentation {
+                        op: SceneOp::Presentation {
+                            op: PresentationOp::FadeToRed { lines: 2 }
+                        }
+                    }
+                )
+            });
+            let (Some(faced), Some(fade)) = (faced, fade) else {
+                panic!("leader {leader:?}: faced {faced:?}, fade {fade:?} in {effects:#?}");
+            };
+            assert!(faced < fade, "leader {leader:?}: the turn follows the fade");
+            assert_eq!(
+                runner.actor(ActorRef::Npc(0)).unwrap().facing,
+                expected,
+                "leader {leader:?}"
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod world_index_tests {
