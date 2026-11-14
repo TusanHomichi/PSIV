@@ -42,6 +42,7 @@ mod tape_feed;
 mod title;
 mod transitions;
 mod view;
+mod window_layer;
 mod window_palette;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use boot::title_bypassed;

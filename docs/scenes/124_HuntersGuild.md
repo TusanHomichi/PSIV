@@ -76,6 +76,9 @@ and 7 open with `$FA $D9`, and those rows refuse before their offer once `$D9` i
 swaps in `GuildText_ListingPending`, and it or `closed` writes `$E000`, so a closed job keeps its name
 in the same colour. A row's colour is its palette line: line 2 is the window font's own, and lines 1
 and 3 are `HuntersGuild`'s map palette. Index 15 of each is the font's face: white, red and yellow.
+The shell draws each row's glyphs through its line's window material (`job_board.rs`,
+[Drawing the CRAM](SCENE_PRESENTATION.md#drawing-the-cram)), so the rows follow the live CRAM, and the
+pack's colour lines are what they show while no live palette is known.
 
 **The cursor.** `Win_UpdateCursorUpDown` wraps at seven. A press ends `.selectjobloop` before the cursor
 moves. `Window_Option_Index_2` keeps its row across a refusal or a NO, and the routine zeroes it on the
