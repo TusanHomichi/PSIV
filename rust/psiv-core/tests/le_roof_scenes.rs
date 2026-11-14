@@ -14,11 +14,12 @@ use psiv_core::{
 /// Runs `ops` with no cast, closing each dialogue at once, and writes one
 /// mark per effect and, after each tick's marks, `+` when the tick runs map
 /// updates and `.` when it does not, runs of either compressed to `+N`/`.N`.
-/// A two-line fade's length is the runtime's to measure from the palette;
+/// A variable fade's length is the runtime's to measure from the palette;
 /// the trace releases every one at [`FADE_UP`] frames, the length the runtime
 /// gives Le Roof's line (`psiv-runtime`'s palette suite checks the words and
 /// the other fades' lengths).
 /// Marks: `U` `Pal_VariableFadeToPal2`, `B` `Pal_VariableFadeOut_Lines_1_2`,
+/// `X` `Pal_VariableFadeOut`,
 /// `K<addr>` a ROM palette copy, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
 /// the fade-in of `n` passes, `D<id>` a dialogue, `|` a resume, `S<id>` a
 /// sound, `O`/`I` `FadeOut`/`FadeIn`, `V` `InitVRAMAndCRAM`, `P` a panel, `M`
@@ -52,6 +53,9 @@ fn trace(ops: &'static [SceneOp]) -> String {
                         PresentationOp::FadeFromRed { .. } => "R".to_owned(),
                         PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => "U".to_owned(),
                         PresentationOp::TwoLinePaletteFade { fade_in: false, .. } => "B".to_owned(),
+                        PresentationOp::VariablePaletteFade { fade_in: false, .. } => {
+                            "X".to_owned()
+                        }
                         PresentationOp::PaletteCopy {
                             source: PaletteSource::Rom(at),
                             ..
@@ -178,13 +182,16 @@ fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
 }
 
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
-/// 120) before dialogue `$0B`, then after the panel's resume the fade-out and
+/// 120) before dialogue `$0B`, then after the panel's resume
+/// `Pal_VariableFadeOut` (`$078460`), which updates nothing, and
 /// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
     let trace = trace(from(0x801C, 8));
     assert!(
-        trace.starts_with("U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 O +60 V I P DC .1 F"),
+        trace.starts_with(
+            "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 X .45 +60 V I P DC .1 F"
+        ),
         "{trace}"
     );
 }

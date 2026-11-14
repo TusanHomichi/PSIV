@@ -11,7 +11,7 @@
 use super::{ALYS, CHAZ, DEMI, GRYZ, HAHN};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CameraSubject, PresentationOp};
+use crate::scene_presentation::{CameraSubject, PresentationOp, variable_fade};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -105,7 +105,8 @@ pub static ALYS_WOUNDED: Scene = Scene {
             window: DialogueWindow::Cutscene,
         },
         SceneOp::PlaySound { id: SFX_TELEPORT },
-        SceneOp::FadeOut,
+        // `$074BD6`: `move.b #3, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
+        variable_fade(false, 3),
         SceneOp::PanelDestroyAll,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
@@ -287,8 +288,12 @@ pub static PSYCO_WAND: Scene = Scene {
         SceneOp::WaitFrames { frames: 20 },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
+        // `$075428`: `move.b #5, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`,
+        // then `Panel_DestroyAll`: the panels stay up through the fade. The
+        // cartridge's `Map_LoadChunks` comes before the fade (`$07541E`); the
+        // shell's redraw stays behind it, as in `Cutscene_AlysWounded`.
+        variable_fade(false, 5),
         SceneOp::PanelDestroyAll,
-        SceneOp::FadeOut,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
         },
@@ -309,7 +314,8 @@ pub static PSYCO_WAND: Scene = Scene {
         SceneOp::PanelCreate { id: 0x5E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
-        SceneOp::FadeOut,
+        // `$075500`: `move.b #9, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
+        variable_fade(false, 9),
         SceneOp::PanelDestroyAll,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
@@ -332,7 +338,8 @@ pub static PSYCO_WAND: Scene = Scene {
         SceneOp::PanelCreate { id: 0x64 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 300 },
-        SceneOp::FadeOut,
+        // `$0755D2`: mode 9 again.
+        variable_fade(false, 9),
         SceneOp::PanelDestroyAll,
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
@@ -361,7 +368,8 @@ pub static PSYCO_WAND: Scene = Scene {
         SceneOp::PanelCreate { id: 0x6C },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
-        SceneOp::FadeOut,
+        // `$075772`: mode 9 again.
+        variable_fade(false, 9),
         SceneOp::PlaySound {
             id: SOUND_STOP_MUSIC,
         },

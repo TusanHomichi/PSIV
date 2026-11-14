@@ -11,7 +11,7 @@ use super::vahal_common::{
 use super::{CHAZ, DEMI, GRYZ, RIKA, RUNE};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, SceneOp};
-use crate::scene_presentation::{CameraSubject, PresentationOp, RESTORE_PALETTE};
+use crate::scene_presentation::{CameraSubject, PresentationOp, RESTORE_PALETTE, variable_fade};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -24,13 +24,6 @@ const SFX_RECOVERY: u8 = 0xCD;
 /// PlateSystem F3 holds three elevators, so its one chest is object 3
 /// (`$FFFFC3C0`).
 const PHONON_CHEST: ActorRef = ActorRef::Npc(3);
-
-/// `move.b #mode, ($FFFFED52).w` then `jsr Pal_VariableFadeOut`/`In`.
-const fn fade(fade_in: bool, mode: u8) -> SceneOp {
-    SceneOp::Presentation {
-        op: PresentationOp::VariablePaletteFade { fade_in, mode },
-    }
-}
 
 /// `$006C`, `Event_Phonon`, retail `$0722F6..$072427`: the chest in Plate
 /// System F3 opens; with Demi in the party she takes the Phonon unit (entry
@@ -56,7 +49,7 @@ pub static PHONON: Scene = Scene {
         },
         // 4-18
         standard(0x4E),
-        fade(false, 5),
+        variable_fade(false, 5),
         wait(40),
         sound(SFX_ANDROID_SKILL_IMPLANT),
         wait(40),
@@ -73,11 +66,11 @@ pub static PHONON: Scene = Scene {
         // 19-25: the flash, twice.
         RESTORE_PALETTE,
         wait(1),
-        fade(true, 2),
-        fade(false, 0),
+        variable_fade(true, 2),
+        variable_fade(false, 0),
         RESTORE_PALETTE,
         wait(1),
-        fade(true, 0),
+        variable_fade(true, 0),
         // 26-28
         SceneOp::RunDialogueResume,
         SceneOp::SetCharacterSkill {
