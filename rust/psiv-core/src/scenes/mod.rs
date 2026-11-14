@@ -59,6 +59,7 @@ pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod dying_boy;
 mod elsydeon;
+mod ending;
 pub(crate) mod esper_events;
 mod field_reload;
 pub mod fifth_character;
@@ -313,7 +314,7 @@ pub static SCENES: &[Scene] = &[
     dezo_endgame::PROFOUND_DARKNESS,
     retail_endgame::RAJA_SICK,
     retail_endgame::RYKROS,
-    retail_endgame::ENDING,
+    ending::ENDING,
     // Aiedo and the Hunter's Guild (#81).
     aiedo_events::ROCKY_OWNER,
     aiedo_events::GIRL_PRISON,
