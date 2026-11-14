@@ -861,7 +861,10 @@ mod juza_tests {
                     e,
                     SceneEffect::Presentation {
                         op: SceneOp::Presentation {
-                            op: PresentationOp::FadeToRed { lines: 2 }
+                            op: PresentationOp::TwoLinePaletteFade {
+                                fade_in: false,
+                                mode: 2
+                            }
                         }
                     }
                 )
