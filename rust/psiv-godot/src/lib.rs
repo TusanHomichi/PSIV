@@ -798,7 +798,7 @@ impl Field {
         self.sync_dialogue_view();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
-            layer.bind_mut().panel_destroy_all();
+            layer.bind_mut().clear_planes();
         }
         self.set_letterbox(false);
     }

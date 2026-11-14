@@ -8,7 +8,8 @@
 //! [`CutsceneLayer`] is the node the field shell drives. This file owns the
 //! node, the assets it holds and the per-frame step; the submodules own one
 //! concern each - [`state`] the renderer state, [`manifest`] the pack decode,
-//! [`panels`] the panel-plane stack, [`opening`] the opening image and text,
+//! [`panels`] the panel-plane stack, [`picture_plane`] and [`picture`] a
+//! scene's own plane-A picture, [`opening`] the opening image and text,
 //! [`window`] the generic window, and [`ops`] the shell that consumes the op
 //! stream.
 
@@ -17,6 +18,8 @@ mod opening;
 mod ops;
 mod panel_stack;
 mod panels;
+mod picture;
+mod picture_plane;
 mod state;
 mod window;
 
@@ -26,7 +29,7 @@ mod text_layer;
 
 use std::collections::BTreeMap;
 
-use godot::classes::{INode2D, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D, Sprite2D};
 use godot::prelude::*;
 use psiv_data::DialogueSet;
 use psiv_data::color::IndexLayout;
@@ -69,6 +72,13 @@ pub(crate) struct CutsceneLayer {
     generic_portrait: Option<Gd<ImageTexture>>,
     generic_portrait_rect: Option<Rect2>,
     red_flash_frames: u8,
+    /// The plane-A pictures the pack decoded, by the ROM address of their
+    /// cells, and each one's indices once first drawn.
+    pictures: BTreeMap<u32, picture::PictureAsset>,
+    picture_art: BTreeMap<u32, Option<IndexedArt>>,
+    picture: picture_plane::PicturePlane,
+    /// Drawn under the sprites; created on first use.
+    picture_sprite: Option<Gd<Sprite2D>>,
 }
 
 #[godot_api]
@@ -92,6 +102,10 @@ impl INode2D for CutsceneLayer {
             generic_portrait: None,
             generic_portrait_rect: None,
             red_flash_frames: 0,
+            pictures: BTreeMap::new(),
+            picture_art: BTreeMap::new(),
+            picture: picture_plane::PicturePlane::default(),
+            picture_sprite: None,
         }
     }
 
@@ -127,6 +141,7 @@ impl CutsceneLayer {
             self.generic_window_rect = rect;
         }
         self.window_tiles.extend(assets.window_tiles);
+        self.pictures.extend(assets.pictures);
 
         let mut text = OpeningTextLayer::new_alloc();
         text.bind_mut().configure(pack_dir, set.clone());

@@ -182,7 +182,7 @@ fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
 /// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
-    let trace = trace(from(0x801C, 8));
+    let trace = trace(from(0x801C, 9));
     assert!(
         trace.starts_with("U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 O +60 V I P DC .1 F"),
         "{trace}"
@@ -227,5 +227,61 @@ fn the_old_le_roof_policy_is_rejected() {
     ];
     let old = trace(OLD);
     assert_eq!(old, "R .24 +300 DB .1 V I P | .1 O V I P DC .1 F");
-    assert!(!trace(from(0x801C, 8)).starts_with(&old));
+    assert!(!trace(from(0x801C, 9)).starts_with(&old));
+}
+
+/// The ops that put the galaxy picture on plane A (#594): `NemDecomp` of
+/// `loc_1DB2C8` to tile `$260`, `EniDecomp` of `loc_1DDE0A` to `RAM_Start`,
+/// then the DMA that shows it, in that order and with nothing drawn between.
+/// Both scenes run the same block (`$0704AC..$07051F`, `$07836C..$0783D9`);
+/// `Cutscene_LeRoofAgain` once had no `LoadSceneAsset`, so it drew nothing.
+fn picture_ops(event: u16) -> Vec<&'static SceneOp> {
+    let ops = scene_for(EventIndex(event)).expect("registered").ops;
+    let art = ops
+        .iter()
+        .position(|op| {
+            matches!(
+                op,
+                SceneOp::LoadArt {
+                    rom_addr: 0x001D_B2C8,
+                    tile: 0x260
+                }
+            )
+        })
+        .expect("the picture's art");
+    let dma = art
+        + ops[art..]
+            .iter()
+            .position(|op| matches!(op, SceneOp::DmaPlanes))
+            .expect("a DMA after the art");
+    ops[art..=dma].iter().collect()
+}
+
+#[test]
+fn both_le_roof_scenes_load_the_picture_before_their_dma() {
+    for event in [0x0048, 0x801C] {
+        let ops = picture_ops(event);
+        let assets: Vec<_> = ops
+            .iter()
+            .filter_map(|op| match op {
+                SceneOp::Presentation {
+                    op:
+                        PresentationOp::LoadSceneAsset {
+                            source_rom_addr,
+                            destination_ram,
+                        },
+                } => Some((*source_rom_addr, *destination_ram)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(assets, [(0x001D_DE0A, 0xFFFF_0000)], "{event:#x}");
+        assert!(
+            !ops.iter().any(|op| matches!(
+                op,
+                SceneOp::PanelCreate { .. } | SceneOp::InitVramAndCram | SceneOp::LoadArt { .. }
+            ) && !std::ptr::eq(*op, ops[0])),
+            "{event:#x}: nothing else draws between the art and the DMA"
+        );
+    }
+    assert_eq!(picture_ops(0x0048), picture_ops(0x801C));
 }
