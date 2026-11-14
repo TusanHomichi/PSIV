@@ -10,7 +10,7 @@
 
 The `grand_cross=0` cutscene table selects the retail body at
 `Cutscene_LeRoofAgain`; the clone's `grand_cross=1` scene include is not used.
-ROM range: `$078346..$0784B6` exclusive end. The final 44 ops are the
+ROM range: `$078346..$0784B6` exclusive end. The final 48 ops are the
 retail `$800D` spaceship route (`INSIDE_SPACESHIP_ROUTE`, menu and flight) inlined
 because this body jumps to it.
 
@@ -32,7 +32,7 @@ because this body jumps to it.
 | 20 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
 | 21-25 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
 | 26-27 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
-| 28-71 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
+| 28-75 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
 
 The colour loops and the fade-in run `VInt_Prepare` only, no map or object
 update; the scene blocks for every pass. The galaxy picture is drawn as
