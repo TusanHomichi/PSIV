@@ -76,22 +76,25 @@ pub(super) const ROWS: &[Row] = &[
     // post_zio_cutscenes.rs
     // Cutscene_InsideSpaceship: `loc_63BC4`'s flights ([`super::SHARED_CODE`]).
     // The spaceports' takeoff (`loc_64568`) is one loop of `$1A3` passes
-    // (`loc_645E6`), split at the propulsion sound; the other maps' (`loc_6488A`)
-    // is `loc_64908`. Each takeoff carries its own copy of the rest of the
-    // flight, which the route runs once: the copy after `loc_6488A` is merged.
+    // (`loc_645E6`), split at its three propulsion requests (#629); the other
+    // maps' (`loc_6488A`) is `loc_64908`. Each takeoff carries its own copy of
+    // the rest of the flight, which the route runs once: the copy after
+    // `loc_6488A` is merged.
     row(SHIP, own(0x06_45E6, true, true), Wait(9)),
     row(SHIP, own(0x06_45E6, true, true), Wait(11)),
-    row(SHIP, own(0x06_4908, true, true), Wait(17)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(13)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(15)),
+    row(SHIP, own(0x06_4908, true, true), Wait(21)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(21)),
-    row(SHIP, Map(0x06_49C6), Merged(21)),
-    row(SHIP, Map(0x06_4762), Wait(31)),
-    row(SHIP, Map(0x06_49D8), Merged(31)),
+    row(SHIP, Map(0x06_4750), Wait(25)),
+    row(SHIP, Map(0x06_49C6), Merged(25)),
+    row(SHIP, Map(0x06_4762), Wait(35)),
+    row(SHIP, Map(0x06_49D8), Merged(35)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(37)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(37)),
+    row(SHIP, own(0x06_4800, true, true), Wait(41)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(51)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(63)),

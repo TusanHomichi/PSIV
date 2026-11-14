@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use psiv_core::{
-    CharId, Flag, GameState, RetailLocation, RetailSave, SceneFault, WORLD_AIR_CASTLE,
+    CharId, Flag, GameState, RetailLocation, RetailSave, SceneFault, SceneOp, WORLD_AIR_CASTLE,
     WORLD_DEZOLIS, WORLD_KURAN, WORLD_MOTAVIA, WORLD_ZELAN,
 };
 use psiv_data::{BattleFiles, GameData};
@@ -24,6 +24,8 @@ const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 const MOTA_SPACEPORT: u16 = 0x0BF;
 const ZELAN: u16 = 0x18D;
 const DEZO_SPACEPORT: u16 = 0x0D4;
+/// `SFXID_SpaceshipPropelled` (`ps4.constants.asm:1023`).
+const SFX_PROPELLED: u8 = 0xE3;
 
 fn pack() -> Option<&'static (GameData, BattleFiles)> {
     static PACK_FILES: OnceLock<Option<(GameData, BattleFiles)>> = OnceLock::new();
@@ -554,9 +556,14 @@ fn the_answers_take_the_frames_the_cartridge_took() {
 
 /// Tape 35 confirm at 7401; field control is mode $0C/routine 0, after the
 /// landing refresh, ordinary reload/fade and place-name window, not map write.
+///
+/// The spaceport's takeoff loop (`loc_645E6`) writes `SFXID_SpaceshipPropelled`
+/// to `Sound_Index` on frames 7860, 7861 and 7862 (passes `$E1..$E3`), and
+/// each request restarts the SFX; the other maps' takeoff (`loc_64908`)
+/// requests none.
 #[test]
 fn both_flights_return_control_on_tape_35s_exact_frame() {
-    for (origin, world, button, target, expected_maps, expected) in [
+    for (origin, world, button, target, expected_maps, expected, propelled) in [
         (
             MOTA_GANGWAY,
             0,
@@ -564,6 +571,7 @@ fn both_flights_return_control_on_tape_35s_exact_frame() {
             ZELAN,
             vec![(173, 0), (1216, 0x18C), (1652, ZELAN)],
             1861,
+            vec![459, 460, 461],
         ),
         (
             (ZELAN, 31, 46),
@@ -572,6 +580,7 @@ fn both_flights_return_control_on_tape_35s_exact_frame() {
             MOTA_SPACEPORT,
             vec![(179, 0x18C), (946, 0), (1406, MOTA_SPACEPORT)],
             1596,
+            vec![],
         ),
     ] {
         let mut story = post_zio();
@@ -622,6 +631,12 @@ fn both_flights_return_control_on_tape_35s_exact_frame() {
             "tape35 {origin:?} -> {target:#x}: maps={maps:?}; control={control:?}; ops={ops:?}"
         );
         assert_eq!(maps, expected_maps, "tape 35 map-word write edges");
+        let requests: Vec<u32> = ops
+            .iter()
+            .filter(|(_, op)| *op == SceneOp::PlaySound { id: SFX_PROPELLED })
+            .map(|&(offset, _)| offset)
+            .collect();
+        assert_eq!(requests, propelled, "tape 35 propulsion SFX requests");
         assert_eq!(control, Some(expected), "confirm to ordinary field control");
         assert_eq!(player.runtime().map_id().0, target);
         assert_eq!(
