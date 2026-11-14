@@ -161,7 +161,7 @@ const CENSUSED: &[&str] = &[
     // post_zio_cutscenes.rs
     "Cutscene_MeetingWren",
     // Cutscene_InsideSpaceship's documented bytes are its 18-byte dispatch;
-    // its six waits live in the destination menu's code ([`SHARED_CODE`]).
+    // its eight waits live in the destination menu's code ([`SHARED_CODE`]).
     SHIP,
     "Cutscene_CrashLaanding",
     "Cutscene_Landale",
