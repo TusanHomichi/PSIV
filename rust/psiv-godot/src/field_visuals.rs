@@ -10,7 +10,29 @@ use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, camp_receipt_frame, sequence_name};
+use super::window_palette::{WINDOW_LINE_ROM, WindowFamily, WindowLine, WindowNode};
 use super::{Field, Session};
+
+/// The one material every native window draws its line-2 art through
+/// (`window_palette`), and `debug_window_line`'s words for it, if any.
+#[derive(Default)]
+pub(crate) struct WindowLineState {
+    material: Option<Gd<godot::classes::ShaderMaterial>>,
+    debug_live: Option<[u16; 16]>,
+}
+
+#[godot_api(secondary)]
+impl Field {
+    /// Evaluation only (`PSIV_DEBUG_ROUTE=1`): draws the windows' line 2 in
+    /// `words` (sixteen CRAM words) instead of the live CRAM's, or in the
+    /// live CRAM's again when `words` is empty. Nothing else reads it: the
+    /// runtime's CRAM, the map and the sprites keep their words. False when
+    /// refused.
+    #[func]
+    fn debug_window_line(&mut self, words: PackedInt32Array) -> bool {
+        self.window_line_probe(words.as_slice())
+    }
+}
 
 /// The transition overlay: four rects, made on the first transition.
 pub(crate) const TRANSITION_RECTS: usize = 4;
@@ -421,13 +443,13 @@ impl Field {
             return;
         };
         let view = runtime.cram();
-        let live = view.live;
+        let (live, words, revision) = (view.live, view.words, view.revision);
         let changed = {
             let mut cram = self.cram.borrow_mut();
-            let changed = cram.live != live || cram.revision != view.revision;
+            let changed = cram.live != live || cram.revision != revision;
             cram.live = live;
-            cram.words = view.words;
-            cram.revision = view.revision;
+            cram.words = words;
+            cram.revision = revision;
             changed
         };
         if changed {
@@ -439,40 +461,106 @@ impl Field {
             // sprite pixel does, so a tone or a fade reaches it too. With no
             // live palette it stays the project's black.
             let [r, g, b] = if live {
-                psiv_data::color::cram_rgb(view.words[0])
+                psiv_data::color::cram_rgb(words[0])
             } else {
                 [0, 0, 0]
             };
             godot::classes::RenderingServer::singleton()
                 .set_default_clear_color(Color::from_rgba8(r, g, b, 255));
-            // The window's art is baked in line 2's `Pal_Init_Line_3`
-            // colours; with no live palette it draws them as baked.
-            let baked = runtime
-                .data()
-                .scene_palettes()
-                .words(crate::cram_art::WINDOW_LINE_ROM)
-                .unwrap_or(&[]);
-            if baked.len() >= 16
-                && let Some(window) = self.dialogue.as_mut()
-            {
-                let line = if live {
-                    &view.words[32..48]
-                } else {
-                    &baked[..16]
-                };
-                window.bind_mut().set_palette_line(&baked[..16], line);
-            }
+            self.apply_window_line();
         }
         if !live {
             return;
         }
-        let palette = super::field_map::map_palette_colors(&view.words, view.revision);
+        let palette = super::field_map::map_palette_colors(&words, revision);
         for sprite in [&mut self.map_sprite, &mut self.overlay_sprite]
             .into_iter()
             .flatten()
         {
             super::field_map::upload_map_palette(sprite, &palette);
         }
+    }
+
+    /// Gives every native window ([`WindowFamily`]) the one material that
+    /// draws its line-2 art in the live palette. Run once the window nodes
+    /// exist.
+    pub(super) fn attach_window_line(&mut self) {
+        let material = crate::cram_art::window_line_material();
+        for family in WindowFamily::ALL {
+            match family.node() {
+                WindowNode::Dialogue => {
+                    if let Some(node) = self.dialogue.as_mut() {
+                        node.set_material(&material);
+                    }
+                }
+                WindowNode::Camp => {
+                    if let Some(node) = self.camp_menu.as_mut() {
+                        node.set_material(&material);
+                    }
+                }
+                WindowNode::Shop => {
+                    if let Some(node) = self.shop.as_mut() {
+                        node.set_material(&material);
+                    }
+                }
+            }
+        }
+        self.window_line.material = Some(material);
+        self.apply_window_line();
+    }
+
+    /// Points the windows' material at line 2 of the shared CRAM: the art's
+    /// `Pal_Init_Line_3` words and the live ones, or the baked words again
+    /// while no live palette is known ([`WindowLine::new`]).
+    pub(super) fn apply_window_line(&mut self) {
+        let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
+            return;
+        };
+        let baked = runtime
+            .data()
+            .scene_palettes()
+            .words(WINDOW_LINE_ROM)
+            .unwrap_or(&[]);
+        let line = {
+            let cram = self.cram.borrow();
+            WindowLine::new(&cram.words, cram.live, baked)
+        };
+        let Some(line) = line else {
+            return;
+        };
+        let line = self
+            .window_line
+            .debug_live
+            .map_or(line, |live| line.with_live(live));
+        if let Some(material) = self.window_line.material.as_mut() {
+            crate::cram_art::set_window_line(material, &line);
+        }
+    }
+
+    /// `debug_window_line`'s body: `words` empty clears the override.
+    fn window_line_probe(&mut self, words: &[i32]) -> bool {
+        if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
+            return false;
+        }
+        self.window_line.debug_live = if words.is_empty() {
+            None
+        } else {
+            let Ok(live) = <[i32; 16]>::try_from(words) else {
+                godot_error!("debug_window_line takes sixteen words, not {}", words.len());
+                return false;
+            };
+            let mut line = [0u16; 16];
+            for (word, &value) in line.iter_mut().zip(&live) {
+                let Ok(value) = u16::try_from(value) else {
+                    godot_error!("debug_window_line: {value} is not a CRAM word");
+                    return false;
+                };
+                *word = value;
+            }
+            Some(line)
+        };
+        self.apply_window_line();
+        true
     }
 }
 

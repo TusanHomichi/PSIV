@@ -42,6 +42,7 @@ mod tape_feed;
 mod title;
 mod transitions;
 mod view;
+mod window_palette;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use boot::title_bypassed;
 use camp::CampMenu;
@@ -187,6 +188,8 @@ struct Field {
     /// The live palette sprite sheets and scene panels draw from
     /// (`cram_art`), refreshed from `Runtime::cram` every drawn frame.
     cram: cram_art::SharedCram,
+    /// The native windows' line-2 material and its debug override.
+    window_line: field_visuals::WindowLineState,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
     status_presentation: field_status::StatusPresentation,
@@ -311,6 +314,7 @@ impl INode2D for Field {
             temporary_nodes: BTreeMap::new(),
             sheet_views: HashMap::new(),
             cram: cram_art::SharedCram::default(),
+            window_line: field_visuals::WindowLineState::default(),
             camera: None,
             dialogue: None,
             status_presentation: field_status::StatusPresentation::default(),
@@ -585,6 +589,7 @@ impl INode2D for Field {
             }
         };
         self.session = Some(session);
+        self.attach_window_line();
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
