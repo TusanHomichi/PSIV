@@ -182,7 +182,7 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     // #591's omissions: the 60-frame `DoMapUpdateLoop` after the fade-out
     // with no row, and a colour loop handed to the op before it (the red
     // fade, which waits no loop) or to a map-updating `Wait`.
-    let index_60 = 19;
+    let index_60 = 20;
     assert!(matches!(
         scene(again).ops[index_60],
         SceneOp::Wait { ticks: 60 }
@@ -194,18 +194,18 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     );
     let mut misclaimed = ROWS.to_vec();
     for row in &mut misclaimed {
-        if row.scene == again && row.claim == Within(9) {
-            row.claim = Within(8);
+        if row.scene == again && row.claim == Within(10) {
+            row.claim = Within(9);
         }
     }
     assert_eq!(
         claim_problems(&misclaimed),
         [
             format!(
-                "{again} op 8: Within names an op that waits no loop, {:?}",
-                scene(again).ops.get(8)
+                "{again} op 9: Within names an op that waits no loop, {:?}",
+                scene(again).ops.get(9)
             ),
-            format!("{again} op 8: Within an own loop"),
+            format!("{again} op 9: Within an own loop"),
         ]
     );
 

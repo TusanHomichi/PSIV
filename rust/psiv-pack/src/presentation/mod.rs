@@ -67,6 +67,28 @@ const OPENING_ART: usize = 0x1C_F1F2;
 const OPENING_MAPPING: usize = 0x1D_25BE;
 const OPENING_PALETTE: usize = 0x1D_2A3C;
 
+/// `SCENE_PICTURE_RECORDS`: a full-screen picture a scene draws on plane A
+/// itself, not through `Panel_Create`; the Python list documents the steps.
+struct ScenePicture {
+    scenes: &'static [&'static str],
+    art: usize,
+    art_tile: u16,
+    mapping: usize,
+    columns: usize,
+    rows: usize,
+    palette: usize,
+}
+
+const SCENE_PICTURES: [ScenePicture; 1] = [ScenePicture {
+    scenes: &["Event_MeetingLeRoof", "Cutscene_LeRoofAgain"],
+    art: 0x1D_B2C8,
+    art_tile: 0x0260,
+    mapping: 0x1D_DE0A,
+    columns: 40,
+    rows: 28,
+    palette: 0x1D_E258,
+}];
+
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
 const PALETTE_REQUESTS: [(usize, usize); 18] = [
@@ -328,6 +350,51 @@ fn opening(rom: &[u8], root: &Path) -> Result<Json, PackError> {
         .with("screen_y", 40u8))
 }
 
+/// `decode_scene_picture`: the picture's cells in CRAM slots, opaque (index 0
+/// is the backdrop), its line's colours baked in, and its record.
+fn scene_picture(rom: &[u8], root: &Path, spec: &ScenePicture) -> Result<Json, PackError> {
+    let (raw, art_consumed) = nemesis::decompress(rom, spec.art)?;
+    let tiles = gfx::decode_tiles(&raw)?;
+    let cells = spec.columns * spec.rows;
+    let (words, mapping_consumed) =
+        enigma::decompress(rom, spec.mapping, spec.art_tile, Some(cells))?;
+    if words.len() != cells {
+        return refuse(format!(
+            "scene picture 0x{:06X} decoded {} words, expected {}x{}",
+            spec.mapping,
+            words.len(),
+            spec.columns,
+            spec.rows
+        ));
+    }
+    let (width, height, pixels) = gfx::compose(
+        &words,
+        spec.columns,
+        &tiles,
+        usize::from(spec.art_tile & 0x07FF),
+    )?;
+    let mut colours = palette16(rom, spec.palette)?;
+    colours.resize(64, [0, 0, 0]);
+    let name = format!(
+        "presentation/scene_pictures/picture_{:06x}.png",
+        spec.mapping
+    );
+    let image = png::encode_indexed(width as u32, height as u32, &pixels, &colours, &[])?;
+    crate::write_file(root, &name, &image)?;
+    Ok(Json::object()
+        .with("scenes", spec.scenes.to_vec())
+        .with("source_rom_addr", hex6(spec.mapping))
+        .with("png", name)
+        .with("art", hex6(spec.art))
+        .with("art_consumed", art_consumed)
+        .with("art_tile", spec.art_tile)
+        .with("mapping_consumed", mapping_consumed)
+        .with("columns", spec.columns)
+        .with("rows", spec.rows)
+        .with("palette", hex6(spec.palette))
+        .with("size", vec![width, height]))
+}
+
 /// `panel_palette_requests`: each distinct sixteen-word palette
 /// `Panel_Draw` copies for a layer it draws (art tile not `$FFFF`), in
 /// address order, leaving out what `PALETTE_REQUESTS` names.
@@ -391,6 +458,10 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let load_art = objects::load_art(data, root, &inputs)?;
     let temporary = objects::temporary_objects(data, root, &inputs)?;
     let portraits = vec![objects::portrait(data, root)?];
+    let pictures = SCENE_PICTURES
+        .iter()
+        .map(|spec| scene_picture(data, root, spec))
+        .collect::<Result<Vec<_>, _>>()?;
     let banks: Vec<Json> = PANEL_BANK_BASES
         .iter()
         .enumerate()
@@ -416,7 +487,8 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
         .with("panel_records", panels.len())
         .with("load_art_records", load_art.len())
         .with("temporary_object_keys", temporary.len())
-        .with("generic_portraits", portraits.len());
+        .with("generic_portraits", portraits.len())
+        .with("scene_pictures", pictures.len());
     let manifest = Json::object()
         .with("format", FORMAT)
         .with("source_rom_sha256", crate::rom::EXPECTED_SHA256)
@@ -430,6 +502,7 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
         .with("load_art", load_art)
         .with("temporary_objects", temporary)
         .with("portraits", portraits)
+        .with("scene_pictures", pictures)
         .with("coverage", coverage.clone());
     let mut text = crate::json::dumps(&manifest, false);
     text.push('\n');

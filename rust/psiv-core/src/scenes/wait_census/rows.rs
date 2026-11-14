@@ -194,11 +194,11 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_MeetingLeRoof", own(0x07_0552, false, false), Within(13)),
     row("Event_MeetingLeRoof", own(0x07_0570, false, false), Within(15)),
     row("Cutscene_LeRoofAgain", Map(0x07_8366), Wait(2)),
-    row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Within(9)),
+    row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Within(10)),
     // `jsr loc_705D6` at `$078406`: `Event_MeetingLeRoof`'s fade-in loop.
-    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(10)),
-    row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(11)),
-    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(19)),
+    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(11)),
+    row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(12)),
+    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(20)),
     // Mounted: a frame of map updates after the SFX stop, a bare frame after
     // `Field_BuildSprites`, and a frame with the objects after the dismount.
     row("Event_CarnivorousTrees", Map(0x07_078C), Wait(3)),

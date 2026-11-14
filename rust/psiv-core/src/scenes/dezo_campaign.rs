@@ -36,6 +36,25 @@ const LE_ROOF_CYCLE: CounterCycle = CounterCycle {
     entries: 11,
 };
 
+/// `lea loc_1DB2C8, a0` / `move.w #$260, d0` / `NemDecomp`: the galaxy
+/// picture's 483 patterns, from VRAM tile `$260` (`$0704AC`, `$07836C`).
+const LE_ROOF_ART: SceneOp = SceneOp::LoadArt {
+    rom_addr: 0x001D_B2C8,
+    tile: 0x260,
+};
+
+/// `lea loc_1DDE0A, a0` / `move.w #$260, d0` / `lea RAM_Start, a1` /
+/// `EniDecomp` (`$0704C2`, `$078382`): the picture's 40x28 cells, which
+/// `PlaneMapToRAM` then copies to plane A at cell (0,0) while plane B is
+/// cleared, for the next `DMAPlanes_VInt` (to `$07051F`, `$0783D9`). The pack
+/// decodes the picture (`presentation/panels.json`, `scene_pictures`).
+const LE_ROOF_PICTURE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::LoadSceneAsset {
+        source_rom_addr: 0x001D_DE0A,
+        destination_ram: 0xFFFF_0000,
+    },
+};
+
 /// `lea loc_1DE258, a0` / `lea Palette_Table_Buffer_2, a1` / `moveq #$F, d7`
 /// / `trap #1`: Le Roof's sixteen words, words 0-15 of the copy
 /// `Pal_VariableFadeToPal2` fades up to (`$0704D8`, `$078398`).
@@ -130,16 +149,8 @@ pub static MEETING_LE_ROOF: Scene = Scene {
             },
         },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::LoadArt {
-            rom_addr: 0x001D_B2C8,
-            tile: 0x260,
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::LoadSceneAsset {
-                source_rom_addr: 0x001D_DE0A,
-                destination_ram: 0xFFFF_0000,
-            },
-        },
+        LE_ROOF_ART,
+        LE_ROOF_PICTURE,
         LE_ROOF_PALETTE,
         LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,
@@ -207,10 +218,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             },
         },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::LoadArt {
-            rom_addr: 0x001D_B2C8,
-            tile: 0x260,
-        },
+        LE_ROOF_ART,
+        LE_ROOF_PICTURE,
         LE_ROOF_PALETTE,
         LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,

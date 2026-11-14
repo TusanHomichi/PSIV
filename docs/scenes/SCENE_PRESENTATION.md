@@ -329,7 +329,8 @@ border at `(37,2)`.
 | `InitVramAndCram` | Implemented | Clears staged/visible scene planes and opening text. |
 | `FadeIn`, `FadeOut` | Implemented | Seven CRAM-equivalent levels, two-frame stepping, 14 renderer ticks; the cover is above cutscene planes and below dialogue. |
 | `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is the operand-free typed `PanelDestroyLast` stack pop; loop counters are not panel-art IDs. Only an empty staged stack produces a destroy warning. |
-| `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. |
+| `DmaPlanes` | Implemented | Staged panels, and a staged plane-A picture, become visible only at the DMA event. |
+| `LoadSceneAsset` | Implemented for the decoded plane-A pictures; other assets logged | A source the pack decoded as a scene picture (`panels.json`, `scene_pictures`) stages it once its `LoadArt` ran; the next `DmaPlanes` shows it in place of the field map, under the sprites, drawn from the live CRAM with index 0 the backdrop (`cutscene/picture.rs`). `ReloadMapChunks` and `InitVramAndCram` clear it, and so does every teardown that replaces the planes outside the scene's ops (the scene's end, a field reload, a map change, the return to title), staged or shown, through one `clear_planes`. The one picture is Le Roof's galaxy ([51](51_MeetingLeRoof.md), [52](52_LeRoofAgain.md)). |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
 | `LoadTitleImage` | Implemented | Retail opening art/mapping/palette decode is emitted as a 320x128 background. |
@@ -361,6 +362,7 @@ The rebuilt pack reports this exact census in
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
+| scene pictures | 1 | Le Roof's 320x224 galaxy: art `$1DB2C8` at tile `$260`, cells `$1DDE0A`, in CRAM slots |
 
 The chest splinter is the one deliberate partial result. Its four directional
 animation tables reference the contiguous pattern range `$34B..$38C` (66
