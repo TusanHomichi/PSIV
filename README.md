@@ -107,8 +107,8 @@ Where PSIV knowingly differs from the cartridge, there is an open issue:
 - [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
   drawing, animation, audio or timing that looks or sounds different.
 - [Palette effects (#162)](https://github.com/TusanHomichi/PSIV/issues/162):
-  scene temporary objects, shop, camp and choice menus, and the sabotage alarm
-  overlay still draw baked colours. Scene fade ramps still use a screen cover;
+  shop, camp and choice menus, and the sabotage alarm overlay still draw
+  baked colours. Scene fade ramps still use a screen cover;
   Rykros's tone still needs a matched original-game capture, and existing
   single-frame comparisons do not certify complete scenes.
 - A few original bugs are fixed on purpose; each is listed in the

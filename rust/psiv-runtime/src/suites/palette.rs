@@ -592,3 +592,83 @@ fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
         assert_eq!(runtime.game().vehicle_index(), index);
     }
 }
+
+/// `Cutscene_Alshline` (`$8005`) copies `PiataBasementB2_Palettes`'
+/// fourteen words to line 3 before it builds Igglanova (`$188`), whose sheet
+/// draws from line 3. On the tick the object is built, line 3's first
+/// fourteen words are the pack's, and every other word is what it was on the
+/// tick before the copy.
+#[test]
+fn alshline_loads_igglanova_s_line_before_building_it() {
+    if !pack_present() {
+        return;
+    }
+    let mut runtime = runtime_at(
+        0x24,
+        (31 * 16, 49 * 16),
+        [Some(CharId(0)), None, None, None, None],
+        &[Flag::event(0x32)],
+    );
+    let source = runtime
+        .data()
+        .scene_palettes()
+        .words(0x0005_2848)
+        .expect("PiataBasementB2_Palettes is packed")
+        .to_vec();
+    assert_eq!(source.len(), 14);
+    assert!(runtime.start_event(0x8005), "Alshline starts");
+    let mut before = runtime.cram().words;
+    for _ in 0..10_000 {
+        let events = runtime.tick(Input::Neutral);
+        if events.iter().any(|event| {
+            matches!(
+                event,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            )
+        }) {
+            runtime.dialogue_closed();
+        }
+        let ops: Vec<&SceneOp> = events
+            .iter()
+            .filter_map(|event| match event {
+                RuntimeEvent::ScenePresentation { op, .. } => Some(op),
+                _ => None,
+            })
+            .collect();
+        let load = ops.iter().position(|op| {
+            matches!(
+                op,
+                SceneOp::LoadPalette {
+                    rom_addr: 0x0005_2848,
+                    ..
+                }
+            )
+        });
+        let build = ops.iter().position(|op| {
+            matches!(
+                op,
+                SceneOp::CreateFieldObject {
+                    object_id: 0x188,
+                    ..
+                }
+            )
+        });
+        if let Some(build) = build {
+            let load = load.expect("the copy is on the object's tick");
+            assert!(load < build, "palette before the object");
+            let words = runtime.cram().words;
+            assert_eq!(words[48..62], source[..], "line 3's fourteen words");
+            assert_eq!(words[..48], before[..48], "lines 0-2 keep their words");
+            assert_eq!(words[62..], before[62..], "words 62-63 stay Zema's");
+            assert_ne!(
+                before[48..62],
+                source[..],
+                "the map palette differs, so the copy is observable"
+            );
+            assert!(runtime.cram().missing.is_empty());
+            return;
+        }
+        before = runtime.cram().words;
+    }
+    panic!("Igglanova was never built");
+}

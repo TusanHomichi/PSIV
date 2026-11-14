@@ -128,6 +128,9 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_oracle_host_binary.py": frozenset({"oracle/new_launcher.py", "new_launcher.py"}),
     # Another extension's entry the test writes into a throwaway project's index.
     "tests/test_godot.py": frozenset({"res://addons/other/other.gdextension"}),
+    # The stub game's script, written into a throwaway project.
+    "rust/psiv-native-verify/tests/temporary_palette_driver.rs": frozenset({
+        "res://stub_field.gd", "stub_field.gd"}),
     # Scripts and test modules the test writes and names in captured output.
     "tests/test_certify.py": frozenset({"fake_xvfb.py"}),
     "tests/test_gate.py": frozenset({".../capture/gate_sample_fail.py",

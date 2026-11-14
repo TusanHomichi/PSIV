@@ -1,4 +1,5 @@
-//! Sprite sheets and scene panels drawn from the runtime's live CRAM.
+//! Sprite sheets, scene temporary objects and scene panels drawn from the
+//! runtime's live CRAM.
 //!
 //! The pack's sprite and panel PNGs are indexed. [`IndexedArt`] keeps each
 //! pixel's palette index ([`psiv_data::color::index_png`]) and recolours its
@@ -74,16 +75,54 @@ pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
     Some(image)
 }
 
-/// An indexed pack PNG and the texture it is drawn through.
-pub(crate) struct IndexedArt {
+/// An indexed image's palette indices, transparency and layout, and the
+/// CRAM revision it was last recoloured for. Pure data, so the recolour rule
+/// is testable without Godot; [`IndexedArt`] holds one with its texture.
+#[derive(Debug, Clone)]
+pub(crate) struct IndexedPixels {
     layout: IndexLayout,
     indices: Vec<u8>,
     alpha: Vec<u8>,
+    /// The revision the last [`IndexedPixels::recolor`] drew, if any.
+    drawn: Option<u64>,
+}
+
+impl IndexedPixels {
+    /// One index and one alpha byte per pixel, read through `layout`.
+    pub(crate) fn new(layout: IndexLayout, indices: Vec<u8>, alpha: Vec<u8>) -> Self {
+        Self {
+            layout,
+            indices,
+            alpha,
+            drawn: None,
+        }
+    }
+
+    /// The pixels in `cram`'s colours when `cram` is live and its revision
+    /// is not the one last drawn; `None` otherwise (not live: draw the baked
+    /// file; unchanged: the texture already holds these colours).
+    pub(crate) fn recolor(&mut self, cram: &CramState) -> Option<Vec<u8>> {
+        if !cram.live || self.drawn == Some(cram.revision) {
+            return None;
+        }
+        let layout = self.layout;
+        let rgba = recolor(
+            &self.indices,
+            &self.alpha,
+            |index| layout.slot(index),
+            &cram.words,
+        );
+        self.drawn = Some(cram.revision);
+        Some(rgba)
+    }
+}
+
+/// An indexed pack PNG and the texture it is drawn through.
+pub(crate) struct IndexedArt {
+    pixels: IndexedPixels,
     width: i32,
     height: i32,
     texture: Gd<ImageTexture>,
-    /// The revision `texture` holds, if any.
-    drawn: Option<u64>,
 }
 
 impl IndexedArt {
@@ -99,13 +138,10 @@ impl IndexedArt {
         let alpha = rgba.iter().map(|pixel| pixel[3]).collect();
         let texture = ImageTexture::create_from_image(&image)?;
         Some(Self {
-            layout,
-            indices,
-            alpha,
+            pixels: IndexedPixels::new(layout, indices, alpha),
             width: image.get_width(),
             height: image.get_height(),
             texture,
-            drawn: None,
         })
     }
 
@@ -115,14 +151,7 @@ impl IndexedArt {
         if !cram.live {
             return None;
         }
-        if self.drawn != Some(cram.revision) {
-            let layout = self.layout;
-            let rgba = recolor(
-                &self.indices,
-                &self.alpha,
-                |index| layout.slot(index),
-                &cram.words,
-            );
+        if let Some(rgba) = self.pixels.recolor(cram) {
             let image = Image::create_from_data(
                 self.width,
                 self.height,
@@ -131,7 +160,6 @@ impl IndexedArt {
                 &PackedByteArray::from(rgba.as_slice()),
             )?;
             self.texture.update(&image);
-            self.drawn = Some(cram.revision);
         }
         Some(self.texture.clone())
     }

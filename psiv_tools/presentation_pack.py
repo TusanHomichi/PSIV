@@ -157,6 +157,9 @@ PALETTE_REQUESTS = (
     (0x0006_EE16, 21),  # loc_6EE16: Zio Fort's barrier ramp, 7 steps x 3 (`$06ED42`)
     (0x002E_EA04, 16),  # loc_2EEA04: the ending's line to Buffer_2 (`$0796D4`)
     (0x0007_30FC, 16),  # loc_730FC: Sekreas's line to line 4 (`$073054`)
+    # PiataBasementB2_Palettes: Cutscene_Alshline's MapDataManager call
+    # (`$07444E`) copies 14 words to line 4 for Igglanova (`$052832`).
+    (0x0005_2848, 14),
 )
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The

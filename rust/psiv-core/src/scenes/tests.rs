@@ -36,7 +36,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_Dorin", 17),
         ("Event_RuneFlaeli", 45),
         ("Event_AlshlineFound", 2),
-        ("Cutscene_Alshline", 86),
+        ("Cutscene_Alshline", 87),
         ("Cutscene_ZemaIgglanovaDefeated", 11),
         ("Event_ZemaServantBattle", 4),
         ("Event_ZemaOldMan", 3),

@@ -40,8 +40,10 @@ counts corrected to frame counts:
 7. Write Zema as the current map, Motavia as previous, start `($44,$3E)`,
    face left, alignment `$10`, clear load flag bit 3 and refresh. Clear NPCs
    0 through 6.
-8. Decompress `Art_Igglanova` from ROM `$12951A` to tile `$3A5`; stage object
-   `$188` in NPC slot 7 at `($1E0,$A0)`. Move the leader to `($1E0,$100)`,
+8. Decompress `Art_Igglanova` from ROM `$12951A` to tile `$3A5`; copy
+   `PiataBasementB2_Palettes`' 14 words (`$052848`) to line 3 through
+   `MapDataManagerJmpTbl` entry `$D0` (`$07444E`), the line Igglanova's sheet
+   draws; stage object `$188` in NPC slot 7 at `($1E0,$A0)`. Move the leader to `($1E0,$100)`,
    move the camera to `($1E0,$A0)`, play fusion SFX (`$D9`), run the `$8000`
    step-object effect and move the camera to `($1E0,$E0)`.
 9. Load tree 3, disable cutscene sprites, run entry `$68`; clear NPC 7, set
