@@ -64,15 +64,15 @@ fn shown(ops: &[SceneOp]) -> Vec<(usize, Option<u32>)> {
 fn meeting_le_roof_shows_the_galaxy_from_its_dma_to_the_map_reload() {
     let ops = ops(0x0048);
     // Op 8 is the DMA after the art (4), the cells (5) and the palette (6-7);
-    // op 17 is `RefreshPlaneFG`/`BG`.
+    // op 18 is `RefreshPlaneFG`/`BG`.
     assert!(matches!(ops[8], SceneOp::DmaPlanes));
     assert!(matches!(
-        ops[17],
+        ops[18],
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks
         }
     ));
-    assert_eq!(shown(ops), [(8, Some(GALAXY)), (17, None)]);
+    assert_eq!(shown(ops), [(8, Some(GALAXY)), (18, None)]);
     assert_eq!(run(ops)[5].0, PictureChange::Staged(GALAXY));
 }
 

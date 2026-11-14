@@ -805,3 +805,108 @@ fn a_bounded_endless_fade_steps_without_overflow() {
     }
     assert!(cram.running());
 }
+
+/// Ticks `cram` from `elapsed` until its program ends, at most `limit`
+/// ticks; returns the ticks taken, then runs two more (the final tick's
+/// follower and one past it), which must leave the words as they are.
+fn tick_to_end(cram: &mut Cram, limit: u32) -> u32 {
+    let mut ticks = 0u32;
+    while cram.running() {
+        assert!(ticks < limit, "still running after {limit} ticks");
+        cram.tick(ticks as u16, &mut 0);
+        ticks += 1;
+    }
+    let words = cram.view().words;
+    cram.tick(0, &mut 0);
+    cram.tick(1, &mut 0);
+    assert_eq!(cram.view().words, words, "an ended program writes nothing");
+    ticks
+}
+
+/// Every pass program at the model's `u16::MAX` bound, for each first-frame
+/// offset (`Pal_VariableFadeIn`'s one `VDP_EnableDisplay` frame, or none)
+/// and each delay (`$ED52` 0, 2 and `$FF`): it runs to its end, through the
+/// tick that would make `elapsed + 1` leave `u16` and the one after, without
+/// overflowing, and ends inside the frames the op answers the scene runner.
+#[test]
+fn every_saturated_pass_program_ends_inside_its_frames() {
+    for kind in [
+        super::Pass::VariableIn,
+        super::Pass::VariableOut,
+        super::Pass::ToRed,
+        super::Pass::FromRed,
+    ] {
+        for first in [0u16, 1] {
+            for every in [1u16, 3, 256] {
+                let mut cram = cram(filled(0), filled(0x0EEE));
+                cram.program = Some(super::Program::Passes {
+                    kind,
+                    elapsed: 0,
+                    first,
+                    every,
+                    count: u16::MAX,
+                    words: 32,
+                });
+                let frames = super::passes_frames(first, every, u16::MAX);
+                assert_eq!(frames, u16::MAX, "{kind:?} {first} {every}: saturated");
+                // `cram.program` holds elapsed 0 unstepped: one tick per
+                // frame, the last frame the scene waits being `frames - 1`.
+                let ticks = tick_to_end(&mut cram, u32::from(u16::MAX) + 2);
+                assert!(
+                    ticks <= u32::from(frames),
+                    "{kind:?} first {first} every {every}: {ticks} ticks, {frames} frames"
+                );
+            }
+        }
+    }
+}
+
+/// Unsaturated pass programs keep their last pass where it was: `first`
+/// plus `every` per pass after the first, inside `first + every * count`.
+#[test]
+fn the_pass_bound_leaves_unsaturated_fades_alone() {
+    assert_eq!(super::passes_last(0, 3, 15), 42);
+    assert_eq!(super::passes_frames(0, 3, 15), 45);
+    assert_eq!(super::passes_last(1, 2, 7), 13);
+    assert_eq!(super::passes_frames(1, 2, 7), 15);
+    assert_eq!(super::passes_last(0, 1, 8), 7);
+    // Saturated: the last pass is held one frame inside the answer.
+    assert_eq!(super::passes_last(0, 3, u16::MAX), u16::MAX - 1);
+    assert_eq!(super::passes_last(1, 256, u16::MAX), u16::MAX - 1);
+}
+
+/// `Pal_VariableFadeToPal2` from a word whose carry keeps it from ever
+/// matching (`$001` toward `$000`: each pass adds one to a nibble and the
+/// `$F` carry walks round all four): the model stops at `u16::MAX` passes,
+/// answers `u16::MAX` frames, and the program it starts ends inside them,
+/// its final tick and the one after stepping without overflow.
+#[test]
+fn an_endless_two_line_fade_up_ends_inside_the_frames_it_answers() {
+    let none = ScenePalettes::default();
+    let mut live = filled(0);
+    live[0] = 0x0001;
+    let mut cram = cram(live, filled(0));
+    let fade = op(PresentationOp::TwoLinePaletteFade {
+        fade_in: true,
+        mode: 2,
+    });
+    let frames = cram.apply(&fade, 0, &none, None, &mut 0);
+    assert_eq!(frames, Some(u16::MAX));
+    // The apply ran frame 0; the scene waits frames 1..u16::MAX - 1.
+    let ticks = tick_to_end(&mut cram, u32::from(u16::MAX));
+    assert!(ticks < u32::from(u16::MAX), "{ticks}");
+}
+
+/// A literal-writes program whose last write is at frame `u16::MAX` makes
+/// that write and ends there, without building a frame past the bound.
+#[test]
+fn a_write_at_the_last_frame_ends_without_overflow() {
+    let mut cram = cram(filled(0), filled(0));
+    cram.program = Some(super::Program::Writes {
+        elapsed: 0,
+        writes: vec![(3, 0, vec![0x0002]), (u16::MAX, 1, vec![0x0004])],
+    });
+    let ticks = tick_to_end(&mut cram, u32::from(u16::MAX) + 2);
+    assert_eq!(ticks, u32::from(u16::MAX) + 1);
+    assert_eq!(cram.view().words[..2], [0x0002, 0x0004]);
+}

@@ -7,17 +7,19 @@ mod common;
 
 use common::map_with;
 use psiv_core::{
-    DialogueId, EventIndex, Flag, GameState, PresentationOp, SceneEffect, SceneInput, SceneOp,
-    SceneRunner, StepFrames, scene_for,
+    DialogueId, EventIndex, Flag, GameState, PaletteSource, PresentationOp, SceneEffect,
+    SceneInput, SceneOp, SceneRunner, StepFrames, scene_for,
 };
 
 /// Runs `ops` with no cast, closing each dialogue at once, and writes one
 /// mark per effect and, after each tick's marks, `+` when the tick runs map
 /// updates and `.` when it does not, runs of either compressed to `+N`/`.N`.
 /// A two-line fade's length is the runtime's to measure from the palette;
-/// the trace releases it at [`FADE_UP`] frames, the length the runtime
-/// gives Le Roof's line (`psiv-runtime`'s palette suite checks the words).
-/// Marks: `U` `Pal_VariableFadeToPal2`, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
+/// the trace releases every one at [`FADE_UP`] frames, the length the runtime
+/// gives Le Roof's line (`psiv-runtime`'s palette suite checks the words and
+/// the other fades' lengths).
+/// Marks: `U` `Pal_VariableFadeToPal2`, `B` `Pal_VariableFadeOut_Lines_1_2`,
+/// `K<addr>` a ROM palette copy, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
 /// the fade-in of `n` passes, `D<id>` a dialogue, `|` a resume, `S<id>` a
 /// sound, `O`/`I` `FadeOut`/`FadeIn`, `V` `InitVRAMAndCRAM`, `P` a panel, `M`
 /// the map reload, `F` a flag. Stops at the first flag.
@@ -49,6 +51,11 @@ fn trace(ops: &'static [SceneOp]) -> String {
                     SceneOp::Presentation { op } => match op {
                         PresentationOp::FadeFromRed { .. } => "R".to_owned(),
                         PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => "U".to_owned(),
+                        PresentationOp::TwoLinePaletteFade { fade_in: false, .. } => "B".to_owned(),
+                        PresentationOp::PaletteCopy {
+                            source: PaletteSource::Rom(at),
+                            ..
+                        } => format!("K{at:X}"),
                         PresentationOp::CounterPaletteCycle { frames, .. } => format!("C{frames}"),
                         PresentationOp::PaletteGrowIn { passes, .. } => format!("G{passes}"),
                         PresentationOp::ReloadMapChunks => "M".to_owned(),
@@ -131,16 +138,43 @@ fn from(event: u16, first: usize) -> &'static [SceneOp] {
 
 /// `$07052E..`: the fade up to Le Roof's palette, then the 180-pass loop,
 /// `bsr loc_705D6` (71), the first 120, dialogue `0`, the second 120, all
-/// `VInt_Prepare` only: no tick of the 491 updates the map. Then the stop,
-/// the map reload, the tower music and `$D1`.
+/// `VInt_Prepare` only: no tick of the 491 updates the map. Then the stop
+/// and the return (`$07058A..$0705C3`): the two-line fade-out, the map
+/// reload, `Pal_SilenceTm` (`$18711A`) into `Palette_Table_Buffer_2` and the
+/// fade up to it, then the tower music and `$D1`.
 #[test]
 fn meeting_le_roof_runs_its_colour_loops_without_map_updates() {
     let ops = scene_for(EventIndex(0x0048)).unwrap().ops;
     assert!(matches!(ops[9], SceneOp::PlaySound { id: 0xA1 }));
     assert_eq!(
         trace(from(0x0048, 10)),
-        "U .45 C180 .180 G71 .71 C120 .120 D0 .1 C120 .120 SFB M S9A F"
+        "U .45 C180 .180 G71 .71 C120 .120 D0 .1 C120 .120 SFB B .45 M K18711A U .45 S9A F"
     );
+}
+
+/// Negative control: the return as first transcribed, the stop then the map
+/// reload with no fade and no palette copy, leaves the cinematic colours up
+/// when the scene ends; its trace is the one above without them.
+#[test]
+fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
+    static NO_RETURN: &[SceneOp] = &[
+        SceneOp::PlaySound { id: 0xFB },
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
+        SceneOp::PlaySound { id: 0x9A },
+        SceneOp::SetFlag {
+            flag: Flag::event(0xD1),
+            value: true,
+        },
+    ];
+    let ops = scene_for(EventIndex(0x0048)).unwrap().ops;
+    let stop = ops
+        .iter()
+        .position(|op| matches!(op, SceneOp::PlaySound { id: 0xFB }))
+        .expect("the stop");
+    assert_eq!(trace(NO_RETURN), "SFB M S9A F");
+    assert_eq!(trace(&ops[stop..]), "SFB B .45 M K18711A U .45 S9A F");
 }
 
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,

@@ -3,7 +3,7 @@
 - **Retail bytes:** `$070482..$07069D` inclusive, 540 bytes.
 - **Pointer:** `EventPtrs[$48]`; event `$0048`.
 - **Trigger:** `RunEventsJmpTbl[$33]`, Le Roof `$D1` clear.
-- **Data:** `dezo_campaign.rs`, `MEETING_LE_ROOF` (20 ops).
+- **Data:** `dezo_campaign.rs`, `MEETING_LE_ROOF` (23 ops).
 
 ## Clone audit
 
@@ -26,8 +26,11 @@ exclusive end.
 | 13 | `$07054E..$070563` | 120 passes (`move.w #$77, d0`) | `CounterPaletteCycle` 120 |
 | 14 | `$070564..$07056B` | dialogue entry `0` | dialogue |
 | 15 | `$07056C..$070581` | 120 passes | `CounterPaletteCycle` 120 |
-| 16-18 | `$070582..$0705CB` | music stop `$FB`, fade out, plane and `Pal_SilenceTm` reload, fade in, tower music `$9A` | sound/presentation |
-| 19 | `$0705CC..$0705D5` | set `$D1`, return | flag |
+| 16-17 | `$070582..$070595` | music stop `$FB`, `Pal_VariableFadeOut_Lines_1_2` (`$ED52` 2) | sound/`TwoLinePaletteFade` out |
+| 18 | `$070596..$0705A7` | `RefreshPlaneFG`, `RefreshPlaneBG`, `DMAPlanes_VInt` | `ReloadMapChunks` |
+| 19-20 | `$0705A8..$0705C3` | `Pal_SilenceTm`'s words 0-31 to `Palette_Table_Buffer_2` (`move.w #$1F, d7` / `trap #1`), `Pal_VariableFadeToPal2` (`$ED52` 2): the room's own colours back before the scene returns | `PaletteCopy`/`TwoLinePaletteFade` in |
+| 21 | `$0705C4..$0705CB` | tower music `$9A` | sound |
+| 22 | `$0705CC..$0705D5` | set `$D1`, return | flag |
 
 The helpers after the body (`$0705D6..$07069D`) are shared with
 [`Cutscene_LeRoofAgain`](52_LeRoofAgain.md): `loc_705D6`, its ramp
@@ -48,7 +51,7 @@ decodes it as `presentation/scene_pictures/picture_1dde0a.png`
 (`panels.json`, `scene_pictures`), each pixel its CRAM slot. The shell stages
 it at op 5's `LoadSceneAsset`, shows it at op 8's DMA in place of the room's
 map, under the sprites, in the live CRAM (so the cycle and the fade-in light
-its stars), and drops it at op 17's map reload (`RefreshPlaneFG`/`BG`).
+its stars), and drops it at op 18's map reload (`RefreshPlaneFG`/`BG`).
 
 Against a retail capture (tape 28's boot schedule, Le Roof Room loaded by RAM
 patch at frame 7000, the map trigger starting `$48`), the runtime's words 0-31

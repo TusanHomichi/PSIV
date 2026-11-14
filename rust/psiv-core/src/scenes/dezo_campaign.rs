@@ -78,6 +78,18 @@ const LE_ROOF_LINE_2_CLEAR: SceneOp = SceneOp::Presentation {
     },
 };
 
+/// `lea Pal_SilenceTm, a0` / `lea Palette_Table_Buffer_2, a1` / `move.w #$1F,
+/// d7` / `trap #1` (`$0705A8`): words 0-31 of Le Roof Room's map palette, the
+/// field colours `Event_MeetingLeRoof` fades back up to before it returns.
+const SILENCE_TM_PALETTE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Rom(0x0018_711A),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 32,
+    },
+};
+
 /// A Le Roof colour loop: `frames` passes of `loc_70638` and `VInt_Prepare`.
 const fn le_roof_cycle(frames: u16) -> SceneOp {
     SceneOp::Presentation {
@@ -158,8 +170,27 @@ pub static MEETING_LE_ROOF: Scene = Scene {
         standard(0),
         le_roof_cycle(120),
         SceneOp::PlaySound { id: 0xFB },
+        // `$070590`: `Pal_VariableFadeOut_Lines_1_2` takes the cinematic
+        // colours (ramp, cycle words and the black second line) to black.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
+        },
+        // `$070596..$0705A7`: `RefreshPlaneFG`, `RefreshPlaneBG`,
+        // `DMAPlanes_VInt`.
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
+        },
+        // `$0705A8..$0705C3`: the room's own palette, `Pal_SilenceTm`, back
+        // into `Palette_Table_Buffer_2`, and `Pal_VariableFadeToPal2` up to it.
+        SILENCE_TM_PALETTE,
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
         SceneOp::PlaySound { id: MUSIC_TOWER },
         SceneOp::SetFlag {
