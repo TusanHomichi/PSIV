@@ -523,10 +523,13 @@ line 3 and every sheet pixel, alpha included, unchanged. It is a debug-event
 fixture, not a campaign route or an original-game comparison; the wrong-line
 negative control is in `cutscene/manifest.rs`'s tests. The driver's first
 failure is final: it stops the run and no later capture can exit 0 over it.
-`tests/test_native_temporary_palette.py` runs it against a stub game and faults
-each check in turn (the copy, then line 3 or a sheet pixel before the first
-capture and during the cycle); each must exit nonzero. From the repository
-root, with the extension and local pack built:
+`rust/psiv-native-verify/tests/temporary_palette_driver.rs` runs it against a
+stub game and faults each check in turn (the copy, then line 3 or a sheet pixel
+before the first capture and during the cycle); each must exit nonzero. It
+resolves Godot through `tools/godot.py`, takes a `godot` heavy-lock slot for
+each run and skips without the pinned Godot or `xvfb-run`:
+`cargo test --manifest-path rust/Cargo.toml -p psiv-native-verify --test temporary_palette_driver`.
+From the repository root, with the extension and local pack built:
 
 ```bash
 mkdir -p build/temporary-palette/saves
