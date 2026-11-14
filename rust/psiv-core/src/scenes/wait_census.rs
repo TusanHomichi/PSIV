@@ -28,10 +28,17 @@
 //! field-object update. The census is what lets that change per loop
 //! without guessing (#470); this file changes no behaviour.
 //!
+//! A scene whose documented bytes jump into shared code has its waits there:
+//! [`SHARED_CODE`] gives it those bytes, the coverage check reads them as the
+//! scene's, and every row must lie in the bytes its scene is censused over.
+//! Where retail carries two copies of the same code and the transcription
+//! runs them as one (the ship's two flights), the second copy's row is a
+//! [`Claim::Merged`] on the `Wait` the first copy's row claims.
+//!
 //! Scene files are censused one at a time ([`CENSUSED`]); the image check
 //! skips without the local US image.
 
-use super::documented_ranges::documented_ranges;
+use super::documented_ranges::{Ranges, documented_ranges};
 use super::{INSIDE_SPACESHIP_ROUTE, SCENES, dialogue_callers_image::rom};
 use crate::SceneOp;
 
@@ -91,6 +98,12 @@ enum Claim {
     Recorded(usize),
     /// No op does: the issue that adds it.
     Missing(u32),
+    /// The `Wait` at this index, which a [`Claim::Wait`] row of the same kind
+    /// of retail wait already claims: this row's wait is the same one in a
+    /// second retail copy of the code, which the transcription runs as one.
+    /// `loc_64568` and `loc_6488A` each carry a whole flight, and
+    /// [`INSIDE_SPACESHIP_ROUTE`] shares the ops after the takeoff.
+    Merged(usize),
 }
 
 /// One retail wait of one scene. `defect` names the issue when the claim
@@ -128,6 +141,37 @@ const fn own(at: u32, objects: bool, map_updates: bool) -> Retail {
     }
 }
 
+/// `Cutscene_InsideSpaceship`, whose ops are all [`INSIDE_SPACESHIP_ROUTE`].
+const SHIP: &str = "Cutscene_InsideSpaceship";
+
+/// `GetPlaneAOffset`: the one routine outside the ship's code that it calls
+/// with `bsr`.
+const GET_PLANE_A_OFFSET: u32 = 0x06_893A;
+
+/// Shared code a censused scene's documented bytes jump into, whose waits are
+/// the scene's: `(scene, start, end_exclusive)`. Each span starts at a target
+/// of the scene's other censused bytes, and every `bsr` inside it lands in
+/// the bytes the scene is censused over or at [`BSR_OUTSIDE`]
+/// ([`shared_code_problems`]).
+const SHARED_CODE: &[Shared] = &[
+    // `jmp loc_63BC4`, through `loc_64C1E`'s closing `jmp`
+    // (`ps4.asm:133499-134714`): the destination menu, its screens, both
+    // flights with their tables, and the planet screen.
+    (SHIP, 0x06_3BC4, 0x06_4D00),
+    // `jsr Event_DezoSpaceportAppearing` at `$0771C8`, through its last
+    // subroutine's `rts` (`loc_6C168`, `ps4.asm:145470-145560`): the grave's
+    // `$170 + 1` pass loop.
+    ("Cutscene_Landale", 0x06_C040, 0x06_C1BC),
+    // `jsr loc_705D6` at `$078406`: `Event_MeetingLeRoof`'s fade-in loop
+    // (`ps4.asm:149798-149828`) and the colour step it calls each pass,
+    // `loc_70638` (`:149838-149855`).
+    ("Cutscene_LeRoofAgain", 0x07_05D6, 0x07_0626),
+    ("Cutscene_LeRoofAgain", 0x07_0638, 0x07_0672),
+];
+
+/// The routines outside a [`SHARED_CODE`] span its `bsr`s may reach.
+const BSR_OUTSIDE: &[u32] = &[GET_PLANE_A_OFFSET];
+
 /// The scenes whose every `Wait` the census claims, by file.
 const CENSUSED: &[&str] = &[
     // post_rika_events.rs
@@ -145,7 +189,8 @@ const CENSUSED: &[&str] = &[
     // post_zio_cutscenes.rs
     "Cutscene_MeetingWren",
     // Cutscene_InsideSpaceship's documented bytes are its 18-byte dispatch;
-    // its six waits live in the destination menu's code, censused with it.
+    // its six waits live in the destination menu's code ([`SHARED_CODE`]).
+    SHIP,
     "Cutscene_CrashLaanding",
     "Cutscene_Landale",
     "Event_KuranArrival",
@@ -190,8 +235,9 @@ const CENSUSED: &[&str] = &[
 
 /// The censused scenes whose shared-helper calls ([`Retail::Step`],
 /// [`Retail::Facing`]) have rows too. The files censused before
-/// dezo_endgame.rs wait for theirs (#572).
+/// dezo_endgame.rs wait for theirs (#572); the ship's code calls neither.
 const HELPER_CENSUSED: &[&str] = &[
+    SHIP,
     "Event_StrengthTowerTop",
     "Event_CourageTowerTop",
     "Event_DeVars",
@@ -248,7 +294,7 @@ const DEZO: u32 = 571;
 /// dezo_campaign.rs's missing and approximated waits.
 const CAMPAIGN: u32 = 589;
 
-use Claim::{Missing, Recorded, Wait, Within};
+use Claim::{Merged, Missing, Recorded, Wait, Within};
 use Retail::{Facing, Frames, Main, Map, Step};
 
 /// Whether the row's count must equal the retail one.
@@ -259,6 +305,7 @@ fn counted(row: &Row) -> bool {
 mod campaign_tests;
 mod next_arc_tests;
 mod rows;
+mod ship_tests;
 use rows::ROWS;
 
 fn scene(name: &str) -> &'static crate::Scene {
@@ -268,14 +315,54 @@ fn scene(name: &str) -> &'static crate::Scene {
         .unwrap_or_else(|| panic!("{name} is not a registered scene"))
 }
 
-/// The ops of `name` its own retail bytes transcribe: all of them, but for a
-/// scene that ends in the ship's route ([`INSIDE_SPACESHIP_ROUTE`]), whose
-/// waits live in the destination menu's code and are censused with
+/// The ops of `name` its own retail bytes transcribe: all of them, but for
+/// another scene that ends in the ship's route ([`INSIDE_SPACESHIP_ROUTE`]),
+/// whose waits live in the destination menu's code and are censused with
 /// `Cutscene_InsideSpaceship`.
 fn censused_ops(name: &str) -> &'static [SceneOp] {
     let ops = scene(name).ops;
+    if name == SHIP {
+        return ops;
+    }
     ops.strip_suffix(INSIDE_SPACESHIP_ROUTE.as_slice())
         .unwrap_or(ops)
+}
+
+/// One scene's shared code: `(scene, start, end_exclusive)`.
+type Shared = (&'static str, u32, u32);
+
+/// The bytes `name` is censused over: its documented ranges and its
+/// `shared` code ([`SHARED_CODE`]). `None` when nothing documents the scene.
+fn scanned_spans(ranges: &Ranges, shared: &[Shared], name: &str) -> Option<Vec<(usize, usize)>> {
+    let mut spans = ranges.get(name)?.clone();
+    spans.extend(
+        shared
+            .iter()
+            .filter(|(scene, ..)| *scene == name)
+            .map(|&(_, start, end)| (start as usize, end as usize)),
+    );
+    Some(spans)
+}
+
+/// Whether two retail waits are the same kind of loop, for a
+/// [`Claim::Merged`] copy.
+fn same_kind(a: Retail, b: Retail) -> bool {
+    match (a, b) {
+        (
+            Retail::Own {
+                objects,
+                map_updates,
+                ..
+            },
+            Retail::Own {
+                objects: o,
+                map_updates: m,
+                ..
+            },
+        ) => objects == o && map_updates == m,
+        (Retail::Frame { objects, .. }, Retail::Frame { objects: o, .. }) => objects == o,
+        _ => std::mem::discriminant(&a) == std::mem::discriminant(&b),
+    }
 }
 
 /// Whether a pass of the retail wait runs `RunMapUpdates`, as a native
@@ -345,7 +432,7 @@ fn recorded_ticks(op: &SceneOp) -> Option<u32> {
 fn claimed_ticks(row: &Row) -> Option<u32> {
     let op = |index: usize| scene(row.scene).ops.get(index);
     match row.claim {
-        Wait(index) => match op(index) {
+        Wait(index) | Merged(index) => match op(index) {
             Some(SceneOp::Wait { ticks }) => Some(u32::from(*ticks)),
             _ => None,
         },
@@ -447,6 +534,40 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                 if row.defect.is_none() {
                     problems.push(format!(
                         "{} op {index}: Recorded without the defect that adds the wait",
+                        row.scene
+                    ));
+                }
+            }
+            Merged(index) => {
+                if !matches!(ops.get(index), Some(SceneOp::Wait { .. })) {
+                    problems.push(format!(
+                        "{} op {index}: merged into a Wait, is {:?}",
+                        row.scene,
+                        ops.get(index)
+                    ));
+                }
+                let first = rows
+                    .iter()
+                    .find(|other| other.scene == row.scene && other.claim == Wait(index));
+                match first {
+                    None => problems.push(format!(
+                        "{} op {index}: merged into a Wait no row claims",
+                        row.scene
+                    )),
+                    Some(first) if first.retail == row.retail => problems.push(format!(
+                        "{} op {index}: merged with the retail wait its Wait row names",
+                        row.scene
+                    )),
+                    Some(first) if !same_kind(first.retail, row.retail) => problems.push(format!(
+                        "{} op {index}: merged {:?} into a Wait for {:?}",
+                        row.scene, row.retail, first.retail
+                    )),
+                    Some(_) => {}
+                }
+                if first.is_some_and(|first| (first.defect, first.exact) != (row.defect, row.exact))
+                {
+                    problems.push(format!(
+                        "{} op {index}: a merged copy's defect is not its Wait row's",
                         row.scene
                     ));
                 }
@@ -626,7 +747,7 @@ fn retail_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
                     .filter(|other| {
                         other.scene == row.scene
                             && other.retail == row.retail
-                            && matches!(other.claim, Wait(_) | Within(_))
+                            && matches!(other.claim, Wait(_) | Within(_) | Merged(_))
                     })
                     .collect();
                 if matches!(row.claim, Within(_)) && own_ticks(rom, at, end).is_none() {
@@ -713,16 +834,21 @@ fn needs_row(rom: &[u8], rows: &[Row], name: &str, at: usize) -> Option<Retail> 
 /// [`HELPER_CENSUSED`] scene, inside a censused scene's documented bytes
 /// without a row.
 fn coverage_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
+    coverage_problems_over(rom, rows, SHARED_CODE)
+}
+
+/// [`coverage_problems`] with `shared` for [`SHARED_CODE`].
+fn coverage_problems_over(rom: &[u8], rows: &[Row], shared: &[Shared]) -> Vec<String> {
     let ranges = documented_ranges();
     let mut problems = Vec::new();
     for &name in CENSUSED {
-        let Some(spans) = ranges.get(name) else {
+        let Some(spans) = scanned_spans(&ranges, shared, name) else {
             problems.push(format!("{name}: no documented retail range"));
             continue;
         };
         // A scene's document and the registry may claim the same bytes.
         let mut seen = std::collections::BTreeSet::new();
-        for &(start, end) in spans {
+        for (start, end) in spans {
             for at in (start..end.saturating_sub(5)).step_by(2) {
                 if !seen.insert(at) {
                     continue;
@@ -748,6 +874,99 @@ fn every_library_loop_call_in_a_censused_scene_has_a_row() {
         return;
     };
     let problems = coverage_problems(rom, ROWS);
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// Every row's retail call or loop inside the bytes its scene is censused
+/// over, so a row cannot stand for a wait the coverage check never reads.
+fn placement_problems(rows: &[Row], shared: &[Shared]) -> Vec<String> {
+    let ranges = documented_ranges();
+    rows.iter()
+        .filter_map(|row| {
+            let at = retail_at(row.retail) as usize;
+            let spans = scanned_spans(&ranges, shared, row.scene).unwrap_or_default();
+            (!spans.iter().any(|&(start, end)| (start..end).contains(&at))).then(|| {
+                format!(
+                    "{} ${at:06X}: outside the scene's censused bytes",
+                    row.scene
+                )
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn every_row_lies_in_its_scenes_censused_bytes() {
+    let problems = placement_problems(ROWS, SHARED_CODE);
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// The target of a `bsr.s`/`bsr.w` at `at`.
+fn bsr_target(rom: &[u8], at: usize) -> Option<u32> {
+    let word = u16::from_be_bytes([rom[at], rom[at + 1]]);
+    if word & 0xFF00 != 0x6100 || word & 0xFF == 0xFF {
+        return None;
+    }
+    let disp = match word as u8 {
+        0 => i16::from_be_bytes([rom[at + 2], rom[at + 3]]) as isize,
+        short => short as i8 as isize,
+    };
+    u32::try_from(at as isize + 2 + disp).ok()
+}
+
+/// Each [`SHARED_CODE`] span reached from its scene and closed: it starts at
+/// a `jsr`/`jmp`/`bsr` target of the scene's other censused bytes, and every
+/// `bsr` inside it lands in the scene's censused bytes or at
+/// [`BSR_OUTSIDE`]. A span cut short leaves a called routine out.
+fn shared_code_problems(rom: &[u8], shared: &[Shared]) -> Vec<String> {
+    let ranges = documented_ranges();
+    let mut problems = Vec::new();
+    for &(name, start, end) in shared {
+        let spans = scanned_spans(&ranges, shared, name).unwrap_or_default();
+        let target = |at: usize| {
+            let word = u16::from_be_bytes([rom[at], rom[at + 1]]);
+            (word == 0x4EF9)
+                .then(|| u32::from_be_bytes(rom[at + 2..at + 6].try_into().unwrap()))
+                .or_else(|| jsr_target(rom, at))
+                .or_else(|| bsr_target(rom, at))
+        };
+        let span = (start as usize, end as usize);
+        let reached = spans
+            .iter()
+            .filter(|&&other| other != span)
+            .any(|&(from, to)| {
+                (from..to.saturating_sub(5))
+                    .step_by(2)
+                    .any(|at| target(at) == Some(start))
+            });
+        if !reached {
+            problems.push(format!(
+                "{name} ${start:06X}: not reached from its other bytes"
+            ));
+        }
+        for at in (start as usize..end as usize).step_by(2) {
+            let Some(called) = bsr_target(rom, at) else {
+                continue;
+            };
+            let inside = spans
+                .iter()
+                .any(|&(from, to)| (from..to).contains(&(called as usize)));
+            if !inside && !BSR_OUTSIDE.contains(&called) {
+                problems.push(format!(
+                    "{name} ${at:06X}: bsr to ${called:06X}, outside its censused bytes"
+                ));
+            }
+        }
+    }
+    problems
+}
+
+#[test]
+fn shared_code_is_reached_and_closed() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let problems = shared_code_problems(rom, SHARED_CODE);
     assert!(problems.is_empty(), "{problems:#?}");
 }
 
