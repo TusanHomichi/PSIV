@@ -1,7 +1,9 @@
-//! The native windows' palette-line binding (#533): every window family
-//! draws its line-2 art through one [`WindowLine`], and a CRAM change reaches
-//! the art on line 2 and nothing else. Imports the production module without
-//! starting Godot; the pack-backed checks skip without a local pack.
+//! The native windows' palette-line binding (#533, #622): every window node
+//! draws its art through the [`WindowLine`] of the CRAM line its tiles name,
+//! and a CRAM change reaches the art on that line and nothing else: line 2
+//! for every window, and lines 1 and 3 for the Hunter's Guild board's
+//! collected and closed rows. Imports the production module without starting
+//! Godot; the pack-backed checks skip without a local pack.
 
 #[allow(dead_code)]
 #[path = "../src/window_palette.rs"]
@@ -11,15 +13,17 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use psiv_data::color::cram_rgb;
-use window_palette::{WINDOW_LINE, WINDOW_LINE_ROM, WindowFamily, WindowLine, WindowNode};
+use window_palette::{
+    WINDOW_LINE, WINDOW_LINE_ROM, WindowFamily, WindowLine, WindowNode, cram_words, unlit_line,
+};
 
 /// A binding under test: the line a window draws with from `words`
 /// (`Palette_Table_Buffer`), whether they are live, and the baked words.
-type Binding = fn(&[u16; 64], bool, &[u16]) -> Option<WindowLine>;
+type Binding<'a> = &'a dyn Fn(&[u16; 64], bool, &[u16]) -> Option<WindowLine>;
 
-/// The production binding.
-fn production(words: &[u16; 64], live: bool, baked: &[u16]) -> Option<WindowLine> {
-    WindowLine::new(words, live, baked)
+/// The production binding of `node`.
+fn production(node: WindowNode) -> impl Fn(&[u16; 64], bool, &[u16]) -> Option<WindowLine> {
+    move |words, live, baked| WindowLine::new(node.line(), words, live, baked, None)
 }
 
 /// A deliberately wrong binding: the window art on line 3.
@@ -30,6 +34,30 @@ fn on_line_3(words: &[u16; 64], live: bool, baked: &[u16]) -> Option<WindowLine>
         baked,
         live: if live { line } else { baked },
     })
+}
+
+/// The line each node's tiles name, pinned here apart from the module:
+/// `$C000` for every window, `$A000` for the guild's collected rows and
+/// `$E000` for its closed ones (`Event_HuntersGuild`, `guild_pack.py`).
+fn expected_line(node: WindowNode) -> usize {
+    match node {
+        WindowNode::JobDone => 1,
+        WindowNode::JobClosed => 3,
+        _ => 2,
+    }
+}
+
+/// Every node some family draws through.
+fn nodes() -> Vec<WindowNode> {
+    let mut nodes: Vec<WindowNode> = Vec::new();
+    for family in WindowFamily::ALL {
+        for &node in family.nodes() {
+            if !nodes.contains(&node) {
+                nodes.push(node);
+            }
+        }
+    }
+    nodes
 }
 
 /// Sixteen distinct CRAM words for `line`: word `i` is `0BBB0GGG0RRR0` with
@@ -68,12 +96,15 @@ fn draw(line: &WindowLine, pixels: &[[u8; 4]]) -> Vec<[u8; 4]> {
     pixels.iter().map(|&pixel| line.colour(pixel)).collect()
 }
 
-/// What goes wrong when `bind` draws the art at rest, after a change to word
-/// 5 of line 2, after a change to each other line, and with no live palette.
-fn binding_failures(bind: Binding) -> Vec<&'static str> {
+/// What goes wrong when `bind` draws art whose tiles name `bound` at rest,
+/// after a change to word 5 of that line, after a change to each other
+/// line, and with no live palette. At rest the art's line holds its baked
+/// words, as line 2 does after a map load.
+fn binding_failures(bind: Binding, bound: usize) -> Vec<&'static str> {
     let mut failures = Vec::new();
-    let words = cram();
     let baked = line_words(2);
+    let mut words = cram();
+    words[bound * 16..bound * 16 + 16].copy_from_slice(&baked);
     let pixels = art(&baked);
     let Some(rest) = bind(&words, true, &baked) else {
         return vec!["no line"];
@@ -83,7 +114,7 @@ fn binding_failures(bind: Binding) -> Vec<&'static str> {
     }
 
     let mut changed = words;
-    changed[WINDOW_LINE * 16 + 5] = 0x0EEE;
+    changed[bound * 16 + 5] = 0x0EEE;
     let drawn = bind(&changed, true, &baked).map(|line| draw(&line, &pixels));
     let expected: Vec<[u8; 4]> = pixels
         .iter()
@@ -96,10 +127,10 @@ fn binding_failures(bind: Binding) -> Vec<&'static str> {
         })
         .collect();
     if drawn.as_ref() != Some(&expected) {
-        failures.push("a line-2 change does not reach exactly its index");
+        failures.push("its line's change does not reach exactly its index");
     }
 
-    for line in [0, 1, 3] {
+    for line in (0..4).filter(|&line| line != bound) {
         let mut other = words;
         for word in &mut other[line * 16..line * 16 + 16] {
             *word ^= 0x0222;
@@ -117,22 +148,89 @@ fn binding_failures(bind: Binding) -> Vec<&'static str> {
 }
 
 #[test]
-fn a_window_draws_line_2_and_nothing_else() {
-    assert_eq!(binding_failures(production), Vec::<&str>::new());
+fn every_window_node_draws_its_line_and_nothing_else() {
+    for node in nodes() {
+        assert_eq!(
+            binding_failures(&production(node), expected_line(node)),
+            Vec::<&str>::new(),
+            "{node:?}"
+        );
+    }
 }
 
-/// The negative control: the same checks reject art bound to another line.
+/// The negative controls: the same checks reject line-2 art bound to line 3,
+/// and the guild's collected rows drawn on line 2 (the baked colours the
+/// board drew them over before #622) or on the closed rows' line.
 #[test]
 fn a_window_bound_to_another_line_is_rejected() {
-    let failures = binding_failures(on_line_3);
-    assert!(
-        failures.contains(&"a line-2 change does not reach exactly its index"),
-        "{failures:?}"
-    );
-    assert!(
-        failures.contains(&"another line's change reaches the window"),
-        "{failures:?}"
-    );
+    let wrong: [(Binding, usize); 3] = [
+        (&on_line_3, WINDOW_LINE),
+        (&production(WindowNode::JobBoard), 1),
+        (&production(WindowNode::JobClosed), 1),
+    ];
+    for (bind, bound) in wrong {
+        let failures = binding_failures(bind, bound);
+        assert!(
+            failures.contains(&"its line's change does not reach exactly its index"),
+            "{failures:?}"
+        );
+        assert!(
+            failures.contains(&"another line's change reaches the window"),
+            "{failures:?}"
+        );
+    }
+}
+
+/// Off a live palette, the guild's rows keep the colours the pack carries
+/// for their lines, and every other line keeps the baked words.
+#[test]
+fn with_no_live_palette_the_guild_rows_keep_the_guild_colours() {
+    let colours = |line: u16| -> Vec<[u8; 3]> { line_words(line).map(cram_rgb).to_vec() };
+    let guild = psiv_data::GuildBoard {
+        window: psiv_data::ShipWindow {
+            id: 0x0B,
+            width: 20,
+            height: 17,
+            x: 16,
+            y: 2,
+        },
+        names: Vec::new(),
+        pending: String::new(),
+        rows: Vec::new(),
+        money: Vec::new(),
+        font_line: colours(2),
+        done_line: colours(1),
+        closed_line: colours(3),
+    };
+    let baked = line_words(2);
+    for node in nodes() {
+        let line = node.line();
+        let unlit = unlit_line(line, Some(&guild));
+        let drawn = WindowLine::new(line, &[0; 64], false, &baked, unlit).expect("bound");
+        let expected = match node {
+            WindowNode::JobDone => line_words(1),
+            WindowNode::JobClosed => line_words(3),
+            _ => baked,
+        };
+        assert_eq!(drawn.live, expected, "{node:?}");
+        assert_eq!(drawn.baked, baked, "{node:?}");
+    }
+    assert_eq!(unlit_line(1, None), None);
+}
+
+/// `cram_words` is `cram_rgb`'s inverse on every colour a word shows, and
+/// refuses a colour off the ramps or a line that is not sixteen colours.
+#[test]
+fn cram_words_inverts_cram_rgb() {
+    for word in (0..0x1000u16).filter(|word| word & !0x0EEE == 0) {
+        let mut colours = [[0u8; 3]; 16];
+        colours[7] = cram_rgb(word);
+        assert_eq!(cram_words(&colours).map(|words| words[7]), Some(word));
+    }
+    let mut off = [[0u8; 3]; 16];
+    off[3] = [1, 0, 0];
+    assert_eq!(cram_words(&off), None);
+    assert_eq!(cram_words(&[[0u8; 3]; 15]), None);
 }
 
 #[test]
@@ -148,25 +246,42 @@ fn the_shader_rule_keeps_alpha_and_never_looks_up_index_0() {
     assert_eq!(line.colour([0, 0, 0, 255]), rgba(0x000E, 255));
     assert_eq!(line.colour([0, 0, 0, 0]), rgba(0x000E, 0));
     assert_eq!(line.colour(rgba(baked[7], 128)), rgba(baked[7], 128));
-    // Fewer than sixteen baked words: no binding.
-    assert_eq!(WindowLine::new(&cram(), true, &baked[..15]), None);
+    // Fewer than sixteen baked words, or no such line: no binding.
+    assert_eq!(WindowLine::new(2, &cram(), true, &baked[..15], None), None);
+    assert_eq!(WindowLine::new(4, &cram(), true, &baked, None), None);
 }
 
-/// Each family's node: the choice is part of the message box's draw list,
-/// and every window node is some family's.
+/// Each family's nodes and their lines: the choice is part of the message
+/// box's draw list, the guild board draws a layer per row line, and the
+/// destination screen's windows are a layer apart from its map.
 #[test]
-fn each_window_family_is_drawn_by_a_node_carrying_the_line() {
-    let nodes: Vec<(WindowFamily, WindowNode)> = WindowFamily::ALL
+fn each_window_family_is_drawn_by_nodes_carrying_their_lines() {
+    let nodes: Vec<(WindowFamily, Vec<(WindowNode, usize)>)> = WindowFamily::ALL
         .iter()
-        .map(|&family| (family, family.node()))
+        .map(|&family| {
+            let nodes = family.nodes().iter().map(|&node| (node, node.line()));
+            (family, nodes.collect())
+        })
         .collect();
     assert_eq!(
         nodes,
         [
-            (WindowFamily::Dialogue, WindowNode::Dialogue),
-            (WindowFamily::Choice, WindowNode::Dialogue),
-            (WindowFamily::Camp, WindowNode::Camp),
-            (WindowFamily::Shop, WindowNode::Shop),
+            (WindowFamily::Dialogue, vec![(WindowNode::Dialogue, 2)]),
+            (WindowFamily::Choice, vec![(WindowNode::Dialogue, 2)]),
+            (WindowFamily::Camp, vec![(WindowNode::Camp, 2)]),
+            (WindowFamily::Shop, vec![(WindowNode::Shop, 2)]),
+            (
+                WindowFamily::JobBoard,
+                vec![
+                    (WindowNode::JobBoard, 2),
+                    (WindowNode::JobDone, 1),
+                    (WindowNode::JobClosed, 3),
+                ]
+            ),
+            (
+                WindowFamily::Destination,
+                vec![(WindowNode::Destination, 2)]
+            ),
         ]
     );
 }
@@ -236,7 +351,10 @@ fn family_art(pack: &Path, family: WindowFamily) -> Vec<(String, usize, bool)> {
                 ));
             }
         }
-        WindowFamily::Choice => {
+        // The guild board and the destination windows draw the strip's
+        // words and the menu font; the board's rows on lines 1 and 3 are the
+        // same font's tiles.
+        WindowFamily::Choice | WindowFamily::JobBoard | WindowFamily::Destination => {
             art.push(("dialogue/menu_font.png".to_owned(), window_line, false));
         }
         WindowFamily::Camp => {
@@ -323,7 +441,7 @@ fn a_map_load_puts_the_baked_words_on_the_bound_line() {
         .expect("field boots");
     let view = session.runtime().cram();
     assert!(view.live, "the field boot's map has a live palette");
-    let line = WindowLine::new(&view.words, view.live, &baked).expect("bound");
+    let line = WindowLine::new(WINDOW_LINE, &view.words, view.live, &baked, None).expect("bound");
     assert_eq!(
         line.live, line.baked,
         "the windows are not their baked colours at rest"
@@ -333,4 +451,76 @@ fn a_map_load_puts_the_baked_words_on_the_bound_line() {
         wrong.live, wrong.baked,
         "line 3 holds the window colours too"
     );
+}
+
+/// At the guild, the live CRAM's lines 1 and 3 hold the colours the pack
+/// carries for the board's collected and closed rows, so the board drawn
+/// from the live palette shows them at rest, as it did baked; and the
+/// debug fixture (`PSIV_DEBUG_EVENT=0x66`) has a row in each colour.
+#[test]
+fn the_guild_map_puts_the_row_colours_on_lines_1_and_3() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let data = psiv_data::GameData::load(pack).expect("pack loads");
+    let guild = data.guild().expect("the pack carries the guild").clone();
+    let baked = data
+        .scene_palettes()
+        .words(WINDOW_LINE_ROM)
+        .expect("the pack carries Pal_Init_Line_3")
+        .to_vec();
+    let session = psiv_runtime::scene_fixture(data, 0x66, psiv_core::StepFrames::default())
+        .expect("a guild fixture")
+        .expect("the guild fixture starts");
+    let runtime = session.runtime();
+    assert_eq!(runtime.map_id().0, 0x57, "the fixture stands in the guild");
+    let view = runtime.cram();
+    assert!(view.live, "the guild map has a live palette");
+    for (node, colours) in [
+        (WindowNode::JobDone, &guild.done_line),
+        (WindowNode::JobClosed, &guild.closed_line),
+        (WindowNode::JobBoard, &guild.font_line),
+    ] {
+        let line = node.line();
+        let drawn = WindowLine::new(
+            line,
+            &view.words,
+            view.live,
+            &baked,
+            unlit_line(line, Some(&guild)),
+        )
+        .expect("bound");
+        let shown: Vec<[u8; 3]> = drawn.live.iter().map(|&word| cram_rgb(word)).collect();
+        assert_eq!(&shown, colours, "{node:?} at rest");
+        assert_eq!(
+            cram_words(colours).map(|words| words.map(cram_rgb).to_vec()),
+            Some(colours.clone())
+        );
+    }
+    let jobs: Vec<psiv_core::GuildJob> = guild
+        .rows
+        .iter()
+        .zip(&guild.money)
+        .map(|(row, &money)| psiv_core::GuildJob::from_row(*row, money))
+        .collect();
+    let jobs: psiv_core::GuildJobs = jobs.try_into().expect("eight jobs");
+    let game = runtime.game();
+    let colours: Vec<psiv_core::JobColour> = (0..8)
+        .map(|row| {
+            psiv_core::job_row(&jobs, row, |flag| {
+                game.is_set(psiv_core::Flag::event(u16::from(flag)))
+            })
+            .colour
+        })
+        .collect();
+    for colour in [
+        psiv_core::JobColour::Done,
+        psiv_core::JobColour::Open,
+        psiv_core::JobColour::Closed,
+    ] {
+        assert!(
+            colours.contains(&colour),
+            "no {colour:?} row in {colours:?}"
+        );
+    }
 }

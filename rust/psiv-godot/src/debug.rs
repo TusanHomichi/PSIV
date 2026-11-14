@@ -220,6 +220,16 @@ impl Field {
             "transition": self.transition.is_some(), "money": rt.game().money(),
             "camp": self.camp_menu.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
             "shop": self.shop.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
+            "job_board": self.session.as_ref().and_then(Session::job_board_view).map(|view| serde_json::json!({
+                "columns": view.columns,
+                "rows": view.rows.iter().map(|row| format!("{:?}", row.colour)).collect::<Vec<_>>(),
+            })),
+            "destination": self.session.as_ref().and_then(Session::destination_view).map(|view| serde_json::json!({
+                "phase": format!("{:?}", view.phase),
+                "prompt_ready": view.prompt_ready,
+                "list_columns": view.list_columns,
+                "rows": view.rows,
+            })),
             "temporary_objects": self.presentation.temporary_draws().iter().filter(|(_, o)| o.frames_left > 0).map(|(slot, o)| serde_json::json!({"slot": slot, "id": o.object_id, "elapsed": o.elapsed, "position":o.destination})).collect::<Vec<_>>(),
             "map_patches": rt.map_effects().patch_blits.len(),
             "chunk_patches": rt.map_effects().chunk_patches,

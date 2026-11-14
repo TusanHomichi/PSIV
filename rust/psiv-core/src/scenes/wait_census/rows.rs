@@ -1,9 +1,9 @@
 //! The census's rows: one per retail wait of a censused scene, in scene-file
 //! order (#470). The checks that read them are in the parent module.
 
-use super::Claim::{Missing, Recorded, Wait, Within};
+use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, Row, frame, own, row};
+use super::{CAMPAIGN, DEZO, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -74,6 +74,24 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_ZioDefeated", Map(0x07_5C66), Wait(30)),
     row("Cutscene_ZioDefeated", Map(0x07_5CE4), Wait(43)),
     // post_zio_cutscenes.rs
+    // Cutscene_InsideSpaceship: `loc_63BC4`'s flights ([`super::SHARED_CODE`]).
+    // The spaceports' takeoff (`loc_64568`) is one loop of `$1A3` passes
+    // (`loc_645E6`), split at the propulsion sound; the other maps' (`loc_6488A`)
+    // is `loc_64908`. Each takeoff carries its own copy of the rest of the
+    // flight, which the route runs once: the copy after `loc_6488A` is merged.
+    row(SHIP, own(0x06_45E6, true, true), Wait(9)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(11)),
+    row(SHIP, own(0x06_4908, true, true), Wait(17)),
+    // Before the planet screen (`:134302`, `:134463`) and after it
+    // (`:134306`, `:134467`).
+    row(SHIP, Map(0x06_4750), Wait(21)),
+    row(SHIP, Map(0x06_49C6), Merged(21)),
+    row(SHIP, Map(0x06_4762), Wait(31)),
+    row(SHIP, Map(0x06_49D8), Merged(31)),
+    // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
+    // `loc_64A76`).
+    row(SHIP, own(0x06_4800, true, true), Wait(37)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(37)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(51)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(63)),

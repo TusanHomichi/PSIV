@@ -10,7 +10,11 @@
 //!
 //! The window art, the font and the cursor patterns are the shared window set
 //! the camp draws with (`camp/chrome.rs`): `loc_63BC4` writes the same window
-//! words (`$C000 + $680 + tile`, `ps4.asm:133556-133575`).
+//! words (`$C000 + $680 + tile`, `ps4.asm:133556-133575`), so they are CRAM
+//! line 2's. The screen draws them on its `Windows` child, a [`WindowLayer`]
+//! that carries line 2's window material (`window_palette::WindowNode`), and
+//! the map under them itself: the map is lines 0 and 1, which the screen's
+//! own palette state colours (`ShipMenu::render`).
 
 use godot::classes::image::Format;
 use godot::classes::{INode2D, Image, ImageTexture, Node2D};
@@ -21,6 +25,7 @@ use psiv_runtime::{DestinationPhase, DestinationView};
 
 use crate::Field;
 use crate::camp::chrome::{CampChrome, Quad};
+use crate::window_layer::WindowLayer;
 
 /// The window the prompt (and then the typed message) sits in: `WinGroup_Event`
 /// record 5 (`ps4.asm:141166`).
@@ -48,6 +53,10 @@ pub(crate) struct DestinationScreen {
     arrival: Option<String>,
     picture: Option<Gd<ImageTexture>>,
     picture_key: Option<(usize, ShipPalette)>,
+    /// The windows, their text and the cursor boxes; made on first use.
+    windows: Option<Gd<WindowLayer>>,
+    /// The windows layer holds quads.
+    windows_drawn: bool,
 }
 
 #[godot_api]
@@ -61,6 +70,8 @@ impl INode2D for DestinationScreen {
             arrival: None,
             picture: None,
             picture_key: None,
+            windows: None,
+            windows_drawn: false,
         }
     }
 
@@ -68,15 +79,12 @@ impl INode2D for DestinationScreen {
         self.base_mut().set_z_index(1000);
         self.base_mut().set_z_as_relative(false);
         self.base_mut().set_visible(false);
+        self.windows();
     }
 
     fn draw(&mut self) {
         if let Some(picture) = self.picture.clone() {
             self.base_mut().draw_texture(&picture, Vector2::ZERO);
-        }
-        for quad in self.quads() {
-            self.base_mut()
-                .draw_texture_rect_region(&quad.texture, quad.dest, quad.src);
         }
     }
 }
@@ -91,8 +99,30 @@ impl DestinationScreen {
         self.menu = menu;
     }
 
+    /// The layer the windows are drawn on, for the shell to give line 2's
+    /// window material.
+    pub(crate) fn windows(&mut self) -> Gd<WindowLayer> {
+        if let Some(windows) = self.windows.as_ref() {
+            return windows.clone();
+        }
+        let windows = WindowLayer::named("Windows");
+        self.base_mut().add_child(&windows);
+        self.windows = Some(windows.clone());
+        windows
+    }
+
     /// Shows the session's menu, or hides the node when there is none.
     pub(crate) fn sync(&mut self, view: Option<&DestinationView>, arrival: Option<&str>) {
+        self.sync_state(view, arrival);
+        let quads = self.quads();
+        // Closed, the layer stays empty without a redraw every frame.
+        if !quads.is_empty() || self.windows_drawn {
+            self.windows_drawn = !quads.is_empty();
+            self.windows().bind_mut().show(quads);
+        }
+    }
+
+    fn sync_state(&mut self, view: Option<&DestinationView>, arrival: Option<&str>) {
         self.arrival = arrival.map(str::to_owned);
         match view {
             Some(view) => {

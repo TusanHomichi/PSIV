@@ -34,10 +34,10 @@ pub fn scene_fixture(
     // The ship's destination menu (`PSIV_DEBUG_EVENT=0x800D`): the Mota
     // Spaceport at the foot of the gangway, `EventFlag_AlysFound` set so the
     // list is the post-Zio one (`ps4.asm:133728-133735`), a Chaz and Alys party.
-    let mut flags: &[u16] = &[];
+    let mut flags: Vec<u16> = Vec::new();
     let (map, char_x, char_y, party) = match event {
         0x0030 => {
-            flags = &[0x63];
+            flags = vec![0x63];
             (
                 0x0082,
                 0x2F0,
@@ -52,11 +52,42 @@ pub fn scene_fixture(
             )
         }
         0x800D => {
-            flags = &[0x08];
+            flags = vec![0x08];
             (
                 0x00BF,
                 30 * 16,
                 20 * 16,
+                [Some(CharId(0)), Some(CharId(1)), None, None, None],
+            )
+        }
+        // `Event_HuntersGuild` (`PSIV_DEBUG_EVENT=0x66`): the guild at the
+        // cell Aiedo's door lands on, with the board's three row lines on
+        // show (`psiv_core::job_row`): the first job collected (taken,
+        // earned, paid and offered: `$A000`), the second offered and open
+        // (`$C000`), the rest not yet offered (`$E000`). The flags are the
+        // pack's rows' own (`guild/guild.json`).
+        0x0066 => {
+            let Some(guild) = data.guild() else {
+                return Some(Err("the pack carries no guild board".into()));
+            };
+            let [first, second, ..] = guild.rows.as_slice() else {
+                return Some(Err("the guild board has fewer than two rows".into()));
+            };
+            let job = |row: &[u8; 8]| psiv_core::GuildJob::from_row(*row, 0);
+            let (first, second) = (job(first), job(second));
+            flags = [
+                first.taken,
+                first.earned,
+                first.paid,
+                first.available,
+                second.available,
+            ]
+            .map(u16::from)
+            .to_vec();
+            (
+                0x0057,
+                17 * 16,
+                43 * 16,
                 [Some(CharId(0)), Some(CharId(1)), None, None, None],
             )
         }
@@ -82,7 +113,7 @@ pub fn scene_fixture(
         // Chaz alone, as tape 37 (`tools/certify.py` TAPE_37) leaves him: a
         // line-2 sprite, the line the scene holds.
         0x0099 => {
-            flags = &[0xD9];
+            flags = vec![0xD9];
             (
                 0x00FC,
                 31 * 16,
@@ -124,7 +155,7 @@ pub fn scene_fixture(
         GameState::new()
     };
     game.set_party(party);
-    for &flag in flags {
+    for &flag in &flags {
         if let Err(error) = game.set(Flag::event(flag)) {
             return Some(Err(format!("scene fixture flag {flag:#x}: {error}")));
         }
