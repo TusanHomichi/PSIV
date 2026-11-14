@@ -103,6 +103,8 @@ mod dialogue_callers_image;
 #[cfg(test)]
 mod dialogue_resumes_image;
 #[cfg(test)]
+mod dma_census;
+#[cfg(test)]
 mod documented_ranges;
 #[cfg(test)]
 mod wait_census;

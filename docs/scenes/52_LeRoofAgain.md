@@ -28,7 +28,7 @@ because this body jumps to it.
 | 11 | `$07840C..$078421` | 120 passes (`moveq #$77, d0`) | `CounterPaletteCycle` 120 |
 | 12 | `$078422..$078429` | dialogue `$0B` | dialogue |
 | 13-17 | `$07842A..$078459` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$11B`, DMA, `popdlg` / `Event_RunDialogue3` | panel/resume |
-| 18 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5), `clr.b Panel_Num` | fade-out |
+| 18 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5), `clr.b Panel_Num` | `VariablePaletteFade` out, mode 5 |
 | 19 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
 | 20-24 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
 | 25-26 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
@@ -37,8 +37,21 @@ because this body jumps to it.
 The colour loops and the fade-in run `VInt_Prepare` only, no map or object
 update; the scene blocks for every pass.
 
-Gaps: no scene picture is drawn natively, and op 3 has no `LoadSceneAsset`
-([#594](https://github.com/TusanHomichi/PSIV/issues/594)). The loops start 7
-counted frames early, which moves the cycle's phase, and op 18 is
-`PalFadeOut_ClrSpriteTbl` where retail calls `Pal_VariableFadeOut` with `$ED52`
-5 ([#595](https://github.com/TusanHomichi/PSIV/issues/595)).
+Against the retail capture (as for
+[`Event_MeetingLeRoof`](51_MeetingLeRoof.md), plus flag byte `$F11A=$54`),
+Chaz walks 16 pixels (8 frames). Retail reaches its calls after these
+counted frames from the `Event_Index` write:
+
+- `Pal_VariableFadeOut_Lines_1_2`: 9;
+- `DMAPlanes_VInt`: 111;
+- `Pal_VariableFadeToPal2`: 112;
+- the 180-pass loop: 157;
+- `loc_705D6`: 337.
+
+The runtime reaches each on the same frame. Its words 0-31 equal retail's on
+every frame up to the end of the first 120-pass loop (528 frames). Op 18's fade
+spends 84 frames from panel `$11B`'s palette (fourteen passes of six), as
+retail does before `$07846C`.
+
+Gap: no scene picture is drawn natively, and op 3 has no `LoadSceneAsset`
+([#594](https://github.com/TusanHomichi/PSIV/issues/594)).

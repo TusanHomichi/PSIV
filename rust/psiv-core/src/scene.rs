@@ -789,7 +789,10 @@ pub enum SceneOp {
     PanelDestroyLast,
     /// Destroy every panel image currently staged by the scene.
     PanelDestroyAll,
-    /// Flush the staged planes during a panel transition (`DMAPlanes_VInt`).
+    /// Flush the staged planes during a panel transition: `DMAPlanes_VInt`
+    /// (`$041678`), or one plane's `DMAPlane_A_VInt`/`DMAPlane_B_VInt`. Each
+    /// queues the DMA and ends in `VInt_Prepare`, so the scene spends one
+    /// frame here, with no map or object update.
     DmaPlanes,
     /// Create a field object at literal pixel coordinates. It remains alive
     /// until a despawn or full scene reset, independently of animation age.

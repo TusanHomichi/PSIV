@@ -13,7 +13,7 @@ use psiv_data::GameData;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
-fn pack_present() -> bool {
+pub(super) fn pack_present() -> bool {
     let present = Path::new(PACK).join("manifest.json").is_file();
     if !present {
         eprintln!("runtime pack not present; skipping");
@@ -590,22 +590,38 @@ fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
 
 /// One tick of a Le Roof run: the frame count, the events, the palette and
 /// the map-update calls so far.
-struct LeRoofTick {
-    count: u16,
-    events: Vec<RuntimeEvent>,
-    words: [u16; 64],
-    calls: u64,
+pub(super) struct LeRoofTick {
+    pub(super) count: u16,
+    pub(super) events: Vec<RuntimeEvent>,
+    pub(super) words: [u16; 64],
+    pub(super) calls: u64,
 }
 
-/// Runs `event` on Le Roof Room (`$F0`) from beside Le Roof, closing every
+/// Where the retail capture starts Chaz in Le Roof Room: `$F406`/`$F408`
+/// `($1F0, $200)`, which [`RetailLocation`]'s standing-row `char_y` writes
+/// as `$200 + 16`. `Event_MeetingLeRoof` walks him 32 pixels north,
+/// `Cutscene_LeRoofAgain` 16.
+pub(super) const LE_ROOF_START: (u16, u16) = (0x1F0, 0x210);
+
+/// Runs `event` on Le Roof Room (`$F0`) from [`LE_ROOF_START`], closing every
 /// window at once, until `stop` holds for a tick's events or the scene ends.
-fn le_roof_run(
+pub(super) fn le_roof_run(
+    event: u16,
+    flags: &[Flag],
+    stop: impl Fn(&RuntimeEvent) -> bool,
+) -> Vec<LeRoofTick> {
+    le_roof_run_from(LE_ROOF_START, event, flags, stop)
+}
+
+/// [`le_roof_run`] from `start`.
+pub(super) fn le_roof_run_from(
+    start: (u16, u16),
     event: u16,
     flags: &[Flag],
     stop: impl Fn(&RuntimeEvent) -> bool,
 ) -> Vec<LeRoofTick> {
     let party = [Some(CharId(0)), None, None, None, None];
-    let mut runtime = runtime_at(0x0F0, (0x1F0, 0x1F0), party, flags);
+    let mut runtime = runtime_at(0x0F0, start, party, flags);
     assert_eq!(
         runtime.map_updates().counters[1],
         0,
@@ -648,7 +664,7 @@ fn le_roof_run(
 
 /// The tick a presentation record matching `pick` was emitted on, from
 /// `from` on.
-fn le_roof_emitted(
+pub(super) fn le_roof_emitted(
     ticks: &[LeRoofTick],
     from: usize,
     pick: impl Fn(&PresentationOp) -> bool,
@@ -847,14 +863,26 @@ fn le_roof_again_cycles_then_waits_with_map_updates() {
             .any(|event| matches!(event, RuntimeEvent::ScenePresentation { op, .. } if want(op)))
     };
     let fade_out = (second..ticks.len())
-        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::FadeOut)))
+        .find(|&at| {
+            is(&ticks[at], &|op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::VariablePaletteFade { fade_in: false, .. }
+                    }
+                )
+            })
+        })
         .expect("the fade-out");
+    // `Pal_VariableFadeOut`'s 84 frames are `VInt_Prepare` only.
+    let wait = fade_out + 84;
+    assert_eq!(ticks[wait - 1].calls, ticks[fade_out - 1].calls);
     let reinit = (fade_out..ticks.len())
         .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::InitVramAndCram)))
         .expect("the second InitVRAMAndCRAM");
-    assert_eq!(reinit - fade_out, 60, "the 60-frame wait between");
+    assert_eq!(reinit - wait, 60, "the 60-frame wait between");
     assert_eq!(
-        ticks[reinit - 1].calls - ticks[fade_out - 1].calls,
+        ticks[reinit - 1].calls - ticks[wait - 1].calls,
         60,
         "a map update on each of its frames"
     );

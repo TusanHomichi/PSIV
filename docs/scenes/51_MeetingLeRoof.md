@@ -40,8 +40,25 @@ cycle's words and the fade-in are the runtime's CRAM model
 `rust/psiv-core/src/scenes/wait_census.rs`.
 
 Against a retail capture (tape 28's boot schedule, Le Roof Room loaded by RAM
-patch at frame 7000, the map trigger starting `$48`), the runtime's words 0-31
-equal retail's on every frame of the 180, 71 and 120 passes. Two gaps remain:
-the native shell draws no scene picture ([#594](https://github.com/TusanHomichi/PSIV/issues/594)),
-and the scene reaches its first pass 8 counted frames early, which keeps the
-cycle's phase only by coincidence ([#595](https://github.com/TusanHomichi/PSIV/issues/595)).
+patch at frame 7000 with Chaz at `$F406`/`$F408` `($1F0,$200)`, the map
+trigger starting `$48`), the scene reaches each retail call after as many
+counted frames from the `Event_Index` write as retail does. The counts,
+from an oracle PC trace (`VInt_Prepare` calls before each call), are:
+
+- `Event_MoveCharacter`: 1 (its 32-pixel walk is 16 frames);
+- `Pal_VariableFadeOut_Lines_1_2`: 77;
+- `DMAPlanes_VInt`: 179 (its own frame, as `DmaPlanes` now spends);
+- `Pal_VariableFadeToPal2`: 180;
+- the 180-pass loop: 225;
+- `loc_705D6`: 405.
+
+With the native frame count seeded so that the event's warmup tick carries
+retail's count at the write, the runtime's words 0-31 equal retail's on
+every counted frame from the write to the end of the first 120-pass loop
+(596 frames). The native shell still draws no scene picture
+([#594](https://github.com/TusanHomichi/PSIV/issues/594)).
+
+The second `DMAPlanes_VInt` (`$0705A2`, after `RefreshPlaneFG`/`BG`) is part
+of the stretch `ReloadMapChunks` stands for and has no `DmaPlanes`; the DMA
+census (`rust/psiv-core/src/scenes/dma_census.rs`) lists it for
+[#599](https://github.com/TusanHomichi/PSIV/issues/599).

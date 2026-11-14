@@ -14,19 +14,23 @@ use psiv_core::{
 /// Runs `ops` with no cast, closing each dialogue at once, and writes one
 /// mark per effect and, after each tick's marks, `+` when the tick runs map
 /// updates and `.` when it does not, runs of either compressed to `+N`/`.N`.
-/// A two-line fade's length is the runtime's to measure from the palette;
-/// the trace releases it at [`FADE_UP`] frames, the length the runtime
-/// gives Le Roof's line (`psiv-runtime`'s palette suite checks the words).
+/// A variable fade's length is the runtime's to measure from the palette;
+/// the trace releases a two-line fade at [`FADE_UP`] frames, the length the
+/// runtime gives Le Roof's line, and a 64-word fade-out at [`PANEL_FADE_OUT`]
+/// (`psiv-runtime`'s palette suite checks both). `DmaPlanes` has no mark:
+/// its frame is the `.` after it.
 /// Marks: `U` `Pal_VariableFadeToPal2`, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
 /// the fade-in of `n` passes, `D<id>` a dialogue, `|` a resume, `S<id>` a
-/// sound, `O`/`I` `FadeOut`/`FadeIn`, `V` `InitVRAMAndCRAM`, `P` a panel, `M`
-/// the map reload, `F` a flag. Stops at the first flag.
+/// sound, `O`/`I` `FadeOut`/`FadeIn`, `X<mode>` `Pal_VariableFadeOut`, `V`
+/// `InitVRAMAndCRAM`, `P` a panel, `M` the map reload, `F` a flag. Stops at
+/// the first flag.
 fn trace(ops: &'static [SceneOp]) -> String {
     let mut state = GameState::new();
     let map = map_with(&["........"; 8], vec![], vec![]);
     let mut runner = SceneRunner::new(ops, vec![], StepFrames::default());
     let mut marks: Vec<String> = Vec::new();
     let mut input = SceneInput::None;
+    let mut fade = FADE_UP;
     for _ in 0..5_000 {
         let effects = runner.tick(&map, &mut state, input);
         input = SceneInput::None;
@@ -48,7 +52,17 @@ fn trace(ops: &'static [SceneOp]) -> String {
                 SceneEffect::Presentation { op } => match op {
                     SceneOp::Presentation { op } => match op {
                         PresentationOp::FadeFromRed { .. } => "R".to_owned(),
-                        PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => "U".to_owned(),
+                        PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => {
+                            fade = FADE_UP;
+                            "U".to_owned()
+                        }
+                        PresentationOp::VariablePaletteFade {
+                            fade_in: false,
+                            mode,
+                        } => {
+                            fade = PANEL_FADE_OUT;
+                            format!("X{mode}")
+                        }
                         PresentationOp::CounterPaletteCycle { frames, .. } => format!("C{frames}"),
                         PresentationOp::PaletteGrowIn { passes, .. } => format!("G{passes}"),
                         PresentationOp::ReloadMapChunks => "M".to_owned(),
@@ -73,7 +87,7 @@ fn trace(ops: &'static [SceneOp]) -> String {
             break;
         }
         if runner.awaits_palette() {
-            runner.release_palette(FADE_UP);
+            runner.release_palette(fade);
         }
         marks.push(if runner.runs_map_updates() { "+" } else { "." }.to_owned());
     }
@@ -110,6 +124,11 @@ fn trace(ops: &'static [SceneOp]) -> String {
 /// (`$ED52` 2).
 const FADE_UP: u16 = 15 * 3;
 
+/// `Cutscene_LeRoofAgain`'s `Pal_VariableFadeOut` at `$07845A` (`$ED52` 5)
+/// from panel `$11B`'s palette: fourteen passes of six frames, as the
+/// retail capture spends it (#595).
+const PANEL_FADE_OUT: u16 = 14 * 6;
+
 /// The ops from `first` on: each scene's fade up to Le Roof's palette, past
 /// the actor walk the trace has no cast for.
 fn from(event: u16, first: usize) -> &'static [SceneOp] {
@@ -144,13 +163,16 @@ fn meeting_le_roof_runs_its_colour_loops_without_map_updates() {
 }
 
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
-/// 120) before dialogue `$0B`, then after the panel's resume the fade-out and
+/// 120) before dialogue `$0B`, a frame for each panel's `DMAPlanes_VInt`,
+/// then after the resume the 84-frame `Pal_VariableFadeOut` and
 /// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
     let trace = trace(from(0x801C, 8));
     assert!(
-        trace.starts_with("U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 O +60 V I P DC .1 F"),
+        trace.starts_with(
+            "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P .1 | .1 X5 .84 +60 V I P .1 DC .1 F"
+        ),
         "{trace}"
     );
 }

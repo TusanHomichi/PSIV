@@ -556,7 +556,6 @@ impl SceneRunner {
             | SceneOp::SetSavedMusic { .. }
             | SceneOp::FadeIn
             | SceneOp::FadeOut
-            | SceneOp::DmaPlanes
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
                 effects.push(SceneEffect::Presentation { op });
@@ -582,6 +581,14 @@ impl SceneRunner {
             SceneOp::MarkGameCleared => {
                 effects.push(SceneEffect::GameCleared);
                 self.pc += 1;
+            }
+            // `DMAPlanes_VInt` (`$041678`) and its one-plane forms queue the
+            // DMA, then end in `VInt_Prepare`: one frame, no map or object
+            // update (`scenes/dma_census.rs` ties each op to such a call).
+            SceneOp::DmaPlanes => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(1);
             }
             SceneOp::WaitFrames { frames } | SceneOp::StepFieldObject { frames, .. } => {
                 effects.push(SceneEffect::Presentation { op });
