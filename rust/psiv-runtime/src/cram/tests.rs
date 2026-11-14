@@ -22,6 +22,7 @@ fn cram(live: [u16; 64], saved: [u16; 64]) -> Cram {
         saved,
         program: None,
         queued: None,
+        unshown: None,
     }
 }
 
@@ -452,6 +453,111 @@ fn a_variable_fade_in_answers_its_length() {
         cram.tick(k);
     }
     assert_eq!(cram.view().words[0], 0x0246);
+}
+
+/// A scene's map load held for `Pal_VariableFadeIn` (#612): `cram` as the
+/// load left it, both buffers `lit`, with `shown` uploaded the frame before.
+fn held(lit: [u16; 64], shown: [u16; 64]) -> Cram {
+    let mut cram = cram(lit, lit);
+    cram.hold_for_fade_in(shown);
+    cram
+}
+
+/// `RefreshMap` returns with no VBlank and `Pal_VariableFadeIn` copies and
+/// clears the buffer before its first: no frame shows the load's words until
+/// the passes bring them up from black.
+#[test]
+fn a_map_load_held_for_a_fade_in_is_never_shown_lit() {
+    let none = ScenePalettes::default();
+    let mut lit = filled(0);
+    lit[0] = 0x0246;
+    let mut cram = held(lit, filled(0));
+    let revision = cram.view().revision;
+    assert_eq!(cram.view().words, filled(0), "the load's tick");
+    // The tick after: the runtime steps the CRAM, then the scene emits the
+    // fade-in.
+    cram.tick(1);
+    assert_eq!(cram.view().words, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: true,
+        mode: 1,
+    });
+    // The fade-in's length is worked from the load's words: 1 + (6 + 1) * 2.
+    assert_eq!(cram.apply(&fade, 1, &none, None), Some(15));
+    assert_eq!(*cram.saved(), lit, "the copy is the load's words");
+    assert_eq!(cram.view().words, filled(0), "the display-enable frame");
+    assert_eq!(cram.view().revision, revision, "no word changed yet");
+    let mut levels = Vec::new();
+    for k in 2..16u16 {
+        cram.tick(k);
+        levels.push(cram.view().words[0]);
+    }
+    assert_eq!(levels[0], 0x0111);
+    assert!(levels.iter().all(|&word| word <= 0x0246));
+    assert_eq!(cram.view().words, lit);
+}
+
+/// The words shown while the load is held are the ones the frame before it
+/// uploaded, whatever they were: a load straight after a lit frame keeps it.
+#[test]
+fn a_held_load_keeps_the_last_uploaded_words() {
+    let shown = filled(0x0222);
+    let cram = held(filled(0x0EEE), shown);
+    assert_eq!(cram.view().words, shown);
+}
+
+/// A map update program's write while the load is held lands in the buffer,
+/// unshown, and the fade-in fades up to it.
+#[test]
+fn a_write_during_a_held_load_goes_to_the_buffer() {
+    let none = ScenePalettes::default();
+    let mut cram = held(filled(0x0222), filled(0));
+    cram.write(5, 0x0444);
+    assert_eq!(cram.view().words, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: true,
+        mode: 1,
+    });
+    let _ = cram.apply(&fade, 0, &none, None);
+    assert_eq!(cram.saved()[5], 0x0444);
+    assert_eq!(cram.saved()[4], 0x0222);
+    assert_eq!(cram.view().words, filled(0));
+}
+
+/// Any record but the fade-in reads or writes the buffer as the load left
+/// it, so the held words go live first.
+#[test]
+fn any_other_record_puts_a_held_load_live() {
+    let none = ScenePalettes::default();
+    let lit = filled(0x0222);
+    // The shell's fade copies the buffer to the second one.
+    let mut cram = held(lit, filled(0));
+    let _ = cram.apply(&SceneOp::FadeIn, 0, &none, None);
+    assert_eq!(cram.view().words, lit);
+    assert_eq!(*cram.saved(), lit);
+    // A one-word write lands on the load's words, not the shown ones.
+    let mut cram = held(lit, filled(0));
+    let _ = cram.apply(
+        &op(PresentationOp::SetPaletteWords {
+            offset: 0,
+            first: 0x0EEE,
+            second: 0x0EEE,
+        }),
+        0,
+        &none,
+        None,
+    );
+    assert_eq!(cram.view().words[..2], [0x0EEE; 2]);
+    assert_eq!(cram.view().words[2..], lit[2..]);
+    // The variable fade-out fades the load's words, not the shown ones.
+    let mut cram = held(lit, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: false,
+        mode: 1,
+    });
+    assert_eq!(cram.apply(&fade, 0, &none, None), Some(4));
+    assert_eq!(*cram.saved(), lit);
+    assert_eq!(cram.view().words, filled(0x0111));
 }
 
 /// `Pal_VariableFadeToRed`/`FromRed`: eight stages of `delay + 1` frames.

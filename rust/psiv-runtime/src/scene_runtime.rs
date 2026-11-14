@@ -185,12 +185,14 @@ impl Runtime {
         // object-keeping bit is 3, and the op carries the `bclr`/`bset`
         // writes the scene made around it.
         let cell = crate::start_cell(start_x, start_y);
+        let shown = self.effects.cram.view().words;
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
             Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
+                self.hold_palette_for_fade_in(shown);
                 events.push(loaded.event(WarpTrigger::MapChange));
             }
             Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
@@ -200,6 +202,23 @@ impl Runtime {
         // allowed to report its own missing-actor fault instead of
         // hanging a scene forever.
         self.scene_input = SceneInput::MapLoaded;
+    }
+
+    /// After a scene's map load: when the scene's next op is
+    /// `Pal_VariableFadeIn`, the CRAM keeps `shown`, the words uploaded
+    /// before the load, and the fade-in takes the new map's words from the
+    /// buffer (`crate::cram`). Retail shows no frame of them lit (#612).
+    pub(crate) fn hold_palette_for_fade_in(
+        &mut self,
+        shown: [u16; psiv_core::palette::PALETTE_WORDS],
+    ) {
+        if self
+            .scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::fades_in_after_map_load)
+        {
+            self.effects.cram.hold_for_fade_in(shown);
+        }
     }
 
     pub(crate) fn translate_scene_effect(
