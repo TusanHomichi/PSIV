@@ -521,7 +521,11 @@ object is inside the camera's 320×224 view it captures the sheet, the current
 frame and the viewport before and during Zema's line-1 cycle, and requires
 line 3 and every sheet pixel, alpha included, unchanged. It is a debug-event
 fixture, not a campaign route or an original-game comparison; the wrong-line
-negative control is in `cutscene/manifest.rs`'s tests. From the repository
+negative control is in `cutscene/manifest.rs`'s tests. The driver's first
+failure is final: it stops the run and no later capture can exit 0 over it.
+`tests/test_native_temporary_palette.py` runs it against a stub game and faults
+each check in turn (the copy, then line 3 or a sheet pixel before the first
+capture and during the cycle); each must exit nonzero. From the repository
 root, with the extension and local pack built:
 
 ```bash

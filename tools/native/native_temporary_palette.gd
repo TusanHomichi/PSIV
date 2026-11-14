@@ -27,6 +27,9 @@ var built: Dictionary = {}
 var built_pixels := PackedByteArray()
 var before: Dictionary = {}
 var observing := false
+# Latched by the first failure: nothing runs after it, and no later exit can
+# report success over it (`quit` only requests the exit).
+var failed := false
 
 func _initialize():
     output = OS.get_environment("PSIV_TEMPORARY_OUTPUT")
@@ -41,6 +44,9 @@ func start_game():
     current_scene = game
 
 func fail(message: String):
+    if failed:
+        return
+    failed = true
     push_error(message)
     quit(1)
 
@@ -70,7 +76,7 @@ func on_screen(node: Sprite2D) -> bool:
     return view.encloses(Rect2(node.global_position + node.offset, node.region_rect.size))
 
 func _physics_process(_delta):
-    if game == null or observing: return false
+    if game == null or observing or failed: return false
     tick += 1
     if tick > 6000:
         fail("Igglanova was not observed through a palette change")
@@ -100,12 +106,14 @@ func _physics_process(_delta):
     elif not on_screen(node):
         pass
     elif before.is_empty():
-        check_unchanged(state, image, "line 3 changed before the capture")
+        if not check_unchanged(state, image, "line 3 changed before the capture"):
+            return false
         before = state
         capture("before", node, image, state)
     elif int(state.cram.revision) != int(before.cram.revision) \
             and words_of(state, 16, 32) != words_of(before, 16, 32):
-        check_unchanged(state, image, "line 3 changed")
+        if not check_unchanged(state, image, "line 3 changed"):
+            return false
         var changed := 0
         for i in range(16, 32):
             if state.cram.words[i] != before.cram.words[i]:
@@ -159,12 +167,14 @@ func check_copy(state: Dictionary, image: Image):
     print("TEMPORARY_BUILT tick=%d opaque=%d copied_colour_pixels=%d" % [tick, opaque, copied])
 
 # Line 3 and every pixel of the sheet are as they were when it was built.
-func check_unchanged(state: Dictionary, image: Image, message: String):
+func check_unchanged(state: Dictionary, image: Image, message: String) -> bool:
     if words_of(state, 48, 64) != words_of(built, 48, 64):
         fail(message)
-        return
+        return false
     if image.get_data() != built_pixels:
         fail("the object changed with another line")
+        return false
+    return true
 
 func capture(label: String, node: Sprite2D, image: Image, state: Dictionary):
     observing = true
@@ -178,6 +188,8 @@ func capture(label: String, node: Sprite2D, image: Image, state: Dictionary):
         "camera": [camera.global_position.x, camera.global_position.y], "state": state}
     FileAccess.open(output.path_join(label + ".json"), FileAccess.WRITE).store_string(JSON.stringify(record))
     await RenderingServer.frame_post_draw
+    if failed:
+        return
     root.get_texture().get_image().save_png(output.path_join(label + "-viewport.png"))
     print("TEMPORARY_CAPTURE ", label, " tick=", tick, " region=", record.region,
         " revision=", state.cram.revision)
