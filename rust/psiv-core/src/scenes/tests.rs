@@ -47,7 +47,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_BioPlantDoorOpening", 8),
         ("Event_ElevatorDoorOpening", 9),
         ("Event_RidingElevator", 19),
-        ("Event_GirlsSneakingOut", 27),
+        ("Event_GirlsSneakingOut", 29),
         ("Event_ChazHouse", 13),
         ("Event_LeavingChazHouse", 1),
         ("Cutscene_MeetingRika", 107),
