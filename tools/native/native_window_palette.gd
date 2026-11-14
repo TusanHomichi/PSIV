@@ -1,21 +1,26 @@
-# Native window palette fixture (#533): one window family is opened from a
-# debug selector, the game is paused, and line 2 of the windows' palette is
-# changed under control through `Field.debug_window_line` (the windows'
-# material only: the runtime's CRAM, the map and the sprites keep their
-# words). Five viewport captures: `before`, `hidden` (the family's node
-# hidden, so the difference is the window's footprint), `during` (line 2's
+# Native window palette fixture (#533, #622): one window family is opened
+# from a debug selector, the game is paused, and one CRAM line of the
+# windows' palette is changed under control through
+# `Field.debug_window_line` (the windows' material for that line only: the
+# runtime's CRAM, the map, the sprites and the windows on other lines keep
+# their words). Five viewport captures: `before`, `hidden` (the nodes on the
+# line hidden, so the difference is their footprint), `during` (the line's
 # every word with its colour components inverted, `word ^ $0EEE`),
-# `hidden-during` (the node hidden again, the override still on) and `after`
-# (the override cleared).
+# `hidden-during` (the nodes hidden again, the override still on) and
+# `after` (the override cleared).
 #
-# It fails unless: the node carries a material; every footprint pixel that
-# was a line-2 colour 1-15 turned into that index's new colour; every pixel
-# that changed took its index's new colour (a window pixel the colour of what
-# lies under it is outside the footprint, so it may change too);
-# `hidden-during` equals `hidden` exactly, so nothing but the node follows
-# the override; and `after` equals `before` exactly. With
-# PSIV_WINDOW_UNBIND=1 it removes the node's material before `during`, the
-# wrong-binding negative control, which must fail.
+# The nodes on the line are the family's nodes the table below binds to it,
+# plus every other visible node carrying the same material (the message box
+# under the guild board shares line 2's). It fails unless: each family node
+# on the line carries a material; every footprint pixel that was a colour 1-15
+# of the line turned into that index's new colour; every pixel that changed
+# took its index's new colour (a window pixel the colour of what lies under
+# it is outside the footprint, so it may change too); `hidden-during` equals
+# `hidden` exactly, so nothing but those nodes follows the override; and
+# `after` equals `before` exactly. Two wrong-binding negative controls must
+# fail: PSIV_WINDOW_UNBIND=1 removes the family nodes' material before
+# `during`, and PSIV_WINDOW_REBIND=1 gives them the material of another of
+# the family's lines instead (the guild board only).
 #
 # PSIV_WINDOW_FAMILY selects the window and how it is reached:
 #   camp    PSIV_DEBUG_CAMP=1; STATE, then STATUS (frames, text, portrait)
@@ -23,6 +28,10 @@
 #   choice  a scene whose dialogue asks YES/NO (PSIV_DEBUG_EVENT=...); pages
 #           are acknowledged until the choice is ready
 #   dialogue  a scene's first full dialogue page (PSIV_DEBUG_EVENT=...)
+#   jobs    the Hunter's Guild board (PSIV_DEBUG_EVENT=0x66): its rows on
+#           lines 2 (open), 1 (collected) and 3 (not open)
+#   destination  the ship's destination list (PSIV_DEBUG_EVENT=0x800D)
+# PSIV_WINDOW_LINE picks the line (default 2; the board also has 1 and 3).
 # Required: PSIV_DEBUG_ROUTE=1, PSIV_SAVE_DIR (empty directory),
 # PSIV_WINDOW_OUTPUT (existing directory). No save is loaded or written.
 # Run through tools/godot.py run under the godot heavy-lock class.
@@ -31,12 +40,21 @@ extends SceneTree
 const RAMP_R := [0, 32, 65, 98, 139, 172, 205, 238]
 const RAMP_G := [0, 32, 68, 101, 137, 170, 206, 238]
 const RAMP_B := [0, 32, 65, 98, 139, 172, 205, 238]
-const NODE_CLASS := {"camp": "CampMenu", "shop": "ShopWindow", "choice": "DialogueWindow",
-    "dialogue": "DialogueWindow"}
+# Each family's nodes: the field child's class, the path under it, the line.
+const NODES := {
+    "camp": [["CampMenu", "", 2]],
+    "shop": [["ShopWindow", "", 2]],
+    "choice": [["DialogueWindow", "", 2]],
+    "dialogue": [["DialogueWindow", "", 2]],
+    "jobs": [["JobBoardScreen", "Window", 2], ["JobBoardScreen", "Done", 1],
+        ["JobBoardScreen", "Closed", 3]],
+    "destination": [["DestinationScreen", "Windows", 2]],
+}
 const SETTLE := 30
 
 var game
 var family := ""
+var line := 2
 var output := ""
 var tick := 0
 var held := ""
@@ -49,8 +67,13 @@ var failed := false
 func _initialize():
     family = OS.get_environment("PSIV_WINDOW_FAMILY")
     output = OS.get_environment("PSIV_WINDOW_OUTPUT")
-    if not NODE_CLASS.has(family):
-        fail("PSIV_WINDOW_FAMILY must be camp, shop, choice or dialogue")
+    if not NODES.has(family):
+        fail("PSIV_WINDOW_FAMILY must be one of %s" % [NODES.keys()])
+        return
+    var line_text := OS.get_environment("PSIV_WINDOW_LINE")
+    line = 2 if line_text.is_empty() else int(line_text)
+    if NODES[family].filter(func(entry): return entry[2] == line).is_empty():
+        fail("the %s family draws nothing on line %d" % [family, line])
         return
     if output.is_empty() or not DirAccess.dir_exists_absolute(output):
         fail("PSIV_WINDOW_OUTPUT must name an existing directory")
@@ -74,11 +97,25 @@ func fail(message: String):
 func rgb(word: int) -> Array:
     return [RAMP_R[(word >> 1) & 7], RAMP_G[(word >> 5) & 7], RAMP_B[(word >> 9) & 7]]
 
-func window_node():
+func family_node(entry: Array):
     for child in game.get_children():
-        if child.get_class() == NODE_CLASS[family]:
-            return child
+        if child.get_class() == entry[0]:
+            return child if entry[1].is_empty() else child.get_node_or_null(entry[1])
     return null
+
+func describe(entry: Array) -> String:
+    return entry[0] if entry[1].is_empty() else entry[0] + "/" + entry[1]
+
+# Every visible canvas item under `node` whose material is `material`.
+func carriers(node: Node, material: Material, found: Array):
+    for child in node.get_children():
+        if child is CanvasItem and child.is_visible_in_tree() and child.material == material:
+            found.append(child)
+        carriers(child, material, found)
+
+func set_hidden(nodes: Array, hidden: bool):
+    for node in nodes:
+        node.visible = not hidden
 
 func press(action: String):
     held = action
@@ -112,6 +149,22 @@ func target_key(state: Dictionary) -> String:
         "dialogue":
             var page = state.get("dialogue_page")
             return "page" + str(page.lines) if page != null and page.ready else ""
+        "jobs":
+            # The welcome's pages are acknowledged until the rows are written,
+            # once the window is whole; no press after that picks a row.
+            var board = state.get("job_board")
+            if board == null or board.rows.is_empty():
+                var page = state.get("dialogue_page")
+                if page != null and page.ready and tick % 20 == 0:
+                    press("ui_accept")
+                return ""
+            return "jobs" + str(board.rows)
+        "destination":
+            var menu = state.get("destination")
+            if menu == null or str(menu.phase) != "Choosing" or not menu.prompt_ready \
+                    or menu.rows.is_empty():
+                return ""
+            return "destination" + str(menu.rows) + str(menu.list_columns)
     return ""
 
 func _physics_process(_delta):
@@ -148,17 +201,29 @@ func frame() -> Image:
 func observe(state: Dictionary):
     game.set_physics_process(false)
     game.set_process(false)
-    var node = window_node()
-    if node == null or not node.visible:
-        fail("no visible %s" % NODE_CLASS[family])
-        return
-    if not (node.material is ShaderMaterial):
-        fail("%s carries no window material" % NODE_CLASS[family])
-        return
+    var entries: Array = NODES[family].filter(func(entry): return entry[2] == line)
+    var others: Array = NODES[family].filter(func(entry): return entry[2] != line)
+    var nodes := []
+    for entry in entries:
+        var node = family_node(entry)
+        if node == null or not node.is_visible_in_tree():
+            fail("no visible %s" % describe(entry))
+            return
+        if not (node.material is ShaderMaterial):
+            fail("%s carries no window material" % describe(entry))
+            return
+        nodes.append(node)
     if not state.cram.live:
         fail("no live palette")
         return
-    var words: Array = state.cram.words.slice(32, 48)
+    # Hidden together: the family's nodes on the line and every other visible
+    # node drawing through the same material.
+    var hide := []
+    carriers(game, nodes[0].material, hide)
+    for node in nodes:
+        if not hide.has(node):
+            hide.append(node)
+    var words: Array = state.cram.words.slice(line * 16, line * 16 + 16)
     var live := PackedInt32Array()
     var changed := {}
     for i in 16:
@@ -170,19 +235,28 @@ func observe(state: Dictionary):
             changed[from] = rgb(word)
 
     var before: Image = await frame()
-    node.visible = false
+    set_hidden(hide, true)
     var hidden: Image = await frame()
-    node.visible = true
-    if OS.get_environment("PSIV_WINDOW_UNBIND") == "1":
-        node.material = null
-    if not game.debug_window_line(live):
+    set_hidden(hide, false)
+    var unbound := OS.get_environment("PSIV_WINDOW_UNBIND") == "1"
+    var rebound := OS.get_environment("PSIV_WINDOW_REBIND") == "1"
+    if unbound:
+        for node in nodes:
+            node.material = null
+    if rebound:
+        if others.is_empty() or family_node(others[0]) == null:
+            fail("the %s family has no other line to rebind to" % family)
+            return
+        for node in nodes:
+            node.material = family_node(others[0]).material
+    if not game.debug_window_line(line, live):
         fail("debug_window_line refused")
         return
     var during: Image = await frame()
-    node.visible = false
+    set_hidden(hide, true)
     var hidden_during: Image = await frame()
-    node.visible = true
-    game.debug_window_line(PackedInt32Array())
+    set_hidden(hide, false)
+    game.debug_window_line(line, PackedInt32Array())
     var after: Image = await frame()
     for pair in [["before", before], ["hidden", hidden], ["during", during],
             ["hidden-during", hidden_during], ["after", after]]:
@@ -218,21 +292,24 @@ func observe(state: Dictionary):
                 else:
                     coincident += 1
             elif inside and changed.has(was):
-                message = "kept a line-2 colour"
+                message = "kept a line-%d colour" % line
             if not message.is_empty() and first.is_empty():
                 first = "pixel (%d,%d) %s -> %s %s" % [x, y, was, now, message]
-    var report := {"family": family, "node": NODE_CLASS[family], "tick": tick,
+    var report := {"family": family, "line": line,
+        "nodes": entries.map(func(entry): return describe(entry)),
+        "hidden_nodes": hide.map(func(node): return str(node.get_path())), "tick": tick,
         "viewport": [width, height], "footprint_pixels": footprint,
         "footprint_box": [box.position.x, box.position.y, box.size.x, box.size.y],
         "reached_pixels": reached, "coincident_pixels": coincident, "live_line": Array(live), "cram": state.cram,
         "camp": state.get("camp"), "shop": state.get("shop"),
-        "dialogue_choice": state.get("dialogue_choice"),
-        "unbound": OS.get_environment("PSIV_WINDOW_UNBIND") == "1"}
+        "dialogue_choice": state.get("dialogue_choice"), "job_board": state.get("job_board"),
+        "destination": state.get("destination"), "unbound": unbound, "rebound": rebound}
     FileAccess.open(output.path_join("report.json"), FileAccess.WRITE).store_string(JSON.stringify(report))
-    print("WINDOW_PALETTE family=%s footprint=%d box=%s reached=%d coincident=%d tick=%d revision=%d" % [
-        family, footprint, report.footprint_box, reached, coincident, tick, int(state.cram.revision)])
+    print("WINDOW_PALETTE family=%s line=%d hidden=%d footprint=%d box=%s reached=%d coincident=%d tick=%d revision=%d" % [
+        family, line, hide.size(), footprint, report.footprint_box, reached, coincident, tick,
+        int(state.cram.revision)])
     if footprint == 0 or reached == 0:
-        fail("the line-2 change reached no window pixel (footprint %d)" % footprint)
+        fail("the line-%d change reached no window pixel (footprint %d)" % [line, footprint])
         return
     if not first.is_empty():
         fail(first)

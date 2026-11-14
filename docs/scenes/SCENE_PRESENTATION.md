@@ -420,10 +420,8 @@ Tower with Elsydeon held, where the map's own entry trigger starts
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Surfaces outside the live palette:** the Hunter's Guild board and the
-  ship's destination menu
-  ([#622](https://github.com/TusanHomichi/PSIV/issues/622)), and the dialogue action
-  `SabotageAlarmRedPalette`'s red overlay, still draw baked colours.
+- **Surfaces outside the live palette:** the dialogue action
+  `SabotageAlarmRedPalette`'s red overlay still draws baked colours.
 - **Rykros's tone:** its cycle has a certified frame above; the preceding tone
   still needs its own oracle pair
   ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
@@ -549,9 +547,18 @@ art is indexed draws from it:
 - scene panels, each layer on its art tile's line (bits 13-14);
 - the native windows, whose tiles, glyphs and portraits are line 2: the
   dialogue window and its YES/NO choice, the camp and chest windows with the
-  STATUS portraits, and the shop and inn windows with the innkeeper's
-  portrait (`window_palette::WindowFamily`). One material draws them all
-  (`Field::attach_window_line`);
+  STATUS portraits, the shop and inn windows with the innkeeper's portrait,
+  the Hunter's Guild board and the ship's destination windows
+  (`window_palette::WindowFamily`). The guild board also draws the same
+  font's tiles on lines 1 and 3: a collected job's name (`$A000`) and the
+  name of a job that is not open (`$E000`). Each window node names its line
+  (`WindowNode::line`), and one material per line draws every node on it
+  (`Field::attach_window_line`). A screen with art on more than one line, or
+  over a picture that is not window art, draws each line on its own
+  `WindowLayer` child: the board's `Window`, `Done` and `Closed` layers, and
+  the destination screen's `Windows` over the planetary map, which the
+  screen colours from its own palette state (lines 0 and 1,
+  `ShipMenu::render`);
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 
@@ -570,13 +577,18 @@ screen-space red effect that stood in for them is gone, since it would now
 apply twice.
 
 `rust/psiv-godot/tests/window_palette.rs` checks the windows' binding
-without Godot: a line-2 change reaches exactly the pixels of its index,
-alpha kept, while a change to lines 0, 1 or 3 or a palette that is not live
-reaches none; the same checks reject art bound to line 3 (the negative
-control). With the local pack, every family's PNGs (window strip, both
-fonts, scroll arrow, dialogue, shop and STATUS portraits) are baked in the
-words the shader is given, on the line their records name, and the field
-boot's map load puts those words on line 2 and not on line 3:
+without Godot: for every window node, a change to its line reaches exactly
+the pixels of its index, alpha kept, while a change to any other line or a
+palette that is not live reaches none; the same checks reject line-2 art
+bound to line 3, and the guild's collected rows bound to line 2 or 3 (the
+negative controls). Off a live palette the guild's rows keep the colours
+the pack carries for their lines. With the local pack, every family's PNGs
+(window strip, both fonts, scroll arrow, dialogue, shop and STATUS
+portraits) are baked in the words the shader is given, on the line their
+records name; the field boot's map load puts those words on line 2 and not
+on line 3; and at the guild (`PSIV_DEBUG_EVENT=0x66`'s fixture, which shows
+a collected, an open and a closed row) lines 1 and 3 hold the guild's row
+colours, so the board looks at rest as it did when it drew them baked:
 `cargo test --manifest-path rust/Cargo.toml -p psiv-godot --test window_palette`.
 
 `tools/native/native_window_palette.gd` checks the windows in the running
@@ -584,19 +596,25 @@ shell. `PSIV_WINDOW_FAMILY` picks the camp's STATUS page
 (`PSIV_DEBUG_CAMP=1`), a shop counter (`PSIV_DEBUG_SHOP=<counter>`: 1 is an
 inn, 12 a store), a scene's YES/NO choice or a scene's first dialogue page
 (`PSIV_DEBUG_EVENT`: `0x3B` asks at Chaz's house, `0x8007` shows Chaz's
-portrait); the driver pauses the game and
-changes the windows' line 2 through `Field.debug_window_line`, an
-evaluation-only override of the windows' material (`PSIV_DEBUG_ROUTE=1`) that
-leaves the runtime's CRAM, the map and the sprites alone. It is a controlled
-change at the shell's window seam, not a scene's palette op. From captures
-before, with the window hidden, during, hidden again during, and after, it
-requires every footprint pixel of a line-2 colour to take its index's new
-colour, every changed pixel to take its index's new colour, the hidden frame
-to stay exactly the same under the override (nothing but the window follows
+portrait), the Hunter's Guild board (`jobs`, `PSIV_DEBUG_EVENT=0x66`) or the
+ship's destination list (`destination`, `PSIV_DEBUG_EVENT=0x800D`), and
+`PSIV_WINDOW_LINE` the line (2 by default; the board also draws on 1 and
+3). The driver pauses the game and changes that line through
+`Field.debug_window_line(line, words)`, an evaluation-only override of that
+line's window material (`PSIV_DEBUG_ROUTE=1`) that leaves the runtime's
+CRAM, the map, the sprites and the other lines' windows alone. It is a
+controlled change at the shell's window seam, not a scene's palette op.
+From captures before, with the line's nodes hidden (the family's, and any
+other visible node drawing through the same material, such as the message
+box under the board), during, hidden again during, and after, it requires
+every footprint pixel of one of the line's colours to take its index's new
+colour, every changed pixel to take its index's new colour, the hidden
+frame to stay exactly the same under the override (nothing else follows
 it), and the frame to come back exactly when the override clears. It is a
-debug fixture, not a campaign route or an original-game comparison.
-`PSIV_WINDOW_UNBIND=1` drops the node's material first, and the run must
-fail:
+debug fixture, not a campaign route or an original-game comparison. Two
+wrong bindings must fail: `PSIV_WINDOW_UNBIND=1` drops the family nodes'
+material first, and `PSIV_WINDOW_REBIND=1` gives them another of the
+family's lines' material (the board only):
 
 ```bash
 mkdir -p build/window-palette/camp/saves
