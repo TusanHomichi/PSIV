@@ -164,11 +164,11 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         ]
     );
 
-    // The appended route's first `Wait` (224 ticks) is not the scene's own.
+    // The appended route's first `Wait` (225 ticks) is not the scene's own.
     let route_wait = censused_ops(again).len() + 9;
     assert!(matches!(
         scene(again).ops[route_wait],
-        SceneOp::Wait { ticks: 224 }
+        SceneOp::Wait { ticks: 225 }
     ));
     let mut on_route = ROWS.to_vec();
     on_route.push(row(again, Map(0x07_846C), Wait(route_wait)));
