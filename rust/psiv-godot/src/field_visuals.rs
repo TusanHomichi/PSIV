@@ -527,6 +527,13 @@ impl Field {
         self.sync_transition();
     }
 
+    /// A runtime-owned palette fade-in starts: a cover it replaces ends now
+    /// ([`super::transitions::after_palette_fade_in`]).
+    pub(super) fn palette_fade_in_takes_over(&mut self) {
+        self.transition = super::transitions::after_palette_fade_in(self.transition);
+        self.sync_transition();
+    }
+
     /// Advances transitions even while the battle presentation owns the
     /// normal runtime tick.
     pub(super) fn tick_transition(&mut self) {
