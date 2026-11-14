@@ -554,15 +554,20 @@ boot's map load puts those words on line 2 and not on line 3:
 
 `tools/native/native_window_palette.gd` checks the windows in the running
 shell. `PSIV_WINDOW_FAMILY` picks the camp's STATUS page
-(`PSIV_DEBUG_CAMP=1`), a shop counter (`PSIV_DEBUG_SHOP=<counter>`) or a
-scene's YES/NO choice (`PSIV_DEBUG_EVENT`); the driver pauses the game and
+(`PSIV_DEBUG_CAMP=1`), a shop counter (`PSIV_DEBUG_SHOP=<counter>`: 1 is an
+inn, 12 a store), a scene's YES/NO choice or a scene's first dialogue page
+(`PSIV_DEBUG_EVENT`: `0x3B` asks at Chaz's house, `0x8007` shows Chaz's
+portrait); the driver pauses the game and
 changes the windows' line 2 through `Field.debug_window_line`, an
 evaluation-only override of the windows' material (`PSIV_DEBUG_ROUTE=1`) that
 leaves the runtime's CRAM, the map and the sprites alone. It is a controlled
 change at the shell's window seam, not a scene's palette op. From captures
-before, with the window hidden, during and after, it requires every footprint
-pixel of a line-2 colour to take its index's new colour, no other pixel to
-change, and the frame to come back exactly when the override clears.
+before, with the window hidden, during, hidden again during, and after, it
+requires every footprint pixel of a line-2 colour to take its index's new
+colour, every changed pixel to take its index's new colour, the hidden frame
+to stay exactly the same under the override (nothing but the window follows
+it), and the frame to come back exactly when the override clears. It is a
+debug fixture, not a campaign route or an original-game comparison.
 `PSIV_WINDOW_UNBIND=1` drops the node's material first, and the run must
 fail:
 

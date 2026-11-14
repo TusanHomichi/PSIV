@@ -2,14 +2,18 @@
 # debug selector, the game is paused, and line 2 of the windows' palette is
 # changed under control through `Field.debug_window_line` (the windows'
 # material only: the runtime's CRAM, the map and the sprites keep their
-# words). Four viewport captures: `before`, `hidden` (the family's node
+# words). Five viewport captures: `before`, `hidden` (the family's node
 # hidden, so the difference is the window's footprint), `during` (line 2's
-# every word with its colour components inverted, `word ^ $0EEE`) and
-# `after` (the override cleared).
+# every word with its colour components inverted, `word ^ $0EEE`),
+# `hidden-during` (the node hidden again, the override still on) and `after`
+# (the override cleared).
 #
 # It fails unless: the node carries a material; every footprint pixel that
-# was a line-2 colour 1-15 turned into that index's new colour; no other
-# pixel changed; and `after` equals `before` exactly. With
+# was a line-2 colour 1-15 turned into that index's new colour; every pixel
+# that changed took its index's new colour (a window pixel the colour of what
+# lies under it is outside the footprint, so it may change too);
+# `hidden-during` equals `hidden` exactly, so nothing but the node follows
+# the override; and `after` equals `before` exactly. With
 # PSIV_WINDOW_UNBIND=1 it removes the node's material before `during`, the
 # wrong-binding negative control, which must fail.
 #
@@ -18,6 +22,7 @@
 #   shop    PSIV_DEBUG_SHOP=<counter>; the counter's opening page
 #   choice  a scene whose dialogue asks YES/NO (PSIV_DEBUG_EVENT=...); pages
 #           are acknowledged until the choice is ready
+#   dialogue  a scene's first full dialogue page (PSIV_DEBUG_EVENT=...)
 # Required: PSIV_DEBUG_ROUTE=1, PSIV_SAVE_DIR (empty directory),
 # PSIV_WINDOW_OUTPUT (existing directory). No save is loaded or written.
 # Run through tools/godot.py run under the godot heavy-lock class.
@@ -26,7 +31,8 @@ extends SceneTree
 const RAMP_R := [0, 32, 65, 98, 139, 172, 205, 238]
 const RAMP_G := [0, 32, 68, 101, 137, 170, 206, 238]
 const RAMP_B := [0, 32, 65, 98, 139, 172, 205, 238]
-const NODE_CLASS := {"camp": "CampMenu", "shop": "ShopWindow", "choice": "DialogueWindow"}
+const NODE_CLASS := {"camp": "CampMenu", "shop": "ShopWindow", "choice": "DialogueWindow",
+    "dialogue": "DialogueWindow"}
 const SETTLE := 30
 
 var game
@@ -44,7 +50,7 @@ func _initialize():
     family = OS.get_environment("PSIV_WINDOW_FAMILY")
     output = OS.get_environment("PSIV_WINDOW_OUTPUT")
     if not NODE_CLASS.has(family):
-        fail("PSIV_WINDOW_FAMILY must be camp, shop or choice")
+        fail("PSIV_WINDOW_FAMILY must be camp, shop, choice or dialogue")
         return
     if output.is_empty() or not DirAccess.dir_exists_absolute(output):
         fail("PSIV_WINDOW_OUTPUT must name an existing directory")
@@ -103,6 +109,9 @@ func target_key(state: Dictionary) -> String:
             if page != null and page.ready and tick % 20 == 0:
                 press("ui_accept")
             return ""
+        "dialogue":
+            var page = state.get("dialogue_page")
+            return "page" + str(page.lines) if page != null and page.ready else ""
     return ""
 
 func _physics_process(_delta):
@@ -170,16 +179,28 @@ func observe(state: Dictionary):
         fail("debug_window_line refused")
         return
     var during: Image = await frame()
+    node.visible = false
+    var hidden_during: Image = await frame()
+    node.visible = true
     game.debug_window_line(PackedInt32Array())
     var after: Image = await frame()
-    for pair in [["before", before], ["hidden", hidden], ["during", during], ["after", after]]:
+    for pair in [["before", before], ["hidden", hidden], ["during", during],
+            ["hidden-during", hidden_during], ["after", after]]:
         pair[1].save_png(output.path_join(pair[0] + ".png"))
 
     var width := before.get_width()
     var height := before.get_height()
+    # The footprint: where hiding the node changes the frame.
     var footprint := 0
-    var reached := 0
     var box := Rect2i()
+    for y in height:
+        for x in width:
+            if hidden.get_pixel(x, y) != before.get_pixel(x, y):
+                footprint += 1
+                box = Rect2i(x, y, 1, 1) if box.size == Vector2i.ZERO else box.expand(Vector2i(x, y))
+    box = box.grow_individual(0, 0, 1, 1)
+    var reached := 0
+    var coincident := 0
     var first := ""
     for y in height:
         for x in width:
@@ -188,33 +209,36 @@ func observe(state: Dictionary):
             var d := during.get_pixel(x, y)
             var now := [d.r8, d.g8, d.b8]
             var inside := hidden.get_pixel(x, y) != b
-            if inside:
-                footprint += 1
-                box = Rect2i(x, y, 1, 1) if box.size == Vector2i.ZERO else box.expand(Vector2i(x, y))
-            var expected = was
-            if inside and changed.has(was):
-                expected = changed[was]
-            if now != expected and first.is_empty():
-                first = "pixel (%d,%d) %s became %s, expected %s (%s)" % [
-                    x, y, was, now, expected, "window" if inside else "outside the window"]
-            if inside and changed.has(was) and now == expected:
-                reached += 1
-    box = box.grow_individual(0, 0, 1, 1)
+            var message := ""
+            if now != was:
+                if not changed.has(was) or now != changed[was]:
+                    message = "is not its index's new colour"
+                elif inside:
+                    reached += 1
+                else:
+                    coincident += 1
+            elif inside and changed.has(was):
+                message = "kept a line-2 colour"
+            if not message.is_empty() and first.is_empty():
+                first = "pixel (%d,%d) %s -> %s %s" % [x, y, was, now, message]
     var report := {"family": family, "node": NODE_CLASS[family], "tick": tick,
         "viewport": [width, height], "footprint_pixels": footprint,
         "footprint_box": [box.position.x, box.position.y, box.size.x, box.size.y],
-        "reached_pixels": reached, "live_line": Array(live), "cram": state.cram,
+        "reached_pixels": reached, "coincident_pixels": coincident, "live_line": Array(live), "cram": state.cram,
         "camp": state.get("camp"), "shop": state.get("shop"),
         "dialogue_choice": state.get("dialogue_choice"),
         "unbound": OS.get_environment("PSIV_WINDOW_UNBIND") == "1"}
     FileAccess.open(output.path_join("report.json"), FileAccess.WRITE).store_string(JSON.stringify(report))
-    print("WINDOW_PALETTE family=%s footprint=%d box=%s reached=%d tick=%d revision=%d" % [
-        family, footprint, report.footprint_box, reached, tick, int(state.cram.revision)])
+    print("WINDOW_PALETTE family=%s footprint=%d box=%s reached=%d coincident=%d tick=%d revision=%d" % [
+        family, footprint, report.footprint_box, reached, coincident, tick, int(state.cram.revision)])
     if footprint == 0 or reached == 0:
         fail("the line-2 change reached no window pixel (footprint %d)" % footprint)
         return
     if not first.is_empty():
         fail(first)
+        return
+    if hidden_during.get_data() != hidden.get_data():
+        fail("the override reached a surface other than the window")
         return
     if after.get_data() != before.get_data():
         fail("clearing the override did not restore the frame")
