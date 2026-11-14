@@ -257,6 +257,22 @@ TAPE_43 = {
     "frames": [8580],
 }
 
+# The same run's tone before the cycle: `Pal_IncreaseTone` (`$078208`) adds
+# `$222` to every word each fourth frame, `Palette_Table_Buffer` first
+# stepping in frame 8143 (shown from 8144) and white from 8167, then
+# `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
+# (shown from 8200). The native tone steps on ticks 881-937 in the same
+# plateaus, so clone tick t shows oracle frame t + 7263: the untoned frame
+# before (8141), the fourth step up (8157, backdrop `$888`), the third step
+# back (8185, every word floored at `$888`) and the restored frame after
+# (8201). Region `1,1,319,223`: the shell's black first row and column (#409)
+# show against the toned backdrop.
+TAPE_43_TONE = {
+    **TAPE_43,
+    "frames": [8141, 8157, 8185, 8201],
+    "region": [1, 1, 319, 223],
+}
+
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
 # The reload reaches control at 7173; entering at 7202 gives the native
 # selector's thirty field-object calls before the scene. No pose is patched.
@@ -394,6 +410,20 @@ PAIRS = [
     ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1270,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
+    # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
+    # a step up, a step back, and the restored frame.
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 878,
+     "build/certify/oracle/rykros-tone/frame_8141.png",
+     "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 894,
+     "build/certify/oracle/rykros-tone/frame_8157.png",
+     "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
+    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 922,
+     "build/certify/oracle/rykros-tone/frame_8185.png",
+     "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 938,
+     "build/certify/oracle/rykros-tone/frame_8201.png",
+     "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
