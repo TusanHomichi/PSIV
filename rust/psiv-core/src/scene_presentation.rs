@@ -363,6 +363,21 @@ pub enum PresentationOp {
         /// Raw `Palette_Variable_Fade` mode value.
         mode: u8,
     },
+    /// The same passes over the first two lines (32 words), as the Le Roof
+    /// scenes fade: `Pal_VariableFadeOut_Lines_1_2` (`$05B222`) copies those
+    /// words to `Palette_Table_Buffer_2` (`moveq #$1F, d7` / `trap #1`) and
+    /// steps them down until all 32 are black; `Pal_VariableFadeToPal2`
+    /// (`$05B26E`) copies, clears and enables nothing, and steps the live
+    /// words up toward the second buffer from wherever they are, until a pass
+    /// changes nothing. Each pass waits `mode + 1` frames. The scene blocks
+    /// until the runtime releases it with the count
+    /// ([`crate::SceneRunner::release_palette`]).
+    TwoLinePaletteFade {
+        /// True for `Pal_VariableFadeToPal2`, false for the fade-out.
+        fade_in: bool,
+        /// Raw `$FFFFED52` delay.
+        mode: u8,
+    },
     /// Rykros's six-step palette animation, `loc_78296` (`$078296..$0782D1`):
     /// for each delay byte of `loc_782D2` up to its `$FF`, nine words of the
     /// table at `source_rom_addr` (`$12` bytes a frame) go to
@@ -418,6 +433,36 @@ pub enum PresentationOp {
         steps: u8,
         /// Frames each pass waits.
         frame_delay: u16,
+    },
+    /// The Le Roof scenes' colour loops (`$070538`, `$070552`, `$070570` in
+    /// `Event_MeetingLeRoof`; `$0783F2`, `$07840E` in `Cutscene_LeRoofAgain`):
+    /// `frames` passes of `bsr loc_70638` then `VInt_Prepare`, with no map or
+    /// object update. Each pass is one [`CounterCycle`] frame. The op blocks
+    /// for every frame.
+    CounterPaletteCycle {
+        /// The cycle each pass runs.
+        cycle: CounterCycle,
+        /// `dbf` passes, already corrected (`move.w #$B3, d0`: 180).
+        frames: u16,
+    },
+    /// `loc_705D6` (`$0705D6..$070625`), the Le Roof scenes' fade-in: `passes`
+    /// passes, each blacking the `words` words from `offset` and lighting the
+    /// last [`crate::palette::grow_in_lit`] of the `words` table words at
+    /// `source_rom_addr` over the first of them
+    /// ([`crate::palette::grow_in_words`]), then one [`CounterCycle`] frame,
+    /// then `VInt_Prepare`; no map or object update. The op blocks for every
+    /// pass.
+    PaletteGrowIn {
+        /// The ramp table (`loc_70626`).
+        source_rom_addr: u32,
+        /// Word offset from `Palette_Table_Buffer` (`+4`: word 2).
+        offset: u16,
+        /// Words the pass blacks and the table holds (`moveq #8, d1`: 9).
+        words: u8,
+        /// `dbf` passes, already corrected (`moveq #$46, d7`: 71).
+        passes: u16,
+        /// The cycle each pass runs after its writes.
+        cycle: CounterCycle,
     },
     /// A map object's whole-pixel position after one frame of
     /// `SceneOp::DriftNpcs` (`FieldObj_UpdatePosition`, `$04501C`). The
@@ -562,9 +607,27 @@ impl PresentationOp {
             Self::RykrosPaletteCycle { delays, .. } => {
                 Some(delays.iter().map(|&delay| u16::from(delay)).sum())
             }
+            Self::CounterPaletteCycle { frames, .. } => Some(frames),
+            Self::PaletteGrowIn { passes, .. } => Some(passes),
             _ => None,
         }
     }
+}
+
+/// `loc_70638` (`$070638..$070671`): one frame of the Le Roof scenes' colour
+/// cycle. On a frame whose `Main_Frame_Count & 3` is zero, the index byte
+/// `$FFFFECF3` (the runtime's map-update counter that map programs share)
+/// restarts at 0 once it reaches `entries`, table word `index` goes to
+/// `Palette_Table_Buffer` word `offset` and table word `index + entries` to
+/// `offset + 1`, and the index steps ([`crate::palette::counter_cycle_step`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CounterCycle {
+    /// The two series, one after the other (`loc_70672`).
+    pub source_rom_addr: u32,
+    /// Word offset from `Palette_Table_Buffer` (`$16(a1)`: word 11).
+    pub offset: u16,
+    /// Words in each series (`cmpi.b #$B`; the second read is `$16` bytes on).
+    pub entries: u8,
 }
 
 /// The `trap #1` copy a tone loop makes each frame after `Pal_IncreaseTone`

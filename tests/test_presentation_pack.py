@@ -191,6 +191,23 @@ class PresentationPackTests(unittest.TestCase):
             0x0730FC: (0x073054, [
                 _lea_w(PALETTE_TABLE_BUFFER + 0x60, 0), _lea_l(0x0730FC, 1),
             ], 16),
+            # Event_MeetingLeRoof: lea loc_1DE258 / lea Palette_Table_Buffer_2
+            # / moveq #$F, d7 / trap #1: 16 words (also `$078398`).
+            0x1DE258: (0x0704D8, [
+                _lea_l(0x1DE258, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x80, 1),
+                _moveq(0xF, 7), TRAP_1,
+            ], 16),
+            # loc_705D6: lea loc_70626 / lea Palette_Table_Buffer+4 /
+            # moveq #8, d1: the ramp's nine words.
+            0x070626: (0x0705E8, [
+                _lea_l(0x070626, 0), _lea_w(PALETTE_TABLE_BUFFER + 4, 1),
+                _moveq(8, 1),
+            ], 9),
+            # loc_70638: lea Palette_Table_Buffer / lea loc_70672, reading
+            # entries 0..$A (cmpi.b #$B) and each $16 bytes on: 22 words.
+            0x070672: (0x070638, [
+                _lea_w(PALETTE_TABLE_BUFFER, 1), _lea_l(0x070672, 2),
+            ], 22),
             # MapDataMan_PiataBasementB2_Palettes, Cutscene_Alshline's call:
             # lea PiataBasementB2_Palettes / lea Palette_Line_4 /
             # moveq #13, d7 / move.w (a1)+, (a2)+ / dbf: 14 words.
@@ -199,6 +216,12 @@ class PresentationPackTests(unittest.TestCase):
                 _moveq(13, 7), MOVE_W_A1_A2, _dbf(7, -4),
             ], 14),
         }
+        # Event_MeetingLeRoof's return: lea Pal_SilenceTm / lea
+        # Palette_Table_Buffer_2 / move.w #$1F, d7 / trap #1: 32 words.
+        sites[0x18711A] = (0x0705A8, [
+            _lea_l(0x18711A, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x80, 1),
+            _move_w_imm(0x1F, 7), TRAP_1,
+        ], 32)
         # Boarding uses a word-copy DBF count, including the saved-buffer spill.
         for address, site in ((0x29754E, 0x06B9EA), (0x29756E, 0x06BAC2), (0x29758E, 0x06BB9A)):
             sites[address] = (site, [

@@ -117,8 +117,8 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_DarkForce1Defeated", 28),
         ("Event_Juza", 6),
         ("Event_JuzaDefeated", 3),
-        ("Event_MeetingLeRoof", 17),
-        ("Cutscene_LeRoofAgain", 67),
+        ("Event_MeetingLeRoof", 23),
+        ("Cutscene_LeRoofAgain", 71),
         ("Event_CarnivorousTrees", 13),
         ("Event_SavingKyra", 19),
         ("Cutscene_MeetingKyra", 24),
@@ -638,6 +638,16 @@ fn palette_record_fault(op: &PresentationOp) -> Option<&'static str> {
         PresentationOp::PaletteCycleFromTable { offset, .. } => {
             (offset > 62).then_some("offset past the buffer")
         }
+        PresentationOp::CounterPaletteCycle { cycle, .. } => {
+            (cycle.offset > 62).then_some("cycle past the buffer")
+        }
+        PresentationOp::PaletteGrowIn {
+            offset,
+            words,
+            cycle,
+            ..
+        } => (usize::from(offset) + usize::from(words) > 64 || cycle.offset > 62)
+            .then_some("grow-in past the buffer"),
         _ => None,
     }
 }

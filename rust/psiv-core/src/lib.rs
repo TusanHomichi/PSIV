@@ -149,8 +149,8 @@ pub use scene::{
     OP_BUDGET_PER_TICK, SavedByte, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
 pub use scene_presentation::{
-    CameraSubject, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource, PresentationAsset,
-    PresentationOp,
+    CameraSubject, CounterCycle, CreditsPlane, PaletteBuffer, PaletteHold, PaletteSource,
+    PresentationAsset, PresentationOp,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scene_types::{

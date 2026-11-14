@@ -162,9 +162,8 @@ impl Runtime {
                 // The Elsydeon breaking: a tone to white and back, on every
                 // line, while the text waits (`TextFlow`'s hold).
                 DialogueSignal::Action(super::DialogueAction::ElsydeonBroken) => {
-                    self.effects
-                        .cram
-                        .tone_and_back(super::ELSYDEON_BROKEN_FRAMES, self.frames);
+                    let (cram, cycle_index) = self.effects.cram_and_cycle_index();
+                    cram.tone_and_back(super::ELSYDEON_BROKEN_FRAMES, self.frames, cycle_index);
                 }
                 _ => {}
             }
@@ -394,6 +393,8 @@ mod tests {
                     rt.frames = phase;
                     let mut launches = Vec::new();
                     let mut expected = rt.effects.cram.clone();
+                    // The tone steps no cycle index; a scratch byte stands in.
+                    let mut cycle_index = 0;
                     // Real frame order: input, field palette clock, window dispatch.
                     for frame in 0..=80 {
                         let pad = if frame % 3 == 0 {
@@ -403,7 +404,7 @@ mod tests {
                         };
                         rt.dialogue_frame(pad);
                         rt.tick(psiv_core::Input::Neutral);
-                        expected.tick(rt.frames);
+                        expected.tick(rt.frames, &mut cycle_index);
                         let signals = rt.dialogue_tick();
                         if signals.iter().any(|signal| {
                             matches!(
@@ -414,7 +415,7 @@ mod tests {
                             )
                         }) {
                             launches.push(frame);
-                            expected.tone_and_back(20, rt.frames);
+                            expected.tone_and_back(20, rt.frames, &mut cycle_index);
                         }
                         assert_eq!(
                             rt.cram().words,

@@ -10,6 +10,8 @@ use psiv_data::{PanelPalette, ScenePalettes};
 
 use super::{Cram, CramView};
 
+mod le_roof_fades;
+
 const LINE: usize = 16;
 
 /// A CRAM with `live` and `saved` buffers, no program.
@@ -44,10 +46,10 @@ fn run(
     palettes: &ScenePalettes,
 ) -> Vec<[u16; 64]> {
     let mut trace = Vec::new();
-    let _ = cram.apply(&scene_op, start, palettes, None);
+    let _ = cram.apply(&scene_op, start, palettes, None, &mut 0);
     trace.push(cram.view().words);
     for k in 1..frames {
-        cram.tick(start.wrapping_add(k));
+        cram.tick(start.wrapping_add(k), &mut 0);
         trace.push(cram.view().words);
     }
     trace
@@ -130,7 +132,7 @@ fn one_tone_step_matches_the_routine() {
     words[1] = 0x00EC; // red $C -> $E, green $E stays, blue 0 -> 2: $2EE
     words[2] = 0x0EEE; // skipped
     let mut cram = cram(words, words);
-    let _ = cram.apply(&tone(1, None), 0, &none, None);
+    let _ = cram.apply(&tone(1, None), 0, &none, None, &mut 0);
     assert_eq!(cram.view().words[..3], [0x0864, 0x02EE, 0x0EEE]);
     assert_eq!(cram.view().words[3], 0x0222);
     // Off phase: nothing.
@@ -139,7 +141,7 @@ fn one_tone_step_matches_the_routine() {
         ..cram.clone()
     };
     let before = cram.view().words;
-    let _ = cram.apply(&tone(1, None), 1, &none, None);
+    let _ = cram.apply(&tone(1, None), 1, &none, None, &mut 0);
     assert_eq!(cram.view().words, before);
 }
 
@@ -244,7 +246,7 @@ fn the_recovery_copy_leaves_the_last_two_saved_lines() {
     let saved = filled(0x0EEE);
     let mut cram = cram(live, saved);
     let recovery = psiv_core::scene_for(psiv_core::EventIndex(0x0021)).expect("Event_Recovery");
-    let _ = cram.apply(&recovery.ops[0], 0, &none, None);
+    let _ = cram.apply(&recovery.ops[0], 0, &none, None, &mut 0);
     assert_eq!(cram.saved()[..32], [0x0246; 32]);
     assert_eq!(cram.saved()[32..], [0x0EEE; 32]);
 }
@@ -266,6 +268,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words, filled(0));
     // The ending's fifteen zeros at `$FFFFFB40` after a $EEE wash.
@@ -274,12 +277,14 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     let _ = cram.apply(
         &copy(PaletteSource::Fill(0), PaletteBuffer::Live, 32, 15),
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[31], 0x0EEE);
     assert_eq!(cram.view().words[32..47], [0; 15]);
@@ -290,6 +295,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.saved()[..4], [0x0002, 0x0004, 0x0006, 0x0000]);
     // A palette the pack lacks is listed, and nothing is written.
@@ -299,6 +305,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words, before);
     assert_eq!(cram.view().missing, vec![0x0012_3456]);
@@ -318,6 +325,7 @@ fn single_word_writes() {
         0,
         &none,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[12..14], [0x000E, 0x00E0]);
     assert_ne!(cram.view().revision, revision);
@@ -331,6 +339,7 @@ fn single_word_writes() {
         0,
         &none,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[13], 0x0120);
 }
@@ -422,11 +431,11 @@ fn a_variable_fade_out_answers_its_length() {
         mode: 1,
     });
     // Largest nibble 6: six passes of two frames.
-    assert_eq!(cram.apply(&fade, 0, &none, None), Some(12));
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(12));
     assert_eq!(cram.saved()[0], 0x0246);
     assert_eq!(cram.view().words[0], 0x0135);
     for k in 1..12u16 {
-        cram.tick(k);
+        cram.tick(k, &mut 0);
     }
     assert_eq!(cram.view().words[0], 0x0000);
     assert!(!cram.running());
@@ -445,12 +454,12 @@ fn a_variable_fade_in_answers_its_length() {
         mode: 1,
     });
     // 1 + (6 + 1) * 2.
-    assert_eq!(cram.apply(&fade, 0, &none, None), Some(15));
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(15));
     assert_eq!(cram.view().words[0], 0x0000);
-    cram.tick(1);
+    cram.tick(1, &mut 0);
     assert_eq!(cram.view().words[0], 0x0111);
     for k in 2..15u16 {
-        cram.tick(k);
+        cram.tick(k, &mut 0);
     }
     assert_eq!(cram.view().words[0], 0x0246);
 }
@@ -476,20 +485,20 @@ fn a_map_load_held_for_a_fade_in_is_never_shown_lit() {
     assert_eq!(cram.view().words, filled(0), "the load's tick");
     // The tick after: the runtime steps the CRAM, then the scene emits the
     // fade-in.
-    cram.tick(1);
+    cram.tick(1, &mut 0);
     assert_eq!(cram.view().words, filled(0));
     let fade = op(PresentationOp::VariablePaletteFade {
         fade_in: true,
         mode: 1,
     });
     // The fade-in's length is worked from the load's words: 1 + (6 + 1) * 2.
-    assert_eq!(cram.apply(&fade, 1, &none, None), Some(15));
+    assert_eq!(cram.apply(&fade, 1, &none, None, &mut 0), Some(15));
     assert_eq!(*cram.saved(), lit, "the copy is the load's words");
     assert_eq!(cram.view().words, filled(0), "the display-enable frame");
     assert_eq!(cram.view().revision, revision, "no word changed yet");
     let mut levels = Vec::new();
     for k in 2..16u16 {
-        cram.tick(k);
+        cram.tick(k, &mut 0);
         levels.push(cram.view().words[0]);
     }
     assert_eq!(levels[0], 0x0111);
@@ -518,7 +527,7 @@ fn a_write_during_a_held_load_goes_to_the_buffer() {
         fade_in: true,
         mode: 1,
     });
-    let _ = cram.apply(&fade, 0, &none, None);
+    let _ = cram.apply(&fade, 0, &none, None, &mut 0);
     assert_eq!(cram.saved()[5], 0x0444);
     assert_eq!(cram.saved()[4], 0x0222);
     assert_eq!(cram.view().words, filled(0));
@@ -532,7 +541,7 @@ fn any_other_record_puts_a_held_load_live() {
     let lit = filled(0x0222);
     // The shell's fade copies the buffer to the second one.
     let mut cram = held(lit, filled(0));
-    let _ = cram.apply(&SceneOp::FadeIn, 0, &none, None);
+    let _ = cram.apply(&SceneOp::FadeIn, 0, &none, None, &mut 0);
     assert_eq!(cram.view().words, lit);
     assert_eq!(*cram.saved(), lit);
     // A one-word write lands on the load's words, not the shown ones.
@@ -546,6 +555,7 @@ fn any_other_record_puts_a_held_load_live() {
         0,
         &none,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[..2], [0x0EEE; 2]);
     assert_eq!(cram.view().words[2..], lit[2..]);
@@ -555,7 +565,7 @@ fn any_other_record_puts_a_held_load_live() {
         fade_in: false,
         mode: 1,
     });
-    assert_eq!(cram.apply(&fade, 0, &none, None), Some(4));
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(4));
     assert_eq!(*cram.saved(), lit);
     assert_eq!(cram.view().words, filled(0x0111));
 }
@@ -610,7 +620,7 @@ fn scene_loads_read_the_pack() {
     );
     let palettes = ScenePalettes::from_parts(words, panels);
     let mut cram = cram(filled(0x0246), filled(0));
-    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None);
+    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0);
     assert_eq!(cram.view().words, filled(0x0002));
     assert_eq!(cram.saved(), &filled(0x0246));
     let _ = cram.apply(
@@ -622,16 +632,23 @@ fn scene_loads_read_the_pack() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[48..], [0x0004; 16]);
-    let _ = cram.apply(&SceneOp::PanelCreate { id: 0x18B }, 0, &palettes, None);
+    let _ = cram.apply(
+        &SceneOp::PanelCreate { id: 0x18B },
+        0,
+        &palettes,
+        None,
+        &mut 0,
+    );
     // $8100: line 0; $E100: `$E1 & $70` = $60 bytes, line 3.
     assert_eq!(cram.view().words[..16], [0x0006; 16]);
     assert_eq!(cram.view().words[16..32], [0x0002; 16]);
     assert_eq!(cram.view().words[48..], [0x0008; 16]);
     // A fade copies the live words to the saved buffer and leaves them.
     let live = cram.view().words;
-    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None);
+    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None, &mut 0);
     assert_eq!(cram.saved(), &live);
     assert_eq!(cram.view().words, live);
 }
@@ -643,7 +660,7 @@ fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
     // on frames 0, 4, 8, 12, 16 (up) and 20, 24, 28, 32, 36 (back): a level-1
     // word (`$222`) rises five levels to `$CCC` and returns.
     let mut cram = cram(filled(0x0222), filled(0));
-    cram.tone_and_back(20, 0);
+    cram.tone_and_back(20, 0, &mut 0);
     assert_eq!(
         cram.saved(),
         &filled(0x0222),
@@ -651,17 +668,17 @@ fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
     );
     assert_eq!(cram.view().words, filled(0x0444), "frame 0 steps at once");
     for frame in 1..20 {
-        cram.tick(frame);
+        cram.tick(frame, &mut 0);
     }
     assert_eq!(cram.view().words, filled(0x0CCC), "the top, after frame 19");
-    cram.tick(20);
+    cram.tick(20, &mut 0);
     assert_eq!(cram.view().words, filled(0x0AAA), "frame 20 starts back");
     for frame in 21..40 {
-        cram.tick(frame);
+        cram.tick(frame, &mut 0);
     }
     assert_eq!(cram.view().words, filled(0x0222), "back on the copy");
     assert!(!cram.running(), "both loops are done");
-    cram.tick(40);
+    cram.tick(40, &mut 0);
     assert_eq!(cram.view().words, filled(0x0222));
 }
 
@@ -683,7 +700,7 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
         start: 48,
         words: 17,
     });
-    let _ = cram.apply(&copy, 0, &palettes, None);
+    let _ = cram.apply(&copy, 0, &palettes, None, &mut 0);
     let mut expected = live;
     expected[48..].copy_from_slice(&values[..16]);
     assert_eq!(cram.view().words, expected);
@@ -692,7 +709,7 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
     assert_eq!(cram.saved(), &expected_saved);
     assert!(cram.view().missing.is_empty());
     let revision = cram.view().revision;
-    let _ = cram.apply(&copy, 1, &palettes, None);
+    let _ = cram.apply(&copy, 1, &palettes, None, &mut 0);
     assert_eq!(
         cram.view().revision,
         revision,

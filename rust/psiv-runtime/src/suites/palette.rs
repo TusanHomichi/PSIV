@@ -11,6 +11,8 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
+mod le_roof;
+
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
 pub(super) fn pack_present() -> bool {
@@ -267,7 +269,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
     let palettes = runtime.data().scene_palettes().clone();
     let first = runtime.frames;
     let cram = &mut runtime.effects.cram;
-    let _ = cram.apply(&op, first, &palettes, None);
+    let _ = cram.apply(&op, first, &palettes, None, &mut 0);
     frames.push(Frame {
         count: first,
         events: Vec::new(),
@@ -275,7 +277,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
         beams: Vec::new(),
     });
     for k in 1..40u16 {
-        cram.tick(first.wrapping_add(k));
+        cram.tick(first.wrapping_add(k), &mut 0);
         frames.push(Frame {
             count: first.wrapping_add(k),
             events: Vec::new(),

@@ -207,7 +207,14 @@ pub fn variable_fade_out_passes(words: &[u16]) -> u16 {
 /// per level of the largest nibble, and the last that changes nothing.
 #[must_use]
 pub fn variable_fade_in_passes(target: &[u16]) -> u16 {
-    let mut words = vec![0u16; target.len()];
+    variable_fade_to_passes(&vec![0u16; target.len()], target)
+}
+
+/// How many passes `Pal_VariableFadeToPal2` (`$05B26E`) makes from `words`
+/// toward `target`, the last being the one that changes nothing.
+#[must_use]
+pub fn variable_fade_to_passes(words: &[u16], target: &[u16]) -> u16 {
+    let mut words = words.to_vec();
     let mut passes = 0u16;
     loop {
         passes += 1;
@@ -239,7 +246,7 @@ pub fn variable_fade_out_frames(words: &[u16], delay: u8) -> u16 {
 /// one `VInt_Prepare`, then `delay + 1` per pass.
 #[must_use]
 pub fn variable_fade_in_frames(target: &[u16], delay: u8) -> u16 {
-    1 + variable_fade_in_passes(target).saturating_mul(dbf_frames(delay))
+    1u16.saturating_add(variable_fade_in_passes(target).saturating_mul(dbf_frames(delay)))
 }
 
 /// The `(first, second)` palette words each pass of a
@@ -284,6 +291,58 @@ pub fn palette_ramp_writes(words: &[u16], steps: u8) -> Option<Vec<[u16; 3]>> {
     (0..usize::from(steps))
         .map(|n| Some([*words.get(n)?, *words.get(n + 7)?, *words.get(n + 14)?]))
         .collect()
+}
+
+/// One frame of `loc_70638` (`$070638..$070671`), the Le Roof scenes' colour
+/// cycle: on a frame whose `Main_Frame_Count & 3` is zero ([`tone_phase`]),
+/// the index byte `$FFFFECF3` restarts at 0 once it is `entries` or more
+/// (`cmpi.b #$B` / `bcs` / `clr.b`, unsigned), table word `index` and the word
+/// `entries` on from it (`move.w (a2,d0.w)` and `$16(a2,d0.w)`, `$16` bytes
+/// being `$B` words) are the two words the cycle writes, and the index steps
+/// (`addq.b #1`). Other frames write nothing and leave the index. `None` also
+/// when `table` ends before a read the cartridge makes; the index is then
+/// left alone.
+#[must_use]
+pub fn counter_cycle_step(
+    main_frame_count: u16,
+    index: &mut u8,
+    entries: u8,
+    table: &[u16],
+) -> Option<[u16; 2]> {
+    if !tone_phase(main_frame_count) {
+        return None;
+    }
+    let at = if *index >= entries { 0 } else { *index };
+    let first = *table.get(usize::from(at))?;
+    let second = *table.get(usize::from(at) + usize::from(entries))?;
+    *index = at.wrapping_add(1);
+    Some([first, second])
+}
+
+/// The words `loc_705D6`'s pass `pass` (from 0) of `passes` lights
+/// (`$0705D6..$070625`): `d0` starts at 0 and steps after each pass whose
+/// `dbf` counter `d7` (`passes - 1` down to 0) has its low three bits clear
+/// (`andi.w #7, d6` / `bne`), and a pass lights `d0 + 1` words.
+#[must_use]
+pub fn grow_in_lit(passes: u16, pass: u16) -> usize {
+    let stepped = (0..pass.min(passes))
+        .filter(|&done| (passes - 1 - done) & 7 == 0)
+        .count();
+    stepped + 1
+}
+
+/// What one pass of `loc_705D6` leaves in the `table.len()` words from
+/// `Palette_Table_Buffer+4`: every word black (`move.w d2, (a1)+` with `d2`
+/// zero, `moveq #8, d1` / `dbf`), then the table's last `lit` words over the
+/// first `lit` (`lea (a0, (8 - d0) * 2)` / `move.w (a0)+, (a1)+`, `d0 + 1`
+/// words). `None` when `lit` is more than the table holds, a read before the
+/// table the cartridge never makes.
+#[must_use]
+pub fn grow_in_words(table: &[u16], lit: usize) -> Option<Vec<u16>> {
+    let from = table.len().checked_sub(lit)?;
+    let mut words = vec![0; table.len()];
+    words[..lit].copy_from_slice(&table[from..]);
+    Some(words)
 }
 
 #[cfg(test)]
@@ -371,5 +430,67 @@ mod tests {
         assert!(!tone_phase(1));
         assert!(tone_phase(0xFFFC));
         assert_eq!(dbf_frames(7), 8);
+    }
+
+    #[test]
+    fn the_counter_cycle_writes_on_every_fourth_frame_and_wraps_its_index() {
+        // Made-up table of two series of three: 10, 11, 12 and 20, 21, 22.
+        let table = [10, 11, 12, 20, 21, 22];
+        let mut index = 0;
+        assert_eq!(counter_cycle_step(1, &mut index, 3, &table), None);
+        assert_eq!(index, 0, "an off-phase frame leaves the index");
+        assert_eq!(counter_cycle_step(4, &mut index, 3, &table), Some([10, 20]));
+        assert_eq!(counter_cycle_step(8, &mut index, 3, &table), Some([11, 21]));
+        assert_eq!(
+            counter_cycle_step(12, &mut index, 3, &table),
+            Some([12, 22])
+        );
+        assert_eq!(index, 3);
+        // `cmpi.b #3` / `bcs`: 3 restarts at 0 before the read.
+        assert_eq!(
+            counter_cycle_step(16, &mut index, 3, &table),
+            Some([10, 20])
+        );
+        assert_eq!(index, 1);
+        // Unsigned: a leftover $FF restarts too.
+        let mut index = 0xFF;
+        assert_eq!(counter_cycle_step(0, &mut index, 3, &table), Some([10, 20]));
+        // A short table refuses and keeps the index.
+        let mut index = 2;
+        assert_eq!(counter_cycle_step(0, &mut index, 3, &table[..5]), None);
+        assert_eq!(index, 2);
+    }
+
+    #[test]
+    fn a_fade_to_the_saved_buffer_counts_from_the_live_words() {
+        // $002 toward $024: two passes that change, one that does not.
+        assert_eq!(variable_fade_to_passes(&[0x0002], &[0x0024]), 3);
+        // Already there: the one pass that changes nothing.
+        assert_eq!(variable_fade_to_passes(&[0x0024], &[0x0024]), 1);
+        // From black it is the fade-in's count.
+        assert_eq!(
+            variable_fade_to_passes(&[0, 0], &[0x0EEE, 0]),
+            variable_fade_in_passes(&[0x0EEE, 0])
+        );
+    }
+
+    #[test]
+    fn the_grow_in_lights_one_more_word_after_each_eighth_count() {
+        // `moveq #$46, d7`: d7 runs 70..0; d0 steps after the passes whose
+        // d7 is 64, 56, .., 8, 0 (passes 6, 14, .., 62, 70).
+        assert_eq!(grow_in_lit(71, 0), 1);
+        assert_eq!(grow_in_lit(71, 6), 1);
+        assert_eq!(grow_in_lit(71, 7), 2);
+        assert_eq!(grow_in_lit(71, 14), 2);
+        assert_eq!(grow_in_lit(71, 15), 3);
+        assert_eq!(grow_in_lit(71, 62), 8);
+        assert_eq!(grow_in_lit(71, 63), 9);
+        assert_eq!(grow_in_lit(71, 70), 9);
+        // Made-up table of three: one lit is the last word; all lit is it all.
+        let table = [1, 2, 3];
+        assert_eq!(grow_in_words(&table, 1), Some(vec![3, 0, 0]));
+        assert_eq!(grow_in_words(&table, 2), Some(vec![2, 3, 0]));
+        assert_eq!(grow_in_words(&table, 3), Some(vec![1, 2, 3]));
+        assert_eq!(grow_in_words(&table, 4), None);
     }
 }

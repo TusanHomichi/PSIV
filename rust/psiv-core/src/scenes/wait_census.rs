@@ -238,6 +238,7 @@ fn counted(row: &Row) -> bool {
     row.defect.is_none() || row.exact
 }
 
+mod campaign_tests;
 mod rows;
 use rows::ROWS;
 
@@ -290,8 +291,27 @@ fn within_ticks(op: &SceneOp) -> Option<u32> {
         } => Some(u32::from(*frames)),
         SceneOp::StepObjectAlongFacing { frames, .. } => Some(u32::from(*frames)),
         SceneOp::WaitFrames { frames } => Some(u32::from(*frames)),
+        SceneOp::Presentation {
+            op: crate::PresentationOp::CounterPaletteCycle { frames, .. },
+        } => Some(u32::from(*frames)),
+        SceneOp::Presentation {
+            op: crate::PresentationOp::PaletteGrowIn { passes, .. },
+        } => Some(u32::from(*passes)),
         _ => None,
     }
+}
+
+/// Whether `op` waits its frames out with `VInt_Prepare` alone, no map or
+/// object update: what an own loop with neither must be claimed by.
+fn vint_only(op: &SceneOp) -> bool {
+    matches!(
+        op,
+        SceneOp::WaitFrames { .. }
+            | SceneOp::Presentation {
+                op: crate::PresentationOp::CounterPaletteCycle { .. }
+                    | crate::PresentationOp::PaletteGrowIn { .. }
+            }
+    )
 }
 
 /// The loop count an op records without the runner blocking on it.
@@ -382,7 +402,17 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                         ops.get(index)
                     ));
                 }
-                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) {
+                // An own loop with no updates may be waited out by an op
+                // that runs none either; any other own loop needs a `Wait`.
+                let bare_own = matches!(
+                    row.retail,
+                    Retail::Own {
+                        objects: false,
+                        map_updates: false,
+                        ..
+                    }
+                ) && ops.get(index).is_some_and(vint_only);
+                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare_own {
                     problems.push(format!("{} op {index}: Within an own loop", row.scene));
                 }
             }
@@ -568,16 +598,20 @@ fn retail_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
                         row.scene
                     ));
                 }
-                // The `Wait`s a transcription splits one loop into add up
-                // to its passes; checked once, at the split's first row.
+                // The `Wait`s (or the ops that wait it out) a transcription
+                // splits one loop into add up to its passes; checked once,
+                // at the split's first row.
                 let split: Vec<&Row> = rows
                     .iter()
                     .filter(|other| {
                         other.scene == row.scene
                             && other.retail == row.retail
-                            && matches!(other.claim, Wait(_))
+                            && matches!(other.claim, Wait(_) | Within(_))
                     })
                     .collect();
+                if matches!(row.claim, Within(_)) && own_ticks(rom, at, end).is_none() {
+                    problems.push(format!("{} ${at:06X}: no loop count to check", row.scene));
+                }
                 if let (Some(first), Some(passes)) = (split.first(), own_ticks(rom, at, end))
                     && std::ptr::eq(*first, row)
                     && split.iter().all(|other| counted(other))
@@ -731,124 +765,6 @@ fn the_shared_helpers_wait_as_their_rows_say() {
     assert!(!calls_in(rom, frames, end, UPDATE_OBJECTS));
     assert_eq!(rom[end..end + 2], [0x51, 0xC8], "dbf d0");
     assert_eq!(rom[end + 4..end + 6], [0x4E, 0x75], "rts");
-}
-
-/// The dezo_campaign.rs census rejects an omitted row of each kind it
-/// added (a `Wait`'s claim, a bare frame, a `VInt_PrepareLoop`), a frame or
-/// own loop claimed by a `Wait` with no defect, a claim on the ship's route,
-/// and own-loop passes that do not add up.
-#[test]
-fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
-    let without = |keep: &dyn Fn(&Row) -> bool| -> Vec<Row> {
-        ROWS.iter().copied().filter(|row| keep(row)).collect()
-    };
-    let lutz = "Cutscene_LutzRevelation";
-    let le_roof = "Event_MeetingLeRoof";
-    let again = "Cutscene_LeRoofAgain";
-
-    let omitted = without(&|row| !(row.scene == lutz && row.claim == Wait(12)));
-    assert_eq!(
-        claim_problems(&omitted),
-        [format!("{lutz} op 12: a Wait with 0 claims")]
-    );
-
-    let mut unflagged = ROWS.to_vec();
-    for row in &mut unflagged {
-        if row.scene == "Event_EclipseTorchUsed" && row.claim == Wait(5) {
-            row.defect = None;
-            row.exact = false;
-        }
-        if row.scene == le_roof && row.claim == Wait(9) {
-            row.defect = None;
-            row.exact = false;
-        }
-        if row.scene == lutz && row.claim == Wait(10) {
-            row.defect = Some(CAMPAIGN);
-            row.exact = true;
-        }
-    }
-    assert_eq!(
-        claim_problems(&unflagged),
-        [
-            format!("{le_roof} op 9: a Wait for a loop with no map updates, without a defect"),
-            "Event_EclipseTorchUsed op 5: a Wait for a loop with no map updates, without a defect"
-                .to_owned(),
-            format!("{lutz} op 10: exact for a loop that runs map updates"),
-        ]
-    );
-
-    // The appended route's first `Wait` (224 ticks) is not the scene's own.
-    let route_wait = censused_ops(again).len() + 9;
-    assert!(matches!(
-        scene(again).ops[route_wait],
-        SceneOp::Wait { ticks: 224 }
-    ));
-    let mut on_route = ROWS.to_vec();
-    on_route.push(row(again, Map(0x07_846C), Wait(route_wait)));
-    assert_eq!(
-        claim_problems(&on_route),
-        [format!(
-            "{again} op {route_wait}: claimed as a Wait, is None"
-        )]
-    );
-
-    let Some(rom) = rom() else {
-        return;
-    };
-    // The 180-pass loop's `Wait` moved to the 71-pass fade-in loop, and one
-    // half of the Machine Center's split loop dropped.
-    let mut miscounted = ROWS.to_vec();
-    for row in &mut miscounted {
-        if row.scene == le_roof && row.claim == Wait(9) {
-            row.retail = own(0x07_05DC, false, false);
-        }
-        if row.scene == "Cutscene_MeetingKyra" && row.claim == Within(10) {
-            row.retail = Frames(0x07_77FC);
-        }
-    }
-    let machine = "Event_MachineCenterAppearing";
-    miscounted.retain(|row| !(row.scene == machine && row.claim == Wait(7)));
-    let machine_passes = own_ticks(rom, 0x06_B514, loop_end(rom, 0x06_B514).unwrap()).unwrap();
-    let machine_claimed =
-        claimed_ticks(&row(machine, own(0x06_B514, true, true), Wait(5))).unwrap();
-    assert_eq!(
-        retail_problems(rom, &miscounted),
-        [
-            format!(
-                "{machine} $06B514: claims {machine_claimed} frames, the loop runs {machine_passes}"
-            ),
-            format!("{le_roof} $0705DC: claims 180 frames, the loop runs 71"),
-            "Cutscene_MeetingKyra $0777FC: claims 60 frames, the loop runs 120".to_owned(),
-        ]
-    );
-
-    let mut wrong_objects = ROWS.to_vec();
-    for row in &mut wrong_objects {
-        if row.scene == "Event_SavingKyra" && row.retail == frame(0x07_08EE, true) {
-            row.retail = frame(0x07_08EE, false);
-        }
-    }
-    assert_eq!(
-        retail_problems(rom, &wrong_objects),
-        ["Event_SavingKyra $0708EE: objects is not false".to_owned()]
-    );
-
-    for (scene, retail) in [
-        ("Event_CarnivorousTrees", frame(0x07_07A0, false)),
-        ("Event_SavingKyra", frame(0x07_08EE, true)),
-        ("Cutscene_MeetingKyra", Frames(0x07_77FC)),
-        (again, Map(0x07_846C)),
-        (lutz, Facing(0x07_7964)),
-    ] {
-        let omitted = without(&|row| !(row.scene == scene && row.retail == retail));
-        assert_eq!(
-            coverage_problems(rom, &omitted),
-            [format!(
-                "{scene} ${:06X}: {retail:?} has no row",
-                retail_at(retail)
-            )]
-        );
-    }
 }
 
 /// The checks reject what they exist to catch: an omitted claim or call, a

@@ -565,10 +565,14 @@ impl Runtime {
                 // the frame the scene emits it; a variable fade answers with
                 // the frames it spends.
                 let record = self.data.map(psiv_data::MapId(self.map.id().0));
-                let palette_frames =
-                    self.effects
-                        .cram
-                        .apply(&op, self.frames, self.data.scene_palettes(), record);
+                let (cram, cycle_index) = self.effects.cram_and_cycle_index();
+                let palette_frames = cram.apply(
+                    &op,
+                    self.frames,
+                    self.data.scene_palettes(),
+                    record,
+                    cycle_index,
+                );
                 if let Some(frames) = palette_frames
                     && let Some(runner) = self.scene.as_mut()
                 {

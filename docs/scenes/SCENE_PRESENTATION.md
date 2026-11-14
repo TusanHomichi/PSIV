@@ -343,7 +343,7 @@ border at `(37,2)`.
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
 | `ReplaceMapLayout` | Implemented through `MapRefreshed` | The runtime installs the pack's layout variant decoded from the two ROM sources and emits `MapRefreshed`; Godot's existing handler redraws the map from the runtime view, which names the variant's PNG. `Event_GaruberkTwEyeAction1` ([104](104_GaruberkTowerEyes.md)). |
-| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `VariablePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and dialogue window draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
+| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `CounterPaletteCycle`, `PaletteGrowIn`, `VariablePaletteFade`, `TwoLinePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and dialogue window draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
 | `GaruberkEyeArtCycle`, `ShadowHighlight` | Logged, not drawn | Godot consumes both (`cutscene/ops.rs`): the Garuberk eyes' art cycle and `Event_ZioNurvus`'s VDP register 12 writes. The frames are the scene's waits, so timing is unaffected. |
 | palette-word/red-fade/window/portrait records | Implemented for the decoded generic set | Generic `WindowDestroy/Create`, `LoadWindowTiles`, `LoadPortrait`, and `DrawPortrait` now drive the runtime window layer. The Meseta window roles come from `dialogue/set.window.png`; `shopkeeper_2` is emitted as a 48x48, 36-tile portrait from art `$29DE1E`, mapping `$2A2B36`, destination tile `$55C`. |
 
@@ -467,7 +467,12 @@ borrows. Writers:
   them, with that tick's `Main_Frame_Count`: `Pal_IncreaseTone` and its
   per-frame hold copy, the `loc_58666` restore, the recovery flashes (red and
   green only: both mask blue and keep it), the Rykros cycle, the Zio ramp, the
-  engine light, both red fades and both variable fades.
+  engine light, the Le Roof colour cycle and fade-in, both red fades, both
+  variable fades and their two-line forms (`TwoLinePaletteFade`: words 0-31
+  only; the fade up starts from the live words, with no copy or clear). The Le Roof cycle (`loc_70638`, `$070638`) also steps the
+  index byte `$FFFFECF3`, which the map programs share: the runtime keeps it
+  with their counters (`MapUpdateView`), cleared by each map load as
+  `ps4.asm:107593` clears it, and lends it to the CRAM model.
 
 The ROM words come from the pack: `presentation/panels.json`'s `palettes`
 (`PALETTE_REQUESTS` in `psiv_tools/presentation_pack.py`, and every drawn panel
@@ -492,7 +497,17 @@ Corrections this model brought, each checked against the US image:
   girls' sneaking-out palette (`$06D506`) and MeetingRika's (`$074826`) were
   byte offsets. `Event_ZioNurvus`'s `$8C89`/`$8C81` (`$06F2FA`, `$06F3AA`) are
   VDP register 12 writes, now `ShadowHighlight`.
-
+- The Le Roof scenes' colour loops (`$070538`, `$070552`, `$070570`;
+  `$0783F2`, `$07840E`) and the fade-in they share (`loc_705D6`, 71 passes)
+  run `loc_70638` and `VInt_Prepare` only. They were `Wait`s, which update the
+  map, with no colour cycle and no fade-in; they are now `CounterPaletteCycle`
+  and `PaletteGrowIn`, which block for their passes with no map update (#591).
+- The same scenes' fades are `Pal_VariableFadeOut_Lines_1_2` (`$05B222`) and
+  `Pal_VariableFadeToPal2` (`$05B26E`), variable passes over words 0-31, not
+  `Pal_VariableFadeToRed`'s eight stages; and both load Le Roof's line
+  (`loc_1DE258`) into the second buffer and clear its words 16-31 before the
+  fade up (`$0704D8`, `$078398`). The fade up left red in words 2-10 and was
+  21 frames short (#591).
 ### Drawing the CRAM
 
 The field shell copies `Runtime::cram()` into one shared palette at the top

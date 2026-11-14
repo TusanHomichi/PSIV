@@ -8,7 +8,7 @@ use super::flight::with_ship_menu;
 use super::{KYRA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::PresentationOp;
+use crate::scene_presentation::{CounterCycle, PaletteBuffer, PaletteSource, PresentationOp};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -27,6 +27,71 @@ const SOUND_STOP_SPC: u8 = 0xFD;
 const SOUND_STOP_ALL: u8 = 0xFE;
 const SFX_DEBAN: u8 = 0xDC;
 const SFX_STAIRS: u8 = 0xDF;
+
+/// `loc_70638` (`$070638`): the Le Roof scenes' colour cycle, words 11 and 12
+/// (`$16(a1)`, `$18(a1)`) from the two eleven-word series at `loc_70672`.
+const LE_ROOF_CYCLE: CounterCycle = CounterCycle {
+    source_rom_addr: 0x0007_0672,
+    offset: 11,
+    entries: 11,
+};
+
+/// `lea loc_1DE258, a0` / `lea Palette_Table_Buffer_2, a1` / `moveq #$F, d7`
+/// / `trap #1`: Le Roof's sixteen words, words 0-15 of the copy
+/// `Pal_VariableFadeToPal2` fades up to (`$0704D8`, `$078398`).
+const LE_ROOF_PALETTE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Rom(0x001D_E258),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 16,
+    },
+};
+
+/// `lea Palette_2_Line_2, a0` / `moveq #7, d7` / `trap #0`: eight longwords
+/// of zero, words 16-31 of the copy (`$0704E6`, `$0783A6`).
+const LE_ROOF_LINE_2_CLEAR: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Fill(0),
+        destination: PaletteBuffer::Saved,
+        start: 16,
+        words: 16,
+    },
+};
+
+/// `lea Pal_SilenceTm, a0` / `lea Palette_Table_Buffer_2, a1` / `move.w #$1F,
+/// d7` / `trap #1` (`$0705A8`): words 0-31 of Le Roof Room's map palette, the
+/// field colours `Event_MeetingLeRoof` fades back up to before it returns.
+const SILENCE_TM_PALETTE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Rom(0x0018_711A),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 32,
+    },
+};
+
+/// A Le Roof colour loop: `frames` passes of `loc_70638` and `VInt_Prepare`.
+const fn le_roof_cycle(frames: u16) -> SceneOp {
+    SceneOp::Presentation {
+        op: PresentationOp::CounterPaletteCycle {
+            cycle: LE_ROOF_CYCLE,
+            frames,
+        },
+    }
+}
+
+/// `loc_705D6` (`$0705D6`): 71 passes (`moveq #$46, d7`) lighting words 2-10
+/// from `loc_70626`, each with a `loc_70638` frame and `VInt_Prepare`.
+const LE_ROOF_FADE_IN: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteGrowIn {
+        source_rom_addr: 0x0007_0626,
+        offset: 2,
+        words: 9,
+        passes: 71,
+        cycle: LE_ROOF_CYCLE,
+    },
+};
 
 const fn entry(id: u16) -> DialogueSource {
     DialogueSource::Entry(DialogueId(id))
@@ -59,7 +124,10 @@ pub static MEETING_LE_ROOF: Scene = Scene {
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::LoadArt {
@@ -72,18 +140,46 @@ pub static MEETING_LE_ROOF: Scene = Scene {
                 destination_ram: 0xFFFF_0000,
             },
         },
+        LE_ROOF_PALETTE,
+        LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xA1 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeFromRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
-        SceneOp::Wait { ticks: 180 },
-        SceneOp::Wait { ticks: 120 },
+        // `$070534..$07057F`: the colour loops (`move.w #$B3, d0` and
+        // `#$77` twice), `bsr loc_705D6` after the first, and dialogue `0`
+        // between the other two. `VInt_Prepare` only: no map update.
+        le_roof_cycle(180),
+        LE_ROOF_FADE_IN,
+        le_roof_cycle(120),
         standard(0),
-        SceneOp::Wait { ticks: 120 },
+        le_roof_cycle(120),
         SceneOp::PlaySound { id: 0xFB },
+        // `$070590`: `Pal_VariableFadeOut_Lines_1_2` takes the cinematic
+        // colours (ramp, cycle words and the black second line) to black.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
+        },
+        // `$070596..$0705A7`: `RefreshPlaneFG`, `RefreshPlaneBG`,
+        // `DMAPlanes_VInt`.
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
+        },
+        // `$0705A8..$0705C3`: the room's own palette, `Pal_SilenceTm`, back
+        // into `Palette_Table_Buffer_2`, and `Pal_VariableFadeToPal2` up to it.
+        SILENCE_TM_PALETTE,
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
         SceneOp::PlaySound { id: MUSIC_TOWER },
         SceneOp::SetFlag {
@@ -105,20 +201,31 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             wait: true,
         },
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::LoadArt {
             rom_addr: 0x001D_B2C8,
             tile: 0x260,
         },
+        LE_ROOF_PALETTE,
+        LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xA1 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeFromRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
-        SceneOp::Wait { ticks: 180 },
-        SceneOp::Wait { ticks: 120 },
+        // `$0783EE..$078420`: `Event_MeetingLeRoof`'s colour loops, 180
+        // passes, `jsr loc_705D6` at `$078406`, then 120.
+        le_roof_cycle(180),
+        LE_ROOF_FADE_IN,
+        le_roof_cycle(120),
         standard(0x0B),
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
@@ -129,6 +236,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             window: DialogueWindow::Cutscene3,
         },
         SceneOp::FadeOut,
+        // `$07846C`: `moveq #$3B, d0` / `jsr DoMapUpdateLoop`.
+        SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x125 },
