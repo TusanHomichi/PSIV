@@ -78,6 +78,8 @@ pub static GIRLS_SNEAKING_OUT: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // The `VInt_Prepare` after `Field_BuildSprites` ($06D4E2).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::Presentation {
             op: PresentationOp::SavePartySpriteX { parked_x: 0x65 },
         },
@@ -127,6 +129,8 @@ pub static GIRLS_SNEAKING_OUT: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // The `VInt_Prepare` after `Field_BuildSprites` ($06D580).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::Presentation {
             op: PresentationOp::WindowCreate { render_mode: 1 },
         },
@@ -402,7 +406,9 @@ pub static MEETING_RIKA: Scene = Scene {
                 second: 0x000E,
             },
         },
-        SceneOp::Wait { ticks: 60 },
+        // `move.w #$3B,d0` / `VInt_Prepare` / `dbf d0`: 60 frames, no map or
+        // object update.
+        SceneOp::WaitFrames { frames: 60 },
         SceneOp::FadeOut,
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::JoinParty { slot: 4, who: RIKA },
