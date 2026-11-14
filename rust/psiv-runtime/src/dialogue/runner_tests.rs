@@ -571,3 +571,304 @@ fn hiding_the_portrait_takes_no_frame_and_shows_with_the_next_glyph() {
         [up(1), up(1), up(1), up(2), up(2), up(2), (None, 3, false)]
     );
 }
+
+/// One frame, as [`frame`], and whether it was a lag frame: the shell asks
+/// after the input half, which can start one.
+fn lag_step(
+    runner: &mut DialogueRunner,
+    game: &mut GameState,
+    pad: Pad,
+) -> (bool, Vec<DialogueSignal>) {
+    runner.input(game, pad, false);
+    let lag = runner.lag_frame();
+    runner.window(game);
+    (lag, runner.drain_signals())
+}
+
+/// A frame: whether it was a lag frame, the portrait and the glyphs it showed.
+type Shown = (bool, Option<u8>, usize);
+
+/// One frame per pad: whether it was a lag frame, then what it showed.
+fn trace(
+    runner: &mut DialogueRunner,
+    game: &mut GameState,
+    pads: impl IntoIterator<Item = Pad>,
+) -> Vec<Shown> {
+    pads.into_iter()
+        .map(|pad| {
+            let (lag, _) = lag_step(runner, game, pad);
+            let view = runner.view().expect("a window");
+            (lag, view.portrait, view.revealed)
+        })
+        .collect()
+}
+
+/// Neutral frames until the typewriter has drawn `glyphs`.
+fn type_to(runner: &mut DialogueRunner, game: &mut GameState, glyphs: usize) {
+    for _ in 0..40 {
+        if runner.view().expect("a window").revealed >= glyphs {
+            return;
+        }
+        frame(runner, game, Pad::NEUTRAL);
+    }
+    panic!("the typewriter never drew {glyphs} glyphs");
+}
+
+fn lag_count(frames: &[Shown]) -> usize {
+    frames.iter().filter(|frame| frame.0).count()
+}
+
+#[test]
+fn a_press_after_the_last_glyph_waits_for_a_portrait_that_follows_it() {
+    // `TextCtrlCode_Portrait` runs before the routine reads the page end, so
+    // a `$F4` after the page's last glyph spends its frames before a press
+    // can leave the page: through a `$FD` to the next page, or through the
+    // terminator to the close. Pressed on the frame after the last glyph, the
+    // press is the portrait's first lag frame and is lost; the page stays.
+    for (end, next) in [(Some(wait()), Some("Yo")), (None, None)] {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        let mut segments = vec![text("Hi"), portrait(1)];
+        segments.extend(end);
+        segments.extend(next.map(text));
+        assert!(runner.open_resolved(&entry(segments), &game));
+        type_to(&mut runner, &mut game, 2);
+        assert!(!runner.view().expect("a window").dismissable, "{next:?}");
+        let (lag, signals) = lag_step(&mut runner, &mut game, Pad::new(Button::Speak));
+        assert!(faults(&signals).is_empty());
+        let view = runner.view().expect("the press did not close the window");
+        assert_eq!(view.lines[0], "Hi", "{next:?}: the press left the page");
+        let mut frames = vec![(lag, view.portrait, view.revealed)];
+        while !runner.view().expect("a window").dismissable {
+            assert!(frames.len() < 10, "{next:?}: {frames:?}");
+            frames.extend(trace(&mut runner, &mut game, [Pad::NEUTRAL]));
+        }
+        assert_eq!(lag_count(&frames), 2, "{next:?}: {frames:?}");
+        assert_eq!(runner.view().expect("a window").portrait, Some(1));
+        let signals = frame(&mut runner, &mut game, Pad::new(Button::Speak));
+        match next {
+            Some(next) => {
+                // The next page keeps the portrait and spends no frame on it.
+                let frames = trace(&mut runner, &mut game, [Pad::NEUTRAL; 12]);
+                assert_eq!(runner.view().expect("a window").lines[0], next);
+                assert_eq!(lag_count(&frames), 0, "{frames:?}");
+                assert!(frames.iter().all(|frame| frame.1 == Some(1)), "{frames:?}");
+            }
+            None => assert!(
+                signals
+                    .iter()
+                    .any(|signal| matches!(signal, DialogueSignal::Closed { .. })),
+                "{signals:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn a_choice_waits_for_the_portrait_before_it() {
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    let segments = vec![text("Ok"), portrait(1), yes_no(), text("Yes")];
+    assert!(runner.open_resolved(&entry(segments), &game));
+    type_to(&mut runner, &mut game, 2);
+    let answered = |signals: &[DialogueSignal]| {
+        signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::ChoiceAnswered(_)))
+    };
+    let (lag, signals) = lag_step(&mut runner, &mut game, Pad::new(Button::Speak));
+    assert!(
+        !answered(&signals),
+        "answered before the portrait: {signals:?}"
+    );
+    let mut frames = vec![(lag, None, 2)];
+    while !runner
+        .view()
+        .and_then(|view| view.choice)
+        .is_some_and(|choice| choice.ready)
+    {
+        assert!(frames.len() < 10, "{frames:?}");
+        frames.extend(trace(&mut runner, &mut game, [Pad::NEUTRAL]));
+    }
+    assert_eq!(lag_count(&frames), 2, "{frames:?}");
+    assert_eq!(runner.view().expect("a window").portrait, Some(1));
+    let signals = frame(&mut runner, &mut game, Pad::new(Button::Speak));
+    assert!(answered(&signals), "{signals:?}");
+}
+
+#[test]
+fn a_board_page_closes_only_once_its_portrait_is_up() {
+    // The guild board's page closes itself at its terminator; a `$F4` before
+    // the terminator runs first, and the page it leaves shows the portrait.
+    let mut runner = DialogueRunner::new();
+    runner.set_board_text(true);
+    let mut game = GameState::new();
+    assert!(runner.open_resolved(&entry(vec![text("Hi"), portrait(1)]), &game));
+    let mut lags = 0;
+    for _ in 0..20 {
+        let (lag, signals) = lag_step(&mut runner, &mut game, Pad::NEUTRAL);
+        lags += usize::from(lag);
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+        {
+            break;
+        }
+    }
+    assert_eq!(lags, 2);
+    let page = runner.view().expect("the board page stays");
+    assert_eq!((page.portrait, page.revealed), (Some(1), 2));
+}
+
+#[test]
+fn each_portrait_change_runs_at_its_own_glyph_in_stream_order() {
+    // Every `$F4` is `TextCtrlCode_Portrait` in its own right: a load is two
+    // lag frames, and replacing a portrait that is up (the same id included)
+    // first spends a counted destroy frame showing none. `$F4 0` costs
+    // nothing and the old portrait goes with the next glyph. Each new
+    // portrait shows with the glyph after its `$F4`.
+    let lag = |portrait| (true, portrait, 0);
+    let up = |portrait, glyphs| (false, portrait, glyphs);
+    let cases: [(&str, Vec<Segment>, Vec<Shown>); 4] = [
+        (
+            "adjacent",
+            vec![portrait(1), portrait(2), text("A")],
+            // Load 1: lag, lag. Load 2: destroy, lag, lag. Then "A".
+            vec![
+                lag(None),
+                lag(None),
+                up(None, 0),
+                lag(None),
+                lag(None),
+                up(None, 0),
+                up(None, 0),
+                up(Some(2), 1),
+            ],
+        ),
+        (
+            "apart",
+            vec![text("A"), portrait(1), text("B"), portrait(2), text("C")],
+            vec![
+                up(None, 0),
+                up(None, 0),
+                up(None, 1),
+                (true, None, 1),
+                (true, None, 1),
+                up(None, 1),
+                up(None, 1),
+                up(Some(1), 2),
+                (false, None, 2), // destroy
+                (true, None, 2),
+                (true, None, 2),
+                up(None, 2),
+                up(None, 2),
+                up(Some(2), 3),
+            ],
+        ),
+        (
+            "the same id again",
+            vec![portrait(1), text("A"), portrait(1), text("B")],
+            vec![
+                lag(None),
+                lag(None),
+                up(None, 0),
+                up(None, 0),
+                up(Some(1), 1),
+                (false, None, 1), // destroy
+                (true, None, 1),
+                (true, None, 1),
+                up(None, 1),
+                up(None, 1),
+                up(Some(1), 2),
+            ],
+        ),
+        (
+            "load, hide, load",
+            vec![
+                portrait(1),
+                text("A"),
+                portrait(0),
+                text("B"),
+                portrait(2),
+                text("C"),
+            ],
+            vec![
+                lag(None),
+                lag(None),
+                up(None, 0),
+                up(None, 0),
+                up(Some(1), 1),
+                up(Some(1), 1),
+                up(Some(1), 1),
+                up(None, 2), // the hide goes with "B"
+                (true, None, 2),
+                (true, None, 2),
+                up(None, 2),
+                up(None, 2),
+                up(Some(2), 3),
+            ],
+        ),
+    ];
+    for (name, segments, expected) in cases {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(segments), &game));
+        let frames = trace(&mut runner, &mut game, vec![Pad::NEUTRAL; expected.len()]);
+        assert_eq!(frames, expected, "{name}");
+    }
+}
+
+#[test]
+fn a_portrait_the_walk_reaches_after_a_delay_or_an_action_runs_before_its_glyph() {
+    // A `$F9` that runs out, or a `$F2` the window released, continues the
+    // walk into the `$F4`: its frames still come before the glyph after it,
+    // with Speak held (one glyph a frame) as without.
+    let cases: [(&str, Vec<Segment>, usize); 4] = [
+        (
+            "delay, load",
+            vec![text("A"), super::tests::delay(4), portrait(1), text("B")],
+            2,
+        ),
+        (
+            "delay, swap",
+            vec![
+                portrait(2),
+                text("A"),
+                super::tests::delay(4),
+                portrait(1),
+                text("B"),
+            ],
+            4,
+        ),
+        (
+            "action, load",
+            vec![text("A"), set_flag(5), portrait(1), text("B")],
+            2,
+        ),
+        (
+            "action, swap",
+            vec![portrait(2), text("A"), set_flag(5), portrait(1), text("B")],
+            4,
+        ),
+    ];
+    for (name, segments, lags) in cases {
+        for pad in [Pad::new(Button::Speak), Pad::NEUTRAL] {
+            let mut runner = DialogueRunner::new();
+            let mut game = GameState::new();
+            assert!(runner.open_resolved(&entry(segments.clone()), &game));
+            let frames = trace(&mut runner, &mut game, vec![pad; 24]);
+            let first_b = frames
+                .iter()
+                .position(|frame| frame.2 == 2)
+                .unwrap_or_else(|| panic!("{name}: \"B\" never drawn: {frames:?}"));
+            assert_eq!(frames[first_b].1, Some(1), "{name} {pad:?}: {frames:?}");
+            assert!(
+                frames[first_b..]
+                    .iter()
+                    .all(|frame| !frame.0 && frame.1 == Some(1)),
+                "{name} {pad:?}: the portrait ran after its glyph: {frames:?}"
+            );
+            assert_eq!(lag_count(&frames), lags, "{name} {pad:?}: {frames:?}");
+        }
+    }
+}

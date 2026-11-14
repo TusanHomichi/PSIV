@@ -222,7 +222,12 @@ new portrait (7403-7404, 7467-7468, 7723-7724, 7915-7916, 8027-8028,
 8507-8508). The runner models those two (`PORTRAIT_LOAD_LAG_FRAMES`): on a lag
 frame it, the field tick and the RNG do nothing, and the portrait shows with
 the first glyph after its `$F4`. `$F4 0` only restores the plane, with no
-frame. The other lag on the table, the text routine's own work after the box
+frame. Every `$F4` is its own change at its own glyph, in stream order:
+two adjacent ones spend a load's two lag frames, then the next one's destroy
+and lag. The typewriter never draws past a `$F4` whose frames have not run,
+however the walk reached it (typing, a `$F9` running out, a `$F2` or a
+branch), and a press cannot leave the page, answer its prompt or close the
+window before they have. The other lag on the table, the text routine's own work after the box
 opens and after a page clears, is not modelled as lag: the typewriter's first
 three frames stand in for it (deviation in
 [the source notes](../source-notes/README.md)).

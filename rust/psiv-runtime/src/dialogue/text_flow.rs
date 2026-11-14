@@ -11,6 +11,8 @@
 
 mod stop;
 
+use std::collections::VecDeque;
+
 use psiv_core::{Flag, GameState};
 use psiv_data::{
     ActionKind, CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd,
@@ -48,18 +50,30 @@ pub(crate) const PORTRAIT_LOAD_LAG_FRAMES: u8 = 2;
 /// reaches the screen with the next `DMAPlane_A_VInt`: the one after the
 /// next glyph. The window shows the old portrait until the typewriter reaches
 /// [`PortraitChange::at`], spends the change's frames, and shows the new one
-/// with the glyph after it.
+/// with the glyph after it. Every `$F4` is its own change, in stream order:
+/// two on one page, adjacent or apart, each spend their own frames at their
+/// own glyph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PortraitChange {
     /// Glyphs of the page before the `$F4`.
     pub at: usize,
-    /// The portrait on screen before it.
+    /// The portrait up before it: the one the previous `$F4` loaded.
     pub previous: Option<u8>,
+    /// The portrait it loads; `None` for `$F4 0`.
+    pub portrait: Option<u8>,
     /// Counted frames: the `DMAPlane_A_VInt` after destroying a portrait
     /// that was up (`$06A1B4`), which shows the window without one.
     pub destroy_frames: u8,
-    /// Lag frames: [`PORTRAIT_LOAD_LAG_FRAMES`] for each portrait loaded.
+    /// Lag frames: [`PORTRAIT_LOAD_LAG_FRAMES`] when it loads a portrait.
     pub lag_frames: u8,
+}
+
+impl PortraitChange {
+    /// Whether it costs frames: `$F4 0` costs none.
+    #[must_use]
+    pub fn has_frames(&self) -> bool {
+        self.destroy_frames > 0 || self.lag_frames > 0
+    }
 }
 
 /// One retail `$F2` action, released when the typewriter reaches its byte
@@ -136,8 +150,9 @@ pub struct TextFlow {
     entry_id: u16,
     /// Relative entry counts after `$F5`; zero continues at the current byte.
     choice: Option<[u16; 2]>,
-    /// The `$F4` the walk ran since the window last took one.
-    portrait_change: Option<PortraitChange>,
+    /// The `$F4`s the walk ran that the window has not finished, in stream
+    /// order.
+    portrait_changes: VecDeque<PortraitChange>,
 }
 
 impl TextFlow {
@@ -204,7 +219,7 @@ impl TextFlow {
             pending_action: None,
             entry_id: entry.id,
             choice: None,
-            portrait_change: None,
+            portrait_changes: VecDeque::new(),
         };
         flow.pump(game);
         if flow.done && flow.stop.is_none() {
@@ -232,9 +247,15 @@ impl TextFlow {
         self.portrait
     }
 
-    /// The `$F4` the walk ran since the last call, once.
-    pub fn take_portrait_change(&mut self) -> Option<PortraitChange> {
-        self.portrait_change.take()
+    /// The first `$F4` the window has not finished, if any.
+    #[must_use]
+    pub fn pending_portrait(&self) -> Option<&PortraitChange> {
+        self.portrait_changes.front()
+    }
+
+    /// The window has spent the first pending `$F4`'s frames.
+    pub fn finish_portrait(&mut self) -> Option<PortraitChange> {
+        self.portrait_changes.pop_front()
     }
 
     /// How the page on screen ended, if a page is finished.
@@ -384,7 +405,7 @@ impl TextFlow {
         self.column = 0;
         // The window's destroy took the portrait with it.
         self.portrait = None;
-        self.portrait_change = None;
+        self.portrait_changes.clear();
         self.stop = None;
         self.closed = false;
         self.done = false;
@@ -468,21 +489,12 @@ impl TextFlow {
         self.portrait = load.then_some(id);
         let destroy = u8::from(load && up);
         let lag = if load { PORTRAIT_LOAD_LAG_FRAMES } else { 0 };
-        let at = self.visible_chars();
-        self.portrait_change = Some(match self.portrait_change {
-            // A second `$F4` before the window took the first: one change,
-            // from the first one's portrait, with both costs.
-            Some(first) => PortraitChange {
-                destroy_frames: first.destroy_frames + destroy,
-                lag_frames: first.lag_frames + lag,
-                ..first
-            },
-            None => PortraitChange {
-                at,
-                previous,
-                destroy_frames: destroy,
-                lag_frames: lag,
-            },
+        self.portrait_changes.push_back(PortraitChange {
+            at: self.visible_chars(),
+            previous,
+            portrait: self.portrait,
+            destroy_frames: destroy,
+            lag_frames: lag,
         });
     }
 
