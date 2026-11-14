@@ -440,6 +440,14 @@ borrows. Writers:
   second after `MapDataManager` runs (`ps4.asm:107579-107630`). Rescued Zema's
   and petrified Birth Valley's NPC sheets draw from those words. The map
   update programs write single words;
+- a scene's map load whose next op is `Pal_VariableFadeIn`
+  (`SceneRunner::fades_in_after_map_load`) keeps the words the frame before
+  uploaded live and holds the load's words in the buffer, unshown:
+  `RefreshMap` (`ps4.asm:121767`) returns with no VBlank, and the fade-in
+  copies and clears the buffer (`ps4.asm:122071-122079`) before its first
+  ([#612](https://github.com/TusanHomichi/PSIV/issues/612)). The fade-in
+  copies the held words, a map update write lands in them, and any other
+  record puts them live first;
 - `InitVramAndCram` copies the live buffer to the second one and loads
   `Pal_Init` (`$09F2BC`, the `lea` at `$05A68A`); `LoadPalette` and
   `ReloadMapPalette` write the live buffer; `Panel_Create` (scene ops and

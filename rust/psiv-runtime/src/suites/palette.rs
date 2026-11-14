@@ -13,7 +13,7 @@ use psiv_data::GameData;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
-fn pack_present() -> bool {
+pub(super) fn pack_present() -> bool {
     let present = Path::new(PACK).join("manifest.json").is_file();
     if !present {
         eprintln!("runtime pack not present; skipping");
@@ -25,7 +25,12 @@ fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     runtime_at(map, (16, 16), party, flags)
 }
 
-fn runtime_at(map: u16, pixels: (u16, u16), party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
+pub(super) fn runtime_at(
+    map: u16,
+    pixels: (u16, u16),
+    party: [Option<CharId>; 5],
+    flags: &[Flag],
+) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
     let initial = crate::Session::start(data.clone())
         .field()

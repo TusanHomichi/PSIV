@@ -310,6 +310,20 @@ impl SceneRunner {
         self.blocked == Blocked::Palette
     }
 
+    /// Whether the scene waits on a map load and its next op is
+    /// `Pal_VariableFadeIn`: retail's `RefreshMap` returns with no VBlank, and
+    /// the fade-in clears the new palette from the buffer before its first one.
+    #[must_use]
+    pub fn fades_in_after_map_load(&self) -> bool {
+        self.blocked == Blocked::Map
+            && matches!(
+                self.scene.get(self.pc),
+                Some(SceneOp::Presentation {
+                    op: crate::PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                })
+            )
+    }
+
     /// Answers a [`crate::PresentationOp::VariablePaletteFade`]: the fade the
     /// runtime started on the op's frame lasts `frames` frames, that one
     /// included, so the scene resumes `frames` ticks later, exactly as a
