@@ -508,6 +508,20 @@ Corrections this model brought, each checked against the US image:
   (`loc_1DE258`) into the second buffer and clear its words 16-31 before the
   fade up (`$0704D8`, `$078398`). The fade up left red in words 2-10 and was
   21 frames short (#591).
+- Every scene's fade records are now checked against its bytes: the `jsr`s
+  to the six variable fades (`Pal_VariableFadeOut`/`In`, `$05B168`/`$05B1B8`;
+  the two-line pair; `Pal_VariableFadeToRed`/`FromRed`, `$05B2BE`/`$05B30E`)
+  inside its documented ranges, in order, with each call's `$FFFFED52` mode
+  (`scenes::palette_fades_image`: its `CALLS` table is read off the US image
+  when it is present, and every scene is checked against the table without
+  it; the scenes not yet fixed are listed with
+  [#610](https://github.com/TusanHomichi/PSIV/issues/610)). It found
+  `Event_Juza` (`$06FB3A`) and both of `Event_ReFaze`'s fades (`$0715DA`,
+  mode 5; `$07172C`, mode 2) recorded as red fades, a shell fade-out, or not
+  at all; they are now `TwoLinePaletteFade`. It also found
+  `Cutscene_CrashLaanding`'s red fade (`$076710`), which is
+  `Pal_VariableFadeOut` mode 9, and the ending's `$17C` panel fading in
+  at mode 5 where `$079B1E` sets 1 (#596).
 ### Drawing the CRAM
 
 The field shell copies `Runtime::cram()` into one shared palette at the top

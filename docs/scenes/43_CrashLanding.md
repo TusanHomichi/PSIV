@@ -17,7 +17,7 @@ Grand Cross-only body is used.
 | ROM offsets | Retail primitive / literal | Scene record |
 |---|---|---|
 | `$07658A..$076652` | crash panel `$80`; Foi/Tandle/Spark/Legeon sequence; dialogue entry `3` | panels/SFX/dialogue |
-| `$076664..$076724` | blast panel `$86`; Megid/Legeon/`$AD`; variable red fade; stop music | panels/fade |
+| `$076664..$076724` | blast panel `$86`; Megid/Legeon/`$AD`; `$ED52` 9, `Pal_VariableFadeOut` (`$076710`); stop music | panels/`VariablePaletteFade` out |
 | `$07672A..$07681A` | reload; Dezolis field panel `$87`; tree 14, entry `7`; Dezolis `$001` from Zelan Space `$18C`; camera `($240,$5D0)` | tree/dialogue/map/camera |
 | `$076820..$07684A` | load Raja Temple `$14C`, previous map Dezolis `$001`, clear load bit 3 | `LoadMap`; `$85` remains clear |
 | `$076850..$076AE6` | park party at `($5F0,$120)`; flight/camera; play ElevatorOpen and call `$076E00` | typed motion; five live BG writes |

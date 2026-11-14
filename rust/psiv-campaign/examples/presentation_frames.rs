@@ -3,7 +3,7 @@
 //! Zema's US entrance steps slot 7 down 64 half-pixels (docs/scenes/SCENE_DIALOGUE.md),
 //! and its rescue has 50 distinct ready pages before event flag $37 restores it.
 //! BioPlant uses eight Pal_VariableFadeToRed/FromRed stages, four frames apart
-//! (US $05B2C0/$05B30C). These are capture expectations, not gameplay rules.
+//! (US $05B2BE/$05B30E). These are capture expectations, not gameplay rules.
 
 use std::collections::HashSet;
 use std::error::Error;

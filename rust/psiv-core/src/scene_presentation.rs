@@ -348,7 +348,7 @@ pub enum PresentationOp {
         /// Corrected loop count (`moveq #$3B, d7`: 60; `move.w #$77, d7`: 120).
         frames: u16,
     },
-    /// `Pal_VariableFadeIn` (`$05B1B0`) / `Pal_VariableFadeOut` (`$05B168`)
+    /// `Pal_VariableFadeIn` (`$05B1B8`) / `Pal_VariableFadeOut` (`$05B168`)
     /// with the `$FFFFED52` delay byte. Each first copies all 64 words to
     /// `Palette_Table_Buffer_2`; the fade-in then clears the buffer and spends
     /// one `VDP_EnableDisplay` frame. A pass steps every nibble one level and
