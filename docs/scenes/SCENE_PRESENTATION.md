@@ -419,7 +419,8 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
 - **Surfaces outside the live palette:** the Hunter's Guild board and the
-  ship's destination menu, and the dialogue action
+  ship's destination menu
+  ([#622](https://github.com/TusanHomichi/PSIV/issues/622)), and the dialogue action
   `SabotageAlarmRedPalette`'s red overlay, still draw baked colours.
 - **Rykros's tone:** its cycle has a certified frame above; the preceding tone
   still needs its own oracle pair
