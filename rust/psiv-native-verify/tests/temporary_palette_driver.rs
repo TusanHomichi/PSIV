@@ -180,7 +180,7 @@ impl Harness {
             .find(|path| path.is_file())
             .ok_or("xvfb-run is not installed")?;
         let dir = std::env::temp_dir().join(format!(
-            "temporary-palette-{}-{}",
+            "psiv-temporary-palette-{}-{}",
             std::process::id(),
             NEXT_DIR.fetch_add(1, Ordering::Relaxed)
         ));
