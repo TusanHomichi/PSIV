@@ -329,7 +329,7 @@ border at `(37,2)`.
 | `InitVramAndCram` | Implemented | Clears staged/visible scene planes and opening text. |
 | `FadeIn`, `FadeOut` | Implemented | Seven CRAM-equivalent levels, two-frame stepping, 14 renderer ticks; the cover is above cutscene planes and below dialogue. |
 | `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is the operand-free typed `PanelDestroyLast` stack pop; loop counters are not panel-art IDs. Only an empty staged stack produces a destroy warning. |
-| `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. |
+| `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
 | `LoadTitleImage` | Implemented | Retail opening art/mapping/palette decode is emitted as a 320x128 background. |

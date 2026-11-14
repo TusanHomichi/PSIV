@@ -204,7 +204,13 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene3,
         },
-        SceneOp::FadeOut,
+        // `$07845A`: `move.b #5, ($FFFFED52)` / `jsr Pal_VariableFadeOut`.
+        SceneOp::Presentation {
+            op: PresentationOp::VariablePaletteFade {
+                fade_in: false,
+                mode: 5,
+            },
+        },
         // `$07846C`: `moveq #$3B, d0` / `jsr DoMapUpdateLoop`.
         SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
