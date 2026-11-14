@@ -92,14 +92,15 @@ enum Program {
         pass: u16,
         cycle: Cycle,
     },
-    /// Whole-palette passes: the first at `first`, then every `every`
-    /// frames, `count` in all.
+    /// Passes over the first `words` words: the first at `first`, then
+    /// every `every` frames, `count` in all.
     Passes {
         kind: Pass,
         elapsed: u16,
         first: u16,
         every: u16,
         count: u16,
+        words: usize,
     },
 }
 
@@ -400,11 +401,14 @@ impl Cram {
                 first,
                 every,
                 count,
+                words: span,
             } => {
-                let last = first + every * count.saturating_sub(1);
+                // A fade up that can never match spins in the cartridge;
+                // the model's count stops at `u16::MAX` and so does this.
+                let last = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
                 if elapsed >= first && (elapsed - first).is_multiple_of(every) && elapsed <= last {
                     let mut words = self.view.words;
-                    for (word, &target) in words.iter_mut().zip(&self.saved) {
+                    for (word, &target) in words.iter_mut().zip(&self.saved).take(span) {
                         *word = match kind {
                             Pass::VariableOut => palette::fade_out_step(*word),
                             Pass::VariableIn => palette::fade_in_step(*word, target).0,
@@ -420,6 +424,7 @@ impl Cram {
                     first,
                     every,
                     count,
+                    words: span,
                 })
             }
         }
@@ -746,11 +751,44 @@ impl Cram {
                         first,
                         every,
                         count,
+                        words: PALETTE_WORDS,
                     },
                     frame,
                     cycle_index,
                 );
                 return Some(frames);
+            }
+            // `Pal_VariableFadeOut_Lines_1_2` / `Pal_VariableFadeToPal2`
+            // (`$05B222`, `$05B26E`): the same passes over words 0-31.
+            PresentationOp::TwoLinePaletteFade { fade_in, mode } => {
+                const WORDS: usize = 32;
+                let every = palette::dbf_frames(mode);
+                let (kind, count) = if fade_in {
+                    let count = palette::variable_fade_to_passes(
+                        &self.view.words[..WORDS],
+                        &self.saved[..WORDS],
+                    );
+                    (Pass::VariableIn, count)
+                } else {
+                    self.saved[..WORDS].copy_from_slice(&self.view.words[..WORDS]);
+                    (
+                        Pass::VariableOut,
+                        palette::variable_fade_out_passes(&self.view.words[..WORDS]),
+                    )
+                };
+                self.start(
+                    Program::Passes {
+                        kind,
+                        elapsed: 0,
+                        first: 0,
+                        every,
+                        count,
+                        words: WORDS,
+                    },
+                    frame,
+                    cycle_index,
+                );
+                return Some(count.saturating_mul(every));
             }
             // `Pal_VariableFadeToRed` copies the buffer first; both run eight
             // stages of `delay + 1` frames.
@@ -766,6 +804,7 @@ impl Cram {
                         first: 0,
                         every: palette::dbf_frames(lines),
                         count: palette::RED_FADE_STAGES,
+                        words: PALETTE_WORDS,
                     },
                     frame,
                     cycle_index,

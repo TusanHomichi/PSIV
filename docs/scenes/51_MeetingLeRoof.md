@@ -16,11 +16,11 @@ exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-3 | `$070482..$0704AB` | move Chaz to `($1F0,$1E0)`, `DoMapUpdateLoop` 60, red fade (`$ED52` 2), `DoMapUpdateLoop` 60 | actor/wait/fade/wait |
+| 0-3 | `$070482..$0704AB` | move Chaz to `($1F0,$1E0)`, `DoMapUpdateLoop` 60, `Pal_VariableFadeOut_Lines_1_2` (`$ED52` 2), `DoMapUpdateLoop` 60 | actor/wait/`TwoLinePaletteFade` out/wait |
 | 4-5 | `$0704AC..$0704D7` | tower art `$1DB2C8` to tile `$260`, scene asset `$1DDE0A` | presentation |
-| 6-7 | `$0704D8..$0704ED` | `loc_1DE258`'s 16 words to `Palette_Table_Buffer_2` (`trap #1`), its words 16-31 cleared (`trap #0`): what the red fade returns to | `PaletteCopy` ×2 |
+| 6-7 | `$0704D8..$0704ED` | `loc_1DE258`'s 16 words to `Palette_Table_Buffer_2` (`trap #1`), its words 16-31 cleared (`trap #0`): what the fade up returns to | `PaletteCopy` ×2 |
 | 8 | `$0704EE..$07051F` | plane map, DMA | presentation |
-| 9-10 | `$070520..$070533` | music `$A1`, `Pal_VariableFadeToPal2` (`$ED52` 2) | sound/red return |
+| 9-10 | `$070520..$070533` | music `$A1`, `Pal_VariableFadeToPal2` (`$ED52` 2) | sound/`TwoLinePaletteFade` in |
 | 11 | `$070534..$070549` | `move.w #$B3, d0`: 180 passes of `loc_70638`, `VInt_Prepare` | `CounterPaletteCycle` 180 |
 | 12 | `$07054A..$07054D`; `$0705D6..$070625` | `bsr loc_705D6`: 71 passes (`moveq #$46, d7`) of the ramp `loc_70626` into words 2-10, `loc_70638`, `VInt_Prepare` | `PaletteGrowIn` 71 |
 | 13 | `$07054E..$070563` | 120 passes (`move.w #$77, d0`) | `CounterPaletteCycle` 120 |
@@ -38,3 +38,10 @@ loops runs map or object updates; the scene blocks for every pass. The
 cycle's words and the fade-in are the runtime's CRAM model
 ([CRAM state](SCENE_PRESENTATION.md#cram-state)); the wait census rows are in
 `rust/psiv-core/src/scenes/wait_census.rs`.
+
+Against a retail capture (tape 28's boot schedule, Le Roof Room loaded by RAM
+patch at frame 7000, the map trigger starting `$48`), the runtime's words 0-31
+equal retail's on every frame of the 180, 71 and 120 passes. Two gaps remain:
+the native shell draws no scene picture ([#594](https://github.com/TusanHomichi/PSIV/issues/594)),
+and the scene reaches its first pass 8 counted frames early, which keeps the
+cycle's phase only by coincidence ([#595](https://github.com/TusanHomichi/PSIV/issues/595)).

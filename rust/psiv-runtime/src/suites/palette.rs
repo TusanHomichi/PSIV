@@ -685,7 +685,7 @@ fn check_le_roof_loops(
         let tick = &ticks[at];
         let before = &ticks[at - 1];
         assert_eq!(tick.calls, before.calls, "tick {at}: no map update");
-        if tick.count % 4 == 0 {
+        if tick.count.is_multiple_of(4) {
             if index >= 11 {
                 index = 0;
             }
@@ -702,7 +702,10 @@ fn check_le_roof_loops(
             && (grow_at..grow_at + 71).contains(&at)
         {
             let pass = at - grow_at;
-            let lit = 1 + (0..pass).filter(|done| (70 - done) % 8 == 0).count();
+            let lit = 1
+                + (0..pass)
+                    .filter(|done| (70 - done).is_multiple_of(8))
+                    .count();
             let mut expected = [0u16; 9];
             expected[..lit].copy_from_slice(&ramp[9 - lit..]);
             assert_eq!(tick.words[2..11], expected, "tick {at}, pass {pass}");

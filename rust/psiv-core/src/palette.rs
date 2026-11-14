@@ -207,7 +207,14 @@ pub fn variable_fade_out_passes(words: &[u16]) -> u16 {
 /// per level of the largest nibble, and the last that changes nothing.
 #[must_use]
 pub fn variable_fade_in_passes(target: &[u16]) -> u16 {
-    let mut words = vec![0u16; target.len()];
+    variable_fade_to_passes(&vec![0u16; target.len()], target)
+}
+
+/// How many passes `Pal_VariableFadeToPal2` (`$05B26E`) makes from `words`
+/// toward `target`, the last being the one that changes nothing.
+#[must_use]
+pub fn variable_fade_to_passes(words: &[u16], target: &[u16]) -> u16 {
+    let mut words = words.to_vec();
     let mut passes = 0u16;
     loop {
         passes += 1;
@@ -452,6 +459,19 @@ mod tests {
         let mut index = 2;
         assert_eq!(counter_cycle_step(0, &mut index, 3, &table[..5]), None);
         assert_eq!(index, 2);
+    }
+
+    #[test]
+    fn a_fade_to_the_saved_buffer_counts_from_the_live_words() {
+        // $002 toward $024: two passes that change, one that does not.
+        assert_eq!(variable_fade_to_passes(&[0x0002], &[0x0024]), 3);
+        // Already there: the one pass that changes nothing.
+        assert_eq!(variable_fade_to_passes(&[0x0024], &[0x0024]), 1);
+        // From black it is the fade-in's count.
+        assert_eq!(
+            variable_fade_to_passes(&[0, 0], &[0x0EEE, 0]),
+            variable_fade_in_passes(&[0x0EEE, 0])
+        );
     }
 
     #[test]

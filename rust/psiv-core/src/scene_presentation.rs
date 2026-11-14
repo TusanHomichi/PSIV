@@ -363,6 +363,21 @@ pub enum PresentationOp {
         /// Raw `Palette_Variable_Fade` mode value.
         mode: u8,
     },
+    /// The same passes over the first two lines (32 words), as the Le Roof
+    /// scenes fade: `Pal_VariableFadeOut_Lines_1_2` (`$05B222`) copies those
+    /// words to `Palette_Table_Buffer_2` (`moveq #$1F, d7` / `trap #1`) and
+    /// steps them down until all 32 are black; `Pal_VariableFadeToPal2`
+    /// (`$05B26E`) copies, clears and enables nothing, and steps the live
+    /// words up toward the second buffer from wherever they are, until a pass
+    /// changes nothing. Each pass waits `mode + 1` frames. The scene blocks
+    /// until the runtime releases it with the count
+    /// ([`crate::SceneRunner::release_palette`]).
+    TwoLinePaletteFade {
+        /// True for `Pal_VariableFadeToPal2`, false for the fade-out.
+        fade_in: bool,
+        /// Raw `$FFFFED52` delay.
+        mode: u8,
+    },
     /// Rykros's six-step palette animation, `loc_78296` (`$078296..$0782D1`):
     /// for each delay byte of `loc_782D2` up to its `$FF`, nine words of the
     /// table at `source_rom_addr` (`$12` bytes a frame) go to

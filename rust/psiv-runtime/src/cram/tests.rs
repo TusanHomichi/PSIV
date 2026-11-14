@@ -725,3 +725,83 @@ fn the_le_roof_loops_refuse_a_missing_table_and_restart_a_stale_index() {
     assert_eq!(trace[0][11..13], [100, 111]);
     assert_eq!(index, 1);
 }
+
+/// `Pal_VariableFadeOut_Lines_1_2`, `$ED52` = 1: words 0-31 copied to the
+/// saved buffer (`moveq #$1F, d7` / `trap #1`), then a pass every two frames
+/// until those 32 are black; words 32-63 and the saved buffer's are left.
+#[test]
+fn a_two_line_fade_out_steps_words_0_to_31_only() {
+    let none = ScenePalettes::default();
+    let mut live = filled(0);
+    live[0] = 0x0246;
+    live[31] = 0x0002;
+    live[40] = 0x0EEE;
+    let mut cram = cram(live, filled(0x0111));
+    let fade = op(PresentationOp::TwoLinePaletteFade {
+        fade_in: false,
+        mode: 1,
+    });
+    // Largest nibble 6: six passes of two frames.
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(12));
+    assert_eq!(cram.saved()[0], 0x0246);
+    assert_eq!(cram.saved()[31], 0x0002);
+    assert_eq!(cram.saved()[40], 0x0111, "the copy is 32 words");
+    assert_eq!(cram.view().words[0], 0x0135, "pass 1 on the op's frame");
+    for k in 1..12 {
+        cram.tick(k, &mut 0);
+    }
+    assert_eq!(cram.view().words[..32], [0; 32]);
+    assert_eq!(cram.view().words[40], 0x0EEE);
+}
+
+/// `Pal_VariableFadeToPal2`, `$ED52` = 1: no copy and no clear; words 0-31
+/// step up from where they are toward the saved buffer, and the pass that
+/// changes nothing still waits its two frames.
+#[test]
+fn a_two_line_fade_up_starts_from_the_live_words() {
+    let none = ScenePalettes::default();
+    let mut live = filled(0);
+    live[0] = 0x0002;
+    live[40] = 0x0EEE;
+    let mut saved = filled(0);
+    saved[0] = 0x0024;
+    let mut cram = cram(live, saved);
+    let fade = op(PresentationOp::TwoLinePaletteFade {
+        fade_in: true,
+        mode: 1,
+    });
+    // $002 -> $013 -> $024, then a pass that changes nothing: three passes.
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(6));
+    assert_eq!(cram.view().words[0], 0x0013);
+    cram.tick(1, &mut 0);
+    assert_eq!(cram.view().words[0], 0x0013);
+    cram.tick(2, &mut 0);
+    assert_eq!(cram.view().words[0], 0x0024);
+    for k in 3..6 {
+        cram.tick(k, &mut 0);
+    }
+    assert_eq!(cram.view().words[0], 0x0024);
+    assert_eq!(cram.view().words[40], 0x0EEE, "word 40 is past the span");
+    assert_eq!(cram.saved()[0], 0x0024, "nothing is copied");
+}
+
+/// A fade the model bounds at `u16::MAX` passes (one the cartridge would
+/// spin in forever) steps without overflowing its frame arithmetic; the
+/// next-arc chain once ran Le Roof's fade up on a map whose own palette
+/// program left a nibble it could not reach.
+#[test]
+fn a_bounded_endless_fade_steps_without_overflow() {
+    let mut cram = cram(filled(0), filled(0x0EEE));
+    cram.program = Some(super::Program::Passes {
+        kind: super::Pass::VariableIn,
+        elapsed: 0,
+        first: 0,
+        every: 3,
+        count: u16::MAX,
+        words: 32,
+    });
+    for k in 0..10 {
+        cram.tick(k, &mut 0);
+    }
+    assert!(cram.running());
+}

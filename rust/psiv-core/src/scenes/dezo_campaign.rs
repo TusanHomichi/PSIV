@@ -37,8 +37,8 @@ const LE_ROOF_CYCLE: CounterCycle = CounterCycle {
 };
 
 /// `lea loc_1DE258, a0` / `lea Palette_Table_Buffer_2, a1` / `moveq #$F, d7`
-/// / `trap #1`: Le Roof's sixteen words, words 0-15 of the copy the red fade
-/// returns to (`$0704D8`, `$078398`).
+/// / `trap #1`: Le Roof's sixteen words, words 0-15 of the copy
+/// `Pal_VariableFadeToPal2` fades up to (`$0704D8`, `$078398`).
 const LE_ROOF_PALETTE: SceneOp = SceneOp::Presentation {
     op: PresentationOp::PaletteCopy {
         source: PaletteSource::Rom(0x001D_E258),
@@ -112,7 +112,10 @@ pub static MEETING_LE_ROOF: Scene = Scene {
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::LoadArt {
@@ -130,7 +133,10 @@ pub static MEETING_LE_ROOF: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xA1 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeFromRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
         // `$070534..$07057F`: the colour loops (`move.w #$B3, d0` and
         // `#$77` twice), `bsr loc_705D6` after the first, and dialogue `0`
@@ -164,7 +170,10 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             wait: true,
         },
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::LoadArt {
@@ -176,7 +185,10 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xA1 },
         SceneOp::Presentation {
-            op: PresentationOp::FadeFromRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
         // `$0783EE..$078420`: `Event_MeetingLeRoof`'s colour loops, 180
         // passes, `jsr loc_705D6` at `$078406`, then 120.

@@ -880,7 +880,9 @@ impl SceneRunner {
             // A variable fade's length is in the palette, which the runtime
             // holds: it answers with [`SceneRunner::release_palette`].
             SceneOp::Presentation {
-                op: crate::PresentationOp::VariablePaletteFade { .. },
+                op:
+                    crate::PresentationOp::VariablePaletteFade { .. }
+                    | crate::PresentationOp::TwoLinePaletteFade { .. },
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

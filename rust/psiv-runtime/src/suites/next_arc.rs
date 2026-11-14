@@ -649,7 +649,9 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
         post_zio.game().party_members(),
         vec![CharId(0), CharId(5), CharId(3), CharId(7), CharId(8)]
     );
-    post_zio = relocate_with_edit_and_battles(&post_zio, 0x001, |game| {
+    // Event_MeetingLeRoof runs on the load of the Le Roof Room (trigger
+    // `$33`): its fades and colour loops act on that map's palette.
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x0F0, |game| {
         game.set(Flag::event(0xD5)).expect("strength chest flag");
         game.set(Flag::event(0xD3)).expect("courage chest flag");
         game.inventory_mut()

@@ -281,6 +281,7 @@ impl Field {
             | PresentationOp::AddPaletteWord { .. }
             | PresentationOp::GaruberkEyeArtCycle { .. }
             | PresentationOp::VariablePaletteFade { .. }
+            | PresentationOp::TwoLinePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::PaletteCycleFromTable { .. }
