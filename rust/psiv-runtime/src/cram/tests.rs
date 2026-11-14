@@ -43,10 +43,10 @@ fn run(
     palettes: &ScenePalettes,
 ) -> Vec<[u16; 64]> {
     let mut trace = Vec::new();
-    let _ = cram.apply(&scene_op, start, palettes, None);
+    let _ = cram.apply(&scene_op, start, palettes, None, &mut 0);
     trace.push(cram.view().words);
     for k in 1..frames {
-        cram.tick(start.wrapping_add(k));
+        cram.tick(start.wrapping_add(k), &mut 0);
         trace.push(cram.view().words);
     }
     trace
@@ -129,7 +129,7 @@ fn one_tone_step_matches_the_routine() {
     words[1] = 0x00EC; // red $C -> $E, green $E stays, blue 0 -> 2: $2EE
     words[2] = 0x0EEE; // skipped
     let mut cram = cram(words, words);
-    let _ = cram.apply(&tone(1, None), 0, &none, None);
+    let _ = cram.apply(&tone(1, None), 0, &none, None, &mut 0);
     assert_eq!(cram.view().words[..3], [0x0864, 0x02EE, 0x0EEE]);
     assert_eq!(cram.view().words[3], 0x0222);
     // Off phase: nothing.
@@ -138,7 +138,7 @@ fn one_tone_step_matches_the_routine() {
         ..cram.clone()
     };
     let before = cram.view().words;
-    let _ = cram.apply(&tone(1, None), 1, &none, None);
+    let _ = cram.apply(&tone(1, None), 1, &none, None, &mut 0);
     assert_eq!(cram.view().words, before);
 }
 
@@ -243,7 +243,7 @@ fn the_recovery_copy_leaves_the_last_two_saved_lines() {
     let saved = filled(0x0EEE);
     let mut cram = cram(live, saved);
     let recovery = psiv_core::scene_for(psiv_core::EventIndex(0x0021)).expect("Event_Recovery");
-    let _ = cram.apply(&recovery.ops[0], 0, &none, None);
+    let _ = cram.apply(&recovery.ops[0], 0, &none, None, &mut 0);
     assert_eq!(cram.saved()[..32], [0x0246; 32]);
     assert_eq!(cram.saved()[32..], [0x0EEE; 32]);
 }
@@ -265,6 +265,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words, filled(0));
     // The ending's fifteen zeros at `$FFFFFB40` after a $EEE wash.
@@ -273,12 +274,14 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     let _ = cram.apply(
         &copy(PaletteSource::Fill(0), PaletteBuffer::Live, 32, 15),
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[31], 0x0EEE);
     assert_eq!(cram.view().words[32..47], [0; 15]);
@@ -289,6 +292,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.saved()[..4], [0x0002, 0x0004, 0x0006, 0x0000]);
     // A palette the pack lacks is listed, and nothing is written.
@@ -298,6 +302,7 @@ fn copies_fills_and_rom_loads_land_in_their_buffer() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words, before);
     assert_eq!(cram.view().missing, vec![0x0012_3456]);
@@ -317,6 +322,7 @@ fn single_word_writes() {
         0,
         &none,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[12..14], [0x000E, 0x00E0]);
     assert_ne!(cram.view().revision, revision);
@@ -330,6 +336,7 @@ fn single_word_writes() {
         0,
         &none,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[13], 0x0120);
 }
@@ -421,11 +428,11 @@ fn a_variable_fade_out_answers_its_length() {
         mode: 1,
     });
     // Largest nibble 6: six passes of two frames.
-    assert_eq!(cram.apply(&fade, 0, &none, None), Some(12));
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(12));
     assert_eq!(cram.saved()[0], 0x0246);
     assert_eq!(cram.view().words[0], 0x0135);
     for k in 1..12u16 {
-        cram.tick(k);
+        cram.tick(k, &mut 0);
     }
     assert_eq!(cram.view().words[0], 0x0000);
     assert!(!cram.running());
@@ -444,12 +451,12 @@ fn a_variable_fade_in_answers_its_length() {
         mode: 1,
     });
     // 1 + (6 + 1) * 2.
-    assert_eq!(cram.apply(&fade, 0, &none, None), Some(15));
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(15));
     assert_eq!(cram.view().words[0], 0x0000);
-    cram.tick(1);
+    cram.tick(1, &mut 0);
     assert_eq!(cram.view().words[0], 0x0111);
     for k in 2..15u16 {
-        cram.tick(k);
+        cram.tick(k, &mut 0);
     }
     assert_eq!(cram.view().words[0], 0x0246);
 }
@@ -504,7 +511,7 @@ fn scene_loads_read_the_pack() {
     );
     let palettes = ScenePalettes::from_parts(words, panels);
     let mut cram = cram(filled(0x0246), filled(0));
-    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None);
+    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0);
     assert_eq!(cram.view().words, filled(0x0002));
     assert_eq!(cram.saved(), &filled(0x0246));
     let _ = cram.apply(
@@ -516,16 +523,23 @@ fn scene_loads_read_the_pack() {
         0,
         &palettes,
         None,
+        &mut 0,
     );
     assert_eq!(cram.view().words[48..], [0x0004; 16]);
-    let _ = cram.apply(&SceneOp::PanelCreate { id: 0x18B }, 0, &palettes, None);
+    let _ = cram.apply(
+        &SceneOp::PanelCreate { id: 0x18B },
+        0,
+        &palettes,
+        None,
+        &mut 0,
+    );
     // $8100: line 0; $E100: `$E1 & $70` = $60 bytes, line 3.
     assert_eq!(cram.view().words[..16], [0x0006; 16]);
     assert_eq!(cram.view().words[16..32], [0x0002; 16]);
     assert_eq!(cram.view().words[48..], [0x0008; 16]);
     // A fade copies the live words to the saved buffer and leaves them.
     let live = cram.view().words;
-    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None);
+    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None, &mut 0);
     assert_eq!(cram.saved(), &live);
     assert_eq!(cram.view().words, live);
 }
@@ -537,7 +551,7 @@ fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
     // on frames 0, 4, 8, 12, 16 (up) and 20, 24, 28, 32, 36 (back): a level-1
     // word (`$222`) rises five levels to `$CCC` and returns.
     let mut cram = cram(filled(0x0222), filled(0));
-    cram.tone_and_back(20, 0);
+    cram.tone_and_back(20, 0, &mut 0);
     assert_eq!(
         cram.saved(),
         &filled(0x0222),
@@ -545,17 +559,17 @@ fn the_elsydeon_break_tones_to_white_and_back_in_forty_frames() {
     );
     assert_eq!(cram.view().words, filled(0x0444), "frame 0 steps at once");
     for frame in 1..20 {
-        cram.tick(frame);
+        cram.tick(frame, &mut 0);
     }
     assert_eq!(cram.view().words, filled(0x0CCC), "the top, after frame 19");
-    cram.tick(20);
+    cram.tick(20, &mut 0);
     assert_eq!(cram.view().words, filled(0x0AAA), "frame 20 starts back");
     for frame in 21..40 {
-        cram.tick(frame);
+        cram.tick(frame, &mut 0);
     }
     assert_eq!(cram.view().words, filled(0x0222), "back on the copy");
     assert!(!cram.running(), "both loops are done");
-    cram.tick(40);
+    cram.tick(40, &mut 0);
     assert_eq!(cram.view().words, filled(0x0222));
 }
 
@@ -577,7 +591,7 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
         start: 48,
         words: 17,
     });
-    let _ = cram.apply(&copy, 0, &palettes, None);
+    let _ = cram.apply(&copy, 0, &palettes, None, &mut 0);
     let mut expected = live;
     expected[48..].copy_from_slice(&values[..16]);
     assert_eq!(cram.view().words, expected);
@@ -586,10 +600,128 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
     assert_eq!(cram.saved(), &expected_saved);
     assert!(cram.view().missing.is_empty());
     let revision = cram.view().revision;
-    let _ = cram.apply(&copy, 1, &palettes, None);
+    let _ = cram.apply(&copy, 1, &palettes, None, &mut 0);
     assert_eq!(
         cram.view().revision,
         revision,
         "identical copy changes no live word"
     );
+}
+
+/// Made-up Le Roof tables: the ramp `1..=9` and the cycle's two series
+/// `100..=110` and `111..=121`.
+fn le_roof_palettes() -> ScenePalettes {
+    let mut words = BTreeMap::new();
+    words.insert(0x0007_0626, (1..=9u16).collect());
+    words.insert(0x0007_0672, (100..122u16).collect());
+    ScenePalettes::from_parts(words, BTreeMap::new())
+}
+
+const LE_ROOF_CYCLE: psiv_core::CounterCycle = psiv_core::CounterCycle {
+    source_rom_addr: 0x0007_0672,
+    offset: 11,
+    entries: 11,
+};
+
+/// Applies `scene_op` on frame `start` and ticks `frames - 1` more, sharing
+/// one `$FFFFECF3` byte across the calls as the runtime does.
+fn run_counted(
+    cram: &mut Cram,
+    scene_op: &SceneOp,
+    start: u16,
+    frames: u16,
+    palettes: &ScenePalettes,
+    index: &mut u8,
+) -> Vec<[u16; 64]> {
+    let _ = cram.apply(scene_op, start, palettes, None, index);
+    let mut trace = vec![cram.view().words];
+    for k in 1..frames {
+        cram.tick(start.wrapping_add(k), index);
+        trace.push(cram.view().words);
+    }
+    trace
+}
+
+/// `loc_705D6` then a 120-pass `loc_70638` loop, from frame 1: each pass
+/// blacks words 2-10 and lights the ramp's last `d0 + 1` words over them
+/// (`d0` stepping after the passes whose `d7`, 70 down, is a multiple of
+/// 8), then the cycle writes words 11 and 12 on frames whose count is a
+/// multiple of 4, its index carried from one loop to the next.
+#[test]
+fn the_le_roof_fade_in_lights_the_ramp_and_runs_the_cycle() {
+    let palettes = le_roof_palettes();
+    let mut cram = cram(filled(0x0EEE), filled(0));
+    let mut index = 0;
+    let grow = op(PresentationOp::PaletteGrowIn {
+        source_rom_addr: 0x0007_0626,
+        offset: 2,
+        words: 9,
+        passes: 71,
+        cycle: LE_ROOF_CYCLE,
+    });
+    let trace = run_counted(&mut cram, &grow, 1, 72, &palettes, &mut index);
+    // Pass 0, frame 1: one word lit, the rest black; frame 1 writes no cycle.
+    assert_eq!(trace[0][2..11], [9, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(trace[0][11..13], [0x0EEE, 0x0EEE]);
+    assert_eq!(trace[0][..2], [0x0EEE, 0x0EEE]);
+    // Frame 4 (pass 3): the cycle's first write, index 0.
+    assert_eq!(trace[2][11..13], [0x0EEE, 0x0EEE]);
+    assert_eq!(trace[3][11..13], [100, 111]);
+    // d7 = 64 on pass 6: pass 7 lights two.
+    assert_eq!(trace[6][2..11], [9, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(trace[7][2..11], [8, 9, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(trace[7][11..13], [101, 112]);
+    // Pass 63 on: all nine.
+    assert_eq!(trace[62][2..11], [2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    assert_eq!(trace[63][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert_eq!(trace[70][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // Seventeen phase frames (4, 8, .., 68): eleven writes, a restart at
+    // 11, six more: the index is 6, and the last write was entry 5.
+    assert_eq!(index, 6);
+    assert_eq!(trace[67][11..13], [105, 116]);
+    // The program ended with pass 70: frame 72 changes nothing.
+    assert_eq!(trace[71], trace[70]);
+    assert!(!cram.running());
+    assert_eq!(trace[70][13..], filled(0x0EEE)[13..]);
+
+    let cycle = op(PresentationOp::CounterPaletteCycle {
+        cycle: LE_ROOF_CYCLE,
+        frames: 120,
+    });
+    let trace = run_counted(&mut cram, &cycle, 72, 121, &palettes, &mut index);
+    // Frame 72 is a phase frame: entry 6 at once, the ramp left lit.
+    assert_eq!(trace[0][11..13], [106, 117]);
+    assert_eq!(trace[0][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    assert_eq!(trace[4][11..13], [107, 118]);
+    // 30 phase frames in 120 (72, 76, .., 188): from 6, five to the
+    // restart, eleven, eleven, three: index 3.
+    assert_eq!(index, 3);
+    assert_eq!(trace[119][11..13], [102, 113]);
+    assert_eq!(trace[120], trace[119], "120 frames, then nothing");
+    assert!(!cram.running());
+}
+
+/// Negative control: without the pack's tables the loops write nothing and
+/// list the address, and a scratch `$FFFFECF3` left past the series
+/// restarts at entry 0 rather than reading past it.
+#[test]
+fn the_le_roof_loops_refuse_a_missing_table_and_restart_a_stale_index() {
+    let none = ScenePalettes::default();
+    let mut cram = cram(filled(0x0EEE), filled(0));
+    let cycle = op(PresentationOp::CounterPaletteCycle {
+        cycle: LE_ROOF_CYCLE,
+        frames: 4,
+    });
+    let mut index = 0;
+    let trace = run_counted(&mut cram, &cycle, 0, 4, &none, &mut index);
+    assert_eq!(trace[3], filled(0x0EEE));
+    assert_eq!(cram.view().missing, [0x0007_0672]);
+    assert_eq!(index, 0);
+
+    let palettes = le_roof_palettes();
+    let mut cram = super::Cram::default();
+    let mut index = 0xFF;
+    let trace = run_counted(&mut cram, &cycle, 0, 1, &palettes, &mut index);
+    assert_eq!(trace[0][11..13], [100, 111]);
+    assert_eq!(index, 1);
 }

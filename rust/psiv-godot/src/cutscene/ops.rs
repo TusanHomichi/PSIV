@@ -284,6 +284,8 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::PaletteCycleFromTable { .. }
+            | PresentationOp::CounterPaletteCycle { .. }
+            | PresentationOp::PaletteGrowIn { .. }
             | PresentationOp::Quake { .. }
             | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }

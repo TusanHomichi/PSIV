@@ -858,14 +858,17 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
-            // The barrier ramp, the engine light and Rykros's cycle wait
-            // inside their loops: the op blocks for every frame the cartridge
+            // The barrier ramp, the engine light, Rykros's cycle and the Le
+            // Roof colour loops wait inside their loops (`VInt_Prepare` only,
+            // so no map update): the op blocks for every frame the cartridge
             // spends in it ([`crate::PresentationOp::palette_loop_frames`]).
             SceneOp::Presentation {
                 op:
                     palette @ (crate::PresentationOp::PaletteRampFromTable { .. }
                     | crate::PresentationOp::PaletteCycleFromTable { .. }
-                    | crate::PresentationOp::RykrosPaletteCycle { .. }),
+                    | crate::PresentationOp::RykrosPaletteCycle { .. }
+                    | crate::PresentationOp::CounterPaletteCycle { .. }
+                    | crate::PresentationOp::PaletteGrowIn { .. }),
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

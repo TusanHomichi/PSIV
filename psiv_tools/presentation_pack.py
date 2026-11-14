@@ -157,6 +157,9 @@ PALETTE_REQUESTS = (
     (0x0006_EE16, 21),  # loc_6EE16: Zio Fort's barrier ramp, 7 steps x 3 (`$06ED42`)
     (0x002E_EA04, 16),  # loc_2EEA04: the ending's line to Buffer_2 (`$0796D4`)
     (0x0007_30FC, 16),  # loc_730FC: Sekreas's line to line 4 (`$073054`)
+    (0x001D_E258, 16),  # loc_1DE258: Le Roof's line to Buffer_2 (`$0704D8`, `$078398`)
+    (0x0007_0626, 9),  # loc_70626: the Le Roof fade-in's ramp (`$0705D6`)
+    (0x0007_0672, 22),  # loc_70672: the Le Roof colour cycle, 2 x 11 (`$070638`)
 )
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The

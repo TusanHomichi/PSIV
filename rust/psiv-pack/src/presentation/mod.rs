@@ -69,7 +69,7 @@ const OPENING_PALETTE: usize = 0x1D_2A3C;
 
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
-const PALETTE_REQUESTS: [(usize, usize); 13] = [
+const PALETTE_REQUESTS: [(usize, usize); 16] = [
     (0x1D_2A3C, 64),
     (0x1D_E0B8, 16),
     (0x06_E908, 14),
@@ -83,6 +83,9 @@ const PALETTE_REQUESTS: [(usize, usize); 13] = [
     (0x06_EE16, 21),
     (0x2E_EA04, 16),
     (0x07_30FC, 16),
+    (0x1D_E258, 16),
+    (0x07_0626, 9),
+    (0x07_0672, 22),
 ];
 
 fn refuse<T>(message: String) -> Result<T, PackError> {

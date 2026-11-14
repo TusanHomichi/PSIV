@@ -70,6 +70,14 @@ pub struct EffectOutcome {
     pub flags_cleared: Vec<Flag>,
 }
 
+impl EffectOutcome {
+    /// The palette and `$FFFFECF3`, the map-update counter the Le Roof
+    /// colour cycle steps too ([`crate::cram`]).
+    pub(crate) fn cram_and_cycle_index(&mut self) -> (&mut crate::cram::Cram, &mut u8) {
+        (&mut self.cram, &mut self.updates.counters[1])
+    }
+}
+
 fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) -> bool {
     let flag = match gate.bank.as_str() {
         "event_flags" => Flag::event(gate.flag),

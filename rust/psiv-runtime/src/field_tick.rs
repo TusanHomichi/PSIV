@@ -19,7 +19,8 @@ impl Runtime {
         self.rng.step();
         // A scene's palette loop runs one body per frame, with this frame's
         // `Main_Frame_Count` (`crate::cram`).
-        self.effects.cram.tick(self.frames);
+        let (cram, cycle_index) = self.effects.cram_and_cycle_index();
+        cram.tick(self.frames, cycle_index);
         if self.game_over || self.field_notice().is_some() || self.loot.is_some() {
             return Vec::new();
         }

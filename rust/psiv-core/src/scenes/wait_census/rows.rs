@@ -187,16 +187,18 @@ pub(super) const ROWS: &[Row] = &[
     // between the first two adds 71 passes of fade-in with no op.
     row("Event_MeetingLeRoof", Map(0x07_0492), Wait(1)),
     row("Event_MeetingLeRoof", Map(0x07_04A6), Wait(3)),
-    updates(CAMPAIGN, row("Event_MeetingLeRoof", own(0x07_0538, false, false), Wait(9))),
-    row("Event_MeetingLeRoof", own(0x07_05DC, false, false), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_MeetingLeRoof", own(0x07_0552, false, false), Wait(10))),
-    updates(CAMPAIGN, row("Event_MeetingLeRoof", own(0x07_0570, false, false), Wait(12))),
+    // The `loc_70638` colour loops and `loc_705D6`'s fade-in, `VInt_Prepare`
+    // only: each waited out by its own palette op (#591).
+    row("Event_MeetingLeRoof", own(0x07_0538, false, false), Within(11)),
+    row("Event_MeetingLeRoof", own(0x07_05DC, false, false), Within(12)),
+    row("Event_MeetingLeRoof", own(0x07_0552, false, false), Within(13)),
+    row("Event_MeetingLeRoof", own(0x07_0570, false, false), Within(15)),
     row("Cutscene_LeRoofAgain", Map(0x07_8366), Wait(2)),
-    updates(CAMPAIGN, row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Wait(7))),
+    row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Within(9)),
     // `jsr loc_705D6` at `$078406`: `Event_MeetingLeRoof`'s fade-in loop.
-    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Wait(8))),
-    row("Cutscene_LeRoofAgain", Map(0x07_846C), Missing(CAMPAIGN)),
+    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(10)),
+    row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(11)),
+    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(19)),
     // Mounted: a frame of map updates after the SFX stop, a bare frame after
     // `Field_BuildSprites`, and a frame with the objects after the dismount.
     row("Event_CarnivorousTrees", Map(0x07_078C), Wait(3)),

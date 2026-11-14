@@ -8,7 +8,10 @@
 //! loop that spends frames (a tone, a restore, a flash, a cycle, a fade) is a
 //! running program the runtime steps once per tick with that tick's
 //! `Main_Frame_Count`, starting on the tick the scene emits it: the frame the
-//! cartridge's loop body first runs. Words a scene reads from the ROM come from
+//! cartridge's loop body first runs. The Le Roof colour cycle (`loc_70638`)
+//! also steps the index byte `$FFFFECF3`, which map programs share; its one
+//! owner is [`crate::MapUpdateView`]'s counters, lent to every call that can
+//! step a program. Words a scene reads from the ROM come from
 //! the pack (`presentation/panels.json`); a palette the pack lacks is listed in
 //! [`CramView::missing`] rather than guessed.
 //!
@@ -19,7 +22,7 @@
 //! pre-fade palette instead of reaching black.
 
 use psiv_core::palette::{self, PALETTE_WORDS};
-use psiv_core::{PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
+use psiv_core::{CounterCycle, PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
 use psiv_data::{MapRecord, ScenePalettes};
 
 /// `Pal_Init` (`$09F2BC`), the 64 words `InitVRAMAndCRAM` loads (`$05A68A`).
@@ -78,6 +81,17 @@ enum Program {
         elapsed: u16,
         writes: Vec<(u16, usize, Vec<u16>)>,
     },
+    /// `loc_70638` once a frame, `left` frames.
+    Cycle { cycle: Cycle, left: u16 },
+    /// `loc_705D6`: pass `pass` of `passes` over `table` at `start`, then
+    /// the frame's cycle.
+    GrowIn {
+        table: Vec<u16>,
+        start: usize,
+        passes: u16,
+        pass: u16,
+        cycle: Cycle,
+    },
     /// Whole-palette passes: the first at `first`, then every `every`
     /// frames, `count` in all.
     Passes {
@@ -87,6 +101,14 @@ enum Program {
         every: u16,
         count: u16,
     },
+}
+
+/// A [`CounterCycle`] with its table read from the pack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Cycle {
+    table: Vec<u16>,
+    offset: usize,
+    entries: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -218,19 +240,24 @@ impl Cram {
     }
 
     /// Steps the running program by one frame; the runtime calls it once at
-    /// the top of every tick.
-    pub(crate) fn tick(&mut self, main_frame_count: u16) {
+    /// the top of every tick. `cycle_index` is `$FFFFECF3`.
+    pub(crate) fn tick(&mut self, main_frame_count: u16, cycle_index: &mut u8) {
         let Some(program) = self.program.take().or_else(|| self.queued.take()) else {
             return;
         };
-        self.program = self.step(program, main_frame_count);
+        self.program = self.step(program, main_frame_count, cycle_index);
     }
 
     /// `TextAction_ElsydeonBroken` (`$06A76C`): the whole buffer to the
     /// second one (`move.w #$3F, d7 / trap #1`), `frames` of
     /// `Pal_IncreaseTone`, then `frames` of `loc_58666` back toward the copy
     /// (`moveq #$13, d7` each: 20). The first tone frame runs now.
-    pub(crate) fn tone_and_back(&mut self, frames: u16, main_frame_count: u16) {
+    pub(crate) fn tone_and_back(
+        &mut self,
+        frames: u16,
+        main_frame_count: u16,
+        cycle_index: &mut u8,
+    ) {
         self.saved = self.view.words;
         self.queued = Some(Program::Restore { left: frames });
         self.start(
@@ -239,16 +266,26 @@ impl Cram {
                 hold: None,
             },
             main_frame_count,
+            cycle_index,
         );
     }
 
     /// Starts `program` and runs its first frame now: the scene emitted it on
     /// this tick, which is the loop's first frame.
-    fn start(&mut self, program: Program, main_frame_count: u16) {
-        self.program = self.step(program, main_frame_count);
+    fn start(&mut self, program: Program, main_frame_count: u16, cycle_index: &mut u8) {
+        self.program = self.step(program, main_frame_count, cycle_index);
     }
 
-    fn step(&mut self, program: Program, frame: u16) -> Option<Program> {
+    /// One `loc_70638` frame: the two words, on a frame whose phase writes.
+    fn cycle_frame(&mut self, cycle: &Cycle, frame: u16, cycle_index: &mut u8) {
+        if let Some(words) =
+            palette::counter_cycle_step(frame, cycle_index, cycle.entries, &cycle.table)
+        {
+            self.write_run(cycle.offset, &words);
+        }
+    }
+
+    fn step(&mut self, program: Program, frame: u16, cycle_index: &mut u8) -> Option<Program> {
         let phase = palette::tone_phase(frame);
         match program {
             Program::Tone { left, hold } => {
@@ -310,6 +347,41 @@ impl Cram {
                     brighten,
                     words: count,
                     left: left - 1,
+                })
+            }
+            Program::Cycle { cycle, left } => {
+                if left == 0 {
+                    return None;
+                }
+                self.cycle_frame(&cycle, frame, cycle_index);
+                (left > 1).then_some(Program::Cycle {
+                    cycle,
+                    left: left - 1,
+                })
+            }
+            // `loc_705DC`: the pass's writes, then `bsr loc_70638`, then
+            // `VInt_Prepare`.
+            Program::GrowIn {
+                table,
+                start,
+                passes,
+                pass,
+                cycle,
+            } => {
+                if pass >= passes {
+                    return None;
+                }
+                let lit = palette::grow_in_lit(passes, pass);
+                if let Some(words) = palette::grow_in_words(&table, lit) {
+                    self.write_run(start, &words);
+                }
+                self.cycle_frame(&cycle, frame, cycle_index);
+                (pass + 1 < passes).then_some(Program::GrowIn {
+                    table,
+                    start,
+                    passes,
+                    pass: pass + 1,
+                    cycle,
                 })
             }
             Program::Writes { elapsed, writes } => {
@@ -404,7 +476,8 @@ impl Cram {
     }
 
     /// Applies one scene record on the tick the scene emits it. `map` is the
-    /// current map's record, for `ReloadMapPalette`. Returns the frames a
+    /// current map's record, for `ReloadMapPalette`; `cycle_index` is
+    /// `$FFFFECF3`. Returns the frames a
     /// [`PresentationOp::VariablePaletteFade`] spends, which the scene waits
     /// for; `None` for every other record.
     pub(crate) fn apply(
@@ -413,6 +486,7 @@ impl Cram {
         main_frame_count: u16,
         palettes: &ScenePalettes,
         map: Option<&MapRecord>,
+        cycle_index: &mut u8,
     ) -> Option<u16> {
         match *op {
             // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
@@ -455,7 +529,7 @@ impl Cram {
                 }
             }
             SceneOp::Presentation { op } => {
-                return self.presentation(op, main_frame_count, palettes);
+                return self.presentation(op, main_frame_count, palettes, cycle_index);
             }
             _ => {}
         }
@@ -465,7 +539,22 @@ impl Cram {
     /// `Panel_Create` for a dialogue `$F2` action's panel: the same writes as
     /// a scene's.
     pub(crate) fn panel(&mut self, id: u16, palettes: &ScenePalettes) {
-        let _ = self.apply(&SceneOp::PanelCreate { id }, 0, palettes, None);
+        // `Panel_Create` starts no program, so it steps no cycle.
+        let _ = self.apply(&SceneOp::PanelCreate { id }, 0, palettes, None, &mut 0);
+    }
+
+    /// The cycle's two series from the pack, or `None` with the address
+    /// listed as missing.
+    fn cycle(&mut self, cycle: CounterCycle, palettes: &ScenePalettes) -> Option<Cycle> {
+        let entries = usize::from(cycle.entries);
+        let table = self
+            .rom(palettes, cycle.source_rom_addr, 2 * entries)?
+            .to_vec();
+        Some(Cycle {
+            table,
+            offset: usize::from(cycle.offset),
+            entries: cycle.entries,
+        })
     }
 
     fn presentation(
@@ -473,6 +562,7 @@ impl Cram {
         op: PresentationOp,
         frame: u16,
         palettes: &ScenePalettes,
+        cycle_index: &mut u8,
     ) -> Option<u16> {
         match op {
             PresentationOp::SetPaletteWords {
@@ -511,10 +601,10 @@ impl Cram {
                         Some((start as usize, found.to_vec()))
                     },
                 );
-                self.start(Program::Tone { left: frames, hold }, frame);
+                self.start(Program::Tone { left: frames, hold }, frame, cycle_index);
             }
             PresentationOp::PaletteRestoreTone { frames } => {
-                self.start(Program::Restore { left: frames }, frame);
+                self.start(Program::Restore { left: frames }, frame, cycle_index);
             }
             PresentationOp::PaletteToneFlash {
                 brighten,
@@ -527,6 +617,7 @@ impl Cram {
                     left: frames,
                 },
                 frame,
+                cycle_index,
             ),
             // `loc_78296`: nine words a frame, then the frame's `dbf` wait.
             PresentationOp::RykrosPaletteCycle {
@@ -544,7 +635,7 @@ impl Cram {
                     writes.push((at, start as usize / 2, table[index * per..][..per].to_vec()));
                     at += u16::from(delay);
                 }
-                self.start(Program::Writes { elapsed: 0, writes }, frame);
+                self.start(Program::Writes { elapsed: 0, writes }, frame, cycle_index);
             }
             // `loc_6ED4E`: three words of line `destination_ram`'s words 1-3,
             // then `frame_delay` frames, `steps` times.
@@ -562,7 +653,7 @@ impl Cram {
                     .enumerate()
                     .map(|(n, row)| (n as u16 * frame_delay, start, row.to_vec()))
                     .collect();
-                self.start(Program::Writes { elapsed: 0, writes }, frame);
+                self.start(Program::Writes { elapsed: 0, writes }, frame, cycle_index);
             }
             // `loc_6E842`: two words a pass, then `frame_delay` frames.
             PresentationOp::PaletteCycleFromTable {
@@ -594,7 +685,43 @@ impl Cram {
                         )
                     })
                     .collect();
-                self.start(Program::Writes { elapsed: 0, writes }, frame);
+                self.start(Program::Writes { elapsed: 0, writes }, frame, cycle_index);
+            }
+            // The Le Roof colour loops: `loc_70638`, then `VInt_Prepare`.
+            PresentationOp::CounterPaletteCycle { cycle, frames } => {
+                let cycle = self.cycle(cycle, palettes)?;
+                self.start(
+                    Program::Cycle {
+                        cycle,
+                        left: frames,
+                    },
+                    frame,
+                    cycle_index,
+                );
+            }
+            // `loc_705D6`.
+            PresentationOp::PaletteGrowIn {
+                source_rom_addr,
+                offset,
+                words,
+                passes,
+                cycle,
+            } => {
+                let table = self
+                    .rom(palettes, source_rom_addr, usize::from(words))?
+                    .to_vec();
+                let cycle = self.cycle(cycle, palettes)?;
+                self.start(
+                    Program::GrowIn {
+                        table,
+                        start: usize::from(offset),
+                        passes,
+                        pass: 0,
+                        cycle,
+                    },
+                    frame,
+                    cycle_index,
+                );
             }
             // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
@@ -621,6 +748,7 @@ impl Cram {
                         count,
                     },
                     frame,
+                    cycle_index,
                 );
                 return Some(frames);
             }
@@ -640,6 +768,7 @@ impl Cram {
                         count: palette::RED_FADE_STAGES,
                     },
                     frame,
+                    cycle_index,
                 );
             }
             _ => {}
