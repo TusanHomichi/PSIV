@@ -161,6 +161,9 @@ PALETTE_REQUESTS = (
     (0x0007_0626, 9),  # loc_70626: the Le Roof fade-in's ramp (`$0705D6`)
     (0x0007_0672, 22),  # loc_70672: the Le Roof colour cycle, 2 x 11 (`$070638`)
     (0x0018_711A, 32),  # Pal_SilenceTm: Le Roof Room's lines 1-2 to Buffer_2 (`$0705A8`)
+    # PiataBasementB2_Palettes: Cutscene_Alshline's MapDataManager call
+    # (`$07444E`) copies 14 words to line 4 for Igglanova (`$052832`).
+    (0x0005_2848, 14),
 )
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The

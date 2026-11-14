@@ -145,6 +145,12 @@ pub(crate) struct Cram {
     /// The loop that starts on the tick after `program` ends: the second
     /// half of a routine that runs two loops back to back.
     queued: Option<Program>,
+    /// `Palette_Table_Buffer` as a scene's map load left it, while `view`
+    /// keeps the words `VInt` last uploaded: the scene's next op is
+    /// `Pal_VariableFadeIn`, which copies and clears the buffer before any
+    /// VBlank (`RefreshMap` ends with no wait, `ps4.asm:121767`), so no frame
+    /// shows them ([`Cram::hold_for_fade_in`]).
+    unshown: Option<[u16; PALETTE_WORDS]>,
 }
 
 impl Default for Cram {
@@ -154,6 +160,7 @@ impl Default for Cram {
             saved: [0; PALETTE_WORDS],
             program: None,
             queued: None,
+            unshown: None,
         }
     }
 }
@@ -185,6 +192,7 @@ impl Cram {
             saved: words,
             program: None,
             queued: None,
+            unshown: None,
         }
     }
 
@@ -203,6 +211,24 @@ impl Cram {
         self.view.revision = previous.view.revision.wrapping_add(1);
     }
 
+    /// A scene's map load whose next op is `Pal_VariableFadeIn`: the load's
+    /// words stay in the buffer, unshown, and the live words go back to
+    /// `shown`, the ones the frame before the load uploaded. The fade-in
+    /// copies the load's words to `Palette_Table_Buffer_2` and clears the
+    /// buffer on the next tick, before its first VBlank; any other record
+    /// first puts them live.
+    pub(crate) fn hold_for_fade_in(&mut self, shown: [u16; PALETTE_WORDS]) {
+        self.unshown = Some(self.view.words);
+        self.set_live(shown);
+    }
+
+    /// Puts a held map load's words live ([`Cram::hold_for_fade_in`]).
+    fn upload_unshown(&mut self) {
+        if let Some(words) = self.unshown.take() {
+            self.set_live(words);
+        }
+    }
+
     pub(crate) fn view(&self) -> &CramView {
         &self.view
     }
@@ -219,8 +245,15 @@ impl Cram {
         self.program.is_some()
     }
 
-    /// One word of the live buffer, as a map update program writes it.
+    /// One word of the live buffer, as a map update program writes it. A held
+    /// map load's words take it unshown ([`Cram::hold_for_fade_in`]).
     pub(crate) fn write(&mut self, slot: usize, word: u16) {
+        if let Some(unshown) = &mut self.unshown {
+            if let Some(current) = unshown.get_mut(slot) {
+                *current = word;
+            }
+            return;
+        }
         if let Some(current) = self.view.words.get_mut(slot)
             && *current != word
         {
@@ -508,6 +541,15 @@ impl Cram {
         map: Option<&MapRecord>,
         cycle_index: &mut u8,
     ) -> Option<u16> {
+        let fades_in = matches!(
+            op,
+            SceneOp::Presentation {
+                op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
+            }
+        );
+        if !fades_in {
+            self.upload_unshown();
+        }
         match *op {
             // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
             // buffer to the second one, then 32 longwords of `Pal_Init` (`$05A68A`).
@@ -745,7 +787,8 @@ impl Cram {
             }
             // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
-                self.saved = self.view.words;
+                // A held map load's words are the buffer the fade-in copies.
+                self.saved = self.unshown.take().unwrap_or(self.view.words);
                 let every = palette::dbf_frames(mode);
                 let (kind, first, count, frames) = if fade_in {
                     // `trap #0` clears the buffer, `VDP_EnableDisplay` spends

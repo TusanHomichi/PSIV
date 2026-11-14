@@ -35,6 +35,12 @@ def _word(data: bytes, offset: int) -> int:
 PALETTE_TABLE_BUFFER = 0xFFFB00
 MOVE_L_POSTINC = (0x22D8).to_bytes(2, "big")  # move.l (a0)+, (a1)+
 TRAP_1 = (0x4E41).to_bytes(2, "big")  # trap #1
+MOVE_W_A1_A2 = (0x34D9).to_bytes(2, "big")  # move.w (a1)+, (a2)+
+
+
+def _dbf(dn: int, displacement: int) -> bytes:
+    """`dbf Dn, *+2+displacement`."""
+    return (0x51C8 | dn).to_bytes(2, "big") + (displacement & 0xFFFF).to_bytes(2, "big")
 
 
 def _lea_l(address: int, an: int) -> bytes:
@@ -202,6 +208,13 @@ class PresentationPackTests(unittest.TestCase):
             0x070672: (0x070638, [
                 _lea_w(PALETTE_TABLE_BUFFER, 1), _lea_l(0x070672, 2),
             ], 22),
+            # MapDataMan_PiataBasementB2_Palettes, Cutscene_Alshline's call:
+            # lea PiataBasementB2_Palettes / lea Palette_Line_4 /
+            # moveq #13, d7 / move.w (a1)+, (a2)+ / dbf: 14 words.
+            0x052848: (0x052832, [
+                _lea_l(0x052848, 1), _lea_w(PALETTE_TABLE_BUFFER + 0x60, 2),
+                _moveq(13, 7), MOVE_W_A1_A2, _dbf(7, -4),
+            ], 14),
         }
         # Event_MeetingLeRoof's return: lea Pal_SilenceTm / lea
         # Palette_Table_Buffer_2 / move.w #$1F, d7 / trap #1: 32 words.

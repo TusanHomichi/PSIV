@@ -52,6 +52,7 @@ impl Runtime {
             .map
             .warp_at(self.party.leader().cell(), WarpTrigger::NormalGround)
             .copied();
+        let shown = self.effects.cram.view().words;
         let Some(warp) = warp else {
             self.scene = None;
             events.push(RuntimeEvent::SceneFaulted {
@@ -70,6 +71,7 @@ impl Runtime {
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
+                self.hold_palette_for_fade_in(shown);
                 self.scene_input = SceneInput::MapLoaded;
                 events.push(loaded.event(WarpTrigger::NormalGround));
             }
