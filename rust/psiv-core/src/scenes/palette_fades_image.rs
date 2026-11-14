@@ -128,13 +128,7 @@ const CALLS: &[Call] = &[
 
 /// Scenes whose fade records do not match their calls yet, and the issue
 /// that fixes each.
-const KNOWN: &[(&str, u32)] = &[
-    ("Cutscene_AlysWounded", 610),
-    ("Cutscene_PsycoWand", 610),
-    ("Cutscene_LutzRevelation", 610),
-    ("Cutscene_ProfoundDarkness", 610),
-    ("Cutscene_LeRoofAgain", 610),
-];
+const KNOWN: &[(&str, u32)] = &[];
 
 /// The fade record an op is, and its mode, if it is one.
 fn recorded(op: &SceneOp) -> Option<(Fade, u8)> {
@@ -175,22 +169,39 @@ fn mismatches(scenes: &[crate::Scene]) -> Vec<(&'static str, String)> {
     problems
 }
 
-#[test]
-fn every_scene_records_the_fades_its_bytes_call() {
-    let found = mismatches(SCENES);
+/// Every mismatch `known` does not list, and every scene `known` lists that
+/// matches.
+fn report(scenes: &[crate::Scene], known: &[(&str, u32)]) -> Vec<String> {
+    let found = mismatches(scenes);
     let mut problems: Vec<String> = found
         .iter()
-        .filter(|(name, _)| !KNOWN.iter().any(|(known, _)| known == name))
+        .filter(|(name, _)| !known.iter().any(|(known, _)| known == name))
         .map(|(_, problem)| problem.clone())
         .collect();
-    for (known, issue) in KNOWN {
+    for (known, issue) in known {
         if !found.iter().any(|(name, _)| name == known) {
             problems.push(format!(
                 "{known} now records the fades its bytes call: remove it from KNOWN (#{issue})"
             ));
         }
     }
+    problems
+}
+
+#[test]
+fn every_scene_records_the_fades_its_bytes_call() {
+    let problems = report(SCENES, KNOWN);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Negative control: an exception whose scene already matches is reported,
+/// so the list only shrinks.
+#[test]
+fn a_listed_scene_that_matches_is_reported() {
+    assert_eq!(
+        report(SCENES, &[("Cutscene_AlysWounded", 610)]),
+        ["Cutscene_AlysWounded now records the fades its bytes call: remove it from KNOWN (#610)"]
+    );
 }
 
 /// The fade calls in `ranges` of the image, in address order: every
@@ -249,9 +260,9 @@ fn the_calls_are_every_fade_in_the_scenes_bytes() {
     assert_eq!(CALLS, read.as_slice(), "CALLS is out of order");
 }
 
-/// The scenes #596 fixed, as each was or could be mistranscribed: every fade
-/// record swapped for a red fade, for the other span, for the other
-/// direction, or given another mode, is reported.
+/// The scenes #596 and #610 fixed, as each was or could be mistranscribed:
+/// every fade record swapped for a red fade, for the other span, for the
+/// other direction, or given another mode, is reported.
 #[test]
 fn a_wrong_fade_record_is_reported() {
     let swaps: [fn(PresentationOp) -> Option<PresentationOp>; 4] = [
@@ -303,6 +314,11 @@ fn a_wrong_fade_record_is_reported() {
         "Event_ReFaze",
         "Cutscene_CrashLaanding",
         "Cutscene_Ending",
+        "Cutscene_AlysWounded",
+        "Cutscene_PsycoWand",
+        "Cutscene_LutzRevelation",
+        "Cutscene_ProfoundDarkness",
+        "Cutscene_LeRoofAgain",
     ] {
         let scene = SCENES.iter().find(|scene| scene.name == name).unwrap();
         assert!(mismatches(std::slice::from_ref(scene)).is_empty(), "{name}");

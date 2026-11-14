@@ -222,9 +222,41 @@ fn step_down(frame: u16) -> u8 {
     PALETTE_LEVELS.saturating_sub(step_up(frame))
 }
 
+/// The cover left once a runtime-owned palette fade-in
+/// (`VariablePaletteFade` or `TwoLinePaletteFade` up) starts. A scene's
+/// `LoadMap` emits `MapChanged`, which starts the 80-frame doorway cover;
+/// the fade that follows reveals the map from black through the CRAM
+/// itself, so the doorway's hold would mask it. Every other cover stays.
+pub(crate) fn after_palette_fade_in(cover: Option<Transition>) -> Option<Transition> {
+    cover.filter(|transition| transition.kind != TransitionKind::Doorway)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Transition, TransitionColor, TransitionKind};
+    use super::{Transition, TransitionColor, TransitionKind, after_palette_fade_in};
+
+    /// A runtime fade-in ends a doorway cover at any age, and leaves the
+    /// other covers, and no cover, as they were.
+    #[test]
+    fn a_palette_fade_in_ends_only_the_doorway_cover() {
+        for age in [0, 1, 13, 40, 70] {
+            let mut doorway = Transition::new(TransitionKind::Doorway);
+            age_to(&mut doorway, age);
+            assert_eq!(after_palette_fade_in(Some(doorway)), None, "age {age}");
+        }
+        for kind in [
+            TransitionKind::BattleEntry,
+            TransitionKind::SceneStart,
+            TransitionKind::GameStart,
+            TransitionKind::SceneFadeIn,
+            TransitionKind::SceneFadeOut,
+        ] {
+            let mut cover = Transition::new(kind);
+            age_to(&mut cover, 3);
+            assert_eq!(after_palette_fade_in(Some(cover)), Some(cover), "{kind:?}");
+        }
+        assert_eq!(after_palette_fade_in(None), None);
+    }
 
     fn age_to(transition: &mut Transition, age: u16) {
         for _ in 0..age {

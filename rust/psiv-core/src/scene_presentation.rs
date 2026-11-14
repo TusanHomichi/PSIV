@@ -254,7 +254,10 @@ pub enum PresentationOp {
         /// Words written: the `trap #1` count plus one.
         words: u8,
     },
-    /// Clear both field planes before the staff roll text is drawn.
+    /// Clear the field planes: before the staff roll text is drawn, and
+    /// `ClearPlaneABuf` in `Cutscene_ProfoundDarkness` (`$078D44`), which
+    /// clears plane A's buffer only. The renderer hides the map either way;
+    /// palette and sprites are untouched.
     ClearPlanes,
     /// Clear the final Termi object banks and rebuild both plane maps before
     /// the `ArtNem_Fin` panel is uploaded.
@@ -683,6 +686,14 @@ pub enum CreditsPlane {
     A,
     /// Plane B is the star field/background plane.
     B,
+}
+
+/// `move.b #mode, ($FFFFED52).w` then `jsr Pal_VariableFadeOut`/`In`
+/// (`$05B168`/`$05B1B8`): [`PresentationOp::VariablePaletteFade`].
+pub(crate) const fn variable_fade(fade_in: bool, mode: u8) -> crate::SceneOp {
+    crate::SceneOp::Presentation {
+        op: PresentationOp::VariablePaletteFade { fade_in, mode },
+    }
 }
 
 /// `trap #1` of all 64 words from `Palette_Table_Buffer_2` back to

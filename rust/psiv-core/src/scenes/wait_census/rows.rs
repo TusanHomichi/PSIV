@@ -181,7 +181,7 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_AngerTowerAlys", Step(0x07_1530), Within(4)),
     // `loc_78ECE`'s 600 passes: the edge's palette updates and the random
     // white flashes with `SFXID_Tandle`, no `RunMapUpdates`.
-    defect(DEZO, row("Cutscene_ProfoundDarkness", own(0x07_8ED4, false, false), Wait(12))),
+    defect(DEZO, row("Cutscene_ProfoundDarkness", own(0x07_8ED4, false, false), Wait(14))),
     // dezo_campaign.rs
     // The `loc_70638` colour-cycle loops run no map updates; `bsr loc_705D6`
     // between the first two adds 71 passes of fade-in with no op.

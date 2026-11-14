@@ -161,7 +161,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_AngerTowerTop", 12),
         ("Event_AngerTowerAlys", 11),
         ("Event_AngerTowerExitTop", 10),
-        ("Cutscene_ProfoundDarkness", 20),
+        ("Cutscene_ProfoundDarkness", 22),
         ("Cutscene_RajaSick", 54),
         ("Cutscene_Rykros", 28),
         ("Cutscene_Ending", 371),

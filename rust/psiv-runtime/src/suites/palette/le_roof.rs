@@ -6,7 +6,7 @@ use std::path::Path;
 
 use super::{PACK, pack_present, runtime_at};
 use crate::{Runtime, RuntimeEvent};
-use psiv_core::{CharId, Flag, Input, PresentationOp, SceneOp};
+use psiv_core::{CharId, Flag, Input, PresentationOp, SceneOp, palette};
 use psiv_data::GameData;
 
 /// One tick of a Le Roof run: the frame count, the events, the palette and
@@ -365,7 +365,9 @@ fn meeting_le_roof_gives_back_the_room_palette() {
 /// Acceptance for `Cutscene_LeRoofAgain` (#591): the same loops (180,
 /// `jsr loc_705D6` at `$078406`, 120) before dialogue `$0B`, and after the
 /// panel's fade-out the 60-frame `DoMapUpdateLoop` at `$07846C`, which runs
-/// a map update on each of its frames.
+/// a map update on each of its frames. Before it, `Pal_VariableFadeOut` at
+/// mode 5 (`$078460`, #610) takes the panel's palette to black, six frames a
+/// pass, with no map update.
 #[test]
 fn le_roof_again_cycles_then_waits_with_map_updates() {
     if !pack_present() {
@@ -407,16 +409,38 @@ fn le_roof_again_cycles_then_waits_with_map_updates() {
             .iter()
             .any(|event| matches!(event, RuntimeEvent::ScenePresentation { op, .. } if want(op)))
     };
-    let fade_out = (second..ticks.len())
-        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::FadeOut)))
-        .expect("the fade-out");
+    let fade_out = le_roof_emitted(&ticks, second, |op| {
+        matches!(
+            op,
+            PresentationOp::VariablePaletteFade {
+                fade_in: false,
+                mode: 5
+            }
+        )
+    });
+    let spent = usize::from(palette::variable_fade_out_frames(
+        &ticks[fade_out - 1].words,
+        5,
+    ));
+    assert_eq!(spent % 6, 0);
+    assert_eq!(ticks[fade_out + spent - 1].words, [0; 64]);
+    assert_ne!(ticks[fade_out + spent - 7].words, [0; 64]);
     let reinit = (fade_out..ticks.len())
         .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::InitVramAndCram)))
         .expect("the second InitVRAMAndCRAM");
-    assert_eq!(reinit - fade_out, 60, "the 60-frame wait between");
     assert_eq!(
-        ticks[reinit - 1].calls - ticks[fade_out - 1].calls,
+        reinit - fade_out,
+        spent + 60,
+        "the fade, then the 60-frame wait"
+    );
+    assert_eq!(
+        ticks[fade_out + spent - 1].calls,
+        ticks[fade_out - 1].calls,
+        "no map update in the fade"
+    );
+    assert_eq!(
+        ticks[reinit - 1].calls - ticks[fade_out + spent - 1].calls,
         60,
-        "a map update on each of its frames"
+        "a map update on each of the wait's frames"
     );
 }

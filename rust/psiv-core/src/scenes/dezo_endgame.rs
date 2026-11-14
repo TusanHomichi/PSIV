@@ -8,7 +8,9 @@
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CameraSubject, PaletteHold, PresentationOp};
+use crate::scene_presentation::{
+    CameraSubject, PaletteHold, PresentationOp, RESTORE_PALETTE, variable_fade,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -774,8 +776,13 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
     event: EventIndex(0x8020),
     ops: &[
         SceneOp::PlaySound { id: SFX_TELEPORT },
-        SceneOp::FadeOut,
-        SceneOp::InitVramAndCram,
+        // `$078D3E`: `move.b #1, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`,
+        // then `ClearPlaneABuf`: no `InitVRAMAndCRAM`, whose own fade would
+        // overwrite the copy the fade-in restores.
+        variable_fade(false, 1),
+        SceneOp::Presentation {
+            op: PresentationOp::ClearPlanes,
+        },
         SceneOp::LoadArt {
             rom_addr: 0x001D_D566,
             tile: 0x20E,
@@ -811,7 +818,12 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
             frames: 1,
         },
         SceneOp::DmaPlanes,
-        SceneOp::FadeIn,
+        // `$078E4A..$078E69`: the 64 words back from `Palette_Table_Buffer_2`
+        // (`moveq #$3F, d7` / `trap #1`), the teleport sound again, and
+        // `Pal_VariableFadeIn` at mode 7 (`$078E64`).
+        RESTORE_PALETTE,
+        SceneOp::PlaySound { id: SFX_TELEPORT },
+        variable_fade(true, 7),
         SceneOp::PlaySound { id: SOUND_STOP_ALL },
         SceneOp::Wait { ticks: 600 },
         SceneOp::PlaySound {

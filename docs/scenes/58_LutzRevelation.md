@@ -15,7 +15,7 @@ include is excluded. ROM range: `$077896..$077A2E` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-6 | `$077896..$07791F` | dialogue `$2A`, move Chaz, stairs SFX, load Inner Sanctuary B1 | dialogue/map |
+| 0-6 | `$077896..$07791F` | dialogue `$2A`, move Chaz, stairs SFX, `Pal_VariableFadeOut` (`$ED52` 2, `$0778C6`), load Inner Sanctuary B1, `Pal_VariableFadeIn` (`$ED52` 2, `$077902`) | dialogue/`VariablePaletteFade`/map |
 | 7-18 | `$077920..$0779A9` | Kyra movement/facing choreography and waits | actor/wait |
 | 19-25 | `$0779AA..$0779F0` | dialogue `$2F`, panel `$9E`, resume; set `$97` | dialogue/flag |
 | 26-29 | `$0779F1..$077A2D` | reload Inner Sanctuary B1 with alignment `8`, return | map |
