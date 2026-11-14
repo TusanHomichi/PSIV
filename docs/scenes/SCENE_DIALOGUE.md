@@ -194,6 +194,39 @@ breaks). At 60 Hz that is **20 characters per second**.
 
 Retail is a 3-frame-per-character typewriter.
 
+**The open steps.** `loc_686BC` (`ps4.asm:139790`) redraws the box two cells
+wider a pass. `Event_RunDialogue3` and the other text routines set
+`Window_Render_Mode` bit 1, whose `bchg #2` sends only every other pass, the
+first included, through `DMAPlane_A_VInt`. The 34-cell box therefore shows 2,
+6, 10 ... 34 cells on its nine frames (tape 43, frames 8203-8211, 16 to 272
+pixels wide); `DialogueRunner` steps the same widths.
+
+**Portrait loads are lag frames.** `TextCtrlCode_Portrait` (`ps4.asm:142661`)
+destroys the portrait that is up with one `DMAPlane_A_VInt` (`$06A1B4`), then
+decompresses the new art (`jsr NemDecomp`, `$06A1D6`) and writes its window
+to `Plane_A_Buffer`, which reaches the screen with the next glyph's
+`DMAPlane_A_VInt`. The VInts the decompression straddles find `VInt_Flag`
+clear: they run no `ReadJoypads`, no `UpdateRNGSeed` and no
+`Main_Frame_Count` (`ps4.asm:548-549`, `614-624`). Tape 43's
+`Cutscene_Rykros`, by `main_frame_count`:
+
+| What | Frames | Lag frames |
+|---|---|---|
+| a page with a new portrait (ids 1, 4, 6, 8) | clear 7400, destroy 7402, portrait and first glyph 7405 | 7401, 7403-7404 |
+| a page without one | clear 7576, first glyph 7578 | 7577 |
+| a new `Event_RunDialogue3` window with a portrait | box open 8211, portrait and first glyph 8216 | 8212-8215 |
+| a new `Event_RunDialogue5` window with a portrait | box open 8619, portrait and first glyph 8623 | 8620-8622 |
+
+Every portrait change on the tape lags two frames between its destroy and the
+new portrait (7403-7404, 7467-7468, 7723-7724, 7915-7916, 8027-8028,
+8507-8508). The runner models those two (`PORTRAIT_LOAD_LAG_FRAMES`): on a lag
+frame it, the field tick and the RNG do nothing, and the portrait shows with
+the first glyph after its `$F4`. `$F4 0` only restores the plane, with no
+frame. The other lag on the table, the text routine's own work after the box
+opens and after a page clears, is not modelled as lag: the typewriter's first
+three frames stand in for it (deviation in
+[the source notes](../source-notes/README.md)).
+
 ### A window opening is not proof of a talk
 
 `Interaction_ContinueChecks` ends with

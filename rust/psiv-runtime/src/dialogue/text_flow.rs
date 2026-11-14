@@ -33,6 +33,35 @@ pub enum Opening {
 /// Frames of each of `TextAction_ElsydeonBroken`'s two loops (`moveq #$13, d7`).
 pub(crate) const ELSYDEON_BROKEN_FRAMES: u16 = 20;
 
+/// Lag frames `TextCtrlCode_Portrait` spends decompressing the portrait's art
+/// (`jsr NemDecomp`, `$06A1D6`): the VInts it straddles find `VInt_Flag`
+/// clear. Measured, not derived: every portrait change on tape 43 (ids 1, 4,
+/// 6 and 8, `Cutscene_Rykros`) holds `Main_Frame_Count` for two frames between
+/// the old portrait's destroy and the new one (frames 7403-7404, 7467-7468,
+/// 7723-7724, 7915-7916, 8027-8028, 8507-8508).
+pub(crate) const PORTRAIT_LOAD_LAG_FRAMES: u8 = 2;
+
+/// A `$F4` the walk ran: `TextCtrlCode_Portrait` (`$06A18E`), its frames and
+/// where on the page it sits.
+///
+/// The routine writes the portrait's window into `Plane_A_Buffer`, which
+/// reaches the screen with the next `DMAPlane_A_VInt`: the one after the
+/// next glyph. The window shows the old portrait until the typewriter reaches
+/// [`PortraitChange::at`], spends the change's frames, and shows the new one
+/// with the glyph after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortraitChange {
+    /// Glyphs of the page before the `$F4`.
+    pub at: usize,
+    /// The portrait on screen before it.
+    pub previous: Option<u8>,
+    /// Counted frames: the `DMAPlane_A_VInt` after destroying a portrait
+    /// that was up (`$06A1B4`), which shows the window without one.
+    pub destroy_frames: u8,
+    /// Lag frames: [`PORTRAIT_LOAD_LAG_FRAMES`] for each portrait loaded.
+    pub lag_frames: u8,
+}
+
 /// One retail `$F2` action, released when the typewriter reaches its byte
 /// position. Payload-bearing variants keep the decoder's word/byte widths;
 /// the runtime applies `SetEventFlag` to [`GameState`] itself, and the
@@ -107,6 +136,8 @@ pub struct TextFlow {
     entry_id: u16,
     /// Relative entry counts after `$F5`; zero continues at the current byte.
     choice: Option<[u16; 2]>,
+    /// The `$F4` the walk ran since the window last took one.
+    portrait_change: Option<PortraitChange>,
 }
 
 impl TextFlow {
@@ -173,6 +204,7 @@ impl TextFlow {
             pending_action: None,
             entry_id: entry.id,
             choice: None,
+            portrait_change: None,
         };
         flow.pump(game);
         if flow.done && flow.stop.is_none() {
@@ -193,10 +225,16 @@ impl TextFlow {
         self.lines.iter().map(|line| line.chars().count()).sum()
     }
 
-    /// The portrait id currently shown, if any.
+    /// The portrait id the walk has reached, if any. The window shows it once
+    /// its [`PortraitChange`] has run.
     #[must_use]
     pub fn portrait(&self) -> Option<u8> {
         self.portrait
+    }
+
+    /// The `$F4` the walk ran since the last call, once.
+    pub fn take_portrait_change(&mut self) -> Option<PortraitChange> {
+        self.portrait_change.take()
     }
 
     /// How the page on screen ended, if a page is finished.
@@ -344,7 +382,9 @@ impl TextFlow {
         self.lines = vec![String::new()];
         self.line = 0;
         self.column = 0;
+        // The window's destroy took the portrait with it.
         self.portrait = None;
+        self.portrait_change = None;
         self.stop = None;
         self.closed = false;
         self.done = false;
@@ -416,6 +456,34 @@ impl TextFlow {
             Some(Segment::Control(ctrl)) => Some(ctrl.code()),
             _ => None,
         }
+    }
+
+    /// `TextCtrlCode_Portrait`: `$F4 0` destroys the portrait with no frame
+    /// (`loc_6A29C`); any other id destroys the one up, if any, with a
+    /// `DMAPlane_A_VInt` (`$06A1B4`), then decompresses the new art.
+    fn change_portrait(&mut self, id: u8) {
+        let previous = self.portrait;
+        let up = previous.is_some();
+        let load = id != PORTRAIT_HIDE;
+        self.portrait = load.then_some(id);
+        let destroy = u8::from(load && up);
+        let lag = if load { PORTRAIT_LOAD_LAG_FRAMES } else { 0 };
+        let at = self.visible_chars();
+        self.portrait_change = Some(match self.portrait_change {
+            // A second `$F4` before the window took the first: one change,
+            // from the first one's portrait, with both costs.
+            Some(first) => PortraitChange {
+                destroy_frames: first.destroy_frames + destroy,
+                lag_frames: first.lag_frames + lag,
+                ..first
+            },
+            None => PortraitChange {
+                at,
+                previous,
+                destroy_frames: destroy,
+                lag_frames: lag,
+            },
+        });
     }
 
     fn close(&mut self, end: PageEnd) {
@@ -542,7 +610,7 @@ impl TextFlow {
                 true
             }
             Ctrl::Portrait { id, position, .. } => {
-                self.portrait = (*id != PORTRAIT_HIDE).then_some(*id);
+                self.change_portrait(*id);
                 if let Some(slot) = position {
                     self.log.push(format!(
                         "portrait: talk slot {slot} ignored (talk mode is later)"

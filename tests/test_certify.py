@@ -35,7 +35,8 @@ SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "endin
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
-                         "teleport-close-towns", "recovery-flash", "rykros-palette-cycle", "zio-barrier-ramp"]
+                         "teleport-close-towns", "recovery-flash", "rykros-palette-cycle", "rykros-portrait",
+                         "zio-barrier-ramp"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -129,7 +130,7 @@ class PairTableCase(unittest.TestCase):
         pairs = {p[0]: p for p in certify.PAIRS}
         rykros = pairs["rykros-palette-cycle"]
         zio = pairs["zio-barrier-ramp"]
-        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1270))
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1292))
         self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
         self.assertNotIn("region", rykros[5])
         self.assertEqual(zio[5]["region"], [1, 1, 319, 223])

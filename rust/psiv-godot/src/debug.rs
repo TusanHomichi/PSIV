@@ -262,7 +262,8 @@ impl Field {
     /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
     /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_EVENT`
+    /// screenshot so an agent can see what a player would, and
+    /// `PSIV_DEBUG_SHOT_LAST=<n>` one per tick through tick n. `PSIV_DEBUG_EVENT`
     /// starts a transcribed scene at tick 30; combine it with
     /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
     /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
@@ -468,9 +469,20 @@ impl Field {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(180);
-        if self.anim_tick != at {
-            return;
-        }
+        // `PSIV_DEBUG_SHOT_LAST=<n>`: every tick from `at` through `n`, each
+        // to `<path stem>-t<tick>.png`, so a frame sweep is one run.
+        let last: Option<u64> = std::env::var("PSIV_DEBUG_SHOT_LAST")
+            .ok()
+            .and_then(|v| v.parse().ok());
+        let path = match last {
+            None if self.anim_tick == at => path,
+            Some(last) if (at..=last).contains(&self.anim_tick) => {
+                let stem = path.strip_suffix(".png").unwrap_or(&path);
+                format!("{stem}-t{}.png", self.anim_tick)
+            }
+            _ => return,
+        };
+        let at = self.anim_tick;
         if self.battle_presentation_active()
             && let Some(screen) = self.battle_screen.as_ref()
         {

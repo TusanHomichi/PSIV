@@ -243,10 +243,16 @@ pub static RYKROS: Scene = Scene {
             op: PresentationOp::PaletteRestoreTone { frames: 30 },
         },
         SceneOp::WaitFrames { frames: 30 },
+        // $07823A, $078264, $07827C: `move.b #1, (Render_Sprites_In_Cutscenes).w`
+        // after each `popdlg`, before both `Event_RunDialogue3`s and the
+        // `Event_RunDialogue5`. The last text's return cleared it, and the
+        // panel portrait layout reads it.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::Presentation {
             op: PresentationOp::RykrosPaletteCycle {
@@ -256,6 +262,7 @@ pub static RYKROS: Scene = Scene {
                 delays: RYKROS_PALETTE_DELAYS,
             },
         },
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
         },

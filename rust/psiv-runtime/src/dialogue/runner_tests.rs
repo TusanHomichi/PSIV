@@ -410,8 +410,9 @@ fn the_close_signal_says_whether_the_cursor_was_saved() {
 #[test]
 fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
     // The oracle's 9-frame open, derived from `window.json` rather than
-    // hard-coded: the pack's step_cells is per side and the box is 34 cells
-    // wide, so it reaches full width on the ninth frame.
+    // hard-coded: `loc_686BC` widens the 34-cell box by step_cells (2) a
+    // pass and waits for a VInt on every other pass, the first included.
+    // Tape 43 shows 16, 48, 80 ... 272 pixels on frames 8203-8211.
     let Some(mut runner) = packed_runner() else {
         return;
     };
@@ -426,5 +427,147 @@ fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
         assert!(frames <= 16, "the box never opened: {widths:?}");
     }
     assert_eq!(frames, 9);
-    assert_eq!(widths, [4, 8, 12, 16, 20, 24, 28, 32, 34]);
+    assert_eq!(widths, [2, 6, 10, 14, 18, 22, 26, 30, 34]);
+}
+
+fn portrait(id: u8) -> Segment {
+    Segment::Control(Ctrl::Portrait {
+        code: 0xF4,
+        operands: vec![id],
+        id,
+        position: None,
+    })
+}
+
+/// What one frame shows: the portrait, the glyphs, and whether the next
+/// frame is a lag frame.
+fn shown(runner: &DialogueRunner) -> (Option<u8>, usize, bool) {
+    let view = runner.view().expect("a window");
+    (view.portrait, view.revealed, runner.lag_frame())
+}
+
+#[test]
+fn a_new_windows_portrait_comes_with_its_first_glyph_after_two_lag_frames() {
+    // Tape 43, `Cutscene_Rykros`'s second `Event_RunDialogue3` (`$F4 6`,
+    // "Hey!"): the box opens on frames 8203-8211, 8212-8215 hold
+    // `Main_Frame_Count`, and 8216 draws the portrait with the first glyph,
+    // 8219 the second. The runner folds the routine's own two frames of
+    // setup into the typewriter's three; the portrait adds its two lag frames.
+    let Some(mut runner) = packed_runner() else {
+        return;
+    };
+    let mut game = GameState::new();
+    assert!(runner.open_resolved(&entry(vec![portrait(6), text("Hey!")]), &game));
+    let mut frames = Vec::new();
+    for _ in 0..17 {
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+        frames.push(shown(&runner));
+    }
+    // Frames 1-8 (8203-8210) open the box.
+    let mut expected = vec![(None, 0, false); 8];
+    expected.extend([
+        (None, 0, true),     // 9 (8211): open; the next two frames lag
+        (None, 0, true),     // 10 (8212): lag
+        (None, 0, false),    // 11 (8213): lag
+        (None, 0, false),    // 12-13 (8214-8215): the typewriter's wait
+        (None, 0, false),    //
+        (Some(6), 1, false), // 14 (8216): the portrait and "H"
+        (Some(6), 1, false),
+        (Some(6), 1, false),
+        (Some(6), 2, false), // 17 (8219): "e"
+    ]);
+    assert_eq!(frames, expected);
+}
+
+#[test]
+fn a_portrait_change_destroys_the_old_one_then_lags_two_frames() {
+    // Tape 43 frame 7400 clears the page (`$FD`, then `$F4 8`); 7401 lags;
+    // 7402 shows the window without the old portrait; 7403-7404 lag; 7405
+    // draws the new portrait with the first glyph. A page with no `$F4`
+    // clears on 7576 and draws its first glyph on 7578. So the change adds
+    // three frames to the page, one destroy and two lag. The control types
+    // its first glyph on the press frame (Speak held, tape 16); with the
+    // change, that step waits behind the three frames.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    let page = |id: Option<u8>| {
+        let mut segments = vec![portrait(1), text("Are"), wait()];
+        segments.extend(id.map(portrait));
+        segments.push(text("We"));
+        entry(segments)
+    };
+    for (next, expected) in [
+        (
+            Some(8),
+            vec![
+                (None, 0, true),     // the press frame: the destroy
+                (None, 0, true),     // lag
+                (None, 0, false),    // lag
+                (Some(8), 1, false), // the step the press reached
+            ],
+        ),
+        (
+            None,
+            vec![
+                (Some(1), 1, false),
+                (Some(1), 1, false),
+                (Some(1), 1, false),
+            ],
+        ),
+    ] {
+        assert!(runner.open_resolved(&page(next), &game));
+        let mut signals = Vec::new();
+        for _ in 0..40 {
+            if runner.view().is_some_and(|view| view.dismissable) {
+                break;
+            }
+            frame(&mut runner, &mut game, Pad::NEUTRAL);
+        }
+        assert_eq!(shown(&runner), (Some(1), 3, false), "the first page is up");
+        signals.extend(frame(&mut runner, &mut game, Pad::new(Button::Speak)));
+        let mut frames = vec![shown(&runner)];
+        for _ in 1..expected.len() {
+            frame(&mut runner, &mut game, Pad::NEUTRAL);
+            frames.push(shown(&runner));
+        }
+        assert_eq!(frames, expected, "next portrait {next:?}");
+        assert!(faults(&signals).is_empty());
+        runner.close_window();
+    }
+}
+
+#[test]
+fn hiding_the_portrait_takes_no_frame_and_shows_with_the_next_glyph() {
+    // `$F4 0` is `loc_6A29C` alone: the plane is restored with no VInt, so
+    // the old portrait goes with the next glyph and no frame is added. Here
+    // it sits after two glyphs of the page: "B" on the press frame (Speak
+    // held), "C" three frames on, then "D" with the portrait gone.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    let segments = vec![
+        portrait(1),
+        text("A"),
+        wait(),
+        text("BC"),
+        portrait(0),
+        text("D"),
+    ];
+    assert!(runner.open_resolved(&entry(segments), &game));
+    for _ in 0..40 {
+        if runner.view().is_some_and(|view| view.dismissable) {
+            break;
+        }
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+    }
+    frame(&mut runner, &mut game, Pad::new(Button::Speak));
+    let mut frames = vec![shown(&runner)];
+    for _ in 0..6 {
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+        frames.push(shown(&runner));
+    }
+    let up = |glyphs| (Some(1), glyphs, false);
+    assert_eq!(
+        frames,
+        [up(1), up(1), up(1), up(2), up(2), up(2), (None, 3, false)]
+    );
 }

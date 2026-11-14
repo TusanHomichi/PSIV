@@ -251,6 +251,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
   at most a cell, and the dialogue that follows is the same; the frames between the press and the
   text, and so the shared RNG stream and palette phase, run up to 8 frames a cell ahead
   of the cartridge, and up to 15 more when the mid-step owner was already heading into the column.
+- The dialogue window's lag frames (`DialogueRunner`,
+  [record](../scenes/SCENE_DIALOGUE.md#dialogue-timing)). The runner makes lag frames of
+  `TextCtrlCode_Portrait`'s decompression only: two per portrait, measured on tape 43. The text
+  routines' own work also straddles VInts that find `VInt_Flag` clear: after a new box opens (two
+  frames for an `Event_RunDialogue3` box, one for an `Event_RunDialogue5` box, both with a
+  portrait) and after a page clears (one). The runner counts those frames as ordinary ones inside
+  the typewriter's first three, so `Main_Frame_Count` and the RNG run up to two frames ahead of the
+  cartridge per window and one per page. A new `Event_RunDialogue5` window draws its portrait and
+  first glyph one frame after the cartridge (tape 43, frame 8623: three lag frames and one, against
+  the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
+  the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
+  frame (7400 and 7402 on tape 43).
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.

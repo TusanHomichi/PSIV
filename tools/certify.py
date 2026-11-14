@@ -257,6 +257,13 @@ TAPE_43 = {
     "frames": [8580],
 }
 
+# The same run's window after the tone (#625): `Event_RunDialogue3` opens the
+# box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
+# decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
+# position (24,112) with the first glyph. Clone tick t shows frame t + 7246
+# from the tone's restore (954) through tick 1010.
+TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
+
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
 # The reload reaches control at 7173; entering at 7202 gives the native
 # selector's thirty field-object calls before the scene. No pose is patched.
@@ -281,7 +288,9 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 160,
+    # The first page complete, its arrow up: ticks 161-165 once Chaz's
+    # portrait spends its two lag frames (#625).
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 162,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -294,9 +303,10 @@ PAIRS = [
     ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: the native tone runs ticks 622-657 in the
-    # cartridge's 4-frame steps, 638-641 the brightest.
-    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
+    # The break's tone at its peak: the native tone runs ticks 635-670 in the
+    # cartridge's 4-frame steps, 651-654 the brightest (13 ticks later than
+    # before the dialogue's portraits lagged, #625).
+    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 651,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
@@ -391,9 +401,14 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1270,
+    # The cycle's rows run ticks 1277-1298 against frames 8565-8586 once the
+    # scene's portraits lag (#625): 1292 is the third row's second frame.
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1292,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
+    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
+     "build/certify/oracle/rykros-portrait/frame_8216.png",
+     "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
