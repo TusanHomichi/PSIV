@@ -100,8 +100,10 @@ impl WindowLine {
     /// The colour the window shader draws a pixel of baked art in: the live
     /// colour at the first index 1-15 whose baked colour the pixel is, else
     /// the pixel as it is, alpha kept. Index 0 is the VDP's transparent
-    /// colour and is never looked up. The shader's rule, as data, for tests.
+    /// colour and is never looked up. The shader's rule, as data, for
+    /// `tests/window_palette.rs`; the library's own tests do not call it.
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn colour(&self, rgba: [u8; 4]) -> [u8; 4] {
         let rgb = [rgba[0], rgba[1], rgba[2]];
         (1..16)
