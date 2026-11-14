@@ -70,7 +70,8 @@ fn trace(ops: &'static [SceneOp]) -> String {
                     SceneOp::FadeIn => "I".to_owned(),
                     SceneOp::InitVramAndCram => "V".to_owned(),
                     SceneOp::PanelCreate { .. } => "P".to_owned(),
-                    SceneOp::DmaPlanes => continue,
+                    // The panel byte (#630) spends no frame and draws nothing here.
+                    SceneOp::DmaPlanes | SceneOp::SetRenderSpritesInCutscene { .. } => continue,
                     other => panic!("unexpected op {other:?}"),
                 },
                 _ => continue,
