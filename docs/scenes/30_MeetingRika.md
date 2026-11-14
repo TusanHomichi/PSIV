@@ -81,7 +81,7 @@ party state or the exact two-stage dialogue tree swap.
 | 56 | `$074814..$07481B` | `Sound_Index ← SpcSFXID_SpaceshipRadar ($F8)` | `PlaySound($F8)` |
 | 57 | `$07481C..$074825` | `DoMapUpdateLoop($3B)` = 60 ticks | `Wait(60)` |
 | 58 | `$074826..$074831` | palette byte offset `$18` (words `$0C`/`$0D`) ← `$000E,$000E` | `Presentation(SetPaletteWords { offset: $0C })` |
-| 59 | `$074832..$07483F` | `VInt_Prepare` loop, corrected `$3B+1=60` | `WaitFrames(60)` |
+| 59 | `$074832..$07483F` | `VInt_Prepare` loop, corrected `$3B+1=60`; no map or object update | `Wait(60)`, which runs map updates ([#619](https://github.com/TusanHomichi/PSIV/issues/619)) |
 | 60 | `$074840..$074845` | `PalFadeOut_ClrSpriteTbl` | `FadeOut` |
 | 61 | `$074846..$07484D` | stop special SFX (`$FD`) | `PlaySound($FD)` |
 | 62 | `$07484E..$074853` | `Current_Party_Slot_5 ← CharID_Rika` | `JoinParty(slot 4, Rika)` |
