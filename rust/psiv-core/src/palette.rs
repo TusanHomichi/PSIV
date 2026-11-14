@@ -246,7 +246,7 @@ pub fn variable_fade_out_frames(words: &[u16], delay: u8) -> u16 {
 /// one `VInt_Prepare`, then `delay + 1` per pass.
 #[must_use]
 pub fn variable_fade_in_frames(target: &[u16], delay: u8) -> u16 {
-    1 + variable_fade_in_passes(target).saturating_mul(dbf_frames(delay))
+    1u16.saturating_add(variable_fade_in_passes(target).saturating_mul(dbf_frames(delay)))
 }
 
 /// The `(first, second)` palette words each pass of a

@@ -604,8 +604,21 @@ fn le_roof_run(
     flags: &[Flag],
     stop: impl Fn(&RuntimeEvent) -> bool,
 ) -> Vec<LeRoofTick> {
+    le_roof_run_on(&mut le_roof_room(flags), event, stop)
+}
+
+/// Le Roof Room (`$F0`) with Chaz beside Le Roof, its map just loaded.
+fn le_roof_room(flags: &[Flag]) -> Runtime {
     let party = [Some(CharId(0)), None, None, None, None];
-    let mut runtime = runtime_at(0x0F0, (0x1F0, 0x1F0), party, flags);
+    runtime_at(0x0F0, (0x1F0, 0x1F0), party, flags)
+}
+
+/// [`le_roof_run`] on `runtime`, which is left where the run stopped.
+fn le_roof_run_on(
+    runtime: &mut Runtime,
+    event: u16,
+    stop: impl Fn(&RuntimeEvent) -> bool,
+) -> Vec<LeRoofTick> {
     assert_eq!(
         runtime.map_updates().counters[1],
         0,
@@ -799,6 +812,133 @@ fn meeting_le_roof_cycles_and_fades_in_its_palette() {
         &mut 0,
     );
     assert_eq!(cram.view().missing, [0x0007_0626]);
+}
+
+/// Acceptance for `Event_MeetingLeRoof`'s return (`$07058A..$0705C3`): the
+/// fade-out, then `Pal_SilenceTm`'s words 0-31 into `Palette_Table_Buffer_2`
+/// and the fade up to them, give back the room's own palette: after
+/// `SceneEnded` and on every field tick after it, all 64 words are the ones
+/// the map load left, except the words the room's own map program animates
+/// (learnt from the same room left alone), which take only values that
+/// program writes, through the `Event_Recovery` the cell beside Le Roof
+/// starts. Negative control: the last tick of the last colour loop still
+/// shows the cinematic words (the ramp, the cycle words and the black second
+/// line), so the check would see them left up.
+#[test]
+fn meeting_le_roof_gives_back_the_room_palette() {
+    if !pack_present() {
+        return;
+    }
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let silence = data
+        .scene_palettes()
+        .words(0x0018_711A)
+        .expect("Pal_SilenceTm")
+        .to_vec();
+    assert_eq!(silence.len(), 32);
+
+    // The room left alone (`$D1` set, so its trigger stays off, and Chaz off
+    // the recovery tile `RunEvent_Recovery` watches): the words its map
+    // program writes, and the values.
+    let party = [Some(CharId(0)), None, None, None, None];
+    let mut alone = runtime_at(0x0F0, (16, 16), party, &[Flag::event(0xD1)]);
+    let field = alone.cram().words;
+    let mut animated: Vec<std::collections::BTreeSet<u16>> = vec![Default::default(); 64];
+    for _ in 0..600 {
+        let events = alone.tick(Input::Neutral);
+        assert!(
+            !alone.scene_active(),
+            "no event starts once `$D1` is set: {events:?}"
+        );
+        for (slot, &word) in alone.cram().words.iter().enumerate() {
+            if word != field[slot] {
+                animated[slot].insert(word);
+            }
+        }
+    }
+    let still = |slot: usize| animated[slot].is_empty();
+    // The room's lines 1-2 are `Pal_SilenceTm`'s, the fade's target.
+    for slot in (0..32).filter(|&slot| still(slot)) {
+        assert_eq!(field[slot], silence[slot], "word {slot} of the map load");
+    }
+
+    let mut runtime = le_roof_room(&[]);
+    assert_eq!(runtime.cram().words, field, "the same map load");
+    let ticks = le_roof_run_on(&mut runtime, 0x0048, |event| {
+        matches!(event, RuntimeEvent::SceneEnded)
+    });
+    let ended = ticks.last().expect("ticks");
+    assert!(
+        ended
+            .events
+            .iter()
+            .any(|event| matches!(event, RuntimeEvent::SceneEnded)),
+        "the scene ends"
+    );
+    assert!(runtime.game().is_set(Flag::event(0xD1)));
+
+    let stop = ticks
+        .iter()
+        .position(|tick| {
+            tick.events.iter().any(|event| {
+                matches!(
+                    event,
+                    RuntimeEvent::ScenePresentation {
+                        op: SceneOp::PlaySound { id: 0xFB },
+                        ..
+                    }
+                )
+            })
+        })
+        .expect("the music stop after the last colour loop");
+    let cinematic = &ticks[stop - 1].words;
+    let differs = |range: std::ops::Range<usize>| {
+        range
+            .filter(|&slot| still(slot) && cinematic[slot] != field[slot])
+            .count()
+    };
+    assert!(differs(2..11) > 0, "the ramp is up before the fade-out");
+    assert!(differs(16..32) > 0, "the second line is black before it");
+
+    let check = |words: &[u16; 64], when: &str| {
+        for (slot, &word) in words.iter().enumerate() {
+            if still(slot) {
+                assert_eq!(word, field[slot], "{when}: word {slot}");
+            } else {
+                assert!(
+                    word == field[slot] || animated[slot].contains(&word),
+                    "{when}: word {slot} is {word:#06x}, not one its map program writes"
+                );
+            }
+        }
+    };
+    check(&ended.words, "SceneEnded");
+    // Chaz stands on the recovery cell beside Le Roof, so `RunEvent_Recovery`
+    // (`$12`) starts `Event_Recovery` on the first field tick. Its flashes
+    // step the live words and restore the ones it copied first, so the
+    // room's palette holds on every tick no scene runs, through it and after.
+    let mut field_ticks = 0;
+    let mut recovered = false;
+    for k in 0..600 {
+        let events = runtime.tick(Input::Neutral);
+        for item in &events {
+            recovered |= matches!(item, RuntimeEvent::SceneStarted { trigger: 0x12 });
+            assert!(
+                !matches!(item, RuntimeEvent::SceneDialogue { .. }),
+                "tick {k}: {item:?}"
+            );
+        }
+        if runtime.scene_active() {
+            continue;
+        }
+        check(&runtime.cram().words, &format!("tick {k} after the scene"));
+        field_ticks += 1;
+        if field_ticks == 120 {
+            break;
+        }
+    }
+    assert_eq!(field_ticks, 120, "120 field ticks after the scene");
+    assert!(recovered, "the recovery cell's event ran in between");
 }
 
 /// Acceptance for `Cutscene_LeRoofAgain` (#591): the same loops (180,

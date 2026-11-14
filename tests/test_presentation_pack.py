@@ -203,6 +203,12 @@ class PresentationPackTests(unittest.TestCase):
                 _lea_w(PALETTE_TABLE_BUFFER, 1), _lea_l(0x070672, 2),
             ], 22),
         }
+        # Event_MeetingLeRoof's return: lea Pal_SilenceTm / lea
+        # Palette_Table_Buffer_2 / move.w #$1F, d7 / trap #1: 32 words.
+        sites[0x18711A] = (0x0705A8, [
+            _lea_l(0x18711A, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x80, 1),
+            _move_w_imm(0x1F, 7), TRAP_1,
+        ], 32)
         # Boarding uses a word-copy DBF count, including the saved-buffer spill.
         for address, site in ((0x29754E, 0x06B9EA), (0x29756E, 0x06BAC2), (0x29758E, 0x06BB9A)):
             sites[address] = (site, [

@@ -104,6 +104,22 @@ enum Program {
     },
 }
 
+/// The frame of a [`Program::Passes`]'s last pass. A fade up that can never
+/// match spins in the cartridge; the model's count stops at `u16::MAX`. Then
+/// the frame count the op answers ([`passes_frames`]) saturates too, and the
+/// last pass is held inside it, so the program ends on a frame the scene still
+/// waits and `elapsed + 1` never leaves `u16`.
+fn passes_last(first: u16, every: u16, count: u16) -> u16 {
+    let unbounded = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+    unbounded.min(passes_frames(first, every, count).saturating_sub(1))
+}
+
+/// The frames a [`Program::Passes`] spends: `first`, then `every` per pass,
+/// saturating at `u16::MAX`. What `apply` answers for a measured fade.
+fn passes_frames(first: u16, every: u16, count: u16) -> u16 {
+    first.saturating_add(count.saturating_mul(every))
+}
+
 /// A [`CounterCycle`] with its table read from the pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Cycle {
@@ -390,7 +406,7 @@ impl Cram {
                     self.write_run(*start, values);
                 }
                 let last = writes.last().map_or(0, |(at, ..)| *at);
-                (elapsed < last).then_some(Program::Writes {
+                (elapsed < last).then(|| Program::Writes {
                     elapsed: elapsed + 1,
                     writes,
                 })
@@ -403,9 +419,7 @@ impl Cram {
                 count,
                 words: span,
             } => {
-                // A fade up that can never match spins in the cartridge;
-                // the model's count stops at `u16::MAX` and so does this.
-                let last = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+                let last = passes_last(first, every, count);
                 if elapsed >= first && (elapsed - first).is_multiple_of(every) && elapsed <= last {
                     let mut words = self.view.words;
                     for (word, &target) in words.iter_mut().zip(&self.saved).take(span) {
@@ -418,7 +432,8 @@ impl Cram {
                     }
                     self.set_live(words);
                 }
-                (elapsed < last).then_some(Program::Passes {
+                // Built lazily: at the bound `elapsed + 1` would overflow.
+                (elapsed < last).then(|| Program::Passes {
                     kind,
                     elapsed: elapsed + 1,
                     first,
@@ -788,7 +803,7 @@ impl Cram {
                     frame,
                     cycle_index,
                 );
-                return Some(count.saturating_mul(every));
+                return Some(passes_frames(0, every, count));
             }
             // `Pal_VariableFadeToRed` copies the buffer first; both run eight
             // stages of `delay + 1` frames.

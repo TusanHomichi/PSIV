@@ -117,7 +117,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_DarkForce1Defeated", 28),
         ("Event_Juza", 5),
         ("Event_JuzaDefeated", 3),
-        ("Event_MeetingLeRoof", 20),
+        ("Event_MeetingLeRoof", 23),
         ("Cutscene_LeRoofAgain", 71),
         ("Event_CarnivorousTrees", 13),
         ("Event_SavingKyra", 19),
