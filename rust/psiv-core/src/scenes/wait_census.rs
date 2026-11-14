@@ -247,8 +247,6 @@ const FRAME_CENSUSED: &[&str] = &[
 const DEZO: u32 = 571;
 /// dezo_campaign.rs's missing and approximated waits.
 const CAMPAIGN: u32 = 589;
-/// next_arc_followup.rs's missing and approximated waits.
-const NEXT_ARC: u32 = 619;
 
 use Claim::{Missing, Recorded, Wait, Within};
 use Retail::{Facing, Frames, Main, Map, Step};
