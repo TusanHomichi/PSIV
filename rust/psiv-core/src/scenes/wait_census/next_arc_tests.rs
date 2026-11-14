@@ -1,6 +1,7 @@
 //! The next_arc_followup.rs census's negative controls: an omitted claim or
-//! row of each kind it added, a wrong loop classification, a bare frame
-//! claimed by an op that may not carry it, and a wrong count (#470).
+//! row of each kind it added, a wrong loop classification, a bare frame or
+//! loop claimed by an op that may not carry it, and a wrong count (#470,
+//! #619).
 
 use super::Claim::{Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map};
@@ -21,7 +22,7 @@ fn with(change: &dyn Fn(&mut Row)) -> Vec<Row> {
 
 #[test]
 fn the_next_arc_claims_reject_an_omission_and_a_misclaim() {
-    for (scene, index) in [(RIKA, 50), (RIKA, 59), ("Event_ChazHouse", 8), (GIRLS, 11)] {
+    for (scene, index) in [(RIKA, 50), (RIKA, 57), ("Event_ChazHouse", 8), (GIRLS, 12)] {
         let omitted = without(&|row| !(row.scene == scene && row.claim == Wait(index)));
         assert_eq!(
             claim_problems(&omitted),
@@ -29,20 +30,50 @@ fn the_next_arc_claims_reject_an_omission_and_a_misclaim() {
         );
     }
 
-    // The 60 bare frames' `Wait` without the defect that says it runs map
-    // updates the loop does not.
-    let unflagged = with(&|row| {
-        if row.scene == RIKA && row.claim == Wait(59) {
-            row.defect = None;
-            row.exact = false;
+    // The 60 bare frames' `WaitFrames` may not carry a loop that runs map
+    // updates, and a `Wait` may not carry the bare loop without a defect.
+    let updating = with(&|row| {
+        if row.scene == RIKA && row.claim == Within(59) {
+            row.retail = own(0x07_4836, false, true);
         }
     });
     assert_eq!(
-        claim_problems(&unflagged),
+        claim_problems(&updating),
+        [format!("{RIKA} op 59: Within an own loop")]
+    );
+    let as_wait = with(&|row| {
+        if row.scene == RIKA && row.claim == Within(59) {
+            row.claim = Wait(57);
+        } else if row.scene == RIKA && row.claim == Wait(57) {
+            row.claim = Within(59);
+        }
+    });
+    assert_eq!(
+        claim_problems(&as_wait),
         [format!(
-            "{RIKA} op 59: a Wait for a loop with no map updates, without a defect"
+            "{RIKA} op 57: a Wait for a loop with no map updates, without a defect"
         )]
     );
+
+    // Each of the girls' frames after `Field_BuildSprites` is its own
+    // `WaitFrames`, not the `RebuildSprites` before it.
+    for (wait, rebuild) in [(6, 5), (21, 20)] {
+        let on_rebuild = with(&|row| {
+            if row.scene == GIRLS && row.claim == Within(wait) {
+                row.claim = Within(rebuild);
+            }
+        });
+        assert_eq!(
+            claim_problems(&on_rebuild),
+            [
+                format!(
+                    "{GIRLS} op {rebuild}: Within names an op that waits no loop, {:?}",
+                    scene(GIRLS).ops.get(rebuild)
+                ),
+                format!("{GIRLS} op {rebuild}: Within an own loop"),
+            ]
+        );
+    }
 
     // A bare frame may be waited out by a `WaitFrames`, but not when it
     // follows `Field_UpdateObjects`, and not by an op that waits nothing.
@@ -104,13 +135,13 @@ fn the_next_arc_rows_reject_a_wrong_loop_or_count() {
         ]
     );
 
-    // The 60-pass loop's claim swapped with the 30-frame `DoMapUpdateLoop`'s:
-    // its `Wait` names a defect but stays counted.
+    // The 60-pass loop's `WaitFrames` claim swapped with the 30-frame
+    // `DoMapUpdateLoop`'s `Wait`.
     let swapped = with(&|row| {
-        if row.scene == RIKA && row.claim == Wait(59) {
+        if row.scene == RIKA && row.claim == Within(59) {
             row.claim = Wait(53);
         } else if row.scene == RIKA && row.claim == Wait(53) {
-            row.claim = Wait(59);
+            row.claim = Within(59);
         }
     });
     assert_eq!(

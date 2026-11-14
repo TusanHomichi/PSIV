@@ -50,4 +50,5 @@ mod retail_boundaries;
 pub(crate) mod save;
 mod scene_load_fade;
 mod talk_repro;
+mod variable_fades;
 mod visibility;

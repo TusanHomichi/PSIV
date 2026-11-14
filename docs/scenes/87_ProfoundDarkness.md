@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$20]`; scene `$8020`.
 - **Trigger:** `RunEventsJmpTbl[$53]`, Profound Darkness `$E8` clear at
   `y=$160`.
-- **Data:** `dezo_endgame.rs`, `PROFOUND_DARKNESS` (20 ops).
+- **Data:** `dezo_endgame.rs`, `PROFOUND_DARKNESS` (22 ops).
 
 ## Clone audit
 
@@ -15,9 +15,15 @@ excluded. ROM range: `$078D30..$078F3E` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-10 | `$078D30..$078DD8` | teleport/fade, art `$1DD566` tile `$20E`, five object clears, DMA | presentation/SFX |
-| 11-15 | `$078DD9..$078E95` | stop all, wait `600`, Black Blood music, dialogue `$03` | wait/music/dialogue |
-| 16-19 | `$078E96..$078F3D` | set `$E8`, map flags `$88`, final event battle `$1A`, return | flag/battle |
+| 0-9 | `$078D30..$078E45` | teleport SFX, `Pal_VariableFadeOut` (`$ED52` 1, `$078D3E`), `ClearPlaneABuf` (`$078D44`), art `$1DD566` tile `$20E`, five object clears, DMA | SFX/`VariablePaletteFade` out/`ClearPlanes`/presentation |
+| 10-12 | `$078E46..$078E69` | `Palette_Table_Buffer_2`'s 64 words back to the buffer (`moveq #$3F, d7` / `trap #1`), teleport SFX, `Pal_VariableFadeIn` (`$ED52` 7, `$078E64`) | `PaletteCopy`/SFX/`VariablePaletteFade` in |
+| 13-17 | `$078E6A..$078E95` | stop all, wait `600`, Black Blood music, dialogue `$03` | wait/music/dialogue |
+| 18-21 | `$078E96..$078F3D` | set `$E8`, map flags `$88`, final event battle `$1A`, return | flag/battle |
+
+The cartridge calls no `InitVRAMAndCRAM` here: `ClearPlaneABuf` clears plane
+A's buffer, and the fade-in returns to the palette the fade-out saved. The
+native shell hides the whole map at `ClearPlanes` and draws neither the
+`$1DE03A` picture nor the party's five fixed positions.
 
 The scene stops at the battle request. The retail `$8021` ending body is a
 separate final presentation surface and is recorded as an explicit boundary,

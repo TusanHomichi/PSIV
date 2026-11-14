@@ -209,6 +209,10 @@ impl Field {
             PresentationOp::ReloadMapChunks | PresentationOp::RebuildSprites => {
                 self.load_map_visuals();
             }
+            // The cleared planes hide the map until a scene map redraw
+            // (`load_map_visuals`) restores it; the CRAM and the sprites
+            // stay, unlike `InitVramAndCram`.
+            PresentationOp::ClearPlanes => self.set_field_map_visible(false),
             // A picture's cells are `picture_plane.rs`'s.
             PresentationOp::LoadSceneAsset { .. }
             | PresentationOp::SetGameMode { .. }
@@ -280,6 +284,14 @@ impl Field {
                 self.presentation
                     .step_field_object(slot, step_x, step_y, u16::MAX);
             }
+            // A runtime-owned fade up draws its own reveal from black, so it
+            // ends the doorway cover a scene map load started; `FadeIn` used
+            // to replace that cover (`transitions::after_palette_fade_in`).
+            PresentationOp::VariablePaletteFade { fade_in: true, .. }
+            | PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => {
+                godot_print!("scene presentation record consumed: {op:?}");
+                self.palette_fade_in_takes_over();
+            }
             // Palette records are applied by the runtime's CRAM model
             // (`Runtime::cram`), and the map, sprites, panels and dialogue
             // window draw from it (`cram_art`).
@@ -289,7 +301,6 @@ impl Field {
             | PresentationOp::FadeFromRed { .. }
             | PresentationOp::PaletteRestoreTone { .. }
             | PresentationOp::ShadowHighlight { .. }
-            | PresentationOp::ClearPlanes
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
             | PresentationOp::PaletteIncreaseTone { .. }

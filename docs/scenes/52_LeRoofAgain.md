@@ -28,7 +28,7 @@ because this body jumps to it.
 | 12 | `$07840C..$078421` | 120 passes (`moveq #$77, d0`) | `CounterPaletteCycle` 120 |
 | 13 | `$078422..$078429` | dialogue `$0B` | dialogue |
 | 14-18 | `$07842A..$078459` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$11B`, DMA, `popdlg` / `Event_RunDialogue3` | panel/resume |
-| 19 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5), `clr.b Panel_Num` | fade-out |
+| 19 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5, `$078460`), `clr.b Panel_Num` | `VariablePaletteFade` out |
 | 20 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
 | 21-25 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
 | 26-27 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
@@ -39,7 +39,5 @@ update; the scene blocks for every pass. The galaxy picture is drawn as
 [`Event_MeetingLeRoof`](51_MeetingLeRoof.md#the-picture) draws it, until the
 `InitVRAMAndCRAM` of op 14.
 
-Gaps: the loops start 7
-counted frames early, which moves the cycle's phase, and op 19 is
-`PalFadeOut_ClrSpriteTbl` where retail calls `Pal_VariableFadeOut` with `$ED52`
-5 ([#595](https://github.com/TusanHomichi/PSIV/issues/595)).
+Gaps: the loops start 7 counted frames early, which moves the cycle's phase
+([#595](https://github.com/TusanHomichi/PSIV/issues/595)).

@@ -170,6 +170,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
   cartridge would bring it back black. The variable fades, tone loops, flashes
   and cycles are stepped frame by frame
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
+  clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
+  it and places the party at five fixed positions. The port records it as
+  `PresentationOp::ClearPlanes`, which hides the map, plane B included, and
+  draws neither the picture nor the formation. It used to record an
+  `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
+  `Pal_VariableFadeIn` returns to
+  ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
