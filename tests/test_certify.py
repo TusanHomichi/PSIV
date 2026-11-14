@@ -34,8 +34,10 @@ SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "endin
        "ending-elsydeon-tone", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
-NAMES = SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
-                         "teleport-close-towns", "recovery-flash", "rykros-palette-cycle", "zio-barrier-ramp"]
+RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
+NAMES = (SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
+                          "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
+         + RYKROS_TONE + ["zio-barrier-ramp"])
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -105,7 +107,7 @@ class PairTableCase(unittest.TestCase):
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
         self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
-                                   "recovery-flash", "zio-barrier-ramp"])
+                                   "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
@@ -138,6 +140,25 @@ class PairTableCase(unittest.TestCase):
         # Source fixture inputs, with no palette, timer or mapping patches.
         self.assertEqual(rykros[5]["patches"], ["7200:FFFFECA8:801B", "7200:FFFFEC20:000C"])
         self.assertEqual(zio[5]["patches"][-2:], ["7202:FFFFECA8:0030", "7202:FFFFEC20:000C"])
+
+    def test_rykros_tone_pairs_share_one_run_at_one_tick_offset(self):
+        tone = [p for p in certify.PAIRS if p[0] in RYKROS_TONE]
+        self.assertEqual([p[0] for p in tone], RYKROS_TONE)
+        for name, env, tick, frame, _, recipe in tone:
+            with self.subTest(pair=name):
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x801b", **certify.SCENE})
+                self.assertIs(recipe, certify.TAPE_43_TONE)
+                # The native tone steps on ticks 881-937 as tape 43's
+                # buffer does in frames 8143-8199, each shown a frame later.
+                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7263}.png")
+        # Before, a step up, a step back, after: each a plateau's middle.
+        self.assertEqual([p[2] for p in tone], [878, 894, 922, 938])
+        self.assertEqual(certify.TAPE_43_TONE["frames"], [8141, 8157, 8185, 8201])
+        self.assertEqual(certify.TAPE_43_TONE["patches"], certify.TAPE_43["patches"])
+        self.assertEqual(certify.TAPE_43_TONE["tape"], certify.TAPE_43["tape"])
+        self.assertEqual(certify.TAPE_43_TONE["region"], [1, 1, 319, 223])
+        # The restore lands on the untoned frame the tone started from.
+        self.assertEqual(tone[0][4], tone[3][4])
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

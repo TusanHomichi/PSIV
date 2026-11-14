@@ -75,6 +75,28 @@ The table-driven scenes have two further pairs
 | `rykros-palette-cycle` | **0.000000** | clone t1270 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface |
 | `zio-barrier-ramp` | **0.000000** | clone t270 (`PSIV_DEBUG_EVENT=0x30`) ↔ tape-44 frame 7462: second three-word row, `$AAA/$0A8/$066`, and the scene's frozen beam mapping; region `1,1,319,223` (#409) |
 
+Rykros's tone before that cycle joined them on 2026-11-14
+([#534](https://github.com/TusanHomichi/PSIV/issues/534)), from the same tape
+and fixture, region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `rykros-tone-before` | **0.000000** | clone t878 ↔ tape-43 frame 8141: the three panels, untoned |
+| `rykros-tone-rise` | **0.000000** | clone t894 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
+| `rykros-tone-restore` | **0.000000** | clone t922 ↔ frame 8185: `loc_58666`'s third step back, every word floored at `$888` |
+| `rykros-tone-after` | **0.000000** | clone t938 ↔ frame 8201: the restored copy |
+
+The oracle's `Palette_Table_Buffer` steps every fourth frame from 8143, is
+white 8167-8174, and is the copy again from 8199; the native CRAM does the
+same on ticks 881-937, so clone tick t shows frame t + 7263, and the runtime's
+64 words equal the oracle's (tick t against frame t + 7262) on every tick
+876-944. Every plateau matches inside the region. The full frame differs only
+in #409's first row and column, black against the toned backdrop. The untoned
+tick 878 scores `rmse=134.253889` against the rise, the step before it (890)
+`rmse=37.904457`, and the rise's own step (894, also backdrop `$888`) against
+the restore `rmse=18.398389`. The window `Event_RunDialogue3` opens after the
+restore (from frame 8203) is outside these pairs.
+
 Rykros's scene-owned panels `$18B/$18F/$190` are extracted alongside the
 other panels; the runtime palette test checks every `PanelCreate` in that
 scene against the pack, with an empty palette pack as its negative control.
@@ -422,9 +444,6 @@ Tower with Elsydeon held, where the map's own entry trigger starts
   no source-of-truth pixels for those slots were found in the declared upload.
 - **Surfaces outside the live palette:** the dialogue action
   `SabotageAlarmRedPalette`'s red overlay still draws baked colours.
-- **Rykros's tone:** its cycle has a certified frame above; the preceding tone
-  still needs its own oracle pair
-  ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
 
 ## CRAM state
 

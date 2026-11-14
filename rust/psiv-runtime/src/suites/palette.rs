@@ -191,36 +191,49 @@ fn enter_anger_tower_whitens_three_lines_and_holds_the_third() {
         held[..],
         "the map load put the party line in line 2"
     );
-    let failures = check_anger_tower(&start, &held, &frames[tone..tone + 80]);
+    let (failures, steps) = check_tone(&start, Some(&held), 40, &frames[tone..tone + 80]);
     assert_eq!(failures, Vec::<String>::new());
+    assert_eq!(steps, [10, 10], "tone and restore phase frames");
     assert!(runtime.game().is_set(Flag::event(0xE0)));
 }
 
-/// The `$99` assertions as a list of failures, so a negative control can
-/// show which one a broken model trips.
-fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<String> {
+/// A `Pal_IncreaseTone` loop of `tone` frames from `start`, then
+/// `loc_58666` back to it over the rest of `frames`, as a list of failures so
+/// a negative control can show which one a broken model trips, and the phase
+/// frames each loop ran. By hand: each component is `min(level + s, 7)` after
+/// `s` phase frames of the tone, then `max(7 - s', start)` after `s'` of the
+/// restore; the `held` line 2, when given, keeps those words on every frame.
+fn check_tone(
+    start: &[u16; 64],
+    held: Option<&[u16]>,
+    tone: usize,
+    frames: &[Frame],
+) -> (Vec<String>, [u16; 2]) {
     let mut failures = Vec::new();
     let mut tone_steps = 0;
     let mut restore_steps = 0;
     for (k, frame) in frames.iter().enumerate() {
-        if frame.count & 3 == 0 {
-            if k < 40 {
+        if psiv_core::palette::tone_phase(frame.count) {
+            if k < tone {
                 tone_steps += 1;
             } else {
                 restore_steps += 1;
             }
         }
-        if frame.words[32..48] != *held {
+        if let Some(held) = held
+            && frame.words[32..48] != *held
+        {
             failures.push(format!(
                 "frame {k}: line 2 is {:04X?}",
                 &frame.words[32..48]
             ));
         }
-        for slot in (0..32).chain(48..64) {
+        let stepped = (0..64).filter(|slot| held.is_none() || !(32..48).contains(slot));
+        for slot in stepped {
             let want: Vec<u16> = rgb(start[slot])
                 .iter()
                 .map(|&from| {
-                    if k < 40 {
+                    if k < tone {
                         (from + tone_steps).min(7)
                     } else {
                         7u16.saturating_sub(restore_steps).max(from)
@@ -235,12 +248,7 @@ fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<S
             }
         }
     }
-    if tone_steps != 10 || restore_steps != 10 {
-        failures.push(format!(
-            "{tone_steps} tone and {restore_steps} restore phase frames"
-        ));
-    }
-    failures
+    (failures, [tone_steps, restore_steps])
 }
 
 /// Negative control for the `$99` check: a model with the hold dropped
@@ -289,7 +297,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
             beams: Vec::new(),
         });
     }
-    let failures = check_anger_tower(&start, &held, &frames);
+    let (failures, _) = check_tone(&start, Some(&held), 40, &frames);
     assert!(
         failures.iter().any(|failure| failure.contains("line 2")),
         "{failures:?}"
@@ -370,6 +378,92 @@ fn the_rykros_cycle_blocks_its_frames() {
     assert_eq!(resume - cycle, 46);
     assert_eq!(frames[cycle].words[23..32], table[..9]);
     assert_eq!(frames[resume - 1].words[23..32], table[45..54]);
+}
+
+/// Rykros's tone, traced: the scene's live palette, the tone record and the
+/// palette before it, the restore's own record thirty frames on.
+fn rykros_tone() -> Option<([u16; 64], Vec<Frame>)> {
+    if !pack_present() {
+        return None;
+    }
+    let mut runtime = runtime_on(0x002, [Some(CharId(0)), None, None, None, None], &[]);
+    let (_, mut frames) = trace(&mut runtime, 0x801B);
+    let tone = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteIncreaseTone { .. })
+    });
+    let restore = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteRestoreTone { .. })
+    });
+    assert_eq!(restore - tone, 30, "the restore follows thirty tone frames");
+    let start = frames[tone - 1].words;
+    Some((start, frames.drain(tone..tone + 60).collect()))
+}
+
+/// Acceptance for Rykros's tone (`$078208`, then `loc_58666` from
+/// `$078222`): thirty frames of `Pal_IncreaseTone` over all four lines,
+/// none held, whiten every word, and thirty of the restore bring each back
+/// to the copy taken before it. The oracle's `Palette_Table_Buffer` and the
+/// native capture pair word for word on every frame of both loops
+/// (`rykros-tone-*` in tools/certify.py).
+#[test]
+fn the_rykros_tone_whitens_every_line_and_restores_the_copy() {
+    let Some((start, frames)) = rykros_tone() else {
+        return;
+    };
+    let (failures, [up, down]) = check_tone(&start, None, 30, &frames);
+    assert_eq!(failures, Vec::<String>::new());
+    // Seven steps whiten any word; thirty frames hold seven or eight.
+    assert!(
+        (7..=8).contains(&up) && (7..=8).contains(&down),
+        "{up} {down}"
+    );
+    assert_eq!(frames[29].words, [0x0EEE; 64], "white before the restore");
+    assert_eq!(frames[59].words, start, "the copy again");
+}
+
+/// Negative controls for the Rykros check: an untoned scene and a tone
+/// that steps every frame instead of every fourth both fail it.
+#[test]
+fn the_rykros_tone_check_catches_an_untoned_or_misstepped_model() {
+    let Some((start, frames)) = rykros_tone() else {
+        return;
+    };
+    let untoned: Vec<Frame> = frames
+        .iter()
+        .map(|frame| Frame {
+            count: frame.count,
+            events: Vec::new(),
+            words: start,
+            beams: Vec::new(),
+        })
+        .collect();
+    let (failures, _) = check_tone(&start, None, 30, &untoned);
+    assert!(failures.iter().any(|f| f.starts_with("frame ")), "untoned");
+    let mut words = start;
+    let every_frame: Vec<Frame> = frames
+        .iter()
+        .enumerate()
+        .map(|(k, frame)| {
+            for (word, &target) in words.iter_mut().zip(&start) {
+                *word = if k < 30 {
+                    psiv_core::palette::increase_tone(*word)
+                } else {
+                    psiv_core::palette::restore_tone(*word, target)
+                };
+            }
+            Frame {
+                count: frame.count,
+                events: Vec::new(),
+                words,
+                beams: Vec::new(),
+            }
+        })
+        .collect();
+    let (failures, _) = check_tone(&start, None, 30, &every_frame);
+    assert!(
+        failures.iter().any(|f| f.starts_with("frame ")),
+        "every frame"
+    );
 }
 
 #[test]
