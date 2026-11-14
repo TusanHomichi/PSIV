@@ -21,7 +21,7 @@
 //! [`FRAME_CENSUSED`] scenes also give a row to every bare `VInt_Prepare`
 //! frame outside their own loops ([`Retail::Frame`]) and every
 //! `VInt_PrepareLoop` ([`Retail::Frames`]), which [`SceneOp::WaitFrames`]
-//! transcribes. Palette fades and the DMA helpers that wait for VInt are
+//! transcribes, as it may a bare frame with no field-object update. Palette fades and the DMA helpers that wait for VInt are
 //! transcribed by their own ops and have no rows.
 //!
 //! The native runner treats every `Wait` the same today: map updates, no
@@ -180,6 +180,12 @@ const CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// The censused scenes whose shared-helper calls ([`Retail::Step`],
@@ -209,11 +215,17 @@ const HELPER_CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// The censused scenes whose bare frames ([`Retail::Frame`]) and
 /// `VInt_PrepareLoop` calls ([`Retail::Frames`]) have rows too: dezo_campaign.rs
-/// onwards.
+/// and next_arc_followup.rs.
 const FRAME_CENSUSED: &[&str] = &[
     "Event_MeetingLeRoof",
     "Cutscene_LeRoofAgain",
@@ -223,12 +235,20 @@ const FRAME_CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// dezo_endgame.rs's missing and approximated waits.
 const DEZO: u32 = 571;
 /// dezo_campaign.rs's missing and approximated waits.
 const CAMPAIGN: u32 = 589;
+/// next_arc_followup.rs's missing and approximated waits.
+const NEXT_ARC: u32 = 619;
 
 use Claim::{Missing, Recorded, Wait, Within};
 use Retail::{Facing, Frames, Main, Map, Step};
@@ -239,6 +259,7 @@ fn counted(row: &Row) -> bool {
 }
 
 mod campaign_tests;
+mod next_arc_tests;
 mod rows;
 use rows::ROWS;
 
@@ -302,7 +323,7 @@ fn within_ticks(op: &SceneOp) -> Option<u32> {
 }
 
 /// Whether `op` waits its frames out with `VInt_Prepare` alone, no map or
-/// object update: what an own loop with neither must be claimed by.
+/// object update: what an own loop or bare frame with neither may be claimed by.
 fn vint_only(op: &SceneOp) -> bool {
     matches!(
         op,
@@ -402,17 +423,18 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                         ops.get(index)
                     ));
                 }
-                // An own loop with no updates may be waited out by an op
-                // that runs none either; any other own loop needs a `Wait`.
-                let bare_own = matches!(
+                // An own loop or bare frame with no updates may be waited
+                // out by an op that runs none either; any other own loop or
+                // frame needs a `Wait`.
+                let bare = matches!(
                     row.retail,
                     Retail::Own {
                         objects: false,
                         map_updates: false,
                         ..
-                    }
+                    } | Retail::Frame { objects: false, .. }
                 ) && ops.get(index).is_some_and(vint_only);
-                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare_own {
+                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare {
                     problems.push(format!("{} op {index}: Within an own loop", row.scene));
                 }
             }

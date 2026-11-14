@@ -118,7 +118,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_Juza", 6),
         ("Event_JuzaDefeated", 3),
         ("Event_MeetingLeRoof", 23),
-        ("Cutscene_LeRoofAgain", 71),
+        ("Cutscene_LeRoofAgain", 72),
         ("Event_CarnivorousTrees", 13),
         ("Event_SavingKyra", 19),
         ("Cutscene_MeetingKyra", 24),

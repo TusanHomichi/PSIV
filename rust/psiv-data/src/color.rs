@@ -110,6 +110,12 @@ pub enum IndexLayout {
         /// Layer B's line.
         b: u8,
     },
+    /// A whole plane drawn as the VDP shows it (`presentation_pack.py`,
+    /// `decode_scene_picture`): index `i` of 0-63 is CRAM slot `i`, line
+    /// `i / 16`, and every index is opaque. A pattern's colour 0 is index 0,
+    /// the backdrop (register 7 `$8700`: CRAM word 0), since the plane under
+    /// it is cleared.
+    Plane,
 }
 
 impl IndexLayout {
@@ -123,6 +129,7 @@ impl IndexLayout {
             Self::Panel { a, .. } if (1..=16).contains(&index) => Some(line(a, index - 1)),
             Self::Panel { b, .. } if (17..=32).contains(&index) => Some(line(b, index - 17)),
             Self::Panel { .. } => None,
+            Self::Plane => (index < 64).then_some(usize::from(index)),
         }
     }
 
@@ -250,6 +257,11 @@ mod tests {
         assert_eq!(panel.slot(17), Some(16), "B's colour 0");
         assert_eq!(panel.slot(32), Some(31));
         assert_eq!(panel.slot(33), None);
+        // A plane: every slot is its own index, index 0 the backdrop.
+        assert_eq!(IndexLayout::Plane.slot(0), Some(0));
+        assert_eq!(IndexLayout::Plane.slot(17), Some(17));
+        assert_eq!(IndexLayout::Plane.slot(63), Some(63));
+        assert_eq!(IndexLayout::Plane.slot(64), None);
         // Bit 12 (vertical flip) is not a palette bit.
         assert_eq!(IndexLayout::art_tile_line(0x7000), 3);
         assert_eq!(IndexLayout::art_tile_line(0x1000), 0);

@@ -323,6 +323,28 @@ TEMPORARY_OBJECT_RECORDS = (
     },
 )
 
+# The full-screen pictures a scene draws on plane A itself rather than through
+# Panel_Create: `NemDecomp` of `art` to VRAM tile `art_tile`, `EniDecomp` of
+# `mapping` with that base tile to `RAM_Start` (the scene's LoadSceneAsset),
+# then `PlaneMapToRAM` of `columns` x `rows` cells to plane A at cell (0,0)
+# while plane B is cleared. The PNG's indices are CRAM slots, opaque: index 0
+# is the backdrop, CRAM word 0. `palette` is the line the scene copies to
+# `Palette_Table_Buffer_2`; it only bakes the file's colours, since the shell
+# draws from the live CRAM.
+SCENE_PICTURE_RECORDS = (
+    {
+        # `Event_MeetingLeRoof` `$0704AC..$07051F` and
+        # `Cutscene_LeRoofAgain` `$07836C..$0783D9`: the galaxy.
+        "scenes": ["Event_MeetingLeRoof", "Cutscene_LeRoofAgain"],
+        "art": 0x001DB2C8,
+        "art_tile": 0x0260,
+        "mapping": 0x001DDE0A,
+        "columns": 40,
+        "rows": 28,
+        "palette": 0x001DE258,
+    },
+)
+
 SHOPKEEPER_PORTRAIT_ART = 0x0029DE1E
 SHOPKEEPER_PORTRAIT_MAPPING = 0x002A2B36
 SHOPKEEPER_PORTRAIT_TILE = 0x055C
@@ -492,6 +514,45 @@ def decode_opening_background(data: bytes, output: Path) -> dict[str, object]:
         # Measured from the oracle video surface: the narration image band is
         # rows 40..167 of the 320x224 frame (oracle/frames/opening/*.png).
         "screen_y": 40,
+    }
+
+
+def decode_scene_picture(
+    data: bytes, spec: dict[str, Any], root: Path
+) -> dict[str, object]:
+    """One `SCENE_PICTURE_RECORDS` picture: its cells drawn in CRAM slots and
+    its record."""
+    art_raw, art_consumed = nemesis_decompress(data, spec["art"])
+    art_tiles = gfx.decode_tiles(art_raw)
+    columns, rows = spec["columns"], spec["rows"]
+    words, mapping_consumed = enigma_decompress(
+        data, spec["mapping"], base_tile=spec["art_tile"], max_words=columns * rows
+    )
+    if len(words) != columns * rows:
+        raise ValueError(
+            f"scene picture 0x{spec['mapping']:06X} decoded {len(words)} words, "
+            f"expected {columns}x{rows}"
+        )
+    width, height, pixels = planes.compose(
+        planes.decode_cells(words), columns, art_tiles,
+        art_vram_tile=spec["art_tile"] & 0x07FF,
+    )
+    colours = _palette(data, spec["palette"]) + [(0, 0, 0)] * 48
+    name = f"presentation/scene_pictures/picture_{spec['mapping']:06x}.png"
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_bytes(png.encode_indexed(width, height, pixels, colours))
+    return {
+        "scenes": list(spec["scenes"]),
+        "source_rom_addr": f"0x{spec['mapping']:06X}",
+        "png": name,
+        "art": f"0x{spec['art']:06X}",
+        "art_consumed": art_consumed,
+        "art_tile": spec["art_tile"],
+        "mapping_consumed": mapping_consumed,
+        "columns": columns,
+        "rows": rows,
+        "palette": f"0x{spec['palette']:06X}",
+        "size": [width, height],
     }
 
 
@@ -814,6 +875,9 @@ def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object
     load_art = _emit_load_art(rom_bytes, root, maps, routines)
     temporary_objects = _emit_temporary_objects(rom_bytes, root, maps, routines)
     portraits = [_emit_generic_portrait(rom_bytes, root)]
+    pictures = [
+        decode_scene_picture(rom_bytes, spec, root) for spec in SCENE_PICTURE_RECORDS
+    ]
     manifest = {
         "format": "psiv-scene-presentation-v2",
         "source_rom_sha256": hashlib.sha256(rom_bytes).hexdigest(),
@@ -835,11 +899,13 @@ def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object
         "load_art": load_art,
         "temporary_objects": temporary_objects,
         "portraits": portraits,
+        "scene_pictures": pictures,
         "coverage": {
             "panel_records": len(records),
             "load_art_records": len(load_art),
             "temporary_object_keys": len(temporary_objects),
             "generic_portraits": len(portraits),
+            "scene_pictures": len(pictures),
         },
     }
     (root / "presentation" / "panels.json").write_text(
