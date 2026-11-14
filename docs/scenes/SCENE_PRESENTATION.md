@@ -418,8 +418,9 @@ Tower with Elsydeon held, where the map's own entry trigger starts
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Surfaces outside the live palette:** scene temporary objects, the shop, camp and choice menus, and the dialogue
-  action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
+- **Surfaces outside the live palette:** the shop, camp and choice menus,
+  and the dialogue action `SabotageAlarmRedPalette`'s red overlay still draw
+  baked colours.
 - **Rykros's tone:** its cycle has a certified frame above; the preceding tone
   still needs its own oracle pair
   ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
@@ -449,6 +450,9 @@ borrows. Writers:
   `$29758E`) at live word 48: line 3 and word 0 of the adjacent saved buffer
   (`$06B9EA`, `$06BAC2`, `$06BB9A`). Vehicle sheets draw their indices through
   the same live CRAM path as party and NPC sheets;
+- `Cutscene_Alshline` copies `PiataBasementB2_Palettes`' 14 words (`$052848`)
+  to line 3 before it builds Igglanova (`$07444E`, `MapDataManagerJmpTbl`
+  entry `$D0`); words 62 and 63 keep Zema's;
 - `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
   `SetPaletteWords` and `AddPaletteWord` take word offsets;
 - the loops step once per runtime tick, starting on the tick the scene emits
@@ -489,14 +493,15 @@ art is indexed draws from it:
 
 - the map's index textures, lines 0 and 1, through the map shader
   (`field_map.rs`), its palette set when the shader is installed;
-- field sprite sheets (party, followers, NPCs) on the line their pack record
-  names (`palette.cram_line`, from the object's `$13` byte);
+- field sprite sheets (party, followers, NPCs, vehicles) and scene temporary
+  objects (`presentation/panels.json`'s `temporary_objects`) on the line their
+  pack record names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
 - the dialogue window, whose tiles, glyphs and portraits are line 2;
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 
-Sheets and panels keep each pixel's palette index
+Sheets, temporary objects and panels keep each pixel's palette index
 (`psiv_data::color::index_png`) and are recoloured
 (`psiv_data::color::recolor`) when the words change, on the frame they are
 drawn (`rust/psiv-godot/src/cram_art.rs`). A map record without the 64-word
@@ -507,6 +512,27 @@ colours. The window's art is baked in
 pixel's index by colour. The red fades are the CRAM model's too: the
 screen-space red effect that stood in for them is gone, since it would now
 apply twice.
+
+`tools/native/native_temporary_palette.gd` checks a temporary object in the
+running shell: `Cutscene_Alshline` from `PSIV_DEBUG_EVENT=0x8005` (the scene
+loads Zema itself). On Igglanova's build tick it requires the line-3 copy,
+unchanged lines 0 and 2, and every opaque pixel a live line-3 colour; once the
+object is inside the camera's 320×224 view it captures the sheet, the current
+frame and the viewport before and during Zema's line-1 cycle, and requires
+line 3 and every sheet pixel, alpha included, unchanged. It is a debug-event
+fixture, not a campaign route or an original-game comparison; the wrong-line
+negative control is in `cutscene/manifest.rs`'s tests. From the repository
+root, with the extension and local pack built:
+
+```bash
+mkdir -p build/temporary-palette/saves
+PSIV_DEBUG_EVENT=0x8005 PSIV_DEBUG_ROUTE=1 PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
+PSIV_DEBUG_RETAIL_PACE=1 PSIV_SAVE_DIR="$PWD/build/temporary-palette/saves" \
+PSIV_TEMPORARY_OUTPUT="$PWD/build/temporary-palette" \
+python3 tools/heavy_lock.py run --class godot -- xvfb-run -a \
+python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
+  --audio-driver Dummy --script "$PWD/tools/native/native_temporary_palette.gd"
+```
 
 Deviation: the fades whose frames the scene does not spend (`FadeIn`,
 `FadeOut`, `InitVramAndCram`'s fade) write only their copy

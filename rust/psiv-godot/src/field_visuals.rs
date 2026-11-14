@@ -356,7 +356,7 @@ impl Field {
                     self.anim_tick
                 };
                 let frame = asset.frame_at(sequence, age);
-                asset.apply(node, frame);
+                asset.apply(node, frame, &self.cram.borrow());
                 node.set_position(Vector2::new(
                     (position.0 - asset.origin_x) as f32,
                     (position.1 - asset.origin_y + asset.frame_height) as f32,
