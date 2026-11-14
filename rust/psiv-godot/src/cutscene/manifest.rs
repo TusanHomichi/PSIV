@@ -13,6 +13,7 @@ use godot::prelude::*;
 use psiv_data::{DialogueSet, Role};
 use serde::Deserialize;
 
+use super::picture::PictureAsset;
 use super::temporary_sprite_asset::TemporarySpriteAsset;
 use psiv_data::color::IndexLayout;
 
@@ -25,6 +26,19 @@ struct PanelManifest {
     temporary_objects: Vec<TemporaryObjectRecord>,
     #[serde(default)]
     portraits: Vec<PortraitRecord>,
+    #[serde(default)]
+    scene_pictures: Vec<ScenePictureRecord>,
+}
+
+/// A plane-A picture a scene draws itself (`presentation_pack.py`,
+/// `decode_scene_picture`), keyed by the `LoadSceneAsset` source of its cells.
+#[derive(Debug, Deserialize)]
+struct ScenePictureRecord {
+    source_rom_addr: String,
+    png: String,
+    /// The `LoadArt` source its cells index into, and its VRAM tile.
+    art: String,
+    art_tile: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,6 +123,8 @@ pub(super) struct SceneAssets {
     pub(super) generic_portrait_named: bool,
     pub(super) window_tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
     pub(super) generic_window_rect: Option<Rect2>,
+    /// The plane-A pictures, by the ROM address of their cells.
+    pub(super) pictures: BTreeMap<u32, PictureAsset>,
 }
 
 impl SceneAssets {
@@ -124,6 +140,7 @@ impl SceneAssets {
             generic_portrait_named: false,
             window_tiles: BTreeMap::new(),
             generic_window_rect: None,
+            pictures: BTreeMap::new(),
         };
         let manifest_path = Path::new(pack_dir).join("presentation/panels.json");
         match std::fs::read_to_string(&manifest_path)
@@ -195,6 +212,28 @@ impl SceneAssets {
                             load_art,
                             playback_sequence: temporary.playback_sequence,
                             playback_once: temporary.playback_once,
+                        },
+                    );
+                }
+                for picture in manifest.scene_pictures {
+                    let (Some(source), Some(art)) =
+                        (parse_hex(&picture.source_rom_addr), parse_hex(&picture.art))
+                    else {
+                        godot_error!("scene picture record unreadable: {picture:?}");
+                        continue;
+                    };
+                    let path = format!("{pack_dir}/{}", picture.png);
+                    let baked = Image::load_from_file(&GString::from(path.as_str()))
+                        .and_then(|image| ImageTexture::create_from_image(&image));
+                    if baked.is_none() {
+                        godot_error!("scene picture {source:#08x} failed to load: {path}");
+                    }
+                    assets.pictures.insert(
+                        source,
+                        PictureAsset {
+                            path,
+                            art: (art, picture.art_tile),
+                            baked,
                         },
                     );
                 }

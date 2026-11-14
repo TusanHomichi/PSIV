@@ -297,8 +297,24 @@ class PresentationPackTests(unittest.TestCase):
                 "load_art_records": 7,
                 "temporary_object_keys": 9,
                 "generic_portraits": 1,
+                "scene_pictures": 1,
             },
         )
+        # Le Roof's galaxy (#594): art $1DB2C8 at tile $260, 40x28 cells at
+        # $1DDE0A, drawn on line 0 only (no cell selects another line).
+        pictures = {record["source_rom_addr"]: record for record in manifest["scene_pictures"]}
+        self.assertEqual(set(pictures), {"0x1DDE0A"})
+        galaxy = pictures["0x1DDE0A"]
+        self.assertEqual(
+            (galaxy["art"], galaxy["art_tile"], galaxy["columns"], galaxy["rows"], galaxy["size"]),
+            ("0x1DB2C8", 0x260, 40, 28, [320, 224]),
+        )
+        self.assertEqual(galaxy["scenes"], ["Event_MeetingLeRoof", "Cutscene_LeRoofAgain"])
+        from PIL import Image
+        with Image.open(ROOT / "runtime-pack" / galaxy["png"]) as image:
+            self.assertEqual((image.mode, image.size), ("P", (320, 224)))
+            self.assertNotIn("transparency", image.info)
+            self.assertLess(max(image.getdata()), 16)
         loads = {
             (record["source_rom_addr"], record["destination_tile"]): record
             for record in manifest["load_art"]

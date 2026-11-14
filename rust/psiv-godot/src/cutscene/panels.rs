@@ -37,10 +37,13 @@ impl CutsceneLayer {
         self.cram = Some(cram);
     }
 
-    /// The live palette changed: redraw any visible panel in it.
+    /// The live palette changed: redraw any visible panel or picture in it.
     pub(crate) fn palette_changed(&mut self) {
         if !self.panels.visible.is_empty() {
             self.base_mut().queue_redraw();
+        }
+        if self.picture_visible() {
+            self.sync_picture();
         }
     }
 
@@ -96,24 +99,35 @@ impl CutsceneLayer {
 
     pub(crate) fn panel_destroy_all(&mut self) {
         self.panels.clear();
-        let opening_visible = self.opening_visible;
-        let generic_window_visible = self.generic_window_visible;
-        self.base_mut()
-            .set_visible(opening_visible || generic_window_visible);
+        let visible = self.shows_anything();
+        self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
         godot_print!("scene panels destroyed: all");
     }
 
     pub(crate) fn dma_planes(&mut self) {
         self.panels.dma();
-        let visible =
-            self.opening_visible || self.generic_window_visible || !self.panels.visible.is_empty();
+        let visible = self.shows_anything();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
         godot_print!(
-            "scene DMA planes: {} visible panel(s)",
-            self.panels.visible.len()
+            "scene DMA planes: {} visible panel(s){}",
+            self.panels.visible.len(),
+            if self.picture_visible() {
+                ", plane A picture"
+            } else {
+                ""
+            }
         );
+    }
+
+    /// Whether the layer has anything to draw: the opening, the generic
+    /// window, a visible panel or a plane-A picture.
+    pub(super) fn shows_anything(&self) -> bool {
+        self.opening_visible
+            || self.generic_window_visible
+            || !self.panels.visible.is_empty()
+            || self.picture_visible()
     }
 
     /// Draws the red-palette overlay while `red_flash` frames remain.
