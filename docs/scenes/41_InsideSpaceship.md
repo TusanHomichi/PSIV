@@ -4,7 +4,7 @@
   `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (48 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (45 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
@@ -113,7 +113,12 @@ branch are not frame-exact claims.
 
 **Fade correction:** flight fade-in spends 16 frames, including display enable
 and the terminal palette pass. Fade-out spends 14. The old claim that all fades
-spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`).
+spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`). Since
+#637 the route's `FadeOut`s and `InitVramAndCram` spend their own frames on the
+CRAM model, as many as the palette's largest nibble needs (14 from white; the
+`InitVRAMAndCRAM` row's 15/13 is its fade and `DMAPlanes_VInt`), so the route
+holds no `WaitFrames` for them, and `FlightPlanet` spends the planet screen's
+setup alone (23/24).
 
 **Propulsion SFX (#629):** the spaceports' loop writes `SFXID_SpaceshipPropelled`
 (`$E3`) to `Sound_Index` at the start of each pass whose counter is `$E1`, `$E2`
@@ -245,9 +250,11 @@ post-control overlay removal. The correction-ladder rung is **compile-time full-
 for inlined callers, plus regression tests through the owning runtime, with a repository-owned oracle probe; no shell
 sleep or timing workaround.
 
-`ship-menu` retains clone tick **70**, oracle frame **7293** and SHA-256
-`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`.
-The runtime's tick-30 event fixture verifies at tick 70: Choosing, both windows
+`ship-menu` is clone tick **101**, oracle frame **7293** and SHA-256
+`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`: tick 70
+before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent their 15 and 16
+frames ([#637](https://github.com/TusanHomichi/PSIV/issues/637)).
+The runtime's tick-30 event fixture verifies at tick 101: Choosing, both windows
 fully uploaded, cursor hidden and marker blink off. `python3 tools/certify.py
 --only ship-menu` is the image comparison; a state-pin pass is not an
 image-parity pass.

@@ -743,8 +743,10 @@ fn opening_discards_all_pad_edges_and_does_not_defer_a_held_accept() {
 
 /// Re-derive the clone pin from the shell's event fixture at tick 30. This
 /// proves the view state only; X11 captures must still certify the fixed image.
+/// The scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spend their 15 and 16
+/// frames before the menu opens (#637), so the pin moved from tick 70.
 #[test]
-fn certified_tick_70_still_has_the_settled_hidden_cursor_state() {
+fn certified_tick_101_still_has_the_settled_hidden_cursor_state() {
     let Some((data, _)) = pack() else {
         return;
     };
@@ -752,7 +754,7 @@ fn certified_tick_70_still_has_the_settled_hidden_cursor_state() {
         psiv_runtime::scene_fixture(data.clone(), 0x800D, psiv_core::StepFrames::default())
             .unwrap()
             .unwrap();
-    for tick in 1..=70 {
+    for tick in 1..=101 {
         if tick == 30 {
             assert!(session.debug_start_event(0x800D));
         }

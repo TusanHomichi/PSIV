@@ -35,6 +35,7 @@ pub fn scene_fixture(
     // Spaceport at the foot of the gangway, `EventFlag_AlysFound` set so the
     // list is the post-Zio one (`ps4.asm:133728-133735`), a Chaz and Alys party.
     let mut flags: Vec<u16> = Vec::new();
+    let mut world = 0;
     let (map, char_x, char_y, party) = match event {
         0x0030 => {
             flags = vec![0x63];
@@ -153,12 +154,28 @@ pub fn scene_fixture(
             704 + 16,
             [Some(CharId(0)), None, None, None, None],
         ),
+        // `Event_EclipseTorchUsed` (`PSIV_DEBUG_EVENT=0x47`, #593): Dezolis
+        // (`$001`, World_Index 1) on foot, Chaz alone at object ($BA0, $F0),
+        // as tape 46 (`tools/certify.py` TAPE_46) patches `$F406`/`$F408`:
+        // just below the trigger's `y<=$E0`, so only the fixture starts it.
+        // `EventFlag_Snowstorm` (`$80`) keeps the arrival talk off the load
+        // and `EventFlag_Lashiec` (`$9B`) is the trigger's own condition.
+        0x0047 => {
+            flags = vec![0x80, 0x9B];
+            world = 1;
+            (
+                0x0001,
+                0xBA0,
+                0xF0 + 16,
+                [Some(CharId(0)), None, None, None, None],
+            )
+        }
         _ => return None,
     };
     // The new palette fixtures and the ending/recovery fixtures use tape
     // 28's retail initializer with the opening completed. Their explicit
     // scene-specific edits above are applied to that base, never blank banks.
-    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021 | 0x007D) {
+    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021 | 0x007D | 0x0047) {
         match post_opening_game(&data, step_frames) {
             Ok(game) => game,
             Err(error) => return Some(Err(error)),
@@ -178,7 +195,7 @@ pub fn scene_fixture(
             RetailSave {
                 snapshot: game.snapshot(),
                 location: RetailLocation {
-                    world_index: 0,
+                    world_index: world,
                     map_index_2: 0,
                     map_index: map,
                     char_x,

@@ -108,9 +108,13 @@ mod doc_op_counts;
 #[cfg(test)]
 mod documented_ranges;
 #[cfg(test)]
+mod fixed_fades_image;
+#[cfg(test)]
 mod palette_fades_image;
 #[cfg(test)]
 mod panel_byte_census;
+#[cfg(test)]
+mod plain_event_fades;
 #[cfg(test)]
 mod wait_census;
 

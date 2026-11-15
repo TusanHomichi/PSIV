@@ -17,7 +17,7 @@ mod bridge;
 mod camera;
 mod camp;
 mod cram;
-pub use cram::CramView;
+pub use cram::{CramView, TEXT_COLOUR_SLOT};
 mod dialogue;
 mod effects;
 mod encounters;

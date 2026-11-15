@@ -138,9 +138,12 @@ pub enum SceneOp {
         /// ROM source of the background layout.
         bg: u32,
     },
-    /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`): fades out, resets a
-    /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
-    /// the fade; the rest is the renderer's.
+    /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`). Its
+    /// `jsr PalFadeOut_ClrSpriteTbl` (`ps4.asm:120855`) is the runner's
+    /// [`SceneOp::FadeOut`], emitted first and waited for; the op itself is
+    /// emitted once the fade ends, for `InitVRAMAndCRAMAfterFadeOut`: the
+    /// plane clear, `DMAPlanes_VInt`'s one frame, and `Pal_Init` into the
+    /// buffer after it.
     InitVramAndCram,
     /// Return from the scene with an explicit value (`d0`). A cutscene (event
     /// `$8000` and up) that returns zero gets a field reload from
@@ -649,9 +652,14 @@ pub enum SceneOp {
         /// The sound id.
         id: u8,
     },
-    /// Fade the palette in (`Pal_FadeIn`, `$421D4`).
+    /// Fade the palette in (`Pal_FadeIn`, `$421D4`): copy the buffer to the
+    /// second one, clear it, `VDP_EnableDisplay`'s frame, then one pass a
+    /// frame until a pass changes nothing. The runtime's CRAM model runs it
+    /// and answers its frames ([`crate::SceneRunner::release_palette`]).
     FadeIn,
-    /// Fade the palette out (`PalFadeOut_ClrSpriteTbl`, `$4223E`).
+    /// Fade the palette out (`PalFadeOut_ClrSpriteTbl`, `$4223E`): copy the
+    /// buffer, then one pass a frame until every word is zero, and the
+    /// display off. Its frames are answered as [`SceneOp::FadeIn`]'s.
     FadeOut,
     /// Load a map and place the party — the scene-driven counterpart to a warp.
     LoadMap {

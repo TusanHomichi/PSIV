@@ -634,6 +634,32 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Whether the runtime's CRAM is the cartridge's, so its fades draw
+    /// themselves ([`psiv_runtime::CramView::live`]).
+    pub(super) fn cram_live(&self) -> bool {
+        self.session
+            .as_ref()
+            .is_some_and(|session| session.runtime().cram().live)
+    }
+
+    /// A cutscene (event `$8000` and up) starts. `FieldRoutine_Cutscene`
+    /// fades nothing itself (`ps4.asm:120738-120758`): the scene's own
+    /// `InitVRAMAndCRAM` does, on the CRAM when it is live (#637). Off a
+    /// palette that is not live the shell's cover stands in for it.
+    pub(super) fn start_cutscene_cover(&mut self) {
+        if !self.cram_live() {
+            self.start_transition(TransitionKind::SceneStart);
+        }
+    }
+
+    /// A scene's `Pal_FadeIn` on a live CRAM draws its own reveal from black,
+    /// so whatever cover is up ends now, as the shell's own fade-in used to
+    /// replace it.
+    pub(super) fn palette_fade_in_ends_cover(&mut self) {
+        self.transition = None;
+        self.sync_transition();
+    }
+
     /// A runtime-owned palette fade-in starts: a cover it replaces ends now
     /// ([`super::transitions::after_palette_fade_in`]).
     pub(super) fn palette_fade_in_takes_over(&mut self) {

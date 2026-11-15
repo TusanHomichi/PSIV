@@ -425,8 +425,9 @@ fn le_roof_again_cycles_then_waits_with_map_updates() {
     assert_eq!(spent % 6, 0);
     assert_eq!(ticks[fade_out + spent - 1].words, [0; 64]);
     assert_ne!(ticks[fade_out + spent - 7].words, [0; 64]);
+    // `InitVRAMAndCRAM` opens with its `PalFadeOut_ClrSpriteTbl` (#637).
     let reinit = (fade_out..ticks.len())
-        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::InitVramAndCram)))
+        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::FadeOut)))
         .expect("the second InitVRAMAndCRAM");
     assert_eq!(
         reinit - fade_out,
