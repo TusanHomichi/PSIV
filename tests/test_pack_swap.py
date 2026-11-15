@@ -12,7 +12,7 @@ reopens the output per file, no cleanup) and shows the failure:
 - a half-written pack: a reader during a build;
 - a killed build: killed part-way (SIGKILL; TerminateProcess on Windows), in a
   child process;
-- a reader spanning a swap: one that resolved the output once;
+- a reader spanning a swap: one that pinned an open directory once;
 - a stale symbolic link: an output link naming a version that is gone, and the
   link and staging directory a killed build left.
 
@@ -22,6 +22,7 @@ stays a real directory, the cases that rely on the link are skipped and
 the gate checks the Windows mode on Linux, and the `platforms` workflow runs
 this module on macOS and Windows.
 """
+import errno
 import json
 import os
 import shutil
@@ -30,6 +31,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from contextlib import ExitStack, contextmanager, nullcontext
 from pathlib import Path
 from unittest import mock
 
@@ -57,12 +59,19 @@ def write_pack(directory, version, pause=None):
     return version
 
 
+def read_part(directory, name):
+    """Read through a pinned directory descriptor, or through an unpinned path."""
+    if isinstance(directory, int):
+        with os.fdopen(os.open(name, os.O_RDONLY, dir_fd=directory), encoding="utf-8") as part:
+            return part.read()
+    return (Path(directory) / name).read_text(encoding="utf-8")
+
+
 def consistent(directory):
     """The pack's version when every file matches its manifest, else None."""
-    directory = Path(directory)
     try:
-        manifest = json.loads((directory / "manifest.json").read_text())
-        found = {json.loads((directory / name).read_text())["version"]
+        manifest = json.loads(read_part(directory, "manifest.json"))
+        found = {json.loads(read_part(directory, name))["version"]
                  for name in manifest["files"]}
     except (OSError, ValueError, KeyError):
         return None
@@ -81,11 +90,17 @@ class Scratch(unittest.TestCase):
     def install(self, version, pause=None):
         return install_atomically(self.output, lambda d: write_pack(d, version, pause))
 
-    def pinned_version(self):
-        # setUp resolved the parent; the installer makes one relative link
-        # directly to an immutable sibling. Select it in one readlink, without
-        # realpath's non-strict fallback to the moving output on a stat error.
-        return self.output.parent / os.readlink(self.output)
+    @contextmanager
+    def pinned_pack(self):
+        # Follow the output once in the kernel and keep that directory open.
+        # readlink can return EINVAL during a macOS symlink replacement, even
+        # though the output stays a link. File opens relative to this handle
+        # keep reading the selected version without querying the link again.
+        directory = os.open(self.output, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            yield directory
+        finally:
+            os.close(directory)
 
 
 class Install(Scratch):
@@ -195,7 +210,8 @@ class HalfWritten(Scratch):
         def poll():
             try:
                 while not stop.is_set():
-                    seen.add(consistent(self.pinned_version()))
+                    with self.pinned_pack() as directory:
+                        seen.add(consistent(directory))
                     ready.set()
             except BaseException as error:
                 errors.append(error)
@@ -584,44 +600,45 @@ class KilledBuild(Scratch):
 class SpanningReader(Scratch):
     """A reader that reads the pack's files one by one while a swap lands."""
 
-    def read_across_swap(self, resolve_once):
+    def read_across_swap(self, pin_once):
         self.install("v1")
-        base = self.pinned_version() if resolve_once else self.output
-        manifest = json.loads((base / "manifest.json").read_text())
-        found = [json.loads((base / name).read_text())["version"]
-                 for name in manifest["files"][:3]]
-        self.install("v2")  # lands between the reader's opens
-        found += [json.loads((base / name).read_text())["version"]
-                  for name in manifest["files"][3:]]
+        with self.pinned_pack() if pin_once else nullcontext(self.output) as base:
+            manifest = json.loads(read_part(base, "manifest.json"))
+            found = [json.loads(read_part(base, name))["version"]
+                     for name in manifest["files"][:3]]
+            self.install("v2")  # lands between the reader's opens
+            found += [json.loads(read_part(base, name))["version"]
+                      for name in manifest["files"][3:]]
         return manifest["version"], set(found)
 
-    def test_a_reader_that_resolved_once_reads_one_version(self):
-        self.assertEqual(self.read_across_swap(resolve_once=True), ("v1", {"v1"}))
+    def test_a_reader_that_pinned_once_reads_one_version(self):
+        self.assertEqual(self.read_across_swap(pin_once=True), ("v1", {"v1"}))
 
-    def test_a_stat_error_cannot_leave_the_reader_on_the_moving_output(self):
-        lstat = os.lstat
+    def test_lookup_errors_cannot_leave_the_reader_on_the_moving_output(self):
+        pin = self.pinned_pack
+        for syscall, error in (("lstat", FileNotFoundError("lookup during replacement")),
+                               ("readlink", OSError(errno.EINVAL, "Invalid argument"))):
+            @contextmanager
+            def pin_during_lookup_error():
+                with ExitStack() as stack:
+                    # Inject only during reader selection, not into the writer.
+                    with mock.patch.object(os, syscall, side_effect=error):
+                        directory = stack.enter_context(pin())
+                    yield directory
 
-        def failed_lookup(path, *args, **kwargs):
-            if Path(path) == self.output:
-                raise FileNotFoundError("lookup during replacement")
-            return lstat(path, *args, **kwargs)
+            with self.subTest(syscall=syscall), \
+                    mock.patch.object(self, "pinned_pack", pin_during_lookup_error):
+                self.assertEqual(self.read_across_swap(pin_once=True), ("v1", {"v1"}))
 
-        pin = self.pinned_version
-
-        def pin_during_lookup_error():
-            with mock.patch.object(os, "lstat", failed_lookup):
-                # Negative control: non-strict realpath silently leaves the
-                # output unresolved. Reading through it then mixes versions,
-                # as the next test demonstrates. The pinned reader must still
-                # select v1. Keep the injected fault out of the writer.
-                self.assertEqual(Path(os.path.realpath(self.output)), self.output)
-                return pin()
-
-        with mock.patch.object(self, "pinned_version", pin_during_lookup_error):
-            self.assertEqual(self.read_across_swap(resolve_once=True), ("v1", {"v1"}))
+    def test_negative_control_a_pinned_reader_detects_an_in_place_build(self):
+        self.install("v1")
+        seen = []
+        with self.pinned_pack() as directory:
+            write_pack(self.output, "v2", pause=lambda: seen.append(consistent(directory)))
+        self.assertEqual(seen, [None])
 
     def test_negative_control_a_reader_reopening_the_output_mixes_versions(self):
-        self.assertEqual(self.read_across_swap(resolve_once=False), ("v1", {"v1", "v2"}))
+        self.assertEqual(self.read_across_swap(pin_once=False), ("v1", {"v1", "v2"}))
 
 
 class StaleLinks(Scratch):
