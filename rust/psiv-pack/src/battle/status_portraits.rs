@@ -98,6 +98,58 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Vec<Json>, PackError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::battle::image_tests::{Output, assert_png, palette, plane, word};
+    use crate::test_support::retail_rom;
+
+    #[test]
+    fn all_retail_portraits_have_distinct_content_ages_geometry_and_palette() {
+        let Some(rom) = retail_rom("STATUS images") else {
+            return;
+        };
+        let rom = rom.bytes();
+        let root = Output::new("status-images");
+        let records = write(rom, &root.0).unwrap();
+        assert_eq!(records.len(), 11);
+        let mut distinct = std::collections::BTreeSet::new();
+        let mut colors = vec![[0; 3]; 64];
+        colors[32..48].copy_from_slice(&palette(rom, 0x296300, 16));
+        for (character, record) in records.iter().enumerate() {
+            let record = serde_json::Value::from(record);
+            assert_eq!(
+                age(rom, character).unwrap(),
+                word(rom, 0x2A8E12 + character * 2)
+            );
+            assert_eq!(record["size_pixels"], serde_json::json!([80, 80]));
+            assert_eq!(record["screen_pixels"], serde_json::json!([24, 16]));
+            assert_eq!(record["cram_line"], 2);
+            let art = crate::m68k::l(rom, 0x5D548 + character * 4).unwrap() as usize;
+            let mapping = crate::m68k::l(rom, 0x5D574 + character * 4).unwrap() as usize;
+            let raw = nemesis::decompress(rom, art).unwrap().0;
+            let words: Vec<_> = (0..100).map(|i| word(rom, mapping + i * 2)).collect();
+            let expected = plane(&words, 10, &raw, 0x580);
+            assert!(expected.iter().any(|&p| p != 0));
+            assert!(
+                distinct.insert(expected.clone()),
+                "duplicate portrait {character}"
+            );
+            let bytes = std::fs::read(root.0.join(record["png"].as_str().unwrap())).unwrap();
+            assert_png(&bytes, (80, 80), &expected, &colors);
+            assert_eq!(record["png_sha256"], png::image_sha256(&bytes).unwrap());
+        }
+    }
+
+    #[test]
+    fn a_status_mapping_with_a_different_palette_is_refused() {
+        let Some(rom) = retail_rom("STATUS palette refusal") else {
+            return;
+        };
+        let mut rom = rom.bytes().to_vec();
+        let mapping = crate::m68k::l(&rom, 0x5D574).unwrap() as usize;
+        rom[mapping] ^= 0x20;
+        let root = Output::new("status-wrong-palette");
+        let error = write(&rom, &root.0).unwrap_err();
+        assert!(error.0.contains("unexpected palette"), "{error}");
+    }
 
     #[test]
     fn a_cell_lands_on_its_line_flipped_and_zero_stays_backdrop() {

@@ -11,6 +11,8 @@ mod characters;
 mod enemies;
 mod equipment;
 mod formations;
+#[cfg(test)]
+mod image_tests;
 mod levels;
 mod names;
 mod rules;

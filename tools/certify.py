@@ -261,20 +261,12 @@ TAPE_38_TONE = {
 # panel lag (#667), the native window is up through tick 2657, and the chosen
 # pins use t + 7236 through this loop. The fourth step matches 2672-2675;
 # 2674 sits inside it. Regions and oracle hashes stay fixed.
+# The scene retains the window and portrait through this loop (#636), so
+# all three pairs use the full 1,1,319,223 region.
 TAPE_38_LOOP = {
     **TAPE_38,
-    "frames": [9893, 9950],
+    "frames": [9893, 9910, 9950],
     "region": [1, 1, 319, 223],
-}
-
-# The loop's fourth step (9910, backdrop `$888`) over the panels and the
-# backdrop above row 112: the native closes the dialogue's window and Chaz's
-# portrait when the text ends, where the cartridge keeps both up, toned,
-# until the loop is over (#636).
-TAPE_38_LOOP_RISE = {
-    **TAPE_38,
-    "frames": [9910],
-    "region": [1, 1, 319, 111],
 }
 
 # Rykros's third cycle row: the planet has appeared but is still dark,
@@ -402,13 +394,13 @@ PAIRS = [
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
-    # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
+    # its white endpoint, one tape-38 run (TAPE_38_LOOP).
     ("ending-tone-loop-before", ENDING, 2657,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
     ("ending-tone-loop-rise", ENDING, 2674,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
-     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
+     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP),
     ("ending-tone-loop-white", ENDING, 2714,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),

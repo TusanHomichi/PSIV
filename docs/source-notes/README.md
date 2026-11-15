@@ -159,14 +159,15 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **The ending's first window closes before its tone loop (#636).**
-  `Cutscene_Ending` runs dialogue `$09` through `RunText3` (`$078F68..$078F90`),
-  which leaves the text window and Chaz's portrait on screen. The sixty-frame
-  `Pal_IncreaseTone` loop (`$078F9C`) whitens them with the panels, and only
-  `$078FAE..$078FCC` destroys them. The port closes both when the text ends,
-  so the loop tones the backdrop where they stood. The scene's windows are not
-  modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
-  ([89_Ending.md](../scenes/89_Ending.md)).
+- **`Event_RunDialogue2`'s windows close when their text ends (#644).** The
+  routine (`$5ACDC`, `DialogueWindow::Retained`) returns without destroying
+  the text window or its portrait, and every caller goes on to a battle or a
+  map change, so the window shows until that mode redraws the planes. The
+  port closes it when the text ends. It holds a last page only for the
+  ending's first window (`$078F68..$078F90`, #636), which the scene destroys
+  itself at `$078FAE..$078FCC` ([89_Ending.md](../scenes/89_Ending.md)).
+  Tape 45 shows a `Retained` window staying up under an event battle's band
+  (the event-battle bullet below).
 - **The staff roll's fade out stops at `u16::MAX` frames (#638).**
   `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
   `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
@@ -174,16 +175,23 @@ agility and dexterity, and enemy paralysis clearing each turn.
   65,535 frames and the scene continues. The ending reaches the loop with
   `$0EEE`, which ends after six stores
   ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
-- **A scene's fade-out leaves the display on (#653).** `PalFadeOut_ClrSpriteTbl`
-  (and so `InitVRAMAndCRAM`'s fade) ends in `ClearSpriteTableBuf`, which
-  turns the display off (`ps4.asm:85982-85984`) until the next fade-in's
-  `VDP_EnableDisplay`. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
-  runs `Pal_FadeIn`, `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM` frame by
-  frame and leaves the words black (#637), but keeps no display bit, so a
-  palette a scene writes between a fade-out and its fade-in (`Pal_Init`'s
-  window line, a `LoadPalette`, a panel's words) is drawn on the frames
-  between, where the cartridge shows its backdrop
-  ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The display comes on when a scene ends (#653).** The runtime keeps VDP
+  register 1's display bit (`CramView::display`): a whole-palette fade-out's
+  `ClearSpriteTableBuf` clears it and `VDP_EnableDisplay` sets it
+  ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)). The
+  port also sets it when a scene hands control back (`Runtime::end_scene`);
+  the Aiedo inn's resume clears it again on that tick and sets it only after
+  its sixty-frame hold and `Pal_FadeIn`'s display wait.
+  Retail does not: `Event_GirlsSneakingOut` fades out and hands
+  `FieldRoutine_Shop` the dark display (`ps4.asm:146993-147044`). The guardian
+  events keep the display lit while their tone loops remain unmodeled (#571).
+  `scenes::dark_display` lists every scene
+  that ends dark and fails on a window drawn dark. A field load sets the bit
+  at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
+  cover draws that frame black either way. The dialogue windows that fade out
+  as they close (`Event_GetAndRunDialogue5`, `Event_RunDialogue5`) run no fade
+  on the CRAM and leave the bit set, so `Cutscene_Alshline`'s
+  `VDP_EnableDisplay` (`$074494`) finds it already on (#670).
 - **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
   After `Event_GirlsSneakingOut` the inn draws the bill's window
   (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60

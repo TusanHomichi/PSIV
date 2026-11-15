@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `ending.rs`, `ENDING` (404 typed ops).
+- **Data:** `ending.rs`, `ENDING` (405 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -43,9 +43,12 @@ Its windows take no input; only the final Start gate does.
 The first loop is certified against tape 38 at frames 9893, 9910 and 9950
 (`ending-tone-loop-*`,
 [SCENE_PRESENTATION.md](SCENE_PRESENTATION.md#certified-pairs)).
-The native closes the text window and Chaz's portrait when the dialogue's
-text ends. The cartridge keeps both up, toned, until `$078FAE`
-([#636](https://github.com/TusanHomichi/PSIV/issues/636)).
+`RunText3` returns with the text window and Chaz's portrait up, and the loop
+tones them with the panels until `$078FAE` destroys them. The runtime keeps
+the window's last page drawn from the text's end to `WindowDestroy`
+(`DialogueRunner::hold_page_at_end`,
+[#636](https://github.com/TusanHomichi/PSIV/issues/636)). The later texts'
+`Event_RunDialogue4` destroys its own window.
 
 The Menu shortcut is real retail behaviour. It skips the normal panel/dialogue
 sequence and enters the credits renderer at `$079D0C`. The typed normal path
@@ -315,7 +318,7 @@ dialogue.
 
 ## Census
 
-The ending's transcription is 396 ops, and its 50 post-battle panels are
+The ending's transcription is 397 ops, and its 50 post-battle panels are
 among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and
