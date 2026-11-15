@@ -51,6 +51,9 @@ capture continued far enough to observe the next counted frame. This matters
 for the Torch: its Nemesis call returns during frame 7444, while the frame
 count stays held through 7446. Its raw trace also watches the following
 object-update, background-refresh and DMA call sites (`$070430..$07043C`).
+The background refresh's caller interval is frame 7444, master cycle 844849,
+through frame 7446, cycle 197696: 1,144,927 master cycles, crossing the two
+remaining held samples. These belong to `RefreshPlaneBG`, not Nemesis.
 
 The intervals end **before RTS**, except the standalone art interval, which
 runs from its caller's JSR to the following instruction. Elapsed master cycles

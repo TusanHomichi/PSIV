@@ -220,9 +220,12 @@ The first sample is the second white frame, and the second sample the first
 white frame, before its snowstorm write. Each capture records the native
 `Main_Frame_Count` in its state JSON; the runtime clock is never rewritten.
 These pairs certify the white flashes, not the missing panel or the restore.
-From the object art's load on, the cartridge's
-eight lag frames ([#681](https://github.com/TusanHomichi/PSIV/issues/681))
-leave the native eight frames early.
+From the object art's load on, the cartridge's six decompression lag frames
+([#681](https://github.com/TusanHomichi/PSIV/issues/681)) and the following
+background refresh's two ([#674](https://github.com/TusanHomichi/PSIV/issues/674))
+leave the native eight frames early. The
+[instruction trace](../../oracle/CAPTURE.md#scene-load-measurements) separates
+those routine boundaries rather than charging all eight to Nemesis.
 
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension
 first); it pins each pair's clone tick and oracle-frame hash and writes a receipt
