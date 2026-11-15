@@ -18,7 +18,13 @@ pub(crate) struct DialogueClose {
 
 impl Runtime {
     pub(crate) fn return_from_dialogue(&mut self, suspended: bool) {
-        if self.scene.is_none() || matches!(self.scene_input, SceneInput::Choice(_)) {
+        if self.scene.is_none() {
+            return;
+        }
+        if matches!(self.scene_input, SceneInput::Choice(_)) {
+            // A standalone choice has already supplied its scene input;
+            // closing that window still clears the panel rendering byte.
+            self.scene_panel_sprites = false;
             return;
         }
         let input = if suspended {
