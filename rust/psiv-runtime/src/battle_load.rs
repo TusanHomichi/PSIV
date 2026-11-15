@@ -18,7 +18,7 @@ pub struct BattleLoadView {
     /// First uploaded 16-pixel row of plane B (uploads proceed upward).
     pub background_first_row: u8,
     /// `Battle_UpdateEnemySprites` runs once before `loc_6B20`
-    /// (`ps4.asm:10023`); its first timer underflow selects frame one.
+    /// (`ps4.asm:10028`); its first timer underflow selects frame one.
     pub enemy_animation_phase_ticks: usize,
     fade_steps: u8,
 }

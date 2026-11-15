@@ -77,7 +77,11 @@ scrolling the complete stage would wrap rows that VRAM still holds clear.
 VInt, including the final unchanged-palette pass. The runtime's
 `BattleLoadView` owns those scroll, row and palette steps. Setup seats the
 battle before the fade, while `PreparedBattle::roll` waits for `loc_B62A`'s
-original frame. The party art and first command window follow the sweep.
+original frame. `Battle_UpdateEnemySprites` runs once before `loc_6B20`
+(`ps4.asm:10028`): its initial zero timer underflows and selects animation
+frame one, which stays parked through the sweep. `BattleLoadView` also carries
+that initial update count. The party art and first command window follow the
+sweep.
 
 ---
 

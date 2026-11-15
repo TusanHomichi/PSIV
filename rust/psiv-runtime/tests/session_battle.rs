@@ -283,6 +283,29 @@ fn item_count(session: &Session, item: u8) -> usize {
 }
 
 #[test]
+fn the_encounter_entry_fixture_uses_the_tapes_stage_without_a_lead_in_scene() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let data = GameData::load(pack).unwrap();
+    let mut session =
+        psiv_runtime::encounter_entry_fixture(data, psiv_core::StepFrames::default()).unwrap();
+    session
+        .enable_battles(&BattleFiles::load(pack).unwrap())
+        .unwrap();
+    assert_eq!(session.runtime().map_id().0, BASEMENT);
+    for _ in 0..29 {
+        tick(&mut session, Pad::NEUTRAL);
+        assert!(!session.runtime().scene_active());
+    }
+    assert!(matches!(
+        session.debug_encounter_entry(0x8A),
+        RuntimeEvent::EncounterRolled { formation: 0x8A }
+    ));
+    assert!(session.runtime().battle_entering());
+}
+
+#[test]
 fn zio_ambush_uses_no_command_or_item_before_the_first_player_round() {
     let Some(pack) = pack() else {
         return;
