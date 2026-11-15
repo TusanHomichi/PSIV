@@ -117,8 +117,7 @@ fn retail_provenance_sfx_and_complete_census() {
         assert_eq!(animation["composition"]["status"], "exact");
         assert_eq!(animation["sprite_sheet_proven"], true);
         assert!(animation["frame_sequence_why_not"].is_null());
-        // Names resolve through the shared SFX index; pin distinct retail IDs
-        // without copying cartridge-derived names into this test.
+        // Each record resolves its ID through the shared SFX index.
         assert_eq!(
             animation["sfx_name"],
             crate::sound_defs::SFX_NAMES[animation["sfx_id"].as_u64().unwrap() as usize - 0xB5]
@@ -127,6 +126,10 @@ fn retail_provenance_sfx_and_complete_census() {
     }
     assert_eq!(records[2]["sfx_id"], 0xD6);
     assert_eq!(records[10]["sfx_id"], 0xD8);
+    // These are disassembly symbols, not text extracted from the cartridge.
+    // Keep the Python test's independent guard on the shared name table.
+    assert_eq!(records[2]["sfx_name"], "MechEnemyAlarm");
+    assert_eq!(records[10]["sfx_name"], "EnemyAttack4");
     assert_ne!(records[2]["sfx_name"], records[10]["sfx_name"]);
 }
 
