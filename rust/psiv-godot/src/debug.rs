@@ -274,7 +274,8 @@ impl Field {
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
     /// screenshot so an agent can see what a player would, and
     /// `PSIV_DEBUG_SHOT_LAST=<n>` one per tick through tick n. `PSIV_DEBUG_EVENT`
-    /// starts a transcribed scene at tick 30; combine it with
+    /// starts a transcribed scene at tick 30 (or `PSIV_DEBUG_EVENT_FRAME`);
+    /// combine it with
     /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
     /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
     /// typewriter and four-frame dismiss hold while using the debug selector.
