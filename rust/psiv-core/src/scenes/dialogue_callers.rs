@@ -542,15 +542,15 @@ fn control_an_inline_entry_does_not_excuse_another_entry() {
     let scenes = edited(
         "Cutscene_CrashLaanding",
         swap(
-            run(0x03, DialogueWindow::Cutscene),
-            run(0x04, DialogueWindow::Cutscene),
+            run(0x03, DialogueWindow::Inline),
+            run(0x04, DialogueWindow::Inline),
         ),
     );
     let problems = caller_problems(&scenes, DIALOGUE_CALLERS, UNTRANSCRIBED_RESUMES);
     assert_eq!(
         problems,
         vec![
-            "Cutscene_CrashLaanding: runs entry 0x4 in DialogueWindow::Cutscene, which no \
+            "Cutscene_CrashLaanding: runs entry 0x4 in DialogueWindow::Inline, which no \
              caller in its bytes asks for"
         ]
     );
