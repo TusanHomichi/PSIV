@@ -42,8 +42,7 @@ pub struct EclipseTorchSpawn {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EclipseTorchObject {
     spawn: EclipseTorchSpawn,
-    index: u8,
-    duration: u8,
+    animation: crate::ActorAnimation,
     initialized: bool,
     active: bool,
 }
@@ -54,8 +53,16 @@ impl EclipseTorchObject {
     pub const fn new(spawn: EclipseTorchSpawn) -> Self {
         Self {
             spawn,
-            index: 0,
-            duration: spawn.sequence.initial_delay(),
+            animation: crate::ActorAnimation {
+                word: spawn.sequence as u16,
+                index: 0,
+                duration: spawn.sequence.initial_delay(),
+                durations: match spawn.sequence {
+                    EclipseTorchSequence::Fast => &[7; 4],
+                    EclipseTorchSequence::Medium => &[11; 4],
+                    EclipseTorchSequence::Slow => &[15; 4],
+                },
+            },
             initialized: false,
             active: true,
         }
@@ -71,7 +78,7 @@ impl EclipseTorchObject {
     #[must_use]
     pub const fn mapping(&self) -> Option<u8> {
         if self.active && self.initialized {
-            Some(self.index)
+            Some(self.animation.index)
         } else {
             None
         }
@@ -86,7 +93,7 @@ impl EclipseTorchObject {
     /// The current `$11` countdown byte.
     #[must_use]
     pub const fn duration(&self) -> u8 {
-        self.duration
+        self.animation.duration
     }
 
     /// `loc_4FAE0` tests index 3/duration 0 BEFORE `FieldObj_Animate2`.
@@ -96,15 +103,11 @@ impl EclipseTorchObject {
             return;
         }
         self.initialized = true;
-        if self.index == 3 && self.duration == 0 {
+        if self.animation.index == 3 && self.animation.duration == 0 {
             self.active = false;
             return;
         }
-        self.duration = self.duration.wrapping_sub(1);
-        if (self.duration as i8) < 0 {
-            self.duration = self.spawn.sequence.initial_delay();
-            self.index = (self.index + 1) % 4;
-        }
+        self.animation.tick();
     }
 }
 
