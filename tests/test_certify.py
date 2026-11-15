@@ -73,7 +73,9 @@ class PairTableCase(unittest.TestCase):
         # session's event fixture, not a hand-built menu.
         self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x800D"})
         self.assertIs(recipe, certify.TAPE_35)
-        self.assertEqual(tick, 70)  # still settled with cursor and marker hidden
+        # Still settled with cursor and marker hidden, once the scene's
+        # `InitVRAMAndCRAM` and `Pal_FadeIn` spend their 31 frames (#637).
+        self.assertEqual(tick, 101)
         self.assertEqual(frame, "build/certify/oracle/ship-menu/frame_7293.png")
         self.assertEqual(digest, "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8")
         self.assertTrue((ROOT / recipe["tape"]).is_file())
@@ -94,7 +96,7 @@ class PairTableCase(unittest.TestCase):
         # neither the autoclose nor the retail pace's synthetic Speak.
         self.assertEqual(env, certify.ENDING)
         self.assertFalse(set(certify.SCENE) & set(env))
-        self.assertEqual(tick, 1704)
+        self.assertEqual(tick, 1736)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -140,7 +142,7 @@ class PairTableCase(unittest.TestCase):
         pairs = {p[0]: p for p in certify.PAIRS}
         rykros = pairs["rykros-palette-cycle"]
         zio = pairs["zio-barrier-ramp"]
-        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1292))
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1323))
         self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
         self.assertNotIn("region", rykros[5])
         self.assertEqual(zio[5]["region"], [1, 1, 319, 223])
@@ -195,11 +197,12 @@ class PairTableCase(unittest.TestCase):
             with self.subTest(pair=name):
                 self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x801b", **certify.SCENE})
                 self.assertIs(recipe, certify.TAPE_43_TONE)
-                # Clone tick t shows tape 43's frame t + 7246 once the first
-                # dialogue's portraits spend their frames (#625).
-                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7246}.png")
-        # Before, a step up, a step back, after: each a plateau's middle.
-        self.assertEqual([p[2] for p in tone], [895, 911, 939, 955])
+                # Clone tick t shows tape 43's frame t + 7215 once the first
+                # dialogue's portraits spend their frames (#625) and the
+                # scene's `InitVRAMAndCRAM` and `Pal_FadeIn` their 31 (#637).
+                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7215}.png")
+        # Before, a step up, a step back, after: each inside its plateau.
+        self.assertEqual([p[2] for p in tone], [926, 942, 970, 986])
         self.assertEqual(certify.TAPE_43_TONE["frames"], [8141, 8157, 8185, 8201])
         self.assertEqual(certify.TAPE_43_TONE["patches"], certify.TAPE_43["patches"])
         self.assertEqual(certify.TAPE_43_TONE["tape"], certify.TAPE_43["tape"])
@@ -216,12 +219,12 @@ class PairTableCase(unittest.TestCase):
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native window closes on tick 2598 as the cartridge's
-                # last page turns on 9893; the loop follows at t + 7296.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7296}.png")
-                self.assertIn(tick + 7296, recipe["frames"])
+                # The native window closes after tick 2629 as the cartridge's
+                # last page turns on 9893; the loop follows at t + 7264.
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
+                self.assertIn(tick + 7264, recipe["frames"])
         # Before, the fourth step, white: each inside its plateau.
-        self.assertEqual([p[2] for p in loop], [2597, 2614, 2654])
+        self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
         self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
         self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
         self.assertIs(loop[2][5], certify.TAPE_38_LOOP)

@@ -4,13 +4,13 @@
 - **Pointer:** `CutscenePtrs[$1C]`; scene `$801C`.
 - **Trigger:** `RunEventsJmpTbl[$34]`, strength chest `$D5` and courage chest
   `$D3` set, Le Roof story `$D6` clear.
-- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (78 ops).
+- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (75 ops).
 
 ## Clone audit
 
 The `grand_cross=0` cutscene table selects the retail body at
 `Cutscene_LeRoofAgain`; the clone's `grand_cross=1` scene include is not used.
-ROM range: `$078346..$0784B6` exclusive end. The final 48 ops are the
+ROM range: `$078346..$0784B6` exclusive end. The final 45 ops are the
 retail `$800D` spaceship route (`INSIDE_SPACESHIP_ROUTE`, menu and flight) inlined
 because this body jumps to it.
 

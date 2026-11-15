@@ -15,19 +15,22 @@ pub(crate) enum TransitionKind {
     Doorway,
     /// Encounter flash: field to white, white hold, then battle reveal.
     BattleEntry,
-    /// Cutscene initialization: fade to black and hold until the scene's
-    /// first presentation window is ready.
+    /// Cutscene initialization off a palette that is not live: fade to
+    /// black and hold until the scene's first presentation window is ready.
+    /// On a live one the scene's `InitVRAMAndCRAM` fades the CRAM itself.
     SceneStart,
     /// The title hand-off's centered screen wipe.  The Godot field has no
     /// title plane, so this is used as a matching black-to-field reveal.
     GameStart,
-    /// A field load's black rows and `Pal_FadeIn` ramp: a scene's direct
-    /// fade-in, a cutscene's field reload, a teleport's destination load.
+    /// A field load's black rows and `Pal_FadeIn` ramp: a cutscene's field
+    /// reload, a teleport's destination load, and a scene's `FadeIn` off a
+    /// palette that is not live (on a live one the CRAM model draws it).
     /// The runtime owns the blocking and the rows; this is the renderer's
     /// 13-step black ramp at their end.
     SceneFadeIn,
-    /// `PalFadeOut_ClrSpriteTbl`: a scene's direct fade-out, and a
-    /// teleport's (`MenuExit_Teleport`) over the field being left.
+    /// `PalFadeOut_ClrSpriteTbl`: a teleport's (`MenuExit_Teleport`) over
+    /// the field being left, and a scene's `FadeOut` off a palette that is
+    /// not live.
     SceneFadeOut,
 }
 

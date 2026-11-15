@@ -61,6 +61,10 @@ pub(crate) struct CutsceneLayer {
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     panels: panel_stack::PanelStack,
     opening_background: Option<Gd<ImageTexture>>,
+    /// The background's indexed PNG, and its indices once first drawn in the
+    /// live palette (`None` inside: the load failed, so the baked one draws).
+    opening_background_path: Option<String>,
+    opening_art: Option<Option<IndexedArt>>,
     /// Oracle-measured top of the narration image band, from the pack
     /// manifest (`presentation/panels.json`, `opening_background.screen_y`).
     opening_screen_y: f32,
@@ -93,6 +97,8 @@ impl INode2D for CutsceneLayer {
             temporary_assets: BTreeMap::new(),
             panels: panel_stack::PanelStack::default(),
             opening_background: None,
+            opening_background_path: None,
+            opening_art: None,
             opening_screen_y: 40.0,
             opening_visible: false,
             text_layer: None,
@@ -134,6 +140,8 @@ impl CutsceneLayer {
         self.indexed_panels.extend(assets.indexed_panels);
         self.temporary_assets.extend(assets.temporary_assets);
         self.opening_background = assets.opening_background;
+        self.opening_background_path = assets.opening_background_path;
+        self.opening_art = None;
         if assets.generic_portrait_named {
             self.generic_portrait = assets.generic_portrait;
         }

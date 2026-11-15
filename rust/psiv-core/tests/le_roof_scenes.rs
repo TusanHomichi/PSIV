@@ -78,8 +78,14 @@ fn trace(ops: &'static [SceneOp]) -> String {
                         other => panic!("unexpected record {other:?}"),
                     },
                     SceneOp::PlaySound { id } => format!("S{id:02X}"),
-                    SceneOp::FadeOut => "O".to_owned(),
-                    SceneOp::FadeIn => "I".to_owned(),
+                    SceneOp::FadeOut => {
+                        fade = FADE_UP;
+                        "O".to_owned()
+                    }
+                    SceneOp::FadeIn => {
+                        fade = FADE_UP;
+                        "I".to_owned()
+                    }
                     SceneOp::InitVramAndCram => "V".to_owned(),
                     SceneOp::PanelCreate { .. } => "P".to_owned(),
                     // The panel byte (#630) spends no frame and draws nothing here.
@@ -202,13 +208,15 @@ fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
 /// 120) before dialogue `$0B`, a frame for each panel's `DMAPlanes_VInt`,
 /// then after the resume the 84-frame `Pal_VariableFadeOut` and
-/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
+/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map. Each
+/// `InitVRAMAndCRAM` is its fade-out (`O`), its frame (`V .1`); each fixed
+/// fade is answered with 45 frames here, and no fade updates the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
     let trace = trace(from(0x801C, 9));
     assert!(
         trace.starts_with(
-            "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P .1 | .1 X5 .84 +60 V I P .1 DC .1 F"
+            "U .45 C180 .180 G71 .71 C120 .120 DB .1 O .45 V .1 I .45 P .1 | .1 X5 .84 +60 O .45 V .1 I .45 P .1 DC .1 F"
         ),
         "{trace}"
     );
@@ -251,7 +259,10 @@ fn the_old_le_roof_policy_is_rejected() {
         },
     ];
     let old = trace(OLD);
-    assert_eq!(old, "R .24 +300 DB .1 V I P | .1 O V I P DC .1 F");
+    assert_eq!(
+        old,
+        "R .24 +300 DB .1 O .45 V .1 I .45 P | .1 O .45 O .45 V .1 I .45 P DC .1 F"
+    );
     assert!(!trace(from(0x801C, 9)).starts_with(&old));
 }
 

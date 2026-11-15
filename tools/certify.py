@@ -257,11 +257,14 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The native window closes on tick 2598, the
-# frame the cartridge's last page turns (9893), and clone tick t shows oracle
-# frame t + 7296 through the loop: the fourth step's plateau (9909-9912) on
-# ticks 2613-2616 (#645). The untoned frame before (9893) and the white
-# endpoint inside the loop (9950) certify all but #409's first row and column.
+# 9920 to the fade-out at 10086. The native window closes after tick 2629,
+# the frame the cartridge's last page turns (9893), and clone tick t shows
+# oracle frame t + 7264 through the loop: the fourth step's plateau
+# (9909-9912) on ticks 2645-2648 (#645). That is 32 ticks later than #645's
+# t + 7296: the scene's first `InitVRAMAndCRAM` and `Pal_FadeIn` spend 31
+# frames (#637) and the steps fall one `Main_Frame_Count` phase later. The
+# untoned frame before (9893) and the white endpoint inside the loop (9950)
+# certify all but #409's first row and column.
 TAPE_38_LOOP = {
     **TAPE_38,
     "frames": [9893, 9950],
@@ -290,10 +293,11 @@ TAPE_43 = {
 # `$222` to every word each fourth frame, `Palette_Table_Buffer` first
 # stepping in frame 8143 (shown from 8144) and white from 8167, then
 # `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
-# (shown from 8200). Clone tick t shows oracle frame t + 7246 once the scene's
-# first dialogue spends its portraits' frames (#625), but for each step's
-# first frame (897, 901 ... 953), which the native shows already stepped: its
-# `Main_Frame_Count` phase is one off the tape's, because the debug run pages
+# (shown from 8200). Clone tick t shows oracle frame t + 7215 once the scene's
+# first dialogue spends its portraits' frames (#625) and its `InitVRAMAndCRAM`
+# and `Pal_FadeIn` their 31 (#637), but for a step's first frame, which the
+# native can show already stepped (897, 901 ... 953 before #637): its
+# `Main_Frame_Count` phase need not be the tape's, because the debug run pages
 # the dialogue on other frames than the tape. The pairs sit inside the
 # plateaus: the untoned frame before (8141), the fourth step up (8157,
 # backdrop `$888`), the third step back (8185, every word floored at `$888`)
@@ -308,8 +312,8 @@ TAPE_43_TONE = {
 # The same run's window after the tone (#625): `Event_RunDialogue3` opens the
 # box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
 # decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
-# position (24,112) with the first glyph. Clone tick t shows frame t + 7246
-# from the tone's restore (954) through tick 1010.
+# position (24,112) with the first glyph. Clone tick t shows frame t + 7215
+# from the tone's restore (985) through tick 1041.
 TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
 
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
@@ -371,9 +375,10 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    # The first page complete, its arrow up: ticks 161-165 once Chaz's
-    # portrait spends its two lag frames (#625).
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 162,
+    # The first page complete, its arrow up: ticks 192-196 once Chaz's
+    # portrait spends its two lag frames (#625) and the scene's
+    # `InitVRAMAndCRAM` and `Pal_FadeIn` their 31 (#637).
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 193,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -383,25 +388,27 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    # Ticks 1690-1722 all match: at the break's t + 7245 they show 8935-8967,
-    # which equal 8930 (#645).
-    ("ending-elsydeon", ENDING, 1704,
+    # Ticks 1722-1754 all match: at the break's t + 7213 they show 8935-8967,
+    # which equal 8930 (#645; 32 ticks later once the scene's `InitVRAMAndCRAM`
+    # and `Pal_FadeIn` spend their 31 frames, #637).
+    ("ending-elsydeon", ENDING, 1736,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: ticks 1739-1742 are the brightest, as
-    # frames 8984-8987 are, so clone tick t shows frame t + 7245 here (#645).
-    ("ending-elsydeon-tone", ENDING, 1739,
+    # The break's tone at its peak: ticks 1771-1774 are the brightest, as
+    # frames 8984-8987 are, so clone tick t shows frame t + 7213 here (#645,
+    # #637).
+    ("ending-elsydeon-tone", ENDING, 1771,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
     # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
-    ("ending-tone-loop-before", ENDING, 2597,
+    ("ending-tone-loop-before", ENDING, 2629,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", ENDING, 2614,
+    ("ending-tone-loop-rise", ENDING, 2646,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
      "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
-    ("ending-tone-loop-white", ENDING, 2654,
+    ("ending-tone-loop-white", ENDING, 2686,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
@@ -471,9 +478,11 @@ PAIRS = [
     # marker blink and the clone's runtime clock aligned so the frame is the
     # oracle's frame 7293. The pair is the menu's own draw (the planetary map,
     # both windows, the cursor boxes), certified at 0.000000.
-    # After 12 Window_Draw frames, tick 70 still has full windows, cursor and
-    # marker hidden (session_destination); retain the fixed oracle frame.
-    ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
+    # After 12 Window_Draw frames, tick 101 still has full windows, cursor and
+    # marker hidden (session_destination); retain the fixed oracle frame. It
+    # was tick 70 before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent
+    # their 31 frames (#637).
+    ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 101,
      "build/certify/oracle/ship-menu/frame_7293.png",
      "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),
     # The TELEPIPE town list against tape 36, its window's region only (#128).
@@ -496,26 +505,27 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    # The cycle's rows run ticks 1277-1298 against frames 8565-8586 once the
-    # scene's portraits lag (#625): 1292 is the third row's second frame.
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1292,
+    # The cycle's rows run ticks 1308-1329 against frames 8565-8586 once the
+    # scene's portraits lag (#625) and its first fades spend their 31 frames
+    # (#637): 1323 is the third row's second frame.
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1323,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
     # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
     # a step up, a step back, and the restored frame.
-    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 895,
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 926,
      "build/certify/oracle/rykros-tone/frame_8141.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 911,
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 942,
      "build/certify/oracle/rykros-tone/frame_8157.png",
      "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
-    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 939,
+    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
      "build/certify/oracle/rykros-tone/frame_8185.png",
      "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
-    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 955,
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 986,
      "build/certify/oracle/rykros-tone/frame_8201.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
+    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1001,
      "build/certify/oracle/rykros-portrait/frame_8216.png",
      "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,

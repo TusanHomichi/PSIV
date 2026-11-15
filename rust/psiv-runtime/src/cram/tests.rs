@@ -540,10 +540,10 @@ fn a_write_during_a_held_load_goes_to_the_buffer() {
 fn any_other_record_puts_a_held_load_live() {
     let none = ScenePalettes::default();
     let lit = filled(0x0222);
-    // The shell's fade copies the buffer to the second one.
+    // `PalFadeOut_ClrSpriteTbl` copies the load's words, then steps them.
     let mut cram = held(lit, filled(0));
-    let _ = cram.apply(&SceneOp::FadeIn, 0, &none, None, &mut 0);
-    assert_eq!(cram.view().words, lit);
+    let _ = cram.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0);
+    assert_eq!(cram.view().words, filled(0x0111));
     assert_eq!(*cram.saved(), lit);
     // A one-word write lands on the load's words, not the shown ones.
     let mut cram = held(lit, filled(0));
@@ -620,10 +620,18 @@ fn scene_loads_read_the_pack() {
         ],
     );
     let palettes = ScenePalettes::from_parts(words, panels);
-    let mut cram = cram(filled(0x0246), filled(0));
-    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0);
+    // `InitVRAMAndCRAMAfterFadeOut`: `DMAPlanes_VInt`'s frame, then
+    // `Pal_Init`; the copy is its fade-out's.
+    let mut cram = cram(filled(0), filled(0x0246));
+    assert_eq!(
+        cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0),
+        None
+    );
+    assert_eq!(cram.view().words, filled(0), "not before the frame");
+    cram.tick(1, &mut 0);
     assert_eq!(cram.view().words, filled(0x0002));
     assert_eq!(cram.saved(), &filled(0x0246));
+    assert!(!cram.running());
     let _ = cram.apply(
         &SceneOp::LoadPalette {
             rom_addr: 0x001D_E0B8,
@@ -647,11 +655,95 @@ fn scene_loads_read_the_pack() {
     assert_eq!(cram.view().words[..16], [0x0006; 16]);
     assert_eq!(cram.view().words[16..32], [0x0002; 16]);
     assert_eq!(cram.view().words[48..], [0x0008; 16]);
-    // A fade copies the live words to the saved buffer and leaves them.
-    let live = cram.view().words;
-    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None, &mut 0);
-    assert_eq!(cram.saved(), &live);
-    assert_eq!(cram.view().words, live);
+}
+
+/// `PalFadeOut_ClrSpriteTbl` (`$04223E`) on a made-up palette: the copy,
+/// then every nibble down one a pass, one frame a pass, until the pass that
+/// leaves every word zero: fourteen for `$0E52`, whose largest nibble is
+/// `$E`, worked word by word below.
+#[test]
+fn the_fixed_fade_out_steps_one_level_a_frame() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0E52;
+    words[1] = 0x0003;
+    let mut fade = cram(words, filled(0));
+    assert_eq!(
+        fade.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        Some(14)
+    );
+    assert_eq!(*fade.saved(), words, "the copy comes first");
+    // Pass 1, this frame: $0E52 -> $0D41, $0003 -> $0002.
+    assert_eq!(fade.view().words[..2], [0x0D41, 0x0002]);
+    fade.tick(1, &mut 0);
+    // Pass 2: $0C30, $0001.
+    assert_eq!(fade.view().words[..2], [0x0C30, 0x0001]);
+    fade.tick(2, &mut 0);
+    // Pass 3: red stays at zero, the others go on: $0B20, $0000.
+    assert_eq!(fade.view().words[..2], [0x0B20, 0x0000]);
+    for frame in 3..13 {
+        fade.tick(frame, &mut 0);
+    }
+    // Pass 13: only blue is left, at one.
+    assert_eq!(fade.view().words[..2], [0x0100, 0x0000]);
+    fade.tick(13, &mut 0);
+    assert_eq!(fade.view().words, filled(0), "pass 14, black");
+    assert!(!fade.running());
+    // An already black palette still spends its one pass.
+    let mut black = cram(filled(0), filled(0x0246));
+    assert_eq!(
+        black.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        Some(1)
+    );
+    assert_eq!(*black.saved(), filled(0));
+}
+
+/// `Pal_FadeIn` (`$0421D4`) on a made-up palette: the copy and the clear on
+/// the record's frame, which is `VDP_EnableDisplay`'s, then one pass a frame
+/// toward the copy, the last changing nothing.
+#[test]
+fn the_fixed_fade_in_steps_up_after_the_display_frame() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0024;
+    let mut cram = cram(words, filled(0));
+    // Four passes change $0024 ($0011, $0022, $0023, $0024), a fifth does not.
+    assert_eq!(
+        cram.apply(&SceneOp::FadeIn, 0, &none, None, &mut 0),
+        Some(1 + 5)
+    );
+    assert_eq!(*cram.saved(), words);
+    assert_eq!(cram.view().words, filled(0), "cleared on the display frame");
+    let mut shown = Vec::new();
+    for frame in 1..6 {
+        cram.tick(frame, &mut 0);
+        shown.push(cram.view().words[0]);
+    }
+    assert_eq!(shown, [0x0011, 0x0022, 0x0023, 0x0024, 0x0024]);
+    assert!(!cram.running());
+}
+
+/// Negative control for the two tests above: the variable fades at mode 1
+/// (two frames a pass), which share their arithmetic, answer other lengths
+/// and leave other words on the same frame.
+#[test]
+fn a_two_frame_fade_is_not_the_fixed_one() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0E52;
+    let mut fixed = cram(words, filled(0));
+    let mut variable = cram(words, filled(0));
+    let slow = op(PresentationOp::VariablePaletteFade {
+        fade_in: false,
+        mode: 1,
+    });
+    assert_ne!(
+        fixed.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        variable.apply(&slow, 0, &none, None, &mut 0)
+    );
+    fixed.tick(1, &mut 0);
+    variable.tick(1, &mut 0);
+    assert_ne!(fixed.view().words[0], variable.view().words[0]);
 }
 
 #[test]
@@ -716,4 +808,79 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
         revision,
         "identical copy changes no live word"
     );
+}
+
+/// The Aiedo inn's resume (`ps4.asm:136436-136453`) after its scene: the
+/// palette it kept goes back with the screen still black for the 60 frames
+/// of `DMAPlane_A_VInt`, then `Pal_FadeIn`'s display frame, then one pass a
+/// frame up to the kept words: `$0024` by `$0011`, `$0022`, `$0023`, `$0024`.
+#[test]
+fn the_inn_resume_holds_black_then_fades_its_palette_in() {
+    let mut kept = filled(0);
+    kept[0] = 0x0024;
+    kept[63] = 0x0002;
+    let mut cram = cram(filled(0), filled(0x0EEE));
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(*cram.saved(), kept, "the kept words are the fade's copy");
+    let mut shown = vec![cram.view().words];
+    for frame in 1..70 {
+        cram.tick(frame, &mut 0);
+        shown.push(cram.view().words);
+    }
+    for (frame, words) in shown.iter().enumerate().take(61) {
+        assert_eq!(*words, filled(0), "frame {frame} is still black");
+    }
+    let firsts: Vec<_> = shown[61..66]
+        .iter()
+        .map(|words| (words[0], words[63]))
+        .collect();
+    assert_eq!(
+        firsts,
+        [
+            (0x0011, 0x0001),
+            (0x0022, 0x0002),
+            (0x0023, 0x0002),
+            (0x0024, 0x0002),
+            (0x0024, 0x0002)
+        ]
+    );
+    assert_eq!(shown[69], kept);
+    assert!(!cram.running());
+}
+
+/// Negative control: a resume over a lit palette clears it first, so the
+/// kept words never show before the fade (a resume that only copied them
+/// back would show them on its first frame).
+#[test]
+fn the_inn_resume_does_not_show_its_palette_at_once() {
+    let mut kept = filled(0x0024);
+    kept[1] = 0x0EEE;
+    let mut cram = cram(kept, filled(0));
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(cram.view().words, filled(0));
+}
+
+/// `move.w #$666, $FB5E.w` (`$073C9E`) and the flight's caption word are one
+/// word of the buffer, so `PalFadeOut_ClrSpriteTbl` steps the text down with
+/// everything else: `$0EEE` a level a frame, black on the fourteenth.
+#[test]
+fn the_text_colour_is_a_buffer_word_the_fades_step() {
+    let none = ScenePalettes::default();
+    let mut cram = cram(filled(0), filled(0));
+    let _ = cram.apply(
+        &SceneOp::SetTextColour { colour: 0x0EEE },
+        0,
+        &none,
+        None,
+        &mut 0,
+    );
+    let slot = super::TEXT_COLOUR_SLOT;
+    assert_eq!(slot, 47);
+    let mut expected = filled(0);
+    expected[slot] = 0x0EEE;
+    assert_eq!(cram.view().words, expected, "only the text word is written");
+    let trace = run(&mut cram, SceneOp::FadeOut, 1, 14, &none);
+    assert_eq!(trace[0][slot], 0x0DDD);
+    assert_eq!(trace[1][slot], 0x0CCC);
+    assert_eq!(trace[13][slot], 0);
 }

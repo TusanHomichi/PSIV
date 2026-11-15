@@ -88,14 +88,14 @@ pub(super) const ROWS: &[Row] = &[
     row(SHIP, own(0x06_4908, true, true), Wait(21)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(25)),
-    row(SHIP, Map(0x06_49C6), Merged(25)),
-    row(SHIP, Map(0x06_4762), Wait(35)),
-    row(SHIP, Map(0x06_49D8), Merged(35)),
+    row(SHIP, Map(0x06_4750), Wait(24)),
+    row(SHIP, Map(0x06_49C6), Merged(24)),
+    row(SHIP, Map(0x06_4762), Wait(33)),
+    row(SHIP, Map(0x06_49D8), Merged(33)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(41)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
+    row(SHIP, own(0x06_4800, true, true), Wait(39)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(39)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),
@@ -183,13 +183,13 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),

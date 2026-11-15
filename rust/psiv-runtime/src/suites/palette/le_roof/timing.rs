@@ -117,13 +117,14 @@ fn le_roof_again_fades_its_panel_out_over_the_retail_frames() {
             }
         )
     });
+    // `InitVRAMAndCRAM` starts with the fixed fade-out (#637).
     let reinit = (fade..ticks.len())
         .find(|&at| {
             ticks[at].events.iter().any(|event| {
                 matches!(
                     event,
                     RuntimeEvent::ScenePresentation {
-                        op: SceneOp::InitVramAndCram,
+                        op: SceneOp::FadeOut,
                         ..
                     }
                 )

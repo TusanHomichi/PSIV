@@ -614,6 +614,52 @@ fn the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill() {
     let _ = answered;
 }
 
+/// The scene's `PalFadeOut_ClrSpriteTbl` leaves the screen black; the inn
+/// puts back the palette it kept before the scene and fades it in after 60
+/// frames (`ps4.asm:136436-136453`), so the window and the field come back in
+/// their own colours.
+#[test]
+fn the_aiedo_inn_fades_its_palette_back_in_after_the_scene() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut game = with_pack(500, &[], 0);
+    game.set_party([Some(CharId(0)), Some(CharId(2)), None, None, None]);
+    let mut player = Player::new(AIEDO_INN, &game);
+    player.talk_up();
+    player.tick(Pad::NEUTRAL);
+    player.press(Button::Speak);
+    assert_eq!(shop_page(&player), ShopPage::InnConfirm);
+    assert!(
+        player.runtime().cram().live,
+        "the pack's inn has a live palette"
+    );
+    let kept = player.runtime().cram().words;
+    assert_ne!(kept, [0; 64]);
+    player.press(Button::Speak); // YES
+    assert!(player.runtime().scene_active(), "the rest event runs");
+
+    player.run_scene_out();
+    assert_eq!(
+        player.session.shop_view().map(|view| view.page),
+        Some(ShopPage::Message)
+    );
+    assert_eq!(
+        player.runtime().cram().words,
+        [0; 64],
+        "black while the window is drawn"
+    );
+    for _ in 0..90 {
+        player.tick(Pad::NEUTRAL);
+    }
+    assert_eq!(
+        player.runtime().cram().words,
+        kept,
+        "the inn's own palette is back"
+    );
+}
+
 /// The negative control: with either flag set, the Aiedo counter is an
 /// ordinary night — charged, restored, no scene (`ps4.asm:136389-136404`).
 #[test]
