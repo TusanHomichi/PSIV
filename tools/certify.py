@@ -293,16 +293,14 @@ TAPE_43 = {
 # `$222` to every word each fourth frame, `Palette_Table_Buffer` first
 # stepping in frame 8143 (shown from 8144) and white from 8167, then
 # `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
-# (shown from 8200). Clone tick t shows oracle frame t + 7215 once the scene's
-# first dialogue spends its portraits' frames (#625) and its `InitVRAMAndCRAM`
-# and `Pal_FadeIn` their 31 (#637), but for a step's first frame, which the
-# native can show already stepped (897, 901 ... 953 before #637): its
-# `Main_Frame_Count` phase need not be the tape's, because the debug run pages
-# the dialogue on other frames than the tape. The pairs sit inside the
-# plateaus: the untoned frame before (8141), the fourth step up (8157,
-# backdrop `$888`), the third step back (8185, every word floored at `$888`)
-# and the restored frame after (8201). Region `1,1,319,223`: the shell's
-# black first row and column (#409) show against the toned backdrop.
+# (shown from 8200). The native tone starts at tick 930 after three
+# explicit panel DMA frames (#595). Both routines still step on
+# Main_Frame_Count modulo four: the rise matches at 945, but the restore
+# still matches at 970. The fixture's dialogue schedule gives it a different
+# phase from the tape, so these are matching palette plateaus, not one tick
+# offset. The samples retain the untoned frame (8141), fourth step up (8157,
+# backdrop `$888`), third step back (8185, every word floored at `$888`),
+# and restored frame (8201). Region `1,1,319,223` excludes the shell edge (#409).
 TAPE_43_TONE = {
     **TAPE_43,
     "frames": [8141, 8157, 8185, 8201],
@@ -312,8 +310,8 @@ TAPE_43_TONE = {
 # The same run's window after the tone (#625): `Event_RunDialogue3` opens the
 # box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
 # decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
-# position (24,112) with the first glyph. Clone tick t shows frame t + 7215
-# from the tone's restore (985) through tick 1041.
+# position (24,112) with the first glyph. Three explicit panel DMA frames
+# precede the native tone; the portrait and first glyph now match at tick 1004.
 TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
 
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
@@ -512,27 +510,28 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    # The cycle's rows run ticks 1308-1329 against frames 8565-8586 once the
-    # scene's portraits lag (#625) and its first fades spend their 31 frames
-    # (#637): 1323 is the third row's second frame.
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1323,
+    # The cycle's first three rows run ticks 1312-1333 against frames 8565-8586 once the
+    # scene's portraits lag (#625), its first fades spend 31 frames (#637),
+    # and its four explicit panel DMAs spend one frame each (#595):
+    # 1327 is inside the third row.
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1327,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
     # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
     # a step up, a step back, and the restored frame.
-    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 926,
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 929,
      "build/certify/oracle/rykros-tone/frame_8141.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 942,
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 945,
      "build/certify/oracle/rykros-tone/frame_8157.png",
      "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
     ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
      "build/certify/oracle/rykros-tone/frame_8185.png",
      "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
-    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 986,
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 989,
      "build/certify/oracle/rykros-tone/frame_8201.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1001,
+    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1004,
      "build/certify/oracle/rykros-portrait/frame_8216.png",
      "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
@@ -559,11 +558,13 @@ PAIRS = [
      "build/certify/oracle/event-battle-entry/frame_7859.png",
      "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
     # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
-    # ticks 151 and 193, each shown the tick after.
-    ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 152,
+    # ticks 157 and 199 with the event entered at 35. This matches the tape's
+    # Main_Frame_Count phase modulo 32: captures 159 and 200 sample the second
+    # and first white frames respectively, before the snow write reaches them.
+    ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35", **SCENE}, 159,
      "build/certify/oracle/eclipse-torch-white/frame_7355.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
-    ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 195,
+    ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35", **SCENE}, 200,
      "build/certify/oracle/eclipse-torch-white/frame_7396.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
 ]
@@ -689,7 +690,8 @@ def capture(name, env, tick, receipt, display, project, run_root):
     full_env = {**{k: v for k, v in os.environ.items() if k != "XAUTHORITY"},
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
-                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env,
+                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick),
+                "PSIV_DEBUG_STATE": str(receipt / f"{name}-state.json"), **env,
                 # The run root's pack, resolved once: a caller's override would
                 # win over `res://../runtime-pack` in the game (lib.rs `ready`).
                 "PSIV_RUNTIME_PACK": str(project.parent / RUN_ROOT_PACK)}

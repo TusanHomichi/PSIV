@@ -361,7 +361,12 @@ impl Field {
                 godot_error!("shop debug selector {index} did not name a live counter");
             }
         }
-        if self.anim_tick == 30
+        let event_frame =
+            debug_event_frame(std::env::var("PSIV_DEBUG_EVENT_FRAME").ok().as_deref());
+        if event_frame.is_none() && self.anim_tick == 30 {
+            godot_error!("PSIV_DEBUG_EVENT_FRAME must be a decimal tick of at least 30");
+        }
+        if event_frame == Some(self.anim_tick)
             && let Ok(value) = std::env::var("PSIV_DEBUG_EVENT")
         {
             let trimmed = value.trim().trim_start_matches("0x");
@@ -434,6 +439,7 @@ impl Field {
         let state = runtime.game().snapshot();
         let report = serde_json::json!({
             "tick": self.anim_tick,
+            "main_frame_count": self.session.as_ref().map(Session::main_frame_count),
             "map": runtime.map_id().0,
             "cell": [runtime.state().cell().x, runtime.state().cell().y],
             "scene_active": runtime.scene_active(),
@@ -544,5 +550,34 @@ impl Field {
             session.frame(Pad::NEUTRAL);
         }
         godot_error!("debug: the TELEPIPE town list never opened");
+    }
+}
+
+/// Event fixtures start after the normal 30-tick setup. Extra idle frames
+/// let a capture share the cartridge's palette-cycle phase without changing
+/// a runtime clock or a game rule.
+fn debug_event_frame(value: Option<&str>) -> Option<u64> {
+    match value {
+        None => Some(30),
+        Some(value) => value.parse::<u64>().ok().filter(|tick| *tick >= 30),
+    }
+}
+
+#[cfg(test)]
+mod event_frame_tests {
+    use super::debug_event_frame;
+
+    #[test]
+    fn the_default_and_explicit_event_frames_keep_the_setup() {
+        assert_eq!(debug_event_frame(None), Some(30));
+        assert_eq!(debug_event_frame(Some("30")), Some(30));
+        assert_eq!(debug_event_frame(Some("35")), Some(35));
+    }
+
+    #[test]
+    fn an_invalid_or_premature_event_frame_is_refused() {
+        for value in ["", "-1", "0", "29", "3.5", "x", "18446744073709551616"] {
+            assert_eq!(debug_event_frame(Some(value)), None, "{value}");
+        }
     }
 }
