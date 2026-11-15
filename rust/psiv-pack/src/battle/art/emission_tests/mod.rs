@@ -90,8 +90,10 @@ fn image<'a>(e: &'a Emission, entry: &Value) -> png::Image<'a> {
 }
 
 /// Walk all index records, not just the exemplar enemies. Each PNG field
-/// names a file in this emission, with its decoded-content hash beside it.
-fn png_references(e: &Emission, value: &Value, seen: &mut BTreeSet<String>) {
+/// names a file in this emission. Check the decoded-content hash wherever
+/// the schema stores one; Fusion predates those per-frame hash fields and
+/// has source-to-image comparisons in its owning module (#550).
+fn png_references(e: &Emission, index: &str, value: &Value, seen: &mut BTreeSet<String>) {
     match value {
         Value::Object(fields) => {
             for (key, value) in fields {
@@ -103,19 +105,22 @@ fn png_references(e: &Emission, value: &Value, seen: &mut BTreeSet<String>) {
                     }
                     let path = value.as_str().unwrap();
                     let bytes = e.blobs.get(path).expect("index names an absent PNG");
-                    assert_eq!(
-                        fields[&format!("{key}_sha256")],
-                        png::image_sha256(bytes).unwrap()
-                    );
+                    let digest = png::image_sha256(bytes).unwrap();
+                    if let Some(expected) = fields.get(&format!("{key}_sha256")) {
+                        assert_eq!(expected, &digest);
+                    } else {
+                        assert_eq!(index, "fusion", "missing decoded hash for {key}");
+                        assert!(path.starts_with("battle/art/fusion/"));
+                    }
                     seen.insert(path.to_owned());
                 } else {
-                    png_references(e, value, seen);
+                    png_references(e, index, value, seen);
                 }
             }
         }
         Value::Array(values) => {
             for value in values {
-                png_references(e, value, seen);
+                png_references(e, index, value, seen);
             }
         }
         _ => {}
@@ -159,7 +164,7 @@ fn assert_inventory(e: &Emission) {
                 images.iter().map(|(_, b)| b.len()).sum::<usize>()
             );
         }
-        png_references(e, value, &mut described);
+        png_references(e, key, value, &mut described);
     }
     assert_eq!(described, e.blobs.keys().cloned().collect());
     for (key, expected) in [
