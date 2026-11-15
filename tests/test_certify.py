@@ -90,7 +90,11 @@ class PairTableCase(unittest.TestCase):
         # The scene layers at a camera other than (0,0): the ending's map $13.
         self.assertEqual(env["PSIV_DEBUG_EVENT"], "0x8021")
         self.assertIs(recipe, certify.TAPE_38)
-        self.assertEqual(tick, 600)
+        # Its windows run `RunText3` and need no dialogue harness (#645):
+        # neither the autoclose nor the retail pace's synthetic Speak.
+        self.assertEqual(env, certify.ENDING)
+        self.assertFalse(set(certify.SCENE) & set(env))
+        self.assertEqual(tick, 1704)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -208,16 +212,16 @@ class PairTableCase(unittest.TestCase):
         self.assertEqual([p[0] for p in loop], ENDING_LOOP)
         for name, env, tick, frame, _, recipe in loop:
             with self.subTest(pair=name):
-                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x8021", **certify.SCENE})
+                self.assertEqual(env, certify.ENDING)
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native CRAM steps on ticks 909-933 as tape 38's buffer
-                # does in frames 9896-9920, each shown a frame later.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 8988}.png")
-                self.assertIn(tick + 8988, recipe["frames"])
-        # Before, the fourth step, white: each a plateau's middle.
-        self.assertEqual([p[2] for p in loop], [905, 922, 962])
+                # The native window closes on tick 2598 as the cartridge's
+                # last page turns on 9893; the loop follows at t + 7296.
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7296}.png")
+                self.assertIn(tick + 7296, recipe["frames"])
+        # Before, the fourth step, white: each inside its plateau.
+        self.assertEqual([p[2] for p in loop], [2597, 2614, 2654])
         self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
         self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
         self.assertIs(loop[2][5], certify.TAPE_38_LOOP)

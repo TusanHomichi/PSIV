@@ -44,8 +44,8 @@ camera other than (0,0):
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t651 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon` | **0.000000** | clone t1704 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t1739 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
@@ -113,26 +113,33 @@ from tape 38's own run and fixture, after the first dialogue's last pages:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-tone-loop-before` | **0.000000** | clone t905 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
-| `ending-tone-loop-rise` | **0.000000** | clone t922 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
-| `ending-tone-loop-white` | **0.000000** | clone t962 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+| `ending-tone-loop-before` | **0.000000** | clone t2597 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t2614 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t2654 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
-white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086; the
-native CRAM steps on ticks 909-933, so clone tick t shows frame t + 8988, and
-the runtime's 64 words equal the oracle's (tick t against frame t + 8987) at
-ticks 905, 922 and 962. The dialogue's portrait loads lag
-([#625](https://github.com/TusanHomichi/PSIV/issues/625)), which puts
-the loop 24 ticks later than the t + 9012 it was certified at.
-Region `1,1,319,111` matches on every tick 860-990.
-Over `1,1,319,223`, ticks 902-906 and 933-990 match too. Ticks 907-932 differ
-only inside `(24,112)-(296,208)`: the cartridge keeps the window and portrait
-up, toned, until `$078FAE`, and the native closes them when the text ends
-([#636](https://github.com/TusanHomichi/PSIV/issues/636)). The untoned tick
-905 scores `rmse=125.148572` against the rise, the steps before and after it
-(918, 926) `rmse=34.381196` and `rmse=28.146978`, the step before white (930)
-`rmse=29.123900` against the endpoint, and the endpoint against the untoned
-frame `rmse=206.044683`. The second loop (`$079BD2`) and the third
+white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086.
+The ending's windows run `RunText3` and page on their own
+([#645](https://github.com/TusanHomichi/PSIV/issues/645)), so its pairs run
+with `PSIV_DEBUG_EVENT=0x8021` alone, no `PSIV_DEBUG_AUTOCLOSE_SCENE` or
+`PSIV_DEBUG_RETAIL_PACE`. The native window closes on tick 2598, the frame
+the cartridge's last page turns (9893), and clone tick t shows frame t + 7296
+through the loop. Over the pairs' regions (2026-11-15 sweep of ticks
+2585-2670): the before frame matches ticks 2585-2598 and scores
+`rmse=43.225656` from 2599, once the native window is gone (the cartridge
+keeps the window and portrait up, toned, until `$078FAE`,
+[#636](https://github.com/TusanHomichi/PSIV/issues/636)); the rise matches
+2613-2616 over `1,1,319,111`, with the untoned tick 2597 at
+`rmse=125.148572` and the steps either side (2612, 2617) at
+`rmse=34.381196` and `rmse=28.146978`; white matches 2625-2670, the step
+before (2621) at `rmse=29.123900` and the untoned tick at
+`rmse=206.044683`. The break pairs sit 51 ticks earlier, at t + 7245: the
+settled window matches ticks 1690-1722 (1723 `rmse=32.193293`) and the
+break's peak 1739-1742 (1738 `rmse=30.119675`, 1743 `rmse=32.294586`). The
+cartridge spends lag frames (panel decompression, page clears) that the
+native does not, and two of the seventh page's `$F2` frames
+([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
+The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
 (`suites::palette::ending`). The third starts white natively, because the
 staff roll's and the credits' palette steps are not modelled
@@ -235,7 +242,9 @@ recipe rebuilds both.
   typewriter, holds a completed page for 4 frames, and dismisses it with a
   one-frame `ButtonSpeak` press in the pad, so the next page's first glyph
   frame types at the held cadence. It advances only a page that is fully
-  revealed with its open animation finished, and never a `Choice` page.
+  revealed with its open animation finished, and never a `Choice` page. A
+  `RunText3` window (the ending's) is never dismissable, so the pace presses
+  nothing there; the ending's pairs run without it.
 
 ### Capture doctrine
 
@@ -558,7 +567,12 @@ borrows. Writers:
   green only: both mask blue and keep it), the Rykros cycle, the Zio ramp, the
   engine light, the Le Roof colour cycle and fade-in, both red fades, both
   variable fades and their two-line forms (`TwoLinePaletteFade`: words 0-31
-  only; the fade up starts from the live words, with no copy or clear). The Le Roof cycle (`loc_70638`, `$070638`) also steps the
+  only; the fade up starts from the live words, with no copy or clear), and
+  the ending's eighth-frame loops: the staff roll's word fade out and back in
+  and the credits' ramp (`EndingStaffRollFadeOut`/`FadeIn`,
+  `EndingCreditsPaletteRamp`, [89_Ending.md](89_Ending.md#palette-state-and-the-remaining-drawing-gaps)),
+  whose lengths depend on the word and the frame count, so the scene waits on
+  them as on a variable fade. The Le Roof cycle (`loc_70638`, `$070638`) also steps the
   index byte `$FFFFECF3`, which the map programs share: the runtime keeps it
   with their counters (`MapUpdateView`), cleared by each map load as
   `ps4.asm:107593` clears it, and lends it to the CRAM model.

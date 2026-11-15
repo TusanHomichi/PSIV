@@ -167,6 +167,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   so the loop tones the backdrop where they stood. The scene's windows are not
   modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
   ([89_Ending.md](../scenes/89_Ending.md)).
+- **The staff roll's fade out stops at `u16::MAX` frames (#638).**
+  `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
+  `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
+  never is, and the cartridge spins there. The port cuts the loop after
+  65,535 frames and the scene continues. The ending reaches the loop with
+  `$0EEE`, which ends after six stores
+  ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
@@ -283,6 +290,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
   the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
   frame (7400 and 7402 on tape 43).
+- `$F2` text actions spend no frame (`DialogueRunner`, #667). `TextAction_LoadSound`,
+  `TextAction_LoadSound2` and `TextAction_UpdatePalette` end in `VInt_Prepare`, and
+  `TextAction_LoadPanel` and the destroys in `DMAPlanes_VInt`: one counted frame each, in
+  `RunText` and `RunText3` alike. The runner releases them at their byte position and runs on, so
+  `Main_Frame_Count`, the RNG and the text after an action run a frame ahead of the cartridge per
+  action. On tape 38 the ending's seventh page turns two frames before the cartridge's
+  ([record](../scenes/SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.

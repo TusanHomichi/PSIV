@@ -877,12 +877,16 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
-            // A variable fade's length is in the palette, which the runtime
-            // holds: it answers with [`SceneRunner::release_palette`].
+            // A variable fade's length depends on the palette, an ending
+            // eighth-frame loop's on it and the frame count. The runtime holds
+            // both: it answers with [`SceneRunner::release_palette`].
             SceneOp::Presentation {
                 op:
                     crate::PresentationOp::VariablePaletteFade { .. }
-                    | crate::PresentationOp::TwoLinePaletteFade { .. },
+                    | crate::PresentationOp::TwoLinePaletteFade { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeOut { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeIn { .. }
+                    | crate::PresentationOp::EndingCreditsPaletteRamp { .. },
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
