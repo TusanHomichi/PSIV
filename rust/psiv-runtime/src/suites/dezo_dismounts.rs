@@ -14,7 +14,7 @@ use super::palette::{pack_present, runtime_at};
 use crate::{Runtime, RuntimeEvent};
 use psiv_core::{CharId, Flag, Input, PresentationOp, SceneOp};
 
-/// One tick: the scene's sounds, dialogues and battle on it, then `+map`
+/// One tick: the scene's sounds, DMA, dialogues and battle on it, then `+map`
 /// when it ran map updates, and the vehicle after it (`foot` or `rover2`).
 fn tick_line(runtime: &mut Runtime, calls: &mut u64) -> (String, bool) {
     let events = runtime.tick(Input::Neutral);
@@ -25,6 +25,7 @@ fn tick_line(runtime: &mut Runtime, calls: &mut u64) -> (String, bool) {
             RuntimeEvent::ScenePresentation { op, .. } => match op {
                 SceneOp::PlaySound { id } => parts.push(format!("sound {id:02X}")),
                 SceneOp::SetSavedMusic { id } => parts.push(format!("saved {id:02X}")),
+                SceneOp::DmaPlanes => parts.push("dma".to_owned()),
                 SceneOp::Presentation {
                     op: PresentationOp::RebuildSprites,
                 } => parts.push("sprites".to_owned()),
@@ -104,7 +105,15 @@ fn the_tree_attacks_dismount_with_retail_frames_and_branches() {
     // On foot, `beq.w loc_70826`: no dismount, no dialogue `$34`.
     let (trees, _) = dismount_run(0x004C, &[], false, 20);
     assert_eq!(trees, ["foot", "saved 99, battle 0A, foot"]);
+}
 
+/// `$070908..$07093B`: the panel DMA spends a frame without map updates
+/// before dialogue `$26`, after the mounted branch has dismounted.
+#[test]
+fn saving_kyra_mounted_spends_the_panel_dma_frame() {
+    if !pack_present() {
+        return;
+    }
     let raja_sick = [Flag::event(0x94)];
     let (kyra, rt) = dismount_run(0x004D, &raja_sick, true, 20);
     assert_eq!(
@@ -116,17 +125,28 @@ fn the_tree_attacks_dismount_with_retail_frames_and_branches() {
             "foot",
             "dialogue 34, foot",
             "sound A9, +map, foot",
+            "dma, foot",
             "dialogue 26, foot",
             "battle 0A, foot",
         ]
     );
     assert!(rt.game().is_set(Flag::event(0x95)));
+}
+
+/// The on-foot branch skips the dismount, but still runs the panel DMA.
+#[test]
+fn saving_kyra_on_foot_spends_the_panel_dma_frame() {
+    if !pack_present() {
+        return;
+    }
+    let raja_sick = [Flag::event(0x94)];
     let (kyra, rt) = dismount_run(0x004D, &raja_sick, false, 20);
     assert_eq!(
         kyra,
         [
             "foot",
             "sound A9, +map, foot",
+            "dma, foot",
             "dialogue 26, foot",
             "battle 0A, foot",
         ]
