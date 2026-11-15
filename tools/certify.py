@@ -339,6 +339,10 @@ TAPE_45 = {
 # Clone tick t shows frame t + 7286 here as on the last page.
 TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
 
+# The name's first two cells and the first whole options window. The roll
+# runs on 7875; video shows its writes from 7876. One lag frame follows it.
+TAPE_45_OPTIONS = {**TAPE_45_ENTRY, "frames": [7876, 7891]}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -543,6 +547,12 @@ PAIRS = [
     ("event-battle-fade-second", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 573,
      "build/certify/oracle/event-battle-entry/frame_7859.png",
      "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
+    ("battle-opening-name", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 590,
+     "build/certify/oracle/battle-opening/frame_7876.png",
+     "87735643050c8cf8a1b909f7929cc81b1878fdba0984d180bd6a763e302dc9d6", TAPE_45_OPTIONS),
+    ("battle-opening-options", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 605,
+     "build/certify/oracle/battle-opening/frame_7891.png",
+     "c77a9d11d2bd215eaf568f02841ac6fba64f18381a84841e6e92cf619ed77216", TAPE_45_OPTIONS),
     # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
     # ticks 157 and 199 with the event entered at 35. This matches the tape's
     # Main_Frame_Count phase modulo 32: captures 159 and 200 sample the second

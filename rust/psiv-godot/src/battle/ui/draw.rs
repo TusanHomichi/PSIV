@@ -27,10 +27,21 @@ pub(super) fn compose(screen: &mut BattleScreen) {
         let cell = chrome.cell;
         // The enemy name window is up for the main options and for every
         // per-character window opened from them.
-        if matches!(
-            view.menu.as_ref(),
-            Some(MenuView::Top { .. } | MenuView::Commands(_))
-        ) && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
+        if let Some(width) = view.opening_name_width.filter(|width| *width < 12) {
+            let offset = f32::from((12 - width) & !1) / 2.0;
+            if let Some(frame) = chrome.frame(WindowRect {
+                x: ENEMY_NAME_RECT.x + offset * cell,
+                w: f32::from(width) * cell,
+                ..ENEMY_NAME_RECT
+            }) {
+                quads.extend(frame);
+            }
+        } else if (view.opening_name_width.is_some()
+            || matches!(
+                view.menu.as_ref(),
+                Some(MenuView::Top { .. } | MenuView::Commands(_))
+            ))
+            && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
         {
             quads.extend(frame);
             let name = first_visible_enemy(view).map_or("", String::as_str);
