@@ -455,6 +455,26 @@ SetFlag{EventFlag_PiataFirstTime}
 
 **~78 ops** (72 structural + the two prologue pages expanded).
 
+## DMA frame ownership
+
+The four static `jsr` calls are `$073C42` (clear both planes before the
+image), `$073C88` (upload the title image), `$073D1E` (page 1 text) and
+`$073DD2` (page 2 text). Each spends one `VInt_Prepare` frame without map
+or object updates. The fade-in and image upload do not absorb those frames.
+Each of the four text draws per page also ends with its own bare
+`VInt_Prepare` (`$073CBE..$073D18`, `$073D72..$073DCC`).
+
+The fade loops each call their helper 20 times and wait after every call.
+`IntroTextFadeDown` additionally clears plane A (`$073EC2`, `$0415E8`) and
+tail-jumps to `DMAPlane_A_VInt` (`$073EC8`) whenever the counter phase is zero
+and the text word is already `$666`. That frame precedes the caller's bare
+VInt; it is not a substitute for it. From the normal `$EEE` page colour the
+20-pass down loop takes 21 frames, including one clear/upload. The helpers
+read the global frame counter, not a clock reset at the start of a fade.
+
+These explicit VInt frames are separate from CPU decompression and layout
+refresh boundaries ([#546](https://github.com/TusanHomichi/PSIV/issues/546)).
+
 ## Where the act's opening state comes from
 
 This is the routine the new-game initialiser has to agree with, and it
