@@ -182,9 +182,9 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the Aiedo inn's resume clears it again on that tick and sets it only after
   its sixty-frame hold and `Pal_FadeIn`'s display wait.
   Retail does not: `Event_GirlsSneakingOut` fades out and hands
-  `FieldRoutine_Shop` the dark display (`ps4.asm:146993-147044`), and the
-  port's `Event_DeVarsDefeated` and `Event_SaLewsDefeated` end on a `FadeOut`
-  their bytes do not make (#658). `scenes::dark_display` lists every scene
+  `FieldRoutine_Shop` the dark display (`ps4.asm:146993-147044`). The guardian
+  events keep the display lit while their tone loops remain unmodeled (#571).
+  `scenes::dark_display` lists every scene
   that ends dark and fails on a window drawn dark. A field load sets the bit
   at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
   cover draws that frame black either way. The dialogue windows that fade out

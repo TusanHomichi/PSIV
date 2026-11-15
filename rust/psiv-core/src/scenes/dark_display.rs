@@ -26,14 +26,6 @@ const ENDS_DARK: &[(&str, &str)] = &[
          (FieldRoutine_Shop) with the windows built dark (ps4.asm:146993-147044)",
     ),
     (
-        "Event_DeVarsDefeated",
-        "port: a FadeOut where retail runs two Pal_IncreaseTone loops (#652)",
-    ),
-    (
-        "Event_SaLewsDefeated",
-        "port: a FadeOut where retail runs two Pal_IncreaseTone loops (#652)",
-    ),
-    (
         "Cutscene_Ending",
         "retail: the last Pal_VariableFadeOut ($07A25A), then the game clears",
     ),
@@ -161,9 +153,21 @@ fn a_dark_window_or_a_stale_listing_is_reported() {
         problems(&[lit], &[("Cutscene_Alshline", "")]),
         ["Cutscene_Alshline: never ends dark, and ENDS_DARK lists it"]
     );
-    // And an unlisted one that ends dark.
-    assert_eq!(
-        problems(&[find("Event_DeVarsDefeated")], &[]),
-        ["Event_DeVarsDefeated: ends dark, and ENDS_DARK does not list it"]
-    );
+    // The guardian events stay lit: their retail tone loops do not clear
+    // the display bit. Reintroducing the old fixed fade-out must be caught
+    // for either event, independent of changes to the production scene ops.
+    for name in ["Event_DeVarsDefeated", "Event_SaLewsDefeated"] {
+        let scene = find(name);
+        assert_eq!(walk(&scene), (vec![], false), "{name}");
+        let mut ops = scene.ops.to_vec();
+        ops.push(SceneOp::FadeOut);
+        let dark = Scene {
+            ops: Box::leak(ops.into_boxed_slice()),
+            ..scene
+        };
+        assert_eq!(
+            problems(&[dark], ENDS_DARK),
+            [format!("{name}: ends dark, and ENDS_DARK does not list it")]
+        );
+    }
 }
