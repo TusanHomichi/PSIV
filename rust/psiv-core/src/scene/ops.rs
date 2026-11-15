@@ -2,6 +2,7 @@
 
 use crate::geom::{Cell, Direction};
 use crate::scene_presentation::PresentationOp;
+use crate::scene_runner::actor::ActorAnimation;
 use crate::scene_runner::drift::{CoordCmp, NpcDrift};
 use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
