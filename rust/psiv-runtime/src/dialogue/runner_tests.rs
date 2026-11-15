@@ -872,3 +872,215 @@ fn a_portrait_the_walk_reaches_after_a_delay_or_an_action_runs_before_its_glyph(
         }
     }
 }
+
+#[test]
+fn controls_after_a_portrait_wait_for_its_frames() {
+    // `RunText` reads one byte at a time: a `$F2` or a `$F6` after a `$F4`
+    // runs once the portrait's frames are spent, in stream order.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    let segments = vec![set_flag(1), portrait(1), set_flag(2), text("A")];
+    assert!(runner.open_resolved(&entry(segments), &game));
+    let flag = |game: &GameState, n: u16| game.is_set(Flag::event(n));
+    let mut frames = Vec::new();
+    for _ in 0..8 {
+        let (lag, _) = lag_step(&mut runner, &mut game, Pad::NEUTRAL);
+        frames.push((lag, flag(&game, 1), flag(&game, 2)));
+    }
+    let last_lag = frames
+        .iter()
+        .rposition(|frame| frame.0)
+        .expect("lag frames");
+    assert_eq!(
+        lag_count(&frames.iter().map(|f| (f.0, None, 0)).collect::<Vec<_>>()),
+        2
+    );
+    assert!(frames.iter().all(|frame| frame.1), "{frames:?}");
+    assert!(
+        frames[..=last_lag].iter().all(|frame| !frame.2),
+        "the second flag ran before the portrait's frames: {frames:?}"
+    );
+    assert!(
+        frames[last_lag + 1..].iter().any(|frame| frame.2),
+        "{frames:?}"
+    );
+
+    // An event after it closes the window only once the frames are spent.
+    let mut runner = DialogueRunner::new();
+    let segments = vec![text("A"), portrait(1), event(5)];
+    assert!(runner.open_resolved(&entry(segments), &game));
+    let mut lags = 0;
+    for _ in 0..20 {
+        let (lag, _) = lag_step(&mut runner, &mut game, Pad::NEUTRAL);
+        lags += usize::from(lag);
+        if runner.view().is_none() {
+            break;
+        }
+    }
+    assert!(runner.view().is_none(), "the event never closed the window");
+    assert_eq!(lags, 2, "the event discarded the portrait's frames");
+    assert_eq!(runner.take_event(), Some(5));
+}
+
+#[test]
+fn a_hide_costs_no_press_and_a_load_under_a_prompt_starts_as_on_a_page() {
+    // `$F4 0` before the terminator: one press, on the frame after the last
+    // glyph, closes the window.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    assert!(runner.open_resolved(&entry(vec![text("A"), portrait(0)]), &game));
+    type_to(&mut runner, &mut game, 1);
+    let signals = frame(&mut runner, &mut game, Pad::new(Button::Speak));
+    assert!(
+        signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. })),
+        "the press was spent on the hide: {signals:?}"
+    );
+
+    // The board's text closes itself on the same frame as without the hide.
+    let close_frame = |segments: Vec<Segment>| {
+        let mut runner = DialogueRunner::new();
+        runner.set_board_text(true);
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(segments), &game));
+        (0..20)
+            .position(|_| {
+                frame(&mut runner, &mut game, Pad::NEUTRAL)
+                    .iter()
+                    .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+            })
+            .expect("the board page closes")
+    };
+    assert_eq!(
+        close_frame(vec![text("Hi"), portrait(0)]),
+        close_frame(vec![text("Hi")])
+    );
+
+    // A load before a prompt lags on the same frames as before a `$FD`.
+    let timeline = |end: Segment| {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        let segments = vec![text("Ok"), portrait(1), end, text("Yes")];
+        assert!(runner.open_resolved(&entry(segments), &game));
+        trace(&mut runner, &mut game, [Pad::NEUTRAL; 12])
+    };
+    assert_eq!(timeline(yes_no()), timeline(wait()));
+}
+
+#[test]
+fn a_step_due_at_a_portrait_after_a_delay_is_kept() {
+    // Speak held: a `$F9` running out into `$F4 0` draws the next glyph on
+    // the same frame as with no `$F4` at all.
+    let timeline = |segments: Vec<Segment>| {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(segments), &game));
+        trace(&mut runner, &mut game, [Pad::new(Button::Speak); 12])
+            .into_iter()
+            .map(|frame| frame.2)
+            .collect::<Vec<_>>()
+    };
+    let delay = super::tests::delay;
+    assert_eq!(
+        timeline(vec![text("A"), delay(4), portrait(0), text("B")]),
+        timeline(vec![text("A"), delay(4), text("B")]),
+    );
+
+    // A load or swap the delay runs into: the step was due with Speak held;
+    // released during the lag, it still draws first thing after the frames.
+    for (name, segments) in [
+        ("load", vec![text("A"), delay(4), portrait(1), text("B")]),
+        (
+            "swap",
+            vec![portrait(2), text("A"), delay(4), portrait(1), text("B")],
+        ),
+    ] {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(segments), &game));
+        type_to(&mut runner, &mut game, 1);
+        let mut pad = Pad::new(Button::Speak);
+        let mut seen = Vec::new();
+        for _ in 0..20 {
+            let (lag, _) = lag_step(&mut runner, &mut game, pad);
+            if lag {
+                pad = Pad::NEUTRAL;
+            }
+            seen.push((lag, runner.view().expect("a window").revealed));
+        }
+        let last_lag = seen.iter().rposition(|frame| frame.0).expect("lag frames");
+        let first_b = seen.iter().position(|frame| frame.1 == 2).expect("\"B\"");
+        assert_eq!(first_b, last_lag + 1, "{name}: {seen:?}");
+        // The frames spent at the portrait: its own, after the frame the
+        // delay ran out on.
+        let at = seen.iter().position(|frame| frame.0).unwrap();
+        assert_eq!(last_lag + 1 - at, 2, "{name}: {seen:?}");
+    }
+}
+
+#[test]
+fn the_board_keeps_a_portrait_first_shown_as_its_page_completes() {
+    for first in [vec![text("Hi"), portrait(1)], vec![portrait(1), text("A")]] {
+        let mut runner = DialogueRunner::new();
+        runner.set_board_text(true);
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(first.clone()), &game));
+        for _ in 0..20 {
+            if frame(&mut runner, &mut game, Pad::NEUTRAL)
+                .iter()
+                .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+            {
+                break;
+            }
+        }
+        assert!(runner.open_resolved(&entry(vec![text("Yo")]), &game));
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+        assert_eq!(
+            runner.view().expect("the next text").portrait,
+            Some(1),
+            "{first:?}"
+        );
+        // A later explicit change replaces it.
+        idle(&mut runner, &mut game, 10);
+        assert!(runner.open_resolved(&entry(vec![portrait(2), text("C")]), &game));
+        idle(&mut runner, &mut game, 10);
+        assert_eq!(runner.view().expect("a window").portrait, Some(2));
+    }
+}
+
+#[test]
+fn a_hide_keeps_what_the_screen_shows_until_the_next_glyph() {
+    // `$F4 1, $F4 0`: portrait 1 never reaches the screen.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    assert!(runner.open_resolved(&entry(vec![portrait(1), portrait(0), text("A")]), &game));
+    let frames = trace(&mut runner, &mut game, [Pad::NEUTRAL; 8]);
+    assert!(frames.iter().all(|frame| frame.1.is_none()), "{frames:?}");
+    assert_eq!(frames.last().map(|frame| frame.2), Some(1), "{frames:?}");
+
+    // Portrait 5 is up: two hides, adjacent or apart by a `$F2`, leave it on
+    // screen until "A" is drawn.
+    for between in [None, Some(set_flag(3))] {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        let mut segments = vec![portrait(5), text("X"), wait(), portrait(0)];
+        segments.extend(between.clone());
+        segments.extend([portrait(0), text("A")]);
+        assert!(runner.open_resolved(&entry(segments), &game));
+        for _ in 0..40 {
+            if runner.view().is_some_and(|view| view.dismissable) {
+                break;
+            }
+            frame(&mut runner, &mut game, Pad::NEUTRAL);
+        }
+        let mut frames = trace(&mut runner, &mut game, [Pad::new(Button::Speak)]);
+        frames.extend(trace(&mut runner, &mut game, [Pad::NEUTRAL; 4]));
+        let first_a = frames.iter().position(|frame| frame.2 == 1).expect("\"A\"");
+        assert!(
+            frames[..first_a].iter().all(|frame| frame.1 == Some(5)),
+            "{between:?}: {frames:?}"
+        );
+        assert_eq!(frames[first_a].1, None, "{between:?}: {frames:?}");
+    }
+}

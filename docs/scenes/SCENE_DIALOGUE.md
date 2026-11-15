@@ -227,7 +227,10 @@ two adjacent ones spend a load's two lag frames, then the next one's destroy
 and lag. The typewriter never draws past a `$F4` whose frames have not run,
 however the walk reached it (typing, a `$F9` running out, a `$F2` or a
 branch), and a press cannot leave the page, answer its prompt or close the
-window before they have. The other lag on the table, the text routine's own work after the box
+window before they have. A control with an effect of its own after a `$F4`
+(`$F2`, `$F6`, `$FA`) waits for those frames too. A `$F4 0` costs no frame
+and no press, and the plane keeps what it shows until a `DMAPlane_A_VInt`
+changes it: the next glyph, or a swap's destroy frame. The other lag on the table, the text routine's own work after the box
 opens and after a page clears, is not modelled as lag: the typewriter's first
 three frames stand in for it (deviation in
 [the source notes](../source-notes/README.md)).

@@ -153,6 +153,9 @@ pub struct TextFlow {
     /// The `$F4`s the walk ran that the window has not finished, in stream
     /// order.
     portrait_changes: VecDeque<PortraitChange>,
+    /// The walk stopped at a control behind a pending `$F4`
+    /// ([`TextFlow::finish_portrait`] resumes it).
+    portrait_hold: bool,
 }
 
 impl TextFlow {
@@ -220,6 +223,7 @@ impl TextFlow {
             entry_id: entry.id,
             choice: None,
             portrait_changes: VecDeque::new(),
+            portrait_hold: false,
         };
         flow.pump(game);
         if flow.done && flow.stop.is_none() {
@@ -253,9 +257,22 @@ impl TextFlow {
         self.portrait_changes.front()
     }
 
-    /// The window has spent the first pending `$F4`'s frames.
-    pub fn finish_portrait(&mut self) -> Option<PortraitChange> {
-        self.portrait_changes.pop_front()
+    /// The window has spent the first pending `$F4`'s frames. Once none is
+    /// left, the walk resumes at the control it stopped at.
+    pub fn finish_portrait(&mut self, game: &GameState) -> Option<PortraitChange> {
+        let change = self.portrait_changes.pop_front();
+        if self.portrait_changes.is_empty() && self.portrait_hold {
+            self.portrait_hold = false;
+            self.pump(game);
+        }
+        change
+    }
+
+    /// Whether a mid-message `$FA` jump or `$F6` event waits for the window
+    /// half to service it.
+    #[must_use]
+    pub fn has_jump_or_event(&self) -> bool {
+        self.jump.is_some() || self.event.is_some()
     }
 
     /// How the page on screen ended, if a page is finished.
@@ -380,6 +397,7 @@ impl TextFlow {
         self.stop = None;
         self.done = false;
         self.closed = false;
+        self.portrait_hold = false;
         self.pump(game);
     }
 
@@ -406,6 +424,7 @@ impl TextFlow {
         // The window's destroy took the portrait with it.
         self.portrait = None;
         self.portrait_changes.clear();
+        self.portrait_hold = false;
         self.stop = None;
         self.closed = false;
         self.done = false;
@@ -529,9 +548,29 @@ impl TextFlow {
 
     /// Runs segments until a page is finished, a delay starts, or the entry
     /// ends.
+    ///
+    /// `RunText` runs one byte at a time, so a control with an effect of its
+    /// own (`$F2`, `$F6`, `$FA`, a mid-message `$F3`) waits behind a `$F4`
+    /// whose frames the window has not spent: the walk stops before it and
+    /// [`TextFlow::finish_portrait`] resumes it. Glyphs and page ends still
+    /// run on; the window holds the typewriter and the page instead.
     fn pump(&mut self, game: &GameState) {
         while self.index < self.segments.len() {
             let segment = self.segments[self.index].clone();
+            if !self.portrait_changes.is_empty()
+                && matches!(
+                    segment,
+                    Segment::Control(
+                        Ctrl::Action { .. }
+                            | Ctrl::Event { .. }
+                            | Ctrl::FlagCheck { .. }
+                            | Ctrl::KeepNpcFacing { .. }
+                    )
+                )
+            {
+                self.portrait_hold = true;
+                return;
+            }
             self.index += 1;
             let stop = match segment {
                 Segment::Text(run) => self.run_text(&run, game),
