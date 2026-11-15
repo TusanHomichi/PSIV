@@ -510,6 +510,7 @@ impl Runtime {
         }
         self.wander = build_wander(&map, record)?;
         self.bespoke = build_bespoke(&map, record)?;
+        self.eclipse_torch.clear();
         // Map entry places the view rather than scrolling it in, so the camera
         // starts framed on the party wherever the warp dropped them.
         self.camera = camera_for_record(driver_of(self.party.leader()), &map, record)

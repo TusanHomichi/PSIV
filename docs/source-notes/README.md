@@ -511,21 +511,23 @@ agility and dexterity, and enemy paralysis clearing each turn.
     ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
     per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
     The objects that pass would move are the nine `$338`s and the standing
-    party; the nine are renderer records, which the shell advances on every
-    scene frame.
-  - The nine `$338` objects (`$0702E4..$07041D`) are `CreateFieldObject`
-    records at their literal positions; their `$11` delays (7, `$B`, `$F`)
-    and `$6` sequences (0, 4, 8) are not carried. Retail's
-    `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
-    (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
-    return's map reload. The pack extracts the exact `$338`/`$3AF` sheet
-    from the US scene's Nemesis upload at `$1D712C` on Dezolis map `$001`:
-    four mappings (`$5132A/$51332/$5133A/$51342`) in each of the three
-    sequences selected by `$502C2` (`$50396/$503A8/$503BA`), with stored
-    duration bytes 7/11/15 (8/12/16 ticks). Extraction supplies the art and
-    timings; runtime sequence selection, animation and lifetime, and a
-    matching native/retail object-scene capture remain unverified here
-    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+    party. The nine now advance only through the runtime's object-pass API;
+    a scene frame alone cannot animate or clear them.
+  - The nine `$338` objects (`$0702E4..$07041D`) carry their literal
+    positions, `$6` sequences (0/4/8) and initial `$11` delays (7/11/15).
+    The core routine follows US `loc_4FAE0` and `FieldObj_Animate2`: mappings
+    0/1/2/3 change after 8/12/16 passes per mapping, and the pre-animation
+    index-3/duration-0 test clears on pass 32/48/64. Before the first pass
+    no sprite has been built. Runtime snapshots supply Godot's mapping and
+    position, without a renderer timer. The pack extracts the `$338`/`$3AF`
+    sheet from the US Nemesis upload at `$1D712C` on Dezolis map `$001`:
+    mappings `$5132A/$51332/$5133A/$51342`, selected through `$502C2` and
+    sequences `$50396/$503A8/$503BA`. Object-API tests cover the nine slots,
+    every mapping and clearing pass, and VInt-only non-advancement; the
+    scene's missing object passes still prevent native timing acceptance
+    ([#573](https://github.com/TusanHomichi/PSIV/issues/573)). Matching
+    native/retail captures remain
+    [#698](https://github.com/TusanHomichi/PSIV/issues/698).
   - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
     over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
     `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after

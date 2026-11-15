@@ -22,6 +22,7 @@ mod debug;
 mod destination;
 mod dialogue;
 mod display;
+mod eclipse_torch;
 mod field_map;
 mod field_status;
 mod field_visuals;

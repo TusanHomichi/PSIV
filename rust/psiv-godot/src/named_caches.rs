@@ -88,6 +88,7 @@ impl CacheReport {
 }
 
 /// The scene op that writes a temporary field-object slot, and the slot.
+/// Includes runtime-owned torch draws, which share the shell's node slots.
 /// Every op whose presentation reaches `PresentationState::object_animation`
 /// (cutscene/state.rs, the only insert into the slot map) is listed; the test
 /// below keeps the list and the dispatcher in step.
@@ -95,6 +96,7 @@ fn temporary_slot_written(op: &psiv_core::SceneOp) -> Option<usize> {
     match op {
         psiv_core::SceneOp::ObjectAnimation { slot, .. }
         | psiv_core::SceneOp::CreateFieldObject { slot, .. } => Some(*slot),
+        psiv_core::SceneOp::CreateEclipseTorch(spawn) => Some(spawn.slot),
         _ => None,
     }
 }

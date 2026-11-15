@@ -190,6 +190,7 @@ pub struct Runtime {
     /// The map's post-wave-7 bespoke routines, rebuilt in the same map-object
     /// order as [`Runtime::wander`].
     bespoke: BespokeSet,
+    eclipse_torch: std::collections::BTreeMap<usize, psiv_core::EclipseTorchObject>,
     /// The one shared seed, ticked once per frame like the cartridge's
     /// vblank call; wander decisions draw from the same stream, as retail's
     /// FieldObj_GetRandomMove shares UpdateRNGSeed with encounter rolls.

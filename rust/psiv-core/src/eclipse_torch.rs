@@ -1,0 +1,260 @@
+//! The nine `$338` objects: US `$04FAE0`, `FieldObj_Animate2` `$04472E`,
+//! and sequences `$050396/$0503A8/$0503BA`. Only an object pass advances them.
+
+/// `$6` selects a long pointer in `$502C2`; each sequence has four mappings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum EclipseTorchSequence {
+    /// Sequence `$50396`, duration byte 7.
+    Fast = 0,
+    /// Sequence `$503A8`, duration byte 11.
+    Medium = 4,
+    /// Sequence `$503BA`, duration byte 15.
+    Slow = 8,
+}
+
+impl EclipseTorchSequence {
+    /// The spawn's `$11`, also the selected sequence's reload duration byte.
+    #[must_use]
+    pub const fn initial_delay(self) -> u8 {
+        match self {
+            Self::Fast => 7,
+            Self::Medium => 11,
+            Self::Slow => 15,
+        }
+    }
+}
+
+/// Literal scene creation, in secondary-slot order (`$0702E4..$07041D`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EclipseTorchSpawn {
+    /// Secondary object slot.
+    pub slot: usize,
+    /// Literal world pixel X.
+    pub x: i32,
+    /// Literal world pixel Y.
+    pub y: i32,
+    /// Spawn sequence and its retained initial delay.
+    pub sequence: EclipseTorchSequence,
+}
+
+/// A read-only draw snapshot and the deterministic routine's private state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EclipseTorchObject {
+    spawn: EclipseTorchSpawn,
+    index: u8,
+    duration: u8,
+    initialized: bool,
+    active: bool,
+}
+
+impl EclipseTorchObject {
+    /// Initialize a spawn without running its object routine.
+    #[must_use]
+    pub const fn new(spawn: EclipseTorchSpawn) -> Self {
+        Self {
+            spawn,
+            index: 0,
+            duration: spawn.sequence.initial_delay(),
+            initialized: false,
+            active: true,
+        }
+    }
+
+    /// The unchanged scene creation record.
+    #[must_use]
+    pub const fn spawn(&self) -> EclipseTorchSpawn {
+        self.spawn
+    }
+
+    /// No sprite has been built before the first owning object pass.
+    #[must_use]
+    pub const fn mapping(&self) -> Option<u8> {
+        if self.active && self.initialized {
+            Some(self.index)
+        } else {
+            None
+        }
+    }
+
+    /// Whether the routine has cleared its object word.
+    #[must_use]
+    pub const fn active(&self) -> bool {
+        self.active
+    }
+
+    /// The current `$11` countdown byte.
+    #[must_use]
+    pub const fn duration(&self) -> u8 {
+        self.duration
+    }
+
+    /// `loc_4FAE0` tests index 3/duration 0 BEFORE `FieldObj_Animate2`.
+    /// The latter subtracts a byte and advances on a signed underflow.
+    pub fn object_pass(&mut self) {
+        if !self.active {
+            return;
+        }
+        self.initialized = true;
+        if self.index == 3 && self.duration == 0 {
+            self.active = false;
+            return;
+        }
+        self.duration = self.duration.wrapping_sub(1);
+        if (self.duration as i8) < 0 {
+            self.duration = self.spawn.sequence.initial_delay();
+            self.index = (self.index + 1) % 4;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eclipse_torch_every_mapping_and_exact_clear_pass() {
+        for (sequence, period, lifetime) in [
+            (EclipseTorchSequence::Fast, 8, 32),
+            (EclipseTorchSequence::Medium, 12, 48),
+            (EclipseTorchSequence::Slow, 16, 64),
+        ] {
+            let mut object = EclipseTorchObject::new(EclipseTorchSpawn {
+                slot: 0,
+                x: 0,
+                y: 0,
+                sequence,
+            });
+            assert_eq!(object.mapping(), None);
+            assert_eq!(object.duration(), period - 1);
+            for pass in 1..=lifetime + 1 {
+                object.object_pass();
+                assert_eq!(object.active(), pass < lifetime, "{sequence:?} pass {pass}");
+                if pass < lifetime {
+                    assert_eq!(object.mapping(), Some(pass / period));
+                    assert_eq!(object.duration(), period - 1 - pass % period);
+                } else {
+                    assert_eq!(object.mapping(), None);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod scene_tests {
+    use super::*;
+
+    #[test]
+    fn eclipse_torch_nine_literal_spawns_and_groups() {
+        let ops = crate::SCENES
+            .iter()
+            .find(|scene| scene.name == "Event_EclipseTorchUsed")
+            .unwrap()
+            .ops;
+        let start = ops
+            .iter()
+            .position(|op| matches!(op, crate::SceneOp::CreateEclipseTorch(_)))
+            .unwrap();
+        let expected = [
+            (0xBA0, 0xC0, 0, 7),
+            (0xB80, 0xA0, 4, 11),
+            (0xBA0, 0xA0, 4, 11),
+            (0xBC0, 0xA0, 4, 11),
+            (0xB60, 0x80, 8, 15),
+            (0xB80, 0x80, 8, 15),
+            (0xBA0, 0x80, 8, 15),
+            (0xBC0, 0x80, 8, 15),
+            (0xBE0, 0x80, 8, 15),
+        ];
+        for (slot, &(x, y, sequence, delay)) in expected.iter().enumerate() {
+            let crate::SceneOp::CreateEclipseTorch(spawn) = ops[start + slot] else {
+                panic!("consecutive creations without a wait")
+            };
+            assert_eq!(
+                (
+                    spawn.slot,
+                    spawn.x,
+                    spawn.y,
+                    spawn.sequence as u16,
+                    spawn.sequence.initial_delay()
+                ),
+                (slot, x, y, sequence, delay)
+            );
+        }
+        assert_eq!(
+            ops.iter()
+                .filter(|op| matches!(op, crate::SceneOp::CreateEclipseTorch(_)))
+                .count(),
+            9
+        );
+    }
+
+    #[test]
+    fn eclipse_torch_spawns_and_sequences_match_us_bytes() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../Phantasy Star IV (USA).md");
+        let Ok(rom) = std::fs::read(path) else {
+            eprintln!("US ROM absent; skipping byte comparison");
+            return;
+        };
+        assert_eq!(
+            &rom[0x502C2..0x502CE],
+            &[0, 5, 3, 0x96, 0, 5, 3, 0xA8, 0, 5, 3, 0xBA]
+        );
+        for (address, delay) in [(0x50396, 7), (0x503A8, 11), (0x503BA, 15)] {
+            assert_eq!(
+                &rom[address..address + 18],
+                &[
+                    4, delay, 0, 5, 0x13, 0x2A, 0, 5, 0x13, 0x32, 0, 5, 0x13, 0x3A, 0, 5, 0x13,
+                    0x42
+                ]
+            );
+        }
+        let ops = crate::SCENES
+            .iter()
+            .find(|scene| scene.name == "Event_EclipseTorchUsed")
+            .unwrap()
+            .ops;
+        for spawn in ops.iter().filter_map(|op| {
+            if let crate::SceneOp::CreateEclipseTorch(spawn) = op {
+                Some(spawn)
+            } else {
+                None
+            }
+        }) {
+            // First record also writes the shared id/tile immediates.
+            let at = 0x702EC + spawn.slot * 34;
+            let slot_address = 0xC300 + spawn.slot as u16 * 0x40;
+            let mut expected = vec![0x49, 0xF8];
+            expected.extend(slot_address.to_be_bytes());
+            expected.extend([0x38, 0x80, 0x39, 0x41, 0, 0x16, 0x39, 0x7C]);
+            expected.extend((spawn.x as u16).to_be_bytes());
+            expected.extend([0, 0x30, 0x39, 0x7C]);
+            expected.extend((spawn.y as u16).to_be_bytes());
+            expected.extend([
+                0,
+                0x34,
+                0x19,
+                0x7C,
+                0,
+                spawn.sequence.initial_delay(),
+                0,
+                0x11,
+                0x39,
+                0x7C,
+            ]);
+            expected.extend((spawn.sequence as u16).to_be_bytes());
+            expected.extend([0, 6]);
+            assert_eq!(&rom[at..at + 34], expected, "slot {}", spawn.slot);
+        }
+        // Pre-animation check is index 3, duration 0, clear word, return.
+        assert_eq!(
+            &rom[0x4FB02..0x4FB14],
+            &[
+                0x0C, 0x2C, 0, 3, 0, 0x10, 0x66, 0x0A, 0x4A, 0x2C, 0, 0x11, 0x66, 4, 0x42, 0x54,
+                0x4E, 0x75
+            ]
+        );
+    }
+}

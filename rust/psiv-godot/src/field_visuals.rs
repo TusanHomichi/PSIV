@@ -60,6 +60,7 @@ impl Field {
             .iter()
             .filter_map(|actor| actor.beam_draw().map(|draw| (actor.npc_index(), draw)))
             .collect();
+        let torch_objects: Vec<_> = runtime.eclipse_torch_objects().copied().collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
         // A scene that drives the leader displaces the party draw: position,
@@ -389,6 +390,8 @@ impl Field {
                 custom_slots.insert(slot);
             }
         }
+
+        custom_slots.extend(self.sync_eclipse_torch(&torch_objects));
 
         if let Some(camera) = self.camera.as_mut() {
             let (x, y) = camera_position;

@@ -231,6 +231,11 @@ impl Field {
                 "rows": view.rows,
             })),
             "temporary_objects": self.presentation.temporary_draws().iter().filter(|(_, o)| o.frames_left > 0).map(|(slot, o)| serde_json::json!({"slot": slot, "id": o.object_id, "elapsed": o.elapsed, "position":o.destination})).collect::<Vec<_>>(),
+            "eclipse_torch_objects": rt.eclipse_torch_objects().map(|object| {
+                let spawn = object.spawn();
+                serde_json::json!({"slot": spawn.slot, "id": 0x338, "sequence": spawn.sequence as u16,
+                    "delay": object.duration(), "mapping": object.mapping(), "position": [spawn.x, spawn.y]})
+            }).collect::<Vec<_>>(),
             "map_patches": rt.map_effects().patch_blits.len(),
             "chunk_patches": rt.map_effects().chunk_patches,
             "cram": {"live": cram.live, "revision": cram.revision, "words": cram.words.to_vec()},

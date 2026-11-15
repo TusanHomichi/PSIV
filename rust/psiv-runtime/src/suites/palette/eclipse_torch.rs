@@ -207,10 +207,7 @@ fn the_eclipse_torch_flashes_twice_and_restores_the_cram() {
             matches!(
                 event,
                 RuntimeEvent::ScenePresentation {
-                    op: SceneOp::CreateFieldObject {
-                        object_id: 0x338,
-                        ..
-                    },
+                    op: SceneOp::CreateEclipseTorch(_),
                     ..
                 }
             )
@@ -272,3 +269,5 @@ fn copy(tick: &Tick) -> Tick {
         calls: tick.calls,
     }
 }
+
+mod objects;
