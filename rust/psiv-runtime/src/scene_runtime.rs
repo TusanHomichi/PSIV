@@ -585,10 +585,11 @@ impl Runtime {
                         self.tick_barrier_beams(reveal);
                     }
                     SceneOp::FlightPlanet => {
-                        // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8
-                        // background 18, loc_644AE sprites 2/4, RunText2 3/2
-                        // CPU frames. d4=1 means zero per-character waits.
-                        let frames = if self.map.id().0 == 0 { 38 } else { 37 };
+                        // Tape 35: loc_643B8 background 18, loc_644AE
+                        // sprites 2/4, RunText2 3/2 CPU frames, after the
+                        // `InitVramAndCram` before it spent its own 15/13
+                        // (#637). d4=1 means zero per-character waits.
+                        let frames = if self.map.id().0 == 0 { 23 } else { 24 };
                         if let Some(runner) = self.scene.as_mut() {
                             runner.delay_frames(frames);
                         }

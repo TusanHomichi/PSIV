@@ -87,14 +87,14 @@ pub(super) const ROWS: &[Row] = &[
     row(SHIP, own(0x06_4908, true, true), Wait(21)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(25)),
-    row(SHIP, Map(0x06_49C6), Merged(25)),
-    row(SHIP, Map(0x06_4762), Wait(35)),
-    row(SHIP, Map(0x06_49D8), Merged(35)),
+    row(SHIP, Map(0x06_4750), Wait(24)),
+    row(SHIP, Map(0x06_49C6), Merged(24)),
+    row(SHIP, Map(0x06_4762), Wait(33)),
+    row(SHIP, Map(0x06_49D8), Merged(33)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(41)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
+    row(SHIP, own(0x06_4800, true, true), Wait(39)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(39)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),

@@ -44,6 +44,9 @@ fn play(event: u16, map_id: u16, state: &mut GameState) -> Vec<(usize, SceneEffe
     let mut log = Vec::new();
     let mut input = SceneInput::None;
     for tick in 0..2_000 {
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         let effects = runner.tick(&map, state, input);
         input = if effects.iter().any(|e| {
             matches!(

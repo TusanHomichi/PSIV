@@ -70,12 +70,18 @@ fn presentation_events_keep_scene_order_and_tick_boundaries() {
         !seen.is_empty(),
         "the scene surfaced no presentation effects"
     );
-    assert!(matches!(seen[0].2, SceneOp::InitVramAndCram));
-    assert!(matches!(seen[1].2, SceneOp::FadeIn));
+    // `InitVRAMAndCRAM` is its fade-out, then the op once that is black
+    // (#637); `Pal_FadeIn` follows `DMAPlanes_VInt`'s frame.
+    assert!(matches!(seen[0].2, SceneOp::FadeOut));
+    assert!(matches!(seen[1].2, SceneOp::InitVramAndCram));
+    assert!(seen[1].0 > seen[0].0, "the op waits for its fade");
+    assert!(matches!(seen[2].2, SceneOp::FadeIn));
+    assert_eq!(seen[2].0, seen[1].0 + 1, "one frame after the op");
     assert!(matches!(
-        seen[2].2,
+        seen[3].2,
         SceneOp::SetRenderSpritesInCutscene { enabled: true }
     ));
+    assert!(seen[3].0 > seen[2].0, "the scene waits for its fade-in");
     assert!(seen.windows(2).all(|pair| {
         pair[0].0 <= pair[1].0 && (pair[0].0 != pair[1].0 || pair[0].1 < pair[1].1)
     }));

@@ -167,16 +167,15 @@ agility and dexterity, and enemy paralysis clearing each turn.
   so the loop tones the backdrop where they stood. The scene's windows are not
   modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
   ([89_Ending.md](../scenes/89_Ending.md)).
-- **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
-  `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
-  each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
-  live buffer over frames the scene runner does not spend; the shell's cover
-  draws the ramp. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
-  makes the copy and leaves the live words at the pre-fade palette, so after a
-  `FadeOut` the words read the old palette instead of black, and a line that no
-  op rewrites before the next `FadeIn` comes back with its old words where the
-  cartridge would bring it back black. The variable fades, tone loops, flashes
-  and cycles are stepped frame by frame
+- **A scene's fade-out leaves the display on (#653).** `PalFadeOut_ClrSpriteTbl`
+  (and so `InitVRAMAndCRAM`'s fade) ends in `ClearSpriteTableBuf`, which
+  turns the display off (`ps4.asm:85982-85984`) until the next fade-in's
+  `VDP_EnableDisplay`. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
+  runs `Pal_FadeIn`, `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM` frame by
+  frame and leaves the words black (#637), but keeps no display bit, so a
+  palette a scene writes between a fade-out and its fade-in (`Pal_Init`'s
+  window line, a `LoadPalette`, a panel's words) is drawn on the frames
+  between, where the cartridge shows its backdrop
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into

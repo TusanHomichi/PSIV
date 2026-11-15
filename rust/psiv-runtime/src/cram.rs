@@ -15,11 +15,12 @@
 //! the pack (`presentation/panels.json`); a palette the pack lacks is listed in
 //! [`CramView::missing`] rather than guessed.
 //!
-//! Deviations, recorded in `docs/scenes/SCENE_PRESENTATION.md` ("CRAM state"):
-//! `Pal_FadeIn`/`PalFadeOut_ClrSpriteTbl` (and `InitVRAMAndCRAM`'s fade) write
-//! only their second-buffer copy here, because the scene does not spend their
-//! frames and the shell's cover draws the ramp; the live words keep the
-//! pre-fade palette instead of reaching black.
+//! A scene's `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` (`InitVRAMAndCRAM`'s
+//! fade included) are `Pal_VariableFadeIn`/`Out` with `$FFFFED52` at zero, and
+//! run here as those do (#637). The display-disable bit the fade-out leaves
+//! is not modelled (#653): the words it leaves are black, and a palette
+//! written before the next fade-in is shown (`docs/scenes/SCENE_PRESENTATION.md`,
+//! "CRAM state").
 
 use psiv_core::palette::{self, PALETTE_WORDS};
 use psiv_core::{CounterCycle, PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
@@ -530,9 +531,9 @@ impl Cram {
 
     /// Applies one scene record on the tick the scene emits it. `map` is the
     /// current map's record, for `ReloadMapPalette`; `cycle_index` is
-    /// `$FFFFECF3`. Returns the frames a
-    /// [`PresentationOp::VariablePaletteFade`] spends, which the scene waits
-    /// for; `None` for every other record.
+    /// `$FFFFECF3`. Returns the frames a [`SceneOp::FadeIn`],
+    /// [`SceneOp::FadeOut`] or [`PresentationOp::VariablePaletteFade`]
+    /// spends, which the scene waits for; `None` for every other record.
     pub(crate) fn apply(
         &mut self,
         op: &SceneOp,
@@ -543,26 +544,39 @@ impl Cram {
     ) -> Option<u16> {
         let fades_in = matches!(
             op,
-            SceneOp::Presentation {
-                op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
-            }
+            SceneOp::FadeIn
+                | SceneOp::Presentation {
+                    op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                }
         );
         if !fades_in {
             self.upload_unshown();
         }
         match *op {
-            // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
-            // buffer to the second one, then 32 longwords of `Pal_Init` (`$05A68A`).
+            // `InitVRAMAndCRAMAfterFadeOut`, after the runner's `FadeOut`:
+            // `DMAPlanes_VInt` spends this frame, then 32 longwords of
+            // `Pal_Init` (`$05A68A`) go into the buffer, shown from the next.
             SceneOp::InitVramAndCram => {
-                self.saved = self.view.words;
                 if let Some(init) = self.rom(palettes, PAL_INIT, PALETTE_WORDS) {
-                    let init = words_of(init);
-                    self.set_live(init);
+                    let writes = vec![(1, 0, init.to_vec())];
+                    self.start(
+                        Program::Writes { elapsed: 0, writes },
+                        main_frame_count,
+                        cycle_index,
+                    );
                 }
             }
-            // Both copy the buffer to the second one first (`trap #1`, 64
-            // words); the ramp itself is the shell's cover (module docs).
-            SceneOp::FadeIn | SceneOp::FadeOut => self.saved = self.view.words,
+            // `Pal_FadeIn` (`$0421D4`) and `PalFadeOut_ClrSpriteTbl`
+            // (`$04223E`) are `Pal_VariableFadeIn`/`Out` with one VBlank a
+            // pass, `$FFFFED52` at zero: the copy, the clear and display
+            // enable for the fade-in, the passes, and their frame count.
+            SceneOp::FadeIn | SceneOp::FadeOut => {
+                let fade = PresentationOp::VariablePaletteFade {
+                    fade_in: matches!(op, SceneOp::FadeIn),
+                    mode: 0,
+                };
+                return self.presentation(fade, main_frame_count, palettes, cycle_index);
+            }
             SceneOp::LoadPalette {
                 rom_addr,
                 words,

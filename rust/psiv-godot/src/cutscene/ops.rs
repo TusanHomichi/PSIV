@@ -29,6 +29,11 @@ impl Field {
                 .consume_picture_op(&op, |art, tile| presentation.art_loaded(art, tile));
         }
         match op {
+            // `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` step the runtime's
+            // CRAM, which every surface draws from (#637). A palette that is
+            // not live draws baked colours, so the shell's cover stands in.
+            SceneOp::FadeIn if self.cram_live() => self.palette_fade_in_ends_cover(),
+            SceneOp::FadeOut if self.cram_live() => {}
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
             SceneOp::FlightFadeIn { frames } => {
                 self.start_transition(TransitionKind::SceneFadeIn);
@@ -39,6 +44,8 @@ impl Field {
             }
             SceneOp::FlightPlanet | SceneOp::FlightPan => {}
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
+            // `InitVRAMAndCRAMAfterFadeOut`: the runtime emits the op once
+            // its `PalFadeOut_ClrSpriteTbl` has reached black.
             SceneOp::InitVramAndCram => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_destroy_all();

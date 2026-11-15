@@ -6,8 +6,8 @@ Four events, two to open a door and two to go through one.
 |---|---|---|---|---|
 | `$0035` | `Event_GaruberkTwDoorOpening1` | `$06F43A..$06F4EF` | interaction area, `Interaction_EventIndexes` parameter 3 | `DOOR_OPENING_1` (19 ops) |
 | `$0036` | `Event_GaruberkTwDoorOpening2` | `$06F4F0..$06F5A3` | interaction area, parameter 4 | `DOOR_OPENING_2` (19 ops) |
-| `$0037` | `Event_GaruberkTwDoorEntered1` | `$06F5A4..$06F723` | `RunEvent_EnterGrbkTwDoor` (`RunEventsJmpTbl[$22]`) | `DOOR_ENTERED_1` (21 ops) |
-| `$0038` | `Event_GaruberkTwDoorEntered2` | `$06F724..$06F8A3` | `RunEvent_EnterGrbkTwDoor` | `DOOR_ENTERED_2` (21 ops) |
+| `$0037` | `Event_GaruberkTwDoorEntered1` | `$06F5A4..$06F723` | `RunEvent_EnterGrbkTwDoor` (`RunEventsJmpTbl[$22]`) | `DOOR_ENTERED_1` (19 ops) |
+| `$0038` | `Event_GaruberkTwDoorEntered2` | `$06F724..$06F8A3` | `RunEvent_EnterGrbkTwDoor` | `DOOR_ENTERED_2` (19 ops) |
 
 - **Pointers:** `EventPtrs[$35..$38]` at `$05A2B4`.
 - **Data:** `garuberk_events.rs`.

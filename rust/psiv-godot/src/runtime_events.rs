@@ -96,7 +96,7 @@ impl Field {
                     godot_print!("scene started (interaction area {area}, event {event:#x})");
                     self.set_letterbox(true);
                     if event & 0x8000 != 0 {
-                        self.start_transition(TransitionKind::SceneStart);
+                        self.start_cutscene_cover();
                     }
                 }
                 RuntimeEvent::ScenePresentation {
@@ -389,7 +389,7 @@ impl Field {
                 godot_print!("dialogue event {:#x} starts its scene", start.event);
                 self.set_letterbox(true);
                 if start.event & 0x8000 != 0 {
-                    self.start_transition(TransitionKind::SceneStart);
+                    self.start_cutscene_cover();
                 }
             } else {
                 godot_error!(

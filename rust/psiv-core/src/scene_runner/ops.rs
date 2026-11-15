@@ -541,7 +541,6 @@ impl SceneRunner {
                 }
             }
             SceneOp::ReloadMapPalette
-            | SceneOp::InitVramAndCram
             | SceneOp::LoadPalette { .. }
             | SceneOp::LoadArt { .. }
             | SceneOp::SetCameraPos { .. }
@@ -554,8 +553,6 @@ impl SceneRunner {
             | SceneOp::PlaySound { .. }
             | SceneOp::PlayMusicIfSavedDifferent { .. }
             | SceneOp::SetSavedMusic { .. }
-            | SceneOp::FadeIn
-            | SceneOp::FadeOut
             | SceneOp::DmaPlanes
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
@@ -877,9 +874,12 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
-            // A variable fade's length is in the palette, which the runtime
-            // holds: it answers with [`SceneRunner::release_palette`].
-            SceneOp::Presentation {
+            SceneOp::InitVramAndCram => self.init_vram_and_cram(effects),
+            // A fade's length is in the palette, which the runtime holds: it
+            // answers with [`SceneRunner::release_palette`].
+            SceneOp::FadeIn
+            | SceneOp::FadeOut
+            | SceneOp::Presentation {
                 op:
                     crate::PresentationOp::VariablePaletteFade { .. }
                     | crate::PresentationOp::TwoLinePaletteFade { .. },
