@@ -10,6 +10,7 @@ var game: Node
 var tick := 0
 var load_frames := 0
 var saw_field_camera := false
+var field_camera := Vector2.ZERO
 var checked_bars := 0
 
 func _initialize():
@@ -23,7 +24,8 @@ func start_game():
 func stop(reason: String):
     var report = {"pass": reason.is_empty(), "reason": reason, "tick": tick,
         "load_frames": load_frames, "checked_bars": checked_bars,
-        "preceding_field_camera_away_from_battle": saw_field_camera}
+        "preceding_field_camera_away_from_battle": saw_field_camera,
+        "preceding_field_camera": [field_camera.x, field_camera.y]}
     FileAccess.open(OS.get_environment("PSIV_LOAD_REPORT"), FileAccess.WRITE).store_string(JSON.stringify(report, "  "))
     print("NATIVE BATTLE LOAD ", JSON.stringify(report))
     quit(0 if reason.is_empty() else 1)
@@ -46,8 +48,9 @@ func _physics_process(_delta):
         if child is ColorRect and child.z_index == 500 and child.visible:
             bars.append(child)
     if camera == null or stage == null or not stage.visible:
-        if camera != null and not camera.position.is_equal_approx(Vector2(160, 112)):
-            saw_field_camera = true
+        if camera != null:
+            field_camera = camera.position
+            saw_field_camera = not field_camera.is_equal_approx(Vector2(160, 112))
         return false
     var loading := false
     var enemies := 0
