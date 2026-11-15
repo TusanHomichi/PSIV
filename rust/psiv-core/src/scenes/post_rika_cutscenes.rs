@@ -126,7 +126,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 29,
+            if_set: 30,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
@@ -151,6 +151,8 @@ pub static ALYS_WOUNDED: Scene = Scene {
         // `$074D5A` (`ps4.asm:154305`, inside `if revision>0`): dialogue `$2C`
         // is tree 6's, not Krup Inn F1's map binding.
         SceneOp::SetDialogueTree { rom_addr: TREE_6 },
+        // `$074D68`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x2C)),
             window: DialogueWindow::Standard,
@@ -271,6 +273,8 @@ pub static PSYCO_WAND: Scene = Scene {
         // `$07533C` (`ps4.asm:154633`, inside `if revision>0`): dialogue `$2E`
         // reads tree 6, not Krup Inn F1's map binding.
         SceneOp::SetDialogueTree { rom_addr: TREE_6 },
+        // `$07534A`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x2E)),
             window: DialogueWindow::Standard,

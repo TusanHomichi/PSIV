@@ -113,6 +113,8 @@ pub static ELSYDEON: Scene = Scene {
         SceneOp::PanelCreate { id: 0x12E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$0786A6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0786AC`: `popdlg` / `jsr Event_RunDialogue3`.
         SceneOp::RunDialogueResume,
         SceneOp::WaitFrames { frames: 30 },
@@ -132,6 +134,9 @@ pub static ELSYDEON: Scene = Scene {
         SceneOp::PanelCreate { id: 0x130 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 20 },
+        // `$078748`: `move.b #1, (Render_Sprites_In_Cutscenes).w`, after the
+        // `popdlg` at `$078740`; the page's `RunText` close clears it.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$078740`: `popdlg`, then the scene's own window code (`Window_Create`,
         // `RunText`, a button wait). The cartridge leaves that window up
         // until `$078810`'s `Window_Destroy`; the port closes it at the
@@ -190,6 +195,9 @@ pub static ELSYDEON: Scene = Scene {
         // `loc_7891A`.
         restore(),
         SceneOp::WaitFrames { frames: 40 },
+        // `$078932`: `move.b #1, (Render_Sprites_In_Cutscenes).w`, after the
+        // `popdlg` at `$07892A`; the page's `RunText` close clears it.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$07892A`: the second inline page, its window as at `$078740`.
         SceneOp::RunDialogueResume,
         SceneOp::Wait { ticks: 60 },
@@ -208,6 +216,8 @@ pub static ELSYDEON: Scene = Scene {
         SceneOp::WaitFrames { frames: 160 },
         SceneOp::PanelCreate { id: 0x13B },
         SceneOp::DmaPlanes,
+        // `$078A18`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$078A1E`: `jsr Event_GetAndRunDialogue5`.
         cutscene(0x32),
         SceneOp::SetFlag {

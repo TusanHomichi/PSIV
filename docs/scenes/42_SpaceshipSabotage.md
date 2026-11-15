@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$0E]` at `$05A580`; scene event `$800E`.
 - **Trigger:** Zelan `$18D`, `RunEventsJmpTbl[$28]`, Wren `$70` and Canceller
   `$72` set, Chaos Sorcerer `$71` clear, leader Y `$2F0`.
-- **Data:** `post_zio_cutscenes.rs`, `SPACESHIP_SABOTAGE` (36 ops).
+- **Data:** `post_zio_cutscenes.rs`, `SPACESHIP_SABOTAGE` (37 ops).
 
 ## Clone audit
 
@@ -23,10 +23,10 @@ hack's alternate story. The actual-ROM pointer pair is `$07607E..$07658A`
 | 11 | `$0762F6..$076354` | takeoff by `loc_64B02` from Zelan: Zelan Space at `($43,$3C)`, `Field_Map_Index_2 = $FFFF` | `LoadMap` |
 | 12-20 | `$0763CA..$0764A4` | panels `$7A/$7C`; waits `90/60`; dialogue entry `2`; alert panels | panels/waits/dialogue |
 | 21-27 | `$0764A5..$0764E9` | resume dialogue; set Chaos Sorcerer `$71`; saved Red Alert; map flags `$88` | resume/flags/music |
-| 28-33 | `$0764EA..$076589` | event battle index `8`; routine-exit return | `StartBattle(8)`, return |
+| 28-34 | `$0764EA..$076589` | event battle index `8`; routine-exit return | `StartBattle(8)`, return |
 
 The cancel branch at `loc_764F8` (`ps4.asm:155708`) lands on `loc_64B5A`'s row for the
-current map and returns `0`: ops 34 and 35 (`LoadFlightMap { Return }`, `Return`),
+current map and returns `0`: ops 35 and 36 (`LoadFlightMap { Return }`, `Return`),
 reached by `DestinationMenu`'s `cancel_skip`. The menu is the shared one
 ([Inside the spaceship](41_InsideSpaceship.md)); its mask `$08` lists Kuran alone,
 and the confirm writes `World_Index = 4` before the takeoff.
