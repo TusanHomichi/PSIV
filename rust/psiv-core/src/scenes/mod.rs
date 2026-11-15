@@ -104,6 +104,8 @@ mod dialogue_callers_image;
 #[cfg(test)]
 mod dialogue_resumes_image;
 #[cfg(test)]
+mod doc_op_counts;
+#[cfg(test)]
 mod documented_ranges;
 #[cfg(test)]
 mod palette_fades_image;

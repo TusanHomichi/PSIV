@@ -4,6 +4,10 @@ use crate::scene_presentation::PresentationOp;
 
 /// Op counts as the transcription docs state them.
 ///
+/// This table pins every scene; the documents' own `` `CONST` (N ops) ``
+/// statements are held to the registry by `doc_op_counts.rs`, so a scene
+/// that grows fails both until its document says so too.
+///
 /// Two scenes diverge from their doc's number, both for stated reasons.
 ///
 /// `Event_GameStart`'s doc says "~78" and means it — the tilde is theirs.
