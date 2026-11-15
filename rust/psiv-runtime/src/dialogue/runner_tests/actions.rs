@@ -183,3 +183,22 @@ fn blanking_vram_does_not_reset_the_retail_panel_counter() {
     runner.scene_panel_op(&psiv_core::SceneOp::PanelDestroyLast);
     assert_eq!(runner.panels, 0);
 }
+
+#[test]
+fn each_window_returns_the_retail_panel_count_including_retained_pixels() {
+    use psiv_core::DialogueWindow;
+    for (window, left) in [
+        (DialogueWindow::Standard, 0),
+        (DialogueWindow::Retained, 0),
+        (DialogueWindow::Cutscene, 0),
+        (DialogueWindow::Cutscene5, 0),
+        (DialogueWindow::Cutscene3, 1),
+        (DialogueWindow::EndingIntro, 1),
+        (DialogueWindow::Ending, 1),
+    ] {
+        let mut runner = DialogueRunner::new();
+        runner.scene_panel_op(&psiv_core::SceneOp::PanelCreate { id: 1 });
+        runner.return_panels(Some(window));
+        assert_eq!(runner.panels, left, "{window:?}");
+    }
+}

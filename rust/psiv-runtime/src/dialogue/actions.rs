@@ -1,7 +1,7 @@
 //! `$F2` waits inside `RunText` and `RunText3` (`TextActionsOffs`).
 
 use super::{DialogueAction, DialogueRunner, DialogueSignal, TextFlow};
-use psiv_core::{GameState, SceneOp};
+use psiv_core::{DialogueWindow, GameState, SceneOp};
 
 impl DialogueRunner {
     pub(super) fn action_holding(&self) -> bool {
@@ -16,6 +16,23 @@ impl DialogueRunner {
             SceneOp::PanelDestroyLast => self.panels = self.panels.wrapping_sub(1),
             SceneOp::PanelDestroyAll => self.panels = 0,
             _ => {}
+        }
+    }
+
+    /// `Event_RunDialogue2` zeroes the count without erasing its pixels;
+    /// the standard and fifth routines destroy the panels. The third and
+    /// ending routines leave the count alone (`DIALOGUE_CALLERS.md`).
+    pub(crate) fn return_panels(&mut self, window: Option<DialogueWindow>) {
+        if matches!(
+            window,
+            Some(
+                DialogueWindow::Standard
+                    | DialogueWindow::Retained
+                    | DialogueWindow::Cutscene
+                    | DialogueWindow::Cutscene5
+            )
+        ) {
+            self.panels = 0;
         }
     }
 

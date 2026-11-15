@@ -157,17 +157,9 @@ impl Runtime {
         if signals
             .iter()
             .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
-            && matches!(
-                self.scene_dialogue_window(),
-                Some(
-                    psiv_core::DialogueWindow::Standard
-                        | psiv_core::DialogueWindow::Cutscene
-                        | psiv_core::DialogueWindow::Cutscene5
-                )
-            )
         {
-            self.dialogue
-                .scene_panel_op(&psiv_core::SceneOp::PanelDestroyAll);
+            // Retained windows leave their pixels but zero `Panel_Num`.
+            self.dialogue.return_panels(self.scene_dialogue_window());
         }
         for signal in signals {
             match signal {

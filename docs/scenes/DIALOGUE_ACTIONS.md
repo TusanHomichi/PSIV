@@ -69,8 +69,10 @@ VInts: one for `LoadPanel`, `LoadSound` (including a zero operand),
 `LoadSound2`, `UpdatePalette`, `PauseMusic` and `ResumeMusic`; one for either
 panel destroy only when `Panel_Num` is nonzero; forty for `ElsydeonBroken`.
 Only zero-frame actions drain together. The panel count includes scene-owned
-panels, scene destroys, map loads and the window kinds that destroy panels on
-return. Ending windows retain them.
+panels, scene destroys and the window kinds that destroy panels on return.
+`Event_RunDialogue2` (the retained window) zeroes the count while leaving its
+pixels on screen; the third and ending routines retain the count.
+Blanking VRAM or loading a map does not itself reset `Panel_Num`.
 
 A `$F9` after an action starts after that action returns, and a `$F2` after a
 `$F9` runs as the delay returns. Neither consumes a frame belonging to the
