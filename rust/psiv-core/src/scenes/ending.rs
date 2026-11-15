@@ -606,6 +606,11 @@ pub static ENDING: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::ClearPlanes,
         },
+        // `$079C0A`: `jsr VDP_EnableDisplay`; the display has been off since
+        // the `Pal_VariableFadeOut` before the loop.
+        SceneOp::Presentation {
+            op: PresentationOp::EnableDisplay,
+        },
         SceneOp::DmaPlanes,
         SceneOp::DrawTextToPlane {
             entry: 0x12,

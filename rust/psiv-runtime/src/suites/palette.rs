@@ -11,6 +11,7 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
+mod display;
 mod eclipse_torch;
 mod ending;
 mod ending_window;
