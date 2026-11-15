@@ -12,6 +12,9 @@ use psiv_data::{CollisionType, Direction, GameData, MapId, TransitionTable};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+#[path = "runtime_pack/maps.rs"]
+mod maps;
+
 /// `<repo>/runtime-pack`, reached from this crate at `<repo>/rust/psiv-data`,
 /// unless `PSIV_RUNTIME_PACK` names somewhere else.
 fn pack_dir() -> PathBuf {
