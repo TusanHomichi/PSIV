@@ -177,7 +177,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *BATTLE_OPENING, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
+                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *BATTLE_OPENING, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH, *PREEMPTIVE])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

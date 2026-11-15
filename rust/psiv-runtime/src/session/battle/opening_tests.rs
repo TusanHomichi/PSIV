@@ -94,7 +94,11 @@ fn preemptive_opening_ignores_edges_and_consumes_held_buttons_before_first_poll(
                 .unwrap();
             assert_eq!(view.cursor, 0);
             assert!(matches!(view.menu, Some(MenuView::Top { width: None, .. })));
-            session.frame(Pad::NEUTRAL);
+            let released = session.frame(Pad::NEUTRAL).battle.unwrap().view.unwrap();
+            assert!(
+                matches!(released.menu, Some(MenuView::Top { width: None, .. })),
+                "held press must not start closure"
+            );
             let view = session
                 .frame(Pad::new(button))
                 .battle
@@ -108,9 +112,13 @@ fn preemptive_opening_ignores_edges_and_consumes_held_buttons_before_first_poll(
                 assert_eq!(view.cursor, 2);
             }
             if matches!(button, Button::Speak | Button::Camp) {
+                assert!(matches!(view.menu, Some(MenuView::Top { width: None, .. })));
+                // The accepted frame still shows the whole options window;
+                // its first two-cell close is visible on the next call.
+                let closing = session.frame(Pad::NEUTRAL).battle.unwrap().view.unwrap();
                 assert!(matches!(
-                    view.menu,
-                    Some(MenuView::Top { width: Some(8), .. })
+                    closing.menu,
+                    Some(MenuView::Top { width: Some(6), .. })
                 ));
             }
         }
@@ -129,12 +137,16 @@ fn preemptive_opening_ignores_edges_and_consumes_held_buttons_before_first_poll(
             .unwrap();
         assert_eq!(view.cursor, usize::from(button == Button::Down));
         if button != Button::Down {
-            assert!(matches!(
-                view.menu,
-                Some(MenuView::Top { width: Some(8), .. })
-            ));
+            assert!(matches!(view.menu, Some(MenuView::Top { width: None, .. })));
         }
         assert_eq!(session.runtime.rng_seed(), 0x7C0F6933);
+        if button != Button::Down {
+            let closing = session.frame(Pad::NEUTRAL).battle.unwrap().view.unwrap();
+            assert!(matches!(
+                closing.menu,
+                Some(MenuView::Top { width: Some(6), .. })
+            ));
+        }
     }
 }
 
