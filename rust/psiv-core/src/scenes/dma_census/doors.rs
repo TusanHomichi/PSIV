@@ -257,7 +257,7 @@ fn door_table_frames_and_update_policy_match_the_us_image() {
             &ops[door.first..],
             vec![ScriptedActor::new(
                 ActorRef::PartyMember(0),
-                Cell::new(2, 2),
+                Cell::new(4, 4),
                 Direction::Down,
             )],
             StepFrames::default(),
@@ -281,7 +281,7 @@ fn door_table_frames_and_update_policy_match_the_us_image() {
                         .filter(|e| matches!(e, crate::SceneEffect::MapChunksWritten { .. }))
                         .count(),
                     usize::from(frame == 0),
-                    "{} row {index} frame {frame}",
+                    "{} row {index} frame {frame}: {effects:?}",
                     door.name
                 );
                 assert_eq!(
