@@ -7,7 +7,7 @@ use crate::{
     maps::{draw, extract_maps, layouts, overworld, patches},
     png,
 };
-use psiv_core::{scene::SceneOp, scenes::SCENES};
+use psiv_core::{SCENES, SceneOp};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
