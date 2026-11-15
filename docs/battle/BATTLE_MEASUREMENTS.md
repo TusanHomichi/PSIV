@@ -124,6 +124,18 @@ Ambush captures through the queue show neither transient nor options. These
 are comparisons among cartridge frames; no native visual parity is claimed.
 In particular a RAM width change is not the visible-window boundary.
 
+The preemptive overlay clock has a load call before the origin. Additional
+PC observations of US `Battle_UpdateEnemySprites` (`$452EC`) show calls at
+f24820/c490915 and f24840/c671790, then at f24842/c315637. The overlay
+objects are already at mapping frame 1 before f24840; the origin decrements
+their timers again. The loader and origin therefore contribute two initial
+presentation updates, independently of the post-roll seed/count. Later
+upload holds do not add updates. At the options upload the routine straddles
+VInt (f24895/c874561); some second-enemy clock fields finish in f24896,
+while count and seed hold. Both objects agree again before the next counted
+loop. This is instruction/RAM evidence of the update order, not a claim that
+all VRAM uploads finish atomically on a frame boundary.
+
 ## Battle ground truth
 
 Tape 07 walks the whole opening act from power-on and fights the first random

@@ -124,6 +124,19 @@ pub(super) fn compose(screen: &mut BattleScreen) {
             }
             None => {}
         }
+        if let Some(width) = view.opening_transient_width.filter(|width| *width > 0) {
+            let rect = WindowRect {
+                x: LONG_TRANSIENT_MESSAGE_RECT.x + f32::from((18 - width) & !1) * cell / 2.0,
+                w: f32::from(width) * cell,
+                ..LONG_TRANSIENT_MESSAGE_RECT
+            };
+            if let Some(frame) = chrome.frame(rect) {
+                quads.extend(frame);
+                if width == 18 {
+                    quads.extend(chrome.text(&view.message, rect.inset(cell)));
+                }
+            }
+        }
         match view.message_kind {
             MessageKind::Transient | MessageKind::Wide if !view.message.is_empty() => {
                 let rect = match view.message_kind {

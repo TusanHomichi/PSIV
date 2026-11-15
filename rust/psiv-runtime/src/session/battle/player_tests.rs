@@ -3,7 +3,7 @@ use super::*;
 use psiv_core::battle::{Command, status};
 use psiv_core::{Cell, CharId, Direction, StepFrames};
 
-fn runtime() -> Option<Runtime> {
+pub(super) fn runtime() -> Option<Runtime> {
     let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
     if !pack.join("manifest.json").is_file() {
         eprintln!("runtime pack not present; skipping");
@@ -185,28 +185,27 @@ fn opening_names_options_and_seed_follow_the_two_retail_tapes() {
 }
 
 #[test]
-fn special_priorities_do_not_use_the_normal_options_opening() {
-    for priority in [Priority::Preemptive, Priority::Ambush] {
-        let Some(mut runtime) = runtime() else { return };
-        runtime.start_battle(0x8A, runtime.battle_party()).unwrap();
-        let mode = BattleMode::begin(
-            &runtime,
-            BattleTimeline {
-                events: vec![BattleEvent::Started {
-                    priority,
-                    enemies: vec![FighterId::new(6).unwrap(), FighterId::new(7).unwrap()],
-                }],
-                sounds: Vec::new(),
-                animations: Vec::new(),
-            },
-            BattleStart::Encounter(0x8A),
-        );
-        assert!(
-            mode.opening.is_none(),
-            "{priority:?} has its own retail routine"
-        );
-        assert_eq!(mode.current.unwrap().remaining, BATTLE_DWELL_FRAMES);
-    }
+fn ambush_retains_its_existing_opening_pending_its_dedicated_task() {
+    let priority = Priority::Ambush;
+    let Some(mut runtime) = runtime() else { return };
+    runtime.start_battle(0x8A, runtime.battle_party()).unwrap();
+    let mode = BattleMode::begin(
+        &runtime,
+        BattleTimeline {
+            events: vec![BattleEvent::Started {
+                priority,
+                enemies: vec![FighterId::new(6).unwrap(), FighterId::new(7).unwrap()],
+            }],
+            sounds: Vec::new(),
+            animations: Vec::new(),
+        },
+        BattleStart::Encounter(0x8A),
+    );
+    assert!(
+        mode.opening.is_none(),
+        "{priority:?} has its own retail routine"
+    );
+    assert_eq!(mode.current.unwrap().remaining, BATTLE_DWELL_FRAMES);
 }
 
 /// The shell must receive the same clock contract for every entry route,

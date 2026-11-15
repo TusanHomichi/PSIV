@@ -406,6 +406,9 @@ pub struct BattleView {
     /// First plane upload after the roll: the first enemy-overlay call runs,
     /// while the name's scanout can contain rows of the previous plane.
     pub opening_first_upload: bool,
+    /// The opening transient's visible width in cells; zero hides it and
+    /// eighteen shows its text. The runtime owns growth, dwell and closure.
+    pub opening_transient_width: Option<u8>,
     /// The command surface, or `None` while a beat owns the frame.
     pub menu: Option<MenuView>,
     /// Whether the command window is open and accepting input.
@@ -469,6 +472,7 @@ impl Default for BattleView {
         BattleView {
             opening_name_width: None,
             opening_first_upload: false,
+            opening_transient_width: None,
             menu: None,
             ready: false,
             finishing: false,
