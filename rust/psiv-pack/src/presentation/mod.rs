@@ -422,8 +422,10 @@ fn panel_palette_requests(panels: &[PanelPalettes]) -> Vec<(usize, usize)> {
 fn palettes(rom: &[u8], panels: &[PanelPalettes]) -> Result<Vec<Json>, PackError> {
     let table = slice(rom, 0x06_4550, 24, "flight palette table")?;
     let worlds = table
-        .chunks_exact(4)
-        .map(|bytes| (u32::from_be_bytes(bytes.try_into().unwrap()) as usize, 16));
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| (u32::from_be_bytes(*bytes) as usize, 16));
     let mut seen = std::collections::BTreeSet::new();
     PALETTE_REQUESTS
         .into_iter()
@@ -598,8 +600,8 @@ mod tests {
             raw(0x064550),
             &Json::Str(png::hex(&rom[0x064550..0x064568]))
         );
-        for bytes in rom[0x064550..0x064568].chunks_exact(4) {
-            let at = u32::from_be_bytes(bytes.try_into().unwrap()) as usize;
+        for bytes in rom[0x064550..0x064568].as_chunks::<4>().0 {
+            let at = u32::from_be_bytes(*bytes) as usize;
             assert_eq!(raw(at), &Json::Str(png::hex(&rom[at..at + 32])));
         }
     }

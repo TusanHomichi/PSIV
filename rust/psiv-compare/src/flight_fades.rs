@@ -70,7 +70,7 @@ fn measure(rows: &[Row], calls: &[Row], sites: &[u32]) -> Result<Vec<Value>, Str
         return Err("omitted, duplicated or reordered flight fade".into());
     }
     let mut result = Vec::new();
-    for pair in calls.chunks_exact(2) {
+    for pair in calls.as_chunks::<2>().0 {
         let start = number(&pair[0], "frame", 10)?;
         let end = number(&pair[1], "frame", 10)?;
         if end.checked_sub(start) != Some(16) {
