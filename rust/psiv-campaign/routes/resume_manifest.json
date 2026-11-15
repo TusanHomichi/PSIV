@@ -10,28 +10,25 @@
    "kind": "lost_battle",
    "battle": "random",
    "resumes": [
-    "zio-fort-approach",
-    "ladea-tower-psycho-wand",
-    "nurvus-descent",
-    "garuberk-tower-second-eye",
-    "de-vars"
+    "kuran-arrival",
+    "jut-outfit"
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/579",
    "date": "2026-11-15",
-   "note": "Known Edge-training in-battle losses on the encounter-entry RNG trajectory (#678), including BlindHead formations 475/497 and OuterBeast formation 480; see #579."
+   "note": "Observed on integrated main 166812ec after the normal-opening timing changes (#680): kuran-arrival loses to BlindHead formation 475 after formation 499 leaves Rune down; jut-outfit loses to BlindHead mixed formation 496 after formation 475 leaves Chaz and Rune down. Both patrols begin refuge travel before the fatal encounter; the Edge combat weakness remains owned by #579."
   },
   {
-   "chapter": "jut-outfit",
-   "objective": 27,
+   "chapter": "air-castle-arrival",
+   "objective": 4,
    "objective_kind": "go_to_map",
    "kind": "lost_battle",
    "battle": "random",
    "resumes": [
-    "meese-raja-sick"
+    "dezolis-tyler-prepare"
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/586",
    "date": "2026-11-15",
-   "note": "The Ice Digger loses to formation 132 on the way to the Dezo spaceport on the encounter-entry RNG trajectory (#678); RUN-versus-ATTAC policy retains the failed-escape risk tracked by #586."
+   "note": "Observed on integrated main 166812ec after the normal-opening timing changes (#680): the Ice Digger loses to formation 132 on the way to the Dezo spaceport, with the human party still standing. This formation and route leg are already documented by #586; the mounted policy's failed-escape risk remains."
   }
  ]
 }
