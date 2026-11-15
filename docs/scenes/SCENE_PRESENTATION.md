@@ -107,7 +107,7 @@ joined them the same day:
 |---|---:|---|
 | `rykros-portrait` | **0.000000** | clone t1001 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface. Ticks 954-1010 matched frames 8200-8256 inside `1,1,319,223` before #637 moved the scene 31 ticks later; t969, the last lag frame then, scored `rmse=23.484914` |
 
-`Retained` windows (`Event_RunDialogue2`, `$5ACDC`) keep their last page
+`Retained` windows (`Event_GetAndRunDialogue2`, `$5ACDC`) keep their last page
 and portrait after the final press while their scene runs, for both fresh
 entries and resumed text. The page has no arrow and consumes no further
 input; other routine kinds close with their text. The inline `EndingIntro`
