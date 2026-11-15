@@ -194,7 +194,7 @@ pub(super) fn construct_runtime(
         battle: None,
         battle_field_refresh_pending: false,
         scene_battle: None,
-        event_battle_entry: None,
+        battle_entry: None,
         effects,
         vehicle: None,
         boarding_body: None,

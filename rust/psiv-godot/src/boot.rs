@@ -41,6 +41,7 @@ pub(crate) fn debug_camp_telepipe_close() -> bool {
 pub(crate) fn title_bypassed() -> bool {
     let title_shot = std::env::var("PSIV_DEBUG_TITLE_SHOT").is_ok_and(|value| value == "1");
     requested_save_slot().is_some()
+        || std::env::var_os("PSIV_DEBUG_ENCOUNTER_ENTRY").is_some()
         || std::env::var_os("PSIV_DEBUG_BATTLE").is_some()
         || std::env::args().any(|argument| argument.starts_with("--psiv-debug-battle="))
         || std::env::var_os("PSIV_DEBUG_BATTLE_WINDOW").is_some()

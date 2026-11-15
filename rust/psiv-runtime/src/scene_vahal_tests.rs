@@ -185,18 +185,16 @@ fn the_first_vahal_platform_rides_down_and_back_through_the_ordinary_trigger() {
             .iter()
             .any(|e| matches!(e, RuntimeEvent::SceneStarted { trigger: 0x0E }))
     );
-    // Start pair (the vacated platform), 61 frames later the end pair: the
-    // 60-frame settle plus the ride (80 frames), the end write one frame on.
+    // Start pair (the vacated platform), then the end pair 141 frames later:
+    // the start pair's `DMAPlane_A_VInt` frame, the 60-frame settle and the
+    // ride's 80 frames, the end write on the ride's last frame (#600).
     assert_eq!(down.writes.len(), 2, "{:?}", down.writes);
     assert!(down.writes[0].1.contains(&(22, 17, 0xC2)));
     assert!(down.writes[0].1.contains(&(23, 17, 0xC3)));
     assert!(down.writes[1].1.contains(&(22, 22, 0xCC)));
     assert!(down.writes[1].1.contains(&(23, 22, 0xCD)));
     let gap = down.writes[1].0 - down.writes[0].0;
-    assert!(
-        (140..=144).contains(&gap),
-        "settle and ride took {gap} ticks"
-    );
+    assert_eq!(gap, 141, "DMA frame, settle and ride");
     assert_eq!(down.sounds, vec![0xE7, 0xFC]);
 
     // The whole party arrived ten rows down, in one stack.
@@ -344,9 +342,10 @@ fn the_four_weapon_plant_platforms_carry_the_party_fourteen_rows_down() {
             recovery(&rt, case.end.0 as u16, case.end.1 as u16),
             "{label}"
         );
-        // 60 settle frames and 112 ride frames separate the two writes.
+        // The start pair's DMA frame, 60 settle frames and 112 ride frames
+        // separate the two writes (#600).
         let gap = ride.writes[1].0 - ride.writes[0].0;
-        assert!((172..=176).contains(&gap), "{label}: {gap} ticks");
+        assert_eq!(gap, 173, "{label}");
         // The other three platforms' flags are untouched.
         for other in [0x0D, 0x0E, 0x0F, 0x10] {
             assert_eq!(

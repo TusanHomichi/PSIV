@@ -141,6 +141,7 @@ impl Driver {
             let busy = {
                 let runtime = self.runtime();
                 runtime.scene_active()
+                    || runtime.battle_entering()
                     || crate::driver::is_stepping(runtime)
                     || runtime.loot_state().is_some()
             };
