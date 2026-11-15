@@ -34,11 +34,17 @@ impl CutsceneLayer {
 
     /// Hands over the field's live palette.
     pub(crate) fn set_cram(&mut self, cram: SharedCram) {
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().set_cram(cram.clone());
+        }
         self.cram = Some(cram);
     }
 
     /// The live palette changed: redraw any visible panel or picture in it.
     pub(crate) fn palette_changed(&mut self) {
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().refresh();
+        }
         if !self.panels.visible.is_empty() {
             self.base_mut().queue_redraw();
         }
@@ -105,6 +111,10 @@ impl CutsceneLayer {
         godot_print!("scene panels destroyed: all");
     }
 
+    pub(crate) fn stage_clear_planes(&mut self) {
+        self.panels.staged.clear();
+    }
+
     pub(crate) fn dma_planes(&mut self) {
         self.panels.dma();
         let visible = self.shows_anything();
@@ -124,7 +134,10 @@ impl CutsceneLayer {
     /// Whether the layer has anything to draw: the opening, the generic
     /// window, a visible panel or a plane-A picture.
     pub(super) fn shows_anything(&self) -> bool {
-        self.opening_visible
+        self.text_layer
+            .as_ref()
+            .is_some_and(|text| text.is_visible())
+            || self.opening_visible
             || self.generic_window_visible
             || !self.panels.visible.is_empty()
             || self.picture_visible()

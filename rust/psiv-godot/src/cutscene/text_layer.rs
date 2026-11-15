@@ -1,20 +1,26 @@
-//! Opening crawl text rendering for the scene presentation layer.
+//! RunText2 plane text for the opening and staff roll.
 
+use super::text_plane::TextPlane;
+use crate::cram_art::{IndexedArt, SharedCram};
 use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
+use psiv_core::SceneOp;
+use psiv_data::color::IndexLayout;
 use psiv_data::{DialogueEntry, DialogueSet};
 
 /// The opening crawl is a separate drawable child so its CRAM text ramp does
 /// not modulate the opaque black/title image behind it.
 #[derive(GodotClass)]
 #[class(base=Node2D)]
-pub(super) struct OpeningTextLayer {
+pub(super) struct TextPlaneLayer {
     base: Base<Node2D>,
     font: Option<Gd<ImageTexture>>,
     set: Option<DialogueSet>,
-    entries: [Option<DialogueEntry>; 4],
+    plane: TextPlane,
+    live_fonts: Vec<Option<IndexedArt>>,
+    cram: Option<SharedCram>,
+    intro: bool,
     flight_caption: Option<String>,
-    next_slot: usize,
     colour: Color,
     fade_direction: i8,
     fade_tick: u8,
@@ -22,15 +28,17 @@ pub(super) struct OpeningTextLayer {
 }
 
 #[godot_api]
-impl INode2D for OpeningTextLayer {
+impl INode2D for TextPlaneLayer {
     fn init(base: Base<Node2D>) -> Self {
         Self {
             base,
             font: None,
             set: None,
-            entries: std::array::from_fn(|_| None),
+            plane: TextPlane::default(),
+            live_fonts: Vec::new(),
+            cram: None,
+            intro: false,
             flight_caption: None,
-            next_slot: 0,
             colour: Color::from_rgb(0.0, 0.0, 0.0),
             fade_direction: 0,
             fade_tick: 0,
@@ -50,20 +58,40 @@ impl INode2D for OpeningTextLayer {
         };
         let mut quads = Vec::new();
         let mut lines = Vec::new();
-        for (row, entry) in self.entries.iter().enumerate() {
-            let Some(entry) = entry else { continue };
-            let Some(page) = entry.pages.first() else {
-                continue;
-            };
-            let line = page.lines.first().map(String::as_str).unwrap_or_default();
-            // Plane offset $40A is tile column 5: every line starts at x=40
-            // and any centring is baked into the entry text itself.
-            // DrawTextToPlane targets $840A, then advances 0x180 bytes per
-            // entry: plane offset $40A is tile row 8 (y=64) and 0x180 bytes
-            // is three 0x80-byte plane rows, a 24-pixel line pitch — both
-            // confirmed against oracle/frames/opening/frame_4000.png.
-            let y = 64.0 + row as f32 * 24.0;
-            lines.push((line, 40.0, y));
+        for y in 0..28 {
+            for x in 0..40 {
+                let Some(cell) = self.plane.cell(x, y) else {
+                    continue;
+                };
+                let Some(glyph) = self.set.as_ref().and_then(|set| set.glyph(cell.ch)) else {
+                    continue;
+                };
+                let texture = if self.intro {
+                    font.clone()
+                } else {
+                    let Some(cram) = self.cram.as_ref() else {
+                        continue;
+                    };
+                    let Some(live) = self.live_fonts[usize::from(cell.line)]
+                        .as_mut()
+                        .and_then(|art| art.texture(&cram.borrow()))
+                    else {
+                        continue;
+                    };
+                    live
+                };
+                quads.push((
+                    texture,
+                    Rect2::new(
+                        Vector2::new(x as f32 * 8.0, y as f32 * 8.0),
+                        Vector2::new(8.0, 8.0),
+                    ),
+                    Rect2::new(
+                        Vector2::new(glyph.x as f32, glyph.y as f32 + f32::from(cell.half) * 8.0),
+                        Vector2::new(8.0, 8.0),
+                    ),
+                ));
+            }
         }
         if let Some(caption) = self.flight_caption.as_deref() {
             // GetPlaneAOffset d3=4,d4=$17 (:134662-134678), 8x16 font.
@@ -75,6 +103,7 @@ impl INode2D for OpeningTextLayer {
                     continue;
                 };
                 quads.push((
+                    font.clone(),
                     Rect2::new(
                         Vector2::new(x + column as f32 * 8.0, y),
                         Vector2::new(8.0, 16.0),
@@ -86,19 +115,20 @@ impl INode2D for OpeningTextLayer {
                 ));
             }
         }
-        for (dest, src) in quads {
-            self.base_mut().draw_texture_rect_region(&font, dest, src);
+        for (texture, dest, src) in quads {
+            self.base_mut()
+                .draw_texture_rect_region(&texture, dest, src);
         }
     }
 }
 
-impl OpeningTextLayer {
+impl TextPlaneLayer {
     pub(super) fn flight_caption(&mut self, caption: Option<&str>) {
         if self.flight_caption.as_deref() == caption {
             return;
         }
         self.flight_caption = caption.map(str::to_owned);
-        let visible = self.flight_caption.is_some() || self.entries.iter().any(Option::is_some);
+        let visible = self.flight_caption.is_some() || self.plane.is_visible();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
@@ -106,6 +136,9 @@ impl OpeningTextLayer {
         let path = format!("{pack_dir}/{}", set.font.png);
         self.font = Image::load_from_file(&GString::from(path.as_str()))
             .and_then(|image| ImageTexture::create_from_image(&image));
+        self.live_fonts = (0..4)
+            .map(|line| IndexedArt::load(&path, IndexLayout::Line(line)))
+            .collect();
         self.set = Some(set);
         self.base_mut().set_visible(false);
     }
@@ -129,21 +162,47 @@ impl OpeningTextLayer {
         self.base_mut().set_position(position);
     }
 
-    pub(super) fn draw_entry(&mut self, entry: &DialogueEntry) {
-        self.entries[self.next_slot] = Some(entry.clone());
-        self.next_slot = (self.next_slot + 1) % self.entries.len();
-        self.base_mut().set_visible(true);
+    pub(super) fn draw_entry(&mut self, entry: &DialogueEntry, plane: u32, tile: u32) {
+        let line = entry
+            .pages
+            .first()
+            .and_then(|p| p.lines.first())
+            .map(String::as_str)
+            .unwrap_or_default();
+        if let Err(error) = self.plane.draw(plane, tile, line) {
+            godot_error!("{error}: {plane:#010x}, {tile:#06x}");
+        }
+        self.refresh();
+    }
+
+    pub(super) fn consume(&mut self, op: &SceneOp) {
+        self.plane.consume(op);
+        if matches!(op, SceneOp::InitVramAndCram | SceneOp::LoadMap { .. }) {
+            self.clear();
+        }
+        self.refresh();
+    }
+
+    pub(super) fn set_cram(&mut self, cram: SharedCram) {
+        self.cram = Some(cram);
+    }
+
+    pub(super) fn refresh(&mut self) {
+        let visible = self.plane.is_visible() || self.flight_caption.is_some();
+        self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
 
     pub(super) fn clear(&mut self) {
-        self.entries = std::array::from_fn(|_| None);
-        self.next_slot = 0;
-        self.base_mut().set_visible(false);
-        self.base_mut().queue_redraw();
+        self.plane.clear();
+        self.intro = false;
+        self.fade_direction = 0;
+        self.base_mut().set_modulate(Color::WHITE);
+        self.refresh();
     }
 
     pub(super) fn set_colour(&mut self, raw: u16) {
+        self.intro = true;
         self.colour = cram_colour(raw);
         let colour = self.colour;
         self.base_mut().set_modulate(colour);

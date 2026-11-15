@@ -1,4 +1,4 @@
-//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 78 ops.
+//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 80 ops.
 //!
 //! The intro: Alys wakes Chaz at his house, they walk out through Aiedo, cross
 //! the Motavia overworld, the AW 2284 prologue crawls over a title image, and
@@ -50,24 +50,25 @@ macro_rules! prologue_page {
         [
             SceneOp::DrawTextToPlane {
                 entry: $first,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0xFFFF_840A,
+                vram: 0x4200,
             },
             SceneOp::DrawTextToPlane {
                 entry: $first + 1,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0xFFFF_858A,
+                vram: 0x4280,
             },
             SceneOp::DrawTextToPlane {
                 entry: $first + 2,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0xFFFF_870A,
+                vram: 0x4300,
             },
             SceneOp::DrawTextToPlane {
                 entry: $first + 3,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0xFFFF_888A,
+                vram: 0x4380,
             },
+            SceneOp::DmaPlanes,
             SceneOp::IntroTextFadeUp,
             SceneOp::WaitFrames { frames: 900 },
             SceneOp::IntroTextFadeDown,
@@ -77,8 +78,8 @@ macro_rules! prologue_page {
 }
 
 static GAME_START_OPS: &[SceneOp] = &{
-    const PAGE_1: [SceneOp; 8] = prologue_page!(0x3A, 90);
-    const PAGE_2: [SceneOp; 8] = prologue_page!(0x3E, 120);
+    const PAGE_1: [SceneOp; 9] = prologue_page!(0x3A, 90);
+    const PAGE_2: [SceneOp; 9] = prologue_page!(0x3E, 120);
     [
         // --- phase 0: open on tree 17, entry $36 ---
         SceneOp::InitVramAndCram,
@@ -284,6 +285,7 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_1[5],
         PAGE_1[6],
         PAGE_1[7],
+        PAGE_1[8],
         PAGE_2[0],
         PAGE_2[1],
         PAGE_2[2],
@@ -292,6 +294,7 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_2[5],
         PAGE_2[6],
         PAGE_2[7],
+        PAGE_2[8],
         SceneOp::FadeOut,
         SceneOp::PlaySound { id: MUSIC_STOP },
         SceneOp::WaitFrames { frames: 40 },

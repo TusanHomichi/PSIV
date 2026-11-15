@@ -141,9 +141,9 @@ native does not, and two of the seventh page's `$F2` frames
 ([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
 The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
-(`suites::palette::ending`). The third starts white natively, because the
-staff roll's and the credits' palette steps are not modelled
-([#635](https://github.com/TusanHomichi/PSIV/issues/635)).
+(`suites::palette::ending`). The staff loops and the credits ramp now update the CRAM; the
+[ending note](89_Ending.md#palette-state-and-the-remaining-drawing-gaps) owns
+the remaining credits drawing and timing gaps.
 
 Rykros's scene-owned panels `$18B/$18F/$190` are extracted alongside the
 other panels; the runtime palette test checks every `PanelCreate` in that

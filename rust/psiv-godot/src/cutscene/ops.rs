@@ -23,6 +23,7 @@ impl Field {
         }
         // Plane A's picture first: the DMA below shows what it staged.
         if let Some(layer) = self.cutscene_layer.as_mut() {
+            layer.bind_mut().consume_text_op(&op);
             let presentation = &self.presentation;
             layer
                 .bind_mut()
@@ -76,11 +77,11 @@ impl Field {
                     layer.bind_mut().set_text_colour(colour);
                 }
             }
-            SceneOp::DrawTextToPlane { entry, .. } => {
+            SceneOp::DrawTextToPlane { entry, plane, vram } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer
                         .bind_mut()
-                        .draw_text(self.presentation.current_dialogue_tree, entry);
+                        .draw_text(self.presentation.current_dialogue_tree, entry, plane, vram);
                 }
             }
             SceneOp::IntroTextFadeUp => {
@@ -212,7 +213,12 @@ impl Field {
             // The cleared planes hide the map until a scene map redraw
             // (`load_map_visuals`) restores it; the CRAM and the sprites
             // stay, unlike `InitVramAndCram`.
-            PresentationOp::ClearPlanes => self.set_field_map_visible(false),
+            PresentationOp::ClearPlanes => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().stage_clear_planes();
+                }
+                self.set_field_map_visible(false);
+            }
             // A picture's cells are `picture_plane.rs`'s.
             PresentationOp::LoadSceneAsset { .. }
             | PresentationOp::SetGameMode { .. }

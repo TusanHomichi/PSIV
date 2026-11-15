@@ -193,3 +193,22 @@ fn a_teardown_drops_a_staged_and_a_shown_picture_for_good() {
         assert_eq!(plane.visible, None, "shown before the teardown: {shown}");
     }
 }
+
+#[test]
+fn a_buffer_clear_keeps_the_picture_until_its_dma_then_removes_it() {
+    let mut plane = PicturePlane {
+        staged: Some(GALAXY),
+        visible: Some(GALAXY),
+    };
+    plane.consume(
+        &SceneOp::Presentation {
+            op: PresentationOp::ClearPlanes,
+        },
+        picture_art,
+        |_, _| true,
+    );
+    assert_eq!(plane.staged, None);
+    assert_eq!(plane.visible, Some(GALAXY));
+    plane.consume(&SceneOp::DmaPlanes, picture_art, |_, _| true);
+    assert_eq!(plane.visible, None);
+}

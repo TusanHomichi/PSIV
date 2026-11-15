@@ -26,6 +26,7 @@ mod window;
 #[path = "temporary_sprite_asset.rs"]
 mod temporary_sprite_asset;
 mod text_layer;
+mod text_plane;
 
 use std::collections::BTreeMap;
 
@@ -38,7 +39,7 @@ use crate::cram_art::{IndexedArt, SharedCram};
 
 use manifest::SceneAssets;
 use temporary_sprite_asset::TemporarySpriteAsset;
-use text_layer::OpeningTextLayer;
+use text_layer::TextPlaneLayer;
 
 pub(crate) use state::{MusicRestore, PresentationState};
 
@@ -65,7 +66,7 @@ pub(crate) struct CutsceneLayer {
     /// manifest (`presentation/panels.json`, `opening_background.screen_y`).
     opening_screen_y: f32,
     opening_visible: bool,
-    text_layer: Option<Gd<OpeningTextLayer>>,
+    text_layer: Option<Gd<TextPlaneLayer>>,
     window_tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
     generic_window_rect: Rect2,
     generic_window_visible: bool,
@@ -143,7 +144,7 @@ impl CutsceneLayer {
         self.window_tiles.extend(assets.window_tiles);
         self.pictures.extend(assets.pictures);
 
-        let mut text = OpeningTextLayer::new_alloc();
+        let mut text = TextPlaneLayer::new_alloc();
         text.bind_mut().configure(pack_dir, set.clone());
         self.base_mut().add_child(&text);
         self.text_layer = Some(text);

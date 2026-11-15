@@ -267,9 +267,24 @@ The CRAM model (`rust/psiv-runtime/src/cram/ending.rs`, arithmetic in
   fourteenth step's. So the third tone loop (`$07A0FA`) starts from the
   ramp's last words in line 1 over black, not from the second loop's white.
 
+The four staff entries now use the shared `RunText2` plane-text consumer
+(`psiv-godot/src/cutscene/text_plane.rs` and `text_layer.rs`). Their buffer
+origins are tile column 3, rows 8/11/14/17: pixels `(24,64)`, `(24,88)`,
+`(24,112)` and `(24,136)` in the 320×224 surface. The `vram` field is
+`RunText2`’s d3 tile/attribute word, not a screen address: `$C100/$C180/$C200/
+$C280` select line 2 and separate 64-pattern allocations. The retail 8×16
+font draws index 15 through live CRAM word `$2F`, including both staff
+loops. Text cells and clears are staged until `DmaPlanes`; the fourth entry
+has its own transfer before the fade out. The opening uses this same cell
+and pattern path with its own column-5 destinations and tile words.
+
+`python3 tools/verify_ending_staff.py` regenerates six pairs from tape 46. They
+compare the staff rectangle, not the surrounding ending scene; the fixture
+starts the ending by explicit RAM patches and is not a campaign completion
+claim.
+
 Still missing natively:
 
-- The staff text's planes ([#639](https://github.com/TusanHomichi/PSIV/issues/639)).
 - The credits renderer's own palette writes (its `InitVRAMAndCRAM`, the line
   loads and `CreditsFadeInOut`) and its planes
   ([#640](https://github.com/TusanHomichi/PSIV/issues/640),
@@ -315,7 +330,7 @@ dialogue.
 
 ## Census
 
-The ending's transcription is 396 ops, and its 50 post-battle panels are
+The ending's transcription is 397 ops, and its 50 post-battle panels are
 among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and

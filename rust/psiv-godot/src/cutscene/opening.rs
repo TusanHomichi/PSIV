@@ -1,7 +1,7 @@
 //! The opening image and the narration text drawn over it.
 //!
 //! `LoadTitleImage` puts the stage on the black frame and hands the crawl to
-//! [`OpeningTextLayer`](super::text_layer::OpeningTextLayer), a child node with
+//! [`TextPlaneLayer`](super::text_layer::TextPlaneLayer), a child node with
 //! its own CRAM text ramp. This module is the only place that raises and clears
 //! the opening; the layer's `draw` calls it first, in frame order.
 
@@ -53,13 +53,19 @@ impl CutsceneLayer {
         self.base_mut().queue_redraw();
     }
 
-    pub(crate) fn draw_text(&mut self, tree_rom_addr: Option<u32>, entry: u16) {
+    pub(crate) fn draw_text(
+        &mut self,
+        tree_rom_addr: Option<u32>,
+        entry: u16,
+        plane: u32,
+        vram: u32,
+    ) {
         if let Some(text) = self.text_layer.as_mut() {
             let decoded = { text.bind().entry(tree_rom_addr, entry).cloned() };
             if let Some(entry) = decoded {
-                text.bind_mut().draw_entry(&entry);
+                text.bind_mut().draw_entry(&entry, plane, vram);
             } else {
-                godot_warn!("opening text entry {entry} has no decoded tree record");
+                godot_warn!("plane text entry {entry} has no decoded tree record");
             }
         }
         self.base_mut().set_visible(true);
@@ -82,6 +88,14 @@ impl CutsceneLayer {
     pub(super) fn tick_opening_text(&mut self) {
         if let Some(text) = self.text_layer.as_mut() {
             text.bind_mut().tick();
+        }
+    }
+}
+
+impl CutsceneLayer {
+    pub(crate) fn consume_text_op(&mut self, op: &psiv_core::SceneOp) {
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().consume(op);
         }
     }
 }
