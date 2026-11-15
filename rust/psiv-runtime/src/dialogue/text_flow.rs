@@ -92,15 +92,15 @@ pub enum DialogueAction {
     LoadSound(u8),
     /// 4: play this sound effect at once.
     LoadSound2(u8),
-    /// 5: reload the palette the window art was loaded with.
+    /// 6: reload the palette the window art was loaded with.
     UpdatePalette,
-    /// 6: Zio's eyes flash red.
+    /// 7: Zio's eyes flash red.
     ZioEyesRed,
-    /// 7: pause the music.
+    /// 8: pause the music.
     PauseMusic,
-    /// 8: resume it.
+    /// 9: resume it.
     ResumeMusic,
-    /// 9: the sabotage alarm's red palette.
+    /// 10: the sabotage alarm's red palette.
     SabotageAlarmRedPalette,
     /// 11: set event flag `flag`.
     SetEventFlag(u8),
@@ -128,7 +128,7 @@ pub struct TextFlow {
     portrait: Option<u8>,
     /// Frames left on a `$F9`.
     hold: u16,
-    /// Blocking action frames, clocked even while the window opens.
+    /// Counted frames inside the current `$F2`, after the box opens.
     action_hold: u16,
     /// Set while a finished page is on screen.
     stop: Option<PageEnd>,
@@ -315,6 +315,11 @@ impl TextFlow {
         self.hold > 0 || self.action_hold > 0
     }
 
+    /// Whether an action still owns the text loop.
+    pub(crate) fn action_holding(&self) -> bool {
+        self.action_hold > 0
+    }
+
     /// Tick an already launched blocking action before dispatching new actions.
     pub(crate) fn tick_action(&mut self, game: &GameState) {
         if self.action_hold > 0 {
@@ -471,16 +476,13 @@ impl TextFlow {
         self.pending_action.take()
     }
 
-    /// Resumes the retail text loop after the shell has applied `action`.
-    /// `TextAction_ElsydeonBroken` runs its two 20-frame loops inside
-    /// `RunText`, so the text waits for them: the loop resumes when that
-    /// hold runs down ([`TextFlow::tick_action`]).
-    pub fn resume_after_action(&mut self, action: DialogueAction, game: &GameState) {
-        if action == DialogueAction::ElsydeonBroken {
-            self.action_hold = 2 * ELSYDEON_BROKEN_FRAMES;
-            return;
+    /// Resumes the retail text loop once the runner has spent the action's
+    /// counted frames. Lag frames belong to the runner and never tick this hold.
+    pub fn resume_after_action(&mut self, frames: u16, game: &GameState) {
+        self.action_hold = frames;
+        if frames == 0 {
+            self.pump(game);
         }
-        self.pump(game);
     }
 
     /// Everything the flow could not act on since the last call.

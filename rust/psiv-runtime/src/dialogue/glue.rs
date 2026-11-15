@@ -111,7 +111,7 @@ impl Runtime {
         let notice_up = self.field_notice().is_some();
         self.dialogue.input(&mut self.game, pad, notice_up);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         for signal in &signals {
             match signal {
                 // The scene hears the answer here, before its tick: a scene
@@ -146,7 +146,7 @@ impl Runtime {
     pub(crate) fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         if signals
             .iter()
             .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
@@ -158,7 +158,14 @@ impl Runtime {
 
     /// A `$F2` `LoadPanel` action is `Panel_Create`: its layers' palettes go
     /// to the palette as a scene panel's do.
-    fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
+    fn dialogue_effects(&mut self, signals: &[DialogueSignal]) {
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+        {
+            // Retained windows leave their pixels but zero `Panel_Num`.
+            self.dialogue.return_panels(self.scene_dialogue_window());
+        }
         for signal in signals {
             match signal {
                 DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {
@@ -429,7 +436,10 @@ mod tests {
                     // The tone steps no cycle index; a scratch byte stands in.
                     let mut cycle_index = 0;
                     // Real frame order: input, field palette clock, window dispatch.
-                    for frame in 0..=80 {
+                    // Text actions run inside the text routine, after the
+                    // nine-frame box opening, never during that animation.
+                    let start = if opening { 9 } else { 0 };
+                    for frame in 0..=start + 80 {
                         let pad = if frame % 3 == 0 {
                             Pad::NEUTRAL
                         } else {
@@ -456,7 +466,7 @@ mod tests {
                             "palette frame {frame}"
                         );
                         let view = rt.dialogue_view().expect("window stays open");
-                        if frame < 80 {
+                        if frame < start + 80 {
                             assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
                             assert_eq!(
                                 view.revealed,
@@ -471,7 +481,7 @@ mod tests {
                             assert_eq!(view.lines, [format!("{before}after")]);
                         }
                     }
-                    assert_eq!(launches, [0, 40]);
+                    assert_eq!(launches, [start, start + 40]);
                     // Control: once the blocking loops end, a fresh press
                     // really advances or dismisses the finished page.
                     for _ in 0..40 {

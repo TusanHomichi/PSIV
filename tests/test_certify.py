@@ -100,7 +100,7 @@ class PairTableCase(unittest.TestCase):
         # neither the autoclose nor the retail pace's synthetic Speak.
         self.assertEqual(env, certify.ENDING)
         self.assertFalse(set(certify.SCENE) & set(env))
-        self.assertEqual(tick, 1736)
+        self.assertEqual(tick, 1744)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -242,11 +242,11 @@ class PairTableCase(unittest.TestCase):
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
                 # The ending's windows page on their own (#645); the loop
-                # follows at t + 7264 after the initial fades spend their frames (#637).
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
-                self.assertIn(tick + 7264, recipe["frames"])
+                # follows at t + 7236 after the initial fades spend their frames (#637).
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7236}.png")
+                self.assertIn(tick + 7236, recipe["frames"])
         # Before, the fourth step, white: each inside its plateau.
-        self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
+        self.assertEqual([p[2] for p in loop], [2657, 2674, 2714])
         # One recipe and the whole surface for all three: the rise
         # includes the window and Chaz's portrait, which stay up and toned
         # through the loop (#636).
