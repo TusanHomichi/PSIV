@@ -11,6 +11,9 @@
 pub mod anchors;
 pub mod decoder;
 
+#[cfg(test)]
+mod contract_tests;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::layouts::Plane;

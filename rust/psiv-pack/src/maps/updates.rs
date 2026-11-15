@@ -15,6 +15,9 @@ use crate::json::Json;
 use crate::m68k::{bra_target, l, self_bounded_bra_table, sw, w};
 use crate::png::hex;
 
+#[cfg(test)]
+mod retail_tests;
+
 const NAMES: [&str; 64] = [
     "MapUpdate_NoUpdate",
     "MapUpdate_MotaWaterPal",

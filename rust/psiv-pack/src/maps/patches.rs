@@ -918,3 +918,6 @@ mod tests;
 
 #[cfg(test)]
 mod retail_tests;
+
+#[cfg(test)]
+pub(super) mod scene_tests;
