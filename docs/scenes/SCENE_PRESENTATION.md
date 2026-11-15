@@ -118,8 +118,9 @@ The configured ticks include the inline action waits and measured panel lag
 ([action timing](DIALOGUE_ACTIONS.md#retail-timing-and-semantics)). The runtime
 retains the window and portrait through this loop until `$078FAE` (#636), so
 all three recipes use `1,1,319,223`, including the rise's window and portrait.
-The combined retained-window/action-clock candidate is awaiting recertification;
-the previous cropped-rise sweep does not certify the newly included pixels.
+The earlier cropped-rise sweep below measures the panels and backdrop; it
+cannot certify the newly included window and portrait. `tools/certify.py`
+checks the full region at each configured pin.
 
 | pair | configured pairing |
 |---|---|
