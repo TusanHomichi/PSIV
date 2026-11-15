@@ -171,12 +171,12 @@ class PairTableCase(unittest.TestCase):
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native CRAM steps on ticks 885-909 as tape 38's buffer
+                # The native CRAM steps on ticks 909-933 as tape 38's buffer
                 # does in frames 9896-9920, each shown a frame later.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 9012}.png")
-                self.assertIn(tick + 9012, recipe["frames"])
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 8988}.png")
+                self.assertIn(tick + 8988, recipe["frames"])
         # Before, the fourth step, white: each a plateau's middle.
-        self.assertEqual([p[2] for p in loop], [881, 898, 938])
+        self.assertEqual([p[2] for p in loop], [905, 922, 962])
         self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
         self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
         self.assertIs(loop[2][5], certify.TAPE_38_LOOP)
