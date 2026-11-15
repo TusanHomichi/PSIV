@@ -17,7 +17,7 @@ body is excluded. ROM range: `$070B56..$070C30` exclusive end.
 |---:|---|---|---|
 | 0-2 | `$070B56..$070B79` | dialogue `$3C`; set Spector `$A6`; remove Eclipse Torch `$8E` | dialogue/inventory/flag |
 | 3-8 | `$070B7A..$070C21` | five character-position/facing write groups and map-load bit `$08` | object/map presentation |
-| 9-10 | `$070C22..$070C2F` | event battle `$0F`, return `1` | battle |
+| 9-10 | `$070C22..$070C2F` | event battle `$0F`; `rts` | battle/return |
 
 The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
 (`retained(0x3C)`): see [the Dialogue2 audit](DIALOGUE_CALLERS.md#the-dialogue2-audit).
