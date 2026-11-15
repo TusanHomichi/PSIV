@@ -8,15 +8,14 @@ use crate::scene_presentation::PresentationOp;
 /// statements are held to the registry by `doc_op_counts.rs`, so a scene
 /// that grows fails both until its document says so too.
 ///
-/// Two scenes diverge from their doc's number, both for stated reasons.
+/// The opening keeps each prologue loop as one op; the helper owns its passes.
 ///
-/// `Event_GameStart`'s doc says "~78" and means it — the tilde is theirs.
-/// The count depends on how the prologue's two `dbra` colour ramps are
-/// expanded; here each page is 13 ops (4 text draws and their waits, a DMA, the fade-up loop, the
+/// `Event_GameStart`'s two `dbra` colour ramps are not unrolled;
+/// each page is 13 ops (4 text draws and their waits, a DMA, the fade-up loop, the
 /// 900-frame hold, one fade-down loop, the closing pause), matching the
 /// asm's loop structure rather than unrolling 20 iterations each.
 ///
-/// `Event_MeetingHahn` is the other: its doc writes the
+/// `Event_MeetingHahn` diverges from its doc's number: its doc writes the
 /// command-selecting branch as a single op that computes a *value*, and
 /// this vocabulary has no value-selecting branch — so it becomes control
 /// flow over two `MoveActorCommand` ops plus a `Jump`, two ops more.

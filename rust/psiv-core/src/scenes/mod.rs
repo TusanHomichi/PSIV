@@ -14,7 +14,7 @@
 //!
 //! | Scene | Event | Doc | Ops |
 //! |---|---|---|---:|
-//! | `Event_GameStart` | `$9F` | `01_GameStart.md` | 78 |
+//! | `Event_GameStart` | `$9F` | `01_GameStart.md` | 92 |
 //! | `Event_PiataChazAlone` | `$A0` | `02_PiataChazAlone.md` | 2 |
 //! | `Event_AlysFound` | `$03` | `03_AlysFound.md` | 12 |
 //! | `Cutscene_PiataPrincipal` | `$8001` | `04_PiataPrincipal.md` | 10 |
