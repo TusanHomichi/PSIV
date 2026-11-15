@@ -52,8 +52,12 @@ tick 511 against frame 7797. `retained-window-press` and
 `(40,104)` 48x48 on tick 514 against frame 7800. The three
 `event-battle-{band-first,portrait-covered,window-covered}` pairs cover the
 full width of the band's rows at passes 1, 5 and 12, against frames 7801,
-7805 and 7812. These crops certify neither the toned field remainder nor
-the subsequent stage sweep ([source notes](../source-notes/README.md#other-recorded-deviations)).
+7805 and 7812. Separate comparisons of the toned remainder at passes 1, 5
+and 12 match inside the existing field-edge boundary; pass 5's whole
+`1,1,319,223` region matches. The full frame still differs on the first row
+and column outside the band ([#409](https://github.com/TusanHomichi/PSIV/issues/409));
+these band crops do not certify that edge, every intermediate tone frame,
+or the subsequent stage sweep ([source notes](../source-notes/README.md#other-recorded-deviations)).
 
 ## The battle's entry (#663)
 

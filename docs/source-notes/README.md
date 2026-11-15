@@ -213,6 +213,9 @@ agility and dexterity, and enemy paralysis clearing each turn.
   entries and resumes), draws the runtime's band over it and tones all four
   palette lines through the CRAM model. The portrait is dropped on pass 5
   and the page on pass 12, once their packed rectangles are covered (#665).
+  Tape 45's toned remainder matches inside the existing field-edge boundary
+  (`1,1,319,223` at pass 5); the top row and left column outside the band
+  still differ ([#409](https://github.com/TusanHomichi/PSIV/issues/409)).
   `GameMode_LoadBattle` (`ps4.asm:9911`) then holds `$EEE` while it loads the
   stage (7814-7856), fades it in from white a nibble a frame with the planes
   sweeping in (`loc_6B20`, 7857-7870) and only then rolls the opening priority

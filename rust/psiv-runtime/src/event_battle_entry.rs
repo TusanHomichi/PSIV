@@ -55,7 +55,7 @@ const BAND_PASSES: u16 = 15;
 const DARKNESS_TONE_FRAMES: u16 = 40;
 /// The event battle index `RunEventBattle` sends to `loc_58482`.
 const PROFOUND_DARKNESS: u16 = 0x1A;
-/// The first frame the screen is all white: the passes' last frame.
+/// The first frame the visible screen is all white (pass fourteen).
 const WHITE_FROM: u16 = 14;
 /// `GameMode_LoadBattle`'s white: every palette word `$EEE`.
 pub const ENTRY_WHITE: u16 = 0x0EEE;
