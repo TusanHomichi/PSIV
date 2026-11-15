@@ -690,9 +690,19 @@ Corrections this model brought, each checked against the US image:
   for its last pass, and `InitVRAMAndCRAM` one more for `DMAPlanes_VInt`.
   `scenes::fixed_fades_image` checks every scene's `InitVramAndCram`,
   `FadeIn` and `FadeOut` ops, in order, against the `jsr`/`jmp`s its
-  documented bytes make to the three routines; the eleven scenes that do
+  documented bytes make to the three routines; the nine scenes that do
   not match yet are listed with
-  [#652](https://github.com/TusanHomichi/PSIV/issues/652).
+  [#652](https://github.com/TusanHomichi/PSIV/issues/652). The ship's
+  route is checked where its bytes are (#654): `Cutscene_LeRoofAgain` and
+  `Cutscene_FindingAirCastle` on their ops before the route, which must end
+  in it exactly when their bytes `jmp Cutscene_InsideSpaceship`; that scene
+  on its two entry ops, then down each way out of the menu (both takeoffs
+  and Cancel) on the fades `scenes::ship_route_trace` sees the runner make,
+  against `loc_63BC4`'s calls on that way. The route still lacks the menu's
+  two `PalFadeOut_ClrSpriteTbl` calls (`$063E0C` after a confirm, `$063E8A`
+  before Cancel's reload), whose frames the destination menu's measured
+  teardown holds, and runs the flight's six `Pal_FadeIn` calls as
+  `FlightFadeIn`'s fixed 16 frames under a cover.
 - `Event_DeVarsDefeated` and `Event_SaLewsDefeated` recorded a `FadeOut`
   their bytes do not make: they tone the palette to white and back
   (`Pal_IncreaseTone`, `loc_58666`; the loops are

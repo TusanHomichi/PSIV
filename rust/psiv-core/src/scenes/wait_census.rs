@@ -280,7 +280,7 @@ fn counted(row: &Row) -> bool {
 mod campaign_tests;
 mod next_arc_tests;
 mod rows;
-mod shared_code;
+pub(super) mod shared_code;
 mod ship_tests;
 use rows::ROWS;
 use shared_code::{SHARED_CODE, Shared, placement_problems, scanned_spans, shared_code_problems};
