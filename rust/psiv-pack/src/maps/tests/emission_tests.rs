@@ -14,6 +14,9 @@ pub(super) struct Emission {
     pub piata_png: Vec<u8>,
     pub shops: Value,
     pub npcs: Value,
+    pub party: Value,
+    pub vehicles: Value,
+    pub sprite_images: BTreeMap<String, Vec<u8>>,
     pub npc_files: std::collections::BTreeSet<String>,
     pub patch_images: BTreeMap<String, Vec<u8>>,
 }
@@ -78,6 +81,25 @@ pub(super) fn emission() -> Option<&'static Emission> {
                     path.to_owned()
                 })
                 .collect();
+            let party: Value =
+                serde_json::from_slice(&std::fs::read(root.join("sprites/party.json")).unwrap())
+                    .unwrap();
+            let vehicles: Value =
+                serde_json::from_slice(&std::fs::read(root.join("sprites/vehicles.json")).unwrap())
+                    .unwrap();
+            let mut sprite_images = BTreeMap::new();
+            for index in [&party, &npcs, &vehicles] {
+                for sheet in array(&index["sheets"]) {
+                    let path = sheet["png"].as_str().unwrap();
+                    sprite_images.insert(path.to_owned(), std::fs::read(root.join(path)).unwrap());
+                }
+            }
+            for variant in array(&vehicles["palette_variants"]) {
+                for sheet in array(&variant["sheets"]) {
+                    let path = sheet["png"].as_str().unwrap();
+                    sprite_images.insert(path.to_owned(), std::fs::read(root.join(path)).unwrap());
+                }
+            }
             let files = std::fs::read_dir(root.join("maps"))
                 .unwrap()
                 .map(|p| format!("maps/{}", p.unwrap().file_name().to_str().unwrap()))
@@ -94,6 +116,9 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 piata_png,
                 shops,
                 npcs,
+                party,
+                vehicles,
+                sprite_images,
                 npc_files,
                 patch_images,
             })
