@@ -127,6 +127,8 @@ mod plain_event_fades;
 mod ship_route_trace;
 #[cfg(test)]
 mod wait_census;
+#[cfg(test)]
+mod zio_fade_boundaries;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
