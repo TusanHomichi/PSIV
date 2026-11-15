@@ -1,6 +1,5 @@
 //! Scene execution and translation into runtime events.
 
-use psiv_core::battle::Outcome;
 use psiv_core::{
     ActorRef, Direction, Driver, Input, MapId, Npc, NpcId, ONE_PIXEL, PixelPos, SceneEffect,
     SceneInput, SceneOp, WarpTrigger,
@@ -127,6 +126,10 @@ impl Runtime {
         self.scene_triggers_pending = true;
         self.scene_tree_address = None;
         self.scene_panel_sprites = false;
+        // Control goes back with the display on: the routine the cartridge
+        // hands it to fades in itself, and the scenes that end dark are
+        // listed in `psiv_core`'s `scenes::dark_display` census (#653).
+        self.effects.cram.enable_display();
         events.push(RuntimeEvent::SceneEnded);
     }
 
@@ -185,12 +188,14 @@ impl Runtime {
         // object-keeping bit is 3, and the op carries the `bclr`/`bset`
         // writes the scene made around it.
         let cell = crate::start_cell(start_x, start_y);
+        let shown = self.effects.cram.view().words;
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
             Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
+                self.hold_palette_for_fade_in(shown);
                 events.push(loaded.event(WarpTrigger::MapChange));
             }
             Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
@@ -200,6 +205,23 @@ impl Runtime {
         // allowed to report its own missing-actor fault instead of
         // hanging a scene forever.
         self.scene_input = SceneInput::MapLoaded;
+    }
+
+    /// After a scene's map load: when the scene's next op is
+    /// `Pal_VariableFadeIn`, the CRAM keeps `shown`, the words uploaded
+    /// before the load, and the fade-in takes the new map's words from the
+    /// buffer (`crate::cram`). Retail shows no frame of them lit (#612).
+    pub(crate) fn hold_palette_for_fade_in(
+        &mut self,
+        shown: [u16; psiv_core::palette::PALETTE_WORDS],
+    ) {
+        if self
+            .scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::fades_in_after_map_load)
+        {
+            self.effects.cram.hold_for_fade_in(shown);
+        }
     }
 
     pub(crate) fn translate_scene_effect(
@@ -243,23 +265,10 @@ impl Runtime {
                     events.push(RuntimeEvent::SceneChoiceRequested);
                 }
             }
-            SceneEffect::BattleRequested { index } => match self.start_boss_battle(index) {
-                Ok(initial) => events.push(RuntimeEvent::SceneBattleStarted {
-                    index,
-                    events: initial.events,
-                    sounds: initial.sounds,
-                    animations: initial.animations,
-                }),
-                Err(error) => {
-                    events.push(RuntimeEvent::SceneBattleFailed {
-                        index,
-                        error: error.to_string(),
-                    });
-                    self.scene_input = SceneInput::BattleFinished {
-                        outcome: Outcome::Escaped,
-                    };
-                }
-            },
+            // The battle starts at the end of its entry (`event_battle_entry`).
+            SceneEffect::BattleRequested { index } => {
+                events.push(self.begin_event_battle_entry(index));
+            }
             SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
                 self.wander.remove(npc_index);
                 if let Some(kind) = psiv_core::scene_routine_kind(routine) {
@@ -542,6 +551,7 @@ impl Runtime {
             // state (it feeds the RNG stream through the on-screen tests), so
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
+                self.dialogue.scene_panel_op(&op);
                 // The palette's one writer applies every palette record on
                 // the frame the scene emits it; a variable fade answers with
                 // the frames it spends.
@@ -560,16 +570,22 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    // The window and portrait a scene's text left up
+                    // (`Runtime::open_scene_dialogue`) go with it.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::WindowDestroy { .. },
+                    } => self.dialogue.release_held_page(),
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::BarrierBeamUpdates { reveal, .. },
                     } => {
                         self.tick_barrier_beams(reveal);
                     }
                     SceneOp::FlightPlanet => {
-                        // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8
-                        // background 18, loc_644AE sprites 2/4, RunText2 3/2
-                        // CPU frames. d4=1 means zero per-character waits.
-                        let frames = if self.map.id().0 == 0 { 38 } else { 37 };
+                        // Tape 35: loc_643B8 background 18, loc_644AE
+                        // sprites 2/4, RunText2 3/2 CPU frames, after the
+                        // `InitVramAndCram` before it spent its own 15/13
+                        // (#637). d4=1 means zero per-character waits.
+                        let frames = if self.map.id().0 == 0 { 23 } else { 24 };
                         if let Some(runner) = self.scene.as_mut() {
                             runner.delay_frames(frames);
                         }

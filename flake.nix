@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=7c727f4928ff93d58dce40b9b602ba498ee27489";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=40b4eccfdc225c9791c5c3309c9c749cd1142382";
 
   outputs = { self, burrow }:
     let

@@ -26,7 +26,7 @@ impl CutsceneLayer {
     pub(crate) fn window_destroy(&mut self) {
         self.generic_window_visible = false;
         self.generic_portrait_rect = None;
-        let visible = self.opening_visible || !self.panels.visible.is_empty();
+        let visible = self.shows_anything();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }

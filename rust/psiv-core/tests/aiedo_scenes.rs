@@ -49,6 +49,9 @@ fn play(event: u16, state: &mut GameState, answers: Answers) -> Vec<SceneEffect>
             Some(SceneEffect::MapRequested { .. }) => SceneInput::MapLoaded,
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         log.extend(runner.tick(&map, state, input));
         if runner.is_finished() {
             break;

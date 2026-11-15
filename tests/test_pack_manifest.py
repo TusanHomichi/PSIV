@@ -282,13 +282,14 @@ class TestManifest(PackFixtureCase):
             self.assertEqual(
                 len(under("presentation")),
                 # panels.json, the opening background, panel PNGs, the
-                # additive LoadArt previews, temporary-object sheets, and
-                # generic scene portraits.
+                # additive LoadArt previews, temporary-object sheets, generic
+                # scene portraits, and the plane-A scene pictures.
                 2
                 + self.manifest["presentation"]["panels"]
                 + self.manifest["presentation"]["load_art"]
                 + self.manifest["presentation"]["temporary_objects"]
-                + self.manifest["presentation"]["portraits"],
+                + self.manifest["presentation"]["portraits"]
+                + self.manifest["presentation"]["coverage"]["scene_pictures"],
             )
             self.assertEqual(len(under("sound")), len(self.manifest["sound"]["files"]))
             art = self.manifest["battle"]["art"]["files"]

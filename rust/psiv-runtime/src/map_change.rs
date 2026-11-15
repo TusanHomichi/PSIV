@@ -234,6 +234,8 @@ impl Runtime {
             effects.dialogue_overrides.entry(index).or_insert(id);
         }
         effects.cram.follow(&self.effects.cram);
+        // Both callers are `GameMode_LoadFieldMap`, whose display comes on.
+        effects.cram.enable_display();
         let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
         bridge::reconcile_controllers(
@@ -489,6 +491,11 @@ impl Runtime {
         // the post-clear state.
         let mut effects = effects::evaluate(record, &mut self.game);
         effects.cram.follow(&self.effects.cram);
+        // `GameMode_LoadFieldMap` turns the display on (the shell draws its
+        // `Pal_FadeIn`); a scene's `RefreshMap` leaves it as it was.
+        if matches!(kind, MapLoad::Field) {
+            effects.cram.enable_display();
+        }
         let map = bridge::field_map_entered(record, &effects, &self.game)?;
         clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;

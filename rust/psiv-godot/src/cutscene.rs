@@ -8,7 +8,8 @@
 //! [`CutsceneLayer`] is the node the field shell drives. This file owns the
 //! node, the assets it holds and the per-frame step; the submodules own one
 //! concern each - [`state`] the renderer state, [`manifest`] the pack decode,
-//! [`panels`] the panel-plane stack, [`opening`] the opening image and text,
+//! [`panels`] the panel-plane stack, [`picture_plane`] and [`picture`] a
+//! scene's own plane-A picture, [`opening`] the opening image and text,
 //! [`window`] the generic window, and [`ops`] the shell that consumes the op
 //! stream.
 
@@ -17,6 +18,8 @@ mod opening;
 mod ops;
 mod panel_stack;
 mod panels;
+mod picture;
+mod picture_plane;
 mod state;
 mod window;
 
@@ -26,7 +29,7 @@ mod text_layer;
 
 use std::collections::BTreeMap;
 
-use godot::classes::{INode2D, ImageTexture, Node2D};
+use godot::classes::{INode2D, ImageTexture, Node2D, Sprite2D};
 use godot::prelude::*;
 use psiv_data::DialogueSet;
 use psiv_data::color::IndexLayout;
@@ -58,6 +61,10 @@ pub(crate) struct CutsceneLayer {
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     panels: panel_stack::PanelStack,
     opening_background: Option<Gd<ImageTexture>>,
+    /// The background's indexed PNG, and its indices once first drawn in the
+    /// live palette (`None` inside: the load failed, so the baked one draws).
+    opening_background_path: Option<String>,
+    opening_art: Option<Option<IndexedArt>>,
     /// Oracle-measured top of the narration image band, from the pack
     /// manifest (`presentation/panels.json`, `opening_background.screen_y`).
     opening_screen_y: f32,
@@ -69,6 +76,13 @@ pub(crate) struct CutsceneLayer {
     generic_portrait: Option<Gd<ImageTexture>>,
     generic_portrait_rect: Option<Rect2>,
     red_flash_frames: u8,
+    /// The plane-A pictures the pack decoded, by the ROM address of their
+    /// cells, and each one's indices once first drawn.
+    pictures: BTreeMap<u32, picture::PictureAsset>,
+    picture_art: BTreeMap<u32, Option<IndexedArt>>,
+    picture: picture_plane::PicturePlane,
+    /// Drawn under the sprites; created on first use.
+    picture_sprite: Option<Gd<Sprite2D>>,
 }
 
 #[godot_api]
@@ -83,6 +97,8 @@ impl INode2D for CutsceneLayer {
             temporary_assets: BTreeMap::new(),
             panels: panel_stack::PanelStack::default(),
             opening_background: None,
+            opening_background_path: None,
+            opening_art: None,
             opening_screen_y: 40.0,
             opening_visible: false,
             text_layer: None,
@@ -92,6 +108,10 @@ impl INode2D for CutsceneLayer {
             generic_portrait: None,
             generic_portrait_rect: None,
             red_flash_frames: 0,
+            pictures: BTreeMap::new(),
+            picture_art: BTreeMap::new(),
+            picture: picture_plane::PicturePlane::default(),
+            picture_sprite: None,
         }
     }
 
@@ -120,6 +140,8 @@ impl CutsceneLayer {
         self.indexed_panels.extend(assets.indexed_panels);
         self.temporary_assets.extend(assets.temporary_assets);
         self.opening_background = assets.opening_background;
+        self.opening_background_path = assets.opening_background_path;
+        self.opening_art = None;
         if assets.generic_portrait_named {
             self.generic_portrait = assets.generic_portrait;
         }
@@ -127,6 +149,7 @@ impl CutsceneLayer {
             self.generic_window_rect = rect;
         }
         self.window_tiles.extend(assets.window_tiles);
+        self.pictures.extend(assets.pictures);
 
         let mut text = OpeningTextLayer::new_alloc();
         text.bind_mut().configure(pack_dir, set.clone());

@@ -147,8 +147,8 @@ pub fn run(config: &RunConfig) -> Result<RunResult, SetupError> {
     let mut memory = Memory::default();
     let mut chapters = Vec::new();
     let mut report = None;
-    for index in first..=last {
-        let chapter = &route.chapters[index];
+    for (offset, chapter) in route.chapters[first..=last].iter().enumerate() {
+        let index = first + offset;
         match play_chapter(&mut driver, &mut memory, config, index, chapter) {
             Ok(summary) => chapters.push(summary),
             Err(failure) => {

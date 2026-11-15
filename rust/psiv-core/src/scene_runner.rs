@@ -42,6 +42,7 @@ mod mechanics;
 #[cfg(test)]
 mod mechanics_tests;
 mod ops;
+mod rocky;
 mod wreckage;
 
 use crate::state::{CharId, GameState, PARTY_SLOTS};
@@ -145,6 +146,9 @@ pub struct SceneRunner {
     belt: Option<mechanics::BeltRun>,
     /// The field's RNG stream, lent for the tick ([`SceneRunner::lend_rng`]).
     rng: Option<crate::battle::Lcg41>,
+    /// The current `InitVramAndCram`'s `PalFadeOut_ClrSpriteTbl` has run:
+    /// the op's remainder is next.
+    init_faded_out: bool,
 }
 
 impl SceneRunner {
@@ -186,6 +190,7 @@ impl SceneRunner {
             ride: None,
             belt: None,
             rng: None,
+            init_faded_out: false,
         }
     }
 
@@ -247,6 +252,7 @@ impl SceneRunner {
     pub fn runs_barrier_beams(&self) -> bool {
         matches!(self.blocked, Blocked::Actor(_))
             || (matches!(self.blocked, Blocked::Ticks(n) if n > 1)
+                && !self.init_faded_out
                 && self
                     .pc
                     .checked_sub(1)
@@ -270,6 +276,8 @@ impl SceneRunner {
     #[must_use]
     pub fn runs_map_updates(&self) -> bool {
         match self.blocked {
+            // `InitVRAMAndCRAM`'s fade and frame, with the op still current.
+            Blocked::Ticks(_) if self.init_faded_out => false,
             Blocked::Ticks(_) => self
                 .pc
                 .checked_sub(1)
@@ -304,10 +312,38 @@ impl SceneRunner {
         self.rng.take()
     }
 
+    /// Spend a runtime-resolved setup/refresh interval before the next op.
+    /// The initiating op remains the owner of whether map updates run.
+    pub fn delay_frames(&mut self, frames: u16) {
+        self.blocked = if frames == 0 {
+            Blocked::No
+        } else {
+            Blocked::Ticks(frames)
+        };
+    }
+
     /// Whether the scene waits on [`SceneRunner::release_palette`].
     #[must_use]
     pub fn awaits_palette(&self) -> bool {
         self.blocked == Blocked::Palette
+    }
+
+    /// Whether the scene waits on a map load and its next op is
+    /// `Pal_VariableFadeIn` or `Pal_FadeIn`: retail's `RefreshMap` returns
+    /// with no VBlank, and the fade-in clears the new palette from the buffer
+    /// before its first one.
+    #[must_use]
+    pub fn fades_in_after_map_load(&self) -> bool {
+        self.blocked == Blocked::Map
+            && matches!(
+                self.scene.get(self.pc),
+                Some(
+                    SceneOp::FadeIn
+                        | SceneOp::Presentation {
+                            op: crate::PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                        }
+                )
+            )
     }
 
     /// Answers a [`crate::PresentationOp::VariablePaletteFade`]: the fade the
@@ -322,6 +358,24 @@ impl SceneRunner {
             } else {
                 Blocked::No
             };
+        }
+    }
+
+    /// `InitVRAMAndCRAM` (`$05A658`): its `jsr PalFadeOut_ClrSpriteTbl` first,
+    /// a [`SceneOp::FadeOut`] the runtime answers with the op still current;
+    /// then the op itself, for `InitVRAMAndCRAMAfterFadeOut`, whose
+    /// `DMAPlanes_VInt` spends a frame before `Pal_Init` goes into the buffer.
+    fn init_vram_and_cram(&mut self, effects: &mut Vec<SceneEffect>) {
+        self.init_faded_out = !self.init_faded_out;
+        if self.init_faded_out {
+            let op = SceneOp::FadeOut;
+            effects.push(SceneEffect::Presentation { op });
+            self.blocked = Blocked::Palette;
+        } else {
+            let op = SceneOp::InitVramAndCram;
+            effects.push(SceneEffect::Presentation { op });
+            self.pc += 1;
+            self.blocked = Blocked::Ticks(1);
         }
     }
 

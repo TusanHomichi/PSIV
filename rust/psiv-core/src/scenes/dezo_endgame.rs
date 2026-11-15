@@ -8,7 +8,9 @@
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CameraSubject, PaletteHold, PresentationOp};
+use crate::scene_presentation::{
+    CameraSubject, PaletteHold, PresentationOp, RESTORE_PALETTE, variable_fade,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -237,7 +239,14 @@ pub static REFAZE: Scene = Scene {
             facing: Direction::Up,
         },
         SceneOp::PlaySound { id: 0xFB },
-        SceneOp::FadeOut,
+        // `$0715DA`: `move.b #5, ($FFFFED52).w` / `jsr
+        // Pal_VariableFadeOut_Lines_1_2`.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 5,
+            },
+        },
         SceneOp::Wait { ticks: 60 },
         SceneOp::ObjectAnimation {
             slot: 1,
@@ -252,7 +261,7 @@ pub static REFAZE: Scene = Scene {
         SceneOp::RunDialogueResume,
         SceneOp::BranchChoice {
             if_yes: 18,
-            if_no: 24,
+            if_no: 25,
         },
         SceneOp::Jump { to: 18 },
         SceneOp::LearnTechnique {
@@ -262,6 +271,16 @@ pub static REFAZE: Scene = Scene {
         SceneOp::PlaySound { id: 0xC0 },
         SceneOp::SetSavedMusic { id: MUSIC_TOWER },
         SceneOp::PlaySound { id: MUSIC_TOWER },
+        // `$07172C`: `move.b #2, ($FFFFED52).w` / `jsr
+        // Pal_VariableFadeToPal2`, up to the words the fade-out copied.
+        // Retail refills `Palette_Table_Buffer_2` twice in between
+        // (`$0715F0`, all 64 words; `$0716EE`, the map's 32): #574.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0xE1),
             value: true,
@@ -282,7 +301,11 @@ pub static DE_VARS_DEFEATED: Scene = Scene {
     event: EventIndex(0x0064),
     ops: &[
         standard(4),
-        SceneOp::FadeOut,
+        // No fixed fade: retail copies the buffer to the second one and runs
+        // 40 frames of `Pal_IncreaseTone` (`$071772`), then 40 more, and after
+        // the barrier sound 40 of `loc_58666` back to the copy, so the field
+        // gets its palette back. Until those loops are ops (#571) this `Wait`
+        // stands for the first and the palette is left as it was.
         SceneOp::Wait { ticks: 40 },
         SceneOp::ObjectAnimation {
             slot: 0,
@@ -306,7 +329,11 @@ pub static SA_LEWS_DEFEATED: Scene = Scene {
     event: EventIndex(0x0065),
     ops: &[
         standard(2),
-        SceneOp::FadeOut,
+        // No fixed fade: retail copies the buffer to the second one and runs
+        // 40 frames of `Pal_IncreaseTone` (`$07183A`), then 40 more, and after
+        // the barrier sound 40 of `loc_58666` back to the copy, so the field
+        // gets its palette back. Until those loops are ops (#571) this `Wait`
+        // stands for the first and the palette is left as it was.
         SceneOp::Wait { ticks: 40 },
         SceneOp::ObjectAnimation {
             slot: 0,
@@ -355,6 +382,8 @@ pub static BEFORE_ELSYDEON_CAVE: Scene = Scene {
         SceneOp::PanelCreate { id: 0x18E },
         SceneOp::DmaPlanes,
         SceneOp::FadeIn,
+        // `$07851A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0x30),
         SceneOp::SavePartySlots,
         SceneOp::SetParty {
@@ -408,6 +437,8 @@ pub static REUNION: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x13D },
         SceneOp::DmaPlanes,
+        // `$078AD6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0),
         SceneOp::Wait { ticks: 60 },
         SceneOp::PlaySound {
@@ -447,6 +478,8 @@ pub static REUNION: Scene = Scene {
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelCreate { id: 0x13E },
         SceneOp::DmaPlanes,
+        // `$078BFC`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(1),
         SceneOp::SetFlag {
             flag: Flag::event(0xDA),
@@ -757,8 +790,13 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
     event: EventIndex(0x8020),
     ops: &[
         SceneOp::PlaySound { id: SFX_TELEPORT },
-        SceneOp::FadeOut,
-        SceneOp::InitVramAndCram,
+        // `$078D3E`: `move.b #1, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`,
+        // then `ClearPlaneABuf`: no `InitVRAMAndCRAM`, whose own fade would
+        // overwrite the copy the fade-in restores.
+        variable_fade(false, 1),
+        SceneOp::Presentation {
+            op: PresentationOp::ClearPlanes,
+        },
         SceneOp::LoadArt {
             rom_addr: 0x001D_D566,
             tile: 0x20E,
@@ -794,7 +832,12 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
             frames: 1,
         },
         SceneOp::DmaPlanes,
-        SceneOp::FadeIn,
+        // `$078E4A..$078E69`: the 64 words back from `Palette_Table_Buffer_2`
+        // (`moveq #$3F, d7` / `trap #1`), the teleport sound again, and
+        // `Pal_VariableFadeIn` at mode 7 (`$078E64`).
+        RESTORE_PALETTE,
+        SceneOp::PlaySound { id: SFX_TELEPORT },
+        variable_fade(true, 7),
         SceneOp::PlaySound { id: SOUND_STOP_ALL },
         SceneOp::Wait { ticks: 600 },
         SceneOp::PlaySound {

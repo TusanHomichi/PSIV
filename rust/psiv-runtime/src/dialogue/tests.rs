@@ -120,6 +120,25 @@ pub(super) fn open(entry: &DialogueEntry) -> TextFlow {
     }
 }
 
+/// Releases every `$F2` and spends every `$F4` the walk is waiting on, as
+/// the window would, until it waits on neither.
+fn settle(flow: &mut TextFlow, game: &GameState) {
+    loop {
+        if let Some(action) = flow.take_pending_action() {
+            flow.resume_after_action(
+                if action == super::DialogueAction::ElsydeonBroken {
+                    40
+                } else {
+                    0
+                },
+                game,
+            );
+        } else if flow.finish_portrait(game).is_none() {
+            return;
+        }
+    }
+}
+
 /// Every page the entry shows, driven the way a player drives it: run out any
 /// delay, read the page, press accept.
 pub(super) fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
@@ -129,16 +148,12 @@ pub(super) fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
     };
     let mut pages = Vec::new();
     while flow.is_open() {
-        while let Some(action) = flow.take_pending_action() {
-            flow.resume_after_action(action, &game);
-        }
+        settle(&mut flow, &game);
         let mut guard = 0;
         while flow.is_holding() {
             flow.tick_action(&game);
             flow.tick(&game);
-            while let Some(action) = flow.take_pending_action() {
-                flow.resume_after_action(action, &game);
-            }
+            settle(&mut flow, &game);
             guard += 1;
             assert!(guard < 1_000, "a delay that never ends");
         }
@@ -517,7 +532,7 @@ fn an_action_stops_at_its_retail_byte_position() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(387))
     );
-    flow.resume_after_action(super::DialogueAction::LoadPanel(387), &game);
+    flow.resume_after_action(0, &game);
     assert_eq!(flow.lines(), ["after the panel"]);
 }
 
@@ -545,7 +560,7 @@ fn an_action_after_text_waits_for_the_typewriter() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(0x30))
     );
-    flow.resume_after_action(super::DialogueAction::LoadPanel(0x30), &game);
+    flow.resume_after_action(0, &game);
     assert_eq!(flow.lines(), ["beforeafter"]);
 }
 
@@ -571,7 +586,7 @@ fn the_elsydeon_break_holds_the_text_for_its_forty_frames() {
     assert!(flow.action_ready(6));
     let action = flow.take_pending_action().expect("the action");
     assert_eq!(action, super::DialogueAction::ElsydeonBroken);
-    flow.resume_after_action(action, &game);
+    flow.resume_after_action(40, &game);
     for frame in 1..40 {
         flow.tick_action(&game);
         assert_eq!(flow.lines(), ["before"], "frame {frame}");
@@ -614,4 +629,22 @@ fn a_portrait_patch_needs_a_portrait_at_the_cursor() {
     let mut flow = open(&entry);
     assert!(flow.pause_for_scene());
     assert!(!flow.patch_resume_portrait(7));
+}
+
+#[test]
+fn a_branch_after_a_portrait_waits_for_its_frames() {
+    // `$F4 1` then a `$FA` whose flag is set: the walk stops before the
+    // branch until the window has spent the portrait's frames.
+    let mut game = no_flags();
+    let _ = game.set(Flag::event(7));
+    let Opening::Window(mut flow) = TextFlow::open_at(
+        &entry(vec![text("A"), portrait(1), flag_check(7, 1)]),
+        &game,
+    ) else {
+        panic!("a window");
+    };
+    assert_eq!(flow.take_jump(), None, "the branch ran before the portrait");
+    assert!(flow.pending_portrait().is_some());
+    assert!(flow.finish_portrait(&game).is_some());
+    assert_eq!(flow.take_jump(), Some(1));
 }

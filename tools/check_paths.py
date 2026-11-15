@@ -106,6 +106,13 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_repo_files.py": None,
     "tests/test_feature_map.py": None,
     "tests/test_gate_worktree.py": None,
+    # The orphan guard's negative control builds a throwaway crate.
+    "rust/psiv-pack/tests/source_files.rs": frozenset({
+        "elsewhere/pathed.rs", "src/plain.rs", "src/plain/child.rs", "src/dir/mod.rs",
+        "src/dir/beside.rs", "src/elsewhere/pathed.rs", "src/elsewhere/under.rs",
+        "src/inline/nested.rs", "src/after_lifetime.rs", "src/commented.rs", "src/blocked.rs",
+        "src/quoted.rs", "src/raw.rs", "src/orphan.rs", "tests/top.rs", "tests/helper.rs",
+        "tests/stray/inner.rs"}),
     "tests/test_oracle_battle_fixture_reload.py": frozenset({"oracle/patches/probe.patch"}),
     "tests/test_pr_gate.py": frozenset({"fake_gate.py", "summary.md", "second.md", "leave.py",
                                        "pr_gate-main.py", "argv.py", "caller.py"}),
@@ -128,6 +135,9 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_oracle_host_binary.py": frozenset({"oracle/new_launcher.py", "new_launcher.py"}),
     # Another extension's entry the test writes into a throwaway project's index.
     "tests/test_godot.py": frozenset({"res://addons/other/other.gdextension"}),
+    # The stub game's script, written into a throwaway project.
+    "rust/psiv-native-verify/tests/temporary_palette_driver.rs": frozenset({
+        "res://stub_field.gd", "stub_field.gd"}),
     # Scripts and test modules the test writes and names in captured output.
     "tests/test_certify.py": frozenset({"fake_xvfb.py"}),
     "tests/test_gate.py": frozenset({".../capture/gate_sample_fail.py",

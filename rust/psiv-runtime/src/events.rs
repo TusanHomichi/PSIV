@@ -345,6 +345,13 @@ pub enum RuntimeEvent {
     /// The scene needs a yes/no answer that has not yet been supplied by
     /// dialogue. Call [`crate::Runtime::dialogue_choice`] with the choice.
     SceneChoiceRequested,
+    /// A scene requested event battle `index`: its entry runs from the next
+    /// frame, and [`RuntimeEvent::SceneBattleStarted`] ends it. The shell plays
+    /// the battle's theme here, as `RunEventBattle` requests it first.
+    EventBattleEntered {
+        /// The event battle index.
+        index: u16,
+    },
     /// A scene requested an event battle and the runtime started it. The
     /// initial setup events are delivered with the same timeline as random
     /// encounters, so the presentation layer can use one battle screen.

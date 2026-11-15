@@ -12,6 +12,17 @@ use crate::{BridgeError, Runtime, RuntimeEvent};
 impl Runtime {
     /// Advances one tick and resolves any map change.
     pub(crate) fn tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
+        // A lag frame: the 68000 is still decompressing a dialogue portrait,
+        // and the VInt skips the frame count and the seed (`DialogueRunner::
+        // lag_frame`). No mode runs either.
+        if self.dialogue.lag_frame() {
+            return Vec::new();
+        }
+        // An event battle's entry owns the frame: no mode but its own runs,
+        // and it counts only the frames the cartridge counts.
+        if let Some(events) = self.tick_event_battle_entry() {
+            return events;
+        }
         // `Main_Frame_Count` first, then the vblank tick: the cartridge
         // stirs the one seed every frame in every game mode (VInt handler,
         // ps4.asm:617) — scenes included.

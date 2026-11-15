@@ -289,6 +289,10 @@ fn resolve_scene_battle_with_limit(runtime: &mut Runtime, max_rounds: usize) -> 
     let mut outcome = None;
     let mut last_events = Vec::new();
     for _ in 0..max_rounds {
+        // A frame between rounds, as a played battle has: `Rng2` mixes
+        // `Main_Frame_Count` into every roll, and a count pinned for the
+        // whole battle can pin it in one regime (`psiv_core::battle::Rng2`).
+        let _ = runtime.tick(Input::Neutral);
         let events = runtime
             .battle_round(&RoundOrders::attack_all())
             .expect("battle round resolves");

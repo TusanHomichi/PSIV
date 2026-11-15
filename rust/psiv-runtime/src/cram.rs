@@ -15,11 +15,16 @@
 //! the pack (`presentation/panels.json`); a palette the pack lacks is listed in
 //! [`CramView::missing`] rather than guessed.
 //!
-//! Deviations, recorded in `docs/scenes/SCENE_PRESENTATION.md` ("CRAM state"):
-//! `Pal_FadeIn`/`PalFadeOut_ClrSpriteTbl` (and `InitVRAMAndCRAM`'s fade) write
-//! only their second-buffer copy here, because the scene does not spend their
-//! frames and the shell's cover draws the ramp; the live words keep the
-//! pre-fade palette instead of reaching black.
+//! A scene's `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` (`InitVRAMAndCRAM`'s
+//! fade included) are `Pal_VariableFadeIn`/`Out` with `$FFFFED52` at zero, and
+//! run here as those do (#637).
+//!
+//! The display-enable bit of VDP register 1 is [`CramView::display`]. A
+//! whole-palette fade-out ends in `ClearSpriteTableBuf`, which clears it
+//! (`ps4.asm:85982-85984`), so the frames after it show only the backdrop,
+//! whatever the scene writes into the buffer, until `VDP_EnableDisplay`
+//! sets it again: inside `Pal_FadeIn`/`Pal_VariableFadeIn`, as a scene's own
+//! call ([`PresentationOp::EnableDisplay`]), and in a field or battle load.
 
 use psiv_core::palette::{self, PALETTE_WORDS};
 use psiv_core::{CounterCycle, PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
@@ -29,6 +34,10 @@ use psiv_data::{MapRecord, ScenePalettes};
 const PAL_INIT: u32 = 0x0009_F2BC;
 /// `Palette_Table_Buffer`'s work-RAM address.
 const PALETTE_TABLE_BUFFER: u32 = 0xFFFF_FB00;
+/// `Palette_Table_Buffer+$5E`: the word the prologue crawl and the flight's
+/// caption are drawn in (`move.w #$666, $FB5E.w`, `$073C9E`; `clr.w
+/// (Palette_Table_Buffer+$5E).w`, `ps4.asm:134676`).
+pub const TEXT_COLOUR_SLOT: usize = 0x5E / 2;
 
 /// What the renderer reads: the live palette and a counter that changes
 /// whenever any word of it does.
@@ -46,6 +55,18 @@ pub struct CramView {
     /// 64-word shadow a load fills them from. A legacy record has none, and
     /// the renderer draws the colours baked into the pack's pictures.
     pub live: bool,
+    /// VDP register 1's display-enable bit (`VDP_Reg1_Val` bit 6). While it
+    /// is clear the screen is the backdrop alone ([`CramView::shown_backdrop`]).
+    pub display: bool,
+}
+
+impl CramView {
+    /// The one colour the screen shows while the display is off: the
+    /// backdrop, CRAM word 0 (register 7 `$8700`). `None` while it is on.
+    #[must_use]
+    pub fn shown_backdrop(&self) -> Option<u16> {
+        (!self.display).then_some(self.words[0])
+    }
 }
 
 impl Default for CramView {
@@ -55,6 +76,7 @@ impl Default for CramView {
             revision: 0,
             missing: Vec::new(),
             live: false,
+            display: true,
         }
     }
 }
@@ -104,6 +126,22 @@ enum Program {
     },
 }
 
+/// The frame of a [`Program::Passes`]'s last pass. A fade up that can never
+/// match spins in the cartridge; the model's count stops at `u16::MAX`. Then
+/// the frame count the op answers ([`passes_frames`]) saturates too, and the
+/// last pass is held inside it, so the program ends on a frame the scene still
+/// waits and `elapsed + 1` never leaves `u16`.
+fn passes_last(first: u16, every: u16, count: u16) -> u16 {
+    let unbounded = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+    unbounded.min(passes_frames(first, every, count).saturating_sub(1))
+}
+
+/// The frames a [`Program::Passes`] spends: `first`, then `every` per pass,
+/// saturating at `u16::MAX`. What `apply` answers for a measured fade.
+fn passes_frames(first: u16, every: u16, count: u16) -> u16 {
+    first.saturating_add(count.saturating_mul(every))
+}
+
 /// A [`CounterCycle`] with its table read from the pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Cycle {
@@ -129,6 +167,16 @@ pub(crate) struct Cram {
     /// The loop that starts on the tick after `program` ends: the second
     /// half of a routine that runs two loops back to back.
     queued: Option<Program>,
+    /// `Palette_Table_Buffer` as a scene's map load left it, while `view`
+    /// keeps the words `VInt` last uploaded: the scene's next op is
+    /// `Pal_VariableFadeIn`, which copies and clears the buffer before any
+    /// VBlank (`RefreshMap` ends with no wait, `ps4.asm:121767`), so no frame
+    /// shows them ([`Cram::hold_for_fade_in`]).
+    unshown: Option<[u16; PALETTE_WORDS]>,
+    /// A display-bit write a running routine makes later: `(ticks, on)`,
+    /// counted down at the top of each tick and written when it reaches
+    /// zero ([`Cram::tick`]).
+    display_change: Option<(u16, bool)>,
 }
 
 impl Default for Cram {
@@ -138,6 +186,8 @@ impl Default for Cram {
             saved: [0; PALETTE_WORDS],
             program: None,
             queued: None,
+            unshown: None,
+            display_change: None,
         }
     }
 }
@@ -169,6 +219,8 @@ impl Cram {
             saved: words,
             program: None,
             queued: None,
+            unshown: None,
+            display_change: None,
         }
     }
 
@@ -183,8 +235,47 @@ impl Cram {
 
     /// Continues `previous`'s revision count past this load, so a renderer
     /// that cached the old palette uploads the new one.
+    ///
+    /// `RefreshMap` leaves VDP register 1 alone, so the display bit, and a
+    /// write still pending, carry over; a field load sets it afterwards
+    /// ([`Cram::enable_display`]).
     pub(crate) fn follow(&mut self, previous: &Cram) {
         self.view.revision = previous.view.revision.wrapping_add(1);
+        self.view.display = previous.view.display;
+        self.display_change = previous.display_change;
+    }
+
+    /// `VDP_EnableDisplay` now: a field load's (`GameMode_LoadFieldMap`,
+    /// whose `Pal_FadeIn` the shell draws) or a battle's
+    /// (`GameMode_LoadBattle`). Any pending write is superseded.
+    pub(crate) fn enable_display(&mut self) {
+        self.view.display = true;
+        self.display_change = None;
+    }
+
+    /// `VDP_EnableDisplay` inside a routine that starts now: its
+    /// `VInt_Prepare` shows this tick's frame with the bit as it was, and
+    /// the bit is set from the next.
+    fn enable_display_after_frame(&mut self) {
+        self.display_change = Some((1, true));
+    }
+
+    /// A scene's map load whose next op is `Pal_VariableFadeIn`: the load's
+    /// words stay in the buffer, unshown, and the live words go back to
+    /// `shown`, the ones the frame before the load uploaded. The fade-in
+    /// copies the load's words to `Palette_Table_Buffer_2` and clears the
+    /// buffer on the next tick, before its first VBlank; any other record
+    /// first puts them live.
+    pub(crate) fn hold_for_fade_in(&mut self, shown: [u16; PALETTE_WORDS]) {
+        self.unshown = Some(self.view.words);
+        self.set_live(shown);
+    }
+
+    /// Puts a held map load's words live ([`Cram::hold_for_fade_in`]).
+    fn upload_unshown(&mut self) {
+        if let Some(words) = self.unshown.take() {
+            self.set_live(words);
+        }
     }
 
     pub(crate) fn view(&self) -> &CramView {
@@ -203,8 +294,15 @@ impl Cram {
         self.program.is_some()
     }
 
-    /// One word of the live buffer, as a map update program writes it.
+    /// One word of the live buffer, as a map update program writes it. A held
+    /// map load's words take it unshown ([`Cram::hold_for_fade_in`]).
     pub(crate) fn write(&mut self, slot: usize, word: u16) {
+        if let Some(unshown) = &mut self.unshown {
+            if let Some(current) = unshown.get_mut(slot) {
+                *current = word;
+            }
+            return;
+        }
         if let Some(current) = self.view.words.get_mut(slot)
             && *current != word
         {
@@ -240,9 +338,18 @@ impl Cram {
         }
     }
 
-    /// Steps the running program by one frame; the runtime calls it once at
-    /// the top of every tick. `cycle_index` is `$FFFFECF3`.
+    /// Steps the running program by one frame, after any display-bit write
+    /// due this frame; the runtime calls it once at the top of every tick.
+    /// `cycle_index` is `$FFFFECF3`.
     pub(crate) fn tick(&mut self, main_frame_count: u16, cycle_index: &mut u8) {
+        if let Some((ticks, on)) = self.display_change {
+            if ticks <= 1 {
+                self.view.display = on;
+                self.display_change = None;
+            } else {
+                self.display_change = Some((ticks - 1, on));
+            }
+        }
         let Some(program) = self.program.take().or_else(|| self.queued.take()) else {
             return;
         };
@@ -390,7 +497,7 @@ impl Cram {
                     self.write_run(*start, values);
                 }
                 let last = writes.last().map_or(0, |(at, ..)| *at);
-                (elapsed < last).then_some(Program::Writes {
+                (elapsed < last).then(|| Program::Writes {
                     elapsed: elapsed + 1,
                     writes,
                 })
@@ -403,9 +510,7 @@ impl Cram {
                 count,
                 words: span,
             } => {
-                // A fade up that can never match spins in the cartridge;
-                // the model's count stops at `u16::MAX` and so does this.
-                let last = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+                let last = passes_last(first, every, count);
                 if elapsed >= first && (elapsed - first).is_multiple_of(every) && elapsed <= last {
                     let mut words = self.view.words;
                     for (word, &target) in words.iter_mut().zip(&self.saved).take(span) {
@@ -418,7 +523,8 @@ impl Cram {
                     }
                     self.set_live(words);
                 }
-                (elapsed < last).then_some(Program::Passes {
+                // Built lazily: at the bound `elapsed + 1` would overflow.
+                (elapsed < last).then(|| Program::Passes {
                     kind,
                     elapsed: elapsed + 1,
                     first,
@@ -482,9 +588,9 @@ impl Cram {
 
     /// Applies one scene record on the tick the scene emits it. `map` is the
     /// current map's record, for `ReloadMapPalette`; `cycle_index` is
-    /// `$FFFFECF3`. Returns the frames a
-    /// [`PresentationOp::VariablePaletteFade`] spends, which the scene waits
-    /// for; `None` for every other record.
+    /// `$FFFFECF3`. Returns the frames a [`SceneOp::FadeIn`],
+    /// [`SceneOp::FadeOut`] or [`PresentationOp::VariablePaletteFade`]
+    /// spends, which the scene waits for; `None` for every other record.
     pub(crate) fn apply(
         &mut self,
         op: &SceneOp,
@@ -493,19 +599,43 @@ impl Cram {
         map: Option<&MapRecord>,
         cycle_index: &mut u8,
     ) -> Option<u16> {
+        let fades_in = matches!(
+            op,
+            SceneOp::FadeIn
+                | SceneOp::Presentation {
+                    op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                }
+        );
+        if !fades_in {
+            self.upload_unshown();
+        }
         match *op {
-            // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
-            // buffer to the second one, then 32 longwords of `Pal_Init` (`$05A68A`).
+            // `InitVRAMAndCRAMAfterFadeOut`, after the runner's `FadeOut`:
+            // `DMAPlanes_VInt` spends this frame, then 32 longwords of
+            // `Pal_Init` (`$05A68A`) go into the buffer, shown from the next.
             SceneOp::InitVramAndCram => {
-                self.saved = self.view.words;
                 if let Some(init) = self.rom(palettes, PAL_INIT, PALETTE_WORDS) {
-                    let init = words_of(init);
-                    self.set_live(init);
+                    let writes = vec![(1, 0, init.to_vec())];
+                    self.start(
+                        Program::Writes { elapsed: 0, writes },
+                        main_frame_count,
+                        cycle_index,
+                    );
                 }
             }
-            // Both copy the buffer to the second one first (`trap #1`, 64
-            // words); the ramp itself is the shell's cover (module docs).
-            SceneOp::FadeIn | SceneOp::FadeOut => self.saved = self.view.words,
+            // `Pal_FadeIn` (`$0421D4`) and `PalFadeOut_ClrSpriteTbl`
+            // (`$04223E`) are `Pal_VariableFadeIn`/`Out` with one VBlank a
+            // pass, `$FFFFED52` at zero: the copy, the clear and display
+            // enable for the fade-in, the passes, and their frame count.
+            SceneOp::FadeIn | SceneOp::FadeOut => {
+                let fade = PresentationOp::VariablePaletteFade {
+                    fade_in: matches!(op, SceneOp::FadeIn),
+                    mode: 0,
+                };
+                return self.presentation(fade, main_frame_count, palettes, cycle_index);
+            }
+            // A flight's `Pal_FadeIn`, whose frames the flight counts itself.
+            SceneOp::FlightFadeIn { .. } => self.enable_display_after_frame(),
             SceneOp::LoadPalette {
                 rom_addr,
                 words,
@@ -516,6 +646,10 @@ impl Cram {
                     self.write_run(usize::from(start), &found);
                 }
             }
+            // The prologue's `move.w #$666, $FB5E.w` and the flight's
+            // caption word: one buffer word, which the fades step like any
+            // other.
+            SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
             // `loc_53F14`: the map's 64-word shadow into the live buffer.
             SceneOp::ReloadMapPalette => {
                 if let Some(words) = map.and_then(|record| record.map_update_palette.as_deref()) {
@@ -728,9 +862,11 @@ impl Cram {
                     cycle_index,
                 );
             }
-            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
+            PresentationOp::EnableDisplay => self.enable_display_after_frame(),
+            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B8`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
-                self.saved = self.view.words;
+                // A held map load's words are the buffer the fade-in copies.
+                self.saved = self.unshown.take().unwrap_or(self.view.words);
                 let every = palette::dbf_frames(mode);
                 let (kind, first, count, frames) = if fade_in {
                     // `trap #0` clears the buffer, `VDP_EnableDisplay` spends
@@ -744,6 +880,13 @@ impl Cram {
                     let frames = palette::variable_fade_out_frames(&self.view.words, mode);
                     (Pass::VariableOut, 0, count, frames)
                 };
+                if fade_in {
+                    self.enable_display_after_frame();
+                } else {
+                    // `jmp ClearSpriteTableBuf` once the last pass's frames
+                    // have passed: the frame after them is the first dark one.
+                    self.display_change = Some((frames, false));
+                }
                 self.start(
                     Program::Passes {
                         kind,
@@ -788,7 +931,7 @@ impl Cram {
                     frame,
                     cycle_index,
                 );
-                return Some(count.saturating_mul(every));
+                return Some(passes_frames(0, every, count));
             }
             // `Pal_VariableFadeToRed` copies the buffer first; both run eight
             // stages of `delay + 1` frames.
@@ -810,11 +953,37 @@ impl Cram {
                     cycle_index,
                 );
             }
+            // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
+            // frame until the step that ends the loop unstored.
+            PresentationOp::EndingStaffRollFadeOut {
+                palette_offset,
+                step,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_out(word, frame, step);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingStaffRollFadeIn {
+                palette_offset,
+                step,
+                target_bit,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_in(word, frame, step, target_bit);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingCreditsPaletteRamp { .. } => {
+                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+            }
             _ => {}
         }
         None
     }
 }
 
+mod ending;
+mod inn;
 #[cfg(test)]
 mod tests;

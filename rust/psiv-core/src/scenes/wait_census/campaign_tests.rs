@@ -141,7 +141,17 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
 
     let mut unflagged = ROWS.to_vec();
     for row in &mut unflagged {
-        if row.scene == "Event_EclipseTorchUsed" && row.claim == Wait(5) {
+        // The flash's two map-update frames made a loop with no updates, and
+        // its restore a loop that updates the map, each without a defect.
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Wait(15) {
+            row.retail = own(0x07_0266, false, false);
+        }
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Within(17) {
+            row.retail = own(0x07_0270, false, true);
+        }
+        // The frame with the objects, waited out by a bare frame, without
+        // the defect that keeps the object pass on record.
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Within(8) {
             row.defect = None;
             row.exact = false;
         }
@@ -158,17 +168,19 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         claim_problems(&unflagged),
         [
             format!("{le_roof} op 11: Within an own loop"),
-            "Event_EclipseTorchUsed op 5: a Wait for a loop with no map updates, without a defect"
+            "Event_EclipseTorchUsed op 8: Within an own loop".to_owned(),
+            "Event_EclipseTorchUsed op 15: a Wait for a loop with no map updates, without a defect"
                 .to_owned(),
+            "Event_EclipseTorchUsed op 17: Within an own loop".to_owned(),
             format!("{lutz} op 10: exact for a loop that runs map updates"),
         ]
     );
 
-    // The appended route's first `Wait` (224 ticks) is not the scene's own.
+    // The appended route's first `Wait` (225 ticks) is not the scene's own.
     let route_wait = censused_ops(again).len() + 9;
     assert!(matches!(
         scene(again).ops[route_wait],
-        SceneOp::Wait { ticks: 224 }
+        SceneOp::Wait { ticks: 225 }
     ));
     let mut on_route = ROWS.to_vec();
     on_route.push(row(again, Map(0x07_846C), Wait(route_wait)));
@@ -182,7 +194,7 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     // #591's omissions: the 60-frame `DoMapUpdateLoop` after the fade-out
     // with no row, and a colour loop handed to the op before it (the red
     // fade, which waits no loop) or to a map-updating `Wait`.
-    let index_60 = 19;
+    let index_60 = 21;
     assert!(matches!(
         scene(again).ops[index_60],
         SceneOp::Wait { ticks: 60 }
@@ -194,18 +206,18 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     );
     let mut misclaimed = ROWS.to_vec();
     for row in &mut misclaimed {
-        if row.scene == again && row.claim == Within(9) {
-            row.claim = Within(8);
+        if row.scene == again && row.claim == Within(10) {
+            row.claim = Within(9);
         }
     }
     assert_eq!(
         claim_problems(&misclaimed),
         [
             format!(
-                "{again} op 8: Within names an op that waits no loop, {:?}",
-                scene(again).ops.get(8)
+                "{again} op 9: Within names an op that waits no loop, {:?}",
+                scene(again).ops.get(9)
             ),
-            format!("{again} op 8: Within an own loop"),
+            format!("{again} op 9: Within an own loop"),
         ]
     );
 
@@ -219,7 +231,7 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         if row.scene == le_roof && row.claim == Within(11) {
             row.retail = own(0x07_05DC, false, false);
         }
-        if row.scene == "Cutscene_MeetingKyra" && row.claim == Within(10) {
+        if row.scene == "Cutscene_MeetingKyra" && row.claim == Within(11) {
             row.retail = Frames(0x07_77FC);
         }
     }

@@ -10,6 +10,10 @@ use psiv_data::{PanelPalette, ScenePalettes};
 
 use super::{Cram, CramView};
 
+mod display;
+mod ending_loops;
+mod le_roof_fades;
+
 const LINE: usize = 16;
 
 /// A CRAM with `live` and `saved` buffers, no program.
@@ -22,6 +26,8 @@ fn cram(live: [u16; 64], saved: [u16; 64]) -> Cram {
         saved,
         program: None,
         queued: None,
+        unshown: None,
+        display_change: None,
     }
 }
 
@@ -461,6 +467,112 @@ fn a_variable_fade_in_answers_its_length() {
     assert_eq!(cram.view().words[0], 0x0246);
 }
 
+/// A scene's map load held for `Pal_VariableFadeIn` (#612): `cram` as the
+/// load left it, both buffers `lit`, with `shown` uploaded the frame before.
+fn held(lit: [u16; 64], shown: [u16; 64]) -> Cram {
+    let mut cram = cram(lit, lit);
+    cram.hold_for_fade_in(shown);
+    cram
+}
+
+/// `RefreshMap` returns with no VBlank and `Pal_VariableFadeIn` copies and
+/// clears the buffer before its first: no frame shows the load's words until
+/// the passes bring them up from black.
+#[test]
+fn a_map_load_held_for_a_fade_in_is_never_shown_lit() {
+    let none = ScenePalettes::default();
+    let mut lit = filled(0);
+    lit[0] = 0x0246;
+    let mut cram = held(lit, filled(0));
+    let revision = cram.view().revision;
+    assert_eq!(cram.view().words, filled(0), "the load's tick");
+    // The tick after: the runtime steps the CRAM, then the scene emits the
+    // fade-in.
+    cram.tick(1, &mut 0);
+    assert_eq!(cram.view().words, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: true,
+        mode: 1,
+    });
+    // The fade-in's length is worked from the load's words: 1 + (6 + 1) * 2.
+    assert_eq!(cram.apply(&fade, 1, &none, None, &mut 0), Some(15));
+    assert_eq!(*cram.saved(), lit, "the copy is the load's words");
+    assert_eq!(cram.view().words, filled(0), "the display-enable frame");
+    assert_eq!(cram.view().revision, revision, "no word changed yet");
+    let mut levels = Vec::new();
+    for k in 2..16u16 {
+        cram.tick(k, &mut 0);
+        levels.push(cram.view().words[0]);
+    }
+    assert_eq!(levels[0], 0x0111);
+    assert!(levels.iter().all(|&word| word <= 0x0246));
+    assert_eq!(cram.view().words, lit);
+}
+
+/// The words shown while the load is held are the ones the frame before it
+/// uploaded, whatever they were: a load straight after a lit frame keeps it.
+#[test]
+fn a_held_load_keeps_the_last_uploaded_words() {
+    let shown = filled(0x0222);
+    let cram = held(filled(0x0EEE), shown);
+    assert_eq!(cram.view().words, shown);
+}
+
+/// A map update program's write while the load is held lands in the buffer,
+/// unshown, and the fade-in fades up to it.
+#[test]
+fn a_write_during_a_held_load_goes_to_the_buffer() {
+    let none = ScenePalettes::default();
+    let mut cram = held(filled(0x0222), filled(0));
+    cram.write(5, 0x0444);
+    assert_eq!(cram.view().words, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: true,
+        mode: 1,
+    });
+    let _ = cram.apply(&fade, 0, &none, None, &mut 0);
+    assert_eq!(cram.saved()[5], 0x0444);
+    assert_eq!(cram.saved()[4], 0x0222);
+    assert_eq!(cram.view().words, filled(0));
+}
+
+/// Any record but the fade-in reads or writes the buffer as the load left
+/// it, so the held words go live first.
+#[test]
+fn any_other_record_puts_a_held_load_live() {
+    let none = ScenePalettes::default();
+    let lit = filled(0x0222);
+    // `PalFadeOut_ClrSpriteTbl` copies the load's words, then steps them.
+    let mut cram = held(lit, filled(0));
+    let _ = cram.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0);
+    assert_eq!(cram.view().words, filled(0x0111));
+    assert_eq!(*cram.saved(), lit);
+    // A one-word write lands on the load's words, not the shown ones.
+    let mut cram = held(lit, filled(0));
+    let _ = cram.apply(
+        &op(PresentationOp::SetPaletteWords {
+            offset: 0,
+            first: 0x0EEE,
+            second: 0x0EEE,
+        }),
+        0,
+        &none,
+        None,
+        &mut 0,
+    );
+    assert_eq!(cram.view().words[..2], [0x0EEE; 2]);
+    assert_eq!(cram.view().words[2..], lit[2..]);
+    // The variable fade-out fades the load's words, not the shown ones.
+    let mut cram = held(lit, filled(0));
+    let fade = op(PresentationOp::VariablePaletteFade {
+        fade_in: false,
+        mode: 1,
+    });
+    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(4));
+    assert_eq!(*cram.saved(), lit);
+    assert_eq!(cram.view().words, filled(0x0111));
+}
+
 /// `Pal_VariableFadeToRed`/`FromRed`: eight stages of `delay + 1` frames.
 #[test]
 fn the_red_fades_take_green_and_blue_down_and_back() {
@@ -510,10 +622,18 @@ fn scene_loads_read_the_pack() {
         ],
     );
     let palettes = ScenePalettes::from_parts(words, panels);
-    let mut cram = cram(filled(0x0246), filled(0));
-    let _ = cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0);
+    // `InitVRAMAndCRAMAfterFadeOut`: `DMAPlanes_VInt`'s frame, then
+    // `Pal_Init`; the copy is its fade-out's.
+    let mut cram = cram(filled(0), filled(0x0246));
+    assert_eq!(
+        cram.apply(&SceneOp::InitVramAndCram, 0, &palettes, None, &mut 0),
+        None
+    );
+    assert_eq!(cram.view().words, filled(0), "not before the frame");
+    cram.tick(1, &mut 0);
     assert_eq!(cram.view().words, filled(0x0002));
     assert_eq!(cram.saved(), &filled(0x0246));
+    assert!(!cram.running());
     let _ = cram.apply(
         &SceneOp::LoadPalette {
             rom_addr: 0x001D_E0B8,
@@ -537,11 +657,95 @@ fn scene_loads_read_the_pack() {
     assert_eq!(cram.view().words[..16], [0x0006; 16]);
     assert_eq!(cram.view().words[16..32], [0x0002; 16]);
     assert_eq!(cram.view().words[48..], [0x0008; 16]);
-    // A fade copies the live words to the saved buffer and leaves them.
-    let live = cram.view().words;
-    let _ = cram.apply(&SceneOp::FadeOut, 0, &palettes, None, &mut 0);
-    assert_eq!(cram.saved(), &live);
-    assert_eq!(cram.view().words, live);
+}
+
+/// `PalFadeOut_ClrSpriteTbl` (`$04223E`) on a made-up palette: the copy,
+/// then every nibble down one a pass, one frame a pass, until the pass that
+/// leaves every word zero: fourteen for `$0E52`, whose largest nibble is
+/// `$E`, worked word by word below.
+#[test]
+fn the_fixed_fade_out_steps_one_level_a_frame() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0E52;
+    words[1] = 0x0003;
+    let mut fade = cram(words, filled(0));
+    assert_eq!(
+        fade.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        Some(14)
+    );
+    assert_eq!(*fade.saved(), words, "the copy comes first");
+    // Pass 1, this frame: $0E52 -> $0D41, $0003 -> $0002.
+    assert_eq!(fade.view().words[..2], [0x0D41, 0x0002]);
+    fade.tick(1, &mut 0);
+    // Pass 2: $0C30, $0001.
+    assert_eq!(fade.view().words[..2], [0x0C30, 0x0001]);
+    fade.tick(2, &mut 0);
+    // Pass 3: red stays at zero, the others go on: $0B20, $0000.
+    assert_eq!(fade.view().words[..2], [0x0B20, 0x0000]);
+    for frame in 3..13 {
+        fade.tick(frame, &mut 0);
+    }
+    // Pass 13: only blue is left, at one.
+    assert_eq!(fade.view().words[..2], [0x0100, 0x0000]);
+    fade.tick(13, &mut 0);
+    assert_eq!(fade.view().words, filled(0), "pass 14, black");
+    assert!(!fade.running());
+    // An already black palette still spends its one pass.
+    let mut black = cram(filled(0), filled(0x0246));
+    assert_eq!(
+        black.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        Some(1)
+    );
+    assert_eq!(*black.saved(), filled(0));
+}
+
+/// `Pal_FadeIn` (`$0421D4`) on a made-up palette: the copy and the clear on
+/// the record's frame, which is `VDP_EnableDisplay`'s, then one pass a frame
+/// toward the copy, the last changing nothing.
+#[test]
+fn the_fixed_fade_in_steps_up_after_the_display_frame() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0024;
+    let mut cram = cram(words, filled(0));
+    // Four passes change $0024 ($0011, $0022, $0023, $0024), a fifth does not.
+    assert_eq!(
+        cram.apply(&SceneOp::FadeIn, 0, &none, None, &mut 0),
+        Some(1 + 5)
+    );
+    assert_eq!(*cram.saved(), words);
+    assert_eq!(cram.view().words, filled(0), "cleared on the display frame");
+    let mut shown = Vec::new();
+    for frame in 1..6 {
+        cram.tick(frame, &mut 0);
+        shown.push(cram.view().words[0]);
+    }
+    assert_eq!(shown, [0x0011, 0x0022, 0x0023, 0x0024, 0x0024]);
+    assert!(!cram.running());
+}
+
+/// Negative control for the two tests above: the variable fades at mode 1
+/// (two frames a pass), which share their arithmetic, answer other lengths
+/// and leave other words on the same frame.
+#[test]
+fn a_two_frame_fade_is_not_the_fixed_one() {
+    let none = ScenePalettes::default();
+    let mut words = filled(0);
+    words[0] = 0x0E52;
+    let mut fixed = cram(words, filled(0));
+    let mut variable = cram(words, filled(0));
+    let slow = op(PresentationOp::VariablePaletteFade {
+        fade_in: false,
+        mode: 1,
+    });
+    assert_ne!(
+        fixed.apply(&SceneOp::FadeOut, 0, &none, None, &mut 0),
+        variable.apply(&slow, 0, &none, None, &mut 0)
+    );
+    fixed.tick(1, &mut 0);
+    variable.tick(1, &mut 0);
+    assert_ne!(fixed.view().words[0], variable.view().words[0]);
 }
 
 #[test]
@@ -608,200 +812,77 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
     );
 }
 
-/// Made-up Le Roof tables: the ramp `1..=9` and the cycle's two series
-/// `100..=110` and `111..=121`.
-fn le_roof_palettes() -> ScenePalettes {
-    let mut words = BTreeMap::new();
-    words.insert(0x0007_0626, (1..=9u16).collect());
-    words.insert(0x0007_0672, (100..122u16).collect());
-    ScenePalettes::from_parts(words, BTreeMap::new())
-}
-
-const LE_ROOF_CYCLE: psiv_core::CounterCycle = psiv_core::CounterCycle {
-    source_rom_addr: 0x0007_0672,
-    offset: 11,
-    entries: 11,
-};
-
-/// Applies `scene_op` on frame `start` and ticks `frames - 1` more, sharing
-/// one `$FFFFECF3` byte across the calls as the runtime does.
-fn run_counted(
-    cram: &mut Cram,
-    scene_op: &SceneOp,
-    start: u16,
-    frames: u16,
-    palettes: &ScenePalettes,
-    index: &mut u8,
-) -> Vec<[u16; 64]> {
-    let _ = cram.apply(scene_op, start, palettes, None, index);
-    let mut trace = vec![cram.view().words];
-    for k in 1..frames {
-        cram.tick(start.wrapping_add(k), index);
-        trace.push(cram.view().words);
-    }
-    trace
-}
-
-/// `loc_705D6` then a 120-pass `loc_70638` loop, from frame 1: each pass
-/// blacks words 2-10 and lights the ramp's last `d0 + 1` words over them
-/// (`d0` stepping after the passes whose `d7`, 70 down, is a multiple of
-/// 8), then the cycle writes words 11 and 12 on frames whose count is a
-/// multiple of 4, its index carried from one loop to the next.
+/// The Aiedo inn's resume (`ps4.asm:136436-136453`) after its scene: the
+/// palette it kept goes back with the screen still black for the 60 frames
+/// of `DMAPlane_A_VInt`, then `Pal_FadeIn`'s display frame, then one pass a
+/// frame up to the kept words: `$0024` by `$0011`, `$0022`, `$0023`, `$0024`.
 #[test]
-fn the_le_roof_fade_in_lights_the_ramp_and_runs_the_cycle() {
-    let palettes = le_roof_palettes();
-    let mut cram = cram(filled(0x0EEE), filled(0));
-    let mut index = 0;
-    let grow = op(PresentationOp::PaletteGrowIn {
-        source_rom_addr: 0x0007_0626,
-        offset: 2,
-        words: 9,
-        passes: 71,
-        cycle: LE_ROOF_CYCLE,
-    });
-    let trace = run_counted(&mut cram, &grow, 1, 72, &palettes, &mut index);
-    // Pass 0, frame 1: one word lit, the rest black; frame 1 writes no cycle.
-    assert_eq!(trace[0][2..11], [9, 0, 0, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(trace[0][11..13], [0x0EEE, 0x0EEE]);
-    assert_eq!(trace[0][..2], [0x0EEE, 0x0EEE]);
-    // Frame 4 (pass 3): the cycle's first write, index 0.
-    assert_eq!(trace[2][11..13], [0x0EEE, 0x0EEE]);
-    assert_eq!(trace[3][11..13], [100, 111]);
-    // d7 = 64 on pass 6: pass 7 lights two.
-    assert_eq!(trace[6][2..11], [9, 0, 0, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(trace[7][2..11], [8, 9, 0, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(trace[7][11..13], [101, 112]);
-    // Pass 63 on: all nine.
-    assert_eq!(trace[62][2..11], [2, 3, 4, 5, 6, 7, 8, 9, 0]);
-    assert_eq!(trace[63][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    assert_eq!(trace[70][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    // Seventeen phase frames (4, 8, .., 68): eleven writes, a restart at
-    // 11, six more: the index is 6, and the last write was entry 5.
-    assert_eq!(index, 6);
-    assert_eq!(trace[67][11..13], [105, 116]);
-    // The program ended with pass 70: frame 72 changes nothing.
-    assert_eq!(trace[71], trace[70]);
-    assert!(!cram.running());
-    assert_eq!(trace[70][13..], filled(0x0EEE)[13..]);
-
-    let cycle = op(PresentationOp::CounterPaletteCycle {
-        cycle: LE_ROOF_CYCLE,
-        frames: 120,
-    });
-    let trace = run_counted(&mut cram, &cycle, 72, 121, &palettes, &mut index);
-    // Frame 72 is a phase frame: entry 6 at once, the ramp left lit.
-    assert_eq!(trace[0][11..13], [106, 117]);
-    assert_eq!(trace[0][2..11], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    assert_eq!(trace[4][11..13], [107, 118]);
-    // 30 phase frames in 120 (72, 76, .., 188): from 6, five to the
-    // restart, eleven, eleven, three: index 3.
-    assert_eq!(index, 3);
-    assert_eq!(trace[119][11..13], [102, 113]);
-    assert_eq!(trace[120], trace[119], "120 frames, then nothing");
-    assert!(!cram.running());
-}
-
-/// Negative control: without the pack's tables the loops write nothing and
-/// list the address, and a scratch `$FFFFECF3` left past the series
-/// restarts at entry 0 rather than reading past it.
-#[test]
-fn the_le_roof_loops_refuse_a_missing_table_and_restart_a_stale_index() {
-    let none = ScenePalettes::default();
-    let mut cram = cram(filled(0x0EEE), filled(0));
-    let cycle = op(PresentationOp::CounterPaletteCycle {
-        cycle: LE_ROOF_CYCLE,
-        frames: 4,
-    });
-    let mut index = 0;
-    let trace = run_counted(&mut cram, &cycle, 0, 4, &none, &mut index);
-    assert_eq!(trace[3], filled(0x0EEE));
-    assert_eq!(cram.view().missing, [0x0007_0672]);
-    assert_eq!(index, 0);
-
-    let palettes = le_roof_palettes();
-    let mut cram = super::Cram::default();
-    let mut index = 0xFF;
-    let trace = run_counted(&mut cram, &cycle, 0, 1, &palettes, &mut index);
-    assert_eq!(trace[0][11..13], [100, 111]);
-    assert_eq!(index, 1);
-}
-
-/// `Pal_VariableFadeOut_Lines_1_2`, `$ED52` = 1: words 0-31 copied to the
-/// saved buffer (`moveq #$1F, d7` / `trap #1`), then a pass every two frames
-/// until those 32 are black; words 32-63 and the saved buffer's are left.
-#[test]
-fn a_two_line_fade_out_steps_words_0_to_31_only() {
-    let none = ScenePalettes::default();
-    let mut live = filled(0);
-    live[0] = 0x0246;
-    live[31] = 0x0002;
-    live[40] = 0x0EEE;
-    let mut cram = cram(live, filled(0x0111));
-    let fade = op(PresentationOp::TwoLinePaletteFade {
-        fade_in: false,
-        mode: 1,
-    });
-    // Largest nibble 6: six passes of two frames.
-    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(12));
-    assert_eq!(cram.saved()[0], 0x0246);
-    assert_eq!(cram.saved()[31], 0x0002);
-    assert_eq!(cram.saved()[40], 0x0111, "the copy is 32 words");
-    assert_eq!(cram.view().words[0], 0x0135, "pass 1 on the op's frame");
-    for k in 1..12 {
-        cram.tick(k, &mut 0);
-    }
-    assert_eq!(cram.view().words[..32], [0; 32]);
-    assert_eq!(cram.view().words[40], 0x0EEE);
-}
-
-/// `Pal_VariableFadeToPal2`, `$ED52` = 1: no copy and no clear; words 0-31
-/// step up from where they are toward the saved buffer, and the pass that
-/// changes nothing still waits its two frames.
-#[test]
-fn a_two_line_fade_up_starts_from_the_live_words() {
-    let none = ScenePalettes::default();
-    let mut live = filled(0);
-    live[0] = 0x0002;
-    live[40] = 0x0EEE;
-    let mut saved = filled(0);
-    saved[0] = 0x0024;
-    let mut cram = cram(live, saved);
-    let fade = op(PresentationOp::TwoLinePaletteFade {
-        fade_in: true,
-        mode: 1,
-    });
-    // $002 -> $013 -> $024, then a pass that changes nothing: three passes.
-    assert_eq!(cram.apply(&fade, 0, &none, None, &mut 0), Some(6));
-    assert_eq!(cram.view().words[0], 0x0013);
-    cram.tick(1, &mut 0);
-    assert_eq!(cram.view().words[0], 0x0013);
-    cram.tick(2, &mut 0);
-    assert_eq!(cram.view().words[0], 0x0024);
-    for k in 3..6 {
-        cram.tick(k, &mut 0);
-    }
-    assert_eq!(cram.view().words[0], 0x0024);
-    assert_eq!(cram.view().words[40], 0x0EEE, "word 40 is past the span");
-    assert_eq!(cram.saved()[0], 0x0024, "nothing is copied");
-}
-
-/// A fade the model bounds at `u16::MAX` passes (one the cartridge would
-/// spin in forever) steps without overflowing its frame arithmetic; the
-/// next-arc chain once ran Le Roof's fade up on a map whose own palette
-/// program left a nibble it could not reach.
-#[test]
-fn a_bounded_endless_fade_steps_without_overflow() {
+fn the_inn_resume_holds_black_then_fades_its_palette_in() {
+    let mut kept = filled(0);
+    kept[0] = 0x0024;
+    kept[63] = 0x0002;
     let mut cram = cram(filled(0), filled(0x0EEE));
-    cram.program = Some(super::Program::Passes {
-        kind: super::Pass::VariableIn,
-        elapsed: 0,
-        first: 0,
-        every: 3,
-        count: u16::MAX,
-        words: 32,
-    });
-    for k in 0..10 {
-        cram.tick(k, &mut 0);
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(*cram.saved(), kept, "the kept words are the fade's copy");
+    let mut shown = vec![cram.view().words];
+    for frame in 1..70 {
+        cram.tick(frame, &mut 0);
+        shown.push(cram.view().words);
     }
-    assert!(cram.running());
+    for (frame, words) in shown.iter().enumerate().take(61) {
+        assert_eq!(*words, filled(0), "frame {frame} is still black");
+    }
+    let firsts: Vec<_> = shown[61..66]
+        .iter()
+        .map(|words| (words[0], words[63]))
+        .collect();
+    assert_eq!(
+        firsts,
+        [
+            (0x0011, 0x0001),
+            (0x0022, 0x0002),
+            (0x0023, 0x0002),
+            (0x0024, 0x0002),
+            (0x0024, 0x0002)
+        ]
+    );
+    assert_eq!(shown[69], kept);
+    assert!(!cram.running());
+}
+
+/// Negative control: a resume over a lit palette clears it first, so the
+/// kept words never show before the fade (a resume that only copied them
+/// back would show them on its first frame).
+#[test]
+fn the_inn_resume_does_not_show_its_palette_at_once() {
+    let mut kept = filled(0x0024);
+    kept[1] = 0x0EEE;
+    let mut cram = cram(kept, filled(0));
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(cram.view().words, filled(0));
+}
+
+/// `move.w #$666, $FB5E.w` (`$073C9E`) and the flight's caption word are one
+/// word of the buffer, so `PalFadeOut_ClrSpriteTbl` steps the text down with
+/// everything else: `$0EEE` a level a frame, black on the fourteenth.
+#[test]
+fn the_text_colour_is_a_buffer_word_the_fades_step() {
+    let none = ScenePalettes::default();
+    let mut cram = cram(filled(0), filled(0));
+    let _ = cram.apply(
+        &SceneOp::SetTextColour { colour: 0x0EEE },
+        0,
+        &none,
+        None,
+        &mut 0,
+    );
+    let slot = super::TEXT_COLOUR_SLOT;
+    assert_eq!(slot, 47);
+    let mut expected = filled(0);
+    expected[slot] = 0x0EEE;
+    assert_eq!(cram.view().words, expected, "only the text word is written");
+    let trace = run(&mut cram, SceneOp::FadeOut, 1, 14, &none);
+    assert_eq!(trace[0][slot], 0x0DDD);
+    assert_eq!(trace[1][slot], 0x0CCC);
+    assert_eq!(trace[13][slot], 0);
 }

@@ -32,12 +32,12 @@ pub const WORLD_KURAN: u8 = 4;
 pub const WORLD_AIR_CASTLE: u8 = 5;
 
 /// The map ids the flight tables are keyed by (`ps4.constants.asm`, `MapID_*`).
-const MOTA_SPACEPORT: u16 = 0x0BF;
+pub(super) const MOTA_SPACEPORT: u16 = 0x0BF;
 const DEZO_SPACEPORT: u16 = 0x0D4;
 const LE_ROOF_ROOM: u16 = 0x0F0;
 const AIR_CASTLE: u16 = 0x171;
 const ZELAN_SPACE: u16 = 0x18C;
-const ZELAN: u16 = 0x18D;
+pub(super) const ZELAN: u16 = 0x18D;
 const KURAN_SPACE: u16 = 0x18F;
 const KURAN: u16 = 0x190;
 const AIR_CASTLE_SPACE: u16 = 0x1A0;
@@ -216,16 +216,17 @@ pub fn flight_target(leg: FlightLeg, current_map: u16, world: u8) -> Option<Flig
 const MUSIC_TAKE_OFF_LANDEEL: u8 = 0x9B;
 /// `SpcSFXID_SpaceshipRadar` (`ps4.constants.asm:1051`).
 const SFX_SPACESHIP_RADAR: u8 = 0xF8;
-/// `SFXID_SpaceshipPropelled`, played as the long takeoff's counter reaches
-/// `$E1` (`ps4.asm:134223`).
+/// `SFXID_SpaceshipPropelled` (`ps4.constants.asm:1023`), requested by the
+/// long takeoff's passes with counter `$E1`, `$E2` and `$E3` (`loc_6462A`,
+/// `ps4.asm:134220-134221`).
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
-const CANCEL_SKIP: u16 = 38;
+const CANCEL_SKIP: u16 = 39;
 
-/// `PalFadeOut_ClrSpriteTbl` takes 14 frames (tape 35). Flight fade-in has
-/// two additional display-enable/terminal frames; FlightFadeIn owns its 16.
-const FADE_FRAMES: u16 = 14;
+/// Flight fade-in has two more frames than its fourteen passes, display
+/// enable and the terminal pass; FlightFadeIn owns its 16. The fade-outs are
+/// `PalFadeOut_ClrSpriteTbl`, whose frames `FadeOut` spends (#637).
 const FADE_IN_FRAMES: u16 = 16;
 
 /// The shared body of `$800D`, `Cutscene_InsideSpaceship` (`ps4.asm:155427`):
@@ -246,7 +247,7 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// Counts and CPU/DMA setup spans are cited separately in the scene ledger.
 /// The caption is instant: d4=1 skips RunText2's per-character wait.
-pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
+pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 45] = [
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     // `SpcSFXID_SpaceshipRadar`, once the list is built (`ps4.asm:133537`).
@@ -263,10 +264,10 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     },
     SceneOp::SkipUnlessMap {
         maps: &SPACEPORT_MAPS,
-        skip: 8,
+        skip: 12,
     },
-    // loc_64568: Pal_FadeIn, 419 iterations with the propulsion SFX near the
-    // 224th, then loc_646DA's 60 frames of `Pal_IncreaseTone`.
+    // loc_64568: Pal_FadeIn, 419 passes of loc_645E6, then loc_646DA's 60
+    // frames of `Pal_IncreaseTone`.
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Takeoff,
     },
@@ -275,11 +276,24 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     SceneOp::FlightFadeIn {
         frames: FADE_IN_FRAMES,
     },
-    SceneOp::Wait { ticks: 224 },
+    // Passes 226, 227 and 228 (counter `$E1..$E3`) each request the
+    // propulsion SFX, and each request restarts it (`PlaySFX` clears the
+    // channel, `ps4.sound_driver.asm:757-850`): tape 35 shows the channel's
+    // first note timer reloaded on three frames in a row. 225 + 1 + 1 + 192
+    // is the loop's 419 passes.
+    SceneOp::Wait { ticks: 225 },
     SceneOp::PlaySound {
         id: SFX_SPACESHIP_PROPELLED,
     },
-    SceneOp::Wait { ticks: 195 },
+    SceneOp::Wait { ticks: 1 },
+    SceneOp::PlaySound {
+        id: SFX_SPACESHIP_PROPELLED,
+    },
+    SceneOp::Wait { ticks: 1 },
+    SceneOp::PlaySound {
+        id: SFX_SPACESHIP_PROPELLED,
+    },
+    SceneOp::Wait { ticks: 192 },
     SceneOp::WaitFrames { frames: 60 },
     SceneOp::SkipOps { count: 4 },
     // loc_6488A: Pal_FadeIn, 228 iterations.
@@ -294,9 +308,6 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     // loc_6472C: fade out, 60 map updates, the planet screen's fade in, 300
     // frames (`d0 = $12B`, `:134670-134686`) and fade out, 60 more.
     SceneOp::FadeOut,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
-    },
     // Field_LoadSprites/Field_BuildSprites/VInt_Prepare (:134298-134300).
     SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 60 },
@@ -311,9 +322,6 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     SceneOp::SetTextColour { colour: 0xEEE },
     SceneOp::WaitFrames { frames: 109 },
     SceneOp::FadeOut,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
-    },
     SceneOp::Wait { ticks: 60 },
     // Transit: Pal_FadeIn, then loc_64800's `$20000` down by `$200`,
     // including the terminal pass, then the fade out into the landing.
@@ -329,9 +337,6 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 257 },
     SceneOp::FadeOut,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
-    },
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Landing,
     },
@@ -493,6 +498,9 @@ mod tests {
         let mut seen = Vec::new();
         let mut input = input;
         for _ in 0..2000 {
+            if runner.awaits_palette() {
+                runner.release_palette(1);
+            }
             let effects = runner.tick(map, state, input);
             input = SceneInput::None;
             let done = effects.iter().any(&wanted);
@@ -618,10 +626,11 @@ mod tests {
     #[test]
     fn a_confirm_flies_the_long_takeoff_from_a_spaceport_and_the_short_one_elsewhere() {
         // The core owns the loops and flight fade-in's 16-frame barrier.
-        // Runtime resolves CPU/DMA setup spans; the exact full legs are tested
-        // against tape 35 in psiv-runtime's session_destination integration test.
+        // Runtime resolves CPU/DMA setup spans and the fades' frames (one
+        // tick each here); the exact full legs are tested against tape 35 in
+        // psiv-runtime's session_destination integration test.
         for (map_id, expected_at_least, expected_below) in
-            [(MOTA_SPACEPORT, 955, 995), (ZELAN, 704, 744)]
+            [(MOTA_SPACEPORT, 931, 971), (ZELAN, 680, 720)]
         {
             let map = map_on(map_id);
             let (mut run, mut state) = runner(scene("Cutscene_InsideSpaceship"));
@@ -638,6 +647,9 @@ mod tests {
             let mut ticks = 0u16;
             let mut input = SceneInput::None;
             loop {
+                if run.awaits_palette() {
+                    run.release_palette(1);
+                }
                 let effects = run.tick(&map, &mut state, input);
                 input = if effects.iter().any(|effect| {
                     matches!(

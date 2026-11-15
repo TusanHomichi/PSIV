@@ -31,6 +31,20 @@ and `EndingIntro` an inline `RunText3` window; neither is a `Get` entry. The
 Godot presenter destroys panels on close only for `Standard`, `Cutscene` and
 `Cutscene5`, so `Retained` and `Cutscene3` leave them up as the cartridge does.
 
+The runtime keeps a `Retained` window's last page and portrait drawn after
+its text returns, with no arrow and no response to further presses, for as
+long as its scene runs. This applies both to all fourteen `D2` entries and
+the four `R2` resumes below. The next window replaces it; scene end removes
+it from the view. `EndingIntro` also keeps its page until the scene's explicit
+`WindowDestroy` ([ending](89_Ending.md)); every other kind closes with its
+text. `DialogueWindow::retains_page` owns this exhaustive choice, used for
+both entry and resume by `Runtime`'s dialogue glue. The suite
+`suites::retained_window` checks the registry's eighteen retained callers
+against these rows and exercises their exits with real packed text and
+presses, plus closing controls for every other routine kind. These isolate
+the window exit from the callers' remaining scene requirements; the core
+census below pins the actual caller entries and windows to the US image.
+
 (The clone comments the `SFXID_Selection` store out of several of these; the
 image has it in all but the fourth, `13FC 00F3 FFFF500A` at the second
 instruction. The port is silent on dialogue open everywhere, which is a separate
@@ -291,7 +305,7 @@ Entry text is the first line in
 | 1 | 148623 | `$06F3D4` | `Event_ZioNurvus` (`$34`) | `$0B` | map: Nurvus B4 Part2 (`$D3`), tree 36 | "Well, well... You've made it here" | **`RunDialogueResume`** (mismatch) | `retained(0x0B)` |
 | 2 | 149136 | `$06FAFA` | `Event_DarkForce1` (`$3F`) | `$06` | map: Kuran F3 (`$198`), tree 35 | "What on earth? This feeling of oppression" | `RunDialogue` entry 6, `Standard` window | `retained(6)` |
 | 3 | 149154 | `$06FB42` | `Event_Juza` (`$40`) | `$48` | map: Zio Fort Juza room (`$87`), tree 13 | "You are... I am Juza." | `RunDialogue` entry `$48`, `Standard` window | `retained(0x48)` |
-| 4 | 150038 | `$070936` | `Event_SavingKyra` (`$4D`) | `$26` | scene: `DialogueTree37` loaded at `$070928` | "Look! Someone is being attacked!" | `Standard` window; **on-foot branch landed on op 8, replaying dismount dialogue `$34`** (mismatch) | `retained(0x26)`; on-foot branch to op 9 (`beq.w loc_70908`, `ps4.asm:149987-149988`) |
+| 4 | 150038 | `$070936` | `Event_SavingKyra` (`$4D`) | `$26` | scene: `DialogueTree37` loaded at `$070928` | "Look! Someone is being attacked!" | `Standard` window; **on-foot branch landed on op 8, replaying dismount dialogue `$34`** (mismatch) | `retained(0x26)`; on-foot branch to the red alert, op 11 since #592 added the dismount frames (`beq.w loc_70908`, `ps4.asm:149987-149988`) |
 | 5 | 150056 | `$070978` | `Event_DarkForce2` (`$4E`) | `$3A` | map: Garuberk Tower Part7 (`$19F`), tree 22 | "What's that? Is that Dark Force?!" | `Standard` window | `retained(0x3A)` |
 | 6 | 150173 | `$070B32` | `Event_XeAThoulBeforeBattle` (`$59`) | `$36` | map: Air Castle Xe A Thoul room (`$184`), tree 22 | "Ha, ha, ha, ha! You've come!" | `Standard` window | `retained(0x36)` |
 | 7 | 150182 | `$070B58` | `Event_AirCastleFakeChest` (`$5A`) | `$3C` | map: Air Castle Inner B1 Part3 (`$187`), tree 22 | "Oh no! This torch is a fake!" | `Standard` window | `retained(0x3C)` |

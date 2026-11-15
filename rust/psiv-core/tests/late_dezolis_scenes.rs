@@ -42,6 +42,9 @@ fn play(event: u16, state: &mut GameState, leader: Direction) -> Vec<SceneEffect
             _ if runner.is_waiting_for_camera() => SceneInput::CameraArrived,
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         log.extend(runner.tick(&map, state, input));
         if runner.is_finished() {
             break;
@@ -348,6 +351,9 @@ fn play_alys(state: &mut GameState, leader: Direction) -> AlysRun {
             },
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         let effects = runner.tick(&map, state, input);
         if effects.contains(&SceneEffect::DialogueOpen(DialogueId(8))) {
             run.ticks_to_retained_line = tick - first_closed.unwrap_or(tick);
@@ -558,6 +564,9 @@ fn play_enter_anger_tower(state: &mut GameState) -> (Vec<SceneEffect>, usize) {
             }
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         log.extend(runner.tick(&map, state, input));
         if runner.is_finished() {
             assert!(

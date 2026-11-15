@@ -80,9 +80,14 @@ impl Runtime {
     }
 
     /// What the renderer draws this frame, or `None` with no window up.
+    ///
+    /// A page the text left on screen is drawn only while a scene runs: a
+    /// scene that ends, however it ends, takes the window with it.
     #[must_use]
     pub fn dialogue_view(&self) -> Option<DialogueView> {
-        self.dialogue.view()
+        self.dialogue
+            .view()
+            .filter(|_| self.dialogue.is_open() || self.scene.is_some())
     }
 
     /// A `$F6` the dialogue fired, once. The shell starts the scene with
@@ -106,7 +111,7 @@ impl Runtime {
         let notice_up = self.field_notice().is_some();
         self.dialogue.input(&mut self.game, pad, notice_up);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         for signal in &signals {
             match signal {
                 // The scene hears the answer here, before its tick: a scene
@@ -141,7 +146,7 @@ impl Runtime {
     pub(crate) fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         if signals
             .iter()
             .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
@@ -153,7 +158,14 @@ impl Runtime {
 
     /// A `$F2` `LoadPanel` action is `Panel_Create`: its layers' palettes go
     /// to the palette as a scene panel's do.
-    fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
+    fn dialogue_effects(&mut self, signals: &[DialogueSignal]) {
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+        {
+            // Retained windows leave their pixels but zero `Panel_Num`.
+            self.dialogue.return_panels(self.scene_dialogue_window());
+        }
         for signal in signals {
             match signal {
                 DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {
@@ -227,10 +239,12 @@ impl Runtime {
         let Some(tree) = self.scene_dialogue_tree() else {
             return SceneDialogueOpen::UnknownTree;
         };
+        self.select_scene_text_loop();
         if self
             .dialogue
             .open_scene_entry(tree, entry, panel_layout, &self.game)
         {
+            self.retain_scene_dialogue_page();
             SceneDialogueOpen::Opened
         } else {
             SceneDialogueOpen::Empty
@@ -253,7 +267,33 @@ impl Runtime {
     /// Reopens the scene's saved text cursor (`Saved_Dialogue_Addr`) after its
     /// movement and presentation ops.
     pub(crate) fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
-        self.dialogue.resume_scene(panel_layout, &self.game)
+        self.select_scene_text_loop();
+        let opened = self.dialogue.resume_scene(panel_layout, &self.game);
+        if opened {
+            self.retain_scene_dialogue_page();
+        }
+        opened
+    }
+
+    /// Both a fresh entry and a resumed cursor return through the window
+    /// kind's own exit. `Event_RunDialogue2` forgets its windows without
+    /// destroying them; the ending's inline window is destroyed by its scene.
+    fn retain_scene_dialogue_page(&mut self) {
+        if self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::retains_page)
+        {
+            self.dialogue.hold_page_at_end();
+        }
+    }
+
+    /// The scene's window routine picks the text loop: `RunText3` for the
+    /// ending's windows, `RunText` for the rest.
+    fn select_scene_text_loop(&mut self) {
+        let text3 = self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::runs_text3);
+        self.dialogue.set_text3(text3);
     }
 
     /// A line the pack carries outside the trees, opened for the running
@@ -396,7 +436,10 @@ mod tests {
                     // The tone steps no cycle index; a scratch byte stands in.
                     let mut cycle_index = 0;
                     // Real frame order: input, field palette clock, window dispatch.
-                    for frame in 0..=80 {
+                    // Text actions run inside the text routine, after the
+                    // nine-frame box opening, never during that animation.
+                    let start = if opening { 9 } else { 0 };
+                    for frame in 0..=start + 80 {
                         let pad = if frame % 3 == 0 {
                             Pad::NEUTRAL
                         } else {
@@ -423,7 +466,7 @@ mod tests {
                             "palette frame {frame}"
                         );
                         let view = rt.dialogue_view().expect("window stays open");
-                        if frame < 80 {
+                        if frame < start + 80 {
                             assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
                             assert_eq!(
                                 view.revealed,
@@ -438,7 +481,7 @@ mod tests {
                             assert_eq!(view.lines, [format!("{before}after")]);
                         }
                     }
-                    assert_eq!(launches, [0, 40]);
+                    assert_eq!(launches, [start, start + 40]);
                     // Control: once the blocking loops end, a fresh press
                     // really advances or dismisses the finished page.
                     for _ in 0..40 {
@@ -454,6 +497,58 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_portraits_lag_frames_run_no_frame_count_and_no_rng_step() {
+        use crate::dialogue::{Opening, TextFlow};
+        use crate::pad::Pad;
+        use psiv_data::{Ctrl, DialogueEntry, Segment};
+
+        let Some(mut rt) = runtime() else {
+            eprintln!("skipping: no runtime pack");
+            return;
+        };
+        let entry = DialogueEntry {
+            id: 0,
+            text: String::new(),
+            segments: vec![
+                Segment::Control(Ctrl::Portrait {
+                    code: 0xF4,
+                    operands: vec![1],
+                    id: 1,
+                    position: None,
+                }),
+                Segment::Text("Hey!".into()),
+            ],
+            pages: vec![],
+        };
+        let Opening::Window(flow) = TextFlow::open_at(&entry, &rt.game) else {
+            panic!("window");
+        };
+        rt.dialogue.start(Opening::Window(flow), "test");
+        // Each frame: (Main_Frame_Count, seed, whether it was a lag frame).
+        let mut frames = Vec::new();
+        for _ in 0..16 {
+            let lag = rt.dialogue.lag_frame();
+            rt.dialogue_frame(Pad::NEUTRAL);
+            rt.tick(psiv_core::Input::Neutral);
+            rt.dialogue_tick();
+            frames.push((rt.frames, rt.rng.seed(), lag));
+        }
+        let lags: Vec<usize> = (0..frames.len()).filter(|&i| frames[i].2).collect();
+        // The box opens on frames 0-8; frames 9 and 10 are the portrait's.
+        assert_eq!(lags, [9, 10], "{frames:?}");
+        for &i in &lags {
+            assert_eq!(frames[i].0, frames[i - 1].0, "frame {i} counted");
+            assert_eq!(frames[i].1, frames[i - 1].1, "frame {i} stepped the seed");
+        }
+        // Control: every other frame counts and steps.
+        for i in (1..frames.len()).filter(|i| !lags.contains(i)) {
+            assert_eq!(frames[i].0, frames[i - 1].0.wrapping_add(1), "frame {i}");
+            assert_ne!(frames[i].1, frames[i - 1].1, "frame {i}");
+        }
+        assert_eq!(rt.dialogue_view().expect("window").portrait, Some(1));
     }
 
     #[test]

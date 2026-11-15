@@ -17,10 +17,11 @@ mod bridge;
 mod camera;
 mod camp;
 mod cram;
-pub use cram::CramView;
+pub use cram::{CramView, TEXT_COLOUR_SLOT};
 mod dialogue;
 mod effects;
 mod encounters;
+mod event_battle_entry;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;
@@ -227,6 +228,8 @@ pub struct Runtime {
     battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.
     scene_battle: Option<u16>,
+    /// An event battle's entry, from the scene's request to the roll.
+    event_battle_entry: Option<event_battle_entry::EventBattleEntry>,
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,

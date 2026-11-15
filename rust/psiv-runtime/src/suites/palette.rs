@@ -11,6 +11,12 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
+mod display;
+mod eclipse_torch;
+mod ending;
+mod ending_window;
+mod le_roof;
+
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
 pub(super) fn pack_present() -> bool {
@@ -21,11 +27,16 @@ pub(super) fn pack_present() -> bool {
     present
 }
 
-fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
+pub(super) fn runtime_on(map: u16, party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
     runtime_at(map, (16, 16), party, flags)
 }
 
-fn runtime_at(map: u16, pixels: (u16, u16), party: [Option<CharId>; 5], flags: &[Flag]) -> Runtime {
+pub(super) fn runtime_at(
+    map: u16,
+    pixels: (u16, u16),
+    party: [Option<CharId>; 5],
+    flags: &[Flag],
+) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
     let initial = crate::Session::start(data.clone())
         .field()
@@ -61,16 +72,16 @@ fn runtime_at(map: u16, pixels: (u16, u16), party: [Option<CharId>; 5], flags: &
 }
 
 /// One tick of a scene run: the frame count, the events, the palette after.
-struct Frame {
+pub(super) struct Frame {
     count: u16,
-    events: Vec<RuntimeEvent>,
-    words: [u16; 64],
+    pub(super) events: Vec<RuntimeEvent>,
+    pub(super) words: [u16; 64],
     beams: Vec<(bool, u64)>,
 }
 
 /// Runs `event` to its end, closing every window at once, and records every
 /// tick. The palette before the first tick is the trace's base.
-fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
+pub(super) fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
     let base = runtime.cram().words;
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut frames = Vec::new();
@@ -114,7 +125,7 @@ fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
 }
 
 /// The tick a presentation record matching `pick` was emitted on.
-fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
+pub(super) fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
     frames
         .iter()
         .position(|frame| {
@@ -126,7 +137,11 @@ fn emitted(frames: &[Frame], pick: impl Fn(&PresentationOp) -> bool) -> usize {
 }
 
 /// The first tick after `from` whose events satisfy `pick`.
-fn next_event(frames: &[Frame], from: usize, pick: impl Fn(&RuntimeEvent) -> bool) -> usize {
+pub(super) fn next_event(
+    frames: &[Frame],
+    from: usize,
+    pick: impl Fn(&RuntimeEvent) -> bool,
+) -> usize {
     from + 1
         + frames[from + 1..]
             .iter()
@@ -180,36 +195,49 @@ fn enter_anger_tower_whitens_three_lines_and_holds_the_third() {
         held[..],
         "the map load put the party line in line 2"
     );
-    let failures = check_anger_tower(&start, &held, &frames[tone..tone + 80]);
+    let (failures, steps) = check_tone(&start, Some(&held), 40, &frames[tone..tone + 80]);
     assert_eq!(failures, Vec::<String>::new());
+    assert_eq!(steps, [10, 10], "tone and restore phase frames");
     assert!(runtime.game().is_set(Flag::event(0xE0)));
 }
 
-/// The `$99` assertions as a list of failures, so a negative control can
-/// show which one a broken model trips.
-fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<String> {
+/// A `Pal_IncreaseTone` loop of `tone` frames from `start`, then
+/// `loc_58666` back to it over the rest of `frames`, as a list of failures so
+/// a negative control can show which one a broken model trips, and the phase
+/// frames each loop ran. By hand: each component is `min(level + s, 7)` after
+/// `s` phase frames of the tone, then `max(7 - s', start)` after `s'` of the
+/// restore; the `held` line 2, when given, keeps those words on every frame.
+fn check_tone(
+    start: &[u16; 64],
+    held: Option<&[u16]>,
+    tone: usize,
+    frames: &[Frame],
+) -> (Vec<String>, [u16; 2]) {
     let mut failures = Vec::new();
     let mut tone_steps = 0;
     let mut restore_steps = 0;
     for (k, frame) in frames.iter().enumerate() {
-        if frame.count & 3 == 0 {
-            if k < 40 {
+        if psiv_core::palette::tone_phase(frame.count) {
+            if k < tone {
                 tone_steps += 1;
             } else {
                 restore_steps += 1;
             }
         }
-        if frame.words[32..48] != *held {
+        if let Some(held) = held
+            && frame.words[32..48] != *held
+        {
             failures.push(format!(
                 "frame {k}: line 2 is {:04X?}",
                 &frame.words[32..48]
             ));
         }
-        for slot in (0..32).chain(48..64) {
+        let stepped = (0..64).filter(|slot| held.is_none() || !(32..48).contains(slot));
+        for slot in stepped {
             let want: Vec<u16> = rgb(start[slot])
                 .iter()
                 .map(|&from| {
-                    if k < 40 {
+                    if k < tone {
                         (from + tone_steps).min(7)
                     } else {
                         7u16.saturating_sub(restore_steps).max(from)
@@ -224,12 +252,7 @@ fn check_anger_tower(start: &[u16; 64], held: &[u16], frames: &[Frame]) -> Vec<S
             }
         }
     }
-    if tone_steps != 10 || restore_steps != 10 {
-        failures.push(format!(
-            "{tone_steps} tone and {restore_steps} restore phase frames"
-        ));
-    }
-    failures
+    (failures, [tone_steps, restore_steps])
 }
 
 /// Negative control for the `$99` check: a model with the hold dropped
@@ -278,7 +301,7 @@ fn the_anger_tower_check_catches_a_dropped_hold() {
             beams: Vec::new(),
         });
     }
-    let failures = check_anger_tower(&start, &held, &frames);
+    let (failures, _) = check_tone(&start, Some(&held), 40, &frames);
     assert!(
         failures.iter().any(|failure| failure.contains("line 2")),
         "{failures:?}"
@@ -361,49 +384,90 @@ fn the_rykros_cycle_blocks_its_frames() {
     assert_eq!(frames[resume - 1].words[23..32], table[45..54]);
 }
 
-/// `Pal_VariableFadeOut` with `$ED52` = 5 in `Event_Phonon` blocks for its
-/// passes: the largest nibble of the palette it fades, six frames each.
-#[test]
-fn a_variable_fade_blocks_for_the_palette_it_fades() {
+/// Rykros's tone, traced: the scene's live palette, the tone record and the
+/// palette before it, the restore's own record thirty frames on.
+fn rykros_tone() -> Option<([u16; 64], Vec<Frame>)> {
     if !pack_present() {
-        return;
+        return None;
     }
-    let party = [
-        Some(CharId(0)),
-        Some(CharId(5)),
-        Some(CharId(6)),
-        None,
-        None,
-    ];
-    let mut runtime = runtime_on(0x0BD, party, &[]);
-    let (_, frames) = trace(&mut runtime, 0x6C);
-    let fade = emitted(&frames, |op| {
-        matches!(
-            op,
-            PresentationOp::VariablePaletteFade { fade_in: false, .. }
-        )
+    let mut runtime = runtime_on(0x002, [Some(CharId(0)), None, None, None, None], &[]);
+    let (_, mut frames) = trace(&mut runtime, 0x801B);
+    let tone = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteIncreaseTone { .. })
     });
-    let before = frames[fade - 1].words;
-    let largest = before
+    let restore = emitted(&frames, |op| {
+        matches!(op, PresentationOp::PaletteRestoreTone { .. })
+    });
+    assert_eq!(restore - tone, 30, "the restore follows thirty tone frames");
+    let start = frames[tone - 1].words;
+    Some((start, frames.drain(tone..tone + 60).collect()))
+}
+
+/// Acceptance for Rykros's tone (`$078208`, then `loc_58666` from
+/// `$078222`): thirty frames of `Pal_IncreaseTone` over all four lines,
+/// none held, whiten every word, and thirty of the restore bring each back
+/// to the copy taken before it. The oracle's `Palette_Table_Buffer` and the
+/// native capture pair word for word on every frame of both loops
+/// (`rykros-tone-*` in tools/certify.py).
+#[test]
+fn the_rykros_tone_whitens_every_line_and_restores_the_copy() {
+    let Some((start, frames)) = rykros_tone() else {
+        return;
+    };
+    let (failures, [up, down]) = check_tone(&start, None, 30, &frames);
+    assert_eq!(failures, Vec::<String>::new());
+    // Seven steps whiten any word; thirty frames hold seven or eight.
+    assert!(
+        (7..=8).contains(&up) && (7..=8).contains(&down),
+        "{up} {down}"
+    );
+    assert_eq!(frames[29].words, [0x0EEE; 64], "white before the restore");
+    assert_eq!(frames[59].words, start, "the copy again");
+}
+
+/// Negative controls for the Rykros check: an untoned scene and a tone
+/// that steps every frame instead of every fourth both fail it.
+#[test]
+fn the_rykros_tone_check_catches_an_untoned_or_misstepped_model() {
+    let Some((start, frames)) = rykros_tone() else {
+        return;
+    };
+    let untoned: Vec<Frame> = frames
         .iter()
-        .flat_map(|word| [word & 0xF, (word >> 4) & 0xF, (word >> 8) & 0xF, word >> 12])
-        .max()
-        .unwrap()
-        .max(1);
-    // `$ED52` is 5 here: a pass, then six `VInt_Prepare`s (`loc_5B1A4`).
-    let every = 6;
-    let spent = usize::from(largest) * every;
-    // Each pass writes the buffer before its wait (`ps4.asm:122042-122066`),
-    // so the last pass turns it black at the start of its six frames, and
-    // the pass before leaves a nibble lit.
-    assert_eq!(frames[fade + spent - every].words, [0; 64]);
-    assert_ne!(frames[fade + spent - every - 1].words, [0; 64]);
-    // The scene's next ops are `wait(40)` (no event) and a sound: the sound
-    // lands the fade's frames and forty more after it.
-    let next = next_event(&frames, fade, |event| {
-        matches!(event, RuntimeEvent::ScenePresentation { .. })
-    });
-    assert_eq!(next - fade, spent + 40);
+        .map(|frame| Frame {
+            count: frame.count,
+            events: Vec::new(),
+            words: start,
+            beams: Vec::new(),
+        })
+        .collect();
+    let (failures, _) = check_tone(&start, None, 30, &untoned);
+    assert!(failures.iter().any(|f| f.starts_with("frame ")), "untoned");
+    let mut words = start;
+    let every_frame: Vec<Frame> = frames
+        .iter()
+        .enumerate()
+        .map(|(k, frame)| {
+            for (word, &target) in words.iter_mut().zip(&start) {
+                *word = if k < 30 {
+                    psiv_core::palette::increase_tone(*word)
+                } else {
+                    psiv_core::palette::restore_tone(*word, target)
+                };
+            }
+            Frame {
+                count: frame.count,
+                events: Vec::new(),
+                words,
+                beams: Vec::new(),
+            }
+        })
+        .collect();
+    let (failures, _) = check_tone(&start, None, 30, &every_frame);
+    assert!(
+        failures.iter().any(|f| f.starts_with("frame ")),
+        "every frame"
+    );
 }
 
 #[test]
@@ -588,302 +652,82 @@ fn vehicle_boarding_loads_the_pack_palette_before_exposing_the_body() {
     }
 }
 
-/// One tick of a Le Roof run: the frame count, the events, the palette and
-/// the map-update calls so far.
-pub(super) struct LeRoofTick {
-    pub(super) count: u16,
-    pub(super) events: Vec<RuntimeEvent>,
-    pub(super) words: [u16; 64],
-    pub(super) calls: u64,
-}
-
-/// Where the retail capture starts Chaz in Le Roof Room: `$F406`/`$F408`
-/// `($1F0, $200)`, which [`RetailLocation`]'s standing-row `char_y` writes
-/// as `$200 + 16`. `Event_MeetingLeRoof` walks him 32 pixels north,
-/// `Cutscene_LeRoofAgain` 16.
-pub(super) const LE_ROOF_START: (u16, u16) = (0x1F0, 0x210);
-
-/// Runs `event` on Le Roof Room (`$F0`) from [`LE_ROOF_START`], closing every
-/// window at once, until `stop` holds for a tick's events or the scene ends.
-pub(super) fn le_roof_run(
-    event: u16,
-    flags: &[Flag],
-    stop: impl Fn(&RuntimeEvent) -> bool,
-) -> Vec<LeRoofTick> {
-    le_roof_run_from(LE_ROOF_START, event, flags, stop)
-}
-
-/// [`le_roof_run`] from `start`.
-pub(super) fn le_roof_run_from(
-    start: (u16, u16),
-    event: u16,
-    flags: &[Flag],
-    stop: impl Fn(&RuntimeEvent) -> bool,
-) -> Vec<LeRoofTick> {
-    let party = [Some(CharId(0)), None, None, None, None];
-    let mut runtime = runtime_at(0x0F0, start, party, flags);
-    assert_eq!(
-        runtime.map_updates().counters[1],
-        0,
-        "the map load clears $ECF3"
+/// `Cutscene_Alshline` (`$8005`) copies `PiataBasementB2_Palettes`'
+/// fourteen words to line 3 before it builds Igglanova (`$188`), whose sheet
+/// draws from line 3. On the tick the object is built, line 3's first
+/// fourteen words are the pack's, and every other word is what it was on the
+/// tick before the copy.
+#[test]
+fn alshline_loads_igglanova_s_line_before_building_it() {
+    if !pack_present() {
+        return;
+    }
+    let mut runtime = runtime_at(
+        0x24,
+        (31 * 16, 49 * 16),
+        [Some(CharId(0)), None, None, None, None],
+        &[Flag::event(0x32)],
     );
-    assert!(runtime.start_event(event), "event {event:#x} starts");
-    let mut ticks = Vec::new();
-    for _ in 0..5_000 {
+    let source = runtime
+        .data()
+        .scene_palettes()
+        .words(0x0005_2848)
+        .expect("PiataBasementB2_Palettes is packed")
+        .to_vec();
+    assert_eq!(source.len(), 14);
+    assert!(runtime.start_event(0x8005), "Alshline starts");
+    let mut before = runtime.cram().words;
+    for _ in 0..10_000 {
         let events = runtime.tick(Input::Neutral);
-        for item in &events {
-            assert!(
-                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
-                "{item:?}"
-            );
-            if matches!(
-                item,
+        if events.iter().any(|event| {
+            matches!(
+                event,
                 RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
-            ) {
-                runtime.dialogue_closed();
-            }
+            )
+        }) {
+            runtime.dialogue_closed();
         }
-        let done = events.iter().any(&stop) || !runtime.scene_active();
-        ticks.push(LeRoofTick {
-            count: runtime.frames,
-            events,
-            words: runtime.cram().words,
-            calls: runtime.map_updates().calls,
+        let ops: Vec<&SceneOp> = events
+            .iter()
+            .filter_map(|event| match event {
+                RuntimeEvent::ScenePresentation { op, .. } => Some(op),
+                _ => None,
+            })
+            .collect();
+        let load = ops.iter().position(|op| {
+            matches!(
+                op,
+                SceneOp::LoadPalette {
+                    rom_addr: 0x0005_2848,
+                    ..
+                }
+            )
         });
-        if done {
-            assert!(
-                runtime.cram().missing.is_empty(),
-                "{:x?}",
-                runtime.cram().missing
+        let build = ops.iter().position(|op| {
+            matches!(
+                op,
+                SceneOp::CreateFieldObject {
+                    object_id: 0x188,
+                    ..
+                }
+            )
+        });
+        if let Some(build) = build {
+            let load = load.expect("the copy is on the object's tick");
+            assert!(load < build, "palette before the object");
+            let words = runtime.cram().words;
+            assert_eq!(words[48..62], source[..], "line 3's fourteen words");
+            assert_eq!(words[..48], before[..48], "lines 0-2 keep their words");
+            assert_eq!(words[62..], before[62..], "words 62-63 stay Zema's");
+            assert_ne!(
+                before[48..62],
+                source[..],
+                "the map palette differs, so the copy is observable"
             );
-            return ticks;
+            assert!(runtime.cram().missing.is_empty());
+            return;
         }
+        before = runtime.cram().words;
     }
-    panic!("event {event:#x} did not reach its stop");
-}
-
-/// The tick a presentation record matching `pick` was emitted on, from
-/// `from` on.
-pub(super) fn le_roof_emitted(
-    ticks: &[LeRoofTick],
-    from: usize,
-    pick: impl Fn(&PresentationOp) -> bool,
-) -> usize {
-    from + ticks[from..]
-        .iter()
-        .position(|tick| {
-            tick.events.iter().any(|event| {
-                matches!(event, RuntimeEvent::ScenePresentation { op: SceneOp::Presentation { op }, .. } if pick(op))
-            })
-        })
-        .expect("the record is emitted")
-}
-
-/// Checks the Le Roof loops from tick `start` for `frames` ticks against
-/// `loc_70638` and `loc_705D6`, worked from their listings: on a tick whose
-/// count is a multiple of 4 the index (`$FFFFECF3`, from `index`) restarts
-/// at 0 once it reaches 11, words 11 and 12 take series entries `index` and
-/// `index + 11`, and the index steps; other ticks leave both words. During
-/// the fade-in (`grow` ticks from `grow_at`) pass `k` lights the last
-/// `1 + k'` ramp words over words 2.. (`k'` the passes before `k` whose
-/// count `70 - pass` is a multiple of 8), the rest of the nine black. No tick
-/// updates the map. Returns the index left.
-fn check_le_roof_loops(
-    ticks: &[LeRoofTick],
-    start: usize,
-    frames: usize,
-    mut index: usize,
-    ramp: &[u16],
-    cycle: &[u16],
-    grow_at: Option<usize>,
-) -> usize {
-    for at in start..start + frames {
-        let tick = &ticks[at];
-        let before = &ticks[at - 1];
-        assert_eq!(tick.calls, before.calls, "tick {at}: no map update");
-        if tick.count.is_multiple_of(4) {
-            if index >= 11 {
-                index = 0;
-            }
-            assert_eq!(
-                tick.words[11..13],
-                [cycle[index], cycle[index + 11]],
-                "tick {at}"
-            );
-            index += 1;
-        } else {
-            assert_eq!(tick.words[11..13], before.words[11..13], "tick {at}");
-        }
-        if let Some(grow_at) = grow_at
-            && (grow_at..grow_at + 71).contains(&at)
-        {
-            let pass = at - grow_at;
-            let lit = 1
-                + (0..pass)
-                    .filter(|done| (70 - done).is_multiple_of(8))
-                    .count();
-            let mut expected = [0u16; 9];
-            expected[..lit].copy_from_slice(&ramp[9 - lit..]);
-            assert_eq!(tick.words[2..11], expected, "tick {at}, pass {pass}");
-        }
-        assert_eq!(
-            tick.words[13..],
-            before.words[13..],
-            "tick {at}: words 13 on"
-        );
-        assert_eq!(tick.words[..2], before.words[..2], "tick {at}: words 0-1");
-    }
-    index
-}
-
-/// Acceptance for `Event_MeetingLeRoof` (#591): from the red fade's end,
-/// 180 passes of the colour cycle, the 71-pass fade-in (`$0705D6`), 120
-/// passes, dialogue `0`, 120 passes, every one `VInt_Prepare` only. The
-/// cycle index runs on across the loops and the dialogue. Negative control:
-/// the pack without the tables lists both as missing.
-#[test]
-fn meeting_le_roof_cycles_and_fades_in_its_palette() {
-    if !pack_present() {
-        return;
-    }
-    let ticks = le_roof_run(0x0048, &[], |_| false);
-    let data = GameData::load(Path::new(PACK)).expect("pack loads");
-    let ramp = data
-        .scene_palettes()
-        .words(0x0007_0626)
-        .expect("ramp")
-        .to_vec();
-    let cycle = data
-        .scene_palettes()
-        .words(0x0007_0672)
-        .expect("cycle")
-        .to_vec();
-    assert_eq!((ramp.len(), cycle.len()), (9, 22));
-    let first = le_roof_emitted(&ticks, 0, |op| {
-        matches!(op, PresentationOp::CounterPaletteCycle { frames: 180, .. })
-    });
-    let grow = le_roof_emitted(&ticks, first, |op| {
-        matches!(op, PresentationOp::PaletteGrowIn { .. })
-    });
-    assert_eq!(grow - first, 180);
-    let second = le_roof_emitted(&ticks, grow, |op| {
-        matches!(op, PresentationOp::CounterPaletteCycle { frames: 120, .. })
-    });
-    assert_eq!(second - grow, 71);
-    let index = check_le_roof_loops(&ticks, first, 180 + 71 + 120, 0, &ramp, &cycle, Some(grow));
-    let dialogue = second + 120;
-    assert!(
-        ticks[dialogue]
-            .events
-            .iter()
-            .any(|event| matches!(event, RuntimeEvent::SceneDialogue { .. })),
-        "dialogue 0 right after the first 120"
-    );
-    let third = le_roof_emitted(&ticks, dialogue, |op| {
-        matches!(op, PresentationOp::CounterPaletteCycle { frames: 120, .. })
-    });
-    check_le_roof_loops(&ticks, third, 120, index, &ramp, &cycle, None);
-    // The ramp stays lit through the dialogue and the last loop.
-    assert_eq!(ticks[third + 119].words[2..11], ramp[..]);
-    // The music stop follows the last pass.
-    assert!(ticks[third + 120].events.iter().any(|event| matches!(
-        event,
-        RuntimeEvent::ScenePresentation {
-            op: SceneOp::PlaySound { id: 0xFB },
-            ..
-        }
-    )));
-
-    let mut cram = crate::cram::Cram::default();
-    let _ = cram.apply(
-        &SceneOp::Presentation {
-            op: PresentationOp::PaletteGrowIn {
-                source_rom_addr: 0x0007_0626,
-                offset: 2,
-                words: 9,
-                passes: 71,
-                cycle: psiv_core::CounterCycle {
-                    source_rom_addr: 0x0007_0672,
-                    offset: 11,
-                    entries: 11,
-                },
-            },
-        },
-        0,
-        &psiv_data::ScenePalettes::default(),
-        None,
-        &mut 0,
-    );
-    assert_eq!(cram.view().missing, [0x0007_0626]);
-}
-
-/// Acceptance for `Cutscene_LeRoofAgain` (#591): the same loops (180,
-/// `jsr loc_705D6` at `$078406`, 120) before dialogue `$0B`, and after the
-/// panel's fade-out the 60-frame `DoMapUpdateLoop` at `$07846C`, which runs
-/// a map update on each of its frames.
-#[test]
-fn le_roof_again_cycles_then_waits_with_map_updates() {
-    if !pack_present() {
-        return;
-    }
-    let flags = [Flag::event(0xD5), Flag::event(0xD3)];
-    let ticks = le_roof_run(0x801C, &flags, |event| {
-        matches!(
-            event,
-            RuntimeEvent::ScenePresentation {
-                op: SceneOp::PanelCreate { id: 0x125 },
-                ..
-            }
-        )
-    });
-    let data = GameData::load(Path::new(PACK)).expect("pack loads");
-    let ramp = data.scene_palettes().words(0x0007_0626).unwrap().to_vec();
-    let cycle = data.scene_palettes().words(0x0007_0672).unwrap().to_vec();
-    let first = le_roof_emitted(&ticks, 0, |op| {
-        matches!(op, PresentationOp::CounterPaletteCycle { frames: 180, .. })
-    });
-    let grow = le_roof_emitted(&ticks, first, |op| {
-        matches!(op, PresentationOp::PaletteGrowIn { .. })
-    });
-    let second = le_roof_emitted(&ticks, grow, |op| {
-        matches!(op, PresentationOp::CounterPaletteCycle { frames: 120, .. })
-    });
-    assert_eq!((grow - first, second - grow), (180, 71));
-    check_le_roof_loops(&ticks, first, 180 + 71 + 120, 0, &ramp, &cycle, Some(grow));
-    assert!(
-        ticks[second + 120]
-            .events
-            .iter()
-            .any(|event| matches!(event, RuntimeEvent::SceneDialogue { .. })),
-        "dialogue $0B right after the 120"
-    );
-    let is = |tick: &LeRoofTick, want: &dyn Fn(&SceneOp) -> bool| {
-        tick.events
-            .iter()
-            .any(|event| matches!(event, RuntimeEvent::ScenePresentation { op, .. } if want(op)))
-    };
-    let fade_out = (second..ticks.len())
-        .find(|&at| {
-            is(&ticks[at], &|op| {
-                matches!(
-                    op,
-                    SceneOp::Presentation {
-                        op: PresentationOp::VariablePaletteFade { fade_in: false, .. }
-                    }
-                )
-            })
-        })
-        .expect("the fade-out");
-    // `Pal_VariableFadeOut`'s 84 frames are `VInt_Prepare` only.
-    let wait = fade_out + 84;
-    assert_eq!(ticks[wait - 1].calls, ticks[fade_out - 1].calls);
-    let reinit = (fade_out..ticks.len())
-        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::InitVramAndCram)))
-        .expect("the second InitVRAMAndCRAM");
-    assert_eq!(reinit - wait, 60, "the 60-frame wait between");
-    assert_eq!(
-        ticks[reinit - 1].calls - ticks[wait - 1].calls,
-        60,
-        "a map update on each of its frames"
-    );
+    panic!("Igglanova was never built");
 }

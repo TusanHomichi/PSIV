@@ -139,56 +139,26 @@ impl CampChrome {
         })
     }
 
-    /// The font with each colour of the `from` line swapped for the same
-    /// index of `to`: the same tiles on another palette line.
-    pub(crate) fn recoloured_font(
-        &self,
-        from: &[[u8; 3]],
-        to: &[[u8; 3]],
-    ) -> Option<Gd<ImageTexture>> {
-        let mut image = self.font.get_image()?;
-        for y in 0..image.get_height() {
-            for x in 0..image.get_width() {
-                let colour = image.get_pixel(x, y);
-                let rgb = [colour.r8(), colour.g8(), colour.b8()];
-                // Font art uses indices 1, 2, 14 and 15.
-                if let Some(index) = [15, 14, 2, 1].into_iter().find(|&i| from[i] == rgb) {
-                    let [r, g, b] = to[index];
-                    image.set_pixel(x, y, Color::from_rgba8(r, g, b, colour.a8()));
-                }
-            }
-        }
-        ImageTexture::create_from_image(&image)
-    }
-
     pub(crate) fn text(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
-        self.text_in(&self.font, text, cell)
+        let (mut quads, words) = self.text_parts(text, cell);
+        quads.extend(words);
+        quads
     }
 
-    /// [`CampChrome::text`] in a font from [`CampChrome::recoloured_font`].
-    pub(crate) fn text_in(
-        &self,
-        font: &Gd<ImageTexture>,
-        text: &str,
-        cell: (i32, i32),
-    ) -> Vec<Quad> {
-        let mut quads = Vec::new();
+    /// [`CampChrome::text`] in two parts: the font's glyphs, and the window
+    /// words it draws for a space and the slash. The Hunter's Guild board
+    /// draws a row's glyphs on the row's own CRAM line (`job_board.rs`).
+    pub(crate) fn text_parts(&self, text: &str, cell: (i32, i32)) -> (Vec<Quad>, Vec<Quad>) {
+        let mut glyphs = Vec::new();
+        let mut words = Vec::new();
         for (column, character) in text.chars().enumerate() {
             let dest_cell = (cell.0 + column as i32, cell.1);
             if character == '/' {
-                if let Some(quad) = self.window_word(STATUS_SLASH_PATTERN, dest_cell) {
-                    quads.push(quad);
-                }
+                words.extend(self.window_word(STATUS_SLASH_PATTERN, dest_cell));
                 continue;
             }
-            let dest = Rect2::new(
-                Vector2::new(dest_cell.0 as f32 * CELL, dest_cell.1 as f32 * CELL),
-                Vector2::new(CELL, CELL),
-            );
             if character == ' ' {
-                if let Some(quad) = self.window_word(0x680, dest_cell) {
-                    quads.push(quad);
-                }
+                words.extend(self.window_word(0x680, dest_cell));
                 continue;
             }
             let Some(source) = self
@@ -198,13 +168,16 @@ impl CampChrome {
             else {
                 continue;
             };
-            quads.push(Quad {
-                texture: font.clone(),
-                dest,
+            glyphs.push(Quad {
+                texture: self.font.clone(),
+                dest: Rect2::new(
+                    Vector2::new(dest_cell.0 as f32 * CELL, dest_cell.1 as f32 * CELL),
+                    Vector2::new(CELL, CELL),
+                ),
                 src: Rect2::new(*source, Vector2::new(CELL, CELL)),
             });
         }
-        quads
+        (glyphs, words)
     }
 
     /// The status routine's current/max HP and TP values use the second

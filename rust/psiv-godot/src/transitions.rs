@@ -15,20 +15,28 @@ pub(crate) enum TransitionKind {
     Doorway,
     /// Encounter flash: field to white, white hold, then battle reveal.
     BattleEntry,
-    /// Cutscene initialization: fade to black and hold until the scene's
-    /// first presentation window is ready.
+    /// Cutscene initialization off a palette that is not live: fade to
+    /// black and hold until the scene's first presentation window is ready.
+    /// On a live one the scene's `InitVRAMAndCRAM` fades the CRAM itself.
     SceneStart,
     /// The title hand-off's centered screen wipe.  The Godot field has no
     /// title plane, so this is used as a matching black-to-field reveal.
     GameStart,
-    /// A field load's black rows and `Pal_FadeIn` ramp: a scene's direct
-    /// fade-in, a cutscene's field reload, a teleport's destination load.
+    /// A field load's black rows and `Pal_FadeIn` ramp: a cutscene's field
+    /// reload, a teleport's destination load, and a scene's `FadeIn` off a
+    /// palette that is not live (on a live one the CRAM model draws it).
     /// The runtime owns the blocking and the rows; this is the renderer's
     /// 13-step black ramp at their end.
     SceneFadeIn,
-    /// `PalFadeOut_ClrSpriteTbl`: a scene's direct fade-out, and a
-    /// teleport's (`MenuExit_Teleport`) over the field being left.
+    /// `PalFadeOut_ClrSpriteTbl`: a teleport's (`MenuExit_Teleport`) over
+    /// the field being left, and a scene's `FadeOut` off a palette that is
+    /// not live.
     SceneFadeOut,
+    /// One frame of a uniform screen the runtime chose, as a CRAM word: an
+    /// event battle's white hold and fade
+    /// (`psiv_runtime::Runtime::event_battle_entry_screen`). The shell sets it
+    /// again on every frame the runtime still shows it.
+    Screen(u16),
 }
 
 /// The solid colour used by the current palette ramp.
@@ -36,6 +44,8 @@ pub(crate) enum TransitionKind {
 pub(crate) enum TransitionColor {
     Black,
     White,
+    /// The colour a CRAM word shows, opaque.
+    Cram(u16),
 }
 
 /// What the renderer needs for one frame.
@@ -99,19 +109,25 @@ impl Transition {
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
+            TransitionKind::Screen(word) => (!self.finished()).then_some(TransitionVisual {
+                color: TransitionColor::Cram(word),
+                level: PALETTE_LEVELS,
+                opening: None,
+            }),
         }
     }
 
-    /// Scene fades sit below the dialogue window but above the cutscene plane;
-    /// battle and boot covers must sit above the battle/field nodes too.
-    pub(crate) fn front_layer(self) -> bool {
-        matches!(
-            self.kind,
+    /// Scene fades sit below field windows. A uniform screen replaces every
+    /// field surface, including a window whose text has already returned.
+    pub(crate) fn z_index(self) -> i32 {
+        match self.kind {
+            TransitionKind::Screen(_) => super::dialogue::Z_INDEX + 100,
             TransitionKind::BattleEntry
-                | TransitionKind::GameStart
-                | TransitionKind::SceneFadeIn
-                | TransitionKind::SceneFadeOut
-        )
+            | TransitionKind::GameStart
+            | TransitionKind::SceneFadeIn
+            | TransitionKind::SceneFadeOut => 600,
+            TransitionKind::Doorway | TransitionKind::SceneStart => 25,
+        }
     }
 
     fn duration(self) -> u16 {
@@ -124,6 +140,7 @@ impl Transition {
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
+            TransitionKind::Screen(_) => 1,
         }
     }
 
@@ -222,9 +239,41 @@ fn step_down(frame: u16) -> u8 {
     PALETTE_LEVELS.saturating_sub(step_up(frame))
 }
 
+/// The cover left once a runtime-owned palette fade-in
+/// (`VariablePaletteFade` or `TwoLinePaletteFade` up) starts. A scene's
+/// `LoadMap` emits `MapChanged`, which starts the 80-frame doorway cover;
+/// the fade that follows reveals the map from black through the CRAM
+/// itself, so the doorway's hold would mask it. Every other cover stays.
+pub(crate) fn after_palette_fade_in(cover: Option<Transition>) -> Option<Transition> {
+    cover.filter(|transition| transition.kind != TransitionKind::Doorway)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Transition, TransitionColor, TransitionKind};
+    use super::{Transition, TransitionColor, TransitionKind, after_palette_fade_in};
+
+    /// A runtime fade-in ends a doorway cover at any age, and leaves the
+    /// other covers, and no cover, as they were.
+    #[test]
+    fn a_palette_fade_in_ends_only_the_doorway_cover() {
+        for age in [0, 1, 13, 40, 70] {
+            let mut doorway = Transition::new(TransitionKind::Doorway);
+            age_to(&mut doorway, age);
+            assert_eq!(after_palette_fade_in(Some(doorway)), None, "age {age}");
+        }
+        for kind in [
+            TransitionKind::BattleEntry,
+            TransitionKind::SceneStart,
+            TransitionKind::GameStart,
+            TransitionKind::SceneFadeIn,
+            TransitionKind::SceneFadeOut,
+        ] {
+            let mut cover = Transition::new(kind);
+            age_to(&mut cover, 3);
+            assert_eq!(after_palette_fade_in(Some(cover)), Some(cover), "{kind:?}");
+        }
+        assert_eq!(after_palette_fade_in(None), None);
+    }
 
     fn age_to(transition: &mut Transition, age: u16) {
         for _ in 0..age {
@@ -347,6 +396,23 @@ mod tests {
         assert_eq!(at(8464), 0, "clear on the load's last row");
         let mut load = load.unwrap();
         assert!(load.tick(), "finished at 8465");
+    }
+
+    /// A runtime screen covers the frame it is set on, opaque in its own
+    /// colour, and is gone after one tick unless the shell sets it again.
+    #[test]
+    fn a_screen_lasts_the_one_frame_it_is_set_on() {
+        let mut screen = Transition::new(TransitionKind::Screen(0xCCC));
+        let visual = screen.visual().unwrap();
+        assert_eq!(visual.color, TransitionColor::Cram(0xCCC));
+        assert_eq!(visual.level, 7);
+        assert!(screen.z_index() > crate::dialogue::Z_INDEX);
+        assert!(
+            Transition::new(TransitionKind::SceneFadeOut).z_index() < crate::dialogue::Z_INDEX,
+            "a scene fade keeps its existing position below windows"
+        );
+        assert!(screen.tick(), "finished after its frame");
+        assert!(screen.visual().is_none());
     }
 
     #[test]

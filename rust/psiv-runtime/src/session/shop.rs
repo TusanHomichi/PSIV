@@ -552,12 +552,13 @@ impl Session {
                 event: handoff.event,
                 counter,
                 cost,
+                palette: self.runtime.cram().words,
             };
             if !self.start_menu_scene(handoff) {
                 // A pack without the event transcribed still closes the
                 // transaction: the bill was priced before the scene and must
                 // not be lost to a missing one.
-                self.finish_aiedo_stay(counter, cost);
+                self.finish_aiedo_stay(counter, cost, None);
             }
             return Frame {
                 mode: FrameMode::Shop,

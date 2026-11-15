@@ -19,6 +19,9 @@ use crate::decode::{enigma, nemesis};
 use crate::json::Json;
 use crate::{PackError, gfx, png};
 
+#[cfg(test)]
+mod retail_tests;
+
 /// `ENEMY_ART_TABLE`: the 20-byte graphics records.
 const ART_TABLE: usize = 0x27F3AE;
 const ART_STRIDE: usize = 20;

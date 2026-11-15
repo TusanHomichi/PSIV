@@ -121,7 +121,8 @@ const ROWS: &[Row] = &[
     open("Event_EclipseTorchUsed", 2, 3),
     open("Cutscene_Elsydeon", 19, 23),
     open("Event_SilenceTmDoorOpening", 0, 1),
-    open("Cutscene_Ending", 85, 95),
+    // The ending intro now records its DMA after dialogue 9 explicitly.
+    open("Cutscene_Ending", 86, 95),
     open("Event_HuntersGuild", 0, 3),
     open("Event_WreckageEngine", 0, 1),
     open("Event_GettingOffVehicle", 0, 1),
@@ -312,7 +313,7 @@ fn the_dma_census_rejects_an_extra_op_and_a_stale_row() {
         .collect();
     assert_eq!(
         problems(rom, &counted, &dropped),
-        ["Cutscene_Ending: 85 DmaPlanes for 95 helper calls, with no row"]
+        ["Cutscene_Ending: 86 DmaPlanes for 95 helper calls, with no row"]
     );
 
     let mut stale = ROWS.to_vec();

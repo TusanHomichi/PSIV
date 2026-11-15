@@ -1,9 +1,9 @@
 //! The census's rows: one per retail wait of a censused scene, in scene-file
 //! order (#470). The checks that read them are in the parent module.
 
-use super::Claim::{Missing, Recorded, Wait, Within};
+use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, Row, frame, own, row};
+use super::{DEZO, OBJECTS, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -13,8 +13,9 @@ const fn defect(issue: u32, row: Row) -> Row {
     }
 }
 
-/// A `Wait` row whose count is the retail one, for a frame or loop that runs
-/// no map updates: the issue that fixes the updates.
+/// A row whose count is the retail one, with the issue that fixes its
+/// updates: a `Wait` for a frame or loop that runs no map updates, or a
+/// `Within` a `VInt_Prepare`-only op for a frame that runs the objects.
 const fn updates(issue: u32, row: Row) -> Row {
     Row {
         defect: Some(issue),
@@ -62,8 +63,8 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_AlysWounded", own(0x07_4DD4, false, false), Missing(502)),
     row("Cutscene_AlysWounded", Map(0x07_4DFC), Missing(502)),
     row("Cutscene_PsycoWand", Map(0x07_5256), Wait(5)),
-    row("Cutscene_PsycoWand", Map(0x07_5538), Wait(45)),
-    row("Cutscene_PsycoWand", Map(0x07_598A), Wait(106)),
+    row("Cutscene_PsycoWand", Map(0x07_5538), Wait(46)),
+    row("Cutscene_PsycoWand", Map(0x07_598A), Wait(107)),
     row("Cutscene_ZioDefeated", Map(0x07_5AC0), Wait(13)),
     row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(17)),
     row("Cutscene_ZioDefeated", Map(0x07_5B7E), Wait(19)),
@@ -74,21 +75,42 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_ZioDefeated", Map(0x07_5C66), Wait(30)),
     row("Cutscene_ZioDefeated", Map(0x07_5CE4), Wait(43)),
     // post_zio_cutscenes.rs
+    // Cutscene_InsideSpaceship: `loc_63BC4`'s flights ([`super::SHARED_CODE`]).
+    // The spaceports' takeoff (`loc_64568`) is one loop of `$1A3` passes
+    // (`loc_645E6`), split at its three propulsion requests (#629); the other
+    // maps' (`loc_6488A`) is `loc_64908`. Each takeoff carries its own copy of
+    // the rest of the flight, which the route runs once: the copy after
+    // `loc_6488A` is merged.
+    row(SHIP, own(0x06_45E6, true, true), Wait(9)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(11)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(13)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(15)),
+    row(SHIP, own(0x06_4908, true, true), Wait(21)),
+    // Before the planet screen (`:134302`, `:134463`) and after it
+    // (`:134306`, `:134467`).
+    row(SHIP, Map(0x06_4750), Wait(24)),
+    row(SHIP, Map(0x06_49C6), Merged(24)),
+    row(SHIP, Map(0x06_4762), Wait(33)),
+    row(SHIP, Map(0x06_49D8), Merged(33)),
+    // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
+    // `loc_64A76`).
+    row(SHIP, own(0x06_4800, true, true), Wait(39)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(39)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
-    row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(51)),
-    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(63)),
-    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(65)) },
-    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(68)),
+    row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
+    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),
+    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(66)) },
+    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(69)),
     // `bsr loc_76E00`: five frames of the wreck, each followed by six passes
     // of `RunMapUpdates` and `DMAPlane_B_VInt`, no objects.
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(71)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(73)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(75)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(77)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(79)),
-    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(80)),
-    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(100)),
-    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(119)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(72)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(74)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(76)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(78)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(80)),
+    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(81)),
+    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(101)),
+    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(123)),
     // The shared `$170 + 1` pass loop the scene calls at `$0771C8`, split at
     // the BG chunk's beat (d7 `$3D`).
     row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(16)),
@@ -161,19 +183,19 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
-    row("Cutscene_Reunion", Map(0x07_8AE4), Wait(9)),
-    row("Cutscene_Reunion", Map(0x07_8AF4), Wait(11)),
-    row("Cutscene_Reunion", Map(0x07_8BBE), Wait(19)),
+    row("Cutscene_Reunion", Map(0x07_8AE4), Wait(10)),
+    row("Cutscene_Reunion", Map(0x07_8AF4), Wait(12)),
+    row("Cutscene_Reunion", Map(0x07_8BBE), Wait(20)),
     row("Event_AngerTowerTop", Map(0x07_224A), Wait(9)),
     row("Event_AngerTowerAlys", Facing(0x07_14A2), Missing(164)),
     row("Event_AngerTowerAlys", Step(0x07_14D0), Within(2)),
@@ -181,7 +203,7 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_AngerTowerAlys", Step(0x07_1530), Within(4)),
     // `loc_78ECE`'s 600 passes: the edge's palette updates and the random
     // white flashes with `SFXID_Tandle`, no `RunMapUpdates`.
-    defect(DEZO, row("Cutscene_ProfoundDarkness", own(0x07_8ED4, false, false), Wait(12))),
+    defect(DEZO, row("Cutscene_ProfoundDarkness", own(0x07_8ED4, false, false), Wait(14))),
     // dezo_campaign.rs
     // The `loc_70638` colour-cycle loops run no map updates; `bsr loc_705D6`
     // between the first two adds 71 passes of fade-in with no op.
@@ -194,36 +216,37 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_MeetingLeRoof", own(0x07_0552, false, false), Within(13)),
     row("Event_MeetingLeRoof", own(0x07_0570, false, false), Within(15)),
     row("Cutscene_LeRoofAgain", Map(0x07_8366), Wait(2)),
-    row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Within(9)),
+    row("Cutscene_LeRoofAgain", own(0x07_83F2, false, false), Within(10)),
     // `jsr loc_705D6` at `$078406`: `Event_MeetingLeRoof`'s fade-in loop.
-    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(10)),
-    row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(11)),
-    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(19)),
+    row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(11)),
+    row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(12)),
+    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(21)),
     // Mounted: a frame of map updates after the SFX stop, a bare frame after
-    // `Field_BuildSprites`, and a frame with the objects after the dismount.
+    // `Field_BuildSprites`, and a frame with the objects after the dismount,
+    // whose object pass is a recorded deviation (#470).
     row("Event_CarnivorousTrees", Map(0x07_078C), Wait(3)),
-    row("Event_CarnivorousTrees", frame(0x07_07A0, false), Missing(CAMPAIGN)),
-    row("Event_CarnivorousTrees", frame(0x07_080C, true), Missing(CAMPAIGN)),
+    row("Event_CarnivorousTrees", frame(0x07_07A0, false), Within(6)),
+    updates(OBJECTS, row("Event_CarnivorousTrees", frame(0x07_080C, true), Within(8))),
     row("Event_SavingKyra", Map(0x07_086E), Wait(3)),
-    row("Event_SavingKyra", frame(0x07_0882, false), Missing(CAMPAIGN)),
-    row("Event_SavingKyra", frame(0x07_08EE, true), Missing(CAMPAIGN)),
-    row("Event_SavingKyra", Map(0x07_0912), Wait(10)),
-    row("Cutscene_MeetingKyra", Frames(0x07_77E2), Within(10)),
-    row("Cutscene_MeetingKyra", Frames(0x07_77FC), Within(13)),
-    // Mounted: three frames, the last after the dismount; op 5 is that one.
-    row("Event_EclipseTorchUsed", frame(0x07_01A0, false), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", frame(0x07_01B4, false), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Wait(5))),
-    row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(9)),
+    row("Event_SavingKyra", frame(0x07_0882, false), Within(6)),
+    updates(OBJECTS, row("Event_SavingKyra", frame(0x07_08EE, true), Within(8))),
+    row("Event_SavingKyra", Map(0x07_0912), Wait(12)),
+    row("Cutscene_MeetingKyra", Frames(0x07_77E2), Within(11)),
+    row("Cutscene_MeetingKyra", Frames(0x07_77FC), Within(14)),
+    // Mounted: two bare frames around the music, and one with the objects
+    // after the dismount.
+    row("Event_EclipseTorchUsed", frame(0x07_01A0, false), Within(3)),
+    row("Event_EclipseTorchUsed", frame(0x07_01B4, false), Within(6)),
+    updates(OBJECTS, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Within(8))),
+    row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(11)),
     // Two white flashes, each 2 frames of map updates and 40 passes of the
-    // `loc_58666` restore; the transcription has the first restore only.
-    row("Event_EclipseTorchUsed", Map(0x07_0266), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Wait(11))),
-    row("Event_EclipseTorchUsed", Map(0x07_02A8), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Missing(CAMPAIGN)),
-    // After the nine `$338` spawns, whose `ObjectAnimation`s record one
-    // frame each that no retail loop runs.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Missing(CAMPAIGN)),
+    // `loc_58666` restore with neither update.
+    row("Event_EclipseTorchUsed", Map(0x07_0266), Wait(15)),
+    row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
+    row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
+    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
+    // After the nine `$338` creations, which wait no frame of their own.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),
@@ -236,4 +259,35 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_LutzRevelation", Facing(0x07_7984), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_798C), Wait(18)),
     row("Cutscene_LutzRevelation", Frames(0x07_79D6), Within(25)),
+    // next_arc_followup.rs. `Event_BioPlantAlarm`'s red fades and
+    // `Event_LeavingChazHouse` wait nothing else.
+    // `Field_BuildSprites` then a bare frame, twice.
+    row("Event_GirlsSneakingOut", own(0x06_D4A8, false, false), Within(0)),
+    row("Event_GirlsSneakingOut", frame(0x06_D4E2, false), Within(6)),
+    row("Event_GirlsSneakingOut", Map(0x06_D52E), Wait(12)),
+    row("Event_GirlsSneakingOut", frame(0x06_D580, false), Within(21)),
+    row("Event_ChazHouse", Map(0x06_FAA2), Wait(8)),
+    row("Cutscene_MeetingRika", Facing(0x07_45FE), Missing(164)),
+    row("Cutscene_MeetingRika", frame(0x07_4652, false), Within(13)),
+    row("Cutscene_MeetingRika", Map(0x07_46F0), Wait(24)),
+    row("Cutscene_MeetingRika", Frames(0x07_4722), Within(31)),
+    row("Cutscene_MeetingRika", Frames(0x07_473C), Within(34)),
+    row("Cutscene_MeetingRika", Map(0x07_47B2), Wait(46)),
+    row("Cutscene_MeetingRika", Facing(0x07_47BE), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_47C8), Wait(48)),
+    row("Cutscene_MeetingRika", Facing(0x07_47D4), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_47DE), Wait(50)),
+    row("Cutscene_MeetingRika", Map(0x07_4802), Wait(53)),
+    row("Cutscene_MeetingRika", Map(0x07_4820), Wait(57)),
+    // `move.w #$3B,d0` and 60 bare `VInt_Prepare`s after the palette words.
+    row("Cutscene_MeetingRika", own(0x07_4836, false, false), Within(59)),
+    row("Cutscene_MeetingRika", Map(0x07_494C), Wait(75)),
+    row("Cutscene_MeetingRika", Facing(0x07_4972), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_497C), Wait(78)),
+    row("Cutscene_MeetingRika", Facing(0x07_4984), Missing(164)),
+    row("Cutscene_MeetingRika", Map(0x07_498E), Wait(80)),
+    row("Cutscene_MeetingRika", Facing(0x07_4996), Missing(164)),
+    row("Cutscene_MeetingRika", frame(0x07_49DE, false), Within(91)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A00), Within(95)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A1A), Within(98)),
 ];

@@ -220,6 +220,16 @@ impl Field {
             "transition": self.transition.is_some(), "money": rt.game().money(),
             "camp": self.camp_menu.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
             "shop": self.shop.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
+            "job_board": self.session.as_ref().and_then(Session::job_board_view).map(|view| serde_json::json!({
+                "columns": view.columns,
+                "rows": view.rows.iter().map(|row| format!("{:?}", row.colour)).collect::<Vec<_>>(),
+            })),
+            "destination": self.session.as_ref().and_then(Session::destination_view).map(|view| serde_json::json!({
+                "phase": format!("{:?}", view.phase),
+                "prompt_ready": view.prompt_ready,
+                "list_columns": view.list_columns,
+                "rows": view.rows,
+            })),
             "temporary_objects": self.presentation.temporary_draws().iter().filter(|(_, o)| o.frames_left > 0).map(|(slot, o)| serde_json::json!({"slot": slot, "id": o.object_id, "elapsed": o.elapsed, "position":o.destination})).collect::<Vec<_>>(),
             "map_patches": rt.map_effects().patch_blits.len(),
             "chunk_patches": rt.map_effects().chunk_patches,
@@ -262,8 +272,10 @@ impl Field {
     /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
     /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_EVENT`
-    /// starts a transcribed scene at tick 30; combine it with
+    /// screenshot so an agent can see what a player would, and
+    /// `PSIV_DEBUG_SHOT_LAST=<n>` one per tick through tick n. `PSIV_DEBUG_EVENT`
+    /// starts a transcribed scene at tick 30 (or `PSIV_DEBUG_EVENT_FRAME`);
+    /// combine it with
     /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
     /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
     /// typewriter and four-frame dismiss hold while using the debug selector.
@@ -350,7 +362,12 @@ impl Field {
                 godot_error!("shop debug selector {index} did not name a live counter");
             }
         }
-        if self.anim_tick == 30
+        let event_frame =
+            debug_event_frame(std::env::var("PSIV_DEBUG_EVENT_FRAME").ok().as_deref());
+        if event_frame.is_none() && self.anim_tick == 30 {
+            godot_error!("PSIV_DEBUG_EVENT_FRAME must be a decimal tick of at least 30");
+        }
+        if event_frame == Some(self.anim_tick)
             && let Ok(value) = std::env::var("PSIV_DEBUG_EVENT")
         {
             let trimmed = value.trim().trim_start_matches("0x");
@@ -384,7 +401,7 @@ impl Field {
                         self.presentation.reset_scene();
                         self.set_letterbox(true);
                         if event & 0x8000 != 0 {
-                            self.start_transition(crate::transitions::TransitionKind::SceneStart);
+                            self.start_cutscene_cover();
                         }
                         godot_print!("debug: starting scene event {event:#06x}");
                     } else {
@@ -423,6 +440,7 @@ impl Field {
         let state = runtime.game().snapshot();
         let report = serde_json::json!({
             "tick": self.anim_tick,
+            "main_frame_count": self.session.as_ref().map(Session::main_frame_count),
             "map": runtime.map_id().0,
             "cell": [runtime.state().cell().x, runtime.state().cell().y],
             "scene_active": runtime.scene_active(),
@@ -468,9 +486,20 @@ impl Field {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(180);
-        if self.anim_tick != at {
-            return;
-        }
+        // `PSIV_DEBUG_SHOT_LAST=<n>`: every tick from `at` through `n`, each
+        // to `<path stem>-t<tick>.png`, so a frame sweep is one run.
+        let last: Option<u64> = std::env::var("PSIV_DEBUG_SHOT_LAST")
+            .ok()
+            .and_then(|v| v.parse().ok());
+        let path = match last {
+            None if self.anim_tick == at => path,
+            Some(last) if (at..=last).contains(&self.anim_tick) => {
+                let stem = path.strip_suffix(".png").unwrap_or(&path);
+                format!("{stem}-t{}.png", self.anim_tick)
+            }
+            _ => return,
+        };
+        let at = self.anim_tick;
         if self.battle_presentation_active()
             && let Some(screen) = self.battle_screen.as_ref()
         {
@@ -522,5 +551,34 @@ impl Field {
             session.frame(Pad::NEUTRAL);
         }
         godot_error!("debug: the TELEPIPE town list never opened");
+    }
+}
+
+/// Event fixtures start after the normal 30-tick setup. Extra idle frames
+/// let a capture share the cartridge's palette-cycle phase without changing
+/// a runtime clock or a game rule.
+fn debug_event_frame(value: Option<&str>) -> Option<u64> {
+    match value {
+        None => Some(30),
+        Some(value) => value.parse::<u64>().ok().filter(|tick| *tick >= 30),
+    }
+}
+
+#[cfg(test)]
+mod event_frame_tests {
+    use super::debug_event_frame;
+
+    #[test]
+    fn the_default_and_explicit_event_frames_keep_the_setup() {
+        assert_eq!(debug_event_frame(None), Some(30));
+        assert_eq!(debug_event_frame(Some("30")), Some(30));
+        assert_eq!(debug_event_frame(Some("35")), Some(35));
+    }
+
+    #[test]
+    fn an_invalid_or_premature_event_frame_is_refused() {
+        for value in ["", "-1", "0", "29", "3.5", "x", "18446744073709551616"] {
+            assert_eq!(debug_event_frame(Some(value)), None, "{value}");
+        }
     }
 }

@@ -21,6 +21,7 @@ mod cutscene;
 mod debug;
 mod destination;
 mod dialogue;
+mod display;
 mod field_map;
 mod field_status;
 mod field_visuals;
@@ -42,7 +43,9 @@ mod tape_feed;
 mod title;
 mod transitions;
 mod view;
-use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
+mod window_layer;
+mod window_palette;
+use battle::BattleScreen;
 use boot::title_bypassed;
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
@@ -187,6 +190,8 @@ struct Field {
     /// The live palette sprite sheets and scene panels draw from
     /// (`cram_art`), refreshed from `Runtime::cram` every drawn frame.
     cram: cram_art::SharedCram,
+    /// The native windows' line-2 material and its debug override.
+    window_line: field_visuals::WindowLineState,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
     status_presentation: field_status::StatusPresentation,
@@ -212,6 +217,8 @@ struct Field {
     transition: Option<transitions::Transition>,
     /// ColorRect pieces used by the active transition cover.
     transition_nodes: Vec<Gd<ColorRect>>,
+    /// The rect drawn while the display bit is off (`display.rs`).
+    display_off: Option<Gd<ColorRect>>,
     /// Set when a zero-return cutscene's `FieldReload` op has already torn the
     /// scene down and drawn the field; the scene's `SceneEnded` then only
     /// hands control back. Cleared by that `SceneEnded`.
@@ -311,6 +318,7 @@ impl INode2D for Field {
             temporary_nodes: BTreeMap::new(),
             sheet_views: HashMap::new(),
             cram: cram_art::SharedCram::default(),
+            window_line: field_visuals::WindowLineState::default(),
             camera: None,
             dialogue: None,
             status_presentation: field_status::StatusPresentation::default(),
@@ -331,6 +339,7 @@ impl INode2D for Field {
             letterbox: Vec::new(),
             transition: None,
             transition_nodes: Vec::new(),
+            display_off: None,
             field_reload_presented: false,
             leader_char: 0,
             party_sequence: String::new(),
@@ -585,6 +594,7 @@ impl INode2D for Field {
             }
         };
         self.session = Some(session);
+        self.attach_window_line();
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
@@ -626,6 +636,7 @@ impl INode2D for Field {
             .is_some_and(|session| session.title().is_some())
         {
             self.drive_title_frame();
+            self.sync_display(false);
             return;
         }
         let battle_was_active = self.battle_presentation_active();
@@ -659,10 +670,12 @@ impl INode2D for Field {
             {
                 self.play_map_music();
             }
+            self.sync_display(false);
             return;
         }
 
         self.drive_game_frame();
+        self.sync_display(true);
     }
 }
 
@@ -798,7 +811,7 @@ impl Field {
         self.sync_dialogue_view();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
-            layer.bind_mut().panel_destroy_all();
+            layer.bind_mut().clear_planes();
         }
         self.set_letterbox(false);
     }
@@ -878,92 +891,6 @@ impl Field {
                     self.present_title(title);
                 }
             }
-        }
-    }
-
-    /// Hands the window this frame's runtime view. The runtime owns the
-    /// window's state; the node owns its pixels.
-    fn sync_dialogue_view(&mut self) {
-        let view = self.runtime().and_then(|rt| rt.dialogue_view());
-        if let Some(window) = self.dialogue.as_mut() {
-            window.bind_mut().set_view(view);
-        }
-    }
-
-    /// Cinema mode: letterbox bars over the world, under the dialogue box.
-    fn set_letterbox(&mut self, on: bool) {
-        if on && self.letterbox.is_empty() {
-            for _ in 0..LETTERBOX_BARS {
-                let mut bar = godot::classes::ColorRect::new_alloc();
-                bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
-                bar.set_z_index(500);
-                self.base_mut().add_child(&bar);
-                self.letterbox.push(bar);
-            }
-        }
-        for bar in &mut self.letterbox {
-            bar.set_visible(on);
-        }
-    }
-
-    /// Keeps the bars glued to the camera view and masks everything outside
-    /// the authentic 320x224 frame. At the existing 3x camera zoom this is a
-    /// lossless 960x672 presentation inside the 1280x800 wide viewport.
-    fn place_letterbox(&mut self) {
-        if self.letterbox.is_empty() || !self.letterbox[0].is_visible() {
-            return;
-        }
-        let Some(camera) = self.camera.as_ref() else {
-            return;
-        };
-        let viewport = self.base().get_viewport_rect().size;
-        let zoom = camera.get_zoom().x.max(0.01);
-        let view = viewport / zoom;
-        let center = camera.get_position();
-        let top_left = center - view / 2.0;
-        let frame_top_left =
-            center - Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
-        let frame_bottom_right =
-            center + Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
-        // The camera centre is fractional, so a bar that starts exactly at
-        // the view edge can rasterize a sub-pixel short and leak a one-pixel
-        // strip of world along the screen border. Overdraw every outward
-        // edge by a couple of world pixels; the frame-facing edges stay
-        // exact.
-        const BLEED: f32 = 2.0;
-        let sizes = [
-            (
-                top_left - Vector2::new(BLEED, BLEED),
-                Vector2::new(
-                    view.x + 2.0 * BLEED,
-                    (frame_top_left.y - top_left.y).max(0.0) + BLEED,
-                ),
-            ),
-            (
-                Vector2::new(top_left.x - BLEED, frame_bottom_right.y),
-                Vector2::new(
-                    view.x + 2.0 * BLEED,
-                    (top_left.y + view.y - frame_bottom_right.y).max(0.0) + BLEED,
-                ),
-            ),
-            (
-                Vector2::new(top_left.x - BLEED, frame_top_left.y),
-                Vector2::new(
-                    (frame_top_left.x - top_left.x).max(0.0) + BLEED,
-                    BATTLE_FRAME_HEIGHT,
-                ),
-            ),
-            (
-                Vector2::new(frame_bottom_right.x, frame_top_left.y),
-                Vector2::new(
-                    (top_left.x + view.x - frame_bottom_right.x).max(0.0) + BLEED,
-                    BATTLE_FRAME_HEIGHT,
-                ),
-            ),
-        ];
-        for (bar, (pos, size)) in self.letterbox.iter_mut().zip(sizes) {
-            bar.set_position(pos);
-            bar.set_size(size);
         }
     }
 

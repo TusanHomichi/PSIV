@@ -108,7 +108,7 @@ pub static INSIDE_SPACESHIP: Scene = Scene {
 
 /// Ops between the sabotage menu and its cancel leg: everything after the menu
 /// up to and including the final `Return { value: 1 }`.
-const SABOTAGE_CANCEL_SKIP: u16 = 28;
+const SABOTAGE_CANCEL_SKIP: u16 = 31;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -155,6 +155,11 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
             clear_load_flags: 0x08,
         },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
+        // `loc_763CA` (`ps4.asm:155659-155660`): `jsr InitVRAMAndCRAM` /
+        // `jsr Pal_FadeIn` before panel `$7A`. The fade-out before them left
+        // the display off, and the fade-in turns it on (#653).
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x7A },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 90 },
@@ -175,6 +180,8 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::PanelCreate { id: 0x7E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 10 },
+        // `$0764BA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0764C0`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Retained,
@@ -245,8 +252,12 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::WaitFrames { frames: 6 },
         SceneOp::PlaySound { id: SFX_MEGID },
         SceneOp::WaitFrames { frames: 180 },
+        // `$076710`: `move.b #9, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 9 },
+            op: PresentationOp::VariablePaletteFade {
+                fade_in: false,
+                mode: 9,
+            },
         },
         SceneOp::PanelDestroyAll,
         SceneOp::PlaySound { id: MUSIC_STOP },
@@ -259,6 +270,8 @@ pub static CRASH_LANDING: Scene = Scene {
         },
         SceneOp::SetDialogueTree { rom_addr: TREE_14 },
         SceneOp::FadeIn,
+        // `$07676E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(7)),
             window: DialogueWindow::Cutscene,
@@ -454,6 +467,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Up,
         },
+        // `$076C5C`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::Face {
             actor: CHAZ_ACTOR,
@@ -463,6 +478,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: WREN_ACTOR,
             facing: Direction::Left,
         },
+        // `$076C8E`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::MoveActorTo {
             actor: RIKA_ACTOR,
@@ -504,6 +521,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Right,
         },
+        // `$076D44`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::Wait { ticks: 60 },
         SceneOp::Face {
@@ -518,6 +537,8 @@ pub static CRASH_LANDING: Scene = Scene {
             actor: CHAZ_ACTOR,
             facing: Direction::Left,
         },
+        // `$076D8E`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResume,
         SceneOp::SetFollowMode { bits: 0 },
         SceneOp::JoinParty { slot: 4, who: RAJA },
@@ -731,6 +752,8 @@ pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
             id: SFX_SPACESHIP_RADAR,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
+        // `$0772CA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(8)),
             window: DialogueWindow::Cutscene,
@@ -750,8 +773,21 @@ pub static JUZA: Scene = Scene {
     name: "Event_Juza",
     event: EventIndex(0x0040),
     ops: &[
+        // `$06FB1E..$06FB33`: `lea (Field_Obj_Secondary).w, a4 / lea
+        // (Character_1).w, a3 / move.w $6(a3), d0 / bchg #2, d0 / jsr
+        // Event_UpdateObjFacing`: Juza, the first secondary object, turns to
+        // the opposite of the leader's facing, to face the party.
+        SceneOp::FaceOppositeOf {
+            actor: ActorRef::Npc(0),
+            of: LEADER,
+        },
+        // `$06FB34..$06FB3F`: `move.b #2, ($FFFFED52).w / jsr
+        // Pal_VariableFadeOut_Lines_1_2`.
         SceneOp::Presentation {
-            op: PresentationOp::FadeToRed { lines: 2 },
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
         },
         retained(0x48),
         SceneOp::SetFlag {
@@ -798,6 +834,72 @@ pub static JUZA_DEFEATED: Scene = Scene {
         },
     ],
 };
+
+#[cfg(test)]
+mod juza_tests {
+    use super::*;
+    use crate::scene::{SceneEffect, SceneInput, ScriptedActor};
+    use crate::scene_runner::SceneRunner;
+    use crate::state::GameState;
+    use crate::{Cell, CollisionGrid, FieldMap, MapId};
+
+    /// `Event_Juza` turns Juza (object 0) to the opposite of the leader's
+    /// facing (`bchg #2`) before its fade, from each of the four facings.
+    #[test]
+    fn juza_turns_away_from_the_leaders_facing_before_the_fade() {
+        let map = FieldMap::new(
+            MapId(0x87),
+            CollisionGrid::filled(16, 16, 0).unwrap(),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        for (leader, expected) in [
+            (Direction::Up, Direction::Down),
+            (Direction::Down, Direction::Up),
+            (Direction::Left, Direction::Right),
+            (Direction::Right, Direction::Left),
+        ] {
+            let cast = vec![
+                ScriptedActor::new(LEADER, Cell::new(4, 5), leader),
+                // Juza starts facing the same way as the leader, so only
+                // the turn can make the two disagree.
+                ScriptedActor::new(ActorRef::Npc(0), Cell::new(4, 4), leader),
+            ];
+            let mut runner = SceneRunner::new(JUZA.ops, cast, crate::StepFrames::default());
+            let mut state = GameState::new();
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            let faced = effects.iter().position(|e| {
+                *e == SceneEffect::ActorFaced {
+                    actor: ActorRef::Npc(0),
+                    facing: expected,
+                }
+            });
+            let fade = effects.iter().position(|e| {
+                matches!(
+                    e,
+                    SceneEffect::Presentation {
+                        op: SceneOp::Presentation {
+                            op: PresentationOp::TwoLinePaletteFade {
+                                fade_in: false,
+                                mode: 2
+                            }
+                        }
+                    }
+                )
+            });
+            let (Some(faced), Some(fade)) = (faced, fade) else {
+                panic!("leader {leader:?}: faced {faced:?}, fade {fade:?} in {effects:#?}");
+            };
+            assert!(faced < fade, "leader {leader:?}: the turn follows the fade");
+            assert_eq!(
+                runner.actor(ActorRef::Npc(0)).unwrap().facing,
+                expected,
+                "leader {leader:?}"
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod world_index_tests {

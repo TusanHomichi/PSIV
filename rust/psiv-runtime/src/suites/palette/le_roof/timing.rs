@@ -3,7 +3,7 @@
 //! colour-loop pass and the fade-in, and the 84-frame `Pal_VariableFadeOut`
 //! at `$07845A`. The loops' palette words are `palette.rs`'s Le Roof tests.
 
-use super::palette::{LeRoofTick, le_roof_emitted, le_roof_run, le_roof_run_from, pack_present};
+use super::{LeRoofTick, le_roof_emitted, le_roof_run, le_roof_run_from, pack_present};
 use crate::RuntimeEvent;
 use psiv_core::{Flag, PresentationOp, SceneOp};
 
@@ -117,13 +117,14 @@ fn le_roof_again_fades_its_panel_out_over_the_retail_frames() {
             }
         )
     });
+    // `InitVRAMAndCRAM` starts with the fixed fade-out (#637).
     let reinit = (fade..ticks.len())
         .find(|&at| {
             ticks[at].events.iter().any(|event| {
                 matches!(
                     event,
                     RuntimeEvent::ScenePresentation {
-                        op: SceneOp::InitVramAndCram,
+                        op: SceneOp::FadeOut,
                         ..
                     }
                 )

@@ -71,7 +71,10 @@ pub enum DialogueWindow {
     /// `Event_GetAndRunDialogue3` (`$5AD32`): the windows close and the chunks
     /// reload, but no `Panel_DestroyAll`, so the panels stay up.
     Cutscene3,
-    /// The ending's first `RunText3` window before the panel sequence.
+    /// The ending's first `RunText3` window before the panel sequence
+    /// (`$078F68..$078F90`, inline): no routine exit destroys it, so the
+    /// window and its portrait stay up until the scene's own `WindowDestroy`
+    /// (`$078FAE..$078FCC`).
     EndingIntro,
     /// `Event_GetAndRunDialogue4` (`$5ADA2`) / `Event_RunDialogue4` in
     /// `$8021`: `RunText3`, no button wait, no `Panel_DestroyAll`.
@@ -79,6 +82,28 @@ pub enum DialogueWindow {
     /// `Event_RunDialogue5` used for the Rykros hand-off line: the
     /// `Event_GetAndRunDialogue5` exit reached through its resume entry.
     Cutscene5,
+}
+
+impl DialogueWindow {
+    /// Whether returning from the text leaves its last page and portrait up.
+    /// The scene owns their later destruction or replacement.
+    #[must_use]
+    pub fn retains_page(self) -> bool {
+        match self {
+            Self::Retained | Self::EndingIntro => true,
+            Self::Standard | Self::Cutscene | Self::Cutscene3 | Self::Ending | Self::Cutscene5 => {
+                false
+            }
+        }
+    }
+
+    /// Whether the window's text runs through `RunText3` (`ps4.asm:144053`)
+    /// rather than `RunText`: it reads no pad, draws no arrow, and pages and
+    /// ends on its own clock. Both are the ending's windows.
+    #[must_use]
+    pub fn runs_text3(self) -> bool {
+        matches!(self, DialogueWindow::EndingIntro | DialogueWindow::Ending)
+    }
 }
 
 /// Where a dialogue entry index comes from.

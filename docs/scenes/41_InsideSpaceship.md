@@ -1,10 +1,13 @@
 # `Cutscene_InsideSpaceship`
 
 - **Retail bytes:** `$07606C..$07607D` inclusive, 18 bytes, then the shared helper
-  `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
+  `loc_63BC4` through `loc_64C1E`'s closing `jmp` (`ps4.asm:133499-134714`,
+  ROM `$063BC4` to `$064CFF`), the menu and the flight routines it calls. The
+  censuses read that span as this scene's shared code, never as a caller's
+  (`wait_census::shared_code::SHARED_CODE`).
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (44 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (45 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
@@ -113,7 +116,24 @@ branch are not frame-exact claims.
 
 **Fade correction:** flight fade-in spends 16 frames, including display enable
 and the terminal palette pass. Fade-out spends 14. The old claim that all fades
-spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`).
+spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`). Since
+#637 the route's `FadeOut`s and `InitVramAndCram` spend their own frames on the
+CRAM model, as many as the palette's largest nibble needs (14 from white; the
+`InitVRAMAndCRAM` row's 15/13 is its fade and `DMAPlanes_VInt`), so the route
+holds no `WaitFrames` for them, and `FlightPlanet` spends the planet screen's
+setup alone (23/24).
+
+**Propulsion SFX (#629):** the spaceports' loop writes `SFXID_SpaceshipPropelled`
+(`$E3`) to `Sound_Index` at the start of each pass whose counter is `$E1`, `$E2`
+or `$E3` (`loc_6462A`, `:134220-134221`): passes 226 to 228 of the 419, tape 35
+frames 7860 to 7862 (Speak + 459 to 461). The VInt that ends each pass services
+it, and `PlaySFX` (`ps4.sound_driver.asm:757-850`) clears the SFX channel and
+starts over on every request, at the same priority (`$7F`) as the one
+playing. Tape 35 shows the channel at `$FF5280` holding its first note's timer at 9
+on frames 7861 to 7863, then counting down from 7864. The route requests it
+on the same three ticks, and the native driver restarts an SFX the same way
+(`start_sfx`, `rust/psiv-sound/src/driver.rs`). The other maps' takeoff
+(`loc_64908`) requests no SFX.
 
 **Pan:** `loc_5ABDC` subtracts home offsets `$98/$58`, masks to twelve bits and
 uses the shortest wrapped route. This call selects only Y, speed 2, with the
@@ -233,9 +253,11 @@ post-control overlay removal. The correction-ladder rung is **compile-time full-
 for inlined callers, plus regression tests through the owning runtime, with a repository-owned oracle probe; no shell
 sleep or timing workaround.
 
-`ship-menu` retains clone tick **70**, oracle frame **7293** and SHA-256
-`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`.
-The runtime's tick-30 event fixture verifies at tick 70: Choosing, both windows
+`ship-menu` is clone tick **101**, oracle frame **7293** and SHA-256
+`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`: tick 70
+before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent their 15 and 16
+frames ([#637](https://github.com/TusanHomichi/PSIV/issues/637)).
+The runtime's tick-30 event fixture verifies at tick 101: Choosing, both windows
 fully uploaded, cursor hidden and marker blink off. `python3 tools/certify.py
 --only ship-menu` is the image comparison; a state-pin pass is not an
 image-parity pass.

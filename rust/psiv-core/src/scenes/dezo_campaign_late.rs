@@ -75,6 +75,8 @@ pub static DARK_FORCE_2_DEFEATED: Scene = Scene {
         SceneOp::WaitFrames { frames: 8 },
         SceneOp::PanelCreate { id: 0x10F },
         SceneOp::DmaPlanes,
+        // `$077C6A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077C70`: `jsr Event_GetAndRunDialogue3`.
         cutscene3(0x3B),
         SceneOp::PanelCreate { id: 0x110 },
@@ -83,10 +85,14 @@ pub static DARK_FORCE_2_DEFEATED: Scene = Scene {
             id: MUSIC_DEZOLIS_FIELD_2,
         },
         SceneOp::WaitFrames { frames: 60 },
+        // `$077CA0`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::PanelDestroyAll,
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 60 },
+        // `$077CD0`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077CD6`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
@@ -151,6 +157,8 @@ pub static MEETING_SETH: Scene = Scene {
         SceneOp::PanelCreate { id: 0x118 },
         SceneOp::DmaPlanes,
         SceneOp::SetDialogueTree { rom_addr: TREE_42 },
+        // `$077ED6`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0),
         SceneOp::JoinParty { slot: 4, who: SETH },
         SceneOp::Presentation {
@@ -186,11 +194,15 @@ pub static AERO_PRISM: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_BARRIER_BROKEN,
         },
+        // `$077F86`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077F8C`: `jsr Event_GetAndRunDialogue3`.
         cutscene3(1),
         SceneOp::Wait { ticks: 30 },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::Wait { ticks: 1 },
+        // `$077FB2`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::PanelCreate { id: 0x0A4 },
         SceneOp::DmaPlanes,
@@ -198,11 +210,15 @@ pub static AERO_PRISM: Scene = Scene {
             id: MUSIC_RED_ALERT,
         },
         SceneOp::WaitFrames { frames: 60 },
+        // `$078036`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogueResume,
         SceneOp::PanelCreate { id: 0x0A5 },
         SceneOp::DmaPlanes,
         SceneOp::PlaySound { id: 0xEC },
         SceneOp::WaitFrames { frames: 20 },
+        // `$07809E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0780A4`: `popdlg` / `jsr Event_RunDialogue2`: nothing is destroyed.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Retained,
@@ -321,6 +337,8 @@ pub static FINDING_AIR_CASTLE: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x18A },
         SceneOp::DmaPlanes,
+        // `$077A4C`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0x18),
         SceneOp::SetFlag {
             flag: Flag::event(0x99),
@@ -466,6 +484,8 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x107 },
         SceneOp::DmaPlanes,
+        // `$077A86`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077A8C`: `jsr Event_GetAndRunDialogue3`; the panels stay until
         // the `Panel_DestroyAll` below.
         cutscene3(0x38),
@@ -485,6 +505,8 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_DEZOLIS_FIELD,
         },
+        // `$077B22`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077B28`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
@@ -510,7 +532,12 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::SetSavedMusic {
             id: MUSIC_TEMPLE_NGANGBIUS,
         },
+        // `ps4.asm:156952`: `jsr Pal_FadeIn` after the `RefreshMap`, which
+        // turns the display back on for the dialogue (#653).
+        SceneOp::FadeIn,
         SceneOp::SetDialogueTree { rom_addr: TREE_22 },
+        // `$077BC0`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: false },
         standard(0x39),
         SceneOp::SetDialogueTree { rom_addr: TREE_38 },
         SceneOp::Return { value: 1 },
