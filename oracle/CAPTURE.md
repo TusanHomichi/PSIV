@@ -27,6 +27,41 @@ frame-end register/stack diagnostic. For field reload boundaries and the
 timing model these observations support, see
 [the reload note](../docs/scenes/FIELD_RELOAD.md#inputs-to-an-exact-timing-model).
 
+### Scene-load measurements
+
+`nix develop -c python3 -m oracle.scene_loads --out build/scene-loads` measures
+the panel loads in certify's tape-46 Eclipse Torch and tape-43 Rykros
+fixtures, plus the Torch's standalone `$1D712C` art load. Add `--scenes 46 43
+38` to include the ending's inline dialogue panels. The output directory must
+be new. The fixtures and their RAM patches come from `tools/certify.py`; these
+are explicit scene fixtures, not connected campaign-route evidence.
+
+The lane checks the US routine boundaries against ROM bytes and retains the
+tape, RAM map, exact command, input/source hashes, exit status, wall time,
+frame CSV and instruction trace. Each whole-panel interval contains its own
+Nemesis and Enigma intervals. The report counts equal `Main_Frame_Count`
+samples from the frame after entry through the return frame, checks that the
+seed also holds on each of them, and records their individual tape frame
+numbers. It refuses incomplete or misordered boundaries and ambiguous panel
+ids (two panel returns in one frame). Frame-end `Panel_Index` identifies each
+panel in these fixtures; it is not a register trace at the call site.
+
+The intervals end **before RTS**, except the standalone art interval, which
+runs from its caller's JSR to the following instruction. Elapsed master cycles
+include interrupts, refresh and VDP stalls, and use the NTSC frame length
+`3420 * 262` when crossing frame boundaries. Nested intervals overlap their
+parent; their held-frame counts must not be added to the parent's count.
+
+The lane also queries `psiv-pack`'s `scene_load_work` example under the build
+reservation. `work.json` records the raw panel record and dimensions, each
+selected stream's source, consumed/decoded sizes and hashes, and the Nemesis
+decoder's intrinsic **CPU** cycles. Queries include panels whose pictures the
+pack cannot emit yet, such as `$10D`. No pack is built or modified. This
+separates the input-dependent decompressor work from observed elapsed time;
+the report does not convert CPU cycles into frame budgets. That model and
+runtime consumption are tracked in
+[#681](https://github.com/TusanHomichi/PSIV/issues/681).
+
 ### Video frame capture
 
 The host can save exact, player-visible reference frames directly from the
