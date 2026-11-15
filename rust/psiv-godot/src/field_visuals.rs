@@ -641,6 +641,18 @@ impl Field {
         self.sync_transition();
     }
 
+    /// An event battle's entry draws the runtime's uniform screen this frame:
+    /// a one-frame cover over whatever transition ran, set again each frame
+    /// the runtime still shows it.
+    pub(super) fn sync_battle_entry_screen(&mut self) {
+        let screen = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::event_battle_entry_screen);
+        if let Some(word) = screen {
+            self.start_transition(TransitionKind::Screen(word));
+        }
+    }
+
     /// Advances transitions even while the battle presentation owns the
     /// normal runtime tick.
     pub(super) fn tick_transition(&mut self) {
@@ -700,6 +712,10 @@ impl Field {
         let color = match visual.color {
             super::transitions::TransitionColor::Black => Color::from_rgba(0.0, 0.0, 0.0, alpha),
             super::transitions::TransitionColor::White => Color::from_rgba(1.0, 1.0, 1.0, alpha),
+            super::transitions::TransitionColor::Cram(word) => {
+                let [r, g, b] = psiv_data::color::cram_rgb(word);
+                Color::from_rgba8(r, g, b, 255)
+            }
         };
         let z = if transition.front_layer() { 600 } else { 25 };
         for node in &mut self.transition_nodes {

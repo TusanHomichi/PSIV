@@ -205,3 +205,69 @@ fn igglanova_defeat_ends_play_without_reviving_or_replaying_the_scene() {
     assert_eq!(runtime.state().cell(), at);
     assert_eq!(runtime.game().money(), money);
 }
+
+/// The Igglanova's request starts the event battle's entry (#663): 76 frames
+/// with the field and the scene parked, the seed stepped on the 36 the
+/// cartridge counts (tape 45), the white hold and the fade drawn from the 14th,
+/// and the battle, with its one opening roll, on the last.
+#[test]
+fn the_event_battle_starts_and_rolls_at_its_entrys_end() {
+    if !Path::new(PACK).join("battle").is_dir() {
+        eprintln!("pack battle section not present; skipping");
+        return;
+    }
+    let mut runtime = runtime_with_battles();
+    let _ = drive_scene(&mut runtime, 0x0C);
+    assert!(runtime.start_event(0x6B), "Igglanova event starts");
+    let mut entered = false;
+    for _ in 0..100 {
+        let events = runtime.tick(Input::Neutral);
+        for item in &events {
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                runtime.dialogue_closed();
+            }
+            assert!(!matches!(item, RuntimeEvent::SceneBattleStarted { .. }));
+        }
+        if events
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::EventBattleEntered { .. }))
+        {
+            entered = true;
+            break;
+        }
+    }
+    assert!(entered, "the scene requests its battle");
+    assert!(!runtime.battle_active());
+
+    let (mut ticks, mut steps, mut screens) = (0, 0, Vec::new());
+    let started = loop {
+        let seed = runtime.rng_seed();
+        let events = runtime.tick(Input::Action);
+        ticks += 1;
+        if runtime.rng_seed() != seed {
+            steps += 1;
+        }
+        if let Some(RuntimeEvent::SceneBattleStarted { events, .. }) = events
+            .iter()
+            .find(|item| matches!(item, RuntimeEvent::SceneBattleStarted { .. }))
+        {
+            break events.clone();
+        }
+        assert!(events.is_empty(), "nothing else runs: {events:?}");
+        assert!(!runtime.battle_active() && runtime.scene_active());
+        screens.push(runtime.event_battle_entry_screen());
+        assert!(ticks < 76, "the battle starts on the 76th frame");
+    };
+    assert_eq!(ticks, 76);
+    // 36 seed steps, and the roll's rotation on the last frame.
+    assert_eq!(steps, 37);
+    assert!(runtime.battle_active() && runtime.event_battle_entry_screen().is_none());
+    assert!(matches!(started[0], BattleEvent::Started { .. }));
+    assert!(screens[..13].iter().all(Option::is_none), "{screens:?}");
+    assert!(screens[13..56].iter().all(|word| *word == Some(0xEEE)));
+    assert_eq!(screens[56], Some(0xDDD));
+    assert_eq!(screens[74], Some(0));
+}
