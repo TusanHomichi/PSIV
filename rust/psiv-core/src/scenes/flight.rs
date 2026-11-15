@@ -641,13 +641,14 @@ mod tests {
 
     #[test]
     fn a_confirm_flies_the_long_takeoff_from_a_spaceport_and_the_short_one_elsewhere() {
-        // The core owns the loops and flight fade-in's 16-frame barrier.
-        // Runtime resolves CPU/DMA setup spans and the fades' frames (one
-        // tick each here); the exact full legs are tested against tape 35 in
-        // psiv-runtime's session_destination integration test.
-        for (map_id, expected_at_least, expected_below) in
-            [(MOTA_SPACEPORT, 931, 971), (ZELAN, 680, 720)]
-        {
+        // This isolated core driver answers every palette wait with ONE
+        // frame, including the flight fade-ins. Runtime owns their actual
+        // duration; session_destination holds the full legs to tape 35.
+        // Common budget: helper setup 3, takeoff fade 1, fade out 1, sprite
+        // VInt 1, map updates 60, Init's fade + blank 2, planet load ack 1,
+        // planet fade 1, hold 300, closing fade 1, map updates 60.
+        const COMMON: u16 = 3 + 1 + 1 + 1 + 60 + 2 + 1 + 1 + 300 + 1 + 60;
+        for (map_id, loop_frames, tone_frames) in [(MOTA_SPACEPORT, 419, 60), (ZELAN, 228, 0)] {
             let map = map_on(map_id);
             let (mut run, mut state) = runner(scene("Cutscene_InsideSpaceship"));
             until(&mut run, &map, &mut state, SceneInput::None, is_menu);
@@ -685,10 +686,7 @@ mod tests {
                 }
                 assert!(ticks < 3000);
             }
-            assert!(
-                (expected_at_least..expected_below).contains(&ticks),
-                "{map_id:#x}: {ticks} ticks"
-            );
+            assert_eq!(ticks, COMMON + loop_frames + tone_frames, "{map_id:#x}");
         }
     }
 
