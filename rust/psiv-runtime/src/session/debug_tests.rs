@@ -338,3 +338,30 @@ fn party_bodies_return_as_their_owners_act() {
     assert!(view.ready);
     assert_eq!(view.shown, None, "the options draw all three bodies");
 }
+
+/// #644: the `$7D` fixture stands Chaz where tape 45's `$F406`/`$F408` patch
+/// puts the leader object, (288, 704). The location is a standing row, so the
+/// object's Y loads one cell high unless the fixture adds the row back; the
+/// window-only certify pair cannot see that, so the position is pinned here,
+/// with the camera latched on the same driver.
+#[test]
+fn the_fract_ooze_fixture_stands_chaz_at_tape_45s_object_position() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let session = crate::scene_fixture(pack(), 0x7D, StepFrames::default())
+        .expect("0x7D has a fixture")
+        .expect("the fixture builds");
+    let runtime = session.runtime();
+    assert_eq!(runtime.map_id().0, 0x73);
+    let cell = runtime.state().cell();
+    assert_eq!((cell.x, cell.y), (18, 45), "the standing cell");
+    let object = psiv_core::PixelPos::from_cell(cell);
+    assert_eq!((object.x, object.y), (288, 704), "tape 45's leader object");
+    assert_eq!(
+        runtime.camera().driver_position(),
+        (288 << 16, 704 << 16),
+        "the camera starts from the same object"
+    );
+}
