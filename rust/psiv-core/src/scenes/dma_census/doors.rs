@@ -384,7 +384,9 @@ fn runtime_door_fixture_keeps_retail_pair_tables_in_the_local_image() {
         // Both common Rust spellings of the original fixture must be caught.
         for hex in [false, true] {
             let rows = pairs
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|row| {
                     if hex {
                         format!("(0x{:X}, 0x{:X}),", row[0], row[1])
