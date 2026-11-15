@@ -146,7 +146,6 @@ mod tests {
 
 #[cfg(test)]
 mod scene_tests {
-    use super::*;
 
     #[test]
     fn eclipse_torch_nine_literal_spawns_and_groups() {

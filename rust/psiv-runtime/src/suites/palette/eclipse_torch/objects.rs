@@ -37,7 +37,11 @@ fn spawned() -> Runtime {
                     SceneOp::Return { value: 1 },
                 ],
             };
-            rt.scene = Some(SceneRunner::new(PARK, Vec::new(), StepFrames::default()));
+            rt.scene = Some(SceneRunner::new(
+                PARK.ops,
+                Vec::new(),
+                StepFrames::default(),
+            ));
             rt.scene_warmup = false;
             return rt;
         }
