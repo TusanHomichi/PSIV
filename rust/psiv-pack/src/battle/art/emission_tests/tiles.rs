@@ -85,8 +85,10 @@ fn local_oracle_vram_and_cram_match_emitted_command_and_digit_tiles() {
         }
     }
     let words: Vec<_> = cram[0x62..0x80]
-        .chunks_exact(2)
-        .map(|p| u16::from_be_bytes([p[0], p[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|p| u16::from_be_bytes(*p))
         .collect();
     assert_eq!(e.indexes["command_ui"]["palette_line_3"], json!(words));
 }
