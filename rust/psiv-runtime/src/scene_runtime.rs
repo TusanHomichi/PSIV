@@ -1,6 +1,5 @@
 //! Scene execution and translation into runtime events.
 
-use psiv_core::battle::Outcome;
 use psiv_core::{
     ActorRef, Direction, Driver, Input, MapId, Npc, NpcId, ONE_PIXEL, PixelPos, SceneEffect,
     SceneInput, SceneOp, WarpTrigger,
@@ -262,23 +261,10 @@ impl Runtime {
                     events.push(RuntimeEvent::SceneChoiceRequested);
                 }
             }
-            SceneEffect::BattleRequested { index } => match self.start_boss_battle(index) {
-                Ok(initial) => events.push(RuntimeEvent::SceneBattleStarted {
-                    index,
-                    events: initial.events,
-                    sounds: initial.sounds,
-                    animations: initial.animations,
-                }),
-                Err(error) => {
-                    events.push(RuntimeEvent::SceneBattleFailed {
-                        index,
-                        error: error.to_string(),
-                    });
-                    self.scene_input = SceneInput::BattleFinished {
-                        outcome: Outcome::Escaped,
-                    };
-                }
-            },
+            // The battle starts at the end of its entry (`event_battle_entry`).
+            SceneEffect::BattleRequested { index } => {
+                events.push(self.begin_event_battle_entry(index));
+            }
             SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
                 self.wander.remove(npc_index);
                 if let Some(kind) = psiv_core::scene_routine_kind(routine) {

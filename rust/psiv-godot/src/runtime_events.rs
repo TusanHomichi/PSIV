@@ -120,13 +120,18 @@ impl Field {
                 RuntimeEvent::SceneMissing { event } => {
                     godot_error!("trigger fired event {event:#x} with no transcribed scene");
                 }
-                RuntimeEvent::SceneBattleStarted { index, .. } => {
-                    // The runtime started this battle inside the scene and the
-                    // frame's battle view carries the stage; the timeline the
-                    // event names is the runtime's own copy.
+                RuntimeEvent::EventBattleEntered { index } => {
+                    // `RunEventBattle` requests the battle's theme before its
+                    // field arm; the entry's screens come from the runtime.
                     if let Some(id) = event_battle_music(index) {
                         self.play_sound(id);
                     }
+                    godot_print!("scene battle {index} entered");
+                }
+                RuntimeEvent::SceneBattleStarted { index, .. } => {
+                    // The runtime started this battle at its entry's end and
+                    // the frame's battle view carries the stage; the timeline
+                    // the event names is the runtime's own copy.
                     godot_print!("scene battle {index} started");
                 }
                 RuntimeEvent::SceneFaulted { fault } => {
@@ -404,6 +409,7 @@ impl Field {
 
         self.present_routed(&frame.routed);
         let stepped = self.process_events(frame.events);
+        self.sync_battle_entry_screen();
         self.present_shop();
         self.present_destination();
         self.present_job_board();

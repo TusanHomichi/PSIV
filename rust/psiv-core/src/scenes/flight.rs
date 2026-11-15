@@ -32,12 +32,12 @@ pub const WORLD_KURAN: u8 = 4;
 pub const WORLD_AIR_CASTLE: u8 = 5;
 
 /// The map ids the flight tables are keyed by (`ps4.constants.asm`, `MapID_*`).
-const MOTA_SPACEPORT: u16 = 0x0BF;
+pub(super) const MOTA_SPACEPORT: u16 = 0x0BF;
 const DEZO_SPACEPORT: u16 = 0x0D4;
 const LE_ROOF_ROOM: u16 = 0x0F0;
 const AIR_CASTLE: u16 = 0x171;
 const ZELAN_SPACE: u16 = 0x18C;
-const ZELAN: u16 = 0x18D;
+pub(super) const ZELAN: u16 = 0x18D;
 const KURAN_SPACE: u16 = 0x18F;
 const KURAN: u16 = 0x190;
 const AIR_CASTLE_SPACE: u16 = 0x1A0;

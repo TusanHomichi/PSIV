@@ -32,6 +32,11 @@ pub(crate) enum TransitionKind {
     /// the field being left, and a scene's `FadeOut` off a palette that is
     /// not live.
     SceneFadeOut,
+    /// One frame of a uniform screen the runtime chose, as a CRAM word: an
+    /// event battle's white hold and fade
+    /// (`psiv_runtime::Runtime::event_battle_entry_screen`). The shell sets it
+    /// again on every frame the runtime still shows it.
+    Screen(u16),
 }
 
 /// The solid colour used by the current palette ramp.
@@ -39,6 +44,8 @@ pub(crate) enum TransitionKind {
 pub(crate) enum TransitionColor {
     Black,
     White,
+    /// The colour a CRAM word shows, opaque.
+    Cram(u16),
 }
 
 /// What the renderer needs for one frame.
@@ -102,6 +109,11 @@ impl Transition {
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
+            TransitionKind::Screen(word) => (!self.finished()).then_some(TransitionVisual {
+                color: TransitionColor::Cram(word),
+                level: PALETTE_LEVELS,
+                opening: None,
+            }),
         }
     }
 
@@ -114,6 +126,7 @@ impl Transition {
                 | TransitionKind::GameStart
                 | TransitionKind::SceneFadeIn
                 | TransitionKind::SceneFadeOut
+                | TransitionKind::Screen(_)
         )
     }
 
@@ -127,6 +140,7 @@ impl Transition {
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
+            TransitionKind::Screen(_) => 1,
         }
     }
 
@@ -382,6 +396,19 @@ mod tests {
         assert_eq!(at(8464), 0, "clear on the load's last row");
         let mut load = load.unwrap();
         assert!(load.tick(), "finished at 8465");
+    }
+
+    /// A runtime screen covers the frame it is set on, opaque in its own
+    /// colour, and is gone after one tick unless the shell sets it again.
+    #[test]
+    fn a_screen_lasts_the_one_frame_it_is_set_on() {
+        let mut screen = Transition::new(TransitionKind::Screen(0xCCC));
+        let visual = screen.visual().unwrap();
+        assert_eq!(visual.color, TransitionColor::Cram(0xCCC));
+        assert_eq!(visual.level, 7);
+        assert!(screen.front_layer());
+        assert!(screen.tick(), "finished after its frame");
+        assert!(screen.visual().is_none());
     }
 
     #[test]

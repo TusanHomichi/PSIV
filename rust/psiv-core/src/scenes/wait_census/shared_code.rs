@@ -16,7 +16,7 @@ const GET_PLANE_A_OFFSET: u32 = 0x06_893A;
 /// of the scene's other censused bytes, and every `bsr` inside it lands in
 /// the bytes the scene is censused over or at [`BSR_OUTSIDE`]
 /// ([`shared_code_problems`]).
-pub(super) const SHARED_CODE: &[Shared] = &[
+pub(in crate::scenes) const SHARED_CODE: &[Shared] = &[
     // `jmp loc_63BC4`, through `loc_64C1E`'s closing `jmp`
     // (`ps4.asm:133499-134714`): the destination menu, its screens, both
     // flights with their tables, and the planet screen.
@@ -36,7 +36,7 @@ pub(super) const SHARED_CODE: &[Shared] = &[
 const BSR_OUTSIDE: &[u32] = &[GET_PLANE_A_OFFSET];
 
 /// One scene's shared code: `(scene, start, end_exclusive)`.
-pub(super) type Shared = (&'static str, u32, u32);
+pub(in crate::scenes) type Shared = (&'static str, u32, u32);
 
 /// The bytes `name` is censused over: its documented ranges and its
 /// `shared` code ([`SHARED_CODE`]). `None` when nothing documents the scene.
