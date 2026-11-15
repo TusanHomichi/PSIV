@@ -167,11 +167,6 @@ impl Field {
     /// handler did (`present_frame`), so the debug selectors' tick-30 entry
     /// keeps its single transition from the frame top.
     pub(crate) fn present_battle_frame(&mut self, battle: psiv_runtime::BattleFrame) {
-        let opening = battle.started.is_some()
-            && battle
-                .view
-                .as_ref()
-                .is_some_and(|view| view.opening_first_upload);
         if let Some(fault) = &battle.fault {
             godot_error!("{fault}");
         }
@@ -192,10 +187,13 @@ impl Field {
             }
         }
         if let Some(view) = battle.view {
-            // The first GameMode_Battle call runs Battle_UpdateEnemySprites
-            // before uploading the name/status plane. The stage's first
-            // image therefore contains the first advanced overlay patterns.
-            if opening && let Some(screen) = self.battle_screen.as_mut() {
+            // GameMode_Battle runs Battle_UpdateEnemySprites/Battle_RunObjects
+            // once per loop (ps4.asm:947-966). Use the runtime's loop signal,
+            // including the first call, to hold overlays during upload lag.
+            // Apply the view afterwards so a new attack pose starts at age 0.
+            if battle.advance_enemy_overlays
+                && let Some(screen) = self.battle_screen.as_mut()
+            {
                 screen.bind_mut().advance_animation();
             }
             self.set_battle_view(view);
@@ -259,21 +257,23 @@ impl Field {
         if !self.battle_presentation_active() {
             return false;
         }
-        // The art clocks first, then this frame's view: the cartridge creates
-        // an enemy's attack object in `Battle_UpdateFighters` and the object's
-        // first run only draws its first frame, so an animation a frame's
-        // view starts is shown at its start and first advances on the frame
-        // after (`GameMode_Battle`, `ps4.asm:947-966`; #52). The clocks carry
-        // presentation only: the idle overlay animation. Attack objects draw
-        // the runtime view's absolute age and never tick in the shell.
-        if let Some(screen) = self.battle_screen.as_mut() {
-            screen.bind_mut().advance_animation();
-        }
         let mut events = Vec::new();
         if self.session.as_ref().is_some_and(Session::battle_active) {
             events = self.drive_battle_frame();
             // The shell's own fixtures never reach this point: they draw a
             // static view with no session battle behind it.
+        } else if let Some(view) = self
+            .battle_screen
+            .as_ref()
+            .and_then(|screen| screen.bind().view().cloned())
+        {
+            // The command-idle oracle fixture has no runtime battle. Preserve
+            // its display-clock animation through the same presentation path.
+            self.present_battle_frame(psiv_runtime::BattleFrame {
+                view: Some(view),
+                advance_enemy_overlays: true,
+                ..psiv_runtime::BattleFrame::default()
+            });
         }
         self.place_letterbox();
         if self.battle_close_ready() {

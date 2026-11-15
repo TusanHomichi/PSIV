@@ -216,6 +216,11 @@ and 16). The runtime marks this first upload, and the shell clips those rows
 and runs the first enemy-overlay call before presenting the stage. At 7877
 all window rows are visible. This is a measured opening scanout allowance,
 not a cycle-accurate VDP model for arbitrary party art or window uploads.
+The policies applied to other rosters, party sizes and mounted battles are
+recorded as a [deliberate approximation](../source-notes/battle-party.md#2026-11-15--normal-opening-upload-timing-approximation).
+The runtime also marks each actual battle-loop call for the renderer: idle
+enemy overlays advance on those calls, including the initial one, and stay
+paused during both upload holds.
 
 ### Not modelled, named
 

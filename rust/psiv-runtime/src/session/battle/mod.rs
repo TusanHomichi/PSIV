@@ -117,6 +117,9 @@ pub struct BattleFrame {
     /// The view to draw, or `None` when the frame produced no battle at all —
     /// a battle that could not start, whose `fault` says why.
     pub view: Option<BattleView>,
+    /// Run one idle enemy-overlay update before applying this frame's view.
+    /// False on upload holds: a visible frame need not run the battle loop.
+    pub advance_enemy_overlays: bool,
     /// The battle this frame began, when it did.
     pub started: Option<BattleStart>,
     /// A diagnostic for the shell to log. The mode never stops for one.
@@ -245,6 +248,7 @@ impl BattleMode {
     pub(crate) fn start_frame(&mut self, runtime: &Runtime) -> BattleFrame {
         BattleFrame {
             view: Some(self.view(runtime, false)),
+            advance_enemy_overlays: self.opening.is_some(),
             // Taken, not copied: the frame a battle begins on is the only one
             // that reports it, whether the shell calls this and then the mode's
             // own `frame` in the same shell frame (the debug selectors) or a
@@ -281,6 +285,7 @@ impl BattleMode {
         let close_ready = std::mem::take(&mut self.close_ready);
         BattleFrame {
             view: Some(self.view(runtime, close_ready)),
+            advance_enemy_overlays: true,
             started: self.start.take(),
             fault: self.fault.take(),
         }
@@ -880,6 +885,7 @@ impl Session {
                         view: None,
                         started: None,
                         fault: Some(fault),
+                        ..BattleFrame::default()
                     });
                 }
             },

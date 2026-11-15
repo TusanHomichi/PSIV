@@ -6,6 +6,49 @@ attack passes' draw counts.
 
 Index: [source and provenance notes](README.md).
 
+## 2026-11-15 — Normal-opening upload timing approximation
+
+**DELIBERATE DEVIATION — generalized upload holds and first-upload visibility.**
+The counted opening sequence follows `loc_52D6`, `loc_52C2`, `loc_5366`,
+`loc_5380`, `EnemyGroup_ShowNames` and `Battle_OpenMainOptions`; the
+[opening measurements](../battle/BATTLE_COMMAND_UI.md#the-battle-opening)
+cover only tape 45's lone Chaz in event battle 7 and tape 07's
+Alys/Chaz/Hahn encounter. They do not establish a party-size law for upload
+cost, or scanout for other art. The runtime currently extends those two
+observations to every normal-priority battle as follows:
+
+| Battle fighters | Initial held frames | Options held frames | First-upload enemy-name width |
+| --- | --- | --- | --- |
+| 1 | 1 | 0 | 2 cells, with scanlines 0, 1 and 8 clipped |
+| 2 | 1 | 0 | 2 cells, with the same scanlines clipped |
+| 3 | 1 | 1 | hidden until the next visible frame |
+| 4 | 1 | 1 | hidden until the next visible frame |
+| 5 | 1 | 2 | hidden until the next visible frame |
+
+The options hold is integer `(fighters - 1) / 2`. These are battle fighters,
+not the field roster: a mounted battle has one machine fighter, uses the
+one-fighter row and targets the nine-cell mounted options strip
+(`loc_13AA`, `ps4.asm:2027`). Its two-cell growth takes one
+more counted call than the eight-cell walking strip: fifteen counted calls
+after the roll instead of fourteen. Every roster
+of the same size uses the same row, regardless of character art, formation,
+event/encounter/debug entry or equipment. Thus two-, four- and five-member
+parties, other one- or three-member rosters, and every mounted battle are
+**unmeasured approximations**, including their initial hold, options hold,
+first-name visibility and clipped scanlines. The two measured rosters pin
+only their own observations, not those broader classes.
+
+The port has no VDP transfer/scanout scheduler to derive these costs from
+actual art uploads. On unmeasured openings, the options may become visible
+earlier or later, the first name may appear on the wrong frame or scanlines,
+and the seed and idle-overlay phase relative to video may consequently differ.
+Held frames themselves run neither a counted RNG step nor an enemy-overlay
+update. This is a bounded presentation approximation, not evidence that
+cartridge upload costs depend only on fighter count.
+[#680](https://github.com/TusanHomichi/PSIV/issues/680) owns the remaining
+normal-opening measurements; priority-specific paths remain under
+[#708](https://github.com/TusanHomichi/PSIV/issues/708).
+
 ## 2026-10-03 — Rounds that open no party command window
 
 `loc_52D6` (`reference/ps4disasm/ps4.asm:7560-7591`) tests

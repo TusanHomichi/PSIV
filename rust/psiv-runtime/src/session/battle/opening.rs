@@ -1,7 +1,9 @@
 //! `loc_52D6` starts an eight-frame timer, not a narration dwell. Meanwhile
 //! the fighters draw the status strip and grow the enemy name by two cells.
 //! `loc_5366`, `loc_5380` and `Battle_OpenMainOptions` then open the options.
-//! See docs/battle/BATTLE_COMMAND_UI.md, "The battle opening".
+//! See docs/battle/BATTLE_COMMAND_UI.md, "The battle opening". Upload timing
+//! outside the two measured rosters is a deliberate approximation recorded
+//! in docs/source-notes/battle-party.md, "2026-11-15 — Normal-opening upload timing approximation".
 
 /// Progress in counted battle-loop calls, separate from display-only lag.
 #[derive(Debug, Clone, Copy)]
@@ -62,7 +64,8 @@ impl super::BattleMode {
         runtime: &mut crate::Runtime,
     ) -> Option<super::BattleFrame> {
         let opening = self.opening.as_mut()?;
-        if opening.advance() {
+        let advance_enemy_overlays = opening.advance();
+        if advance_enemy_overlays {
             let _ = runtime.tick(psiv_core::Input::Neutral);
         }
         if opening.done(super::menu::top_width(runtime.vehicle_active())) {
@@ -73,6 +76,7 @@ impl super::BattleMode {
         }
         Some(super::BattleFrame {
             view: Some(self.view(runtime, false)),
+            advance_enemy_overlays,
             ..super::BattleFrame::default()
         })
     }
