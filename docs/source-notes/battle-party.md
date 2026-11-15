@@ -6,13 +6,55 @@ attack passes' draw counts.
 
 Index: [source and provenance notes](README.md).
 
+## Signed-priority instruction and window basis
+
+Fresh isolated US captures verify both signs of `Battle_Priority`; their
+fixture assumptions, observed schedule, count/seed table and visual limits
+are owned by [battle measurements](../battle/BATTLE_MEASUREMENTS.md#signed-priority-opening-fixtures).
+These measurements supply the cartridge basis for
+[#708](https://github.com/TusanHomichi/PSIV/issues/708), independently of the
+ordinary-options opening in [#705](https://github.com/TusanHomichi/PSIV/pull/705).
+They do not change first-round rules or implement runtime timing.
+
+`oracle/priority_measurement.py` verifies full-ROM identity and SHA-256 windows
+at `$00B62A..$00B6A1`, `$0052C2..$005365`, `$0048F6..$0049AB`,
+`$000FBE..$001027`, `$001228..$00127B`, `$005380..$0053E1`,
+`$0054CC..$0056EF` and `$04236C..$0423AF`. Only offsets, lengths and hashes
+are committed; the original bytes remain local. These windows were inspected
+against the US image as well as the reference symbols (`ps4.asm:6709-6760`,
+`:7545-7597`, `:7739-7944`, `:17436-17470`, `:86066-86102`).
+
+The signed test is `$530E`; zero branches at `$5312`, negative at `$5314`.
+Positive clears `Battle_Routine` at `$5316` and writes routine 2 `$21` at
+`$531C`. `Battle_SurpriseAttack` begins at `$48F6`, initializes once using
+bit 7 of routine 2, copies `$EE66` into timer `$EE46` at `$492E`, and grows
+the 18-tile transient via `$4918` / `Battle_CreateWindow` (`$FBE`).
+The final growth pass skips the caller's RTS and executes `$491E`, selecting
+routine 2 `$22`. `Battle_SurpriseAttackMsg` (`$4974`) decrements the timer;
+negative values start closure at `$497A` via `Battle_DestroyWindow` (`$FF8`).
+The final close likewise skips RTS, reaching `$499C`: routine 6, routine 2
+zero. `$5380` then opens ordinary options; `$123C` completes their growth,
+and `$1246` is their first input poll. The video callback observes the plane
+updates after their RAM-side passes, as the measurements distinguish.
+
+Negative `$5326..$5358` sets enemy fighter routines to 2, party routines to
+4 and three name routines to 5, then writes **continuation** `$E` at
+`$FFFF4102` (`$5350`). `Battle_Routine` itself stays 2: the timer at
+`$FFFF4104`, initialized to 8, must pass through -1 at `$52C2..$52CA` before
+routine `$E` runs. The older shorthand that it immediately writes battle
+routine `$E` conflated those two cells. `Battle_OrderTurns` (`$54CC`) takes
+`$550A`'s enemy-only scan, makes its nine agility and four target draws, writes
+routine `$10`, clears priority, and returns at `$56D8`. There is no ambush
+narration window on this path. This corrects the static description below;
+the native timing follow-ups consume the landed measurements separately.
+
 ## 2026-10-03 — Rounds that open no party command window
 
 `loc_52D6` (`reference/ps4disasm/ps4.asm:7560-7591`) tests
 `Battle_Priority` before `Battle_MainOptions`: zero enters the ordinary
 path, positive priority sets `Battle_Routine_2 = $21` before allowing party
-commands, and negative priority jumps to `loc_5326`, writes battle routine
-`$E`, and returns without opening the options. `Battle_ProcessCOMD`
+commands, and negative priority jumps to `loc_5326`, schedules continuation
+`$E` after the timer, and returns without opening the options. `Battle_ProcessCOMD`
 (`ps4.asm:7636-7660`) independently branches on negative priority to
 `loc_5420`, which clears routine 2 and enters order routine `$E`.
 `Battle_OrderTurns` (`ps4.asm:7739-7751`) queues only enemy slots in that
