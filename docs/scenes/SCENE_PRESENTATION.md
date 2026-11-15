@@ -245,12 +245,11 @@ recipe rebuilds both.
   `Main_Frame_Count`, so the phase is observable.
 - **The opening** is certified through the title's real START
   (`PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1`, `Runtime::new_game`),
-  not a fixture. On that timeline (`PSIV_DEBUG_SCENE_TICKS=1`; the scene starts
-  at t46) page 1's text ramps up at t3018 and holds to t3918, page 2 at t4008 to
-  t4908; ticks 3550 and 4550 sit inside them. t3017 and t3018, the ramp's first
-  frames, read `rmse=31.137426`; t3060, t3093 and t3550 read `0.000000`. The
-  window ends are the op log's `IntroTextFadeDown`, not a pixel measurement.
-  Re-derive the ticks whenever scene content changes.
+  not a fixture. `PSIV_DEBUG_SCENE_TICKS=1` records the text draws, page
+  uploads and helper passes on that timeline. The two captures select the
+  completed page holds; derive their boundaries from the current op log when
+  scene timing changes. A matching held frame does not certify the ramps or
+  whole-scene timing.
 - **The camp pair** starts from the retail new-game banks plus the two flags
   the opening earns (`post_opening_game`; regression test
   `post_opening_state_does_not_replay_piata_chaz_alone`), because a blank state
@@ -756,10 +755,10 @@ art is indexed draws from it:
 - the opening's image (`presentation/opening_background.png`, each index its
   CRAM slot, as a scene picture's) and its stage, the backdrop word
   (`cutscene/opening.rs`), and the flight's caption in word 47
-  (`cutscene/text_layer.rs`). The prologue crawl consumes the core runner's colour writes and plane
-  uploads; its 20-pass helper loops and conditional clear/DMA are described
-  in [GameStart](01_GameStart.md#dma-frame-ownership). A map change ends the opening, as `RefreshMap`
-  replaces its planes;
+  (`cutscene/text_layer.rs`). The prologue crawl consumes the core runner's
+  colour writes and plane uploads; its 20-pass helper loops and conditional
+  clear/DMA are described in [GameStart](01_GameStart.md#dma-frame-ownership).
+  A map change ends the opening, as `RefreshMap` replaces its planes;
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 
