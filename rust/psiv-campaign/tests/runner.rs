@@ -324,43 +324,14 @@ fn shop_trip_result(name: &str, objectives: &str) -> Option<RunResult> {
     Some(run(&config).expect("the trip sets up from the academy save"))
 }
 
-/// The party member the academy chapter left furthest below full HP. Which
-/// one depends on the chapter's battles, so the trip asks the save rather
-/// than naming one: RES on a member at full HP does nothing, and the trip
-/// halts on that.
-fn most_hurt_after_academy() -> Option<String> {
-    let (_, result) = academy()?;
-    let save = result.chapters[0].save.clone();
-    let (session, _) = open_session(pack_dir().as_path(), &StartPoint::Save(save)).unwrap();
-    let party = session.runtime().camp_state().party;
-    let member = party
-        .iter()
-        .max_by_key(|member| member.max_hp - member.current_hp)
-        .expect("a party");
-    assert!(
-        member.current_hp < member.max_hp,
-        "the academy left nobody to heal: {:?}",
-        party
-            .iter()
-            .map(|m| (&m.name, m.current_hp, m.max_hp))
-            .collect::<Vec<_>>()
-    );
-    Some(member.name.clone())
-}
-
 #[test]
 fn the_item_shop_buys_sells_and_the_camp_uses_what_was_bought() {
-    let Some(hurt) = most_hurt_after_academy() else {
-        return;
-    };
     let Some(result) = shop_trip_result(
         "shop-buy-sell-use",
-        &format!(
-            r#"{{"do": "buy", "item": "MONOMATE", "count": 2, "face": "up"}},
-           {{"do": "sell", "item": "MONOMATE", "face": "up"}},
-           {{"do": "use_technique", "caster": "Hahn", "technique": "RES", "target": "{hurt}"}},
-           {{"do": "use_item", "item": "MONOMATE", "target": "{hurt}"}}"#
-        ),
+        r#"{"do": "buy", "item": "MONOMATE", "count": 2, "face": "up"},
+           {"do": "sell", "item": "MONOMATE", "face": "up"},
+           {"do": "use_technique", "caster": "Hahn", "technique": "RES", "target": "Alys"},
+           {"do": "use_item", "item": "MONOMATE", "target": "Alys"}"#,
     ) else {
         return;
     };

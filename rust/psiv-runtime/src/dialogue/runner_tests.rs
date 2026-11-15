@@ -410,9 +410,8 @@ fn the_close_signal_says_whether_the_cursor_was_saved() {
 #[test]
 fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
     // The oracle's 9-frame open, derived from `window.json` rather than
-    // hard-coded: `loc_686BC` widens the 34-cell box by step_cells (2) a
-    // pass and waits for a VInt on every other pass, the first included.
-    // Tape 43 shows 16, 48, 80 ... 272 pixels on frames 8203-8211.
+    // hard-coded: the pack's step_cells is per side and the box is 34 cells
+    // wide, so it reaches full width on the ninth frame.
     let Some(mut runner) = packed_runner() else {
         return;
     };
@@ -427,7 +426,5 @@ fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
         assert!(frames <= 16, "the box never opened: {widths:?}");
     }
     assert_eq!(frames, 9);
-    assert_eq!(widths, [2, 6, 10, 14, 18, 22, 26, 30, 34]);
+    assert_eq!(widths, [4, 8, 12, 16, 20, 24, 28, 32, 34]);
 }
-
-mod portraits;

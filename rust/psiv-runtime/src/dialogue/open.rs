@@ -205,7 +205,6 @@ impl DialogueRunner {
         self.note_stop();
         self.flow = None;
         self.open_cells = 0;
-        self.clear_portrait_change();
         self.scene_dialogue = false;
     }
 }

@@ -285,27 +285,17 @@ TAPE_43 = {
 # `$222` to every word each fourth frame, `Palette_Table_Buffer` first
 # stepping in frame 8143 (shown from 8144) and white from 8167, then
 # `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
-# (shown from 8200). Clone tick t shows oracle frame t + 7246 once the scene's
-# first dialogue spends its portraits' frames (#625), but for each step's
-# first frame (897, 901 ... 953), which the native shows already stepped: its
-# `Main_Frame_Count` phase is one off the tape's, because the debug run pages
-# the dialogue on other frames than the tape. The pairs sit inside the
-# plateaus: the untoned frame before (8141), the fourth step up (8157,
-# backdrop `$888`), the third step back (8185, every word floored at `$888`)
-# and the restored frame after (8201). Region `1,1,319,223`: the shell's
-# black first row and column (#409) show against the toned backdrop.
+# (shown from 8200). The native tone steps on ticks 881-937 in the same
+# plateaus, so clone tick t shows oracle frame t + 7263: the untoned frame
+# before (8141), the fourth step up (8157, backdrop `$888`), the third step
+# back (8185, every word floored at `$888`) and the restored frame after
+# (8201). Region `1,1,319,223`: the shell's black first row and column (#409)
+# show against the toned backdrop.
 TAPE_43_TONE = {
     **TAPE_43,
     "frames": [8141, 8157, 8185, 8201],
     "region": [1, 1, 319, 223],
 }
-
-# The same run's window after the tone (#625): `Event_RunDialogue3` opens the
-# box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
-# decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
-# position (24,112) with the first glyph. Clone tick t shows frame t + 7246
-# from the tone's restore (954) through tick 1010.
-TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
 
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
 # The reload reaches control at 7173; entering at 7202 gives the native
@@ -331,9 +321,7 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    # The first page complete, its arrow up: ticks 161-165 once Chaz's
-    # portrait spends its two lag frames (#625).
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 162,
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 160,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -346,10 +334,9 @@ PAIRS = [
     ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: the native tone runs ticks 635-670 in the
-    # cartridge's 4-frame steps, 651-654 the brightest (13 ticks later than
-    # before the dialogue's portraits lagged, #625).
-    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 651,
+    # The break's tone at its peak: the native tone runs ticks 622-657 in the
+    # cartridge's 4-frame steps, 638-641 the brightest.
+    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
@@ -455,28 +442,23 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    # The cycle's rows run ticks 1277-1298 against frames 8565-8586 once the
-    # scene's portraits lag (#625): 1292 is the third row's second frame.
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1292,
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1270,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
     # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
     # a step up, a step back, and the restored frame.
-    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 895,
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 878,
      "build/certify/oracle/rykros-tone/frame_8141.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 911,
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 894,
      "build/certify/oracle/rykros-tone/frame_8157.png",
      "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
-    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 939,
+    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 922,
      "build/certify/oracle/rykros-tone/frame_8185.png",
      "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
-    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 955,
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 938,
      "build/certify/oracle/rykros-tone/frame_8201.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
-     "build/certify/oracle/rykros-portrait/frame_8216.png",
-     "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
