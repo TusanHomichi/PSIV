@@ -925,11 +925,36 @@ impl Cram {
                     cycle_index,
                 );
             }
+            // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
+            // frame until the step that ends the loop unstored.
+            PresentationOp::EndingStaffRollFadeOut {
+                palette_offset,
+                step,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_out(word, frame, step);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingStaffRollFadeIn {
+                palette_offset,
+                step,
+                target_bit,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_in(word, frame, step, target_bit);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingCreditsPaletteRamp { .. } => {
+                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+            }
             _ => {}
         }
         None
     }
 }
 
+mod ending;
 #[cfg(test)]
 mod tests;

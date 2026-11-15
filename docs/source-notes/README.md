@@ -167,6 +167,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   so the loop tones the backdrop where they stood. The scene's windows are not
   modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
   ([89_Ending.md](../scenes/89_Ending.md)).
+- **The staff roll's fade out stops at `u16::MAX` frames (#638).**
+  `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
+  `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
+  never is, and the cartridge spins there. The port cuts the loop after
+  65,535 frames and the scene continues. The ending reaches the loop with
+  `$0EEE`, which ends after six stores
+  ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
 - **A scene's fade-out leaves the display on (#653).** `PalFadeOut_ClrSpriteTbl`
   (and so `InitVRAMAndCRAM`'s fade) ends in `ClearSpriteTableBuf`, which
   turns the display off (`ps4.asm:85982-85984`) until the next fade-in's
