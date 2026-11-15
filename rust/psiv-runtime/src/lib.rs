@@ -164,6 +164,7 @@ pub struct Runtime {
     scene_choice_pending: bool,
     /// The message box: the retail text loop, its clock and its signals.
     dialogue: dialogue::DialogueRunner,
+    dialogue_close: Option<dialogue::close::DialogueClose>,
     /// The tree a running scene's dialogue entries index into, from its
     /// `SetDialogueTree` (`$53F00`) op. `None` means the map's own binding.
     scene_tree_address: Option<u32>,

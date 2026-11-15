@@ -285,6 +285,8 @@ pub static MEETING_RIKA: Scene = Scene {
             op: PresentationOp::RebuildSprites,
         },
         SceneOp::WaitFrames { frames: 1 },
+        // RefreshMap after Get5 reloads the field palette (ps4.asm:153924).
+        SceneOp::ReloadMapPalette,
         SceneOp::FadeIn,
         SceneOp::MoveActorTo {
             actor: NPC_1,
@@ -349,6 +351,8 @@ pub static MEETING_RIKA: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // RefreshMap after Run5 reloads the palette (ps4.asm:153982).
+        SceneOp::ReloadMapPalette,
         SceneOp::FadeIn,
         SceneOp::SetFollowMode { bits: 0x04 },
         SceneOp::MoveActorTo {

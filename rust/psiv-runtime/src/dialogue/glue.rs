@@ -111,8 +111,13 @@ impl Runtime {
         let notice_up = self.field_notice().is_some();
         self.dialogue.input(&mut self.game, pad, notice_up);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_effects(&signals);
-        for signal in &signals {
+        self.apply_dialogue_signals(&signals);
+        signals
+    }
+
+    fn apply_dialogue_signals(&mut self, signals: &[DialogueSignal]) {
+        self.dialogue_effects(signals);
+        for signal in signals {
             match signal {
                 // The scene hears the answer here, before its tick: a scene
                 // branch consumes it on this frame, as it did when the shell
@@ -121,9 +126,8 @@ impl Runtime {
                 // Retail's two closes: `$F7` saves the text cursor for the
                 // scene, an entry terminator ends the message.
                 DialogueSignal::Closed { suspended } => {
-                    // `$F7` and `$FF` both return through `loc_69B00`, which
-                    // clears the panel rendering byte.
-                    self.scene_panel_sprites = false;
+                    // The window routine owns its return, including Get5's
+                    // fade before it clears the panel byte and resumes.
                     if *suspended {
                         self.dialogue_closed();
                     } else {
@@ -133,7 +137,6 @@ impl Runtime {
                 DialogueSignal::Action(_) | DialogueSignal::Log(_) | DialogueSignal::Fault(_) => {}
             }
         }
-        signals
     }
 
     /// The dialogue window's own half of a frame: the `$F2` actions released
@@ -146,13 +149,7 @@ impl Runtime {
     pub(crate) fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_effects(&signals);
-        if signals
-            .iter()
-            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
-        {
-            self.scene_panel_sprites = false;
-        }
+        self.apply_dialogue_signals(&signals);
         signals
     }
 

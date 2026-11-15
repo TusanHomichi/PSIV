@@ -207,13 +207,11 @@ impl Field {
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_print!("scene dialogue closed (t{})", self.anim_tick);
                     }
+                    // Get5/Run5 retain panels through their runtime fade and
+                    // emit PanelDestroyAll only once the display is off.
                     if matches!(
                         self.runtime().and_then(|rt| rt.scene_dialogue_window()),
-                        Some(
-                            psiv_core::DialogueWindow::Standard
-                                | psiv_core::DialogueWindow::Cutscene
-                                | psiv_core::DialogueWindow::Cutscene5
-                        )
+                        Some(psiv_core::DialogueWindow::Standard)
                     ) && let Some(layer) = self.cutscene_layer.as_mut()
                     {
                         layer.bind_mut().panel_destroy_all();
