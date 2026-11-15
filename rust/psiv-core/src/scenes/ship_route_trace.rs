@@ -48,6 +48,10 @@ pub(super) enum Step {
     FlightFadeIn,
     /// The destination menu.
     Menu,
+    /// The post-fade panel/chunk teardown and world commit.
+    Destroy,
+    Chunks,
+    Commit,
     /// A flight map load.
     Leg(FlightLeg),
     /// `SFXID_SpaceshipPropelled`, which only the spaceports' long takeoff
@@ -117,6 +121,13 @@ pub(super) fn trace(ops: &'static [SceneOp], way: Way) -> Vec<Step> {
                             SceneInput::DestinationChosen
                         };
                     }
+                    SceneOp::PanelDestroyAll if steps.contains(&Step::Menu) => {
+                        steps.push(Step::Destroy)
+                    }
+                    SceneOp::Presentation {
+                        op: crate::PresentationOp::ReloadMapChunks,
+                    } if steps.contains(&Step::Menu) => steps.push(Step::Chunks),
+                    SceneOp::CommitDestination => steps.push(Step::Commit),
                     SceneOp::FadeIn => steps.push(Step::Fade(Fixed::In)),
                     SceneOp::FadeOut => steps.push(Step::Fade(Fixed::Out)),
                     // The runner emits `InitVRAMAndCRAM`'s own fade-out
@@ -188,33 +199,16 @@ pub(super) fn retarget(ops: &mut [SceneOp], at: usize, grew: bool) {
     }
 }
 
-/// The route with the fixed fades its bytes call where the ops stand in for
-/// them: each `FlightFadeIn` a `FadeIn`, and a `FadeOut` after the menu's
-/// confirm (`$063E0C`) and before Cancel's map reload (`$063E8A`). The fade
-/// census's negative controls run it as a matching route.
+/// Normalize only the separate FlightFadeIn mismatch. The two menu fade-outs
+/// are production ops and must not be synthesized by this census helper.
 pub(super) fn route_as_called() -> Vec<SceneOp> {
-    let mut ops: Vec<SceneOp> = INSIDE_SPACESHIP_ROUTE
+    INSIDE_SPACESHIP_ROUTE
         .iter()
         .map(|op| match op {
             SceneOp::FlightFadeIn { .. } => SceneOp::FadeIn,
             op => *op,
         })
-        .collect();
-    let menu = ops
-        .iter()
-        .position(|op| matches!(op, SceneOp::DestinationMenu { .. }))
-        .unwrap();
-    insert(&mut ops, menu + 1, SceneOp::FadeOut);
-    let cancel = ops
-        .iter()
-        .position(|op| {
-            *op == SceneOp::LoadFlightMap {
-                leg: FlightLeg::Return,
-            }
-        })
-        .unwrap();
-    insert(&mut ops, cancel, SceneOp::FadeOut);
-    ops
+        .collect()
 }
 
 /// Inserts `op` at `at`, growing every relative skip over it.
@@ -227,7 +221,7 @@ pub(super) fn insert(ops: &mut Vec<SceneOp>, at: usize, op: SceneOp) {
 mod tests {
     use super::*;
     use Fixed::{In, Init, Out};
-    use Step::{Fade, FlightFadeIn as F, Leg, Menu, Propelled};
+    use Step::{Chunks, Commit, Destroy, Fade, FlightFadeIn as F, Leg, Menu, Propelled};
 
     fn scene(name: &str) -> &'static [SceneOp] {
         crate::SCENES
@@ -238,15 +232,20 @@ mod tests {
     }
 
     /// What every caller's route does after its own ops, down `way`. The
-    /// menu's own fade-outs (`$063E0C` after a confirm, `$063E8A` after a
-    /// Cancel) are not ops yet and the flight's `Pal_FadeIn`s are
-    /// `FlightFadeIn`s: `fixed_fades_image` reports both against
-    /// `Cutscene_InsideSpaceship`.
+    /// menu's own fade-outs precede every map handoff. The flight's
+    /// `Pal_FadeIn`s remain `FlightFadeIn`s for the dependent migration.
     fn route(way: Way) -> Vec<Step> {
-        let mut steps = vec![Fade(Init), Fade(In), Menu];
+        let mut steps = vec![Fade(Init), Fade(In), Menu, Fade(Out), Destroy, Chunks];
         steps.extend(match way {
-            Way::Spaceport => vec![Leg(FlightLeg::Takeoff), F, Propelled, Propelled, Propelled],
-            Way::Elsewhere => vec![Leg(FlightLeg::Takeoff), F],
+            Way::Spaceport => vec![
+                Commit,
+                Leg(FlightLeg::Takeoff),
+                F,
+                Propelled,
+                Propelled,
+                Propelled,
+            ],
+            Way::Elsewhere => vec![Commit, Leg(FlightLeg::Takeoff), F],
             Way::Cancel => vec![Leg(FlightLeg::Return)],
         });
         if way != Way::Cancel {

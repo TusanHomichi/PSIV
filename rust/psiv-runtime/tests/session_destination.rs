@@ -11,8 +11,8 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use psiv_core::{
-    CharId, Flag, GameState, RetailLocation, RetailSave, SceneFault, SceneOp, WORLD_AIR_CASTLE,
-    WORLD_DEZOLIS, WORLD_KURAN, WORLD_MOTAVIA, WORLD_ZELAN,
+    CharId, Flag, GameState, RetailLocation, RetailSave, RetailSlot, SceneFault, SceneOp,
+    WORLD_AIR_CASTLE, WORLD_DEZOLIS, WORLD_KURAN, WORLD_MOTAVIA, WORLD_ZELAN,
 };
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{
@@ -767,4 +767,118 @@ fn certified_tick_101_still_has_the_settled_hidden_cursor_state() {
     assert!(!view.cursor_visible);
     assert!(!view.blink);
     assert_eq!(view.rows, [WORLD_ZELAN]);
+}
+
+/// Window teardown hands off to the actual CRAM fade; a queued destination
+/// must not change World_Index while that fade is still running.
+#[test]
+fn answers_fade_once_after_the_windows_close_and_before_the_map_handoff() {
+    for (origin, world_word, approach, answer, fade_at, load_at, destination) in [
+        (MOTA_GANGWAY, 0x005A, Button::Up, Button::Speak, 155, 173, 3),
+        (
+            (ZELAN, 31, 46),
+            0x035A,
+            Button::Down,
+            Button::Speak,
+            161,
+            179,
+            0,
+        ),
+        (MOTA_GANGWAY, 0x005A, Button::Up, Button::Cancel, 12, 55, 0),
+    ] {
+        let mut story = post_zio();
+        story.world_word = world_word;
+        let Some(mut player) = Player::at(origin, &story) else {
+            return;
+        };
+        player.walk_into_menu(approach);
+        let view = player.session.destination_view().unwrap().clone();
+        let mut expected = player
+            .runtime()
+            .data()
+            .ship_menu()
+            .unwrap()
+            .palette_words(view.palette())
+            .unwrap();
+        let mut fades = Vec::new();
+        let mut loads = Vec::new();
+        let mut teardown = Vec::new();
+        for offset in 0..=load_at {
+            let frame = player.tick(if offset == 0 {
+                Pad::new(answer)
+            } else {
+                Pad::NEUTRAL
+            });
+            for event in &frame.events {
+                match event {
+                    RuntimeEvent::ScenePresentation {
+                        op: SceneOp::FadeOut,
+                        ..
+                    } => fades.push(offset),
+                    RuntimeEvent::ScenePresentation { op, .. }
+                        if matches!(
+                            op,
+                            SceneOp::PanelDestroyAll
+                                | SceneOp::CommitDestination
+                                | SceneOp::Presentation {
+                                    op: psiv_core::PresentationOp::ReloadMapChunks
+                                }
+                        ) =>
+                    {
+                        teardown.push((offset, *op))
+                    }
+                    RuntimeEvent::MapChanged { .. } => loads.push(offset),
+                    _ => {}
+                }
+            }
+            if offset < load_at {
+                assert_eq!(
+                    player.runtime().world_index(),
+                    (world_word >> 8) as u8,
+                    "{answer:?} writes no world during teardown, offset {offset}"
+                );
+            }
+            if (fade_at..load_at).contains(&offset) {
+                let view = player
+                    .session
+                    .destination_view()
+                    .expect("background retained during fade");
+                assert_eq!(view.phase, DestinationPhase::Fading);
+                expected = expected.map(psiv_core::palette::fade_out_step);
+                assert_eq!(
+                    &player.runtime().cram().words[..32],
+                    &expected,
+                    "the last menu palette fades once per frame, offset {offset}"
+                );
+            }
+        }
+        assert_eq!(fades, [fade_at], "exactly one fade at the retail boundary");
+        assert_eq!(loads, [load_at], "fade spends the already-budgeted frames");
+        let mut expected_teardown = vec![
+            (fade_at + 14, SceneOp::PanelDestroyAll),
+            (
+                fade_at + 14,
+                SceneOp::Presentation {
+                    op: psiv_core::PresentationOp::ReloadMapChunks,
+                },
+            ),
+        ];
+        if answer != Button::Cancel {
+            expected_teardown.push((load_at, SceneOp::CommitDestination));
+        }
+        assert_eq!(teardown, expected_teardown);
+        assert_eq!(expected, [0; 32], "the fade reaches black before reloading");
+        assert_eq!(player.runtime().world_index(), destination);
+        assert_eq!(
+            RetailSlot::from_bytes(&player.runtime().slot_bytes(0).unwrap(), 0)
+                .unwrap()
+                .decode()
+                .unwrap()
+                .location
+                .world_index
+                & 0xFF,
+            0x5A
+        );
+        assert!(player.session.destination_view().is_none());
+    }
 }

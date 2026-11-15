@@ -81,21 +81,21 @@ pub(super) const ROWS: &[Row] = &[
     // maps' (`loc_6488A`) is `loc_64908`. Each takeoff carries its own copy of
     // the rest of the flight, which the route runs once: the copy after
     // `loc_6488A` is merged.
-    row(SHIP, own(0x06_45E6, true, true), Wait(9)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(11)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(13)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(15)),
-    row(SHIP, own(0x06_4908, true, true), Wait(21)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(14)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(16)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(18)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(20)),
+    row(SHIP, own(0x06_4908, true, true), Wait(26)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(24)),
-    row(SHIP, Map(0x06_49C6), Merged(24)),
-    row(SHIP, Map(0x06_4762), Wait(33)),
-    row(SHIP, Map(0x06_49D8), Merged(33)),
+    row(SHIP, Map(0x06_4750), Wait(29)),
+    row(SHIP, Map(0x06_49C6), Merged(29)),
+    row(SHIP, Map(0x06_4762), Wait(38)),
+    row(SHIP, Map(0x06_49D8), Merged(38)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(39)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(39)),
+    row(SHIP, own(0x06_4800, true, true), Wait(44)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(44)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),

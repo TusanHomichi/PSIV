@@ -112,7 +112,8 @@ scene and reaches the session as a `ScenePresentation` event; `session/route.rs`
 opens the destination mode (`session/destination.rs`), which owns the pad until
 the player answers: a `DestinationView` for the shell (rows, cursor, the typed
 confirm message, the closing phase) and `Runtime::answer_destination` back to the
-scene, which writes `World_Index` for a confirm and nothing for a Cancel
+scene, which retains the answer until `CommitDestination` writes `World_Index`
+after the menu fade for a confirm; Cancel writes nothing
 (`docs/scenes/41_InsideSpaceship.md`). The flight legs after it are
 `SceneOp::LoadFlightMap` requests the runtime resolves from the cartridge's tables
 by the current map and `World_Index`; a table with no row is a scene fault.

@@ -19,6 +19,8 @@ use super::documented_ranges::documented_ranges;
 use super::{INSIDE_SPACESHIP_ROUTE, SCENES, dialogue_callers_image::rom};
 use crate::{RideOp, SceneOp};
 
+mod doors;
+
 /// `DMAPlanes_VInt`, `DMAPlane_A_VInt`, `DMAPlane_B_VInt`.
 const DMA_HELPERS: [u32; 3] = [0x04_1678, 0x04_1682, 0x04_16A6];
 
@@ -51,6 +53,9 @@ enum Why {
     /// Calls in a loop whose only frame they are, which a mechanic's tick
     /// spends once per pass: the mechanic and the loop's head.
     Mechanic(Mechanic, u32),
+    /// Door table waits and entry movement; arrival refresh belongs to #546.
+    /// `doors` checks the consuming ops against the US tables and calls.
+    DoorFrames,
     /// Calls whose frames another op or a runtime mechanic may spend, or
     /// nothing does: the issue that classifies them.
     Unclassified(u32),
@@ -110,17 +115,17 @@ const ROWS: &[Row] = &[
     belt("Event_ConveyorBeltUp", 0x06_CFFE),
     belt("Event_ConveyorBeltRight", 0x06_D146),
     belt("Event_ConveyorBeltLeft", 0x06_D28E),
-    open("Event_GaruberkTwDoorOpening1", 0, 1),
-    open("Event_GaruberkTwDoorOpening2", 0, 1),
-    open("Event_GaruberkTwDoorEntered1", 0, 3),
-    open("Event_GaruberkTwDoorEntered2", 0, 3),
+    doors::row("Event_GaruberkTwDoorOpening1", 1),
+    doors::row("Event_GaruberkTwDoorOpening2", 1),
+    doors::row("Event_GaruberkTwDoorEntered1", 3),
+    doors::row("Event_GaruberkTwDoorEntered2", 3),
     open("Event_JuzaDefeated", 0, 1),
     // `$0705A2`, after `RefreshPlaneFG`/`BG`: the stretch `ReloadMapChunks`
     // stands for.
     open("Event_MeetingLeRoof", 1, 2),
     open("Event_EclipseTorchUsed", 2, 3),
     open("Cutscene_Elsydeon", 19, 23),
-    open("Event_SilenceTmDoorOpening", 0, 1),
+    doors::row("Event_SilenceTmDoorOpening", 1),
     // The ending intro now records its DMA after dialogue 9 explicitly.
     open("Cutscene_Ending", 86, 95),
     open("Event_HuntersGuild", 0, 3),
@@ -216,6 +221,10 @@ fn problems(rom: &[u8], counted: &[(String, usize, usize)], rows: &[Row]) -> Vec
             }
             Why::Mechanic(mechanic, head) => {
                 problems.extend(mechanic_problems(rom, row, mechanic, head));
+            }
+            Why::DoorFrames => {
+                let ops = SCENES.iter().find(|s| s.name == row.scene).unwrap().ops;
+                problems.extend(doors::problems(rom, row.scene, ops));
             }
             Why::Unclassified(_) if row.ops > row.calls => problems.push(format!(
                 "{}: {} DmaPlanes for {} calls spend frames retail does not",

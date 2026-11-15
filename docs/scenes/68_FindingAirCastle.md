@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$15]`; scene `$8015`.
 - **Trigger:** `RunEventsJmpTbl[$42]`, Eclipse Torch stolen `$98` set and Air
   Castle found `$99` clear.
-- **Data:** `dezo_campaign_late.rs`, `FINDING_AIR_CASTLE` (52 ops).
+- **Data:** `dezo_campaign_late.rs`, `FINDING_AIR_CASTLE` (61 ops).
 
 ## Clone audit
 
