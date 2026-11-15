@@ -414,7 +414,10 @@ mod tests {
                     // The tone steps no cycle index; a scratch byte stands in.
                     let mut cycle_index = 0;
                     // Real frame order: input, field palette clock, window dispatch.
-                    for frame in 0..=80 {
+                    // Text actions run inside the text routine, after the
+                    // nine-frame box opening, never during that animation.
+                    let start = if opening { 9 } else { 0 };
+                    for frame in 0..=start + 80 {
                         let pad = if frame % 3 == 0 {
                             Pad::NEUTRAL
                         } else {
@@ -441,7 +444,7 @@ mod tests {
                             "palette frame {frame}"
                         );
                         let view = rt.dialogue_view().expect("window stays open");
-                        if frame < 80 {
+                        if frame < start + 80 {
                             assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
                             assert_eq!(
                                 view.revealed,
@@ -456,7 +459,7 @@ mod tests {
                             assert_eq!(view.lines, [format!("{before}after")]);
                         }
                     }
-                    assert_eq!(launches, [0, 40]);
+                    assert_eq!(launches, [start, start + 40]);
                     // Control: once the blocking loops end, a fresh press
                     // really advances or dismisses the finished page.
                     for _ in 0..40 {
