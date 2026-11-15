@@ -115,14 +115,13 @@ window below has its own explicit destruction. The caller census and runtime
 input checks are in [DIALOGUE_CALLERS.md](DIALOGUE_CALLERS.md#the-routines-and-their-windows).
 [Air Castle's five object records](71_AirCastleFakeChest.md) spend no waited
 frames between the text return and the battle request; their `frames` field
-is not a wait. Battle field-entry coverage remains
-[#665](https://github.com/TusanHomichi/PSIV/issues/665).
-
-The uniform entry screen covers the field window as well as the map: its
-transition layer is above the window layer. Once the battle stage masks the
-field, dialogue-view sync respects that mask; the runtime's held page remains
-available until its scene ends. These are presentation-surface rules, not
-additional dialogue exits.
+is not a wait. The runtime's [event-battle field entry](95_FractOozeFound.md#where-the-window-goes-644)
+draws its opaque band above the window layer and tones the shared CRAM. The
+dialogue runner drops the held portrait and page only once the band covers
+their packed rectangles. The uniform screen that follows also covers every
+field window. Once the battle stage masks the field, dialogue-view sync
+respects that mask. These are presentation-surface rules, not additional
+dialogue exits.
 
 The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
 them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),

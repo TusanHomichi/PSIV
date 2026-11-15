@@ -249,7 +249,20 @@ fn air_castle_removes_the_torch_and_runs_all_five_records_on_the_close_frame() {
                 };
                 let events = frame(&mut runtime, pad);
                 assert!(runtime.scene_active());
-                assert_held(&last, runtime.dialogue_view());
+                match tick + 1 {
+                    1..=4 => assert_held(&last, runtime.dialogue_view()),
+                    5..=11 => {
+                        let held = runtime.dialogue_view().expect("window not covered yet");
+                        assert_eq!(held.lines, last.lines);
+                        assert_eq!(held.portrait, None, "portrait covered on pass five");
+                        assert!(!held.dismissable && !held.waiting);
+                    }
+                    _ => assert_eq!(
+                        runtime.dialogue_view(),
+                        None,
+                        "window covered on pass twelve"
+                    ),
+                }
                 if events.iter().any(|event| {
                     matches!(event, RuntimeEvent::SceneBattleStarted { index: 0xF, .. })
                 }) {

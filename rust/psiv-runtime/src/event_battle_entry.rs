@@ -27,6 +27,18 @@
 
 use crate::{Runtime, RuntimeEvent};
 
+/// The opaque plane-A rows `loc_58498` has overwritten this frame. Pixel
+/// bounds are half-open on the 320x224 retail surface; the shell only blits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventBattleBand {
+    /// First covered pixel row, inclusive.
+    pub top: u16,
+    /// First uncovered row below the band, exclusive.
+    pub bottom: u16,
+    /// Solid fill colour as a Genesis CRAM word.
+    pub word: u16,
+}
+
 /// Battle 7's frames, counted from the request frame: the counted frames before
 /// the loads (the `RunEventBattle` frame, the fifteen passes, `loc_585C8` and
 /// `GameMode_LoadBattle`'s first frame).
@@ -43,7 +55,7 @@ const BAND_PASSES: u16 = 15;
 const DARKNESS_TONE_FRAMES: u16 = 40;
 /// The event battle index `RunEventBattle` sends to `loc_58482`.
 const PROFOUND_DARKNESS: u16 = 0x1A;
-/// The first frame the screen is all white: the passes' last frame.
+/// The first frame the visible screen is all white (pass fourteen).
 const WHITE_FROM: u16 = 14;
 /// `GameMode_LoadBattle`'s white: every palette word `$EEE`.
 pub const ENTRY_WHITE: u16 = 0x0EEE;
@@ -70,6 +82,23 @@ impl EventBattleEntry {
         }
     }
 
+    /// `d6 = 13`, `d5 = 2`, then `d6 -= 1`, `d5 += 2`, fifteen
+    /// times (`$058498..$0584EC`). The fifteenth write extends off-screen.
+    const fn band(self) -> Option<EventBattleBand> {
+        if self.index == PROFOUND_DARKNESS || self.elapsed == 0 || self.elapsed > BAND_PASSES {
+            return None;
+        }
+        Some(EventBattleBand {
+            top: 104_u16.saturating_sub((self.elapsed - 1) * 8),
+            bottom: if self.elapsed >= 14 {
+                224
+            } else {
+                120 + (self.elapsed - 1) * 8
+            },
+            word: ENTRY_WHITE,
+        })
+    }
+
     /// The counted frames before the loads, for this arm.
     const fn before_loads(self) -> u16 {
         BEFORE_LOADS - BAND_PASSES + self.field_frames()
@@ -92,7 +121,7 @@ impl EventBattleEntry {
     }
 
     /// The uniform screen frame `elapsed` shows, as a CRAM word, or `None`
-    /// while the field arm draws (its band and tone are #665's).
+    /// while the field arm draws its band and tone.
     ///
     /// The fade lowers every nibble by one a frame toward the battle palette,
     /// whose backdrop is black (`loc_6B56`), from the frame after the `$EEE`
@@ -128,6 +157,13 @@ impl Runtime {
         let entry = self.event_battle_entry.as_mut()?;
         entry.elapsed += 1;
         let entry = *entry;
+        if (1..=entry.field_frames()).contains(&entry.elapsed) {
+            // The loop calls the palette helper before its DMA/VInt wait.
+            self.effects.cram.increase_tone(self.frames);
+        }
+        if let Some(band) = entry.band() {
+            self.dialogue.cover_held_page(band.top, band.bottom);
+        }
         if entry.counted(entry.elapsed) {
             self.frames = self.frames.wrapping_add(1);
             self.rng.step();
@@ -137,6 +173,12 @@ impl Runtime {
         }
         self.event_battle_entry = None;
         Some(vec![self.start_requested_battle(entry.index)])
+    }
+
+    /// The field arm's current plane-A band, over the field and its windows.
+    #[must_use]
+    pub fn event_battle_entry_band(&self) -> Option<EventBattleBand> {
+        self.event_battle_entry?.band()
     }
 
     /// The uniform screen an event battle's entry shows this frame, as a CRAM
@@ -167,6 +209,47 @@ mod tests {
         out
     }
 
+    #[test]
+    fn the_event_arm_writes_fifteen_expanding_bands_but_darkness_only_tones() {
+        for index in 0..=0x1A {
+            let mut entry = EventBattleEntry::new(index);
+            assert_eq!(entry.band(), None, "the request frame keeps the page");
+            for pass in 1..=16 {
+                entry.elapsed = pass;
+                let expected = if index == PROFOUND_DARKNESS || pass == 16 {
+                    None
+                } else {
+                    // Source register trace, in pixel rows, clipped to the
+                    // visible surface (the 15th write extends past it).
+                    let rows = [
+                        (104, 120),
+                        (96, 128),
+                        (88, 136),
+                        (80, 144),
+                        (72, 152),
+                        (64, 160),
+                        (56, 168),
+                        (48, 176),
+                        (40, 184),
+                        (32, 192),
+                        (24, 200),
+                        (16, 208),
+                        (8, 216),
+                        (0, 224),
+                        (0, 224),
+                    ];
+                    let (top, bottom) = rows[usize::from(pass - 1)];
+                    Some(EventBattleBand {
+                        top,
+                        bottom,
+                        word: 0xEEE,
+                    })
+                };
+                assert_eq!(entry.band(), expected, "battle {index}, pass {pass}");
+            }
+        }
+    }
+
     /// Tape 45, from the C on 7799: the roll on 7875 (76 frames on), 36 of
     /// them counted (`Main_Frame_Count` 7282 to 7318), counted 7800-7817 and
     /// 7855-7872.
@@ -187,7 +270,7 @@ mod tests {
     fn battle_7s_entry_screen_is_the_hold_then_the_fade() {
         let screen: Vec<Option<u16>> = frames(7).iter().map(|f| f.2).collect();
         let at = |frame: u16| screen[usize::from(frame - 7801)];
-        assert_eq!(at(7813), None, "the band's frames are #665's");
+        assert_eq!(at(7813), None, "the field arm is still drawing its band");
         assert!((7814..=7856).all(|frame| at(frame) == Some(ENTRY_WHITE)));
         assert_eq!(at(7857), Some(0xDDD));
         assert_eq!(at(7858), Some(0xCCC));

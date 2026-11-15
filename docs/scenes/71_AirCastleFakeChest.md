@@ -33,14 +33,15 @@ and `$6` facing directly. There is no animation loop, `VInt_Prepare`, or
 `DoMapUpdateLoop` between the dialogue return and the battle request.
 `ObjectAnimation.frames = 1` here is a presentation record, not a scene wait.
 Consequently there is no distinct frame inside these writes for an oracle
-capture; the battle's field-entry cover is the next visible phase
-([#665](https://github.com/TusanHomichi/PSIV/issues/665)).
+capture; the [battle's field-entry band](95_FractOozeFound.md#where-the-window-goes-644)
+is the next visible phase.
 
 The runtime suite `suites::retained_window` drives the actual `$5A` dialogue
 with Speak presses and checks that removal, all five records and the battle
 request share its close frame, with the page and portrait still available.
-It then checks their availability on every frame of the actual event-battle
-entry through the opening roll, while further Speak presses stay inert.
+It then checks the entry frame by frame: the portrait remains until pass 5,
+the page until pass 12, and neither reappears through the opening roll;
+further Speak presses stay inert.
 Its isolated caller fixtures check every intervening frame of an eight-frame
 scene wait and disappearance at scene end, including retained resumes and
 `Standard` as a negative control. These are runtime input/state checks,
