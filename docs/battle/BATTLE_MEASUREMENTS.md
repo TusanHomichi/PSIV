@@ -56,6 +56,74 @@ bit-exact RNG parity has to advance it on the same frame schedule, not on
 gameplay events. A core that only ticks the RNG when it rolls something will
 desync immediately.
 
+## Signed-priority opening fixtures
+
+The [priority capture entry point](../../oracle/CAPTURE.md#signed-priority-battle-openings)
+measures the verified US ROM with the current patched Genesis Plus GX core.
+These results use tape 07's Academy Basement formation (two Zoran Bults),
+unmodified party/resources and one explicit seed-word patch before the
+priority roll. They establish isolated opening schedules, **not** a naturally
+drawn priority or connected campaign route, and do not establish timings for
+other formations, stages, vehicles, message delays or event battles.
+
+`loc_B62A` enters at f24840/cycle 196098. The HV read boundary is cycle
+199752; the recorded HV is `$1426`, `Main_Frame_Count` 23949. Preemptive's
+patched seed `$58B49843` produces roll `$18FF` (low six bits 63), then rotates
+to `$2C5A9843`; ambush's `$58B39843` produces `$1900` (low six bits zero),
+then `$AC599843`. `$B650` writes the signed result, and the ambush executes
+`$B662` twice, setting each occupied enemy's reaction bit 3. No decision or
+side effect is injected. `loc_52D6` enters in the same tape frame at cycles
+239148 / 240492 respectively. The source/US window basis is in
+[the battle-flow note](../source-notes/battle-party.md#signed-priority-instruction-and-window-basis).
+
+The following offsets are relative to f24840 (offset zero). Counts refer to
+frame-end samples in the **inclusive** interval. A counted sample advances
+`Main_Frame_Count` and applies `UpdateRNGSeed`; lag samples hold both except
+for explicitly traced `UpdateRNGSeed2` rotations. Offset zero itself is a lag
+sample containing the priority roll. The analyzer preserves every sample and
+seed, independently of the phases below.
+
+| Path and work | Offsets | Counted | Lag offsets | HV calls |
+| --- | --- | ---: | --- | ---: |
+| Preemptive: transient growth, 9 calls, width 2 through 18 | 0..9 | 8 | 0, 1 | 1 |
+| Message timer: `$24` down to zero, 36 decrements | 10..45 | 36 | — | 0 |
+| Negative timer and transient close, width 16 through 0 | 46..54 | 9 | — | 0 |
+| Options growth, 4 calls, width 2 through 8 | 55..59 | 4 | 56 | 0 |
+| First `Battle_MainOptions` poll | 60 | 1 | — | 0 |
+| Ambush: initial held sample after dispatch | 1 | 0 | 1 | 0 |
+| Timer: 8 down through -1, 9 decrements | 2..10 | 9 | — | 0 |
+| Enemy-only queue, through `$56D8` before RTS | 11 | 1 | — | 13 |
+
+**After the origin sample:** preemptive takes 60 VInts to its first command
+poll (58 counted, holds at offsets 1 and 56), with no further HV calls.
+Ambush takes 11 VInts to the completed queue (10 counted, hold at offset 1),
+with 13 HV calls: nine agility calls between `$554E` and `$56A8`, then four
+enemy-target calls. Queue records contain only fighter ids 6 and 7; priority
+is cleared and `Battle_Routine` becomes `$10`. These 13 calls occur even
+though only two enemy slots are occupied. Neither count includes the next
+frame's first enemy action.
+
+The preemptive boundary sequence is `$5316`, nine `$48F6` calls, `$491E`
+(f24849/c254326), `$4974` (f24850 onward), `$497A` (f24886 onward), `$499C`
+(f24894/c257665), `$5380` (f24895/c228356), `$123C` (f24899/c244789), then
+`$1246` (f24900/c202038). Ambush uses `$5326`, `$5350`, nine `$52C2`
+decrements, `$52CA` (f24850/c184966), `$54CC` (f24851/c202312), `$550A`,
+`$554E`, `$56A8`, and `$56D8` (f24851/c265543). Cycles are frame-relative
+master cycles, not 68000 ticks; do not subtract them across frame boundaries.
+
+Video was inspected at the native 320×224 viewport. The compared regions
+are transient `[88,144,232,168)`, options `[24,40,88,96)`, enemy name
+`[16,8,112,32)` and status `[16,168,304,216)` (x0,y0,x1,y1, exclusive end).
+The transient's first border appears at f24842; its full blank box is visible
+at f24849, text `Surprise Attack!` at f24850 through f24886, the first blank
+closing box at f24887, a final thin border at f24894, and no box at f24895.
+Options first show a border at f24897 and complete text at f24900. In both
+paths the bottom status reaches its visible surface at f24842; the preemptive
+enemy-name window appears while the ambush name routine remains parked.
+Ambush captures through the queue show neither transient nor options. These
+are comparisons among cartridge frames; no native visual parity is claimed.
+In particular a RAM width change is not the visible-window boundary.
+
 ## Battle ground truth
 
 Tape 07 walks the whole opening act from power-on and fights the first random

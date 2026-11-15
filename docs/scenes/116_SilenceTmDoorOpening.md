@@ -47,7 +47,21 @@ the row for map `$0F0` with `$54..$67` and pins the writes at `$06FC34` and
 the table at `$06FC5C`, so a moved table fails the pack build
 ([live-layout census](LIVE_LAYOUT_WRITES.md)).
 
+## DMA frame ownership
+
+The single static call at `$06FC4E` repeats seven times per row (`dbf` from 6),
+five rows: 35 frames. Each `WaitFrames { frames: 7 }` spends its row's calls;
+there is no additional `DmaPlanes` frame. The loop performs no object or map
+updates. `RefreshPlaneBG` precedes the loop once per row; its CPU composition
+boundary belongs to [#546](https://github.com/TusanHomichi/PSIV/issues/546).
+The chunk/collision writes precede each wait through `scene_map.rs`, including
+the final row that opens traversal.
+
 ## Tests
+
+`dma_census::doors` reads all five rows from the US image and executes their
+waits, checking seven frames each without map updates. Negative controls
+remove or add a frame and exchange the update policy for every row.
 
 `rust/psiv-core/tests/late_dezolis_scenes.rs`,
 `the_silence_temple_door_steps_open_by_retails_table`: the sound, the five

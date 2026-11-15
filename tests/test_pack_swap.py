@@ -22,6 +22,7 @@ stays a real directory, the cases that rely on the link are skipped and
 the gate checks the Windows mode on Linux, and the `platforms` workflow runs
 this module on macOS and Windows.
 """
+import ctypes
 import errno
 import json
 import os
@@ -93,6 +94,26 @@ class Scratch(unittest.TestCase):
 
     @contextmanager
     def pinned_pack(self):
+        if sys.platform == "linux":
+            # O_PATH keeps the symlink inode alive even after replacement
+            # drops its link count to zero. readlinkat's empty path reads
+            # that inode; unlike linkat, it need not resurrect a hard link.
+            selected = os.open(self.output, os.O_PATH | os.O_NOFOLLOW)
+            try:
+                target = self.output.parent / os.readlink("", dir_fd=selected)
+            finally:
+                os.close(selected)
+            directory = os.open(target, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                yield directory
+            finally:
+                os.close(directory)
+            return
+        with self.pinned_pack_via_hard_link() as directory:
+            yield directory
+
+    @contextmanager
+    def pinned_pack_via_hard_link(self):
         # Pin the link object before reading its target: following the moving
         # link with open(O_DIRECTORY) can fail with EINVAL on macOS. This
         # private hard link is never replaced. Its relative payload belongs
@@ -639,7 +660,8 @@ class SpanningReader(Scratch):
             def fail_moving_output(path, *args, **kwargs):
                 # The race is on the replaced name, not on stable snapshots
                 # or immutable version paths.
-                if Path(path) == self.output:
+                if Path(path) == self.output and not (
+                        syscall == "open" and args[0] & getattr(os, "O_PATH", 0)):
                     raise error
                 return original(path, *args, **kwargs)
 
@@ -688,12 +710,74 @@ class SpanningReader(Scratch):
             return original(source, target, **kwargs)
 
         with mock.patch.object(os, "link", replace_during_link):
-            with self.pinned_pack() as directory:
+            with self.pinned_pack_via_hard_link() as directory:
                 self.assertTrue(replaced)
                 self.assertEqual(consistent(directory), "v2")
                 self.install("v3")
                 self.assertEqual(consistent(directory), "v2")
         self.assertEqual(list(self.dir.glob("reader-*")), [])
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux O_PATH selection contract")
+    def test_selection_survives_replacement_of_the_open_symlink(self):
+        """Force the writer between symlink lookup and payload read (#706).
+
+        The old hard-link helper never opens the output inode, so the
+        `replaced` assertion also rejects that implementation deterministically.
+        """
+        self.install("v1")
+        original = os.open
+        replaced = False
+
+        def replace_after_lookup(path, flags, *args, **kwargs):
+            nonlocal replaced
+            descriptor = original(path, flags, *args, **kwargs)
+            if Path(path) == self.output and flags & os.O_PATH:
+                replaced = True
+                self.install("v2")
+                self.assertEqual(os.fstat(descriptor).st_nlink, 0)
+                self.assertEqual(consistent(self.output), "v2")
+            return descriptor
+
+        with mock.patch.object(os, "open", replace_after_lookup):
+            with self.pinned_pack() as directory:
+                self.assertTrue(replaced)
+                self.assertEqual(consistent(directory), "v1")
+                self.install("v3")
+                self.assertEqual(consistent(directory), "v1")
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux linkat inode-lifetime contract")
+    def test_negative_control_linking_an_unlinked_inode_fails_with_output_present(self):
+        # Hold precisely the inode that linkat's source lookup would find.
+        # No mock error, missing output, pruning, sleeps or scheduler lottery:
+        # the writer retires it before the hard-link operation continues.
+        self.install("v1")
+        descriptor = os.open(self.output, os.O_PATH | os.O_NOFOLLOW)
+        self.addCleanup(os.close, descriptor)
+        selected = self.dir / "selected"
+        libc = ctypes.CDLL(None, use_errno=True)
+        linkat = libc.linkat
+        linkat.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                           ctypes.c_char_p, ctypes.c_int)
+        linkat.restype = ctypes.c_int
+
+        def link_selected_inode():
+            # /proc's magic link plus AT_SYMLINK_FOLLOW selects the retained
+            # inode without AT_EMPTY_PATH's capability requirement on older
+            # kernels. This is the same vfs_link check as a pathname lookup.
+            return linkat(pack_swap.AT_FDCWD, os.fsencode(f"/proc/self/fd/{descriptor}"),
+                          pack_swap.AT_FDCWD, os.fsencode(selected), 0x400)
+
+        self.assertEqual(link_selected_inode(), 0, os.strerror(ctypes.get_errno()))
+        self.assertEqual(selected.lstat().st_ino, os.fstat(descriptor).st_ino)
+        selected.unlink()
+        self.install("v2")
+        self.assertEqual(os.fstat(descriptor).st_nlink, 0)
+        self.assertEqual(consistent(self.output), "v2")
+        self.assertEqual(link_selected_inode(), -1)
+        self.assertEqual(ctypes.get_errno(), errno.ENOENT)
+        self.assertFalse(os.path.lexists(selected))
+        self.assertEqual(os.readlink("", dir_fd=descriptor),
+                         pack_swap.versions(self.output)[0].name)
 
     def test_a_missing_output_is_reported_without_retrying_forever(self):
         with self.assertRaises(FileNotFoundError):

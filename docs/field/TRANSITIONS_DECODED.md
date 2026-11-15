@@ -82,8 +82,11 @@ frames around the encounter fire show:
   **28 frames**;
 - the battle background and enemies appear while the white ramp reverses at
   **24822..24834**, in two-frame palette steps;
-- battle art is settled at **24835**; the battle UI builds afterward (window at
-  24845, enemy name at 24850, command window at 24855).
+- battle art is settled at **24835**; the battle UI builds afterward: the
+  name's first two cells at **24842**, whole name at **24847**, and whole
+  command window at **24857**. These consecutive captures refine the older
+  five-frame samples; the [battle opening](../battle/BATTLE_COMMAND_UI.md#the-battle-opening)
+  records the counted frames and lag.
 
 The runtime runs the entry before starting the battle or rolling its opening
 priority (#678). `FieldRoutine_Battle` (`ps4.asm:117926`) stops the music and

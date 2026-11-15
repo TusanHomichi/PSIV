@@ -149,6 +149,32 @@ impl BattleChrome {
         self.frame_excluding(rect, &[])
     }
 
+    /// Rows whose plane words have not reached scanout still show the stage
+    /// behind the window. Row numbers are pixels relative to the rectangle.
+    pub(super) fn uploading_frame(&self, rect: WindowRect, unwritten: &[i32]) -> Option<Vec<Quad>> {
+        let mut visible = Vec::new();
+        for quad in self.frame(rect)? {
+            for row in 0..quad.dest.size.y as i32 {
+                let y = quad.dest.position.y - rect.y + row as f32;
+                if unwritten.contains(&(y as i32)) {
+                    continue;
+                }
+                visible.push(Quad {
+                    texture: quad.texture.clone(),
+                    dest: Rect2::new(
+                        Vector2::new(quad.dest.position.x, quad.dest.position.y + row as f32),
+                        Vector2::new(quad.dest.size.x, 1.0),
+                    ),
+                    src: Rect2::new(
+                        Vector2::new(quad.src.position.x, quad.src.position.y + row as f32),
+                        Vector2::new(quad.src.size.x, 1.0),
+                    ),
+                });
+            }
+        }
+        Some(visible)
+    }
+
     /// Draws the retail nine-tile frame, omitting local cells occupied by a
     /// plane-A special tile. The battle status strip is one 36x6 window with
     /// four separator columns punched through it; five overlapping windows

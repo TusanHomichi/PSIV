@@ -39,6 +39,7 @@ RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", 
 EVENT_BATTLE_ENTRY = ["event-battle-white-first", "event-battle-white-hold",
                       "event-battle-fade-first", "event-battle-fade-second"]
 EVENT_BATTLE_SWEEP = ["event-battle-sweep", "event-battle-settled", "event-battle-before-roll"]
+BATTLE_OPENING = ["battle-opening-name", "battle-opening-options"]
 ENCOUNTER_ENTRY = ["encounter-white-first", "encounter-white-hold",
                    "encounter-fade-first", "encounter-fade-second"]
 EVENT_BATTLE_FIELD = ["retained-window-press", "retained-portrait-press",
@@ -48,7 +49,7 @@ ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
-         + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
+         + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP + BATTLE_OPENING + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -160,7 +161,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
+                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *BATTLE_OPENING, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

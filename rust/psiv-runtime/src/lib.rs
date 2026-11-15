@@ -161,6 +161,8 @@ pub struct Runtime {
     loot: Option<loot::PendingLoot>,
     scene: Option<SceneRunner>,
     scene_input: SceneInput,
+    /// A menu answer, committed by the scene after its teardown.
+    destination_world: Option<u8>,
     scene_event: EventIndex,
     dialogue_answer: Option<bool>,
     scene_choice_pending: bool,

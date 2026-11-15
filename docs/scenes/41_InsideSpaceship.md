@@ -7,7 +7,7 @@
   (`wait_census::shared_code::SHARED_CODE`).
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (45 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (54 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
@@ -97,6 +97,20 @@ resolve the caption pointer and mode.
 | ordinary field fade in | `GameMode_LoadFieldMap`, `Pal_FadeIn` | 16 | 16 |
 | place-name window to field control | `FieldRoutine_PlaceName`, `:136552-136646`, timer `$78` plus draw/teardown DMA | 124 | 124 |
 | **confirm to field control** | first `Game_Mode=$0C`, `Game_Mode_Routine=0` after landing | **1,861** | **1,596** |
+
+The menu's fixed fade-outs run at their execution boundaries: `$063E0C`
+starts 155 frames after the Mota confirm, 161 after the Zelan confirm; `$063E8A`
+starts 12 frames after Cancel. Both run 14 frames. `Panel_DestroyAll` and
+`Map_LoadChunks` follow at offsets 169/175 (confirm) or 26 (Cancel), with four
+CPU frames of chunk setup. Confirm then writes `World_Index` and takes off at
+173/179. Cancel enters `RefreshMap` at 30 and completes its handoff at 55,
+including 25 refresh frames. The session retains the background, removes both
+windows before the fade, and lends its last marker palette to the existing CRAM
+fade. These frames replace parts of the measured 25/55-frame close budgets;
+they are not added to them. The confirm text/tail model already accounts for
+five of the twelve retail window-destruction frames, leaving seven before the
+scene's fade; Cancel leaves all twelve there. `FlightFadeIn` remains a separate
+migration under #652.
 
 The last three rows (return VInt and reload preparation, fade-in, place-name
 window) are not flight-specific: they are `FieldRoutine_Cutscene`'s zero return
@@ -209,8 +223,9 @@ The Landale writes none.
 - Mask and rows: `destination_mask_byte`, `destination_worlds` (`flight.rs`).
 - The menu: `SceneOp::DestinationMenu` blocks the scene; the runtime hands it to
   the session as a `ScenePresentation` event, which opens the destination mode.
-  The answer reaches the scene through `Runtime::answer_destination`, which writes
-  `World_Index` for a confirm (`travel.rs`). A Cancel skips `cancel_skip` ops, so
+  The answer reaches the scene through `Runtime::answer_destination`, which retains
+  the chosen world. `CommitDestination` writes `World_Index` after the fixed fade
+  and chunk teardown (`travel.rs`). A Cancel skips `cancel_skip` ops, so
   an inlined copy needs no absolute index.
 - The legs: `SceneOp::LoadFlightMap { leg }`; `scene_runtime.rs` resolves the table
   by the current map and `World_Index`. A key a table has no row for is a scene

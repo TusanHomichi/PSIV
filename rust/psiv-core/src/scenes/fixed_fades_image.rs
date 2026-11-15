@@ -400,6 +400,11 @@ fn the_route_as_called_matches_and_a_changed_route_or_caller_does_not() {
     };
     let as_called = route_as_called();
     assert_eq!(
+        as_called.len(),
+        INSIDE_SPACESHIP_ROUTE.len(),
+        "normalization must not synthesize missing menu fades"
+    );
+    assert_eq!(
         mismatches(rom, &ranges, &[with_ops(SHIP, as_called.clone())]),
         []
     );

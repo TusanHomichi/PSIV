@@ -82,6 +82,49 @@ controls. Use the build reservation as for other Cargo checks. The standalone
 decoded-work API without taking a cartridge capture. The analyzer refuses to
 overwrite existing result files; each capture run needs its own directory.
 
+### Signed-priority battle openings
+
+After building the current patched core, run from the repository root:
+
+```sh
+python3 -m oracle.priority_openings capture --kind preemptive --out /durable/local/path/preemptive
+python3 -m oracle.priority_openings capture --kind ambush --out /durable/local/path/ambush
+python3 -m oracle.priority_openings analyze --kind preemptive --capture /durable/local/path/preemptive --out /durable/local/path/preemptive.json
+python3 -m oracle.priority_openings analyze --kind ambush --capture /durable/local/path/ambush --out /durable/local/path/ambush.json
+```
+
+Choose a new directory on durable **local** storage when a runner disposes of
+its worktree. Retain that whole directory and its analysis, with the built
+core/host and build receipt alongside it; put the location and hashes in the
+PR receipt. Raw ROM, video, RAM and saves stay local, outside Git and public
+uploads. An ordinary checkout may use ignored `build/` when it will survive
+the job. The launcher refuses to overwrite a capture or an analysis file.
+
+These are isolated fixtures: tape 07's input through frame 24870 followed by
+500 idle frames, with one high-word seed patch at frame 24840. Preemptive uses
+`24840:FFFFEF0C:58B4`, ambush `24840:FFFFEF0C:58B3`; the low word remains
+`$9843`. No priority, fighter, timer, reaction, command or queue cell is patched.
+The cartridge makes its own priority roll and reaction writes. `--kind normal`
+captures the same tape without a patch as a control. No save is an input.
+
+The launcher verifies the full US ROM and eight instruction-window digests,
+records the exact tape, map, patches, command, UTC times, statuses and input/
+source/output hashes, and uses the existing PC/HV/video hooks. The analyzer
+checks artifact hashes, ordered boundaries, every frame's count/seed update
+(including holds without HV calls), window passes, timer progression and the
+enemy-only queue. It reuses `oracle.rng_trace` for HV arithmetic and rotation;
+at the seed patch only, the opening seed is the recorded fixture value.
+`schedule` is the per-sample table, and `boundaries` retains frame-relative
+master cycles. The first command **poll** and completed enemy queue are the
+endpoints; later actions in the raw log are excluded. Images require separate
+inspection: RAM widths do not assert visibility.
+
+`python3 -m unittest tests.test_oracle_priority_openings` runs the synthetic
+trace/seed/window/queue controls and their deliberately broken counterparts;
+the US window check also runs when the local ROM exists. The actual measured
+schedules and inspected regions belong to
+[battle measurements](../docs/battle/BATTLE_MEASUREMENTS.md#signed-priority-opening-fixtures).
+
 ### Video frame capture
 
 The host can save exact, player-visible reference frames directly from the

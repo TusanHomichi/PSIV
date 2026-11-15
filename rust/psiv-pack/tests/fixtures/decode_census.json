@@ -7646,6 +7646,10 @@
     },
     {
       "decoder": "nemesis",
+      "offset": 1929516
+    },
+    {
+      "decoder": "nemesis",
       "offset": 1933230
     },
     {

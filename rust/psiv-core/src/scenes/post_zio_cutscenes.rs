@@ -108,7 +108,7 @@ pub static INSIDE_SPACESHIP: Scene = Scene {
 
 /// Ops between the sabotage menu and its cancel leg: everything after the menu
 /// up to and including the final `Return { value: 1 }`.
-const SABOTAGE_CANCEL_SKIP: u16 = 31;
+const SABOTAGE_CANCEL_SKIP: u16 = 32;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -139,6 +139,7 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
             mask: DestinationMask::Fixed(0x08),
             cancel_skip: SABOTAGE_CANCEL_SKIP,
         },
+        SceneOp::CommitDestination,
         SceneOp::PanelDestroyAll,
         SceneOp::FadeOut,
         SceneOp::Presentation {

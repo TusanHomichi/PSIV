@@ -400,6 +400,12 @@ pub enum BattleStart {
 /// One frame of battle, ready to draw.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleView {
+    /// The opening enemy-name window's width, before command input starts.
+    /// Twelve cells draws the name; smaller widths draw an empty box.
+    pub opening_name_width: Option<u8>,
+    /// First plane upload after the roll: the first enemy-overlay call runs,
+    /// while the name's scanout can contain rows of the previous plane.
+    pub opening_first_upload: bool,
     /// The command surface, or `None` while a beat owns the frame.
     pub menu: Option<MenuView>,
     /// Whether the command window is open and accepting input.
@@ -461,6 +467,8 @@ pub struct BattleView {
 impl Default for BattleView {
     fn default() -> BattleView {
         BattleView {
+            opening_name_width: None,
+            opening_first_upload: false,
             menu: None,
             ready: false,
             finishing: false,

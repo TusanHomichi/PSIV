@@ -177,7 +177,11 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     );
 
     // The appended route's first `Wait` (225 ticks) is not the scene's own.
-    let route_wait = censused_ops(again).len() + 9;
+    let route_wait = censused_ops(again).len()
+        + INSIDE_SPACESHIP_ROUTE
+            .iter()
+            .position(|op| *op == SceneOp::Wait { ticks: 225 })
+            .unwrap();
     assert!(matches!(
         scene(again).ops[route_wait],
         SceneOp::Wait { ticks: 225 }

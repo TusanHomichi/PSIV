@@ -516,8 +516,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
     and `$6` sequences (0, 4, 8) are not carried. Retail's
     `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
     (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
-    return's map reload, and the pack has no `$338`/`$3AF` sheet, so the
-    shell draws none of them
+    return's map reload. The pack extracts the exact `$338`/`$3AF` sheet
+    from the US scene's Nemesis upload at `$1D712C` on Dezolis map `$001`:
+    four mappings (`$5132A/$51332/$5133A/$51342`) in each of the three
+    sequences selected by `$502C2` (`$50396/$503A8/$503BA`), with stored
+    duration bytes 7/11/15 (8/12/16 ticks). Extraction supplies the art and
+    timings; runtime sequence selection, animation and lifetime, and a
+    matching native/retail object-scene capture remain unverified here
     ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
   - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
     over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
@@ -537,6 +542,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
     spends two more held frames. The [instruction-boundary measurement](../../oracle/CAPTURE.md#scene-load-measurements)
     separates those from decompression: Nemesis returns during 7444,
     background refresh returns during 7446, and the next counted frame is 7447.
+
+- **Garuberk arrival-door refresh** (`$06F612`, `$06F792`): each existing
+  `WaitFrames(1)` spends the explicit `DMAPlanes_VInt` frame after the arrival
+  chunk writes, but does not run the preceding retail `RunMapUpdates`.
+  The refresh CPU boundary and this update gap belong to
+  [#546](https://github.com/TusanHomichi/PSIV/issues/546); the
+  [door frame assignments](../scenes/103_GaruberkTowerDoors.md#dma-frame-ownership)
+  distinguish it from the opening/closing waits and step-out movement.
 
 ## Public reverse-engineering references used
 

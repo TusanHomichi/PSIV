@@ -121,6 +121,7 @@ impl Runtime {
     /// field takes the next frame.
     pub(crate) fn end_scene(&mut self, events: &mut Vec<RuntimeEvent>) {
         self.scene = None;
+        self.destination_world = None;
         self.boarding_body = None;
         self.scene_camera_locked = false;
         self.scene_triggers_pending = true;
@@ -570,6 +571,11 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    SceneOp::CommitDestination => {
+                        if let Some(world) = self.destination_world.take() {
+                            self.set_world_index(world);
+                        }
+                    }
                     // The window and portrait a scene's text left up
                     // (`Runtime::open_scene_dialogue`) go with it.
                     SceneOp::Presentation {

@@ -369,6 +369,7 @@ impl Session {
                 view: None,
                 started: None,
                 fault: Some(format!("debug battle {formation:#05x} refused: {error}")),
+                ..BattleFrame::default()
             },
         }
     }
@@ -389,6 +390,7 @@ impl Session {
                 fault: Some(format!(
                     "debug probe {formation:#05x} refused: the battle party is empty"
                 )),
+                ..BattleFrame::default()
             };
         }
         match self.runtime.start_battle(formation, party) {
@@ -403,6 +405,7 @@ impl Session {
                 view: None,
                 started: None,
                 fault: Some(format!("debug probe {formation:#05x} refused: {error}")),
+                ..BattleFrame::default()
             },
         }
     }

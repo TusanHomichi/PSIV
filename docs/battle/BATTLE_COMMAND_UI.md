@@ -170,8 +170,64 @@ draws, and `MenuView::Top`'s `width` the main options' box. Tests:
 `the_windows_close_two_cells_a_frame_before_the_next_one_opens` and the COMD
 half of `the_strip_and_the_technique_window_grow_before_they_read_a_button`.
 
+### The battle opening
+
+For normal priority (`Battle_Priority = 0`), `GameMode_LoadBattle` ends with the priority roll at `loc_B62A`
+(`ps4.asm:10043`). The first `GameMode_Battle` call (`ps4.asm:947`) runs
+`loc_52D6` (`ps4.asm:7554`): draw the party, start the enemy-name routines,
+and set `$FFFF4104 = 8`. This is not a battle-speed narration pause.
+`loc_737A` has already built the status strip (`ps4.asm:10973`); the first
+battle loop uploads it alongside the party and the first name-window step.
+`EnemyGroup_ShowNames` (`ps4.asm:17168`) grows its own twelve-cell window
+by two cells per call, independently of the options' `$FFFF418C` width.
+
+`loc_52C2` decrements the timer through zero, then dispatches `loc_5366`
+and `loc_5380` on successive calls (`ps4.asm:7547`, `7596`, `7603`).
+The latter draws the party again and sets `Battle_Routine_2 = 1`, so
+`Battle_OpenMainOptions` runs in that same loop. Its eight-cell window
+grows 2, 4, 6, 8; the cursor routine starts on the following call.
+
+Instruction-boundary and video captures of the US ROM give:
+
+| Tape | Priority roll | Name's first two cells | Whole name | Options' first two cells | First whole options |
+| --- | --- | --- | --- | --- | --- |
+| 45, event battle 7, Chaz | 7875 | 7876 | 7882 | 7888 | 7891 |
+| 07, encounter, Alys/Chaz/Hahn | 24840 | 24842 | 24847 | 24853 | 24857 |
+
+The video shows the preceding loop's plane writes. Tape 45's 7876 and tape
+07's 24841 and 24853 are lag: `Main_Frame_Count` and the seed stay fixed,
+and no new battle-loop call runs. On tape 45 the two-cell name repeats;
+on tape 07 the first upload reaches video a frame later and the two-cell
+options repeat once. Both sequences spend
+fourteen counted frames after the roll before the options' full-frame write.
+The eight-frame timer, six name steps and four options steps overlap;
+adding their lengths as separate pauses is incorrect.
+
+The runtime's `session/battle/opening.rs` owns this sequence separately from
+narration, including the held frames; the view carries the name width before
+the menu exists. The one- and three-member regression checks pin the widths,
+input exclusion, fourteen seed steps and the first full frame's blue cursor.
+Certification pairs `battle-opening-name` and `battle-opening-options` use
+tape 45 at 7876 and 7891, over the 319×223 region beginning at (1,1).
+
+The first upload is not an atomic image change: tape 45 at 7876 still shows
+the previous plane on name-window pixel rows 0, 1 and 8 (screen rows 8, 9
+and 16). The runtime marks this first upload, and the shell clips those rows
+and runs the first enemy-overlay call before presenting the stage. At 7877
+all window rows are visible. This is a measured opening scanout allowance,
+not a cycle-accurate VDP model for arbitrary party art or window uploads.
+The policies applied to other rosters, party sizes and mounted battles are
+recorded as a [deliberate approximation](../source-notes/battle-party.md#2026-11-15--normal-opening-upload-timing-approximation).
+The runtime also marks each actual battle-loop call for the renderer: idle
+enemy overlays advance on those calls, including the initial one, and stay
+paused during both upload holds.
+
 ### Not modelled, named
 
+- The priority-specific opening messages and the ambush handoff retain the
+  port's narration timing; [#708](https://github.com/TusanHomichi/PSIV/issues/708)
+  owns their cartridge measurement and implementation. They do not use the
+  normal options-opening state.
 - The port's own target pages (below) record the order at once: the
   cartridge picks a target over its strip and closes the strip after, which
   the port's one-list page does not draw.
