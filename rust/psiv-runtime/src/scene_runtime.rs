@@ -565,6 +565,11 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    // The window and portrait a scene's text left up
+                    // (`Runtime::open_scene_dialogue`) go with it.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::WindowDestroy { .. },
+                    } => self.dialogue.release_held_page(),
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::BarrierBeamUpdates { reveal, .. },
                     } => {

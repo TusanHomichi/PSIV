@@ -13,6 +13,7 @@ use psiv_data::GameData;
 
 mod eclipse_torch;
 mod ending;
+mod ending_window;
 mod le_roof;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
