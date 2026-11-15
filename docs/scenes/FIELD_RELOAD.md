@@ -285,7 +285,7 @@ cover. `FlightFieldReload` and `FlightArrivalName` are gone from `SceneOp`;
 the arrival name is `PlaceNameWindow`, read by the session's flight view.
 
 No certified pair crosses a cutscene end: `opening-p1` and `-p2` are inside
-`Event_GameStart` (an event), `meeting-rika` is clone tick 160 of `$8007`, long
+`Event_GameStart` (an event), `meeting-rika` is clone tick 162 of `$8007`, long
 before its end, and `ship-menu` is the destination menu of `$800D`, before the
 flight, so the certified pairs do not exercise this change. A cutscene
 end itself has no pair; its shell timing is covered by the runtime test of the

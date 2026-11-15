@@ -7,6 +7,11 @@
 //! suspends the window while the scene moves its actors, and `$F2` actions are
 //! released when the typewriter reaches their byte position.
 //!
+//! A `$F4` costs frames too ([`PortraitChange`]): decompressing a portrait's
+//! art takes two lag frames (`PORTRAIT_LOAD_LAG_FRAMES`), VInts that find
+//! the 68000 still busy. A lag frame runs nothing: no input, no field tick, no
+//! `Main_Frame_Count` and no RNG step ([`DialogueRunner::lag_frame`]).
+//!
 //! That window lives here now, not in the renderer. It reads the live
 //! [`GameState`] at every branch, writes `$F2` event flags directly, and turns
 //! everything the presentation layer must do into [`DialogueSignal`]s. What
@@ -47,7 +52,7 @@ mod tests;
 mod tests_corpus;
 
 pub(crate) use text_flow::ELSYDEON_BROKEN_FRAMES;
-pub use text_flow::{DialogueAction, Opening, TextFlow};
+pub use text_flow::{DialogueAction, Opening, PortraitChange, TextFlow};
 pub use view::{DialogueChoiceView, DialogueView};
 
 use crate::pad::{Button, Pad};
@@ -109,6 +114,9 @@ pub struct DialogueRunner {
     /// toward the next one.
     revealed: usize,
     reveal_tick: u8,
+    /// A typewriter step that came due at a `$F4` whose frames had not run:
+    /// it draws its glyph first thing after them, whatever the pad then.
+    step_due: bool,
     /// This frame's pad: the typewriter reads its Speak level.
     pad: Pad,
     /// Last frame's pad, for the presses.
@@ -143,6 +151,21 @@ pub struct DialogueRunner {
     stop_byte: Option<u8>,
     /// The byte two before it, the last the text ran (`stop_byte.rs`).
     last_byte: Option<u8>,
+    /// Whether the typewriter has reached the flow's first pending `$F4`
+    /// ([`TextFlow::pending_portrait`]) and its frames have started.
+    portrait_reached: bool,
+    /// Its destroy frames left to run.
+    destroy_left: u8,
+    /// Its lag frames, waiting for the destroy frames.
+    lag_left: u8,
+    /// The pad of the typewriter step that waits behind its frames.
+    deferred_pad: Option<Pad>,
+    /// Lag frames left ([`DialogueRunner::lag_frame`]).
+    lag: u8,
+    /// A finished `$F4`'s glyph and what the plane shows until the glyph
+    /// after it is drawn: nothing after a load, the old portrait after
+    /// `$F4 0`.
+    portrait_plane: Option<(usize, Option<u8>)>,
 }
 
 impl Default for DialogueRunner {
@@ -167,6 +190,7 @@ impl DialogueRunner {
             open_cells: 0,
             revealed: 0,
             reveal_tick: 0,
+            step_due: false,
             pad: Pad::NEUTRAL,
             previous: Pad::NEUTRAL,
             event: None,
@@ -176,6 +200,12 @@ impl DialogueRunner {
             signals: Vec::new(),
             stop_byte: None,
             last_byte: None,
+            portrait_reached: false,
+            destroy_left: 0,
+            lag_left: 0,
+            deferred_pad: None,
+            lag: 0,
+            portrait_plane: None,
         }
     }
 
@@ -234,6 +264,15 @@ impl DialogueRunner {
         self.flow.is_some()
     }
 
+    /// Whether this frame is a lag frame: its VInt finds `VInt_Flag` clear
+    /// (`ps4.asm:548-549`), so it skips `ReadJoypads`, `UpdateRNGSeed` and
+    /// `Main_Frame_Count` (`ps4.asm:614-624`), and the 68000 is still inside
+    /// `TextCtrlCode_Portrait`'s `NemDecomp`. Nothing of the frame runs.
+    #[must_use]
+    pub(crate) fn lag_frame(&self) -> bool {
+        self.lag > 0
+    }
+
     /// A `$F6` the flow fired, once.
     pub(crate) fn take_event(&mut self) -> Option<u16> {
         self.event.take()
@@ -254,7 +293,7 @@ impl DialogueRunner {
             lines: flow.lines().to_vec(),
             revealed: self.revealed,
             total: flow.visible_chars(),
-            portrait: flow.portrait().or(self.board_portrait),
+            portrait: self.shown_portrait(flow),
             page_end: flow.page_end(),
             waiting: flow.is_waiting(),
             dismissable: self.is_dismissable(),
@@ -277,10 +316,24 @@ impl DialogueRunner {
     /// was spent where it happened. `notice_up` is retail's one exception to
     /// accept-only dismissal: cancel closes a field-status window.
     pub(crate) fn input(&mut self, game: &mut GameState, pad: Pad, notice_up: bool) {
+        if self.lag_frame() {
+            // No `ReadJoypads` on a lag frame: a press is read, as a press,
+            // on the first frame after it.
+            return;
+        }
         let pressed = pad.pressed(self.previous);
         self.pad = pad;
         self.previous = pad;
         if self.flow.is_none() {
+            return;
+        }
+        // The `$F4`s the typewriter has reached run before the frame reads
+        // the page: a `$F4 0` finishes at once, and a load or swap starts in
+        // this frame's phase, under a prompt as on any page.
+        self.portrait_work(Some(pad), false, game);
+        if self.flow.as_ref().is_some_and(TextFlow::has_jump_or_event) {
+            // The walk resumed into a `$FA` jump or a `$F6`: the window half
+            // services it, as it does any other.
             return;
         }
         if self.board_text
@@ -289,6 +342,7 @@ impl DialogueRunner {
         {
             // `RunText` returns at the terminator; the window stays for the
             // next text, and the guild's routine destroys it itself.
+            self.retain_board_portrait();
             self.held_page = self.view();
             self.close_window();
             self.detect_close();
@@ -307,6 +361,9 @@ impl DialogueRunner {
         } else if pressed.held(Button::Speak) || (notice_up && pressed.held(Button::Cancel)) {
             self.advance(game);
         }
+        // A `$F4` the typewriter reached (or a page the press opened on one):
+        // its frames start now, and a lag frame starts with this one.
+        self.portrait_work(Some(pad), false, game);
         self.detect_close();
     }
 
@@ -317,6 +374,10 @@ impl DialogueRunner {
     /// been applied — the point the window node's own `physics_process` held
     /// before the window moved here.
     pub(crate) fn window(&mut self, game: &mut GameState) {
+        if self.lag_frame() {
+            self.lag -= 1;
+            return;
+        }
         // Actions launch after this tick, so frame zero is never consumed here.
         // Their palette clock runs during the opening animation too.
         if let Some(flow) = self.flow.as_mut() {
@@ -327,27 +388,202 @@ impl DialogueRunner {
             return;
         }
         if self.open_cells < self.full_cells() {
-            // Oracle: the box opens in 9 frames; the pack's step_cells is
-            // per SIDE, so the width grows by twice that each frame.
-            let step = self.step_cells();
-            self.open_cells = (self.open_cells + step).min(self.full_cells());
-        } else {
-            if self.board_text {
-                self.board_portrait = self
-                    .flow
-                    .as_ref()
-                    .and_then(TextFlow::portrait)
-                    .or(self.board_portrait);
+            // `loc_686BC` (`ps4.asm:139790`) widens the box by the pack's
+            // step_cells (two: a cell each side) a pass, and render bit 1
+            // `bchg`s bit 2 so only every other pass, the first included,
+            // waits for a VInt: the frames show 2, 6, 10 ... cells (tape 43,
+            // frames 8203-8211).
+            let pass = self.step_cells();
+            self.open_cells = if self.open_cells == 0 {
+                pass
+            } else {
+                self.open_cells + 2 * pass
             }
+            .min(self.full_cells());
+            // A `$F4` at the head of the page runs once the box is open: its
+            // frames follow this one, before the typewriter's first.
+            self.portrait_work(None, false, game);
+        } else if self.portrait_work(Some(self.pad), true, game) {
+            // The typewriter's step waits behind the portrait's frames.
+        } else {
+            self.retain_board_portrait();
             if let Some(flow) = self.flow.as_mut() {
                 // Delays only run once the box is open; the cartridge's
                 // animation holds the text loop the same way.
                 flow.tick(game);
             }
-            self.reveal();
+            // A delay that ran out into a `$F4` the typewriter is at: a
+            // `$F4 0` finishes before the step, and a load or swap starts as
+            // one reached by typing does. The step, if due, waits for it.
+            self.portrait_work(None, false, game);
+            let pad = self.deferred_pad.take().unwrap_or(self.pad);
+            self.reveal(pad);
+            self.settle_portrait_plane();
         }
         self.drain_flow_log();
         self.service_flow(game);
+    }
+
+    /// Runs the `$F4`s the typewriter has reached, in stream order: each
+    /// one's destroy frames, counted, then its lag frames. The typewriter
+    /// step that reached the first (with `pad`, the frame's Speak level)
+    /// waits behind all of them, so a change adds exactly its own frames to
+    /// the page.
+    ///
+    /// The input half and the opening box start a change (`spend` false): a
+    /// change with no destroy frame makes this frame its first lag frame in
+    /// the input half, and the next one after the box opens. The window half
+    /// (`spend` true) spends destroy frames, and returns whether this frame
+    /// belongs to the portraits, so the typewriter takes no step.
+    fn portrait_work(&mut self, pad: Option<Pad>, spend: bool, game: &GameState) -> bool {
+        loop {
+            let Some(change) = self
+                .flow
+                .as_ref()
+                .and_then(TextFlow::pending_portrait)
+                .copied()
+            else {
+                return false;
+            };
+            if self.portrait_reached {
+                if self.lag > 0 {
+                    return true;
+                }
+                if self.destroy_left > 0 {
+                    if !spend {
+                        return false;
+                    }
+                    // `$06A1B4`: a counted frame, the old portrait gone and
+                    // no glyph. Its last one starts the lag.
+                    self.destroy_left -= 1;
+                    if self.destroy_left == 0 {
+                        self.lag = std::mem::take(&mut self.lag_left);
+                    }
+                    return true;
+                }
+                // Its frames are spent. A destroy's `DMAPlane_A_VInt` left
+                // the plane without a portrait; with none, it still shows
+                // what it did. The new one comes with the glyph after it, and
+                // the next `$F4` may follow at once.
+                let plane = if change.destroy_frames > 0 {
+                    None
+                } else {
+                    self.displayed_before(&change)
+                };
+                self.finish_portrait(change.at, plane, game);
+                continue;
+            }
+            if self.is_opening() || self.revealed < change.at {
+                return false;
+            }
+            if !change.has_frames() {
+                // `$F4 0` restores the plane with no frame of its own: what
+                // the screen shows goes with the next glyph.
+                let plane = self.displayed_before(&change);
+                self.finish_portrait(change.at, plane, game);
+                continue;
+            }
+            self.portrait_reached = true;
+            self.deferred_pad = self.deferred_pad.or(pad);
+            self.destroy_left = change.destroy_frames;
+            self.lag_left = change.lag_frames;
+            if self.destroy_left > 0 {
+                continue;
+            }
+            // In the input half this frame is the first lag frame; in the
+            // window half the next one is, and this one waits.
+            self.lag = std::mem::take(&mut self.lag_left);
+            return spend;
+        }
+    }
+
+    /// Drops the flow's first pending `$F4`; the plane shows `plane` until
+    /// the glyph after `at` is drawn.
+    fn finish_portrait(&mut self, at: usize, plane: Option<u8>, game: &GameState) {
+        if let Some(flow) = self.flow.as_mut() {
+            flow.finish_portrait(game);
+        }
+        self.portrait_reached = false;
+        self.destroy_left = 0;
+        self.lag_left = 0;
+        self.portrait_plane = Some((at, plane));
+    }
+
+    /// Whether a `$F4` is still to run or running: the page cannot be
+    /// advanced, answered or closed before its portrait is up.
+    fn portrait_pending(&self) -> bool {
+        self.lag > 0
+            || self
+                .flow
+                .as_ref()
+                .is_some_and(|flow| flow.pending_portrait().is_some())
+    }
+
+    /// The finished `$F4`'s plane, while the glyph after it is not drawn.
+    fn portrait_plane(&self) -> Option<Option<u8>> {
+        let total = self.flow.as_ref().map_or(0, TextFlow::visible_chars);
+        self.portrait_plane
+            .filter(|&(at, _)| self.revealed <= at && self.revealed < total)
+            .map(|(_, plane)| plane)
+    }
+
+    /// What the screen shows as `change` runs: a finished `$F4` at the same
+    /// glyph left its plane there, with no `DMAPlane_A_VInt` since; otherwise
+    /// the portrait before it.
+    fn displayed_before(&self, change: &PortraitChange) -> Option<u8> {
+        self.portrait_plane().unwrap_or(change.previous)
+    }
+
+    /// The guild board keeps the portrait its first text put up, once it is
+    /// on screen.
+    fn retain_board_portrait(&mut self) {
+        if self.board_text && !self.portrait_pending() && self.portrait_plane().is_none() {
+            self.board_portrait = self
+                .flow
+                .as_ref()
+                .and_then(TextFlow::portrait)
+                .or(self.board_portrait);
+        }
+    }
+
+    /// Forgets the plane once the glyph after its `$F4` is drawn, or the
+    /// page has no glyph after it.
+    fn settle_portrait_plane(&mut self) {
+        if self.portrait_plane().is_none() {
+            self.portrait_plane = None;
+        }
+    }
+
+    fn clear_portrait_change(&mut self) {
+        self.step_due = false;
+        self.portrait_reached = false;
+        self.destroy_left = 0;
+        self.lag_left = 0;
+        self.deferred_pad = None;
+        self.portrait_plane = None;
+    }
+
+    /// The portrait the window draws: the old one until the typewriter
+    /// reaches a change, none while its frames run, then the new one with
+    /// the glyph after it.
+    fn shown_portrait(&self, flow: &TextFlow) -> Option<u8> {
+        let reached = flow.pending_portrait().filter(|_| self.portrait_reached);
+        let portrait = if let Some(change) = reached {
+            // A swap's destroy frame clears the plane; a load with nothing
+            // up sends nothing until its glyph.
+            if change.destroy_frames > 0 {
+                None
+            } else {
+                self.displayed_before(change)
+            }
+        } else if let Some(plane) = self.portrait_plane() {
+            plane
+        } else if let Some(change) = flow.pending_portrait() {
+            change.previous
+        } else {
+            flow.portrait()
+        };
+        portrait.or(self.board_portrait)
     }
 
     fn start(&mut self, opening: Opening, who: &str) -> bool {
@@ -375,6 +611,7 @@ impl DialogueRunner {
                 };
                 self.revealed = 0;
                 self.reveal_tick = 0;
+                self.clear_portrait_change();
                 self.choice.reset();
                 self.drain_flow_log();
                 true
@@ -400,6 +637,11 @@ impl DialogueRunner {
         if !flow.is_dismissable() {
             return;
         }
+        if self.lag > 0 || flow.pending_portrait().is_some() {
+            // `TextCtrlCode_Portrait` runs before the routine reads the page
+            // end: a press cannot leave the page before its portrait is up.
+            return;
+        }
         let reopen = flow.page_end() == Some(PageEnd::Close);
         if self.revealed < flow.visible_chars() {
             // A press mid-typewriter neither completes the page nor advances
@@ -415,6 +657,8 @@ impl DialogueRunner {
         }
         self.revealed = 0;
         self.reveal_tick = 0;
+        self.step_due = false;
+        self.portrait_plane = None;
         self.drain_flow_log();
         if self.flow.as_ref().is_some_and(TextFlow::is_open) {
             if reopen {
@@ -423,6 +667,7 @@ impl DialogueRunner {
                 self.open_cells = 0;
                 self.revealed = 0;
                 self.reveal_tick = 0;
+                self.step_due = false;
             }
             return;
         }
@@ -450,6 +695,8 @@ impl DialogueRunner {
         }
         self.revealed = 0;
         self.reveal_tick = 0;
+        self.step_due = false;
+        self.portrait_plane = None;
         self.choice.reset();
         self.service_flow(game);
         self.drain_flow_log();
@@ -541,15 +788,34 @@ impl DialogueRunner {
     /// the button down), but a fresh press with the hold maintained starts the
     /// next page already accelerated. Reading the held state per tick here
     /// gives exactly that pairing.
-    fn reveal(&mut self) {
-        let total = self.flow.as_ref().map_or(0, TextFlow::visible_chars);
+    ///
+    /// The typewriter never draws past a `$F4` whose frames have not run:
+    /// a step due there waits, and is the first after them.
+    fn reveal(&mut self, pad: Pad) {
+        let Some(flow) = self.flow.as_ref() else {
+            return;
+        };
+        let total = flow.visible_chars();
         if self.revealed >= total {
             return;
         }
-        let cadence = if self.pad.held(Button::Speak) { 1 } else { 3 };
+        let limit = flow.pending_portrait().map_or(total, |change| change.at);
+        if self.step_due {
+            if self.revealed < limit {
+                self.step_due = false;
+                self.reveal_tick = 0;
+                self.revealed += 1;
+            }
+            return;
+        }
+        let cadence = if pad.held(Button::Speak) { 1 } else { 3 };
         self.reveal_tick += 1;
         if self.reveal_tick >= cadence {
             self.reveal_tick = 0;
+            if self.revealed >= limit {
+                self.step_due = true;
+                return;
+            }
             self.revealed += 1;
         }
     }
@@ -563,6 +829,7 @@ impl DialogueRunner {
     /// Whether the yes/no prompt is on screen, fully typed and answerable.
     fn choice_ready(&self) -> bool {
         !self.is_opening()
+            && !self.portrait_pending()
             && self
                 .flow
                 .as_ref()
@@ -573,8 +840,9 @@ impl DialogueRunner {
     fn is_dismissable(&self) -> bool {
         // The flow reaches its page end before the typewriter has revealed
         // the glyphs; a dismissal must not start until the page is actually
-        // on screen.
+        // on screen, its portrait included.
         !self.is_opening()
+            && !self.portrait_pending()
             && self
                 .flow
                 .as_ref()
@@ -593,7 +861,7 @@ impl DialogueRunner {
         window.text_window.rect.width / cell
     }
 
-    /// Cells the box grows per animation step, per frame.
+    /// Cells one `loc_686BC` pass widens the box by: the pack's step_cells.
     fn step_cells(&self) -> i32 {
         self.set
             .as_ref()
@@ -601,7 +869,6 @@ impl DialogueRunner {
                 i32::try_from(set.window.geometry.open_animation.step_cells).unwrap_or(1)
             })
             .max(1)
-            * 2
     }
 
     fn drain_flow_log(&mut self) {
