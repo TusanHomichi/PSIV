@@ -613,7 +613,8 @@ borrows. Writers:
 
 The view also carries VDP register 1's display-enable bit (`CramView::display`,
 #653). `Pal_VariableFadeOut` and `PalFadeOut_ClrSpriteTbl` (so `FadeOut`,
-`InitVramAndCram`'s fade and a whole-palette `VariablePaletteFade` down) end
+`InitVramAndCram`'s fade, a whole-palette `VariablePaletteFade` down and
+[Get5/Run5's dialogue close](SCENE_DIALOGUE.md#field-entrance-and-panel-cleanup)) end
 in `ClearSpriteTableBuf`, which clears it (`ps4.asm:85982-85984`): the first
 dark frame is the one after the fade's last pass and its waits. `VDP_EnableDisplay`
 (`$04222E`) spends one `VInt_Prepare` and sets it, so the frame after it is

@@ -231,7 +231,7 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(3)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::PanelDestroyAll,
         SceneOp::Presentation {

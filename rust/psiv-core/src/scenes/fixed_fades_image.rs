@@ -95,7 +95,6 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
 const KNOWN: &[(&str, u32)] = &[
-    ("Cutscene_Dorin", 652),
     ("Cutscene_AlysWounded", 652),
     ("Cutscene_ZioDefeated", 652),
     ("Cutscene_InsideSpaceship", 652),

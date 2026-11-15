@@ -99,7 +99,17 @@ class Scratch(unittest.TestCase):
         # to the output's parent, not the private snapshot directory.
         with tempfile.TemporaryDirectory(prefix="reader-", dir=self.dir) as snapshot:
             selected = Path(snapshot) / "selected"
-            os.link(self.output, selected, follow_symlinks=False)
+            while True:
+                try:
+                    os.link(self.output, selected, follow_symlinks=False)
+                    break
+                except FileNotFoundError:
+                    # link(2) can lose the source dentry to a concurrent
+                    # rename even though the output is replaced atomically.
+                    # Retry selection only while the source still exists;
+                    # a missing output or snapshot directory must fail.
+                    self.output.lstat()
+                    selected.parent.stat()
             target = self.output.parent / os.readlink(selected)
             directory = os.open(target, os.O_RDONLY | os.O_DIRECTORY)
             try:
@@ -662,6 +672,33 @@ class SpanningReader(Scratch):
                 self.assertTrue(swapped)
                 self.assertEqual(consistent(directory), "v1")
                 self.assertEqual(consistent(self.output), "v2")
+        self.assertEqual(list(self.dir.glob("reader-*")), [])
+
+    def test_selection_survives_a_link_lookup_lost_to_replacement(self):
+        self.install("v1")
+        original = os.link
+        replaced = False
+
+        def replace_during_link(source, target, **kwargs):
+            nonlocal replaced
+            if not replaced:
+                replaced = True
+                self.install("v2")
+                raise FileNotFoundError(errno.ENOENT, "source replaced", str(source))
+            return original(source, target, **kwargs)
+
+        with mock.patch.object(os, "link", replace_during_link):
+            with self.pinned_pack() as directory:
+                self.assertTrue(replaced)
+                self.assertEqual(consistent(directory), "v2")
+                self.install("v3")
+                self.assertEqual(consistent(directory), "v2")
+        self.assertEqual(list(self.dir.glob("reader-*")), [])
+
+    def test_a_missing_output_is_reported_without_retrying_forever(self):
+        with self.assertRaises(FileNotFoundError):
+            with self.pinned_pack():
+                self.fail("a missing output yielded a reader")
         self.assertEqual(list(self.dir.glob("reader-*")), [])
 
     def test_a_failed_directory_open_cleans_up_the_snapshot(self):
