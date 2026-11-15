@@ -37,7 +37,7 @@ the battle on 7815, which holds white until 7856 and fades the battle in from
 7857.
 
 The port builds on the held `Retained` page (entries and resumes, #686).
-`event_battle_entry.rs` owns the fifteen passes and their half-open pixel rows:
+`battle_entry.rs` owns the fifteen passes and their half-open pixel rows:
 `[104,120)`, then eight more pixels at each edge, clipped to `[0,224)`. Each
 pass calls the shared CRAM model's `Pal_IncreaseTone` before its DMA/VInt wait;
 it changes all 64 words when `Main_Frame_Count & 3` is zero. The Profound
