@@ -155,7 +155,19 @@ impl Field {
         let Some(setup) = setup else {
             return false;
         };
-        self.begin_battle_presentation(setup, &label);
+        if self
+            .battle_screen
+            .as_ref()
+            .is_some_and(|screen| screen.bind().loading())
+        {
+            self.battle_screen
+                .as_mut()
+                .unwrap()
+                .bind_mut()
+                .finish_loading();
+        } else {
+            self.begin_battle_presentation(setup, &label);
+        }
         true
     }
 
@@ -229,6 +241,29 @@ impl Field {
         godot_print!("battle started: {label}");
     }
 
+    pub(super) fn present_battle_load(&mut self, view: psiv_runtime::BattleLoadView) {
+        if !self
+            .battle_screen
+            .as_ref()
+            .is_some_and(|screen| screen.bind().loading())
+        {
+            let (Some(files), Some(runtime)) = (self.battle_files.as_ref(), self.runtime()) else {
+                return;
+            };
+            let setup = match view.start {
+                BattleStart::Encounter(id) => build_setup(files, runtime, id),
+                BattleStart::EventBattle(index) => build_boss_setup(files, runtime, index),
+            };
+            let Some(setup) = setup else {
+                return;
+            };
+            self.begin_battle_presentation(setup, "loading");
+        }
+        if let Some(screen) = self.battle_screen.as_mut() {
+            screen.bind_mut().draw_load(view);
+        }
+    }
+
     /// Hands the node this frame's view.
     pub(crate) fn set_battle_view(&mut self, view: BattleView) {
         if let Some(screen) = self.battle_screen.as_mut() {
@@ -245,6 +280,15 @@ impl Field {
     /// here is the stage: the art clock, the sound cues the frame raised, and
     /// the frame the presentation closes on.
     pub(crate) fn drive_battle_if_active(&mut self) -> bool {
+        if self
+            .runtime()
+            .is_some_and(|runtime| runtime.battle_load_view().is_some())
+        {
+            // The stage exists while the session still owns the loader in
+            // field mode. Advance that mode, with the idle art clock parked.
+            self.drive_game_frame();
+            return true;
+        }
         if !self.battle_presentation_active() {
             return false;
         }

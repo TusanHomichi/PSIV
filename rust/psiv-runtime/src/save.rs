@@ -191,6 +191,7 @@ pub(super) fn construct_runtime(
         offscreen: Vec::new(),
         battles: None,
         battle: None,
+        prepared_battle: None,
         battle_field_refresh_pending: false,
         scene_battle: None,
         event_battle_entry: None,

@@ -9,6 +9,35 @@
 use super::*;
 
 #[test]
+fn loading_seats_the_battle_before_its_single_opening_roll() {
+    let data = fixtures::data();
+    let formation = fixtures::formation_two_zoran_bults();
+    for (boss, vehicle) in [(false, false), (true, false), (false, true)] {
+        let prepared =
+            Battle::prepare(&formation, basement_party(&data), &data, boss, vehicle).unwrap();
+        assert_eq!(prepared.battle.roster().iter().count(), 5);
+        let mut rolls = SliceRolls::new(&[20]);
+        assert_eq!(rolls.drawn(), 0, "setup takes no RNG source");
+        let actual = prepared.roll(&mut rolls);
+        assert_eq!(rolls.drawn(), 1);
+        let mut immediate = SliceRolls::new(&[20]);
+        let expected = Battle::start_inner(
+            &formation,
+            basement_party(&data),
+            &data,
+            boss,
+            vehicle,
+            &mut immediate,
+        )
+        .unwrap();
+        assert_eq!(
+            actual, expected,
+            "splitting setup preserves battle state and events"
+        );
+    }
+}
+
+#[test]
 fn a_formation_the_data_cannot_resolve_is_an_error_not_a_panic() {
     let data = BattleData::new();
     let mut rolls = SliceRolls::new(&[0]);

@@ -258,6 +258,13 @@ fn the_event_battle_starts_and_rolls_at_its_entrys_end() {
         }
         assert!(events.is_empty(), "nothing else runs: {events:?}");
         assert!(!runtime.battle_active() && runtime.scene_active());
+        if ticks >= 56 {
+            let view = runtime.battle_load_view().expect("stage before roll");
+            assert_eq!(view.start, crate::session::BattleStart::EventBattle(0));
+            assert_eq!(view.foreground_rows, (ticks - 56).min(14) as u8);
+        } else {
+            assert!(runtime.battle_load_view().is_none());
+        }
         screens.push(runtime.event_battle_entry_screen());
         assert!(ticks < 76, "the battle starts on the 76th frame");
     };

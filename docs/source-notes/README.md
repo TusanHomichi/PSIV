@@ -200,8 +200,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
-- **An event battle's entry draws no band, sweep or settled stage (#644,
-  #663).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
+- **An event battle's field entry draws no band (#665).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
   arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
@@ -218,11 +217,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   (`event_battle_entry.rs`): the battle starts and rolls on the 76th frame
   after the request, with the seed stepped on the 36 frames the cartridge
   counts, so every event battle's rolls moved with #663. The shell draws the
-  hold and the fade's uniform backdrop, which match 7814-7859; it draws the
-  field without the band or tone for the passes (#665), the backdrop where
-  the planes sweep in (7860-7869) and stays black instead of the settled stage
-  until the roll (7870-7875, #679). Encounters still roll at once under a
-  presentation-only cover (#678). The stage's 37 lag frames are battle 7's: the
+  hold and the two-plane sweep (#679): `BattleLoadView` submits the scroll,
+  uploaded rows and nibble fade; setup precedes the fade and the opening roll
+  remains on its own frame. Tape 45's 7863, 7870 and 7873 pairs cover the sweep,
+  settled stage and pre-roll lag. The field passes still lack the band and
+  tone (#665). Encounters still roll at once under a presentation-only cover
+  (#678). The stage's 37 lag frames are battle 7's: the
   port spends them on every event battle, though the cartridge's depend on what
   the stage decompresses ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**

@@ -18,10 +18,12 @@ mod camera;
 mod camp;
 mod cram;
 pub use cram::{CramView, TEXT_COLOUR_SLOT};
+mod battle_load;
 mod dialogue;
 mod effects;
 mod encounters;
 mod event_battle_entry;
+pub use battle_load::BattleLoadView;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;
@@ -224,6 +226,7 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    prepared_battle: Option<(session::BattleStart, psiv_core::battle::PreparedBattle)>,
     /// Battle return reloads map data without initializing live field objects.
     battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.

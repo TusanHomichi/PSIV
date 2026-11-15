@@ -683,10 +683,18 @@ impl Field {
         }
     }
 
-    /// An event battle's entry draws the runtime's uniform screen this frame:
-    /// a one-frame cover over whatever transition ran, set again each frame
-    /// the runtime still shows it.
+    /// Draw the runtime's loaded stage, or its uniform hold before setup.
+    /// A loaded stage replaces the cover and retains its own stepped palette.
     pub(super) fn sync_battle_entry_screen(&mut self) {
+        if let Some(view) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::battle_load_view)
+        {
+            self.present_battle_load(view);
+            self.transition = None;
+            self.sync_transition();
+            return;
+        }
         let screen = self
             .runtime()
             .and_then(psiv_runtime::Runtime::event_battle_entry_screen);

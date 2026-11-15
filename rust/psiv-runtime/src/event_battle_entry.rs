@@ -91,15 +91,9 @@ impl EventBattleEntry {
             || (elapsed >= self.fade_from() && elapsed < self.fade_from() + FADE_COUNTED)
     }
 
-    /// The uniform screen frame `elapsed` shows, as a CRAM word, or `None`
-    /// while the field arm draws (its band and tone are #665's).
-    ///
-    /// The fade lowers every nibble by one a frame toward the battle palette,
-    /// whose backdrop is black (`loc_6B56`), from the frame after the `$EEE`
-    /// frame. While the planes are still off-screen the whole screen is that
-    /// backdrop; the port draws no stage until the battle starts, so it holds
-    /// the black backdrop to the roll (#679).
-    const fn screen(self, elapsed: u16) -> Option<u16> {
+    /// The entry's backdrop CRAM word. Before setup it covers the field;
+    /// once the stage is loaded it is also the cleared VRAM's colour.
+    fn screen(self, elapsed: u16) -> Option<u16> {
         let white_from = self.field_frames() - BAND_PASSES + WHITE_FROM;
         if elapsed < white_from {
             return None;
@@ -108,9 +102,13 @@ impl EventBattleEntry {
         if elapsed <= fade_from {
             return Some(ENTRY_WHITE);
         }
-        let steps = elapsed - fade_from;
-        let nibble = 0xE_u16.saturating_sub(steps);
-        Some(nibble * 0x111)
+        Some(
+            crate::BattleLoadView::new(
+                crate::session::BattleStart::EventBattle(self.index),
+                elapsed - fade_from,
+            )
+            .palette_word(0),
+        )
     }
 }
 
@@ -132,11 +130,34 @@ impl Runtime {
             self.frames = self.frames.wrapping_add(1);
             self.rng.step();
         }
+        if entry.elapsed == entry.fade_from() {
+            let start = crate::session::BattleStart::EventBattle(entry.index);
+            self.prepared_battle = self
+                .prepare_battle_load(start, self.battle_party())
+                .ok()
+                .map(|battle| (start, battle));
+            if self.prepared_battle.is_some() {
+                self.effects.cram.enable_display();
+            }
+        }
         if entry.elapsed < entry.roll_frame() {
             return Some(Vec::new());
         }
         self.event_battle_entry = None;
         Some(vec![self.start_requested_battle(entry.index)])
+    }
+
+    /// The stage is loaded before the fade and stays settled through the lag
+    /// frames before `loc_B62A`; none of these frames rolls the opening.
+    #[must_use]
+    pub fn battle_load_view(&self) -> Option<crate::BattleLoadView> {
+        let entry = self.event_battle_entry?;
+        let steps = entry.elapsed.checked_sub(entry.fade_from())?;
+        self.prepared_battle.as_ref()?;
+        Some(crate::BattleLoadView::new(
+            crate::session::BattleStart::EventBattle(entry.index),
+            steps,
+        ))
     }
 
     /// The uniform screen an event battle's entry shows this frame, as a CRAM
