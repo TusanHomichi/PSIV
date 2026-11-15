@@ -292,8 +292,9 @@ fn the_break_page_spends_248_counted_frames_and_fifteen_panel_lag_frames() {
         }
         // The turn clears the page before the next page's leading panel
         // finishes. Observe that clear, not its later first glyph.
-        if last_glyph.is_some() && !view.lines.first().is_some_and(|line| line.starts_with('g')) {
-            let (last_wall, last_counted) = last_glyph.expect("the break page was drawn");
+        if let Some((last_wall, last_counted)) = last_glyph
+            && !view.lines.first().is_some_and(|line| line.starts_with('g'))
+        {
             assert_eq!(counted - last_counted, 248);
             assert_eq!(wall - last_wall, 263);
             return;
