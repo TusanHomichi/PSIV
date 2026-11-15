@@ -398,11 +398,6 @@ pub enum SceneOp {
         /// The roster record.
         who: CharId,
     },
-    /// Apply the retail bug-fix tail that revives Chaz when HP is zero.
-    ReviveIfDead {
-        /// The character to inspect.
-        who: CharId,
-    },
     /// Remove one or more consecutive field objects from the map.
     ///
     /// **The width is load-bearing.** The despawn is a `trap #0` block clear

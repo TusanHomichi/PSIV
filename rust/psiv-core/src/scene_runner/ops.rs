@@ -208,16 +208,6 @@ impl SceneRunner {
                 effects.push(SceneEffect::RosterChanged { who });
                 self.pc += 1;
             }
-            SceneOp::ReviveIfDead { who } => {
-                if let Some(stats) = state.roster_mut().get_mut(who) {
-                    stats.status = 0;
-                    if stats.curr_hp == 0 {
-                        stats.curr_hp = stats.max_hp;
-                    }
-                }
-                effects.push(SceneEffect::RosterChanged { who });
-                self.pc += 1;
-            }
             SceneOp::PromoteNpcToChar {
                 npc,
                 char_id,

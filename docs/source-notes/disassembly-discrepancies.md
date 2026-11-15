@@ -8,6 +8,26 @@ retractions kept in place.
 
 Index: [source and provenance notes](README.md).
 
+## ZioDefeated's fork-only Chaz revival
+
+Correction, 2026-11-15 ([#736](https://github.com/TusanHomichi/PSIV/issues/736)):
+the [scene audit](../scenes/39_ZioDefeated.md) formerly called Chaz's revival
+a retail bug-fix at `$075E8C`. The accepted US image (SHA-256 in the
+[provenance index](README.md)) has Demi's status clear at `$075E88` and the
+final Motavia map-index write at `$075E8C`, with no intervening Chaz status
+or HP write. `RefreshMap` is called at `$075EB6`, `Pal_FadeIn` at `$075EBC`,
+and `rts` is at `$075EDE`.
+
+The reference fork adds the Chaz status clear and conditional max-HP copy
+under `if bugfixes=1` (`ps4.asm:155261-155269`), to prevent a potential
+game over after removing the surviving Gryz/Demi. That rationale is the
+fork's, not evidence of US behavior or an owner's deliberate-deviation
+decision. The port preserves retail here: Chaz's HP and status remain
+unchanged, including zero HP and death status. The unused revival scene op
+is removed with its only caller. This retracts the earlier retail attribution;
+it records a fork discrepancy, not a deliberate native deviation or a newly
+confirmed cartridge bug.
+
 ## Discrepancies found against the disassembly's annotations
 
 Scene-level fork divergences (the 17 ungated Grand Cross scene rewrites) are

@@ -557,6 +557,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     use_psycho_wand(&mut runtime);
     assert_eq!(resolve_scene_battle(&mut runtime), Outcome::Victory);
 
+    let chaz = runtime.game().roster().get(CharId(0)).unwrap();
+    let chaz_before = (chaz.curr_hp, chaz.status);
     let _ = drive_scene(&mut runtime, 0x800B);
     assert!(runtime.game().is_set(Flag::event(0x68)));
     assert!(runtime.game().is_set(Flag::event(0x66)));
@@ -566,7 +568,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
         runtime.game().party_members(),
         vec![CharId(0), CharId(5), CharId(3)]
     );
-    assert!(runtime.game().roster().get(CharId(0)).unwrap().curr_hp > 0);
+    let chaz = runtime.game().roster().get(CharId(0)).unwrap();
+    assert_eq!((chaz.curr_hp, chaz.status), chaz_before);
 
     // The player walks from Motavia to Mota Spaceport before the next scene.
     // Re-enter through the same decoded snapshot so this is one persistent arc
