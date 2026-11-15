@@ -80,7 +80,7 @@ fn ending_loops() -> Option<Vec<ToneLoop>> {
 /// Acceptance for the ending's loops: sixty frames of `Pal_IncreaseTone`
 /// over all four lines, none held, each component `min(level + s, 7)` after
 /// `s` phase frames, so every word is white by the loop's end. The first
-/// loop's native capture pairs with tape 45 (`ending-tone-loop-*` in
+/// loop's native capture pairs with tape 38 (`ending-tone-loop-*` in
 /// tools/certify.py). The third starts white: nothing between the second
 /// and it writes the buffer, since the staff roll's and the credits'
 /// palette steps are not modelled yet
