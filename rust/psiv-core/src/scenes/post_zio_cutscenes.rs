@@ -108,7 +108,7 @@ pub static INSIDE_SPACESHIP: Scene = Scene {
 
 /// Ops between the sabotage menu and its cancel leg: everything after the menu
 /// up to and including the final `Return { value: 1 }`.
-const SABOTAGE_CANCEL_SKIP: u16 = 29;
+const SABOTAGE_CANCEL_SKIP: u16 = 31;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -155,6 +155,11 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
             clear_load_flags: 0x08,
         },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
+        // `loc_763CA` (`ps4.asm:155659-155660`): `jsr InitVRAMAndCRAM` /
+        // `jsr Pal_FadeIn` before panel `$7A`. The fade-out before them left
+        // the display off, and the fade-in turns it on (#653).
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x7A },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 90 },

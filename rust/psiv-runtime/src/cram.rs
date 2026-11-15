@@ -17,10 +17,14 @@
 //!
 //! A scene's `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` (`InitVRAMAndCRAM`'s
 //! fade included) are `Pal_VariableFadeIn`/`Out` with `$FFFFED52` at zero, and
-//! run here as those do (#637). The display-disable bit the fade-out leaves
-//! is not modelled (#653): the words it leaves are black, and a palette
-//! written before the next fade-in is shown (`docs/scenes/SCENE_PRESENTATION.md`,
-//! "CRAM state").
+//! run here as those do (#637).
+//!
+//! The display-enable bit of VDP register 1 is [`CramView::display`]. A
+//! whole-palette fade-out ends in `ClearSpriteTableBuf`, which clears it
+//! (`ps4.asm:85982-85984`), so the frames after it show only the backdrop,
+//! whatever the scene writes into the buffer, until `VDP_EnableDisplay`
+//! sets it again: inside `Pal_FadeIn`/`Pal_VariableFadeIn`, as a scene's own
+//! call ([`PresentationOp::EnableDisplay`]), and in a field or battle load.
 
 use psiv_core::palette::{self, PALETTE_WORDS};
 use psiv_core::{CounterCycle, PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
@@ -30,9 +34,6 @@ use psiv_data::{MapRecord, ScenePalettes};
 const PAL_INIT: u32 = 0x0009_F2BC;
 /// `Palette_Table_Buffer`'s work-RAM address.
 const PALETTE_TABLE_BUFFER: u32 = 0xFFFF_FB00;
-/// The `DMAPlane_A_VInt` loop the Aiedo inn waits after its scene, before
-/// its `Pal_FadeIn` (`moveq #$3B, d0`, `ps4.asm:136436-136439`).
-pub(crate) const INN_RESUME_HOLD: u16 = 60;
 /// `Palette_Table_Buffer+$5E`: the word the prologue crawl and the flight's
 /// caption are drawn in (`move.w #$666, $FB5E.w`, `$073C9E`; `clr.w
 /// (Palette_Table_Buffer+$5E).w`, `ps4.asm:134676`).
@@ -54,6 +55,18 @@ pub struct CramView {
     /// 64-word shadow a load fills them from. A legacy record has none, and
     /// the renderer draws the colours baked into the pack's pictures.
     pub live: bool,
+    /// VDP register 1's display-enable bit (`VDP_Reg1_Val` bit 6). While it
+    /// is clear the screen is the backdrop alone ([`CramView::shown_backdrop`]).
+    pub display: bool,
+}
+
+impl CramView {
+    /// The one colour the screen shows while the display is off: the
+    /// backdrop, CRAM word 0 (register 7 `$8700`). `None` while it is on.
+    #[must_use]
+    pub fn shown_backdrop(&self) -> Option<u16> {
+        (!self.display).then_some(self.words[0])
+    }
 }
 
 impl Default for CramView {
@@ -63,6 +76,7 @@ impl Default for CramView {
             revision: 0,
             missing: Vec::new(),
             live: false,
+            display: true,
         }
     }
 }
@@ -159,6 +173,10 @@ pub(crate) struct Cram {
     /// VBlank (`RefreshMap` ends with no wait, `ps4.asm:121767`), so no frame
     /// shows them ([`Cram::hold_for_fade_in`]).
     unshown: Option<[u16; PALETTE_WORDS]>,
+    /// A display-bit write a running routine makes later: `(ticks, on)`,
+    /// counted down at the top of each tick and written when it reaches
+    /// zero ([`Cram::tick`]).
+    display_change: Option<(u16, bool)>,
 }
 
 impl Default for Cram {
@@ -169,6 +187,7 @@ impl Default for Cram {
             program: None,
             queued: None,
             unshown: None,
+            display_change: None,
         }
     }
 }
@@ -201,6 +220,7 @@ impl Cram {
             program: None,
             queued: None,
             unshown: None,
+            display_change: None,
         }
     }
 
@@ -215,8 +235,29 @@ impl Cram {
 
     /// Continues `previous`'s revision count past this load, so a renderer
     /// that cached the old palette uploads the new one.
+    ///
+    /// `RefreshMap` leaves VDP register 1 alone, so the display bit, and a
+    /// write still pending, carry over; a field load sets it afterwards
+    /// ([`Cram::enable_display`]).
     pub(crate) fn follow(&mut self, previous: &Cram) {
         self.view.revision = previous.view.revision.wrapping_add(1);
+        self.view.display = previous.view.display;
+        self.display_change = previous.display_change;
+    }
+
+    /// `VDP_EnableDisplay` now: a field load's (`GameMode_LoadFieldMap`,
+    /// whose `Pal_FadeIn` the shell draws) or a battle's
+    /// (`GameMode_LoadBattle`). Any pending write is superseded.
+    pub(crate) fn enable_display(&mut self) {
+        self.view.display = true;
+        self.display_change = None;
+    }
+
+    /// `VDP_EnableDisplay` inside a routine that starts now: its
+    /// `VInt_Prepare` shows this tick's frame with the bit as it was, and
+    /// the bit is set from the next.
+    fn enable_display_after_frame(&mut self) {
+        self.display_change = Some((1, true));
     }
 
     /// A scene's map load whose next op is `Pal_VariableFadeIn`: the load's
@@ -297,9 +338,18 @@ impl Cram {
         }
     }
 
-    /// Steps the running program by one frame; the runtime calls it once at
-    /// the top of every tick. `cycle_index` is `$FFFFECF3`.
+    /// Steps the running program by one frame, after any display-bit write
+    /// due this frame; the runtime calls it once at the top of every tick.
+    /// `cycle_index` is `$FFFFECF3`.
     pub(crate) fn tick(&mut self, main_frame_count: u16, cycle_index: &mut u8) {
+        if let Some((ticks, on)) = self.display_change {
+            if ticks <= 1 {
+                self.view.display = on;
+                self.display_change = None;
+            } else {
+                self.display_change = Some((ticks - 1, on));
+            }
+        }
         let Some(program) = self.program.take().or_else(|| self.queued.take()) else {
             return;
         };
@@ -322,38 +372,6 @@ impl Cram {
             Program::Tone {
                 left: frames,
                 hold: None,
-            },
-            main_frame_count,
-            cycle_index,
-        );
-    }
-
-    /// The Aiedo inn's resume after `Event_GirlsSneakingOut`, whose
-    /// `PalFadeOut_ClrSpriteTbl` left the screen black (`ps4.asm:136411-136453`):
-    /// the palette the inn kept before the event (`$FFFF1300`) goes back into
-    /// both buffers with the display still off, the bill's window is drawn and
-    /// [`INN_RESUME_HOLD`] frames of `DMAPlane_A_VInt` pass, then `Pal_FadeIn`
-    /// spends its display frame and ramps up a pass a frame. The live words
-    /// stay black until then, as the switched-off display shows them (#653).
-    /// The first frame runs now.
-    pub(crate) fn inn_resume_fade_in(
-        &mut self,
-        words: [u16; PALETTE_WORDS],
-        main_frame_count: u16,
-        cycle_index: &mut u8,
-    ) {
-        self.unshown = None;
-        self.queued = None;
-        self.saved = words;
-        self.set_live([0; PALETTE_WORDS]);
-        self.start(
-            Program::Passes {
-                kind: Pass::VariableIn,
-                elapsed: 0,
-                first: INN_RESUME_HOLD + 1,
-                every: palette::dbf_frames(0),
-                count: palette::variable_fade_in_passes(&words),
-                words: PALETTE_WORDS,
             },
             main_frame_count,
             cycle_index,
@@ -616,6 +634,8 @@ impl Cram {
                 };
                 return self.presentation(fade, main_frame_count, palettes, cycle_index);
             }
+            // A flight's `Pal_FadeIn`, whose frames the flight counts itself.
+            SceneOp::FlightFadeIn { .. } => self.enable_display_after_frame(),
             SceneOp::LoadPalette {
                 rom_addr,
                 words,
@@ -842,6 +862,7 @@ impl Cram {
                     cycle_index,
                 );
             }
+            PresentationOp::EnableDisplay => self.enable_display_after_frame(),
             // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B8`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
                 // A held map load's words are the buffer the fade-in copies.
@@ -859,6 +880,13 @@ impl Cram {
                     let frames = palette::variable_fade_out_frames(&self.view.words, mode);
                     (Pass::VariableOut, 0, count, frames)
                 };
+                if fade_in {
+                    self.enable_display_after_frame();
+                } else {
+                    // `jmp ClearSpriteTableBuf` once the last pass's frames
+                    // have passed: the frame after them is the first dark one.
+                    self.display_change = Some((frames, false));
+                }
                 self.start(
                     Program::Passes {
                         kind,
@@ -956,5 +984,6 @@ impl Cram {
 }
 
 mod ending;
+mod inn;
 #[cfg(test)]
 mod tests;

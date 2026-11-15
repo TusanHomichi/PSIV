@@ -107,9 +107,8 @@ Where PSIV knowingly differs from the cartridge, there is an open issue:
 - [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
   drawing, animation, audio or timing that looks or sounds different.
 - [Palette effects (#162)](https://github.com/TusanHomichi/PSIV/issues/162):
-  the sabotage alarm overlay still draws baked colours, a scene's fade-out leaves the display on
-  ([#653](https://github.com/TusanHomichi/PSIV/issues/653)),
-  and existing single-frame comparisons do not certify complete scenes.
+  the sabotage alarm overlay still draws baked colours, and existing
+  single-frame comparisons do not certify complete scenes.
 - A few original bugs are fixed on purpose; each is listed in the
   [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 

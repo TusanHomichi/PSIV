@@ -301,8 +301,10 @@ impl Field {
             }
             // Palette records are applied by the runtime's CRAM model
             // (`Runtime::cram`), and the map, sprites, panels and dialogue
-            // window draw from it (`cram_art`).
+            // window draw from it (`cram_art`); its display bit is drawn by
+            // `display.rs`.
             op @ (PresentationOp::BarrierBeamUpdates { .. }
+            | PresentationOp::EnableDisplay
             | PresentationOp::PaletteCopy { .. }
             | PresentationOp::FadeToRed { .. }
             | PresentationOp::FadeFromRed { .. }

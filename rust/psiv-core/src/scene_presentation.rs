@@ -260,6 +260,12 @@ pub enum PresentationOp {
     /// clears plane A's buffer only. The renderer hides the map either way;
     /// palette and sprites are untouched.
     ClearPlanes,
+    /// A scene's own `jsr VDP_EnableDisplay` (`$04222E`): one `VInt_Prepare`
+    /// frame with the display as it was, then the display-enable bit set
+    /// (`ps4.asm:85943-85947`). `Pal_FadeIn` and `Pal_VariableFadeIn` make
+    /// the same call inside their own ops. The census
+    /// `scenes::display_calls_image` ties each record to its call.
+    EnableDisplay,
     /// Clear the final Termi object banks and rebuild both plane maps before
     /// the `ArtNem_Fin` panel is uploaded.
     EndingFinaleFieldPrep {

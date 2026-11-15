@@ -16,6 +16,9 @@ use crate::decode::enigma;
 use crate::json::Json;
 use crate::{PackError, gfx, png};
 
+#[cfg(test)]
+mod retail_tests;
+
 /// `CHARACTER_PLC_TABLE`: eleven self-relative words; the last block's end
 /// is the one bound the table can't give.
 const PLC_TABLE: usize = 0x00825E;

@@ -10,6 +10,7 @@ use psiv_data::{PanelPalette, ScenePalettes};
 
 use super::{Cram, CramView};
 
+mod display;
 mod ending_loops;
 mod le_roof_fades;
 
@@ -26,6 +27,7 @@ fn cram(live: [u16; 64], saved: [u16; 64]) -> Cram {
         program: None,
         queued: None,
         unshown: None,
+        display_change: None,
     }
 }
 

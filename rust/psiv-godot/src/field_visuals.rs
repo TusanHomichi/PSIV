@@ -8,10 +8,11 @@ use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
+use super::battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH};
 use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, camp_receipt_frame, sequence_name};
 use super::window_palette::{WINDOW_LINE_ROM, WindowFamily, WindowLine, WindowNode, unlit_line};
-use super::{Field, Session};
+use super::{Field, LETTERBOX_BARS, Session};
 
 /// The one material per CRAM line that the native windows draw their art
 /// through (`window_palette`), and `debug_window_line`'s words for each
@@ -705,6 +706,83 @@ impl Field {
             self.transition = None;
         }
         self.sync_transition();
+    }
+
+    /// Cinema mode: letterbox bars over the world, under the dialogue box.
+    pub(super) fn set_letterbox(&mut self, on: bool) {
+        if on && self.letterbox.is_empty() {
+            for _ in 0..LETTERBOX_BARS {
+                let mut bar = godot::classes::ColorRect::new_alloc();
+                bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
+                bar.set_z_index(500);
+                self.base_mut().add_child(&bar);
+                self.letterbox.push(bar);
+            }
+        }
+        for bar in &mut self.letterbox {
+            bar.set_visible(on);
+        }
+    }
+
+    /// Keeps the bars glued to the camera view and masks everything outside
+    /// the authentic 320x224 frame. At the existing 3x camera zoom this is a
+    /// lossless 960x672 presentation inside the 1280x800 wide viewport.
+    pub(super) fn place_letterbox(&mut self) {
+        if self.letterbox.is_empty() || !self.letterbox[0].is_visible() {
+            return;
+        }
+        let Some(camera) = self.camera.as_ref() else {
+            return;
+        };
+        let viewport = self.base().get_viewport_rect().size;
+        let zoom = camera.get_zoom().x.max(0.01);
+        let view = viewport / zoom;
+        let center = camera.get_position();
+        let top_left = center - view / 2.0;
+        let frame_top_left =
+            center - Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        let frame_bottom_right =
+            center + Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        // The camera centre is fractional, so a bar that starts exactly at
+        // the view edge can rasterize a sub-pixel short and leak a one-pixel
+        // strip of world along the screen border. Overdraw every outward
+        // edge by a couple of world pixels; the frame-facing edges stay
+        // exact.
+        const BLEED: f32 = 2.0;
+        let sizes = [
+            (
+                top_left - Vector2::new(BLEED, BLEED),
+                Vector2::new(
+                    view.x + 2.0 * BLEED,
+                    (frame_top_left.y - top_left.y).max(0.0) + BLEED,
+                ),
+            ),
+            (
+                Vector2::new(top_left.x - BLEED, frame_bottom_right.y),
+                Vector2::new(
+                    view.x + 2.0 * BLEED,
+                    (top_left.y + view.y - frame_bottom_right.y).max(0.0) + BLEED,
+                ),
+            ),
+            (
+                Vector2::new(top_left.x - BLEED, frame_top_left.y),
+                Vector2::new(
+                    (frame_top_left.x - top_left.x).max(0.0) + BLEED,
+                    BATTLE_FRAME_HEIGHT,
+                ),
+            ),
+            (
+                Vector2::new(frame_bottom_right.x, frame_top_left.y),
+                Vector2::new(
+                    (top_left.x + view.x - frame_bottom_right.x).max(0.0) + BLEED,
+                    BATTLE_FRAME_HEIGHT,
+                ),
+            ),
+        ];
+        for (bar, (pos, size)) in self.letterbox.iter_mut().zip(sizes) {
+            bar.set_position(pos);
+            bar.set_size(size);
+        }
     }
 
     /// `InitVramAndCram` blanks the tile planes on hardware; the shell

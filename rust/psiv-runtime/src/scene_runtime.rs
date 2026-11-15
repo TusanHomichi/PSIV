@@ -126,6 +126,10 @@ impl Runtime {
         self.scene_triggers_pending = true;
         self.scene_tree_address = None;
         self.scene_panel_sprites = false;
+        // Control goes back with the display on: the routine the cartridge
+        // hands it to fades in itself, and the scenes that end dark are
+        // listed in `psiv_core`'s `scenes::dark_display` census (#653).
+        self.effects.cram.enable_display();
         events.push(RuntimeEvent::SceneEnded);
     }
 

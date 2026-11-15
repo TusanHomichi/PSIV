@@ -5,16 +5,11 @@
 //! on the [`SceneOp`] variant in `scene.rs`.
 
 use super::{Blocked, SceneRunner, pixel_cell};
-use crate::field::StepFrames;
 use crate::scene::{
     ActorRef, Axis, DialogueId, DialogueSource, MoneyTest, SavedByte, SceneEffect, SceneFault,
     SceneOp, ScriptedActor,
 };
-use crate::scene_types::RockyOp;
 use crate::state::{CharId, GameState, PARTY_SLOTS};
-
-/// `loc_4BC80`'s `FieldObj_Step_Offset` 2: `$0400` a frame.
-const ROCKY_STEP_FRAMES: u8 = 4;
 
 impl SceneRunner {
     /// Spend a runtime-resolved setup/refresh interval before the next op.
@@ -846,6 +841,14 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
             }
+            // `VDP_EnableDisplay`'s `VInt_Prepare`: one frame, no map update.
+            SceneOp::Presentation {
+                op: crate::PresentationOp::EnableDisplay,
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(1);
+            }
             SceneOp::Presentation {
                 op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
             } => {
@@ -903,34 +906,7 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::FifthCharacter(fifth) => return self.fifth_op(fifth, state, effects),
-            SceneOp::Rocky(rocky) => match rocky {
-                RockyOp::BranchIfHolding {
-                    item,
-                    if_held,
-                    if_not,
-                } => {
-                    let held = state.inventory().get_item(item);
-                    let target = usize::from(if held { if_held } else { if_not });
-                    if target > self.scene.len() {
-                        return Some(SceneFault::BadJump { target });
-                    }
-                    self.pc = target;
-                }
-                RockyOp::RemoveAll { item } => {
-                    while let Some(slot) = state.inventory().find_item(item) {
-                        let _ = state.inventory_mut().remove_in_field(slot);
-                    }
-                    effects.push(SceneEffect::InventoryChanged);
-                    self.pc += 1;
-                }
-                RockyOp::RunFast { actor } => {
-                    let Some(runner) = self.actor_mut(actor) else {
-                        return Some(SceneFault::UnknownActor { actor });
-                    };
-                    runner.pace = StepFrames::new(ROCKY_STEP_FRAMES).ok();
-                    self.pc += 1;
-                }
-            },
+            SceneOp::Rocky(rocky) => return self.rocky_op(rocky, state, effects),
             SceneOp::GetOff(get_off) => return self.get_off_op(get_off, effects),
             SceneOp::Wreckage(wreckage) => return self.wreckage_op(wreckage, state, effects),
             SceneOp::Guild(guild) => {
