@@ -173,6 +173,9 @@ fn run_scene(name: &str, state: &mut GameState, cast: Vec<ScriptedActor>) -> Vec
             _ if runner.is_waiting_for_camera() => SceneInput::CameraArrived,
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         log.extend(runner.tick(&map, state, input));
         if runner.is_finished() {
             break;
@@ -385,6 +388,9 @@ fn the_principal_turns_to_face_whichever_way_the_leader_came_from() {
             } else {
                 SceneInput::None
             };
+            if runner.awaits_palette() {
+                runner.release_palette(1);
+            }
             runner.tick(&map, &mut state, input);
             if runner.is_finished() {
                 break;
@@ -475,6 +481,9 @@ fn game_start_puts_alys_in_front_for_the_walk_out() {
     let mut saw_alys_leading = false;
     let mut input = SceneInput::DialogueClosed;
     for _ in 0..20_000 {
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         let effects = runner.tick(&map, &mut state, input);
         if state.party_slot(0) == Some(CharId(1)) {
             saw_alys_leading = true;

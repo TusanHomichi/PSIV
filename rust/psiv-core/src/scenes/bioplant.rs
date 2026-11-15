@@ -71,7 +71,6 @@ pub static ELEVATOR_RIDE: Scene = Scene {
     ops: &[
         SceneOp::PlaySound { id: 0xE0 },
         SceneOp::FadeOut,
-        SceneOp::WaitFrames { frames: 14 },
         SceneOp::TakeMapTransition,
         SceneOp::WriteActorMapChunks {
             actor: LEADER,
@@ -79,7 +78,6 @@ pub static ELEVATOR_RIDE: Scene = Scene {
         },
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::FadeIn,
-        SceneOp::WaitFrames { frames: 14 },
         SceneOp::MoveActorOffset {
             actor: LEADER,
             dx: 0,
