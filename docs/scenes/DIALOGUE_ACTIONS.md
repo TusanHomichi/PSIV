@@ -24,7 +24,9 @@ to page end.
 
 `TextActionsOffs` at `:143118` contains the retail Grand Cross=0 handlers
 `$00..$0C`; the conditional `$0D/$0E` entries are Grand Cross-only additions
-and do not occur in this corpus. The handler provenance is:
+and do not occur in this corpus. The verified US ROM's table is `$06A550`:
+its sound/palette/music handlers call `VInt_Prepare` at `$04204C`, and its
+panel handlers call `DMAPlanes_VInt` at `$041678`. The handler provenance is:
 
 | ActionKind | Retail handler | Retail operation | Runtime path |
 |---|---:|---|---|

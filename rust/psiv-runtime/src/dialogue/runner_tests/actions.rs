@@ -172,3 +172,14 @@ fn measured_panel_lag_freezes_the_loop_without_spending_counted_frames() {
         assert_eq!(runner.view().unwrap().revealed, 1);
     }
 }
+
+#[test]
+fn blanking_vram_does_not_reset_the_retail_panel_counter() {
+    // `InitVRAMAndCRAMAfterFadeOut` clears the planes, not `Panel_Num`.
+    let mut runner = DialogueRunner::new();
+    runner.scene_panel_op(&psiv_core::SceneOp::PanelCreate { id: 1 });
+    runner.scene_panel_op(&psiv_core::SceneOp::InitVramAndCram);
+    assert_eq!(runner.panels, 1);
+    runner.scene_panel_op(&psiv_core::SceneOp::PanelDestroyLast);
+    assert_eq!(runner.panels, 0);
+}

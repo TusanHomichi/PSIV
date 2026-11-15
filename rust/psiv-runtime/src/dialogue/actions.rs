@@ -13,8 +13,8 @@ impl DialogueRunner {
     pub(crate) fn scene_panel_op(&mut self, op: &SceneOp) {
         match op {
             SceneOp::PanelCreate { .. } => self.panels = self.panels.wrapping_add(1),
-            SceneOp::PanelDestroyLast => self.panels = self.panels.saturating_sub(1),
-            SceneOp::PanelDestroyAll | SceneOp::InitVramAndCram => self.panels = 0,
+            SceneOp::PanelDestroyLast => self.panels = self.panels.wrapping_sub(1),
+            SceneOp::PanelDestroyAll => self.panels = 0,
             _ => {}
         }
     }
