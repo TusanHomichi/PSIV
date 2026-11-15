@@ -13,8 +13,8 @@
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
   `WinGroup_Event` records, the palette and eight backgrounds.
 - **Evidence:** oracle tape `oracle/tapes/35_ship_destination_menu.tape` and the
-  certified pair `ship-menu` (`tools/certify.py`). Its previous image pass was
-  `rmse=0.000000`; the current candidate requires an orchestrator X11 run.
+  certified pair `ship-menu` (`tools/certify.py`): native tick 101 against
+  oracle frame 7293, with state and image checks reported separately.
 
 ## Clone audit
 
