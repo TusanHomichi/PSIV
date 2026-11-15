@@ -100,6 +100,16 @@ stays off until a later enable. The pack regression follows Alshline's
 This proves state and frame accounting; the whole exit cadence has not been
 compared with the oracle.
 
+A caller that shows the field again restores a palette and enables the display
+itself. MeetingRika's two same-map `RefreshMap` calls (`$074632`, `$07475C`)
+reload the field palette before their fade-ins; Alshline copies the saved
+palette back at `$074366..$07437A`. Dorin's `$07411C` and Saya's `$074D12`
+fade-ins reveal their rebuilt maps before departure or dialogue. The inline
+windows in AlysWounded, ZioDefeated and CrashLanding use `DialogueWindow::Inline`:
+their surrounding scene ops own the fade, so they must never borrow Get5's
+exit. The caller census rejects that mistake; pack regressions exercise the
+continuations with packed dialogue/Speak and with headless acknowledgements.
+
 The extracted palette copy's NPC sheet replacements (`deferred_effects`) are
 kept by the data reader and selected by the map-effect gate, so Zema's seven
 residents take their restored sheets and Birth Valley's NPCs their petrified

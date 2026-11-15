@@ -211,6 +211,20 @@ fn caller_problems(
             .map(|row| row.3)
             .collect();
         let ran = dialogue_ops(scene);
+        // An inline RunText has its scene's own exit. Giving it Get5's
+        // automatic fade silently darkens continuations such as CrashLanding.
+        for &(window, entry) in &ran {
+            if entry != RESUME
+                && window.fades_on_close()
+                && inline.contains(&entry)
+                && !rows.iter().any(|row| row.1 == D5 && row.3 == entry)
+            {
+                problems.push(format!(
+                    "{} inline entry {entry:#X} uses Get5's fade exit",
+                    scene.name
+                ));
+            }
+        }
         let inline_resumes = inline.iter().filter(|e| **e == RESUME).count();
         let mut extra_resumes = 0;
         let mut windows: Vec<DialogueWindow> = ran.iter().map(|(w, _)| *w).collect();
@@ -658,4 +672,48 @@ fn control_a_stale_untranscribed_resume_is_reported() {
         ),
         "{problems:#?}"
     );
+}
+
+#[test]
+fn inline_windows_cannot_borrow_get5s_fade() {
+    for name in [
+        "Cutscene_AlysWounded",
+        "Cutscene_ZioDefeated",
+        "Cutscene_CrashLaanding",
+    ] {
+        let scene = *SCENES.iter().find(|s| s.name == name).unwrap();
+        let mut ops = scene.ops.to_vec();
+        let op = ops
+            .iter_mut()
+            .find(|op| {
+                matches!(
+                    op,
+                    SceneOp::RunDialogue {
+                        window: DialogueWindow::Inline,
+                        ..
+                    }
+                )
+            })
+            .unwrap();
+        if let SceneOp::RunDialogue { window, .. } = op {
+            *window = DialogueWindow::Cutscene;
+        }
+        let bad = Scene {
+            ops: Box::leak(ops.into_boxed_slice()),
+            ..scene
+        };
+        let found = caller_problems(
+            &[bad],
+            &DIALOGUE_CALLERS
+                .iter()
+                .copied()
+                .filter(|r| r.0 == name)
+                .collect::<Vec<_>>(),
+            &[],
+        );
+        assert!(
+            found.iter().any(|p| p.contains("uses Get5's fade exit")),
+            "{found:?}"
+        );
+    }
 }

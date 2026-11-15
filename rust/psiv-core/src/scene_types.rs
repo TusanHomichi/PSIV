@@ -82,18 +82,30 @@ pub enum DialogueWindow {
     /// `Event_RunDialogue5` used for the Rykros hand-off line: the
     /// `Event_GetAndRunDialogue5` exit reached through its resume entry.
     Cutscene5,
+    /// An inline `GetDialogueByID` / `RunText` window. The surrounding
+    /// scene supplies its own palette and panel teardown; it is not Get5.
+    Inline,
 }
 
 impl DialogueWindow {
+    /// Get5 and Run5's shared `PalFadeOut_ClrSpriteTbl` exit.
+    #[must_use]
+    pub const fn fades_on_close(self) -> bool {
+        matches!(self, Self::Cutscene | Self::Cutscene5)
+    }
+
     /// Whether returning from the text leaves its last page and portrait up.
     /// The scene owns their later destruction or replacement.
     #[must_use]
     pub fn retains_page(self) -> bool {
         match self {
             Self::Retained | Self::EndingIntro => true,
-            Self::Standard | Self::Cutscene | Self::Cutscene3 | Self::Ending | Self::Cutscene5 => {
-                false
-            }
+            Self::Standard
+            | Self::Cutscene
+            | Self::Cutscene3
+            | Self::Ending
+            | Self::Cutscene5
+            | Self::Inline => false,
         }
     }
 

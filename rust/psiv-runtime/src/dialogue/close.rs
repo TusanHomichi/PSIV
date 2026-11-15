@@ -5,7 +5,7 @@
 //! panels, clearing the panel byte and returning. The scene cannot consume
 //! its dialogue acknowledgement until that shared CRAM program finishes.
 
-use psiv_core::{DialogueWindow, SceneEffect, SceneInput, SceneOp};
+use psiv_core::{SceneEffect, SceneInput, SceneOp};
 
 use crate::{Runtime, RuntimeEvent};
 
@@ -32,10 +32,10 @@ impl Runtime {
         } else {
             SceneInput::DialogueEnded
         };
-        if matches!(
-            self.scene_dialogue_window(),
-            Some(DialogueWindow::Cutscene | DialogueWindow::Cutscene5)
-        ) {
+        if self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::fades_on_close)
+        {
             self.dialogue_close
                 .get_or_insert(DialogueClose { left: None, input });
         } else {
