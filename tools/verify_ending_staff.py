@@ -47,6 +47,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-build", action="store_true")
     args = parser.parse_args()
+    # The machine slot precedes the repo lock, as it does for full gates.
+    if not os.environ.get("HEAVY_JOBS"):
+        os.execvp("heavy", ["heavy", "--", sys.executable, *sys.argv])
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
     output = root / "build" / "ending-staff" / utc_stamp()
@@ -54,12 +57,12 @@ def main():
     started = time.monotonic()
     with hold_heavy_lock(lock_class=EXTENSION):
         if not args.no_build:
-            run(["heavy", "--", "cargo", "build", "--manifest-path", "rust/Cargo.toml",
+            run(["cargo", "build", "--manifest-path", "rust/Cargo.toml",
                  "-p", "psiv-godot", "-p", "psiv-compare"], output / "build.log")
         exit_leaks_binary()
     oracle = output / "oracle"
     oracle.mkdir()
-    command = ["heavy", "--", str(host_binary.ensure()),
+    command = [str(host_binary.ensure()),
                "--core", "oracle/core/genesis_plus_gx_libretro.so", "--rom", "Phantasy Star IV (USA).md",
                "--map", "oracle/ram_map.tsv", "--tape", "oracle/tapes/46_ending_staff.tape",
                "--out", "/dev/null", "--ram-patch", "7200:FFFFECA8:8021",
@@ -81,7 +84,7 @@ def main():
                        PSIV_RUNTIME_PACK=str(run_root.pack), LIBGL_ALWAYS_SOFTWARE="1")
             command = godot_command(run_root, *GODOT_FLAGS, "--quit-after", "45200",
                                     "--script", str(root / "tools/native/native_ending_staff.gd"),
-                                    prefix=("heavy", "--", "timeout", "1200", "xvfb-run", "-a"))
+                                    prefix=("timeout", "1200", "xvfb-run", "-a"))
             run(command, output / "native.log", env)
             if logged_exit_leaks(output / "native.log"):
                 raise RuntimeError(f"Godot exit leaks: {output / 'native.log'}")
