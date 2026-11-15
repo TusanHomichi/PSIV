@@ -277,6 +277,24 @@
       "check": "gate",
       "result": "pass",
       "source": "https://github.com/TusanHomichi/PSIV/pull/717"
+    },
+    {
+      "kind": "ci",
+      "check": "house/title (#717)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/43753873990"
+    },
+    {
+      "kind": "ci",
+      "check": "house/rust-first (#717)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/43753873990"
+    },
+    {
+      "kind": "ci",
+      "check": "house/timers (#717)",
+      "result": "pass",
+      "source": "https://github.com/TusanHomichi/PSIV/actions/runs/43753873990"
     }
   ]
 }
