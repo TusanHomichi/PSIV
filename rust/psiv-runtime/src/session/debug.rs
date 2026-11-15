@@ -143,10 +143,16 @@ pub fn scene_fixture(
         ),
         // `Event_FractOozeFound` (`PSIV_DEBUG_EVENT=0x7D`), a `Retained`
         // window's caller (#644): Monsen (`$73`), whose tree 12 holds its
-        // entry `$2F`, with Chaz alone where the overworld's door lands him
-        // (288, 704), as tape 45 (`tools/certify.py` TAPE_45) patches the
-        // cartridge before it sets `Event_Index`.
-        0x007D => (0x0073, 288, 704, [Some(CharId(0)), None, None, None, None]),
+        // entry `$2F`, with Chaz alone where the overworld's door lands him:
+        // object (288, 704), as tape 45 (`tools/certify.py` TAPE_45) patches
+        // `$F406`/`$F408` before it sets `Event_Index`. The location is the
+        // standing row, one row below the object's Y.
+        0x007D => (
+            0x0073,
+            288,
+            704 + 16,
+            [Some(CharId(0)), None, None, None, None],
+        ),
         _ => return None,
     };
     // The new palette fixtures and the ending/recovery fixtures use tape
