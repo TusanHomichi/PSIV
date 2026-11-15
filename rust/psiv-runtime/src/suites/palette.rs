@@ -11,6 +11,7 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
+mod display;
 mod ending;
 mod le_roof;
 

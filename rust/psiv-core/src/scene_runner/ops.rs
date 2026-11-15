@@ -846,6 +846,14 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
             }
+            // `VDP_EnableDisplay`'s `VInt_Prepare`: one frame, no map update.
+            SceneOp::Presentation {
+                op: crate::PresentationOp::EnableDisplay,
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(1);
+            }
             SceneOp::Presentation {
                 op: crate::PresentationOp::BarrierBeamUpdates { frames, .. },
             } => {

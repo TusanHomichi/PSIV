@@ -552,6 +552,29 @@ borrows. Writers:
   with their counters (`MapUpdateView`), cleared by each map load as
   `ps4.asm:107593` clears it, and lends it to the CRAM model.
 
+The view also carries VDP register 1's display-enable bit (`CramView::display`,
+#653). `Pal_VariableFadeOut` and `PalFadeOut_ClrSpriteTbl` (so `FadeOut`,
+`InitVramAndCram`'s fade and a whole-palette `VariablePaletteFade` down) end
+in `ClearSpriteTableBuf`, which clears it (`ps4.asm:85982-85984`): the first
+dark frame is the one after the fade's last pass and its waits. `VDP_EnableDisplay`
+(`$04222E`) spends one `VInt_Prepare` and sets it, so the frame after it is
+the first lit one: inside `Pal_FadeIn`, `Pal_VariableFadeIn` and a flight's
+`FlightFadeIn`, and where a scene calls it itself (`PresentationOp::EnableDisplay`:
+`Cutscene_Alshline` `$074494`, the ending `$079C0A`; `scenes::display_calls_image`
+ties each record to its call, and lists `Cutscene_PsycoWand`'s bare
+`ClearSpriteTableBuf` at `$07536A`, which falls between two black frames).
+The two-line fades leave it alone. A field load (`GameMode_LoadFieldMap`) and
+a battle (`GameMode_LoadBattle`, `ps4.asm:10062`) set it; a scene's
+`RefreshMap` keeps it, and the port sets it when a scene ends
+([source notes](../source-notes/README.md#other-recorded-deviations));
+`scenes::dark_display` walks every scene's ops, fails on a window drawn
+dark and lists the scenes that end dark. While it is clear the shell draws the backdrop alone,
+CRAM word 0, over the planes, sprites and windows (`rust/psiv-godot/src/display.rs`),
+whatever the scene writes into the buffer: `Cutscene_LashiecDefeated`'s
+`Pal_Init` shows black through the forty frames of its explosion before
+panel `$10A` and `Pal_FadeIn` (`ps4.asm:156907-156918`), and the ending's
+second tone loop whitens the backdrop alone (`suites::palette::display`).
+
 The ROM words come from the pack: `presentation/panels.json`'s `palettes`
 (`PALETTE_REQUESTS` in `psiv_tools/presentation_pack.py`, and every drawn panel
 layer's palette), read by `psiv_data::ScenePalettes`.
@@ -743,6 +766,8 @@ python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
   --audio-driver Dummy --script "$PWD/tools/native/native_temporary_palette.gd"
 ```
 
-Deviation: a fade-out leaves the display on, so a palette written before
-the next fade-in is drawn
-([source notes](../source-notes/README.md#other-recorded-deviations), #653).
+On the cartridge this copy and the build run with the display off:
+`Event_RunDialogue5`'s fade-out cleared the bit and `$074494`'s
+`VDP_EnableDisplay` sets it after them. The port does not run that window's
+fade, so its display is on throughout
+([source notes](../source-notes/README.md#other-recorded-deviations), #670).
