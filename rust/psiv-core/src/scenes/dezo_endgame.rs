@@ -301,7 +301,11 @@ pub static DE_VARS_DEFEATED: Scene = Scene {
     event: EventIndex(0x0064),
     ops: &[
         standard(4),
-        SceneOp::FadeOut,
+        // No fixed fade: retail copies the buffer to the second one and runs
+        // 40 frames of `Pal_IncreaseTone` (`$071772`), then 40 more, and after
+        // the barrier sound 40 of `loc_58666` back to the copy, so the field
+        // gets its palette back. Until those loops are ops (#571) this `Wait`
+        // stands for the first and the palette is left as it was.
         SceneOp::Wait { ticks: 40 },
         SceneOp::ObjectAnimation {
             slot: 0,
@@ -325,7 +329,11 @@ pub static SA_LEWS_DEFEATED: Scene = Scene {
     event: EventIndex(0x0065),
     ops: &[
         standard(2),
-        SceneOp::FadeOut,
+        // No fixed fade: retail copies the buffer to the second one and runs
+        // 40 frames of `Pal_IncreaseTone` (`$07183A`), then 40 more, and after
+        // the barrier sound 40 of `loc_58666` back to the copy, so the field
+        // gets its palette back. Until those loops are ops (#571) this `Wait`
+        // stands for the first and the palette is left as it was.
         SceneOp::Wait { ticks: 40 },
         SceneOp::ObjectAnimation {
             slot: 0,

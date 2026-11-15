@@ -42,9 +42,12 @@ impl Field {
                     godot_print!("map change ({kind}) -> {:#05x}", map.id().0);
                     self.presentation.reload_field_objects();
                     // RefreshMap replaces the VDP planes; old dialogue
-                    // panels or a scene picture cannot remain over the new
-                    // field.
+                    // panels, a scene picture or the opening's image and
+                    // text cannot remain over the new field (the prologue's
+                    // last `Pal_FadeIn` lights the field's palette, not the
+                    // image's).
                     if let Some(layer) = self.cutscene_layer.as_mut() {
+                        layer.bind_mut().end_opening();
                         layer.bind_mut().clear_planes();
                     }
                     self.load_map_visuals();

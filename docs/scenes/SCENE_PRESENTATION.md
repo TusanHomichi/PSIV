@@ -538,7 +538,15 @@ borrows. Writers:
   to line 3 before it builds Igglanova (`$07444E`, `MapDataManagerJmpTbl`
   entry `$D0`); words 62 and 63 keep Zema's;
 - `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
-  `SetPaletteWords` and `AddPaletteWord` take word offsets;
+  `SetPaletteWords` and `AddPaletteWord` take word offsets; `SetTextColour`
+  writes word 47, `Palette_Table_Buffer+$5E`, which the prologue crawl and
+  the flight's caption are drawn in (`move.w #$666, $FB5E.w` at `$073C9E`,
+  `clr.w (Palette_Table_Buffer+$5E).w` at `ps4.asm:134676`);
+- the Aiedo inn, after `Event_GirlsSneakingOut` (whose last fade-out leaves
+  the screen black), puts back the 64 words it kept before the scene
+  (`$FFFF1300`, `ps4.asm:136399-136402`), shows black for the 60 frames of
+  its `DMAPlane_A_VInt` loop and then runs `Pal_FadeIn` on them
+  (`ps4.asm:136436-136453`, `Session::finish_aiedo_stay`);
 - the loops step once per runtime tick, starting on the tick the scene emits
   them, with that tick's `Main_Frame_Count`: `Pal_IncreaseTone` and its
   per-frame hold copy, the `loc_58666` restore, the recovery flashes (red and
@@ -619,9 +627,18 @@ Corrections this model brought, each checked against the US image:
   for its last pass, and `InitVRAMAndCRAM` one more for `DMAPlanes_VInt`.
   `scenes::fixed_fades_image` checks every scene's `InitVramAndCram`,
   `FadeIn` and `FadeOut` ops, in order, against the `jsr`/`jmp`s its
-  documented bytes make to the three routines; the thirteen scenes that do
+  documented bytes make to the three routines; the eleven scenes that do
   not match yet are listed with
   [#652](https://github.com/TusanHomichi/PSIV/issues/652).
+- `Event_DeVarsDefeated` and `Event_SaLewsDefeated` recorded a `FadeOut`
+  their bytes do not make: they tone the palette to white and back
+  (`Pal_IncreaseTone`, `loc_58666`; the loops are
+  [#571](https://github.com/TusanHomichi/PSIV/issues/571)) and return the field
+  its palette. Once `FadeOut` reached black on the CRAM it left the field
+  black, so the op is gone. A plain event (below `$8000`) has no cutscene
+  reload after it, so `scenes::plain_event_fades` requires every one that
+  fades out to fade back in, or names the caller that does: the Aiedo inn,
+  which also had not faded its palette back in after its scene.
 ### Drawing the CRAM
 
 The field shell copies `Runtime::cram()` into one shared palette at the top
@@ -648,6 +665,14 @@ art is indexed draws from it:
   the destination screen's `Windows` over the planetary map, which the
   screen colours from its own palette state (lines 0 and 1,
   `ShipMenu::render`);
+- the opening's image (`presentation/opening_background.png`, each index its
+  CRAM slot, as a scene picture's) and its stage, the backdrop word
+  (`cutscene/opening.rs`), and the flight's caption in word 47
+  (`cutscene/text_layer.rs`). The prologue crawl keeps its own 20-frame ramp
+  (`IntroTextFadeUp`/`Down` are not CRAM records); it is black before the
+  prologue's `Pal_FadeIn` draws it and after its last ramp down, so no fixed
+  fade runs while it shows. A map change ends the opening, as `RefreshMap`
+  replaces its planes;
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 

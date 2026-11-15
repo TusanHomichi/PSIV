@@ -182,13 +182,13 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),

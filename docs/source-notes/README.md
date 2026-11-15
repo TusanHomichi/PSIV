@@ -177,6 +177,15 @@ agility and dexterity, and enemy paralysis clearing each turn.
   window line, a `LoadPalette`, a panel's words) is drawn on the frames
   between, where the cartridge shows its backdrop
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
+  After `Event_GirlsSneakingOut` the inn draws the bill's window
+  (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
+  frames of `DMAPlane_A_VInt`, and runs `Pal_FadeIn` on the palette it kept
+  (`ps4.asm:136436-136453`). The runtime (`Cram::inn_resume_fade_in`) starts
+  the 60 frames when the scene ends, without the window's frames, and the
+  native window takes input from its first frame where the cartridge's
+  `RunText` waits for the fade. The ordinary night's own fade-out and fade-in
+  are not modelled at all.
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
   it and places the party at five fixed positions. The port records it as
