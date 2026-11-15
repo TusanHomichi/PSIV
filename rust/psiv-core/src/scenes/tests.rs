@@ -168,7 +168,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_ProfoundDarkness", 22),
         ("Cutscene_RajaSick", 54),
         ("Cutscene_Rykros", 31),
-        ("Cutscene_Ending", 396),
+        ("Cutscene_Ending", 404),
         ("Event_RockyOwner", 3),
         ("Event_GirlPrison", 3),
         ("Event_GirlsBail", 3),
