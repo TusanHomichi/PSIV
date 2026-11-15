@@ -5,9 +5,10 @@
 //! Tape 45's event battle 7 requests on 7799, counts 7800-7817, lags
 //! 7818-7854, counts 7855-7872 and rolls on the third lag frame, 7875.
 //! Tape 07's encounter fires on 24777, counts 24778-24796, lags 24797-24819,
-//! counts 24820-24837 and rolls on the third lag frame, 24840. Its extra
-//! counted frame is `FieldRoutine_Battle`'s stop-music `VInt_Prepare`, which
-//! `RunEventBattle` bypasses on its way to `FieldRoutine_Battle2`.
+//! counts 24820-24837 and rolls on the third lag frame, 24840. The two
+//! pre-load profiles are measured independently: encounters enter through
+//! `FieldRoutine_Battle`, scenes through `RunEventBattle`. Both stop the
+//! music and spend a `VInt_Prepare` before `FieldRoutine_Battle2`.
 //!
 //! Stage decompression time varies. These profiles use tape 45's 37 load-lag
 //! frames for event battles and tape 07's 23 for encounters (source notes).
