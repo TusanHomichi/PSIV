@@ -34,6 +34,13 @@ a separate presentation routine. The first bytes make that boundary explicit:
 | `$078FDC..$078FE2` | raw `#$77` `VInt_PrepareLoop` | `WaitFrames(120)` |
 | `$078FE6..$078FF4` | initialise VRAM/CRAM, play `Music_ThePromisingFuture1` (`$AF`), fade | init/music/fade |
 
+The first loop is certified against tape 38 at frames 9893, 9910 and 9950
+(`ending-tone-loop-*`,
+[SCENE_PRESENTATION.md](SCENE_PRESENTATION.md#certified-pairs)).
+The native closes the text window and Chaz's portrait when the dialogue's
+text ends. The cartridge keeps both up, toned, until `$078FAE`
+([#636](https://github.com/TusanHomichi/PSIV/issues/636)).
+
 The Menu shortcut is real retail behaviour. It skips the normal panel/dialogue
 sequence and enters the credits renderer at `$079D0C`. The typed normal path
 does not pretend that a held-menu sample exists: the current runtime exposes
@@ -229,6 +236,12 @@ renderer, not a bitmap placeholder:
 | `$079FAE..$07A086` | stage 3: terminal `$480`, same camera steps/source/plane, commands `$07A548` | `EndingCreditsStage(3)` |
 | `$07A0A6..$07A0FA` | fourteen palette steps: eight-word primary table `$07A274`, then two-word late table `$07A2A0` | `EndingCreditsPaletteRamp` |
 | `$07A0FA..$07A10B` | palette increase-tone loop, raw `$3B` | `PaletteIncreaseTone(60)`, then `WaitFrames(60)` |
+
+The staff roll's and the credits' records (`EndingStaffRollTransition`,
+`EndingCreditsAssets`, `EndingCreditsStage`, `EndingCreditsPaletteRamp`) draw
+nothing natively, and the CRAM model applies none of their palette steps. So
+the third tone loop starts from the second's white and changes nothing
+([#635](https://github.com/TusanHomichi/PSIV/issues/635)).
 
 The typed stage records retain the terminal counters, camera increments, RAM
 source and command-table addresses. They do not claim that a generic sprite

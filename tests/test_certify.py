@@ -34,8 +34,9 @@ SIX = ["opening-p1", "opening-p2", "meeting-rika", "anger-tower-barrier", "endin
        "ending-elsydeon-tone", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech",
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
+ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-loop-white"]
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
-NAMES = (SIX + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
+NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["zio-barrier-ramp"])
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,7 +106,8 @@ class PairTableCase(unittest.TestCase):
         # Only these are cropped; the others certify whole frames. The
         # barrier drops the field's black first row and column.
         cropped = [p[0] for p in certify.PAIRS if p[5] and p[5].get("region")]
-        self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", "teleport-towns",
+        self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", *ENDING_LOOP,
+                                   "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp"])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
@@ -159,6 +161,31 @@ class PairTableCase(unittest.TestCase):
         self.assertEqual(certify.TAPE_43_TONE["region"], [1, 1, 319, 223])
         # The restore lands on the untoned frame the tone started from.
         self.assertEqual(tone[0][4], tone[3][4])
+
+    def test_ending_loop_pairs_share_one_run_at_one_tick_offset(self):
+        loop = [p for p in certify.PAIRS if p[0] in ENDING_LOOP]
+        self.assertEqual([p[0] for p in loop], ENDING_LOOP)
+        for name, env, tick, frame, _, recipe in loop:
+            with self.subTest(pair=name):
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x8021", **certify.SCENE})
+                # Tape 38's own run and fixture, past the Elsydeon break.
+                self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
+                self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
+                # The native CRAM steps on ticks 885-909 as tape 38's buffer
+                # does in frames 9896-9920, each shown a frame later.
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 9012}.png")
+                self.assertIn(tick + 9012, recipe["frames"])
+        # Before, the fourth step, white: each a plateau's middle.
+        self.assertEqual([p[2] for p in loop], [881, 898, 938])
+        self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
+        self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
+        self.assertIs(loop[2][5], certify.TAPE_38_LOOP)
+        self.assertEqual(certify.TAPE_38_LOOP["frames"], [9893, 9950])
+        self.assertEqual(certify.TAPE_38_LOOP["region"], [1, 1, 319, 223])
+        # The rise leaves out the window and portrait the native closes
+        # early (#636): rows 112 down.
+        self.assertEqual(certify.TAPE_38_LOOP_RISE["frames"], [9910])
+        self.assertEqual(certify.TAPE_38_LOOP_RISE["region"], [1, 1, 319, 111])
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

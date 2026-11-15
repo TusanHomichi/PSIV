@@ -97,6 +97,34 @@ tick 878 scores `rmse=134.253889` against the rise, the step before it (890)
 the restore `rmse=18.398389`. The window `Event_RunDialogue3` opens after the
 restore (from frame 8203) is outside these pairs.
 
+The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
+them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),
+from tape 38's own run and fixture, after the first dialogue's last pages:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `ending-tone-loop-before` | **0.000000** | clone t881 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t898 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t938 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+
+The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
+white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086; the
+native CRAM steps on ticks 885-909, so clone tick t shows frame t + 9012, and
+the runtime's 64 words equal the oracle's (tick t against frame t + 9011) at
+ticks 881, 898 and 938. Region `1,1,319,111` matches on every tick 878-945.
+Over `1,1,319,223`, ticks 879-883 and 909-945 match too. Ticks 884-908 differ
+only inside `(24,112)-(296,208)`: the cartridge keeps the window and portrait
+up, toned, until `$078FAE`, and the native closes them when the text ends
+([#636](https://github.com/TusanHomichi/PSIV/issues/636)). The untoned tick
+881 scores `rmse=125.148572` against the rise, the steps before and after it
+(894, 902) `rmse=34.381196` and `rmse=28.146978`, the step before white (906)
+`rmse=29.123900` against the endpoint, and the endpoint against the untoned
+frame `rmse=206.044683`. The second loop (`$079BD2`) and the third
+(`$07A0FA`) are checked on the CRAM model only
+(`suites::palette::ending`). The third starts white natively, because the
+staff roll's and the credits' palette steps are not modelled
+([#635](https://github.com/TusanHomichi/PSIV/issues/635)).
+
 Rykros's scene-owned panels `$18B/$18F/$190` are extracted alongside the
 other panels; the runtime palette test checks every `PanelCreate` in that
 scene against the pack, with an empty palette pack as its negative control.

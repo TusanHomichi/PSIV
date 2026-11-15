@@ -159,6 +159,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
+- **The ending's first window closes before its tone loop (#636).**
+  `Cutscene_Ending` runs dialogue `$09` through `RunText3` (`$078F68..$078F90`),
+  which leaves the text window and Chaz's portrait on screen. The sixty-frame
+  `Pal_IncreaseTone` loop (`$078F9C`) whitens them with the panels, and only
+  `$078FAE..$078FCC` destroys them. The port closes both when the text ends,
+  so the loop tones the backdrop where they stood. The scene's windows are not
+  modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
+  ([89_Ending.md](../scenes/89_Ending.md)).
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the

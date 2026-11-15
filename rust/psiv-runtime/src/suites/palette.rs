@@ -11,6 +11,7 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
+mod ending;
 mod le_roof;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");

@@ -249,6 +249,30 @@ TAPE_38_TONE = {
     "region": [1, 1, 319, 223],
 }
 
+# The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
+# the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
+# `+$222` every fourth frame from 9896 (shown from 9897) and is white from
+# 9920 to the fade-out at 10086. The native CRAM steps on ticks 885-909 in
+# the same plateaus, so its 64 words at tick t equal the buffer at frame
+# t + 9011, and clone tick t shows oracle frame t + 9012. The
+# untoned frame before (9893) and the white endpoint inside the loop (9950)
+# certify all but #409's first row and column.
+TAPE_38_LOOP = {
+    **TAPE_38,
+    "frames": [9893, 9950],
+    "region": [1, 1, 319, 223],
+}
+
+# The loop's fourth step (9910, backdrop `$888`) over the panels and the
+# backdrop above row 112: the native closes the dialogue's window and Chaz's
+# portrait when the text ends, where the cartridge keeps both up, toned,
+# until the loop is over (#636).
+TAPE_38_LOOP_RISE = {
+    **TAPE_38,
+    "frames": [9910],
+    "region": [1, 1, 319, 111],
+}
+
 # Rykros's third cycle row: the planet has appeared but is still dark,
 # between the preceding message's close and the next window's open.
 TAPE_43 = {
@@ -315,6 +339,17 @@ PAIRS = [
     ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
+    # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
+    # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
+    ("ending-tone-loop-before", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 881,
+     "build/certify/oracle/ending-tone-loop/frame_9893.png",
+     "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
+    ("ending-tone-loop-rise", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 898,
+     "build/certify/oracle/ending-tone-loop/frame_9910.png",
+     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
+    ("ending-tone-loop-white", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 938,
+     "build/certify/oracle/ending-tone-loop/frame_9950.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),
