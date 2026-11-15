@@ -61,6 +61,12 @@ func _physics_process(_delta):
 func observe(state: Dictionary):
     game.set_physics_process(false)
     game.set_process(false)
+    # The deferred observation runs after the field's physics callback.
+    # Record the frozen game tick that actually supplies the pixels.
+    state = JSON.parse_string(str(game.debug_play_state()))
+    if next < WORDS.size() and int(state.cram.words[47]) != WORDS[next]:
+        fail("palette changed before the capture could freeze")
+        return
     RenderingServer.set_render_loop_enabled(true)
     for i in 3:
         await RenderingServer.frame_post_draw
