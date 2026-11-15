@@ -320,6 +320,23 @@ TAPE_44 = {
     "region": [1, 1, 319, 223],  # The field surface edge, #409.
 }
 
+# Tape 45: `Event_FractOozeFound` (`$7D`), whose text runs through
+# `Event_GetAndRunDialogue2` (`DialogueWindow::Retained`, #644), on Monsen with
+# Chaz alone at (288, 704). The last page ("It's coming for us!") is typed by
+# 7792; the C on 7799 ends it. The routine destroys nothing, so 7800 still shows
+# the window and Rika's portrait; from 7801 `loc_58498` covers them with a white
+# plane-A band, the portrait by 7805 and the window by 7812. The pair compares
+# the last page before the press, over the window's box: the field around it
+# carries a wandering NPC neither fixture pins.
+TAPE_45 = {
+    "tape": "oracle/tapes/45_retained_window_battle.tape",
+    "patches": ["7000:FFFFEC28:0073", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF406:0120", "7000:FFFFF408:02C0",
+                "7224:FFFFECA8:007D", "7224:FFFFEC20:000C"],
+    "frames": [7797],
+    "region": [24, 160, 272, 48],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -480,6 +497,11 @@ PAIRS = [
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
+    # A `Retained` window's last page, typed by tick 509 and up through 513;
+    # the battle stage replaces it on 514 (#644).
+    ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
+     "build/certify/oracle/retained-window-page/frame_7797.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

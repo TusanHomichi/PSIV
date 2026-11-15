@@ -141,12 +141,18 @@ pub fn scene_fixture(
             288 + 16,
             [Some(CharId(0)), None, None, None, None],
         ),
+        // `Event_FractOozeFound` (`PSIV_DEBUG_EVENT=0x7D`), a `Retained`
+        // window's caller (#644): Monsen (`$73`), whose tree 12 holds its
+        // entry `$2F`, with Chaz alone where the overworld's door lands him
+        // (288, 704), as tape 45 (`tools/certify.py` TAPE_45) patches the
+        // cartridge before it sets `Event_Index`.
+        0x007D => (0x0073, 288, 704, [Some(CharId(0)), None, None, None, None]),
         _ => return None,
     };
     // The new palette fixtures and the ending/recovery fixtures use tape
     // 28's retail initializer with the opening completed. Their explicit
     // scene-specific edits above are applied to that base, never blank banks.
-    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021) {
+    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021 | 0x007D) {
         match post_opening_game(&data, step_frames) {
             Ok(game) => game,
             Err(error) => return Some(Err(error)),
