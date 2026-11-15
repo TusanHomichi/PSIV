@@ -49,6 +49,24 @@ cartridge upload costs depend only on fighter count.
 normal-opening measurements; priority-specific paths remain under
 [#708](https://github.com/TusanHomichi/PSIV/issues/708).
 
+## Preemptive opening implementation limits
+
+**DELIBERATE DEVIATION — unmeasured uploads outside the tape-07 fixture.**
+The preemptive state follows the measured US transient and options routines,
+using the default message delay `$24`. The supported three-member Academy
+Basement fixture is measured; other formations, rosters, message delays,
+events and mounted battles are not. The runtime reuses the normal opening's
+party-size upload policy above for those cases, including its one initial
+hold, `(fighters - 1) / 2` options holds and first-name visibility. A mounted
+nine-cell strip adds one counted growth call. The preemptive transient uses
+the measured on-foot rectangle for all rosters. Without a VDP transfer model,
+these extensions can differ in count/seed phase, visible upload boundary or
+placement. They do not establish new retail measurements or alter first-round
+actor eligibility. Remaining priority fidelity stays under
+[#708](https://github.com/TusanHomichi/PSIV/issues/708); the ambush and final
+integrated route/resume tasks are [#722](https://github.com/TusanHomichi/PSIV/issues/722)
+and [#723](https://github.com/TusanHomichi/PSIV/issues/723).
+
 ## Signed-priority instruction and window basis
 
 Fresh isolated US captures verify both signs of `Battle_Priority`; their
@@ -57,7 +75,7 @@ are owned by [battle measurements](../battle/BATTLE_MEASUREMENTS.md#signed-prior
 These measurements supply the cartridge basis for
 [#708](https://github.com/TusanHomichi/PSIV/issues/708), independently of the
 ordinary-options opening in [#705](https://github.com/TusanHomichi/PSIV/pull/705).
-They do not change first-round rules or implement runtime timing.
+They do not change first-round rules; the [runtime opening](../battle/BATTLE_COMMAND_UI.md#preemptive-opening) consumes the preemptive measurement.
 
 `oracle/priority_measurement.py` verifies full-ROM identity and SHA-256 windows
 at `$00B62A..$00B6A1`, `$0052C2..$005365`, `$0048F6..$0049AB`,

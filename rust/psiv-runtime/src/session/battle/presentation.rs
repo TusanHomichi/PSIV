@@ -112,11 +112,22 @@ impl BattleMode {
             opening_first_upload: self
                 .opening
                 .is_some_and(super::opening::Opening::first_upload),
+            opening_transient_width: self
+                .opening
+                .and_then(super::opening::Opening::transient_width),
             menu,
             ready: self.command_open,
             finishing: self.finish_outcome.is_some() || self.finish_request.is_some(),
             cursor: self.cursor,
-            message: self.message.clone(),
+            message: if self
+                .opening
+                .and_then(super::opening::Opening::transient_width)
+                == Some(18)
+            {
+                "Surprise Attack!".into()
+            } else {
+                self.message.clone()
+            },
             message_kind: self.message_kind,
             reward_each: self.reward_each,
             reward_meseta: self.reward_meseta,

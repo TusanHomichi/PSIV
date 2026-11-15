@@ -49,12 +49,28 @@ NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-town
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
          + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + BATTLE_OPENING + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
+PREEMPTIVE = ["preemptive-" + suffix for suffix in
+              ["first", "grown", "text", "text-last", "close", "thin", "options-grow", "options"]]
+NAMES += PREEMPTIVE
 ROOT = Path(__file__).resolve().parent.parent
 
 
 class PairTableCase(unittest.TestCase):
     def test_the_certified_pairs_are_present_once_in_order(self):
         self.assertEqual([pair[0] for pair in certify.PAIRS], NAMES)
+
+    def test_preemptive_pairs_preserve_the_measured_fixture_and_boundaries(self):
+        frames = [24842, 24849, 24850, 24886, 24887, 24894, 24897, 24900]
+        pairs = [p for p in certify.PAIRS if p[0] in PREEMPTIVE]
+        self.assertEqual(len(pairs), len(frames))
+        for pair, frame in zip(pairs, frames, strict=True):
+            _, env, tick, path, _, recipe = pair
+            self.assertEqual(env, certify.PREEMPTIVE)
+            self.assertEqual(tick, frame - 24811)
+            self.assertTrue(path.endswith(f"frame_{frame}.png"))
+            self.assertEqual(recipe["patches"], ["24840:FFFFEF0C:58B4"])
+            self.assertIn(frame, recipe["frames"])
+            self.assertEqual(recipe["region"], [1, 1, 319, 223])
 
     def test_the_six_original_pairs_keep_their_pins(self):
         # The battle pairs were added after these six; their ticks and frames

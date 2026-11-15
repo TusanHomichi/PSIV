@@ -220,14 +220,50 @@ The policies applied to other rosters, party sizes and mounted battles are
 recorded as a [deliberate approximation](../source-notes/battle-party.md#2026-11-15--normal-opening-upload-timing-approximation).
 The runtime also marks each actual battle-loop call for the renderer: idle
 enemy overlays advance on those calls, including the initial one, and stay
-paused during both upload holds.
+paused during both upload holds. The loader owns its prior enemy update;
+the direct preemptive capture fixture includes both calls at entry.
+
+### Preemptive opening
+
+Positive priority selects `Battle_SurpriseAttack` / `Battle_SurpriseAttackMsg`
+(US `$48F6` / `$4974`), with the [measured signed-priority schedule](BATTLE_MEASUREMENTS.md#signed-priority-opening-fixtures).
+The same runtime `Opening` state has explicit normal and preemptive variants;
+neither enters the narration dwell. The transient grows by two cells to
+18, retains its text for the measured timer interval, closes to zero, then
+hands off to ordinary options. No button shortens or accepts this sequence.
+The pad history still advances, so a button held into the first poll needs a
+release and new edge. Priority remains in core until its party-only first
+round consumes it.
+
+The measured three-member interval takes 60 VInts after the priority roll to
+the first poll: 58 counted seed steps, holds at offsets 1 and 56, no further
+HV draws. At offset 59 the runtime has completed the options write; the next
+frame runs its first input poll. Cartridge video shows the preceding write:
+text first appears at offset 10, remains through 46, the last thin border
+appears at 54 and the complete options at 60. State/count tests and visual
+pairs use these separate observation boundaries.
+
+Certification `preemptive-*` retains the isolated tape-07 seed-word fixture
+from the measurements. Its oracle recipe uses the original tape's held
+Right after f24872; the measurement tape idles there. These directional
+inputs are ignored throughout the opening and at the first options poll.
+The native fixture seats tape 07's party, starts a
+real core preemptive battle using the ordinary HV surrogate, then sets the
+measured **post-roll** seed/count `$2C5A9843` / 23949 before running the
+product opening. Its renderer starts with the load and origin's two overlay calls.
+It compares first growth, last blank growth, first/last text, first/last
+closure, first options border and complete options. This is an isolated
+state/visual certification, not naturally drawn priority or campaign input
+proof. Other rosters and mounted cases retain the explicitly recorded
+[upload approximation](../source-notes/battle-party.md#preemptive-opening-implementation-limits).
 
 ### Not modelled, named
 
-- The priority-specific opening messages and the ambush handoff retain the
-  port's narration timing; [#708](https://github.com/TusanHomichi/PSIV/issues/708)
-  owns their cartridge measurement and implementation. They do not use the
-  normal options-opening state.
+- The ambush handoff retains the port's narration timing pending
+  [#722](https://github.com/TusanHomichi/PSIV/issues/722). It has not yet
+  joined the opening state. The integrated campaign/seed verification belongs
+  to [#723](https://github.com/TusanHomichi/PSIV/issues/723), under
+  [#708](https://github.com/TusanHomichi/PSIV/issues/708).
 - The port's own target pages (below) record the order at once: the
   cartridge picks a target over its strip and closes the strip after, which
   the port's one-list page does not draw.

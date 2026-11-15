@@ -47,6 +47,8 @@ mod fusion;
 mod menu;
 mod narration;
 mod opening;
+#[cfg(test)]
+mod opening_tests;
 mod panes;
 #[cfg(test)]
 mod player_tests;
@@ -705,14 +707,10 @@ impl BattleMode {
             BattleBeat::End(outcome) => self.finish_outcome = Some(outcome),
             _ => {}
         }
-        if matches!(
-            event,
-            BattleEvent::Started {
-                priority: Priority::Normal,
-                ..
-            }
-        ) {
-            self.opening = Some(opening::Opening::new(self.party.len()));
+        if let BattleEvent::Started { priority, .. } = event
+            && let Some(opening) = opening::Opening::new(priority, self.party.len())
+        {
+            self.opening = Some(opening);
             self.command_open = false;
             return;
         }

@@ -381,6 +381,16 @@ TAPE_46 = {
     "region": [1, 1, 319, 223],  # The field surface edge, #409.
 }
 
+# Isolated #724 fixture: the cartridge rolls priority after a seed high-word
+# patch. Native starts at the recorded post-roll seed/count on tape 07's party.
+TAPE_07_PREEMPTIVE = {
+    "tape": "oracle/tapes/07_first_battle.tape",
+    "patches": ["24840:FFFFEF0C:58B4"],
+    "frames": [24842, 24849, 24850, 24886, 24887, 24894, 24897, 24900],
+    "region": [1, 1, 319, 223],
+}
+PREEMPTIVE = {"PSIV_DEBUG_BATTLE_WINDOW": "preemptive", "PSIV_DEBUG_BATTLE_PHASE": "2"}
+
 PAIRS = [
     ("opening-p1", OPENING, 3550,
      "oracle/frames/opening/frame_4000.png",
@@ -606,6 +616,30 @@ PAIRS = [
     ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35", **SCENE}, 200,
      "build/certify/oracle/eclipse-torch-white/frame_7396.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
+    ("preemptive-first", PREEMPTIVE, 31,
+     "build/certify/oracle/preemptive/frame_24842.png",
+     "9ff2e6a28c1db6252ed427d092fb34ccc25252f637142f6410d6af2abb68c4ab", TAPE_07_PREEMPTIVE),
+    ("preemptive-grown", PREEMPTIVE, 38,
+     "build/certify/oracle/preemptive/frame_24849.png",
+     "927d56c45a81141f13035a5989e67715e4904d3babe126263436d659de2c16ca", TAPE_07_PREEMPTIVE),
+    ("preemptive-text", PREEMPTIVE, 39,
+     "build/certify/oracle/preemptive/frame_24850.png",
+     "66814df00035fc5969176679b5948d25a5d7fda3268822c08f594a01a57c48bc", TAPE_07_PREEMPTIVE),
+    ("preemptive-text-last", PREEMPTIVE, 75,
+     "build/certify/oracle/preemptive/frame_24886.png",
+     "ce4cc6806cc624604800cf62b498d9e20633aae5b49462b77beacba1683f2926", TAPE_07_PREEMPTIVE),
+    ("preemptive-close", PREEMPTIVE, 76,
+     "build/certify/oracle/preemptive/frame_24887.png",
+     "039cc9b0d05cc0f55bfde5da5e98e0216f2b0997f3414992deb16db1ab30c008", TAPE_07_PREEMPTIVE),
+    ("preemptive-thin", PREEMPTIVE, 83,
+     "build/certify/oracle/preemptive/frame_24894.png",
+     "e5c29d8cf7c0df1c4be9ad4a1a2e7ccd8402ab88fd035d35e10c719bb90ae065", TAPE_07_PREEMPTIVE),
+    ("preemptive-options-grow", PREEMPTIVE, 86,
+     "build/certify/oracle/preemptive/frame_24897.png",
+     "aebd027d26a666dfb791379e326c72213d290ca0e06630385ea1156c9e7a1915", TAPE_07_PREEMPTIVE),
+    ("preemptive-options", PREEMPTIVE, 89,
+     "build/certify/oracle/preemptive/frame_24900.png",
+     "35f64c538781647f4fede4aeb15c23d253e43f4c14ad1173a065a999dd0f6eb5", TAPE_07_PREEMPTIVE),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.
