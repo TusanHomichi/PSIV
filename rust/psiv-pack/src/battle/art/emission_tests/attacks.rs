@@ -136,7 +136,15 @@ fn attack_frames_retain_mapping_duration_art_and_disjoint_priority_surfaces() {
 fn local_receipt_frames_are_shared_between_routine_bodies() {
     let root =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/fixtures/battle_animation_art");
-    if !root.try_exists().unwrap() {
+    if !root.try_exists().unwrap()
+        || !std::fs::read_dir(&root).unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "png")
+        })
+    {
         eprintln!("local receipt PNGs absent: shared-evidence check skipped");
         return;
     }
