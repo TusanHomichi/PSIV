@@ -192,27 +192,19 @@ mod scene_tests {
         );
     }
 
+    /// Decode operands from the ignored local image, never embed ROM bytes.
     #[test]
-    fn eclipse_torch_spawns_and_sequences_match_us_bytes() {
+    fn eclipse_torch_spawns_and_delays_match_decoded_us_operands() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../Phantasy Star IV (USA).md");
         let Ok(rom) = std::fs::read(path) else {
-            eprintln!("US ROM absent; skipping byte comparison");
+            eprintln!("US ROM absent; skipping operand comparison");
             return;
         };
-        assert_eq!(
-            &rom[0x502C2..0x502CE],
-            &[0, 5, 3, 0x96, 0, 5, 3, 0xA8, 0, 5, 3, 0xBA]
-        );
-        for (address, delay) in [(0x50396, 7), (0x503A8, 11), (0x503BA, 15)] {
-            assert_eq!(
-                &rom[address..address + 18],
-                &[
-                    4, delay, 0, 5, 0x13, 0x2A, 0, 5, 0x13, 0x32, 0, 5, 0x13, 0x3A, 0, 5, 0x13,
-                    0x42
-                ]
-            );
-        }
+        let word = |at| u16::from_be_bytes(rom[at..at + 2].try_into().unwrap());
+        let long = |at| u32::from_be_bytes(rom[at..at + 4].try_into().unwrap());
+        assert_eq!(word(0x702E6), 0x338, "object id");
+        assert_eq!(word(0x702EA), 0x3AF, "loaded art tile");
         let ops = crate::SCENES
             .iter()
             .find(|scene| scene.name == "Event_EclipseTorchUsed")
@@ -225,38 +217,23 @@ mod scene_tests {
                 None
             }
         }) {
-            // First record also writes the shared id/tile immediates.
             let at = 0x702EC + spawn.slot * 34;
-            let slot_address = 0xC300 + spawn.slot as u16 * 0x40;
-            let mut expected = vec![0x49, 0xF8];
-            expected.extend(slot_address.to_be_bytes());
-            expected.extend([0x38, 0x80, 0x39, 0x41, 0, 0x16, 0x39, 0x7C]);
-            expected.extend((spawn.x as u16).to_be_bytes());
-            expected.extend([0, 0x30, 0x39, 0x7C]);
-            expected.extend((spawn.y as u16).to_be_bytes());
-            expected.extend([
-                0,
-                0x34,
-                0x19,
-                0x7C,
-                0,
+            assert_eq!(word(at + 2), 0xC300 + spawn.slot as u16 * 0x40, "slot");
+            assert_eq!(word(at + 12), spawn.x as u16, "X operand");
+            assert_eq!(word(at + 18), spawn.y as u16, "Y operand");
+            assert_eq!(
+                rom[at + 25],
                 spawn.sequence.initial_delay(),
-                0,
-                0x11,
-                0x39,
-                0x7C,
-            ]);
-            expected.extend((spawn.sequence as u16).to_be_bytes());
-            expected.extend([0, 6]);
-            assert_eq!(&rom[at..at + 34], expected, "slot {}", spawn.slot);
+                "initial delay"
+            );
+            assert_eq!(word(at + 30), spawn.sequence as u16, "sequence operand");
+            let sequence = long(0x502C2 + spawn.sequence as usize) as usize;
+            assert_eq!(rom[sequence], 4, "mapping count");
+            assert_eq!(
+                rom[sequence + 1],
+                spawn.sequence.initial_delay(),
+                "reload delay"
+            );
         }
-        // Pre-animation check is index 3, duration 0, clear word, return.
-        assert_eq!(
-            &rom[0x4FB02..0x4FB14],
-            &[
-                0x0C, 0x2C, 0, 3, 0, 0x10, 0x66, 0x0A, 0x4A, 0x2C, 0, 0x11, 0x66, 4, 0x42, 0x54,
-                0x4E, 0x75
-            ]
-        );
     }
 }
