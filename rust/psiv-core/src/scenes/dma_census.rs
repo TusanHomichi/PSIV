@@ -466,10 +466,10 @@ fn game_start_image_pins_both_pages_and_the_helper_dma_path() {
             (0x07_3DD2, DMA_HELPERS[1])
         ]
     );
-    for first in [0x07_3CBE, 0x07_3D72] {
-        for row in 0..4 {
-            assert_eq!(jsr_target(rom, first + row * 0x20), Some(VINT_PREPARE));
-        }
+    for at in [
+        0x07_3CBE, 0x07_3CDE, 0x07_3CFE, 0x07_3D18, 0x07_3D72, 0x07_3D92, 0x07_3DB2, 0x07_3DCC,
+    ] {
+        assert_eq!(jsr_target(rom, at), Some(VINT_PREPARE));
     }
     for (at, helper) in [
         (0x07_3D26, 0x07_3E86),

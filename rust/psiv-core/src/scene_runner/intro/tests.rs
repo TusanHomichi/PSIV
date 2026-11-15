@@ -48,7 +48,12 @@ fn intro_helpers_spend_each_pass_and_the_floor_dma_on_its_own_frame() {
     for phase in [0, 1, 2, 3, 0xFFFE] {
         for (op, colour, frames, clears) in [
             (SceneOp::IntroTextFadeUp, 0x0666, 20, 0),
-            (SceneOp::IntroTextFadeDown, 0x0EEE, 21, 1),
+            (
+                SceneOp::IntroTextFadeDown,
+                0x0EEE,
+                if phase & 3 == 1 { 21 } else { 22 },
+                if phase & 3 == 1 { 1 } else { 2 },
+            ),
             (
                 SceneOp::IntroTextFadeDown,
                 0x0666,

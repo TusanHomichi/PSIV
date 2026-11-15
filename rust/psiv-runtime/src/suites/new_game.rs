@@ -25,11 +25,11 @@ fn native_opening_reaches_retail_first_control_with_its_initial_state_intact() {
     assert!(runtime.start_event(event));
     let mut saw_chaz_alone = false;
     let mut intro_ops = Vec::new();
-    for tick in 0..8_000 {
+    for _ in 0..8_000 {
         for event in runtime.tick(Input::Neutral) {
             match event {
                 RuntimeEvent::ScenePresentation { op, .. } => {
-                    intro_ops.push((tick, op));
+                    intro_ops.push((usize::from(runtime.frames), op));
                 }
 
                 RuntimeEvent::SceneDialogue { entry } => {
@@ -149,18 +149,20 @@ fn assert_intro_frame_boundaries(ops: &[(usize, SceneOp)]) {
         for row in 0..4 {
             assert!(span.iter().any(|(t, op)| *t == start + row && matches!(op, SceneOp::DrawTextToPlane { entry: e, .. } if *e == entry + row as u16)));
         }
+        let down_frames = if (start + 925) & 3 == 1 { 21 } else { 22 };
+        let pause_at = 925 + down_frames;
         for (offset, op) in [
             (4, SceneOp::DmaPlanes),
             (5, SceneOp::IntroTextFadeUp),
             (25, SceneOp::WaitFrames { frames: 900 }),
             (925, SceneOp::IntroTextFadeDown),
-            (946, SceneOp::WaitFrames { frames: pause }),
+            (pause_at, SceneOp::WaitFrames { frames: pause }),
         ] {
             assert!(
                 span.contains(&(start + offset, op)),
                 "missing {op:?} at {offset}"
             );
         }
-        assert_eq!(next - start, 946 + usize::from(pause));
+        assert_eq!(next - start, pause_at + usize::from(pause));
     }
 }

@@ -471,7 +471,8 @@ The fade loops each call their helper 20 times and wait after every call.
 tail-jumps to `DMAPlane_A_VInt` (`$073EC8`) whenever the counter phase is zero
 and the text word is already `$666`. That frame precedes the caller's bare
 VInt; it is not a substitute for it. From the normal `$EEE` page colour the
-20-pass down loop takes 21 frames, including one clear/upload. The helpers
+20-pass down loop takes 21 frames when its initial counter phase is 1, or
+22 otherwise: the extra VInt can make a second pass reach the floor path. The helpers
 read the global frame counter, not a clock reset at the start of a fade.
 
 These explicit VInt frames are separate from CPU decompression and layout
