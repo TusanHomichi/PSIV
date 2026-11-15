@@ -126,7 +126,16 @@ fn panel_destroys_wait_only_when_the_global_stack_is_nonempty() {
                 &game
             ));
             let emitted = actions(frame(&mut runner, &mut game, Pad::new(Button::Speak)));
-            assert_eq!(emitted.len(), if initial == 0 { 2 } else { 1 });
+            assert_eq!(
+                emitted,
+                if initial == 0 {
+                    vec![DialogueAction::SetEventFlag(8)]
+                } else if all {
+                    vec![DialogueAction::DestroyAllPanels]
+                } else {
+                    vec![DialogueAction::DestroyLastPanel]
+                }
+            );
             assert_eq!(game.is_set(Flag::event(8)), initial == 0);
             assert_eq!(
                 runner.panels,

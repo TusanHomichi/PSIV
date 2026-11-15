@@ -92,15 +92,15 @@ pub enum DialogueAction {
     LoadSound(u8),
     /// 4: play this sound effect at once.
     LoadSound2(u8),
-    /// 5: reload the palette the window art was loaded with.
+    /// 6: reload the palette the window art was loaded with.
     UpdatePalette,
-    /// 6: Zio's eyes flash red.
+    /// 7: Zio's eyes flash red.
     ZioEyesRed,
-    /// 7: pause the music.
+    /// 8: pause the music.
     PauseMusic,
-    /// 8: resume it.
+    /// 9: resume it.
     ResumeMusic,
-    /// 9: the sabotage alarm's red palette.
+    /// 10: the sabotage alarm's red palette.
     SabotageAlarmRedPalette,
     /// 11: set event flag `flag`.
     SetEventFlag(u8),
@@ -128,7 +128,7 @@ pub struct TextFlow {
     portrait: Option<u8>,
     /// Frames left on a `$F9`.
     hold: u16,
-    /// Blocking action frames, clocked even while the window opens.
+    /// Counted frames inside the current `$F2`, after the box opens.
     action_hold: u16,
     /// Set while a finished page is on screen.
     stop: Option<PageEnd>,

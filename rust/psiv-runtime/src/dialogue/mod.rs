@@ -252,8 +252,8 @@ impl DialogueRunner {
 
     /// Whether this frame is a lag frame: its VInt finds `VInt_Flag` clear
     /// (`ps4.asm:548-549`), so it skips `ReadJoypads`, `UpdateRNGSeed` and
-    /// `Main_Frame_Count` (`ps4.asm:614-624`), and the 68000 is still inside
-    /// `TextCtrlCode_Portrait`'s `NemDecomp`. Nothing of the frame runs.
+    /// `Main_Frame_Count` (`ps4.asm:614-624`), while the 68000 is still
+    /// decompressing a portrait or a panel. Nothing of the frame runs.
     #[must_use]
     pub(crate) fn lag_frame(&self) -> bool {
         self.lag > 0

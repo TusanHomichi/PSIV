@@ -65,8 +65,17 @@ impl DialogueRunner {
     }
 
     pub(super) fn launch_action(&mut self, action: DialogueAction, game: &GameState) {
+        // A retained window zeroes `Panel_Num` while leaving its pixels.
+        // An empty destroy must not pop that presentation stack either.
+        let empty_destroy = self.panels == 0
+            && matches!(
+                action,
+                DialogueAction::DestroyLastPanel | DialogueAction::DestroyAllPanels
+            );
         let frames = self.action_frames(action);
-        self.signals.push(DialogueSignal::Action(action));
+        if !empty_destroy {
+            self.signals.push(DialogueSignal::Action(action));
+        }
         if let Some(flow) = self.flow.as_mut() {
             flow.resume_after_action(frames, game);
         }

@@ -71,7 +71,8 @@ panel destroy only when `Panel_Num` is nonzero; forty for `ElsydeonBroken`.
 Only zero-frame actions drain together. The panel count includes scene-owned
 panels, scene destroys and the window kinds that destroy panels on return.
 `Event_RunDialogue2` (the retained window) zeroes the count while leaving its
-pixels on screen; the third and ending routines retain the count.
+pixels on screen; an empty destroy emits no presentation mutation, so it
+cannot pop those retained pixels. The third and ending routines retain the count.
 Blanking VRAM or loading a map does not itself reset `Panel_Num`.
 
 A `$F9` after an action starts after that action returns, and a `$F2` after a
