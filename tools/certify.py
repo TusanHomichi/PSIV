@@ -346,6 +346,13 @@ TAPE_45 = {
     "region": [24, 160, 272, 48],
 }
 
+# The same run's battle entry (#663): `GameMode_LoadBattle` holds the screen
+# white (`$EEE`) from 7814 through 7856 and fades it from white one nibble a
+# frame from 7857, while the planes are still off-screen: 7857-7859 are the
+# backdrop alone. From 7860 the stage sweeps in, which the port does not draw.
+# Clone tick t shows frame t + 7286 here as on the last page.
+TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -532,10 +539,25 @@ PAIRS = [
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
     # A `Retained` window's last page, typed by tick 509 and up through 513;
-    # the battle stage replaces it on 514 (#644).
+    # it closes on 514, where the battle's entry starts (#644, #663).
     ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
      "build/certify/oracle/retained-window-page/frame_7797.png",
      "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
+    # The event battle's entry (#663): the first white frame (tick 527 still
+    # shows the field), the hold, the fade's first step (570 is still white)
+    # and its second level.
+    ("event-battle-white-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 528,
+     "build/certify/oracle/event-battle-entry/frame_7814.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_45_ENTRY),
+    ("event-battle-white-hold", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 554,
+     "build/certify/oracle/event-battle-entry/frame_7840.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_45_ENTRY),
+    ("event-battle-fade-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 571,
+     "build/certify/oracle/event-battle-entry/frame_7857.png",
+     "bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb", TAPE_45_ENTRY),
+    ("event-battle-fade-second", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 573,
+     "build/certify/oracle/event-battle-entry/frame_7859.png",
+     "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
     # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
     # ticks 151 and 193, each shown the tick after.
     ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 152,

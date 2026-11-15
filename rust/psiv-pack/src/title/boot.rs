@@ -352,8 +352,8 @@ impl<'a> Boot<'a> {
         self.enter("TitleRoutine_FadingText");
         let source = imm_long(rom, 0x4255C, 0x41F9, "lea (Pal_TitleScreen).l, a0")? as usize;
         let words = usize::from(imm(rom, 0x42566, 0x303C, "move.w #$3F, d0")?) + 1;
-        for i in 0..words {
-            self.pal[i] = w(rom, source + 2 * i)?;
+        for (i, color) in self.pal[..words].iter_mut().enumerate() {
+            *color = w(rom, source + 2 * i)?;
         }
         self.wait();
         expect(rom, 0x42610, 0x08B8, "bclr #0, (CredText_A).w")?;

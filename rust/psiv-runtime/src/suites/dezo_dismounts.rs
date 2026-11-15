@@ -36,7 +36,8 @@ fn tick_line(runtime: &mut Runtime, calls: &mut u64) -> (String, bool) {
                 runtime.dialogue_closed();
             }
             RuntimeEvent::SceneDialogueResume => runtime.dialogue_closed(),
-            RuntimeEvent::SceneBattleStarted { index, .. } => {
+            // The scene's request frame; the battle starts after its entry.
+            RuntimeEvent::EventBattleEntered { index } => {
                 parts.push(format!("battle {index:02X}"));
                 battle = true;
             }

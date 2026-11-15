@@ -17,15 +17,31 @@
 //! image. [`KNOWN`] lists the scenes that do not match yet, with the issue
 //! that fixes them; a listed scene that matches fails too, so the list only
 //! shrinks. The variable fades have their own check, `palette_fades_image`.
+//!
+//! The ship's route is attributed as its bytes are (#654).
+//! `Cutscene_LeRoofAgain` and `Cutscene_FindingAirCastle` end their bytes in
+//! `jmp Cutscene_InsideSpaceship` and their ops in [`INSIDE_SPACESHIP_ROUTE`]:
+//! each is checked on its ops before the route against its own bytes, and
+//! must end in the route exactly when its bytes make that `jmp`. The route is
+//! `Cutscene_InsideSpaceship`'s alone: its first [`ENTRY_OPS`] against its own
+//! bytes, and on each way out of the menu the fades
+//! [`trace`](super::ship_route_trace::trace) sees against the calls
+//! `loc_63BC4` makes on that way ([`SHIP_WAYS`]), which branches, so it is
+//! read by way rather than in address order.
 
 use super::SCENES;
 use super::dialogue_callers_image::rom;
 use super::documented_ranges::{Ranges, documented_ranges};
+use super::flight::INSIDE_SPACESHIP_ROUTE;
+use super::ship_route_trace::{
+    ENTRY_OPS, Way, before_route, fades, insert, retarget, route_as_called, trace,
+};
+use super::wait_census::shared_code::SHARED_CODE;
 use crate::SceneOp;
 
 /// A fixed fade routine, by its op.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Fixed {
+pub(super) enum Fixed {
     Init,
     In,
     Out,
@@ -38,6 +54,44 @@ const ROUTINES: &[(u32, Fixed)] = &[
     (0x04_223E, Fixed::Out),
 ];
 
+/// `Cutscene_InsideSpaceship`, whose ops are the ship's route.
+const SHIP: &str = "Cutscene_InsideSpaceship";
+/// Its entry, the target of the callers' `jmp`.
+const SHIP_ENTRY: u32 = 0x07_606C;
+
+/// `loc_63BC4`'s fixed fade calls on each way out of the menu, in the order
+/// they run (`ps4.asm:133499-134714`). The kinds are read off the image.
+const SHIP_WAYS: [(Way, &[u32]); 3] = [
+    (
+        Way::Spaceport,
+        &[
+            0x06_3E0C, // the windows closed (:133670), then `bsr loc_64568`
+            0x06_45D6, // the takeoff's fade-in (:134195)
+            0x06_472C, // loc_6472C (:134294)
+            0x06_4756, // :134303, then `bsr loc_64C1E`
+            0x06_4C8E, // the planet screen's fade-in (:134678)
+            0x06_4CFA, // its closing `jmp` (:134714)
+            0x06_47B8, // the transit's fade-in (:134323)
+            0x06_483A, // loc_6483A, before the landing (:134360)
+        ],
+    ),
+    (
+        Way::Elsewhere,
+        &[
+            0x06_3E0C, // the windows closed (:133670), then `bsr loc_6488A`
+            0x06_48F8, // the takeoff's fade-in (:134404)
+            0x06_49A2, // loc_649A2 (:134455)
+            0x06_49CC, // :134464, then `bsr loc_64C1E`
+            0x06_4C8E, // the planet screen's fade-in (:134678)
+            0x06_4CFA, // its closing `jmp` (:134714)
+            0x06_4A2E, // the transit's fade-in (:134484)
+            0x06_4AB0, // before the landing (:134521)
+        ],
+    ),
+    // loc_63E5E: the windows closed, then the map reloaded (:133702).
+    (Way::Cancel, &[0x06_3E8A]),
+];
+
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
 const KNOWN: &[(&str, u32)] = &[
@@ -48,8 +102,6 @@ const KNOWN: &[(&str, u32)] = &[
     ("Cutscene_SpaceshipSabotage", 652),
     ("Cutscene_CrashLaanding", 652),
     ("Cutscene_DarkForce1Defeated", 652),
-    ("Cutscene_LeRoofAgain", 652),
-    ("Cutscene_FindingAirCastle", 652),
     ("Cutscene_LashiecDefeated", 652),
     ("Cutscene_Ending", 652),
 ];
@@ -85,6 +137,85 @@ fn retail_calls(rom: &[u8], ranges: &[(usize, usize)]) -> Vec<(usize, Fixed)> {
     calls
 }
 
+/// Whether `ranges` hold a `jmp` to the ship's entry.
+fn jumps_to_ship(rom: &[u8], ranges: &[(usize, usize)]) -> bool {
+    let jmp = [&[0x4E, 0xF9][..], &SHIP_ENTRY.to_be_bytes()].concat();
+    ranges.iter().any(|&(start, end)| {
+        (start..end.min(rom.len().saturating_sub(5)))
+            .step_by(2)
+            .any(|at| rom[at..at + 6] == jmp[..])
+    })
+}
+
+/// `loc_63BC4`'s span (`wait_census`'s shared code for the ship).
+fn ship_helper() -> (usize, usize) {
+    let &(_, start, end) = SHARED_CODE
+        .iter()
+        .find(|(scene, ..)| *scene == SHIP)
+        .expect("the ship's helper is shared code");
+    (start as usize, end as usize)
+}
+
+/// The kinds of the calls at `addresses`, `None` where none is.
+fn kinds(rom: &[u8], addresses: &[u32]) -> Vec<Option<Fixed>> {
+    let calls = retail_calls(rom, &[ship_helper()]);
+    addresses
+        .iter()
+        .map(|&at| {
+            calls
+                .iter()
+                .find(|(call, _)| *call == at as usize)
+                .map(|(_, fixed)| *fixed)
+        })
+        .collect()
+}
+
+/// What is wrong with [`SHIP_WAYS`]: an address with no call in the helper,
+/// and a call in the helper on no way.
+fn ship_way_problems(rom: &[u8], ways: &[(Way, &[u32])]) -> Vec<String> {
+    let mut problems = Vec::new();
+    for &(way, addresses) in ways {
+        for (at, kind) in addresses.iter().zip(kinds(rom, addresses)) {
+            if kind.is_none() {
+                problems.push(format!("{way:?}: no fixed fade call at ${at:06X}"));
+            }
+        }
+    }
+    for (at, fixed) in retail_calls(rom, &[ship_helper()]) {
+        if !ways
+            .iter()
+            .any(|(_, addresses)| addresses.contains(&(at as u32)))
+        {
+            problems.push(format!("${at:06X} {fixed:?} is on no way out of the menu"));
+        }
+    }
+    problems
+}
+
+/// The fixed fades of `ops`, in op order.
+fn native(ops: &[SceneOp]) -> Vec<Fixed> {
+    ops.iter().filter_map(recorded).collect()
+}
+
+/// `calls` and `native` side by side, when they differ.
+fn compare(name: &str, calls: &[(usize, Fixed)], native: &[Fixed]) -> Option<String> {
+    if calls
+        .iter()
+        .map(|(_, fixed)| *fixed)
+        .eq(native.iter().copied())
+    {
+        return None;
+    }
+    let at: Vec<String> = calls
+        .iter()
+        .map(|(at, fixed)| format!("${at:06X} {fixed:?}"))
+        .collect();
+    Some(format!(
+        "{name}: retail calls [{}], the scene records {native:?}",
+        at.join(", ")
+    ))
+}
+
 /// Each scene with documented ranges whose ops are not its calls, by name.
 fn mismatches(rom: &[u8], ranges: &Ranges, scenes: &[crate::Scene]) -> Vec<(&'static str, String)> {
     let mut problems = Vec::new();
@@ -92,25 +223,41 @@ fn mismatches(rom: &[u8], ranges: &Ranges, scenes: &[crate::Scene]) -> Vec<(&'st
         let Some(ranges) = ranges.get(scene.name) else {
             continue;
         };
-        let native: Vec<Fixed> = scene.ops.iter().filter_map(recorded).collect();
         let calls = retail_calls(rom, ranges);
-        if calls
-            .iter()
-            .map(|(_, fixed)| *fixed)
-            .ne(native.iter().copied())
-        {
-            let at: Vec<String> = calls
-                .iter()
-                .map(|(at, fixed)| format!("${at:06X} {fixed:?}"))
-                .collect();
-            problems.push((
+        let mut found = Vec::new();
+        if scene.name == SHIP {
+            // The entry's own bytes, then the helper by way.
+            let entry = &scene.ops[..ENTRY_OPS.min(scene.ops.len())];
+            found.extend(compare(scene.name, &calls, &native(entry)));
+            for (way, addresses) in SHIP_WAYS {
+                let mut retail = calls.clone();
+                for (&at, kind) in addresses.iter().zip(kinds(rom, addresses)) {
+                    retail.extend(kind.map(|kind| (at as usize, kind)));
+                }
+                let name = format!("{} {way:?}", scene.name);
+                found.extend(compare(&name, &retail, &fades(&trace(scene.ops, way))));
+            }
+        } else {
+            let own = before_route(scene.ops);
+            found.extend(compare(
                 scene.name,
-                format!(
-                    "{}: retail calls [{}], the scene records {native:?}",
-                    scene.name,
-                    at.join(", ")
-                ),
+                &calls,
+                &native(own.unwrap_or(scene.ops)),
             ));
+            match (jumps_to_ship(rom, ranges), own.is_some()) {
+                (true, false) => found.push(format!(
+                    "{}: its bytes jump to {SHIP} but its ops do not end in the route",
+                    scene.name
+                )),
+                (false, true) => found.push(format!(
+                    "{}: its ops end in the route but its bytes do not jump to {SHIP}",
+                    scene.name
+                )),
+                _ => {}
+            }
+        }
+        if !found.is_empty() {
+            problems.push((scene.name, found.join("\n")));
         }
     }
     problems
@@ -148,6 +295,15 @@ fn every_scene_records_the_fixed_fades_its_bytes_call() {
         return;
     };
     let problems = report(rom, &documented_ranges(), SCENES, KNOWN);
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn the_ships_ways_are_the_helpers_calls() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let problems = ship_way_problems(rom, &SHIP_WAYS);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
@@ -225,5 +381,88 @@ fn a_wrong_fixed_fade_op_is_reported() {
     assert!(
         altered_count > 100,
         "only {altered_count} alterations checked"
+    );
+}
+
+/// Negative controls for the ship (#654): the route as its bytes call it
+/// matches on every way, and with any of its fixed fades dropped or doubled
+/// it does not; a caller that loses the route, or a scene that gains it
+/// without the `jmp`, is reported.
+#[test]
+fn the_route_as_called_matches_and_a_changed_route_or_caller_does_not() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let ranges = documented_ranges();
+    let named = |name: &str| *SCENES.iter().find(|scene| scene.name == name).unwrap();
+    let with_ops = |name: &str, ops: Vec<SceneOp>| crate::Scene {
+        ops: Box::leak(ops.into_boxed_slice()),
+        ..named(name)
+    };
+    let as_called = route_as_called();
+    assert_eq!(
+        mismatches(rom, &ranges, &[with_ops(SHIP, as_called.clone())]),
+        []
+    );
+    let mut altered = 0;
+    for (index, op) in as_called.iter().enumerate() {
+        if recorded(op).is_none() {
+            continue;
+        }
+        let mut dropped = as_called.clone();
+        dropped.remove(index);
+        retarget(&mut dropped, index, false);
+        let mut doubled = as_called.clone();
+        insert(&mut doubled, index, *op);
+        for ops in [dropped, doubled] {
+            assert_eq!(
+                mismatches(rom, &ranges, &[with_ops(SHIP, ops)]).len(),
+                1,
+                "route op {index} altered passed"
+            );
+            altered += 1;
+        }
+    }
+    // Twelve fixed fades: the entry's two, the menu's two fade-outs and the
+    // two flights' eight.
+    assert_eq!(altered, 24);
+    for caller in ["Cutscene_LeRoofAgain", "Cutscene_FindingAirCastle"] {
+        let own = before_route(named(caller).ops).unwrap().to_vec();
+        assert_eq!(
+            mismatches(rom, &ranges, &[with_ops(caller, own)]).len(),
+            1,
+            "{caller} without the route passed"
+        );
+    }
+    let mut gained = named("Cutscene_ProfoundDarkness").ops.to_vec();
+    gained.extend(INSIDE_SPACESHIP_ROUTE);
+    assert_eq!(
+        mismatches(
+            rom,
+            &ranges,
+            &[with_ops("Cutscene_ProfoundDarkness", gained)]
+        )
+        .len(),
+        1
+    );
+}
+
+/// Negative controls: a way that lists an address with no call, or loses the
+/// only listing of a call, is reported.
+#[test]
+fn a_wrong_ship_way_is_reported() {
+    let Some(rom) = rom() else {
+        return;
+    };
+    let with = |cancel: &'static [u32]| {
+        let mut ways = SHIP_WAYS;
+        ways[2] = (Way::Cancel, cancel);
+        ship_way_problems(rom, &ways)
+    };
+    assert_eq!(with(&[0x06_3E8A]), Vec::<String>::new());
+    assert_eq!(with(&[]), ["$063E8A Out is on no way out of the menu"]);
+    assert_eq!(
+        with(&[0x06_3E8A, 0x06_3E90]),
+        ["Cancel: no fixed fade call at $063E90"]
     );
 }

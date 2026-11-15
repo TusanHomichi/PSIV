@@ -1,7 +1,10 @@
 # `Cutscene_InsideSpaceship`
 
 - **Retail bytes:** `$07606C..$07607D` inclusive, 18 bytes, then the shared helper
-  `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
+  `loc_63BC4` through `loc_64C1E`'s closing `jmp` (`ps4.asm:133499-134714`,
+  ROM `$063BC4` to `$064CFF`), the menu and the flight routines it calls. The
+  censuses read that span as this scene's shared code, never as a caller's
+  (`wait_census::shared_code::SHARED_CODE`).
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
 - **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (45 ops,

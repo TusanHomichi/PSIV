@@ -11,12 +11,14 @@
 The `grand_cross=0` CutscenePtrs body is the retail source. The clone's
 Grand Cross body is excluded. ROM range: `$077A2E..$077A68` exclusive end.
 Its final route is the retail `$800D` spaceship body, inlined: the shared menu
-and flight, whose destinations depend on `World_Index` and the flags.
+and flight, whose destinations depend on `World_Index` and the flags. The
+censuses read this scene's own bytes against ops 0-6; the route is
+[`Cutscene_InsideSpaceship`](41_InsideSpaceship.md)'s.
 
 ## Retail transcription
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-5 | `$077A2E..$077A50` | panel `$18A`, dialogue tree `$20DB0E`, entry `$18` | panel/dialogue |
-| 6 | `$077A51..$077A5B` | set `$99` | flag |
-| 7-54 | `$077A5C..$077A67` | the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
+| 0-5 | `$077A2E..$077A57` | `InitVRAMAndCRAM` (`$077A2E`), `Pal_FadeIn` (`$077A34`), panel `$18A`, dialogue tree `$20DB0E`, entry `$18` | panel/dialogue |
+| 6 | `$077A58..$077A61` | set `$99` | flag |
+| 7-51 | `$077A62..$077A67` | `jmp Cutscene_InsideSpaceship` (`$077A62`): the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
