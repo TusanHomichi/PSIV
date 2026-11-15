@@ -341,12 +341,11 @@ TAPE_45_BAND = {**TAPE_45, "frames": [7801, 7805, 7812], "region": [0, 104, 320,
 TAPE_45_PORTRAIT_COVERED = {**TAPE_45_BAND, "region": [0, 72, 320, 80]}
 TAPE_45_WINDOW_COVERED = {**TAPE_45_BAND, "region": [0, 16, 320, 192]}
 
-# The same run's battle entry (#663): `GameMode_LoadBattle` holds the screen
-# white (`$EEE`) from 7814 through 7856 and fades it from white one nibble a
-# frame from 7857, while the planes are still off-screen: 7857-7859 are the
-# backdrop alone. From 7860 the stage sweeps in, which the port does not draw.
-# Clone tick t shows frame t + 7286 here as on the last page.
+# The same run's battle entry (#663, #679): white hold, fade from white,
+# then the two planes sweep in through `loc_6BA4`'s uploaded rows. The stage
+# is settled before `loc_B62A` rolls. Clone tick t shows frame t + 7286.
 TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
+TAPE_45_SWEEP = {**TAPE_45, "frames": [7863, 7870, 7873], "region": [1, 1, 319, 223]}
 
 # The name's first two cells and the first whole options window. The roll
 # runs on 7875; video shows its writes from 7876. One lag frame follows it.
@@ -578,6 +577,15 @@ PAIRS = [
     ("event-battle-fade-second", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 573,
      "build/certify/oracle/event-battle-entry/frame_7859.png",
      "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
+    ("event-battle-sweep", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 577,
+     "build/certify/oracle/event-battle-sweep/frame_7863.png",
+     "8cdf0748f98b37d5e19cadb7749da9f9e9c980fa2b73f80a09276ec668b62730", TAPE_45_SWEEP),
+    ("event-battle-settled", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 584,
+     "build/certify/oracle/event-battle-sweep/frame_7870.png",
+     "e2007010945afd6b24948e3289dd2f0933ba026c9a5a9b074f4035b812e65c56", TAPE_45_SWEEP),
+    ("event-battle-before-roll", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 587,
+     "build/certify/oracle/event-battle-sweep/frame_7873.png",
+     "e2007010945afd6b24948e3289dd2f0933ba026c9a5a9b074f4035b812e65c56", TAPE_45_SWEEP),
     ("battle-opening-name", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 590,
      "build/certify/oracle/battle-opening/frame_7876.png",
      "87735643050c8cf8a1b909f7929cc81b1878fdba0984d180bd6a763e302dc9d6", TAPE_45_OPTIONS),

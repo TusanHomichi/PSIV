@@ -68,9 +68,20 @@ loc_6BA4: addi.w  #$10, (Camera_Y_Pos_FG).w
 loc_6B96: ... until Camera_Y_Pos_FG reads 0
 ```
 
-15 steps of 16 px each, the two planes converging from opposite directions onto
-scroll 0. A renderer that only wants the settled scene can skip straight to
-zero; a faithful one replays the sweep.
+`loc_6BA4` decrements the counter before testing it: fourteen uploads move
+both planes by 16 pixels to zero, and the fifteenth call waits without another
+upload. Each upload sends `$80` words (two 8-pixel rows) of each plane: A
+from the top down, B from the bottom up. Only uploaded rows are visible;
+scrolling the complete stage would wrap rows that VRAM still holds clear.
+`loc_6B56` lowers each palette nibble from `$E` toward its target once per
+VInt, including the final unchanged-palette pass. The runtime's
+`BattleLoadView` owns those scroll, row and palette steps. Setup seats the
+battle before the fade, while `PreparedBattle::roll` waits for `loc_B62A`'s
+original frame. `Battle_UpdateEnemySprites` runs once before `loc_6B20`
+(`ps4.asm:10028`): its initial zero timer underflows and selects animation
+frame one, which stays parked through the sweep. `BattleLoadView` also carries
+that initial update count. The party art and first command window follow the
+sweep.
 
 ---
 

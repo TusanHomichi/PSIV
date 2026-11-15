@@ -122,7 +122,7 @@ pub use damage::{
     clamp_damage,
 };
 pub use enemy_ai::{CONDITION_SLOTS, CONDITIONS, EnemyAiCondition};
-pub use engine::{Battle, Command, PartyMember, RoundOrders};
+pub use engine::{Battle, Command, PartyMember, PreparedBattle, RoundOrders};
 pub use equipment::{
     EquipmentCandidate, EquipmentError, equip_item, equip_item_in_hand, equipment_candidates,
     unequip_item,

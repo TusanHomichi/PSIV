@@ -186,6 +186,16 @@ fn walk_until_encounter(session: &mut Session) -> u16 {
                     let entry = tick(session, pad);
                     assert!(session.camp_view().is_none());
                     assert_eq!(session.runtime().state().cell(), cell);
+                    if (43..63).contains(&elapsed) {
+                        let load = session
+                            .runtime()
+                            .battle_load_view()
+                            .expect("stage before encounter roll");
+                        assert_eq!(load.start, psiv_runtime::BattleStart::Encounter(formation));
+                        assert_eq!(load.foreground_rows, (elapsed - 43).min(14) as u8);
+                    } else {
+                        assert!(session.runtime().battle_load_view().is_none());
+                    }
                     if elapsed < 63 {
                         assert!(entry.battle.is_none());
                         assert!(!session.battle_active());
@@ -270,6 +280,29 @@ fn item_count(session: &Session, item: u8) -> usize {
         .iter()
         .filter(|&&held| held == item)
         .count()
+}
+
+#[test]
+fn the_encounter_entry_fixture_uses_the_tapes_stage_without_a_lead_in_scene() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let data = GameData::load(pack).unwrap();
+    let mut session =
+        psiv_runtime::encounter_entry_fixture(data, psiv_core::StepFrames::default()).unwrap();
+    session
+        .enable_battles(&BattleFiles::load(pack).unwrap())
+        .unwrap();
+    assert_eq!(session.runtime().map_id().0, BASEMENT);
+    for _ in 0..29 {
+        tick(&mut session, Pad::NEUTRAL);
+        assert!(!session.runtime().scene_active());
+    }
+    assert!(matches!(
+        session.debug_encounter_entry(0x8A),
+        RuntimeEvent::EncounterRolled { formation: 0x8A }
+    ));
+    assert!(session.runtime().battle_entering());
 }
 
 #[test]
