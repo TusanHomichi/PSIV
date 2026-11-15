@@ -4,6 +4,64 @@ use crate::decode::Decodes;
 use crate::maps::{extract_maps, layouts, overworld::decode_map_section};
 
 #[test]
+fn every_scene_row_checks_its_pins_and_complete_table() {
+    let Some(rom) = crate::test_support::retail_rom("scene atlas rows") else {
+        return;
+    };
+    let data = rom.bytes();
+    for row in SCENE_CHUNK_WRITES {
+        assert!(!row_chunks(data, row).unwrap().is_empty(), "{}", row.scene);
+        for &(at, _) in row.checks {
+            let mut moved = data.to_vec();
+            moved[at] ^= 1;
+            let error = row_chunks(&moved, row).unwrap_err().0;
+            assert!(
+                error.contains(row.scene) && error.contains("moved"),
+                "{error}"
+            );
+        }
+    }
+    let crash = SCENE_CHUNK_WRITES
+        .iter()
+        .find(|r| r.scene == "Cutscene_CrashLaanding")
+        .unwrap();
+    let (table, length) = crash.table.unwrap();
+    for (at, byte) in [(table, 0xff), (table + length - 1, 0)] {
+        let mut broken = data.to_vec();
+        broken[at] = byte;
+        assert!(
+            row_chunks(&broken, crash)
+                .unwrap_err()
+                .0
+                .contains("incomplete")
+        );
+    }
+    assert!(
+        row_chunks(&data[..table + length - 1], crash)
+            .unwrap_err()
+            .0
+            .contains("incomplete")
+    );
+    assert_eq!(garuberk_door_chunks(data).unwrap(), (0x30..0x3f).collect());
+    let mut broken = data.to_vec();
+    broken[0x6f47b] ^= 1;
+    assert!(
+        garuberk_door_chunks(&broken)
+            .unwrap_err()
+            .0
+            .contains("guard")
+    );
+    broken.copy_from_slice(data);
+    broken[0x6f714 + 15] = 3;
+    assert!(
+        garuberk_door_chunks(&broken)
+            .unwrap_err()
+            .0
+            .contains("incomplete")
+    );
+}
+
+#[test]
 fn deferred_copies_are_line_three_and_use_the_maps_original_chunks() {
     let Some(rom) = crate::test_support::retail_rom("map patch extraction") else {
         return;
