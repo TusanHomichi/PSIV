@@ -69,6 +69,11 @@ the scene whose documented range holds it ([scene README](README.md) and the
 scene documents' `Retail bytes`, each range belonging to the section heading it
 sits under).
 
+Inline `RunText` windows with scene-owned fades are `DialogueWindow::Inline`
+(AlysWounded, ZioDefeated and CrashLanding's first window). Unlike Get5 they
+run no automatic close fade. The census rejects giving an inline entry a
+Get5/Run5 exit unless that entry also has a real Get5 call in the image.
+
 The entry is every literal `d0` reaches the call with: the `moveq`/`move.b`/
 `move.w #n, d0` just before it (or before a `move.b #1`/`clr.b` of
 `Render_Sprites_In_Cutscenes`, the only instructions the image puts between),

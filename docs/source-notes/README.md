@@ -179,10 +179,11 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `scenes::dark_display` lists every scene
   that ends dark and fails on a window drawn dark. A field load sets the bit
   at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
-  cover draws that frame black either way. The dialogue windows that fade out
-  as they close (`Event_GetAndRunDialogue5`, `Event_RunDialogue5`) run no fade
-  on the CRAM and leave the bit set, so `Cutscene_Alshline`'s
-  `VDP_EnableDisplay` (`$074494`) finds it already on (#670).
+  cover draws that frame black either way. The dialogue windows' own
+  `Event_GetAndRunDialogue5` / `Event_RunDialogue5` fade now runs on CRAM
+  before the scene returns ([dialogue close](../scenes/SCENE_DIALOGUE.md#field-entrance-and-panel-cleanup));
+  Alshline's map reload and Igglanova construction remain dark until its
+  `VDP_EnableDisplay` at `$074494` (#670).
 - **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
   After `Event_GirlsSneakingOut` the inn draws the bill's window
   (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
@@ -532,8 +533,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
     ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
     keeps the field's foreground, the party and palette line 3 where the
     cartridge shows the panel. And the cartridge spends eight lag frames on
-    the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
+    the panel's load and six on the `$1D712C` art's (`$0702DE`), which the
     port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
+    The following `RefreshPlaneBG` (`$070436`, also missing under #674)
+    spends two more held frames. The [instruction-boundary measurement](../../oracle/CAPTURE.md#scene-load-measurements)
+    separates those from decompression: Nemesis returns during 7444,
+    background refresh returns during 7446, and the next counted frame is 7447.
 
 ## Public reverse-engineering references used
 

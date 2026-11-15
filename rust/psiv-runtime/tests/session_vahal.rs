@@ -148,7 +148,8 @@ fn walking_onto_the_first_platform_rides_it_down_with_the_whole_party() {
     player.walk_into_scene(Button::Down);
     assert_eq!(player.runtime().scene_event().map(|e| e.0), Some(0x15));
     let frames = player.finish_scene(2_000);
-    // The 60-frame settle, the 80-frame ride and a few frames of entry and exit.
+    // The two DMA frames, the 60-frame settle, the 80-frame ride and a few
+    // frames of entry and exit.
     assert!((140..=180).contains(&frames), "{frames} frames");
     let cell = player.runtime().state().cell();
     assert_eq!((cell.x, cell.y), (45, 44));

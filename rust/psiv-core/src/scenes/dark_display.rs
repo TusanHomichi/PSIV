@@ -7,6 +7,8 @@
 //! variable fade up, [`PresentationOp::EnableDisplay`]) turns it on. While it
 //! is off the screen is the backdrop alone, so a window drawn then is never
 //! seen: a dialogue op met dark means the scene's fades are not its bytes'.
+//! Get5/Run5 close with the display off too; the walk applies their exit
+//! after checking the window, including an inherited resume window.
 //!
 //! The walk follows the ops in order. A `Return` or `End` ends an arm, and
 //! the ops after one are another arm (a branch's, a menu's cancel leg),
@@ -16,7 +18,7 @@
 //! listed in [`ENDS_DARK`] with what the cartridge does there.
 
 use super::SCENES;
-use crate::{PresentationOp, Scene, SceneOp};
+use crate::{DialogueWindow, PresentationOp, Scene, SceneOp};
 
 /// Scenes an arm of which ends with the display off, and why.
 const ENDS_DARK: &[(&str, &str)] = &[
@@ -70,20 +72,38 @@ fn draws_a_window(op: &SceneOp) -> bool {
 fn walk(scene: &Scene) -> (Vec<usize>, bool) {
     let cutscene = scene.event.0 & 0x8000 != 0;
     let mut display = Display::On;
+    let mut window = DialogueWindow::Standard;
     let mut dark_windows = Vec::new();
     let mut ends_dark = false;
     for (index, op) in scene.ops.iter().enumerate() {
+        let dialogue = match *op {
+            SceneOp::RunDialogue {
+                window: selected, ..
+            }
+            | SceneOp::RunDialogueResumeWithWindow { window: selected } => {
+                window = selected;
+                true
+            }
+            SceneOp::RunDialogueResume => true,
+            _ => false,
+        };
         if let Some(written) = writes(op) {
             display = written;
         }
         if display == Display::Off && draws_a_window(op) {
             dark_windows.push(index);
         }
+        // The window is drawn before its own Get5/Run5 return turns the
+        // display off. A later window must have a caller-owned enable.
+        if dialogue && window.fades_on_close() {
+            display = Display::Off;
+        }
         let ends = matches!(op, SceneOp::Return { .. } | SceneOp::End);
         if ends || index + 1 == scene.ops.len() {
             let reloads = cutscene && matches!(op, SceneOp::Return { value: 0 });
             ends_dark |= display == Display::Off && !reloads;
             display = Display::On;
+            window = DialogueWindow::Standard;
         }
     }
     (dark_windows, ends_dark)
@@ -137,6 +157,14 @@ fn a_dark_window_or_a_stale_listing_is_reported() {
         *op == SceneOp::FadeIn
     });
     assert!(problems(&[lashiec], ENDS_DARK)[0].contains("draw a window"));
+    // Get5's own fade counts too: dropping Dorin's caller-owned fade-in
+    // must leave its departure and non-reloading return dark.
+    let dorin = without(find("Cutscene_Dorin"), &|op| *op == SceneOp::FadeIn);
+    assert!(
+        problems(&[dorin], ENDS_DARK)
+            .iter()
+            .any(|p| p.contains("ends dark"))
+    );
     // The ending's staff text is drawn after its own VDP_EnableDisplay.
     let ending = without(find("Cutscene_Ending"), &|op| {
         matches!(

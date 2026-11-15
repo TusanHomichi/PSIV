@@ -63,7 +63,9 @@ fn assert_held(last: &DialogueView, view: Option<DialogueView>) {
 }
 
 /// Isolate a caller's window exit from its other scene requirements. Use real
-/// packed text and presses, then eight frames of scene activity. Resumes use
+/// packed text and presses, then eight frames of scene activity. Fifth-routine
+/// returns first spend six palette passes (`$05AE5E`); their windows are already
+/// gone during that fade. Resumes use
 /// AfterIgglanova's first `$F7` and saved cursor, never a new literal entry.
 fn check_exit(window: DialogueWindow, resume: bool) {
     let (map, entry) = if resume { (0x17, 18) } else { (0x187, 0x3C) };
@@ -99,6 +101,25 @@ fn check_exit(window: DialogueWindow, resume: bool) {
     for _ in 0..10_000 {
         let was_open = runtime.dialogue_open();
         let before = runtime.dialogue_view();
+        if was_open {
+            // Give every close the same six-pass palette, independent of
+            // which portraits or panels the packed entry loaded beforehand.
+            let (cram, cycle) = runtime.effects.cram_and_cycle_index();
+            cram.apply(
+                &SceneOp::Presentation {
+                    op: psiv_core::PresentationOp::PaletteCopy {
+                        source: psiv_core::PaletteSource::Fill(0x642),
+                        destination: psiv_core::PaletteBuffer::Live,
+                        start: 0,
+                        words: 64,
+                    },
+                },
+                runtime.frames,
+                runtime.data.scene_palettes(),
+                None,
+                cycle,
+            );
+        }
         frame(&mut runtime, pad);
         if was_open && !runtime.dialogue_open() {
             last = before;
@@ -106,7 +127,17 @@ fn check_exit(window: DialogueWindow, resume: bool) {
         if let Some(last) = &last {
             if !runtime.scene_active() {
                 assert_eq!(runtime.dialogue_view(), None, "scene end releases the page");
-                assert_eq!(held_frames, 8, "every intervening frame checked");
+                let fade_frames =
+                    if matches!(window, DialogueWindow::Cutscene | DialogueWindow::Cutscene5) {
+                        6
+                    } else {
+                        0
+                    };
+                assert_eq!(
+                    held_frames,
+                    8 + fade_frames,
+                    "{window:?}, resume={resume}: every fade and scene frame checked"
+                );
                 return;
             }
             if expected {

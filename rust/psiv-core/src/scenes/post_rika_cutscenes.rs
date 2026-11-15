@@ -102,7 +102,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x43)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::PlaySound { id: SFX_TELEPORT },
         // `$074BD6`: `move.b #3, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
@@ -126,7 +126,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 30,
+            if_set: 31,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
@@ -148,6 +148,8 @@ pub static ALYS_WOUNDED: Scene = Scene {
             art_tile: 0x02B8,
             frames: 1,
         },
+        // `ps4.asm:154287`: Pal_FadeIn after building Saya, before her text.
+        SceneOp::FadeIn,
         // `$074D5A` (`ps4.asm:154305`, inside `if revision>0`): dialogue `$2C`
         // is tree 6's, not Krup Inn F1's map binding.
         SceneOp::SetDialogueTree { rom_addr: TREE_6 },
@@ -460,7 +462,7 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::PanelDestroyAll,

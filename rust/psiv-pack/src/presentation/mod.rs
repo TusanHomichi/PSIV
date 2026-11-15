@@ -5,6 +5,7 @@
 //! portrait, and `panels.json`, which records them all. `panels.json` is the
 //! one pack file Python writes unsorted, so it keeps the dict order.
 
+pub mod load_work;
 mod objects;
 
 use std::collections::HashMap;
