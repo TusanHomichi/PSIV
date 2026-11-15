@@ -55,8 +55,10 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
             .iter()
             .map(|w| (num(&w["fg_chunk_id"]), num(&w["bg_chunk_id"])))
             .chain(
-                array(&m["overworld_patches"])
-                    .iter()
+                m["overworld_patches"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
                     .flat_map(|g| array(&g["tiles"]))
                     .map(|t| (num(&t["fg_chunk_id"]), num(&t["bg_chunk_id"]))),
             )
