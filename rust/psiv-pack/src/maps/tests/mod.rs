@@ -7,3 +7,5 @@ mod emission_tests;
 mod pack_structure_tests;
 mod retail_tests;
 mod source_tests;
+
+mod patch_output_tests;

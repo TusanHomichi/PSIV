@@ -318,7 +318,11 @@ impl PatchDecoder<'_> {
 }
 
 /// `read_patch_table`: entries are `dc.w routine - table`.
-fn read_patch_table(rom: &[u8], map_id: usize, plane: Plane) -> Result<Vec<usize>, PackError> {
+pub(super) fn read_patch_table(
+    rom: &[u8],
+    map_id: usize,
+    plane: Plane,
+) -> Result<Vec<usize>, PackError> {
     require_overworld(map_id)?;
     let site = patch_table_site(plane);
     let what = format!("{} patch table selector", upper(plane));

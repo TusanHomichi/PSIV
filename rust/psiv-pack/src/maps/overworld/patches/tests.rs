@@ -217,3 +217,16 @@ fn a_later_patch_wins_and_other_planes_are_left_alone() {
     let patched = apply_patches(&layout, &[&first, &second]);
     assert_eq!(&patched.cells[..4], &[0, 6, 9, 0]);
 }
+
+#[test]
+fn a_fresh_moveq_zero_supplies_byte_and_long_stores() {
+    let mut body = locate(5, 40, GET_MAP_LAYOUT_CHUNK_FG, GATE);
+    body.extend_from_slice(&[0x70, 0x00, 0x12, 0x80, 0x22, 0x80]);
+    let patches = decode(&gated(0x66, &body), Plane::Fg).unwrap();
+    assert_eq!(patches[0].writes[0].chunk_ids, [0]);
+    assert_eq!(patches[0].writes[1].chunk_ids, [0; 4]);
+    assert_eq!(
+        (patches[0].writes[0].chunk_x, patches[0].writes[0].chunk_y),
+        (5, 40)
+    );
+}

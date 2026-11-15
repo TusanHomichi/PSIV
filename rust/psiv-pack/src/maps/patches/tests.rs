@@ -378,3 +378,35 @@ fn the_wreckage_floor_row_pins_all_four_writes() {
         assert!(row_chunks(&moved, row).is_err(), "{hex} at ${offset:06X}");
     }
 }
+
+#[test]
+fn mixed_collision_quadrants_keep_coordinates_and_weights_in_resolved_writes() {
+    let mut words = [1u16; 16];
+    for i in [0, 7, 13] {
+        words[i] |= COLLIDE;
+    }
+    let map = decoded(vec![words], vec![0, 0], vec![0, 0], 1);
+    let (resolved, _, _) = resolve_map_effects(&map, &[effect(layout_write(0, "bg"))]).unwrap();
+    let write = &items(&items(&resolved[0], "paths")[0], "writes")[0];
+    assert_eq!(
+        items(write, "cells"),
+        [
+            Json::object()
+                .with("x", 2)
+                .with("y", 0)
+                .with("collision", 1),
+            Json::object()
+                .with("x", 3)
+                .with("y", 0)
+                .with("collision", 8),
+            Json::object()
+                .with("x", 2)
+                .with("y", 1)
+                .with("collision", 8),
+            Json::object()
+                .with("x", 3)
+                .with("y", 1)
+                .with("collision", 0),
+        ]
+    );
+}

@@ -13,6 +13,9 @@ pub(super) struct Emission {
     pub files: std::collections::BTreeSet<String>,
     pub piata_png: Vec<u8>,
     pub shops: Value,
+    pub npcs: Value,
+    pub npc_files: std::collections::BTreeSet<String>,
+    pub patch_images: BTreeMap<String, Vec<u8>>,
 }
 
 pub(super) fn emission() -> Option<&'static Emission> {
@@ -24,7 +27,7 @@ pub(super) fn emission() -> Option<&'static Emission> {
             std::fs::create_dir_all(&root).unwrap();
             let result = super::pictures::build(&r.rom, &root);
             let fragment = Value::from(&result.unwrap());
-            let maps = array(&fragment["maps"])
+            let maps: BTreeMap<usize, Value> = array(&fragment["maps"])
                 .iter()
                 .map(|entry| {
                     let bytes = std::fs::read(root.join(entry["json"].as_str().unwrap())).unwrap();
@@ -53,6 +56,28 @@ pub(super) fn emission() -> Option<&'static Emission> {
                     }
                 }
             }
+            let mut patch_images = BTreeMap::new();
+            for m in maps.values() {
+                if let Some(atlas) = m.get("patch_tiles").filter(|a| !a.is_null()) {
+                    for key in ["png", "png_over"] {
+                        if let Some(path) = atlas[key].as_str() {
+                            patch_images
+                                .insert(path.to_owned(), std::fs::read(root.join(path)).unwrap());
+                        }
+                    }
+                }
+            }
+            let npcs: Value =
+                serde_json::from_slice(&std::fs::read(root.join("sprites/npcs.json")).unwrap())
+                    .unwrap();
+            let npc_files = array(&npcs["sheets"])
+                .iter()
+                .map(|s| {
+                    let path = s["png"].as_str().unwrap();
+                    assert!(root.join(path).is_file());
+                    path.to_owned()
+                })
+                .collect();
             let files = std::fs::read_dir(root.join("maps"))
                 .unwrap()
                 .map(|p| format!("maps/{}", p.unwrap().file_name().to_str().unwrap()))
@@ -68,6 +93,9 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 files,
                 piata_png,
                 shops,
+                npcs,
+                npc_files,
+                patch_images,
             })
         })
         .as_ref()
