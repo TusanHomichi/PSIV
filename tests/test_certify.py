@@ -38,7 +38,7 @@ ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
-         + RYKROS_TONE + ["zio-barrier-ramp"])
+         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp"])
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -133,7 +133,7 @@ class PairTableCase(unittest.TestCase):
         pairs = {p[0]: p for p in certify.PAIRS}
         rykros = pairs["rykros-palette-cycle"]
         zio = pairs["zio-barrier-ramp"]
-        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1270))
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1292))
         self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
         self.assertNotIn("region", rykros[5])
         self.assertEqual(zio[5]["region"], [1, 1, 319, 223])
@@ -150,11 +150,11 @@ class PairTableCase(unittest.TestCase):
             with self.subTest(pair=name):
                 self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x801b", **certify.SCENE})
                 self.assertIs(recipe, certify.TAPE_43_TONE)
-                # The native tone steps on ticks 881-937 as tape 43's
-                # buffer does in frames 8143-8199, each shown a frame later.
-                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7263}.png")
+                # Clone tick t shows tape 43's frame t + 7246 once the first
+                # dialogue's portraits spend their frames (#625).
+                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7246}.png")
         # Before, a step up, a step back, after: each a plateau's middle.
-        self.assertEqual([p[2] for p in tone], [878, 894, 922, 938])
+        self.assertEqual([p[2] for p in tone], [895, 911, 939, 955])
         self.assertEqual(certify.TAPE_43_TONE["frames"], [8141, 8157, 8185, 8201])
         self.assertEqual(certify.TAPE_43_TONE["patches"], certify.TAPE_43["patches"])
         self.assertEqual(certify.TAPE_43_TONE["tape"], certify.TAPE_43["tape"])

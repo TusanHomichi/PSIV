@@ -457,6 +457,58 @@ mod tests {
     }
 
     #[test]
+    fn a_portraits_lag_frames_run_no_frame_count_and_no_rng_step() {
+        use crate::dialogue::{Opening, TextFlow};
+        use crate::pad::Pad;
+        use psiv_data::{Ctrl, DialogueEntry, Segment};
+
+        let Some(mut rt) = runtime() else {
+            eprintln!("skipping: no runtime pack");
+            return;
+        };
+        let entry = DialogueEntry {
+            id: 0,
+            text: String::new(),
+            segments: vec![
+                Segment::Control(Ctrl::Portrait {
+                    code: 0xF4,
+                    operands: vec![1],
+                    id: 1,
+                    position: None,
+                }),
+                Segment::Text("Hey!".into()),
+            ],
+            pages: vec![],
+        };
+        let Opening::Window(flow) = TextFlow::open_at(&entry, &rt.game) else {
+            panic!("window");
+        };
+        rt.dialogue.start(Opening::Window(flow), "test");
+        // Each frame: (Main_Frame_Count, seed, whether it was a lag frame).
+        let mut frames = Vec::new();
+        for _ in 0..16 {
+            let lag = rt.dialogue.lag_frame();
+            rt.dialogue_frame(Pad::NEUTRAL);
+            rt.tick(psiv_core::Input::Neutral);
+            rt.dialogue_tick();
+            frames.push((rt.frames, rt.rng.seed(), lag));
+        }
+        let lags: Vec<usize> = (0..frames.len()).filter(|&i| frames[i].2).collect();
+        // The box opens on frames 0-8; frames 9 and 10 are the portrait's.
+        assert_eq!(lags, [9, 10], "{frames:?}");
+        for &i in &lags {
+            assert_eq!(frames[i].0, frames[i - 1].0, "frame {i} counted");
+            assert_eq!(frames[i].1, frames[i - 1].1, "frame {i} stepped the seed");
+        }
+        // Control: every other frame counts and steps.
+        for i in (1..frames.len()).filter(|i| !lags.contains(i)) {
+            assert_eq!(frames[i].0, frames[i - 1].0.wrapping_add(1), "frame {i}");
+            assert_ne!(frames[i].1, frames[i - 1].1, "frame {i}");
+        }
+        assert_eq!(rt.dialogue_view().expect("window").portrait, Some(1));
+    }
+
+    #[test]
     fn a_scene_tree_address_resolves_through_the_packs_own_table() {
         let Some(mut rt) = runtime() else {
             return;

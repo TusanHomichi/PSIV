@@ -25,7 +25,7 @@ under the [extension lock](../DEVELOPMENT.md#heavy-run-lock).
 |---|---:|---|
 | opening page 1 | **0.000000** | clone t3550 (real title START) ↔ opening frame 4000, tape 27 |
 | opening page 2 | **0.000000** | clone t4550 (real title START) ↔ opening frame 5200, tape 27 |
-| MeetingRika | **0.000000** | clone t160 ↔ tape-28 frame 7250 |
+| MeetingRika | **0.000000** | clone t162 ↔ tape-28 frame 7250 (ticks 161-165 show the same page) |
 | title (pre-prompt) | **0.000000** | clone t480 ↔ title frame 450 |
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
@@ -45,12 +45,12 @@ camera other than (0,0):
 | pair | rmse | pairing |
 |---|---:|---|
 | `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t638 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon-tone` | **0.000000** | clone t651 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
 panels one pixel down ([placement findings](#placement-findings), the surface origin).
-Every plateau of the break's tone matches inside that region, ticks 622-657
+Every plateau of the break's tone matches inside that region, ticks 635-670
 against frames 8968-9003, four frames a step; the untoned frame scores
 `rmse=161.656685` against the peak, and the step before it `rmse=30.119675`.
 
@@ -72,7 +72,7 @@ The table-driven scenes have two further pairs
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-palette-cycle` | **0.000000** | clone t1270 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface |
+| `rykros-palette-cycle` | **0.000000** | clone t1292 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface. The rows run ticks 1277-1298 against frames 8565-8586 |
 | `zio-barrier-ramp` | **0.000000** | clone t270 (`PSIV_DEBUG_EVENT=0x30`) ↔ tape-44 frame 7462: second three-word row, `$AAA/$0A8/$066`, and the scene's frozen beam mapping; region `1,1,319,223` (#409) |
 
 Rykros's tone before that cycle joined them on 2026-11-14
@@ -81,21 +81,31 @@ and fixture, region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/i
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-tone-before` | **0.000000** | clone t878 ↔ tape-43 frame 8141: the three panels, untoned |
-| `rykros-tone-rise` | **0.000000** | clone t894 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
-| `rykros-tone-restore` | **0.000000** | clone t922 ↔ frame 8185: `loc_58666`'s third step back, every word floored at `$888` |
-| `rykros-tone-after` | **0.000000** | clone t938 ↔ frame 8201: the restored copy |
+| `rykros-tone-before` | **0.000000** | clone t895 ↔ tape-43 frame 8141: the three panels, untoned |
+| `rykros-tone-rise` | **0.000000** | clone t911 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
+| `rykros-tone-restore` | **0.000000** | clone t939 ↔ frame 8185: `loc_58666`'s third step back, every word floored at `$888` |
+| `rykros-tone-after` | **0.000000** | clone t955 ↔ frame 8201: the restored copy |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 8143, is
-white 8167-8174, and is the copy again from 8199; the native CRAM does the
-same on ticks 881-937, so clone tick t shows frame t + 7263, and the runtime's
-64 words equal the oracle's (tick t against frame t + 7262) on every tick
-876-944. Every plateau matches inside the region. The full frame differs only
-in #409's first row and column, black against the toned backdrop. The untoned
-tick 878 scores `rmse=134.253889` against the rise, the step before it (890)
-`rmse=37.904457`, and the rise's own step (894, also backdrop `$888`) against
-the restore `rmse=18.398389`. The window `Event_RunDialogue3` opens after the
-restore (from frame 8203) is outside these pairs.
+white 8167-8174, and is the copy again from 8199. Clone tick t shows frame
+t + 7246 inside the region, but for each step's first frame (ticks 897, 901
+... 953), which the native shows already stepped: its `Main_Frame_Count`
+phase is one off the tape's. That phase is the fixture's, not the tone's: the
+debug run pages the scene's first dialogue on other frames than the tape, and
+the offset moved from t + 7263 when that dialogue's portraits began spending
+their frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)). The
+pairs sit in the plateaus' middles. The full frame differs only in #409's
+first row and column, black against the toned backdrop. The untoned tick 895
+scores `rmse=134.253889` against the rise, the step before it (907)
+`rmse=37.904457`, and the rise's own step (911, also backdrop `$888`) against
+the restore `rmse=18.398389`.
+
+The window `Event_RunDialogue3` opens after the restore, and its portrait,
+joined them the same day:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `rykros-portrait` | **0.000000** | clone t970 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface. Ticks 954-1010 match frames 8200-8256 inside `1,1,319,223`; t969, the last lag frame, scores `rmse=23.484914` |
 
 The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
 them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),
@@ -216,6 +226,10 @@ gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --fixed-fps
 - **`--fixed-fps 60`** for any pair whose content animates: without it,
   Godot's physics catch-up under uneven render pacing makes the captured
   previous-frame texture reflect a load-dependent tick.
+
+A sweep of consecutive ticks is one run: `PSIV_DEBUG_SHOT_LAST=<n>` with
+`PSIV_DEBUG_SHOT_FRAME` saves every tick through n, each to
+`<PSIV_DEBUG_SHOT stem>-t<tick>.png`.
 
 `presentation-rmse` (`rust/psiv-compare`) crops the centred 960x672 3x
 surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE
