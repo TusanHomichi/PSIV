@@ -340,9 +340,15 @@ fn an_undeclared_file_is_found_and_every_declaration_form_is_followed() {
         std::fs::write(path, text).unwrap();
     }
     let canonical = root.canonicalize().unwrap();
+    // Joined with `/` from the components, so the names read the same on
+    // Windows, where `display` separates them with a backslash.
     let found: Vec<String> = orphans(&root)
         .iter()
-        .map(|p| p.strip_prefix(&canonical).unwrap().display().to_string())
+        .map(|p| {
+            let relative = p.strip_prefix(&canonical).unwrap();
+            let parts: Vec<_> = relative.iter().map(|c| c.to_str().unwrap()).collect();
+            parts.join("/")
+        })
         .collect();
     std::fs::remove_dir_all(&root).unwrap();
     assert_eq!(
