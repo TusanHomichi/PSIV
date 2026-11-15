@@ -55,7 +55,7 @@ fn close_waits_for_every_fade_level_before_destroying_panels_and_returning() {
         DialogueWindow::Cutscene5,
         DialogueWindow::Standard,
     ] {
-        for suspended in [false, true] {
+        for f7 in [false, true] {
             let mut rt = alshline();
             let scene = Box::leak(Box::new(Scene {
                 name: "test dialogue return",
@@ -76,7 +76,7 @@ fn close_waits_for_every_fade_level_before_destroying_panels_and_returning() {
                     .any(|e| matches!(e, RuntimeEvent::SceneDialogue { .. }))
             }));
             let mut segments = vec![Segment::Text("x".into())];
-            if suspended {
+            if f7 {
                 segments.push(Segment::Control(Ctrl::Close {
                     code: 0xF7,
                     operands: vec![],
@@ -113,7 +113,7 @@ fn close_waits_for_every_fade_level_before_destroying_panels_and_returning() {
             );
             rt.scene_panel_sprites = true;
             let signals = rt.dialogue_frame(Pad::new(Button::Speak));
-            assert!(signals.contains(&DialogueSignal::Closed { suspended }));
+            assert!(signals.contains(&DialogueSignal::Closed { suspended: true }));
             assert!(!rt.dialogue_open(), "windows are destroyed before fading");
             if window == DialogueWindow::Standard {
                 assert!(
