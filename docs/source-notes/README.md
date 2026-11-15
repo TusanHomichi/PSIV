@@ -159,7 +159,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **`Event_RunDialogue2`'s windows close when their text ends (#644).** The
+- **`Event_GetAndRunDialogue2`'s windows close when their text ends (#644).** The
   routine (`$5ACDC`, `DialogueWindow::Retained`) returns without destroying
   the text window or its portrait, and every caller goes on to a battle or a
   map change, so the window shows until that mode redraws the planes. The
@@ -214,7 +214,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
   arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
-  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  `Pal_IncreaseTone`. A `Retained` window (`Event_GetAndRunDialogue2`, `$5ACDC`)
   stays up under it: tape 45 shows the window and portrait untouched on the
   press frame (7800), the band from 7801, the portrait covered by 7805, the
   window by 7812, the screen white by 7814, and the battle mode from 7815.
