@@ -28,6 +28,7 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
     let r = retail().unwrap();
     let records = crate::maps::extract_maps(r.rom.bytes(), &Decodes::new(r.rom.bytes())).unwrap();
     let mut map_count = 0;
+    let mut atlas_maps = BTreeMap::new();
     let mut write_count = 0;
     let mut door_cells = 0;
     for m in e.maps.values() {
@@ -63,6 +64,11 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
                     .map(|t| (num(&t["fg_chunk_id"]), num(&t["bg_chunk_id"]))),
             )
             .collect();
+        // The manifest also lists scene-only raw atlases, while the decoder
+        // census above counts only maps with MapDataManager layout writes.
+        if !ids.is_empty() {
+            atlas_maps.insert(num(&m["id"]), (written.len(), ids.len()));
+        }
         let atlas = &m["patch_tiles"];
         if ids.is_empty() && pairs.is_empty() {
             assert!(atlas.is_null());
@@ -141,8 +147,14 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
     assert_eq!(door_cells, 6);
     assert!(e.maps[&0xaf]["patch_tiles"].is_null());
     let c = &e.fragment["map_effects"]["layout_write_resolution"];
-    assert_eq!(num(&c["map_count"]), map_count);
-    assert_eq!(array(&c["maps"]).len(), map_count);
+    assert_eq!(num(&c["map_count"]), atlas_maps.len());
+    assert_eq!(array(&c["maps"]).len(), atlas_maps.len());
+    for row in array(&c["maps"]) {
+        let &(writes, chunks) = atlas_maps.get(&num(&row["id"])).unwrap();
+        assert_eq!(num(&row["writes"]), writes);
+        assert_eq!(num(&row["chunks"]), chunks);
+        assert_eq!(num(&row["cells"]), writes * 4);
+    }
     assert_eq!(num(&c["layout_writes"]), write_count);
     assert_eq!(num(&c["cells"]), write_count * 4);
     assert_eq!(
