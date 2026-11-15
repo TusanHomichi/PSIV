@@ -164,6 +164,11 @@ PALETTE_REQUESTS = (
     # PiataBasementB2_Palettes: Cutscene_Alshline's MapDataManager call
     # (`$07444E`) copies 14 words to line 4 for Igglanova (`$052832`).
     (0x0005_2848, 14),
+    # loc_7A0A6, the credits' ramp: step d6 copies eight words from word
+    # d5 = 14 - d6 of loc_7A274 (deepest: words 14-21), and from d6 = 9 on
+    # two from byte 4 * (d6 - 9) of loc_7A2A0 (deepest: words 8-9).
+    (0x0007_A274, 22),
+    (0x0007_A2A0, 10),
 )
 
 # These are the complete LoadArt sites in the transcribed scene stream.  The

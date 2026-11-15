@@ -543,7 +543,12 @@ borrows. Writers:
   green only: both mask blue and keep it), the Rykros cycle, the Zio ramp, the
   engine light, the Le Roof colour cycle and fade-in, both red fades, both
   variable fades and their two-line forms (`TwoLinePaletteFade`: words 0-31
-  only; the fade up starts from the live words, with no copy or clear). The Le Roof cycle (`loc_70638`, `$070638`) also steps the
+  only; the fade up starts from the live words, with no copy or clear), and
+  the ending's eighth-frame loops: the staff roll's word fade out and back in
+  and the credits' ramp (`EndingStaffRollFadeOut`/`FadeIn`,
+  `EndingCreditsPaletteRamp`, [89_Ending.md](89_Ending.md#palette-state-and-the-remaining-drawing-gaps)),
+  whose lengths depend on the word and the frame count, so the scene waits on
+  them as on a variable fade. The Le Roof cycle (`loc_70638`, `$070638`) also steps the
   index byte `$FFFFECF3`, which the map programs share: the runtime keeps it
   with their counters (`MapUpdateView`), cleared by each map load as
   `ps4.asm:107593` clears it, and lends it to the CRAM model.
