@@ -107,7 +107,7 @@ class PairTableCase(unittest.TestCase):
         self.assertNotIn("region", recipe)
 
     def test_the_event_battle_entry_pairs_share_the_last_pages_run(self):
-        # Tape 45's event battle (#663): one oracle run for the four frames,
+        # Tape 45's event battle (#663, #679): the entry and sweep frames,
         # the last page's patches and offset (clone tick t shows t + 7286),
         # the field surface's edge left out (#409).
         page = next(p for p in certify.PAIRS if p[0] == "retained-window-page")

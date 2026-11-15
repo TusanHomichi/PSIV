@@ -7,8 +7,11 @@ use psiv_core::battle::{Battle, PartyMember, PreparedBattle};
 /// it owns no scroll, DMA or palette clock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BattleLoadView {
+    /// The formation whose prepared stage is being revealed.
     pub start: BattleStart,
+    /// Plane A vertical scroll, in pixels, in the VDP convention.
     pub foreground_y: i16,
+    /// Plane B vertical scroll, in pixels, in the VDP convention.
     pub background_y: i16,
     /// Uploaded 16-pixel rows of plane A, beginning at row zero.
     pub foreground_rows: u8,
