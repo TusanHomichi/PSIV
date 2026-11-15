@@ -141,7 +141,17 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
 
     let mut unflagged = ROWS.to_vec();
     for row in &mut unflagged {
-        if row.scene == "Event_EclipseTorchUsed" && row.claim == Wait(5) {
+        // The flash's two map-update frames made a loop with no updates, and
+        // its restore a loop that updates the map, each without a defect.
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Wait(15) {
+            row.retail = own(0x07_0266, false, false);
+        }
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Within(17) {
+            row.retail = own(0x07_0270, false, true);
+        }
+        // The frame with the objects, waited out by a bare frame, without
+        // the defect that keeps the object pass on record.
+        if row.scene == "Event_EclipseTorchUsed" && row.claim == Within(8) {
             row.defect = None;
             row.exact = false;
         }
@@ -158,8 +168,10 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         claim_problems(&unflagged),
         [
             format!("{le_roof} op 11: Within an own loop"),
-            "Event_EclipseTorchUsed op 5: a Wait for a loop with no map updates, without a defect"
+            "Event_EclipseTorchUsed op 8: Within an own loop".to_owned(),
+            "Event_EclipseTorchUsed op 15: a Wait for a loop with no map updates, without a defect"
                 .to_owned(),
+            "Event_EclipseTorchUsed op 17: Within an own loop".to_owned(),
             format!("{lutz} op 10: exact for a loop that runs map updates"),
         ]
     );

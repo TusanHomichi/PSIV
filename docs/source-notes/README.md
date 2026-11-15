@@ -167,6 +167,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   so the loop tones the backdrop where they stood. The scene's windows are not
   modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
   ([89_Ending.md](../scenes/89_Ending.md)).
+- **The staff roll's fade out stops at `u16::MAX` frames (#638).**
+  `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
+  `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
+  never is, and the cartridge spins there. The port cuts the loop after
+  65,535 frames and the scene continues. The ending reaches the loop with
+  `$0EEE`, which ends after six stores
+  ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
 - **A scene's fade-out leaves the display on (#653).** `PalFadeOut_ClrSpriteTbl`
   (and so `InitVRAMAndCRAM`'s fade) ends in `ClearSpriteTableBuf`, which
   turns the display off (`ps4.asm:85982-85984`) until the next fade-in's
@@ -177,6 +184,15 @@ agility and dexterity, and enemy paralysis clearing each turn.
   window line, a `LoadPalette`, a panel's words) is drawn on the frames
   between, where the cartridge shows its backdrop
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
+  After `Event_GirlsSneakingOut` the inn draws the bill's window
+  (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
+  frames of `DMAPlane_A_VInt`, and runs `Pal_FadeIn` on the palette it kept
+  (`ps4.asm:136436-136453`). The runtime (`Cram::inn_resume_fade_in`) starts
+  the 60 frames when the scene ends, without the window's frames, and the
+  native window takes input from its first frame where the cartridge's
+  `RunText` waits for the fade. The ordinary night's own fade-out and fade-in
+  are not modelled at all.
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
   it and places the party at five fixed positions. The port records it as
@@ -185,6 +201,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
+- **An event battle's stage replaces the field at once (#644).** A scene that
+  sets `Routine_Exit_Flags` bit 3 returns through `RunEventBattle`
+  (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event arm
+  (`loc_58498`) spends fifteen passes on the field: each writes a white
+  plane-A band two cells taller, one above and one below rows 13-14, and calls
+  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  stays up under it: tape 45 shows the window and portrait untouched on the
+  press frame (7800), the band from 7801, the portrait covered by 7805, the
+  window by 7812, the screen white by 7814, and the battle mode from 7815. The
+  port closes the window with its text and draws the battle stage on the next
+  tick, with no band, tone or white hold
+  ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
@@ -270,6 +298,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
   the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
   frame (7400 and 7402 on tape 43).
+- `$F2` text actions spend no frame (`DialogueRunner`, #667). `TextAction_LoadSound`,
+  `TextAction_LoadSound2` and `TextAction_UpdatePalette` end in `VInt_Prepare`, and
+  `TextAction_LoadPanel` and the destroys in `DMAPlanes_VInt`: one counted frame each, in
+  `RunText` and `RunText3` alike. The runner releases them at their byte position and runs on, so
+  `Main_Frame_Count`, the RNG and the text after an action run a frame ahead of the cartridge per
+  action. On tape 38 the ending's seventh page turns two frames before the cartridge's
+  ([record](../scenes/SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
@@ -427,6 +462,57 @@ agility and dexterity, and enemy paralysis clearing each turn.
     runtime's CRAM model applies them, and the map, sprites, panels and dialogue window draw
     from it ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#drawing-the-cram)). No game
     state reads them.
+
+- **Dezolis dismount frames run no object pass.** The mounted branches of
+  `Event_CarnivorousTrees`, `Event_SavingKyra` and `Event_EclipseTorchUsed`
+  end their dismount with `jsr Field_UpdateObjects` / `jsr VInt_Prepare`
+  (`$07080C`, `$0708EE`, `$070220`): one frame, no `RunMapUpdates`, after the
+  party objects are rebuilt on `Character_1`. The port waits that frame as a
+  bare `WaitFrames { frames: 1 }`, so the frame count and the missing map
+  updates match, but no field object runs on it: native scene frames run no
+  field-object tick at all
+  ([#470](https://github.com/TusanHomichi/PSIV/issues/470)), and the pass's
+  visible work here, the rebuilt party objects' first update, is the
+  runtime's dismount (`set_vehicle_index(0)` stands the party on the
+  machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
+  frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
+
+- **Eclipse Torch: what the flashes and creations leave out.**
+  `Event_EclipseTorchUsed` (`docs/scenes/56_EclipseTorchUsed.md`) runs both
+  white flashes, their two map-update frames (`$070266`, `$0702A8`) and
+  their forty `loc_58666` restore frames (`$070270`, `$0702B2`) as the US
+  bytes do, through the runtime's CRAM model. Three parts of the object
+  sequence differ:
+  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait`: map
+    updates on every frame, no `Field_UpdateObjects`, because native scene
+    frames run no field-object pass
+    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
+    per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
+    The objects that pass would move are the nine `$338`s and the standing
+    party; the nine are renderer records, which the shell advances on every
+    scene frame.
+  - The nine `$338` objects (`$0702E4..$07041D`) are `CreateFieldObject`
+    records at their literal positions; their `$11` delays (7, `$B`, `$F`)
+    and `$6` sequences (0, 4, 8) are not carried. Retail's
+    `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
+    (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
+    return's map reload, and the pack has no `$338`/`$3AF` sheet, so the
+    shell draws none of them
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
+    over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
+    `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after
+    dialogue `$2A` (`$070466`), are not transcribed: the background is not
+    redrawn with the new chunk during the scene. `DMAPlane_B_VInt`'s frame
+    (`$07043C`) is a bare `WaitFrames`, as at `$070220`
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - Against tape 46 (`docs/scenes/SCENE_PRESENTATION.md`), two more
+    differences, neither this scene's alone: panel `$10D` is not decoded
+    ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+    keeps the field's foreground, the party and palette line 3 where the
+    cartridge shows the panel. And the cartridge spends eight lag frames on
+    the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
+    port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
 
 ## Public reverse-engineering references used
 

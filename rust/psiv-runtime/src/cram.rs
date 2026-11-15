@@ -30,6 +30,13 @@ use psiv_data::{MapRecord, ScenePalettes};
 const PAL_INIT: u32 = 0x0009_F2BC;
 /// `Palette_Table_Buffer`'s work-RAM address.
 const PALETTE_TABLE_BUFFER: u32 = 0xFFFF_FB00;
+/// The `DMAPlane_A_VInt` loop the Aiedo inn waits after its scene, before
+/// its `Pal_FadeIn` (`moveq #$3B, d0`, `ps4.asm:136436-136439`).
+pub(crate) const INN_RESUME_HOLD: u16 = 60;
+/// `Palette_Table_Buffer+$5E`: the word the prologue crawl and the flight's
+/// caption are drawn in (`move.w #$666, $FB5E.w`, `$073C9E`; `clr.w
+/// (Palette_Table_Buffer+$5E).w`, `ps4.asm:134676`).
+pub const TEXT_COLOUR_SLOT: usize = 0x5E / 2;
 
 /// What the renderer reads: the live palette and a counter that changes
 /// whenever any word of it does.
@@ -321,6 +328,38 @@ impl Cram {
         );
     }
 
+    /// The Aiedo inn's resume after `Event_GirlsSneakingOut`, whose
+    /// `PalFadeOut_ClrSpriteTbl` left the screen black (`ps4.asm:136411-136453`):
+    /// the palette the inn kept before the event (`$FFFF1300`) goes back into
+    /// both buffers with the display still off, the bill's window is drawn and
+    /// [`INN_RESUME_HOLD`] frames of `DMAPlane_A_VInt` pass, then `Pal_FadeIn`
+    /// spends its display frame and ramps up a pass a frame. The live words
+    /// stay black until then, as the switched-off display shows them (#653).
+    /// The first frame runs now.
+    pub(crate) fn inn_resume_fade_in(
+        &mut self,
+        words: [u16; PALETTE_WORDS],
+        main_frame_count: u16,
+        cycle_index: &mut u8,
+    ) {
+        self.unshown = None;
+        self.queued = None;
+        self.saved = words;
+        self.set_live([0; PALETTE_WORDS]);
+        self.start(
+            Program::Passes {
+                kind: Pass::VariableIn,
+                elapsed: 0,
+                first: INN_RESUME_HOLD + 1,
+                every: palette::dbf_frames(0),
+                count: palette::variable_fade_in_passes(&words),
+                words: PALETTE_WORDS,
+            },
+            main_frame_count,
+            cycle_index,
+        );
+    }
+
     /// Starts `program` and runs its first frame now: the scene emitted it on
     /// this tick, which is the loop's first frame.
     fn start(&mut self, program: Program, main_frame_count: u16, cycle_index: &mut u8) {
@@ -587,6 +626,10 @@ impl Cram {
                     self.write_run(usize::from(start), &found);
                 }
             }
+            // The prologue's `move.w #$666, $FB5E.w` and the flight's
+            // caption word: one buffer word, which the fades step like any
+            // other.
+            SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
             // `loc_53F14`: the map's 64-word shadow into the live buffer.
             SceneOp::ReloadMapPalette => {
                 if let Some(words) = map.and_then(|record| record.map_update_palette.as_deref()) {
@@ -882,11 +925,36 @@ impl Cram {
                     cycle_index,
                 );
             }
+            // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
+            // frame until the step that ends the loop unstored.
+            PresentationOp::EndingStaffRollFadeOut {
+                palette_offset,
+                step,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_out(word, frame, step);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingStaffRollFadeIn {
+                palette_offset,
+                step,
+                target_bit,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_in(word, frame, step, target_bit);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingCreditsPaletteRamp { .. } => {
+                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+            }
             _ => {}
         }
         None
     }
 }
 
+mod ending;
 #[cfg(test)]
 mod tests;

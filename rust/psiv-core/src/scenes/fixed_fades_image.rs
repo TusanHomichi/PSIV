@@ -103,8 +103,6 @@ const KNOWN: &[(&str, u32)] = &[
     ("Cutscene_CrashLaanding", 652),
     ("Cutscene_DarkForce1Defeated", 652),
     ("Cutscene_LashiecDefeated", 652),
-    ("Event_DeVarsDefeated", 652),
-    ("Event_SaLewsDefeated", 652),
     ("Cutscene_Ending", 652),
 ];
 

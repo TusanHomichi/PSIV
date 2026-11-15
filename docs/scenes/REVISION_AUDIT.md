@@ -91,7 +91,7 @@ instead of tree 36. Fixed in the same pass; the guard covers it either way.
 | `Event_GirlsBailedOut` | `152676` `if revision=0`, `152697` `if revision>0` | object 0 turns down before the dialogue (rev 0) or after `RefreshMap` (rev 1) | the revision-1 turn, after the load (`$072D2A`) |
 | `Event_DarkForce2` | `150061` `if revision=0` | `Saved_Sound_Index = MusicID_DezorisField2` | **not taken**: the port sets `Sound_StopAll`, the `else` value |
 | `Event_EclipseTorchUsed` | `149579` `if revision=0` | `wait $1D`, `SFXID_BarrierBroken` | **not taken** |
-| `Event_EclipseTorchUsed` | `149609`… `if revision>0` | `SFXID_Deban`, palette copies, `DoMapUpdateLoop` waits | present (the `SFX_DEBAN` op and the waits) |
+| `Event_EclipseTorchUsed` | `149609`… `if revision>0` | `SFXID_Deban`, palette copies, `DoMapUpdateLoop` waits | present: the second Deban flash, its white fill, two map-update frames and forty-frame restore, then `Panel_Destroy` ([56](56_EclipseTorchUsed.md)) |
 | `Event_GameStart` helpers | `183609`, `183629` `if revision=0` | `GameStart_FadeToWhite`/`GameStart_PlaneAFadeOut` pace on `#7`; the `else` uses `#3` | helper routines outside the event body; the intro's fade cadence is the renderer's (see [01](01_GameStart.md)) |
 
 Only the four `DialogueTree6` loads and the tree-36 load change scene state;

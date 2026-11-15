@@ -265,6 +265,9 @@ const FRAME_CENSUSED: &[&str] = &[
 const DEZO: u32 = 571;
 /// dezo_campaign.rs's missing and approximated waits.
 const CAMPAIGN: u32 = 589;
+/// Scene frames that run no `Field_UpdateObjects` where retail does: a
+/// [`Retail::Frame`] with objects waited out by a `VInt_Prepare`-only op.
+const OBJECTS: u32 = 470;
 
 use Claim::{Merged, Missing, Recorded, Wait, Within};
 use Retail::{Facing, Frames, Main, Map, Step};
@@ -469,14 +472,19 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                 // An own loop or bare frame with no updates may be waited
                 // out by an op that runs none either; any other own loop or
                 // frame needs a `Wait`.
-                let bare = matches!(
+                // A frame with objects may be too, with the defect that adds
+                // the object pass: the frame and its missing map updates
+                // stay exact, the object update is on record.
+                let bare = (matches!(
                     row.retail,
                     Retail::Own {
                         objects: false,
                         map_updates: false,
                         ..
                     } | Retail::Frame { objects: false, .. }
-                ) && ops.get(index).is_some_and(vint_only);
+                ) || matches!(row.retail, Retail::Frame { objects: true, .. })
+                    && row.defect.is_some())
+                    && ops.get(index).is_some_and(vint_only);
                 if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare {
                     problems.push(format!("{} op {index}: Within an own loop", row.scene));
                 }
@@ -532,9 +540,16 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
             }
             Missing(_) => {}
         }
-        if row.exact && (row.defect.is_none() || !matches!(row.claim, Wait(_))) {
+        // Exact is for a `Wait`, or for a frame with objects `Within` a bare
+        // frame, whose defect is only the updates.
+        let exact_claim = matches!(row.claim, Wait(_))
+            || matches!(
+                (row.claim, row.retail),
+                (Within(_), Retail::Frame { objects: true, .. })
+            );
+        if row.exact && (row.defect.is_none() || !exact_claim) {
             problems.push(format!(
-                "{}: exact on a row that is not a Wait with a defect",
+                "{}: exact on a row that is not a Wait or an objects frame, with a defect",
                 row.scene
             ));
         }

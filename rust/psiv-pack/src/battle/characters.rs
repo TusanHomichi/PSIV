@@ -528,6 +528,9 @@ pub fn build(
 }
 
 #[cfg(test)]
+mod retail_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -506,6 +506,9 @@ pub fn build(rom: &[u8], decodes: &Decodes) -> Result<Json, PackError> {
 }
 
 #[cfg(test)]
+mod retail_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

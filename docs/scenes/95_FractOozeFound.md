@@ -22,3 +22,23 @@ names it and nothing else. Transcribed by the event census lane (S7,
 | 4 | `$072B4E..$072B50` | `moveq #1, d0` / `rts` | `Return` `1` |
 
 The retained window stays up through the battle request, as for every `Dialogue2` caller.
+
+## Where the window goes (#644)
+
+Tape 45 (`tools/certify.py` `TAPE_45`) runs the event on Monsen from a fixture.
+The C on frame 7799 ends the last page ("It's coming for us!"), and the routine
+returns with the window and Rika's portrait up: frame 7800 shows both
+untouched. `RunEventBattle` (`ps4.asm:120803`) then runs `FieldRoutine_Battle2`'s
+event arm, `loc_58498`: fifteen passes, each writing a white plane-A band two
+cells taller (rows 104-119 on 7801, one cell more above and below on each
+frame after) and calling `Pal_IncreaseTone`. The band covers the portrait by
+7805 and the window by 7812, and the whole screen by 7814. `Game_Mode` turns to
+the battle on 7815, which holds white until 7856 and fades the battle in from
+7857.
+
+The port closes the window with the text and draws the battle stage on the
+next tick (`PSIV_DEBUG_EVENT=0x7D`: the last page through tick 513, the stage
+from 514), with no band, tone or white hold
+([source notes](../source-notes/README.md#other-recorded-deviations)). The
+`retained-window-page` pair certifies the last page over the window's box,
+`(24,160)` 272x48, at tick 511 against frame 7797.

@@ -342,6 +342,7 @@ mod tests {
             event: 0x54,
             counter: 0,
             cost: 25,
+            palette: [0; psiv_core::palette::PALETTE_WORDS],
         };
         let assert_not_replayed = |session: &mut Session| {
             assert_eq!(session.menu_scene, None);

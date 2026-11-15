@@ -44,8 +44,8 @@ camera other than (0,0):
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t684 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon` | **0.000000** | clone t1736 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t1771 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
@@ -113,34 +113,37 @@ from tape 38's own run and fixture, after the first dialogue's last pages:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-tone-loop-before` | **0.000000** | clone t937 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
-| `ending-tone-loop-rise` | **0.000000** | clone t954 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
-| `ending-tone-loop-white` | **0.000000** | clone t994 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+| `ending-tone-loop-before` | **0.000000** | clone t2629 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t2646 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t2686 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
-white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086; the
-native CRAM steps on ticks 941-965, so clone tick t shows frame t + 8956. That
-is 32 ticks later than the t + 8988 of
-[#661](https://github.com/TusanHomichi/PSIV/pull/661): the scene's first
-`InitVRAMAndCRAM` and `Pal_FadeIn` spend 31 frames since
-[#637](https://github.com/TusanHomichi/PSIV/issues/637), and the steps fall one
-`Main_Frame_Count` phase later. A sweep of every tick against the pairs'
-frames, each over its pair's region, matched the untoned frame on ticks
-933-937, the fourth step on 953-956 and the endpoint on 965-974 (the sweep's
-end). The rest of this paragraph is #661's record, at t + 8988: the runtime's
-64 words equalled the oracle's (tick t against frame t + 8987) at ticks 905,
-922 and 962. The dialogue's portrait loads lag
-([#625](https://github.com/TusanHomichi/PSIV/issues/625)), which put
-the loop 24 ticks later than the t + 9012 it was certified at.
-Region `1,1,319,111` matches on every tick 860-990.
-Over `1,1,319,223`, ticks 902-906 and 933-990 match too. Ticks 907-932 differ
-only inside `(24,112)-(296,208)`: the cartridge keeps the window and portrait
-up, toned, until `$078FAE`, and the native closes them when the text ends
-([#636](https://github.com/TusanHomichi/PSIV/issues/636)). The untoned tick
-905 scores `rmse=125.148572` against the rise, the steps before and after it
-(918, 926) `rmse=34.381196` and `rmse=28.146978`, the step before white (930)
-`rmse=29.123900` against the endpoint, and the endpoint against the untoned
-frame `rmse=206.044683`. The second loop (`$079BD2`) and the third
+white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086.
+The ending's windows run `RunText3` and page on their own
+([#645](https://github.com/TusanHomichi/PSIV/issues/645)), so its pairs run
+with `PSIV_DEBUG_EVENT=0x8021` alone, no `PSIV_DEBUG_AUTOCLOSE_SCENE` or
+`PSIV_DEBUG_RETAIL_PACE`. The native window is up through tick 2629, the
+frame the cartridge's last page turns (9893), and clone tick t shows frame
+t + 7264 through the loop. That is 32 ticks later than #645's t + 7296: the
+scene's first `InitVRAMAndCRAM` and `Pal_FadeIn` spend 31 frames since
+[#637](https://github.com/TusanHomichi/PSIV/issues/637), and the steps fall
+one `Main_Frame_Count` phase later. Over the pairs' regions (2026-11-15 sweep
+of ticks 1660-2740): the before frame matches ticks 2484-2629 and scores
+`rmse=43.225656` from 2630, once the native window is gone (the cartridge
+keeps the window and portrait up, toned, until `$078FAE`,
+[#636](https://github.com/TusanHomichi/PSIV/issues/636)); the rise matches
+2645-2648 over `1,1,319,111`, with the untoned tick 2629 at
+`rmse=125.148572` and the steps either side (2644, 2649) at
+`rmse=34.381196` and `rmse=28.146978`; white matches 2657-2740, the step
+before (2653) at `rmse=29.123900` and the untoned tick at
+`rmse=206.044683`. The break pairs sit 51 ticks earlier, at t + 7213: the
+settled window matches every tick from the sweep's first (1660) through 1754
+(1755 `rmse=32.193293`) and the
+break's peak 1771-1774 (1770 `rmse=30.119675`, 1775 `rmse=32.294586`). The
+cartridge spends lag frames (panel decompression, page clears) that the
+native does not, and two of the seventh page's `$F2` frames
+([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
+The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
 (`suites::palette::ending`). The third starts white natively, because the
 staff roll's and the credits' palette steps are not modelled
@@ -186,6 +189,30 @@ these isolated fixtures do not certify the complete windup/recovery or a campaig
 Each battle pair names a `Session` fixture (`PSIV_DEBUG_BATTLE_WINDOW`,
 `rust/psiv-runtime/src/session/battle/fixture.rs`).
 
+`Event_EclipseTorchUsed`'s two white flashes joined them with
+[#593](https://github.com/TusanHomichi/PSIV/issues/593), against tape 46's
+Dezolis fixture (`TAPE_46`), both inside `1,1,319,223`:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `eclipse-torch-white` | **0.000000** | clone t152 (`PSIV_DEBUG_EVENT=0x47`) ↔ tape-46 frame 7355: the first fill, shown 7354-7356 |
+| `eclipse-torch-white-2` | **0.000000** | clone t195 ↔ tape-46 frame 7396: the second fill, 42 frames later on both sides |
+
+The restore frames between them don't certify. On the cartridge, panel
+`$10D` replaces plane A, hides the sprites and loads line 3, but the pack
+does not decode the panel
+([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+frames keep the field's foreground, Chaz and line 3. The fixture's
+`Main_Frame_Count` phase is not the tape's either: the native's snowstorm
+write lands in its first flash, the tape's in its second. Run with the
+tape's phase (three idle ticks before the event, `runtime_at` on the same
+map, flags and leader), the runtime's CRAM words 0-47 equal the tape's
+`Palette_Table_Buffer` on every frame from five before the first fill to the
+end of the second restore. That includes the snowstorm words the second
+flash's map update rewrites. From the object art's load on, the cartridge's
+eight lag frames ([#681](https://github.com/TusanHomichi/PSIV/issues/681))
+leave the native eight frames early.
+
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension
 first); it pins each pair's clone tick and oracle-frame hash and writes a receipt
 under `build/certify/`. The oracle frames regenerate from their tapes and are
@@ -219,7 +246,9 @@ recipe rebuilds both.
   typewriter, holds a completed page for 4 frames, and dismisses it with a
   one-frame `ButtonSpeak` press in the pad, so the next page's first glyph
   frame types at the held cadence. It advances only a page that is fully
-  revealed with its open animation finished, and never a `Choice` page.
+  revealed with its open animation finished, and never a `Choice` page. A
+  `RunText3` window (the ending's) is never dismissable, so the pace presses
+  nothing there; the ending's pairs run without it.
 
 ### Capture doctrine
 
@@ -538,7 +567,15 @@ borrows. Writers:
   to line 3 before it builds Igglanova (`$07444E`, `MapDataManagerJmpTbl`
   entry `$D0`); words 62 and 63 keep Zema's;
 - `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
-  `SetPaletteWords` and `AddPaletteWord` take word offsets;
+  `SetPaletteWords` and `AddPaletteWord` take word offsets; `SetTextColour`
+  writes word 47, `Palette_Table_Buffer+$5E`, which the prologue crawl and
+  the flight's caption are drawn in (`move.w #$666, $FB5E.w` at `$073C9E`,
+  `clr.w (Palette_Table_Buffer+$5E).w` at `ps4.asm:134676`);
+- the Aiedo inn, after `Event_GirlsSneakingOut` (whose last fade-out leaves
+  the screen black), puts back the 64 words it kept before the scene
+  (`$FFFF1300`, `ps4.asm:136399-136402`), shows black for the 60 frames of
+  its `DMAPlane_A_VInt` loop and then runs `Pal_FadeIn` on them
+  (`ps4.asm:136436-136453`, `Session::finish_aiedo_stay`);
 - the loops step once per runtime tick, starting on the tick the scene emits
   them, with that tick's `Main_Frame_Count`: `Pal_IncreaseTone` and its
   per-frame hold copy, the `loc_58666` restore, the recovery flashes (red and
@@ -547,7 +584,12 @@ borrows. Writers:
   `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` (`FadeIn`, `FadeOut`: the
   variable fades with `$FFFFED52` at 0, which they are byte for byte), both
   variable fades and their two-line forms (`TwoLinePaletteFade`: words 0-31
-  only; the fade up starts from the live words, with no copy or clear). The Le Roof cycle (`loc_70638`, `$070638`) also steps the
+  only; the fade up starts from the live words, with no copy or clear), and
+  the ending's eighth-frame loops: the staff roll's word fade out and back in
+  and the credits' ramp (`EndingStaffRollFadeOut`/`FadeIn`,
+  `EndingCreditsPaletteRamp`, [89_Ending.md](89_Ending.md#palette-state-and-the-remaining-drawing-gaps)),
+  whose lengths depend on the word and the frame count, so the scene waits on
+  them as on a variable fade. The Le Roof cycle (`loc_70638`, `$070638`) also steps the
   index byte `$FFFFECF3`, which the map programs share: the runtime keeps it
   with their counters (`MapUpdateView`), cleared by each map load as
   `ps4.asm:107593` clears it, and lends it to the CRAM model.
@@ -619,7 +661,7 @@ Corrections this model brought, each checked against the US image:
   for its last pass, and `InitVRAMAndCRAM` one more for `DMAPlanes_VInt`.
   `scenes::fixed_fades_image` checks every scene's `InitVramAndCram`,
   `FadeIn` and `FadeOut` ops, in order, against the `jsr`/`jmp`s its
-  documented bytes make to the three routines; the eleven scenes that do
+  documented bytes make to the three routines; the nine scenes that do
   not match yet are listed with
   [#652](https://github.com/TusanHomichi/PSIV/issues/652). The ship's
   route is checked where its bytes are (#654): `Cutscene_LeRoofAgain` and
@@ -632,6 +674,15 @@ Corrections this model brought, each checked against the US image:
   before Cancel's reload), whose frames the destination menu's measured
   teardown holds, and runs the flight's six `Pal_FadeIn` calls as
   `FlightFadeIn`'s fixed 16 frames under a cover.
+- `Event_DeVarsDefeated` and `Event_SaLewsDefeated` recorded a `FadeOut`
+  their bytes do not make: they tone the palette to white and back
+  (`Pal_IncreaseTone`, `loc_58666`; the loops are
+  [#571](https://github.com/TusanHomichi/PSIV/issues/571)) and return the field
+  its palette. Once `FadeOut` reached black on the CRAM it left the field
+  black, so the op is gone. A plain event (below `$8000`) has no cutscene
+  reload after it, so `scenes::plain_event_fades` requires every one that
+  fades out to fade back in, or names the caller that does: the Aiedo inn,
+  which also had not faded its palette back in after its scene.
 ### Drawing the CRAM
 
 The field shell copies `Runtime::cram()` into one shared palette at the top
@@ -658,6 +709,14 @@ art is indexed draws from it:
   the destination screen's `Windows` over the planetary map, which the
   screen colours from its own palette state (lines 0 and 1,
   `ShipMenu::render`);
+- the opening's image (`presentation/opening_background.png`, each index its
+  CRAM slot, as a scene picture's) and its stage, the backdrop word
+  (`cutscene/opening.rs`), and the flight's caption in word 47
+  (`cutscene/text_layer.rs`). The prologue crawl keeps its own 20-frame ramp
+  (`IntroTextFadeUp`/`Down` are not CRAM records); it is black before the
+  prologue's `Pal_FadeIn` draws it and after its last ramp down, so no fixed
+  fade runs while it shows. A map change ends the opening, as `RefreshMap`
+  replaces its planes;
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 

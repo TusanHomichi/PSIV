@@ -9,7 +9,7 @@ use super::{KYRA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{
-    CounterCycle, PaletteBuffer, PaletteSource, PresentationOp, variable_fade,
+    CounterCycle, PaletteBuffer, PaletteSource, PresentationOp, SAVE_PALETTE, variable_fade,
 };
 use crate::scene_runner::Scene;
 use crate::state::Flag;
@@ -29,6 +29,8 @@ const SOUND_STOP_SPC: u8 = 0xFD;
 const SOUND_STOP_ALL: u8 = 0xFE;
 const SFX_DEBAN: u8 = 0xDC;
 const SFX_STAIRS: u8 = 0xDF;
+/// `SFXID_EnemyKilled` (`ps4.constants.asm:981`).
+const SFX_ENEMY_KILLED: u8 = 0xB9;
 
 /// `loc_70638` (`$070638`): the Le Roof scenes' colour cycle, words 11 and 12
 /// (`$16(a1)`, `$18(a1)`) from the two eleven-word series at `loc_70672`.
@@ -280,7 +282,10 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         },
         SceneOp::BranchIfVehicle {
             if_mounted: 2,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70826` (`$07077E`): on foot
+            // skips the dismount and dialogue `$34` and lands on the party
+            // move, op 11.
+            if_on_foot: 11,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::Wait { ticks: 1 },
@@ -290,12 +295,17 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0707A0`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Jump { to: 8 },
+        // `$07080C`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates. The object pass is a recorded
+        // deviation (`docs/source-notes/README.md`, Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
-        // `$070826..$070847`: the leader's Y plus `$20`, written to every
-        // party object; no walk.
+        // `loc_70826`, `$070826..$070847`: the leader's Y plus `$20`,
+        // written to every party object; no walk.
         SceneOp::PlacePartyY { dy: 0x20 },
         SceneOp::StartBattle { index: 0x0A },
         SceneOp::Return { value: 1 },
@@ -308,11 +318,12 @@ pub static SAVING_KYRA: Scene = Scene {
     event: EventIndex(0x004D),
     ops: &[
         SceneOp::BranchIfVehicle {
-            if_mounted: 2,
+            // Mounted falls through to the saved music at `$07085E`.
+            if_mounted: 1,
             // `tst.w Vehicle_Index / beq.w loc_70908` (`ps4.asm:149987-149988`):
             // on foot skips the dismount and dialogue `$34` and lands on the
-            // red-alert music, op 9.
-            if_on_foot: 9,
+            // red-alert music, op 11.
+            if_on_foot: 11,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
@@ -323,7 +334,12 @@ pub static SAVING_KYRA: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$070882`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
+        // `$0708EE`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount, as `Event_CarnivorousTrees`' `$07080C`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
         SceneOp::PlaySound {
@@ -404,6 +420,37 @@ pub static MEETING_KYRA: Scene = Scene {
     ],
 };
 
+/// Thirty-two longwords of `$0EEE0EEE` over the live buffer (`loc_7025A`,
+/// `loc_7029C`): an Eclipse Torch flash, after `SAVE_PALETTE` keeps the
+/// colours to come back to.
+const WHITE_FILL: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Fill(0x0EEE),
+        destination: PaletteBuffer::Live,
+        start: 0,
+        words: 64,
+    },
+};
+
+/// `move.w #$27, d7` / `jsr loc_58666` / `jsr VInt_Prepare` / `dbf`: forty
+/// frames back from white toward `Palette_Table_Buffer_2`, no object or map
+/// update (`loc_70270`, `loc_702B2`). The `WaitFrames` after it waits them.
+const RESTORE_FROM_WHITE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteRestoreTone { frames: 40 },
+};
+
+/// `$338` with tile `$3AF` at its literal `$30`/`$34`, in the slot `$40` bytes
+/// past `Field_Obj_Secondary` per index.
+const fn torch_object(slot: usize, x: i32, y: i32) -> SceneOp {
+    SceneOp::CreateFieldObject {
+        slot,
+        object_id: 0x338,
+        art_tile: 0x3AF,
+        x,
+        y,
+    }
+}
+
 /// `$0047`, `Event_EclipseTorchUsed`, `$07018A..$070481`.
 pub static ECLIPSE_TORCH_USED: Scene = Scene {
     name: "Event_EclipseTorchUsed",
@@ -411,83 +458,79 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
     ops: &[
         SceneOp::BranchIfVehicle {
             if_mounted: 1,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70226` (`$07018E`).
+            if_on_foot: 9,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
+        // `$0701A0`: a bare `VInt_Prepare`.
+        SceneOp::WaitFrames { frames: 1 },
+        // `$0701A6`: `move.b #MusicID_DezorisField1, (Sound_Index).l`, the
+        // music as well as the saved index.
+        SceneOp::PlaySound {
+            id: MUSIC_DEZOLIS_FIELD,
+        },
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0701B4`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Wait { ticks: 1 },
-        SceneOp::Jump { to: 7 },
+        // `$070220`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates (`docs/source-notes/README.md`,
+        // Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::PanelCreate { id: 0x10D },
         SceneOp::DmaPlanes,
+        // `$070238`: `DoMapUpdateLoop($77)`.
         SceneOp::Wait { ticks: 120 },
+        // `$07023E`: Deban; `$070246..$070263`: the palette saved, then white.
         SceneOp::PlaySound { id: SFX_DEBAN },
-        SceneOp::Wait { ticks: 40 },
+        SAVE_PALETTE,
+        WHITE_FILL,
+        // `$070266`: `DoMapUpdateLoop(1)`.
+        SceneOp::Wait { ticks: 2 },
+        // `$070270`: forty passes of `loc_58666`.
+        RESTORE_FROM_WHITE,
+        SceneOp::WaitFrames { frames: 40 },
+        // `$070280..$0702C1` (`if revision>0`): the second flash, the same
+        // bytes; `$0702A8` and `$0702B2` are its waits.
+        SceneOp::PlaySound { id: SFX_DEBAN },
+        SAVE_PALETTE,
+        WHITE_FILL,
+        SceneOp::Wait { ticks: 2 },
+        RESTORE_FROM_WHITE,
+        SceneOp::WaitFrames { frames: 40 },
+        // `$0702C2`: `Panel_Destroy`, `DMAPlanes_VInt`.
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::LoadArt {
             rom_addr: 0x001D_712C,
             tile: 0x3AF,
         },
-        SceneOp::ObjectAnimation {
-            slot: 0,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
+        // `$0702E4..$07041D`: nine `$338` objects written into the slots from
+        // `Field_Obj_Secondary` (`$C300`) on, with no frame between them.
+        torch_object(0, 0xBA0, 0xC0),
+        torch_object(1, 0xB80, 0xA0),
+        torch_object(2, 0xBA0, 0xA0),
+        torch_object(3, 0xBC0, 0xA0),
+        torch_object(4, 0xB60, 0x80),
+        torch_object(5, 0xB80, 0x80),
+        torch_object(6, 0xBA0, 0x80),
+        torch_object(7, 0xBC0, 0x80),
+        torch_object(8, 0xBE0, 0x80),
+        // `$07041E..$070441`: a chunk copy, `Field_UpdateObjects`,
+        // `RefreshPlaneBG` and `DMAPlane_B_VInt`'s one frame, waited bare
+        // (`docs/source-notes/README.md`, "Eclipse Torch").
+        SceneOp::WaitFrames { frames: 1 },
+        // `$070442`: `SFXID_EnemyKilled`.
+        SceneOp::PlaySound {
+            id: SFX_ENEMY_KILLED,
         },
-        SceneOp::ObjectAnimation {
-            slot: 1,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 2,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 3,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 4,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 5,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 6,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 7,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 8,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
+        // `$07044C`: `DoMainUpdatesLoop($4F)`.
+        SceneOp::Wait { ticks: 80 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x2A),
         SceneOp::SetFlag {

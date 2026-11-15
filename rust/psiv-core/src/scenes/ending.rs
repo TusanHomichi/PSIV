@@ -630,19 +630,40 @@ pub static ENDING: Scene = Scene {
             plane: 0xFFFF_8886,
             vram: 0xC280,
         },
+        // $079C8E..$079CAD: `Palette_Table_Buffer+$5E` down by `$222` on
+        // every eighth frame, until the step that would store zero.
         SceneOp::Presentation {
-            op: PresentationOp::EndingStaffRollTransition {
+            op: PresentationOp::EndingStaffRollFadeOut {
                 palette_offset: 0x5E,
-                fade_out_step: 0x222,
-                fade_in_step: 0x222,
-                frame_divisor: 8,
-                first_wait: 180,
-                music: MUSIC_STAFF_ROLL,
-                second_wait: 180,
-                target_bit: 0x0C,
-                final_hold: 60,
+                step: 0x222,
             },
         },
+        // $079CAE..$079CC5: `move.w #$B3, d0` / `VInt_PrepareLoop`, the
+        // staff-roll music, the same wait again.
+        SceneOp::WaitFrames { frames: 180 },
+        SceneOp::PlaySound {
+            id: MUSIC_STAFF_ROLL,
+        },
+        SceneOp::WaitFrames { frames: 180 },
+        // $079CCA..$079CED: back up by `$222` until the sum sets bit `$C`.
+        SceneOp::Presentation {
+            op: PresentationOp::EndingStaffRollFadeIn {
+                palette_offset: 0x5E,
+                step: 0x222,
+                target_bit: 0x0C,
+            },
+        },
+        // $079CEE..$079CF4: `ClearPlanes_A_B_Buf`, `DMAPlanes_VInt`.
+        SceneOp::Presentation {
+            op: PresentationOp::ClearPlanes,
+        },
+        SceneOp::DmaPlanes,
+        // $079CFA..$079D0B: `moveq #$3B, d7` / `jsr loc_58666` / `jsr
+        // VInt_Prepare` / `dbf`: sixty frames toward the cleared copy.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteRestoreTone { frames: 60 },
+        },
+        SceneOp::WaitFrames { frames: 60 },
         SceneOp::Presentation {
             op: PresentationOp::EndingCreditsAssets {
                 small_planet_rom_addr: 0x001D_E278,
@@ -689,8 +710,12 @@ pub static ENDING: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::EndingCreditsPaletteRamp {
                 primary_rom_addr: 0x0007_A274,
-                secondary_rom_addr: 0x0007_A2A0,
+                primary_ram: 0xFFFF_FB24,
                 primary_words: 8,
+                secondary_rom_addr: 0x0007_A2A0,
+                secondary_ram: 0xFFFF_FB3C,
+                secondary_words: 2,
+                secondary_from: 9,
                 steps: 14,
             },
         },

@@ -36,6 +36,7 @@ PALETTE_TABLE_BUFFER = 0xFFFB00
 MOVE_L_POSTINC = (0x22D8).to_bytes(2, "big")  # move.l (a0)+, (a1)+
 TRAP_1 = (0x4E41).to_bytes(2, "big")  # trap #1
 MOVE_W_A1_A2 = (0x34D9).to_bytes(2, "big")  # move.w (a1)+, (a2)+
+LEA_A0_D1W = bytes.fromhex("41f01000")  # lea (a0,d1.w), a0
 
 
 def _dbf(dn: int, displacement: int) -> bytes:
@@ -216,6 +217,27 @@ class PresentationPackTests(unittest.TestCase):
                 _moveq(13, 7), MOVE_W_A1_A2, _dbf(7, -4),
             ], 14),
         }
+        # loc_7A0A6, the credits' ramp: lea loc_7A274 / lea
+        # Palette_Table_Buffer+$24 / lea (a0,d1.w), a0 / moveq #7, d7 /
+        # trap #1, with d1 = 2 * d5 and d5 from $E down: words 14-21 deepest.
+        # Then lea loc_7A2A0 / lea Palette_Table_Buffer+$3C / lea (a0,d1.w),
+        # a0 / moveq #1, d7 / trap #1, d1 = 4 * (d6 - 9) for d6 9..13: words
+        # 8-9 deepest.
+        sites[0x07A274] = (0x07A0BE, [
+            _lea_l(0x07A274, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x24, 1),
+            LEA_A0_D1W, _moveq(7, 7), TRAP_1,
+        ], 22)
+        sites[0x07A2A0] = (0x07A0DC, [
+            _lea_l(0x07A2A0, 0), _lea_w(PALETTE_TABLE_BUFFER + 0x3C, 1),
+            LEA_A0_D1W, _moveq(1, 7), TRAP_1,
+        ], 10)
+        # moveq #$E, d5 / moveq #0, d6 / cmpi.w #$E, d6 opens the loop, and
+        # subi.w #9, d1 picks the secondary steps.
+        self.assertEqual(
+            data[0x07A0A6:0x07A0AE],
+            _moveq(0xE, 5) + _moveq(0, 6) + bytes.fromhex("0c46000e"),
+        )
+        self.assertEqual(data[0x07A0D2:0x07A0D6], bytes.fromhex("04410009"))
         # Event_MeetingLeRoof's return: lea Pal_SilenceTm / lea
         # Palette_Table_Buffer_2 / move.w #$1F, d7 / trap #1: 32 words.
         sites[0x18711A] = (0x0705A8, [
