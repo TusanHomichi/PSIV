@@ -114,6 +114,8 @@ mod palette_fades_image;
 #[cfg(test)]
 mod panel_byte_census;
 #[cfg(test)]
+mod ship_route_trace;
+#[cfg(test)]
 mod wait_census;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
