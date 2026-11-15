@@ -37,11 +37,15 @@ ROUTINES = {
     "enigma": (0x041A90, 0x041B54),
     "load_art": (0x0702DE, 0x0702E4),  # Eclipse Torch's JSR NemDecomp.
 }
+# Caller boundaries after the Torch's art load: object update, background
+# refresh, then DMA. Retain them in the raw trace to locate post-return work.
+POST_ART_WATCHES = (0x070430, 0x070436, 0x07043C)
 BOUNDARY_BYTES = {
     0x06AF9C: "31c0ed006100", 0x06B004: "5238ed024e75",
     0x041740: "48e7ffdc", 0x041784: "4cdf3bff4e75",
     0x041A90: "48e7ff7c", 0x041B50: "4cdf3eff4e75",
     0x0702CE: "41f9001d712c303c03af", 0x0702DE: "4eb900041740",
+    0x070430: "4eb9000447d84eb9000540fa4eb9000416a6",
 }
 REQUIRED = {46: {"panel:10d", "art:1d712c"},
             43: {"panel:18b", "panel:18f", "panel:190"},
@@ -181,7 +185,7 @@ def capture(scene: int, recipe: dict, out: Path) -> list[dict]:
     command = [str(host_binary.ensure()), "--core", str(CORE), "--rom", str(ROM),
                "--map", str(ram_map), "--tape", str(tape), "--groups", "core,rng,scene_load",
                "--out", str(frames), "--pc-trace", str(trace), "--pc-trace-from", "7200"]
-    for pc in sorted({pc for pair in ROUTINES.values() for pc in pair}):
+    for pc in sorted({pc for pair in ROUTINES.values() for pc in pair} | set(POST_ART_WATCHES)):
         command += ["--pc-watch", f"{pc:06X}"]
     for patch in recipe["patches"]:
         command += ["--ram-patch", patch]
