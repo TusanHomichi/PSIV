@@ -3,7 +3,7 @@
 - **Retail bytes:** `$077A68..$077BD9` inclusive, 370 bytes.
 - **Pointer:** `CutscenePtrs[$16]`; scene `$8016`.
 - **Trigger:** `RunEventsJmpTbl[$47]`, Lashiec `$9B` set.
-- **Data:** `dezo_campaign_late.rs`, `LASHIEC_DEFEATED` (31 ops).
+- **Data:** `dezo_campaign_late.rs`, `LASHIEC_DEFEATED` (32 ops).
 
 ## Clone audit
 
@@ -16,5 +16,5 @@ is excluded. ROM range: `$077A68..$077BDA` exclusive end.
 |---:|---|---|---|
 | 0-6 | `$077A68..$077B0A` | panels `$107/$10A`, dialogue `$38`, explosion and waits | panel/dialogue/SFX |
 | 7-17 | `$077B0B..$077B75` | field music, resume, add Eclipse Torch `$8E`, load Gumbious F1 `$162` | inventory/map |
-| 18-29 | `$077B76..$077BD9` | temple music/tree `$1F471C`, dialogue `$39`, tree `$209B36` | music/dialogue |
+| 18-30 | `$077B76..$077BD9` | temple music/tree `$1F471C`, `Pal_FadeIn`, dialogue `$39`, tree `$209B36` | music/fade/dialogue |
 

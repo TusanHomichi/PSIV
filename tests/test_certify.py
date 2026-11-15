@@ -248,21 +248,20 @@ class PairTableCase(unittest.TestCase):
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native window closes after tick 2629 as the cartridge's
-                # last page turns on 9893; the loop follows at t + 7264.
+                # The ending's windows page on their own (#645); the loop
+                # follows at t + 7264 after the initial fades spend their frames (#637).
                 self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
                 self.assertIn(tick + 7264, recipe["frames"])
         # Before, the fourth step, white: each inside its plateau.
         self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
-        self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
-        self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
-        self.assertIs(loop[2][5], certify.TAPE_38_LOOP)
-        self.assertEqual(certify.TAPE_38_LOOP["frames"], [9893, 9950])
+        # One recipe and the whole surface for all three: the rise
+        # includes the window and Chaz's portrait, which stay up and toned
+        # through the loop (#636).
+        for pair in loop:
+            self.assertIs(pair[5], certify.TAPE_38_LOOP)
+        self.assertEqual(certify.TAPE_38_LOOP["frames"], [9893, 9910, 9950])
         self.assertEqual(certify.TAPE_38_LOOP["region"], [1, 1, 319, 223])
-        # The rise leaves out the window and portrait the native closes
-        # early (#636): rows 112 down.
-        self.assertEqual(certify.TAPE_38_LOOP_RISE["frames"], [9910])
-        self.assertEqual(certify.TAPE_38_LOOP_RISE["region"], [1, 1, 319, 111])
+        self.assertFalse(hasattr(certify, "TAPE_38_LOOP_RISE"))
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

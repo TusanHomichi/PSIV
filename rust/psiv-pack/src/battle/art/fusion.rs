@@ -220,6 +220,91 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Json, PackError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::battle::image_tests::{Output, assert_png, palette};
+    use crate::test_support::retail_rom;
+
+    #[test]
+    fn asymmetric_vdp_sizes_and_multi_column_flips() {
+        assert_eq!(vdp_size(0x09), (3, 2));
+        assert_eq!(vdp_size(0x06), (2, 3));
+        assert_eq!(vdp_size(0x0F), (4, 4));
+        assert_eq!(vdp_size(0), (1, 1));
+        let tiles: Vec<_> = (1..=6).map(|v| [v; 64]).collect();
+        let (_, size, pixels) = render(&tiles, &[at(0, 0, 0x09, 0, false)]).unwrap();
+        assert_eq!(size, [24, 16]);
+        let corners: Vec<_> = [(0, 0), (0, 8), (8, 0), (8, 8), (16, 0), (16, 8)]
+            .map(|(x, y)| pixels[y * 24 + x])
+            .into();
+        assert_eq!(corners, [1, 2, 3, 4, 5, 6]);
+        let (_, _, flipped) = render(&tiles, &[at(0, 0, 0x09, 0, true)]).unwrap();
+        assert_eq!((flipped[0], flipped[16]), (5, 1));
+        assert!(render(&tiles[..5], &[at(0, 0, 0x09, 0, false)]).is_err());
+    }
+
+    #[test]
+    fn retail_fusion_frames_keep_their_geometry_source_palette_and_pixels() {
+        let Some(rom) = retail_rom("Fusion images") else {
+            return;
+        };
+        let rom = rom.bytes();
+        assert_eq!(
+            mappings(rom).unwrap(),
+            [0x1AA5A, 0x1AA74, 0x1AA82, 0x1AAA8, 0x1AACE]
+        );
+        assert_eq!(art_offset(rom).unwrap(), 0x209766);
+        let mut moved = rom.to_vec();
+        moved[0x1A090] ^= 0xff;
+        assert!(mappings(&moved).is_err());
+        let root = Output::new("fusion-images");
+        let output = serde_json::Value::from(&write(rom, &root.0).unwrap());
+        assert_eq!(output["count"], 5);
+        assert_eq!(output["frames"].as_array().unwrap().len(), 5);
+        assert_eq!(output["palette_enemy_id"], 34);
+        let raw = nemesis::decompress(rom, 0x209766).unwrap().0;
+        let mut colors = vec![[0; 3]; 16];
+        colors[1] = crate::gfx::Color::decode(0xEEE).rgb();
+        colors[3..14].copy_from_slice(&palette(rom, 0x27FFA2 + 34 * 22, 11));
+        colors[14] = crate::gfx::Color::decode(0x600).rgb();
+        for ((mapping, frame), (width, height)) in mappings(rom)
+            .unwrap()
+            .iter()
+            .zip(output["frames"].as_array().unwrap())
+            .zip([(48, 32), (48, 16), (48, 40), (64, 56), (80, 64)])
+        {
+            assert_eq!(frame["size"], serde_json::json!([width, height]));
+            let (left, top) = (-(width as i128) / 2, -(height as i128));
+            assert_eq!(frame["origin"], serde_json::json!([left, top]));
+            let record = decode_record(rom, *mapping).unwrap();
+            let sprites: Vec<_> = entries_of(&record).iter().map(sprite).collect();
+            // For each destination pixel, find the last nonzero sprite pixel.
+            // This reads packed nibbles rather than render()'s tile arrays.
+            let mut expected = Vec::new();
+            for y in top..0 {
+                for x in left..left + width as i128 {
+                    let p = sprites
+                        .iter()
+                        .rev()
+                        .find_map(|s| {
+                            let (dx, dy) = (x - s.x, y - s.y);
+                            if dx < 0 || dy < 0 || dx >= s.columns * 8 || dy >= s.rows * 8 {
+                                return None;
+                            }
+                            let sx = if s.h_flip { s.columns * 8 - 1 - dx } else { dx } as usize;
+                            let sy = if s.v_flip { s.rows * 8 - 1 - dy } else { dy } as usize;
+                            let tile = s.tile as usize + (sx / 8) * s.rows as usize + sy / 8;
+                            let b = raw[tile * 32 + sy % 8 * 4 + sx % 8 / 2];
+                            let p = (b >> (4 * (1 - sx % 2))) & 15;
+                            (p != 0).then_some(p)
+                        })
+                        .unwrap_or(0);
+                    expected.push(p);
+                }
+            }
+            assert!(expected.iter().any(|&p| p != 0));
+            let bytes = std::fs::read(root.0.join(frame["png"].as_str().unwrap())).unwrap();
+            assert_png(&bytes, (width, height), &expected, &colors);
+        }
+    }
 
     fn tile(value: u8) -> [u8; 64] {
         let mut t = [0u8; 64];

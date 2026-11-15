@@ -60,6 +60,8 @@ impl Runtime {
             Battle::start(record, party, &set.data, true, &mut rng2)
         }
         .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        // `GameMode_LoadBattle`'s `VDP_EnableDisplay` (`ps4.asm:10062`).
+        self.effects.cram.enable_display();
         self.battle = Some(battle);
         self.scene_battle = Some(index);
         Ok(BattleTimeline {

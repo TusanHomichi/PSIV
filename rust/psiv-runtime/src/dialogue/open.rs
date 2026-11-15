@@ -209,6 +209,7 @@ impl DialogueRunner {
         self.open_cells = 0;
         self.clear_portrait_change();
         self.scene_dialogue = false;
+        self.hold_last_page = false;
         self.set_text3(false);
     }
 }

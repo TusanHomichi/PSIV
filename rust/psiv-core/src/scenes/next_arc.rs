@@ -553,7 +553,7 @@ pub static ALSHLINE_FOUND: Scene = Scene {
     ops: ALSHLINE_FOUND_OPS,
 };
 
-/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 87 ops.
+/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 88 ops.
 static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::PlaySound { id: MUSIC_STOP },
@@ -677,6 +677,11 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         art_tile: 0x3A5,
         x: 0x1E0,
         y: 0xA0,
+    },
+    // `$074494` (`ps4.asm:153813`): `jsr VDP_EnableDisplay`, "instantly
+    // show field (no fade in)", after `Event_RunDialogue5`'s fade-out.
+    SceneOp::Presentation {
+        op: PresentationOp::EnableDisplay,
     },
     SceneOp::MoveActorTo {
         actor: LEADER,

@@ -96,6 +96,8 @@ pub(crate) mod wreckage;
 pub(crate) mod zosa_events;
 
 #[cfg(test)]
+mod dark_display;
+#[cfg(test)]
 mod dialogue_caller_rows;
 #[cfg(test)]
 mod dialogue_callers;
@@ -103,6 +105,8 @@ mod dialogue_callers;
 mod dialogue_callers_image;
 #[cfg(test)]
 mod dialogue_resumes_image;
+#[cfg(test)]
+mod display_calls_image;
 #[cfg(test)]
 mod dma_census;
 #[cfg(test)]

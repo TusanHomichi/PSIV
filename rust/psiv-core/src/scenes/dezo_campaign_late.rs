@@ -532,6 +532,9 @@ pub static LASHIEC_DEFEATED: Scene = Scene {
         SceneOp::SetSavedMusic {
             id: MUSIC_TEMPLE_NGANGBIUS,
         },
+        // `ps4.asm:156952`: `jsr Pal_FadeIn` after the `RefreshMap`, which
+        // turns the display back on for the dialogue (#653).
+        SceneOp::FadeIn,
         SceneOp::SetDialogueTree { rom_addr: TREE_22 },
         // `$077BC0`: `clr.b (Render_Sprites_In_Cutscenes).w`.
         SceneOp::SetRenderSpritesInCutscene { enabled: false },
