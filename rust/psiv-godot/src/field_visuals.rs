@@ -683,13 +683,13 @@ impl Field {
         }
     }
 
-    /// An event battle's entry draws the runtime's uniform screen this frame:
+    /// A battle's entry draws the runtime's uniform screen this frame:
     /// a one-frame cover over whatever transition ran, set again each frame
     /// the runtime still shows it.
     pub(super) fn sync_battle_entry_screen(&mut self) {
         let screen = self
             .runtime()
-            .and_then(psiv_runtime::Runtime::event_battle_entry_screen);
+            .and_then(psiv_runtime::Runtime::battle_entry_screen);
         if let Some(word) = screen {
             self.start_transition(TransitionKind::Screen(word));
         }
@@ -829,7 +829,6 @@ impl Field {
         let alpha = f32::from(visual.level) / 7.0;
         let color = match visual.color {
             super::transitions::TransitionColor::Black => Color::from_rgba(0.0, 0.0, 0.0, alpha),
-            super::transitions::TransitionColor::White => Color::from_rgba(1.0, 1.0, 1.0, alpha),
             super::transitions::TransitionColor::Cram(word) => {
                 let [r, g, b] = psiv_data::color::cram_rgb(word);
                 Color::from_rgba8(r, g, b, 255)

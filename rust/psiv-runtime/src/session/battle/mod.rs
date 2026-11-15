@@ -838,7 +838,7 @@ impl BattleMode {
 impl Session {
     /// Starts the battle this frame's events asked for, if they asked for one.
     ///
-    /// An `EncounterRolled` is the runtime's own battle to start; a
+    /// An `EncounterBattleReady` is the runtime's own battle to start; a
     /// `SceneBattleStarted` is one the scene runner already started, and the
     /// event carries its opening timeline. A battle that cannot start leaves
     /// the field in control and reports the reason as a fault for the shell to
@@ -846,7 +846,9 @@ impl Session {
     /// produced.
     pub(crate) fn begin_battle(&mut self, events: &[RuntimeEvent]) -> Option<BattleFrame> {
         let start = events.iter().find_map(|event| match event {
-            RuntimeEvent::EncounterRolled { formation } => Some(BattleStart::Encounter(*formation)),
+            RuntimeEvent::EncounterBattleReady { formation } => {
+                Some(BattleStart::Encounter(*formation))
+            }
             RuntimeEvent::SceneBattleStarted { index, .. } => {
                 Some(BattleStart::EventBattle(*index))
             }

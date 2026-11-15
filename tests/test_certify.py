@@ -38,11 +38,13 @@ ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
 EVENT_BATTLE_ENTRY = ["event-battle-white-first", "event-battle-white-hold",
                       "event-battle-fade-first", "event-battle-fade-second"]
+ENCOUNTER_ENTRY = ["encounter-white-first", "encounter-white-hold",
+                   "encounter-fade-first", "encounter-fade-second"]
 ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
-         + EVENT_BATTLE_ENTRY + ECLIPSE_TORCH)
+         + EVENT_BATTLE_ENTRY + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -138,7 +140,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page", *EVENT_BATTLE_ENTRY, *ECLIPSE_TORCH])
+                                   "retained-window-page", *EVENT_BATTLE_ENTRY, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

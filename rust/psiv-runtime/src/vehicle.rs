@@ -282,9 +282,8 @@ impl Runtime {
         {
             let mut rolls = Rng2::with_surrogate(&mut self.rng, self.frames);
             if let Some(formation) = set.table.select_vehicle(map_id, background, &mut rolls) {
-                events.push(RuntimeEvent::EncounterRolled {
-                    formation: formation.id,
-                });
+                let formation = formation.id;
+                events.push(self.begin_encounter_entry(formation));
             }
         }
 

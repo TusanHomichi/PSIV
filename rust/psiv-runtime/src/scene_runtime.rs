@@ -265,9 +265,9 @@ impl Runtime {
                     events.push(RuntimeEvent::SceneChoiceRequested);
                 }
             }
-            // The battle starts at the end of its entry (`event_battle_entry`).
+            // The battle starts at the end of its entry (`battle_entry`).
             SceneEffect::BattleRequested { index } => {
-                events.push(self.begin_event_battle_entry(index));
+                events.push(self.begin_battle_entry(index));
             }
             SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
                 self.wander.remove(npc_index);

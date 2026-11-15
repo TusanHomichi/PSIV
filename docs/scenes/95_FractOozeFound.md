@@ -54,7 +54,7 @@ then `$AAA`), the stage is in from 7860 and settled by 7870. Only then does
 encounter takes the same mode after its own field arm (`loc_584EE`).
 
 The runtime runs the 76 frames from the request to that roll and counts the
-36 the cartridge counts (`event_battle_entry.rs`); clone tick t shows frame
+36 the cartridge counts (`battle_entry.rs`); clone tick t shows frame
 t + 7286. Ticks 528-570 are the white hold and 571-573 the fade's first
 steps, equal to frames 7814-7859 over `1,1,319,223`; the `event-battle-*`
 pairs certify 7814, 7840, 7857 and 7859. Ticks 574-583 go on fading the
