@@ -889,8 +889,8 @@ pub enum SceneOp {
     /// the runtime hands the frame to a session-owned list window and the
     /// scene blocks until the player picks a row or cancels.
     ///
-    /// Confirm continues at the next op, with `World_Index` already written
-    /// (`:133677`). Cancel skips the next `cancel_skip` ops (`:133692`), so a
+    /// Confirm continues at the next op; `CommitDestination` writes the chosen
+    /// world after teardown (`:133677`). Cancel skips `cancel_skip` ops (`:133692`), so a
     /// scene that embeds a copy of the flight keeps working at any offset.
     DestinationMenu {
         /// Where the row mask comes from.
@@ -898,6 +898,9 @@ pub enum SceneOp {
         /// Ops skipped on Cancel.
         cancel_skip: u16,
     },
+    /// Write the selected row to `World_Index` (`ps4.asm:133677`; copied
+    /// menu `:155599`). The shared route places this after its fade and chunks.
+    CommitDestination,
     /// Load the map a flight table names for the current map and the chosen
     /// world: `loc_64B02`, `loc_64B34` or `loc_64B5A` (`ps4.asm:134540-134610`).
     /// Blocks like [`SceneOp::LoadMap`]; a table with no row is a fault.

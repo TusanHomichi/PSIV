@@ -169,6 +169,7 @@ pub(super) fn construct_runtime(
         loot: None,
         scene: None,
         scene_input: SceneInput::None,
+        destination_world: None,
         scene_event: psiv_core::EventIndex(0),
         dialogue_answer: None,
         scene_choice_pending: false,

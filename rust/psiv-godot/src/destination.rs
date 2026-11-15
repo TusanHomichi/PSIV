@@ -52,7 +52,8 @@ pub(crate) struct DestinationScreen {
     view: Option<DestinationView>,
     arrival: Option<String>,
     picture: Option<Gd<ImageTexture>>,
-    picture_key: Option<(usize, ShipPalette)>,
+    picture_key: Option<(usize, ShipPalette, Option<[u16; 32]>)>,
+    fading_palette: Option<[u16; 32]>,
     /// The windows, their text and the cursor boxes; made on first use.
     windows: Option<Gd<WindowLayer>>,
     /// The windows layer holds quads.
@@ -70,6 +71,7 @@ impl INode2D for DestinationScreen {
             arrival: None,
             picture: None,
             picture_key: None,
+            fading_palette: None,
             windows: None,
             windows_drawn: false,
         }
@@ -112,7 +114,13 @@ impl DestinationScreen {
     }
 
     /// Shows the session's menu, or hides the node when there is none.
-    pub(crate) fn sync(&mut self, view: Option<&DestinationView>, arrival: Option<&str>) {
+    pub(crate) fn sync(
+        &mut self,
+        view: Option<&DestinationView>,
+        arrival: Option<&str>,
+        fading_palette: Option<[u16; 32]>,
+    ) {
+        self.fading_palette = fading_palette;
         self.sync_state(view, arrival);
         let quads = self.quads();
         // Closed, the layer stays empty without a redraw every frame.
@@ -154,11 +162,14 @@ impl DestinationScreen {
         let (Some(view), Some(menu)) = (self.view.as_ref(), self.menu.as_ref()) else {
             return;
         };
-        let key = (view.covers(), view.palette());
+        let key = (view.covers(), view.palette(), self.fading_palette);
         if self.picture_key == Some(key) {
             return;
         }
-        let Some(pixels) = menu.render(key.0, key.1) else {
+        let Some(pixels) = key.2.map_or_else(
+            || menu.render(key.0, key.1),
+            |words| menu.render_cram(key.0, &words),
+        ) else {
             godot_error!("destination menu: no background for cover set {}", key.0);
             return;
         };
@@ -177,6 +188,13 @@ impl DestinationScreen {
     /// The windows, text and cursor boxes, in the order the cartridge wrote
     /// them: the prompt window, the list window, the boxes, the names.
     fn quads(&self) -> Vec<Quad> {
+        if self
+            .view
+            .as_ref()
+            .is_some_and(|view| view.phase == DestinationPhase::Fading)
+        {
+            return Vec::new();
+        }
         if let (Some(chrome), Some(menu), Some(name)) = (
             self.chrome.as_ref(),
             self.menu.as_ref(),
@@ -248,6 +266,7 @@ impl DestinationScreen {
                         DestinationPhase::Opening => false,
                         DestinationPhase::Choosing => view.cursor_visible,
                         DestinationPhase::Confirmed | DestinationPhase::Closing => true,
+                        DestinationPhase::Fading => false,
                     };
                 let pattern = if lit {
                     SELECTED_PATTERN
@@ -279,8 +298,15 @@ impl Field {
             .and_then(|session| session.flight_view())
             .cloned();
         let arrival = flight.as_ref().and_then(|view| view.arrival.as_deref());
+        let fading_palette = view
+            .as_ref()
+            .filter(|view| view.phase == DestinationPhase::Fading)
+            .and_then(|_| self.session.as_ref())
+            .map(|session| session.runtime().cram().words[..32].try_into().unwrap());
         if let Some(screen) = self.destination.as_mut() {
-            screen.bind_mut().sync(view.as_ref(), arrival);
+            screen
+                .bind_mut()
+                .sync(view.as_ref(), arrival, fading_palette);
         }
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer

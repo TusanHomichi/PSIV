@@ -30,7 +30,8 @@
 //! The teardown after the answer takes frames in which the cartridge reads no
 //! pad: 55 after a Cancel and 25 after the confirm wait, measured on the oracle
 //! (`oracle/tapes/35_ship_destination_menu.tape`), during which the view's
-//! phase is [`DestinationPhase::Closing`].
+//! phases are [`DestinationPhase::Closing`] then [`DestinationPhase::Fading`];
+//! the shared scene owns the latter's CRAM fade and post-fade CPU spans.
 //!
 //! Window_Draw's opening (12 frames, :139785-139836) reads no pad. Its
 //! paired column writes and DMA ticks are exposed in DestinationView.
@@ -74,6 +75,12 @@ const CANCEL_CLOSE_FRAMES: u16 = 55;
 /// typed characters take 87 and the wait 60; Motavia's 31 characters: 179):
 /// the same teardown, `ps4.asm:133805-133833`.
 const CONFIRM_CLOSE_FRAMES: u16 = 25;
+// US $063E0C is entered at tape-35 offsets 155/161; $063E8A at 12.
+// Keep only the pre-fade remainder of the existing close budget here:
+// confirm 7 + 14 fade + 4 chunk setup = 25; Cancel 12 + 14 + 29 = 55.
+// The confirm text/tail model already spends five of the twelve window frames.
+const CONFIRM_PRE_FADE_FRAMES: u16 = 7;
+const CANCEL_PRE_FADE_FRAMES: u16 = 12;
 /// Two slide-open windows plus prompt/list DMA: tape 35, frames 7246..7257.
 const OPEN_FRAMES: u8 = 12;
 /// `FieldObj_RedCursor`'s timers (`ps4.asm:141817-141843`): the first update
@@ -92,9 +99,10 @@ pub enum DestinationPhase {
     /// A row was confirmed: the message is typing, then the wait runs. The
     /// cursor box is stamped solid (`loc_69A32` writes `$C6E8`).
     Confirmed,
-    /// The answer is given and the cartridge is tearing the windows down and
-    /// fading out; it reads no pad. The shell keeps drawing what it drew.
+    /// The answer is given and the windows are being destroyed; no pad is read.
     Closing,
+    /// Both windows are gone; the scene owns the fade and map teardown.
+    Fading,
 }
 
 /// Everything the destination screen draws.
@@ -199,11 +207,13 @@ pub(crate) struct DestinationMode {
     /// (`None` for a Cancel).
     closing: Option<(u16, Option<u8>)>,
     opening_left: u8,
+    shared_route: bool,
 }
 
 impl DestinationMode {
     /// Builds the list as `loc_63BC4` does (`ps4.asm:133499-133535`).
     pub(crate) fn open(runtime: &Runtime, mask: DestinationMask) -> DestinationMode {
+        let shared_route = mask == DestinationMask::FlagTable;
         let mask = destination_mask_byte(mask, |flag| runtime.game().is_set(flag));
         let rows = destination_worlds(mask, runtime.world_index());
         let rykros_known = runtime.game().is_set(Flag::event(FLAG_RYKROS));
@@ -228,6 +238,7 @@ impl DestinationMode {
             tail: None,
             closing: None,
             opening_left: OPEN_FRAMES,
+            shared_route,
         }
     }
 
@@ -251,6 +262,7 @@ impl DestinationMode {
             DestinationPhase::Choosing => self.choose(runtime, pressed),
             DestinationPhase::Confirmed => (self.confirmed_frame(pad), None),
             DestinationPhase::Closing => (self.closing_frame(), None),
+            DestinationPhase::Fading => (DestinationOutcome::Open, None),
         }
     }
 
@@ -287,7 +299,14 @@ impl DestinationMode {
             // `btst #4` tests Cancel first (`ps4.asm:133617`).
             if pressed.held(Button::Cancel) {
                 self.view.phase = DestinationPhase::Closing;
-                self.closing = Some((CANCEL_CLOSE_FRAMES, None));
+                self.closing = Some((
+                    if self.shared_route {
+                        CANCEL_PRE_FADE_FRAMES
+                    } else {
+                        CANCEL_CLOSE_FRAMES
+                    },
+                    None,
+                ));
                 return (DestinationOutcome::Open, None);
             }
             // With no row there is nothing to confirm: the cartridge would
@@ -346,7 +365,14 @@ impl DestinationMode {
         if let Some(left) = self.tail {
             if left <= 1 {
                 self.view.phase = DestinationPhase::Closing;
-                self.closing = Some((CONFIRM_CLOSE_FRAMES, self.view.selected_world()));
+                self.closing = Some((
+                    if self.shared_route {
+                        CONFIRM_PRE_FADE_FRAMES
+                    } else {
+                        CONFIRM_CLOSE_FRAMES
+                    },
+                    self.view.selected_world(),
+                ));
                 return DestinationOutcome::Open;
             }
             self.tail = Some(left - 1);
@@ -364,7 +390,8 @@ impl DestinationMode {
         DestinationOutcome::Open
     }
 
-    /// The teardown: nothing is read, and the answer lands when it ends.
+    /// The pre-fade teardown: nothing is read; the scene takes its answer at
+    /// the fade boundary, retaining the background through its post-fade setup.
     fn closing_frame(&mut self) -> DestinationOutcome {
         let Some((left, answer)) = self.closing else {
             return DestinationOutcome::Cancelled;
@@ -435,22 +462,35 @@ impl Session {
             // `Sound_StopSpcSFX` goes out once, on the frame the wait begins.
             (mode.tail == Some(CONFIRM_WAIT_FRAMES)).then_some(SOUND_STOP_SPC_SFX)
         });
-        match outcome {
-            DestinationOutcome::Open => {}
-            DestinationOutcome::Chosen(world) => {
+        if outcome != DestinationOutcome::Open {
+            let shared = mode.shared_route;
+            if shared {
+                self.runtime.destination_palette(mode.view.palette());
+                mode.view.phase = DestinationPhase::Fading;
+            } else {
                 self.destination = None;
-                self.runtime.answer_destination(Some(world));
             }
-            DestinationOutcome::Cancelled => {
-                self.destination = None;
-                self.runtime.answer_destination(None);
-            }
+            self.runtime.answer_destination(match outcome {
+                DestinationOutcome::Chosen(world) => Some(world),
+                _ => None,
+            });
         }
         // The scene is blocked on the menu, so the field is parked as it is
         // behind any window; the tick spends the frame (and, on the frame the
         // menu answers, lets the scene take its answer).
         self.runtime.set_field_suspended(self.destination.is_some());
         let events = self.runtime.tick(Input::Neutral);
+        if events.iter().any(|event| {
+            matches!(
+                event,
+                crate::RuntimeEvent::MapChanged { .. }
+                    | crate::RuntimeEvent::SceneEnded
+                    | crate::RuntimeEvent::SceneFaulted { .. }
+            )
+        }) {
+            self.destination = None;
+            self.runtime.set_field_suspended(false);
+        }
         let (events, routed) = self.route(events);
         Frame {
             mode: FrameMode::Destination,

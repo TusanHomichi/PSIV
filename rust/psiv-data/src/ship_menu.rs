@@ -288,7 +288,27 @@ impl ShipMenu {
     /// CRAM lines 2 and 3 are not in the picture: the windows draw them.
     #[must_use]
     pub fn render(&self, covers: usize, state: ShipPalette) -> Option<Vec<u8>> {
-        let background = self.background(covers)?;
+        let palette = self.colours(state);
+        self.render_colours(covers, &palette)
+    }
+
+    /// The live first two CRAM lines at `loc_64144`, including marker rewrites.
+    #[must_use]
+    pub fn palette_words(&self, state: ShipPalette) -> Option<[u16; 32]> {
+        let mut words = [0; 32];
+        for (word, colour) in words.iter_mut().zip(self.colours(state)) {
+            *word = crate::color::cram_word(colour)?;
+        }
+        Some(words)
+    }
+
+    /// Render the same indexed background through the runtime's fading CRAM.
+    #[must_use]
+    pub fn render_cram(&self, covers: usize, words: &[u16; 32]) -> Option<Vec<u8>> {
+        self.render_colours(covers, &words.map(crate::color::cram_rgb))
+    }
+
+    fn colours(&self, state: ShipPalette) -> Vec<[u8; 3]> {
         let mut palette = self.palette.clone();
         if state.dark {
             for word in DARK_WORDS {
@@ -298,6 +318,11 @@ impl ShipMenu {
         if let Some(world) = state.highlight_world {
             palette[HIGHLIGHT_BASE_WORD + usize::from(world & 7)] = self.highlight;
         }
+        palette
+    }
+
+    fn render_colours(&self, covers: usize, palette: &[[u8; 3]]) -> Option<Vec<u8>> {
+        let background = self.background(covers)?;
         let mut pixels = Vec::with_capacity(background.len() * 4);
         for &index in background {
             let [r, g, b] = palette
@@ -313,6 +338,41 @@ impl ShipMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_cram_renders_the_same_markers_and_can_fade_to_black() {
+        let mut menu = menu();
+        menu.palette = (0..32).map(|n| crate::color::cram_rgb(n * 2)).collect();
+        menu.dark = crate::color::cram_rgb(0x400);
+        menu.highlight = crate::color::cram_rgb(0xEEE);
+        for dark in [false, true] {
+            for highlight_world in [None, Some(1)] {
+                let state = ShipPalette {
+                    dark,
+                    highlight_world,
+                };
+                let words = menu.palette_words(state).unwrap();
+                assert_eq!(menu.render(0, state), menu.render_cram(0, &words));
+                assert_eq!(
+                    words[14],
+                    if dark {
+                        0x400
+                    } else {
+                        crate::color::cram_word(menu.palette[14]).unwrap()
+                    }
+                );
+                if highlight_world.is_some() {
+                    assert_eq!(words[8], 0xEEE);
+                }
+            }
+        }
+        assert!(
+            menu.render_cram(0, &[0; 32])
+                .unwrap()
+                .chunks_exact(4)
+                .all(|pixel| pixel == [0, 0, 0, 255])
+        );
+    }
 
     fn menu() -> ShipMenu {
         let mut palette = vec![[1, 2, 3]; 32];

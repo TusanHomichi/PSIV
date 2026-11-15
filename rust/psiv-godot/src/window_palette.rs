@@ -117,13 +117,10 @@ impl WindowNode {
 /// each is on the ramps. The guild's lines are carried as colours; this is
 /// what they draw while no live palette is known.
 pub(crate) fn cram_words(colours: &[[u8; 3]]) -> Option<[u16; 16]> {
-    use psiv_data::color::{RAMP_B, RAMP_G, RAMP_R};
-    let level = |ramp: &[u8; 8], value: u8| ramp.iter().position(|&level| level == value);
     let colours: &[[u8; 3]; 16] = colours.try_into().ok()?;
     let mut words = [0u16; 16];
-    for (word, &[r, g, b]) in words.iter_mut().zip(colours) {
-        let (r, g, b) = (level(&RAMP_R, r)?, level(&RAMP_G, g)?, level(&RAMP_B, b)?);
-        *word = ((b as u16) << 9) | ((g as u16) << 5) | ((r as u16) << 1);
+    for (word, &colour) in words.iter_mut().zip(colours) {
+        *word = psiv_data::color::cram_word(colour)?;
     }
     Some(words)
 }
