@@ -53,7 +53,7 @@ impl TextPlane {
         for (x, ch) in text.chars().take(32).enumerate() {
             for half in 0..2 {
                 self.patterns
-                    .insert((base + (x * 2 + half) as u16) & 0x7FF, (ch, half));
+                    .insert((base + (x * 2 + half) as u16) & 0x7FF, (ch, half as u8));
             }
         }
         Ok(())
