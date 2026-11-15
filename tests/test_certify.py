@@ -36,9 +36,11 @@ BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-loop-white"]
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
+ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
-         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"])
+         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
+         + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -114,7 +116,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page"])
+                                   "retained-window-page", *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
@@ -163,6 +165,28 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7000:FFFFEC28:0073", recipe["patches"])
         # The text window's box: (3,20) 34x6 cells, in pixels.
         self.assertEqual(recipe["region"], [24, 160, 272, 48])
+
+    def test_eclipse_torch_pairs_certify_both_white_flashes_from_one_fixture(self):
+        flashes = [p for p in certify.PAIRS if p[0] in ECLIPSE_TORCH]
+        self.assertEqual([p[0] for p in flashes], ECLIPSE_TORCH)
+        for name, env, _, frame, _, recipe in flashes:
+            with self.subTest(pair=name):
+                # `Event_EclipseTorchUsed` (#593): the session's `$47` fixture
+                # against tape 46's Dezolis reload and event entry.
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x47", **certify.SCENE})
+                self.assertIs(recipe, certify.TAPE_46)
+                self.assertTrue(frame.startswith("build/certify/oracle/eclipse-torch-white/"))
+        recipe = certify.TAPE_46
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertIn("7000:FFFFEC28:0001", recipe["patches"])
+        self.assertIn("7000:FFFFF400:0001", recipe["patches"])
+        self.assertEqual(recipe["patches"][-2:], ["7224:FFFFECA8:0047", "7224:FFFFEC20:000C"])
+        self.assertEqual(recipe["region"], [1, 1, 319, 223])
+        # The two fills, 42 frames apart on both sides: ticks 152 and 195
+        # sit in the native white plateaus, frames 7355 and 7396 in the tape's.
+        self.assertEqual([p[2] for p in flashes], [152, 195])
+        self.assertEqual(recipe["frames"], [7355, 7396])
+        self.assertEqual(flashes[0][4], flashes[1][4])
 
     def test_rykros_tone_pairs_share_one_run_at_one_tick_offset(self):
         tone = [p for p in certify.PAIRS if p[0] in RYKROS_TONE]

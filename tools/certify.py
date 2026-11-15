@@ -346,6 +346,24 @@ TAPE_45 = {
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
 # hashes recorded in SCENE_PRESENTATION.md and oracle/README.md.
+# Tape 46: `Event_EclipseTorchUsed` (`$47`) on foot on Dezolis (#593). Frame 7000
+# reloads Dezolis ($001, World_Index 1) with Chaz at ($BA0, $F0), below the
+# trigger, EventFlag_Snowstorm ($80) and EventFlag_Lashiec ($9B) set; 7224 sets
+# Event_Index. The flashes fill the buffer white in frames 7353 and 7395 (shown
+# 7354-7356 and 7396; in the second, a snowstorm map update rewrites words
+# 19-22 before the restore). Clone ticks 152 and 194-196 show the native
+# fills. Only the white frames certify: the restore frames' plane A, sprites
+# and line 3 are panel `$10D`'s, which the pack does not decode (#413).
+TAPE_46 = {
+    "tape": "oracle/tapes/46_eclipse_torch_flash.tape",
+    "patches": ["7000:FFFFEC28:0001", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF400:0001", "7000:FFFFF406:0BA0",
+                "7000:FFFFF408:00F0", "7000:FFFFF110:80", "7000:FFFFF113:10",
+                "7224:FFFFECA8:0047", "7224:FFFFEC20:000C"],
+    "frames": [7355, 7396],
+    "region": [1, 1, 319, 223],  # The field surface edge, #409.
+}
+
 PAIRS = [
     ("opening-p1", OPENING, 3550,
      "oracle/frames/opening/frame_4000.png",
@@ -508,6 +526,14 @@ PAIRS = [
     ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
      "build/certify/oracle/retained-window-page/frame_7797.png",
      "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
+    # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
+    # ticks 151 and 193, each shown the tick after.
+    ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 152,
+     "build/certify/oracle/eclipse-torch-white/frame_7355.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
+    ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 195,
+     "build/certify/oracle/eclipse-torch-white/frame_7396.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

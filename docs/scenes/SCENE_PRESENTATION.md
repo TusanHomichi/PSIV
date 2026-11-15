@@ -185,6 +185,30 @@ these isolated fixtures do not certify the complete windup/recovery or a campaig
 Each battle pair names a `Session` fixture (`PSIV_DEBUG_BATTLE_WINDOW`,
 `rust/psiv-runtime/src/session/battle/fixture.rs`).
 
+`Event_EclipseTorchUsed`'s two white flashes joined them with
+[#593](https://github.com/TusanHomichi/PSIV/issues/593), against tape 46's
+Dezolis fixture (`TAPE_46`), both inside `1,1,319,223`:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `eclipse-torch-white` | **0.000000** | clone t152 (`PSIV_DEBUG_EVENT=0x47`) ↔ tape-46 frame 7355: the first fill, shown 7354-7356 |
+| `eclipse-torch-white-2` | **0.000000** | clone t195 ↔ tape-46 frame 7396: the second fill, 42 frames later on both sides |
+
+The restore frames between them don't certify. On the cartridge, panel
+`$10D` replaces plane A, hides the sprites and loads line 3, but the pack
+does not decode the panel
+([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+frames keep the field's foreground, Chaz and line 3. The fixture's
+`Main_Frame_Count` phase is not the tape's either: the native's snowstorm
+write lands in its first flash, the tape's in its second. Run with the
+tape's phase (three idle ticks before the event, `runtime_at` on the same
+map, flags and leader), the runtime's CRAM words 0-47 equal the tape's
+`Palette_Table_Buffer` on every frame from five before the first fill to the
+end of the second restore. That includes the snowstorm words the second
+flash's map update rewrites. From the object art's load on, the cartridge's
+eight lag frames ([#681](https://github.com/TusanHomichi/PSIV/issues/681))
+leave the native eight frames early.
+
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension
 first); it pins each pair's clone tick and oracle-frame hash and writes a receipt
 under `build/certify/`. The oracle frames regenerate from their tapes and are
