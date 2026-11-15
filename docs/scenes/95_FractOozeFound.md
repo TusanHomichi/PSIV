@@ -36,8 +36,9 @@ frame after) and calling `Pal_IncreaseTone`. The band covers the portrait by
 the battle on 7815, which holds white until 7856 and fades the battle in from
 7857.
 
-The port closes the window with the text and draws the battle stage on the
-next tick (`PSIV_DEBUG_EVENT=0x7D`: the last page through tick 513, the stage
+The port keeps the last page and portrait available while the scene runs
+([window lifetime](DIALOGUE_CALLERS.md#the-routines-and-their-windows)), but
+draws the battle stage over the field on the next tick (`PSIV_DEBUG_EVENT=0x7D`: the last page through tick 513, the stage
 from 514), with no band, tone or white hold
 ([source notes](../source-notes/README.md#other-recorded-deviations)). The
 `retained-window-page` pair certifies the last page over the window's box,

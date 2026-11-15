@@ -159,15 +159,6 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **`Event_RunDialogue2`'s windows close when their text ends (#644).** The
-  routine (`$5ACDC`, `DialogueWindow::Retained`) returns without destroying
-  the text window or its portrait, and every caller goes on to a battle or a
-  map change, so the window shows until that mode redraws the planes. The
-  port closes it when the text ends. It holds a last page only for the
-  ending's first window (`$078F68..$078F90`, #636), which the scene destroys
-  itself at `$078FAE..$078FCC` ([89_Ending.md](../scenes/89_Ending.md)).
-  Tape 45 shows a `Retained` window staying up under an event battle's band
-  (the event-battle bullet below).
 - **The staff roll's fade out stops at `u16::MAX` frames (#638).**
   `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
   `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
