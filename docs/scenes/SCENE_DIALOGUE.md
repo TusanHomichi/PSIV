@@ -88,7 +88,17 @@ text draws every later portrait at the talk position (#630). `psiv-core`'s
 `scenes::panel_byte_census` holds every registered scene to its documented
 bytes: each `move.b #1` (`11FC 0001 ECFD`) and `clr.b` (`4238 ECFD`) to the byte
 is a `SetRenderSpritesInCutscene` of the same value, in the same order.
-The window routine's exit fade cadence has not been compared with the oracle.
+`Event_GetAndRunDialogue5` and `Event_RunDialogue5` (`$05ADF8..$05AE72`,
+`ps4.asm:121718-121747`) destroy their text windows, run
+`PalFadeOut_ClrSpriteTbl`, then destroy the panels and clear that byte. The
+runtime's shared dialogue return (`dialogue/close.rs`) waits for the CRAM
+program before releasing the scene, for both `Cutscene` and `Cutscene5`,
+including `$F7` suspensions. Panels stay up through the fade, and the display
+stays off until a later enable. The pack regression follows Alshline's
+`$0743EA` resume through its map reload and Igglanova construction to
+`$074494`'s explicit enable, with a non-fading-window negative control.
+This proves state and frame accounting; the whole exit cadence has not been
+compared with the oracle.
 
 The extracted palette copy's NPC sheet replacements (`deferred_effects`) are
 kept by the data reader and selected by the map-effect gate, so Zema's seven

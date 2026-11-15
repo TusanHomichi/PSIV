@@ -188,10 +188,11 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `scenes::dark_display` lists every scene
   that ends dark and fails on a window drawn dark. A field load sets the bit
   at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
-  cover draws that frame black either way. The dialogue windows that fade out
-  as they close (`Event_GetAndRunDialogue5`, `Event_RunDialogue5`) run no fade
-  on the CRAM and leave the bit set, so `Cutscene_Alshline`'s
-  `VDP_EnableDisplay` (`$074494`) finds it already on (#670).
+  cover draws that frame black either way. The dialogue windows' own
+  `Event_GetAndRunDialogue5` / `Event_RunDialogue5` fade now runs on CRAM
+  before the scene returns ([dialogue close](../scenes/SCENE_DIALOGUE.md#field-entrance-and-panel-cleanup));
+  Alshline's map reload and Igglanova construction remain dark until its
+  `VDP_EnableDisplay` at `$074494` (#670).
 - **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
   After `Event_GirlsSneakingOut` the inn draws the bill's window
   (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60

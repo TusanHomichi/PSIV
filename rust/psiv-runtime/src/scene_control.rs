@@ -130,7 +130,7 @@ impl Runtime {
     /// Hands the running scene the bytes at `(a0)` and `-$2(a0)` around
     /// `Saved_Dialogue_Addr` that the dialogue just closed on
     /// (`BranchIfSavedDialogueByte`).
-    fn sync_dialogue_stop_byte(&mut self) {
+    pub(crate) fn sync_dialogue_stop_byte(&mut self) {
         let byte = self.dialogue.stop_byte();
         let last = self.dialogue.last_byte();
         if let Some(runner) = self.scene.as_mut() {
@@ -260,18 +260,12 @@ impl Runtime {
 
     /// The renderer reports the scene-requested dialogue window has closed.
     pub(crate) fn dialogue_closed(&mut self) {
-        if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
-            self.scene_input = SceneInput::DialogueClosed;
-            self.sync_dialogue_stop_byte();
-        }
+        self.return_from_dialogue(true);
     }
 
     /// The renderer reached FF, with no suspended F7 cursor left to resume.
     pub(crate) fn dialogue_ended(&mut self) {
-        if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
-            self.scene_input = SceneInput::DialogueEnded;
-            self.sync_dialogue_stop_byte();
-        }
+        self.return_from_dialogue(false);
     }
 
     /// True while the ending waits for its final Start press, the state in

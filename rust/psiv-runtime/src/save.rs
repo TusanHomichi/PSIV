@@ -173,6 +173,7 @@ pub(super) fn construct_runtime(
         dialogue_answer: None,
         scene_choice_pending: false,
         dialogue: super::dialogue::DialogueRunner::with_pack(dialogue_pack),
+        dialogue_close: None,
         scene_tree_address: None,
         scene_panel_sprites: false,
         quake: None,

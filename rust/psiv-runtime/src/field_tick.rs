@@ -48,6 +48,10 @@ impl Runtime {
         if self.teleport_tail.is_some() {
             return self.tick_teleport();
         }
+        let mut dialogue_events = Vec::new();
+        if self.tick_dialogue_close(&mut dialogue_events) {
+            return dialogue_events;
+        }
         self.tick_camera_glide();
         if self.scene.is_some() {
             // The frame the mode dispatcher spends entering event mode.
@@ -59,7 +63,8 @@ impl Runtime {
                 .scene
                 .as_ref()
                 .is_some_and(psiv_core::SceneRunner::completes_map_update_loop);
-            let events = self.scene_tick(input);
+            let mut events = dialogue_events;
+            events.extend(self.scene_tick(input));
             if (motion_frame
                 || self
                     .scene

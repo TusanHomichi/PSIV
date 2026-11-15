@@ -35,6 +35,7 @@
 //! refactor.
 
 mod choice;
+pub(crate) mod close;
 pub mod glue;
 mod open;
 mod selection;
