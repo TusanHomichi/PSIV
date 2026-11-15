@@ -117,14 +117,14 @@
         {"do": "rest_inn", "face": "up", "note": "rune-dorin ends with the party fallen; rest before training"},
         {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (22,40) on map 0x46"},
         {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "native leg: walk to (22,56) on map 0x41; arrival (151,89)"},
-        {"do": "patrol", "map": 0, "a": [145, 89], "b": [151, 95], "until": {"party_level_at_least": 6}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [145, 89], "b": [151, 95], "until": {"party_level_at_least": 7}, "refuge": [
           {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "Tonoe's gate is on the strip"},
           {"do": "go_to_map", "map": 70, "via_warp": 8},
           {"do": "go_to", "map": 70, "cell": [20, 32]},
           {"do": "rest_inn", "face": "up", "note": "60 meseta; the party rests when a member falls or the healers run dry"},
           {"do": "go_to_map", "map": 65, "via_warp": 0},
           {"do": "go_to_map", "map": 0, "via_warp": 3}
-        ], "note": "the basement's fights take most of a level-3 member's HP in one round (RUNNER_LOG (commit 0faa91b^) H12); the only ground reachable from Tonoe's gate without a warp is this strip, so the party trains on it to the level zema-training later reaches"},
+        ], "note": "the basement's fights take most of a level-3 member's HP in one round (RUNNER_LOG (commit 0faa91b^) H12); the only ground reachable from Tonoe's gate without a warp is this strip, so the party trains on it to the level zema-training later reaches. Level 7 since #663: the event battles' opening rolls moved after their entry, the battle stream with them, and at level 6 the party fell in the Alshline basement, which it crosses running with no inn"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -238,7 +238,7 @@
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
         {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
-        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 7, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; 1180 meseta is the driver default and level 6 was (PSIV_TRAIN_LEVEL). Level 7 since #49 (2026-11-08): the shop and inn farewells cost their frames, the battle stream moved, and at level 6 the party lost encounter $187 in bioplant-rika; at 7 the whole route completes. Played: the condition holds after dozens of battles (RUNNER_LOG (commit 0faa91b^) run R1-4); the runner cures the party between battles through the camp"},
+        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 8, "money_at_least": 1180}, "note": "source drivers walked (23,17)<->(24,46) for 64 wins; 1180 meseta is the driver default and level 6 was (PSIV_TRAIN_LEVEL). Level 7 since #49 (2026-11-08): the shop and inn farewells cost their frames, the battle stream moved, and at level 6 the party lost encounter $187 in bioplant-rika; at 7 the whole route completes. Level 8 since #663: the event battles' opening rolls moved after their entry, basement-training now ends at 7, and at 7 the party fell in bioplant-rika again. Played: the condition holds after dozens of battles (RUNNER_LOG (commit 0faa91b^) run R1-4); the runner cures the party between battles through the camp"},
         {"do": "go_to_map", "map": 43, "via_warp": 0, "note": "native leg: walk to (24,49) on map 0x2c"},
         {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (17,53) on map 0x2b"},
         {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},
