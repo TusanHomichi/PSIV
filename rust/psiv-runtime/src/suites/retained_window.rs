@@ -77,7 +77,7 @@ fn check_exit(window: DialogueWindow, resume: bool) {
     }
     ops.extend([
         SceneOp::WaitFrames { frames: 8 },
-        SceneOp::Return { value: 0 },
+        SceneOp::Return { value: 1 },
     ]);
     let scene = Box::leak(Box::new(Scene {
         name: "window exit fixture",
@@ -191,6 +191,11 @@ fn air_castle_removes_the_torch_and_runs_all_five_records_on_the_close_frame() {
         return;
     }
     let mut runtime = runtime_on(0x187, [Some(CharId(0)), None, None, None, None], &[]);
+    runtime
+        .game
+        .inventory_mut()
+        .add(0x8E)
+        .expect("Eclipse Torch");
     assert!(runtime.start_event(0x5A));
     let mut pad = Pad::NEUTRAL;
     for _ in 0..10_000 {
@@ -223,6 +228,7 @@ fn air_castle_removes_the_torch_and_runs_all_five_records_on_the_close_frame() {
                     .iter()
                     .any(|e| matches!(e, RuntimeEvent::SceneBattleStarted { index: 0xF, .. }))
             );
+            assert!(!runtime.game.inventory().get_item(0x8E));
             assert_held(&last.expect("last open page"), runtime.dialogue_view());
             return;
         }
