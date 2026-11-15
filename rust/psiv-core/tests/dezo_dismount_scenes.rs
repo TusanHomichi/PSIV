@@ -175,13 +175,17 @@ const KYRA_MOUNTED: &[&str] = &[
     "dialogue 34, frame",
     // `loc_70908`.
     "sound A9, map",
-    "panel 98, dialogue 26, frame",
+    // `loc_70908`: the panel's `DMAPlanes_VInt` precedes dialogue `$26`.
+    "panel 98, frame",
+    "dialogue 26, frame",
     "flag 95, battle 0A, frame",
 ];
 /// `beq.w loc_70908`: straight to the Red Alert.
 const KYRA_ON_FOOT: &[&str] = &[
     "sound A9, map",
-    "panel 98, dialogue 26, frame",
+    // `loc_70908`: the panel's `DMAPlanes_VInt` precedes dialogue `$26`.
+    "panel 98, frame",
+    "dialogue 26, frame",
     "flag 95, battle 0A, frame",
 ];
 
@@ -215,6 +219,23 @@ fn saving_kyra_dismounts_frame_by_frame_and_keeps_its_on_foot_branch() {
     let on_foot = check(ops, false, KYRA_ON_FOOT).unwrap();
     assert_eq!(on_foot.vehicle, 0);
     assert_eq!(on_foot.flags, [0x95]);
+}
+
+/// Negative control for the panel DMA: omitting its `VInt_Prepare` frame
+/// opens dialogue `$26` on the panel's frame, before retail does.
+#[test]
+fn saving_kyra_rejects_a_panel_dma_that_spends_no_frame() {
+    let mut ops = scene("Event_SavingKyra").to_vec();
+    let dma = ops
+        .iter()
+        .position(|op| matches!(op, SceneOp::DmaPlanes))
+        .unwrap();
+    ops[dma] = SceneOp::Wait { ticks: 0 };
+    let ops = Box::leak(ops.into_boxed_slice());
+    assert_eq!(
+        check(ops, false, KYRA_ON_FOOT).unwrap_err(),
+        r#"frame 1: Some("panel 98, dialogue 26, frame"), expected Some("panel 98, frame")"#
+    );
 }
 
 /// Mounted, the three dismount frames come first; after them the scene is
@@ -314,7 +335,7 @@ fn control_the_old_transitions_fail_their_frame_checks() {
         old.frames,
         [
             "saved 99, sound FD, sprites, vehicle 0, map",
-            "panel 10D, map",
+            "panel 10D, frame",
             "map"
         ]
     );

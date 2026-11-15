@@ -184,16 +184,22 @@ fn the_eclipse_torch_flashes_twice_and_restores_the_cram() {
         );
         assert_eq!(flash_failures(&ticks, fill), Vec::<String>::new());
     }
-    // The panel's `DoMapUpdateLoop($77)` ends on the tick before the first
-    // fill: 120 map updates from the panel's tick.
+    // The panel's DMA (`$070230`) spends one bare frame, then
+    // `DoMapUpdateLoop($77)` spends 120 map-update frames before the fill.
     let panel = ticks
         .iter()
         .position(|tick| tick.emits(|op| matches!(op, SceneOp::PanelCreate { id: 0x10D })))
         .expect("the panel");
-    assert_eq!(fills[0] - panel, 120);
+    assert!(ticks[panel].emits(|op| matches!(op, SceneOp::DmaPlanes)));
+    assert_eq!(ticks[panel].calls, ticks[panel - 1].calls);
+    assert_eq!(fills[0] - panel, 1 + 120);
     assert_eq!(ticks[fills[0] - 1].calls - ticks[panel - 1].calls, 120);
-    // The creations on the tick after the second restore.
-    let objects = fills[1] + 42;
+    // After the second 2 + 40 flash frames, destroying the panel runs
+    // `DMAPlanes_VInt` (`$0702C8`): one bare frame before the creations.
+    let dma = fills[1] + 2 + 40;
+    assert!(ticks[dma].emits(|op| matches!(op, SceneOp::DmaPlanes)));
+    assert_eq!(ticks[dma].calls, ticks[dma - 1].calls);
+    let objects = dma + 1;
     let created = ticks[objects]
         .events
         .iter()

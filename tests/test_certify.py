@@ -164,9 +164,13 @@ class PairTableCase(unittest.TestCase):
         pairs = {p[0]: p for p in certify.PAIRS}
         rykros = pairs["rykros-palette-cycle"]
         zio = pairs["zio-barrier-ramp"]
-        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1323))
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1327))
         self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
         self.assertNotIn("region", rykros[5])
+        portrait = pairs["rykros-portrait"]
+        self.assertEqual((portrait[1]["PSIV_DEBUG_EVENT"], portrait[2]), ("0x801b", 1004))
+        self.assertEqual(portrait[3], "build/certify/oracle/rykros-portrait/frame_8216.png")
+        self.assertNotIn("region", portrait[5])
         self.assertEqual(zio[5]["region"], [1, 1, 319, 223])
         self.assertEqual(rykros[5]["frames"], [8580])
         self.assertEqual(zio[5]["frames"], [7462])
@@ -197,7 +201,8 @@ class PairTableCase(unittest.TestCase):
             with self.subTest(pair=name):
                 # `Event_EclipseTorchUsed` (#593): the session's `$47` fixture
                 # against tape 46's Dezolis reload and event entry.
-                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x47", **certify.SCENE})
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35",
+                                       **certify.SCENE})
                 self.assertIs(recipe, certify.TAPE_46)
                 self.assertTrue(frame.startswith("build/certify/oracle/eclipse-torch-white/"))
         recipe = certify.TAPE_46
@@ -206,25 +211,29 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7000:FFFFF400:0001", recipe["patches"])
         self.assertEqual(recipe["patches"][-2:], ["7224:FFFFECA8:0047", "7224:FFFFEC20:000C"])
         self.assertEqual(recipe["region"], [1, 1, 319, 223])
-        # The two fills, 42 frames apart on both sides: ticks 152 and 195
-        # sit in the native white plateaus, frames 7355 and 7396 in the tape's.
-        self.assertEqual([p[2] for p in flashes], [152, 195])
+        # The panel DMA spends one bare frame before the 120 map updates.
+        # Five extra ordinary idle frames align the native palette phase with
+        # tape 46: sample the second frame of the first fill and the first
+        # of the second, with the original oracle frames and hashes.
+        self.assertEqual([p[2] for p in flashes], [159, 200])
         self.assertEqual(recipe["frames"], [7355, 7396])
         self.assertEqual(flashes[0][4], flashes[1][4])
 
-    def test_rykros_tone_pairs_share_one_run_at_one_tick_offset(self):
+    def test_rykros_tone_pairs_share_one_run_and_pin_each_plateau(self):
         tone = [p for p in certify.PAIRS if p[0] in RYKROS_TONE]
         self.assertEqual([p[0] for p in tone], RYKROS_TONE)
         for name, env, tick, frame, _, recipe in tone:
             with self.subTest(pair=name):
                 self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x801b", **certify.SCENE})
                 self.assertIs(recipe, certify.TAPE_43_TONE)
-                # Clone tick t shows tape 43's frame t + 7215 once the first
-                # dialogue's portraits spend their frames (#625) and the
-                # scene's `InitVRAMAndCRAM` and `Pal_FadeIn` their 31 (#637).
-                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7215}.png")
-        # Before, a step up, a step back, after: each inside its plateau.
-        self.assertEqual([p[2] for p in tone], [926, 942, 970, 986])
+                self.assertTrue(frame.startswith("build/certify/oracle/rykros-tone/"))
+        # Three explicit DMA frames precede the tone. Its and the restore's
+        # steps follow Main_Frame_Count modulo four, so the restored plateau
+        # still matches at 970; a uniform +3 shift would capture a later step.
+        self.assertEqual([p[2] for p in tone], [929, 945, 970, 989])
+        self.assertEqual([p[3] for p in tone],
+                         [f"build/certify/oracle/rykros-tone/frame_{at}.png"
+                          for at in [8141, 8157, 8185, 8201]])
         self.assertEqual(certify.TAPE_43_TONE["frames"], [8141, 8157, 8185, 8201])
         self.assertEqual(certify.TAPE_43_TONE["patches"], certify.TAPE_43["patches"])
         self.assertEqual(certify.TAPE_43_TONE["tape"], certify.TAPE_43["tape"])
