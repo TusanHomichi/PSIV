@@ -7,9 +7,8 @@
 //! (`$05A2B4`); the clone's labels are navigation only.
 
 use super::vahal_common::{
-    PLATFORM_SETTLE_FRAMES, SFX_ALARM, SFX_ANDROID_SKILL_IMPLANT, SFX_CHEST_OPENED,
-    SFX_CONVEYOR_BELT, SFX_POWER_DOWN, SOUND_STOP_SFX, platform_object, ride, set_event, sound,
-    standard, test_temp, toggle_temp, wait,
+    PlatformRow, SFX_ALARM, SFX_ANDROID_SKILL_IMPLANT, SFX_CHEST_OPENED, SFX_POWER_DOWN, platform,
+    set_event, sound, standard, toggle_temp, wait,
 };
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, RIKA, RUNE, SETH, WREN};
 use crate::geom::Direction;
@@ -269,50 +268,24 @@ pub static VAHAL_FORT_TERMINAL: Scene = Scene {
 pub static VAH_FORT_MOVING_PLATFORM_1: Scene = Scene {
     name: "Event_VahFortMovingPlatform1",
     event: EventIndex(0x0015),
-    ops: &[
-        test_temp(0x09, 12, 1),
+    ops: &platform(
+        PLATFORM_SLOT,
+        0x09,
         // Flag clear: start row 0, ride row 0.
-        platform_object(PLATFORM_SLOT, 0x2C0, 0x220),
-        SceneOp::OverlapCharacters,
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 17, 0xC2), (23, 17, 0xC3)],
+        PlatformRow {
+            object: (0x2C0, 0x220),
+            start: &[(22, 17, 0xC2), (23, 17, 0xC3)],
+            ride: (0x0200, 80),
+            end: &[(22, 22, 0xCC), (23, 22, 0xCD)],
         },
-        SceneOp::WaitFrames {
-            frames: PLATFORM_SETTLE_FRAMES,
-        },
-        sound(SFX_CONVEYOR_BELT),
-        ride(PLATFORM_SLOT, 0x0200, 80),
-        toggle_temp(0x09),
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 22, 0xCC), (23, 22, 0xCD)],
-        },
-        SceneOp::DespawnNpc {
-            npc_index: PLATFORM_SLOT,
-            count: 1,
-        },
-        sound(SOUND_STOP_SFX),
-        SceneOp::End,
         // Flag set: start row 1, ride row 1.
-        platform_object(PLATFORM_SLOT, 0x2C0, 0x2C0),
-        SceneOp::OverlapCharacters,
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 22, 0xC0), (23, 22, 0xC1)],
+        PlatformRow {
+            object: (0x2C0, 0x2C0),
+            start: &[(22, 22, 0xC0), (23, 22, 0xC1)],
+            ride: (-0x0200, 80),
+            end: &[(22, 17, 0xCC), (23, 17, 0xCD)],
         },
-        SceneOp::WaitFrames {
-            frames: PLATFORM_SETTLE_FRAMES,
-        },
-        sound(SFX_CONVEYOR_BELT),
-        ride(PLATFORM_SLOT, -0x0200, 80),
-        toggle_temp(0x09),
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 17, 0xCC), (23, 17, 0xCD)],
-        },
-        SceneOp::DespawnNpc {
-            npc_index: PLATFORM_SLOT,
-            count: 1,
-        },
-        sound(SOUND_STOP_SFX),
-    ],
+    ),
 };
 
 /// `$0016`, `Event_VahFortMovingPlatform2`, retail `$06C608..$06C797`: the
@@ -321,48 +294,22 @@ pub static VAH_FORT_MOVING_PLATFORM_1: Scene = Scene {
 pub static VAH_FORT_MOVING_PLATFORM_2: Scene = Scene {
     name: "Event_VahFortMovingPlatform2",
     event: EventIndex(0x0016),
-    ops: &[
-        test_temp(0x0A, 12, 1),
+    ops: &platform(
+        PLATFORM_SLOT,
+        0x0A,
         // Flag clear: the platform rests at the bottom and rises.
-        platform_object(PLATFORM_SLOT, 0x2C0, 0x3A0),
-        SceneOp::OverlapCharacters,
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 29, 0xC0), (23, 29, 0xC1)],
+        PlatformRow {
+            object: (0x2C0, 0x3A0),
+            start: &[(22, 29, 0xC0), (23, 29, 0xC1)],
+            ride: (-0x0200, 80),
+            end: &[(22, 24, 0xCC), (23, 24, 0xCD)],
         },
-        SceneOp::WaitFrames {
-            frames: PLATFORM_SETTLE_FRAMES,
-        },
-        sound(SFX_CONVEYOR_BELT),
-        ride(PLATFORM_SLOT, -0x0200, 80),
-        toggle_temp(0x0A),
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 24, 0xCC), (23, 24, 0xCD)],
-        },
-        SceneOp::DespawnNpc {
-            npc_index: PLATFORM_SLOT,
-            count: 1,
-        },
-        sound(SOUND_STOP_SFX),
-        SceneOp::End,
         // Flag set: it rests at the top and sinks.
-        platform_object(PLATFORM_SLOT, 0x2C0, 0x300),
-        SceneOp::OverlapCharacters,
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 24, 0xC0), (23, 24, 0xC1)],
+        PlatformRow {
+            object: (0x2C0, 0x300),
+            start: &[(22, 24, 0xC0), (23, 24, 0xC1)],
+            ride: (0x0200, 80),
+            end: &[(22, 29, 0xCC), (23, 29, 0xCD)],
         },
-        SceneOp::WaitFrames {
-            frames: PLATFORM_SETTLE_FRAMES,
-        },
-        sound(SFX_CONVEYOR_BELT),
-        ride(PLATFORM_SLOT, 0x0200, 80),
-        toggle_temp(0x0A),
-        SceneOp::WriteMapChunks {
-            chunks: &[(22, 29, 0xCC), (23, 29, 0xCD)],
-        },
-        SceneOp::DespawnNpc {
-            npc_index: PLATFORM_SLOT,
-            count: 1,
-        },
-        sound(SOUND_STOP_SFX),
-    ],
+    ),
 };

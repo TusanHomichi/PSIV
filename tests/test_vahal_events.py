@@ -11,9 +11,9 @@ pointer table (`EventPtrs` at `$05A2B4`) and compares it with the literal in the
 scene source:
 
 - each platform's flag, both start rows, both ride rows (chunk ids, step word,
-  coordinates), the frame count the step and the distance imply, and the toggle
-  and sound bytes, against `platform_object`, `ride`, `test_temp`,
-  `toggle_temp` and the two `WriteMapChunks` of each scene half;
+  coordinates), the frame count the step and the distance imply, and the two
+  `DMAPlane_A_VInt` calls, against the `platform(...)` call's flag and its two
+  `PlatformRow`s;
 - the terminals' compare literal, branch sense and flag ids;
 - each belt's axis and sign (the leader destination write) and its chunk range;
 - the chest events' object, dialogue entries, sound and wait sequence, the
@@ -169,6 +169,7 @@ SETTLE = bytes.fromhex("7E3B4EB90004204C51CFFFF8")
 LOOP_SOUND = bytes.fromhex("13FC00E7FFFF500A")
 STOP_SOUND = bytes.fromhex("13FC00FCFFFF500A")
 SHIFT_STEP = bytes.fromhex("48C0E188")  # ext.l d0 / lsl.l #8, d0
+DMA_PLANE_A = bytes.fromhex("4EB900041682")  # jsr DMAPlane_A_VInt
 
 
 def decode_platform(rom: bytes, code: bytes) -> dict:
@@ -196,6 +197,9 @@ def decode_platform(rom: bytes, code: bytes) -> dict:
             problems.append(f"lacks {label}")
     if code.count(LAYOUT_OFFSET) != 2:
         problems.append("does not call GetMapLayoutOffset twice")
+    # One DMA frame after each pair; `platform()` spends one `DmaPlanes` each.
+    if code.count(DMA_PLANE_A) != 2 or DMA_PLANE_A + SETTLE not in code:
+        problems.append("does not end each pair's writes with DMAPlane_A_VInt")
     if STOP_SOUND + bytes.fromhex("4E75") not in code:
         problems.append("does not stop the sound and return")
     sound_at = code.index(LOOP_SOUND)
@@ -233,29 +237,39 @@ def expected_platform_half(rows: dict, state: int) -> dict:
 
 
 def source_platform_halves(text: str, static: str) -> tuple[dict, list[dict]]:
-    """The scene's flag test and its two halves (flag clear, flag set)."""
+    """The scene's `platform(slot, flag, clear, set)` call: its flag and its two rows."""
     block = scene_block(text, static)
-    match = re.search(r"test_temp\(\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", block)
-    assert match, f"{static} has no flag test"
-    flag, if_set, if_clear = num(match.group(1)), int(match.group(2)), int(match.group(3))
-    first_end = block.index("SceneOp::End,")
-    halves = [block[:first_end], block[first_end:]]
+    match = re.search(r"&platform\(\s*PLATFORM_SLOT\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*,", block)
+    assert match, f"{static} is not a platform() call"
+    halves = block.split("PlatformRow {")[1:]
     out = []
     for half in halves:
-        obj = re.search(r"platform_object\(\s*[A-Z_]+\s*,\s*(0x[0-9A-Fa-f]+)\s*,\s*(0x[0-9A-Fa-f]+)\s*\)", half)
-        ride = re.search(r"ride\(\s*[A-Z_]+\s*,\s*(-?0x[0-9A-Fa-f]+)\s*,\s*(\d+)\s*\)", half)
-        writes = chunk_writes(half)
-        toggles = [num(t) for t in re.findall(r"toggle_temp\((0x[0-9A-Fa-f]+|\d+)\)", half)]
+        obj = re.search(r"object:\s*\(\s*(0x[0-9A-Fa-f]+)\s*,\s*(0x[0-9A-Fa-f]+)\s*\)", half)
+        ride = re.search(r"ride:\s*\(\s*(-?0x[0-9A-Fa-f]+)\s*,\s*(\d+)\s*\)", half)
         out.append(
             {
                 "object": (num(obj.group(1)), num(obj.group(2))) if obj else None,
                 "step": num(ride.group(1)) if ride else None,
                 "frames": int(ride.group(2)) if ride else None,
-                "writes": writes,
-                "toggles": toggles,
+                "writes": row_writes(half),
             }
         )
-    return {"flag": flag, "if_set": if_set, "if_clear": if_clear}, out
+    return {"flag": num(match.group(1))}, out
+
+
+def row_writes(half: str) -> list[list[tuple[int, int, int]]]:
+    """A `PlatformRow`'s `start` and `end` pairs, in that order."""
+    out = []
+    for body in re.findall(r"(?:start|end):\s*&\[(.*?)\]", half, re.S):
+        out.append(
+            [
+                (num(a), num(b), num(c))
+                for a, b, c in re.findall(
+                    r"\(\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*\)", body
+                )
+            ]
+        )
+    return out
 
 
 def check_platform(rom: bytes, extents, event: int, text: str, slot: int, static: str) -> list[str]:
@@ -264,8 +278,8 @@ def check_platform(rom: bytes, extents, event: int, text: str, slot: int, static
     head, halves = source_platform_halves(text, static)
     if head["flag"] != decoded["flag"]:
         problems.append(f"${event:02X}: scene tests temp flag ${head['flag']:02X}, retail ${decoded['flag']:02X}")
-    if (head["if_clear"], len(halves[0]["writes"])) != (1, 2):
-        problems.append(f"${event:02X}: the clear half is not ops 1..")
+    if len(halves) != 2:
+        problems.append(f"${event:02X}: {len(halves)} platform rows, retail 2")
     for state, half in enumerate(halves):
         label = f"${event:02X} {static} flag {'set' if state else 'clear'}"
         want = expected_platform_half(decoded["rows"], state)
@@ -285,8 +299,6 @@ def check_platform(rom: bytes, extents, event: int, text: str, slot: int, static
             problems.append(f"{label}: step {half['step']}, retail {want['step']}")
         if half["frames"] != want["frames"]:
             problems.append(f"{label}: {half['frames']} frames, retail distance/step is {want['frames']}")
-        if half["toggles"] != [decoded["flag"]]:
-            problems.append(f"{label}: toggles {half['toggles']}, retail ${decoded['flag']:02X}")
     # The chunks the scene writes are the ones the atlas rows carry.
     return problems
 
@@ -700,7 +712,8 @@ class VahalEvents(unittest.TestCase):
             0x19: "Event_WpnPlntMovingPlatform3", 0x1A: "Event_WpnPlntMovingPlatform4",
         }
         for event, (static, name, _) in PLATFORMS.items():
-            written = {chunk for write in chunk_writes(scene_block(self.text(name), static)) for _, _, chunk in write}
+            _, halves = source_platform_halves(self.text(name), static)
+            written = {chunk for half in halves for write in half["writes"] for _, _, chunk in write}
             row = rows[names[event]]
             self.assertEqual(set(map_patches.chunk_ids(self.rom, row)), written, names[event])
             self.assertEqual(row.map_id, 0x0CA if event < 0x17 else 0x0C5, names[event])
@@ -721,7 +734,7 @@ class NegativeControl(unittest.TestCase):
 
     def test_a_wrong_frame_count_is_named(self) -> None:
         # Weapon Plant platform 2 rides 112 frames; the draft of this scene said 64.
-        mutated = self.plant.replace("ride(PLATFORM_SLOT, 0x0200, 112),", "ride(PLATFORM_SLOT, 0x0200, 64),", 4)
+        mutated = self.plant.replace("ride: (0x0200, 112),", "ride: (0x0200, 64),", 4)
         self.assertNotEqual(mutated, self.plant)
         problems = []
         for event, (static, name, slot) in PLATFORMS.items():
@@ -730,7 +743,7 @@ class NegativeControl(unittest.TestCase):
         self.assertTrue(any("64 frames, retail distance/step is 112" in p for p in problems), problems)
 
     def test_a_moved_chunk_pair_is_named(self) -> None:
-        mutated = self.fort.replace("chunks: &[(22, 17, 0xC2), (23, 17, 0xC3)]", "chunks: &[(22, 17, 0xC2), (23, 17, 0xC4)]")
+        mutated = self.fort.replace("start: &[(22, 17, 0xC2), (23, 17, 0xC3)]", "start: &[(22, 17, 0xC2), (23, 17, 0xC4)]")
         self.assertNotEqual(mutated, self.fort)
         problems = check_platform(self.rom, self.extents, 0x15, mutated, 3, "VAH_FORT_MOVING_PLATFORM_1")
         self.assertTrue(any("start write" in p and "0xC4" not in p for p in problems) or problems, problems)
@@ -760,6 +773,15 @@ class NegativeControl(unittest.TestCase):
         rom[at] = 0x0D
         problems = check_chest(bytes(rom), self.extents, 0x6E, self.plant, self.common)
         self.assertTrue(any("retail writes skill 0xd" in p for p in problems), problems)
+
+    def test_a_platform_without_its_dma_frame_is_named(self) -> None:
+        rom = bytearray(self.rom)
+        # `Event_WpnPlntMovingPlatform2`'s start-pair `DMAPlane_A_VInt` made a `jsr RunMapUpdates`.
+        start, end = self.extents[0x18]
+        at = rom.index(DMA_PLANE_A + SETTLE, start, end)
+        rom[at : at + 6] = rom[at - 6 : at]
+        problems = check_platform(bytes(rom), self.extents, 0x18, self.plant, 5, "WPN_PLNT_MOVING_PLATFORM_2")
+        self.assertTrue(any("DMAPlane_A_VInt" in p for p in problems), problems)
 
     def test_a_wrong_dialogue_entry_is_named(self) -> None:
         mutated = self.fort.replace("ops: &[standard(3), set_event(0xB5)]", "ops: &[standard(4), set_event(0xB5)]")
