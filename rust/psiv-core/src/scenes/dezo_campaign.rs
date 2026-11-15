@@ -280,7 +280,10 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         },
         SceneOp::BranchIfVehicle {
             if_mounted: 2,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70826` (`$07077E`): on foot
+            // skips the dismount and dialogue `$34` and lands on the party
+            // move, op 11.
+            if_on_foot: 11,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::Wait { ticks: 1 },
@@ -290,12 +293,17 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0707A0`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Jump { to: 8 },
+        // `$07080C`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates. The object pass is a recorded
+        // deviation (`docs/source-notes/README.md`, Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
-        // `$070826..$070847`: the leader's Y plus `$20`, written to every
-        // party object; no walk.
+        // `loc_70826`, `$070826..$070847`: the leader's Y plus `$20`,
+        // written to every party object; no walk.
         SceneOp::PlacePartyY { dy: 0x20 },
         SceneOp::StartBattle { index: 0x0A },
         SceneOp::Return { value: 1 },
@@ -308,11 +316,12 @@ pub static SAVING_KYRA: Scene = Scene {
     event: EventIndex(0x004D),
     ops: &[
         SceneOp::BranchIfVehicle {
-            if_mounted: 2,
+            // Mounted falls through to the saved music at `$07085E`.
+            if_mounted: 1,
             // `tst.w Vehicle_Index / beq.w loc_70908` (`ps4.asm:149987-149988`):
             // on foot skips the dismount and dialogue `$34` and lands on the
-            // red-alert music, op 9.
-            if_on_foot: 9,
+            // red-alert music, op 11.
+            if_on_foot: 11,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
@@ -323,7 +332,12 @@ pub static SAVING_KYRA: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$070882`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
+        // `$0708EE`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount, as `Event_CarnivorousTrees`' `$07080C`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
         SceneOp::PlaySound {
@@ -411,18 +425,30 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
     ops: &[
         SceneOp::BranchIfVehicle {
             if_mounted: 1,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70226` (`$07018E`).
+            if_on_foot: 9,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
+        // `$0701A0`: a bare `VInt_Prepare`.
+        SceneOp::WaitFrames { frames: 1 },
+        // `$0701A6`: `move.b #MusicID_DezorisField1, (Sound_Index).l`, the
+        // music as well as the saved index.
+        SceneOp::PlaySound {
+            id: MUSIC_DEZOLIS_FIELD,
+        },
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0701B4`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Wait { ticks: 1 },
-        SceneOp::Jump { to: 7 },
+        // `$070220`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates (`docs/source-notes/README.md`,
+        // Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::PanelCreate { id: 0x10D },
         SceneOp::DmaPlanes,
         SceneOp::Wait { ticks: 120 },
