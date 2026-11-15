@@ -55,12 +55,34 @@ parameter 3 on one side of each warp and 4 on the other.
 |---:|---|---|
 | `$35`/`$36` 0 | `move.b #SFXID_Fusion, (Sound_Index).l` | `PlaySound` `$D9` |
 | `$35`/`$36` 1-18 | nine rows `(3, above, under)`: `move.b d1, (a2)` / `move.b d2, (a1)`, four frames | `WriteActorMapChunks` leader `(0,-32)` and `(0,0)`, `Wait` 4 |
-| `$37`/`$38` 0-1 | `PalFadeOut_ClrSpriteTbl` | `FadeOut`, `WaitFrames` 14 (the elevator ride's model) |
-| `$37`/`$38` 2 | `DoMapTransitionData` / `RefreshMap` | `TakeMapTransition` |
-| `$37`/`$38` 3-4 | `move.b #$3C, (a1)` / `move.b #$3E or #$34, (a2)`, one refreshed frame | `WriteActorMapChunks` `(0,0)` and `(0,-16)`, `WaitFrames` 1 |
-| `$37`/`$38` 5-6 | `Pal_FadeIn` | `FadeIn`, `WaitFrames` 14 |
-| `$37`/`$38` 7-9 | `SFXID_EnemyAttack3`, the walk loop, `Event_OverlapCharacters` | `PlaySound` `$D7`, `MoveActorOffset` leader `(0,16)`, `OverlapCharacters` |
-| `$37`/`$38` 10-20 | `SFXID_EnemyAttack4`, five rows | `PlaySound` `$D8`, `WriteActorMapChunks` and `Wait` 4 |
+| `$37`/`$38` 0 | `PalFadeOut_ClrSpriteTbl` | `FadeOut` (runtime owns the fade's frames) |
+| `$37`/`$38` 1 | `DoMapTransitionData` / `RefreshMap` | `TakeMapTransition` |
+| `$37`/`$38` 2-3 | `move.b #$3C, (a1)` / `move.b #$3E or #$34, (a2)`, one refreshed frame | `WriteActorMapChunks` `(0,0)` and `(0,-16)`, `WaitFrames` 1 |
+| `$37`/`$38` 4 | `Pal_FadeIn` | `FadeIn` (runtime owns the fade's frames) |
+| `$37`/`$38` 5-7 | `SFXID_EnemyAttack3`, the walk loop, `Event_OverlapCharacters` | `PlaySound` `$D7`, `MoveActorOffset` leader `(0,16)`, `OverlapCharacters` |
+| `$37`/`$38` 8-18 | `SFXID_EnemyAttack4`, five rows | `PlaySound` `$D8`, `WriteActorMapChunks` and `Wait` 4 |
+
+## DMA frame ownership
+
+The static helper count is one per opening and three per entry, not their
+elapsed frames. Each table delay byte is a `dbf` counter: 3 spends four frames
+per row. The following calls already have frame consumers; adding a
+`DmaPlanes` after them would duplicate a frame.
+
+| Phase | DMA call(s) | Consuming op and repetition | Map updates |
+|---|---|---|---|
+| Opening 1 / 2 | `$06F4C6` / `$06F57A`, `DMAPlanes_VInt` | nine `Wait { ticks: 4 }` after chunk pairs: 36 frames | `RunMapUpdates` every pass |
+| Arrival 1 / 2 | `$06F612` / `$06F792`, `DMAPlanes_VInt` | `WaitFrames { frames: 1 }` after the arrival chunk pair, before `FadeIn` | Retail calls `RunMapUpdates`; native's wait does not. The refresh CPU boundary and this update gap belong to [#546](https://github.com/TusanHomichi/PSIV/issues/546). |
+| Step out 1 / 2 | `$06F666` / `$06F7E6`, `DMAPlane_B_VInt` | `MoveActorOffset { dy: 16, wait: true }`: repeated object-update ticks until `$2A(a4)` is zero | Actor block plus `completes_map_update_loop` preserves the final update in `field_tick.rs` |
+| Close 1 / 2 | `$06F706` / `$06F886`, `DMAPlanes_VInt` | five `Wait { ticks: 4 }` after chunk pairs: 20 frames | `RunMapUpdates` every pass |
+
+`scene_runtime.rs` routes the chunk writes through `scene_map.rs` before the
+wait; collision changes with the writes. CPU plane composition/refresh
+boundaries remain [#546](https://github.com/TusanHomichi/PSIV/issues/546)'s
+concern; these waits already account for the explicit DMA synchronization.
+`dma_census::doors` checks the US table bytes, the consuming ops, each row's
+elapsed frames and update policy, and the arrival/movement phases. Its controls
+reject a missing frame, an extra frame and the wrong update policy in every row.
 
 The chunks the four tables write (`$30..$3E`) are carried in each tower map's scene chunk atlas
 (`garuberk_door_chunks`, `psiv_tools/map_patches.py`), which `write_scene_map_chunks` needs for
