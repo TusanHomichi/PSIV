@@ -126,7 +126,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 31,
+            if_set: 32,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
@@ -167,6 +167,9 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::PlaySound { id: 0xBD },
         SceneOp::RunDialogueResume,
         SceneOp::RunDialogueResume,
+        // `$074EBC`: after Saya's last text, before setting her flag and
+        // entering the common party replacement at `loc_74ECA`.
+        SceneOp::FadeOut,
         SceneOp::SetFlag {
             flag: Flag::event(0x12),
             value: true,

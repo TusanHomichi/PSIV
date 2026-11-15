@@ -5,6 +5,12 @@
 - **Trigger:** map TonoeGryzHouse `$43`, trigger `$14`, after flag `$36`.
 - **Data:** `next_arc.rs`, `DORIN_OPS`.
 
+The US fixed-fade calls are `InitVRAMAndCRAM` at `$074034`, `Pal_FadeIn`
+at `$07403A` and `Pal_FadeIn` at `$07411C`. The last follows the map refresh
+and Gryz replacement, before the 20 map-update ticks and departure music.
+The image census and `fixed_fade_boundaries.rs` hold both call order and
+that boundary; the runtime palette suite checks the departure is lit.
+
 ## Clone audit
 
 The retail implementation is the `grand_cross=0` side of the clone's

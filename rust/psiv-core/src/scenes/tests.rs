@@ -56,7 +56,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_LeavingChazHouse", 1),
         ("Cutscene_MeetingRika", 109),
         ("Cutscene_DemiRescue", 26),
-        ("Cutscene_AlysWounded", 61),
+        ("Cutscene_AlysWounded", 62),
         ("Event_GettingLandRover", 31),
         ("Event_MachineCenterAppearing", 14),
         ("Event_RuneLadaeTower", 9),
