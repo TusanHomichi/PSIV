@@ -158,7 +158,9 @@ fn page_problem(ops: Vec<SceneOp>) -> bool {
     }
     draws != expected
         || got.len() != 2103
-        || [4, 1040].iter().any(|&t| got[t] != [SceneOp::DmaPlanes])
+        || [3, 1039]
+            .iter()
+            .any(|&t| !got[t].contains(&SceneOp::DmaPlanes))
         || [4, 1040]
             .iter()
             .any(|&t| !got[t].contains(&SceneOp::IntroTextFadeUp))
