@@ -73,5 +73,6 @@ every counted frame from the write to the end of the first 120-pass loop
 
 The second `DMAPlanes_VInt` (`$0705A2`, after `RefreshPlaneFG`/`BG`) is part
 of the stretch `ReloadMapChunks` stands for and has no `DmaPlanes`; the DMA
-census (`rust/psiv-core/src/scenes/dma_census.rs`) lists it for
-[#599](https://github.com/TusanHomichi/PSIV/issues/599).
+census (`rust/psiv-core/src/scenes/dma_census.rs`) classifies its missing CPU refresh/DMA boundary under
+[#546](https://github.com/TusanHomichi/PSIV/issues/546); see
+[DMA frame ownership](DMA_FRAME_OWNERSHIP.md).

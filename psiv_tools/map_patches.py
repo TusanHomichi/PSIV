@@ -156,6 +156,14 @@ class SceneChunkWrite:
 #: scene and the chunk, before a route halts on it.
 SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
     SceneChunkWrite(
+        scene="Event_JuzaDefeated",
+        map_id=0x087,
+        citation="loc_6FBC4: alternating stair rows, RefreshPlaneBG at $06FBA6; closed chunk already in MapDataManager's atlas",
+        chunks=(0x16,),
+        checks=((0x6FBA6, "4EB9000540FA"),),
+        via="map_effects",
+    ),
+    SceneChunkWrite(
         scene="Event_MachineCenterAppearing",
         map_id=0x000,
         citation="loc_6B5C0: GetMapLayoutChunkBG($39,$5A) at $06B5CE, `move.b #$D3, (a1)` at $06B5D4",
