@@ -193,6 +193,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
+- **An event battle's stage replaces the field at once (#644).** A scene that
+  sets `Routine_Exit_Flags` bit 3 returns through `RunEventBattle`
+  (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event arm
+  (`loc_58498`) spends fifteen passes on the field: each writes a white
+  plane-A band two cells taller, one above and one below rows 13-14, and calls
+  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  stays up under it: tape 45 shows the window and portrait untouched on the
+  press frame (7800), the band from 7801, the portrait covered by 7805, the
+  window by 7812, the screen white by 7814, and the battle mode from 7815. The
+  port closes the window with its text and draws the battle stage on the next
+  tick, with no band, tone or white hold
+  ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
