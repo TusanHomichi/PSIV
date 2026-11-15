@@ -347,3 +347,53 @@ fn door_census_rejects_missing_doubled_and_wrong_policy_frames() {
         }
     }
 }
+
+/// Reject literal copies of the Garuberk chunk-pair tables in the runtime
+/// fixture. Read the values from the private local image, including in the
+/// negative controls, so this guard cannot itself publish a replacement copy.
+fn copied_pair_table(source: &str, pairs: &[u16]) -> bool {
+    let numbers: Vec<u16> = source
+        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .filter_map(|word| {
+            let word = word.replace('_', "");
+            match word.strip_prefix("0x") {
+                Some(hex) => u16::from_str_radix(hex, 16).ok(),
+                None => word.parse().ok(),
+            }
+        })
+        .collect();
+    numbers.windows(pairs.len()).any(|window| window == pairs)
+}
+
+#[test]
+fn runtime_door_fixture_keeps_retail_pair_tables_in_the_local_image() {
+    let Some(rom) = super::rom() else { return };
+    let source = include_str!("../../../../psiv-runtime/src/scene_garuberk_tests.rs");
+    for door in DOORS.iter().filter(|door| !door.silence) {
+        let pairs: Vec<_> = (0..door.rows)
+            .flat_map(|index| {
+                let at = door.table + 3 * index;
+                [u16::from(rom[at + 1]), u16::from(rom[at + 2])]
+            })
+            .collect();
+        assert!(
+            !copied_pair_table(source, &pairs),
+            "{}: runtime fixture contains a private retail table",
+            door.name
+        );
+        // Both common Rust spellings of the original fixture must be caught.
+        for hex in [false, true] {
+            let rows = pairs
+                .chunks_exact(2)
+                .map(|row| {
+                    if hex {
+                        format!("(0x{:X}, 0x{:X}),", row[0], row[1])
+                    } else {
+                        format!("({}, {}),", row[0], row[1])
+                    }
+                })
+                .collect::<String>();
+            assert!(copied_pair_table(&format!("let rows = [{rows}];"), &pairs));
+        }
+    }
+}

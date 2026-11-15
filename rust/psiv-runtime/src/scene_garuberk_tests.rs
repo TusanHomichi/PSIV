@@ -25,6 +25,30 @@ fn tower(map: u16, cell: Cell) -> Option<Runtime> {
     Some(rt)
 }
 
+/// Check both directions without copying the cartridge's chunk-pair tables
+/// into a fixture. Timing, write locations and traversal still run without the
+/// optional image; the core DMA census also checks chunk values against it.
+fn assert_opening(writes: &[ChunkFrame], table: usize, (x, y): (u32, u32)) {
+    let rom = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Phantasy Star IV (USA).md"),
+    )
+    .ok();
+    if rom.is_none() {
+        eprintln!("ROM absent; checking door timing/locations and traversal only");
+    }
+    assert_eq!(writes.len(), 9);
+    for (index, (tick, patches)) in writes.iter().enumerate() {
+        assert_eq!(*tick - writes[0].0, 4 * index, "row {index}");
+        for (column, position) in [(1, (x, y - 1)), (2, (x, y))] {
+            let patch = patches.iter().find(|&&(px, py, _)| (px, py) == position);
+            let &(_, _, chunk) = patch.expect("both door chunks must be written");
+            if let Some(rom) = &rom {
+                assert_eq!(chunk, u16::from(rom[table + 3 * index + column]));
+            }
+        }
+    }
+}
+
 /// `Event_GaruberkTwDoorOpening1` (`$35`) steps `loc_6F4D4` at the leader:
 /// nine rows four frames apart, the door chunk (17,9) and the one above it.
 /// A second Speak at the open door is the guard's silent return
@@ -38,29 +62,7 @@ fn a_garuberk_door_opens_takes_the_party_through_and_shuts_behind_it() {
     };
     assert!(!rt.map.is_walkable(Cell::new(34, 19)), "the door is shut");
     let writes = open(&mut rt);
-    let rows: [(u16, u16); 9] = [
-        (0x30, 0x38),
-        (0x31, 0x39),
-        (0x32, 0x3A),
-        (0x31, 0x39),
-        (0x30, 0x38),
-        (0x31, 0x39),
-        (0x32, 0x3A),
-        (0x33, 0x3B),
-        (0x34, 0x3C),
-    ];
-    assert_eq!(writes.len(), rows.len());
-    for ((tick, patches), (index, &(above, under))) in writes.iter().zip(rows.iter().enumerate()) {
-        assert_eq!(*tick - writes[0].0, 4 * index, "row {index}");
-        assert!(
-            patches.contains(&(17, 8, above)),
-            "row {index}: {patches:?}"
-        );
-        assert!(
-            patches.contains(&(17, 9, under)),
-            "row {index}: {patches:?}"
-        );
-    }
+    assert_opening(&writes, 0x6F4D4, (17, 9));
     assert!(
         rt.map.is_walkable(Cell::new(34, 19)),
         "the door stands open"
@@ -136,23 +138,7 @@ fn the_other_garuberk_door_returns_through_the_same_warp() {
         return;
     };
     let writes = open(&mut rt);
-    let rows = [
-        (0x35, 0x38),
-        (0x36, 0x39),
-        (0x37, 0x3A),
-        (0x36, 0x39),
-        (0x35, 0x38),
-        (0x36, 0x39),
-        (0x37, 0x3A),
-        (0x3D, 0x3B),
-        (0x3E, 0x3C),
-    ];
-    assert_eq!(writes.len(), rows.len());
-    for (index, ((tick, patches), (above, under))) in writes.iter().zip(rows).enumerate() {
-        assert_eq!(*tick - writes[0].0, 4 * index);
-        assert!(patches.contains(&(18, 21, above)));
-        assert!(patches.contains(&(18, 22, under)));
-    }
+    assert_opening(&writes, 0x6F588, (18, 22));
     assert!(rt.map.is_walkable(Cell::new(36, 45)));
     let mut started = false;
     for _ in 0..240 {
