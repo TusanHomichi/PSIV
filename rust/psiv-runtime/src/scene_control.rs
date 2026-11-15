@@ -95,6 +95,7 @@ impl Runtime {
         // dialogue system at; a new scene starts on the map's own binding.
         self.scene_tree_address = None;
         self.scene_input = SceneInput::None;
+        self.destination_world = None;
         self.scene_returned = None;
         self.scene_tail = None;
         self.scene_choice_pending = false;

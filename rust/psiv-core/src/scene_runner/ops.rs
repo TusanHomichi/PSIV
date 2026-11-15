@@ -20,6 +20,10 @@ impl SceneRunner {
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         match op {
+            SceneOp::CommitDestination => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
             SceneOp::FlightPlanet => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

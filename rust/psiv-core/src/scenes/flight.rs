@@ -222,7 +222,7 @@ const SFX_SPACESHIP_RADAR: u8 = 0xF8;
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
-const CANCEL_SKIP: u16 = 39;
+const CANCEL_SKIP: u16 = 44;
 
 /// Flight fade-in has two more frames than its fourteen passes, display
 /// enable and the terminal pass; FlightFadeIn owns its 16. The fade-outs are
@@ -247,7 +247,7 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// Counts and CPU/DMA setup spans are cited separately in the scene ledger.
 /// The caption is instant: d4=1 skips RunText2's per-character wait.
-pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 45] = [
+pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     // `SpcSFXID_SpaceshipRadar`, once the list is built (`ps4.asm:133537`).
@@ -258,6 +258,16 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 45] = [
         mask: DestinationMask::FlagTable,
         cancel_skip: CANCEL_SKIP,
     },
+    // $063E0C: windows are gone; await the existing CRAM fade before
+    // Panel_DestroyAll / Map_LoadChunks and the chosen-world write.
+    SceneOp::FadeOut,
+    SceneOp::PanelDestroyAll,
+    SceneOp::Presentation {
+        op: crate::PresentationOp::ReloadMapChunks,
+    },
+    // Map_LoadChunks: four CPU frames on both tape-35 origins.
+    SceneOp::WaitFrames { frames: 4 },
+    SceneOp::CommitDestination,
     // Both takeoffs write the track only when the saved byte differs.
     SceneOp::PlayMusicIfSavedDifferent {
         id: MUSIC_TAKE_OFF_LANDEEL,
@@ -345,6 +355,15 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 45] = [
     // `Pal_FadeIn`, and `FieldRoutine_PlaceName`'s window when the travel
     // table names this landing (`rust/psiv-runtime/src/scene_return.rs`).
     SceneOp::Return { value: 0 },
+    // $063E8A: Cancel has its own fade before the same teardown.
+    SceneOp::FadeOut,
+    SceneOp::PanelDestroyAll,
+    SceneOp::Presentation {
+        op: crate::PresentationOp::ReloadMapChunks,
+    },
+    // Four chunk-decompression frames plus 25 of RefreshMap on tape 35.
+    // The map handoff remains the completed reload, 55 frames after Cancel.
+    SceneOp::WaitFrames { frames: 29 },
     // Cancel: back to the start cell of the map it was opened on.
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Return,
@@ -577,18 +596,28 @@ mod tests {
                     scene.name
                 );
             }
-            assert_eq!(
-                scene.ops[at + 1 + usize::from(cancel_skip)],
+            let return_leg = [
                 SceneOp::LoadFlightMap {
-                    leg: FlightLeg::Return
+                    leg: FlightLeg::Return,
                 },
-                "{}: Cancel must land on the return leg",
-                scene.name
-            );
-            assert_eq!(
-                scene.ops[at + 2 + usize::from(cancel_skip)],
                 SceneOp::Return { value: 0 },
-                "{}",
+            ];
+            let mut expected = Vec::new();
+            if scene.name != "Cutscene_SpaceshipSabotage" {
+                expected.extend([
+                    SceneOp::FadeOut,
+                    SceneOp::PanelDestroyAll,
+                    SceneOp::Presentation {
+                        op: crate::PresentationOp::ReloadMapChunks,
+                    },
+                    SceneOp::WaitFrames { frames: 29 },
+                ]);
+            }
+            expected.extend(return_leg);
+            assert_eq!(
+                &scene.ops[at + 1 + usize::from(cancel_skip)..],
+                expected,
+                "{}: Cancel runs its complete teardown and return leg",
                 scene.name
             );
         }
