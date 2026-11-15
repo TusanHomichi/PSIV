@@ -185,9 +185,9 @@ fn collision_reads_raw_bg_chunk_quadrants_and_retains_planet_terrain() {
         } else {
             [(0, 8267), (1, 78), (8, 55487), (11, 1704)].as_slice()
         };
-        for i in 0..16 {
+        for (i, &count) in counts.iter().enumerate() {
             assert_eq!(
-                counts[i],
+                count,
                 expected
                     .iter()
                     .find(|&&(k, _)| k == i)
