@@ -264,6 +264,7 @@ fn retail_patches_are_page_hooks_without_duplicate_writes() {
         assert_eq!(v["page_bytes"], 1024);
         assert_eq!(v["page_count"], 16);
         assert_eq!(v["window_rows"], 32);
+        assert_eq!(v["patch_count"], w.patches.len());
         assert_eq!(v["wraps"], json!({"x_pixels":4096,"y_pixels":4096}));
         if w.map_id == 1 {
             assert_eq!(
@@ -283,6 +284,7 @@ fn every_loader_signature_and_invalid_record_path_is_guarded() {
     assert_eq!(report["page_copy"]["longs_copied"], 256);
     assert_eq!(report["page_copy"]["compression"], Value::Null);
     assert_eq!(report["get_map_layout_chunk"]["row_bytes"], 128);
+    assert_eq!(report["get_map_layout_chunk"]["window_rows"], 32);
     assert_eq!(GET_MAP_LAYOUT_CHUNK_BG - GET_MAP_LAYOUT_CHUNK_FG, 6);
     for (at, size) in [
         (PAGE_TABLE_FG.rom_offset, 20),
