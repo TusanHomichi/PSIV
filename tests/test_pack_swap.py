@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import unittest
 from contextlib import ExitStack, contextmanager, nullcontext
 from pathlib import Path
@@ -93,9 +94,8 @@ class Scratch(unittest.TestCase):
     @contextmanager
     def pinned_pack(self):
         # Follow the output once in the kernel and keep that directory open.
-        # readlink can return EINVAL during a macOS symlink replacement, even
-        # though the output stays a link. File opens relative to this handle
-        # keep reading the selected version without querying the link again.
+        # File opens relative to this handle keep reading the selected
+        # version without querying the output link again.
         directory = os.open(self.output, os.O_RDONLY | os.O_DIRECTORY)
         try:
             yield directory
@@ -213,8 +213,8 @@ class HalfWritten(Scratch):
                     with self.pinned_pack() as directory:
                         seen.add(consistent(directory))
                     ready.set()
-            except BaseException as error:
-                errors.append(error)
+            except BaseException:
+                errors.append(traceback.format_exc())
                 ready.set()
 
         reader = threading.Thread(target=poll)
@@ -226,7 +226,7 @@ class HalfWritten(Scratch):
         finally:
             stop.set()
             reader.join()
-        self.assertEqual(errors, [], "reader failed")
+        self.assertFalse(errors, "reader failed:\n" + "\n".join(errors))
         self.assertIn("v1", seen)
         self.assertNotIn(None, seen)
 
