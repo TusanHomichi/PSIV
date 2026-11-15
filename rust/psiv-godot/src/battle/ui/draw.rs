@@ -28,7 +28,7 @@ pub(super) fn compose(screen: &mut BattleScreen) {
         // The enemy name window is up for the main options and for every
         // per-character window opened from them.
         if let Some(width) = view.opening_name_width.filter(|width| *width < 12) {
-            let offset = f32::from((12 - width) & !1) / 2.0;
+            let offset = f32::from(((12 - width) & !1) / 2);
             if let Some(frame) = chrome.frame(WindowRect {
                 x: ENEMY_NAME_RECT.x + offset * cell,
                 w: f32::from(width) * cell,
