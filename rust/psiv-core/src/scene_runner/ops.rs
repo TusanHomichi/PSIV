@@ -17,16 +17,6 @@ use crate::state::{CharId, GameState, PARTY_SLOTS};
 const ROCKY_STEP_FRAMES: u8 = 4;
 
 impl SceneRunner {
-    /// Spend a runtime-resolved setup/refresh interval before the next op.
-    /// The initiating op remains the owner of whether map updates run.
-    pub fn delay_frames(&mut self, frames: u16) {
-        self.blocked = if frames == 0 {
-            Blocked::No
-        } else {
-            Blocked::Ticks(frames)
-        };
-    }
-
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
@@ -884,12 +874,16 @@ impl SceneRunner {
                     self.blocked = Blocked::Ticks(frames);
                 }
             }
-            // A variable fade's length is in the palette, which the runtime
-            // holds: it answers with [`SceneRunner::release_palette`].
+            // A variable fade's length depends on the palette, an ending
+            // eighth-frame loop's on it and the frame count. The runtime holds
+            // both: it answers with [`SceneRunner::release_palette`].
             SceneOp::Presentation {
                 op:
                     crate::PresentationOp::VariablePaletteFade { .. }
-                    | crate::PresentationOp::TwoLinePaletteFade { .. },
+                    | crate::PresentationOp::TwoLinePaletteFade { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeOut { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeIn { .. }
+                    | crate::PresentationOp::EndingCreditsPaletteRamp { .. },
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

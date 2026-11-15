@@ -72,6 +72,9 @@ ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
 SCENE = {"PSIV_DEBUG_AUTOCLOSE_SCENE": "1", "PSIV_DEBUG_RETAIL_PACE": "1"}
+# `Cutscene_Ending`'s windows run `RunText3` (#645): they page and close on
+# their own clock and read no press, so its pairs run with no dialogue harness.
+ENDING = {"PSIV_DEBUG_EVENT": "0x8021"}
 
 # Tape 28 enters MeetingRika by explicit fixture patches (oracle/CAPTURE.md,
 # "Deterministic scene fixtures").
@@ -229,9 +232,11 @@ TAPE_36_CLOSE_TOWNS = {
 
 # Tape 38 is tape 28's input schedule with Cutscene_Ending ($8021) started by
 # fixture at frame 7200 (Event_Index, then the field routine to Events), Chaz
-# alone on map $13 where tape 28 leaves him. C taps page through the first
-# dialogue: frames 8930-8967 are byte-identical, the scene's panels and its
-# window settled before the Elsydeon break whitens the screen.
+# alone on map $13 where tape 28 leaves him. The first dialogue runs
+# `RunText3`, which reads no pad: it pages on its own and the tape's C taps
+# change nothing (#645). Frames 8930-8967 are byte-identical, the scene's
+# panels and its window settled, in the `$F9 99` before the Elsydeon break
+# whitens the screen.
 TAPE_38 = {
     "tape": "oracle/tapes/38_ending_elsydeon.tape",
     "patches": ["7200:FFFFECA8:8021", "7200:FFFFEC20:000C"],
@@ -249,6 +254,30 @@ TAPE_38_TONE = {
     "region": [1, 1, 319, 223],
 }
 
+# The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
+# the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
+# `+$222` every fourth frame from 9896 (shown from 9897) and is white from
+# 9920 to the fade-out at 10086. The native window closes on tick 2598, the
+# frame the cartridge's last page turns (9893), and clone tick t shows oracle
+# frame t + 7296 through the loop: the fourth step's plateau (9909-9912) on
+# ticks 2613-2616 (#645). The untoned frame before (9893) and the white
+# endpoint inside the loop (9950) certify all but #409's first row and column.
+TAPE_38_LOOP = {
+    **TAPE_38,
+    "frames": [9893, 9950],
+    "region": [1, 1, 319, 223],
+}
+
+# The loop's fourth step (9910, backdrop `$888`) over the panels and the
+# backdrop above row 112: the native closes the dialogue's window and Chaz's
+# portrait when the text ends, where the cartridge keeps both up, toned,
+# until the loop is over (#636).
+TAPE_38_LOOP_RISE = {
+    **TAPE_38,
+    "frames": [9910],
+    "region": [1, 1, 319, 111],
+}
+
 # Rykros's third cycle row: the planet has appeared but is still dark,
 # between the preceding message's close and the next window's open.
 TAPE_43 = {
@@ -256,6 +285,32 @@ TAPE_43 = {
     "patches": ["7200:FFFFECA8:801B", "7200:FFFFEC20:000C"],
     "frames": [8580],
 }
+
+# The same run's tone before the cycle: `Pal_IncreaseTone` (`$078208`) adds
+# `$222` to every word each fourth frame, `Palette_Table_Buffer` first
+# stepping in frame 8143 (shown from 8144) and white from 8167, then
+# `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
+# (shown from 8200). Clone tick t shows oracle frame t + 7246 once the scene's
+# first dialogue spends its portraits' frames (#625), but for each step's
+# first frame (897, 901 ... 953), which the native shows already stepped: its
+# `Main_Frame_Count` phase is one off the tape's, because the debug run pages
+# the dialogue on other frames than the tape. The pairs sit inside the
+# plateaus: the untoned frame before (8141), the fourth step up (8157,
+# backdrop `$888`), the third step back (8185, every word floored at `$888`)
+# and the restored frame after (8201). Region `1,1,319,223`: the shell's
+# black first row and column (#409) show against the toned backdrop.
+TAPE_43_TONE = {
+    **TAPE_43,
+    "frames": [8141, 8157, 8185, 8201],
+    "region": [1, 1, 319, 223],
+}
+
+# The same run's window after the tone (#625): `Event_RunDialogue3` opens the
+# box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
+# decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
+# position (24,112) with the first glyph. Clone tick t shows frame t + 7246
+# from the tone's restore (954) through tick 1010.
+TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
 
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
 # The reload reaches control at 7173; entering at 7202 gives the native
@@ -270,10 +325,45 @@ TAPE_44 = {
     "region": [1, 1, 319, 223],  # The field surface edge, #409.
 }
 
+# Tape 45: `Event_FractOozeFound` (`$7D`), whose text runs through
+# `Event_GetAndRunDialogue2` (`DialogueWindow::Retained`, #644), on Monsen with
+# Chaz alone at (288, 704). The last page ("It's coming for us!") is typed by
+# 7792; the C on 7799 ends it. The routine destroys nothing, so 7800 still shows
+# the window and Rika's portrait; from 7801 `loc_58498` covers them with a white
+# plane-A band, the portrait by 7805 and the window by 7812. The pair compares
+# the last page before the press, over the window's box: the field around it
+# carries a wandering NPC neither fixture pins.
+TAPE_45 = {
+    "tape": "oracle/tapes/45_retained_window_battle.tape",
+    "patches": ["7000:FFFFEC28:0073", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF406:0120", "7000:FFFFF408:02C0",
+                "7224:FFFFECA8:007D", "7224:FFFFEC20:000C"],
+    "frames": [7797],
+    "region": [24, 160, 272, 48],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
 # hashes recorded in SCENE_PRESENTATION.md and oracle/README.md.
+# Tape 46: `Event_EclipseTorchUsed` (`$47`) on foot on Dezolis (#593). Frame 7000
+# reloads Dezolis ($001, World_Index 1) with Chaz at ($BA0, $F0), below the
+# trigger, EventFlag_Snowstorm ($80) and EventFlag_Lashiec ($9B) set; 7224 sets
+# Event_Index. The flashes fill the buffer white in frames 7353 and 7395 (shown
+# 7354-7356 and 7396; in the second, a snowstorm map update rewrites words
+# 19-22 before the restore). Clone ticks 152 and 194-196 show the native
+# fills. Only the white frames certify: the restore frames' plane A, sprites
+# and line 3 are panel `$10D`'s, which the pack does not decode (#413).
+TAPE_46 = {
+    "tape": "oracle/tapes/46_eclipse_torch_flash.tape",
+    "patches": ["7000:FFFFEC28:0001", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF400:0001", "7000:FFFFF406:0BA0",
+                "7000:FFFFF408:00F0", "7000:FFFFF110:80", "7000:FFFFF113:10",
+                "7224:FFFFECA8:0047", "7224:FFFFEC20:000C"],
+    "frames": [7355, 7396],
+    "region": [1, 1, 319, 223],  # The field surface edge, #409.
+}
+
 PAIRS = [
     ("opening-p1", OPENING, 3550,
      "oracle/frames/opening/frame_4000.png",
@@ -281,7 +371,9 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 160,
+    # The first page complete, its arrow up: ticks 161-165 once Chaz's
+    # portrait spends its two lag frames (#625).
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 162,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -291,14 +383,27 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
+    # Ticks 1690-1722 all match: at the break's t + 7245 they show 8935-8967,
+    # which equal 8930 (#645).
+    ("ending-elsydeon", ENDING, 1704,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: the native tone runs ticks 622-657 in the
-    # cartridge's 4-frame steps, 638-641 the brightest.
-    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 638,
+    # The break's tone at its peak: ticks 1739-1742 are the brightest, as
+    # frames 8984-8987 are, so clone tick t shows frame t + 7245 here (#645).
+    ("ending-elsydeon-tone", ENDING, 1739,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
+    # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
+    # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
+    ("ending-tone-loop-before", ENDING, 2597,
+     "build/certify/oracle/ending-tone-loop/frame_9893.png",
+     "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
+    ("ending-tone-loop-rise", ENDING, 2614,
+     "build/certify/oracle/ending-tone-loop/frame_9910.png",
+     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
+    ("ending-tone-loop-white", ENDING, 2654,
+     "build/certify/oracle/ending-tone-loop/frame_9950.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
      "oracle/frames/title/frame_450.png",
      "8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10", None),
@@ -391,12 +496,44 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1270,
+    # The cycle's rows run ticks 1277-1298 against frames 8565-8586 once the
+    # scene's portraits lag (#625): 1292 is the third row's second frame.
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1292,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
+    # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
+    # a step up, a step back, and the restored frame.
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 895,
+     "build/certify/oracle/rykros-tone/frame_8141.png",
+     "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 911,
+     "build/certify/oracle/rykros-tone/frame_8157.png",
+     "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
+    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 939,
+     "build/certify/oracle/rykros-tone/frame_8185.png",
+     "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 955,
+     "build/certify/oracle/rykros-tone/frame_8201.png",
+     "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
+    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
+     "build/certify/oracle/rykros-portrait/frame_8216.png",
+     "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
+    # A `Retained` window's last page, typed by tick 509 and up through 513;
+    # the battle stage replaces it on 514 (#644).
+    ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
+     "build/certify/oracle/retained-window-page/frame_7797.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
+    # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
+    # ticks 151 and 193, each shown the tick after.
+    ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 152,
+     "build/certify/oracle/eclipse-torch-white/frame_7355.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
+    ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", **SCENE}, 195,
+     "build/certify/oracle/eclipse-torch-white/frame_7396.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

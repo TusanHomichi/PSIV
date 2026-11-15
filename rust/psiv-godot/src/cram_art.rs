@@ -1,4 +1,5 @@
-//! Sprite sheets and scene panels drawn from the runtime's live CRAM.
+//! Sprite sheets, scene temporary objects, scene panels and the native
+//! windows drawn from the runtime's live CRAM.
 //!
 //! The pack's sprite and panel PNGs are indexed. [`IndexedArt`] keeps each
 //! pixel's palette index ([`psiv_data::color::index_png`]) and recolours its
@@ -74,16 +75,54 @@ pub(crate) fn load_index_image(path: &str) -> Option<Gd<Image>> {
     Some(image)
 }
 
-/// An indexed pack PNG and the texture it is drawn through.
-pub(crate) struct IndexedArt {
+/// An indexed image's palette indices, transparency and layout, and the
+/// CRAM revision it was last recoloured for. Pure data, so the recolour rule
+/// is testable without Godot; [`IndexedArt`] holds one with its texture.
+#[derive(Debug, Clone)]
+pub(crate) struct IndexedPixels {
     layout: IndexLayout,
     indices: Vec<u8>,
     alpha: Vec<u8>,
+    /// The revision the last [`IndexedPixels::recolor`] drew, if any.
+    drawn: Option<u64>,
+}
+
+impl IndexedPixels {
+    /// One index and one alpha byte per pixel, read through `layout`.
+    pub(crate) fn new(layout: IndexLayout, indices: Vec<u8>, alpha: Vec<u8>) -> Self {
+        Self {
+            layout,
+            indices,
+            alpha,
+            drawn: None,
+        }
+    }
+
+    /// The pixels in `cram`'s colours when `cram` is live and its revision
+    /// is not the one last drawn; `None` otherwise (not live: draw the baked
+    /// file; unchanged: the texture already holds these colours).
+    pub(crate) fn recolor(&mut self, cram: &CramState) -> Option<Vec<u8>> {
+        if !cram.live || self.drawn == Some(cram.revision) {
+            return None;
+        }
+        let layout = self.layout;
+        let rgba = recolor(
+            &self.indices,
+            &self.alpha,
+            |index| layout.slot(index),
+            &cram.words,
+        );
+        self.drawn = Some(cram.revision);
+        Some(rgba)
+    }
+}
+
+/// An indexed pack PNG and the texture it is drawn through.
+pub(crate) struct IndexedArt {
+    pixels: IndexedPixels,
     width: i32,
     height: i32,
     texture: Gd<ImageTexture>,
-    /// The revision `texture` holds, if any.
-    drawn: Option<u64>,
 }
 
 impl IndexedArt {
@@ -99,13 +138,10 @@ impl IndexedArt {
         let alpha = rgba.iter().map(|pixel| pixel[3]).collect();
         let texture = ImageTexture::create_from_image(&image)?;
         Some(Self {
-            layout,
-            indices,
-            alpha,
+            pixels: IndexedPixels::new(layout, indices, alpha),
             width: image.get_width(),
             height: image.get_height(),
             texture,
-            drawn: None,
         })
     }
 
@@ -115,14 +151,7 @@ impl IndexedArt {
         if !cram.live {
             return None;
         }
-        if self.drawn != Some(cram.revision) {
-            let layout = self.layout;
-            let rgba = recolor(
-                &self.indices,
-                &self.alpha,
-                |index| layout.slot(index),
-                &cram.words,
-            );
+        if let Some(rgba) = self.pixels.recolor(cram) {
             let image = Image::create_from_data(
                 self.width,
                 self.height,
@@ -131,22 +160,19 @@ impl IndexedArt {
                 &PackedByteArray::from(rgba.as_slice()),
             )?;
             self.texture.update(&image);
-            self.drawn = Some(cram.revision);
         }
         Some(self.texture.clone())
     }
 }
 
-/// `Pal_Init_Line_3` (`$296300`): the line-2 words the dialogue window's art
-/// is baked with (`dialogue/window.json`'s palette).
-pub(crate) const WINDOW_LINE_ROM: u32 = 0x0029_6300;
-
-/// The dialogue window draws tiles, glyphs and portraits cut from art baked
-/// in line 2's `Pal_Init_Line_3` colours, each pixel one of its sixteen. The
-/// shader finds a pixel's colour among `baked` (indices 1-15; 0 is the
-/// transparent colour) and draws the live word at that index instead, so the
-/// window follows line 2 of the CRAM. Line 2's baked colours are distinct
-/// apart from index 0's black.
+/// The native windows (`window_palette::WindowFamily`) draw tiles, glyphs
+/// and portraits cut from art baked in line 2's `Pal_Init_Line_3` colours,
+/// each pixel one of its sixteen. The shader finds a pixel's colour among
+/// `baked` (indices 1-15; 0 is the transparent colour) and draws the live
+/// word at that index instead, so the window follows line 2 of the CRAM
+/// (`WindowLine::colour` is the same rule as data). Line 2's baked colours
+/// are distinct apart from index 0's black, which index 1 shares; no window
+/// pixel is an opaque index 0.
 const WINDOW_LINE_SHADER: &str = r#"
 shader_type canvas_item;
 render_mode unshaded;
@@ -170,7 +196,8 @@ void fragment() {
 }
 "#;
 
-/// A material for a node whose art is baked in line 2's colours.
+/// A material for the nodes whose art is baked in line 2's colours. The
+/// shell makes one and attaches it to every `window_palette::WindowNode`.
 pub(crate) fn window_line_material() -> Gd<godot::classes::ShaderMaterial> {
     let mut shader = godot::classes::Shader::new_gd();
     shader.set_code(WINDOW_LINE_SHADER);
@@ -179,16 +206,14 @@ pub(crate) fn window_line_material() -> Gd<godot::classes::ShaderMaterial> {
     material
 }
 
-/// Points `material` at line 2: the art's `baked` words and the `live`
-/// ones, sixteen each.
+/// Points `material` at `line`: the art's baked words and the live ones.
 pub(crate) fn set_window_line(
     material: &mut Gd<godot::classes::ShaderMaterial>,
-    baked: &[u16],
-    live: &[u16],
+    line: &crate::window_palette::WindowLine,
 ) {
-    let colours = |words: &[u16]| {
+    let colours = |words: &[u16; 16]| {
         let mut array = PackedVector3Array::new();
-        for &word in words.iter().take(16) {
+        for &word in words {
             let [r, g, b] = psiv_data::color::cram_rgb(word);
             array.push(Vector3::new(
                 f32::from(r) / 255.0,
@@ -198,6 +223,6 @@ pub(crate) fn set_window_line(
         }
         array
     };
-    material.set_shader_parameter("baked", &colours(baked).to_variant());
-    material.set_shader_parameter("live", &colours(live).to_variant());
+    material.set_shader_parameter("baked", &colours(&line.baked).to_variant());
+    material.set_shader_parameter("live", &colours(&line.live).to_variant());
 }

@@ -6,7 +6,7 @@ off to the right, and every Pengu Feed `GetItem` can find is taken.
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0096` `Event_PenguinFeedStolen` | `$0735F6..$0736E9` inclusive, 244 bytes | `EventPtrs[$96]` at `$05A2B4 + $258` | `zosa_events.rs`, `PENGUIN_FEED_STOLEN` (57 ops) |
+| `$0096` `Event_PenguinFeedStolen` | `$0735F6..$0736E9` inclusive, 244 bytes | `EventPtrs[$96]` at `$05A2B4 + $258` | `zosa_events.rs`, `PENGUIN_FEED_STOLEN` (58 ops) |
 
 - **Trigger:** map trigger `$7B`, `RunEvent_PenguFeedStolen` (`ps4.asm:116572`, `$0575DC` in the
   US image). It calls `GetItem` for `ItemID_PenguFeed` (`$92`), restores registers with a

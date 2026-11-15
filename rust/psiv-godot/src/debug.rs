@@ -220,6 +220,16 @@ impl Field {
             "transition": self.transition.is_some(), "money": rt.game().money(),
             "camp": self.camp_menu.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
             "shop": self.shop.as_ref().filter(|menu| menu.bind().is_open()).map(|menu| menu.bind().debug_menu()),
+            "job_board": self.session.as_ref().and_then(Session::job_board_view).map(|view| serde_json::json!({
+                "columns": view.columns,
+                "rows": view.rows.iter().map(|row| format!("{:?}", row.colour)).collect::<Vec<_>>(),
+            })),
+            "destination": self.session.as_ref().and_then(Session::destination_view).map(|view| serde_json::json!({
+                "phase": format!("{:?}", view.phase),
+                "prompt_ready": view.prompt_ready,
+                "list_columns": view.list_columns,
+                "rows": view.rows,
+            })),
             "temporary_objects": self.presentation.temporary_draws().iter().filter(|(_, o)| o.frames_left > 0).map(|(slot, o)| serde_json::json!({"slot": slot, "id": o.object_id, "elapsed": o.elapsed, "position":o.destination})).collect::<Vec<_>>(),
             "map_patches": rt.map_effects().patch_blits.len(),
             "chunk_patches": rt.map_effects().chunk_patches,
@@ -262,7 +272,8 @@ impl Field {
     /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
     /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_EVENT`
+    /// screenshot so an agent can see what a player would, and
+    /// `PSIV_DEBUG_SHOT_LAST=<n>` one per tick through tick n. `PSIV_DEBUG_EVENT`
     /// starts a transcribed scene at tick 30; combine it with
     /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
     /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
@@ -468,9 +479,20 @@ impl Field {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(180);
-        if self.anim_tick != at {
-            return;
-        }
+        // `PSIV_DEBUG_SHOT_LAST=<n>`: every tick from `at` through `n`, each
+        // to `<path stem>-t<tick>.png`, so a frame sweep is one run.
+        let last: Option<u64> = std::env::var("PSIV_DEBUG_SHOT_LAST")
+            .ok()
+            .and_then(|v| v.parse().ok());
+        let path = match last {
+            None if self.anim_tick == at => path,
+            Some(last) if (at..=last).contains(&self.anim_tick) => {
+                let stem = path.strip_suffix(".png").unwrap_or(&path);
+                format!("{stem}-t{}.png", self.anim_tick)
+            }
+            _ => return,
+        };
+        let at = self.anim_tick;
         if self.battle_presentation_active()
             && let Some(screen) = self.battle_screen.as_ref()
         {

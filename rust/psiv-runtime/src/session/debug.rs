@@ -34,10 +34,11 @@ pub fn scene_fixture(
     // The ship's destination menu (`PSIV_DEBUG_EVENT=0x800D`): the Mota
     // Spaceport at the foot of the gangway, `EventFlag_AlysFound` set so the
     // list is the post-Zio one (`ps4.asm:133728-133735`), a Chaz and Alys party.
-    let mut flags: &[u16] = &[];
+    let mut flags: Vec<u16> = Vec::new();
+    let mut world = 0;
     let (map, char_x, char_y, party) = match event {
         0x0030 => {
-            flags = &[0x63];
+            flags = vec![0x63];
             (
                 0x0082,
                 0x2F0,
@@ -52,11 +53,42 @@ pub fn scene_fixture(
             )
         }
         0x800D => {
-            flags = &[0x08];
+            flags = vec![0x08];
             (
                 0x00BF,
                 30 * 16,
                 20 * 16,
+                [Some(CharId(0)), Some(CharId(1)), None, None, None],
+            )
+        }
+        // `Event_HuntersGuild` (`PSIV_DEBUG_EVENT=0x66`): the guild at the
+        // cell Aiedo's door lands on, with the board's three row lines on
+        // show (`psiv_core::job_row`): the first job collected (taken,
+        // earned, paid and offered: `$A000`), the second offered and open
+        // (`$C000`), the rest not yet offered (`$E000`). The flags are the
+        // pack's rows' own (`guild/guild.json`).
+        0x0066 => {
+            let Some(guild) = data.guild() else {
+                return Some(Err("the pack carries no guild board".into()));
+            };
+            let [first, second, ..] = guild.rows.as_slice() else {
+                return Some(Err("the guild board has fewer than two rows".into()));
+            };
+            let job = |row: &[u8; 8]| psiv_core::GuildJob::from_row(*row, 0);
+            let (first, second) = (job(first), job(second));
+            flags = [
+                first.taken,
+                first.earned,
+                first.paid,
+                first.available,
+                second.available,
+            ]
+            .map(u16::from)
+            .to_vec();
+            (
+                0x0057,
+                17 * 16,
+                43 * 16,
                 [Some(CharId(0)), Some(CharId(1)), None, None, None],
             )
         }
@@ -82,7 +114,7 @@ pub fn scene_fixture(
         // Chaz alone, as tape 37 (`tools/certify.py` TAPE_37) leaves him: a
         // line-2 sprite, the line the scene holds.
         0x0099 => {
-            flags = &[0xD9];
+            flags = vec![0xD9];
             (
                 0x00FC,
                 31 * 16,
@@ -110,12 +142,40 @@ pub fn scene_fixture(
             288 + 16,
             [Some(CharId(0)), None, None, None, None],
         ),
+        // `Event_FractOozeFound` (`PSIV_DEBUG_EVENT=0x7D`), a `Retained`
+        // window's caller (#644): Monsen (`$73`), whose tree 12 holds its
+        // entry `$2F`, with Chaz alone where the overworld's door lands him:
+        // object (288, 704), as tape 45 (`tools/certify.py` TAPE_45) patches
+        // `$F406`/`$F408` before it sets `Event_Index`. The location is the
+        // standing row, one row below the object's Y.
+        0x007D => (
+            0x0073,
+            288,
+            704 + 16,
+            [Some(CharId(0)), None, None, None, None],
+        ),
+        // `Event_EclipseTorchUsed` (`PSIV_DEBUG_EVENT=0x47`, #593): Dezolis
+        // (`$001`, World_Index 1) on foot, Chaz alone at object ($BA0, $F0),
+        // as tape 46 (`tools/certify.py` TAPE_46) patches `$F406`/`$F408`:
+        // just below the trigger's `y<=$E0`, so only the fixture starts it.
+        // `EventFlag_Snowstorm` (`$80`) keeps the arrival talk off the load
+        // and `EventFlag_Lashiec` (`$9B`) is the trigger's own condition.
+        0x0047 => {
+            flags = vec![0x80, 0x9B];
+            world = 1;
+            (
+                0x0001,
+                0xBA0,
+                0xF0 + 16,
+                [Some(CharId(0)), None, None, None, None],
+            )
+        }
         _ => return None,
     };
     // The new palette fixtures and the ending/recovery fixtures use tape
     // 28's retail initializer with the opening completed. Their explicit
     // scene-specific edits above are applied to that base, never blank banks.
-    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021) {
+    let mut game = if matches!(event, 0x0030 | 0x8021 | 0x801B | 0x0021 | 0x007D | 0x0047) {
         match post_opening_game(&data, step_frames) {
             Ok(game) => game,
             Err(error) => return Some(Err(error)),
@@ -124,7 +184,7 @@ pub fn scene_fixture(
         GameState::new()
     };
     game.set_party(party);
-    for &flag in flags {
+    for &flag in &flags {
         if let Err(error) = game.set(Flag::event(flag)) {
             return Some(Err(format!("scene fixture flag {flag:#x}: {error}")));
         }
@@ -135,7 +195,7 @@ pub fn scene_fixture(
             RetailSave {
                 snapshot: game.snapshot(),
                 location: RetailLocation {
-                    world_index: 0,
+                    world_index: world,
                     map_index_2: 0,
                     map_index: map,
                     char_x,

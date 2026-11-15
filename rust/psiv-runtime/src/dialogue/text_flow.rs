@@ -11,6 +11,8 @@
 
 mod stop;
 
+use std::collections::VecDeque;
+
 use psiv_core::{Flag, GameState};
 use psiv_data::{
     ActionKind, CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd,
@@ -32,6 +34,47 @@ pub enum Opening {
 
 /// Frames of each of `TextAction_ElsydeonBroken`'s two loops (`moveq #$13, d7`).
 pub(crate) const ELSYDEON_BROKEN_FRAMES: u16 = 20;
+
+/// Lag frames `TextCtrlCode_Portrait` spends decompressing the portrait's art
+/// (`jsr NemDecomp`, `$06A1D6`): the VInts it straddles find `VInt_Flag`
+/// clear. Measured, not derived: every portrait change on tape 43 (ids 1, 4,
+/// 6 and 8, `Cutscene_Rykros`) holds `Main_Frame_Count` for two frames between
+/// the old portrait's destroy and the new one (frames 7403-7404, 7467-7468,
+/// 7723-7724, 7915-7916, 8027-8028, 8507-8508).
+pub(crate) const PORTRAIT_LOAD_LAG_FRAMES: u8 = 2;
+
+/// A `$F4` the walk ran: `TextCtrlCode_Portrait` (`$06A18E`), its frames and
+/// where on the page it sits.
+///
+/// The routine writes the portrait's window into `Plane_A_Buffer`, which
+/// reaches the screen with the next `DMAPlane_A_VInt`: the one after the
+/// next glyph. The window shows the old portrait until the typewriter reaches
+/// [`PortraitChange::at`], spends the change's frames, and shows the new one
+/// with the glyph after it. Every `$F4` is its own change, in stream order:
+/// two on one page, adjacent or apart, each spend their own frames at their
+/// own glyph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortraitChange {
+    /// Glyphs of the page before the `$F4`.
+    pub at: usize,
+    /// The portrait up before it: the one the previous `$F4` loaded.
+    pub previous: Option<u8>,
+    /// The portrait it loads; `None` for `$F4 0`.
+    pub portrait: Option<u8>,
+    /// Counted frames: the `DMAPlane_A_VInt` after destroying a portrait
+    /// that was up (`$06A1B4`), which shows the window without one.
+    pub destroy_frames: u8,
+    /// Lag frames: [`PORTRAIT_LOAD_LAG_FRAMES`] when it loads a portrait.
+    pub lag_frames: u8,
+}
+
+impl PortraitChange {
+    /// Whether it costs frames: `$F4 0` costs none.
+    #[must_use]
+    pub fn has_frames(&self) -> bool {
+        self.destroy_frames > 0 || self.lag_frames > 0
+    }
+}
 
 /// One retail `$F2` action, released when the typewriter reaches its byte
 /// position. Payload-bearing variants keep the decoder's word/byte widths;
@@ -107,6 +150,12 @@ pub struct TextFlow {
     entry_id: u16,
     /// Relative entry counts after `$F5`; zero continues at the current byte.
     choice: Option<[u16; 2]>,
+    /// The `$F4`s the walk ran that the window has not finished, in stream
+    /// order.
+    portrait_changes: VecDeque<PortraitChange>,
+    /// The walk stopped at a control behind a pending `$F4`
+    /// ([`TextFlow::finish_portrait`] resumes it).
+    portrait_hold: bool,
 }
 
 impl TextFlow {
@@ -173,6 +222,8 @@ impl TextFlow {
             pending_action: None,
             entry_id: entry.id,
             choice: None,
+            portrait_changes: VecDeque::new(),
+            portrait_hold: false,
         };
         flow.pump(game);
         if flow.done && flow.stop.is_none() {
@@ -193,10 +244,35 @@ impl TextFlow {
         self.lines.iter().map(|line| line.chars().count()).sum()
     }
 
-    /// The portrait id currently shown, if any.
+    /// The portrait id the walk has reached, if any. The window shows it once
+    /// its [`PortraitChange`] has run.
     #[must_use]
     pub fn portrait(&self) -> Option<u8> {
         self.portrait
+    }
+
+    /// The first `$F4` the window has not finished, if any.
+    #[must_use]
+    pub fn pending_portrait(&self) -> Option<&PortraitChange> {
+        self.portrait_changes.front()
+    }
+
+    /// The window has spent the first pending `$F4`'s frames. Once none is
+    /// left, the walk resumes at the control it stopped at.
+    pub fn finish_portrait(&mut self, game: &GameState) -> Option<PortraitChange> {
+        let change = self.portrait_changes.pop_front();
+        if self.portrait_changes.is_empty() && self.portrait_hold {
+            self.portrait_hold = false;
+            self.pump(game);
+        }
+        change
+    }
+
+    /// Whether a mid-message `$FA` jump or `$F6` event waits for the window
+    /// half to service it.
+    #[must_use]
+    pub fn has_jump_or_event(&self) -> bool {
+        self.jump.is_some() || self.event.is_some()
     }
 
     /// How the page on screen ended, if a page is finished.
@@ -321,6 +397,7 @@ impl TextFlow {
         self.stop = None;
         self.done = false;
         self.closed = false;
+        self.portrait_hold = false;
         self.pump(game);
     }
 
@@ -344,7 +421,10 @@ impl TextFlow {
         self.lines = vec![String::new()];
         self.line = 0;
         self.column = 0;
+        // The window's destroy took the portrait with it.
         self.portrait = None;
+        self.portrait_changes.clear();
+        self.portrait_hold = false;
         self.stop = None;
         self.closed = false;
         self.done = false;
@@ -418,6 +498,25 @@ impl TextFlow {
         }
     }
 
+    /// `TextCtrlCode_Portrait`: `$F4 0` destroys the portrait with no frame
+    /// (`loc_6A29C`); any other id destroys the one up, if any, with a
+    /// `DMAPlane_A_VInt` (`$06A1B4`), then decompresses the new art.
+    fn change_portrait(&mut self, id: u8) {
+        let previous = self.portrait;
+        let up = previous.is_some();
+        let load = id != PORTRAIT_HIDE;
+        self.portrait = load.then_some(id);
+        let destroy = u8::from(load && up);
+        let lag = if load { PORTRAIT_LOAD_LAG_FRAMES } else { 0 };
+        self.portrait_changes.push_back(PortraitChange {
+            at: self.visible_chars(),
+            previous,
+            portrait: self.portrait,
+            destroy_frames: destroy,
+            lag_frames: lag,
+        });
+    }
+
     fn close(&mut self, end: PageEnd) {
         self.stop = Some(end);
     }
@@ -449,9 +548,29 @@ impl TextFlow {
 
     /// Runs segments until a page is finished, a delay starts, or the entry
     /// ends.
+    ///
+    /// `RunText` runs one byte at a time, so a control with an effect of its
+    /// own (`$F2`, `$F6`, `$FA`, a mid-message `$F3`) waits behind a `$F4`
+    /// whose frames the window has not spent: the walk stops before it and
+    /// [`TextFlow::finish_portrait`] resumes it. Glyphs and page ends still
+    /// run on; the window holds the typewriter and the page instead.
     fn pump(&mut self, game: &GameState) {
         while self.index < self.segments.len() {
             let segment = self.segments[self.index].clone();
+            if !self.portrait_changes.is_empty()
+                && matches!(
+                    segment,
+                    Segment::Control(
+                        Ctrl::Action { .. }
+                            | Ctrl::Event { .. }
+                            | Ctrl::FlagCheck { .. }
+                            | Ctrl::KeepNpcFacing { .. }
+                    )
+                )
+            {
+                self.portrait_hold = true;
+                return;
+            }
             self.index += 1;
             let stop = match segment {
                 Segment::Text(run) => self.run_text(&run, game),
@@ -542,7 +661,7 @@ impl TextFlow {
                 true
             }
             Ctrl::Portrait { id, position, .. } => {
-                self.portrait = (*id != PORTRAIT_HIDE).then_some(*id);
+                self.change_portrait(*id);
                 if let Some(slot) = position {
                     self.log.push(format!(
                         "portrait: talk slot {slot} ignored (talk mode is later)"

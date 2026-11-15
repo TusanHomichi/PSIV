@@ -553,7 +553,7 @@ pub static ALSHLINE_FOUND: Scene = Scene {
     ops: ALSHLINE_FOUND_OPS,
 };
 
-/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 86 ops.
+/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 87 ops.
 static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::PlaySound { id: MUSIC_STOP },
@@ -659,6 +659,17 @@ static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::LoadArt {
         rom_addr: 0x0012951A,
         tile: 0x3A5,
+    },
+    // `$07444E..$07445B` (`ps4.asm:153799-153801`): `MapDataManagerJmpTbl`
+    // entry `$D0`, `MapDataMan_PiataBasementB2_Palettes`
+    // (`ps4.asm:109197-109205`), copies the fourteen words of
+    // `PiataBasementB2_Palettes` (`$052848`, `dbf` from 13) to
+    // `Palette_Line_4` before Igglanova (`$188`) is built. Words 62 and 63
+    // keep Zema's map palette.
+    SceneOp::LoadPalette {
+        rom_addr: 0x0005_2848,
+        words: 14,
+        start: 48,
     },
     SceneOp::CreateFieldObject {
         slot: 7,

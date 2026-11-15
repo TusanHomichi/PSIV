@@ -25,7 +25,7 @@ under the [extension lock](../DEVELOPMENT.md#heavy-run-lock).
 |---|---:|---|
 | opening page 1 | **0.000000** | clone t3550 (real title START) ↔ opening frame 4000, tape 27 |
 | opening page 2 | **0.000000** | clone t4550 (real title START) ↔ opening frame 5200, tape 27 |
-| MeetingRika | **0.000000** | clone t160 ↔ tape-28 frame 7250 |
+| MeetingRika | **0.000000** | clone t162 ↔ tape-28 frame 7250 (ticks 161-165 show the same page) |
 | title (pre-prompt) | **0.000000** | clone t480 ↔ title frame 450 |
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
@@ -44,13 +44,13 @@ camera other than (0,0):
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t638 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon` | **0.000000** | clone t1704 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t1739 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
 panels one pixel down ([placement findings](#placement-findings), the surface origin).
-Every plateau of the break's tone matches inside that region, ticks 622-657
+Every plateau of the break's tone matches inside that region, ticks 635-670
 against frames 8968-9003, four frames a step; the untoned frame scores
 `rmse=161.656685` against the peak, and the step before it `rmse=30.119675`.
 
@@ -72,8 +72,78 @@ The table-driven scenes have two further pairs
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-palette-cycle` | **0.000000** | clone t1270 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface |
+| `rykros-palette-cycle` | **0.000000** | clone t1292 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface. The rows run ticks 1277-1298 against frames 8565-8586 |
 | `zio-barrier-ramp` | **0.000000** | clone t270 (`PSIV_DEBUG_EVENT=0x30`) ↔ tape-44 frame 7462: second three-word row, `$AAA/$0A8/$066`, and the scene's frozen beam mapping; region `1,1,319,223` (#409) |
+
+Rykros's tone before that cycle joined them on 2026-11-14
+([#534](https://github.com/TusanHomichi/PSIV/issues/534)), from the same tape
+and fixture, region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)):
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `rykros-tone-before` | **0.000000** | clone t895 ↔ tape-43 frame 8141: the three panels, untoned |
+| `rykros-tone-rise` | **0.000000** | clone t911 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
+| `rykros-tone-restore` | **0.000000** | clone t939 ↔ frame 8185: `loc_58666`'s third step back, every word floored at `$888` |
+| `rykros-tone-after` | **0.000000** | clone t955 ↔ frame 8201: the restored copy |
+
+The oracle's `Palette_Table_Buffer` steps every fourth frame from 8143, is
+white 8167-8174, and is the copy again from 8199. Clone tick t shows frame
+t + 7246 inside the region, but for each step's first frame (ticks 897, 901
+... 953), which the native shows already stepped: its `Main_Frame_Count`
+phase is one off the tape's. That phase is the fixture's, not the tone's: the
+debug run pages the scene's first dialogue on other frames than the tape, and
+the offset moved from t + 7263 when that dialogue's portraits began spending
+their frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)). The
+pairs sit in the plateaus' middles. The full frame differs only in #409's
+first row and column, black against the toned backdrop. The untoned tick 895
+scores `rmse=134.253889` against the rise, the step before it (907)
+`rmse=37.904457`, and the rise's own step (911, also backdrop `$888`) against
+the restore `rmse=18.398389`.
+
+The window `Event_RunDialogue3` opens after the restore, and its portrait,
+joined them the same day:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `rykros-portrait` | **0.000000** | clone t970 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface. Ticks 954-1010 match frames 8200-8256 inside `1,1,319,223`; t969, the last lag frame, scores `rmse=23.484914` |
+
+The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
+them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),
+from tape 38's own run and fixture, after the first dialogue's last pages:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `ending-tone-loop-before` | **0.000000** | clone t2597 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t2614 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t2654 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+
+The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
+white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086.
+The ending's windows run `RunText3` and page on their own
+([#645](https://github.com/TusanHomichi/PSIV/issues/645)), so its pairs run
+with `PSIV_DEBUG_EVENT=0x8021` alone, no `PSIV_DEBUG_AUTOCLOSE_SCENE` or
+`PSIV_DEBUG_RETAIL_PACE`. The native window closes on tick 2598, the frame
+the cartridge's last page turns (9893), and clone tick t shows frame t + 7296
+through the loop. Over the pairs' regions (2026-11-15 sweep of ticks
+2585-2670): the before frame matches ticks 2585-2598 and scores
+`rmse=43.225656` from 2599, once the native window is gone (the cartridge
+keeps the window and portrait up, toned, until `$078FAE`,
+[#636](https://github.com/TusanHomichi/PSIV/issues/636)); the rise matches
+2613-2616 over `1,1,319,111`, with the untoned tick 2597 at
+`rmse=125.148572` and the steps either side (2612, 2617) at
+`rmse=34.381196` and `rmse=28.146978`; white matches 2625-2670, the step
+before (2621) at `rmse=29.123900` and the untoned tick at
+`rmse=206.044683`. The break pairs sit 51 ticks earlier, at t + 7245: the
+settled window matches ticks 1690-1722 (1723 `rmse=32.193293`) and the
+break's peak 1739-1742 (1738 `rmse=30.119675`, 1743 `rmse=32.294586`). The
+cartridge spends lag frames (panel decompression, page clears) that the
+native does not, and two of the seventh page's `$F2` frames
+([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
+The second loop (`$079BD2`) and the third
+(`$07A0FA`) are checked on the CRAM model only
+(`suites::palette::ending`). The third starts white natively, because the
+staff roll's and the credits' palette steps are not modelled
+([#635](https://github.com/TusanHomichi/PSIV/issues/635)).
 
 Rykros's scene-owned panels `$18B/$18F/$190` are extracted alongside the
 other panels; the runtime palette test checks every `PanelCreate` in that
@@ -115,6 +185,30 @@ these isolated fixtures do not certify the complete windup/recovery or a campaig
 Each battle pair names a `Session` fixture (`PSIV_DEBUG_BATTLE_WINDOW`,
 `rust/psiv-runtime/src/session/battle/fixture.rs`).
 
+`Event_EclipseTorchUsed`'s two white flashes joined them with
+[#593](https://github.com/TusanHomichi/PSIV/issues/593), against tape 46's
+Dezolis fixture (`TAPE_46`), both inside `1,1,319,223`:
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `eclipse-torch-white` | **0.000000** | clone t152 (`PSIV_DEBUG_EVENT=0x47`) ↔ tape-46 frame 7355: the first fill, shown 7354-7356 |
+| `eclipse-torch-white-2` | **0.000000** | clone t195 ↔ tape-46 frame 7396: the second fill, 42 frames later on both sides |
+
+The restore frames between them don't certify. On the cartridge, panel
+`$10D` replaces plane A, hides the sprites and loads line 3, but the pack
+does not decode the panel
+([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+frames keep the field's foreground, Chaz and line 3. The fixture's
+`Main_Frame_Count` phase is not the tape's either: the native's snowstorm
+write lands in its first flash, the tape's in its second. Run with the
+tape's phase (three idle ticks before the event, `runtime_at` on the same
+map, flags and leader), the runtime's CRAM words 0-47 equal the tape's
+`Palette_Table_Buffer` on every frame from five before the first fill to the
+end of the second restore. That includes the snowstorm words the second
+flash's map update rewrites. From the object art's load on, the cartridge's
+eight lag frames ([#681](https://github.com/TusanHomichi/PSIV/issues/681))
+leave the native eight frames early.
+
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension
 first); it pins each pair's clone tick and oracle-frame hash and writes a receipt
 under `build/certify/`. The oracle frames regenerate from their tapes and are
@@ -148,7 +242,9 @@ recipe rebuilds both.
   typewriter, holds a completed page for 4 frames, and dismisses it with a
   one-frame `ButtonSpeak` press in the pad, so the next page's first glyph
   frame types at the held cadence. It advances only a page that is fully
-  revealed with its open animation finished, and never a `Choice` page.
+  revealed with its open animation finished, and never a `Choice` page. A
+  `RunText3` window (the ending's) is never dismissable, so the pace presses
+  nothing there; the ending's pairs run without it.
 
 ### Capture doctrine
 
@@ -166,6 +262,10 @@ gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --fixed-fps
 - **`--fixed-fps 60`** for any pair whose content animates: without it,
   Godot's physics catch-up under uneven render pacing makes the captured
   previous-frame texture reflect a load-dependent tick.
+
+A sweep of consecutive ticks is one run: `PSIV_DEBUG_SHOT_LAST=<n>` with
+`PSIV_DEBUG_SHOT_FRAME` saves every tick through n, each to
+`<PSIV_DEBUG_SHOT stem>-t<tick>.png`.
 
 `presentation-rmse` (`rust/psiv-compare`) crops the centred 960x672 3x
 surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224, and reports RGB RMSE
@@ -329,7 +429,8 @@ border at `(37,2)`.
 | `InitVramAndCram` | Implemented | Clears staged/visible scene planes and opening text. |
 | `FadeIn`, `FadeOut` | Implemented | Seven CRAM-equivalent levels, two-frame stepping, 14 renderer ticks; the cover is above cutscene planes and below dialogue. |
 | `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is the operand-free typed `PanelDestroyLast` stack pop; loop counters are not panel-art IDs. Only an empty staged stack produces a destroy warning. |
-| `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
+| `DmaPlanes` | Implemented | Staged panels, and a staged plane-A picture, become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
+| `LoadSceneAsset` | Implemented for the decoded plane-A pictures; other assets logged | A source the pack decoded as a scene picture (`panels.json`, `scene_pictures`) stages it once its `LoadArt` ran; the next `DmaPlanes` shows it in place of the field map, under the sprites, drawn from the live CRAM with index 0 the backdrop (`cutscene/picture.rs`). `ReloadMapChunks` and `InitVramAndCram` clear it, and so does every teardown that replaces the planes outside the scene's ops (the scene's end, a field reload, a map change, the return to title), staged or shown, through one `clear_planes`. The one picture is Le Roof's galaxy ([51](51_MeetingLeRoof.md), [52](52_LeRoofAgain.md)). |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
 | `LoadTitleImage` | Implemented | Retail opening art/mapping/palette decode is emitted as a 320x128 background. |
@@ -343,7 +444,7 @@ border at `(37,2)`.
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
 | `ReplaceMapLayout` | Implemented through `MapRefreshed` | The runtime installs the pack's layout variant decoded from the two ROM sources and emits `MapRefreshed`; Godot's existing handler redraws the map from the runtime view, which names the variant's PNG. `Event_GaruberkTwEyeAction1` ([104](104_GaruberkTowerEyes.md)). |
-| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `CounterPaletteCycle`, `PaletteGrowIn`, `VariablePaletteFade`, `TwoLinePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and dialogue window draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
+| Palette records: `PaletteIncreaseTone`, `PaletteRestoreTone`, `PaletteToneFlash`, `PaletteCopy`, `SetPaletteWords`, `AddPaletteWord`, `RykrosPaletteCycle`, `PaletteRampFromTable`, `PaletteCycleFromTable`, `CounterPaletteCycle`, `PaletteGrowIn`, `VariablePaletteFade`, `TwoLinePaletteFade`, `FadeToRed`/`FadeFromRed`, `LoadPalette`, `ReloadMapPalette`, `InitVramAndCram`, panel palettes | Implemented, drawn per line | The runtime's CRAM model applies every one frame by frame ([CRAM state](#cram-state)), and the map, field sprites, scene panels and native windows draw from it ([Drawing the CRAM](#drawing-the-cram)). Native captures of these scenes against oracle frames are [#162](https://github.com/TusanHomichi/PSIV/issues/162) and [#68](https://github.com/TusanHomichi/PSIV/issues/68). |
 | `GaruberkEyeArtCycle`, `ShadowHighlight` | Logged, not drawn | Godot consumes both (`cutscene/ops.rs`): the Garuberk eyes' art cycle and `Event_ZioNurvus`'s VDP register 12 writes. The frames are the scene's waits, so timing is unaffected. |
 | palette-word/red-fade/window/portrait records | Implemented for the decoded generic set | Generic `WindowDestroy/Create`, `LoadWindowTiles`, `LoadPortrait`, and `DrawPortrait` now drive the runtime window layer. The Meseta window roles come from `dialogue/set.window.png`; `shopkeeper_2` is emitted as a 48x48, 36-tile portrait from art `$29DE1E`, mapping `$2A2B36`, destination tile `$55C`. |
 
@@ -361,6 +462,7 @@ The rebuilt pack reports this exact census in
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
+| scene pictures | 1 | Le Roof's 320x224 galaxy: art `$1DB2C8` at tile `$260`, cells `$1DDE0A`, in CRAM slots |
 
 The chest splinter is the one deliberate partial result. Its four directional
 animation tables reference the contiguous pattern range `$34B..$38C` (66
@@ -418,11 +520,8 @@ Tower with Elsydeon held, where the map's own entry trigger starts
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Surfaces outside the live palette:** scene temporary objects, the shop, camp and choice menus, and the dialogue
-  action `SabotageAlarmRedPalette`'s red overlay still draw baked colours.
-- **Rykros's tone:** its cycle has a certified frame above; the preceding tone
-  still needs its own oracle pair
-  ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
+- **Surfaces outside the live palette:** the dialogue action
+  `SabotageAlarmRedPalette`'s red overlay still draws baked colours.
 
 ## CRAM state
 
@@ -440,6 +539,14 @@ borrows. Writers:
   second after `MapDataManager` runs (`ps4.asm:107579-107630`). Rescued Zema's
   and petrified Birth Valley's NPC sheets draw from those words. The map
   update programs write single words;
+- a scene's map load whose next op is `Pal_VariableFadeIn`
+  (`SceneRunner::fades_in_after_map_load`) keeps the words the frame before
+  uploaded live and holds the load's words in the buffer, unshown:
+  `RefreshMap` (`ps4.asm:121767`) returns with no VBlank, and the fade-in
+  copies and clears the buffer (`ps4.asm:122071-122079`) before its first
+  ([#612](https://github.com/TusanHomichi/PSIV/issues/612)). The fade-in
+  copies the held words, a map update write lands in them, and any other
+  record puts them live first;
 - `InitVramAndCram` copies the live buffer to the second one and loads
   `Pal_Init` (`$09F2BC`, the `lea` at `$05A68A`); `LoadPalette` and
   `ReloadMapPalette` write the live buffer; `Panel_Create` (scene ops and
@@ -449,6 +556,9 @@ borrows. Writers:
   `$29758E`) at live word 48: line 3 and word 0 of the adjacent saved buffer
   (`$06B9EA`, `$06BAC2`, `$06BB9A`). Vehicle sheets draw their indices through
   the same live CRAM path as party and NPC sheets;
+- `Cutscene_Alshline` copies `PiataBasementB2_Palettes`' 14 words (`$052848`)
+  to line 3 before it builds Igglanova (`$07444E`, `MapDataManagerJmpTbl`
+  entry `$D0`); words 62 and 63 keep Zema's;
 - `PaletteCopy` is every `trap #1`/`trap #0`/fill into either buffer;
   `SetPaletteWords` and `AddPaletteWord` take word offsets;
 - the loops step once per runtime tick, starting on the tick the scene emits
@@ -457,7 +567,12 @@ borrows. Writers:
   green only: both mask blue and keep it), the Rykros cycle, the Zio ramp, the
   engine light, the Le Roof colour cycle and fade-in, both red fades, both
   variable fades and their two-line forms (`TwoLinePaletteFade`: words 0-31
-  only; the fade up starts from the live words, with no copy or clear). The Le Roof cycle (`loc_70638`, `$070638`) also steps the
+  only; the fade up starts from the live words, with no copy or clear), and
+  the ending's eighth-frame loops: the staff roll's word fade out and back in
+  and the credits' ramp (`EndingStaffRollFadeOut`/`FadeIn`,
+  `EndingCreditsPaletteRamp`, [89_Ending.md](89_Ending.md#palette-state-and-the-remaining-drawing-gaps)),
+  whose lengths depend on the word and the frame count, so the scene waits on
+  them as on a variable fade. The Le Roof cycle (`loc_70638`, `$070638`) also steps the
   index byte `$FFFFECF3`, which the map programs share: the runtime keeps it
   with their counters (`MapUpdateView`), cleared by each map load as
   `ps4.asm:107593` clears it, and lends it to the CRAM model.
@@ -496,6 +611,30 @@ Corrections this model brought, each checked against the US image:
   (`loc_1DE258`) into the second buffer and clear its words 16-31 before the
   fade up (`$0704D8`, `$078398`). The fade up left red in words 2-10 and was
   21 frames short (#591).
+- Every scene's fade records are now checked against its bytes: the `jsr`s
+  to the six variable fades (`Pal_VariableFadeOut`/`In`, `$05B168`/`$05B1B8`;
+  the two-line pair; `Pal_VariableFadeToRed`/`FromRed`, `$05B2BE`/`$05B30E`)
+  inside its documented ranges, in order, with each call's `$FFFFED52` mode
+  (`scenes::palette_fades_image`: its `CALLS` table is read off the US image
+  when it is present, and every scene is checked against the table without
+  it; a scene not yet fixed is listed with its issue, and none is). It found
+  `Event_Juza` (`$06FB3A`) and both of `Event_ReFaze`'s fades (`$0715DA`,
+  mode 5; `$07172C`, mode 2) recorded as red fades, a shell fade-out, or not
+  at all; they are now `TwoLinePaletteFade`. It also found
+  `Cutscene_CrashLaanding`'s red fade (`$076710`), which is
+  `Pal_VariableFadeOut` mode 9, and the ending's `$17C` panel fading in
+  at mode 5 where `$079B1E` sets 1 (#596).
+- Five more scenes recorded a shell `FadeOut`/`FadeIn` where their bytes
+  call a variable fade. Each is now its record with the bytes' mode, and the
+  length is the runtime's: `Cutscene_AlysWounded` (`$074BD6`, out 3),
+  `Cutscene_PsycoWand` (`$075428`, out 5; `$075500`, `$0755D2`, `$075772`,
+  out 9; its first panel teardown now follows the fade, as at `$07542E`),
+  `Cutscene_LutzRevelation` (`$0778C6` out 2, `$077902` in 2),
+  `Cutscene_ProfoundDarkness` (`$078D3E` out 1, `$078E64` in 7) and
+  `Cutscene_LeRoofAgain` (`$078460`, out 5). `Cutscene_ProfoundDarkness`
+  also gains the `Palette_Table_Buffer_2` copy and the teleport sound before
+  its fade-in, and records `ClearPlaneABuf` as `ClearPlanes` instead of an
+  `InitVRAMAndCRAM`, whose fade overwrote the copy (#610).
 ### Drawing the CRAM
 
 The field shell copies `Runtime::cram()` into one shared palette at the top
@@ -504,24 +643,118 @@ art is indexed draws from it:
 
 - the map's index textures, lines 0 and 1, through the map shader
   (`field_map.rs`), its palette set when the shader is installed;
-- field sprite sheets (party, followers, NPCs) on the line their pack record
-  names (`palette.cram_line`, from the object's `$13` byte);
+- field sprite sheets (party, followers, NPCs, vehicles) and scene temporary
+  objects (`presentation/panels.json`'s `temporary_objects`) on the line their
+  pack record names (`palette.cram_line`, from the object's `$13` byte);
 - scene panels, each layer on its art tile's line (bits 13-14);
-- the dialogue window, whose tiles, glyphs and portraits are line 2;
+- the native windows, whose tiles, glyphs and portraits are line 2: the
+  dialogue window and its YES/NO choice, the camp and chest windows with the
+  STATUS portraits, the shop and inn windows with the innkeeper's portrait,
+  the Hunter's Guild board and the ship's destination windows
+  (`window_palette::WindowFamily`). The guild board also draws the same
+  font's tiles on lines 1 and 3: a collected job's name (`$A000`) and the
+  name of a job that is not open (`$E000`). Each window node names its line
+  (`WindowNode::line`), and one material per line draws every node on it
+  (`Field::attach_window_line`). A screen with art on more than one line, or
+  over a picture that is not window art, draws each line on its own
+  `WindowLayer` child: the board's `Window`, `Done` and `Closed` layers, and
+  the destination screen's `Windows` over the planetary map, which the
+  screen colours from its own palette state (lines 0 and 1,
+  `ShipMenu::render`);
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
 
-Sheets and panels keep each pixel's palette index
+Sheets, temporary objects and panels keep each pixel's palette index
 (`psiv_data::color::index_png`) and are recoloured
 (`psiv_data::color::recolor`) when the words change, on the frame they are
 drawn (`rust/psiv-godot/src/cram_art.rs`). A map record without the 64-word
 shadow is not live (`CramView::live`): every surface on it, the map's base,
 overlay, layout variant and patch atlas pictures included, draws its baked
-colours. The window's art is baked in
-`Pal_Init_Line_3`'s colours, which are distinct, so its shader finds each
-pixel's index by colour. The red fades are the CRAM model's too: the
+colours. The windows' art is baked in
+`Pal_Init_Line_3`'s colours, which are distinct apart from index 0's black
+(index 1 shares it, and no window pixel is an opaque index 0), so their
+shader finds each pixel's index by colour (`WindowLine::colour` is the same
+rule as data). The red fades are the CRAM model's too: the
 screen-space red effect that stood in for them is gone, since it would now
 apply twice.
+
+`rust/psiv-godot/tests/window_palette.rs` checks the windows' binding
+without Godot: for every window node, a change to its line reaches exactly
+the pixels of its index, alpha kept, while a change to any other line or a
+palette that is not live reaches none; the same checks reject line-2 art
+bound to line 3, and the guild's collected rows bound to line 2 or 3 (the
+negative controls). Off a live palette the guild's rows keep the colours
+the pack carries for their lines. With the local pack, every family's PNGs
+(window strip, both fonts, scroll arrow, dialogue, shop and STATUS
+portraits) are baked in the words the shader is given, on the line their
+records name; the field boot's map load puts those words on line 2 and not
+on line 3; and at the guild (`PSIV_DEBUG_EVENT=0x66`'s fixture, which shows
+a collected, an open and a closed row) lines 1 and 3 hold the guild's row
+colours, so the board looks at rest as it did when it drew them baked:
+`cargo test --manifest-path rust/Cargo.toml -p psiv-godot --test window_palette`.
+
+`tools/native/native_window_palette.gd` checks the windows in the running
+shell. `PSIV_WINDOW_FAMILY` picks the camp's STATUS page
+(`PSIV_DEBUG_CAMP=1`), a shop counter (`PSIV_DEBUG_SHOP=<counter>`: 1 is an
+inn, 12 a store), a scene's YES/NO choice or a scene's first dialogue page
+(`PSIV_DEBUG_EVENT`: `0x3B` asks at Chaz's house, `0x8007` shows Chaz's
+portrait), the Hunter's Guild board (`jobs`, `PSIV_DEBUG_EVENT=0x66`) or the
+ship's destination list (`destination`, `PSIV_DEBUG_EVENT=0x800D`), and
+`PSIV_WINDOW_LINE` the line (2 by default; the board also draws on 1 and
+3). The driver pauses the game and changes that line through
+`Field.debug_window_line(line, words)`, an evaluation-only override of that
+line's window material (`PSIV_DEBUG_ROUTE=1`) that leaves the runtime's
+CRAM, the map, the sprites and the other lines' windows alone. It is a
+controlled change at the shell's window seam, not a scene's palette op.
+From captures before, with the line's nodes hidden (the family's, and any
+other visible node drawing through the same material, such as the message
+box under the board), during, hidden again during, and after, it requires
+every footprint pixel of one of the line's colours to take its index's new
+colour, every changed pixel to take its index's new colour, the hidden
+frame to stay exactly the same under the override (nothing else follows
+it), and the frame to come back exactly when the override clears. It is a
+debug fixture, not a campaign route or an original-game comparison. Two
+wrong bindings must fail: `PSIV_WINDOW_UNBIND=1` drops the family nodes'
+material first, and `PSIV_WINDOW_REBIND=1` gives them another of the
+family's lines' material (the board only):
+
+```bash
+mkdir -p build/window-palette/camp/saves
+PSIV_WINDOW_FAMILY=camp PSIV_DEBUG_CAMP=1 PSIV_DEBUG_ROUTE=1 \
+PSIV_SAVE_DIR="$PWD/build/window-palette/camp/saves" \
+PSIV_WINDOW_OUTPUT="$PWD/build/window-palette/camp" \
+python3 tools/heavy_lock.py run --class godot -- xvfb-run -a \
+python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
+  --audio-driver Dummy --script "$PWD/tools/native/native_window_palette.gd"
+```
+
+`tools/native/native_temporary_palette.gd` checks a temporary object in the
+running shell: `Cutscene_Alshline` from `PSIV_DEBUG_EVENT=0x8005` (the scene
+loads Zema itself). On Igglanova's build tick it requires the line-3 copy,
+unchanged lines 0 and 2, and every opaque pixel a live line-3 colour; once the
+object is inside the camera's 320×224 view it captures the sheet, the current
+frame and the viewport before and during Zema's line-1 cycle, and requires
+line 3 and every sheet pixel, alpha included, unchanged. It is a debug-event
+fixture, not a campaign route or an original-game comparison; the wrong-line
+negative control is in `cutscene/manifest.rs`'s tests. The driver's first
+failure is final: it stops the run and no later capture can exit 0 over it.
+`rust/psiv-native-verify/tests/temporary_palette_driver.rs` runs it against a
+stub game and faults each check in turn (the copy, then line 3 or a sheet pixel
+before the first capture and during the cycle); each must exit nonzero. It
+resolves Godot through `tools/godot.py`, takes a `godot` heavy-lock slot for
+each run and skips without the pinned Godot or `xvfb-run`:
+`cargo test --manifest-path rust/Cargo.toml -p psiv-native-verify --test temporary_palette_driver`.
+From the repository root, with the extension and local pack built:
+
+```bash
+mkdir -p build/temporary-palette/saves
+PSIV_DEBUG_EVENT=0x8005 PSIV_DEBUG_ROUTE=1 PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
+PSIV_DEBUG_RETAIL_PACE=1 PSIV_SAVE_DIR="$PWD/build/temporary-palette/saves" \
+PSIV_TEMPORARY_OUTPUT="$PWD/build/temporary-palette" \
+python3 tools/heavy_lock.py run --class godot -- xvfb-run -a \
+python3 tools/godot.py run -- --rendering-driver opengl3 --fixed-fps 60 \
+  --audio-driver Dummy --script "$PWD/tools/native/native_temporary_palette.gd"
+```
 
 Deviation: the fades whose frames the scene does not spend (`FadeIn`,
 `FadeOut`, `InitVramAndCram`'s fade) write only their copy

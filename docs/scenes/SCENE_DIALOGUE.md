@@ -82,6 +82,12 @@ only the text cursor survives F7. The window routine's panel destruction also
 runs on F7, so earlier panels cannot leak into the resumed section. A flag
 write precedes Alshline's resume, and another precedes the Zema aftermath's
 `$69` dialogue (US instruction at `$074588`, scene range `$074556..$0745DD`).
+A panel cutscene writes the byte again before each later text, since the last
+one's close cleared it; a transcription that writes it only before its first
+text draws every later portrait at the talk position (#630). `psiv-core`'s
+`scenes::panel_byte_census` holds every registered scene to its documented
+bytes: each `move.b #1` (`11FC 0001 ECFD`) and `clr.b` (`4238 ECFD`) to the byte
+is a `SetRenderSpritesInCutscene` of the same value, in the same order.
 The window routine's exit fade cadence has not been compared with the oracle.
 
 The extracted palette copy's NPC sheet replacements (`deferred_effects`) are
@@ -194,6 +200,81 @@ breaks). At 60 Hz that is **20 characters per second**.
 
 Retail is a 3-frame-per-character typewriter.
 
+**The open steps.** `loc_686BC` (`ps4.asm:139790`) redraws the box two cells
+wider a pass. `Event_RunDialogue3` and the other text routines set
+`Window_Render_Mode` bit 1, whose `bchg #2` sends only every other pass, the
+first included, through `DMAPlane_A_VInt`. The 34-cell box therefore shows 2,
+6, 10 ... 34 cells on its nine frames (tape 43, frames 8203-8211, 16 to 272
+pixels wide); `DialogueRunner` steps the same widths.
+
+**Portrait loads are lag frames.** `TextCtrlCode_Portrait` (`ps4.asm:142661`)
+destroys the portrait that is up with one `DMAPlane_A_VInt` (`$06A1B4`), then
+decompresses the new art (`jsr NemDecomp`, `$06A1D6`) and writes its window
+to `Plane_A_Buffer`, which reaches the screen with the next glyph's
+`DMAPlane_A_VInt`. The VInts the decompression straddles find `VInt_Flag`
+clear: they run no `ReadJoypads`, no `UpdateRNGSeed` and no
+`Main_Frame_Count` (`ps4.asm:548-549`, `614-624`). Tape 43's
+`Cutscene_Rykros`, by `main_frame_count`:
+
+| What | Frames | Lag frames |
+|---|---|---|
+| a page with a new portrait (ids 1, 4, 6, 8) | clear 7400, destroy 7402, portrait and first glyph 7405 | 7401, 7403-7404 |
+| a page without one | clear 7576, first glyph 7578 | 7577 |
+| a new `Event_RunDialogue3` window with a portrait | box open 8211, portrait and first glyph 8216 | 8212-8215 |
+| a new `Event_RunDialogue5` window with a portrait | box open 8619, portrait and first glyph 8623 | 8620-8622 |
+
+Every portrait change on the tape lags two frames between its destroy and the
+new portrait (7403-7404, 7467-7468, 7723-7724, 7915-7916, 8027-8028,
+8507-8508). The runner models those two (`PORTRAIT_LOAD_LAG_FRAMES`): on a lag
+frame it, the field tick and the RNG do nothing, and the portrait shows with
+the first glyph after its `$F4`. `$F4 0` only restores the plane, with no
+frame. Every `$F4` is its own change at its own glyph, in stream order:
+two adjacent ones spend a load's two lag frames, then the next one's destroy
+and lag. The typewriter never draws past a `$F4` whose frames have not run,
+however the walk reached it (typing, a `$F9` running out, a `$F2` or a
+branch), and a press cannot leave the page, answer its prompt or close the
+window before they have. A control with an effect of its own after a `$F4`
+(`$F2`, `$F6`, `$FA`) waits for those frames too. A `$F4 0` costs no frame
+and no press, and the plane keeps what it shows until a `DMAPlane_A_VInt`
+changes it: the next glyph, or a swap's destroy frame. The other lag on the table, the text routine's own work after the box
+opens and after a page clears, is not modelled as lag: the typewriter's first
+three frames stand in for it (deviation in
+[the source notes](../source-notes/README.md)).
+
+### `RunText3`: the ending's windows page on their own
+
+`Cutscene_Ending`'s windows run their text through `RunText3`
+(`ps4.asm:144053`), not `RunText`: the inline `RunDialogue(9, EndingIntro)`
+(`$078F68..$078F90`) and every `Event_GetAndRunDialogue4`/`Event_RunDialogue4`
+(`$5ADA2`, `DialogueWindow::Ending`). The loop reads no pad and draws no
+arrow. It types a glyph a frame (`moveq #0, d0`, the US branch), breaks the
+page where `RunText` would, and at the break (`Text3CtrlCode_Interrupt`) or
+the end (`Text3CtrlCode_Terminate`, for `$F7` and the terminator) waits
+`9n + 1` frames, `n` being the page's glyph count (`$FFFFED5B`). The glyph
+that fills the second line branches to the interrupt before its own `.wait`,
+so that page's wait starts on its own frame. `Event_RunDialogue4` then
+destroys the windows with no `RunTextTerminateArrowLoop`.
+
+Tape 38 logs `$FFFFED5B` (cleared at each turn) and `Main_Frame_Count` through
+entry `$09`: every page turns `9n + 2` frames after the frame that drew its
+last glyph (21 glyphs, 7280 to 7471; 43, 7519 to 7908; 8, 7916 to 7990 ...;
+16, the last, 9747 to 9893), and the tape's C taps change nothing. A `$F9`
+before the break adds its own frames, after the glyphs before it: 29 on the
+page that ends 9544 to 9728, 184 frames for 17 glyphs.
+
+`DialogueRunner` runs a scene window whose `DialogueWindow::runs_text3` holds
+on that clock (`dialogue/text3.rs`): one glyph a frame whatever the pad, no
+arrow, no press read, and the page turns, or the window closes, on its own.
+`runner_tests/text3.rs` pins every page of entry `$09` against the tape, and
+`session/ending_text3_tests.rs` plays `$8021` with no press and with presses,
+frame for frame the same. The seventh page turns two frames early:
+two of its `$F2`s cost the cartridge a frame each that the runner does not spend
+([the source notes](../source-notes/README.md)).
+
+**A `$F9` starts after the glyphs before it.** The pause is a byte of the
+text loop, so its frames run once the typewriter has drawn the page up to it,
+in `RunText` as in `RunText3`.
+
 ### A window opening is not proof of a talk
 
 `Interaction_ContinueChecks` ends with
@@ -300,9 +381,10 @@ about two frames beyond the press itself.
 - **No page-index RAM field.** Tape 16 pins the page *boundary* behaviour, but
   only by watching `Text_Buffer` writes. Nothing in the RAM map distinguishes
   page N from page N+1, so a tape cannot assert "we are on page 2" directly.
-- **`$F9` pause length.** The 3-frame draw cadence has 6-frame gaps,
-  consistent with an explicit pause control code, but the pause's own duration
-  has not been measured against the dialogue data.
+- **`$F9` pause length in `RunText`.** The 3-frame draw cadence has 6-frame
+  gaps, consistent with an explicit pause control code. Tape 38 measures the
+  pause in `RunText3` (its operand in frames, after the glyphs before it; see
+  above), but no tape has measured one in `RunText`.
 - **Scroll-arrow timing.** `Text_Scroll_Arrow` ($FFFFC2C0) is mapped and its
   `offscreen_flag` logged, but that byte reads 0 for the whole dialogue, so it
   does not show the arrow's visibility; the right field has not been found.

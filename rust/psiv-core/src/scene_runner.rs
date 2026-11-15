@@ -304,10 +304,34 @@ impl SceneRunner {
         self.rng.take()
     }
 
+    /// Spend a runtime-resolved setup/refresh interval before the next op.
+    /// The initiating op remains the owner of whether map updates run.
+    pub fn delay_frames(&mut self, frames: u16) {
+        self.blocked = if frames == 0 {
+            Blocked::No
+        } else {
+            Blocked::Ticks(frames)
+        };
+    }
+
     /// Whether the scene waits on [`SceneRunner::release_palette`].
     #[must_use]
     pub fn awaits_palette(&self) -> bool {
         self.blocked == Blocked::Palette
+    }
+
+    /// Whether the scene waits on a map load and its next op is
+    /// `Pal_VariableFadeIn`: retail's `RefreshMap` returns with no VBlank, and
+    /// the fade-in clears the new palette from the buffer before its first one.
+    #[must_use]
+    pub fn fades_in_after_map_load(&self) -> bool {
+        self.blocked == Blocked::Map
+            && matches!(
+                self.scene.get(self.pc),
+                Some(SceneOp::Presentation {
+                    op: crate::PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                })
+            )
     }
 
     /// Answers a [`crate::PresentationOp::VariablePaletteFade`]: the fade the

@@ -8,7 +8,7 @@ street (`Kadary`, `$068`) falls to the ground writhing. The coordinating issue g
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
 | `$0024` `Event_FaintingPriest` | `$06D616..$06D6C7` inclusive, 178 bytes | `EventPtrs[$24]` at `$05A2B4 + $90` | `kadary_events.rs`, `FAINTING_PRIEST` (12 ops) |
-| `$0031` `Event_ZioFanatic` | `$06EE40..$06EEBD` inclusive, 126 bytes | `EventPtrs[$31]` at `$05A2B4 + $C4` | `kadary_events.rs`, `ZIO_FANATIC` (6 ops) |
+| `$0031` `Event_ZioFanatic` | `$06EE40..$06EEBD` inclusive, 126 bytes | `EventPtrs[$31]` at `$05A2B4 + $C4` | `kadary_events.rs`, `ZIO_FANATIC` (7 ops) |
 
 - **Triggers:** dialogue `$F6`. (`$FA`'s operand is a forward delta:
   [trigger census](TRIGGER_CENSUS.md).)

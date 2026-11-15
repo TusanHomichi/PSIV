@@ -21,6 +21,13 @@ impl Field {
         if std::env::var_os("PSIV_DEBUG_SCENE_TICKS").is_some() {
             godot_print!("scene op t{}: {op:?}", self.anim_tick);
         }
+        // Plane A's picture first: the DMA below shows what it staged.
+        if let Some(layer) = self.cutscene_layer.as_mut() {
+            let presentation = &self.presentation;
+            layer
+                .bind_mut()
+                .consume_picture_op(&op, |art, tile| presentation.art_loaded(art, tile));
+        }
         match op {
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
             SceneOp::FlightFadeIn { frames } => {
@@ -118,8 +125,14 @@ impl Field {
                 }
             }
             SceneOp::DmaPlanes => {
-                if let Some(layer) = self.cutscene_layer.as_mut() {
+                let picture = self.cutscene_layer.as_mut().is_some_and(|layer| {
                     layer.bind_mut().dma_planes();
+                    layer.bind().picture_visible()
+                });
+                // A picture replaced plane A and plane B was cleared: the
+                // room's tiles are gone until the planes are redrawn.
+                if picture {
+                    self.set_field_map_visible(false);
                 }
             }
             SceneOp::ObjectAnimation {
@@ -191,9 +204,16 @@ impl Field {
             // The session's flight view carries the arrival name; no other
             // place-name window has a drawable yet.
             PresentationOp::PlaceNameWindow => {}
+            // `ReloadMapChunks` also replaced a scene's plane-A picture
+            // (`picture_plane.rs`): the map is what shows again.
             PresentationOp::ReloadMapChunks | PresentationOp::RebuildSprites => {
                 self.load_map_visuals();
             }
+            // The cleared planes hide the map until a scene map redraw
+            // (`load_map_visuals`) restores it; the CRAM and the sprites
+            // stay, unlike `InitVramAndCram`.
+            PresentationOp::ClearPlanes => self.set_field_map_visible(false),
+            // A picture's cells are `picture_plane.rs`'s.
             PresentationOp::LoadSceneAsset { .. }
             | PresentationOp::SetGameMode { .. }
             | PresentationOp::ClearHeldInput
@@ -264,6 +284,14 @@ impl Field {
                 self.presentation
                     .step_field_object(slot, step_x, step_y, u16::MAX);
             }
+            // A runtime-owned fade up draws its own reveal from black, so it
+            // ends the doorway cover a scene map load started; `FadeIn` used
+            // to replace that cover (`transitions::after_palette_fade_in`).
+            PresentationOp::VariablePaletteFade { fade_in: true, .. }
+            | PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => {
+                godot_print!("scene presentation record consumed: {op:?}");
+                self.palette_fade_in_takes_over();
+            }
             // Palette records are applied by the runtime's CRAM model
             // (`Runtime::cram`), and the map, sprites, panels and dialogue
             // window draw from it (`cram_art`).
@@ -273,7 +301,6 @@ impl Field {
             | PresentationOp::FadeFromRed { .. }
             | PresentationOp::PaletteRestoreTone { .. }
             | PresentationOp::ShadowHighlight { .. }
-            | PresentationOp::ClearPlanes
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
             | PresentationOp::PaletteIncreaseTone { .. }
@@ -295,7 +322,8 @@ impl Field {
             | PresentationOp::EndingCreditsAssets { .. }
             | PresentationOp::EndingCreditsStage { .. }
             | PresentationOp::EndingCreditsPaletteRamp { .. }
-            | PresentationOp::EndingStaffRollTransition { .. }
+            | PresentationOp::EndingStaffRollFadeOut { .. }
+            | PresentationOp::EndingStaffRollFadeIn { .. }
             | PresentationOp::EndingFinale { .. }) => {
                 godot_print!("scene presentation record consumed: {op:?}");
             }
@@ -346,7 +374,7 @@ impl Field {
         self.presentation.reset_scene();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
-            layer.bind_mut().panel_destroy_all();
+            layer.bind_mut().clear_planes();
         }
         if !restored {
             self.play_map_music();

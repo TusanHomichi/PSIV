@@ -21,12 +21,19 @@
 //! [`FRAME_CENSUSED`] scenes also give a row to every bare `VInt_Prepare`
 //! frame outside their own loops ([`Retail::Frame`]) and every
 //! `VInt_PrepareLoop` ([`Retail::Frames`]), which [`SceneOp::WaitFrames`]
-//! transcribes. Palette fades and the DMA helpers that wait for VInt are
+//! transcribes, as it may a bare frame with no field-object update. Palette fades and the DMA helpers that wait for VInt are
 //! transcribed by their own ops and have no rows.
 //!
 //! The native runner treats every `Wait` the same today: map updates, no
 //! field-object update. The census is what lets that change per loop
 //! without guessing (#470); this file changes no behaviour.
+//!
+//! A scene whose documented bytes jump into shared code has its waits there:
+//! [`SHARED_CODE`] gives it those bytes, the coverage check reads them as the
+//! scene's, and every row must lie in the bytes its scene is censused over.
+//! Where retail carries two copies of the same code and the transcription
+//! runs them as one (the ship's two flights), the second copy's row is a
+//! [`Claim::Merged`] on the `Wait` the first copy's row claims.
 //!
 //! Scene files are censused one at a time ([`CENSUSED`]); the image check
 //! skips without the local US image.
@@ -91,6 +98,12 @@ enum Claim {
     Recorded(usize),
     /// No op does: the issue that adds it.
     Missing(u32),
+    /// The `Wait` at this index, which a [`Claim::Wait`] row of the same kind
+    /// of retail wait already claims: this row's wait is the same one in a
+    /// second retail copy of the code, which the transcription runs as one.
+    /// `loc_64568` and `loc_6488A` each carry a whole flight, and
+    /// [`INSIDE_SPACESHIP_ROUTE`] shares the ops after the takeoff.
+    Merged(usize),
 }
 
 /// One retail wait of one scene. `defect` names the issue when the claim
@@ -128,6 +141,9 @@ const fn own(at: u32, objects: bool, map_updates: bool) -> Retail {
     }
 }
 
+/// `Cutscene_InsideSpaceship`, whose ops are all [`INSIDE_SPACESHIP_ROUTE`].
+const SHIP: &str = "Cutscene_InsideSpaceship";
+
 /// The scenes whose every `Wait` the census claims, by file.
 const CENSUSED: &[&str] = &[
     // post_rika_events.rs
@@ -145,7 +161,8 @@ const CENSUSED: &[&str] = &[
     // post_zio_cutscenes.rs
     "Cutscene_MeetingWren",
     // Cutscene_InsideSpaceship's documented bytes are its 18-byte dispatch;
-    // its six waits live in the destination menu's code, censused with it.
+    // its eight waits live in the destination menu's code ([`SHARED_CODE`]).
+    SHIP,
     "Cutscene_CrashLaanding",
     "Cutscene_Landale",
     "Event_KuranArrival",
@@ -180,12 +197,19 @@ const CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// The censused scenes whose shared-helper calls ([`Retail::Step`],
 /// [`Retail::Facing`]) have rows too. The files censused before
-/// dezo_endgame.rs wait for theirs (#572).
+/// dezo_endgame.rs wait for theirs (#572); the ship's code calls neither.
 const HELPER_CENSUSED: &[&str] = &[
+    SHIP,
     "Event_StrengthTowerTop",
     "Event_CourageTowerTop",
     "Event_DeVars",
@@ -209,11 +233,17 @@ const HELPER_CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// The censused scenes whose bare frames ([`Retail::Frame`]) and
 /// `VInt_PrepareLoop` calls ([`Retail::Frames`]) have rows too: dezo_campaign.rs
-/// onwards.
+/// and next_arc_followup.rs.
 const FRAME_CENSUSED: &[&str] = &[
     "Event_MeetingLeRoof",
     "Cutscene_LeRoofAgain",
@@ -223,14 +253,23 @@ const FRAME_CENSUSED: &[&str] = &[
     "Event_EclipseTorchUsed",
     "Event_DarkForce2",
     "Cutscene_LutzRevelation",
+    // next_arc_followup.rs
+    "Event_BioPlantAlarm",
+    "Event_GirlsSneakingOut",
+    "Event_ChazHouse",
+    "Event_LeavingChazHouse",
+    "Cutscene_MeetingRika",
 ];
 
 /// dezo_endgame.rs's missing and approximated waits.
 const DEZO: u32 = 571;
 /// dezo_campaign.rs's missing and approximated waits.
 const CAMPAIGN: u32 = 589;
+/// Scene frames that run no `Field_UpdateObjects` where retail does: a
+/// [`Retail::Frame`] with objects waited out by a `VInt_Prepare`-only op.
+const OBJECTS: u32 = 470;
 
-use Claim::{Missing, Recorded, Wait, Within};
+use Claim::{Merged, Missing, Recorded, Wait, Within};
 use Retail::{Facing, Frames, Main, Map, Step};
 
 /// Whether the row's count must equal the retail one.
@@ -239,8 +278,12 @@ fn counted(row: &Row) -> bool {
 }
 
 mod campaign_tests;
+mod next_arc_tests;
 mod rows;
+mod shared_code;
+mod ship_tests;
 use rows::ROWS;
+use shared_code::{SHARED_CODE, Shared, placement_problems, scanned_spans, shared_code_problems};
 
 fn scene(name: &str) -> &'static crate::Scene {
     SCENES
@@ -249,14 +292,38 @@ fn scene(name: &str) -> &'static crate::Scene {
         .unwrap_or_else(|| panic!("{name} is not a registered scene"))
 }
 
-/// The ops of `name` its own retail bytes transcribe: all of them, but for a
-/// scene that ends in the ship's route ([`INSIDE_SPACESHIP_ROUTE`]), whose
-/// waits live in the destination menu's code and are censused with
+/// The ops of `name` its own retail bytes transcribe: all of them, but for
+/// another scene that ends in the ship's route ([`INSIDE_SPACESHIP_ROUTE`]),
+/// whose waits live in the destination menu's code and are censused with
 /// `Cutscene_InsideSpaceship`.
 fn censused_ops(name: &str) -> &'static [SceneOp] {
     let ops = scene(name).ops;
+    if name == SHIP {
+        return ops;
+    }
     ops.strip_suffix(INSIDE_SPACESHIP_ROUTE.as_slice())
         .unwrap_or(ops)
+}
+
+/// Whether two retail waits are the same kind of loop, for a
+/// [`Claim::Merged`] copy.
+fn same_kind(a: Retail, b: Retail) -> bool {
+    match (a, b) {
+        (
+            Retail::Own {
+                objects,
+                map_updates,
+                ..
+            },
+            Retail::Own {
+                objects: o,
+                map_updates: m,
+                ..
+            },
+        ) => objects == o && map_updates == m,
+        (Retail::Frame { objects, .. }, Retail::Frame { objects: o, .. }) => objects == o,
+        _ => std::mem::discriminant(&a) == std::mem::discriminant(&b),
+    }
 }
 
 /// Whether a pass of the retail wait runs `RunMapUpdates`, as a native
@@ -302,7 +369,7 @@ fn within_ticks(op: &SceneOp) -> Option<u32> {
 }
 
 /// Whether `op` waits its frames out with `VInt_Prepare` alone, no map or
-/// object update: what an own loop with neither must be claimed by.
+/// object update: what an own loop or bare frame with neither may be claimed by.
 fn vint_only(op: &SceneOp) -> bool {
     matches!(
         op,
@@ -326,7 +393,7 @@ fn recorded_ticks(op: &SceneOp) -> Option<u32> {
 fn claimed_ticks(row: &Row) -> Option<u32> {
     let op = |index: usize| scene(row.scene).ops.get(index);
     match row.claim {
-        Wait(index) => match op(index) {
+        Wait(index) | Merged(index) => match op(index) {
             Some(SceneOp::Wait { ticks }) => Some(u32::from(*ticks)),
             _ => None,
         },
@@ -402,17 +469,23 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                         ops.get(index)
                     ));
                 }
-                // An own loop with no updates may be waited out by an op
-                // that runs none either; any other own loop needs a `Wait`.
-                let bare_own = matches!(
+                // An own loop or bare frame with no updates may be waited
+                // out by an op that runs none either; any other own loop or
+                // frame needs a `Wait`.
+                // A frame with objects may be too, with the defect that adds
+                // the object pass: the frame and its missing map updates
+                // stay exact, the object update is on record.
+                let bare = (matches!(
                     row.retail,
                     Retail::Own {
                         objects: false,
                         map_updates: false,
                         ..
-                    }
-                ) && ops.get(index).is_some_and(vint_only);
-                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare_own {
+                    } | Retail::Frame { objects: false, .. }
+                ) || matches!(row.retail, Retail::Frame { objects: true, .. })
+                    && row.defect.is_some())
+                    && ops.get(index).is_some_and(vint_only);
+                if !matches!(row.retail, Map(_) | Main(_) | Step(_) | Frames(_)) && !bare {
                     problems.push(format!("{} op {index}: Within an own loop", row.scene));
                 }
             }
@@ -431,11 +504,52 @@ fn claim_problems(rows: &[Row]) -> Vec<String> {
                     ));
                 }
             }
+            Merged(index) => {
+                if !matches!(ops.get(index), Some(SceneOp::Wait { .. })) {
+                    problems.push(format!(
+                        "{} op {index}: merged into a Wait, is {:?}",
+                        row.scene,
+                        ops.get(index)
+                    ));
+                }
+                let first = rows
+                    .iter()
+                    .find(|other| other.scene == row.scene && other.claim == Wait(index));
+                match first {
+                    None => problems.push(format!(
+                        "{} op {index}: merged into a Wait no row claims",
+                        row.scene
+                    )),
+                    Some(first) if first.retail == row.retail => problems.push(format!(
+                        "{} op {index}: merged with the retail wait its Wait row names",
+                        row.scene
+                    )),
+                    Some(first) if !same_kind(first.retail, row.retail) => problems.push(format!(
+                        "{} op {index}: merged {:?} into a Wait for {:?}",
+                        row.scene, row.retail, first.retail
+                    )),
+                    Some(_) => {}
+                }
+                if first.is_some_and(|first| (first.defect, first.exact) != (row.defect, row.exact))
+                {
+                    problems.push(format!(
+                        "{} op {index}: a merged copy's defect is not its Wait row's",
+                        row.scene
+                    ));
+                }
+            }
             Missing(_) => {}
         }
-        if row.exact && (row.defect.is_none() || !matches!(row.claim, Wait(_))) {
+        // Exact is for a `Wait`, or for a frame with objects `Within` a bare
+        // frame, whose defect is only the updates.
+        let exact_claim = matches!(row.claim, Wait(_))
+            || matches!(
+                (row.claim, row.retail),
+                (Within(_), Retail::Frame { objects: true, .. })
+            );
+        if row.exact && (row.defect.is_none() || !exact_claim) {
             problems.push(format!(
-                "{}: exact on a row that is not a Wait with a defect",
+                "{}: exact on a row that is not a Wait or an objects frame, with a defect",
                 row.scene
             ));
         }
@@ -606,7 +720,7 @@ fn retail_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
                     .filter(|other| {
                         other.scene == row.scene
                             && other.retail == row.retail
-                            && matches!(other.claim, Wait(_) | Within(_))
+                            && matches!(other.claim, Wait(_) | Within(_) | Merged(_))
                     })
                     .collect();
                 if matches!(row.claim, Within(_)) && own_ticks(rom, at, end).is_none() {
@@ -693,16 +807,21 @@ fn needs_row(rom: &[u8], rows: &[Row], name: &str, at: usize) -> Option<Retail> 
 /// [`HELPER_CENSUSED`] scene, inside a censused scene's documented bytes
 /// without a row.
 fn coverage_problems(rom: &[u8], rows: &[Row]) -> Vec<String> {
+    coverage_problems_over(rom, rows, SHARED_CODE)
+}
+
+/// [`coverage_problems`] with `shared` for [`SHARED_CODE`].
+fn coverage_problems_over(rom: &[u8], rows: &[Row], shared: &[Shared]) -> Vec<String> {
     let ranges = documented_ranges();
     let mut problems = Vec::new();
     for &name in CENSUSED {
-        let Some(spans) = ranges.get(name) else {
+        let Some(spans) = scanned_spans(&ranges, shared, name) else {
             problems.push(format!("{name}: no documented retail range"));
             continue;
         };
         // A scene's document and the registry may claim the same bytes.
         let mut seen = std::collections::BTreeSet::new();
-        for &(start, end) in spans {
+        for (start, end) in spans {
             for at in (start..end.saturating_sub(5)).step_by(2) {
                 if !seen.insert(at) {
                     continue;

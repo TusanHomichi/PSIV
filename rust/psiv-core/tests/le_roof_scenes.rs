@@ -7,8 +7,8 @@ mod common;
 
 use common::map_with;
 use psiv_core::{
-    DialogueId, EventIndex, Flag, GameState, PresentationOp, SceneEffect, SceneInput, SceneOp,
-    SceneRunner, StepFrames, scene_for,
+    DialogueId, EventIndex, Flag, GameState, PaletteSource, PresentationOp, SceneEffect,
+    SceneInput, SceneOp, SceneRunner, StepFrames, scene_for,
 };
 
 /// Runs `ops` with no cast, closing each dialogue at once, and writes one
@@ -19,7 +19,8 @@ use psiv_core::{
 /// runtime gives Le Roof's line, and a 64-word fade-out at [`PANEL_FADE_OUT`]
 /// (`psiv-runtime`'s palette suite checks both). `DmaPlanes` has no mark:
 /// its frame is the `.` after it.
-/// Marks: `U` `Pal_VariableFadeToPal2`, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
+/// Marks: `U` `Pal_VariableFadeToPal2`, `B` `Pal_VariableFadeOut_Lines_1_2`,
+/// `K<addr>` a ROM palette copy, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
 /// the fade-in of `n` passes, `D<id>` a dialogue, `|` a resume, `S<id>` a
 /// sound, `O`/`I` `FadeOut`/`FadeIn`, `X<mode>` `Pal_VariableFadeOut`, `V`
 /// `InitVRAMAndCRAM`, `P` a panel, `M` the map reload, `F` a flag. Stops at
@@ -56,6 +57,14 @@ fn trace(ops: &'static [SceneOp]) -> String {
                             fade = FADE_UP;
                             "U".to_owned()
                         }
+                        PresentationOp::TwoLinePaletteFade { fade_in: false, .. } => {
+                            fade = FADE_UP;
+                            "B".to_owned()
+                        }
+                        PresentationOp::PaletteCopy {
+                            source: PaletteSource::Rom(at),
+                            ..
+                        } => format!("K{at:X}"),
                         PresentationOp::VariablePaletteFade {
                             fade_in: false,
                             mode,
@@ -73,7 +82,8 @@ fn trace(ops: &'static [SceneOp]) -> String {
                     SceneOp::FadeIn => "I".to_owned(),
                     SceneOp::InitVramAndCram => "V".to_owned(),
                     SceneOp::PanelCreate { .. } => "P".to_owned(),
-                    SceneOp::DmaPlanes => continue,
+                    // The panel byte (#630) spends no frame and draws nothing here.
+                    SceneOp::DmaPlanes | SceneOp::SetRenderSpritesInCutscene { .. } => continue,
                     other => panic!("unexpected op {other:?}"),
                 },
                 _ => continue,
@@ -150,16 +160,43 @@ fn from(event: u16, first: usize) -> &'static [SceneOp] {
 
 /// `$07052E..`: the fade up to Le Roof's palette, then the 180-pass loop,
 /// `bsr loc_705D6` (71), the first 120, dialogue `0`, the second 120, all
-/// `VInt_Prepare` only: no tick of the 491 updates the map. Then the stop,
-/// the map reload, the tower music and `$D1`.
+/// `VInt_Prepare` only: no tick of the 491 updates the map. Then the stop
+/// and the return (`$07058A..$0705C3`): the two-line fade-out, the map
+/// reload, `Pal_SilenceTm` (`$18711A`) into `Palette_Table_Buffer_2` and the
+/// fade up to it, then the tower music and `$D1`.
 #[test]
 fn meeting_le_roof_runs_its_colour_loops_without_map_updates() {
     let ops = scene_for(EventIndex(0x0048)).unwrap().ops;
     assert!(matches!(ops[9], SceneOp::PlaySound { id: 0xA1 }));
     assert_eq!(
         trace(from(0x0048, 10)),
-        "U .45 C180 .180 G71 .71 C120 .120 D0 .1 C120 .120 SFB M S9A F"
+        "U .45 C180 .180 G71 .71 C120 .120 D0 .1 C120 .120 SFB B .45 M K18711A U .45 S9A F"
     );
+}
+
+/// Negative control: the return as first transcribed, the stop then the map
+/// reload with no fade and no palette copy, leaves the cinematic colours up
+/// when the scene ends; its trace is the one above without them.
+#[test]
+fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
+    static NO_RETURN: &[SceneOp] = &[
+        SceneOp::PlaySound { id: 0xFB },
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
+        SceneOp::PlaySound { id: 0x9A },
+        SceneOp::SetFlag {
+            flag: Flag::event(0xD1),
+            value: true,
+        },
+    ];
+    let ops = scene_for(EventIndex(0x0048)).unwrap().ops;
+    let stop = ops
+        .iter()
+        .position(|op| matches!(op, SceneOp::PlaySound { id: 0xFB }))
+        .expect("the stop");
+    assert_eq!(trace(NO_RETURN), "SFB M S9A F");
+    assert_eq!(trace(&ops[stop..]), "SFB B .45 M K18711A U .45 S9A F");
 }
 
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
@@ -168,7 +205,7 @@ fn meeting_le_roof_runs_its_colour_loops_without_map_updates() {
 /// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
-    let trace = trace(from(0x801C, 8));
+    let trace = trace(from(0x801C, 9));
     assert!(
         trace.starts_with(
             "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P .1 | .1 X5 .84 +60 V I P .1 DC .1 F"
@@ -215,5 +252,61 @@ fn the_old_le_roof_policy_is_rejected() {
     ];
     let old = trace(OLD);
     assert_eq!(old, "R .24 +300 DB .1 V I P | .1 O V I P DC .1 F");
-    assert!(!trace(from(0x801C, 8)).starts_with(&old));
+    assert!(!trace(from(0x801C, 9)).starts_with(&old));
+}
+
+/// The ops that put the galaxy picture on plane A (#594): `NemDecomp` of
+/// `loc_1DB2C8` to tile `$260`, `EniDecomp` of `loc_1DDE0A` to `RAM_Start`,
+/// then the DMA that shows it, in that order and with nothing drawn between.
+/// Both scenes run the same block (`$0704AC..$07051F`, `$07836C..$0783D9`);
+/// `Cutscene_LeRoofAgain` once had no `LoadSceneAsset`, so it drew nothing.
+fn picture_ops(event: u16) -> Vec<&'static SceneOp> {
+    let ops = scene_for(EventIndex(event)).expect("registered").ops;
+    let art = ops
+        .iter()
+        .position(|op| {
+            matches!(
+                op,
+                SceneOp::LoadArt {
+                    rom_addr: 0x001D_B2C8,
+                    tile: 0x260
+                }
+            )
+        })
+        .expect("the picture's art");
+    let dma = art
+        + ops[art..]
+            .iter()
+            .position(|op| matches!(op, SceneOp::DmaPlanes))
+            .expect("a DMA after the art");
+    ops[art..=dma].iter().collect()
+}
+
+#[test]
+fn both_le_roof_scenes_load_the_picture_before_their_dma() {
+    for event in [0x0048, 0x801C] {
+        let ops = picture_ops(event);
+        let assets: Vec<_> = ops
+            .iter()
+            .filter_map(|op| match op {
+                SceneOp::Presentation {
+                    op:
+                        PresentationOp::LoadSceneAsset {
+                            source_rom_addr,
+                            destination_ram,
+                        },
+                } => Some((*source_rom_addr, *destination_ram)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(assets, [(0x001D_DE0A, 0xFFFF_0000)], "{event:#x}");
+        assert!(
+            !ops.iter().any(|op| matches!(
+                op,
+                SceneOp::PanelCreate { .. } | SceneOp::InitVramAndCram | SceneOp::LoadArt { .. }
+            ) && !std::ptr::eq(*op, ops[0])),
+            "{event:#x}: nothing else draws between the art and the DMA"
+        );
+    }
+    assert_eq!(picture_ops(0x0048), picture_ops(0x801C));
 }

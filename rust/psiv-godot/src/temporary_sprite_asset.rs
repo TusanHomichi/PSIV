@@ -1,15 +1,25 @@
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use godot::classes::{ImageTexture, Sprite2D};
 use godot::prelude::{Gd, Rect2, Vector2};
+
+use crate::cram_art::{CramState, IndexedArt};
 
 use super::PresentationState;
 
 /// A scene-owned sprite sheet, kept separate from map `SheetView`s because it
 /// is keyed by the literal ObjectAnimation pair rather than a placed NPC.
+///
+/// Like a map sheet, it draws its palette indices from the live CRAM
+/// ([`crate::cram_art`]) on the line its pack record names; `texture`, the
+/// file's baked colours, draws while no live palette is known. Clones share
+/// one [`IndexedArt`], so a CRAM revision recolours the sheet once.
 #[derive(Clone)]
 pub(crate) struct TemporarySpriteAsset {
     pub(super) texture: Gd<ImageTexture>,
+    pub(super) indexed: Option<Rc<RefCell<IndexedArt>>>,
     pub(crate) frame_width: i32,
     pub(crate) frame_height: i32,
     pub(crate) origin_x: i32,
@@ -40,8 +50,13 @@ impl TemporarySpriteAsset {
         frames.last().map_or(0, |(index, _)| *index)
     }
 
-    pub(crate) fn apply(&self, node: &mut Gd<Sprite2D>, frame: i32) {
-        node.set_texture(&self.texture);
+    /// Shows `frame` on `node`, in `cram`'s colours when it is live.
+    pub(crate) fn apply(&self, node: &mut Gd<Sprite2D>, frame: i32, cram: &CramState) {
+        let live = self
+            .indexed
+            .as_ref()
+            .and_then(|art| art.borrow_mut().texture(cram));
+        node.set_texture(live.as_ref().unwrap_or(&self.texture));
         node.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));
         node.set_region_enabled(true);
         node.set_region_rect(Rect2::new(

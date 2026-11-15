@@ -8,7 +8,9 @@ use super::flight::with_ship_menu;
 use super::{KYRA, cutscene3, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CounterCycle, PaletteBuffer, PaletteSource, PresentationOp};
+use crate::scene_presentation::{
+    CounterCycle, PaletteBuffer, PaletteSource, PresentationOp, SAVE_PALETTE, variable_fade,
+};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -27,6 +29,8 @@ const SOUND_STOP_SPC: u8 = 0xFD;
 const SOUND_STOP_ALL: u8 = 0xFE;
 const SFX_DEBAN: u8 = 0xDC;
 const SFX_STAIRS: u8 = 0xDF;
+/// `SFXID_EnemyKilled` (`ps4.constants.asm:981`).
+const SFX_ENEMY_KILLED: u8 = 0xB9;
 
 /// `loc_70638` (`$070638`): the Le Roof scenes' colour cycle, words 11 and 12
 /// (`$16(a1)`, `$18(a1)`) from the two eleven-word series at `loc_70672`.
@@ -34,6 +38,25 @@ const LE_ROOF_CYCLE: CounterCycle = CounterCycle {
     source_rom_addr: 0x0007_0672,
     offset: 11,
     entries: 11,
+};
+
+/// `lea loc_1DB2C8, a0` / `move.w #$260, d0` / `NemDecomp`: the galaxy
+/// picture's 483 patterns, from VRAM tile `$260` (`$0704AC`, `$07836C`).
+const LE_ROOF_ART: SceneOp = SceneOp::LoadArt {
+    rom_addr: 0x001D_B2C8,
+    tile: 0x260,
+};
+
+/// `lea loc_1DDE0A, a0` / `move.w #$260, d0` / `lea RAM_Start, a1` /
+/// `EniDecomp` (`$0704C2`, `$078382`): the picture's 40x28 cells, which
+/// `PlaneMapToRAM` then copies to plane A at cell (0,0) while plane B is
+/// cleared, for the next `DMAPlanes_VInt` (to `$07051F`, `$0783D9`). The pack
+/// decodes the picture (`presentation/panels.json`, `scene_pictures`).
+const LE_ROOF_PICTURE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::LoadSceneAsset {
+        source_rom_addr: 0x001D_DE0A,
+        destination_ram: 0xFFFF_0000,
+    },
 };
 
 /// `lea loc_1DE258, a0` / `lea Palette_Table_Buffer_2, a1` / `moveq #$F, d7`
@@ -56,6 +79,18 @@ const LE_ROOF_LINE_2_CLEAR: SceneOp = SceneOp::Presentation {
         destination: PaletteBuffer::Saved,
         start: 16,
         words: 16,
+    },
+};
+
+/// `lea Pal_SilenceTm, a0` / `lea Palette_Table_Buffer_2, a1` / `move.w #$1F,
+/// d7` / `trap #1` (`$0705A8`): words 0-31 of Le Roof Room's map palette, the
+/// field colours `Event_MeetingLeRoof` fades back up to before it returns.
+const SILENCE_TM_PALETTE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Rom(0x0018_711A),
+        destination: PaletteBuffer::Saved,
+        start: 0,
+        words: 32,
     },
 };
 
@@ -118,16 +153,8 @@ pub static MEETING_LE_ROOF: Scene = Scene {
             },
         },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::LoadArt {
-            rom_addr: 0x001D_B2C8,
-            tile: 0x260,
-        },
-        SceneOp::Presentation {
-            op: PresentationOp::LoadSceneAsset {
-                source_rom_addr: 0x001D_DE0A,
-                destination_ram: 0xFFFF_0000,
-            },
-        },
+        LE_ROOF_ART,
+        LE_ROOF_PICTURE,
         LE_ROOF_PALETTE,
         LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,
@@ -147,8 +174,27 @@ pub static MEETING_LE_ROOF: Scene = Scene {
         standard(0),
         le_roof_cycle(120),
         SceneOp::PlaySound { id: 0xFB },
+        // `$070590`: `Pal_VariableFadeOut_Lines_1_2` takes the cinematic
+        // colours (ramp, cycle words and the black second line) to black.
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: false,
+                mode: 2,
+            },
+        },
+        // `$070596..$0705A7`: `RefreshPlaneFG`, `RefreshPlaneBG`,
+        // `DMAPlanes_VInt`.
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
+        },
+        // `$0705A8..$0705C3`: the room's own palette, `Pal_SilenceTm`, back
+        // into `Palette_Table_Buffer_2`, and `Pal_VariableFadeToPal2` up to it.
+        SILENCE_TM_PALETTE,
+        SceneOp::Presentation {
+            op: PresentationOp::TwoLinePaletteFade {
+                fade_in: true,
+                mode: 2,
+            },
         },
         SceneOp::PlaySound { id: MUSIC_TOWER },
         SceneOp::SetFlag {
@@ -176,10 +222,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             },
         },
         SceneOp::Wait { ticks: 60 },
-        SceneOp::LoadArt {
-            rom_addr: 0x001D_B2C8,
-            tile: 0x260,
-        },
+        LE_ROOF_ART,
+        LE_ROOF_PICTURE,
         LE_ROOF_PALETTE,
         LE_ROOF_LINE_2_CLEAR,
         SceneOp::DmaPlanes,
@@ -200,23 +244,22 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x11B },
         SceneOp::DmaPlanes,
+        // `$07844E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$078454`: `popdlg` / `jsr Event_RunDialogue3`: the panels stay.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene3,
         },
-        // `$07845A`: `move.b #5, ($FFFFED52)` / `jsr Pal_VariableFadeOut`.
-        SceneOp::Presentation {
-            op: PresentationOp::VariablePaletteFade {
-                fade_in: false,
-                mode: 5,
-            },
-        },
+        // `$078460`: `move.b #5, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
+        variable_fade(false, 5),
         // `$07846C`: `moveq #$3B, d0` / `jsr DoMapUpdateLoop`.
         SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x125 },
         SceneOp::DmaPlanes,
+        // `$078490`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0x0C),
         SceneOp::SetFlag {
             flag: Flag::event(0xD6),
@@ -239,7 +282,10 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         },
         SceneOp::BranchIfVehicle {
             if_mounted: 2,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70826` (`$07077E`): on foot
+            // skips the dismount and dialogue `$34` and lands on the party
+            // move, op 11.
+            if_on_foot: 11,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
         SceneOp::Wait { ticks: 1 },
@@ -249,12 +295,17 @@ pub static CARNIVOROUS_TREES: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0707A0`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Jump { to: 8 },
+        // `$07080C`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates. The object pass is a recorded
+        // deviation (`docs/source-notes/README.md`, Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
-        // `$070826..$070847`: the leader's Y plus `$20`, written to every
-        // party object; no walk.
+        // `loc_70826`, `$070826..$070847`: the leader's Y plus `$20`,
+        // written to every party object; no walk.
         SceneOp::PlacePartyY { dy: 0x20 },
         SceneOp::StartBattle { index: 0x0A },
         SceneOp::Return { value: 1 },
@@ -267,11 +318,12 @@ pub static SAVING_KYRA: Scene = Scene {
     event: EventIndex(0x004D),
     ops: &[
         SceneOp::BranchIfVehicle {
-            if_mounted: 2,
+            // Mounted falls through to the saved music at `$07085E`.
+            if_mounted: 1,
             // `tst.w Vehicle_Index / beq.w loc_70908` (`ps4.asm:149987-149988`):
             // on foot skips the dismount and dialogue `$34` and lands on the
-            // red-alert music, op 9.
-            if_on_foot: 9,
+            // red-alert music, op 11.
+            if_on_foot: 11,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
@@ -282,7 +334,12 @@ pub static SAVING_KYRA: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$070882`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
+        // `$0708EE`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount, as `Event_CarnivorousTrees`' `$07080C`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x34),
         SceneOp::PlaySound {
@@ -320,12 +377,16 @@ pub static MEETING_KYRA: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x99 },
         SceneOp::DmaPlanes,
+        // `$0777D2`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0777D8`: `jsr Event_GetAndRunDialogue3`.
         cutscene3(0x28),
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelCreate { id: 0x9B },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
+        // `$07780A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077810`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
@@ -359,6 +420,37 @@ pub static MEETING_KYRA: Scene = Scene {
     ],
 };
 
+/// Thirty-two longwords of `$0EEE0EEE` over the live buffer (`loc_7025A`,
+/// `loc_7029C`): an Eclipse Torch flash, after `SAVE_PALETTE` keeps the
+/// colours to come back to.
+const WHITE_FILL: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteCopy {
+        source: PaletteSource::Fill(0x0EEE),
+        destination: PaletteBuffer::Live,
+        start: 0,
+        words: 64,
+    },
+};
+
+/// `move.w #$27, d7` / `jsr loc_58666` / `jsr VInt_Prepare` / `dbf`: forty
+/// frames back from white toward `Palette_Table_Buffer_2`, no object or map
+/// update (`loc_70270`, `loc_702B2`). The `WaitFrames` after it waits them.
+const RESTORE_FROM_WHITE: SceneOp = SceneOp::Presentation {
+    op: PresentationOp::PaletteRestoreTone { frames: 40 },
+};
+
+/// `$338` with tile `$3AF` at its literal `$30`/`$34`, in the slot `$40` bytes
+/// past `Field_Obj_Secondary` per index.
+const fn torch_object(slot: usize, x: i32, y: i32) -> SceneOp {
+    SceneOp::CreateFieldObject {
+        slot,
+        object_id: 0x338,
+        art_tile: 0x3AF,
+        x,
+        y,
+    }
+}
+
 /// `$0047`, `Event_EclipseTorchUsed`, `$07018A..$070481`.
 pub static ECLIPSE_TORCH_USED: Scene = Scene {
     name: "Event_EclipseTorchUsed",
@@ -366,83 +458,79 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
     ops: &[
         SceneOp::BranchIfVehicle {
             if_mounted: 1,
-            if_on_foot: 7,
+            // `tst.w Vehicle_Index / beq.w loc_70226` (`$07018E`).
+            if_on_foot: 9,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
         },
         SceneOp::PlaySound { id: SOUND_STOP_SPC },
+        // `$0701A0`: a bare `VInt_Prepare`.
+        SceneOp::WaitFrames { frames: 1 },
+        // `$0701A6`: `move.b #MusicID_DezorisField1, (Sound_Index).l`, the
+        // music as well as the saved index.
+        SceneOp::PlaySound {
+            id: MUSIC_DEZOLIS_FIELD,
+        },
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // `$0701B4`: the bare `VInt_Prepare` after `Field_BuildSprites`.
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::SetVehicleIndex { index: 0 },
-        SceneOp::Wait { ticks: 1 },
-        SceneOp::Jump { to: 7 },
+        // `$070220`: `Field_UpdateObjects` and `VInt_Prepare` after the
+        // dismount; one frame, no map updates (`docs/source-notes/README.md`,
+        // Dezolis dismounts).
+        SceneOp::WaitFrames { frames: 1 },
         SceneOp::PanelCreate { id: 0x10D },
         SceneOp::DmaPlanes,
+        // `$070238`: `DoMapUpdateLoop($77)`.
         SceneOp::Wait { ticks: 120 },
+        // `$07023E`: Deban; `$070246..$070263`: the palette saved, then white.
         SceneOp::PlaySound { id: SFX_DEBAN },
-        SceneOp::Wait { ticks: 40 },
+        SAVE_PALETTE,
+        WHITE_FILL,
+        // `$070266`: `DoMapUpdateLoop(1)`.
+        SceneOp::Wait { ticks: 2 },
+        // `$070270`: forty passes of `loc_58666`.
+        RESTORE_FROM_WHITE,
+        SceneOp::WaitFrames { frames: 40 },
+        // `$070280..$0702C1` (`if revision>0`): the second flash, the same
+        // bytes; `$0702A8` and `$0702B2` are its waits.
+        SceneOp::PlaySound { id: SFX_DEBAN },
+        SAVE_PALETTE,
+        WHITE_FILL,
+        SceneOp::Wait { ticks: 2 },
+        RESTORE_FROM_WHITE,
+        SceneOp::WaitFrames { frames: 40 },
+        // `$0702C2`: `Panel_Destroy`, `DMAPlanes_VInt`.
         SceneOp::PanelDestroyLast,
         SceneOp::DmaPlanes,
         SceneOp::LoadArt {
             rom_addr: 0x001D_712C,
             tile: 0x3AF,
         },
-        SceneOp::ObjectAnimation {
-            slot: 0,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
+        // `$0702E4..$07041D`: nine `$338` objects written into the slots from
+        // `Field_Obj_Secondary` (`$C300`) on, with no frame between them.
+        torch_object(0, 0xBA0, 0xC0),
+        torch_object(1, 0xB80, 0xA0),
+        torch_object(2, 0xBA0, 0xA0),
+        torch_object(3, 0xBC0, 0xA0),
+        torch_object(4, 0xB60, 0x80),
+        torch_object(5, 0xB80, 0x80),
+        torch_object(6, 0xBA0, 0x80),
+        torch_object(7, 0xBC0, 0x80),
+        torch_object(8, 0xBE0, 0x80),
+        // `$07041E..$070441`: a chunk copy, `Field_UpdateObjects`,
+        // `RefreshPlaneBG` and `DMAPlane_B_VInt`'s one frame, waited bare
+        // (`docs/source-notes/README.md`, "Eclipse Torch").
+        SceneOp::WaitFrames { frames: 1 },
+        // `$070442`: `SFXID_EnemyKilled`.
+        SceneOp::PlaySound {
+            id: SFX_ENEMY_KILLED,
         },
-        SceneOp::ObjectAnimation {
-            slot: 1,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 2,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 3,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 4,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 5,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 6,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 7,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 8,
-            object_id: 0x338,
-            art_tile: 0x3AF,
-            frames: 1,
-        },
+        // `$07044C`: `DoMainUpdatesLoop($4F)`.
+        SceneOp::Wait { ticks: 80 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x2A),
         SceneOp::SetFlag {
@@ -487,7 +575,9 @@ pub static LUTZ_REVELATION: Scene = Scene {
             wait: true,
         },
         SceneOp::PlaySound { id: SFX_STAIRS },
-        SceneOp::FadeOut,
+        // `$0778C6`: `move.b #2, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`;
+        // `RefreshMap`; `$077902`: mode 2 / `jsr Pal_VariableFadeIn`.
+        variable_fade(false, 2),
         SceneOp::LoadMap {
             map: 0x16F,
             prev_map: 0x16E,
@@ -497,7 +587,7 @@ pub static LUTZ_REVELATION: Scene = Scene {
             align: 0,
             clear_load_flags: 0x08,
         },
-        SceneOp::FadeIn,
+        variable_fade(true, 2),
         SceneOp::MoveActorTo {
             actor: LEADER,
             x: 0x1E0,
@@ -547,6 +637,8 @@ pub static LUTZ_REVELATION: Scene = Scene {
         SceneOp::PanelCreate { id: 0x9E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 100 },
+        // `$0779E4`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0779EA`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,

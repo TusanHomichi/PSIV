@@ -48,7 +48,7 @@ impl CutsceneLayer {
         if let Some(text) = self.text_layer.as_mut() {
             text.bind_mut().clear();
         }
-        let visible = self.generic_window_visible || !self.panels.visible.is_empty();
+        let visible = self.shows_anything();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }

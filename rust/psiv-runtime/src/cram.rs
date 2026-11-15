@@ -104,6 +104,22 @@ enum Program {
     },
 }
 
+/// The frame of a [`Program::Passes`]'s last pass. A fade up that can never
+/// match spins in the cartridge; the model's count stops at `u16::MAX`. Then
+/// the frame count the op answers ([`passes_frames`]) saturates too, and the
+/// last pass is held inside it, so the program ends on a frame the scene still
+/// waits and `elapsed + 1` never leaves `u16`.
+fn passes_last(first: u16, every: u16, count: u16) -> u16 {
+    let unbounded = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+    unbounded.min(passes_frames(first, every, count).saturating_sub(1))
+}
+
+/// The frames a [`Program::Passes`] spends: `first`, then `every` per pass,
+/// saturating at `u16::MAX`. What `apply` answers for a measured fade.
+fn passes_frames(first: u16, every: u16, count: u16) -> u16 {
+    first.saturating_add(count.saturating_mul(every))
+}
+
 /// A [`CounterCycle`] with its table read from the pack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Cycle {
@@ -129,6 +145,12 @@ pub(crate) struct Cram {
     /// The loop that starts on the tick after `program` ends: the second
     /// half of a routine that runs two loops back to back.
     queued: Option<Program>,
+    /// `Palette_Table_Buffer` as a scene's map load left it, while `view`
+    /// keeps the words `VInt` last uploaded: the scene's next op is
+    /// `Pal_VariableFadeIn`, which copies and clears the buffer before any
+    /// VBlank (`RefreshMap` ends with no wait, `ps4.asm:121767`), so no frame
+    /// shows them ([`Cram::hold_for_fade_in`]).
+    unshown: Option<[u16; PALETTE_WORDS]>,
 }
 
 impl Default for Cram {
@@ -138,6 +160,7 @@ impl Default for Cram {
             saved: [0; PALETTE_WORDS],
             program: None,
             queued: None,
+            unshown: None,
         }
     }
 }
@@ -169,6 +192,7 @@ impl Cram {
             saved: words,
             program: None,
             queued: None,
+            unshown: None,
         }
     }
 
@@ -187,6 +211,24 @@ impl Cram {
         self.view.revision = previous.view.revision.wrapping_add(1);
     }
 
+    /// A scene's map load whose next op is `Pal_VariableFadeIn`: the load's
+    /// words stay in the buffer, unshown, and the live words go back to
+    /// `shown`, the ones the frame before the load uploaded. The fade-in
+    /// copies the load's words to `Palette_Table_Buffer_2` and clears the
+    /// buffer on the next tick, before its first VBlank; any other record
+    /// first puts them live.
+    pub(crate) fn hold_for_fade_in(&mut self, shown: [u16; PALETTE_WORDS]) {
+        self.unshown = Some(self.view.words);
+        self.set_live(shown);
+    }
+
+    /// Puts a held map load's words live ([`Cram::hold_for_fade_in`]).
+    fn upload_unshown(&mut self) {
+        if let Some(words) = self.unshown.take() {
+            self.set_live(words);
+        }
+    }
+
     pub(crate) fn view(&self) -> &CramView {
         &self.view
     }
@@ -203,8 +245,15 @@ impl Cram {
         self.program.is_some()
     }
 
-    /// One word of the live buffer, as a map update program writes it.
+    /// One word of the live buffer, as a map update program writes it. A held
+    /// map load's words take it unshown ([`Cram::hold_for_fade_in`]).
     pub(crate) fn write(&mut self, slot: usize, word: u16) {
+        if let Some(unshown) = &mut self.unshown {
+            if let Some(current) = unshown.get_mut(slot) {
+                *current = word;
+            }
+            return;
+        }
         if let Some(current) = self.view.words.get_mut(slot)
             && *current != word
         {
@@ -390,7 +439,7 @@ impl Cram {
                     self.write_run(*start, values);
                 }
                 let last = writes.last().map_or(0, |(at, ..)| *at);
-                (elapsed < last).then_some(Program::Writes {
+                (elapsed < last).then(|| Program::Writes {
                     elapsed: elapsed + 1,
                     writes,
                 })
@@ -403,9 +452,7 @@ impl Cram {
                 count,
                 words: span,
             } => {
-                // A fade up that can never match spins in the cartridge;
-                // the model's count stops at `u16::MAX` and so does this.
-                let last = first.saturating_add(every.saturating_mul(count.saturating_sub(1)));
+                let last = passes_last(first, every, count);
                 if elapsed >= first && (elapsed - first).is_multiple_of(every) && elapsed <= last {
                     let mut words = self.view.words;
                     for (word, &target) in words.iter_mut().zip(&self.saved).take(span) {
@@ -418,7 +465,8 @@ impl Cram {
                     }
                     self.set_live(words);
                 }
-                (elapsed < last).then_some(Program::Passes {
+                // Built lazily: at the bound `elapsed + 1` would overflow.
+                (elapsed < last).then(|| Program::Passes {
                     kind,
                     elapsed: elapsed + 1,
                     first,
@@ -493,6 +541,15 @@ impl Cram {
         map: Option<&MapRecord>,
         cycle_index: &mut u8,
     ) -> Option<u16> {
+        let fades_in = matches!(
+            op,
+            SceneOp::Presentation {
+                op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
+            }
+        );
+        if !fades_in {
+            self.upload_unshown();
+        }
         match *op {
             // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
             // buffer to the second one, then 32 longwords of `Pal_Init` (`$05A68A`).
@@ -728,9 +785,10 @@ impl Cram {
                     cycle_index,
                 );
             }
-            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B0`).
+            // `Pal_VariableFadeOut`/`In` (`$05B168`, `$05B1B8`).
             PresentationOp::VariablePaletteFade { fade_in, mode } => {
-                self.saved = self.view.words;
+                // A held map load's words are the buffer the fade-in copies.
+                self.saved = self.unshown.take().unwrap_or(self.view.words);
                 let every = palette::dbf_frames(mode);
                 let (kind, first, count, frames) = if fade_in {
                     // `trap #0` clears the buffer, `VDP_EnableDisplay` spends
@@ -788,7 +846,7 @@ impl Cram {
                     frame,
                     cycle_index,
                 );
-                return Some(count.saturating_mul(every));
+                return Some(passes_frames(0, every, count));
             }
             // `Pal_VariableFadeToRed` copies the buffer first; both run eight
             // stages of `delay + 1` frames.
@@ -810,11 +868,36 @@ impl Cram {
                     cycle_index,
                 );
             }
+            // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
+            // frame until the step that ends the loop unstored.
+            PresentationOp::EndingStaffRollFadeOut {
+                palette_offset,
+                step,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_out(word, frame, step);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingStaffRollFadeIn {
+                palette_offset,
+                step,
+                target_bit,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_in(word, frame, step, target_bit);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingCreditsPaletteRamp { .. } => {
+                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+            }
             _ => {}
         }
         None
     }
 }
 
+mod ending;
 #[cfg(test)]
 mod tests;

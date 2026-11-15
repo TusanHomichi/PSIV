@@ -10,6 +10,13 @@
 //! (`psiv-runtime/src/cram.rs`) decides when each runs. Source notes and the
 //! byte checks are in `docs/scenes/SCENE_PRESENTATION.md`, "CRAM state".
 
+mod ending;
+
+pub use ending::{
+    RampStep, WordLoop, credits_ramp_frames, credits_ramp_rows, eighth_phase, staff_roll_fade_in,
+    staff_roll_fade_out,
+};
+
 /// Words in `Palette_Table_Buffer`: four lines of sixteen.
 pub const PALETTE_WORDS: usize = 64;
 
@@ -121,7 +128,7 @@ pub const fn fade_out_step(word: u16) -> u16 {
     d0
 }
 
-/// One pass of `Pal_FadeIn` (`$0421D4`) and `Pal_VariableFadeIn` (`$05B1B0`) on
+/// One pass of `Pal_FadeIn` (`$0421D4`) and `Pal_VariableFadeIn` (`$05B1B8`) on
 /// one word: each nibble that differs from `target`'s goes up by one. A nibble
 /// at `$F` carries into the next one (`addq.w #1, d2` / `or.w d2, d0` with no
 /// mask), as the cartridge does. The flag is the pass's `st d5`.
@@ -144,7 +151,7 @@ pub const fn fade_in_step(word: u16, target: u16) -> (u16, bool) {
     (d0, changed)
 }
 
-/// One stage of `Pal_VariableFadeToRed` (`$05B2C0`) on one word: blue down one
+/// One stage of `Pal_VariableFadeToRed` (`$05B2BE`) on one word: blue down one
 /// level while `$F00` is non-zero, then green while `$F0` is; red is kept. The
 /// test masks four bits and the step is two levels' worth of one, so an odd
 /// field borrows.
@@ -160,7 +167,7 @@ pub const fn fade_to_red_step(word: u16) -> u16 {
     word
 }
 
-/// One stage of `Pal_VariableFadeFromRed` (`$05B30C`) on one word: blue, then
+/// One stage of `Pal_VariableFadeFromRed` (`$05B30E`) on one word: blue, then
 /// green, up one level while it differs from `target`'s.
 #[must_use]
 pub const fn fade_from_red_step(word: u16, target: u16) -> u16 {
@@ -246,7 +253,7 @@ pub fn variable_fade_out_frames(words: &[u16], delay: u8) -> u16 {
 /// one `VInt_Prepare`, then `delay + 1` per pass.
 #[must_use]
 pub fn variable_fade_in_frames(target: &[u16], delay: u8) -> u16 {
-    1 + variable_fade_in_passes(target).saturating_mul(dbf_frames(delay))
+    1u16.saturating_add(variable_fade_in_passes(target).saturating_mul(dbf_frames(delay)))
 }
 
 /// The `(first, second)` palette words each pass of a
