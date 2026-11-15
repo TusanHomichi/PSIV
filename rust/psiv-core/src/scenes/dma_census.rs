@@ -9,16 +9,38 @@
 //! bytes, or the difference is a [`ROWS`] entry saying why. More ops than
 //! calls would add frames retail does not spend, unless a call runs in a
 //! loop the ops unroll; fewer leave a call's frame to another op, a
-//! mechanic, or nothing, which #599 classifies.
+//! mechanic, or nothing, which #599 classifies. A call that is the only
+//! frame of a mechanic's loop is that mechanic's tick, once per pass, and its
+//! row says which mechanic and loop.
 //!
 //! The image check skips without the local US image.
 
 use super::documented_ranges::documented_ranges;
 use super::{INSIDE_SPACESHIP_ROUTE, SCENES, dialogue_callers_image::rom};
-use crate::SceneOp;
+use crate::{RideOp, SceneOp};
 
 /// `DMAPlanes_VInt`, `DMAPlane_A_VInt`, `DMAPlane_B_VInt`.
 const DMA_HELPERS: [u32; 3] = [0x04_1678, 0x04_1682, 0x04_16A6];
+
+/// `VInt_Prepare`: a mechanic's loop that calls it spends a frame the helper
+/// call does not account for.
+const VINT_PREPARE: u32 = 0x04_204C;
+
+/// A runtime mechanic whose per-frame tick is a retail loop's helper call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mechanic {
+    /// [`RideOp::Conveyor`]: one tick per pixel the leader is carried, each
+    /// the carry loop's `DMAPlane_A_VInt` (`scene_runner/mechanics.rs`).
+    ConveyorRide,
+}
+
+impl Mechanic {
+    fn runs(self, op: &SceneOp) -> bool {
+        match self {
+            Self::ConveyorRide => matches!(op, SceneOp::Ride(RideOp::Conveyor { .. })),
+        }
+    }
+}
 
 /// Why a scene's ops and calls differ.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +48,9 @@ enum Why {
     /// A call inside a retail loop, which the ops unroll: the loop's own
     /// address.
     Unrolled(u32),
+    /// Calls in a loop whose only frame they are, which a mechanic's tick
+    /// spends once per pass: the mechanic and the loop's head.
+    Mechanic(Mechanic, u32),
     /// Calls whose frames another op or a runtime mechanic may spend, or
     /// nothing does: the issue that classifies them.
     Unclassified(u32),
@@ -49,6 +74,16 @@ const fn open(scene: &'static str, ops: usize, calls: usize) -> Row {
     }
 }
 
+/// A conveyor belt: its one call ends each pass of the carry loop at `head`.
+const fn belt(scene: &'static str, head: u32) -> Row {
+    Row {
+        scene,
+        ops: 0,
+        calls: 1,
+        why: Why::Mechanic(Mechanic::ConveyorRide, head),
+    }
+}
+
 const ROWS: &[Row] = &[
     // `loc_74302`: `Panel_Destroy` and `DMAPlanes_VInt` once per panel
     // left (`Panel_Num`, two at that point), transcribed as two pairs.
@@ -67,16 +102,14 @@ const ROWS: &[Row] = &[
     open("Cutscene_SpaceshipSabotage", 4, 9),
     open("Cutscene_CrashLaanding", 4, 7),
     open("Event_TylerGraveOpening", 0, 1),
-    open("Event_VahFortMovingPlatform1", 0, 2),
-    open("Event_VahFortMovingPlatform2", 0, 2),
-    open("Event_WpnPlntMovingPlatform1", 0, 2),
-    open("Event_WpnPlntMovingPlatform2", 0, 2),
-    open("Event_WpnPlntMovingPlatform3", 0, 2),
-    open("Event_WpnPlntMovingPlatform4", 0, 2),
-    open("Event_ConveyorBeltDown", 0, 1),
-    open("Event_ConveyorBeltUp", 0, 1),
-    open("Event_ConveyorBeltRight", 0, 1),
-    open("Event_ConveyorBeltLeft", 0, 1),
+    // The carry loops: `Field_UpdateObjects` moves the leader one pixel
+    // (`FieldObj_Step_Offset` 0), then the camera, then `DMAPlane_A_VInt`
+    // (`$06CF48`, `$06D090`, `$06D1D8`, `$06D320`), then the chunk test
+    // branches back. Each pass is one carry tick, repeated per pixel.
+    belt("Event_ConveyorBeltDown", 0x06_CEB6),
+    belt("Event_ConveyorBeltUp", 0x06_CFFE),
+    belt("Event_ConveyorBeltRight", 0x06_D146),
+    belt("Event_ConveyorBeltLeft", 0x06_D28E),
     open("Event_GaruberkTwDoorOpening1", 0, 1),
     open("Event_GaruberkTwDoorOpening2", 0, 1),
     open("Event_GaruberkTwDoorEntered1", 0, 3),
@@ -181,12 +214,64 @@ fn problems(rom: &[u8], counted: &[(String, usize, usize)], rows: &[Row]) -> Vec
                     ));
                 }
             }
+            Why::Mechanic(mechanic, head) => {
+                problems.extend(mechanic_problems(rom, row, mechanic, head));
+            }
             Why::Unclassified(_) if row.ops > row.calls => problems.push(format!(
                 "{}: {} DmaPlanes for {} calls spend frames retail does not",
                 row.scene, row.ops, row.calls
             )),
             Why::Unclassified(_) => {}
         }
+    }
+    problems
+}
+
+/// A [`Why::Mechanic`] row holds when the scene runs the mechanic, and the
+/// loop at `head` lies in the scene's documented bytes, branches back to
+/// `head` with a `bra.w`, holds every call the ops leave out, and waits no
+/// other frame.
+fn mechanic_problems(rom: &[u8], row: &Row, mechanic: Mechanic, head: u32) -> Vec<String> {
+    let mut problems = Vec::new();
+    let ops = SCENES
+        .iter()
+        .find(|scene| scene.name == row.scene)
+        .map_or(&[][..], |scene| scene.ops);
+    if !ops.iter().any(|op| mechanic.runs(op)) {
+        problems.push(format!("{}: runs no {mechanic:?}", row.scene));
+    }
+    let at = head as usize;
+    let documented = documented_ranges()
+        .get(row.scene)
+        .is_some_and(|spans| spans.iter().any(|&(start, end)| (start..end).contains(&at)));
+    let back = (at..at + 0x100).step_by(2).find(|&p| {
+        rom[p..p + 2] == [0x60, 0x00]
+            && (p as i64 + 2 + i64::from(i16::from_be_bytes([rom[p + 2], rom[p + 3]]))) == at as i64
+    });
+    let Some(back) = back.filter(|_| documented) else {
+        problems.push(format!(
+            "{}: ${head:06X} is no loop of the scene's",
+            row.scene
+        ));
+        return problems;
+    };
+    let targets: Vec<u32> = (at..back)
+        .step_by(2)
+        .filter_map(|p| jsr_target(rom, p))
+        .collect();
+    let calls = targets.iter().filter(|t| DMA_HELPERS.contains(t)).count();
+    if calls != row.calls - row.ops {
+        problems.push(format!(
+            "{}: the loop at ${head:06X} makes {calls} of the {} uncovered calls",
+            row.scene,
+            row.calls - row.ops
+        ));
+    }
+    if targets.contains(&VINT_PREPARE) {
+        problems.push(format!(
+            "{}: the loop at ${head:06X} waits another frame",
+            row.scene
+        ));
     }
     problems
 }
@@ -250,5 +335,93 @@ fn the_dma_census_rejects_an_extra_op_and_a_stale_row() {
     assert_eq!(
         problems(rom, &counted, &no_loop),
         ["Cutscene_Alshline: $074308 is no loop around a helper call"]
+    );
+}
+
+/// Negative controls for the platforms and belts (#600): a platform scene
+/// with one `DmaPlanes` omitted or doubled, a belt row on another belt's
+/// loop, a carry row on a scene without the carry, a loop that holds fewer
+/// calls than the row leaves out, and a loop that waits another frame.
+#[test]
+fn the_dma_census_rejects_a_lost_or_doubled_platform_frame_and_a_wrong_loop() {
+    let Some(rom) = rom() else { return };
+    let platform = "Event_WpnPlntMovingPlatform2";
+    let ops = SCENES.iter().find(|s| s.name == platform).unwrap().ops;
+    let first = ops
+        .iter()
+        .position(|op| matches!(op, SceneOp::DmaPlanes))
+        .unwrap();
+    let mut omitted = ops.to_vec();
+    omitted.remove(first);
+    let mut doubled = ops.to_vec();
+    doubled.insert(first, SceneOp::DmaPlanes);
+    for (changed, count) in [(&omitted, 1), (&doubled, 3)] {
+        let scenes: Vec<(&str, &[SceneOp])> = registered()
+            .into_iter()
+            .map(|(name, ops)| {
+                if name == platform {
+                    (name, changed.as_slice())
+                } else {
+                    (name, ops)
+                }
+            })
+            .collect();
+        assert_eq!(
+            problems(rom, &counts(rom, &scenes), ROWS),
+            [format!(
+                "{platform}: {count} DmaPlanes for 2 helper calls, with no row"
+            )]
+        );
+    }
+
+    let counted = counts(rom, &registered());
+    let down = ROWS
+        .iter()
+        .position(|row| row.scene == "Event_ConveyorBeltDown")
+        .unwrap();
+    let mut wrong_loop = ROWS.to_vec();
+    wrong_loop[down].why = Why::Mechanic(Mechanic::ConveyorRide, 0x06_CFFE);
+    assert_eq!(
+        problems(rom, &counted, &wrong_loop),
+        ["Event_ConveyorBeltDown: $06CFFE is no loop of the scene's"]
+    );
+
+    let start = ROWS
+        .iter()
+        .position(|row| row.scene == "Event_GameStart")
+        .unwrap();
+    let mut no_carry = ROWS.to_vec();
+    no_carry[start].why = Why::Mechanic(Mechanic::ConveyorRide, 0x06_CEB6);
+    assert_eq!(
+        problems(rom, &counted, &no_carry),
+        [
+            "Event_GameStart: runs no ConveyorRide",
+            "Event_GameStart: $06CEB6 is no loop of the scene's",
+        ]
+    );
+
+    let mut short = ROWS.to_vec();
+    short[down].calls = 2;
+    let mut recounted = counted.clone();
+    let at = recounted
+        .iter()
+        .position(|(name, ..)| name == "Event_ConveyorBeltDown")
+        .unwrap();
+    recounted[at].2 = 2;
+    assert_eq!(
+        problems(rom, &recounted, &short),
+        ["Event_ConveyorBeltDown: the loop at $06CEB6 makes 1 of the 2 uncovered calls"]
+    );
+
+    // `Field_UpdateObjects`, the loop's first call, made a `VInt_Prepare`.
+    let mut waits = rom.to_vec();
+    let call = (0x06_CEB6..0x06_CF66)
+        .step_by(2)
+        .find(|&p| jsr_target(rom, p).is_some_and(|t| !DMA_HELPERS.contains(&t)))
+        .unwrap();
+    waits[call + 2..call + 6].copy_from_slice(&VINT_PREPARE.to_be_bytes());
+    assert_eq!(
+        problems(&waits, &counted, ROWS),
+        ["Event_ConveyorBeltDown: the loop at $06CEB6 waits another frame"]
     );
 }

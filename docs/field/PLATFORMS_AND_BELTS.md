@@ -52,9 +52,9 @@ The body then runs, in order:
 3. `GetMapLayoutOffset` on the foreground plane (`d3 = 0`, which is these maps'
    collision plane) at `(x >> 5, y >> 5)`: the two start chunk ids are written at
    that chunk and the next. Then one `RefreshPlaneFG`, `RunMapUpdates` and
-   `DMAPlane_A_VInt`.
+   `DMAPlane_A_VInt`, which ends in `VInt_Prepare`: one frame.
 4. Sixty `VInt_Prepare` frames, then `SFXID_ConveyorBelt` (`$E7`).
-5. The ride loop (`loc_6C50E` and siblings). The ride row's step word `d0` is
+5. The flag is tested again to pick the ride row. The ride loop (`loc_6C50E` and siblings). The ride row's step word `d0` is
    sign-extended and shifted left eight, a signed 16.16 step: `$0200` is **two
    pixels a frame**. Each frame adds it to the platform object's `curr_y_pos`
    (`$34`), to `curr_y_pos` and `dest_y_pos` (`$34`, `$3A`) of all five party
@@ -62,8 +62,13 @@ The body then runs, in order:
    then `Field_UpdateObjects`, `RunMapUpdates`, `VInt_Prepare`. The loop ends
    when the platform's `curr_y_pos` equals the destination `- $20`.
 6. `TempEveFlags_Toggle` flips the flag; the ride row's chunk pair is written at
-   `(x >> 5, dest_y >> 5)`; `clr.w (a4)` removes the platform object; the loop
-   sound stops (`Sound_StopSFX`, `$FC`).
+   `(x >> 5, dest_y >> 5)`, then `RefreshPlaneFG`, `RunMapUpdates` and
+   `DMAPlane_A_VInt` (one frame); `clr.w (a4)` removes the platform object; the
+   loop sound stops (`Sound_StopSFX`, `$FC`).
+
+A ride is therefore `62 + frames` frames: the start pair's DMA frame, the settle,
+the ride and the end pair's DMA frame (`DMAPlane_A_VInt` at `$06C4E0` and
+`$06C5D8` in platform 1).
 
 ### The rows
 
@@ -110,19 +115,25 @@ chunks `$C0..$C3` are solid (type 8).
 
 ### Port model
 
-Per scene (22 ops, two halves around the flag test at op 0):
+`platform()` (`scenes/vahal_common.rs`) builds each scene's 22 ops from its
+flag and two rows, in retail's shape: the flag is tested once to pick the start
+row and again to pick the ride row, and each pick rejoins one shared body with a
+`Jump`. So each of the body's two `DMAPlane_A_VInt` calls is one `DmaPlanes`
+whichever way the platform goes, which `scenes/dma_census.rs` counts.
 
 | Retail | Op |
 |---|---|
-| flag test, row select | `BranchFlag` on the temp flag |
+| flag test, start or ride row select | `BranchFlag` on the temp flag |
 | `Field_LoadObject`, `$124`, position | `CreateFieldObject {slot, object_id: 0x124, x, y - $20}`; the slot is the first free one: Vahal Fort F2 has three map objects (slot 3), Weapon Plant F1 five (slot 5) |
 | `Event_OverlapCharacters` | `OverlapCharacters` |
 | start `GetMapLayoutOffset` writes | `WriteMapChunks` (literal chunk coordinates) |
+| `RefreshPlaneFG`, `RunMapUpdates`, `DMAPlane_A_VInt` | `DmaPlanes` (one frame) |
 | 60-frame settle | `WaitFrames 60` |
 | `SFXID_ConveyorBelt` | `PlaySound $E7` |
 | ride loop | `Ride(Platform {slot, step_y, frames})` |
 | `TempEveFlags_Toggle` | `ToggleFlag` |
 | end writes | `WriteMapChunks` |
+| `RefreshPlaneFG`, `RunMapUpdates`, `DMAPlane_A_VInt` | `DmaPlanes` (one frame) |
 | `clr.w (a4)` | `DespawnNpc {slot, 1}` |
 | `Sound_StopSFX` | `PlaySound $FC` |
 
@@ -199,6 +210,11 @@ the leader started on (a down belt stops after the step that *arrives* in the
 next chunk, an up belt after the first pixel that leaves the chunk), and at
 least one cell, because the destination is set before the first test. The Rust
 test derives the ends on paper for both halves and all four directions.
+
+The loop's only frame is its `DMAPlane_A_VInt` (`$06CF48`, `$06D090`,
+`$06D1D8`, `$06D320`; no `VInt_Prepare` in the loop), once per pixel. The carry
+tick is that frame, so the belts have no `DmaPlanes`, and
+`scenes/dma_census.rs` ties each call to `RideOp::Conveyor` and its loop.
 
 `RideOp::Conveyor` scans the layout once, when it starts, for that `t` (the
 retail test is per pixel, so the scan is per pixel), then walks the leader the
