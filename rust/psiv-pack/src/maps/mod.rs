@@ -22,6 +22,15 @@ pub mod pictures;
 pub mod records;
 pub mod updates;
 
+#[cfg(test)]
+mod emission_tests;
+#[cfg(test)]
+mod pack_structure_tests;
+#[cfg(test)]
+mod retail_tests;
+#[cfg(test)]
+mod source_tests;
+
 use std::collections::BTreeSet;
 
 use crate::PackError;

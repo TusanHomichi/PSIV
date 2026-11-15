@@ -548,6 +548,16 @@ mod tests {
     }
 
     #[test]
+    fn retail_interaction_indexes_use_the_full_word_table() {
+        let Some(rom) = crate::test_support::retail_rom("interaction event indexes") else {
+            return;
+        };
+        assert_eq!(interaction_event_index(rom.bytes(), 0x1b).unwrap(), 0x1b);
+        assert_eq!(interaction_event_index(rom.bytes(), 0x1c).unwrap(), 0x1c);
+        assert_eq!(interaction_event_index(rom.bytes(), 0x0b).unwrap(), 0x6b);
+    }
+
+    #[test]
     fn the_standing_cell_is_one_row_below() {
         assert_eq!(standing(0), 1);
     }
