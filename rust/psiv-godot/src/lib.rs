@@ -887,21 +887,6 @@ impl Field {
         }
     }
 
-    /// Hands the window this frame's runtime view. The runtime owns the
-    /// window's state; the node owns its pixels.
-    fn sync_dialogue_view(&mut self) {
-        // The field's visibility mask still applies when its window keeps a
-        // page. Syncing that page must not reopen a node the battle hid.
-        let view = if self.battle_field_visibility.is_some() {
-            None
-        } else {
-            self.runtime().and_then(|rt| rt.dialogue_view())
-        };
-        if let Some(window) = self.dialogue.as_mut() {
-            window.bind_mut().set_view(view);
-        }
-    }
-
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
     fn set_letterbox(&mut self, on: bool) {
         if on && self.letterbox.is_empty() {

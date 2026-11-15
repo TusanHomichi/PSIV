@@ -667,6 +667,21 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Hands the window this frame's runtime view. The runtime owns the
+    /// window's state; the node owns its pixels.
+    pub(super) fn sync_dialogue_view(&mut self) {
+        // The field's visibility mask still applies when its window keeps a
+        // page. Syncing that page must not reopen a node the battle hid.
+        let view = if self.battle_field_visibility.is_some() {
+            None
+        } else {
+            self.runtime().and_then(|rt| rt.dialogue_view())
+        };
+        if let Some(window) = self.dialogue.as_mut() {
+            window.bind_mut().set_view(view);
+        }
+    }
+
     /// An event battle's entry draws the runtime's uniform screen this frame:
     /// a one-frame cover over whatever transition ran, set again each frame
     /// the runtime still shows it.
