@@ -915,3 +915,6 @@ pub fn resolve_palette_effects(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod retail_tests;
