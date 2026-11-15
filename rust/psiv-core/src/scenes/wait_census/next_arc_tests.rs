@@ -22,7 +22,7 @@ fn with(change: &dyn Fn(&mut Row)) -> Vec<Row> {
 
 #[test]
 fn the_next_arc_claims_reject_an_omission_and_a_misclaim() {
-    for (scene, index) in [(RIKA, 50), (RIKA, 57), ("Event_ChazHouse", 8), (GIRLS, 12)] {
+    for (scene, index) in [(RIKA, 52), (RIKA, 59), ("Event_ChazHouse", 8), (GIRLS, 12)] {
         let omitted = without(&|row| !(row.scene == scene && row.claim == Wait(index)));
         assert_eq!(
             claim_problems(&omitted),
@@ -33,25 +33,25 @@ fn the_next_arc_claims_reject_an_omission_and_a_misclaim() {
     // The 60 bare frames' `WaitFrames` may not carry a loop that runs map
     // updates, and a `Wait` may not carry the bare loop without a defect.
     let updating = with(&|row| {
-        if row.scene == RIKA && row.claim == Within(59) {
+        if row.scene == RIKA && row.claim == Within(61) {
             row.retail = own(0x07_4836, false, true);
         }
     });
     assert_eq!(
         claim_problems(&updating),
-        [format!("{RIKA} op 59: Within an own loop")]
+        [format!("{RIKA} op 61: Within an own loop")]
     );
     let as_wait = with(&|row| {
-        if row.scene == RIKA && row.claim == Within(59) {
-            row.claim = Wait(57);
-        } else if row.scene == RIKA && row.claim == Wait(57) {
-            row.claim = Within(59);
+        if row.scene == RIKA && row.claim == Within(61) {
+            row.claim = Wait(59);
+        } else if row.scene == RIKA && row.claim == Wait(59) {
+            row.claim = Within(61);
         }
     });
     assert_eq!(
         claim_problems(&as_wait),
         [format!(
-            "{RIKA} op 57: a Wait for a loop with no map updates, without a defect"
+            "{RIKA} op 59: a Wait for a loop with no map updates, without a defect"
         )]
     );
 
@@ -87,18 +87,18 @@ fn the_next_arc_claims_reject_an_omission_and_a_misclaim() {
         [format!("{RIKA} op 13: Within an own loop")]
     );
     let misclaimed = with(&|row| {
-        if row.scene == RIKA && row.claim == Within(91) {
-            row.claim = Within(90);
+        if row.scene == RIKA && row.claim == Within(93) {
+            row.claim = Within(92);
         }
     });
     assert_eq!(
         claim_problems(&misclaimed),
         [
             format!(
-                "{RIKA} op 90: Within names an op that waits no loop, {:?}",
-                scene(RIKA).ops.get(90)
+                "{RIKA} op 92: Within names an op that waits no loop, {:?}",
+                scene(RIKA).ops.get(92)
             ),
-            format!("{RIKA} op 90: Within an own loop"),
+            format!("{RIKA} op 92: Within an own loop"),
         ]
     );
 }
@@ -112,7 +112,7 @@ fn the_next_arc_rows_reject_a_wrong_loop_or_count() {
     // `Field_BuildSprites` said to follow `Field_UpdateObjects`, the bare
     // loop said to update objects, and two `VInt_PrepareLoop` claims swapped.
     let wrong = with(&|row| {
-        if row.scene == RIKA && row.claim == Wait(50) {
+        if row.scene == RIKA && row.claim == Wait(52) {
             row.retail = Main(0x07_47DE);
         }
         if row.scene == RIKA && row.claim == Within(13) {
@@ -121,7 +121,7 @@ fn the_next_arc_rows_reject_a_wrong_loop_or_count() {
         if row.scene == GIRLS && row.claim == Within(0) {
             row.retail = own(0x06_D4A8, true, false);
         }
-        if row.scene == RIKA && row.claim == Within(95) {
+        if row.scene == RIKA && row.claim == Within(97) {
             row.retail = Frames(0x07_4A1A);
         }
     });
@@ -138,10 +138,10 @@ fn the_next_arc_rows_reject_a_wrong_loop_or_count() {
     // The 60-pass loop's `WaitFrames` claim swapped with the 30-frame
     // `DoMapUpdateLoop`'s `Wait`.
     let swapped = with(&|row| {
-        if row.scene == RIKA && row.claim == Within(59) {
-            row.claim = Wait(53);
-        } else if row.scene == RIKA && row.claim == Wait(53) {
-            row.claim = Within(59);
+        if row.scene == RIKA && row.claim == Within(61) {
+            row.claim = Wait(55);
+        } else if row.scene == RIKA && row.claim == Wait(55) {
+            row.claim = Within(61);
         }
     });
     assert_eq!(

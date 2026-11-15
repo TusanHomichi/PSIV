@@ -146,8 +146,7 @@ fn settle(session: &mut Session) {
 
 /// Walks up and down the basement floor until an encounter rolls.
 ///
-/// Returns the formation the tables rolled, with the battle already started by
-/// the frame that rolled it.
+/// Returns the selected formation after verifying its entry and roll frame.
 fn walk_until_encounter(session: &mut Session) -> u16 {
     let mut direction = Direction::Down;
     for _ in 0..40_000 {
@@ -164,7 +163,60 @@ fn walk_until_encounter(session: &mut Session) -> u16 {
         let frame = tick(session, pad);
         for event in &frame.events {
             if let RuntimeEvent::EncounterRolled { formation } = event {
-                return *formation;
+                let formation = *formation;
+                assert!(
+                    frame.battle.is_none(),
+                    "fire must not start or roll the battle"
+                );
+                let start_count = session.main_frame_count();
+                let cell = session.runtime().state().cell();
+                let mut rng = psiv_core::battle::Lcg41::new(session.runtime().rng_seed());
+                for elapsed in 1..=63 {
+                    let counted = elapsed <= 19 || (43..=60).contains(&elapsed);
+                    if counted {
+                        rng.step();
+                    }
+                    // Camp/Action/Up must never steal an entry frame.
+                    let pad = match elapsed % 4 {
+                        0 => Pad::new(Button::Camp),
+                        1 => Pad::new(Button::Speak),
+                        2 => Pad::new(Button::Up),
+                        _ => Pad::NEUTRAL,
+                    };
+                    let entry = tick(session, pad);
+                    assert!(session.camp_view().is_none());
+                    assert_eq!(session.runtime().state().cell(), cell);
+                    if elapsed >= 43 && elapsed < 63 {
+                        let load = session
+                            .runtime()
+                            .battle_load_view()
+                            .expect("stage before encounter roll");
+                        assert_eq!(load.start, psiv_runtime::BattleStart::Encounter(formation));
+                        assert_eq!(load.foreground_rows, (elapsed - 43).min(14) as u8);
+                    } else {
+                        assert!(session.runtime().battle_load_view().is_none());
+                    }
+                    if elapsed < 63 {
+                        assert!(entry.battle.is_none());
+                        assert!(!session.battle_active());
+                        assert_eq!(session.runtime().rng_seed(), rng.seed(), "frame {elapsed}");
+                    } else {
+                        assert_eq!(
+                            entry.battle.as_ref().unwrap().started,
+                            Some(psiv_runtime::BattleStart::Encounter(formation))
+                        );
+                        assert!(session.battle_active());
+                        // Only now does loc_B62A rotate the high seed word.
+                        let seed = rng.seed();
+                        let rolled = ((seed >> 16) as u16).rotate_right(1);
+                        assert_eq!(
+                            session.runtime().rng_seed(),
+                            u32::from(rolled) << 16 | (seed & 0xFFFF)
+                        );
+                    }
+                }
+                assert_eq!(session.main_frame_count().wrapping_sub(start_count), 37);
+                return formation;
             }
         }
         if frame
@@ -391,7 +443,7 @@ fn the_first_basement_battle_is_fought_with_pad_presses() {
     );
     assert!(
         session.battle_active(),
-        "the frame that rolled the encounter started the battle"
+        "the entry's roll frame started the battle"
     );
     let cell_at_roll = session.runtime().state().cell();
 

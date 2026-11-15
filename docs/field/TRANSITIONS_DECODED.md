@@ -85,17 +85,42 @@ frames around the encounter fire show:
 - battle art is settled at **24835**; the battle UI builds afterward (window at
   24845, enemy name at 24850, command window at 24855).
 
-The renderer state is `BattleEntry`: **14 frames to white, 28 white-hold
-frames, and a 14-frame white-to-battle reveal**. The final reveal is modeled
-as a stepped white cover rather than pretending that Godot can reproduce the
-cartridge's simultaneous tile upload and CRAM writes. The resulting shape is
-the measured flash/hold/reveal, with no invented swirl.
+The runtime runs the entry before starting the battle or rolling its opening
+priority (#678). `FieldRoutine_Battle` (`ps4.asm:117926`) stops the music and
+spends a `VInt_Prepare`, then `loc_584EE` runs fifteen band passes and
+`loc_585C8` enters `GameMode_LoadBattle` (`ps4.asm:9911`). The latter loads the
+stage under `$EEE`, fades from white (`loc_6B20`) and calls `loc_B62A` only
+at the end (`ps4.asm:10043`).
 
-Event battles take the same `GameMode_LoadBattle` hold and fade after their own
-field arm. There the runtime runs the frames up to the opening roll and the
-shell draws its uniform screens (`TransitionKind::Screen`), certified against
-tape 45 ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md#the-battles-entry-663)).
-Encounters keep this cover, and their roll, until #678.
+Tape 07's `--groups rng` CSV measures the schedule from fire **24777**
+(`main_frame_count=23912`) to the opening seed-word rotation on **24840**
+(`589A9843 -> 2C4D9843`, count still **23949**):
+
+| frames | count | work |
+| --- | ---: | --- |
+| 24778..24796 | 19 | field arm and first load frame |
+| 24797..24819 | 0 | 23 stage-load lag frames |
+| 24820..24837 | 18 | white frame, fade and sweep |
+| 24838..24840 | 0 | 3 lag frames, including the opening roll |
+
+That is **63 frames after fire, 37 counted and 26 lag**. The seed also
+rotates during stage setup on 24807 (`6EA56A13 -> B7526A13`); that is not
+`loc_B62A`'s opening priority: `Battle_SetupEnemyData` (`ps4.asm:11870`)
+selects the formation there. The port still selects the formation on the
+encounter-fire frame, before the entry, and uses the documented [battle RNG surrogate](../RUNTIME_DESIGN.md#rng-design).
+
+`battle_entry.rs` owns both encounter and event entry. The shell submits the
+runtime's uniform CRAM screens as `TransitionKind::Screen`; there is no
+presentation-only `BattleEntry` timer. The `encounter-*` certification pairs
+compare 24794 and 24810 in the white hold, and 24822 and 24824 in the fade's
+first uniform steps, exactly over `1,1,319,223` at 320x224. The field bands
+and tone remain #665's work, and the stage sweep and settled stage before the
+roll remain #679's; the port draws the fading backdrop through those frames.
+Stage-load lag varies with decompression: encounters use tape 07's 23 load-lag
+frames for all formations; event battles use tape 45's 37
+([source notes](../source-notes/README.md)). Event entry's own measurements
+and certified pairs are in
+[95_FractOozeFound.md](../scenes/95_FractOozeFound.md#the-battles-entry-663).
 
 ## Scene start and end
 

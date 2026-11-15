@@ -347,6 +347,14 @@ TAPE_45_WINDOW_COVERED = {**TAPE_45_BAND, "region": [0, 16, 320, 192]}
 TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
 TAPE_45_SWEEP = {**TAPE_45, "frames": [7863, 7870, 7873], "region": [1, 1, 319, 223]}
 
+# Tape 07's ordinary encounter: fire 24777, white 24794-24821, uniform
+# fade steps 24822-24824. The selector fires just before session tick 30;
+# the result of a session tick is captured on the next tick. This certifies the backdrop, not the later plane sweep (#679).
+TAPE_07_ENTRY = {
+    "tape": "oracle/tapes/07_first_battle.tape", "patches": [],
+    "frames": [24794, 24810, 24822, 24824], "region": [1, 1, 319, 223],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -575,6 +583,18 @@ PAIRS = [
     ("event-battle-before-roll", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 587,
      "build/certify/oracle/event-battle-sweep/frame_7873.png",
      "e2007010945afd6b24948e3289dd2f0933ba026c9a5a9b074f4035b812e65c56", TAPE_45_SWEEP),
+    ("encounter-white-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 46,
+     "build/certify/oracle/encounter-entry/frame_24794.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-white-hold", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 62,
+     "build/certify/oracle/encounter-entry/frame_24810.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-fade-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 74,
+     "build/certify/oracle/encounter-entry/frame_24822.png",
+     "bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb", TAPE_07_ENTRY),
+    ("encounter-fade-second", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 76,
+     "build/certify/oracle/encounter-entry/frame_24824.png",
+     "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_07_ENTRY),
     # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
     # ticks 157 and 199 with the event entered at 35. This matches the tape's
     # Main_Frame_Count phase modulo 32: captures 159 and 200 sample the second

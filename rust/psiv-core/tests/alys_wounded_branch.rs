@@ -64,9 +64,9 @@ fn healing_path(already_met_saya: bool) {
         }
     }
     assert!(runner.is_finished());
-    use DialogueWindow::{Cutscene, Cutscene5, Standard};
+    use DialogueWindow::{Cutscene5, Inline, Standard};
     let mut expected = vec![
-        ("open", 0x43, Cutscene),
+        ("open", 0x43, Inline),
         ("sound", 0xDE, Standard),
         ("resume", 0, Cutscene5),
         ("sound", 0xDE, Standard),

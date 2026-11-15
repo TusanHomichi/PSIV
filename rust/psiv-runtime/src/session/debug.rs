@@ -313,6 +313,12 @@ fn post_opening_game(data: &GameData, step_frames: StepFrames) -> Result<GameSta
 /// reads the variable, and the state it asks for is built here so no shell
 /// needs a mutable runtime for it.
 impl Session {
+    /// Certification selector: fire the ordinary encounter entry, without
+    /// walking until a random encounter. All its timing is the product path.
+    pub fn debug_encounter_entry(&mut self, formation: u16) -> crate::RuntimeEvent {
+        self.runtime.begin_encounter_entry(formation)
+    }
+
     /// Debug-selector family: starts `formation` as an ordinary encounter
     /// battle from outside the field frame, which is what
     /// `PSIV_DEBUG_BATTLE=<formation>` and `PSIV_DEBUG_VEHICLE_BATTLE` do.

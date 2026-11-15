@@ -40,7 +40,7 @@ fn the_igglanova_area_starts_the_scene_before_the_blocker() {
         "the area notification must precede the invisible-blocker probe"
     );
 
-    // The scene's frames, then the battle's entry (`event_battle_entry`).
+    // The scene's frames, then the battle's entry (`battle_entry`).
     let mut battle_started = false;
     for _ in 0..20 + 76 {
         for event in runtime.tick(Input::Neutral) {

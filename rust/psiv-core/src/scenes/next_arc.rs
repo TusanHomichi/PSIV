@@ -11,7 +11,7 @@
 use super::{ALYS, CHAZ, GRYZ, HAHN, RUNE, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
-use crate::scene_presentation::{CameraSubject, PresentationOp};
+use crate::scene_presentation::{CameraSubject, PresentationOp, RESTORE_PALETTE};
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -285,7 +285,7 @@ pub static MEETING_DORIN: Scene = Scene {
     ops: MEETING_DORIN_OPS,
 };
 
-/// `Cutscene_Dorin` — retail `$074034..$0741E5`, 434 bytes, 17 ops.
+/// `Cutscene_Dorin` — retail `$074034..$0741E5`, 434 bytes, 18 ops.
 static DORIN_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
@@ -319,6 +319,8 @@ static DORIN_OPS: &[SceneOp] = &[
         npc_index: 2,
         count: 1,
     },
+    // Pal_FadeIn after RefreshMap and Gryz's sprite build (:153611).
+    SceneOp::FadeIn,
     SceneOp::Wait { ticks: 20 },
     SceneOp::PlaySound {
         id: MUSIC_TONOE_DE_PON,
@@ -553,7 +555,7 @@ pub static ALSHLINE_FOUND: Scene = Scene {
     ops: ALSHLINE_FOUND_OPS,
 };
 
-/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 88 ops.
+/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 89 ops.
 static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::PlaySound { id: MUSIC_STOP },
@@ -620,6 +622,8 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         source: DialogueSource::Entry(DialogueId(0x67)),
         window: DialogueWindow::Cutscene,
     },
+    // $074366..$07437A: restore Palette_Table_Buffer_2 before the fade-in.
+    RESTORE_PALETTE,
     SceneOp::PlaySound { id: MUSIC_STOP },
     SceneOp::Wait { ticks: 60 },
     SceneOp::FadeIn,

@@ -37,7 +37,7 @@ the battle on 7815, which holds white until 7856 and fades the battle in from
 7857.
 
 The port builds on the held `Retained` page (entries and resumes, #686).
-`event_battle_entry.rs` owns the fifteen passes and their half-open pixel rows:
+`battle_entry.rs` owns the fifteen passes and their half-open pixel rows:
 `[104,120)`, then eight more pixels at each edge, clipped to `[0,224)`. Each
 pass calls the shared CRAM model's `Pal_IncreaseTone` before its DMA/VInt wait;
 it changes all 64 words when `Main_Frame_Count & 3` is zero. The Profound
@@ -70,7 +70,7 @@ then `$AAA`), the stage is in from 7860 and settled by 7870. Only then does
 encounter takes the same mode after its own field arm (`loc_584EE`).
 
 The runtime runs the 76 frames from the request to that roll and counts the
-36 the cartridge counts (`event_battle_entry.rs`); clone tick t shows frame
+36 the cartridge counts (`battle_entry.rs`); clone tick t shows frame
 t + 7286. Ticks 528-570 are the white hold and 571-573 the fade's first
 steps, equal to frames 7814-7859 over `1,1,319,223`; the `event-battle-*`
 pairs certify 7814, 7840, 7857 and 7859. Ticks 574-583 go on fading the

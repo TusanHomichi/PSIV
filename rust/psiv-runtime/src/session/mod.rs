@@ -50,7 +50,7 @@
 //!
 //! # The battle
 //!
-//! A battle is a mode, not a script the shell plays: `EncounterRolled` or a
+//! A battle is a mode, not a script the shell plays: `EncounterBattleReady` or a
 //! scene's `SceneBattleStarted` starts the runtime's own battle inside this
 //! frame, and from the next frame on [`Session::frame`] runs the battle loop
 //! (`session/battle/`) instead of the field until the presentation closes.
@@ -466,6 +466,21 @@ impl Session {
             // back — not the field, not the shared seed.
             self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
             self.game_over_frame()
+        } else if self.runtime.battle_entering() {
+            // Entry owns every frame, even if the player presses Camp or
+            // Speak. Only the roll frame builds a battle mode.
+            let events = self.runtime.tick(Input::Neutral);
+            let battle = self.begin_battle(&events);
+            Frame {
+                mode: if battle.is_some() {
+                    FrameMode::Battle
+                } else {
+                    FrameMode::Field
+                },
+                events,
+                battle,
+                ..Frame::default()
+            }
         } else if self.runtime.teleporting() {
             self.teleport_frame()
         } else if self.destination.is_some() {

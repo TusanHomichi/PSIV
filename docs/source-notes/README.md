@@ -179,10 +179,11 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `scenes::dark_display` lists every scene
   that ends dark and fails on a window drawn dark. A field load sets the bit
   at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
-  cover draws that frame black either way. The dialogue windows that fade out
-  as they close (`Event_GetAndRunDialogue5`, `Event_RunDialogue5`) run no fade
-  on the CRAM and leave the bit set, so `Cutscene_Alshline`'s
-  `VDP_EnableDisplay` (`$074494`) finds it already on (#670).
+  cover draws that frame black either way. The dialogue windows' own
+  `Event_GetAndRunDialogue5` / `Event_RunDialogue5` fade now runs on CRAM
+  before the scene returns ([dialogue close](../scenes/SCENE_DIALOGUE.md#field-entrance-and-panel-cleanup));
+  Alshline's map reload and Igglanova construction remain dark until its
+  `VDP_EnableDisplay` at `$074494` (#670).
 - **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
   After `Event_GirlsSneakingOut` the inn draws the bill's window
   (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
@@ -219,16 +220,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
   stage (7814-7856), fades it in from white a nibble a frame with the planes
   sweeping in (`loc_6B20`, 7857-7870) and only then rolls the opening priority
   (`loc_B62A`, the seed word rotated on 7875). The runtime runs those frames
-  (`event_battle_entry.rs`): the battle starts and rolls on the 76th frame
+  (`battle_entry.rs`): the battle starts and rolls on the 76th frame
   after the request, with the seed stepped on the 36 frames the cartridge
   counts, so every event battle's rolls moved with #663. The shell draws the
   hold and the two-plane sweep (#679): `BattleLoadView` submits the scroll,
   uploaded rows and nibble fade; setup precedes the fade and the opening roll
   remains on its own frame. Tape 45's 7863, 7870 and 7873 pairs cover the sweep,
-  settled stage and pre-roll lag. Encounters still roll at once under a presentation-only cover
-  (#678). The stage's 37 lag frames are battle 7's: the
-  port spends them on every event battle, though the cartridge's depend on what
-  the stage decompresses ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
+  settled stage and pre-roll lag. Encounters run the same preparation and
+  sweep using tape 07's schedule: 63 frames after fire, 37 counted and 26 lag
+  ([measurements](../field/TRANSITIONS_DECODED.md#battle-entry-effect)).
+  The formation-selection draw remains on the encounter-fire frame instead
+  of stage setup (tape 07, 24807); the opening roll still rotates the seed on
+  entry's final frame. Stage-load lag remains a measured approximation:
+  tape 45's 37 frames for every event battle, tape 07's 23 for every encounter,
+  although cartridge decompression depends on the stage.
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
@@ -526,8 +531,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
     ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
     keeps the field's foreground, the party and palette line 3 where the
     cartridge shows the panel. And the cartridge spends eight lag frames on
-    the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
+    the panel's load and six on the `$1D712C` art's (`$0702DE`), which the
     port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
+    The following `RefreshPlaneBG` (`$070436`, also missing under #674)
+    spends two more held frames. The [instruction-boundary measurement](../../oracle/CAPTURE.md#scene-load-measurements)
+    separates those from decompression: Nemesis returns during 7444,
+    background refresh returns during 7446, and the next counted frame is 7447.
 
 ## Public reverse-engineering references used
 

@@ -395,10 +395,16 @@ pub enum RuntimeEvent {
         /// The character id whose record changed.
         who: psiv_core::CharId,
     },
-    /// A random encounter fired on this landing. The shell seats the party
-    /// and calls [`crate::Runtime::start_battle`] with this formation.
+    /// A random encounter fired on this landing. Its entry runs before the
+    /// session seats the party and rolls the opening priority.
     EncounterRolled {
         /// The formation id the encounter tables picked.
+        formation: u16,
+    },
+    /// The encounter entry has finished: the session starts and rolls this
+    /// battle on this frame, then hands subsequent frames to the battle loop.
+    EncounterBattleReady {
+        /// The formation retained from the encounter's fire frame.
         formation: u16,
     },
     /// A cleared map object is live again. The renderer shows it, building
