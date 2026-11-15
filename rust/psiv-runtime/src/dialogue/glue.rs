@@ -237,14 +237,7 @@ impl Runtime {
             .dialogue
             .open_scene_entry(tree, entry, panel_layout, &self.game)
         {
-            // `Cutscene_Ending`'s first text (`$078F68..$078F90`) runs
-            // `RunText3` inline and returns with the window and portrait up;
-            // the scene destroys both at `$078FAE..$078FCC`, after its first
-            // tone loop (`WindowDestroy`). Every other routine destroys its
-            // own window, except `Event_RunDialogue2`'s (#644).
-            if self.scene_dialogue_window() == Some(psiv_core::DialogueWindow::EndingIntro) {
-                self.dialogue.hold_page_at_end();
-            }
+            self.retain_scene_dialogue_page();
             SceneDialogueOpen::Opened
         } else {
             SceneDialogueOpen::Empty
@@ -268,7 +261,23 @@ impl Runtime {
     /// movement and presentation ops.
     pub(crate) fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
         self.select_scene_text_loop();
-        self.dialogue.resume_scene(panel_layout, &self.game)
+        let opened = self.dialogue.resume_scene(panel_layout, &self.game);
+        if opened {
+            self.retain_scene_dialogue_page();
+        }
+        opened
+    }
+
+    /// Both a fresh entry and a resumed cursor return through the window
+    /// kind's own exit. `Event_RunDialogue2` forgets its windows without
+    /// destroying them; the ending's inline window is destroyed by its scene.
+    fn retain_scene_dialogue_page(&mut self) {
+        if self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::retains_page)
+        {
+            self.dialogue.hold_page_at_end();
+        }
     }
 
     /// The scene's window routine picks the text loop: `RunText3` for the
