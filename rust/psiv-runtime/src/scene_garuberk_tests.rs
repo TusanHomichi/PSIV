@@ -127,6 +127,78 @@ fn a_garuberk_door_opens_takes_the_party_through_and_shuts_behind_it() {
     );
 }
 
+/// The reverse path exercises opening `$36` and entry `$38`, including the
+/// final closing row's collision. Core's DMA census checks every row's wait
+/// and update policy; this checks those writes still permit ordinary traversal.
+#[test]
+fn the_other_garuberk_door_returns_through_the_same_warp() {
+    let Some(mut rt) = tower(0x19A, Cell::new(36, 46)) else {
+        return;
+    };
+    let writes = open(&mut rt);
+    let rows = [
+        (0x35, 0x38),
+        (0x36, 0x39),
+        (0x37, 0x3A),
+        (0x36, 0x39),
+        (0x35, 0x38),
+        (0x36, 0x39),
+        (0x37, 0x3A),
+        (0x3D, 0x3B),
+        (0x3E, 0x3C),
+    ];
+    assert_eq!(writes.len(), rows.len());
+    for (index, ((tick, patches), (above, under))) in writes.iter().zip(rows).enumerate() {
+        assert_eq!(*tick - writes[0].0, 4 * index);
+        assert!(patches.contains(&(18, 21, above)));
+        assert!(patches.contains(&(18, 22, under)));
+    }
+    assert!(rt.map.is_walkable(Cell::new(36, 45)));
+    let mut started = false;
+    for _ in 0..240 {
+        let events = rt.tick(if started {
+            Input::Neutral
+        } else {
+            Input::Direction(Direction::Up)
+        });
+        let door = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::SceneStarted { trigger: 0x22 }));
+        assert!(
+            !events.iter().any(|event| match event {
+                RuntimeEvent::WarpUnmapped { .. } => !door,
+                other => matches!(
+                    other,
+                    RuntimeEvent::SceneFaulted { .. }
+                        | RuntimeEvent::SceneMissing { .. }
+                        | RuntimeEvent::MapRefreshFailed { .. }
+                        | RuntimeEvent::UnpackedTarget { .. }
+                ),
+            }),
+            "{events:?}"
+        );
+        started |= door;
+        if started && !rt.scene_active() {
+            break;
+        }
+    }
+    assert!(started);
+    assert!(!rt.scene_active());
+    assert_eq!(rt.map_id(), MapId(0x199));
+    assert_eq!(rt.state().cell(), Cell::new(34, 20));
+    assert_eq!(
+        rt.effects.chunk_patches[rt.effects.chunk_patches.len() - 2..],
+        [(17, 8, 0x30), (17, 9, 0x38)]
+    );
+    assert!(!rt.map.is_walkable(Cell::new(34, 19)));
+    assert!(
+        rt.party
+            .members()
+            .iter()
+            .all(|m| m.cell == rt.state().cell())
+    );
+}
+
 /// `Event_GaruberkTwEyeAction1` (`$39`) sets temp `$14` and, sixty frames on,
 /// decompresses Part2's other layout over the live map: the variant the map's
 /// own load picks while `$14` is set, so its two rooms meet at once.

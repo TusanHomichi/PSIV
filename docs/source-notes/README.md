@@ -536,6 +536,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
     the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
     port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
 
+- **Garuberk arrival-door refresh** (`$06F612`, `$06F792`): each existing
+  `WaitFrames(1)` spends the explicit `DMAPlanes_VInt` frame after the arrival
+  chunk writes, but does not run the preceding retail `RunMapUpdates`.
+  The refresh CPU boundary and this update gap belong to
+  [#546](https://github.com/TusanHomichi/PSIV/issues/546); the
+  [door frame assignments](../scenes/103_GaruberkTowerDoors.md#dma-frame-ownership)
+  distinguish it from the opening/closing waits and step-out movement.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.
