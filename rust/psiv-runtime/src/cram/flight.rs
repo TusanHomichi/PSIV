@@ -23,12 +23,13 @@ impl Cram {
     /// lines change; line 3 remains Pal_Init, with the caption word cleared
     /// by the route immediately before Pal_FadeIn ($064C84).
     pub(crate) fn flight_planet(&mut self, palettes: &ScenePalettes, world: u8) {
-        const WORLDS: [u32; 6] = [
-            0x1D_E1D8, 0x1D_E1F8, 0x1D_E218, 0x1D_E198, 0x1D_E1B8, 0x1D_E238,
-        ];
         self.flight_line(palettes, 0x1D_E138, 48);
         self.flight_line(palettes, 0x1D_E118, 16);
-        if let Some(&address) = WORLDS.get(usize::from(world)) {
+        // The table and its targets come from the private pack. A missing
+        // table is reported by the same ROM-word reader as a missing line.
+        if self.rom(palettes, 0x06_4550, 12).is_some()
+            && let Some(address) = palettes.longword(0x06_4550, usize::from(world))
+        {
             self.flight_line(palettes, address, 0);
         }
     }

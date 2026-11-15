@@ -240,3 +240,6 @@ mod tests;
 
 /// Cartridge capture and timing checks for Tyler's grave.
 pub mod tyler_grave;
+
+/// Raw CRAM and instruction-boundary checks for tape 35 flight fades.
+pub mod flight_fades;

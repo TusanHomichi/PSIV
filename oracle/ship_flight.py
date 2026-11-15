@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import time
 
 from oracle import host_binary
 from tools.certify import ROM, TAPE_35
@@ -53,42 +54,26 @@ def measure(rows: list[dict[str, str]], landing: int) -> dict:
     raise ValueError("tape ended without field control after landing")
 
 
-# Five unique sites: the planet call is reached by both routes.
-FADE_SITES = {"mota-zelan": [0x645D6, 0x64C8E, 0x647B8],
-              "zelan-mota": [0x648F8, 0x64C8E, 0x64A2E]}
-
-
-def measure_fades(rows: list[dict[str, str]], calls: list[dict[str, str]],
-                  sites: list[int]) -> list[dict]:
-    """Check calls, returns, display enable and every palette nibble pass."""
-    frames = {int(row["frame"]): row for row in rows}
-    if [int(row["pc"], 16) for row in calls] != [pc for site in sites for pc in (site, site + 6)]:
-        raise ValueError("omitted, duplicated or reordered flight fade")
-    result = []
-    for entry, returned in zip(calls[::2], calls[1::2]):
-        start, end = int(entry["frame"]), int(returned["frame"])
-        if end - start != 16:
-            raise ValueError("flight fade did not spend 16 frames")
-        target = [int(frames[start][f"saved_{i}"], 16) for i in range(64)]
-        for elapsed in range(16):
-            row = frames[start + elapsed]
-            for i, word in enumerate(target):
-                expected = sum(min((word >> shift) & 15, elapsed) << shift
-                               for shift in (0, 4, 8, 12))
-                if int(row[f"live_{i}"], 16) != expected:
-                    raise ValueError(f"wrong palette pass at frame {start + elapsed}, word {i}")
-            if bool(int(row["vdp_reg1"], 16) & 0x40) != (elapsed != 0):
-                raise ValueError(f"wrong display-enable frame {start + elapsed}")
-        result.append({"site": entry["pc"], "start": start, "return": end,
-                       "offset": start - CONFIRM_FRAME,
-                       "target_sha256": hashlib.sha256(
-                           b"".join(word.to_bytes(2, "big") for word in target)).hexdigest()})
-    return result
+def fade_tool(arguments: list[str], output: Path, name: str) -> object:
+    """Run the Rust analyzer under the build lock and retain its receipt."""
+    command = ["python3", "tools/heavy_lock.py", "run", "--class", "build", "--",
+               "cargo", "run", "--quiet", "--manifest-path", "rust/Cargo.toml",
+               "-p", "psiv-compare", "--bin", "flight-fades", "--", *arguments]
+    started = time.monotonic()
+    with (output / f"{name}.stdout").open("w") as stdout, (output / f"{name}.stderr").open("w") as stderr:
+        result = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr)
+    (output / f"{name}-receipt.json").write_text(json.dumps(
+        {"command": command, "exit_code": result.returncode,
+         "elapsed_seconds": time.monotonic() - started}, indent=2) + "\n")
+    if result.returncode:
+        raise RuntimeError(f"{name}: Rust validator exited {result.returncode}")
+    return json.loads((output / f"{name}.stdout").read_text())
 
 
 def run(output: Path, *, fades: bool = False) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     binary = host_binary.ensure()
+    config = fade_tool(["config"], output, "fade-config") if fades else None
     # Extra diagnostic fields; the ordinary map remains the single source of
     # addresses for game mode, world, map, camera and cursor state.
     map_path = output / "ram-map.tsv"
@@ -116,8 +101,7 @@ def run(output: Path, *, fades: bool = False) -> dict:
         if fades:
             command += ["--pc-trace", str(output / f"{name}-pc.csv"),
                         "--pc-trace-from", "7400"]
-            for address in sorted({pc for sites in FADE_SITES.values()
-                                   for site in sites for pc in (site, site + 6)}):
+            for address in config["watches"]:
                 command += ["--pc-watch", f"{address:X}"]
         for patch in patches:
             command += ["--ram-patch", patch]
@@ -127,8 +111,10 @@ def run(output: Path, *, fades: bool = False) -> dict:
             raise RuntimeError(f"{name}: oracle exited {process.returncode}")
         result = measure(read_trace(trace), landing)
         if fades:
-            result["fades"] = measure_fades(read_trace(trace),
-                                            read_trace(output / f"{name}-pc.csv"), FADE_SITES[name])
+            analysis = output / f"{name}-fade-input.json"
+            analysis.write_text(json.dumps({"route": name, "rows": read_trace(trace),
+                                            "calls": read_trace(output / f"{name}-pc.csv")}) + "\n")
+            result["fades"] = fade_tool(["analyze", str(analysis.resolve())], output, f"{name}-fades")
         result.update(command=command, exit_code=process.returncode,
                       trace_sha256=hashlib.sha256(trace.read_bytes()).hexdigest())
         results[name] = result

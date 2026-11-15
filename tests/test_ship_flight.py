@@ -3,7 +3,7 @@
 from pathlib import Path
 import unittest
 
-from oracle.ship_flight import measure, measure_fades
+from oracle.ship_flight import measure
 from psiv_tools.ship_menu_pack import FLIGHT_CAPTION_PTRS, ShipMenuError, flight_captions
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,30 +54,6 @@ class ControlBoundaryCase(unittest.TestCase):
         # Negative control: the tape must actually reach field control.
         with self.assertRaisesRegex(ValueError, "without field control"):
             measure(rows[:-1], 0x18D)
-
-
-class FadeBoundaryCase(unittest.TestCase):
-    def test_fade_checker_rejects_wrong_words_display_timing_and_call_multiplicity(self):
-        rows = []
-        for frame in range(100, 116):
-            elapsed = frame - 100
-            row = dict(frame=str(frame), vdp_reg1="8124" if elapsed == 0 else "8164")
-            for word in range(64):
-                row[f"saved_{word}"] = "0EEE"
-                row[f"live_{word}"] = f"{min(elapsed, 14) * 0x111:04X}"
-            rows.append(row)
-        calls = [dict(pc="0645D6", frame="100"), dict(pc="0645DC", frame="116")]
-        self.assertEqual(measure_fades(rows, calls, [0x645D6])[0]["return"], 116)
-        for changed in (calls[:1], calls + calls, list(reversed(calls))):
-            with self.assertRaisesRegex(ValueError, "omitted, duplicated or reordered"):
-                measure_fades(rows, changed, [0x645D6])
-        for field, value in [("live_1", "0EEE"), ("vdp_reg1", "8124")]:
-            altered = [dict(row) for row in rows]
-            altered[1][field] = value
-            with self.assertRaisesRegex(ValueError, "wrong"):
-                measure_fades(altered, calls, [0x645D6])
-        with self.assertRaisesRegex(ValueError, "16 frames"):
-            measure_fades(rows, [calls[0], dict(pc="0645DC", frame="115")], [0x645D6])
 
 
 if __name__ == "__main__":

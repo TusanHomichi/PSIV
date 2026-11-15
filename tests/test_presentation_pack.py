@@ -289,10 +289,6 @@ class PresentationPackTests(unittest.TestCase):
                        + _move_w_imm(15, 7) + TRAP_1)
             self.assertEqual(data[site:site + len(listing)], listing)
             self.assertEqual(requests[address], 16)
-        worlds = [0x1DE1D8, 0x1DE1F8, 0x1DE218, 0x1DE198, 0x1DE1B8, 0x1DE238]
-        self.assertEqual(data[0x64550:0x64568], b"".join(at.to_bytes(4, "big") for at in worlds))
-        for address in worlds:
-            self.assertEqual(requests[address], 16)
 
     def test_every_drawn_panel_layer_has_its_palette(self):
         # Panel_Draw copies sixteen words of a layer's palette whenever its

@@ -159,9 +159,8 @@ PALETTE_REQUESTS = (
     (0x0007_30FC, 16),  # loc_730FC: Sekreas's line to line 4 (`$073054`)
     # Flight helpers: ship line 3 (loc_641A2), background lines 2/4
     # (loc_643B8), and loc_64550's six world palettes (loc_644AE).
-    *((at, 16) for at in (0x1DE0D8, 0x1DE0F8, 0x1DE118, 0x1DE138,
-                          0x1DE198, 0x1DE1B8, 0x1DE1D8, 0x1DE1F8,
-                          0x1DE218, 0x1DE238)),
+    *((at, 16) for at in (0x1DE0D8, 0x1DE0F8, 0x1DE118, 0x1DE138)),
+    (0x064550, 12),  # six longword pointers; selected palettes are decoded below
     (0x001D_E258, 16),  # loc_1DE258: Le Roof's line to Buffer_2 (`$0704D8`, `$078398`)
     (0x0007_0626, 9),  # loc_70626: the Le Roof fade-in's ramp (`$0705D6`)
     (0x0007_0672, 22),  # loc_70672: the Le Roof colour cycle, 2 x 11 (`$070638`)
@@ -586,8 +585,16 @@ def decode_palette_requests(
     data: bytes, panels: list[dict[str, Any]] | None = None
 ) -> list[dict[str, object]]:
     records = []
-    requests = list(PALETTE_REQUESTS) + panel_palette_requests(panels or [])
+    world_table = data[0x064550:0x064568]
+    if len(world_table) != 24:
+        raise ValueError("flight palette table runs past the ROM")
+    worlds = [(int.from_bytes(world_table[i:i + 4], "big"), 16) for i in range(0, 24, 4)]
+    requests = list(PALETTE_REQUESTS) + worlds + panel_palette_requests(panels or [])
+    seen = set()
     for address, words in requests:
+        if address in seen:
+            continue
+        seen.add(address)
         raw = data[address : address + words * 2]
         if len(raw) != words * 2:
             raise ValueError(f"palette at 0x{address:06X} runs past the ROM")

@@ -19,7 +19,7 @@ fn all_flight_fades_step_the_helper_palettes_and_spend_their_terminal_frame() {
             Button::Up,
             [218, 826, 1236],
             [0, 0x18C],
-            0x1D_E198,
+            WORLD_ZELAN,
         ),
         (
             (ZELAN, 31, 46),
@@ -27,7 +27,7 @@ fn all_flight_fades_step_the_helper_palettes_and_spend_their_terminal_frame() {
             Button::Down,
             [200, 556, 990],
             [0x18C, 0],
-            0x1D_E1D8,
+            WORLD_MOTAVIA,
         ),
     ] {
         let mut story = post_zio();
@@ -40,7 +40,10 @@ fn all_flight_fades_step_the_helper_palettes_and_spend_their_terminal_frame() {
         let line = |address| &palettes.words(address).expect("rebuilt flight palettes")[..16];
         let ship = line(0x1D_E0F8).to_vec();
         let mut planet_target: [u16; 64] = palettes.words(0x09_F2BC).unwrap().try_into().unwrap();
-        planet_target[..16].copy_from_slice(line(planet));
+        let planet_address = palettes
+            .longword(0x06_4550, usize::from(planet))
+            .expect("packed world-palette pointer");
+        planet_target[..16].copy_from_slice(line(planet_address));
         planet_target[16..32].copy_from_slice(line(0x1D_E118));
         planet_target[48..64].copy_from_slice(line(0x1D_E138));
         planet_target[47] = 0;

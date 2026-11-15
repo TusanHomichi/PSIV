@@ -141,18 +141,20 @@ setup alone (23/24).
 `loc_641A2` copies sixteen ship palette words to line 3 from `$1DE0F8`,
 or `$1DE0D8` with `EventFlag_Snowstorm`, after each flight map refresh.
 The planet helper copies `$1DE138` to line 4 and `$1DE118` to line 2;
-`loc_64550` selects line 1 by world (`$1DE1D8`, `$1DE1F8`, `$1DE218`,
-`$1DE198`, `$1DE1B8`, `$1DE238`). Line 3 retains `Pal_Init`, with caption
+`loc_64550` selects line 1 by world through six longword pointers decoded
+into the private pack, together with their target palettes. Line 3 retains `Pal_Init`, with caption
 word 47 cleared before the fade. These raw words are pack data, applied by
 CRAM's one writer. `Pal_FadeIn` copies the target, clears the live buffer,
 waits a dark frame, enables the display, steps every nibble one per frame,
 and waits one unchanged terminal pass. It is not a screen-cover timer.
 
-`python3 -m oracle.ship_flight --fades --out build/ship-fades` measures the
+`nix develop --command heavy -- python3 -m oracle.ship_flight --fades --out build/ship-fades` measures the
 five sites' six executions on tape 35's two fixtures. It checks call/return
 instruction boundaries, every live palette word against its saved target,
-and the display bit on every fade frame; wrong words, timing, display and
-omitted/duplicated calls have negative controls in `tests/test_ship_flight.py`.
+and the display bit on every fade frame. Python owns capture orchestration and
+CSV-to-JSON adaptation; the `flight-fades` binary in `psiv-compare` owns analysis
+and Rust negative controls for wrong words, timing, display and omitted or
+duplicated calls (`cargo test --manifest-path rust/Cargo.toml -p psiv-compare`).
 The session-pad regression checks those same boundaries at Speak offsets
 218/826/1236 (Mota→Zelan) and 200/556/990 (Zelan→Mota), with the existing
 map/control, caption and propulsion timeline unchanged. These are state and

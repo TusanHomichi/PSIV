@@ -4,18 +4,20 @@ use super::*;
 
 #[test]
 fn helpers_copy_only_their_lines_and_missing_palettes_are_reported() {
-    let addresses = [
-        0x1D_E0D8, 0x1D_E0F8, 0x1D_E138, 0x1D_E118, 0x1D_E1D8, 0x1D_E1F8, 0x1D_E218, 0x1D_E198,
-        0x1D_E1B8, 0x1D_E238,
-    ];
-    let palettes = ScenePalettes::from_parts(
-        addresses
-            .into_iter()
-            .enumerate()
-            .map(|(index, address)| (address, vec![index as u16 + 1; 16]))
-            .collect(),
-        BTreeMap::new(),
-    );
+    let mut words: BTreeMap<u32, Vec<u16>> = [0x1D_E0D8, 0x1D_E0F8, 0x1D_E138, 0x1D_E118]
+        .into_iter()
+        .enumerate()
+        .map(|(index, address)| (address, vec![index as u16 + 1; 16]))
+        .collect();
+    let mut table = Vec::new();
+    for world in 0..6u16 {
+        // Fictional, deliberately non-ROM pointers and palette words.
+        let address = 0x10000 + u32::from(world) * 0x100;
+        table.extend([(address >> 16) as u16, address as u16]);
+        words.insert(address, vec![world + 5; 16]);
+    }
+    words.insert(0x06_4550, table);
+    let palettes = ScenePalettes::from_parts(words, BTreeMap::new());
     for snow in [false, true] {
         let mut cram = cram(filled(0xEEE), filled(0));
         cram.flight_ship(&palettes, snow);
