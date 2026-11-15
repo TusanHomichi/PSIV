@@ -81,6 +81,16 @@ pub enum DialogueWindow {
     Cutscene5,
 }
 
+impl DialogueWindow {
+    /// Whether the window's text runs through `RunText3` (`ps4.asm:144053`)
+    /// rather than `RunText`: it reads no pad, draws no arrow, and pages and
+    /// ends on its own clock. Both are the ending's windows.
+    #[must_use]
+    pub fn runs_text3(self) -> bool {
+        matches!(self, DialogueWindow::EndingIntro | DialogueWindow::Ending)
+    }
+}
+
 /// Where a dialogue entry index comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DialogueSource {
