@@ -900,6 +900,7 @@ impl SceneRunner {
             | SceneOp::PanelDestroyLast
             | SceneOp::PanelDestroyAll
             | SceneOp::CreateFieldObject { .. }
+            | SceneOp::CreateEclipseTorch(_)
             | SceneOp::ObjectAnimation { .. }
             | SceneOp::Presentation { .. }
             | SceneOp::SetMapLoadFlags { .. } => {

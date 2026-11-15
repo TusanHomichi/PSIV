@@ -24,13 +24,20 @@ pub(crate) struct TemporarySpriteAsset {
     pub(crate) frame_height: i32,
     pub(crate) origin_x: i32,
     pub(crate) origin_y: i32,
-    pub(super) sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
+    pub(super) sequences: SpriteSequences,
     pub(crate) playback_sequence: Option<String>,
     pub(super) playback_once: bool,
     pub(super) load_art: Option<(u32, u16)>,
 }
 
+type SpriteSequences = BTreeMap<String, (Vec<(i32, u32)>, u32)>;
+
 impl TemporarySpriteAsset {
+    /// Lookup by the runtime's mapping index; duration/renderer age is irrelevant.
+    pub(crate) fn mapping_frame(&self, sequence: &str, mapping: u8) -> Option<i32> {
+        mapping_frame(&self.sequences, sequence, mapping)
+    }
+
     pub(crate) fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
         let Some((frames, total)) = self.sequences.get(sequence) else {
             return 0;
@@ -68,5 +75,34 @@ impl TemporarySpriteAsset {
     pub(crate) fn art_loaded(&self, state: &PresentationState) -> bool {
         self.load_art
             .is_none_or(|key| state.art_loaded(key.0, key.1))
+    }
+}
+
+fn mapping_frame(sequences: &SpriteSequences, sequence: &str, mapping: u8) -> Option<i32> {
+    sequences
+        .get(sequence)?
+        .0
+        .get(usize::from(mapping))
+        .map(|(frame, _)| *frame)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eclipse_torch_draw_uses_each_runtime_mapping_without_a_timer() {
+        let sequences = BTreeMap::from([(
+            "walk_up".to_owned(),
+            (vec![(3, 12), (1, 12), (0, 12), (2, 12)], 48),
+        )]);
+        for (mapping, frame) in [3, 1, 0, 2].into_iter().enumerate() {
+            assert_eq!(
+                mapping_frame(&sequences, "walk_up", mapping as u8),
+                Some(frame)
+            );
+        }
+        assert_eq!(mapping_frame(&sequences, "walk_up", 4), None);
+        assert_eq!(mapping_frame(&sequences, "walk_down", 0), None);
     }
 }

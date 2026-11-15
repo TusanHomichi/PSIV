@@ -84,7 +84,16 @@ impl Runtime {
             .tick_one_for_npc(npc, &mut self.map, &mut self.rng, context);
     }
 
+    /// `$338` draw state, without a renderer-owned clock.
+    pub fn eclipse_torch_objects(&self) -> impl Iterator<Item = &psiv_core::EclipseTorchObject> {
+        self.eclipse_torch.values()
+    }
+
     pub(crate) fn tick_field_objects(&mut self) {
+        self.eclipse_torch.retain(|_, object| {
+            object.object_pass();
+            object.active()
+        });
         if self.wander.is_empty() && self.bespoke.is_empty() {
             return;
         }

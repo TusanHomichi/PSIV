@@ -80,6 +80,7 @@ mod bespoke;
 mod camera;
 mod chest;
 mod collision;
+mod eclipse_torch;
 mod error;
 mod field;
 mod field_healing;
@@ -120,6 +121,7 @@ pub use camera::{
 };
 pub use chest::{CHEST_OPEN_FACING, CHEST_SHUT_FACING, Chest, ChestContents, ChestOutcome};
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
+pub use eclipse_torch::{EclipseTorchObject, EclipseTorchSequence, EclipseTorchSpawn};
 pub use error::MapError;
 pub use field::{
     Effect, FieldState, Input, InteractReach, SUBCELL_UNITS, StepFrames, TALK_RANGE_PX,

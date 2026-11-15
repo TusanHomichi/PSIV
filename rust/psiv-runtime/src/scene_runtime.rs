@@ -313,6 +313,8 @@ impl Runtime {
                 }
             }
             SceneEffect::NpcDespawned { npc_index, count } => {
+                self.eclipse_torch
+                    .retain(|slot, _| !(npc_index..npc_index + count).contains(slot));
                 for i in npc_index..npc_index + count {
                     let _ = self.map.set_npc_active(i, false);
                 }
@@ -571,6 +573,10 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    SceneOp::CreateEclipseTorch(spawn) => {
+                        self.eclipse_torch
+                            .insert(spawn.slot, psiv_core::EclipseTorchObject::new(spawn));
+                    }
                     SceneOp::CommitDestination => {
                         if let Some(world) = self.destination_world.take() {
                             self.set_world_index(world);

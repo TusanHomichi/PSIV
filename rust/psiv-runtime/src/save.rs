@@ -184,6 +184,7 @@ pub(super) fn construct_runtime(
         prev_standing: None,
         wander,
         bespoke,
+        eclipse_torch: Default::default(),
         rng: Lcg41::default(),
         field_suspended: false,
         frames: 0,

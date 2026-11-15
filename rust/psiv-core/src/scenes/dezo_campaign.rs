@@ -441,14 +441,18 @@ const RESTORE_FROM_WHITE: SceneOp = SceneOp::Presentation {
 
 /// `$338` with tile `$3AF` at its literal `$30`/`$34`, in the slot `$40` bytes
 /// past `Field_Obj_Secondary` per index.
-const fn torch_object(slot: usize, x: i32, y: i32) -> SceneOp {
-    SceneOp::CreateFieldObject {
+const fn torch_object(
+    slot: usize,
+    x: i32,
+    y: i32,
+    sequence: crate::EclipseTorchSequence,
+) -> SceneOp {
+    SceneOp::CreateEclipseTorch(crate::EclipseTorchSpawn {
         slot,
-        object_id: 0x338,
-        art_tile: 0x3AF,
         x,
         y,
-    }
+        sequence,
+    })
 }
 
 /// `$0047`, `Event_EclipseTorchUsed`, `$07018A..$070481`.
@@ -512,15 +516,15 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
         },
         // `$0702E4..$07041D`: nine `$338` objects written into the slots from
         // `Field_Obj_Secondary` (`$C300`) on, with no frame between them.
-        torch_object(0, 0xBA0, 0xC0),
-        torch_object(1, 0xB80, 0xA0),
-        torch_object(2, 0xBA0, 0xA0),
-        torch_object(3, 0xBC0, 0xA0),
-        torch_object(4, 0xB60, 0x80),
-        torch_object(5, 0xB80, 0x80),
-        torch_object(6, 0xBA0, 0x80),
-        torch_object(7, 0xBC0, 0x80),
-        torch_object(8, 0xBE0, 0x80),
+        torch_object(0, 0xBA0, 0xC0, crate::EclipseTorchSequence::Fast),
+        torch_object(1, 0xB80, 0xA0, crate::EclipseTorchSequence::Medium),
+        torch_object(2, 0xBA0, 0xA0, crate::EclipseTorchSequence::Medium),
+        torch_object(3, 0xBC0, 0xA0, crate::EclipseTorchSequence::Medium),
+        torch_object(4, 0xB60, 0x80, crate::EclipseTorchSequence::Slow),
+        torch_object(5, 0xB80, 0x80, crate::EclipseTorchSequence::Slow),
+        torch_object(6, 0xBA0, 0x80, crate::EclipseTorchSequence::Slow),
+        torch_object(7, 0xBC0, 0x80, crate::EclipseTorchSequence::Slow),
+        torch_object(8, 0xBE0, 0x80, crate::EclipseTorchSequence::Slow),
         // `$07041E..$070441`: a chunk copy, `Field_UpdateObjects`,
         // `RefreshPlaneBG` and `DMAPlane_B_VInt`'s one frame, waited bare
         // (`docs/source-notes/README.md`, "Eclipse Torch").

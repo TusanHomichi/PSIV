@@ -56,6 +56,9 @@ fn frame_line(effects: &[SceneEffect], runner: &SceneRunner) -> String {
                     x,
                     y,
                 } => format!("{object_id:X}/{art_tile:X} {slot}@{x:X},{y:X}"),
+                SceneOp::CreateEclipseTorch(spawn) => {
+                    format!("338/3AF {}@{:X},{:X}", spawn.slot, spawn.x, spawn.y)
+                }
                 SceneOp::ObjectAnimation {
                     slot,
                     object_id,
@@ -225,7 +228,7 @@ fn control_the_old_flash_and_spawn_timing_fail_the_frame_check() {
     let torch = &torch()[9..];
     let at = |pick: &dyn Fn(&SceneOp) -> bool| torch.iter().position(pick).unwrap();
     let main_loop = at(&|op| matches!(op, SceneOp::Wait { ticks: 80 }));
-    let objects = at(&|op| matches!(op, SceneOp::CreateFieldObject { .. }));
+    let objects = at(&|op| matches!(op, SceneOp::CreateEclipseTorch(_)));
     let leak = |ops: Vec<SceneOp>| -> &'static [SceneOp] { Box::leak(ops.into_boxed_slice()) };
 
     // Main's ops before #593: the panel, 120 ticks, Deban, 40 ticks, the

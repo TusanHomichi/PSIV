@@ -806,6 +806,8 @@ pub enum SceneOp {
         /// World pixel Y.
         y: i32,
     },
+    /// The `$338` routine's spawn, advanced only by runtime object passes.
+    CreateEclipseTorch(crate::EclipseTorchSpawn),
     /// `Event_StepObject`: move one object by signed 16.16 pixel increments
     /// for the stated number of frames before advancing the scene.
     StepFieldObject {

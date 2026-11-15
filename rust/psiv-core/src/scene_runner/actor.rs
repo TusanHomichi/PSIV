@@ -34,7 +34,7 @@ pub struct ActorAnimation {
     pub durations: &'static [u8],
 }
 impl ActorAnimation {
-    pub(super) fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         self.duration = self.duration.wrapping_sub(1);
         if self.duration as i8 >= 0 {
             return;
