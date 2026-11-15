@@ -106,7 +106,7 @@ fn measure(rows: &[Row], calls: &[Row], sites: &[u32]) -> Result<Vec<Value>, Str
         result.push(json!({
             "site": format!("{:06X}", number(&pair[0], "pc", 16)?),
             "start": start, "return": end, "offset": i64::from(start) - 7401,
-            "target_sha256": format!("{:x}", Sha256::digest(bytes)),
+            "target_sha256": psiv_pack::png::hex(&Sha256::digest(bytes)),
         }));
     }
     Ok(result)
