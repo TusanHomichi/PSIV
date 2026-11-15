@@ -25,10 +25,14 @@ under the [extension lock](../DEVELOPMENT.md#heavy-run-lock).
 |---|---:|---|
 | opening page 1 | **0.000000** | clone t3550 (real title START) ↔ opening frame 4000, tape 27 |
 | opening page 2 | **0.000000** | clone t4550 (real title START) ↔ opening frame 5200, tape 27 |
-| MeetingRika | **0.000000** | clone t162 ↔ tape-28 frame 7250 (ticks 161-165 show the same page) |
+| MeetingRika | **0.000000** | clone t195 ↔ tape-28 frame 7250 (ticks 194-198 show the same page) |
 | title (pre-prompt) | **0.000000** | clone t480 ↔ title frame 450 |
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
+
+Meeting Rika's leading `$F2` panel waits inside the text routine. The sweep
+of ticks 180-235 matches the full surface on 194-198; the old tick 193 scores
+`rmse=5.238116` (one glyph still missing), and 199 scores `31.858493`.
 
 The palette scenes' first pair joined them on 2026-11-08
 ([#162](https://github.com/TusanHomichi/PSIV/issues/162)):
@@ -44,8 +48,8 @@ camera other than (0,0):
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-elsydeon` | **0.000000** | clone t1736 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t1771 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon` | **0.000000** | clone t1744 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t1780 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
@@ -113,36 +117,33 @@ from tape 38's own run and fixture, after the first dialogue's last pages:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-tone-loop-before` | **0.000000** | clone t2629 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
-| `ending-tone-loop-rise` | **0.000000** | clone t2646 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
-| `ending-tone-loop-white` | **0.000000** | clone t2686 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+| `ending-tone-loop-before` | **0.000000** | clone t2657 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t2674 ↔ frame 9910: the loop's fourth step, backdrop `$888`; region `1,1,319,111`, the panels and backdrop above the portrait and window ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t2714 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
 white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086.
 The ending's windows run `RunText3` and page on their own
 ([#645](https://github.com/TusanHomichi/PSIV/issues/645)), so its pairs run
 with `PSIV_DEBUG_EVENT=0x8021` alone, no `PSIV_DEBUG_AUTOCLOSE_SCENE` or
-`PSIV_DEBUG_RETAIL_PACE`. The native window is up through tick 2629, the
-frame the cartridge's last page turns (9893), and clone tick t shows frame
-t + 7264 through the loop. That is 32 ticks later than #645's t + 7296: the
-scene's first `InitVRAMAndCRAM` and `Pal_FadeIn` spend 31 frames since
-[#637](https://github.com/TusanHomichi/PSIV/issues/637), and the steps fall
-one `Main_Frame_Count` phase later. Over the pairs' regions (2026-11-15 sweep
-of ticks 1660-2740): the before frame matches ticks 2484-2629 and scores
-`rmse=43.225656` from 2630, once the native window is gone (the cartridge
-keeps the window and portrait up, toned, until `$078FAE`,
-[#636](https://github.com/TusanHomichi/PSIV/issues/636)); the rise matches
-2645-2648 over `1,1,319,111`, with the untoned tick 2629 at
-`rmse=125.148572` and the steps either side (2644, 2649) at
-`rmse=34.381196` and `rmse=28.146978`; white matches 2657-2740, the step
-before (2653) at `rmse=29.123900` and the untoned tick at
-`rmse=206.044683`. The break pairs sit 51 ticks earlier, at t + 7213: the
-settled window matches every tick from the sweep's first (1660) through 1754
-(1755 `rmse=32.193293`) and the
-break's peak 1771-1774 (1770 `rmse=30.119675`, 1775 `rmse=32.294586`). The
-cartridge spends lag frames (panel decompression, page clears) that the
-native does not, and two of the seventh page's `$F2` frames
-([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
+`PSIV_DEBUG_RETAIL_PACE`. The native window is up through tick 2657. The selected loop pins use
+`t + 7236` against tape 38, after the
+[inline action waits and measured panel lag](DIALOGUE_ACTIONS.md#retail-timing-and-semantics).
+
+The sweep of ticks 1680-2820 matches the before frame over `1,1,319,223`
+on ticks 2512-2657 (`rmse=1.491456` at 2511 and `43.225656` at 2658, once
+the window is gone). The cartridge keeps its window and portrait up, toned,
+until `$078FAE` ([#636](https://github.com/TusanHomichi/PSIV/issues/636)).
+The rise matches 2672-2675 over `1,1,319,111`, with neighboring ticks 2671
+and 2676 at `rmse=34.381196` and `28.146978`. White matches 2684 through the
+sweep's last tick (2820); 2683 scores `rmse=29.123900`.
+
+The break's untoned pair matches ticks 1680-1762 over the full surface,
+and again 1799-1805 as its tone restores (`1806 rmse=38.232397`). Its peak
+matches 1779-1782 inside `1,1,319,223`; 1778 scores `rmse=30.119675`, and
+1783 `32.294586`. The remaining unmodelled panel, page-clear and window
+setup lag still prevents one absolute tick offset across the whole dialogue
+([source notes](../source-notes/README.md)).
 The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
 (`suites::palette::ending`). The third starts white natively, because the

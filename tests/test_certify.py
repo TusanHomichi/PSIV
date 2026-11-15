@@ -96,7 +96,7 @@ class PairTableCase(unittest.TestCase):
         # neither the autoclose nor the retail pace's synthetic Speak.
         self.assertEqual(env, certify.ENDING)
         self.assertFalse(set(certify.SCENE) & set(env))
-        self.assertEqual(tick, 1736)
+        self.assertEqual(tick, 1744)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -219,12 +219,12 @@ class PairTableCase(unittest.TestCase):
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native window closes after tick 2629 as the cartridge's
-                # last page turns on 9893; the loop follows at t + 7264.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
-                self.assertIn(tick + 7264, recipe["frames"])
+                # The #667 sweep re-pins this window through tick 2657;
+                # the selected plateaus share t + 7236.
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7236}.png")
+                self.assertIn(tick + 7236, recipe["frames"])
         # Before, the fourth step, white: each inside its plateau.
-        self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
+        self.assertEqual([p[2] for p in loop], [2657, 2674, 2714])
         self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
         self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
         self.assertIs(loop[2][5], certify.TAPE_38_LOOP)
