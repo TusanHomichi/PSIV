@@ -252,9 +252,10 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The native CRAM steps on ticks 885-909 in
+# 9920 to the fade-out at 10086. The native CRAM steps on ticks 909-933 in
 # the same plateaus, so its 64 words at tick t equal the buffer at frame
-# t + 9011, and clone tick t shows oracle frame t + 9012. The
+# t + 8987, and clone tick t shows oracle frame t + 8988 (24 ticks later
+# than before the dialogue's portrait loads lagged, #625). The
 # untoned frame before (9893) and the white endpoint inside the loop (9950)
 # certify all but #409's first row and column.
 TAPE_38_LOOP = {
@@ -354,13 +355,13 @@ PAIRS = [
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
     # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
-    ("ending-tone-loop-before", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 881,
+    ("ending-tone-loop-before", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 905,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 898,
+    ("ending-tone-loop-rise", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 922,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
      "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
-    ("ending-tone-loop-white", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 938,
+    ("ending-tone-loop-white", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 962,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
