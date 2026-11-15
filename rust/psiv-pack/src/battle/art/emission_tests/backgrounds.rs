@@ -53,6 +53,14 @@ fn background_planes_palettes_selection_tables_and_reachability() {
     assert!(mota.iter().all(|v| number(v) <= 4));
     let resolved: BTreeSet<_> = mota.iter().map(|v| number(v).saturating_sub(1)).collect();
     assert_eq!(resolved, (0..4).collect());
+    // Public disassembly symbols, independent of the emitter's label table.
+    assert_eq!(
+        entries[..4]
+            .iter()
+            .map(|entry| entry["symbol"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["MotaDesert", "MotaBeach", "MotaGrass", "MotaSea"]
+    );
     assert!(
         mota[42..]
             .iter()

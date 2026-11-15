@@ -102,6 +102,8 @@ fn every_pose_png_uses_the_first_36_cells_and_on_foot_palette() {
         {
             let (words, _) = pose_words(rom, pose).unwrap();
             assert_eq!(out["pose"], number);
+            assert_eq!(out["label"], POSE_LABELS[record.index][number]);
+            assert_eq!(out["label_source"], LABEL_SOURCE);
             assert_eq!(out["cell_count"], words.len());
             let raw = &rom[pose.art..pose.art + extents[&pose.art] * 32];
             let pixels = plane(&words[..36], 6, raw, 0);
