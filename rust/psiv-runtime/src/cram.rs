@@ -393,6 +393,14 @@ impl Cram {
         }
     }
 
+    /// One call of `Pal_IncreaseTone` (`$058608`), before its VInt wait.
+    /// Shared by scene programs and the event-battle field arm.
+    pub(crate) fn increase_tone(&mut self, frame: u16) {
+        if palette::tone_phase(frame) {
+            self.set_live(self.view.words.map(palette::increase_tone));
+        }
+    }
+
     fn step(&mut self, program: Program, frame: u16, cycle_index: &mut u8) -> Option<Program> {
         let phase = palette::tone_phase(frame);
         match program {
@@ -400,12 +408,8 @@ impl Cram {
                 if left == 0 {
                     return None;
                 }
+                self.increase_tone(frame);
                 let mut words = self.view.words;
-                if phase {
-                    for word in &mut words {
-                        *word = palette::increase_tone(*word);
-                    }
-                }
                 if let Some((start, held)) = &hold {
                     for (offset, &value) in held.iter().enumerate() {
                         if let Some(word) = words.get_mut(start + offset) {

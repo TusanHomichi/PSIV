@@ -18,9 +18,9 @@ impl Runtime {
         if self.dialogue.lag_frame() {
             return Vec::new();
         }
-        // An event battle's entry owns the frame: no mode but its own runs,
+        // A battle's entry owns the frame: no mode but its own runs,
         // and it counts only the frames the cartridge counts.
-        if let Some(events) = self.tick_event_battle_entry() {
+        if let Some(events) = self.tick_battle_entry() {
             return events;
         }
         // `Main_Frame_Count` first, then the vblank tick: the cartridge
@@ -222,9 +222,8 @@ impl Runtime {
             // The formation pick is UpdateRNGSeed2's: same seed, other mixer.
             let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
             if let Some(formation) = set.table.select(self.map.id().0, cell, &mut rng2) {
-                events.push(RuntimeEvent::EncounterRolled {
-                    formation: formation.id,
-                });
+                let formation = formation.id;
+                events.push(self.begin_encounter_entry(formation));
             }
         }
 

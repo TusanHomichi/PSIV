@@ -642,9 +642,6 @@ impl INode2D for Field {
         let battle_was_active = self.battle_presentation_active();
         self.debug_hooks_tick();
         self.service_ui_audio();
-        if !battle_was_active && self.battle_presentation_active() {
-            self.start_transition(TransitionKind::BattleEntry);
-        }
 
         // The stage is driven unless a defeat's fade owns the frames: the
         // screen stays visible through it, and the session's game-over mode is

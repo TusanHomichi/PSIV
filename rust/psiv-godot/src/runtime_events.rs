@@ -24,9 +24,8 @@ impl Field {
                 RuntimeEvent::FieldPoisonFlash => self.flash_field_poison(),
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
-                    // The session has already started this battle; the shell's
-                    // share is the theme. The stage arrives with the frame's
-                    // battle view, and the transition with it.
+                    // Entry has begun: its runtime screens precede the battle
+                    // view. Music starts on the encounter hand-off.
                     let music = self
                         .runtime()
                         .filter(|runtime| runtime.vehicle_active())
@@ -34,6 +33,7 @@ impl Field {
                     self.play_sound(music);
                     godot_print!("encounter rolled: formation {formation:#05x}");
                 }
+                RuntimeEvent::EncounterBattleReady { .. } => {}
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
                         WarpTrigger::MapChange => "doorway",
@@ -414,18 +414,9 @@ impl Field {
         self.present_destination();
         self.present_job_board();
 
-        // A battle this frame's events started: the runtime has already begun
-        // it, so the shell builds the art, shows the stage and — for an
-        // encounter — runs the battle transition its entry always ran.
+        // The entry's roll frame supplies the first battle view.
         if let Some(battle) = frame.battle {
-            let encounter = matches!(
-                battle.started,
-                Some(psiv_runtime::BattleStart::Encounter(_))
-            );
             self.present_battle_frame(battle);
-            if encounter {
-                self.start_transition(TransitionKind::BattleEntry);
-            }
         }
 
         // The window's own half of the frame ran last in the session, after the

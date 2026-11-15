@@ -683,15 +683,19 @@ impl Field {
         }
     }
 
-    /// An event battle's entry draws the runtime's uniform screen this frame:
-    /// a one-frame cover over whatever transition ran, set again each frame
-    /// the runtime still shows it.
+    /// Draws the runtime's entry band over the held page, then its uniform
+    /// screen. Each cover lasts one frame; the runtime chooses the next one.
     pub(super) fn sync_battle_entry_screen(&mut self) {
         let screen = self
             .runtime()
-            .and_then(psiv_runtime::Runtime::event_battle_entry_screen);
+            .and_then(psiv_runtime::Runtime::battle_entry_screen);
         if let Some(word) = screen {
             self.start_transition(TransitionKind::Screen(word));
+        } else if let Some(band) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::event_battle_entry_band)
+        {
+            self.start_transition(TransitionKind::Band(band));
         }
     }
 
@@ -829,7 +833,6 @@ impl Field {
         let alpha = f32::from(visual.level) / 7.0;
         let color = match visual.color {
             super::transitions::TransitionColor::Black => Color::from_rgba(0.0, 0.0, 0.0, alpha),
-            super::transitions::TransitionColor::White => Color::from_rgba(1.0, 1.0, 1.0, alpha),
             super::transitions::TransitionColor::Cram(word) => {
                 let [r, g, b] = psiv_data::color::cram_rgb(word);
                 Color::from_rgba8(r, g, b, 255)
@@ -842,6 +845,21 @@ impl Field {
             node.set_visible(false);
         }
         if alpha <= 0.0 {
+            return;
+        }
+
+        if let Some(band) = transition.band() {
+            let node = &mut self.transition_nodes[0];
+            node.set_position(
+                top_left
+                    + (view - super::retail_surface::SURFACE) / 2.0
+                    + Vector2::new(0.0, f32::from(band.top)),
+            );
+            node.set_size(Vector2::new(
+                super::retail_surface::SURFACE.x,
+                f32::from(band.bottom - band.top),
+            ));
+            node.set_visible(true);
             return;
         }
 

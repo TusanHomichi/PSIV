@@ -332,6 +332,15 @@ TAPE_45 = {
     "region": [24, 160, 272, 48],
 }
 
+# The held page after the dismiss press, then the expanding plane-A band
+# (#665). The crops certify only the named window/portrait or covered rows;
+# the toned field remainder has a separate deviation record.
+TAPE_45_PRESS = {**TAPE_45, "frames": [7800]}
+TAPE_45_PORTRAIT = {**TAPE_45_PRESS, "region": [40, 104, 48, 48]}
+TAPE_45_BAND = {**TAPE_45, "frames": [7801, 7805, 7812], "region": [0, 104, 320, 16]}
+TAPE_45_PORTRAIT_COVERED = {**TAPE_45_BAND, "region": [0, 72, 320, 80]}
+TAPE_45_WINDOW_COVERED = {**TAPE_45_BAND, "region": [0, 16, 320, 192]}
+
 # The same run's battle entry (#663): `GameMode_LoadBattle` holds the screen
 # white (`$EEE`) from 7814 through 7856 and fades it from white one nibble a
 # frame from 7857, while the planes are still off-screen: 7857-7859 are the
@@ -342,6 +351,13 @@ TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1,
 # The name's first two cells and the first whole options window. The roll
 # runs on 7875; video shows its writes from 7876. One lag frame follows it.
 TAPE_45_OPTIONS = {**TAPE_45_ENTRY, "frames": [7876, 7891]}
+# Tape 07's ordinary encounter: fire 24777, white 24794-24821, uniform
+# fade steps 24822-24824. The selector fires just before session tick 30;
+# the result of a session tick is captured on the next tick. This certifies the backdrop, not the later plane sweep (#679).
+TAPE_07_ENTRY = {
+    "tape": "oracle/tapes/07_first_battle.tape", "patches": [],
+    "frames": [24794, 24810, 24822, 24824], "region": [1, 1, 319, 223],
+}
 
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
@@ -527,11 +543,26 @@ PAIRS = [
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
-    # A `Retained` window's last page, typed by tick 509 and up through 513;
-    # it closes on 514, where the battle's entry starts (#644, #663).
+    # A `Retained` window's last page, typed by tick 509; its text returns
+    # on 514 but its pixels remain beneath the entry band (#644, #665).
     ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
      "build/certify/oracle/retained-window-page/frame_7797.png",
      "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
+    ("retained-window-press", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 514,
+     "build/certify/oracle/event-battle-field/frame_7800.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45_PRESS),
+    ("retained-portrait-press", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 514,
+     "build/certify/oracle/event-battle-field/frame_7800.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45_PORTRAIT),
+    ("event-battle-band-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 515,
+     "build/certify/oracle/event-battle-field/frame_7801.png",
+     "4a77ff48243155c12df9f89d5ea3e8d164e4ea11c47bf683bbe6ec1ae502b4a8", TAPE_45_BAND),
+    ("event-battle-portrait-covered", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 519,
+     "build/certify/oracle/event-battle-field/frame_7805.png",
+     "554226177814da8089c9483faaf4ff625028d93497a719c4ebca286de088dc91", TAPE_45_PORTRAIT_COVERED),
+    ("event-battle-window-covered", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 526,
+     "build/certify/oracle/event-battle-field/frame_7812.png",
+     "ac61aa29595ccdc8674f4a77637b073efc25413dba2c899c2b176aa1befb0a7e", TAPE_45_WINDOW_COVERED),
     # The event battle's entry (#663): the first white frame (tick 527 still
     # shows the field), the hold, the fade's first step (570 is still white)
     # and its second level.
@@ -553,6 +584,18 @@ PAIRS = [
     ("battle-opening-options", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 605,
      "build/certify/oracle/battle-opening/frame_7891.png",
      "c77a9d11d2bd215eaf568f02841ac6fba64f18381a84841e6e92cf619ed77216", TAPE_45_OPTIONS),
+    ("encounter-white-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 46,
+     "build/certify/oracle/encounter-entry/frame_24794.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-white-hold", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 62,
+     "build/certify/oracle/encounter-entry/frame_24810.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-fade-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 74,
+     "build/certify/oracle/encounter-entry/frame_24822.png",
+     "bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb", TAPE_07_ENTRY),
+    ("encounter-fade-second", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 76,
+     "build/certify/oracle/encounter-entry/frame_24824.png",
+     "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_07_ENTRY),
     # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
     # ticks 157 and 199 with the event entered at 35. This matches the tape's
     # Main_Frame_Count phase modulo 32: captures 159 and 200 sample the second
