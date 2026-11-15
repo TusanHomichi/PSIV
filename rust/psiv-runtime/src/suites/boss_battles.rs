@@ -30,6 +30,11 @@ fn loading_uses_initialized_presence_for_both_entry_kinds_without_losing_refill_
     use crate::BattleStart::{Encounter, EventBattle};
     use psiv_core::battle::{FighterId, Side};
 
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
     // Igglanova, Guilgenova, Tower, CommndBall; $125 is the FloatMine
     // guard's negative control: all three objects must remain present.
     for (start, visible) in [
