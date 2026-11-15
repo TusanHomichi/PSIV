@@ -87,8 +87,8 @@ fn intro_helpers_spend_each_pass_and_the_floor_dma_on_its_own_frame() {
                         };
                         if next & 0x1000 == 0 {
                             word = next;
+                            want.push(SceneOp::SetTextColour { colour: word });
                         }
-                        want.push(SceneOp::SetTextColour { colour: word });
                     }
                 }
                 if !after_dma {

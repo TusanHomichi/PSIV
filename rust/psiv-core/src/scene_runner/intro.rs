@@ -50,12 +50,14 @@ impl SceneRunner {
             }
             let next = if op == SceneOp::IntroTextFadeUp {
                 let next = word.wrapping_add(0x0222);
-                if next & 0x1000 == 0 { next } else { word }
+                (next & 0x1000 == 0).then_some(next)
             } else {
-                word.wrapping_sub(0x0222)
+                Some(word.wrapping_sub(0x0222))
             };
-            self.intro.colour = next;
-            emit(effects, SceneOp::SetTextColour { colour: next });
+            if let Some(colour) = next {
+                self.intro.colour = colour;
+                emit(effects, SceneOp::SetTextColour { colour });
+            }
         }
         emit(effects, SceneOp::WaitFrames { frames: 1 });
         self.intro.left = Some(left - 1);
