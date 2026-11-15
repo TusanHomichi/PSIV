@@ -518,6 +518,15 @@ impl Runtime {
                             0x08,
                             events,
                         );
+                        if matches!(
+                            leg,
+                            psiv_core::FlightLeg::Takeoff | psiv_core::FlightLeg::Transit
+                        ) {
+                            self.effects.cram.flight_ship(
+                                self.data.scene_palettes(),
+                                self.game.is_set(psiv_core::Flag::event(0x80)),
+                            );
+                        }
                         if leg != psiv_core::FlightLeg::Return {
                             self.scene_camera_locked = true;
                             self.scene_input = SceneInput::None;
@@ -593,6 +602,9 @@ impl Runtime {
                         self.tick_barrier_beams(reveal);
                     }
                     SceneOp::FlightPlanet => {
+                        self.effects
+                            .cram
+                            .flight_planet(self.data.scene_palettes(), self.world_index());
                         // Tape 35: loc_643B8 background 18, loc_644AE
                         // sprites 2/4, RunText2 3/2 CPU frames, after the
                         // `InitVramAndCram` before it spent its own 15/13

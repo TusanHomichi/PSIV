@@ -621,8 +621,8 @@ The view also carries VDP register 1's display-enable bit (`CramView::display`,
 in `ClearSpriteTableBuf`, which clears it (`ps4.asm:85982-85984`): the first
 dark frame is the one after the fade's last pass and its waits. `VDP_EnableDisplay`
 (`$04222E`) spends one `VInt_Prepare` and sets it, so the frame after it is
-the first lit one: inside `Pal_FadeIn`, `Pal_VariableFadeIn` and a flight's
-`FlightFadeIn`, and where a scene calls it itself (`PresentationOp::EnableDisplay`:
+the first lit one: inside `Pal_FadeIn` (including flights), `Pal_VariableFadeIn`,
+and where a scene calls it itself (`PresentationOp::EnableDisplay`:
 `Cutscene_Alshline` `$074494`, the ending `$079C0A`; `scenes::display_calls_image`
 ties each record to its call, and lists `Cutscene_PsycoWand`'s bare
 `ClearSpriteTableBuf` at `$07536A`, which falls between two black frames).
@@ -705,19 +705,19 @@ Corrections this model brought, each checked against the US image:
   for its last pass, and `InitVRAMAndCRAM` one more for `DMAPlanes_VInt`.
   `scenes::fixed_fades_image` checks every scene's `InitVramAndCram`,
   `FadeIn` and `FadeOut` ops, in order, against the `jsr`/`jmp`s its
-  documented bytes make to the three routines; the nine scenes that do
-  not match yet are listed with
+  documented bytes make to the three routines; remaining mismatches are
+  listed with
   [#652](https://github.com/TusanHomichi/PSIV/issues/652). The ship's
   route is checked where its bytes are (#654): `Cutscene_LeRoofAgain` and
   `Cutscene_FindingAirCastle` on their ops before the route, which must end
   in it exactly when their bytes `jmp Cutscene_InsideSpaceship`; that scene
   on its two entry ops, then down each way out of the menu (both takeoffs
   and Cancel) on the fades `scenes::ship_route_trace` sees the runner make,
-  against `loc_63BC4`'s calls on that way. The route still lacks the menu's
-  two `PalFadeOut_ClrSpriteTbl` calls (`$063E0C` after a confirm, `$063E8A`
-  before Cancel's reload), whose frames the destination menu's measured
-  teardown holds, and runs the flight's six `Pal_FadeIn` calls as
-  `FlightFadeIn`'s fixed 16 frames under a cover.
+  against `loc_63BC4`'s calls on that way. The menu's fade-outs and the
+  flights' fade-ins run on the same fixed CRAM model. Both takeoffs and
+  transits plus the shared planet screen account for five unique fade-in
+  sites, six executions; palette targets and measured boundaries are owned
+  by [Inside the spaceship](41_InsideSpaceship.md#frame-clock-and-return-boundary-77).
 - `Event_DeVarsDefeated` and `Event_SaLewsDefeated` recorded a `FadeOut`
   their bytes do not make: they tone the palette to white and back
   (`Pal_IncreaseTone`, `loc_58666`; the loops are

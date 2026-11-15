@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import time
 
 from oracle import host_binary
 from tools.certify import ROM, TAPE_35
@@ -53,9 +54,26 @@ def measure(rows: list[dict[str, str]], landing: int) -> dict:
     raise ValueError("tape ended without field control after landing")
 
 
-def run(output: Path) -> dict:
+def fade_tool(arguments: list[str], output: Path, name: str) -> object:
+    """Run the Rust analyzer under the build lock and retain its receipt."""
+    command = ["python3", "tools/heavy_lock.py", "run", "--class", "build", "--",
+               "cargo", "run", "--quiet", "--manifest-path", "rust/Cargo.toml",
+               "-p", "psiv-compare", "--bin", "flight-fades", "--", *arguments]
+    started = time.monotonic()
+    with (output / f"{name}.stdout").open("w") as stdout, (output / f"{name}.stderr").open("w") as stderr:
+        result = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr)
+    (output / f"{name}-receipt.json").write_text(json.dumps(
+        {"command": command, "exit_code": result.returncode,
+         "elapsed_seconds": time.monotonic() - started}, indent=2) + "\n")
+    if result.returncode:
+        raise RuntimeError(f"{name}: Rust validator exited {result.returncode}")
+    return json.loads((output / f"{name}.stdout").read_text())
+
+
+def run(output: Path, *, fades: bool = False) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     binary = host_binary.ensure()
+    config = fade_tool(["config"], output, "fade-config") if fades else None
     # Extra diagnostic fields; the ordinary map remains the single source of
     # addresses for game mode, world, map, camera and cursor state.
     map_path = output / "ram-map.tsv"
@@ -63,6 +81,11 @@ def run(output: Path) -> dict:
                         + "vdp_reg1\tFFFFEF0A\t2\tflight\thex\n"
                         + "window_mode\tFFFFEC9C\t1\tflight\thex\n"
                         + "text_chars\tFFFFED5A\t1\tflight\t-\n")
+    if fades:
+        with map_path.open("a") as handle:
+            for bank, base in [("live", 0xFFFFFB00), ("saved", 0xFFFFFB80)]:
+                for word in range(64):
+                    handle.write(f"{bank}_{word}\t{base + 2 * word:08X}\t2\tflight\thex\n")
     results = {}
     for name, origin, world, landing in [
         ("mota-zelan", 0xBF, 0, 0x18D), ("zelan-mota", 0x18D, 3, 0xBF)
@@ -75,6 +98,11 @@ def run(output: Path) -> dict:
                    "--rom", ROM, "--map", str(map_path), "--tape", TAPE_35["tape"],
                    "--groups", "core,camera,window,rng,flight", "--cpu-trace",
                    "--out", str(trace)]
+        if fades:
+            command += ["--pc-trace", str(output / f"{name}-pc.csv"),
+                        "--pc-trace-from", "7400"]
+            for address in config["watches"]:
+                command += ["--pc-watch", f"{address:X}"]
         for patch in patches:
             command += ["--ram-patch", patch]
         with (output / f"{name}.log").open("w") as log:
@@ -82,6 +110,11 @@ def run(output: Path) -> dict:
         if process.returncode:
             raise RuntimeError(f"{name}: oracle exited {process.returncode}")
         result = measure(read_trace(trace), landing)
+        if fades:
+            analysis = output / f"{name}-fade-input.json"
+            analysis.write_text(json.dumps({"route": name, "rows": read_trace(trace),
+                                            "calls": read_trace(output / f"{name}-pc.csv")}) + "\n")
+            result["fades"] = fade_tool(["analyze", str(analysis.resolve())], output, f"{name}-fades")
         result.update(command=command, exit_code=process.returncode,
                       trace_sha256=hashlib.sha256(trace.read_bytes()).hexdigest())
         results[name] = result
@@ -96,8 +129,9 @@ def run(output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("build/x77-evidence/oracle"))
+    parser.add_argument("--fades", action="store_true", help="trace flight fade calls and both palette buffers")
     args = parser.parse_args()
-    receipt = run(args.out)
+    receipt = run(args.out, fades=args.fades)
     for name, leg in receipt["legs"].items():
         print(name, leg["frames_to_control"], leg["map_edges"])
 

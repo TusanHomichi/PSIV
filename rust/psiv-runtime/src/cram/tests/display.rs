@@ -67,7 +67,7 @@ fn a_two_line_fade_out_leaves_the_display_on() {
     assert!(on.iter().all(|on| *on));
 }
 
-/// `Pal_FadeIn`, `Pal_VariableFadeIn`, a flight's `Pal_FadeIn` and a bare
+/// `Pal_FadeIn`, `Pal_VariableFadeIn` and a bare
 /// `VDP_EnableDisplay` each spend one `VInt_Prepare` with the bit as it was,
 /// then set it: frame 0 dark, frame 1 lit.
 #[test]
@@ -78,7 +78,6 @@ fn each_display_enable_lights_the_frame_after_its_wait() {
             fade_in: true,
             mode: 2,
         }),
-        SceneOp::FlightFadeIn { frames: 16 },
         op(PresentationOp::EnableDisplay),
     ] {
         let mut off = dark(cram(filled(0), filled(0x0222)));

@@ -34,11 +34,6 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Camera;
             }
-            SceneOp::FlightFadeIn { frames } => {
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
-                self.blocked = Blocked::Ticks(frames);
-            }
             SceneOp::MoveActor { actor, to } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });

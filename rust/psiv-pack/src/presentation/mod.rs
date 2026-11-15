@@ -92,7 +92,7 @@ const SCENE_PICTURES: [ScenePicture; 1] = [ScenePicture {
 
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
-const PALETTE_REQUESTS: [(usize, usize); 20] = [
+const PALETTE_REQUESTS: [(usize, usize); 25] = [
     (0x1D_2A3C, 64),
     (0x1D_E0B8, 16),
     (0x06_E908, 14),
@@ -106,6 +106,11 @@ const PALETTE_REQUESTS: [(usize, usize); 20] = [
     (0x06_EE16, 21),
     (0x2E_EA04, 16),
     (0x07_30FC, 16),
+    (0x1D_E0D8, 16),
+    (0x1D_E0F8, 16),
+    (0x1D_E118, 16),
+    (0x1D_E138, 16),
+    (0x06_4550, 12), // loc_64550: six longword pointers, never compiled values
     (0x1D_E258, 16),
     (0x07_0626, 9),
     (0x07_0672, 22),
@@ -415,9 +420,18 @@ fn panel_palette_requests(panels: &[PanelPalettes]) -> Vec<(usize, usize)> {
 
 /// `decode_palette_requests`.
 fn palettes(rom: &[u8], panels: &[PanelPalettes]) -> Result<Vec<Json>, PackError> {
+    let table = slice(rom, 0x06_4550, 24, "flight palette table")?;
+    let worlds = table
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| (u32::from_be_bytes(*bytes) as usize, 16));
+    let mut seen = std::collections::BTreeSet::new();
     PALETTE_REQUESTS
         .into_iter()
+        .chain(worlds)
         .chain(panel_palette_requests(panels))
+        .filter(|(address, _)| seen.insert(*address))
         .map(|(address, words)| {
             let raw = slice(rom, address, words * 2, "palette")?;
             Ok(Json::object()
@@ -570,5 +584,58 @@ mod tests {
             panel_palette_requests(&drawn),
             [(0x100, 16), (0x200, 16), (0x300, 16)]
         );
+    }
+
+    fn assert_packed_worlds(rom: &[u8]) {
+        let records = palettes(rom, &[]).unwrap();
+        let raw = |at: usize| {
+            records
+                .iter()
+                .find(|record| record.get("rom_addr") == Some(&Json::Str(hex6(at))))
+                .unwrap()
+                .get("raw_hex")
+                .unwrap()
+        };
+        assert_eq!(
+            raw(0x064550),
+            &Json::Str(png::hex(&rom[0x064550..0x064568]))
+        );
+        for bytes in rom[0x064550..0x064568].as_chunks::<4>().0 {
+            let at = u32::from_be_bytes(*bytes) as usize;
+            assert_eq!(raw(at), &Json::Str(png::hex(&rom[at..at + 32])));
+        }
+    }
+
+    #[test]
+    fn world_palettes_follow_the_rom_table_and_refuse_a_dangling_pointer() {
+        let mut rom = vec![0; 0x300000];
+        for world in 0..6 {
+            // Synthetic scrambled rows; no retail table values in the test.
+            let address = 0x1000 + (world * 5 % 6) * 0x200;
+            let slot = 0x064550 + world * 4;
+            rom[slot..slot + 4].copy_from_slice(&(address as u32).to_be_bytes());
+            rom[address..address + 32].fill(world as u8 + 1);
+        }
+        assert_packed_worlds(&rom);
+        let past_end = rom.len() as u32;
+        rom[0x064550..0x064554].copy_from_slice(&past_end.to_be_bytes());
+        assert!(
+            palettes(&rom, &[]).is_err(),
+            "out-of-image palette must fail"
+        );
+    }
+
+    #[test]
+    fn us_world_table_and_targets_are_packed_without_compiled_rows() {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../Phantasy Star IV (USA).md"
+        ));
+        if !path.is_file() {
+            eprintln!("local US image absent; world-palette extraction check skipped");
+            return;
+        }
+        let rom = Rom::read(path).unwrap();
+        assert_packed_worlds(rom.bytes());
     }
 }

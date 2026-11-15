@@ -224,11 +224,6 @@ const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
 const CANCEL_SKIP: u16 = 44;
 
-/// Flight fade-in has two more frames than its fourteen passes, display
-/// enable and the terminal pass; FlightFadeIn owns its 16. The fade-outs are
-/// `PalFadeOut_ClrSpriteTbl`, whose frames `FadeOut` spends (#637).
-const FADE_IN_FRAMES: u16 = 16;
-
 /// The shared body of `$800D`, `Cutscene_InsideSpaceship` (`ps4.asm:155427`):
 /// init, fade, `jmp loc_63BC4`. The two scenes that end in the same `jmp`
 /// (`Cutscene_LeRoofAgain`, `Cutscene_FindingAirCastle`) inline it, and the
@@ -283,9 +278,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     },
     // loc_641A2 ship art (2 frames), loc_64230 sprite DMA (1 frame).
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     // Passes 226, 227 and 228 (counter `$E1..$E3`) each request the
     // propulsion SFX, and each request restarts it (`PlaySFX` clears the
     // channel, `ps4.sound_driver.asm:757-850`): tape 35 shows the channel's
@@ -311,9 +304,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
         leg: FlightLeg::Takeoff,
     },
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     SceneOp::Wait { ticks: 228 },
     // loc_6472C: fade out, 60 map updates, the planet screen's fade in, 300
     // frames (`d0 = $12B`, `:134670-134686`) and fade out, 60 more.
@@ -324,9 +315,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     SceneOp::InitVramAndCram,
     SceneOp::FlightPlanet,
     SceneOp::SetTextColour { colour: 0 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     // Caption colour is zero until d0=$6D, after the 191st planet frame.
     SceneOp::WaitFrames { frames: 191 },
     SceneOp::SetTextColour { colour: 0xEEE },
@@ -340,9 +329,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     },
     // loc_641A2, loc_64332, then the Y-only pan and its sprite placement VInt.
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     SceneOp::FlightPan,
     SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 257 },
@@ -654,13 +641,14 @@ mod tests {
 
     #[test]
     fn a_confirm_flies_the_long_takeoff_from_a_spaceport_and_the_short_one_elsewhere() {
-        // The core owns the loops and flight fade-in's 16-frame barrier.
-        // Runtime resolves CPU/DMA setup spans and the fades' frames (one
-        // tick each here); the exact full legs are tested against tape 35 in
-        // psiv-runtime's session_destination integration test.
-        for (map_id, expected_at_least, expected_below) in
-            [(MOTA_SPACEPORT, 931, 971), (ZELAN, 680, 720)]
-        {
+        // This isolated core driver answers every palette wait with ONE
+        // frame, including the flight fade-ins. Runtime owns their actual
+        // duration; session_destination holds the full legs to tape 35.
+        // Common budget: helper setup 3, takeoff fade 1, fade out 1, sprite
+        // VInt 1, map updates 60, Init's fade + blank 2, planet load ack 1,
+        // planet fade 1, hold 300, closing fade 1, map updates 60.
+        const COMMON: u16 = 3 + 1 + 1 + 1 + 60 + 2 + 1 + 1 + 300 + 1 + 60;
+        for (map_id, loop_frames, tone_frames) in [(MOTA_SPACEPORT, 419, 60), (ZELAN, 228, 0)] {
             let map = map_on(map_id);
             let (mut run, mut state) = runner(scene("Cutscene_InsideSpaceship"));
             until(&mut run, &map, &mut state, SceneInput::None, is_menu);
@@ -698,10 +686,7 @@ mod tests {
                 }
                 assert!(ticks < 3000);
             }
-            assert!(
-                (expected_at_least..expected_below).contains(&ticks),
-                "{map_id:#x}: {ticks} ticks"
-            );
+            assert_eq!(ticks, COMMON + loop_frames + tone_frames, "{map_id:#x}");
         }
     }
 
