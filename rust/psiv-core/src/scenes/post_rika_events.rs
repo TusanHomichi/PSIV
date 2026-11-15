@@ -65,7 +65,7 @@ pub static MACHINE_CENTER_APPEARING: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        // `moveq #$170` + `dbf`: 369 map-update iterations. The countdown's own
+        // `move.w #$170,d7` + `dbf`: 369 map-update iterations. The countdown's own
         // beats are inside it — the grave objects at d7 `$F8`, and, at d7
         // `$3D` (the 308th iteration), `loc_6B5C0` resolving BG chunk (57,90)
         // with `GetMapLayoutChunkBG($39,$5A)`, writing chunk `$D3` into it and

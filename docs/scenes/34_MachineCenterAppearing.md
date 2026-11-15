@@ -22,8 +22,8 @@ Cross-only scene include was used.
 | 4 | `$06B522` | grave-opening SFX `$DD` | `PlaySound($DD)` |
 | 5 | `$06B510..$06B54D` | `move.w #$170,d7` + DBF: 369 iterations total, first 308 here | `Wait(308)` |
 | 6 | `$06B5C0..$06B5DC` | `GetMapLayoutChunkBG($39,$5A)` + `move.b #$D3,(a1)` + `RefreshPlaneBG` — BG chunk (57,90), cells (114..115,180..181) | `WriteMapChunks` |
-| 7 | `$06B5DE..$06B5E8` | the countdown's remaining 61 iterations | `Wait(61)` |
-| 8-10 | `$06B53C..$06B5BE` | timed grave objects `$78/$84/$7C`; periodic object updates | three `ObjectAnimation` records |
+| 7 | `$06B514..$06B54D` | the countdown's remaining 61 iterations | `Wait(61)` |
+| 8-10 | `$06B572..$06B5BE`, `$06B5E0..$06B632` | timed grave objects `$78/$84/$7C`; periodic object updates | three `ObjectAnimation` records |
 | 11 | `$06B552..$06B560` | return camera to live leader, speed 2 | `PanCamera` |
 | 12 | `$06B562..$06B568` | standard dialogue entry `$0B` | `RunDialogue(0x0B)` |
 | 13 | `$06B56A..$06B570` | set Machine Center `$43` | `SetFlag($43)` |
