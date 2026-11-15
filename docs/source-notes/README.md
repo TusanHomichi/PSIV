@@ -518,8 +518,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
     and `$6` sequences (0, 4, 8) are not carried. Retail's
     `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
     (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
-    return's map reload, and the pack has no `$338`/`$3AF` sheet, so the
-    shell draws none of them
+    return's map reload. The pack extracts the exact `$338`/`$3AF` sheet
+    from the US scene's Nemesis upload at `$1D712C` on Dezolis map `$001`:
+    four mappings (`$5132A/$51332/$5133A/$51342`) in each of the three
+    sequences selected by `$502C2` (`$50396/$503A8/$503BA`), with stored
+    duration bytes 7/11/15 (8/12/16 ticks). Extraction supplies the art and
+    timings; runtime sequence selection, animation and lifetime, and a
+    matching native/retail object-scene capture remain unverified here
     ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
   - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
     over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the

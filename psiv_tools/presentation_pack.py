@@ -225,6 +225,13 @@ LOAD_ART_RECORDS = (
         "map_id": 0x024,
         "object_ids": [0x0194],
     },
+    {
+        "scene": "Event_EclipseTorchUsed",
+        "source_rom_addr": 0x001D712C,
+        "destination_tile": 0x03AF,
+        "map_id": 0x001,
+        "object_ids": [0x0338],
+    },
 )
 
 # Scene-constructed objects are keyed by the literal `(object id, art tile)`
@@ -325,6 +332,16 @@ TEMPORARY_OBJECT_RECORDS = (
         "source_kind": "nemesis",
         "map_id": 0x087,
         "load_art": (0x001D5DF0, 0x02E6),
+    },
+    {
+        "scene": "Event_EclipseTorchUsed",
+        "object_id": 0x0338,
+        "art_tile": 0x03AF,
+        "symbol": "EclipseTorch",
+        "source_rom_addr": 0x001D712C,
+        "source_kind": "nemesis",
+        "map_id": 0x001,
+        "load_art": (0x001D712C, 0x03AF),
     },
 )
 

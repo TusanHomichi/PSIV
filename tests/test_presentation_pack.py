@@ -1,7 +1,9 @@
 """ROM-backed assertions for the scene presentation extraction."""
 
+import hashlib
 import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -335,8 +337,8 @@ class PresentationPackTests(unittest.TestCase):
             manifest["coverage"],
             {
                 "panel_records": 231,
-                "load_art_records": 7,
-                "temporary_object_keys": 9,
+                "load_art_records": 8,
+                "temporary_object_keys": 10,
                 "generic_portraits": 1,
                 "scene_pictures": 1,
             },
@@ -370,6 +372,7 @@ class PresentationPackTests(unittest.TestCase):
                 ("0x1D6BC8", "0x020C"),
                 ("0x12951A", "0x03A5"),
                 ("0x1289FA", "0x04A5"),
+                ("0x1D712C", "0x03AF"),
             },
         )
         for record in loads.values():
@@ -392,6 +395,7 @@ class PresentationPackTests(unittest.TestCase):
                 (0x220, 0x20C),
                 (0x188, 0x3A5),
                 (0x1FC, 0x2E6),
+                (0x338, 0x3AF),
             },
         )
         self.assertEqual(temporary[(0x214, 0x179)]["playback_sequence"], "walk_down")
@@ -423,3 +427,101 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(portrait["destination_tile"], "0x055C")
         self.assertEqual(portrait["size_pixels"], [48, 48])
         self.assertTrue((ROOT / "runtime-pack" / portrait["png"]).is_file())
+
+    def _assert_eclipse_torch_sheet(self, manifest):
+        from PIL import Image
+        from psiv_tools import gfx
+        from psiv_tools.nemesis import decompress
+        from psiv_tools.sprites.compose import TileSource, compose_frame, mapping_box
+        from psiv_tools.sprites.records import decode_mapping, decode_sequence
+
+        records = {(r["object_id"], r["art_tile"]): r
+                   for r in manifest["temporary_objects"]}
+        self.assertIn((0x338, 0x3AF), records, "missing Eclipse Torch sheet")
+        sheet = records[(0x338, 0x3AF)]
+        data = ROM.read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a")
+        # US $0702CE: lea art / move.w tile / jsr LoadVRAMAddressFromTileNumber.
+        setup = _lea_l(0x1D712C, 0) + _move_w_imm(0x3AF, 0)
+        self.assertEqual(data[0x702CE:0x702CE + len(setup)], setup)
+        self.assertEqual(sheet["scene"], "Event_EclipseTorchUsed")
+        self.assertEqual(sheet["map_id"], "0x001")
+        self.assertEqual(sheet["source_rom_addr"], "0x1D712C")
+        self.assertEqual(sheet["source_compression"], "nemesis")
+        self.assertEqual(sheet["load_art"], {
+            "source_rom_addr": "0x1D712C", "destination_tile": "0x03AF"})
+        self.assertEqual(sheet["render_status"], "exact")
+        self.assertEqual(sheet["missing_patterns"], [])
+        self.assertEqual([sheet[k] for k in (
+            "frame_width", "frame_height", "frame_count", "origin_x", "origin_y")],
+            [32, 32, 4, 0, 0])
+        # Dezolis map $001's line 0, selected by loc_4FAE0's $13(a4) = 0.
+        self.assertEqual(sheet["palette"], {
+            "cram_line": 0, "source": "map palette blob", "transparent_index": 0,
+            "colors": [list(c) for c in gfx.palette_rgb(
+                gfx.decode_palette(data[0x119604:0x119624]))],
+        })
+        raw, consumed = decompress(data, 0x1D712C)
+        self.assertEqual((sheet["source_size"], sheet["source_consumed"]),
+                         (len(raw), consumed))
+        source = TileSource()
+        source.add(0x3AF, raw)
+        mappings = [0x5132A, 0x51332, 0x5133A, 0x51342]
+        with Image.open(ROOT / "runtime-pack" / sheet["png"]) as image:
+            self.assertEqual((image.mode, image.size), ("P", (128, 32)))
+            self.assertEqual(image.info["transparency"], 0)
+            for slot, (name, offset, delay) in enumerate((
+                ("down", 0x50396, 7), ("up", 0x503A8, 11), ("right", 0x503BA, 15),
+            )):
+                with self.subTest(sequence=name):
+                    pointer = int.from_bytes(data[0x502C2 + slot * 4:0x502C6 + slot * 4], "big")
+                    self.assertEqual(pointer, offset)
+                    sequence = decode_sequence(data, pointer)
+                    self.assertEqual([(f.mapping_offset, f.duration_byte) for f in sequence.frames],
+                                     [(m, delay) for m in mappings])
+                    packed = sheet["sequences"]["walk_" + name]
+                    self.assertEqual(packed["sequence_offset"], f"0x{offset:06X}")
+                    # Stored counters 7/11/15 display for 8/12/16 ticks.
+                    self.assertEqual(packed["frames"], [
+                        {"index": i, "duration_ticks": delay + 1} for i in range(4)])
+                    for frame, mapping in zip(packed["frames"], mappings):
+                        record = decode_mapping(data, mapping)
+                        rendered, missing = compose_frame(
+                            record, source, mapping_box(record), art_tile=0x3AF)
+                        self.assertEqual(missing, [])
+                        left = frame["index"] * 32
+                        self.assertEqual(image.crop((left, 0, left + 32, 32)).tobytes(),
+                                         rendered.pixels)
+
+    def test_eclipse_torch_sheet_preserves_every_mapping_and_duration(self):
+        self._assert_eclipse_torch_sheet(json.loads(MANIFEST.read_text()))
+
+    def test_eclipse_torch_contract_rejects_a_missing_sheet(self):
+        manifest = json.loads(MANIFEST.read_text())
+        manifest["temporary_objects"] = [r for r in manifest["temporary_objects"]
+            if (r["object_id"], r["art_tile"]) != (0x338, 0x3AF)]
+        with self.assertRaisesRegex(AssertionError, "missing Eclipse Torch sheet"):
+            self._assert_eclipse_torch_sheet(manifest)
+
+    def test_presentation_decoder_census_covers_observed_calls(self):
+        from psiv_tools.decode_cache import scope
+        from psiv_tools.presentation_pack import emit_presentation
+        from tools.pack_parity import CENSUS, census_entries
+
+        data = ROM.read_bytes()
+        with tempfile.TemporaryDirectory() as output, scope() as table:
+            emit_presentation(data, output)
+            observed = census_entries(table, data)
+        eclipse_torch = {"decoder": "nemesis", "offset": 0x1D712C}
+        self.assertIn(eclipse_torch, observed)
+        committed = json.loads(CENSUS.read_text())["calls"]
+
+        def require_observed_calls(calls):
+            missing = [call for call in observed if call not in calls]
+            self.assertEqual(missing, [], "regenerate the presentation decoder census")
+
+        require_observed_calls(committed)
+        without_torch = [call for call in committed if call != eclipse_torch]
+        with self.assertRaisesRegex(AssertionError, "regenerate the presentation decoder census"):
+            require_observed_calls(without_torch)
