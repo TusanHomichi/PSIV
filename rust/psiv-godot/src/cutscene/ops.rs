@@ -331,7 +331,8 @@ impl Field {
             | PresentationOp::EndingCreditsAssets { .. }
             | PresentationOp::EndingCreditsStage { .. }
             | PresentationOp::EndingCreditsPaletteRamp { .. }
-            | PresentationOp::EndingStaffRollTransition { .. }
+            | PresentationOp::EndingStaffRollFadeOut { .. }
+            | PresentationOp::EndingStaffRollFadeIn { .. }
             | PresentationOp::EndingFinale { .. }) => {
                 godot_print!("scene presentation record consumed: {op:?}");
             }

@@ -34,6 +34,9 @@ impl CutsceneLayer {
 
     /// Hands over the field's live palette.
     pub(crate) fn set_cram(&mut self, cram: SharedCram) {
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().set_cram(std::rc::Rc::clone(&cram));
+        }
         self.cram = Some(cram);
     }
 
@@ -44,6 +47,12 @@ impl CutsceneLayer {
         }
         if self.picture_visible() {
             self.sync_picture();
+        }
+        if self.opening_visible {
+            self.base_mut().queue_redraw();
+        }
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().palette_changed();
         }
     }
 

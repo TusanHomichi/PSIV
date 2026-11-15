@@ -156,3 +156,28 @@ fn a_refresh_keeps_the_bit_and_a_field_load_sets_it() {
     field.tick(2, &mut 0);
     assert!(field.view().display);
 }
+
+/// The inn's `Pal_FadeIn` runs after sixty `DMAPlane_A_VInt` frames and
+/// its own display wait (`ps4.asm:136436-136453`). The resume takes over
+/// pending display writes; neither an already lit scene return nor the
+/// scene's delayed display-off may expose or hide the resumed fade.
+#[test]
+fn the_inn_resume_enables_after_its_hold_and_display_wait() {
+    for was_on in [false, true] {
+        let mut cram = cram(filled(0), filled(0));
+        cram.view.display = was_on;
+        cram.display_change = Some((2, false));
+        cram.inn_resume_fade_in(filled(0x0222), 0, &mut 0);
+        assert!(!cram.view().display);
+        for frame in 1..=60 {
+            cram.tick(frame, &mut 0);
+            assert_eq!(cram.view().shown_backdrop(), Some(0), "frame {frame}");
+        }
+        cram.tick(61, &mut 0);
+        assert!(cram.view().display, "the fade's first lit frame");
+        assert_eq!(cram.view().words, filled(0x0111));
+        cram.tick(62, &mut 0);
+        assert!(cram.view().display);
+        assert_eq!(cram.view().words, filled(0x0222));
+    }
+}

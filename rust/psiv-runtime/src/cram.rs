@@ -34,6 +34,10 @@ use psiv_data::{MapRecord, ScenePalettes};
 const PAL_INIT: u32 = 0x0009_F2BC;
 /// `Palette_Table_Buffer`'s work-RAM address.
 const PALETTE_TABLE_BUFFER: u32 = 0xFFFF_FB00;
+/// `Palette_Table_Buffer+$5E`: the word the prologue crawl and the flight's
+/// caption are drawn in (`move.w #$666, $FB5E.w`, `$073C9E`; `clr.w
+/// (Palette_Table_Buffer+$5E).w`, `ps4.asm:134676`).
+pub const TEXT_COLOUR_SLOT: usize = 0x5E / 2;
 
 /// What the renderer reads: the live palette and a counter that changes
 /// whenever any word of it does.
@@ -642,6 +646,10 @@ impl Cram {
                     self.write_run(usize::from(start), &found);
                 }
             }
+            // The prologue's `move.w #$666, $FB5E.w` and the flight's
+            // caption word: one buffer word, which the fades step like any
+            // other.
+            SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
             // `loc_53F14`: the map's 64-word shadow into the live buffer.
             SceneOp::ReloadMapPalette => {
                 if let Some(words) = map.and_then(|record| record.map_update_palette.as_deref()) {
@@ -945,11 +953,37 @@ impl Cram {
                     cycle_index,
                 );
             }
+            // `loc_79C8E` / `loc_79CCA`: one word, stepped on every eighth
+            // frame until the step that ends the loop unstored.
+            PresentationOp::EndingStaffRollFadeOut {
+                palette_offset,
+                step,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_out(word, frame, step);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingStaffRollFadeIn {
+                palette_offset,
+                step,
+                target_bit,
+            } => {
+                let slot = usize::from(palette_offset / 2);
+                let word = self.view.words.get(slot).copied().unwrap_or(0);
+                let fade = palette::staff_roll_fade_in(word, frame, step, target_bit);
+                return Some(self.word_loop(slot, fade, frame, cycle_index));
+            }
+            PresentationOp::EndingCreditsPaletteRamp { .. } => {
+                return Some(self.credits_ramp(op, frame, palettes, cycle_index));
+            }
             _ => {}
         }
         None
     }
 }
 
+mod ending;
+mod inn;
 #[cfg(test)]
 mod tests;

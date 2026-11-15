@@ -883,14 +883,18 @@ impl SceneRunner {
                 }
             }
             SceneOp::InitVramAndCram => self.init_vram_and_cram(effects),
-            // A fade's length is in the palette, which the runtime holds: it
+            // A fade's length depends on the palette, an ending eighth-frame
+            // loop's on it and the frame count. The runtime holds both: it
             // answers with [`SceneRunner::release_palette`].
             SceneOp::FadeIn
             | SceneOp::FadeOut
             | SceneOp::Presentation {
                 op:
                     crate::PresentationOp::VariablePaletteFade { .. }
-                    | crate::PresentationOp::TwoLinePaletteFade { .. },
+                    | crate::PresentationOp::TwoLinePaletteFade { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeOut { .. }
+                    | crate::PresentationOp::EndingStaffRollFadeIn { .. }
+                    | crate::PresentationOp::EndingCreditsPaletteRamp { .. },
             } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

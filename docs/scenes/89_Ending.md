@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `ending.rs`, `ENDING` (397 typed ops).
+- **Data:** `ending.rs`, `ENDING` (405 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -33,6 +33,12 @@ a separate presentation routine. The first bytes make that boundary explicit:
 | `$078FD6` | `Map_LoadChunks` from the current map chunk pointer | `ReloadMapChunks` |
 | `$078FDC..$078FE2` | raw `#$77` `VInt_PrepareLoop` | `WaitFrames(120)` |
 | `$078FE6..$078FF4` | initialise VRAM/CRAM, play `Music_ThePromisingFuture1` (`$AF`), fade | init/music/fade |
+
+Entry `$09` and every `Event_GetAndRunDialogue4`/`Event_RunDialogue4` window
+run `RunText3`: no pad, no arrow, a glyph a frame, and each page turns `9n + 1`
+frames after its last glyph's (`DialogueWindow::runs_text3`;
+[SCENE_DIALOGUE.md](SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
+Its windows take no input; only the final Start gate does.
 
 The first loop is certified against tape 38 at frames 9893, 9910 and 9950
 (`ending-tone-loop-*`,
@@ -206,8 +212,11 @@ wait word.
 | `$0792E4..$0797E2` | saved dialogue resumes interleaved with the story-panel stream | same typed resume |
 | `$0798A4..$0798AC` | entry `$0C`, `Event_GetAndRunDialogue4` | `RunDialogue(12, Ending)` |
 | `$079C16..$079C88` | staff entries `$12`, `$13`, `$14`, `$15`; `RunText2` to `$FFFF8406`, `$8586`, `$8706`, `$8886`; DMA target `$041682` | four `DrawTextToPlane` records |
-| `$079CA6..$079CEE` | decrement `Palette_Table_Buffer+$5E` by `$222` every 8 frames, wait 180, switch to `Music_StaffRoll` (`$AE`), wait 180, increment until bit `$C` | `EndingStaffRollTransition` |
-| `$079CFA..$079D02` | final 60-frame plane-update loop before credits | transition `final_hold: 60` |
+| `$079C8E..$079CAD` | on each frame whose `Main_Frame_Count` low byte `& 7` is zero, `subi.w #$222` from `Palette_Table_Buffer+$5E`; a zero result ends the loop unstored | `EndingStaffRollFadeOut` |
+| `$079CAE..$079CC5` | `VInt_PrepareLoop($B3)`, `Music_StaffRoll` (`$AE`) to `Sound_Index`, `VInt_PrepareLoop($B3)` | `WaitFrames(180)`, `PlaySound($AE)`, `WaitFrames(180)` |
+| `$079CCA..$079CED` | the same word up by `addi.w #$222`; a sum with bit `$C` set ends the loop unstored | `EndingStaffRollFadeIn` |
+| `$079CEE..$079CF9` | `ClearPlanes_A_B_Buf`, `DMAPlanes_VInt` | `ClearPlanes`, `DmaPlanes` |
+| `$079CFA..$079D0B` | `moveq #$3B, d7`: `loc_58666` then `VInt_Prepare`, 60 frames | `PaletteRestoreTone(60)`, then `WaitFrames(60)` |
 
 The final story panel `$17E` uses palette mode 5 while its dialogue resumes;
 the source then switches to mode `$0F`, stops music (`$FE`), raises the palette
@@ -234,14 +243,46 @@ renderer, not a bitmap placeholder:
 | `$079E70..$079F14` | stage 1: `TextCounter` terminal `$380`, BG step `$2000`, source `$FFFF1000`, Plane B, command table `$07A522` | `EndingCreditsStage(1)` |
 | `$079F26..$079FCE` | stage 2: terminal `$400`, FG step `$2000`, BG step `$1000`, source `$FFFF2000`, Plane A, commands `$07A522` | `EndingCreditsStage(2)` |
 | `$079FAE..$07A086` | stage 3: terminal `$480`, same camera steps/source/plane, commands `$07A548` | `EndingCreditsStage(3)` |
-| `$07A0A6..$07A0FA` | fourteen palette steps: eight-word primary table `$07A274`, then two-word late table `$07A2A0` | `EndingCreditsPaletteRamp` |
+| `$07A0A6..$07A0F9` | fourteen steps, each on a frame whose `Main_Frame_Count & 7` is zero: eight words from `$07A274` word `d5` (14 down to 1) to `Palette_Table_Buffer+$24`, and from step 9 two words from `$07A2A0` byte `4 * (d6 - 9)` to `+$3C` | `EndingCreditsPaletteRamp` |
 | `$07A0FA..$07A10B` | palette increase-tone loop, raw `$3B` | `PaletteIncreaseTone(60)`, then `WaitFrames(60)` |
 
-The staff roll's and the credits' records (`EndingStaffRollTransition`,
-`EndingCreditsAssets`, `EndingCreditsStage`, `EndingCreditsPaletteRamp`) draw
-nothing natively, and the CRAM model applies none of their palette steps. So
-the third tone loop starts from the second's white and changes nothing
-([#635](https://github.com/TusanHomichi/PSIV/issues/635)).
+### Palette state and the remaining drawing gaps
+
+The CRAM model (`rust/psiv-runtime/src/cram/ending.rs`, arithmetic in
+`psiv_core::palette`) runs the staff roll's and the credits' palette loops
+([#638](https://github.com/TusanHomichi/PSIV/issues/638)):
+
+- Each staff loop steps word `$2F` on the frames whose count `& 7` is zero,
+  from whatever phase the loop starts on, and holds the scene on the palette
+  wait until the frame of its terminal test, which stores nothing and spends
+  no frame. From the second tone loop's white, the fade out stores
+  `$0CCC..$0222` (six stores; `$0000` is never written), and the fade in
+  stores `$0444..$0EEE` (six; `$1110` is never written). The
+  `subi.w`/`addi.w` arithmetic is word-wide: a word below `$222` borrows
+  through bit 15.
+- The sixty-frame restore steps every word toward `Palette_Table_Buffer_2`,
+  which `$079BE4..$079BED` cleared (`trap #0`), so the staff roll ends black.
+- The ramp writes its fourteen steps from the pack's `$07A274` (22 words)
+  and `$07A2A0` (10 words), and spends the frames up to and including its
+  fourteenth step's. So the third tone loop (`$07A0FA`) starts from the
+  ramp's last words in line 1 over black, not from the second loop's white.
+
+Still missing natively:
+
+- The staff text's planes ([#639](https://github.com/TusanHomichi/PSIV/issues/639)).
+- The credits renderer's own palette writes (its `InitVRAMAndCRAM`, the line
+  loads and `CreditsFadeInOut`) and its planes
+  ([#640](https://github.com/TusanHomichi/PSIV/issues/640),
+  [#641](https://github.com/TusanHomichi/PSIV/issues/641),
+  [#642](https://github.com/TusanHomichi/PSIV/issues/642)). Until they land,
+  the ramp and the third loop step words over the staff roll's black, and the
+  `EndingCreditsAssets` and `EndingCreditsStage` records draw nothing.
+- The frames `DMAPlanes_VInt` (`$079CF4`) and the credits stages spend
+  ([#608](https://github.com/TusanHomichi/PSIV/issues/608)). The loops' frame
+  phases follow the native count, so they shift when those frames land.
+
+Those are drawing and frame gaps; a passing state test of these loops makes
+no visual claim.
 
 The typed stage records retain the terminal counters, camera increments, RAM
 source and command-table addresses. They do not claim that a generic sprite

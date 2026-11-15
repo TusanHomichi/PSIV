@@ -10,6 +10,13 @@
 //! (`psiv-runtime/src/cram.rs`) decides when each runs. Source notes and the
 //! byte checks are in `docs/scenes/SCENE_PRESENTATION.md`, "CRAM state".
 
+mod ending;
+
+pub use ending::{
+    RampStep, WordLoop, credits_ramp_frames, credits_ramp_rows, eighth_phase, staff_roll_fade_in,
+    staff_roll_fade_out,
+};
+
 /// Words in `Palette_Table_Buffer`: four lines of sixteen.
 pub const PALETTE_WORDS: usize = 64;
 

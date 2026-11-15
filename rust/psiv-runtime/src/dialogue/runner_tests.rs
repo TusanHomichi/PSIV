@@ -431,3 +431,4 @@ fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
 }
 
 mod portraits;
+mod text3;

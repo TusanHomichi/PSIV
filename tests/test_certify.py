@@ -36,9 +36,11 @@ BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-loop-white"]
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
+ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
-         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp"])
+         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
+         + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -90,7 +92,11 @@ class PairTableCase(unittest.TestCase):
         # The scene layers at a camera other than (0,0): the ending's map $13.
         self.assertEqual(env["PSIV_DEBUG_EVENT"], "0x8021")
         self.assertIs(recipe, certify.TAPE_38)
-        self.assertEqual(tick, 600)
+        # Its windows run `RunText3` and need no dialogue harness (#645):
+        # neither the autoclose nor the retail pace's synthetic Speak.
+        self.assertEqual(env, certify.ENDING)
+        self.assertFalse(set(certify.SCENE) & set(env))
+        self.assertEqual(tick, 1736)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -111,7 +117,8 @@ class PairTableCase(unittest.TestCase):
         self.assertEqual(cropped, ["anger-tower-barrier", "ending-elsydeon-tone", *ENDING_LOOP,
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
-                                   "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp"])
+                                   "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
+                                   "retained-window-page", *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
@@ -145,6 +152,44 @@ class PairTableCase(unittest.TestCase):
         self.assertEqual(rykros[5]["patches"], ["7200:FFFFECA8:801B", "7200:FFFFEC20:000C"])
         self.assertEqual(zio[5]["patches"][-2:], ["7202:FFFFECA8:0030", "7202:FFFFEC20:000C"])
 
+    def test_the_retained_window_pair_certifies_its_box_from_its_event_fixture(self):
+        pair = next(p for p in certify.PAIRS if p[0] == "retained-window-page")
+        _, env, tick, frame, _, recipe = pair
+        # `Event_FractOozeFound` (#644): the session's `$7D` fixture against
+        # tape 45's Monsen reload, then the event entry once the map-name
+        # panel is gone.
+        self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x7D", **certify.SCENE})
+        self.assertIs(recipe, certify.TAPE_45)
+        self.assertEqual((tick, recipe["frames"]), (511, [7797]))
+        self.assertEqual(frame, "build/certify/oracle/retained-window-page/frame_7797.png")
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertEqual(recipe["patches"][-2:], ["7224:FFFFECA8:007D", "7224:FFFFEC20:000C"])
+        self.assertIn("7000:FFFFEC28:0073", recipe["patches"])
+        # The text window's box: (3,20) 34x6 cells, in pixels.
+        self.assertEqual(recipe["region"], [24, 160, 272, 48])
+
+    def test_eclipse_torch_pairs_certify_both_white_flashes_from_one_fixture(self):
+        flashes = [p for p in certify.PAIRS if p[0] in ECLIPSE_TORCH]
+        self.assertEqual([p[0] for p in flashes], ECLIPSE_TORCH)
+        for name, env, _, frame, _, recipe in flashes:
+            with self.subTest(pair=name):
+                # `Event_EclipseTorchUsed` (#593): the session's `$47` fixture
+                # against tape 46's Dezolis reload and event entry.
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x47", **certify.SCENE})
+                self.assertIs(recipe, certify.TAPE_46)
+                self.assertTrue(frame.startswith("build/certify/oracle/eclipse-torch-white/"))
+        recipe = certify.TAPE_46
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertIn("7000:FFFFEC28:0001", recipe["patches"])
+        self.assertIn("7000:FFFFF400:0001", recipe["patches"])
+        self.assertEqual(recipe["patches"][-2:], ["7224:FFFFECA8:0047", "7224:FFFFEC20:000C"])
+        self.assertEqual(recipe["region"], [1, 1, 319, 223])
+        # The two fills, 42 frames apart on both sides: ticks 152 and 195
+        # sit in the native white plateaus, frames 7355 and 7396 in the tape's.
+        self.assertEqual([p[2] for p in flashes], [152, 195])
+        self.assertEqual(recipe["frames"], [7355, 7396])
+        self.assertEqual(flashes[0][4], flashes[1][4])
+
     def test_rykros_tone_pairs_share_one_run_at_one_tick_offset(self):
         tone = [p for p in certify.PAIRS if p[0] in RYKROS_TONE]
         self.assertEqual([p[0] for p in tone], RYKROS_TONE)
@@ -170,16 +215,16 @@ class PairTableCase(unittest.TestCase):
         self.assertEqual([p[0] for p in loop], ENDING_LOOP)
         for name, env, tick, frame, _, recipe in loop:
             with self.subTest(pair=name):
-                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x8021", **certify.SCENE})
+                self.assertEqual(env, certify.ENDING)
                 # Tape 38's own run and fixture, past the Elsydeon break.
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
-                # The native CRAM steps on ticks 941-965 as tape 38's buffer
-                # does in frames 9896-9920, each shown a frame later.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 8956}.png")
-                self.assertIn(tick + 8956, recipe["frames"])
-        # Before, the fourth step, white: each inside its matched plateau.
-        self.assertEqual([p[2] for p in loop], [937, 954, 994])
+                # The native window closes after tick 2629 as the cartridge's
+                # last page turns on 9893; the loop follows at t + 7264.
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
+                self.assertIn(tick + 7264, recipe["frames"])
+        # Before, the fourth step, white: each inside its plateau.
+        self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
         self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
         self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
         self.assertIs(loop[2][5], certify.TAPE_38_LOOP)

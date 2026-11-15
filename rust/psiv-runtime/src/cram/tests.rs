@@ -11,6 +11,7 @@ use psiv_data::{PanelPalette, ScenePalettes};
 use super::{Cram, CramView};
 
 mod display;
+mod ending_loops;
 mod le_roof_fades;
 
 const LINE: usize = 16;
@@ -809,4 +810,79 @@ fn boarding_palette_copy_writes_line_three_and_the_adjacent_saved_word() {
         revision,
         "identical copy changes no live word"
     );
+}
+
+/// The Aiedo inn's resume (`ps4.asm:136436-136453`) after its scene: the
+/// palette it kept goes back with the screen still black for the 60 frames
+/// of `DMAPlane_A_VInt`, then `Pal_FadeIn`'s display frame, then one pass a
+/// frame up to the kept words: `$0024` by `$0011`, `$0022`, `$0023`, `$0024`.
+#[test]
+fn the_inn_resume_holds_black_then_fades_its_palette_in() {
+    let mut kept = filled(0);
+    kept[0] = 0x0024;
+    kept[63] = 0x0002;
+    let mut cram = cram(filled(0), filled(0x0EEE));
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(*cram.saved(), kept, "the kept words are the fade's copy");
+    let mut shown = vec![cram.view().words];
+    for frame in 1..70 {
+        cram.tick(frame, &mut 0);
+        shown.push(cram.view().words);
+    }
+    for (frame, words) in shown.iter().enumerate().take(61) {
+        assert_eq!(*words, filled(0), "frame {frame} is still black");
+    }
+    let firsts: Vec<_> = shown[61..66]
+        .iter()
+        .map(|words| (words[0], words[63]))
+        .collect();
+    assert_eq!(
+        firsts,
+        [
+            (0x0011, 0x0001),
+            (0x0022, 0x0002),
+            (0x0023, 0x0002),
+            (0x0024, 0x0002),
+            (0x0024, 0x0002)
+        ]
+    );
+    assert_eq!(shown[69], kept);
+    assert!(!cram.running());
+}
+
+/// Negative control: a resume over a lit palette clears it first, so the
+/// kept words never show before the fade (a resume that only copied them
+/// back would show them on its first frame).
+#[test]
+fn the_inn_resume_does_not_show_its_palette_at_once() {
+    let mut kept = filled(0x0024);
+    kept[1] = 0x0EEE;
+    let mut cram = cram(kept, filled(0));
+    cram.inn_resume_fade_in(kept, 0, &mut 0);
+    assert_eq!(cram.view().words, filled(0));
+}
+
+/// `move.w #$666, $FB5E.w` (`$073C9E`) and the flight's caption word are one
+/// word of the buffer, so `PalFadeOut_ClrSpriteTbl` steps the text down with
+/// everything else: `$0EEE` a level a frame, black on the fourteenth.
+#[test]
+fn the_text_colour_is_a_buffer_word_the_fades_step() {
+    let none = ScenePalettes::default();
+    let mut cram = cram(filled(0), filled(0));
+    let _ = cram.apply(
+        &SceneOp::SetTextColour { colour: 0x0EEE },
+        0,
+        &none,
+        None,
+        &mut 0,
+    );
+    let slot = super::TEXT_COLOUR_SLOT;
+    assert_eq!(slot, 47);
+    let mut expected = filled(0);
+    expected[slot] = 0x0EEE;
+    assert_eq!(cram.view().words, expected, "only the text word is written");
+    let trace = run(&mut cram, SceneOp::FadeOut, 1, 14, &none);
+    assert_eq!(trace[0][slot], 0x0DDD);
+    assert_eq!(trace[1][slot], 0x0CCC);
+    assert_eq!(trace[13][slot], 0);
 }

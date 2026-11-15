@@ -254,7 +254,8 @@ pub enum PresentationOp {
         /// Words written: the `trap #1` count plus one.
         words: u8,
     },
-    /// Clear the field planes: before the staff roll text is drawn, and
+    /// Clear the field planes: before the staff roll text is drawn, after
+    /// its fade back in (`ClearPlanes_A_B_Buf`, `$079CEE`), and
     /// `ClearPlaneABuf` in `Cutscene_ProfoundDarkness` (`$078D44`), which
     /// clears plane A's buffer only. The renderer hides the map either way;
     /// palette and sprites are untouched.
@@ -547,37 +548,60 @@ pub enum PresentationOp {
         /// Credit command table selected by the stage.
         commands_rom_addr: u32,
     },
-    /// The credits' final palette ramp before returning to the field.
+    /// The credits' final palette ramp, `loc_7A0A6` (`$07A0A6..$07A0F9`):
+    /// with `d5 = steps` and `d6 = 0`, the loop runs until `d6` reaches
+    /// `steps` (`cmpi.w #$E, d6` / `bcc`, tested before each frame). On a
+    /// frame whose `Main_Frame_Count & 7` is zero, step `d6` copies
+    /// `primary_words` words from primary word `d5` to `primary_ram`
+    /// (`trap #1`, `moveq #7, d7`) and, once `d6 - secondary_from` is not
+    /// negative, `secondary_words` words from secondary word
+    /// `(d6 - secondary_from) * 2` (`add.w d1, d1` twice: bytes) to
+    /// `secondary_ram`; then `d6` steps up and `d5` down. Every frame ends in
+    /// `VInt_Prepare`, so the loop spends the frames up to and including its
+    /// last step's, which depend on the frame count: the scene blocks until
+    /// the runtime releases it ([`crate::SceneRunner::release_palette`]).
     EndingCreditsPaletteRamp {
         /// First palette table (`loc_7A274`).
         primary_rom_addr: u32,
+        /// Its destination (`Palette_Table_Buffer+$24`).
+        primary_ram: u32,
+        /// Words a step copies from it (`moveq #7, d7`: eight).
+        primary_words: u8,
         /// Secondary two-word table (`loc_7A2A0`).
         secondary_rom_addr: u32,
-        /// Number of eight-word primary steps.
-        primary_words: u8,
-        /// Number of steps in the loop.
+        /// Its destination (`Palette_Table_Buffer+$3C`).
+        secondary_ram: u32,
+        /// Words a step copies from it (`moveq #1, d7`: two).
+        secondary_words: u8,
+        /// The first step that copies from it (`subi.w #9, d1` / `bmi`).
+        secondary_from: u8,
+        /// Steps in the loop, and `d5`'s start (`moveq #$E, d5`).
         steps: u8,
     },
-    /// The two palette loops around the staff-roll title and text planes.
-    EndingStaffRollTransition {
-        /// Palette word offset (`Palette_Table_Buffer + $5E`).
+    /// `loc_79C8E` (`$079C8E..$079CAD`), the staff roll's fade out of one
+    /// word: on a frame whose `Main_Frame_Count & 7` is zero (`move.b
+    /// (Main_Frame_Count+1).w, d1` / `andi.w #7, d1`), the word less `step`
+    /// (`subi.w`, word width); a zero result ends the loop unstored (`beq`)
+    /// and with no frame, any other is stored. Every other frame is a
+    /// `VInt_Prepare`. The length depends on the word and the frame count,
+    /// so the scene blocks until the runtime releases it
+    /// ([`crate::SceneRunner::release_palette`]).
+    EndingStaffRollFadeOut {
+        /// Byte offset of the word in `Palette_Table_Buffer` (`$5E`).
         palette_offset: u16,
-        /// Per-step decrement during the first loop.
-        fade_out_step: u16,
-        /// Per-step increment during the second loop.
-        fade_in_step: u16,
-        /// Frames between palette writes.
-        frame_divisor: u8,
-        /// Wait before the staff-roll music write.
-        first_wait: u16,
-        /// Staff-roll music id.
-        music: u8,
-        /// Wait after the music write.
-        second_wait: u16,
-        /// Palette bit that terminates the fade-in loop.
+        /// The decrement (`subi.w #$222`).
+        step: u16,
+    },
+    /// `loc_79CCA` (`$079CCA..$079CED`), its fade back in: the same loop with
+    /// `addi.w #step`, ending unstored, with no frame, on the step whose sum
+    /// has `target_bit` set (`btst #$C, d1` / `bne`).
+    EndingStaffRollFadeIn {
+        /// Byte offset of the word in `Palette_Table_Buffer` (`$5E`).
+        palette_offset: u16,
+        /// The increment (`addi.w #$222`).
+        step: u16,
+        /// The bit whose sum ends the loop (`$C`).
         target_bit: u8,
-        /// Final plane-update hold.
-        final_hold: u16,
     },
     /// The final Termi panel and palette upload after the credits scroll.
     EndingFinale {

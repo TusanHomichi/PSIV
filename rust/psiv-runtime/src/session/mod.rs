@@ -115,6 +115,8 @@ mod debug;
 #[cfg(test)]
 mod debug_tests;
 mod destination;
+#[cfg(test)]
+mod ending_text3_tests;
 mod flight;
 mod game_over;
 mod job_board;

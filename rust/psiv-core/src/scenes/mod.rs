@@ -35,7 +35,7 @@
 //! |---|---|---|---:|
 //! | `Cutscene_RajaSick` | `$8012` | `88_RetailBoundaries.md` | 54 |
 //! | `Cutscene_Rykros` | `$801B` | `88_RetailBoundaries.md` | 27 |
-//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 370 |
+//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 404 |
 //!
 //! These are kept beside the opening and next-arc registry because their
 //! retail bytes are deterministic presentation routines, while the remaining
@@ -117,6 +117,8 @@ mod fixed_fades_image;
 mod palette_fades_image;
 #[cfg(test)]
 mod panel_byte_census;
+#[cfg(test)]
+mod plain_event_fades;
 #[cfg(test)]
 mod wait_census;
 

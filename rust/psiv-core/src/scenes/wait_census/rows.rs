@@ -3,7 +3,7 @@
 
 use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, Row, SHIP, frame, own, row};
+use super::{DEZO, OBJECTS, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -13,8 +13,9 @@ const fn defect(issue: u32, row: Row) -> Row {
     }
 }
 
-/// A `Wait` row whose count is the retail one, for a frame or loop that runs
-/// no map updates: the issue that fixes the updates.
+/// A row whose count is the retail one, with the issue that fixes its
+/// updates: a `Wait` for a frame or loop that runs no map updates, or a
+/// `Within` a `VInt_Prepare`-only op for a frame that runs the objects.
 const fn updates(issue: u32, row: Row) -> Row {
     Row {
         defect: Some(issue),
@@ -182,13 +183,13 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
@@ -221,30 +222,31 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(12)),
     row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(21)),
     // Mounted: a frame of map updates after the SFX stop, a bare frame after
-    // `Field_BuildSprites`, and a frame with the objects after the dismount.
+    // `Field_BuildSprites`, and a frame with the objects after the dismount,
+    // whose object pass is a recorded deviation (#470).
     row("Event_CarnivorousTrees", Map(0x07_078C), Wait(3)),
-    row("Event_CarnivorousTrees", frame(0x07_07A0, false), Missing(CAMPAIGN)),
-    row("Event_CarnivorousTrees", frame(0x07_080C, true), Missing(CAMPAIGN)),
+    row("Event_CarnivorousTrees", frame(0x07_07A0, false), Within(6)),
+    updates(OBJECTS, row("Event_CarnivorousTrees", frame(0x07_080C, true), Within(8))),
     row("Event_SavingKyra", Map(0x07_086E), Wait(3)),
-    row("Event_SavingKyra", frame(0x07_0882, false), Missing(CAMPAIGN)),
-    row("Event_SavingKyra", frame(0x07_08EE, true), Missing(CAMPAIGN)),
-    row("Event_SavingKyra", Map(0x07_0912), Wait(10)),
+    row("Event_SavingKyra", frame(0x07_0882, false), Within(6)),
+    updates(OBJECTS, row("Event_SavingKyra", frame(0x07_08EE, true), Within(8))),
+    row("Event_SavingKyra", Map(0x07_0912), Wait(12)),
     row("Cutscene_MeetingKyra", Frames(0x07_77E2), Within(11)),
     row("Cutscene_MeetingKyra", Frames(0x07_77FC), Within(14)),
-    // Mounted: three frames, the last after the dismount; op 5 is that one.
-    row("Event_EclipseTorchUsed", frame(0x07_01A0, false), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", frame(0x07_01B4, false), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Wait(5))),
-    row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(9)),
+    // Mounted: two bare frames around the music, and one with the objects
+    // after the dismount.
+    row("Event_EclipseTorchUsed", frame(0x07_01A0, false), Within(3)),
+    row("Event_EclipseTorchUsed", frame(0x07_01B4, false), Within(6)),
+    updates(OBJECTS, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Within(8))),
+    row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(11)),
     // Two white flashes, each 2 frames of map updates and 40 passes of the
-    // `loc_58666` restore; the transcription has the first restore only.
-    row("Event_EclipseTorchUsed", Map(0x07_0266), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Wait(11))),
-    row("Event_EclipseTorchUsed", Map(0x07_02A8), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Missing(CAMPAIGN)),
-    // After the nine `$338` spawns, whose `ObjectAnimation`s record one
-    // frame each that no retail loop runs.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Missing(CAMPAIGN)),
+    // `loc_58666` restore with neither update.
+    row("Event_EclipseTorchUsed", Map(0x07_0266), Wait(15)),
+    row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
+    row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
+    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
+    // After the nine `$338` creations, which wait no frame of their own.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),

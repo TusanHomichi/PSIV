@@ -167,6 +167,18 @@ impl Runtime {
         inn_charge(&mut self.game, cost)
     }
 
+    /// The Aiedo inn puts back the palette it kept through its scene and
+    /// fades it in ([`crate::cram::Cram::inn_resume_fade_in`]). A palette that
+    /// is not live has no words to keep, and the shell draws baked colours.
+    pub(crate) fn inn_resume_fade_in(&mut self, palette: [u16; psiv_core::palette::PALETTE_WORDS]) {
+        if !self.cram().live {
+            return;
+        }
+        let frames = self.frames;
+        let (cram, cycle_index) = self.effects.cram_and_cycle_index();
+        cram.inn_resume_fade_in(palette, frames, cycle_index);
+    }
+
     /// The scene a rest at `selector` runs instead of an ordinary night, if
     /// any: `$066148` tests the inn selector for group 0's Aiedo counter (`6`)
     /// and `EventFlag_Zio` and `EventFlag_GirlsCaught` for clear, and then calls
