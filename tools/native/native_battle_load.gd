@@ -17,9 +17,13 @@ func _initialize():
     call_deferred("start_game")
 
 func start_game():
+    # The headless display's window can be only 64x64. Give geometry checks
+    # the shipped viewport explicitly; raster parity runs separately in Xvfb.
+    var viewport := SubViewport.new()
+    viewport.size = Vector2i(1280, 800)
+    root.add_child(viewport)
     game = load("res://field.tscn").instantiate()
-    root.add_child(game)
-    current_scene = game
+    viewport.add_child(game)
 
 func stop(reason: String):
     var report = {"pass": reason.is_empty(), "reason": reason, "tick": tick,
