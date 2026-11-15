@@ -31,8 +31,11 @@ use crate::{Runtime, RuntimeEvent};
 /// bounds are half-open on the 320x224 retail surface; the shell only blits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EventBattleBand {
+    /// First covered pixel row, inclusive.
     pub top: u16,
+    /// First uncovered row below the band, exclusive.
     pub bottom: u16,
+    /// Solid fill colour as a Genesis CRAM word.
     pub word: u16,
 }
 
