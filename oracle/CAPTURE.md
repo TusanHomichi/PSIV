@@ -45,6 +45,11 @@ seed also holds on each of them, and records their individual tape frame
 numbers. It refuses incomplete or misordered boundaries and ambiguous panel
 ids (two panel returns in one frame). Frame-end `Panel_Index` identifies each
 panel in these fixtures; it is not a register trace at the call site.
+`following_held_frames` reports further holds after a top-level call returns,
+separately from its own work, and `following_count_resumed` says whether the
+capture continued far enough to observe the next counted frame. This matters
+for the Torch: its Nemesis call returns during frame 7444, while the frame
+count stays held through 7446.
 
 The intervals end **before RTS**, except the standalone art interval, which
 runs from its caller's JSR to the following instruction. Elapsed master cycles

@@ -126,6 +126,19 @@ def annotate(loads: list[dict], frames: list[dict[str, str]]) -> list[dict]:
 
     for call in loads:
         one(call)
+        # Work after the routine returns can hold the same frame count too.
+        # Keep those samples separate: they are not decompressor work.
+        end = int(call["end"]["frame"])
+        following = []
+        frame = end + 1
+        while frame in by_frame and (by_frame[frame]["main_frame_count"]
+                                    == by_frame[end]["main_frame_count"]):
+            if by_frame[frame]["rng_seed"] != by_frame[end]["rng_seed"]:
+                raise ValueError(f"seed changed on held frame {frame}")
+            following.append(frame)
+            frame += 1
+        call["following_held_frames"] = following
+        call["following_count_resumed"] = frame in by_frame
     return loads
 
 
@@ -235,7 +248,8 @@ def main() -> None:
         for call in calls:
             attach_work(call, work[call["query"]])
             print(f"tape {scene}: {call['query']}: {call['lag_frames']} held frames; "
-                  f"{call['master_cycles']} master cycles")
+                  f"{call['master_cycles']} master cycles; "
+                  f"{len(call['following_held_frames'])} further held samples after return")
     (out / "summary.json").write_text(json.dumps(measured, indent=2) + "\n")
 
 

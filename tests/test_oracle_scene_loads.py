@@ -104,6 +104,17 @@ class SceneLoadObservations(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missed required loads"):
             check_coverage(46, calls[1:])
 
+    def test_work_after_return_is_not_charged_to_the_decompressor(self):
+        call = spans([boundary("load_art", False, 10, 0),
+                      boundary("load_art", True, 11, 0)])
+        rows = [frame(10, 20), frame(11, 20), frame(12, 20), frame(13, 21, "BAD0BEEF")]
+        report = annotate(call, rows)[0]
+        self.assertEqual(report["held_frames"], [11])
+        self.assertEqual(report["following_held_frames"], [12])
+        self.assertTrue(report["following_count_resumed"])
+        truncated = annotate(copy.deepcopy(call), rows[:2])[0]
+        self.assertFalse(truncated["following_count_resumed"])
+
 
 if __name__ == "__main__":
     unittest.main()
