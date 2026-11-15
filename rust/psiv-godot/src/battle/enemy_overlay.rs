@@ -126,7 +126,6 @@ pub(super) struct EnemyAnimation {
     output: Gd<Image>,
     texture: Gd<ImageTexture>,
     attack: Option<AttackAnimation>,
-    loaded: bool,
 }
 
 impl EnemyAnimation {
@@ -161,7 +160,6 @@ impl EnemyAnimation {
             base,
             pieces: runtime,
             attack,
-            loaded: false,
         };
         animation.rebuild()?;
         Some(animation)
@@ -224,9 +222,6 @@ impl EnemyAnimation {
     fn rebuild(&mut self) -> Option<()> {
         let mut image = self.base.duplicate_resource();
         for piece in &self.pieces {
-            if self.loaded {
-                break;
-            }
             let frame = piece.frames.get(piece.frame).unwrap_or(&piece.initial);
             for placement in &piece.placements {
                 let [x, y] = placement.offset_pixels;
@@ -247,17 +242,6 @@ impl EnemyAnimation {
         self.output = image;
         self.texture = ImageTexture::create_from_image(&self.output)?;
         Some(())
-    }
-
-    /// The stage load's patterns precede the overlay program's first upload.
-    /// Its clock keeps running while those original patterns remain visible.
-    pub(super) fn show_loaded(&mut self, loaded: bool) -> Option<Gd<ImageTexture>> {
-        if self.loaded == loaded {
-            return None;
-        }
-        self.loaded = loaded;
-        self.rebuild()?;
-        Some(self.texture())
     }
 }
 

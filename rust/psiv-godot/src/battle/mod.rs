@@ -167,6 +167,11 @@ impl Field {
     /// handler did (`present_frame`), so the debug selectors' tick-30 entry
     /// keeps its single transition from the frame top.
     pub(crate) fn present_battle_frame(&mut self, battle: psiv_runtime::BattleFrame) {
+        let opening = battle.started.is_some()
+            && battle
+                .view
+                .as_ref()
+                .is_some_and(|view| view.opening_first_upload);
         if let Some(fault) = &battle.fault {
             godot_error!("{fault}");
         }
@@ -187,6 +192,12 @@ impl Field {
             }
         }
         if let Some(view) = battle.view {
+            // The first GameMode_Battle call runs Battle_UpdateEnemySprites
+            // before uploading the name/status plane. The stage's first
+            // image therefore contains the first advanced overlay patterns.
+            if opening && let Some(screen) = self.battle_screen.as_mut() {
+                screen.bind_mut().advance_animation();
+            }
             self.set_battle_view(view);
         }
     }

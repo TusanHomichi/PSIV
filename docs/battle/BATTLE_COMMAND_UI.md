@@ -213,7 +213,7 @@ tape 45 at 7876 and 7891, over the 319×223 region beginning at (1,1).
 The first upload is not an atomic image change: tape 45 at 7876 still shows
 the previous plane on name-window pixel rows 0, 1 and 8 (screen rows 8, 9
 and 16). The runtime marks this first upload, and the shell clips those rows
-and retains the loaded enemy patterns while their overlay clock runs. At 7877
+and runs the first enemy-overlay call before presenting the stage. At 7877
 all window rows are visible. This is a measured opening scanout allowance,
 not a cycle-accurate VDP model for arbitrary party art or window uploads.
 

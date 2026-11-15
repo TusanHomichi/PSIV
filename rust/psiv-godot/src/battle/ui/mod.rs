@@ -310,15 +310,11 @@ impl BattleScreen {
                 .attacks
                 .iter()
                 .find(|attack| attack.event.actor == enemy.fighter);
-            if let Some(animation) = enemy.animation.as_mut() {
-                if let Some(texture) = animation.show_loaded(view.opening_first_upload) {
-                    enemy.node.set_texture(&texture);
-                }
-                if let Some(texture) =
+            if let Some(animation) = enemy.animation.as_mut()
+                && let Some(texture) =
                     animation.set_frozen_piece(attack.and_then(|attack| attack.frozen_overlay))
-                {
-                    enemy.node.set_texture(&texture);
-                }
+            {
+                enemy.node.set_texture(&texture);
             }
             enemy.set_attack(
                 view.attacks
