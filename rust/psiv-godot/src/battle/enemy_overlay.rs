@@ -224,11 +224,10 @@ impl EnemyAnimation {
     fn rebuild(&mut self) -> Option<()> {
         let mut image = self.base.duplicate_resource();
         for piece in &self.pieces {
-            let frame = if self.loaded {
-                &piece.initial
-            } else {
-                piece.frames.get(piece.frame).unwrap_or(&piece.initial)
-            };
+            if self.loaded {
+                break;
+            }
+            let frame = piece.frames.get(piece.frame).unwrap_or(&piece.initial);
             for placement in &piece.placements {
                 let [x, y] = placement.offset_pixels;
                 let [width, height] = placement.size_pixels;
