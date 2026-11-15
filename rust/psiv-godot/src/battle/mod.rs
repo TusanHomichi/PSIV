@@ -254,9 +254,10 @@ impl Field {
                 BattleStart::Encounter(id) => build_setup(files, runtime, id),
                 BattleStart::EventBattle(index) => build_boss_setup(files, runtime, index),
             };
-            let Some(setup) = setup else {
+            let Some(mut setup) = setup else {
                 return;
             };
+            setup.enemy_animation_phase_ticks = view.enemy_animation_phase_ticks;
             self.begin_battle_presentation(setup, "loading");
         }
         if let Some(screen) = self.battle_screen.as_mut() {

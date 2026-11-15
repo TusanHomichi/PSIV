@@ -17,6 +17,9 @@ pub struct BattleLoadView {
     pub foreground_rows: u8,
     /// First uploaded 16-pixel row of plane B (uploads proceed upward).
     pub background_first_row: u8,
+    /// `Battle_UpdateEnemySprites` runs once before `loc_6B20`
+    /// (`ps4.asm:10023`); its first timer underflow selects frame one.
+    pub enemy_animation_phase_ticks: usize,
     fade_steps: u8,
 }
 
@@ -31,6 +34,7 @@ impl BattleLoadView {
             background_y: 224 - i16::from(uploads) * 16,
             foreground_rows: uploads,
             background_first_row: 14 - uploads,
+            enemy_animation_phase_ticks: 1,
             fade_steps: steps.min(14) as u8,
         }
     }
@@ -97,6 +101,7 @@ mod tests {
         for step in 0..=18 {
             let view = BattleLoadView::new(start, step);
             let n = step.min(14) as u8;
+            assert_eq!(view.enemy_animation_phase_ticks, 1);
             assert_eq!(
                 (view.foreground_y, view.background_y),
                 (-224 + i16::from(n) * 16, 224 - i16::from(n) * 16)
