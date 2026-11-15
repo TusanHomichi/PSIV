@@ -89,35 +89,33 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 
 | Driver | What it proved | Covering chapter | Why it is still here |
 | --- | --- | --- | --- |
-| `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It takes the rendered first-control capture at shell tick 3360 under its autoclosed opening settings. No matching gameplay-frame request is declared |
+| `native_opening.gd` | Ordinary title START and dialogue dismissals, then an asserted eight-frame Up step and capture after control returns | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It observes first control and captures the resulting step without a fixed scene timestamp. No matching gameplay-frame request is declared |
 
 ### Running the opening capture
 
-`native_opening.gd` needs the local pack, Godot and Xvfb, and runs with every
-other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `tools/godot.py`
-resolves the Godot executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
+`native_opening.gd` needs the local pack, Godot and Xvfb. Run with all
+`PSIV_DEBUG_*` selectors and `PSIV_LOAD_SLOT` unset except those below. The
+read-only route probe supplies assertions; the driver presses START, dismisses
+each completed dialogue page, waits for first control and holds Up for eight
+frames. It exits nonzero on a timeout or state/movement mismatch and writes
+`state.json` (before/after) and `field.png` to its isolated output directory.
+No source save is loaded. Audio is the dummy driver.
 
 ```sh
 cargo build -p psiv-godot --manifest-path rust/Cargo.toml
-mkdir -p build/native-opening
+mkdir -p build/native-opening/saves
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_SAVE_DIR="$PWD/build/native-opening/saves" \
-  PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1 \
-  PSIV_DEBUG_AUTOCLOSE_SCENE=1 PSIV_DEBUG_SCENE_TICKS=1 PSIV_DEBUG_INPUT=1 \
-  PSIV_DEBUG_STATE="$PWD/build/native-opening/state.json" \
-  PSIV_DEBUG_SHOT="$PWD/build/native-opening/field.png" \
-  PSIV_DEBUG_SHOT_FRAME=3360 \
+  PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_ROUTE=1 PSIV_DEBUG_SCENE_TICKS=1 \
+  PSIV_OPENING_OUTPUT="$PWD/build/native-opening" \
   python3 tools/godot.py run -- \
   --script "$PWD/tools/native/native_opening.gd" --display-driver x11 \
-  --rendering-method gl_compatibility --audio-driver Dummy \
-  --fixed-fps 60 --quit-after 3370 \
+  --rendering-method gl_compatibility --audio-driver Dummy --fixed-fps 60 \
   --log-file "$PWD/build/native-opening/godot.log"
 ```
 
-The expected state at tick 3360 is map `$13`, cell `(48,18)`, Chaz alone, no
-active scene and 500 meseta; a process that exits successfully is not by itself
-a pass. Dialogue is auto-acknowledged and audio is the dummy driver, so the run
-says nothing about dialogue pacing, sound or controller hardware.
+Wrap the build and Godot invocation in their respective
+[heavy-lock classes](../DEVELOPMENT.md#heavy-run-lock).
 
 ## What the retirement leaves uncovered
 
