@@ -135,7 +135,7 @@ pub use battle::{
     MenuPage, MenuRow, MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind,
     TechniqueEntry, battle_dwell_frames,
 };
-pub use debug::{camp_fixture, camp_travel_fixture, scene_fixture};
+pub use debug::{camp_fixture, camp_travel_fixture, encounter_entry_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
 pub use flight::FlightView;
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};

@@ -310,6 +310,14 @@ mod tests {
     }
 
     #[test]
+    fn the_pre_fade_enemy_update_selects_frame_one() {
+        // `GameMode_LoadBattle` calls `Battle_UpdateEnemySprites` once before
+        // `loc_6B20`. `EnemySprites_Animate` decrements zero to $FF, then
+        // increments the frame byte before selecting its source patterns.
+        assert_eq!(clock_at_phase(4, &[6, 6, 6, 6], 1), (1, 6));
+    }
+
+    #[test]
     fn receipt_phase_reaches_the_three_piece_zoran_tuple() {
         // The tick-200 screenshot shows the previous render: 170 rendered
         // advances reach the captured texture. Phase 20 accounts for the

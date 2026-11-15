@@ -423,6 +423,14 @@ impl INode2D for Field {
                     return;
                 }
             }
+        } else if std::env::var_os("PSIV_DEBUG_ENCOUNTER_ENTRY").is_some() {
+            match psiv_runtime::encounter_entry_fixture(data.clone(), StepFrames::default()) {
+                Ok(session) => configure_session(session, store.clone()),
+                Err(error) => {
+                    godot_error!("debug encounter fixture failed: {error}");
+                    return;
+                }
+            }
         } else if let Some(Ok(session)) = debug_event.and_then(|event| {
             psiv_runtime::scene_fixture(data.clone(), event, StepFrames::default())
         }) {

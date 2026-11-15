@@ -79,6 +79,13 @@ impl BattleEntry {
         }
     }
 
+    const fn start(self) -> crate::session::BattleStart {
+        match self.kind {
+            EntryKind::Event(index) => crate::session::BattleStart::EventBattle(index),
+            EntryKind::Encounter(formation) => crate::session::BattleStart::Encounter(formation),
+        }
+    }
+
     /// The field arm's frames: one per band pass or tone frame.
     const fn field_frames(self) -> u16 {
         if matches!(self.kind, EntryKind::Event(PROFOUND_DARKNESS)) {
@@ -140,17 +147,9 @@ impl BattleEntry {
             || (elapsed >= self.fade_from() && elapsed < self.fade_from() + FADE_COUNTED)
     }
 
-    /// The uniform screen frame `elapsed` shows, as a CRAM word, or `None`
-    /// while the field arm draws its band and tone.
-    ///
-    /// The fade lowers every nibble by one a frame toward the battle palette,
-    /// whose backdrop is black (`loc_6B56`), from the frame after the `$EEE`
-    /// frame. While the planes are still off-screen the whole screen is that
-    /// backdrop; the port draws no stage until the battle starts, so it holds
-    /// the black backdrop to the roll (#679).
-    const fn screen(self, elapsed: u16) -> Option<u16> {
-        // Tape 07 submits white on elapsed 16 (displayed on 17); tape 45
-        // submits on 14 (displayed on 15). Their field arms differ.
+    /// The entry's backdrop CRAM word. Before setup it covers the field;
+    /// once the stage is loaded it is also the cleared VRAM's colour.
+    fn screen(self, elapsed: u16) -> Option<u16> {
         let white_from =
             self.field_frames() - BAND_PASSES + WHITE_FROM + 2 * self.encounter_frame();
         if elapsed < white_from {
@@ -160,9 +159,7 @@ impl BattleEntry {
         if elapsed <= fade_from {
             return Some(ENTRY_WHITE);
         }
-        let steps = elapsed - fade_from;
-        let nibble = 0xE_u16.saturating_sub(steps);
-        Some(nibble * 0x111)
+        Some(crate::BattleLoadView::new(self.start(), elapsed - fade_from, &[]).palette_word(0))
     }
 }
 
@@ -199,6 +196,16 @@ impl Runtime {
             self.frames = self.frames.wrapping_add(1);
             self.rng.step();
         }
+        if entry.elapsed == entry.fade_from() {
+            let start = entry.start();
+            self.prepared_battle = self
+                .prepare_battle_load(start, self.battle_party())
+                .ok()
+                .map(|battle| (start, battle));
+            if self.prepared_battle.is_some() {
+                self.effects.cram.enable_display();
+            }
+        }
         if entry.elapsed < entry.roll_frame() {
             return Some(Vec::new());
         }
@@ -213,6 +220,20 @@ impl Runtime {
     #[must_use]
     pub fn battle_entering(&self) -> bool {
         self.battle_entry.is_some()
+    }
+
+    /// The stage is loaded before the fade and stays settled through the lag
+    /// frames before `loc_B62A`; none of these frames rolls the opening.
+    #[must_use]
+    pub fn battle_load_view(&self) -> Option<crate::BattleLoadView> {
+        let entry = self.battle_entry?;
+        let steps = entry.elapsed.checked_sub(entry.fade_from())?;
+        let (_, prepared) = self.prepared_battle.as_ref()?;
+        Some(crate::BattleLoadView::new(
+            entry.start(),
+            steps,
+            prepared.present_enemies(),
+        ))
     }
 
     /// The field arm's current plane-A band, over the field and its windows.

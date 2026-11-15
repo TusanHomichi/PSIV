@@ -33,12 +33,15 @@ use super::ai::{choose_target, targetable_party};
 use super::chances::{ESCAPE, Verdict, calculate_chances};
 use super::event::{BattleEvent, Outcome, Skipped};
 use super::fighters::{ENEMY_SLOTS, Fighter, FighterId, Roster, Side};
-use super::order::{Priority, QueueEntry, build_queue, roll_priority};
+use super::order::{Priority, QueueEntry, build_queue};
 use super::records::{BattleData, BattleDataError, CharacterRecord, FormationRecord};
 use super::rewards::{Pools, split_rewards};
 use super::rng::Rolls;
+#[path = "setup.rs"]
+mod setup;
 use super::stats::Stats;
 use super::vehicle_skill::resolve_vehicle_skill;
+pub use setup::PreparedBattle;
 
 /// One party member entering a battle.
 ///
@@ -251,6 +254,18 @@ impl Battle {
         vehicle: bool,
         rolls: &mut impl Rolls,
     ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
+        Ok(Self::prepare(formation, party, data, boss, vehicle)?.roll(rolls))
+    }
+
+    /// `GameMode_LoadBattle`'s setup, before `loc_6B20` reveals the stage.
+    /// No RNG is read here; only [`PreparedBattle::roll`] runs `loc_B62A`.
+    pub fn prepare(
+        formation: &FormationRecord,
+        party: Vec<PartyMember>,
+        data: &BattleData,
+        boss: bool,
+        vehicle: bool,
+    ) -> Result<PreparedBattle, BattleDataError> {
         if formation.enemies.is_empty() {
             return Err(BattleDataError::EmptyFormation(formation.id));
         }
@@ -279,39 +294,19 @@ impl Battle {
                 .is_some_and(super::fighters::Fighter::is_alive)
         });
 
-        let rolled = roll_priority(
-            roster.highest_party_agility(),
-            formation.ambush_chance,
-            boss,
-            rolls,
-        );
-        // `loc_B62A`'s last test (`ps4.asm:17448-17450`): `$FFFFEE87`, which
-        // the boss init routines raise, forces `Battle_Priority` to `$FF`
-        // after the roll (drawn either way) and the boss clear have run.
         let scripted = !vehicle
             && formation
                 .enemies
                 .iter()
                 .any(|slot| super::scripted_flag::init_raises(slot.enemy_id));
-        let priority = if scripted { Priority::Ambush } else { rolled };
-        if priority == Priority::Ambush {
-            // `loc_B62A`'s tail (`ps4.asm:17456-17463`): a negative priority
-            // sets bit 3 on every *occupied* enemy slot, once, off this roll.
-            // The bit survives until an arm that reads it clears the byte.
-            for fighter in roster.iter_mut().filter(|f| f.id.side() == Side::Enemy) {
-                fighter.reaction_flags |= super::fighters::reaction::AMBUSH;
-            }
-        }
-
-        let events = vec![BattleEvent::Started {
-            priority,
-            enemies: enemies.clone(),
-        }];
-        Ok((
-            Battle {
+        Ok(PreparedBattle {
+            ambush_chance: formation.ambush_chance,
+            boss,
+            enemies,
+            battle: Battle {
                 roster,
                 round: 0,
-                pending_priority: priority,
+                pending_priority: Priority::Normal,
                 pools: Pools::default(),
                 outcome: None,
                 last_ability_index: 0,
@@ -321,8 +316,7 @@ impl Battle {
                 scripted_latch: scripted,
                 ai_flags: super::enemy_ai::AiFlags::default(),
             },
-            events,
-        ))
+        })
     }
 
     /// The battlefield.

@@ -209,6 +209,37 @@ pub fn scene_fixture(
     )
 }
 
+/// Tape 07's encounter-entry surface: the Academy Basement with the
+/// post-opening banks and Alys/Chaz/Hahn. The selector fires a formation at
+/// tick 30; no map-entry scene may run during that fixture lead-in.
+pub fn encounter_entry_fixture(data: GameData, step_frames: StepFrames) -> Result<Session, String> {
+    let mut game = post_opening_game(&data, step_frames)?;
+    game.set_party([
+        Some(CharId(1)),
+        Some(CharId(0)),
+        Some(CharId(2)),
+        None,
+        None,
+    ]);
+    let mut runtime = Runtime::from_save(
+        data,
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0x15,
+                char_x: 20 * 16,
+                char_y: 10 * 16,
+            },
+        },
+        step_frames,
+    )
+    .map_err(|error| error.to_string())?;
+    runtime.scene_triggers_pending = false;
+    Ok(Session::new(runtime))
+}
+
 /// The `PSIV_DEBUG_CAMP=1` fixture: tape 22's camp frame, Chaz alone at map
 /// `$13`, field position `($2F0,$140)`, with 500 MST.
 ///

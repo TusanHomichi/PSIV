@@ -14,6 +14,7 @@
 
 mod build;
 mod draw;
+mod load;
 
 use std::collections::BTreeMap;
 
@@ -168,6 +169,7 @@ pub(crate) struct BattleScreen {
     /// The command icon and cursor art, built as the planes ask for it.
     tiles: super::tiles::CommandTiles,
     background: Option<Gd<Sprite2D>>,
+    load: Option<load::LoadingStage>,
     enemy_nodes: Vec<EnemySprite>,
     party_nodes: Vec<PartySprite>,
     enemy_textures: BTreeMap<(u16, u8), Gd<ImageTexture>>,
@@ -191,6 +193,7 @@ impl INode2D for BattleScreen {
             chrome: None,
             tiles: super::tiles::CommandTiles::default(),
             background: None,
+            load: None,
             enemy_nodes: Vec::new(),
             party_nodes: Vec::new(),
             enemy_textures: BTreeMap::new(),

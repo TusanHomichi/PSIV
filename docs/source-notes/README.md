@@ -201,8 +201,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
-- **An event battle's entry still lacks the stage sweep and settled stage
-  (#679).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
+- **Battle entry and its measured loading profiles (#663, #679).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
   arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
@@ -224,18 +223,17 @@ agility and dexterity, and enemy paralysis clearing each turn.
   (`battle_entry.rs`): the battle starts and rolls on the 76th frame
   after the request, with the seed stepped on the 36 frames the cartridge
   counts, so every event battle's rolls moved with #663. The shell draws the
-  hold and the fade's uniform backdrop, which match 7814-7859; it draws the
-  backdrop where the planes sweep in (7860-7869) and stays black instead of
-  the settled stage
-  until the roll (7870-7875, #679). Encounters run the same entry before
-  starting and rolling, using tape 07's schedule: 63 frames after fire,
-  37 counted and 26 lag, with the uniform hold and fade certified against
-  the cartridge ([measurements](../field/TRANSITIONS_DECODED.md#battle-entry-effect)).
+  hold and the two-plane sweep (#679): `BattleLoadView` submits the scroll,
+  uploaded rows and nibble fade; setup precedes the fade and the opening roll
+  remains on its own frame. Tape 45's 7863, 7870 and 7873 pairs cover the sweep,
+  settled stage and pre-roll lag. Encounters run the same preparation and
+  sweep using tape 07's schedule: 63 frames after fire, 37 counted and 26 lag
+  ([measurements](../field/TRANSITIONS_DECODED.md#battle-entry-effect)).
   The formation-selection draw remains on the encounter-fire frame instead
-  of stage setup (tape 07, 24807); the opening roll now rotates the seed on
-  entry's final frame. Stage-load lag remains a measured
-  approximation: tape 45's 37 frames for every event battle, tape 07's 23 for
-  every encounter, although cartridge decompression depends on the stage.
+  of stage setup (tape 07, 24807); the opening roll still rotates the seed on
+  entry's final frame. Stage-load lag remains a measured approximation:
+  tape 45's 37 frames for every event battle, tape 07's 23 for every encounter,
+  although cartridge decompression depends on the stage.
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the

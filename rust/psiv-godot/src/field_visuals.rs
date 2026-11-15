@@ -683,9 +683,18 @@ impl Field {
         }
     }
 
-    /// Draws the runtime's entry band over the held page, then its uniform
-    /// screen. Each cover lasts one frame; the runtime chooses the next one.
+    /// Draw the runtime's loaded stage, or its band and uniform hold before setup.
+    /// A loaded stage replaces the cover and retains its own stepped palette.
     pub(super) fn sync_battle_entry_screen(&mut self) {
+        if let Some(view) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::battle_load_view)
+        {
+            self.present_battle_load(view);
+            self.transition = None;
+            self.sync_transition();
+            return;
+        }
         let screen = self
             .runtime()
             .and_then(psiv_runtime::Runtime::battle_entry_screen);

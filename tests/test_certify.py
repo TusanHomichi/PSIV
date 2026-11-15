@@ -38,6 +38,7 @@ ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
 EVENT_BATTLE_ENTRY = ["event-battle-white-first", "event-battle-white-hold",
                       "event-battle-fade-first", "event-battle-fade-second"]
+EVENT_BATTLE_SWEEP = ["event-battle-sweep", "event-battle-settled", "event-battle-before-roll"]
 BATTLE_OPENING = ["battle-opening-name", "battle-opening-options"]
 ENCOUNTER_ENTRY = ["encounter-white-first", "encounter-white-hold",
                    "encounter-fade-first", "encounter-fade-second"]
@@ -48,7 +49,7 @@ ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
-         + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + BATTLE_OPENING + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
+         + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP + BATTLE_OPENING + ENCOUNTER_ENTRY + ECLIPSE_TORCH)
 PREEMPTIVE = ["preemptive-" + suffix for suffix in
               ["first", "grown", "text", "text-last", "close", "thin", "options-grow", "options"]]
 NAMES += PREEMPTIVE
@@ -144,11 +145,11 @@ class PairTableCase(unittest.TestCase):
             self.assertEqual(recipe["region"], region, name)
 
     def test_the_event_battle_entry_pairs_share_the_last_pages_run(self):
-        # Tape 45's event battle (#663): one oracle run for the four frames,
+        # Tape 45's event battle (#663, #679): the entry and sweep frames,
         # the last page's patches and offset (clone tick t shows t + 7286),
         # the field surface's edge left out (#409).
         page = next(p for p in certify.PAIRS if p[0] == "retained-window-page")
-        pairs = [p for p in certify.PAIRS if p[0] in EVENT_BATTLE_ENTRY]
+        pairs = [p for p in certify.PAIRS if p[0] in EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP]
         frames = []
         for name, env, tick, frame, _, recipe in pairs:
             self.assertEqual(env, page[1], name)
@@ -158,7 +159,7 @@ class PairTableCase(unittest.TestCase):
             self.assertEqual(number - tick, 7286, name)
             self.assertIn(number, recipe["frames"], name)
             frames.append(number)
-        self.assertEqual(frames, [7814, 7840, 7857, 7859])
+        self.assertEqual(frames, [7814, 7840, 7857, 7859, 7863, 7870, 7873])
         self.assertEqual(page[2] + 7286, 7797)
 
     def test_the_teleport_pair_certifies_its_window_region_only(self):
@@ -176,7 +177,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *BATTLE_OPENING, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
+                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *BATTLE_OPENING, *ENCOUNTER_ENTRY, *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

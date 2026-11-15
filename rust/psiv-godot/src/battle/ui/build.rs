@@ -28,6 +28,7 @@ impl BattleScreen {
     }
 
     pub(super) fn clear_sprites(&mut self) {
+        self.finish_loading();
         if let Some(mut background) = self.background.take() {
             background.queue_free();
         }

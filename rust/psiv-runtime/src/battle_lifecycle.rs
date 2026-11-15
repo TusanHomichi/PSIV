@@ -288,21 +288,10 @@ impl Runtime {
         formation: u16,
         party: Vec<psiv_core::battle::PartyMember>,
     ) -> Result<Vec<BattleEvent>, BridgeError> {
-        let set = self
-            .battles
-            .as_ref()
-            .ok_or_else(|| BridgeError::Rejected("battles not enabled".into()))?;
-        let record = set
-            .table
-            .formation(formation)
-            .ok_or_else(|| BridgeError::Rejected(format!("unknown formation {formation}")))?;
+        let prepared =
+            self.take_battle_load(crate::session::BattleStart::Encounter(formation), party)?;
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
-        let (battle, events) = if self.vehicle.is_some() {
-            Battle::start_vehicle(record, party, &set.data, &mut rng2)
-        } else {
-            Battle::start(record, party, &set.data, false, &mut rng2)
-        }
-        .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        let (battle, events) = prepared.roll(&mut rng2);
         // `GameMode_LoadBattle`'s `VDP_EnableDisplay` (`ps4.asm:10062`).
         self.effects.cram.enable_display();
         self.battle = Some(battle);

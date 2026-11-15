@@ -25,6 +25,63 @@ fn runtime_with_battles() -> Runtime {
     runtime
 }
 
+#[test]
+fn loading_uses_initialized_presence_for_both_entry_kinds_without_losing_refill_slots() {
+    use crate::BattleStart::{Encounter, EventBattle};
+    use psiv_core::battle::{FighterId, Side};
+
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
+    // Igglanova, Guilgenova, Tower, CommndBall; $125 is the FloatMine
+    // guard's negative control: all three objects must remain present.
+    for (start, visible) in [
+        (EventBattle(0), [false, true, false, false]),
+        (Encounter(0x95), [false, true, false, false]),
+        (Encounter(0xC3), [false, true, false, false]),
+        (Encounter(0x107), [false, true, false, false]),
+        (Encounter(0x124), [false, true, false, false]),
+        (Encounter(0x125), [true, true, true, false]),
+    ] {
+        let mut runtime = runtime_with_battles();
+        match start {
+            EventBattle(index) => runtime.begin_battle_entry(index),
+            Encounter(formation) => runtime.begin_encounter_entry(formation),
+        };
+        let mut load_frames = 0;
+        while runtime.battle_entering() {
+            runtime.tick_battle_entry().expect("entry owns frame");
+            if let Some(view) = runtime.battle_load_view() {
+                assert_eq!(view.start, start);
+                assert_eq!(view.visible_enemies, visible, "{start:?}");
+                for id in 1..=9 {
+                    let fighter = FighterId::new(id).unwrap();
+                    assert_eq!(
+                        view.enemy_visible(fighter),
+                        id >= 6 && visible[usize::from(id - 6)],
+                        "{start:?}, fighter {id}"
+                    );
+                }
+                load_frames += 1;
+            }
+        }
+        assert_eq!(load_frames, 20, "sweep and settled hold: {start:?}");
+        if let Encounter(formation) = start {
+            runtime
+                .start_battle(formation, runtime.battle_party())
+                .expect("encounter roll");
+        }
+        let roster = runtime.battle_roster().expect("rolled battle");
+        assert_eq!(roster.side(Side::Enemy).count(), 3, "refill slots cached");
+        for fighter in roster.side(Side::Enemy) {
+            assert_eq!(fighter.active, visible[fighter.id.slot() - 5]);
+            assert!(fighter.stats.curr_hp > 0, "cached stats survive");
+        }
+    }
+}
+
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
@@ -280,6 +337,13 @@ fn the_event_battle_starts_and_rolls_at_its_entrys_end() {
         }
         assert!(events.is_empty(), "nothing else runs: {events:?}");
         assert!(!runtime.battle_active() && runtime.scene_active());
+        if ticks >= 56 {
+            let view = runtime.battle_load_view().expect("stage before roll");
+            assert_eq!(view.start, crate::session::BattleStart::EventBattle(0));
+            assert_eq!(view.foreground_rows, (ticks - 56).min(14) as u8);
+        } else {
+            assert!(runtime.battle_load_view().is_none());
+        }
         screens.push(runtime.battle_entry_screen());
         assert!(ticks < 76, "the battle starts on the 76th frame");
     };

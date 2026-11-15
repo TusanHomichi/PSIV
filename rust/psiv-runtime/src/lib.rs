@@ -18,6 +18,8 @@ mod camera;
 mod camp;
 mod cram;
 pub use cram::{CramView, TEXT_COLOUR_SLOT};
+mod battle_load;
+pub use battle_load::BattleLoadView;
 mod battle_entry;
 mod dialogue;
 mod effects;
@@ -97,7 +99,7 @@ pub use session::{
     SkillEntry, SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TeardownView, TechniqueEntry,
     TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow,
     WindowRecord, WindowRect, WindowTeardown, battle_dwell_frames, camp_fixture,
-    camp_travel_fixture, scene_fixture, town_page_rows,
+    camp_travel_fixture, encounter_entry_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 pub use view::ObjectMotion;
@@ -228,6 +230,7 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    prepared_battle: Option<(session::BattleStart, psiv_core::battle::PreparedBattle)>,
     /// Battle return reloads map data without initializing live field objects.
     battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.
