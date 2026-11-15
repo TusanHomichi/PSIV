@@ -8,7 +8,7 @@
   "pr": 704,
   "url": "https://github.com/tusanhomichi/psiv/pull/704",
   "summary": "pack: preserve map record and emitted-map checks",
-  "task": "TusanHomichi/PSIV#552",
+  "task": "tusanhomichi/psiv#552",
   "author": {
     "kind": "bot",
     "login": "fieldmouseworks-workers[bot]",
