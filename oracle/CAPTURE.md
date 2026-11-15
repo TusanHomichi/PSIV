@@ -36,7 +36,11 @@ fixtures, plus the Torch's standalone `$1D712C` art load. Add `--scenes 46 43
 be new. The fixtures and their RAM patches come from `tools/certify.py`; these
 are explicit scene fixtures, not connected campaign-route evidence.
 
-The lane checks the US routine boundaries against ROM bytes and retains the
+The Rust `psiv-scene-loads` tool checks the full US ROM identity and the nine
+routine windows by SHA-256; no instruction bytes are stored in source. The
+Python entry point only orchestrates existing fixture/host helpers and adapts
+CSV records to JSON. Rust owns all trace matching, frame/seed validation,
+coverage checks and decoded-stream attribution. The lane retains the
 tape, RAM map, exact command, input/source hashes, exit status, wall time,
 frame CSV and instruction trace. Each whole-panel interval contains its own
 Nemesis and Enigma intervals. The report counts equal `Main_Frame_Count`
@@ -61,7 +65,7 @@ include interrupts, refresh and VDP stalls, and use the NTSC frame length
 `3420 * 262` when crossing frame boundaries. Nested intervals overlap their
 parent; their held-frame counts must not be added to the parent's count.
 
-The lane also queries `psiv-pack`'s `scene_load_work` example under the build
+The Rust analyzer queries `psiv-pack::presentation::load_work` under the build
 reservation. `work.json` records the raw panel record and dimensions, each
 selected stream's source, consumed/decoded sizes and hashes, and the Nemesis
 decoder's intrinsic **CPU** cycles. Queries include panels whose pictures the
@@ -70,6 +74,13 @@ separates the input-dependent decompressor work from observed elapsed time;
 the report does not convert CPU cycles into frame budgets. That model and
 runtime consumption are tracked in
 [#681](https://github.com/TusanHomichi/PSIV/issues/681).
+
+`cargo test --manifest-path rust/Cargo.toml -p psiv-scene-loads` runs the
+ROM-free trace, frame/seed, coverage, stream-attribution and window-identity
+controls. Use the build reservation as for other Cargo checks. The standalone
+`psiv-pack` example `scene_load_work ROM panel:10d art:1d712c` exposes the same
+decoded-work API without taking a cartridge capture. The analyzer refuses to
+overwrite existing result files; each capture run needs its own directory.
 
 ### Video frame capture
 

@@ -1,0 +1,12 @@
+[package]
+name = "psiv-scene-loads"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+psiv-pack = { path = "../psiv-pack" }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11"

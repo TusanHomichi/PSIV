@@ -365,6 +365,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "psiv-scene-loads"
+version = "0.1.0"
+dependencies = [
+ "psiv-pack",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "psiv-sound"
 version = "0.1.0"
 dependencies = [
