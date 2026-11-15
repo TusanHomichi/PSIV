@@ -80,7 +80,7 @@ fn enemy_body_dimensions_palette_words_and_bank_metadata() {
     );
     assert_eq!(file["palette_layout"]["cram_lines"], json!([1, 2]));
     for (at, line) in [(0x7672, 0), (0x7678, 1), (0x767E, 2)] {
-        let word = crate::battle::image_tests::word(&r.rom, at);
+        let word = crate::battle::image_tests::word(&r.rom, at + 2);
         assert_ne!(word, 0);
         assert_eq!(
             file["palette_layout"]["index_15_by_cram_line"][line.to_string()],

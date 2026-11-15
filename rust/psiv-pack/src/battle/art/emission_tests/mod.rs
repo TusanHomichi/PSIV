@@ -96,6 +96,11 @@ fn png_references(e: &Emission, value: &Value, seen: &mut BTreeSet<String>) {
         Value::Object(fields) => {
             for (key, value) in fields {
                 if key == "png" || key.ends_with("_png") {
+                    if key == "initial_png" && value.is_null() {
+                        assert_eq!(fields["enabled"], false);
+                        assert!(array(&fields["frames"]).is_empty());
+                        continue;
+                    }
                     let path = value.as_str().unwrap();
                     let bytes = e.blobs.get(path).expect("index names an absent PNG");
                     assert_eq!(
@@ -191,6 +196,7 @@ fn emitting_twice_keeps_every_path_and_byte_identical() {
 #[test]
 fn inventory_rejects_missing_extra_and_misreported_output() {
     let Some(e) = emission() else { return };
+    assert_inventory(e);
     for corruption in ["missing", "extra", "count", "hash", "png_hash", "reference"] {
         let mut bad = Emission {
             fragment: e.fragment.clone(),
