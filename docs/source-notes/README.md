@@ -203,7 +203,8 @@ agility and dexterity, and enemy paralysis clearing each turn.
   stays up under it: tape 45 shows the window and portrait untouched on the
   press frame (7800), the band from 7801, the portrait covered by 7805, the
   window by 7812, the screen white by 7814, and the battle mode from 7815. The
-  port closes the window with its text and draws the battle stage on the next
+  port now keeps the last page and portrait while the scene runs (both
+  `Retained` entries and resumes), but draws the battle stage on the next
   tick, with no band, tone or white hold
   ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**

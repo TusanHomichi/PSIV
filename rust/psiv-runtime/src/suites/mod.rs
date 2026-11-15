@@ -48,6 +48,7 @@ mod player_abilities;
 mod presentation_order;
 mod progression;
 mod retail_boundaries;
+mod retained_window;
 pub(crate) mod save;
 mod scene_load_fade;
 mod talk_repro;

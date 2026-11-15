@@ -107,6 +107,17 @@ joined them the same day:
 |---|---:|---|
 | `rykros-portrait` | **0.000000** | clone t970 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface. Ticks 954-1010 match frames 8200-8256 inside `1,1,319,223`; t969, the last lag frame, scores `rmse=23.484914` |
 
+`Retained` windows (`Event_RunDialogue2`, `$5ACDC`) keep their last page
+and portrait after the final press while their scene runs, for both fresh
+entries and resumed text. The page has no arrow and consumes no further
+input; other routine kinds close with their text. The inline `EndingIntro`
+window below has its own explicit destruction. The caller census and runtime
+input checks are in [DIALOGUE_CALLERS.md](DIALOGUE_CALLERS.md#the-routines-and-their-windows).
+[Air Castle's five object records](71_AirCastleFakeChest.md) spend no waited
+frames between the text return and the battle request; their `frames` field
+is not a wait. Battle field-entry coverage remains
+[#665](https://github.com/TusanHomichi/PSIV/issues/665).
+
 The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
 them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),
 from tape 38's own run and fixture, after the first dialogue's last pages:
