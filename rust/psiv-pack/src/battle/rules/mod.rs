@@ -8,6 +8,8 @@
 mod char_init;
 mod equip;
 mod mod_stats;
+#[cfg(test)]
+mod retail_tests;
 
 use std::collections::BTreeSet;
 

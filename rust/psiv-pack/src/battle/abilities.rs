@@ -354,6 +354,9 @@ pub fn build(rom: &[u8], names: &HashMap<&'static str, Display>) -> Result<Json,
 }
 
 #[cfg(test)]
+mod retail_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
