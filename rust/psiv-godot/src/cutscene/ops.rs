@@ -35,13 +35,6 @@ impl Field {
             SceneOp::FadeIn if self.cram_live() => self.palette_fade_in_ends_cover(),
             SceneOp::FadeOut if self.cram_live() => {}
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
-            SceneOp::FlightFadeIn { frames } => {
-                self.start_transition(TransitionKind::SceneFadeIn);
-                self.transition = Some(crate::transitions::Transition::with_frames(
-                    TransitionKind::SceneFadeIn,
-                    frames,
-                ));
-            }
             SceneOp::FlightPlanet | SceneOp::FlightPan => {}
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
             // `InitVRAMAndCRAMAfterFadeOut`: the runtime emits the op once

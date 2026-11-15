@@ -109,8 +109,7 @@ windows before the fade, and lends its last marker palette to the existing CRAM
 fade. These frames replace parts of the measured 25/55-frame close budgets;
 they are not added to them. The confirm text/tail model already accounts for
 five of the twelve retail window-destruction frames, leaving seven before the
-scene's fade; Cancel leaves all twelve there. `FlightFadeIn` remains a separate
-migration under #652.
+scene's fade; Cancel leaves all twelve there.
 
 The last three rows (return VInt and reload preparation, fade-in, place-name
 window) are not flight-specific: they are `FieldRoutine_Cutscene`'s zero return
@@ -128,14 +127,36 @@ inferred from glyph count. Only these two legs' setup spans are measured.
 Other destinations, other message speeds, interrupted flights and the Rykros
 branch are not frame-exact claims.
 
-**Fade correction:** flight fade-in spends 16 frames, including display enable
-and the terminal palette pass. Fade-out spends 14. The old claim that all fades
+**Fade correction:** all five unique flight `Pal_FadeIn` sites use the same
+fixed CRAM model as the entry: `$0645D6` / `$0648F8` (takeoff), `$064C8E`
+(shared planet screen, counted once), `$0647B8` / `$064A2E` (transit).
+Each spends 16 frames, including display enable and the terminal palette pass. Fade-out spends 14. The old claim that all fades
 spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`). Since
 #637 the route's `FadeOut`s and `InitVramAndCram` spend their own frames on the
 CRAM model, as many as the palette's largest nibble needs (14 from white; the
 `InitVRAMAndCRAM` row's 15/13 is its fade and `DMAPlanes_VInt`), so the route
 holds no `WaitFrames` for them, and `FlightPlanet` spends the planet screen's
 setup alone (23/24).
+
+`loc_641A2` copies sixteen ship palette words to line 3 from `$1DE0F8`,
+or `$1DE0D8` with `EventFlag_Snowstorm`, after each flight map refresh.
+The planet helper copies `$1DE138` to line 4 and `$1DE118` to line 2;
+`loc_64550` selects line 1 by world (`$1DE1D8`, `$1DE1F8`, `$1DE218`,
+`$1DE198`, `$1DE1B8`, `$1DE238`). Line 3 retains `Pal_Init`, with caption
+word 47 cleared before the fade. These raw words are pack data, applied by
+CRAM's one writer. `Pal_FadeIn` copies the target, clears the live buffer,
+waits a dark frame, enables the display, steps every nibble one per frame,
+and waits one unchanged terminal pass. It is not a screen-cover timer.
+
+`python3 -m oracle.ship_flight --fades --out build/ship-fades` measures the
+five sites' six executions on tape 35's two fixtures. It checks call/return
+instruction boundaries, every live palette word against its saved target,
+and the display bit on every fade frame; wrong words, timing, display and
+omitted/duplicated calls have negative controls in `tests/test_ship_flight.py`.
+The session-pad regression checks those same boundaries at Speak offsets
+218/826/1236 (Mota→Zelan) and 200/556/990 (Zelan→Mota), with the existing
+map/control, caption and propulsion timeline unchanged. These are state and
+timing checks, separate from image certification.
 
 **Propulsion SFX (#629):** the spaceports' loop writes `SFXID_SpaceshipPropelled`
 (`$E3`) to `Sound_Index` at the start of each pass whose counter is `$E1`, `$E2`

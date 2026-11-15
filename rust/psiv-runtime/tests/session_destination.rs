@@ -882,3 +882,6 @@ fn answers_fade_once_after_the_windows_close_and_before_the_map_handoff() {
         assert!(player.session.destination_view().is_none());
     }
 }
+
+#[path = "session_destination/flight_fades.rs"]
+mod flight_fades;

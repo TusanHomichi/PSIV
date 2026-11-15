@@ -3,7 +3,7 @@
 //! The runtime keeps VDP register 1's display bit: a whole-palette fade-out
 //! ([`SceneOp::FadeOut`], [`SceneOp::InitVramAndCram`]'s, a
 //! [`PresentationOp::VariablePaletteFade`] down) leaves it off, and
-//! `VDP_EnableDisplay` ([`SceneOp::FadeIn`], [`SceneOp::FlightFadeIn`], a
+//! `VDP_EnableDisplay` ([`SceneOp::FadeIn`], a
 //! variable fade up, [`PresentationOp::EnableDisplay`]) turns it on. While it
 //! is off the screen is the backdrop alone, so a window drawn then is never
 //! seen: a dialogue op met dark means the scene's fades are not its bytes'.
@@ -48,7 +48,6 @@ fn writes(op: &SceneOp) -> Option<Display> {
             op: PresentationOp::VariablePaletteFade { fade_in: false, .. },
         } => Some(Display::Off),
         SceneOp::FadeIn
-        | SceneOp::FlightFadeIn { .. }
         | SceneOp::Presentation {
             op:
                 PresentationOp::VariablePaletteFade { fade_in: true, .. }

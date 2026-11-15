@@ -12,6 +12,7 @@ use super::{Cram, CramView};
 
 mod display;
 mod ending_loops;
+mod flight;
 mod le_roof_fades;
 
 const LINE: usize = 16;

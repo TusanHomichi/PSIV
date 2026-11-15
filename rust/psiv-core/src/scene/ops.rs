@@ -22,11 +22,6 @@ pub enum SceneOp {
     FlightPlanet,
     /// `loc_5ABDC`: Y-only, twelve-bit wrapped flight pan at 2 px/frame.
     FlightPan,
-    /// A flight Pal_FadeIn, including display-enable and terminal passes.
-    FlightFadeIn {
-        /// Display-enable, palette loop and terminal frame count.
-        frames: u16,
-    },
     /// Apply the normal transition record at the leader's current cell.
     /// Elevator events own its fade, destination door and departure step.
     TakeMapTransition,

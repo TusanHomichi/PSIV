@@ -33,9 +33,7 @@ use super::SCENES;
 use super::dialogue_callers_image::rom;
 use super::documented_ranges::{Ranges, documented_ranges};
 use super::flight::INSIDE_SPACESHIP_ROUTE;
-use super::ship_route_trace::{
-    ENTRY_OPS, Way, before_route, fades, insert, retarget, route_as_called, trace,
-};
+use super::ship_route_trace::{ENTRY_OPS, Way, before_route, fades, insert, retarget, trace};
 use super::wait_census::shared_code::SHARED_CODE;
 use crate::SceneOp;
 
@@ -97,7 +95,6 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 const KNOWN: &[(&str, u32)] = &[
     ("Cutscene_AlysWounded", 652),
     ("Cutscene_ZioDefeated", 652),
-    ("Cutscene_InsideSpaceship", 652),
     ("Cutscene_SpaceshipSabotage", 652),
     ("Cutscene_CrashLaanding", 652),
     ("Cutscene_DarkForce1Defeated", 652),
@@ -306,6 +303,26 @@ fn the_ships_ways_are_the_helpers_calls() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// The common planet screen is one US call site, visited by both takeoffs.
+#[test]
+fn the_flights_have_five_unique_fade_in_sites() {
+    let Some(rom) = rom() else { return };
+    let sites: std::collections::BTreeSet<u32> = SHIP_WAYS
+        .iter()
+        .flat_map(|(_, addresses)| {
+            addresses
+                .iter()
+                .copied()
+                .zip(kinds(rom, addresses))
+                .filter_map(|(at, kind)| (kind == Some(Fixed::In)).then_some(at))
+        })
+        .collect();
+    assert_eq!(
+        sites.into_iter().collect::<Vec<_>>(),
+        [0x0645D6, 0x0647B8, 0x0648F8, 0x064A2E, 0x064C8E]
+    );
+}
+
 /// Negative control: an exception whose scene already matches is reported,
 /// so the list only shrinks.
 #[test]
@@ -353,9 +370,12 @@ fn a_wrong_fixed_fade_op_is_reported() {
             let mut variants: Vec<Vec<SceneOp>> = Vec::new();
             let mut dropped = scene.ops.to_vec();
             dropped.remove(index);
+            if scene.name == SHIP {
+                retarget(&mut dropped, index, false);
+            }
             variants.push(dropped);
             let mut doubled = scene.ops.to_vec();
-            doubled.insert(index, *op);
+            insert(&mut doubled, index, *op);
             variants.push(doubled);
             for other in kinds.iter().filter(|kind| recorded(kind) != recorded(op)) {
                 let mut swapped = scene.ops.to_vec();
@@ -388,7 +408,7 @@ fn a_wrong_fixed_fade_op_is_reported() {
 /// it does not; a caller that loses the route, or a scene that gains it
 /// without the `jmp`, is reported.
 #[test]
-fn the_route_as_called_matches_and_a_changed_route_or_caller_does_not() {
+fn the_production_route_matches_and_a_changed_route_or_caller_does_not() {
     let Some(rom) = rom() else {
         return;
     };
@@ -398,12 +418,7 @@ fn the_route_as_called_matches_and_a_changed_route_or_caller_does_not() {
         ops: Box::leak(ops.into_boxed_slice()),
         ..named(name)
     };
-    let as_called = route_as_called();
-    assert_eq!(
-        as_called.len(),
-        INSIDE_SPACESHIP_ROUTE.len(),
-        "normalization must not synthesize missing menu fades"
-    );
+    let as_called = INSIDE_SPACESHIP_ROUTE.to_vec();
     assert_eq!(
         mismatches(rom, &ranges, &[with_ops(SHIP, as_called.clone())]),
         []

@@ -277,6 +277,23 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(requests[0x0782DA], 9 * len(delays))
         self.assertEqual(_word(data, 0x0730FC + 32), 0xFFFF)
 
+    def test_flight_palette_requests_are_the_us_helper_copies(self):
+        data = ROM.read_bytes()
+        requests = dict(PALETTE_REQUESTS)
+        for site, address, offset in [(0x641F6, 0x1DE0F8, 0x40),
+                                      (0x6421E, 0x1DE0D8, 0x40),
+                                      (0x64402, 0x1DE138, 0x60),
+                                      (0x64450, 0x1DE118, 0x20),
+                                      (0x64498, 0x1DE118, 0x20)]:
+            listing = (_lea_l(address, 0) + _lea_w(PALETTE_TABLE_BUFFER + offset, 1)
+                       + _move_w_imm(15, 7) + TRAP_1)
+            self.assertEqual(data[site:site + len(listing)], listing)
+            self.assertEqual(requests[address], 16)
+        worlds = [0x1DE1D8, 0x1DE1F8, 0x1DE218, 0x1DE198, 0x1DE1B8, 0x1DE238]
+        self.assertEqual(data[0x64550:0x64568], b"".join(at.to_bytes(4, "big") for at in worlds))
+        for address in worlds:
+            self.assertEqual(requests[address], 16)
+
     def test_every_drawn_panel_layer_has_its_palette(self):
         # Panel_Draw copies sixteen words of a layer's palette whenever its
         # art tile is not $FFFF; each such address is a palette record.

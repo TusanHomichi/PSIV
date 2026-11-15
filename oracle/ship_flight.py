@@ -53,7 +53,40 @@ def measure(rows: list[dict[str, str]], landing: int) -> dict:
     raise ValueError("tape ended without field control after landing")
 
 
-def run(output: Path) -> dict:
+# Five unique sites: the planet call is reached by both routes.
+FADE_SITES = {"mota-zelan": [0x645D6, 0x64C8E, 0x647B8],
+              "zelan-mota": [0x648F8, 0x64C8E, 0x64A2E]}
+
+
+def measure_fades(rows: list[dict[str, str]], calls: list[dict[str, str]],
+                  sites: list[int]) -> list[dict]:
+    """Check calls, returns, display enable and every palette nibble pass."""
+    frames = {int(row["frame"]): row for row in rows}
+    if [int(row["pc"], 16) for row in calls] != [pc for site in sites for pc in (site, site + 6)]:
+        raise ValueError("omitted, duplicated or reordered flight fade")
+    result = []
+    for entry, returned in zip(calls[::2], calls[1::2]):
+        start, end = int(entry["frame"]), int(returned["frame"])
+        if end - start != 16:
+            raise ValueError("flight fade did not spend 16 frames")
+        target = [int(frames[start][f"saved_{i}"], 16) for i in range(64)]
+        for elapsed in range(16):
+            row = frames[start + elapsed]
+            for i, word in enumerate(target):
+                expected = sum(min((word >> shift) & 15, elapsed) << shift
+                               for shift in (0, 4, 8, 12))
+                if int(row[f"live_{i}"], 16) != expected:
+                    raise ValueError(f"wrong palette pass at frame {start + elapsed}, word {i}")
+            if bool(int(row["vdp_reg1"], 16) & 0x40) != (elapsed != 0):
+                raise ValueError(f"wrong display-enable frame {start + elapsed}")
+        result.append({"site": entry["pc"], "start": start, "return": end,
+                       "offset": start - CONFIRM_FRAME,
+                       "target_sha256": hashlib.sha256(
+                           b"".join(word.to_bytes(2, "big") for word in target)).hexdigest()})
+    return result
+
+
+def run(output: Path, *, fades: bool = False) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     binary = host_binary.ensure()
     # Extra diagnostic fields; the ordinary map remains the single source of
@@ -63,6 +96,11 @@ def run(output: Path) -> dict:
                         + "vdp_reg1\tFFFFEF0A\t2\tflight\thex\n"
                         + "window_mode\tFFFFEC9C\t1\tflight\thex\n"
                         + "text_chars\tFFFFED5A\t1\tflight\t-\n")
+    if fades:
+        with map_path.open("a") as handle:
+            for bank, base in [("live", 0xFFFFFB00), ("saved", 0xFFFFFB80)]:
+                for word in range(64):
+                    handle.write(f"{bank}_{word}\t{base + 2 * word:08X}\t2\tflight\thex\n")
     results = {}
     for name, origin, world, landing in [
         ("mota-zelan", 0xBF, 0, 0x18D), ("zelan-mota", 0x18D, 3, 0xBF)
@@ -75,6 +113,12 @@ def run(output: Path) -> dict:
                    "--rom", ROM, "--map", str(map_path), "--tape", TAPE_35["tape"],
                    "--groups", "core,camera,window,rng,flight", "--cpu-trace",
                    "--out", str(trace)]
+        if fades:
+            command += ["--pc-trace", str(output / f"{name}-pc.csv"),
+                        "--pc-trace-from", "7400"]
+            for address in sorted({pc for sites in FADE_SITES.values()
+                                   for site in sites for pc in (site, site + 6)}):
+                command += ["--pc-watch", f"{address:X}"]
         for patch in patches:
             command += ["--ram-patch", patch]
         with (output / f"{name}.log").open("w") as log:
@@ -82,6 +126,9 @@ def run(output: Path) -> dict:
         if process.returncode:
             raise RuntimeError(f"{name}: oracle exited {process.returncode}")
         result = measure(read_trace(trace), landing)
+        if fades:
+            result["fades"] = measure_fades(read_trace(trace),
+                                            read_trace(output / f"{name}-pc.csv"), FADE_SITES[name])
         result.update(command=command, exit_code=process.returncode,
                       trace_sha256=hashlib.sha256(trace.read_bytes()).hexdigest())
         results[name] = result
@@ -96,8 +143,9 @@ def run(output: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("build/x77-evidence/oracle"))
+    parser.add_argument("--fades", action="store_true", help="trace flight fade calls and both palette buffers")
     args = parser.parse_args()
-    receipt = run(args.out)
+    receipt = run(args.out, fades=args.fades)
     for name, leg in receipt["legs"].items():
         print(name, leg["frames_to_control"], leg["map_edges"])
 

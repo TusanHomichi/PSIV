@@ -44,8 +44,6 @@ pub(super) enum Step {
     /// A fixed fade op: `InitVramAndCram` (its `FadeOut` folded in),
     /// `FadeIn` or `FadeOut`.
     Fade(Fixed),
-    /// A `FlightFadeIn`.
-    FlightFadeIn,
     /// The destination menu.
     Menu,
     /// The post-fade panel/chunk teardown and world commit.
@@ -140,7 +138,6 @@ pub(super) fn trace(ops: &'static [SceneOp], way: Way) -> Vec<Step> {
                         );
                         steps.push(Step::Fade(Fixed::Init));
                     }
-                    SceneOp::FlightFadeIn { .. } => steps.push(Step::FlightFadeIn),
                     SceneOp::PlaySound {
                         id: SFX_SPACESHIP_PROPELLED,
                     } => steps.push(Step::Propelled),
@@ -199,18 +196,6 @@ pub(super) fn retarget(ops: &mut [SceneOp], at: usize, grew: bool) {
     }
 }
 
-/// Normalize only the separate FlightFadeIn mismatch. The two menu fade-outs
-/// are production ops and must not be synthesized by this census helper.
-pub(super) fn route_as_called() -> Vec<SceneOp> {
-    INSIDE_SPACESHIP_ROUTE
-        .iter()
-        .map(|op| match op {
-            SceneOp::FlightFadeIn { .. } => SceneOp::FadeIn,
-            op => *op,
-        })
-        .collect()
-}
-
 /// Inserts `op` at `at`, growing every relative skip over it.
 pub(super) fn insert(ops: &mut Vec<SceneOp>, at: usize, op: SceneOp) {
     ops.insert(at, op);
@@ -221,7 +206,7 @@ pub(super) fn insert(ops: &mut Vec<SceneOp>, at: usize, op: SceneOp) {
 mod tests {
     use super::*;
     use Fixed::{In, Init, Out};
-    use Step::{Chunks, Commit, Destroy, Fade, FlightFadeIn as F, Leg, Menu, Propelled};
+    use Step::{Chunks, Commit, Destroy, Fade, Leg, Menu, Propelled};
 
     fn scene(name: &str) -> &'static [SceneOp] {
         crate::SCENES
@@ -232,30 +217,29 @@ mod tests {
     }
 
     /// What every caller's route does after its own ops, down `way`. The
-    /// menu's own fade-outs precede every map handoff. The flight's
-    /// `Pal_FadeIn`s remain `FlightFadeIn`s for the dependent migration.
+    /// menu's own fade-outs precede every map handoff.
     fn route(way: Way) -> Vec<Step> {
         let mut steps = vec![Fade(Init), Fade(In), Menu, Fade(Out), Destroy, Chunks];
         steps.extend(match way {
             Way::Spaceport => vec![
                 Commit,
                 Leg(FlightLeg::Takeoff),
-                F,
+                Fade(In),
                 Propelled,
                 Propelled,
                 Propelled,
             ],
-            Way::Elsewhere => vec![Commit, Leg(FlightLeg::Takeoff), F],
+            Way::Elsewhere => vec![Commit, Leg(FlightLeg::Takeoff), Fade(In)],
             Way::Cancel => vec![Leg(FlightLeg::Return)],
         });
         if way != Way::Cancel {
             steps.extend([
                 Fade(Out),
                 Fade(Init),
-                F,
+                Fade(In),
                 Fade(Out),
                 Leg(FlightLeg::Transit),
-                F,
+                Fade(In),
                 Fade(Out),
                 Leg(FlightLeg::Landing),
             ]);
@@ -340,7 +324,7 @@ mod tests {
                 altered += 1;
             }
         }
-        assert!(altered >= 12, "only {altered} alterations checked");
+        assert_eq!(altered, 24);
     }
 
     #[test]

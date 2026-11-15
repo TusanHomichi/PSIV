@@ -224,11 +224,6 @@ const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
 const CANCEL_SKIP: u16 = 44;
 
-/// Flight fade-in has two more frames than its fourteen passes, display
-/// enable and the terminal pass; FlightFadeIn owns its 16. The fade-outs are
-/// `PalFadeOut_ClrSpriteTbl`, whose frames `FadeOut` spends (#637).
-const FADE_IN_FRAMES: u16 = 16;
-
 /// The shared body of `$800D`, `Cutscene_InsideSpaceship` (`ps4.asm:155427`):
 /// init, fade, `jmp loc_63BC4`. The two scenes that end in the same `jmp`
 /// (`Cutscene_LeRoofAgain`, `Cutscene_FindingAirCastle`) inline it, and the
@@ -283,9 +278,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     },
     // loc_641A2 ship art (2 frames), loc_64230 sprite DMA (1 frame).
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     // Passes 226, 227 and 228 (counter `$E1..$E3`) each request the
     // propulsion SFX, and each request restarts it (`PlaySFX` clears the
     // channel, `ps4.sound_driver.asm:757-850`): tape 35 shows the channel's
@@ -311,9 +304,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
         leg: FlightLeg::Takeoff,
     },
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     SceneOp::Wait { ticks: 228 },
     // loc_6472C: fade out, 60 map updates, the planet screen's fade in, 300
     // frames (`d0 = $12B`, `:134670-134686`) and fade out, 60 more.
@@ -324,9 +315,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     SceneOp::InitVramAndCram,
     SceneOp::FlightPlanet,
     SceneOp::SetTextColour { colour: 0 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     // Caption colour is zero until d0=$6D, after the 191st planet frame.
     SceneOp::WaitFrames { frames: 191 },
     SceneOp::SetTextColour { colour: 0xEEE },
@@ -340,9 +329,7 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 54] = [
     },
     // loc_641A2, loc_64332, then the Y-only pan and its sprite placement VInt.
     SceneOp::WaitFrames { frames: 3 },
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
+    SceneOp::FadeIn,
     SceneOp::FlightPan,
     SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 257 },

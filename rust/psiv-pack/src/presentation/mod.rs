@@ -92,7 +92,7 @@ const SCENE_PICTURES: [ScenePicture; 1] = [ScenePicture {
 
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
-const PALETTE_REQUESTS: [(usize, usize); 20] = [
+const PALETTE_REQUESTS: [(usize, usize); 30] = [
     (0x1D_2A3C, 64),
     (0x1D_E0B8, 16),
     (0x06_E908, 14),
@@ -106,6 +106,16 @@ const PALETTE_REQUESTS: [(usize, usize); 20] = [
     (0x06_EE16, 21),
     (0x2E_EA04, 16),
     (0x07_30FC, 16),
+    (0x1D_E0D8, 16),
+    (0x1D_E0F8, 16),
+    (0x1D_E118, 16),
+    (0x1D_E138, 16),
+    (0x1D_E198, 16),
+    (0x1D_E1B8, 16),
+    (0x1D_E1D8, 16),
+    (0x1D_E1F8, 16),
+    (0x1D_E218, 16),
+    (0x1D_E238, 16),
     (0x1D_E258, 16),
     (0x07_0626, 9),
     (0x07_0672, 22),

@@ -638,8 +638,6 @@ impl Cram {
                 };
                 return self.presentation(fade, main_frame_count, palettes, cycle_index);
             }
-            // A flight's `Pal_FadeIn`, whose frames the flight counts itself.
-            SceneOp::FlightFadeIn { .. } => self.enable_display_after_frame(),
             SceneOp::LoadPalette {
                 rom_addr,
                 words,
@@ -988,6 +986,7 @@ impl Cram {
 }
 
 mod ending;
+mod flight;
 mod inn;
 #[cfg(test)]
 mod tests;
