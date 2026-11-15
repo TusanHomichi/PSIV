@@ -211,3 +211,16 @@ fn moving_bioplant_fade_before_the_wait_breaks_its_boundary() {
     // The list of fade kinds is unchanged, so the image order alone misses it.
     assert_eq!(trace(Box::leak(ops.into_boxed_slice())), expected());
 }
+
+#[test]
+fn moving_the_second_init_in_before_the_tree_changes_the_trace() {
+    let mut ops = ZIO_DEFEATED.ops.to_vec();
+    let tree = ops
+        .iter()
+        .position(|op| matches!(op, SceneOp::SetDialogueTree { .. }))
+        .unwrap();
+    // Move the pair across only the tree load: all fourteen fade kinds
+    // remain in the same order, but their retail boundary is lost.
+    ops[tree..tree + 3].rotate_left(1);
+    assert_ne!(trace(Box::leak(ops.into_boxed_slice())), expected());
+}

@@ -33,7 +33,7 @@ start `($70,$BC)`. The final load is the same map/previous map with start
 
 The fixed-fade call order is Init, In, Out, In, Out, Init, In, In,
 Out, Init, In, Init, In, In. `$075B10` follows the second 60-tick map
-update, so the BioPlant remains visible through that wait. The three calls at
+update, before the display-off boundary. The three calls at
 `$075D72..$075D7E` run after the spaceport helper returns, and the two at
 `$075D90/$075D96` run after the tree load and before panel `$73`.
 The elevator helpers (`$075EE0..$075FC7`) and the spaceport helper
