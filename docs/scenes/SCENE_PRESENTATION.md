@@ -621,8 +621,8 @@ The view also carries VDP register 1's display-enable bit (`CramView::display`,
 in `ClearSpriteTableBuf`, which clears it (`ps4.asm:85982-85984`): the first
 dark frame is the one after the fade's last pass and its waits. `VDP_EnableDisplay`
 (`$04222E`) spends one `VInt_Prepare` and sets it, so the frame after it is
-the first lit one: inside `Pal_FadeIn`, `Pal_VariableFadeIn` and a flight's
-`FlightFadeIn`, and where a scene calls it itself (`PresentationOp::EnableDisplay`:
+the first lit one: inside `Pal_FadeIn` (including flights), `Pal_VariableFadeIn`,
+and where a scene calls it itself (`PresentationOp::EnableDisplay`:
 `Cutscene_Alshline` `$074494`, the ending `$079C0A`; `scenes::display_calls_image`
 ties each record to its call, and lists `Cutscene_PsycoWand`'s bare
 `ClearSpriteTableBuf` at `$07536A`, which falls between two black frames).
