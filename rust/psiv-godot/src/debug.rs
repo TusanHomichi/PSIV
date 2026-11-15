@@ -284,6 +284,14 @@ impl Field {
     /// settled receipt observes the same update boundary as the simulation.
     pub(super) fn debug_hooks_tick(&mut self) {
         self.capture_debug_state();
+        if self.anim_tick == 30
+            && let Ok(value) = std::env::var("PSIV_DEBUG_ENCOUNTER_ENTRY")
+            && let Ok(formation) = u16::from_str_radix(value.trim_start_matches("0x"), 16)
+            && let Some(session) = self.session.as_mut()
+        {
+            let event = session.debug_encounter_entry(formation);
+            self.process_events(vec![event]);
+        }
         let vehicle_battle = std::env::var("PSIV_DEBUG_VEHICLE_BATTLE").ok();
         let formation = std::env::var("PSIV_DEBUG_BATTLE")
             .ok()

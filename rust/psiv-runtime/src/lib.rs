@@ -18,11 +18,11 @@ mod camera;
 mod camp;
 mod cram;
 pub use cram::{CramView, TEXT_COLOUR_SLOT};
+mod battle_entry;
 mod dialogue;
 mod effects;
 mod encounters;
-mod event_battle_entry;
-pub use event_battle_entry::EventBattleBand;
+pub use battle_entry::EventBattleBand;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;
@@ -230,7 +230,7 @@ pub struct Runtime {
     /// The event battle that owns the current scene block, if any.
     scene_battle: Option<u16>,
     /// An event battle's entry, from the scene's request to the roll.
-    event_battle_entry: Option<event_battle_entry::EventBattleEntry>,
+    battle_entry: Option<battle_entry::BattleEntry>,
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,

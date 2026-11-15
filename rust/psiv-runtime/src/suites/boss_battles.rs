@@ -280,13 +280,13 @@ fn the_event_battle_starts_and_rolls_at_its_entrys_end() {
         }
         assert!(events.is_empty(), "nothing else runs: {events:?}");
         assert!(!runtime.battle_active() && runtime.scene_active());
-        screens.push(runtime.event_battle_entry_screen());
+        screens.push(runtime.battle_entry_screen());
         assert!(ticks < 76, "the battle starts on the 76th frame");
     };
     assert_eq!(ticks, 76);
     // 36 seed steps, and the roll's rotation on the last frame.
     assert_eq!(steps, 37);
-    assert!(runtime.battle_active() && runtime.event_battle_entry_screen().is_none());
+    assert!(runtime.battle_active() && runtime.battle_entry_screen().is_none());
     assert!(matches!(started[0], BattleEvent::Started { .. }));
     assert!(screens[..13].iter().all(Option::is_none), "{screens:?}");
     assert!(screens[13..56].iter().all(|word| *word == Some(0xEEE)));

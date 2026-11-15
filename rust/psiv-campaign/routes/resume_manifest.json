@@ -10,13 +10,28 @@
    "kind": "lost_battle",
    "battle": "random",
    "resumes": [
-    "kuran-dark-force-1",
-    "island-cave",
-    "soldiers-temple"
+    "zio-fort-approach",
+    "ladea-tower-psycho-wand",
+    "nurvus-descent",
+    "garuberk-tower-second-eye",
+    "de-vars"
    ],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/579",
    "date": "2026-11-15",
-   "note": "a random battle in the Edge's training corridor wipes the party: 3 of the resumes that reach it, since the event battles' opening rolls moved after their entry (#663) and the route's RNG with them; the earlier halts' resumes all complete"
+   "note": "Known Edge-training in-battle losses on the encounter-entry RNG trajectory (#678), including BlindHead formations 475/497 and OuterBeast formation 480; see #579."
+  },
+  {
+   "chapter": "jut-outfit",
+   "objective": 27,
+   "objective_kind": "go_to_map",
+   "kind": "lost_battle",
+   "battle": "random",
+   "resumes": [
+    "meese-raja-sick"
+   ],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/586",
+   "date": "2026-11-15",
+   "note": "The Ice Digger loses to formation 132 on the way to the Dezo spaceport on the encounter-entry RNG trajectory (#678); RUN-versus-ATTAC policy retains the failed-escape risk tracked by #586."
   }
  ]
 }

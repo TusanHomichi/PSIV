@@ -1,29 +1,17 @@
-//! An event battle's entry: the frames from a scene's battle request to the
-//! battle's opening roll.
+//! Shared battle entry before the opening roll (`GameMode_LoadBattle`,
+//! `ps4.asm:9911`). The field arm runs first, then the stage loads under `$EEE`,
+//! `loc_6B20` fades from white, and `loc_B62A` rolls the opening priority.
 //!
-//! A scene that sets `Routine_Exit_Flags` bit 3 returns through
-//! `RunEventBattle` (`ps4.asm:120803`): a `VInt_Prepare`, the event arm of
-//! `FieldRoutine_Battle2` (`loc_58498`, fifteen band passes, or `loc_58482`'s
-//! forty tone frames for the Profound Darkness, index `$1A`), and
-//! `loc_585C8`'s `VInt_Prepare` into `GameMode_LoadBattle` (`ps4.asm:9911`).
-//! That mode fills the palette with `$EEE`, loads the stage while the frame
-//! count holds, fades the stage in from white (`loc_6B20`, one nibble per
-//! frame toward the battle palette, the planes sweeping in alongside) and only
-//! then calls `loc_B62A` (`ps4.asm:10043`), the battle's one opening roll. Every
-//! encounter takes the same `GameMode_LoadBattle`; its own field arm is
-//! `loc_584EE`, and the port still rolls it at once (#678).
+//! Tape 45's event battle 7 requests on 7799, counts 7800-7817, lags
+//! 7818-7854, counts 7855-7872 and rolls on the third lag frame, 7875.
+//! Tape 07's encounter fires on 24777, counts 24778-24796, lags 24797-24819,
+//! counts 24820-24837 and rolls on the third lag frame, 24840. The two
+//! pre-load profiles are measured independently: encounters enter through
+//! `FieldRoutine_Battle`, scenes through `RunEventBattle`. Both stop the
+//! music and spend a `VInt_Prepare` before `FieldRoutine_Battle2`.
 //!
-//! So the battle starts, and rolls, at the end of the entry, and the seed has
-//! stepped on each of the entry's counted frames. Tape 45
-//! (`tools/certify.py` `TAPE_45`, `Event_FractOozeFound`, battle 7) measures
-//! the frames, counted from the frame the C ends the text (7799): 7800-7817
-//! advance `Main_Frame_Count`, 7818-7854 are the stage's lag frames, 7855-7872
-//! count again (the `$EEE` frame, the fade and the sweep's end), 7873-7875 lag,
-//! and 7875's seed word is rotated by the roll. The screen is white from 7814,
-//! steps from 7857 and is at the battle palette by 7870.
-//!
-//! The lag depends on what the stage decompresses; the port spends battle 7's
-//! 37 frames on every event battle (source notes, #663).
+//! Stage decompression time varies. These profiles use tape 45's 37 load-lag
+//! frames for event battles and tape 07's 23 for encounters (source notes).
 
 use crate::{Runtime, RuntimeEvent};
 
@@ -44,7 +32,9 @@ pub struct EventBattleBand {
 /// `GameMode_LoadBattle`'s first frame).
 const BEFORE_LOADS: u16 = 18;
 /// The stage's lag frames on tape 45 (7818-7854).
-const LOAD_LAG: u16 = 37;
+const EVENT_LOAD_LAG: u16 = 37;
+/// Tape 07, 24797-24819.
+const ENCOUNTER_LOAD_LAG: u16 = 23;
 /// The counted frames from the `$EEE` frame through the sweep (7855-7872).
 const FADE_COUNTED: u16 = 18;
 /// The lag frames before the roll, the roll's own included (7873-7875).
@@ -55,37 +45,67 @@ const BAND_PASSES: u16 = 15;
 const DARKNESS_TONE_FRAMES: u16 = 40;
 /// The event battle index `RunEventBattle` sends to `loc_58482`.
 const PROFOUND_DARKNESS: u16 = 0x1A;
-/// The first frame the visible screen is all white (pass fourteen).
+/// Event entry's first submitted white screen; Godot displays it next frame.
 const WHITE_FROM: u16 = 14;
 /// `GameMode_LoadBattle`'s white: every palette word `$EEE`.
 pub const ENTRY_WHITE: u16 = 0x0EEE;
 
-/// The entry of one event battle, while it runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct EventBattleEntry {
-    index: u16,
+enum EntryKind {
+    Event(u16),
+    Encounter(u16),
+}
+
+/// The entry of one battle, while it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BattleEntry {
+    kind: EntryKind,
     /// Frames since the request frame.
     elapsed: u16,
 }
 
-impl EventBattleEntry {
+impl BattleEntry {
     const fn new(index: u16) -> Self {
-        Self { index, elapsed: 0 }
+        Self {
+            kind: EntryKind::Event(index),
+            elapsed: 0,
+        }
+    }
+
+    const fn encounter(formation: u16) -> Self {
+        Self {
+            kind: EntryKind::Encounter(formation),
+            elapsed: 0,
+        }
     }
 
     /// The field arm's frames: one per band pass or tone frame.
     const fn field_frames(self) -> u16 {
-        if self.index == PROFOUND_DARKNESS {
+        if matches!(self.kind, EntryKind::Event(PROFOUND_DARKNESS)) {
             DARKNESS_TONE_FRAMES
         } else {
             BAND_PASSES
         }
     }
 
+    const fn encounter_frame(self) -> u16 {
+        matches!(self.kind, EntryKind::Encounter(_)) as u16
+    }
+
+    const fn load_lag(self) -> u16 {
+        match self.kind {
+            EntryKind::Event(_) => EVENT_LOAD_LAG,
+            EntryKind::Encounter(_) => ENCOUNTER_LOAD_LAG,
+        }
+    }
+
     /// `d6 = 13`, `d5 = 2`, then `d6 -= 1`, `d5 += 2`, fifteen
     /// times (`$058498..$0584EC`). The fifteenth write extends off-screen.
     const fn band(self) -> Option<EventBattleBand> {
-        if self.index == PROFOUND_DARKNESS || self.elapsed == 0 || self.elapsed > BAND_PASSES {
+        if !matches!(self.kind, EntryKind::Event(index) if index != PROFOUND_DARKNESS)
+            || self.elapsed == 0
+            || self.elapsed > BAND_PASSES
+        {
             return None;
         }
         Some(EventBattleBand {
@@ -101,12 +121,12 @@ impl EventBattleEntry {
 
     /// The counted frames before the loads, for this arm.
     const fn before_loads(self) -> u16 {
-        BEFORE_LOADS - BAND_PASSES + self.field_frames()
+        BEFORE_LOADS - BAND_PASSES + self.field_frames() + self.encounter_frame()
     }
 
     /// The first frame of the `$EEE` frame and the fade.
     const fn fade_from(self) -> u16 {
-        self.before_loads() + LOAD_LAG + 1
+        self.before_loads() + self.load_lag() + 1
     }
 
     /// The frame the battle starts and rolls.
@@ -129,7 +149,10 @@ impl EventBattleEntry {
     /// backdrop; the port draws no stage until the battle starts, so it holds
     /// the black backdrop to the roll (#679).
     const fn screen(self, elapsed: u16) -> Option<u16> {
-        let white_from = self.field_frames() - BAND_PASSES + WHITE_FROM;
+        // Tape 07 submits white on elapsed 16 (displayed on 17); tape 45
+        // submits on 14 (displayed on 15). Their field arms differ.
+        let white_from =
+            self.field_frames() - BAND_PASSES + WHITE_FROM + 2 * self.encounter_frame();
         if elapsed < white_from {
             return None;
         }
@@ -145,19 +168,27 @@ impl EventBattleEntry {
 
 impl Runtime {
     /// A scene asked for event battle `index`: the entry runs before it starts.
-    pub(crate) fn begin_event_battle_entry(&mut self, index: u16) -> RuntimeEvent {
-        self.event_battle_entry = Some(EventBattleEntry::new(index));
+    pub(crate) fn begin_battle_entry(&mut self, index: u16) -> RuntimeEvent {
+        self.battle_entry = Some(BattleEntry::new(index));
         RuntimeEvent::EventBattleEntered { index }
     }
 
-    /// One frame of an event battle's entry, when one runs: the field and the
+    /// An encounter fired: retain its formation while the entry runs.
+    pub(crate) fn begin_encounter_entry(&mut self, formation: u16) -> RuntimeEvent {
+        self.battle_entry = Some(BattleEntry::encounter(formation));
+        RuntimeEvent::EncounterRolled { formation }
+    }
+
+    /// One frame of a battle's entry, when one runs: the field and the
     /// scene are parked, a counted frame steps `Main_Frame_Count` and the seed,
     /// and the roll frame starts the battle.
-    pub(crate) fn tick_event_battle_entry(&mut self) -> Option<Vec<RuntimeEvent>> {
-        let entry = self.event_battle_entry.as_mut()?;
+    pub(crate) fn tick_battle_entry(&mut self) -> Option<Vec<RuntimeEvent>> {
+        let entry = self.battle_entry.as_mut()?;
         entry.elapsed += 1;
         let entry = *entry;
-        if (1..=entry.field_frames()).contains(&entry.elapsed) {
+        if matches!(entry.kind, EntryKind::Event(_))
+            && (1..=entry.field_frames()).contains(&entry.elapsed)
+        {
             // The loop calls the palette helper before its DMA/VInt wait.
             self.effects.cram.increase_tone(self.frames);
         }
@@ -171,22 +202,31 @@ impl Runtime {
         if entry.elapsed < entry.roll_frame() {
             return Some(Vec::new());
         }
-        self.event_battle_entry = None;
-        Some(vec![self.start_requested_battle(entry.index)])
+        self.battle_entry = None;
+        Some(vec![match entry.kind {
+            EntryKind::Event(index) => self.start_requested_battle(index),
+            EntryKind::Encounter(formation) => RuntimeEvent::EncounterBattleReady { formation },
+        }])
+    }
+
+    /// Whether an entry owns the frame, including the field arm before white.
+    #[must_use]
+    pub fn battle_entering(&self) -> bool {
+        self.battle_entry.is_some()
     }
 
     /// The field arm's current plane-A band, over the field and its windows.
     #[must_use]
     pub fn event_battle_entry_band(&self) -> Option<EventBattleBand> {
-        self.event_battle_entry?.band()
+        self.battle_entry?.band()
     }
 
-    /// The uniform screen an event battle's entry shows this frame, as a CRAM
+    /// The uniform screen a battle's entry shows this frame, as a CRAM
     /// word: the white hold and the fade from white. `None` when no entry runs
     /// or while its field arm draws.
     #[must_use]
-    pub fn event_battle_entry_screen(&self) -> Option<u16> {
-        let entry = self.event_battle_entry?;
+    pub fn battle_entry_screen(&self) -> Option<u16> {
+        let entry = self.battle_entry?;
         entry.screen(entry.elapsed)
     }
 }
@@ -196,7 +236,10 @@ mod tests {
     use super::*;
 
     fn frames(index: u16) -> Vec<(u16, bool, Option<u16>)> {
-        let mut entry = EventBattleEntry::new(index);
+        entry_frames(BattleEntry::new(index))
+    }
+
+    fn entry_frames(mut entry: BattleEntry) -> Vec<(u16, bool, Option<u16>)> {
         let mut out = Vec::new();
         while entry.elapsed < entry.roll_frame() {
             entry.elapsed += 1;
@@ -209,10 +252,28 @@ mod tests {
         out
     }
 
+    /// Tape 07: fire 24777, roll 24840. Counted frames are 24778-24796
+    /// and 24820-24837; both lag intervals leave the frame counter alone.
+    #[test]
+    fn encounters_count_tape_07s_frames_before_the_roll() {
+        let frames = entry_frames(BattleEntry::encounter(0x8A));
+        assert_eq!(frames.len(), 63);
+        let counted: Vec<u16> = frames.iter().filter(|f| f.1).map(|f| f.0).collect();
+        assert_eq!(counted, (1..=19).chain(43..=60).collect::<Vec<_>>());
+        // Screens are submitted one frame before Godot captures them.
+        let displayed = |frame: u16| frames[usize::from(frame - 24779)].2;
+        assert_eq!(displayed(24793), None);
+        assert!((24794..=24821).all(|f| displayed(f) == Some(ENTRY_WHITE)));
+        assert_eq!(displayed(24822), Some(0xDDD));
+        assert_eq!(displayed(24823), Some(0xCCC));
+        assert_eq!(displayed(24824), Some(0xBBB));
+        assert_eq!(displayed(24835), Some(0));
+    }
+
     #[test]
     fn the_event_arm_writes_fifteen_expanding_bands_but_darkness_only_tones() {
         for index in 0..=0x1A {
-            let mut entry = EventBattleEntry::new(index);
+            let mut entry = BattleEntry::new(index);
             assert_eq!(entry.band(), None, "the request frame keeps the page");
             for pass in 1..=16 {
                 entry.elapsed = pass;

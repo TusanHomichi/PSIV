@@ -13,8 +13,6 @@ const PALETTE_LEVELS: u8 = 7;
 pub(crate) enum TransitionKind {
     /// Doorway/map-change fade-through-black: 13 out, 54 black, 13 in.
     Doorway,
-    /// Encounter flash: field to white, white hold, then battle reveal.
-    BattleEntry,
     /// Cutscene initialization off a palette that is not live: fade to
     /// black and hold until the scene's first presentation window is ready.
     /// On a live one the scene's `InitVRAMAndCRAM` fades the CRAM itself.
@@ -32,9 +30,9 @@ pub(crate) enum TransitionKind {
     /// the field being left, and a scene's `FadeOut` off a palette that is
     /// not live.
     SceneFadeOut,
-    /// One frame of a uniform screen the runtime chose, as a CRAM word: an
-    /// event battle's white hold and fade
-    /// (`psiv_runtime::Runtime::event_battle_entry_screen`). The shell sets it
+    /// One frame of a uniform screen the runtime chose, as a CRAM word: a
+    /// battle's white hold and fade
+    /// (`psiv_runtime::Runtime::battle_entry_screen`). The shell sets it
     /// again on every frame the runtime still shows it.
     Screen(u16),
     /// Runtime-owned opaque rows on the retail surface, over field windows.
@@ -45,7 +43,6 @@ pub(crate) enum TransitionKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransitionColor {
     Black,
-    White,
     /// The colour a CRAM word shows, opaque.
     Cram(u16),
 }
@@ -106,7 +103,6 @@ impl Transition {
     pub(crate) fn visual(self) -> Option<TransitionVisual> {
         match self.kind {
             TransitionKind::Doorway => self.doorway_visual(),
-            TransitionKind::BattleEntry => self.battle_visual(),
             TransitionKind::SceneStart => self.scene_start_visual(),
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
@@ -127,8 +123,7 @@ impl Transition {
     pub(crate) fn z_index(self) -> i32 {
         match self.kind {
             TransitionKind::Screen(_) | TransitionKind::Band(_) => super::dialogue::Z_INDEX + 100,
-            TransitionKind::BattleEntry
-            | TransitionKind::GameStart
+            TransitionKind::GameStart
             | TransitionKind::SceneFadeIn
             | TransitionKind::SceneFadeOut => 600,
             TransitionKind::Doorway | TransitionKind::SceneStart => 25,
@@ -148,7 +143,6 @@ impl Transition {
         }
         match self.kind {
             TransitionKind::Doorway => 80,
-            TransitionKind::BattleEntry => 56,
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
@@ -168,19 +162,6 @@ impl Transition {
             _ => return None,
         };
         Some(black(level))
-    }
-
-    fn battle_visual(self) -> Option<TransitionVisual> {
-        if self.finished() || self.age == 0 {
-            return None;
-        }
-        let visual = match self.age {
-            1..=14 => white(step_up(self.age)),
-            15..=41 => white(PALETTE_LEVELS),
-            42..=55 => white(step_down(self.age - 41)),
-            _ => return None,
-        };
-        Some(visual)
     }
 
     fn scene_start_visual(self) -> Option<TransitionVisual> {
@@ -228,14 +209,6 @@ impl Transition {
 fn black(level: u8) -> TransitionVisual {
     TransitionVisual {
         color: TransitionColor::Black,
-        level,
-        opening: None,
-    }
-}
-
-fn white(level: u8) -> TransitionVisual {
-    TransitionVisual {
-        color: TransitionColor::White,
         level,
         opening: None,
     }
@@ -291,7 +264,6 @@ mod tests {
             assert_eq!(after_palette_fade_in(Some(doorway)), None, "age {age}");
         }
         for kind in [
-            TransitionKind::BattleEntry,
             TransitionKind::SceneStart,
             TransitionKind::GameStart,
             TransitionKind::SceneFadeIn,
@@ -328,25 +300,6 @@ mod tests {
         age_to(&mut transition, 1);
         assert!(transition.finished());
         assert!(transition.visual().is_none());
-    }
-
-    #[test]
-    fn battle_is_white_flash_hold_then_white_reveal() {
-        let mut transition = Transition::new(TransitionKind::BattleEntry);
-        age_to(&mut transition, 1);
-        let first = transition.visual().unwrap();
-        assert_eq!(first.color, TransitionColor::White);
-        assert_eq!(first.level, 1);
-        age_to(&mut transition, 13);
-        assert_eq!(transition.visual().unwrap().level, 7);
-        age_to(&mut transition, 27);
-        assert_eq!(transition.visual().unwrap().level, 7);
-        age_to(&mut transition, 1);
-        assert_eq!(transition.visual().unwrap().level, 6);
-        age_to(&mut transition, 13);
-        assert_eq!(transition.visual().unwrap().level, 0);
-        age_to(&mut transition, 1);
-        assert!(transition.finished());
     }
 
     #[test]
