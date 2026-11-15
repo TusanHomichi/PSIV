@@ -228,8 +228,12 @@ impl Runtime {
     pub fn battle_load_view(&self) -> Option<crate::BattleLoadView> {
         let entry = self.battle_entry?;
         let steps = entry.elapsed.checked_sub(entry.fade_from())?;
-        self.prepared_battle.as_ref()?;
-        Some(crate::BattleLoadView::new(entry.start(), steps))
+        let (_, prepared) = self.prepared_battle.as_ref()?;
+        Some(crate::BattleLoadView::new(
+            entry.start(),
+            steps,
+            prepared.present_enemies(),
+        ))
     }
 
     /// The field arm's current plane-A band, over the field and its windows.

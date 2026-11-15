@@ -225,19 +225,15 @@ impl Field {
         };
         screen.bind_mut().begin(setup);
         self.hide_field_for_battle();
-        // HOTFIX (live QA: the framed takeover blacked out all battle art
-        // while screen-space windows survived): camera repositioning and the
-        // cinema letterbox are DISABLED for battles until the framing is
-        // rebuilt with live visual verification. The camera stays where the
-        // field left it; battle art parents to the BattleScreen at the
-        // field camera's current view. Ugly float, but visible - the
-        // authentic 320x224 framing returns as its own verified task.
+        // Stage coordinates start at the battle frame's origin. Scene bars
+        // must follow this camera change on the first loading frame too.
         if let Some(camera) = self.camera.as_mut() {
             camera.set_position(Vector2::new(
                 BATTLE_FRAME_WIDTH / 2.0,
                 BATTLE_FRAME_HEIGHT / 2.0,
             ));
         }
+        self.place_letterbox();
         godot_print!("battle started: {label}");
     }
 
@@ -288,6 +284,7 @@ impl Field {
             // The stage exists while the session still owns the loader in
             // field mode. Advance that mode, with the idle art clock parked.
             self.drive_game_frame();
+            self.place_letterbox();
             return true;
         }
         if !self.battle_presentation_active() {

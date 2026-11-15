@@ -1,7 +1,9 @@
 //! `loc_6B20` / `loc_6BA4`: the battle stage before its opening roll.
 use crate::session::BattleStart;
 use crate::{BridgeError, Runtime};
-use psiv_core::battle::{Battle, PartyMember, PreparedBattle};
+use psiv_core::battle::{
+    Battle, ENEMY_SLOTS, FighterId, PARTY_SLOTS, PartyMember, PreparedBattle, Side,
+};
 
 /// The loader's submitted plane and palette state. The shell draws this view;
 /// it owns no scroll, DMA or palette clock.
@@ -20,11 +22,14 @@ pub struct BattleLoadView {
     /// `Battle_UpdateEnemySprites` runs once before `loc_6B20`
     /// (`ps4.asm:10028`); its first timer underflow selects frame one.
     pub enemy_animation_phase_ticks: usize,
+    /// Post-initialization presence, indexed by formation slot. Cleared
+    /// neighbors stay cached for refills but do not enter the plane buffer.
+    pub visible_enemies: [bool; ENEMY_SLOTS],
     fade_steps: u8,
 }
 
 impl BattleLoadView {
-    pub(crate) fn new(start: BattleStart, steps: u16) -> Self {
+    pub(crate) fn new(start: BattleStart, steps: u16, enemies: &[FighterId]) -> Self {
         // `$4104` starts at 14 and is decremented before each queue: fourteen
         // uploads, then the fifteenth VInt checks the unchanged palette.
         let uploads = steps.min(14) as u8;
@@ -35,8 +40,17 @@ impl BattleLoadView {
             foreground_rows: uploads,
             background_first_row: 14 - uploads,
             enemy_animation_phase_ticks: 1,
+            visible_enemies: std::array::from_fn(|slot| {
+                enemies.iter().any(|id| id.slot() == PARTY_SLOTS + slot)
+            }),
             fade_steps: steps.min(14) as u8,
         }
+    }
+
+    /// Whether this enemy's prepared object contributes to plane A.
+    #[must_use]
+    pub fn enemy_visible(self, fighter: FighterId) -> bool {
+        fighter.side() == Side::Enemy && self.visible_enemies[fighter.slot() - PARTY_SLOTS]
     }
 
     /// `loc_6B56`: lower each nibble by one toward the target, not by an
@@ -99,7 +113,7 @@ mod tests {
     fn planes_upload_in_opposite_directions_and_palette_stops_at_target() {
         let start = BattleStart::EventBattle(7);
         for step in 0..=18 {
-            let view = BattleLoadView::new(start, step);
+            let view = BattleLoadView::new(start, step, &[]);
             let n = step.min(14) as u8;
             assert_eq!(view.enemy_animation_phase_ticks, 1);
             assert_eq!(
@@ -122,6 +136,9 @@ mod tests {
         }
         // A dark target stays much lighter than its final word mid-fade;
         // adding a tint to final pixels or only fading the backdrop fails.
-        assert_eq!(BattleLoadView::new(start, 7).palette_word(0x024A), 0x077A);
+        assert_eq!(
+            BattleLoadView::new(start, 7, &[]).palette_word(0x024A),
+            0x077A
+        );
     }
 }

@@ -74,6 +74,9 @@ impl BattleScreen {
 
     pub(crate) fn draw_load(&mut self, view: BattleLoadView) {
         if self.load.is_none() {
+            for enemy in &mut self.enemy_nodes {
+                enemy.node.set_visible(view.enemy_visible(enemy.fighter));
+            }
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
             node.set_z_index(20);
@@ -84,6 +87,7 @@ impl BattleScreen {
                 enemies: self
                     .enemy_nodes
                     .iter()
+                    .filter(|enemy| view.enemy_visible(enemy.fighter))
                     .filter_map(|enemy| Plane::from_sprite(&enemy.node))
                     .collect(),
             });

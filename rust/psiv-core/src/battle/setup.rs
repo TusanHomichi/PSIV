@@ -14,6 +14,13 @@ pub struct PreparedBattle {
 }
 
 impl PreparedBattle {
+    /// The post-initialization enemy objects present before the opening roll.
+    /// Dormant formation slots remain cached in the roster for later refills.
+    #[must_use]
+    pub fn present_enemies(&self) -> &[FighterId] {
+        &self.enemies
+    }
+
     /// `loc_B62A` (`ps4.asm:17436`), on its original frame, after setup.
     pub fn roll(mut self, rolls: &mut impl Rolls) -> (Battle, Vec<BattleEvent>) {
         let rolled = roll_priority(
