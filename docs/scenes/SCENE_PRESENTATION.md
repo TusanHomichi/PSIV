@@ -76,7 +76,7 @@ The table-driven scenes have two further pairs
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-palette-cycle` | **0.000000** | clone t1323 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface. The rows run ticks 1308-1329 against frames 8565-8586 (31 later than before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent their frames, [#637](https://github.com/TusanHomichi/PSIV/issues/637)) |
+| `rykros-palette-cycle` | **0.000000** | clone t1327 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8580: third nine-word row, planet visible but still dark; full 320×224 surface. The first three rows run ticks 1312-1333 against frames 8565-8586, including the fixed fades ([#637](https://github.com/TusanHomichi/PSIV/issues/637)) and four explicit panel DMA frames ([#595](https://github.com/TusanHomichi/PSIV/issues/595)) |
 | `zio-barrier-ramp` | **0.000000** | clone t270 (`PSIV_DEBUG_EVENT=0x30`) ↔ tape-44 frame 7462: second three-word row, `$AAA/$0A8/$066`, and the scene's frozen beam mapping; region `1,1,319,223` (#409) |
 
 Rykros's tone before that cycle joined them on 2026-11-14
@@ -85,31 +85,27 @@ and fixture, region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/i
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-tone-before` | **0.000000** | clone t926 ↔ tape-43 frame 8141: the three panels, untoned |
-| `rykros-tone-rise` | **0.000000** | clone t942 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
+| `rykros-tone-before` | **0.000000** | clone t929 ↔ tape-43 frame 8141: the three panels, untoned |
+| `rykros-tone-rise` | **0.000000** | clone t945 ↔ frame 8157: `Pal_IncreaseTone`'s fourth step, backdrop `$888` |
 | `rykros-tone-restore` | **0.000000** | clone t970 ↔ frame 8185: `loc_58666`'s third step back, every word floored at `$888` |
-| `rykros-tone-after` | **0.000000** | clone t986 ↔ frame 8201: the restored copy |
+| `rykros-tone-after` | **0.000000** | clone t989 ↔ frame 8201: the restored copy |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 8143, is
-white 8167-8174, and is the copy again from 8199. Clone tick t shows frame
-t + 7246 inside the region, but for each step's first frame (ticks 897, 901
-... 953), which the native shows already stepped: its `Main_Frame_Count`
-phase is one off the tape's. That phase is the fixture's, not the tone's: the
-debug run pages the scene's first dialogue on other frames than the tape, and
-the offset moved from t + 7263 when that dialogue's portraits began spending
-their frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)). The
-pairs sit in the plateaus' middles. The full frame differs only in #409's
-first row and column, black against the toned backdrop. The untoned tick 895
-scores `rmse=134.253889` against the rise, the step before it (907)
-`rmse=37.904457`, and the rise's own step (911, also backdrop `$888`) against
-the restore `rmse=18.398389`.
+white 8167-8174, and is the copy again from 8199. The native tone starts
+at tick 930 after three explicit panel DMA frames, and the restore at 960.
+Both still step by `Main_Frame_Count` modulo four. The debug fixture pages
+dialogue on different frames from the tape, so its phase differs: the rise
+now matches at 945, while the third restore step still matches at 970.
+The pairs pin those palette plateaus individually; they do not establish
+one frame offset for the whole scene. The full frame differs only in #409's
+first row and column, black against the toned backdrop.
 
 The window `Event_RunDialogue3` opens after the restore, and its portrait,
 joined them the same day:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `rykros-portrait` | **0.000000** | clone t1001 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface. Ticks 954-1010 matched frames 8200-8256 inside `1,1,319,223` before #637 moved the scene 31 ticks later; t969, the last lag frame then, scored `rmse=23.484914` |
+| `rykros-portrait` | **0.000000** | clone t1004 (`PSIV_DEBUG_EVENT=0x801B`) ↔ tape-43 frame 8216: the window after the tone, Rika's portrait at the panel position (24,112) and the first glyph, after the portrait's two lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)); full 320×224 surface, with the three explicit panel DMA frames before the tone included in this tick |
 
 `Retained` windows (`Event_GetAndRunDialogue2`, `$5ACDC`) keep their last page
 and portrait after the final press while their scene runs, for both fresh
@@ -211,21 +207,21 @@ Dezolis fixture (`TAPE_46`), both inside `1,1,319,223`:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `eclipse-torch-white` | **0.000000** | clone t152 (`PSIV_DEBUG_EVENT=0x47`) ↔ tape-46 frame 7355: the first fill, shown 7354-7356 |
-| `eclipse-torch-white-2` | **0.000000** | clone t195 ↔ tape-46 frame 7396: the second fill, 42 frames later on both sides |
+| `eclipse-torch-white` | **0.000000** | clone t159 (`PSIV_DEBUG_EVENT=0x47 PSIV_DEBUG_EVENT_FRAME=35`) ↔ tape-46 frame 7355: the first fill, shown 7354-7356 |
+| `eclipse-torch-white-2` | **0.000000** | clone t200 ↔ tape-46 frame 7396: the first visible frame of the second fill |
 
 The restore frames between them don't certify. On the cartridge, panel
 `$10D` replaces plane A, hides the sprites and loads line 3, but the pack
 does not decode the panel
 ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
-frames keep the field's foreground, Chaz and line 3. The fixture's
-`Main_Frame_Count` phase is not the tape's either: the native's snowstorm
-write lands in its first flash, the tape's in its second. Run with the
-tape's phase (three idle ticks before the event, `runtime_at` on the same
-map, flags and leader), the runtime's CRAM words 0-47 equal the tape's
-`Palette_Table_Buffer` on every frame from five before the first fill to the
-end of the second restore. That includes the snowstorm words the second
-flash's map update rewrites. From the object art's load on, the cartridge's
+frames keep the field's foreground, Chaz and line 3. The fixture starts
+its event at tick 35: five ordinary idle frames after the default setup put
+the snowstorm writes in the tape's phase after the explicit panel DMA frame.
+The first sample is the second white frame, and the second sample the first
+white frame, before its snowstorm write. Each capture records the native
+`Main_Frame_Count` in its state JSON; the runtime clock is never rewritten.
+These pairs certify the white flashes, not the missing panel or the restore.
+From the object art's load on, the cartridge's
 eight lag frames ([#681](https://github.com/TusanHomichi/PSIV/issues/681))
 leave the native eight frames early.
 
@@ -239,6 +235,12 @@ recipe rebuilds both.
 
 ### Fixtures
 
+- **`PSIV_DEBUG_EVENT_FRAME`** selects the tick at which a debug event starts,
+  default 30, with a minimum of 30 for the normal setup. Later ticks spend
+  ordinary idle frames before the event; they can align a fixture's palette
+  phase with its oracle run. Invalid values refuse the event with a diagnostic.
+  Certification writes a per-pair state JSON alongside the image, including
+  `Main_Frame_Count`, so the phase is observable.
 - **The opening** is certified through the title's real START
   (`PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1`, `Runtime::new_game`),
   not a fixture. On that timeline (`PSIV_DEBUG_SCENE_TICKS=1`; the scene starts
@@ -449,7 +451,7 @@ border at `(37,2)`.
 | `InitVramAndCram` | Implemented | Its `PalFadeOut_ClrSpriteTbl` first (the runner emits a `FadeOut` and waits for it), then the op: clears staged/visible scene planes and opening text, spends `DMAPlanes_VInt`'s frame and loads `Pal_Init`. |
 | `FadeIn`, `FadeOut` | Implemented | `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` on the runtime's CRAM model, one pass a frame, the scene waiting for them ([CRAM state](#cram-state)). Off a palette that is not live the shell's cover stands in: seven levels, two-frame stepping, 14 renderer ticks, above cutscene planes and below dialogue. |
 | `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is the operand-free typed `PanelDestroyLast` stack pop; loop counters are not panel-art IDs. Only an empty staged stack produces a destroy warning. |
-| `DmaPlanes` | Implemented | Staged panels, and a staged plane-A picture, become visible only at the DMA event. |
+| `DmaPlanes` | Implemented | Staged panels, and a staged plane-A picture, become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
 | `LoadSceneAsset` | Implemented for the decoded plane-A pictures; other assets logged | A source the pack decoded as a scene picture (`panels.json`, `scene_pictures`) stages it once its `LoadArt` ran; the next `DmaPlanes` shows it in place of the field map, under the sprites, drawn from the live CRAM with index 0 the backdrop (`cutscene/picture.rs`). `ReloadMapChunks` and `InitVramAndCram` clear it, and so does every teardown that replaces the planes outside the scene's ops (the scene's end, a field reload, a map change, the return to title), staged or shown, through one `clear_planes`. The one picture is Le Roof's galaxy ([51](51_MeetingLeRoof.md), [52](52_LeRoofAgain.md)). |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |

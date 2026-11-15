@@ -1,5 +1,5 @@
 //! `Event_EclipseTorchUsed` after its dismount, frame by frame (#593): the
-//! panel's 120 map-update frames, two white flashes, the nine `$338`
+//! panel's DMA frame and 120 map-update frames, two white flashes, the nine `$338`
 //! creations and the 80 main-update frames, then dialogue `$2A`, the `$9C`
 //! flag and the return.
 //!
@@ -157,9 +157,9 @@ fn expected() -> Vec<(String, usize)> {
         ]
     };
     let mut lines = vec![
-        // `$070238`: 120 frames of map updates under the panel.
-        ("panel 10D, map".to_owned(), 1),
-        ("map".to_owned(), 119),
+        // The panel's `DMAPlanes_VInt`, then `$070238`'s 120 map updates.
+        ("panel 10D, frame".to_owned(), 1),
+        ("map".to_owned(), 120),
     ];
     lines.extend(flash("sound DC"));
     lines.extend(flash("sound DC"));
@@ -176,9 +176,10 @@ fn expected() -> Vec<(String, usize)> {
     ]
     .map(|(slot, x, y)| format!("338/3AF {slot}@{x:X},{y:X}"))
     .join(", ");
-    // Nine creations on one frame, `DMAPlane_B_VInt`'s; the sound with the
-    // first of eighty.
-    lines.push((format!("unpanel, {objects}, frame"), 1));
+    // `$0702C2`: the panel destroy's DMA, then the nine creations on
+    // `DMAPlane_B_VInt`'s frame; the sound with the first of eighty.
+    lines.push(("unpanel, frame".to_owned(), 1));
+    lines.push((format!("{objects}, frame"), 1));
     lines.push(("sound B9, map".to_owned(), 1));
     lines.push(("map".to_owned(), 79));
     lines.push(("dialogue 2A, frame".to_owned(), 1));
@@ -209,10 +210,11 @@ fn check(ops: &'static [SceneOp]) -> Result<Vec<u16>, String> {
 fn the_eclipse_torch_flashes_twice_then_runs_eighty_main_update_frames() {
     let flags = check(&torch()[9..]).unwrap();
     assert_eq!(flags, [0x9C]);
-    // Frame totals: 120 + 2 * (2 + 40) + 80, then the dialogue and the end.
+    // Two panel DMA frames, 120 + 2 * (2 + 40), the object DMA frame,
+    // then 80 map updates, the dialogue and the end.
     let (runs, _) = run(&torch()[9..]);
     let frames: usize = runs.iter().map(|(_, count)| count).sum();
-    assert_eq!(frames, 120 + 2 * 42 + 1 + 80 + 2);
+    assert_eq!(frames, 2 + 120 + 2 * 42 + 1 + 80 + 2);
 }
 
 /// The scene's ops before #593, and each repair undone alone, fail the
@@ -270,7 +272,7 @@ fn control_the_old_flash_and_spawn_timing_fail_the_frame_check() {
     }
     let err = check(leak(spawn_frames)).unwrap_err();
     assert!(
-        err.starts_with("run 10: Some((\"unpanel, 338/3AF 0@BA0,C0, frame\""),
+        err.starts_with("run 11: Some((\"338/3AF 0@BA0,C0, frame\""),
         "{err}"
     );
 
@@ -279,14 +281,14 @@ fn control_the_old_flash_and_spawn_timing_fail_the_frame_check() {
     no_loop.remove(main_loop);
     let err = check(leak(no_loop)).unwrap_err();
     assert!(
-        err.starts_with("run 11: ") && err.contains("sound B9, dialogue 2A, frame\", 1"),
+        err.starts_with("run 12: ") && err.contains("sound B9, dialogue 2A, frame\", 1"),
         "{err}"
     );
     let mut bare_loop = torch.to_vec();
     bare_loop[main_loop] = SceneOp::WaitFrames { frames: 80 };
     let err = check(leak(bare_loop)).unwrap_err();
     assert!(
-        err.starts_with("run 11: ") && err.contains("sound B9, frame"),
+        err.starts_with("run 12: ") && err.contains("sound B9, frame"),
         "{err}"
     );
 }

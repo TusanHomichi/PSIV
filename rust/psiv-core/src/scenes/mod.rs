@@ -108,6 +108,8 @@ mod dialogue_resumes_image;
 #[cfg(test)]
 mod display_calls_image;
 #[cfg(test)]
+mod dma_census;
+#[cfg(test)]
 mod doc_op_counts;
 #[cfg(test)]
 mod documented_ranges;
