@@ -72,6 +72,9 @@ ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
 SCENE = {"PSIV_DEBUG_AUTOCLOSE_SCENE": "1", "PSIV_DEBUG_RETAIL_PACE": "1"}
+# `Cutscene_Ending`'s windows run `RunText3` (#645): they page and close on
+# their own clock and read no press, so its pairs run with no dialogue harness.
+ENDING = {"PSIV_DEBUG_EVENT": "0x8021"}
 
 # Tape 28 enters MeetingRika by explicit fixture patches (oracle/CAPTURE.md,
 # "Deterministic scene fixtures").
@@ -229,9 +232,11 @@ TAPE_36_CLOSE_TOWNS = {
 
 # Tape 38 is tape 28's input schedule with Cutscene_Ending ($8021) started by
 # fixture at frame 7200 (Event_Index, then the field routine to Events), Chaz
-# alone on map $13 where tape 28 leaves him. C taps page through the first
-# dialogue: frames 8930-8967 are byte-identical, the scene's panels and its
-# window settled before the Elsydeon break whitens the screen.
+# alone on map $13 where tape 28 leaves him. The first dialogue runs
+# `RunText3`, which reads no pad: it pages on its own and the tape's C taps
+# change nothing (#645). Frames 8930-8967 are byte-identical, the scene's
+# panels and its window settled, in the `$F9 99` before the Elsydeon break
+# whitens the screen.
 TAPE_38 = {
     "tape": "oracle/tapes/38_ending_elsydeon.tape",
     "patches": ["7200:FFFFECA8:8021", "7200:FFFFEC20:000C"],
@@ -252,14 +257,14 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The native CRAM steps on ticks 941-965 in
-# the same plateaus, so clone tick t shows oracle frame t + 8956: 32 ticks
-# later than the t + 8988 the dialogue's portrait lag frames (#625) left, the
-# 31 frames the scene's first `InitVRAMAndCRAM` and `Pal_FadeIn` now spend
-# (#637) and one of `Main_Frame_Count` phase. A sweep of every tick matched the
-# untoned frame before (9893) on ticks 933-937 and the fourth step (9910) on
-# 953-956. The untoned frame before and the white endpoint inside the loop
-# (9950) certify all but #409's first row and column.
+# 9920 to the fade-out at 10086. The native window closes after tick 2629,
+# the frame the cartridge's last page turns (9893), and clone tick t shows
+# oracle frame t + 7264 through the loop: the fourth step's plateau
+# (9909-9912) on ticks 2645-2648 (#645). That is 32 ticks later than #645's
+# t + 7296: the scene's first `InitVRAMAndCRAM` and `Pal_FadeIn` spend 31
+# frames (#637) and the steps fall one `Main_Frame_Count` phase later. The
+# untoned frame before (9893) and the white endpoint inside the loop (9950)
+# certify all but #409's first row and column.
 TAPE_38_LOOP = {
     **TAPE_38,
     "frames": [9893, 9950],
@@ -365,25 +370,27 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
+    # Ticks 1722-1754 all match: at the break's t + 7213 they show 8935-8967,
+    # which equal 8930 (#645; 32 ticks later once the scene's `InitVRAMAndCRAM`
+    # and `Pal_FadeIn` spend their 31 frames, #637).
+    ("ending-elsydeon", ENDING, 1736,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: in the cartridge's 4-frame steps, a sweep
-    # matched ticks 683-686, the brightest (13 ticks later once the dialogue's
-    # portraits lagged, #625, and 32 more once the scene's `InitVRAMAndCRAM`
-    # and `Pal_FadeIn` spent their 31 frames, #637).
-    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 684,
+    # The break's tone at its peak: ticks 1771-1774 are the brightest, as
+    # frames 8984-8987 are, so clone tick t shows frame t + 7213 here (#645,
+    # #637).
+    ("ending-elsydeon-tone", ENDING, 1771,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
     # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
-    ("ending-tone-loop-before", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 937,
+    ("ending-tone-loop-before", ENDING, 2629,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 954,
+    ("ending-tone-loop-rise", ENDING, 2646,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
      "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
-    ("ending-tone-loop-white", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 994,
+    ("ending-tone-loop-white", ENDING, 2686,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
