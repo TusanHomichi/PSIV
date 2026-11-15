@@ -62,8 +62,8 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_AlysWounded", own(0x07_4DD4, false, false), Missing(502)),
     row("Cutscene_AlysWounded", Map(0x07_4DFC), Missing(502)),
     row("Cutscene_PsycoWand", Map(0x07_5256), Wait(5)),
-    row("Cutscene_PsycoWand", Map(0x07_5538), Wait(45)),
-    row("Cutscene_PsycoWand", Map(0x07_598A), Wait(106)),
+    row("Cutscene_PsycoWand", Map(0x07_5538), Wait(46)),
+    row("Cutscene_PsycoWand", Map(0x07_598A), Wait(107)),
     row("Cutscene_ZioDefeated", Map(0x07_5AC0), Wait(13)),
     row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(17)),
     row("Cutscene_ZioDefeated", Map(0x07_5B7E), Wait(19)),
@@ -76,37 +76,40 @@ pub(super) const ROWS: &[Row] = &[
     // post_zio_cutscenes.rs
     // Cutscene_InsideSpaceship: `loc_63BC4`'s flights ([`super::SHARED_CODE`]).
     // The spaceports' takeoff (`loc_64568`) is one loop of `$1A3` passes
-    // (`loc_645E6`), split at the propulsion sound; the other maps' (`loc_6488A`)
-    // is `loc_64908`. Each takeoff carries its own copy of the rest of the
-    // flight, which the route runs once: the copy after `loc_6488A` is merged.
+    // (`loc_645E6`), split at its three propulsion requests (#629); the other
+    // maps' (`loc_6488A`) is `loc_64908`. Each takeoff carries its own copy of
+    // the rest of the flight, which the route runs once: the copy after
+    // `loc_6488A` is merged.
     row(SHIP, own(0x06_45E6, true, true), Wait(9)),
     row(SHIP, own(0x06_45E6, true, true), Wait(11)),
-    row(SHIP, own(0x06_4908, true, true), Wait(17)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(13)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(15)),
+    row(SHIP, own(0x06_4908, true, true), Wait(21)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(21)),
-    row(SHIP, Map(0x06_49C6), Merged(21)),
-    row(SHIP, Map(0x06_4762), Wait(31)),
-    row(SHIP, Map(0x06_49D8), Merged(31)),
+    row(SHIP, Map(0x06_4750), Wait(25)),
+    row(SHIP, Map(0x06_49C6), Merged(25)),
+    row(SHIP, Map(0x06_4762), Wait(35)),
+    row(SHIP, Map(0x06_49D8), Merged(35)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(37)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(37)),
+    row(SHIP, own(0x06_4800, true, true), Wait(41)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
-    row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(51)),
-    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(63)),
-    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(65)) },
-    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(68)),
+    row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
+    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),
+    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(66)) },
+    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(69)),
     // `bsr loc_76E00`: five frames of the wreck, each followed by six passes
     // of `RunMapUpdates` and `DMAPlane_B_VInt`, no objects.
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(71)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(73)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(75)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(77)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(79)),
-    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(80)),
-    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(100)),
-    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(119)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(72)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(74)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(76)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(78)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(80)),
+    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(81)),
+    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(101)),
+    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(123)),
     // The shared `$170 + 1` pass loop the scene calls at `$0771C8`, split at
     // the BG chunk's beat (d7 `$3D`).
     row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(16)),
@@ -189,9 +192,9 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
-    row("Cutscene_Reunion", Map(0x07_8AE4), Wait(9)),
-    row("Cutscene_Reunion", Map(0x07_8AF4), Wait(11)),
-    row("Cutscene_Reunion", Map(0x07_8BBE), Wait(19)),
+    row("Cutscene_Reunion", Map(0x07_8AE4), Wait(10)),
+    row("Cutscene_Reunion", Map(0x07_8AF4), Wait(12)),
+    row("Cutscene_Reunion", Map(0x07_8BBE), Wait(20)),
     row("Event_AngerTowerTop", Map(0x07_224A), Wait(9)),
     row("Event_AngerTowerAlys", Facing(0x07_14A2), Missing(164)),
     row("Event_AngerTowerAlys", Step(0x07_14D0), Within(2)),
@@ -216,7 +219,7 @@ pub(super) const ROWS: &[Row] = &[
     // `jsr loc_705D6` at `$078406`: `Event_MeetingLeRoof`'s fade-in loop.
     row("Cutscene_LeRoofAgain", own(0x07_05DC, false, false), Within(11)),
     row("Cutscene_LeRoofAgain", own(0x07_840E, false, false), Within(12)),
-    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(20)),
+    row("Cutscene_LeRoofAgain", Map(0x07_846C), Wait(21)),
     // Mounted: a frame of map updates after the SFX stop, a bare frame after
     // `Field_BuildSprites`, and a frame with the objects after the dismount.
     row("Event_CarnivorousTrees", Map(0x07_078C), Wait(3)),
@@ -226,8 +229,8 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_SavingKyra", frame(0x07_0882, false), Missing(CAMPAIGN)),
     row("Event_SavingKyra", frame(0x07_08EE, true), Missing(CAMPAIGN)),
     row("Event_SavingKyra", Map(0x07_0912), Wait(10)),
-    row("Cutscene_MeetingKyra", Frames(0x07_77E2), Within(10)),
-    row("Cutscene_MeetingKyra", Frames(0x07_77FC), Within(13)),
+    row("Cutscene_MeetingKyra", Frames(0x07_77E2), Within(11)),
+    row("Cutscene_MeetingKyra", Frames(0x07_77FC), Within(14)),
     // Mounted: three frames, the last after the dismount; op 5 is that one.
     row("Event_EclipseTorchUsed", frame(0x07_01A0, false), Missing(CAMPAIGN)),
     row("Event_EclipseTorchUsed", frame(0x07_01B4, false), Missing(CAMPAIGN)),

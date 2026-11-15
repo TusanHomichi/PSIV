@@ -164,11 +164,11 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         ]
     );
 
-    // The appended route's first `Wait` (224 ticks) is not the scene's own.
+    // The appended route's first `Wait` (225 ticks) is not the scene's own.
     let route_wait = censused_ops(again).len() + 9;
     assert!(matches!(
         scene(again).ops[route_wait],
-        SceneOp::Wait { ticks: 224 }
+        SceneOp::Wait { ticks: 225 }
     ));
     let mut on_route = ROWS.to_vec();
     on_route.push(row(again, Map(0x07_846C), Wait(route_wait)));
@@ -182,7 +182,7 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
     // #591's omissions: the 60-frame `DoMapUpdateLoop` after the fade-out
     // with no row, and a colour loop handed to the op before it (the red
     // fade, which waits no loop) or to a map-updating `Wait`.
-    let index_60 = 20;
+    let index_60 = 21;
     assert!(matches!(
         scene(again).ops[index_60],
         SceneOp::Wait { ticks: 60 }
@@ -219,7 +219,7 @@ fn the_campaign_checks_reject_an_omission_and_a_wrong_count() {
         if row.scene == le_roof && row.claim == Within(11) {
             row.retail = own(0x07_05DC, false, false);
         }
-        if row.scene == "Cutscene_MeetingKyra" && row.claim == Within(10) {
+        if row.scene == "Cutscene_MeetingKyra" && row.claim == Within(11) {
             row.retail = Frames(0x07_77FC);
         }
     }

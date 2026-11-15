@@ -4,13 +4,13 @@
 - **Pointer:** `CutscenePtrs[$1C]`; scene `$801C`.
 - **Trigger:** `RunEventsJmpTbl[$34]`, strength chest `$D5` and courage chest
   `$D3` set, Le Roof story `$D6` clear.
-- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (72 ops).
+- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (78 ops).
 
 ## Clone audit
 
 The `grand_cross=0` cutscene table selects the retail body at
 `Cutscene_LeRoofAgain`; the clone's `grand_cross=1` scene include is not used.
-ROM range: `$078346..$0784B6` exclusive end. The final 44 ops are the
+ROM range: `$078346..$0784B6` exclusive end. The final 48 ops are the
 retail `$800D` spaceship route (`INSIDE_SPACESHIP_ROUTE`, menu and flight) inlined
 because this body jumps to it.
 
@@ -27,12 +27,12 @@ because this body jumps to it.
 | 11 | `$078406..$07840B` | `jsr loc_705D6`: [`Event_MeetingLeRoof`](51_MeetingLeRoof.md)'s 71-pass fade-in | `PaletteGrowIn` 71 |
 | 12 | `$07840C..$078421` | 120 passes (`moveq #$77, d0`) | `CounterPaletteCycle` 120 |
 | 13 | `$078422..$078429` | dialogue `$0B` | dialogue |
-| 14-18 | `$07842A..$078459` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$11B`, DMA, `popdlg` / `Event_RunDialogue3` | panel/resume |
-| 19 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5, `$078460`), `clr.b Panel_Num` | `VariablePaletteFade` out |
-| 20 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
-| 21-25 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
-| 26-27 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
-| 28-71 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
+| 14-19 | `$07842A..$078459` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$11B`, DMA, `popdlg` / `Event_RunDialogue3` | panel/resume |
+| 20 | `$07845A..$078469` | `Pal_VariableFadeOut` (`$ED52` 5, `$078460`), `clr.b Panel_Num` | `VariablePaletteFade` out |
+| 21 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
+| 22-27 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
+| 28-29 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
+| 30-77 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
 
 The colour loops and the fade-in run `VInt_Prepare` only, no map or object
 update; the scene blocks for every pass. The galaxy picture is drawn as

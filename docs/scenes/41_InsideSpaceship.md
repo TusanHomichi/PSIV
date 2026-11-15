@@ -4,7 +4,7 @@
   `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (44 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (48 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
@@ -114,6 +114,18 @@ branch are not frame-exact claims.
 **Fade correction:** flight fade-in spends 16 frames, including display enable
 and the terminal palette pass. Fade-out spends 14. The old claim that all fades
 spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`).
+
+**Propulsion SFX (#629):** the spaceports' loop writes `SFXID_SpaceshipPropelled`
+(`$E3`) to `Sound_Index` at the start of each pass whose counter is `$E1`, `$E2`
+or `$E3` (`loc_6462A`, `:134220-134221`): passes 226 to 228 of the 419, tape 35
+frames 7860 to 7862 (Speak + 459 to 461). The VInt that ends each pass services
+it, and `PlaySFX` (`ps4.sound_driver.asm:757-850`) clears the SFX channel and
+starts over on every request, at the same priority (`$7F`) as the one
+playing. Tape 35 shows the channel at `$FF5280` holding its first note's timer at 9
+on frames 7861 to 7863, then counting down from 7864. The route requests it
+on the same three ticks, and the native driver restarts an SFX the same way
+(`start_sfx`, `rust/psiv-sound/src/driver.rs`). The other maps' takeoff
+(`loc_64908`) requests no SFX.
 
 **Pan:** `loc_5ABDC` subtracts home offsets `$98/$58`, masks to twelve bits and
 uses the shortest wrapped route. This call selects only Y, speed 2, with the

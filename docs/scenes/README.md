@@ -46,6 +46,11 @@ callers on the wrong sibling window) are in
 `psiv-core`'s `scenes::dialogue_callers_image` census and
 `every_dialogue_entry_caller_runs_its_window`.
 
+**Panel-byte writes are censused.** Every write of `Render_Sprites_In_Cutscenes`
+in a scene's documented bytes is a `SetRenderSpritesInCutscene` in the same
+order ([the panel byte](SCENE_DIALOGUE.md)), guarded by `psiv-core`'s
+`scenes::panel_byte_census`.
+
 ## Next-arc registry
 
 | Scene | Event | Doc | Retail bytes |

@@ -82,6 +82,12 @@ only the text cursor survives F7. The window routine's panel destruction also
 runs on F7, so earlier panels cannot leak into the resumed section. A flag
 write precedes Alshline's resume, and another precedes the Zema aftermath's
 `$69` dialogue (US instruction at `$074588`, scene range `$074556..$0745DD`).
+A panel cutscene writes the byte again before each later text, since the last
+one's close cleared it; a transcription that writes it only before its first
+text draws every later portrait at the talk position (#630). `psiv-core`'s
+`scenes::panel_byte_census` holds every registered scene to its documented
+bytes: each `move.b #1` (`11FC 0001 ECFD`) and `clr.b` (`4238 ECFD`) to the byte
+is a `SetRenderSpritesInCutscene` of the same value, in the same order.
 The window routine's exit fade cadence has not been compared with the oracle.
 
 The extracted palette copy's NPC sheet replacements (`deferred_effects`) are

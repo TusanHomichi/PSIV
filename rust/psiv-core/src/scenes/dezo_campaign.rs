@@ -242,6 +242,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x11B },
         SceneOp::DmaPlanes,
+        // `$07844E`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$078454`: `popdlg` / `jsr Event_RunDialogue3`: the panels stay.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene3,
@@ -254,6 +256,8 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x125 },
         SceneOp::DmaPlanes,
+        // `$078490`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         cutscene(0x0C),
         SceneOp::SetFlag {
             flag: Flag::event(0xD6),
@@ -357,12 +361,16 @@ pub static MEETING_KYRA: Scene = Scene {
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x99 },
         SceneOp::DmaPlanes,
+        // `$0777D2`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0777D8`: `jsr Event_GetAndRunDialogue3`.
         cutscene3(0x28),
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::PanelCreate { id: 0x9B },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 120 },
+        // `$07780A`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$077810`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,
@@ -586,6 +594,8 @@ pub static LUTZ_REVELATION: Scene = Scene {
         SceneOp::PanelCreate { id: 0x9E },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 100 },
+        // `$0779E4`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+        SceneOp::SetRenderSpritesInCutscene { enabled: true },
         // `$0779EA`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Cutscene5,

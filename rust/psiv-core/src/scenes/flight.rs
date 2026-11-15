@@ -216,12 +216,13 @@ pub fn flight_target(leg: FlightLeg, current_map: u16, world: u8) -> Option<Flig
 const MUSIC_TAKE_OFF_LANDEEL: u8 = 0x9B;
 /// `SpcSFXID_SpaceshipRadar` (`ps4.constants.asm:1051`).
 const SFX_SPACESHIP_RADAR: u8 = 0xF8;
-/// `SFXID_SpaceshipPropelled`, played as the long takeoff's counter reaches
-/// `$E1` (`ps4.asm:134223`).
+/// `SFXID_SpaceshipPropelled` (`ps4.constants.asm:1023`), requested by the
+/// long takeoff's passes with counter `$E1`, `$E2` and `$E3` (`loc_6462A`,
+/// `ps4.asm:134220-134221`).
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
-const CANCEL_SKIP: u16 = 38;
+const CANCEL_SKIP: u16 = 42;
 
 /// `PalFadeOut_ClrSpriteTbl` takes 14 frames (tape 35). Flight fade-in has
 /// two additional display-enable/terminal frames; FlightFadeIn owns its 16.
@@ -246,7 +247,7 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// Counts and CPU/DMA setup spans are cited separately in the scene ledger.
 /// The caption is instant: d4=1 skips RunText2's per-character wait.
-pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
+pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 48] = [
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     // `SpcSFXID_SpaceshipRadar`, once the list is built (`ps4.asm:133537`).
@@ -263,10 +264,10 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     },
     SceneOp::SkipUnlessMap {
         maps: &SPACEPORT_MAPS,
-        skip: 8,
+        skip: 12,
     },
-    // loc_64568: Pal_FadeIn, 419 iterations with the propulsion SFX near the
-    // 224th, then loc_646DA's 60 frames of `Pal_IncreaseTone`.
+    // loc_64568: Pal_FadeIn, 419 passes of loc_645E6, then loc_646DA's 60
+    // frames of `Pal_IncreaseTone`.
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Takeoff,
     },
@@ -275,11 +276,24 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     SceneOp::FlightFadeIn {
         frames: FADE_IN_FRAMES,
     },
-    SceneOp::Wait { ticks: 224 },
+    // Passes 226, 227 and 228 (counter `$E1..$E3`) each request the
+    // propulsion SFX, and each request restarts it (`PlaySFX` clears the
+    // channel, `ps4.sound_driver.asm:757-850`): tape 35 shows the channel's
+    // first note timer reloaded on three frames in a row. 225 + 1 + 1 + 192
+    // is the loop's 419 passes.
+    SceneOp::Wait { ticks: 225 },
     SceneOp::PlaySound {
         id: SFX_SPACESHIP_PROPELLED,
     },
-    SceneOp::Wait { ticks: 195 },
+    SceneOp::Wait { ticks: 1 },
+    SceneOp::PlaySound {
+        id: SFX_SPACESHIP_PROPELLED,
+    },
+    SceneOp::Wait { ticks: 1 },
+    SceneOp::PlaySound {
+        id: SFX_SPACESHIP_PROPELLED,
+    },
+    SceneOp::Wait { ticks: 192 },
     SceneOp::WaitFrames { frames: 60 },
     SceneOp::SkipOps { count: 4 },
     // loc_6488A: Pal_FadeIn, 228 iterations.
