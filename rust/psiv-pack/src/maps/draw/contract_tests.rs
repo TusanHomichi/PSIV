@@ -1,4 +1,4 @@
-//! Pixel and priority contracts retained from test_layouts.py/test_render.py.
+//! Pixel and priority contracts retained from tests/test_layouts.py and tests/test_render.py.
 use super::tests::{layout, patterns};
 use super::*;
 use crate::maps::layouts::Plane;
