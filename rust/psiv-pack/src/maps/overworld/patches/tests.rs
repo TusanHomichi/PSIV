@@ -216,6 +216,13 @@ fn a_later_patch_wins_and_other_planes_are_left_alone() {
     let second = patch(vec![write(Plane::Fg, 6), write(Plane::Bg, 7)]);
     let patched = apply_patches(&layout, &[&first, &second]);
     assert_eq!(&patched.cells[..4], &[0, 6, 9, 0]);
+    // Retain ordering inside one decoded flag block as well as between
+    // separately supplied patches (test_overworld.py's duplicate store).
+    let mut body = locate(1, 0, GET_MAP_LAYOUT_CHUNK_FG, GATE);
+    body.extend_from_slice(&[0x12, 0xBC, 0, 5, 0x12, 0xBC, 0, 6]);
+    let decoded = decode(&gated(0x66, &body), Plane::Fg).unwrap();
+    let patched = apply_patches(&layout, &decoded.iter().collect::<Vec<_>>());
+    assert_eq!(&patched.cells[..4], &[0, 6, 0, 0]);
 }
 
 #[test]
