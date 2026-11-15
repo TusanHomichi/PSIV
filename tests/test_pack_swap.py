@@ -93,14 +93,19 @@ class Scratch(unittest.TestCase):
 
     @contextmanager
     def pinned_pack(self):
-        # Follow the output once in the kernel and keep that directory open.
-        # File opens relative to this handle keep reading the selected
-        # version without querying the output link again.
-        directory = os.open(self.output, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            yield directory
-        finally:
-            os.close(directory)
+        # Pin the link object before reading its target: following the moving
+        # link with open(O_DIRECTORY) can fail with EINVAL on macOS. This
+        # private hard link is never replaced. Its relative payload belongs
+        # to the output's parent, not the private snapshot directory.
+        with tempfile.TemporaryDirectory(prefix="reader-", dir=self.dir) as snapshot:
+            selected = Path(snapshot) / "selected"
+            os.link(self.output, selected, follow_symlinks=False)
+            target = self.output.parent / os.readlink(selected)
+            directory = os.open(target, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                yield directory
+            finally:
+                os.close(directory)
 
 
 class Install(Scratch):
@@ -617,18 +622,64 @@ class SpanningReader(Scratch):
     def test_lookup_errors_cannot_leave_the_reader_on_the_moving_output(self):
         pin = self.pinned_pack
         for syscall, error in (("lstat", FileNotFoundError("lookup during replacement")),
-                               ("readlink", OSError(errno.EINVAL, "Invalid argument"))):
+                               ("readlink", OSError(errno.EINVAL, "Invalid argument")),
+                               ("open", OSError(errno.EINVAL, "Invalid argument"))):
+            original = getattr(os, syscall)
+
+            def fail_moving_output(path, *args, **kwargs):
+                # The race is on the replaced name, not on stable snapshots
+                # or immutable version paths.
+                if Path(path) == self.output:
+                    raise error
+                return original(path, *args, **kwargs)
+
             @contextmanager
             def pin_during_lookup_error():
                 with ExitStack() as stack:
                     # Inject only during reader selection, not into the writer.
-                    with mock.patch.object(os, syscall, side_effect=error):
+                    with mock.patch.object(os, syscall, fail_moving_output):
                         directory = stack.enter_context(pin())
                     yield directory
 
             with self.subTest(syscall=syscall), \
                     mock.patch.object(self, "pinned_pack", pin_during_lookup_error):
                 self.assertEqual(self.read_across_swap(pin_once=True), ("v1", {"v1"}))
+
+    def test_selection_survives_a_swap_before_the_directory_is_opened(self):
+        self.install("v1")
+        original = os.open
+        swapped = False
+
+        def swap_before_open(path, flags, *args, **kwargs):
+            nonlocal swapped
+            if flags & os.O_DIRECTORY and not swapped:
+                swapped = True
+                self.install("v2")
+            return original(path, flags, *args, **kwargs)
+
+        with mock.patch.object(os, "open", swap_before_open):
+            with self.pinned_pack() as directory:
+                self.assertTrue(swapped)
+                self.assertEqual(consistent(directory), "v1")
+                self.assertEqual(consistent(self.output), "v2")
+        self.assertEqual(list(self.dir.glob("reader-*")), [])
+
+    def test_a_failed_directory_open_cleans_up_the_snapshot(self):
+        self.install("v1")
+        target = self.output.parent / os.readlink(self.output)
+        original = os.open
+
+        def fail_selected_version(path, *args, **kwargs):
+            if Path(path) == target:
+                raise OSError(errno.EIO, "read failed")
+            return original(path, *args, **kwargs)
+
+        with mock.patch.object(os, "open", fail_selected_version):
+            with self.assertRaises(OSError):
+                with self.pinned_pack():
+                    self.fail("a failed open yielded a reader")
+        self.assertEqual(list(self.dir.glob("reader-*")), [])
+        self.assertEqual(consistent(self.output), "v1")
 
     def test_negative_control_a_pinned_reader_detects_an_in_place_build(self):
         self.install("v1")
