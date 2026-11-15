@@ -257,15 +257,12 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The ending's windows page on their own
-# (#645), and clone tick t shows oracle frame t + 7264 through the loop: the
-# fourth step's plateau (9909-9912) on ticks 2645-2648. The scene's first
-# InitVRAMAndCRAM and Pal_FadeIn spend 31 frames (#637), and the steps fall
-# one Main_Frame_Count phase later than before those fades were modelled.
-# The cartridge keeps the first window and Chaz's portrait up, toned, until `$078FAE`, and so
-# does the runtime (#636). The untoned frame before (9893), the loop's fourth
-# step (9910, backdrop `$888`, the window and portrait toned) and the white
-# endpoint inside the loop (9950) certify all but #409's first row and column.
+# 9920 to the fade-out at 10086. With the `$F2` VInts and the measured
+# panel lag (#667), the native window is up through tick 2657, and the chosen
+# pins use t + 7236 through this loop. The fourth step matches 2672-2675;
+# 2674 sits inside it. Regions and oracle hashes stay fixed.
+# The scene retains the window and portrait through this loop (#636), so
+# all three pairs use the full 1,1,319,223 region.
 TAPE_38_LOOP = {
     **TAPE_38,
     "frames": [9893, 9910, 9950],
@@ -373,10 +370,10 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    # The first page complete, its arrow up: ticks 192-196 once Chaz's
-    # portrait spends its two lag frames (#625) and the scene's
-    # `InitVRAMAndCRAM` and `Pal_FadeIn` their 31 (#637).
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 193,
+    # The first page complete, its arrow up: the #667 sweep matches
+    # 194-198 after its leading `$F2` panel wait, portrait lag (#625), and
+    # the scene's 31 `InitVRAMAndCRAM`/`Pal_FadeIn` frames (#637).
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 195,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -386,27 +383,25 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    # Ticks 1722-1754 all match: at the break's t + 7213 they show 8935-8967,
-    # which equal 8930 (#645; 32 ticks later once the scene's `InitVRAMAndCRAM`
-    # and `Pal_FadeIn` spend their 31 frames, #637).
-    ("ending-elsydeon", ENDING, 1736,
+    # The #667 sweep matches 1680-1762 before the break, and again 1799-1805
+    # on its restore. The chosen tick is inside the pre-break plateau.
+    ("ending-elsydeon", ENDING, 1744,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: ticks 1771-1774 are the brightest, as
-    # frames 8984-8987 are, so clone tick t shows frame t + 7213 here (#645,
-    # #637).
-    ("ending-elsydeon-tone", ENDING, 1771,
+    # The break's peak matches 1779-1782, eight ticks later with the preceding
+    # inline actions' VInts. Use an interior tick of the measured plateau.
+    ("ending-elsydeon-tone", ENDING, 1780,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
     # its white endpoint, one tape-38 run (TAPE_38_LOOP).
-    ("ending-tone-loop-before", ENDING, 2629,
+    ("ending-tone-loop-before", ENDING, 2657,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", ENDING, 2646,
+    ("ending-tone-loop-rise", ENDING, 2674,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
      "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP),
-    ("ending-tone-loop-white", ENDING, 2686,
+    ("ending-tone-loop-white", ENDING, 2714,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,

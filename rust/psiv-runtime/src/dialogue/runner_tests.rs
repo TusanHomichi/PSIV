@@ -496,3 +496,5 @@ fn only_a_held_scene_window_keeps_its_page() {
 
 mod portraits;
 mod text3;
+
+mod actions;
