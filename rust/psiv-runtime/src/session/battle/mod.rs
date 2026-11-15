@@ -700,7 +700,13 @@ impl BattleMode {
             BattleBeat::End(outcome) => self.finish_outcome = Some(outcome),
             _ => {}
         }
-        if narrate.beat == BattleBeat::Start {
+        if matches!(
+            event,
+            BattleEvent::Started {
+                priority: Priority::Normal,
+                ..
+            }
+        ) {
             self.opening = Some(opening::Opening::new(self.party.len()));
             self.command_open = false;
             return;

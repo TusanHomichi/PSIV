@@ -180,3 +180,28 @@ fn opening_names_options_and_seed_follow_the_two_retail_tapes() {
         assert_eq!(counted, 14);
     }
 }
+
+#[test]
+fn special_priorities_do_not_use_the_normal_options_opening() {
+    for priority in [Priority::Preemptive, Priority::Ambush] {
+        let Some(mut runtime) = runtime() else { return };
+        runtime.start_battle(0x8A, runtime.battle_party()).unwrap();
+        let mode = BattleMode::begin(
+            &runtime,
+            BattleTimeline {
+                events: vec![BattleEvent::Started {
+                    priority,
+                    enemies: vec![FighterId::new(6).unwrap(), FighterId::new(7).unwrap()],
+                }],
+                sounds: Vec::new(),
+                animations: Vec::new(),
+            },
+            BattleStart::Encounter(0x8A),
+        );
+        assert!(
+            mode.opening.is_none(),
+            "{priority:?} has its own retail routine"
+        );
+        assert_eq!(mode.current.unwrap().remaining, BATTLE_DWELL_FRAMES);
+    }
+}
