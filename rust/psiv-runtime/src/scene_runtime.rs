@@ -561,6 +561,7 @@ impl Runtime {
             // state (it feeds the RNG stream through the on-screen tests), so
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
+                self.dialogue.scene_panel_op(&op);
                 // The palette's one writer applies every palette record on
                 // the frame the scene emits it; a variable fade answers with
                 // the frames it spends.

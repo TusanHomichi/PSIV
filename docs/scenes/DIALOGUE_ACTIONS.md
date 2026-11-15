@@ -62,7 +62,25 @@ explicitly absent rather than decoded from padding.
 The runtime action path is deliberately staged: `TextFlow` stops at one
 action, `DialogueWindow` releases it only after the preceding visible glyphs
 are revealed, `Field::service_dialogue_actions` applies it, then the flow
-resumes. Consecutive actions drain back-to-back, matching the retail loop.
+resumes. `DialogueRunner` holds the byte loop for each handler's counted
+VInts: one for `LoadPanel`, `LoadSound` (including a zero operand),
+`LoadSound2`, `UpdatePalette`, `PauseMusic` and `ResumeMusic`; one for either
+panel destroy only when `Panel_Num` is nonzero; forty for `ElsydeonBroken`.
+Only zero-frame actions drain together. The panel count includes scene-owned
+panels, scene destroys, map loads and the window kinds that destroy panels on
+return. Ending windows retain them.
+
+A `$F9` after an action starts after that action returns, and a `$F2` after a
+`$F9` runs as the delay returns. Neither consumes a frame belonging to the
+other. Both text loops use this clock.
+
+Tape 38 isolates two panel loads inside the seventh page, away from page-clear
+and window setup work: panel `$143` holds `Main_Frame_Count` at 8526 on
+frames 9006-9009 (four lag frames), and `$144` holds it at 8532 on 9016-9026
+(eleven). The runner spends those measured lag frames without input, field,
+RNG or action-clock steps, and holds the old panel planes until the load
+completes. Other panel loads still have no panel-only lag measurement;
+loads after a page clear or window setup mix those costs together.
 
 ## Census totals
 

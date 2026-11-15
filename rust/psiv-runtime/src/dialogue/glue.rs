@@ -106,7 +106,7 @@ impl Runtime {
         let notice_up = self.field_notice().is_some();
         self.dialogue.input(&mut self.game, pad, notice_up);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         for signal in &signals {
             match signal {
                 // The scene hears the answer here, before its tick: a scene
@@ -141,7 +141,7 @@ impl Runtime {
     pub(crate) fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
         let signals = self.dialogue.drain_signals();
-        self.dialogue_panel_palettes(&signals);
+        self.dialogue_effects(&signals);
         if signals
             .iter()
             .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
@@ -153,7 +153,22 @@ impl Runtime {
 
     /// A `$F2` `LoadPanel` action is `Panel_Create`: its layers' palettes go
     /// to the palette as a scene panel's do.
-    fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
+    fn dialogue_effects(&mut self, signals: &[DialogueSignal]) {
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+            && matches!(
+                self.scene_dialogue_window(),
+                Some(
+                    psiv_core::DialogueWindow::Standard
+                        | psiv_core::DialogueWindow::Cutscene
+                        | psiv_core::DialogueWindow::Cutscene5
+                )
+            )
+        {
+            self.dialogue
+                .scene_panel_op(&psiv_core::SceneOp::PanelDestroyAll);
+        }
         for signal in signals {
             match signal {
                 DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {

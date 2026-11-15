@@ -245,6 +245,8 @@ impl Runtime {
         );
         self.map = map;
         self.effects = effects;
+        self.dialogue
+            .scene_panel_op(&psiv_core::SceneOp::PanelDestroyAll);
         Ok(())
     }
 
@@ -492,6 +494,8 @@ impl Runtime {
         let map = bridge::field_map_entered(record, &effects, &self.game)?;
         clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;
+        self.dialogue
+            .scene_panel_op(&psiv_core::SceneOp::PanelDestroyAll);
         // LoadMapObjects creates a fresh cast. Scene despawns only change
         // the live objects; persistent removals come from MapDataManager's
         // extracted flag gates above (including recruited party members).

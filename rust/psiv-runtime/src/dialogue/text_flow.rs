@@ -315,6 +315,11 @@ impl TextFlow {
         self.hold > 0 || self.action_hold > 0
     }
 
+    /// Whether an action still owns the text loop.
+    pub(crate) fn action_holding(&self) -> bool {
+        self.action_hold > 0
+    }
+
     /// Tick an already launched blocking action before dispatching new actions.
     pub(crate) fn tick_action(&mut self, game: &GameState) {
         if self.action_hold > 0 {
@@ -471,16 +476,13 @@ impl TextFlow {
         self.pending_action.take()
     }
 
-    /// Resumes the retail text loop after the shell has applied `action`.
-    /// `TextAction_ElsydeonBroken` runs its two 20-frame loops inside
-    /// `RunText`, so the text waits for them: the loop resumes when that
-    /// hold runs down ([`TextFlow::tick_action`]).
-    pub fn resume_after_action(&mut self, action: DialogueAction, game: &GameState) {
-        if action == DialogueAction::ElsydeonBroken {
-            self.action_hold = 2 * ELSYDEON_BROKEN_FRAMES;
-            return;
+    /// Resumes the retail text loop once the runner has spent the action's
+    /// counted frames. Lag frames belong to the runner and never tick this hold.
+    pub fn resume_after_action(&mut self, frames: u16, game: &GameState) {
+        self.action_hold = frames;
+        if frames == 0 {
+            self.pump(game);
         }
-        self.pump(game);
     }
 
     /// Everything the flow could not act on since the last call.

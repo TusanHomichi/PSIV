@@ -200,22 +200,12 @@ const TAPE_38: [(usize, u32); 11] = [
     (16, 146),
 ];
 
-/// Frames the cartridge spends inside the seventh page that the runner does
-/// not: after the Elsydeon break, `TextAction_LoadSound`'s `VInt_Prepare` and
-/// `TextAction_LoadPanel`'s `DMAPlanes_VInt`, before its `$F9 5`. A `$F2`
-/// costs no frame natively, in `RunText` and `RunText3` alike (#667). (The
-/// second `TextAction_LoadPanel`, after the `$F9`, costs none here either:
-/// the runner releases an action the frame after a `$F9` runs out, which is
-/// where the cartridge's VInt falls.)
-const ACTION_FRAMES: [u32; 11] = [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0];
-
 #[test]
 fn every_page_of_the_endings_first_window_turns_on_tape_38s_frame() {
     let (turns, signals) = run_text3(&ending_intro(), Pad::NEUTRAL);
     let expected: Vec<Turn> = TAPE_38
         .iter()
-        .zip(ACTION_FRAMES)
-        .map(|(&(glyphs, frames), unspent)| turn(glyphs, frames - unspent))
+        .map(|&(glyphs, frames)| turn(glyphs, frames))
         .collect();
     assert_eq!(turns, expected);
     // The terminator returns to the scene as `$F7` does, its cursor saved.
@@ -284,4 +274,28 @@ fn a_runtext_page_still_waits_for_speak() {
     let view = runner.view().expect("the window waits");
     assert_eq!((view.total, view.revealed), (21, 21));
     assert!(view.waiting && view.dismissable);
+}
+
+#[test]
+fn the_break_page_spends_248_counted_frames_and_fifteen_panel_lag_frames() {
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    open_text3(&mut runner, &ending_intro(), &game);
+    let mut counted = 0;
+    let mut last_glyph = None;
+    for wall in 1..=4_000 {
+        counted += u32::from(!runner.lag_frame());
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+        let Some(view) = runner.view() else { break };
+        if view.lines.first().is_some_and(|line| line.starts_with('g')) && view.revealed == 11 {
+            last_glyph.get_or_insert((wall, counted));
+        }
+        if view.lines.first().is_some_and(|line| line.starts_with('h')) {
+            let (last_wall, last_counted) = last_glyph.expect("the break page was drawn");
+            assert_eq!(counted - last_counted, 248);
+            assert_eq!(wall - last_wall, 263);
+            return;
+        }
+    }
+    panic!("the break page never turned");
 }
