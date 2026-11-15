@@ -20,6 +20,7 @@ use super::{INSIDE_SPACESHIP_ROUTE, SCENES, dialogue_callers_image::rom};
 use crate::{RideOp, SceneOp};
 
 mod doors;
+mod layout_animation;
 
 /// `DMAPlanes_VInt`, `DMAPlane_A_VInt`, `DMAPlane_B_VInt`.
 const DMA_HELPERS: [u32; 3] = [0x04_1678, 0x04_1682, 0x04_16A6];
@@ -56,6 +57,9 @@ enum Why {
     /// Door table waits and entry movement; arrival refresh belongs to #546.
     /// `doors` checks the consuming ops against the US tables and calls.
     DoorFrames,
+    /// Animation waits own explicit DMA frames; missing refresh boundaries
+    /// belong to #546. Each call is checked by `layout_animation`.
+    LayoutAnimationFrames,
     /// Calls whose frames another op or a runtime mechanic may spend, or
     /// nothing does: the issue that classifies them.
     Unclassified(u32),
@@ -99,14 +103,14 @@ const ROWS: &[Row] = &[
         why: Why::Unrolled(0x07_4302),
     },
     open("Event_GameStart", 0, 4),
-    open("Event_RuneFlaeli", 0, 1),
+    layout_animation::row("Event_RuneFlaeli", 0, 1),
     open("Cutscene_AlysWounded", 1, 3),
-    open("Event_MachineCenterAppearing", 0, 1),
+    layout_animation::row("Event_MachineCenterAppearing", 0, 1),
     open("Cutscene_PsycoWand", 18, 27),
     open("Cutscene_ZioDefeated", 5, 9),
     open("Cutscene_SpaceshipSabotage", 4, 9),
     open("Cutscene_CrashLaanding", 4, 7),
-    open("Event_TylerGraveOpening", 0, 1),
+    layout_animation::row("Event_TylerGraveOpening", 0, 1),
     // The carry loops: `Field_UpdateObjects` moves the leader one pixel
     // (`FieldObj_Step_Offset` 0), then the camera, then `DMAPlane_A_VInt`
     // (`$06CF48`, `$06D090`, `$06D1D8`, `$06D320`), then the chunk test
@@ -119,17 +123,17 @@ const ROWS: &[Row] = &[
     doors::row("Event_GaruberkTwDoorOpening2", 1),
     doors::row("Event_GaruberkTwDoorEntered1", 3),
     doors::row("Event_GaruberkTwDoorEntered2", 3),
-    open("Event_JuzaDefeated", 0, 1),
+    layout_animation::row("Event_JuzaDefeated", 0, 1),
     // `$0705A2`, after `RefreshPlaneFG`/`BG`: the stretch `ReloadMapChunks`
     // stands for.
-    open("Event_MeetingLeRoof", 1, 2),
-    open("Event_EclipseTorchUsed", 2, 3),
+    layout_animation::row("Event_MeetingLeRoof", 1, 2),
+    layout_animation::row("Event_EclipseTorchUsed", 2, 3),
     open("Cutscene_Elsydeon", 19, 23),
     doors::row("Event_SilenceTmDoorOpening", 1),
     // The ending intro now records its DMA after dialogue 9 explicitly.
     open("Cutscene_Ending", 86, 95),
     open("Event_HuntersGuild", 0, 3),
-    open("Event_WreckageEngine", 0, 1),
+    layout_animation::row("Event_WreckageEngine", 0, 1),
     open("Event_GettingOffVehicle", 0, 1),
 ];
 
@@ -225,6 +229,10 @@ fn problems(rom: &[u8], counted: &[(String, usize, usize)], rows: &[Row]) -> Vec
             Why::DoorFrames => {
                 let ops = SCENES.iter().find(|s| s.name == row.scene).unwrap().ops;
                 problems.extend(doors::problems(rom, row.scene, ops));
+            }
+            Why::LayoutAnimationFrames => {
+                let ops = SCENES.iter().find(|s| s.name == row.scene).unwrap().ops;
+                problems.extend(layout_animation::problems(rom, row.scene, ops));
             }
             Why::Unclassified(_) if row.ops > row.calls => problems.push(format!(
                 "{}: {} DmaPlanes for {} calls spend frames retail does not",

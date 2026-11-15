@@ -800,6 +800,12 @@ pub static JUZA: Scene = Scene {
     ],
 };
 
+// The open rows in `$06FBC4` are the baked layout: restoring them removes
+// the closed overlay.
+const JUZA_STAIRS_OPEN: SceneOp = SceneOp::RestoreMapChunks {
+    chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
+};
+
 /// `$0041`, `Event_JuzaDefeated`, retail `$06FB5E..$06FBED`.
 ///
 /// The stairs at chunks `(12,9)`, `(13,9)`, `(12,10)`, `(13,10)` — cells
@@ -818,17 +824,33 @@ pub static JUZA_DEFEATED: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_DOOR_OPENED,
         },
-        // `$06FBC4`: eight five-byte rows — delay, then four chunk ids —
-        // written to the same four chunks, alternating the closed chunk `$16`
-        // with `$23,$1A,$19,$1B`, each row followed by a plane refresh and a
-        // seven-frame `DMAPlane_B_VInt`. The row the table ends on is the map's
-        // *own* layout at those chunks, so the live state the cartridge leaves
-        // is exactly "these chunks are their baked selves again" — which is
-        // what `RestoreMapChunks` asserts and applies. The alternating frames
-        // change nothing the party can reach mid-scene.
-        SceneOp::RestoreMapChunks {
-            chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
+        // `$06FBC4`: eight rows, each followed by seven DMA/VInt frames
+        // (`$06FBB0`, DBF d0). CPU refresh at `$06FBA6` belongs to #546;
+        // these waits spend only the explicit DMA loop, with no updates.
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
         },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
         SceneOp::SetFlag {
             flag: Flag::event(0x48),
             value: true,

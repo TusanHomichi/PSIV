@@ -553,6 +553,19 @@ agility and dexterity, and enemy paralysis clearing each turn.
   [door frame assignments](../scenes/103_GaruberkTowerDoors.md#dma-frame-ownership)
   distinguish it from the opening/closing waits and step-out movement.
 
+- **Layout/animation CPU refresh boundaries and two missing DMA frames.**
+  [The seven caller classifications](../scenes/DMA_FRAME_OWNERSHIP.md)
+  distinguish existing wait consumers from missing refresh work owned by
+  [#546](https://github.com/TusanHomichi/PSIV/issues/546). Le Roof's
+  `$070596/$07059C` refreshes and `$0705A2` DMA are one immediate
+  `ReloadMapChunks`; Tyler's grave writes at `$06FCF4` and refreshes at
+  `$06FCF8` before the unspent `$06FCFE` DMA. Neither native op waits.
+  Rune's `$06DBD2`, Machine Center's `$06B5D8`, Eclipse Torch's `$070436`,
+  Juza's `$06FBA6` and Wreckage's `$06DD34` CPU refresh boundaries also
+  remain #546's; their explicit DMA frames already have named wait consumers.
+  Juza now preserves all eight table phases and their 56 explicit DMA frames;
+  this does not establish CPU refresh parity or the grave's event-return timing.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

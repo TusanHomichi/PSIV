@@ -36,7 +36,7 @@ table slot, whose address was checked against the image.
 | `Event_ElevatorDoorOpening` `$13` | `$06C2D2` | one-chunk door animation | `WriteActorMapChunks` ×5 |
 | `Event_RidingElevator` `$14` | `$06C376`, `$06C41C` | open/close animation | `WriteActorMapChunks` |
 | `Event_RuneFlaeli` `$27` | `$06DBB6` | BG `(15,14)` ← `$0C,$0D,$14,$15` | `RestoreMapChunks` (the ids are the map's own base chunks) |
-| `Event_JuzaDefeated` `$41` | `$06FB74` | BG `(12,9),(13,9),(12,10),(13,10)` ← `$23,$1A,$19,$1B` | **was presentation-only** → `RestoreMapChunks` |
+| `Event_JuzaDefeated` `$41` | `$06FB74` | BG `(12,9),(13,9),(12,10),(13,10)` ← `$23,$1A,$19,$1B` | alternating closed `WriteMapChunks` / open `RestoreMapChunks`, [DMA delays](DMA_FRAME_OWNERSHIP.md) |
 | `Event_MachineCenterAppearing` `$06` | `$06B5CE` | BG `(57,90)` ← `$D3` | **was dropped** → `WriteMapChunks` |
 | `Cutscene_PsycoWand` `$800A` | `$07580A`, `$07581E` | FG `(9,5)` ← `$8F`, BG `(9,6)` ← `$90` | **was `ReloadMapChunks`** → `WriteMapChunks` |
 | `Cutscene_ZioDefeated` `$800B` (via `Event_MotaSpaceportAppearing` `$07`) | `$06B808` | BG `(26,45)` ← `$3F` | **was dropped** → `WriteMapChunks` |

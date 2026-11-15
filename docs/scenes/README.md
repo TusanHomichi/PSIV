@@ -51,6 +51,10 @@ in a scene's documented bytes is a `SetRenderSpritesInCutscene` in the same
 order ([the panel byte](SCENE_DIALOGUE.md)), guarded by `psiv-core`'s
 `scenes::panel_byte_census`.
 
+**DMA/VInt frame consumers are classified.** The layout/animation callers'
+[frame ownership](DMA_FRAME_OWNERSHIP.md) names their waits and repetitions,
+and distinguishes missing CPU refresh boundaries from explicit DMA delays.
+
 ## Next-arc registry
 
 | Scene | Event | Doc | Retail bytes |
