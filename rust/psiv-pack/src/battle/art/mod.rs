@@ -389,3 +389,6 @@ mod tests {
         assert!(enemy_palette(&rom, 2).is_err());
     }
 }
+
+#[cfg(test)]
+mod emission_tests;

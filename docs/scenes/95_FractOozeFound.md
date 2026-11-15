@@ -36,12 +36,28 @@ frame after) and calling `Pal_IncreaseTone`. The band covers the portrait by
 the battle on 7815, which holds white until 7856 and fades the battle in from
 7857.
 
-The port keeps the last page and portrait available while the scene runs
-([window lifetime](DIALOGUE_CALLERS.md#the-routines-and-their-windows)). During
-the field arm of the battle's entry it draws the field without the band or tone
-([source notes](../source-notes/README.md#other-recorded-deviations)). The
-`retained-window-page` pair certifies the last page over the window's box,
-`(24,160)` 272x48, at tick 511 against frame 7797.
+The port builds on the held `Retained` page (entries and resumes, #686).
+`event_battle_entry.rs` owns the fifteen passes and their half-open pixel rows:
+`[104,120)`, then eight more pixels at each edge, clipped to `[0,224)`. Each
+pass calls the shared CRAM model's `Pal_IncreaseTone` before its DMA/VInt wait;
+it changes all 64 words when `Main_Frame_Count & 3` is zero. The Profound
+Darkness's separate arm (`loc_58482`) tones for forty frames without a band.
+Godot draws the runtime's opaque `$EEE` rows above the held page and field.
+The dialogue runner drops the portrait once its packed rectangle is covered
+(pass 5), then the page when the text rectangle is covered (pass 12).
+
+The `retained-window-page` pair covers the last page before the press, at
+tick 511 against frame 7797. `retained-window-press` and
+`retained-portrait-press` cover the window `(24,160)` 272x48 and portrait
+`(40,104)` 48x48 on tick 514 against frame 7800. The three
+`event-battle-{band-first,portrait-covered,window-covered}` pairs cover the
+full width of the band's rows at passes 1, 5 and 12, against frames 7801,
+7805 and 7812. Separate comparisons of the toned remainder at passes 1, 5
+and 12 match inside the existing field-edge boundary; pass 5's whole
+`1,1,319,223` region matches. The full frame still differs on the first row
+and column outside the band ([#409](https://github.com/TusanHomichi/PSIV/issues/409));
+these band crops do not certify that edge, every intermediate tone frame,
+or the subsequent stage sweep ([source notes](../source-notes/README.md#other-recorded-deviations)).
 
 ## The battle's entry (#663)
 

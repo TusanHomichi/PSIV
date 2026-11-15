@@ -596,3 +596,6 @@ mod tests {
         assert!(none.get("limit_hardware").is_none());
     }
 }
+
+#[cfg(test)]
+mod mapping_regressions;

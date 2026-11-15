@@ -35,6 +35,8 @@ pub(crate) enum TransitionKind {
     /// (`psiv_runtime::Runtime::battle_entry_screen`). The shell sets it
     /// again on every frame the runtime still shows it.
     Screen(u16),
+    /// Runtime-owned opaque rows on the retail surface, over field windows.
+    Band(psiv_runtime::EventBattleBand),
 }
 
 /// The solid colour used by the current palette ramp.
@@ -105,11 +107,14 @@ impl Transition {
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
-            TransitionKind::Screen(word) => (!self.finished()).then_some(TransitionVisual {
-                color: TransitionColor::Cram(word),
-                level: PALETTE_LEVELS,
-                opening: None,
-            }),
+            TransitionKind::Screen(word)
+            | TransitionKind::Band(psiv_runtime::EventBattleBand { word, .. }) => {
+                (!self.finished()).then_some(TransitionVisual {
+                    color: TransitionColor::Cram(word),
+                    level: PALETTE_LEVELS,
+                    opening: None,
+                })
+            }
         }
     }
 
@@ -117,11 +122,18 @@ impl Transition {
     /// field surface, including a window whose text has already returned.
     pub(crate) fn z_index(self) -> i32 {
         match self.kind {
-            TransitionKind::Screen(_) => super::dialogue::Z_INDEX + 100,
+            TransitionKind::Screen(_) | TransitionKind::Band(_) => super::dialogue::Z_INDEX + 100,
             TransitionKind::GameStart
             | TransitionKind::SceneFadeIn
             | TransitionKind::SceneFadeOut => 600,
             TransitionKind::Doorway | TransitionKind::SceneStart => 25,
+        }
+    }
+
+    pub(crate) fn band(self) -> Option<psiv_runtime::EventBattleBand> {
+        match self.kind {
+            TransitionKind::Band(band) => Some(band),
+            _ => None,
         }
     }
 
@@ -134,7 +146,7 @@ impl Transition {
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
-            TransitionKind::Screen(_) => 1,
+            TransitionKind::Screen(_) | TransitionKind::Band(_) => 1,
         }
     }
 
@@ -227,6 +239,23 @@ mod tests {
 
     /// A runtime fade-in ends a doorway cover at any age, and leaves the
     /// other covers, and no cover, as they were.
+    #[test]
+    fn the_entry_band_is_opaque_and_above_the_held_window_for_one_frame() {
+        let band = psiv_runtime::EventBattleBand {
+            top: 104,
+            bottom: 120,
+            word: 0xEEE,
+        };
+        let mut cover = Transition::new(TransitionKind::Band(band));
+        assert_eq!(cover.band(), Some(band));
+        assert!(cover.z_index() > crate::dialogue::Z_INDEX);
+        let visual = cover.visual().expect("band drawn on its supplied frame");
+        assert_eq!(visual.color, TransitionColor::Cram(0xEEE));
+        assert_eq!(visual.level, 7);
+        assert!(cover.tick());
+        assert_eq!(cover.visual(), None);
+    }
+
     #[test]
     fn a_palette_fade_in_ends_only_the_doorway_cover() {
         for age in [0, 1, 13, 40, 70] {

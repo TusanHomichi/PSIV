@@ -22,6 +22,7 @@ mod battle_entry;
 mod dialogue;
 mod effects;
 mod encounters;
+pub use battle_entry::EventBattleBand;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;

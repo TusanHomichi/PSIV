@@ -48,3 +48,16 @@ pub struct DialogueView {
     /// delta; the renderer adds it to the pack's talk position.
     pub cutscene_portrait: bool,
 }
+
+impl DialogueView {
+    /// The panel-event branch selects `WinGroup_Event`'s portrait origin
+    /// (3,14), instead of `WinGroup_Dialogue`'s (5,13).
+    #[must_use]
+    pub fn portrait_offset(&self) -> (i32, i32) {
+        if self.scene_dialogue && self.cutscene_portrait {
+            (-16, 8)
+        } else {
+            (0, 0)
+        }
+    }
+}
