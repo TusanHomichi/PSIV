@@ -130,7 +130,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_PersistentEsperGuards", 6),
         ("Event_InnerSanctGuard", 3),
         ("Event_InnerSanctGuardBeforeElsydeon", 3),
-        ("Event_EclipseTorchUsed", 30),
+        ("Event_EclipseTorchUsed", 43),
         ("Event_DarkForce2", 6),
         ("Cutscene_LutzRevelation", 31),
         ("Event_EclipseTorchStolen", 58),

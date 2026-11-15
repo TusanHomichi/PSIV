@@ -455,6 +455,43 @@ agility and dexterity, and enemy paralysis clearing each turn.
   machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
   frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
 
+- **Eclipse Torch: what the flashes and creations leave out.**
+  `Event_EclipseTorchUsed` (`docs/scenes/56_EclipseTorchUsed.md`) runs both
+  white flashes, their two map-update frames (`$070266`, `$0702A8`) and
+  their forty `loc_58666` restore frames (`$070270`, `$0702B2`) as the US
+  bytes do, through the runtime's CRAM model. Three parts of the object
+  sequence differ:
+  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait`: map
+    updates on every frame, no `Field_UpdateObjects`, because native scene
+    frames run no field-object pass
+    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
+    per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
+    The objects that pass would move are the nine `$338`s and the standing
+    party; the nine are renderer records, which the shell advances on every
+    scene frame.
+  - The nine `$338` objects (`$0702E4..$07041D`) are `CreateFieldObject`
+    records at their literal positions; their `$11` delays (7, `$B`, `$F`)
+    and `$6` sequences (0, 4, 8) are not carried. Retail's
+    `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
+    (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
+    return's map reload, and the pack has no `$338`/`$3AF` sheet, so the
+    shell draws none of them
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
+    over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
+    `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after
+    dialogue `$2A` (`$070466`), are not transcribed: the background is not
+    redrawn with the new chunk during the scene. `DMAPlane_B_VInt`'s frame
+    (`$07043C`) is a bare `WaitFrames`, as at `$070220`
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - Against tape 46 (`docs/scenes/SCENE_PRESENTATION.md`), two more
+    differences, neither this scene's alone: panel `$10D` is not decoded
+    ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+    keeps the field's foreground, the party and palette line 3 where the
+    cartridge shows the panel. And the cartridge spends eight lag frames on
+    the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
+    port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

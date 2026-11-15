@@ -3,7 +3,7 @@
 
 use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, OBJECTS, Row, SHIP, frame, own, row};
+use super::{DEZO, OBJECTS, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -240,14 +240,13 @@ pub(super) const ROWS: &[Row] = &[
     updates(OBJECTS, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Within(8))),
     row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(11)),
     // Two white flashes, each 2 frames of map updates and 40 passes of the
-    // `loc_58666` restore; the transcription has the first restore only.
-    row("Event_EclipseTorchUsed", Map(0x07_0266), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Wait(13))),
-    row("Event_EclipseTorchUsed", Map(0x07_02A8), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Missing(CAMPAIGN)),
-    // After the nine `$338` spawns, whose `ObjectAnimation`s record one
-    // frame each that no retail loop runs.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Missing(CAMPAIGN)),
+    // `loc_58666` restore with neither update.
+    row("Event_EclipseTorchUsed", Map(0x07_0266), Wait(15)),
+    row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
+    row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
+    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
+    // After the nine `$338` creations, which wait no frame of their own.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),
