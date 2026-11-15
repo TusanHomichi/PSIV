@@ -37,9 +37,26 @@ the battle on 7815, which holds white until 7856 and fades the battle in from
 7857.
 
 The port keeps the last page and portrait available while the scene runs
-([window lifetime](DIALOGUE_CALLERS.md#the-routines-and-their-windows)), but
-draws the battle stage over the field on the next tick (`PSIV_DEBUG_EVENT=0x7D`: the last page through tick 513, the stage
-from 514), with no band, tone or white hold
+([window lifetime](DIALOGUE_CALLERS.md#the-routines-and-their-windows)). During
+the field arm of the battle's entry it draws the field without the band or tone
 ([source notes](../source-notes/README.md#other-recorded-deviations)). The
 `retained-window-page` pair certifies the last page over the window's box,
 `(24,160)` 272x48, at tick 511 against frame 7797.
+
+## The battle's entry (#663)
+
+`GameMode_LoadBattle` (`ps4.asm:9911`) fills the palette with `$EEE`, loads the
+stage while `Main_Frame_Count` holds (7818-7854), and `loc_6B20` fades the
+stage in from white, one nibble a frame toward the battle palette, while the
+planes sweep in from off-screen: 7857-7859 show the backdrop alone (`$CCC`,
+then `$AAA`), the stage is in from 7860 and settled by 7870. Only then does
+`loc_B62A` roll the opening priority (the seed word rotates on 7875). Every
+encounter takes the same mode after its own field arm (`loc_584EE`).
+
+The runtime runs the 76 frames from the request to that roll and counts the
+36 the cartridge counts (`event_battle_entry.rs`); clone tick t shows frame
+t + 7286. Ticks 528-570 are the white hold and 571-573 the fade's first
+steps, equal to frames 7814-7859 over `1,1,319,223`; the `event-battle-*`
+pairs certify 7814, 7840, 7857 and 7859. Ticks 574-583 go on fading the
+backdrop alone and 583-589 hold it black, where the cartridge sweeps the stage
+in and then shows it settled; the battle starts on tick 590 (7876).

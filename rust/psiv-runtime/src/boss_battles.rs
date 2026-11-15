@@ -12,7 +12,7 @@ use psiv_core::battle::{Battle, BattleEvent, FormationRecord, Outcome, Rng2};
 use psiv_data::BattleFiles;
 
 use crate::encounters::formation_record;
-use crate::{BattleTimeline, BridgeError, Runtime};
+use crate::{BattleTimeline, BridgeError, Runtime, RuntimeEvent};
 
 /// Converts the pack's boss table using the normal formation-record path.
 pub(crate) fn boss_formation_records(
@@ -67,6 +67,29 @@ impl Runtime {
             sounds: Vec::new(),
             animations: Vec::new(),
         })
+    }
+
+    /// Starts the event battle a scene asked for, once its entry has run: the
+    /// battle and its timeline, or the failure, after which the scene resumes
+    /// as if the party escaped so a malformed pack cannot deadlock it.
+    pub(crate) fn start_requested_battle(&mut self, index: u16) -> RuntimeEvent {
+        match self.start_boss_battle(index) {
+            Ok(initial) => RuntimeEvent::SceneBattleStarted {
+                index,
+                events: initial.events,
+                sounds: initial.sounds,
+                animations: initial.animations,
+            },
+            Err(error) => {
+                self.scene_input = SceneInput::BattleFinished {
+                    outcome: Outcome::Escaped,
+                };
+                RuntimeEvent::SceneBattleFailed {
+                    index,
+                    error: error.to_string(),
+                }
+            }
+        }
     }
 
     /// Finishes either kind of battle and, for a scene battle, returns the

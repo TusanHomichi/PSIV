@@ -91,6 +91,12 @@ as a stepped white cover rather than pretending that Godot can reproduce the
 cartridge's simultaneous tile upload and CRAM writes. The resulting shape is
 the measured flash/hold/reveal, with no invented swirl.
 
+Event battles take the same `GameMode_LoadBattle` hold and fade after their own
+field arm. There the runtime runs the frames up to the opening roll and the
+shell draws its uniform screens (`TransitionKind::Screen`), certified against
+tape 45 ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md#the-battles-entry-663)).
+Encounters keep this cover, and their roll, until #678.
+
 ## Scene start and end
 
 The high-bit principal cutscene `$8001` is the clean full-screen scene sample.

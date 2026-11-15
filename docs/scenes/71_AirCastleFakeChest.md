@@ -39,6 +39,8 @@ capture; the battle's field-entry cover is the next visible phase
 The runtime suite `suites::retained_window` drives the actual `$5A` dialogue
 with Speak presses and checks that removal, all five records and the battle
 request share its close frame, with the page and portrait still available.
+It then checks their availability on every frame of the actual event-battle
+entry through the opening roll, while further Speak presses stay inert.
 Its isolated caller fixtures check every intervening frame of an eight-frame
 scene wait and disappearance at scene end, including retained resumes and
 `Standard` as a negative control. These are runtime input/state checks,

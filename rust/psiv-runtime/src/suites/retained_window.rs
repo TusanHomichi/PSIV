@@ -234,11 +234,29 @@ fn air_castle_removes_the_torch_and_runs_all_five_records_on_the_close_frame() {
             assert!(
                 events
                     .iter()
-                    .any(|e| matches!(e, RuntimeEvent::SceneBattleStarted { index: 0xF, .. }))
+                    .any(|e| matches!(e, RuntimeEvent::EventBattleEntered { index: 0xF }))
             );
             assert!(!runtime.game.inventory().get_item(0x8E));
-            assert_held(&last.expect("last open page"), runtime.dialogue_view());
-            return;
+            let last = last.expect("last open page");
+            assert_held(&last, runtime.dialogue_view());
+            // The actual scene keeps running through the event battle's
+            // entry. Presses during that handoff cannot advance the page.
+            for tick in 0..128 {
+                let pad = if tick % 2 == 0 {
+                    Pad::new(Button::Speak)
+                } else {
+                    Pad::NEUTRAL
+                };
+                let events = frame(&mut runtime, pad);
+                assert!(runtime.scene_active());
+                assert_held(&last, runtime.dialogue_view());
+                if events.iter().any(|event| {
+                    matches!(event, RuntimeEvent::SceneBattleStarted { index: 0xF, .. })
+                }) {
+                    return;
+                }
+            }
+            panic!("Air Castle's battle entry never finished");
         }
         pad = next_pad(&runtime, pad);
     }
