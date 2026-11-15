@@ -285,7 +285,7 @@ pub static MEETING_DORIN: Scene = Scene {
     ops: MEETING_DORIN_OPS,
 };
 
-/// `Cutscene_Dorin` — retail `$074034..$0741E5`, 434 bytes, 17 ops.
+/// `Cutscene_Dorin` — retail `$074034..$0741E5`, 434 bytes, 18 ops.
 static DORIN_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
@@ -555,7 +555,7 @@ pub static ALSHLINE_FOUND: Scene = Scene {
     ops: ALSHLINE_FOUND_OPS,
 };
 
-/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 88 ops.
+/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 89 ops.
 static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::PlaySound { id: MUSIC_STOP },

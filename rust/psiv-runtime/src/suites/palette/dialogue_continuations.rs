@@ -25,7 +25,7 @@ fn runtime(map: u16) -> Runtime {
 fn tick(rt: &mut Runtime, headless: bool, frame: usize) -> Vec<RuntimeEvent> {
     let was_open = rt.dialogue_open();
     if !headless {
-        let pad = if frame % 3 == 0 {
+        let pad = if frame.is_multiple_of(3) {
             Pad::NEUTRAL
         } else {
             Pad::new(Button::Speak)
