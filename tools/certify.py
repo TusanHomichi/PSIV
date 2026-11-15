@@ -72,6 +72,9 @@ ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
 SCENE = {"PSIV_DEBUG_AUTOCLOSE_SCENE": "1", "PSIV_DEBUG_RETAIL_PACE": "1"}
+# `Cutscene_Ending`'s windows run `RunText3` (#645): they page and close on
+# their own clock and read no press, so its pairs run with no dialogue harness.
+ENDING = {"PSIV_DEBUG_EVENT": "0x8021"}
 
 # Tape 28 enters MeetingRika by explicit fixture patches (oracle/CAPTURE.md,
 # "Deterministic scene fixtures").
@@ -229,9 +232,11 @@ TAPE_36_CLOSE_TOWNS = {
 
 # Tape 38 is tape 28's input schedule with Cutscene_Ending ($8021) started by
 # fixture at frame 7200 (Event_Index, then the field routine to Events), Chaz
-# alone on map $13 where tape 28 leaves him. C taps page through the first
-# dialogue: frames 8930-8967 are byte-identical, the scene's panels and its
-# window settled before the Elsydeon break whitens the screen.
+# alone on map $13 where tape 28 leaves him. The first dialogue runs
+# `RunText3`, which reads no pad: it pages on its own and the tape's C taps
+# change nothing (#645). Frames 8930-8967 are byte-identical, the scene's
+# panels and its window settled, in the `$F9 99` before the Elsydeon break
+# whitens the screen.
 TAPE_38 = {
     "tape": "oracle/tapes/38_ending_elsydeon.tape",
     "patches": ["7200:FFFFECA8:8021", "7200:FFFFEC20:000C"],
@@ -252,15 +257,13 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The native CRAM steps on ticks 909-933 in
-# the same plateaus, so its 64 words at tick t equal the buffer at frame
-# t + 8987, and clone tick t shows oracle frame t + 8988 on every tick from
-# 902 (the last page typed) through 972, once the scene's first dialogue
-# spends its portraits' frames (#625). The
-# untoned frame before (9893), the loop's fourth step (9910, backdrop `$888`,
-# the dialogue's window and Chaz's portrait still up and toned until
-# `$078FAE`, #636) and the white endpoint inside the loop (9950) certify all
-# but #409's first row and column.
+# 9920 to the fade-out at 10086. The ending's windows page on their own
+# (#645), and clone tick t shows oracle frame t + 7296 through the loop: the
+# fourth step's plateau (9909-9912) on ticks 2613-2616. The cartridge keeps
+# the first window and Chaz's portrait up, toned, until `$078FAE`, and so
+# does the runtime (#636). The untoned frame before (9893), the loop's fourth
+# step (9910, backdrop `$888`, the window and portrait toned) and the white
+# endpoint inside the loop (9950) certify all but #409's first row and column.
 TAPE_38_LOOP = {
     **TAPE_38,
     "frames": [9893, 9910, 9950],
@@ -314,6 +317,23 @@ TAPE_44 = {
     "region": [1, 1, 319, 223],  # The field surface edge, #409.
 }
 
+# Tape 45: `Event_FractOozeFound` (`$7D`), whose text runs through
+# `Event_GetAndRunDialogue2` (`DialogueWindow::Retained`, #644), on Monsen with
+# Chaz alone at (288, 704). The last page ("It's coming for us!") is typed by
+# 7792; the C on 7799 ends it. The routine destroys nothing, so 7800 still shows
+# the window and Rika's portrait; from 7801 `loc_58498` covers them with a white
+# plane-A band, the portrait by 7805 and the window by 7812. The pair compares
+# the last page before the press, over the window's box: the field around it
+# carries a wandering NPC neither fixture pins.
+TAPE_45 = {
+    "tape": "oracle/tapes/45_retained_window_battle.tape",
+    "patches": ["7000:FFFFEC28:0073", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF406:0120", "7000:FFFFF408:02C0",
+                "7224:FFFFECA8:007D", "7224:FFFFEC20:000C"],
+    "frames": [7797],
+    "region": [24, 160, 272, 48],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -337,24 +357,25 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    ("ending-elsydeon", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 600,
+    # Ticks 1690-1722 all match: at the break's t + 7245 they show 8935-8967,
+    # which equal 8930 (#645).
+    ("ending-elsydeon", ENDING, 1704,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: the native tone runs ticks 635-670 in the
-    # cartridge's 4-frame steps, 651-654 the brightest (13 ticks later than
-    # before the dialogue's portraits lagged, #625).
-    ("ending-elsydeon-tone", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 651,
+    # The break's tone at its peak: ticks 1739-1742 are the brightest, as
+    # frames 8984-8987 are, so clone tick t shows frame t + 7245 here (#645).
+    ("ending-elsydeon-tone", ENDING, 1739,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
     # its white endpoint, one tape-38 run (TAPE_38_LOOP).
-    ("ending-tone-loop-before", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 905,
+    ("ending-tone-loop-before", ENDING, 2597,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 922,
+    ("ending-tone-loop-rise", ENDING, 2614,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
      "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP),
-    ("ending-tone-loop-white", {"PSIV_DEBUG_EVENT": "0x8021", **SCENE}, 962,
+    ("ending-tone-loop-white", ENDING, 2654,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
@@ -474,6 +495,11 @@ PAIRS = [
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
+    # A `Retained` window's last page, typed by tick 509 and up through 513;
+    # the battle stage replaces it on 514 (#644).
+    ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
+     "build/certify/oracle/retained-window-page/frame_7797.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

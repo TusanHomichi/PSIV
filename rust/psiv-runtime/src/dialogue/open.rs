@@ -17,6 +17,7 @@ impl DialogueRunner {
     /// Opens a field entry in the tree the runtime selection owner resolved:
     /// a map-loaded NPC tree or a world-selected type-0 area tree.
     pub(crate) fn open_entry(&mut self, tree: u8, dialogue_id: u16, game: &GameState) -> bool {
+        self.set_text3(false);
         self.open_resolved_tree(tree, dialogue_id, game, false, false)
     }
 
@@ -186,6 +187,7 @@ impl DialogueRunner {
     /// field-status window, a scene's standalone prompt. `pub(super)` because
     /// the runner's own tests build their entries this way.
     pub(super) fn open_resolved(&mut self, entry: &DialogueEntry, game: &GameState) -> bool {
+        self.set_text3(false);
         self.suspended = None;
         self.scene_dialogue = false;
         let opening = TextFlow::open_at(entry, game);
@@ -208,5 +210,6 @@ impl DialogueRunner {
         self.clear_portrait_change();
         self.scene_dialogue = false;
         self.hold_last_page = false;
+        self.set_text3(false);
     }
 }

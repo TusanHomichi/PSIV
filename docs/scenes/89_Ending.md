@@ -34,6 +34,12 @@ a separate presentation routine. The first bytes make that boundary explicit:
 | `$078FDC..$078FE2` | raw `#$77` `VInt_PrepareLoop` | `WaitFrames(120)` |
 | `$078FE6..$078FF4` | initialise VRAM/CRAM, play `Music_ThePromisingFuture1` (`$AF`), fade | init/music/fade |
 
+Entry `$09` and every `Event_GetAndRunDialogue4`/`Event_RunDialogue4` window
+run `RunText3`: no pad, no arrow, a glyph a frame, and each page turns `9n + 1`
+frames after its last glyph's (`DialogueWindow::runs_text3`;
+[SCENE_DIALOGUE.md](SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
+Its windows take no input; only the final Start gate does.
+
 The first loop is certified against tape 38 at frames 9893, 9910 and 9950
 (`ending-tone-loop-*`,
 [SCENE_PRESENTATION.md](SCENE_PRESENTATION.md#certified-pairs)).
@@ -42,9 +48,7 @@ tones them with the panels until `$078FAE` destroys them. The runtime keeps
 the window's last page drawn from the text's end to `WindowDestroy`
 (`DialogueRunner::hold_page_at_end`,
 [#636](https://github.com/TusanHomichi/PSIV/issues/636)). The later texts'
-`Event_RunDialogue4` destroys its own window. Neither routine reads the pad:
-`RunText3` pages and ends on its own, which the runtime does not model yet
-([#645](https://github.com/TusanHomichi/PSIV/issues/645)).
+`Event_RunDialogue4` destroys its own window.
 
 The Menu shortcut is real retail behaviour. It skips the normal panel/dialogue
 sequence and enters the credits renderer at `$079D0C`. The typed normal path

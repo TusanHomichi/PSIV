@@ -44,8 +44,8 @@ camera other than (0,0):
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-elsydeon` | **0.000000** | clone t600 (`PSIV_DEBUG_EVENT=0x8021`) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
-| `ending-elsydeon-tone` | **0.000000** | clone t651 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-elsydeon` | **0.000000** | clone t1704 (`PSIV_DEBUG_EVENT=0x8021`, no dialogue harness) ↔ tape-38 frame 8930: `Cutscene_Ending`'s panels and window over map `$13`, before the Elsydeon break |
+| `ending-elsydeon-tone` | **0.000000** | clone t1739 ↔ tape-38 frame 8984: the break's tone at its peak, every line and the backdrop `$AAA`; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
 
 With the old floored surface origin and its one-pixel compensation, the pair
 fails (`rmse=55.057226`): panels, window and portrait one pixel right, and the
@@ -113,30 +113,36 @@ from tape 38's own run and fixture, after the first dialogue's last pages:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-tone-loop-before` | **0.000000** | clone t905 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
-| `ending-tone-loop-rise` | **0.000000** | clone t922 ↔ frame 9910: the loop's fourth step, backdrop `$888`, the panels, Chaz's portrait and the window toned; region `1,1,319,223` ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
-| `ending-tone-loop-white` | **0.000000** | clone t962 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+| `ending-tone-loop-before` | **0.000000** | clone t2597 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t2614 ↔ frame 9910: the loop's fourth step, backdrop `$888`, the panels, Chaz's portrait and the window toned; region `1,1,319,223` ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t2654 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
-white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086; the
-native CRAM steps on ticks 909-933, so clone tick t shows frame t + 8988 over
-`1,1,319,223` on every tick 902-972, and the runtime's 64 words equal the
-oracle's (tick t against frame t + 8987) at ticks 905, 922 and 962. The
-offset was t + 9012 when the pairs joined; the first dialogue's portrait
-lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)) moved
-it 24 ticks, and the three ticks were re-pinned from a sweep. Before tick
-902 the screens differ: the debug run pages the dialogue on other frames
-than the tape. When the pairs joined, ticks
-884-908 (at t + 9012) differed over `1,1,319,223`, only inside
-`(24,112)-(296,208)`: the native closed the window and portrait when the text
-ended, where the cartridge keeps both up, toned, until `$078FAE`. The runtime
-now holds the window's last page until the scene's `WindowDestroy`
-([#636](https://github.com/TusanHomichi/PSIV/issues/636)), and the rise
-certifies the whole region. The untoned tick
-905 scores `rmse=128.691861` against the rise, the steps before and after it
-(918, 926) `rmse=35.007219` and `rmse=28.373297`, the step before white (930)
-`rmse=26.137684` against the endpoint, and the endpoint against the untoned
-frame `rmse=206.044683`. The second loop (`$079BD2`) and the third
+white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086.
+The ending's windows run `RunText3` and page on their own
+([#645](https://github.com/TusanHomichi/PSIV/issues/645)), so its pairs run
+with `PSIV_DEBUG_EVENT=0x8021` alone, no `PSIV_DEBUG_AUTOCLOSE_SCENE` or
+`PSIV_DEBUG_RETAIL_PACE`. The first window's text ends on tick 2598, the
+frame the cartridge's last page turns (9893), and clone tick t shows frame
+t + 7296 through the loop. The cartridge keeps the window and Chaz's
+portrait up, toned, until `$078FAE`, and the runtime holds the window's last
+page until the scene's `WindowDestroy`
+([#636](https://github.com/TusanHomichi/PSIV/issues/636)), so every pair
+certifies the whole region. Over `1,1,319,223` (2026-11-15 sweep of ticks
+2585-2670, with the window held): the before frame matches ticks 2585-2600,
+up to the loop's first step; the rise matches 2613-2616, with the untoned
+tick 2597 at `rmse=128.691861` and the steps either side (2612, 2617) at
+`rmse=35.007219` and `rmse=28.373297`; white matches 2625-2670, the step
+before (2621) at `rmse=26.137684` and the untoned tick at
+`rmse=206.044683`. Before the hold, the native closed the window when the
+text ended, and the before frame scored `rmse=43.225656` from tick 2599. The
+break pairs sit 51 ticks earlier, at t + 7245: the
+settled window matches ticks 1690-1722 (1723 `rmse=32.193293`) and the
+break's peak 1739-1742 (1738 `rmse=30.119675`, 1743 `rmse=32.294586`). The
+cartridge spends lag frames (panel decompression, page clears) that the
+native does not, and two of the seventh page's `$F2` frames
+([#667](https://github.com/TusanHomichi/PSIV/issues/667)), between the two.
+The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
 (`suites::palette::ending`). The third starts white natively, because the
 staff roll's and the credits' palette steps are not modelled
@@ -215,7 +221,9 @@ recipe rebuilds both.
   typewriter, holds a completed page for 4 frames, and dismisses it with a
   one-frame `ButtonSpeak` press in the pad, so the next page's first glyph
   frame types at the held cadence. It advances only a page that is fully
-  revealed with its open animation finished, and never a `Choice` page.
+  revealed with its open animation finished, and never a `Choice` page. A
+  `RunText3` window (the ending's) is never dismissable, so the pace presses
+  nothing there; the ending's pairs run without it.
 
 ### Capture doctrine
 

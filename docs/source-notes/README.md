@@ -165,12 +165,9 @@ agility and dexterity, and enemy paralysis clearing each turn.
   map change, so the window shows until that mode redraws the planes. The
   port closes it when the text ends. It holds a last page only for the
   ending's first window (`$078F68..$078F90`, #636), which the scene destroys
-  itself at `$078FAE..$078FCC`. No certified frame yet shows where a
-  `Retained` window goes ([89_Ending.md](../scenes/89_Ending.md)).
-- **The ending's texts wait for Speak (#645).** `RunText3` (`ps4.asm:144053`)
-  reads no pad: it pages after two lines and ends after a wait of nine frames
-  per glyph. The port runs the ending's texts as ordinary windows, so each page
-  waits for a press ([89_Ending.md](../scenes/89_Ending.md)).
+  itself at `$078FAE..$078FCC` ([89_Ending.md](../scenes/89_Ending.md)).
+  Tape 45 shows a `Retained` window staying up under an event battle's band
+  (the event-battle bullet below).
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
@@ -190,6 +187,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
+- **An event battle's stage replaces the field at once (#644).** A scene that
+  sets `Routine_Exit_Flags` bit 3 returns through `RunEventBattle`
+  (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event arm
+  (`loc_58498`) spends fifteen passes on the field: each writes a white
+  plane-A band two cells taller, one above and one below rows 13-14, and calls
+  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  stays up under it: tape 45 shows the window and portrait untouched on the
+  press frame (7800), the band from 7801, the portrait covered by 7805, the
+  window by 7812, the screen white by 7814, and the battle mode from 7815. The
+  port closes the window with its text and draws the battle stage on the next
+  tick, with no band, tone or white hold
+  ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
@@ -275,6 +284,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
   the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
   frame (7400 and 7402 on tape 43).
+- `$F2` text actions spend no frame (`DialogueRunner`, #667). `TextAction_LoadSound`,
+  `TextAction_LoadSound2` and `TextAction_UpdatePalette` end in `VInt_Prepare`, and
+  `TextAction_LoadPanel` and the destroys in `DMAPlanes_VInt`: one counted frame each, in
+  `RunText` and `RunText3` alike. The runner releases them at their byte position and runs on, so
+  `Main_Frame_Count`, the RNG and the text after an action run a frame ahead of the cartridge per
+  action. On tape 38 the ending's seventh page turns two frames before the cartridge's
+  ([record](../scenes/SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
@@ -432,6 +448,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
     runtime's CRAM model applies them, and the map, sprites, panels and dialogue window draw
     from it ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#drawing-the-cram)). No game
     state reads them.
+
+- **Dezolis dismount frames run no object pass.** The mounted branches of
+  `Event_CarnivorousTrees`, `Event_SavingKyra` and `Event_EclipseTorchUsed`
+  end their dismount with `jsr Field_UpdateObjects` / `jsr VInt_Prepare`
+  (`$07080C`, `$0708EE`, `$070220`): one frame, no `RunMapUpdates`, after the
+  party objects are rebuilt on `Character_1`. The port waits that frame as a
+  bare `WaitFrames { frames: 1 }`, so the frame count and the missing map
+  updates match, but no field object runs on it: native scene frames run no
+  field-object tick at all
+  ([#470](https://github.com/TusanHomichi/PSIV/issues/470)), and the pass's
+  visible work here, the rebuilt party objects' first update, is the
+  runtime's dismount (`set_vehicle_index(0)` stands the party on the
+  machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
+  frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
 
 ## Public reverse-engineering references used
 

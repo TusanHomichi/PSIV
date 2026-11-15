@@ -232,6 +232,7 @@ impl Runtime {
         let Some(tree) = self.scene_dialogue_tree() else {
             return SceneDialogueOpen::UnknownTree;
         };
+        self.select_scene_text_loop();
         if self
             .dialogue
             .open_scene_entry(tree, entry, panel_layout, &self.game)
@@ -266,7 +267,17 @@ impl Runtime {
     /// Reopens the scene's saved text cursor (`Saved_Dialogue_Addr`) after its
     /// movement and presentation ops.
     pub(crate) fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
+        self.select_scene_text_loop();
         self.dialogue.resume_scene(panel_layout, &self.game)
+    }
+
+    /// The scene's window routine picks the text loop: `RunText3` for the
+    /// ending's windows, `RunText` for the rest.
+    fn select_scene_text_loop(&mut self) {
+        let text3 = self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::runs_text3);
+        self.dialogue.set_text3(text3);
     }
 
     /// A line the pack carries outside the trees, opened for the running
