@@ -148,11 +148,14 @@ class LaneRunCase(unittest.TestCase):
 
     def escaping_command(self, ways=ESCAPES):
         """A command that starts one descendant each way ESCAPES names, each writing
-        its pid to `<way>.pid` (and the zombie's to `zombie-child.pid`), then
-        sleeping 30 s before it writes `woke`."""
+        its newline-terminated pid to `<way>.pid` (and the zombie's to
+        `zombie-child.pid`), then sleeping 30 s before it writes `woke`."""
         spawned = self.root / "spawned"
         spawned.write_text(
             "import os, signal, sys, time\n"
+            "def write_pid(name, pid):\n"
+            f"    with open({str(self.root)!r} + f'/{{name}}.pid', 'w') as record:\n"
+            "        record.write(f'{pid}\\n')\n"
             "way = sys.argv[1]\n"
             "if way == 'session':\n    os.setsid()\n"
             "if way == 'stubborn':\n    signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
@@ -160,8 +163,8 @@ class LaneRunCase(unittest.TestCase):
             "if way == 'zombie':\n"
             "    child = os.fork()\n"
             "    if child == 0:\n        os._exit(0)\n"
-            f"    open({str(self.root)!r} + '/zombie-child.pid', 'w').write(str(child))\n"
-            f"open({str(self.root)!r} + f'/{{way}}.pid', 'w').write(str(os.getpid()))\n"
+            "    write_pid('zombie-child', child)\n"
+            "write_pid(way, os.getpid())\n"
             "time.sleep(30)\n"
             f"open({str(self.root / 'woke')!r}, 'a').write(way)\n")
         run = f"python3 {spawned}"
@@ -172,8 +175,45 @@ class LaneRunCase(unittest.TestCase):
         return (*ways, "zombie-child") if "zombie" in ways else tuple(ways)
 
     def started(self, ways=ESCAPES):
-        """Whether every descendant `escaping_command(ways)` starts has written its pid."""
-        return all((self.root / f"{way}.pid").is_file() for way in self.pid_files(ways))
+        """Whether every descendant has published a complete, positive PID record."""
+        for way in self.pid_files(ways):
+            try:
+                record = (self.root / f"{way}.pid").read_text()
+            except FileNotFoundError:
+                return False
+            # A reader can see creation or a digit prefix before the write finishes.
+            if not record.endswith("\n") or not record[:-1].isdecimal() or int(record) <= 0:
+                return False
+        return True
+
+    def test_started_waits_for_complete_pid_records(self):
+        """Hold each writer open at creation and after its digits: neither publishes
+        readiness until the newline commits the whole PID, including the zombie's."""
+        ways = (*self.ESCAPES, "stubborn")
+        pid = str(os.getpid())
+        for way in self.pid_files(ways):
+            (self.root / f"{way}.pid").write_text(f"{pid}\n")
+        self.assertTrue(self.started(ways))
+        for way in self.pid_files(ways):
+            path = self.root / f"{way}.pid"
+            with self.subTest(way=way), path.open("w") as record:
+                self.assertTrue(path.is_file())  # The original readiness check passes here.
+                self.assertFalse(self.started(ways), "creation is not PID publication")
+                record.write(pid)
+                record.flush()
+                self.assertFalse(self.started(ways), "digits alone may still be a prefix")
+                record.write("\n")
+                record.flush()
+                self.assertTrue(self.started(ways))
+
+    def test_started_requires_a_positive_pid(self):
+        ways = ("grouped",)
+        self.assertFalse(self.started(ways))
+        path = self.root / "grouped.pid"
+        for invalid in ("\n", "0\n", "-1\n", "not-a-pid\n", "12\n34\n"):
+            with self.subTest(record=invalid):
+                path.write_text(invalid)
+                self.assertFalse(self.started(ways))
 
     def assert_none_outlived(self, ways=ESCAPES):
         for way in self.pid_files(ways):
