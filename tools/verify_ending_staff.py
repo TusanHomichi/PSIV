@@ -97,10 +97,17 @@ def main():
     for native, (label, frame, _) in zip(captures, PAIRS):
         rmse, result = compare(output / f"{label}.png", oracle / f"frame_{frame}.png", REGION)
         results.append({**native, "oracle_frame": frame, "rmse": rmse, "comparison": result})
+    # A missing plane transfer leaves this rectangle white, as it is after
+    # the clear. Compare that unmodified capture against the fall frame: the
+    # new visual check must reject the missing-text image.
+    blank_rmse, blank_result = compare(output / "cleared.png", oracle / "frame_42525.png", REGION)
+    if blank_rmse is None or float(blank_rmse) <= 0:
+        raise RuntimeError("missing-transfer negative control was not rejected")
     receipt = {"git": git_info(root), "inputs": {
         name: sha256(root / name) for name in ("Phantasy Star IV (USA).md", "oracle/tapes/46_ending_staff.tape",
                                              "runtime-pack/dialogue/font.png")},
         "run_root": run_root.record, "region": REGION, "results": results,
+        "missing_transfer_control": {"rmse": blank_rmse, "comparison": blank_result},
         "elapsed_s": round(time.monotonic() - started, 2)}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt, indent=2))
