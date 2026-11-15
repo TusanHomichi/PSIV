@@ -411,6 +411,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn advisory_pose_labels_cover_eleven_characters_and_start_with_idle() {
+        assert_eq!(POSE_LABELS.len(), 11);
+        assert_eq!(
+            POSE_LABELS.iter().map(|labels| labels.len()).sum::<usize>(),
+            43
+        );
+        assert!(POSE_LABELS.iter().all(|labels| labels[0] == "Idle"));
+    }
+
+    #[test]
     fn a_ui_colour_site_must_hold_its_move_and_destination() {
         let mut rom = vec![0u8; 0x7700];
         for (at, line, index, value) in UI_COLOR_SITES {
