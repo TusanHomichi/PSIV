@@ -1,6 +1,10 @@
 //! Window exits exercised through the runtime's input/scene/window frame order.
 //! The core caller census ties these window kinds to the US image and docs.
 
+use std::path::Path;
+
+use psiv_data::BattleFiles;
+
 use super::palette::{pack_present, runtime_on};
 use crate::dialogue::glue::SceneDialogueOpen;
 use crate::{Button, DialogueSignal, DialogueView, Pad, Runtime, RuntimeEvent};
