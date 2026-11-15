@@ -118,6 +118,12 @@ frames between the text return and the battle request; their `frames` field
 is not a wait. Battle field-entry coverage remains
 [#665](https://github.com/TusanHomichi/PSIV/issues/665).
 
+The uniform entry screen covers the field window as well as the map: its
+transition layer is above the window layer. Once the battle stage masks the
+field, dialogue-view sync respects that mask; the runtime's held page remains
+available until its scene ends. These are presentation-surface rules, not
+additional dialogue exits.
+
 The ending's first sixty-frame `Pal_IncreaseTone` loop (`$078F9C`) joined
 them on 2026-11-14 ([#535](https://github.com/TusanHomichi/PSIV/issues/535)),
 from tape 38's own run and fixture, after the first dialogue's last pages.

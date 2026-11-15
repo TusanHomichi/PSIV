@@ -712,7 +712,6 @@ impl Field {
         for _ in 0..TRANSITION_RECTS {
             let mut node = ColorRect::new_alloc();
             node.set_visible(false);
-            node.set_z_index(600);
             self.base_mut().add_child(&node);
             self.transition_nodes.push(node);
         }
@@ -743,7 +742,7 @@ impl Field {
                 Color::from_rgba8(r, g, b, 255)
             }
         };
-        let z = if transition.front_layer() { 600 } else { 25 };
+        let z = transition.z_index();
         for node in &mut self.transition_nodes {
             node.set_color(color);
             node.set_z_index(z);
