@@ -31,6 +31,20 @@ and `EndingIntro` an inline `RunText3` window; neither is a `Get` entry. The
 Godot presenter destroys panels on close only for `Standard`, `Cutscene` and
 `Cutscene5`, so `Retained` and `Cutscene3` leave them up as the cartridge does.
 
+The runtime keeps a `Retained` window's last page and portrait drawn after
+its text returns, with no arrow and no response to further presses, for as
+long as its scene runs. This applies both to all fourteen `D2` entries and
+the four `R2` resumes below. The next window replaces it; scene end removes
+it from the view. `EndingIntro` also keeps its page until the scene's explicit
+`WindowDestroy` ([ending](89_Ending.md)); every other kind closes with its
+text. `DialogueWindow::retains_page` owns this exhaustive choice, used for
+both entry and resume by `Runtime`'s dialogue glue. The suite
+`suites::retained_window` checks the registry's eighteen retained callers
+against these rows and exercises their exits with real packed text and
+presses, plus closing controls for every other routine kind. These isolate
+the window exit from the callers' remaining scene requirements; the core
+census below pins the actual caller entries and windows to the US image.
+
 (The clone comments the `SFXID_Selection` store out of several of these; the
 image has it in all but the fourth, `13FC 00F3 FFFF500A` at the second
 instruction. The port is silent on dialogue open everywhere, which is a separate

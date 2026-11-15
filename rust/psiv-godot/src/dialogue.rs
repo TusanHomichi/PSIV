@@ -38,7 +38,8 @@ const RETAIL_TEXT_LINE_PITCH: f32 = 16.0;
 const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
 
 /// Above the field, above the party, above anything a later overlay adds.
-const Z_INDEX: i32 = 1000;
+/// The field window surface; opaque screen covers sit above it.
+pub(crate) const Z_INDEX: i32 = 1000;
 
 mod choice;
 

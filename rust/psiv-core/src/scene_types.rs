@@ -85,6 +85,18 @@ pub enum DialogueWindow {
 }
 
 impl DialogueWindow {
+    /// Whether returning from the text leaves its last page and portrait up.
+    /// The scene owns their later destruction or replacement.
+    #[must_use]
+    pub fn retains_page(self) -> bool {
+        match self {
+            Self::Retained | Self::EndingIntro => true,
+            Self::Standard | Self::Cutscene | Self::Cutscene3 | Self::Ending | Self::Cutscene5 => {
+                false
+            }
+        }
+    }
+
     /// Whether the window's text runs through `RunText3` (`ps4.asm:144053`)
     /// rather than `RunText`: it reads no pad, draws no arrow, and pages and
     /// ends on its own clock. Both are the ending's windows.
