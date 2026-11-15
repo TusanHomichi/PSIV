@@ -116,7 +116,7 @@ impl Runtime {
     }
 
     fn apply_dialogue_signals(&mut self, signals: &[DialogueSignal]) {
-        self.dialogue_panel_palettes(signals);
+        self.dialogue_effects(signals);
         for signal in signals {
             match signal {
                 // The scene hears the answer here, before its tick: a scene
@@ -155,7 +155,14 @@ impl Runtime {
 
     /// A `$F2` `LoadPanel` action is `Panel_Create`: its layers' palettes go
     /// to the palette as a scene panel's do.
-    fn dialogue_panel_palettes(&mut self, signals: &[DialogueSignal]) {
+    fn dialogue_effects(&mut self, signals: &[DialogueSignal]) {
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+        {
+            // Retained windows leave their pixels but zero `Panel_Num`.
+            self.dialogue.return_panels(self.scene_dialogue_window());
+        }
         for signal in signals {
             match signal {
                 DialogueSignal::Action(super::DialogueAction::LoadPanel(id)) => {
@@ -234,14 +241,7 @@ impl Runtime {
             .dialogue
             .open_scene_entry(tree, entry, panel_layout, &self.game)
         {
-            // `Cutscene_Ending`'s first text (`$078F68..$078F90`) runs
-            // `RunText3` inline and returns with the window and portrait up;
-            // the scene destroys both at `$078FAE..$078FCC`, after its first
-            // tone loop (`WindowDestroy`). Every other routine destroys its
-            // own window, except `Event_RunDialogue2`'s (#644).
-            if self.scene_dialogue_window() == Some(psiv_core::DialogueWindow::EndingIntro) {
-                self.dialogue.hold_page_at_end();
-            }
+            self.retain_scene_dialogue_page();
             SceneDialogueOpen::Opened
         } else {
             SceneDialogueOpen::Empty
@@ -265,7 +265,23 @@ impl Runtime {
     /// movement and presentation ops.
     pub(crate) fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
         self.select_scene_text_loop();
-        self.dialogue.resume_scene(panel_layout, &self.game)
+        let opened = self.dialogue.resume_scene(panel_layout, &self.game);
+        if opened {
+            self.retain_scene_dialogue_page();
+        }
+        opened
+    }
+
+    /// Both a fresh entry and a resumed cursor return through the window
+    /// kind's own exit. `Event_RunDialogue2` forgets its windows without
+    /// destroying them; the ending's inline window is destroyed by its scene.
+    fn retain_scene_dialogue_page(&mut self) {
+        if self
+            .scene_dialogue_window()
+            .is_some_and(psiv_core::DialogueWindow::retains_page)
+        {
+            self.dialogue.hold_page_at_end();
+        }
     }
 
     /// The scene's window routine picks the text loop: `RunText3` for the
@@ -417,7 +433,10 @@ mod tests {
                     // The tone steps no cycle index; a scratch byte stands in.
                     let mut cycle_index = 0;
                     // Real frame order: input, field palette clock, window dispatch.
-                    for frame in 0..=80 {
+                    // Text actions run inside the text routine, after the
+                    // nine-frame box opening, never during that animation.
+                    let start = if opening { 9 } else { 0 };
+                    for frame in 0..=start + 80 {
                         let pad = if frame % 3 == 0 {
                             Pad::NEUTRAL
                         } else {
@@ -444,7 +463,7 @@ mod tests {
                             "palette frame {frame}"
                         );
                         let view = rt.dialogue_view().expect("window stays open");
-                        if frame < 80 {
+                        if frame < start + 80 {
                             assert_eq!(view.lines, [before], "frame {frame}, opening {opening}");
                             assert_eq!(
                                 view.revealed,
@@ -459,7 +478,7 @@ mod tests {
                             assert_eq!(view.lines, [format!("{before}after")]);
                         }
                     }
-                    assert_eq!(launches, [0, 40]);
+                    assert_eq!(launches, [start, start + 40]);
                     // Control: once the blocking loops end, a fresh press
                     // really advances or dismisses the finished page.
                     for _ in 0..40 {

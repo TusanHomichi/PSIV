@@ -42,5 +42,18 @@ update; the scene blocks for every pass. The galaxy picture is drawn as
 [`Event_MeetingLeRoof`](51_MeetingLeRoof.md#the-picture) draws it, until the
 `InitVRAMAndCRAM` of op 14.
 
-Gaps: the loops start 7 counted frames early, which moves the cycle's phase
-([#595](https://github.com/TusanHomichi/PSIV/issues/595)).
+Against the retail capture (as for
+[`Event_MeetingLeRoof`](51_MeetingLeRoof.md), plus flag byte `$F11A=$54`),
+Chaz walks 16 pixels (8 frames). Retail reaches its calls after these
+counted frames from the `Event_Index` write:
+
+- `Pal_VariableFadeOut_Lines_1_2`: 9;
+- `DMAPlanes_VInt`: 111;
+- `Pal_VariableFadeToPal2`: 112;
+- the 180-pass loop: 157;
+- `loc_705D6`: 337.
+
+The runtime reaches each on the same frame. Its words 0-31 equal retail's on
+every frame up to the end of the first 120-pass loop (528 frames). Op 20's fade
+spends 84 frames from panel `$11B`'s palette (fourteen passes of six), as
+retail does before `$07846C`.

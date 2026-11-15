@@ -280,9 +280,10 @@ Still missing natively:
   [#642](https://github.com/TusanHomichi/PSIV/issues/642)). Until they land,
   the ramp and the third loop step words over the staff roll's black, and the
   `EndingCreditsAssets` and `EndingCreditsStage` records draw nothing.
-- The frames `DMAPlanes_VInt` (`$079CF4`) and the credits stages spend
-  ([#608](https://github.com/TusanHomichi/PSIV/issues/608)). The loops' frame
-  phases follow the native count, so they shift when those frames land.
+- The frames the credits stages spend
+  ([#608](https://github.com/TusanHomichi/PSIV/issues/608)). The explicit
+  `DMAPlanes_VInt` (`$079CF4`) now spends its one bare frame; the loops'
+  frame phases follow the native count.
 
 Those are drawing and frame gaps; a passing state test of these loops makes
 no visual claim.

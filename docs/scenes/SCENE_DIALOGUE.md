@@ -277,9 +277,11 @@ on that clock (`dialogue/text3.rs`): one glyph a frame whatever the pad, no
 arrow, no press read, and the page turns, or the window closes, on its own.
 `runner_tests/text3.rs` pins every page of entry `$09` against the tape, and
 `session/ending_text3_tests.rs` plays `$8021` with no press and with presses,
-frame for frame the same. The seventh page turns two frames early:
-two of its `$F2`s cost the cartridge a frame each that the runner does not spend
-([the source notes](../source-notes/README.md)).
+frame for frame the same. The seventh page turns 248 counted frames after
+its last glyph (263 wall-clock frames, including panel `$143`'s four and
+`$144`'s eleven lag frames). Its `$F2` waits use the
+[shared action clock](DIALOGUE_ACTIONS.md#retail-timing-and-semantics), with
+no subtracted action-frame allowance in the regression.
 
 **A `$F9` starts after the glyphs before it.** The pause is a byte of the
 text loop, so its frames run once the typewriter has drawn the page up to it,

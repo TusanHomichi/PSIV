@@ -34,6 +34,7 @@
 //! flag write across a field tick, which is a behavior change and not a
 //! refactor.
 
+mod actions;
 mod choice;
 pub(crate) mod close;
 pub mod glue;
@@ -173,6 +174,10 @@ pub struct DialogueRunner {
     text3: bool,
     /// The page's `RunText3` wait: frames left, once its last glyph is drawn.
     text3_wait: Option<u16>,
+    /// Retail `Panel_Num`, shared by scene and dialogue panel operations.
+    panels: u8,
+    /// A panel load waiting for its measured decompression lag.
+    loading_panel: Option<DialogueAction>,
 }
 
 impl Default for DialogueRunner {
@@ -215,6 +220,8 @@ impl DialogueRunner {
             portrait_plane: None,
             text3: false,
             text3_wait: None,
+            panels: 0,
+            loading_panel: None,
         }
     }
 
@@ -275,8 +282,8 @@ impl DialogueRunner {
 
     /// Whether this frame is a lag frame: its VInt finds `VInt_Flag` clear
     /// (`ps4.asm:548-549`), so it skips `ReadJoypads`, `UpdateRNGSeed` and
-    /// `Main_Frame_Count` (`ps4.asm:614-624`), and the 68000 is still inside
-    /// `TextCtrlCode_Portrait`'s `NemDecomp`. Nothing of the frame runs.
+    /// `Main_Frame_Count` (`ps4.asm:614-624`), while the 68000 is still
+    /// decompressing a portrait or a panel. Nothing of the frame runs.
     #[must_use]
     pub(crate) fn lag_frame(&self) -> bool {
         self.lag > 0
@@ -390,13 +397,18 @@ impl DialogueRunner {
             self.lag -= 1;
             return;
         }
-        // Actions launch after this tick, so frame zero is never consumed here.
-        // Their palette clock runs during the opening animation too.
+        // Keep the old panel planes through decompression; deliver the
+        // completed load before resuming the byte loop.
+        if let Some(action) = self.loading_panel.take() {
+            self.signals.push(DialogueSignal::Action(action));
+        }
+        // New actions launch after this tick: their first VInt is this one.
+        let action_was_holding = self.flow.as_ref().is_some_and(TextFlow::action_holding);
         if let Some(flow) = self.flow.as_mut() {
             flow.tick_action(game);
         }
         self.pump_actions(game);
-        if self.flow.is_none() {
+        if self.flow.is_none() || self.action_holding() || self.lag_frame() {
             return;
         }
         if self.open_cells < self.full_cells() {
@@ -421,12 +433,20 @@ impl DialogueRunner {
             self.retain_board_portrait();
             if let Some(flow) = self.flow.as_mut()
                 && self.revealed >= flow.visible_chars()
+                && !action_was_holding
             {
                 // Delays only run once the box is open; the cartridge's
                 // animation holds the text loop the same way. A `$F9` is a
                 // byte of the text loop, so it starts once the glyphs before
                 // it are drawn, not with the page.
                 flow.tick(game);
+            }
+            // A control after a delay runs as that delay returns. Waiting
+            // until the next window tick would spend its VInt twice.
+            self.pump_actions(game);
+            if self.flow.is_none() || self.action_holding() || self.lag_frame() {
+                self.drain_flow_log();
+                return;
             }
             // A delay that ran out into a `$F4` the typewriter is at: a
             // `$F4 0` finishes before the step, and a load or swap starts as
@@ -732,38 +752,6 @@ impl DialogueRunner {
         self.signals.push(DialogueSignal::Closed {
             suspended: self.suspended.is_some(),
         });
-    }
-
-    /// Releases the next `$F2` whose byte position the typewriter has reached,
-    /// applying `SetEventFlag` to the live game state.
-    ///
-    /// Consecutive actions run back-to-back before the next character
-    /// iteration, exactly as retail does; the byte stream only moves forward,
-    /// so the loop ends at the entry's last action.
-    fn pump_actions(&mut self, game: &mut GameState) {
-        loop {
-            let ready = self
-                .flow
-                .as_ref()
-                .is_some_and(|flow| flow.action_ready(self.revealed));
-            if !ready {
-                return;
-            }
-            let Some(action) = self.flow.as_mut().and_then(TextFlow::take_pending_action) else {
-                return;
-            };
-            if let DialogueAction::SetEventFlag(flag) = action {
-                // The write lands before the text loop resumes, so a `$FA`
-                // later in the same entry reads it.
-                let _ = game.set(psiv_core::Flag::event(u16::from(flag)));
-            }
-            self.signals.push(DialogueSignal::Action(action));
-            if let Some(flow) = self.flow.as_mut() {
-                flow.resume_after_action(action, game);
-            }
-            self.service_flow(game);
-            self.drain_flow_log();
-        }
     }
 
     /// Applies mid-message `$FA` jumps and `$F6` events the flow raised.

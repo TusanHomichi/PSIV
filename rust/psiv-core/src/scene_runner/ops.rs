@@ -12,16 +12,6 @@ use crate::scene::{
 use crate::state::{CharId, GameState, PARTY_SLOTS};
 
 impl SceneRunner {
-    /// Spend a runtime-resolved setup/refresh interval before the next op.
-    /// The initiating op remains the owner of whether map updates run.
-    pub fn delay_frames(&mut self, frames: u16) {
-        self.blocked = if frames == 0 {
-            Blocked::No
-        } else {
-            Blocked::Ticks(frames)
-        };
-    }
-
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
@@ -548,7 +538,6 @@ impl SceneRunner {
             | SceneOp::PlaySound { .. }
             | SceneOp::PlayMusicIfSavedDifferent { .. }
             | SceneOp::SetSavedMusic { .. }
-            | SceneOp::DmaPlanes
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
                 effects.push(SceneEffect::Presentation { op });
@@ -574,6 +563,14 @@ impl SceneRunner {
             SceneOp::MarkGameCleared => {
                 effects.push(SceneEffect::GameCleared);
                 self.pc += 1;
+            }
+            // `DMAPlanes_VInt` (`$041678`) and its one-plane forms queue the
+            // DMA, then end in `VInt_Prepare`: one frame, no map or object
+            // update (`scenes/dma_census.rs` ties each op to such a call).
+            SceneOp::DmaPlanes => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(1);
             }
             SceneOp::WaitFrames { frames } | SceneOp::StepFieldObject { frames, .. } => {
                 effects.push(SceneEffect::Presentation { op });

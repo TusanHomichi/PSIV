@@ -206,6 +206,7 @@ impl DialogueRunner {
     pub(crate) fn close_window(&mut self) {
         self.note_stop();
         self.flow = None;
+        self.loading_panel = None;
         self.open_cells = 0;
         self.clear_portrait_change();
         self.scene_dialogue = false;

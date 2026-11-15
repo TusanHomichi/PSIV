@@ -159,15 +159,6 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **`Event_RunDialogue2`'s windows close when their text ends (#644).** The
-  routine (`$5ACDC`, `DialogueWindow::Retained`) returns without destroying
-  the text window or its portrait, and every caller goes on to a battle or a
-  map change, so the window shows until that mode redraws the planes. The
-  port closes it when the text ends. It holds a last page only for the
-  ending's first window (`$078F68..$078F90`, #636), which the scene destroys
-  itself at `$078FAE..$078FCC` ([89_Ending.md](../scenes/89_Ending.md)).
-  Tape 45 shows a `Retained` window staying up under an event battle's band
-  (the event-battle bullet below).
 - **The staff roll's fade out stops at `u16::MAX` frames (#638).**
   `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
   `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
@@ -215,10 +206,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
   arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
-  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  `Pal_IncreaseTone`. A `Retained` window (`Event_GetAndRunDialogue2`, `$5ACDC`)
   stays up under it: tape 45 shows the window and portrait untouched on the
   press frame (7800), the band from 7801, the portrait covered by 7805, the
   window by 7812, the screen white by 7814, and the battle mode from 7815.
+  The port keeps the last page and portrait while the scene runs (both
+  `Retained` entries and resumes).
   `GameMode_LoadBattle` (`ps4.asm:9911`) then holds `$EEE` while it loads the
   stage (7814-7856), fades it in from white a nibble a frame with the planes
   sweeping in (`loc_6B20`, 7857-7870) and only then rolls the opening priority
@@ -318,13 +311,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
   the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
   frame (7400 and 7402 on tape 43).
-- `$F2` text actions spend no frame (`DialogueRunner`, #667). `TextAction_LoadSound`,
-  `TextAction_LoadSound2` and `TextAction_UpdatePalette` end in `VInt_Prepare`, and
-  `TextAction_LoadPanel` and the destroys in `DMAPlanes_VInt`: one counted frame each, in
-  `RunText` and `RunText3` alike. The runner releases them at their byte position and runs on, so
-  `Main_Frame_Count`, the RNG and the text after an action run a frame ahead of the cartridge per
-  action. On tape 38 the ending's seventh page turns two frames before the cartridge's
-  ([record](../scenes/SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
+- Panel-load lag outside the isolated `$143`/`$144` measurements on tape 38
+  remains unmodelled. The `$F2` handlers' counted VInts are modelled in both
+  text loops, including conditional panel-destroy waits
+  ([action timing](../scenes/DIALOGUE_ACTIONS.md#retail-timing-and-semantics));
+  loads after page clears or window setup combine those routines' lag with
+  `Panel_Create`'s decompression, so they do not yet establish a panel-only cost.
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.

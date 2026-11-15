@@ -894,15 +894,6 @@ impl Field {
         }
     }
 
-    /// Hands the window this frame's runtime view. The runtime owns the
-    /// window's state; the node owns its pixels.
-    fn sync_dialogue_view(&mut self) {
-        let view = self.runtime().and_then(|rt| rt.dialogue_view());
-        if let Some(window) = self.dialogue.as_mut() {
-            window.bind_mut().set_view(view);
-        }
-    }
-
     /// Reloads the leader sprite sheet from the game's party slot 0 and
     /// refreshes the cached view on party changes and native save/title loads.
     fn refresh_party_sheets(&mut self) {

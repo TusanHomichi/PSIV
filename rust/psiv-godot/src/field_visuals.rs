@@ -668,6 +668,21 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Hands the window this frame's runtime view. The runtime owns the
+    /// window's state; the node owns its pixels.
+    pub(super) fn sync_dialogue_view(&mut self) {
+        // The field's visibility mask still applies when its window keeps a
+        // page. Syncing that page must not reopen a node the battle hid.
+        let view = if self.battle_field_visibility.is_some() {
+            None
+        } else {
+            self.runtime().and_then(|rt| rt.dialogue_view())
+        };
+        if let Some(window) = self.dialogue.as_mut() {
+            window.bind_mut().set_view(view);
+        }
+    }
+
     /// An event battle's entry draws the runtime's uniform screen this frame:
     /// a one-frame cover over whatever transition ran, set again each frame
     /// the runtime still shows it.
@@ -790,7 +805,6 @@ impl Field {
         for _ in 0..TRANSITION_RECTS {
             let mut node = ColorRect::new_alloc();
             node.set_visible(false);
-            node.set_z_index(600);
             self.base_mut().add_child(&node);
             self.transition_nodes.push(node);
         }
@@ -821,7 +835,7 @@ impl Field {
                 Color::from_rgba8(r, g, b, 255)
             }
         };
-        let z = if transition.front_layer() { 600 } else { 25 };
+        let z = transition.z_index();
         for node in &mut self.transition_nodes {
             node.set_color(color);
             node.set_z_index(z);

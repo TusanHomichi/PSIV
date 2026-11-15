@@ -117,17 +117,17 @@ impl Transition {
         }
     }
 
-    /// Scene fades sit below the dialogue window but above the cutscene plane;
-    /// battle and boot covers must sit above the battle/field nodes too.
-    pub(crate) fn front_layer(self) -> bool {
-        matches!(
-            self.kind,
+    /// Scene fades sit below field windows. A uniform screen replaces every
+    /// field surface, including a window whose text has already returned.
+    pub(crate) fn z_index(self) -> i32 {
+        match self.kind {
+            TransitionKind::Screen(_) => super::dialogue::Z_INDEX + 100,
             TransitionKind::BattleEntry
-                | TransitionKind::GameStart
-                | TransitionKind::SceneFadeIn
-                | TransitionKind::SceneFadeOut
-                | TransitionKind::Screen(_)
-        )
+            | TransitionKind::GameStart
+            | TransitionKind::SceneFadeIn
+            | TransitionKind::SceneFadeOut => 600,
+            TransitionKind::Doorway | TransitionKind::SceneStart => 25,
+        }
     }
 
     fn duration(self) -> u16 {
@@ -406,7 +406,11 @@ mod tests {
         let visual = screen.visual().unwrap();
         assert_eq!(visual.color, TransitionColor::Cram(0xCCC));
         assert_eq!(visual.level, 7);
-        assert!(screen.front_layer());
+        assert!(screen.z_index() > crate::dialogue::Z_INDEX);
+        assert!(
+            Transition::new(TransitionKind::SceneFadeOut).z_index() < crate::dialogue::Z_INDEX,
+            "a scene fade keeps its existing position below windows"
+        );
         assert!(screen.tick(), "finished after its frame");
         assert!(screen.visual().is_none());
     }

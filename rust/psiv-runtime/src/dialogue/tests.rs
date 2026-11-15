@@ -125,7 +125,14 @@ pub(super) fn open(entry: &DialogueEntry) -> TextFlow {
 fn settle(flow: &mut TextFlow, game: &GameState) {
     loop {
         if let Some(action) = flow.take_pending_action() {
-            flow.resume_after_action(action, game);
+            flow.resume_after_action(
+                if action == super::DialogueAction::ElsydeonBroken {
+                    40
+                } else {
+                    0
+                },
+                game,
+            );
         } else if flow.finish_portrait(game).is_none() {
             return;
         }
@@ -525,7 +532,7 @@ fn an_action_stops_at_its_retail_byte_position() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(387))
     );
-    flow.resume_after_action(super::DialogueAction::LoadPanel(387), &game);
+    flow.resume_after_action(0, &game);
     assert_eq!(flow.lines(), ["after the panel"]);
 }
 
@@ -553,7 +560,7 @@ fn an_action_after_text_waits_for_the_typewriter() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(0x30))
     );
-    flow.resume_after_action(super::DialogueAction::LoadPanel(0x30), &game);
+    flow.resume_after_action(0, &game);
     assert_eq!(flow.lines(), ["beforeafter"]);
 }
 
@@ -579,7 +586,7 @@ fn the_elsydeon_break_holds_the_text_for_its_forty_frames() {
     assert!(flow.action_ready(6));
     let action = flow.take_pending_action().expect("the action");
     assert_eq!(action, super::DialogueAction::ElsydeonBroken);
-    flow.resume_after_action(action, &game);
+    flow.resume_after_action(40, &game);
     for frame in 1..40 {
         flow.tick_action(&game);
         assert_eq!(flow.lines(), ["before"], "frame {frame}");

@@ -312,6 +312,16 @@ impl SceneRunner {
         self.rng.take()
     }
 
+    /// Spend a runtime-resolved setup/refresh interval before the next op.
+    /// The initiating op remains the owner of whether map updates run.
+    pub fn delay_frames(&mut self, frames: u16) {
+        self.blocked = if frames == 0 {
+            Blocked::No
+        } else {
+            Blocked::Ticks(frames)
+        };
+    }
+
     /// Whether the scene waits on [`SceneRunner::release_palette`].
     #[must_use]
     pub fn awaits_palette(&self) -> bool {

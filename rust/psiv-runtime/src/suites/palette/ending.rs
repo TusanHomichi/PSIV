@@ -349,7 +349,18 @@ fn ending_to_third_loop() -> Option<Vec<Frame>> {
     let mut frames = Vec::new();
     let mut tones = 0;
     for _ in 0..200_000 {
+        let calls = runtime.map_updates().calls;
         let events = runtime.tick(Input::Neutral);
+        if events
+            .iter()
+            .any(|event| emits(event, |op| matches!(op, SceneOp::DmaPlanes)))
+        {
+            assert_eq!(
+                runtime.map_updates().calls,
+                calls,
+                "DMA spends no map update"
+            );
+        }
         for event in &events {
             assert!(
                 !matches!(event, RuntimeEvent::SceneFaulted { .. }),
@@ -424,7 +435,8 @@ fn first_eighth(count: u16) -> usize {
 /// words. Each record's tick is worked by hand from the one before it: a
 /// staff loop spends up to its terminal stepping frame (`first + 48` after
 /// six stores), the ramp through its fourteenth (`first + 105`). The plane
-/// clear and DMA spend no frame natively yet: the helper frames are #608's.
+/// clear spends no frame; `DMAPlanes_VInt` (`$079CF4`) spends one bare frame
+/// between the staff fade-in and the sixty-frame restore.
 #[test]
 fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     let Some(frames) = ending_to_third_loop() else {
@@ -469,11 +481,10 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     );
     assert_eq!(fade_in - music, 180, "the second wait");
     let first = first_eighth(frames[fade_in].count);
-    assert_eq!(
-        restore - fade_in,
-        first + 48,
-        "six stores, then $1110 unstored"
-    );
+    let dma = tick_of(&frames, fade_in, |op| matches!(op, SceneOp::DmaPlanes));
+    assert_eq!(dma - fade_in, first + 48, "six stores, then $1110 unstored");
+    assert_eq!(restore - dma, 1, "the DMA VInt before the restore");
+    assert_eq!(ramp - restore, 60, "sixty restore frames before the ramp");
     assert_eq!(frames[restore - 1].words, [0x0EEE; 64]);
     // Sixty restore frames take every component down a level on the
     // fifteen whose count is a multiple of four: seven reach black.
