@@ -245,21 +245,21 @@ class PlatformBuilderWrites(unittest.TestCase):
     )
 
     def test_both_rows_start_and_end_writes_are_found(self) -> None:
-        self.assertEqual(registry_writes({"example.rs": self.SOURCE}),
+        self.assertEqual(registry_writes({"fixture": self.SOURCE}),
                          {"ExamplePlatform": self.WRITES})
 
     def test_an_uncited_write_in_each_pair_is_named(self) -> None:
         for x, y, chunk in self.WRITES:
             with self.subTest(chunk=chunk):
                 changed = self.SOURCE.replace(f"({x}, {y}, {chunk})", f"({x}, {y}, 99)")
-                writes = registry_writes({"example.rs": changed})
+                writes = registry_writes({"fixture": changed})
                 self.assertEqual(uncited_writes(writes, (self.ROW,)), [
                     f"ExamplePlatform writes chunk $63 at ({x},{y}) and "
                     "SCENE_CHUNK_WRITES has no row for it"
                 ])
 
     def test_a_missing_atlas_chunk_in_each_pair_is_named(self) -> None:
-        writes = registry_writes({"example.rs": self.SOURCE})
+        writes = registry_writes({"fixture": self.SOURCE})
         record = {"symbol": "fixture", "patch_tiles": {
             "tiles": [{"index": i, "chunk_id": chunk}
                       for i, chunk in enumerate(self.ROW.chunks)]
