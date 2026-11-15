@@ -3,9 +3,9 @@
 //! a panel also backs up tiles, decodes Enigma maps and draws its layers.
 
 use super::{PANEL_RECORD_SIZE, be, hex6, panel_record_offset, slice};
-use crate::PackError;
 use crate::decode::{enigma, nemesis};
 use crate::json::Json;
+use crate::{PackError, png};
 use sha2::{Digest, Sha256};
 
 /// The actual stream bytes and executed Nemesis paths, independent of scene.
@@ -16,10 +16,10 @@ pub fn art(rom: &[u8], source: usize) -> Result<Json, PackError> {
         .with("consumed_bytes", consumed)
         .with(
             "compressed_sha256",
-            format!("{:x}", Sha256::digest(&rom[source..source + consumed])),
+            png::hex(&Sha256::digest(&rom[source..source + consumed])),
         )
         .with("decoded_bytes", bytes.len())
-        .with("decoded_sha256", format!("{:x}", Sha256::digest(&bytes)))
+        .with("decoded_sha256", png::hex(&Sha256::digest(&bytes)))
         .with("xor_mode", work.xor_mode)
         .with("lookup_tokens", work.lookup_tokens)
         .with("inline_tokens", work.inline_tokens)
@@ -47,25 +47,19 @@ pub fn panel(rom: &[u8], id: u16) -> Result<Json, PackError> {
                 .with("consumed_bytes", consumed)
                 .with(
                     "compressed_sha256",
-                    format!("{:x}", Sha256::digest(&rom[source..source + consumed])),
+                    png::hex(&Sha256::digest(&rom[source..source + consumed])),
                 )
                 .with("decoded_words", words.len())
                 .with(
                     "decoded_sha256",
-                    format!("{:x}", Sha256::digest(enigma::words_to_bytes(&words))),
+                    png::hex(&Sha256::digest(enigma::words_to_bytes(&words))),
                 ),
         );
     }
     Ok(Json::object()
         .with("id", id)
         .with("record_offset", hex6(offset))
-        .with(
-            "record_hex",
-            record
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>(),
-        )
+        .with("record_hex", png::hex(record))
         .with("destination_tile", destination)
         .with("row_size", record[6])
         .with("col_size", record[7])
