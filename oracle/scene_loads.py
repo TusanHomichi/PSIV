@@ -239,15 +239,15 @@ def main() -> None:
                "cargo", "run", "--quiet", "--manifest-path", "rust/Cargo.toml", "-p", "psiv-pack",
                "--example", "scene_load_work", "--", str(ROM), *queries]
     started = time.monotonic()
-    result = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out / "work.json").write_bytes(result.stdout)
-    (out / "work.stderr").write_bytes(result.stderr)
+    print(f"querying decompressor work; build progress: {out / 'work.stderr'}", flush=True)
+    with (out / "work.json").open("wb") as output, (out / "work.stderr").open("wb") as errors:
+        result = subprocess.run(command, cwd=ROOT, stdout=output, stderr=errors)
     (out / "work-receipt.json").write_text(json.dumps(
         {"command": command, "exit_status": result.returncode,
          "elapsed_seconds": time.monotonic() - started}, indent=2) + "\n")
     if result.returncode:
         raise RuntimeError(f"work query exited {result.returncode}; see {out / 'work.stderr'}")
-    work = json.loads(result.stdout)
+    work = json.loads((out / "work.json").read_bytes())
     for scene, calls in measured.items():
         for call in calls:
             attach_work(call, work[call["query"]])
