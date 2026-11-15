@@ -149,13 +149,13 @@ fn assert_intro_frame_boundaries(ops: &[(usize, SceneOp)]) {
         for row in 0..4 {
             assert!(span.iter().any(|(t, op)| *t == start + row && matches!(op, SceneOp::DrawTextToPlane { entry: e, .. } if *e == entry + row as u16)));
         }
-        let down_frames = if (start + 925) & 3 == 1 { 21 } else { 22 };
-        let pause_at = 925 + down_frames;
+        let down_frames = if (start + 924) & 3 == 0 { 22 } else { 21 };
+        let pause_at = 924 + down_frames;
         for (offset, op) in [
-            (4, SceneOp::DmaPlanes),
-            (5, SceneOp::IntroTextFadeUp),
-            (25, SceneOp::WaitFrames { frames: 900 }),
-            (925, SceneOp::IntroTextFadeDown),
+            (3, SceneOp::DmaPlanes),
+            (4, SceneOp::IntroTextFadeUp),
+            (24, SceneOp::WaitFrames { frames: 900 }),
+            (924, SceneOp::IntroTextFadeDown),
             (pause_at, SceneOp::WaitFrames { frames: pause }),
         ] {
             assert!(

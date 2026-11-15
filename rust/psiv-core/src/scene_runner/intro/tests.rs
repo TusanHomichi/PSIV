@@ -51,8 +51,8 @@ fn intro_helpers_spend_each_pass_and_the_floor_dma_on_its_own_frame() {
             (
                 SceneOp::IntroTextFadeDown,
                 0x0EEE,
-                if phase & 3 == 1 { 21 } else { 22 },
-                if phase & 3 == 1 { 1 } else { 2 },
+                if phase & 3 == 0 { 22 } else { 21 },
+                if phase & 3 == 0 { 2 } else { 1 },
             ),
             (
                 SceneOp::IntroTextFadeDown,
@@ -142,7 +142,8 @@ fn page_problem(ops: Vec<SceneOp>) -> bool {
             })
         })
         .collect();
-    // First page: 4 draws + DMA + 20 up + 900 hold + 21 down + 90 pause.
+    // First page, phase zero: 3 bare waits + DMA + 20 up + 900 hold +
+    // 22 down (two floor DMAs) + 90 pause. Four draws remain.
     // Second page differs only in the closing pause (120).
     let mut expected = Vec::new();
     for (base, entry) in [(0, 0x3A), (1036, 0x3E)] {
@@ -158,13 +159,13 @@ fn page_problem(ops: Vec<SceneOp>) -> bool {
     draws != expected
         || got.len() != 2103
         || [4, 1040].iter().any(|&t| got[t] != [SceneOp::DmaPlanes])
-        || [5, 1041]
+        || [4, 1040]
             .iter()
             .any(|&t| !got[t].contains(&SceneOp::IntroTextFadeUp))
-        || [25, 1061]
+        || [24, 1060]
             .iter()
             .any(|&t| got[t] != [SceneOp::WaitFrames { frames: 900 }])
-        || [925, 1961]
+        || [924, 1960]
             .iter()
             .any(|&t| !got[t].contains(&SceneOp::IntroTextFadeDown))
         || got[946] != [SceneOp::WaitFrames { frames: 90 }]

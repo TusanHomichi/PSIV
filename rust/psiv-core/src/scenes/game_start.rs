@@ -1,4 +1,4 @@
-//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 92 ops.
+//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 90 ops.
 //!
 //! The intro: Alys wakes Chaz at his house, they walk out through Aiedo, cross
 //! the Motavia overworld, the AW 2284 prologue crawls over a title image, and
@@ -71,7 +71,7 @@ macro_rules! prologue_page {
                 plane: 0x0000888A,
                 vram: 0x00004380,
             },
-            SceneOp::WaitFrames { frames: 1 },
+            // The fourth draw falls straight into the page's DMA/VInt.
             SceneOp::DmaPlanes,
             SceneOp::IntroTextFadeUp,
             SceneOp::WaitFrames { frames: 900 },
@@ -82,8 +82,8 @@ macro_rules! prologue_page {
 }
 
 static GAME_START_OPS: &[SceneOp] = &{
-    const PAGE_1: [SceneOp; 13] = prologue_page!(0x3A, 90);
-    const PAGE_2: [SceneOp; 13] = prologue_page!(0x3E, 120);
+    const PAGE_1: [SceneOp; 12] = prologue_page!(0x3A, 90);
+    const PAGE_2: [SceneOp; 12] = prologue_page!(0x3E, 120);
     [
         // --- phase 0: open on tree 17, entry $36 ---
         SceneOp::InitVramAndCram,
@@ -297,7 +297,6 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_1[9],
         PAGE_1[10],
         PAGE_1[11],
-        PAGE_1[12],
         PAGE_2[0],
         PAGE_2[1],
         PAGE_2[2],
@@ -310,7 +309,6 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_2[9],
         PAGE_2[10],
         PAGE_2[11],
-        PAGE_2[12],
         SceneOp::FadeOut,
         SceneOp::PlaySound { id: MUSIC_STOP },
         SceneOp::WaitFrames { frames: 40 },

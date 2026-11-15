@@ -441,8 +441,8 @@ LoadPalette{$1D2A3C, 64 words};  SetCameraPos{0, 0}
 DmaPlanes{}
 LoadTitleImage{art: $1CF1F2, map: $1D25BE, 40x16 at plane $9280}
 DmaPlanes{};  FadeIn{};  WaitFrames{60};  SetTextColour{$666}
-[ (DrawTextToPlane{entry, plane, vram}; WaitFrames{1}) x4
-  DmaPlanes{}
+[ (DrawTextToPlane{entry, plane, vram}; WaitFrames{1}) x3
+  DrawTextToPlane{fourth entry, plane, vram}; DmaPlanes{}
   IntroTextFadeUp{20 passes} ; WaitFrames{900} ; IntroTextFadeDown{20 passes}
   WaitFrames{90 | 120} ] x2
 FadeOut{};  PlaySound{Sound_StopMusic};  WaitFrames{40}
@@ -455,7 +455,7 @@ FadeIn{}
 SetFlag{EventFlag_PiataFirstTime}
 ```
 
-**92 ops**, including 13 per prologue page; the helper ops each run 20 passes.
+**90 ops**, including 12 per prologue page; the helper ops each run 20 passes.
 
 ## DMA frame ownership
 
@@ -463,16 +463,17 @@ The four static `jsr` calls are `$073C42` (clear both planes before the
 image), `$073C88` (upload the title image), `$073D1E` (page 1 text) and
 `$073DD2` (page 2 text). Each spends one `VInt_Prepare` frame without map
 or object updates. The fade-in and image upload do not absorb those frames.
-Each of the four text draws per page also ends with its own bare
-`VInt_Prepare` (`$073CBE..$073D18`, `$073D72..$073DCC`).
+The first three text draws per page end with bare `VInt_Prepare` calls
+(`$073CBE/$073CDE/$073CFE`, `$073D72/$073D92/$073DB2`). The fourth
+falls straight into the page DMA; adding a bare wait there duplicates a frame.
 
 The fade loops each call their helper 20 times and wait after every call.
 `IntroTextFadeDown` additionally clears plane A (`$073EC2`, `$0415E8`) and
 tail-jumps to `DMAPlane_A_VInt` (`$073EC8`) whenever the counter phase is zero
 and the text word is already `$666`. That frame precedes the caller's bare
 VInt; it is not a substitute for it. From the normal `$EEE` page colour the
-20-pass down loop takes 21 frames when its initial counter phase is 1, or
-22 otherwise: the extra VInt can make a second pass reach the floor path. The helpers
+20-pass down loop takes 22 frames when its initial counter phase is zero, or
+21 otherwise: the extra VInt can make a second pass reach the floor path. The helpers
 read the global frame counter, not a clock reset at the start of a fade.
 
 These explicit VInt frames are separate from CPU decompression and layout

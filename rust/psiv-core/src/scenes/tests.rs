@@ -11,7 +11,7 @@ use crate::scene_presentation::PresentationOp;
 /// The opening keeps each prologue loop as one op; the helper owns its passes.
 ///
 /// `Event_GameStart`'s two `dbra` colour ramps are not unrolled;
-/// each page is 13 ops (4 text draws and their waits, a DMA, the fade-up loop, the
+/// each page is 12 ops (4 text draws and three bare waits, a DMA, the fade-up loop, the
 /// 900-frame hold, one fade-down loop, the closing pause), matching the
 /// asm's loop structure rather than unrolling 20 iterations each.
 ///
@@ -22,7 +22,7 @@ use crate::scene_presentation::PresentationOp;
 #[test]
 fn every_scene_matches_its_docs_op_count() {
     let expected: &[(&str, usize)] = &[
-        ("Event_GameStart", 92),
+        ("Event_GameStart", 90),
         ("Event_PiataChazAlone", 2),
         ("Event_AlysFound", 12),
         ("Cutscene_PiataPrincipal", 10),
