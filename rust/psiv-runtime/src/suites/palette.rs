@@ -13,6 +13,7 @@ use psiv_data::GameData;
 
 mod dialogue_continuations;
 mod display;
+mod dorin_saya;
 mod eclipse_torch;
 mod ending;
 mod ending_window;

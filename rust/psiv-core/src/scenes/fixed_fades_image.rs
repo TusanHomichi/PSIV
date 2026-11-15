@@ -93,7 +93,6 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
 const KNOWN: &[(&str, u32)] = &[
-    ("Cutscene_AlysWounded", 652),
     ("Cutscene_ZioDefeated", 652),
     ("Cutscene_SpaceshipSabotage", 652),
     ("Cutscene_CrashLaanding", 652),
@@ -292,6 +291,42 @@ fn every_scene_records_the_fixed_fades_its_bytes_call() {
     };
     let problems = report(rom, &documented_ranges(), SCENES, KNOWN);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// #655's scenes against the current US image, including Dorin's fade-in
+/// and Saya's fade-in already restored on main before this repair.
+#[test]
+fn dorin_and_alys_wounded_calls_are_the_verified_us_sites() {
+    let Some(rom) = rom() else { return };
+    for (name, span, calls) in [
+        (
+            "Cutscene_Dorin",
+            (0x074034, 0x0741E6),
+            &[
+                (0x074034, Fixed::Init),
+                (0x07403A, Fixed::In),
+                (0x07411C, Fixed::In),
+            ][..],
+        ),
+        (
+            "Cutscene_AlysWounded",
+            (0x074B72, 0x075200),
+            &[
+                (0x074B72, Fixed::Init),
+                (0x074B78, Fixed::In),
+                (0x074C14, Fixed::Init),
+                (0x074C1A, Fixed::In),
+                (0x074D12, Fixed::In),
+                (0x074EBC, Fixed::Out),
+                (0x07500E, Fixed::In),
+            ][..],
+        ),
+    ] {
+        assert_eq!(retail_calls(rom, &[span]), calls, "{name}");
+        let scene = SCENES.iter().find(|scene| scene.name == name).unwrap();
+        assert_eq!(compare(name, calls, &native(scene.ops)), None);
+        assert!(!KNOWN.iter().any(|(known, _)| *known == name));
+    }
 }
 
 #[test]
