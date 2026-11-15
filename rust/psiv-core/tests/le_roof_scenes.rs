@@ -185,13 +185,15 @@ fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
 /// 120) before dialogue `$0B`, then after the panel's resume
 /// `Pal_VariableFadeOut` (`$078460`), which updates nothing, and
-/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
+/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map. Each
+/// `InitVRAMAndCRAM` is its fade-out (`O`), its frame (`V .1`); each fade is
+/// answered with the same 45 frames here, and no fade updates the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
     let trace = trace(from(0x801C, 9));
     assert!(
         trace.starts_with(
-            "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 X .45 +60 V I P DC .1 F"
+            "U .45 C180 .180 G71 .71 C120 .120 DB .1 O .45 V .1 I .45 P | .1 X .45 +60 O .45 V .1 I .45 P DC .1 F"
         ),
         "{trace}"
     );
@@ -234,7 +236,10 @@ fn the_old_le_roof_policy_is_rejected() {
         },
     ];
     let old = trace(OLD);
-    assert_eq!(old, "R .24 +300 DB .1 V I P | .1 O V I P DC .1 F");
+    assert_eq!(
+        old,
+        "R .24 +300 DB .1 O .45 V .1 I .45 P | .1 O .45 O .45 V .1 I .45 P DC .1 F"
+    );
     assert!(!trace(from(0x801C, 9)).starts_with(&old));
 }
 

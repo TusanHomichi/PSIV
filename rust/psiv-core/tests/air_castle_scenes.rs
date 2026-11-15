@@ -79,6 +79,9 @@ fn play_at(event: u16, state: &mut GameState, leader: Cell) -> Vec<(u32, SceneEf
             Some((_, SceneEffect::MapRequested { .. })) => SceneInput::MapLoaded,
             _ => SceneInput::None,
         };
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         for effect in runner.tick(&map, state, input) {
             log.push((frame, effect));
         }
@@ -286,7 +289,9 @@ fn a_door_entered_warps_opens_the_arrival_steps_out_and_shuts_it() {
                 .then_some(*frame)
             })
             .expect("DoMapTransitionData on the map's own table");
-        assert_eq!(request, 14, "${event:02X}: after the fade out");
+        // `PalFadeOut_ClrSpriteTbl` spends the frames the runtime answers
+        // (#637), one here.
+        assert_eq!(request, 1, "${event:02X}: after the fade out");
         let writes = chunk_writes(&log);
         assert_eq!(
             writes[0].1,

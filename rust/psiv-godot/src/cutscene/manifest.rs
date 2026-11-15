@@ -140,6 +140,9 @@ pub(super) struct SceneAssets {
     pub(super) indexed_panels: BTreeMap<u16, (String, IndexLayout)>,
     pub(super) temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     pub(super) opening_background: Option<Gd<ImageTexture>>,
+    /// The opening background's indexed PNG, drawn in the live palette
+    /// (`IndexLayout::Plane`) once one is known.
+    pub(super) opening_background_path: Option<String>,
     pub(super) generic_portrait: Option<Gd<ImageTexture>>,
     /// `true` when the manifest named the generic portrait at all: the layer
     /// then takes the load result as its portrait whether or not it decoded.
@@ -159,6 +162,7 @@ impl SceneAssets {
             indexed_panels: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
             opening_background: None,
+            opening_background_path: None,
             generic_portrait: None,
             generic_portrait_named: false,
             window_tiles: BTreeMap::new(),
@@ -287,6 +291,7 @@ impl SceneAssets {
         if assets.opening_background.is_none() {
             godot_error!("opening background failed to load: {background}");
         }
+        assets.opening_background_path = Some(background);
 
         let window_path = format!("{pack_dir}/{}", set.window.png);
         if let Some(window) = Image::load_from_file(&GString::from(window_path.as_str())) {

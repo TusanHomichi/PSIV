@@ -15,6 +15,8 @@ mod levels;
 mod names;
 mod rules;
 mod status_portraits;
+#[cfg(test)]
+mod tests;
 
 use std::path::Path;
 

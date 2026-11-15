@@ -203,12 +203,12 @@ fn a_stale_data_line_fails_the_check() {
     for (name, current, stale) in [
         (
             "52_LeRoofAgain.md",
-            "`LE_ROOF_AGAIN` (78 ops)",
+            "`LE_ROOF_AGAIN` (75 ops)",
             "`LE_ROOF_AGAIN` (72 ops)",
         ),
         (
             "68_FindingAirCastle.md",
-            "`FINDING_AIR_CASTLE` (55 ops)",
+            "`FINDING_AIR_CASTLE` (52 ops)",
             "`FINDING_AIR_CASTLE` (50 ops)",
         ),
     ] {

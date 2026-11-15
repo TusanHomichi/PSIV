@@ -3,7 +3,7 @@
 
 use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, OBJECTS, Row, SHIP, frame, own, row};
+use super::{DEZO, OBJECTS, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -88,14 +88,14 @@ pub(super) const ROWS: &[Row] = &[
     row(SHIP, own(0x06_4908, true, true), Wait(21)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(25)),
-    row(SHIP, Map(0x06_49C6), Merged(25)),
-    row(SHIP, Map(0x06_4762), Wait(35)),
-    row(SHIP, Map(0x06_49D8), Merged(35)),
+    row(SHIP, Map(0x06_4750), Wait(24)),
+    row(SHIP, Map(0x06_49C6), Merged(24)),
+    row(SHIP, Map(0x06_4762), Wait(33)),
+    row(SHIP, Map(0x06_49D8), Merged(33)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(41)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
+    row(SHIP, own(0x06_4800, true, true), Wait(39)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(39)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),
@@ -183,13 +183,13 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
@@ -240,14 +240,13 @@ pub(super) const ROWS: &[Row] = &[
     updates(OBJECTS, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Within(8))),
     row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(11)),
     // Two white flashes, each 2 frames of map updates and 40 passes of the
-    // `loc_58666` restore; the transcription has the first restore only.
-    row("Event_EclipseTorchUsed", Map(0x07_0266), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Wait(13))),
-    row("Event_EclipseTorchUsed", Map(0x07_02A8), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Missing(CAMPAIGN)),
-    // After the nine `$338` spawns, whose `ObjectAnimation`s record one
-    // frame each that no retail loop runs.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Missing(CAMPAIGN)),
+    // `loc_58666` restore with neither update.
+    row("Event_EclipseTorchUsed", Map(0x07_0266), Wait(15)),
+    row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
+    row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
+    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
+    // After the nine `$338` creations, which wait no frame of their own.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),

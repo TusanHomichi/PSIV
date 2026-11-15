@@ -166,17 +166,25 @@ agility and dexterity, and enemy paralysis clearing each turn.
   65,535 frames and the scene continues. The ending reaches the loop with
   `$0EEE`, which ends after six stores
   ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
-- **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
-  `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
-  each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
-  live buffer over frames the scene runner does not spend; the shell's cover
-  draws the ramp. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
-  makes the copy and leaves the live words at the pre-fade palette, so after a
-  `FadeOut` the words read the old palette instead of black, and a line that no
-  op rewrites before the next `FadeIn` comes back with its old words where the
-  cartridge would bring it back black. The variable fades, tone loops, flashes
-  and cycles are stepped frame by frame
+- **A scene's fade-out leaves the display on (#653).** `PalFadeOut_ClrSpriteTbl`
+  (and so `InitVRAMAndCRAM`'s fade) ends in `ClearSpriteTableBuf`, which
+  turns the display off (`ps4.asm:85982-85984`) until the next fade-in's
+  `VDP_EnableDisplay`. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
+  runs `Pal_FadeIn`, `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM` frame by
+  frame and leaves the words black (#637), but keeps no display bit, so a
+  palette a scene writes between a fade-out and its fade-in (`Pal_Init`'s
+  window line, a `LoadPalette`, a panel's words) is drawn on the frames
+  between, where the cartridge shows its backdrop
   ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
+  After `Event_GirlsSneakingOut` the inn draws the bill's window
+  (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
+  frames of `DMAPlane_A_VInt`, and runs `Pal_FadeIn` on the palette it kept
+  (`ps4.asm:136436-136453`). The runtime (`Cram::inn_resume_fade_in`) starts
+  the 60 frames when the scene ends, without the window's frames, and the
+  native window takes input from its first frame where the cartridge's
+  `RunText` waits for the fade. The ordinary night's own fade-out and fade-in
+  are not modelled at all.
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
   it and places the party at five fixed positions. The port records it as
@@ -461,6 +469,43 @@ agility and dexterity, and enemy paralysis clearing each turn.
   runtime's dismount (`set_vehicle_index(0)` stands the party on the
   machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
   frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
+
+- **Eclipse Torch: what the flashes and creations leave out.**
+  `Event_EclipseTorchUsed` (`docs/scenes/56_EclipseTorchUsed.md`) runs both
+  white flashes, their two map-update frames (`$070266`, `$0702A8`) and
+  their forty `loc_58666` restore frames (`$070270`, `$0702B2`) as the US
+  bytes do, through the runtime's CRAM model. Three parts of the object
+  sequence differ:
+  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait`: map
+    updates on every frame, no `Field_UpdateObjects`, because native scene
+    frames run no field-object pass
+    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
+    per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
+    The objects that pass would move are the nine `$338`s and the standing
+    party; the nine are renderer records, which the shell advances on every
+    scene frame.
+  - The nine `$338` objects (`$0702E4..$07041D`) are `CreateFieldObject`
+    records at their literal positions; their `$11` delays (7, `$B`, `$F`)
+    and `$6` sequences (0, 4, 8) are not carried. Retail's
+    `FieldObj_Animate2` clears each after 32, 48 or 64 object passes
+    (`loc_4FAE0`: index 3 at duration 0); the port's stay until the
+    return's map reload, and the pack has no `$338`/`$3AF` sheet, so the
+    shell draws none of them
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
+    over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
+    `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after
+    dialogue `$2A` (`$070466`), are not transcribed: the background is not
+    redrawn with the new chunk during the scene. `DMAPlane_B_VInt`'s frame
+    (`$07043C`) is a bare `WaitFrames`, as at `$070220`
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - Against tape 46 (`docs/scenes/SCENE_PRESENTATION.md`), two more
+    differences, neither this scene's alone: panel `$10D` is not decoded
+    ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+    keeps the field's foreground, the party and palette line 3 where the
+    cartridge shows the panel. And the cartridge spends eight lag frames on
+    the panel's load and eight on the `$1D712C` art's (`$0702DE`), which the
+    port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
 
 ## Public reverse-engineering references used
 

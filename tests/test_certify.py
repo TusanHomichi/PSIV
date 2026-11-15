@@ -36,9 +36,11 @@ BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "
           "battle-attack-last-first-mapping", "battle-attack-next-mapping", "battle-attack-strike"]
 ENDING_LOOP = ["ending-tone-loop-before", "ending-tone-loop-rise", "ending-tone-loop-white"]
 RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", "rykros-tone-after"]
+ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
-         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"])
+         + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
+         + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -71,7 +73,9 @@ class PairTableCase(unittest.TestCase):
         # session's event fixture, not a hand-built menu.
         self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x800D"})
         self.assertIs(recipe, certify.TAPE_35)
-        self.assertEqual(tick, 70)  # still settled with cursor and marker hidden
+        # Still settled with cursor and marker hidden, once the scene's
+        # `InitVRAMAndCRAM` and `Pal_FadeIn` spend their 31 frames (#637).
+        self.assertEqual(tick, 101)
         self.assertEqual(frame, "build/certify/oracle/ship-menu/frame_7293.png")
         self.assertEqual(digest, "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8")
         self.assertTrue((ROOT / recipe["tape"]).is_file())
@@ -92,7 +96,7 @@ class PairTableCase(unittest.TestCase):
         # neither the autoclose nor the retail pace's synthetic Speak.
         self.assertEqual(env, certify.ENDING)
         self.assertFalse(set(certify.SCENE) & set(env))
-        self.assertEqual(tick, 1704)
+        self.assertEqual(tick, 1736)
         self.assertEqual(recipe["frames"], [8930])
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
@@ -114,7 +118,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page"])
+                                   "retained-window-page", *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])
@@ -138,7 +142,7 @@ class PairTableCase(unittest.TestCase):
         pairs = {p[0]: p for p in certify.PAIRS}
         rykros = pairs["rykros-palette-cycle"]
         zio = pairs["zio-barrier-ramp"]
-        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1292))
+        self.assertEqual((rykros[1]["PSIV_DEBUG_EVENT"], rykros[2]), ("0x801b", 1323))
         self.assertEqual((zio[1]["PSIV_DEBUG_EVENT"], zio[2]), ("0x30", 270))
         self.assertNotIn("region", rykros[5])
         self.assertEqual(zio[5]["region"], [1, 1, 319, 223])
@@ -164,6 +168,28 @@ class PairTableCase(unittest.TestCase):
         # The text window's box: (3,20) 34x6 cells, in pixels.
         self.assertEqual(recipe["region"], [24, 160, 272, 48])
 
+    def test_eclipse_torch_pairs_certify_both_white_flashes_from_one_fixture(self):
+        flashes = [p for p in certify.PAIRS if p[0] in ECLIPSE_TORCH]
+        self.assertEqual([p[0] for p in flashes], ECLIPSE_TORCH)
+        for name, env, _, frame, _, recipe in flashes:
+            with self.subTest(pair=name):
+                # `Event_EclipseTorchUsed` (#593): the session's `$47` fixture
+                # against tape 46's Dezolis reload and event entry.
+                self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x47", **certify.SCENE})
+                self.assertIs(recipe, certify.TAPE_46)
+                self.assertTrue(frame.startswith("build/certify/oracle/eclipse-torch-white/"))
+        recipe = certify.TAPE_46
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertIn("7000:FFFFEC28:0001", recipe["patches"])
+        self.assertIn("7000:FFFFF400:0001", recipe["patches"])
+        self.assertEqual(recipe["patches"][-2:], ["7224:FFFFECA8:0047", "7224:FFFFEC20:000C"])
+        self.assertEqual(recipe["region"], [1, 1, 319, 223])
+        # The two fills, 42 frames apart on both sides: ticks 152 and 195
+        # sit in the native white plateaus, frames 7355 and 7396 in the tape's.
+        self.assertEqual([p[2] for p in flashes], [152, 195])
+        self.assertEqual(recipe["frames"], [7355, 7396])
+        self.assertEqual(flashes[0][4], flashes[1][4])
+
     def test_rykros_tone_pairs_share_one_run_at_one_tick_offset(self):
         tone = [p for p in certify.PAIRS if p[0] in RYKROS_TONE]
         self.assertEqual([p[0] for p in tone], RYKROS_TONE)
@@ -171,11 +197,12 @@ class PairTableCase(unittest.TestCase):
             with self.subTest(pair=name):
                 self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x801b", **certify.SCENE})
                 self.assertIs(recipe, certify.TAPE_43_TONE)
-                # Clone tick t shows tape 43's frame t + 7246 once the first
-                # dialogue's portraits spend their frames (#625).
-                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7246}.png")
-        # Before, a step up, a step back, after: each a plateau's middle.
-        self.assertEqual([p[2] for p in tone], [895, 911, 939, 955])
+                # Clone tick t shows tape 43's frame t + 7215 once the first
+                # dialogue's portraits spend their frames (#625) and the
+                # scene's `InitVRAMAndCRAM` and `Pal_FadeIn` their 31 (#637).
+                self.assertEqual(frame, f"build/certify/oracle/rykros-tone/frame_{tick + 7215}.png")
+        # Before, a step up, a step back, after: each inside its plateau.
+        self.assertEqual([p[2] for p in tone], [926, 942, 970, 986])
         self.assertEqual(certify.TAPE_43_TONE["frames"], [8141, 8157, 8185, 8201])
         self.assertEqual(certify.TAPE_43_TONE["patches"], certify.TAPE_43["patches"])
         self.assertEqual(certify.TAPE_43_TONE["tape"], certify.TAPE_43["tape"])
@@ -193,11 +220,11 @@ class PairTableCase(unittest.TestCase):
                 self.assertEqual(recipe["tape"], certify.TAPE_38["tape"])
                 self.assertEqual(recipe["patches"], certify.TAPE_38["patches"])
                 # The ending's windows page on their own (#645); the loop
-                # follows at t + 7296.
-                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7296}.png")
-                self.assertIn(tick + 7296, recipe["frames"])
+                # follows at t + 7264 after the initial fades spend their frames (#637).
+                self.assertEqual(frame, f"build/certify/oracle/ending-tone-loop/frame_{tick + 7264}.png")
+                self.assertIn(tick + 7264, recipe["frames"])
         # Before, the fourth step, white: each inside its plateau.
-        self.assertEqual([p[2] for p in loop], [2597, 2614, 2654])
+        self.assertEqual([p[2] for p in loop], [2629, 2646, 2686])
         # One recipe and the whole surface for all three: the rise
         # includes the window and Chaz's portrait, which stay up and toned
         # through the loop (#636).

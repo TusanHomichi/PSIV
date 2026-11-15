@@ -15,11 +15,12 @@
 //! the pack (`presentation/panels.json`); a palette the pack lacks is listed in
 //! [`CramView::missing`] rather than guessed.
 //!
-//! Deviations, recorded in `docs/scenes/SCENE_PRESENTATION.md` ("CRAM state"):
-//! `Pal_FadeIn`/`PalFadeOut_ClrSpriteTbl` (and `InitVRAMAndCRAM`'s fade) write
-//! only their second-buffer copy here, because the scene does not spend their
-//! frames and the shell's cover draws the ramp; the live words keep the
-//! pre-fade palette instead of reaching black.
+//! A scene's `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` (`InitVRAMAndCRAM`'s
+//! fade included) are `Pal_VariableFadeIn`/`Out` with `$FFFFED52` at zero, and
+//! run here as those do (#637). The display-disable bit the fade-out leaves
+//! is not modelled (#653): the words it leaves are black, and a palette
+//! written before the next fade-in is shown (`docs/scenes/SCENE_PRESENTATION.md`,
+//! "CRAM state").
 
 use psiv_core::palette::{self, PALETTE_WORDS};
 use psiv_core::{CounterCycle, PaletteBuffer, PaletteHold, PaletteSource, PresentationOp, SceneOp};
@@ -29,6 +30,13 @@ use psiv_data::{MapRecord, ScenePalettes};
 const PAL_INIT: u32 = 0x0009_F2BC;
 /// `Palette_Table_Buffer`'s work-RAM address.
 const PALETTE_TABLE_BUFFER: u32 = 0xFFFF_FB00;
+/// The `DMAPlane_A_VInt` loop the Aiedo inn waits after its scene, before
+/// its `Pal_FadeIn` (`moveq #$3B, d0`, `ps4.asm:136436-136439`).
+pub(crate) const INN_RESUME_HOLD: u16 = 60;
+/// `Palette_Table_Buffer+$5E`: the word the prologue crawl and the flight's
+/// caption are drawn in (`move.w #$666, $FB5E.w`, `$073C9E`; `clr.w
+/// (Palette_Table_Buffer+$5E).w`, `ps4.asm:134676`).
+pub const TEXT_COLOUR_SLOT: usize = 0x5E / 2;
 
 /// What the renderer reads: the live palette and a counter that changes
 /// whenever any word of it does.
@@ -320,6 +328,38 @@ impl Cram {
         );
     }
 
+    /// The Aiedo inn's resume after `Event_GirlsSneakingOut`, whose
+    /// `PalFadeOut_ClrSpriteTbl` left the screen black (`ps4.asm:136411-136453`):
+    /// the palette the inn kept before the event (`$FFFF1300`) goes back into
+    /// both buffers with the display still off, the bill's window is drawn and
+    /// [`INN_RESUME_HOLD`] frames of `DMAPlane_A_VInt` pass, then `Pal_FadeIn`
+    /// spends its display frame and ramps up a pass a frame. The live words
+    /// stay black until then, as the switched-off display shows them (#653).
+    /// The first frame runs now.
+    pub(crate) fn inn_resume_fade_in(
+        &mut self,
+        words: [u16; PALETTE_WORDS],
+        main_frame_count: u16,
+        cycle_index: &mut u8,
+    ) {
+        self.unshown = None;
+        self.queued = None;
+        self.saved = words;
+        self.set_live([0; PALETTE_WORDS]);
+        self.start(
+            Program::Passes {
+                kind: Pass::VariableIn,
+                elapsed: 0,
+                first: INN_RESUME_HOLD + 1,
+                every: palette::dbf_frames(0),
+                count: palette::variable_fade_in_passes(&words),
+                words: PALETTE_WORDS,
+            },
+            main_frame_count,
+            cycle_index,
+        );
+    }
+
     /// Starts `program` and runs its first frame now: the scene emitted it on
     /// this tick, which is the loop's first frame.
     fn start(&mut self, program: Program, main_frame_count: u16, cycle_index: &mut u8) {
@@ -530,9 +570,9 @@ impl Cram {
 
     /// Applies one scene record on the tick the scene emits it. `map` is the
     /// current map's record, for `ReloadMapPalette`; `cycle_index` is
-    /// `$FFFFECF3`. Returns the frames a
-    /// [`PresentationOp::VariablePaletteFade`] spends, which the scene waits
-    /// for; `None` for every other record.
+    /// `$FFFFECF3`. Returns the frames a [`SceneOp::FadeIn`],
+    /// [`SceneOp::FadeOut`] or [`PresentationOp::VariablePaletteFade`]
+    /// spends, which the scene waits for; `None` for every other record.
     pub(crate) fn apply(
         &mut self,
         op: &SceneOp,
@@ -543,26 +583,39 @@ impl Cram {
     ) -> Option<u16> {
         let fades_in = matches!(
             op,
-            SceneOp::Presentation {
-                op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
-            }
+            SceneOp::FadeIn
+                | SceneOp::Presentation {
+                    op: PresentationOp::VariablePaletteFade { fade_in: true, .. }
+                }
         );
         if !fades_in {
             self.upload_unshown();
         }
         match *op {
-            // `InitVRAMAndCRAM`: `PalFadeOut_ClrSpriteTbl` copies the
-            // buffer to the second one, then 32 longwords of `Pal_Init` (`$05A68A`).
+            // `InitVRAMAndCRAMAfterFadeOut`, after the runner's `FadeOut`:
+            // `DMAPlanes_VInt` spends this frame, then 32 longwords of
+            // `Pal_Init` (`$05A68A`) go into the buffer, shown from the next.
             SceneOp::InitVramAndCram => {
-                self.saved = self.view.words;
                 if let Some(init) = self.rom(palettes, PAL_INIT, PALETTE_WORDS) {
-                    let init = words_of(init);
-                    self.set_live(init);
+                    let writes = vec![(1, 0, init.to_vec())];
+                    self.start(
+                        Program::Writes { elapsed: 0, writes },
+                        main_frame_count,
+                        cycle_index,
+                    );
                 }
             }
-            // Both copy the buffer to the second one first (`trap #1`, 64
-            // words); the ramp itself is the shell's cover (module docs).
-            SceneOp::FadeIn | SceneOp::FadeOut => self.saved = self.view.words,
+            // `Pal_FadeIn` (`$0421D4`) and `PalFadeOut_ClrSpriteTbl`
+            // (`$04223E`) are `Pal_VariableFadeIn`/`Out` with one VBlank a
+            // pass, `$FFFFED52` at zero: the copy, the clear and display
+            // enable for the fade-in, the passes, and their frame count.
+            SceneOp::FadeIn | SceneOp::FadeOut => {
+                let fade = PresentationOp::VariablePaletteFade {
+                    fade_in: matches!(op, SceneOp::FadeIn),
+                    mode: 0,
+                };
+                return self.presentation(fade, main_frame_count, palettes, cycle_index);
+            }
             SceneOp::LoadPalette {
                 rom_addr,
                 words,
@@ -573,6 +626,10 @@ impl Cram {
                     self.write_run(usize::from(start), &found);
                 }
             }
+            // The prologue's `move.w #$666, $FB5E.w` and the flight's
+            // caption word: one buffer word, which the fades step like any
+            // other.
+            SceneOp::SetTextColour { colour } => self.write(TEXT_COLOUR_SLOT, colour),
             // `loc_53F14`: the map's 64-word shadow into the live buffer.
             SceneOp::ReloadMapPalette => {
                 if let Some(words) = map.and_then(|record| record.map_update_palette.as_deref()) {
