@@ -369,8 +369,10 @@ mod tests {
         assert!(
             menu.render_cram(0, &[0; 32])
                 .unwrap()
-                .chunks_exact(4)
-                .all(|pixel| pixel == [0, 0, 0, 255])
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|pixel| *pixel == [0, 0, 0, 255])
         );
     }
 

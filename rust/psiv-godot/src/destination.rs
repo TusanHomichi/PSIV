@@ -301,7 +301,7 @@ impl Field {
         let fading_palette = view
             .as_ref()
             .filter(|view| view.phase == DestinationPhase::Fading)
-            .and_then(|_| self.session.as_ref())
+            .and(self.session.as_ref())
             .map(|session| session.runtime().cram().words[..32].try_into().unwrap());
         if let Some(screen) = self.destination.as_mut() {
             screen
