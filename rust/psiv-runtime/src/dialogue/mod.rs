@@ -41,6 +41,7 @@ mod selection;
 #[cfg(test)]
 mod selection_tests;
 mod stop_byte;
+mod text3;
 mod text_flow;
 mod view;
 
@@ -160,6 +161,11 @@ pub struct DialogueRunner {
     /// after it is drawn: nothing after a load, the old portrait after
     /// `$F4 0`.
     portrait_plane: Option<(usize, Option<u8>)>,
+    /// The window runs `RunText3` (`text3.rs`): no pad, no arrow, its own
+    /// page clock.
+    text3: bool,
+    /// The page's `RunText3` wait: frames left, once its last glyph is drawn.
+    text3_wait: Option<u16>,
 }
 
 impl Default for DialogueRunner {
@@ -199,6 +205,8 @@ impl DialogueRunner {
             deferred_pad: None,
             lag: 0,
             portrait_plane: None,
+            text3: false,
+            text3_wait: None,
         }
     }
 
@@ -266,8 +274,9 @@ impl DialogueRunner {
             total: flow.visible_chars(),
             portrait: self.shown_portrait(flow),
             page_end: flow.page_end(),
-            waiting: flow.is_waiting(),
-            dismissable: self.is_dismissable(),
+            // `RunText3` draws no arrow and reads no press.
+            waiting: flow.is_waiting() && !self.text3,
+            dismissable: self.is_dismissable() && !self.text3,
             open_cells: self.open_cells,
             choice: flow.has_choice().then_some(DialogueChoiceView {
                 cursor: self.choice.cursor(),
@@ -319,7 +328,9 @@ impl DialogueRunner {
             self.detect_close();
             return;
         }
-        if self.flow.as_ref().is_some_and(TextFlow::has_choice) {
+        if self.text3_input(game) {
+            // `RunText3` reads no pad: its own clock turns the page.
+        } else if self.flow.as_ref().is_some_and(TextFlow::has_choice) {
             // Choice input owns the prompt, including while it finishes
             // typing; merely advancing the text never picks an answer.
             if !self.choice_ready() {
@@ -378,9 +389,13 @@ impl DialogueRunner {
             // The typewriter's step waits behind the portrait's frames.
         } else {
             self.retain_board_portrait();
-            if let Some(flow) = self.flow.as_mut() {
+            if let Some(flow) = self.flow.as_mut()
+                && self.revealed >= flow.visible_chars()
+            {
                 // Delays only run once the box is open; the cartridge's
-                // animation holds the text loop the same way.
+                // animation holds the text loop the same way. A `$F9` is a
+                // byte of the text loop, so it starts once the glyphs before
+                // it are drawn, not with the page.
                 flow.tick(game);
             }
             // A delay that ran out into a `$F4` the typewriter is at: a
@@ -391,6 +406,7 @@ impl DialogueRunner {
             self.reveal(pad);
             self.settle_portrait_plane();
         }
+        self.text3_tick();
         self.drain_flow_log();
         self.service_flow(game);
     }
@@ -581,6 +597,7 @@ impl DialogueRunner {
                 };
                 self.revealed = 0;
                 self.reveal_tick = 0;
+                self.text3_wait = None;
                 self.clear_portrait_change();
                 self.choice.reset();
                 self.drain_flow_log();
@@ -769,7 +786,12 @@ impl DialogueRunner {
             }
             return;
         }
-        let cadence = if pad.held(Button::Speak) { 1 } else { 3 };
+        // `RunText3` draws a glyph every frame and reads no pad.
+        let cadence = if self.text3 || pad.held(Button::Speak) {
+            1
+        } else {
+            3
+        };
         self.reveal_tick += 1;
         if self.reveal_tick >= cadence {
             self.reveal_tick = 0;

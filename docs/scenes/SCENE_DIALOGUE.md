@@ -241,6 +241,40 @@ opens and after a page clears, is not modelled as lag: the typewriter's first
 three frames stand in for it (deviation in
 [the source notes](../source-notes/README.md)).
 
+### `RunText3`: the ending's windows page on their own
+
+`Cutscene_Ending`'s windows run their text through `RunText3`
+(`ps4.asm:144053`), not `RunText`: the inline `RunDialogue(9, EndingIntro)`
+(`$078F68..$078F90`) and every `Event_GetAndRunDialogue4`/`Event_RunDialogue4`
+(`$5ADA2`, `DialogueWindow::Ending`). The loop reads no pad and draws no
+arrow. It types a glyph a frame (`moveq #0, d0`, the US branch), breaks the
+page where `RunText` would, and at the break (`Text3CtrlCode_Interrupt`) or
+the end (`Text3CtrlCode_Terminate`, for `$F7` and the terminator) waits
+`9n + 1` frames, `n` being the page's glyph count (`$FFFFED5B`). The glyph
+that fills the second line branches to the interrupt before its own `.wait`,
+so that page's wait starts on its own frame. `Event_RunDialogue4` then
+destroys the windows with no `RunTextTerminateArrowLoop`.
+
+Tape 38 logs `$FFFFED5B` (cleared at each turn) and `Main_Frame_Count` through
+entry `$09`: every page turns `9n + 2` frames after the frame that drew its
+last glyph (21 glyphs, 7280 to 7471; 43, 7519 to 7908; 8, 7916 to 7990 ...;
+16, the last, 9747 to 9893), and the tape's C taps change nothing. A `$F9`
+before the break adds its own frames, after the glyphs before it: 29 on the
+page that ends 9544 to 9728, 184 frames for 17 glyphs.
+
+`DialogueRunner` runs a scene window whose `DialogueWindow::runs_text3` holds
+on that clock (`dialogue/text3.rs`): one glyph a frame whatever the pad, no
+arrow, no press read, and the page turns, or the window closes, on its own.
+`runner_tests/text3.rs` pins every page of entry `$09` against the tape, and
+`session/ending_text3_tests.rs` plays `$8021` with no press and with presses,
+frame for frame the same. The seventh page turns two frames early:
+two of its `$F2`s cost the cartridge a frame each that the runner does not spend
+([the source notes](../source-notes/README.md)).
+
+**A `$F9` starts after the glyphs before it.** The pause is a byte of the
+text loop, so its frames run once the typewriter has drawn the page up to it,
+in `RunText` as in `RunText3`.
+
 ### A window opening is not proof of a talk
 
 `Interaction_ContinueChecks` ends with
@@ -347,9 +381,10 @@ about two frames beyond the press itself.
 - **No page-index RAM field.** Tape 16 pins the page *boundary* behaviour, but
   only by watching `Text_Buffer` writes. Nothing in the RAM map distinguishes
   page N from page N+1, so a tape cannot assert "we are on page 2" directly.
-- **`$F9` pause length.** The 3-frame draw cadence has 6-frame gaps,
-  consistent with an explicit pause control code, but the pause's own duration
-  has not been measured against the dialogue data.
+- **`$F9` pause length in `RunText`.** The 3-frame draw cadence has 6-frame
+  gaps, consistent with an explicit pause control code. Tape 38 measures the
+  pause in `RunText3` (its operand in frames, after the glyphs before it; see
+  above), but no tape has measured one in `RunText`.
 - **Scroll-arrow timing.** `Text_Scroll_Arrow` ($FFFFC2C0) is mapped and its
   `offscreen_flag` logged, but that byte reads 0 for the whole dialogue, so it
   does not show the arrow's visibility; the right field has not been found.
