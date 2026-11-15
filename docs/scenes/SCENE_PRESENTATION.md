@@ -113,24 +113,29 @@ from tape 38's own run and fixture, after the first dialogue's last pages:
 
 | pair | rmse | pairing |
 |---|---:|---|
-| `ending-tone-loop-before` | **0.000000** | clone t881 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
-| `ending-tone-loop-rise` | **0.000000** | clone t898 ↔ frame 9910: the loop's fourth step, backdrop `$888`, the panels, Chaz's portrait and the window toned; region `1,1,319,223` ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
-| `ending-tone-loop-white` | **0.000000** | clone t938 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
+| `ending-tone-loop-before` | **0.000000** | clone t905 ↔ tape-38 frame 9893: the panels, Chaz's portrait and the window, untoned; region `1,1,319,223` ([#409](https://github.com/TusanHomichi/PSIV/issues/409)) |
+| `ending-tone-loop-rise` | **0.000000** | clone t922 ↔ frame 9910: the loop's fourth step, backdrop `$888`, the panels, Chaz's portrait and the window toned; region `1,1,319,223` ([#636](https://github.com/TusanHomichi/PSIV/issues/636)) |
+| `ending-tone-loop-white` | **0.000000** | clone t962 ↔ frame 9950: every word `$EEE`, inside the loop; region `1,1,319,223` |
 
 The oracle's `Palette_Table_Buffer` steps every fourth frame from 9896, is
 white from 9920 and stays so until `InitVRAMAndCRAM`'s fade from 10086; the
-native CRAM steps on ticks 885-909, so clone tick t shows frame t + 9012, and
-the runtime's 64 words equal the oracle's (tick t against frame t + 9011) at
-ticks 881, 898 and 938. Region `1,1,319,111` matches on every tick 878-945.
-When the pairs joined, ticks 884-908 differed over `1,1,319,223`, only inside
+native CRAM steps on ticks 909-933, so clone tick t shows frame t + 8988 over
+`1,1,319,223` on every tick 902-972, and the runtime's 64 words equal the
+oracle's (tick t against frame t + 8987) at ticks 905, 922 and 962. The
+offset was t + 9012 when the pairs joined; the first dialogue's portrait
+lag frames ([#625](https://github.com/TusanHomichi/PSIV/issues/625)) moved
+it 24 ticks, and the three ticks were re-pinned from a sweep. Before tick
+902 the screens differ: the debug run pages the dialogue on other frames
+than the tape. When the pairs joined, ticks
+884-908 (at t + 9012) differed over `1,1,319,223`, only inside
 `(24,112)-(296,208)`: the native closed the window and portrait when the text
 ended, where the cartridge keeps both up, toned, until `$078FAE`. The runtime
 now holds the window's last page until the scene's `WindowDestroy`
 ([#636](https://github.com/TusanHomichi/PSIV/issues/636)), and the rise
 certifies the whole region. The untoned tick
-881 scores `rmse=125.148572` against the rise, the steps before and after it
-(894, 902) `rmse=34.381196` and `rmse=28.146978`, the step before white (906)
-`rmse=29.123900` against the endpoint, and the endpoint against the untoned
+905 scores `rmse=128.691861` against the rise, the steps before and after it
+(918, 926) `rmse=35.007219` and `rmse=28.373297`, the step before white (930)
+`rmse=26.137684` against the endpoint, and the endpoint against the untoned
 frame `rmse=206.044683`. The second loop (`$079BD2`) and the third
 (`$07A0FA`) are checked on the CRAM model only
 (`suites::palette::ending`). The third starts white natively, because the
