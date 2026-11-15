@@ -81,6 +81,12 @@ class Scratch(unittest.TestCase):
     def install(self, version, pause=None):
         return install_atomically(self.output, lambda d: write_pack(d, version, pause))
 
+    def pinned_version(self):
+        # setUp resolved the parent; the installer makes one relative link
+        # directly to an immutable sibling. Select it in one readlink, without
+        # realpath's non-strict fallback to the moving output on a stat error.
+        return self.output.parent / os.readlink(self.output)
+
 
 class Install(Scratch):
 
@@ -182,20 +188,30 @@ class HalfWritten(Scratch):
         self.addCleanup(no_prune.stop)
         self.install("v1")
         stop = threading.Event()
+        ready = threading.Event()
         seen = set()
+        errors = []
 
         def poll():
-            while not stop.is_set():
-                seen.add(consistent(os.path.realpath(self.output)))
+            try:
+                while not stop.is_set():
+                    seen.add(consistent(self.pinned_version()))
+                    ready.set()
+            except BaseException as error:
+                errors.append(error)
+                ready.set()
 
         reader = threading.Thread(target=poll)
         reader.start()
         try:
+            self.assertTrue(ready.wait(timeout=10), "reader did not start")
             for n in range(2, 12):
                 self.install(f"v{n}")
         finally:
             stop.set()
             reader.join()
+        self.assertEqual(errors, [], "reader failed")
+        self.assertIn("v1", seen)
         self.assertNotIn(None, seen)
 
 
@@ -570,7 +586,7 @@ class SpanningReader(Scratch):
 
     def read_across_swap(self, resolve_once):
         self.install("v1")
-        base = Path(os.path.realpath(self.output)) if resolve_once else self.output
+        base = self.pinned_version() if resolve_once else self.output
         manifest = json.loads((base / "manifest.json").read_text())
         found = [json.loads((base / name).read_text())["version"]
                  for name in manifest["files"][:3]]
@@ -581,6 +597,28 @@ class SpanningReader(Scratch):
 
     def test_a_reader_that_resolved_once_reads_one_version(self):
         self.assertEqual(self.read_across_swap(resolve_once=True), ("v1", {"v1"}))
+
+    def test_a_stat_error_cannot_leave_the_reader_on_the_moving_output(self):
+        lstat = os.lstat
+
+        def failed_lookup(path, *args, **kwargs):
+            if Path(path) == self.output:
+                raise FileNotFoundError("lookup during replacement")
+            return lstat(path, *args, **kwargs)
+
+        pin = self.pinned_version
+
+        def pin_during_lookup_error():
+            with mock.patch.object(os, "lstat", failed_lookup):
+                # Negative control: non-strict realpath silently leaves the
+                # output unresolved. Reading through it then mixes versions,
+                # as the next test demonstrates. The pinned reader must still
+                # select v1. Keep the injected fault out of the writer.
+                self.assertEqual(Path(os.path.realpath(self.output)), self.output)
+                return pin()
+
+        with mock.patch.object(self, "pinned_version", pin_during_lookup_error):
+            self.assertEqual(self.read_across_swap(resolve_once=True), ("v1", {"v1"}))
 
     def test_negative_control_a_reader_reopening_the_output_mixes_versions(self):
         self.assertEqual(self.read_across_swap(resolve_once=False), ("v1", {"v1", "v2"}))
