@@ -413,7 +413,7 @@ fn camp_receipt_plane_a_keeps_its_status_word() {
     };
     let state: Value = serde_json::from_slice(&bytes).unwrap();
     let plane = state["regions"]["plane_a"]["bytes_hex"].as_str().unwrap();
-    let (x, y) = ((28 + 11) % 64, (4 + 29) % 32);
+    let (x, y) = (28 + 11, (4 + 29) % 32);
     let offset = (y * 64 + x) * 2;
     assert_eq!(
         u16::from_str_radix(&plane[offset * 2..offset * 2 + 4], 16).unwrap(),
