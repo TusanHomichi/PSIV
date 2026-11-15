@@ -1,4 +1,4 @@
-//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 78 ops.
+//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 92 ops.
 //!
 //! The intro: Alys wakes Chaz at his house, they walk out through Aiedo, cross
 //! the Motavia overworld, the AW 2284 prologue crawls over a title image, and
@@ -50,24 +50,29 @@ macro_rules! prologue_page {
         [
             SceneOp::DrawTextToPlane {
                 entry: $first,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0x0000840A,
+                vram: 0x00004200,
             },
+            SceneOp::WaitFrames { frames: 1 },
             SceneOp::DrawTextToPlane {
                 entry: $first + 1,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0x0000858A,
+                vram: 0x00004280,
             },
+            SceneOp::WaitFrames { frames: 1 },
             SceneOp::DrawTextToPlane {
                 entry: $first + 2,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0x0000870A,
+                vram: 0x00004300,
             },
+            SceneOp::WaitFrames { frames: 1 },
             SceneOp::DrawTextToPlane {
                 entry: $first + 3,
-                plane: 0x0000_9280,
-                vram: 0x0000_9280,
+                plane: 0x0000888A,
+                vram: 0x00004380,
             },
+            SceneOp::WaitFrames { frames: 1 },
+            SceneOp::DmaPlanes,
             SceneOp::IntroTextFadeUp,
             SceneOp::WaitFrames { frames: 900 },
             SceneOp::IntroTextFadeDown,
@@ -77,8 +82,8 @@ macro_rules! prologue_page {
 }
 
 static GAME_START_OPS: &[SceneOp] = &{
-    const PAGE_1: [SceneOp; 8] = prologue_page!(0x3A, 90);
-    const PAGE_2: [SceneOp; 8] = prologue_page!(0x3E, 120);
+    const PAGE_1: [SceneOp; 13] = prologue_page!(0x3A, 90);
+    const PAGE_2: [SceneOp; 13] = prologue_page!(0x3E, 120);
     [
         // --- phase 0: open on tree 17, entry $36 ---
         SceneOp::InitVramAndCram,
@@ -266,6 +271,8 @@ static GAME_START_OPS: &[SceneOp] = &{
             start: 0,
         },
         SceneOp::SetCameraPos { x: 0, y: 0 },
+        // $073C42: cleared planes, before the image is staged.
+        SceneOp::DmaPlanes,
         SceneOp::LoadTitleImage {
             art: 0x001C_F1F2,
             mapping: 0x001D_25BE,
@@ -273,6 +280,8 @@ static GAME_START_OPS: &[SceneOp] = &{
             height: 16,
             vram: 0x0000_9280,
         },
+        // $073C88: plane B upload, before Pal_FadeIn.
+        SceneOp::DmaPlanes,
         SceneOp::FadeIn,
         SceneOp::WaitFrames { frames: 60 },
         SceneOp::SetTextColour { colour: 0x0666 },
@@ -284,6 +293,11 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_1[5],
         PAGE_1[6],
         PAGE_1[7],
+        PAGE_1[8],
+        PAGE_1[9],
+        PAGE_1[10],
+        PAGE_1[11],
+        PAGE_1[12],
         PAGE_2[0],
         PAGE_2[1],
         PAGE_2[2],
@@ -292,6 +306,11 @@ static GAME_START_OPS: &[SceneOp] = &{
         PAGE_2[5],
         PAGE_2[6],
         PAGE_2[7],
+        PAGE_2[8],
+        PAGE_2[9],
+        PAGE_2[10],
+        PAGE_2[11],
+        PAGE_2[12],
         SceneOp::FadeOut,
         SceneOp::PlaySound { id: MUSIC_STOP },
         SceneOp::WaitFrames { frames: 40 },

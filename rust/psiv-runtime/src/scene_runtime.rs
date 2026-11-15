@@ -64,7 +64,9 @@ impl Runtime {
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
+        let frame_count = self.frames;
         let Some(effects) = self.step_scene(|runner, map, game, probe| {
+            runner.set_main_frame_count(frame_count);
             runner.tick_with(map, game, scene_input, Some(probe))
         }) else {
             return events;

@@ -438,10 +438,12 @@ SetFollowMode{set bit 2};  MoveActorTo{Character_1, ($3B0, $370)}
 SetFollowMode{clear bit 2};  FadeOut{}
 ; phase 4 -- prologue (x2, entries $3A-$3D then $3E-$41)
 LoadPalette{$1D2A3C, 64 words};  SetCameraPos{0, 0}
+DmaPlanes{}
 LoadTitleImage{art: $1CF1F2, map: $1D25BE, 40x16 at plane $9280}
-FadeIn{};  WaitFrames{60};  SetTextColour{$666}
-[ DrawTextToPlane{entry, plane, vram} x4
-  IntroTextFadeUp{} x20 ; WaitFrames{900} ; IntroTextFadeDown{} x20
+DmaPlanes{};  FadeIn{};  WaitFrames{60};  SetTextColour{$666}
+[ (DrawTextToPlane{entry, plane, vram}; WaitFrames{1}) x4
+  DmaPlanes{}
+  IntroTextFadeUp{20 passes} ; WaitFrames{900} ; IntroTextFadeDown{20 passes}
   WaitFrames{90 | 120} ] x2
 FadeOut{};  PlaySound{Sound_StopMusic};  WaitFrames{40}
 ; phase 5 -- hand over
@@ -453,7 +455,7 @@ FadeIn{}
 SetFlag{EventFlag_PiataFirstTime}
 ```
 
-**~78 ops** (72 structural + the two prologue pages expanded).
+**92 ops**, including 13 per prologue page; the helper ops each run 20 passes.
 
 ## DMA frame ownership
 

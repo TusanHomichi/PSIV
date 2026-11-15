@@ -12,7 +12,7 @@ use crate::scene_presentation::PresentationOp;
 ///
 /// `Event_GameStart`'s doc says "~78" and means it — the tilde is theirs.
 /// The count depends on how the prologue's two `dbra` colour ramps are
-/// expanded; here each page is 8 ops (4 text draws, one fade-up loop, the
+/// expanded; here each page is 13 ops (4 text draws and their waits, a DMA, the fade-up loop, the
 /// 900-frame hold, one fade-down loop, the closing pause), matching the
 /// asm's loop structure rather than unrolling 20 iterations each.
 ///
@@ -23,7 +23,7 @@ use crate::scene_presentation::PresentationOp;
 #[test]
 fn every_scene_matches_its_docs_op_count() {
     let expected: &[(&str, usize)] = &[
-        ("Event_GameStart", 80),
+        ("Event_GameStart", 92),
         ("Event_PiataChazAlone", 2),
         ("Event_AlysFound", 12),
         ("Cutscene_PiataPrincipal", 10),

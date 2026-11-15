@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::{Runtime, RuntimeEvent};
-use psiv_core::{CharId, Direction, Flag, Input, StepFrames};
+use psiv_core::{CharId, Direction, Flag, Input, SceneOp, StepFrames};
 use psiv_data::{BattleFiles, GameData};
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -24,9 +24,14 @@ fn native_opening_reaches_retail_first_control_with_its_initial_state_intact() {
         .expect("battles enabled");
     assert!(runtime.start_event(event));
     let mut saw_chaz_alone = false;
-    for _ in 0..8_000 {
+    let mut intro_ops = Vec::new();
+    for tick in 0..8_000 {
         for event in runtime.tick(Input::Neutral) {
             match event {
+                RuntimeEvent::ScenePresentation { op, .. } => {
+                    intro_ops.push((tick, op));
+                }
+
                 RuntimeEvent::SceneDialogue { entry } => {
                     saw_chaz_alone |= entry == 0x6D;
                     runtime.dialogue_closed();
@@ -43,6 +48,7 @@ fn native_opening_reaches_retail_first_control_with_its_initial_state_intact() {
             break;
         }
     }
+    assert_intro_frame_boundaries(&intro_ops);
     assert!(
         saw_chaz_alone,
         "Chaz's first line must happen before the player moves"
@@ -104,4 +110,57 @@ fn native_opening_reaches_retail_first_control_with_its_initial_state_intact() {
     assert_eq!(restored.state().cell(), runtime.state().cell());
     std::fs::remove_file(path).expect("remove test save");
     std::fs::remove_dir(directory).expect("remove test save directory");
+}
+
+/// Full-runtime ordering, including the real palette fade response. The core
+/// intro tests inspect every helper frame and both page bodies separately.
+fn assert_intro_frame_boundaries(ops: &[(usize, SceneOp)]) {
+    let image = ops
+        .iter()
+        .position(|(_, op)| matches!(op, SceneOp::LoadTitleImage { .. }))
+        .unwrap();
+    assert_eq!(ops[image - 1], (ops[image].0 - 1, SceneOp::DmaPlanes));
+    assert_eq!(ops[image + 1], (ops[image].0, SceneOp::DmaPlanes));
+    assert_eq!(ops[image + 2], (ops[image].0 + 1, SceneOp::FadeIn));
+    let page = |entry| {
+        ops.iter()
+            .position(
+                |(_, op)| matches!(op, SceneOp::DrawTextToPlane { entry: e, .. } if *e == entry),
+            )
+            .unwrap()
+    };
+    for (entry, pause) in [(0x3A, 90), (0x3E, 120)] {
+        let at = page(entry);
+        let start = ops[at].0;
+        let next = if entry == 0x3A {
+            ops[page(0x3E)].0
+        } else {
+            ops[at..]
+                .iter()
+                .find(|(_, op)| *op == SceneOp::FadeOut)
+                .unwrap()
+                .0
+        };
+        let span: Vec<_> = ops[at..]
+            .iter()
+            .copied()
+            .take_while(|(t, _)| *t < next)
+            .collect();
+        for row in 0..4 {
+            assert!(span.iter().any(|(t, op)| *t == start + row && matches!(op, SceneOp::DrawTextToPlane { entry: e, .. } if *e == entry + row as u16)));
+        }
+        for (offset, op) in [
+            (4, SceneOp::DmaPlanes),
+            (5, SceneOp::IntroTextFadeUp),
+            (25, SceneOp::WaitFrames { frames: 900 }),
+            (925, SceneOp::IntroTextFadeDown),
+            (946, SceneOp::WaitFrames { frames: pause }),
+        ] {
+            assert!(
+                span.contains(&(start + offset, op)),
+                "missing {op:?} at {offset}"
+            );
+        }
+        assert_eq!(next - start, 946 + usize::from(pause));
+    }
 }

@@ -10,12 +10,9 @@ use crate::cram_art::{CramState, SharedCram};
 /// not modulate the opaque black/title image behind it.
 ///
 /// Both texts are drawn in `Palette_Table_Buffer+$5E`
-/// ([`psiv_runtime::TEXT_COLOUR_SLOT`]). The flight's caption reads it from
-/// the runtime's CRAM while that is live, so `PalFadeOut_ClrSpriteTbl` takes
-/// it down with everything else (#637). The crawl keeps the layer's own ramp
-/// (`IntroTextFadeUp`/`Down` are not CRAM records); it is black before the
-/// prologue's `Pal_FadeIn` draws it and after its last fade down, so no
-/// fixed fade runs while it shows.
+/// ([`psiv_runtime::TEXT_COLOUR_SLOT`]). The flight caption reads the live
+/// CRAM word. The crawl consumes the runner's ordered `SetTextColour` writes;
+/// no renderer clock advances its helper loops.
 #[derive(GodotClass)]
 #[class(base=Node2D)]
 pub(super) struct OpeningTextLayer {
@@ -23,12 +20,10 @@ pub(super) struct OpeningTextLayer {
     font: Option<Gd<ImageTexture>>,
     set: Option<DialogueSet>,
     entries: [Option<DialogueEntry>; 4],
+    shown_entries: [Option<DialogueEntry>; 4],
     flight_caption: Option<String>,
     next_slot: usize,
     colour: Color,
-    fade_direction: i8,
-    fade_tick: u8,
-    fade_frames_left: u8,
     cram: Option<SharedCram>,
 }
 
@@ -40,12 +35,10 @@ impl INode2D for OpeningTextLayer {
             font: None,
             set: None,
             entries: std::array::from_fn(|_| None),
+            shown_entries: std::array::from_fn(|_| None),
             flight_caption: None,
             next_slot: 0,
             colour: Color::from_rgb(0.0, 0.0, 0.0),
-            fade_direction: 0,
-            fade_tick: 0,
-            fade_frames_left: 0,
             cram: None,
         }
     }
@@ -67,7 +60,7 @@ impl INode2D for OpeningTextLayer {
         );
         let mut quads = Vec::new();
         let mut lines = Vec::new();
-        for (row, entry) in self.entries.iter().enumerate() {
+        for (row, entry) in self.shown_entries.iter().enumerate() {
             let Some(entry) = entry else { continue };
             let Some(page) = entry.pages.first() else {
                 continue;
@@ -119,7 +112,8 @@ impl OpeningTextLayer {
             return;
         }
         self.flight_caption = caption.map(str::to_owned);
-        let visible = self.flight_caption.is_some() || self.entries.iter().any(Option::is_some);
+        let visible =
+            self.flight_caption.is_some() || self.shown_entries.iter().any(Option::is_some);
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
@@ -162,56 +156,36 @@ impl OpeningTextLayer {
         self.base_mut().set_position(position);
     }
 
-    pub(super) fn draw_entry(&mut self, entry: &DialogueEntry) {
+    pub(super) fn draw_entry(&mut self, entry: &DialogueEntry, staged: bool) {
         self.entries[self.next_slot] = Some(entry.clone());
         self.next_slot = (self.next_slot + 1) % self.entries.len();
-        self.base_mut().set_visible(true);
+        if !staged {
+            self.dma();
+        }
+    }
+
+    pub(super) fn dma(&mut self) {
+        self.shown_entries = self.entries.clone();
+        let visible =
+            self.flight_caption.is_some() || self.shown_entries.iter().any(Option::is_some);
+        self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
 
-    pub(super) fn clear(&mut self) {
+    pub(super) fn stage_clear(&mut self) {
         self.entries = std::array::from_fn(|_| None);
         self.next_slot = 0;
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.stage_clear();
+        self.shown_entries = std::array::from_fn(|_| None);
         self.base_mut().set_visible(false);
         self.base_mut().queue_redraw();
     }
 
     pub(super) fn set_colour(&mut self, raw: u16) {
         self.colour = cram_colour(raw);
-        self.base_mut().queue_redraw();
-    }
-
-    pub(super) fn set_fade(&mut self, direction: i8) {
-        self.fade_direction = direction;
-        self.fade_tick = 0;
-        self.fade_frames_left = 20;
-    }
-
-    pub(super) fn tick(&mut self) {
-        if self.fade_direction == 0 || self.fade_frames_left == 0 {
-            return;
-        }
-        self.fade_frames_left = self.fade_frames_left.saturating_sub(1);
-        self.fade_tick = self.fade_tick.wrapping_add(1);
-        if !self.fade_tick.is_multiple_of(4) {
-            return;
-        }
-        let channels = self.colour;
-        let step = 2.0 / 7.0;
-        let next = if self.fade_direction > 0 {
-            Color::from_rgb(
-                (channels.r + step).min(1.0),
-                (channels.g + step).min(1.0),
-                (channels.b + step).min(1.0),
-            )
-        } else {
-            Color::from_rgb(
-                (channels.r - step).max(0.0),
-                (channels.g - step).max(0.0),
-                (channels.b - step).max(0.0),
-            )
-        };
-        self.colour = next;
         self.base_mut().queue_redraw();
     }
 }

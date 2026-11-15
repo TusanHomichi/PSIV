@@ -257,7 +257,9 @@ pub enum PresentationOp {
     /// Clear the field planes: before the staff roll text is drawn, after
     /// its fade back in (`ClearPlanes_A_B_Buf`, `$079CEE`), and
     /// `ClearPlaneABuf` in `Cutscene_ProfoundDarkness` (`$078D44`), which
-    /// clears plane A's buffer only. The renderer hides the map either way;
+    /// clears plane A's buffer only. GameStart's `$073EC2` also clears
+    /// plane A (the prologue text), leaving its plane-B title image.
+    /// The renderer hides the map either way;
     /// palette and sprites are untouched.
     ClearPlanes,
     /// A scene's own `jsr VDP_EnableDisplay` (`$04222E`): one `VInt_Prepare`

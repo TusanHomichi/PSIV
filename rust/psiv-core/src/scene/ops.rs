@@ -284,10 +284,11 @@ pub enum SceneOp {
         /// Destination VRAM address.
         vram: u32,
     },
-    /// Ramp the prologue text colour up one step (intro only). The routine
-    /// acts one frame in four and adds `$222` per step.
+    /// Run the prologue's 20-pass fade-up loop. Each pass waits one VInt;
+    /// the helper adds `$222` when `Main_Frame_Count & 3 == 0`.
     IntroTextFadeUp,
-    /// Ramp the prologue text colour down one step (intro only).
+    /// Run the prologue's 20-pass fade-down loop, including the extra
+    /// clear/plane-A DMA frame whenever the phase-zero word is `$666`.
     IntroTextFadeDown,
     /// Turn `actor` in place — a **direct facing write**, not a movement.
     ///

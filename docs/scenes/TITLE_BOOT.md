@@ -176,8 +176,8 @@ non-certification evidence and does not replace the certified pair.
 `rust/psiv-core/src/scenes/game_start.rs` already transcribes the opening
 event's movement/dialogue/map sequence. Its renderer-specific surface is now
 consumed by the Godot cutscene layer: `InitVramAndCram`, the prologue title
-image, `DrawTextToPlane`, the 20-frame colour ramps, and the two long text-page
-holds. The ordered event seam, decoded assets, oracle tape, and current
+image and `DrawTextToPlane`. The core runner owns the 20-pass colour
+ramps, their VInt/DMA frames and the two long text-page holds. The ordered event seam, decoded assets, oracle tape, and current
 coverage limits are recorded in [`SCENE_PRESENTATION.md`](SCENE_PRESENTATION.md).
 CONTINUE still goes straight to the validated saved field state, as retail
 does.

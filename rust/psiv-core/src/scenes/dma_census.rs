@@ -102,7 +102,6 @@ const ROWS: &[Row] = &[
         calls: 13,
         why: Why::Unrolled(0x07_4302),
     },
-    open("Event_GameStart", 0, 4),
     layout_animation::row("Event_RuneFlaeli", 0, 1),
     open("Cutscene_AlysWounded", 1, 3),
     layout_animation::row("Event_MachineCenterAppearing", 0, 1),
@@ -337,7 +336,7 @@ fn the_dma_census_rejects_an_extra_op_and_a_stale_row() {
     stale[1].calls += 1;
     assert_eq!(
         problems(rom, &counted, &stale),
-        ["Event_GameStart: the row says 0 for 5, the scene has 0 for 4"]
+        ["Event_RuneFlaeli: the row says 0 for 2, the scene has 0 for 1"]
     );
 
     let mut extra = ROWS.to_vec();
@@ -403,15 +402,17 @@ fn the_dma_census_rejects_a_lost_or_doubled_platform_frame_and_a_wrong_loop() {
         ["Event_ConveyorBeltDown: $06CFFE is no loop of the scene's"]
     );
 
-    let start = ROWS
-        .iter()
-        .position(|row| row.scene == "Event_GameStart")
-        .unwrap();
     let mut no_carry = ROWS.to_vec();
-    no_carry[start].why = Why::Mechanic(Mechanic::ConveyorRide, 0x06_CEB6);
+    no_carry.push(Row {
+        scene: "Event_GameStart",
+        ops: 4,
+        calls: 4,
+        why: Why::Mechanic(Mechanic::ConveyorRide, 0x06_CEB6),
+    });
     assert_eq!(
         problems(rom, &counted, &no_carry),
         [
+            "Event_GameStart: a row for counts that agree",
             "Event_GameStart: runs no ConveyorRide",
             "Event_GameStart: $06CEB6 is no loop of the scene's",
         ]
@@ -441,4 +442,90 @@ fn the_dma_census_rejects_a_lost_or_doubled_platform_frame_and_a_wrong_loop() {
         problems(&waits, &counted, ROWS),
         ["Event_ConveyorBeltDown: the loop at $06CEB6 waits another frame"]
     );
+}
+
+/// GameStart's four direct calls are explicit ops. Its helper tail jump is
+/// dynamic: the runner's intro tests check the floor path and its caller VInt.
+#[test]
+fn game_start_image_pins_both_pages_and_the_helper_dma_path() {
+    let Some(rom) = rom() else { return };
+    let calls: Vec<_> = (0x07_3946..0x07_3ECE)
+        .step_by(2)
+        .filter_map(|at| {
+            jsr_target(rom, at)
+                .filter(|t| DMA_HELPERS.contains(t))
+                .map(|t| (at, t))
+        })
+        .collect();
+    assert_eq!(
+        calls,
+        [
+            (0x07_3C42, DMA_HELPERS[0]),
+            (0x07_3C88, DMA_HELPERS[2]),
+            (0x07_3D1E, DMA_HELPERS[1]),
+            (0x07_3DD2, DMA_HELPERS[1])
+        ]
+    );
+    for first in [0x07_3CBE, 0x07_3D72] {
+        for row in 0..4 {
+            assert_eq!(jsr_target(rom, first + row * 0x20), Some(VINT_PREPARE));
+        }
+    }
+    for (at, helper) in [
+        (0x07_3D26, 0x07_3E86),
+        (0x07_3D40, 0x07_3EA4),
+        (0x07_3DDA, 0x07_3E86),
+        (0x07_3DF4, 0x07_3EA4),
+    ] {
+        assert_eq!(&rom[at - 2..at], &[0x70, 0x13]); // moveq #19,d0
+        assert_eq!(&rom[at..at + 2], &[0x61, 0]);
+        let disp = i16::from_be_bytes(rom[at + 2..at + 4].try_into().unwrap());
+        assert_eq!(at as i64 + 2 + i64::from(disp), helper);
+        assert_eq!(jsr_target(rom, at + 4), Some(VINT_PREPARE));
+        assert_eq!(&rom[at + 10..at + 14], &[0x51, 0xC8, 0xFF, 0xF4]);
+    }
+    // Complete helpers: phase &3, wrapping word arithmetic, overflow/floor
+    // branches, ClearPlaneABuf call and the DMAPlane_A_VInt tail jump.
+    let hex = "1238ef1d02410003661241f8fb5e3210064102220801000c660230814e751238ef1d02410003661241f8fb5e32100c41066667080441022230814e754eb9000415e84ef900041682";
+    let expected: Vec<_> = (0..hex.len())
+        .step_by(2)
+        .map(|n| u8::from_str_radix(&hex[n..n + 2], 16).unwrap())
+        .collect();
+    assert_eq!(&rom[0x07_3E86..0x07_3ECE], expected);
+}
+
+#[test]
+fn dma_census_rejects_missing_or_duplicate_game_start_uploads() {
+    let Some(rom) = rom() else { return };
+    let ops = SCENES
+        .iter()
+        .find(|s| s.name == "Event_GameStart")
+        .unwrap()
+        .ops;
+    let dma = ops.iter().position(|op| *op == SceneOp::DmaPlanes).unwrap();
+    let mut missing = ops.to_vec();
+    missing.remove(dma);
+    let mut duplicate = ops.to_vec();
+    duplicate.insert(dma, SceneOp::DmaPlanes);
+    for (changed, count) in [(missing, 3), (duplicate, 5)] {
+        let scenes: Vec<_> = registered()
+            .into_iter()
+            .map(|(name, ops)| {
+                (
+                    name,
+                    if name == "Event_GameStart" {
+                        changed.as_slice()
+                    } else {
+                        ops
+                    },
+                )
+            })
+            .collect();
+        assert_eq!(
+            problems(rom, &counts(rom, &scenes), ROWS),
+            [format!(
+                "Event_GameStart: {count} DmaPlanes for 4 helper calls, with no row"
+            )]
+        );
+    }
 }

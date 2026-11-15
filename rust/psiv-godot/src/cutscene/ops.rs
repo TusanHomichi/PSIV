@@ -90,16 +90,9 @@ impl Field {
                         .draw_text(self.presentation.current_dialogue_tree, entry);
                 }
             }
-            SceneOp::IntroTextFadeUp => {
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind_mut().fade_text(1);
-                }
-            }
-            SceneOp::IntroTextFadeDown => {
-                if let Some(layer) = self.cutscene_layer.as_mut() {
-                    layer.bind_mut().fade_text(-1);
-                }
-            }
+            // The runner emits the helper's colour writes and clear/DMA on
+            // their frames; the shell has no second fade clock.
+            SceneOp::IntroTextFadeUp | SceneOp::IntroTextFadeDown => {}
             SceneOp::PlaySound { id } => self.play_scene_sound(id),
             SceneOp::SetSavedMusic { id } => self.save_scene_music(id),
             SceneOp::SetRenderSpritesInCutscene { .. } => {
@@ -134,6 +127,7 @@ impl Field {
             SceneOp::DmaPlanes => {
                 let picture = self.cutscene_layer.as_mut().is_some_and(|layer| {
                     layer.bind_mut().dma_planes();
+                    layer.bind_mut().upload_opening_text();
                     layer.bind().picture_visible()
                 });
                 // A picture replaced plane A and plane B was cleared: the
@@ -219,7 +213,12 @@ impl Field {
             // The cleared planes hide the map until a scene map redraw
             // (`load_map_visuals`) restores it; the CRAM and the sprites
             // stay, unlike `InitVramAndCram`.
-            PresentationOp::ClearPlanes => self.set_field_map_visible(false),
+            PresentationOp::ClearPlanes => {
+                self.set_field_map_visible(false);
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().clear_opening_text();
+                }
+            }
             // A picture's cells are `picture_plane.rs`'s.
             PresentationOp::LoadSceneAsset { .. }
             | PresentationOp::SetGameMode { .. }

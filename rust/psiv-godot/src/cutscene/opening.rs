@@ -2,7 +2,7 @@
 //!
 //! `LoadTitleImage` puts the stage on the black frame and hands the crawl to
 //! [`OpeningTextLayer`](super::text_layer::OpeningTextLayer), a child node with
-//! its own CRAM text ramp. This module is the only place that raises and clears
+//! the runner's ordered colour writes. This module is the only place that raises and clears
 //! the opening; the layer's `draw` calls it first, in frame order.
 //!
 //! On a live palette the stage and the image draw from the runtime's CRAM
@@ -86,7 +86,7 @@ impl CutsceneLayer {
         if let Some(text) = self.text_layer.as_mut() {
             let decoded = { text.bind().entry(tree_rom_addr, entry).cloned() };
             if let Some(entry) = decoded {
-                text.bind_mut().draw_entry(&entry);
+                text.bind_mut().draw_entry(&entry, self.opening_visible);
             } else {
                 godot_warn!("opening text entry {entry} has no decoded tree record");
             }
@@ -101,16 +101,17 @@ impl CutsceneLayer {
         }
     }
 
-    pub(crate) fn fade_text(&mut self, direction: i8) {
-        if let Some(text) = self.text_layer.as_mut() {
-            text.bind_mut().set_fade(direction);
+    pub(crate) fn upload_opening_text(&mut self) {
+        if self.opening_visible
+            && let Some(text) = self.text_layer.as_mut()
+        {
+            text.bind_mut().dma();
         }
     }
 
-    /// Advances the narration layer's own typewriter and fade clock.
-    pub(super) fn tick_opening_text(&mut self) {
+    pub(crate) fn clear_opening_text(&mut self) {
         if let Some(text) = self.text_layer.as_mut() {
-            text.bind_mut().tick();
+            text.bind_mut().stage_clear();
         }
     }
 }

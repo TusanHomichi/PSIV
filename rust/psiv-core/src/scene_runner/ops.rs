@@ -529,15 +529,20 @@ impl SceneRunner {
                     self.blocked = Blocked::Camera;
                 }
             }
+            SceneOp::SetTextColour { colour } => {
+                self.intro.colour = colour;
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::IntroTextFadeUp | SceneOp::IntroTextFadeDown => {
+                self.intro_fade(op, effects);
+            }
             SceneOp::ReloadMapPalette
             | SceneOp::LoadPalette { .. }
             | SceneOp::LoadArt { .. }
             | SceneOp::SetCameraPos { .. }
             | SceneOp::LoadTitleImage { .. }
-            | SceneOp::SetTextColour { .. }
             | SceneOp::DrawTextToPlane { .. }
-            | SceneOp::IntroTextFadeUp
-            | SceneOp::IntroTextFadeDown
             | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
             | SceneOp::PlayMusicIfSavedDifferent { .. }

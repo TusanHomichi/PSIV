@@ -36,6 +36,7 @@ mod drift_tests;
 mod fifth;
 mod get_off;
 mod guild;
+mod intro;
 #[cfg(test)]
 mod map_update_tests;
 mod mechanics;
@@ -149,6 +150,10 @@ pub struct SceneRunner {
     /// The current `InitVramAndCram`'s `PalFadeOut_ClrSpriteTbl` has run:
     /// the op's remainder is next.
     init_faded_out: bool,
+    /// Global VInt counter, refreshed by the runtime before each tick.
+    main_frame_count: u16,
+    /// The opening text word and its currently running 20-pass helper loop.
+    intro: intro::Intro,
 }
 
 impl SceneRunner {
@@ -191,6 +196,8 @@ impl SceneRunner {
             belt: None,
             rng: None,
             init_faded_out: false,
+            main_frame_count: u16::MAX,
+            intro: intro::Intro::default(),
         }
     }
 
@@ -527,6 +534,7 @@ impl SceneRunner {
         input: SceneInput,
         chunks: Option<&dyn Fn(PixelPos) -> Option<u16>>,
     ) -> Vec<SceneEffect> {
+        self.main_frame_count = self.main_frame_count.wrapping_add(1);
         let mut effects = Vec::new();
         if self.blocked == Blocked::Done {
             return effects;

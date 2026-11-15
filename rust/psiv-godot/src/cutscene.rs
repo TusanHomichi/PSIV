@@ -170,7 +170,6 @@ impl CutsceneLayer {
 
     pub(crate) fn tick(&mut self) {
         self.red_flash_frames = self.red_flash_frames.saturating_sub(1);
-        self.tick_opening_text();
         if self.red_flash_frames > 0 {
             self.base_mut().queue_redraw();
         }

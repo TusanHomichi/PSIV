@@ -459,7 +459,7 @@ border at `(37,2)`.
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
 | `LoadTitleImage` | Implemented | Retail opening art/mapping/palette decode is emitted as a 320x128 background. |
 | `DrawTextToPlane` | Implemented for opening tree 17 | Four rows at the retail `$840A/$858A/$870A/$888A` positions; ordinary scene dialogue remains `DialogueWindow`-owned. |
-| `IntroTextFadeUp/Down` | Implemented | Text-only 20-frame ramp, sampled every four ticks by the retail `0x222` channel step. |
+| `IntroTextFadeUp/Down` | Implemented | Core-owned 20-pass text ramp on `Main_Frame_Count & 3`; each pass waits a VInt, with a separate clear/DMA frame on the fade-down floor path. See [GameStart](01_GameStart.md#dma-frame-ownership). |
 | `SetRenderSpritesInCutscene` | Implemented | Gates party, follower, and map NPC visibility while a scene is active. |
 | `ObjectAnimation`, `SetObjectDestination` | Implemented for map sprites and the 6 standalone object keys | MeetingRika's two Rika keys (`$18/$26A`, `$18/$55C`) use the raw field-art source at `$292D00`; Holt, RuneFlaeli, Igglanova, and the chest splinter use their decoded `LoadArt` payloads. Sheets are gated until the matching art upload is consumed and are rendered at the scene destination. |
 | `PlaySound` | Implemented | Routes through the live `AudioOutput`/`SoundMachine` path, separate from battle SFX dispatch. |
@@ -756,10 +756,9 @@ art is indexed draws from it:
 - the opening's image (`presentation/opening_background.png`, each index its
   CRAM slot, as a scene picture's) and its stage, the backdrop word
   (`cutscene/opening.rs`), and the flight's caption in word 47
-  (`cutscene/text_layer.rs`). The prologue crawl keeps its own 20-frame ramp
-  (`IntroTextFadeUp`/`Down` are not CRAM records); it is black before the
-  prologue's `Pal_FadeIn` draws it and after its last ramp down, so no fixed
-  fade runs while it shows. A map change ends the opening, as `RefreshMap`
+  (`cutscene/text_layer.rs`). The prologue crawl consumes the core runner's colour writes and plane
+  uploads; its 20-pass helper loops and conditional clear/DMA are described
+  in [GameStart](01_GameStart.md#dma-frame-ownership). A map change ends the opening, as `RefreshMap`
   replaces its planes;
 - the backdrop, CRAM word 0 (VDP register 7 `$8700`: palette 0, colour 0),
   as the renderer's clear colour.
