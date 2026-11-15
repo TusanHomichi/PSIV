@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -502,3 +503,25 @@ class PresentationPackTests(unittest.TestCase):
             if (r["object_id"], r["art_tile"]) != (0x338, 0x3AF)]
         with self.assertRaisesRegex(AssertionError, "missing Eclipse Torch sheet"):
             self._assert_eclipse_torch_sheet(manifest)
+
+    def test_presentation_decoder_census_covers_observed_calls(self):
+        from psiv_tools.decode_cache import scope
+        from psiv_tools.presentation_pack import emit_presentation
+        from tools.pack_parity import CENSUS, census_entries
+
+        data = ROM.read_bytes()
+        with tempfile.TemporaryDirectory() as output, scope() as table:
+            emit_presentation(data, output)
+            observed = census_entries(table, data)
+        eclipse_torch = {"decoder": "nemesis", "offset": 0x1D712C}
+        self.assertIn(eclipse_torch, observed)
+        committed = json.loads(CENSUS.read_text())["calls"]
+
+        def require_observed_calls(calls):
+            missing = [call for call in observed if call not in calls]
+            self.assertEqual(missing, [], "regenerate the presentation decoder census")
+
+        require_observed_calls(committed)
+        without_torch = [call for call in committed if call != eclipse_torch]
+        with self.assertRaisesRegex(AssertionError, "regenerate the presentation decoder census"):
+            require_observed_calls(without_torch)
