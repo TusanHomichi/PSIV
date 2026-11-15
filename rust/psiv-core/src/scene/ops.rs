@@ -9,7 +9,7 @@ use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 use crate::scene_types::{
     ActorRef, Axis, DialogueSource, DialogueWindow, FifthOp, GuildOp, ItemOp, JobBoardStep,
-    MoneyTest, ObjectOp, RideOp, RockyOp, SavedByte, SceneInput, WreckageOp,
+    MoneyTest, ObjectOp, RideOp, RockyOp, SavedByte, WreckageOp,
 };
 
 /// One instruction of a scene.
@@ -714,7 +714,7 @@ pub enum SceneOp {
         if_clear: usize,
     },
     /// Ask the player a yes/no question and jump on the answer. Blocks until
-    /// [`SceneInput::Choice`] arrives.
+    /// [`crate::SceneInput::Choice`] arrives.
     BranchChoice {
         /// Op index taken on yes.
         if_yes: usize,
