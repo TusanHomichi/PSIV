@@ -243,10 +243,32 @@ fn the_event_battle_starts_and_rolls_at_its_entrys_end() {
     assert!(!runtime.battle_active());
 
     let (mut ticks, mut steps, mut screens) = (0, 0, Vec::new());
+    let mut expected_words = runtime.cram().words;
+    let mut clock = runtime.rng.clone();
     let started = loop {
+        let count = runtime.frames;
         let seed = runtime.rng_seed();
         let events = runtime.tick(Input::Action);
         ticks += 1;
+        // `Pal_IncreaseTone` before the pass's DMA/VInt, once every four
+        // main frames, on all 64 words. No palette write steps the RNG.
+        if ticks <= 15 && count & 3 == 0 {
+            expected_words = expected_words.map(|word| {
+                let component = |shift: u32| (((word >> shift) & 14) + 2).min(14);
+                component(0) | component(4) << 4 | component(8) << 8
+            });
+        }
+        assert_eq!(runtime.cram().words, expected_words, "entry tick {ticks}");
+        if ticks <= 18 || (56..=73).contains(&ticks) {
+            clock.step();
+        }
+        if ticks < 76 {
+            assert_eq!(
+                runtime.rng_seed(),
+                clock.seed(),
+                "clock unchanged at {ticks}"
+            );
+        }
         if runtime.rng_seed() != seed {
             steps += 1;
         }

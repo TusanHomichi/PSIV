@@ -427,6 +427,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn retail_selection_rejects_corrupt_routine_anchors() {
+        let Some(rom) = crate::test_support::retail_rom("background routine guards") else {
+            return;
+        };
+        selection(rom.bytes()).unwrap();
+        for at in [SETUP, FIELD_ROUTINE_INTERACTION] {
+            let mut bad = rom.bytes().to_vec();
+            bad[at] ^= 1;
+            assert!(selection(&bad).is_err(), "routine anchor at {at:#x}");
+        }
+    }
+
+    #[test]
     fn a_gap_runs_to_the_next_nonzero_landmark() {
         let bounds = gfx::gap_bounds(&[0, 10, 30, 20], 100, &[10, 30, 0]);
         assert_eq!(bounds.into_iter().collect::<Vec<_>>(), [(10, 10), (30, 70)]);

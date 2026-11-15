@@ -200,7 +200,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
-- **An event battle's field entry draws no band (#665).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
+- **Battle entry and its measured loading profiles (#663, #679).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
   arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
@@ -208,8 +208,13 @@ agility and dexterity, and enemy paralysis clearing each turn.
   stays up under it: tape 45 shows the window and portrait untouched on the
   press frame (7800), the band from 7801, the portrait covered by 7805, the
   window by 7812, the screen white by 7814, and the battle mode from 7815.
-  The port keeps the last page and portrait while the scene runs (both
-  `Retained` entries and resumes).
+  The port keeps the last page while the scene runs (both `Retained`
+  entries and resumes), draws the runtime's band over it and tones all four
+  palette lines through the CRAM model. The portrait is dropped on pass 5
+  and the page on pass 12, once their packed rectangles are covered (#665).
+  Tape 45's toned remainder matches inside the existing field-edge boundary
+  (`1,1,319,223` at pass 5); the top row and left column outside the band
+  still differ ([#409](https://github.com/TusanHomichi/PSIV/issues/409)).
   `GameMode_LoadBattle` (`ps4.asm:9911`) then holds `$EEE` while it loads the
   stage (7814-7856), fades it in from white a nibble a frame with the planes
   sweeping in (`loc_6B20`, 7857-7870) and only then rolls the opening priority
@@ -220,8 +225,7 @@ agility and dexterity, and enemy paralysis clearing each turn.
   hold and the two-plane sweep (#679): `BattleLoadView` submits the scroll,
   uploaded rows and nibble fade; setup precedes the fade and the opening roll
   remains on its own frame. Tape 45's 7863, 7870 and 7873 pairs cover the sweep,
-  settled stage and pre-roll lag. The field passes still lack the band and
-  tone (#665). Encounters still roll at once under a presentation-only cover
+  settled stage and pre-roll lag. Encounters still roll at once under a presentation-only cover
   (#678). The stage's 37 lag frames are battle 7's: the
   port spends them on every event battle, though the cartridge's depend on what
   the stage decompresses ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).

@@ -683,7 +683,7 @@ impl Field {
         }
     }
 
-    /// Draw the runtime's loaded stage, or its uniform hold before setup.
+    /// Draw the runtime's loaded stage, or its band and uniform hold before setup.
     /// A loaded stage replaces the cover and retains its own stepped palette.
     pub(super) fn sync_battle_entry_screen(&mut self) {
         if let Some(view) = self
@@ -700,6 +700,11 @@ impl Field {
             .and_then(psiv_runtime::Runtime::event_battle_entry_screen);
         if let Some(word) = screen {
             self.start_transition(TransitionKind::Screen(word));
+        } else if let Some(band) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::event_battle_entry_band)
+        {
+            self.start_transition(TransitionKind::Band(band));
         }
     }
 
@@ -850,6 +855,21 @@ impl Field {
             node.set_visible(false);
         }
         if alpha <= 0.0 {
+            return;
+        }
+
+        if let Some(band) = transition.band() {
+            let node = &mut self.transition_nodes[0];
+            node.set_position(
+                top_left
+                    + (view - super::retail_surface::SURFACE) / 2.0
+                    + Vector2::new(0.0, f32::from(band.top)),
+            );
+            node.set_size(Vector2::new(
+                super::retail_surface::SURFACE.x,
+                f32::from(band.bottom - band.top),
+            ));
+            node.set_visible(true);
             return;
         }
 

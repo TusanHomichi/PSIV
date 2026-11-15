@@ -879,3 +879,6 @@ mod tests {
         assert_eq!(string(&chosen.sequence, "mapping_offset"), Some("b"));
     }
 }
+
+#[cfg(test)]
+mod retail_tests;

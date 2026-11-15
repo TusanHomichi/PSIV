@@ -39,11 +39,14 @@ RYKROS_TONE = ["rykros-tone-before", "rykros-tone-rise", "rykros-tone-restore", 
 EVENT_BATTLE_ENTRY = ["event-battle-white-first", "event-battle-white-hold",
                       "event-battle-fade-first", "event-battle-fade-second"]
 EVENT_BATTLE_SWEEP = ["event-battle-sweep", "event-battle-settled", "event-battle-before-roll"]
+EVENT_BATTLE_FIELD = ["retained-window-press", "retained-portrait-press",
+                      "event-battle-band-first", "event-battle-portrait-covered",
+                      "event-battle-window-covered"]
 ECLIPSE_TORCH = ["eclipse-torch-white", "eclipse-torch-white-2"]
 NAMES = (SIX[:6] + ENDING_LOOP + SIX[6:] + BATTLE + ["ship-menu", "teleport-towns", "teleport-message", "teleport-close",
                           "teleport-close-towns", "recovery-flash", "rykros-palette-cycle"]
          + RYKROS_TONE + ["rykros-portrait", "zio-barrier-ramp", "retained-window-page"]
-         + EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP + ECLIPSE_TORCH)
+         + EVENT_BATTLE_FIELD + EVENT_BATTLE_ENTRY + EVENT_BATTLE_SWEEP + ECLIPSE_TORCH)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -106,6 +109,22 @@ class PairTableCase(unittest.TestCase):
         self.assertIn("7200:FFFFECA8:8021", recipe["patches"])
         self.assertNotIn("region", recipe)
 
+    def test_event_battle_field_pairs_keep_the_press_and_covered_rows(self):
+        expected = [(514, 7800, [24, 160, 272, 48]),
+                    (514, 7800, [40, 104, 48, 48]),
+                    (515, 7801, [0, 104, 320, 16]),
+                    (519, 7805, [0, 72, 320, 80]),
+                    (526, 7812, [0, 16, 320, 192])]
+        pairs = [p for p in certify.PAIRS if p[0] in EVENT_BATTLE_FIELD]
+        for pair, (tick, number, region) in zip(pairs, expected, strict=True):
+            name, env, shot, frame, _, recipe = pair
+            self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x7D", **certify.SCENE}, name)
+            self.assertEqual(shot, tick, name)
+            self.assertTrue(frame.endswith(f"frame_{number}.png"), name)
+            self.assertIn(number, recipe["frames"], name)
+            self.assertEqual(recipe["patches"], certify.TAPE_45["patches"], name)
+            self.assertEqual(recipe["region"], region, name)
+
     def test_the_event_battle_entry_pairs_share_the_last_pages_run(self):
         # Tape 45's event battle (#663, #679): the entry and sweep frames,
         # the last page's patches and offset (clone tick t shows t + 7286),
@@ -139,7 +158,7 @@ class PairTableCase(unittest.TestCase):
                                    "teleport-towns",
                                    "teleport-message", "teleport-close", "teleport-close-towns",
                                    "recovery-flash", *RYKROS_TONE, "zio-barrier-ramp",
-                                   "retained-window-page", *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *ECLIPSE_TORCH])
+                                   "retained-window-page", *EVENT_BATTLE_FIELD, *EVENT_BATTLE_ENTRY, *EVENT_BATTLE_SWEEP, *ECLIPSE_TORCH])
         message = next(p for p in certify.PAIRS if p[0] == "teleport-message")
         # The message window, $45: (7,21) 26x5 cells.
         self.assertEqual(message[5]["region"], [56, 168, 208, 40])

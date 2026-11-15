@@ -262,6 +262,24 @@ impl DialogueRunner {
         self.held_page = None;
     }
 
+    /// Plane A has been overwritten by an event battle's band. Drop each
+    /// held surface only once its complete packed rectangle is covered;
+    /// until then the shell draws the page underneath the opaque band.
+    pub(crate) fn cover_held_page(&mut self, top: u16, bottom: u16) {
+        let (Some(page), Some(set)) = (&mut self.held_page, &self.set) else {
+            return;
+        };
+        let covers = |y: i32, height: i32| i32::from(top) <= y && i32::from(bottom) >= y + height;
+        let portrait = &set.window.portrait_window.rect;
+        if covers(portrait.y + page.portrait_offset().1, portrait.height) {
+            page.portrait = None;
+        }
+        let text = &set.window.text_window.rect;
+        if page.portrait.is_none() && covers(text.y, text.height) {
+            self.release_held_page();
+        }
+    }
+
     /// The last page as it stays on screen once its text has ended: drawn,
     /// with no arrow, no prompt and nothing a press would advance.
     fn last_page(&self) -> Option<DialogueView> {

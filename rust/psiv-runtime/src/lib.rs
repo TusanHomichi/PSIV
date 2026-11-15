@@ -24,6 +24,7 @@ mod effects;
 mod encounters;
 mod event_battle_entry;
 pub use battle_load::BattleLoadView;
+pub use event_battle_entry::EventBattleBand;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;
