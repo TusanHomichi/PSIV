@@ -172,7 +172,7 @@ half of `the_strip_and_the_technique_window_grow_before_they_read_a_button`.
 
 ### The battle opening
 
-`GameMode_LoadBattle` ends with the priority roll at `loc_B62A`
+For normal priority (`Battle_Priority = 0`), `GameMode_LoadBattle` ends with the priority roll at `loc_B62A`
 (`ps4.asm:10043`). The first `GameMode_Battle` call (`ps4.asm:947`) runs
 `loc_52D6` (`ps4.asm:7554`): draw the party, start the enemy-name routines,
 and set `$FFFF4104 = 8`. This is not a battle-speed narration pause.
@@ -219,6 +219,10 @@ not a cycle-accurate VDP model for arbitrary party art or window uploads.
 
 ### Not modelled, named
 
+- The priority-specific opening messages and the ambush handoff retain the
+  port's narration timing; [#708](https://github.com/TusanHomichi/PSIV/issues/708)
+  owns their cartridge measurement and implementation. They do not use the
+  normal options-opening state.
 - The port's own target pages (below) record the order at once: the
   cartridge picks a target over its strip and closes the strip after, which
   the port's one-list page does not draw.
