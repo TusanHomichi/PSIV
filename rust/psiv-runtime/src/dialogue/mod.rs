@@ -128,8 +128,14 @@ pub struct DialogueRunner {
     /// The guild board's text mode (`session/job_board.rs`): a window closes
     /// by itself at its terminator and its last page stays drawn.
     board_text: bool,
-    /// That last page, until the next text replaces it.
-    board_page: Option<DialogueView>,
+    /// The open scene window is one its routine leaves on screen when the
+    /// text ends (`Runtime::open_scene_dialogue`): its last page is held.
+    hold_last_page: bool,
+    /// A window's last page, still drawn after its text ended: the guild
+    /// board's, until the next text replaces it, or a scene window's, until
+    /// the scene destroys it ([`DialogueRunner::release_held_page`]) or the
+    /// next text replaces it.
+    held_page: Option<DialogueView>,
     /// The portrait the routine's first text put up; later texts leave it.
     board_portrait: Option<u8>,
     /// The byte under the saved dialogue address after the last stop
@@ -154,7 +160,8 @@ impl DialogueRunner {
             flow: None,
             suspended: None,
             board_text: false,
-            board_page: None,
+            hold_last_page: false,
+            held_page: None,
             board_portrait: None,
             choice: ChoiceState::default(),
             open_cells: 0,
@@ -195,8 +202,30 @@ impl DialogueRunner {
     /// The guild board's text mode: see `Runtime::dialogue_board_text`.
     pub(crate) fn set_board_text(&mut self, on: bool) {
         self.board_text = on;
-        self.board_page = None;
+        self.held_page = None;
         self.board_portrait = None;
+    }
+
+    /// The open scene window's routine leaves it on screen when its text
+    /// ends, so its last page stays drawn until the scene destroys it.
+    pub(crate) fn hold_page_at_end(&mut self) {
+        self.hold_last_page = self.scene_dialogue && self.flow.is_some();
+    }
+
+    /// The scene destroyed the window its text left up (`Window_Destroy`).
+    pub(crate) fn release_held_page(&mut self) {
+        self.held_page = None;
+    }
+
+    /// The last page as it stays on screen once its text has ended: drawn,
+    /// with no arrow, no prompt and nothing a press would advance.
+    fn last_page(&self) -> Option<DialogueView> {
+        self.view().map(|page| DialogueView {
+            waiting: false,
+            dismissable: false,
+            choice: None,
+            ..page
+        })
     }
 
     /// Whether a window is on screen. The shell gates its input on this.
@@ -219,7 +248,7 @@ impl DialogueRunner {
     #[must_use]
     pub(crate) fn view(&self) -> Option<DialogueView> {
         let Some(flow) = self.flow.as_ref() else {
-            return self.board_text.then(|| self.board_page.clone()).flatten();
+            return self.held_page.clone();
         };
         Some(DialogueView {
             lines: flow.lines().to_vec(),
@@ -260,7 +289,7 @@ impl DialogueRunner {
         {
             // `RunText` returns at the terminator; the window stays for the
             // next text, and the guild's routine destroys it itself.
-            self.board_page = self.view();
+            self.held_page = self.view();
             self.close_window();
             self.detect_close();
             return;
@@ -338,7 +367,8 @@ impl DialogueRunner {
             }
             Opening::Window(flow) => {
                 self.flow = Some(*flow);
-                self.open_cells = if self.board_text && self.board_page.take().is_some() {
+                let replaced = self.held_page.take().is_some();
+                self.open_cells = if self.board_text && replaced {
                     self.full_cells()
                 } else {
                     0
@@ -358,6 +388,12 @@ impl DialogueRunner {
         if self.is_opening() {
             return;
         }
+        // The page as it was drawn, before the advance moves the flow on.
+        let last_page = if self.hold_last_page {
+            self.last_page()
+        } else {
+            None
+        };
         let Some(flow) = self.flow.as_mut() else {
             return;
         };
@@ -392,6 +428,9 @@ impl DialogueRunner {
         }
         if suspended {
             self.suspended = self.flow.take().map(|flow| (self.tree, flow));
+        }
+        if last_page.is_some() {
+            self.held_page = last_page;
         }
         self.close_window();
     }

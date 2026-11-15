@@ -159,14 +159,18 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **The ending's first window closes before its tone loop (#636).**
-  `Cutscene_Ending` runs dialogue `$09` through `RunText3` (`$078F68..$078F90`),
-  which leaves the text window and Chaz's portrait on screen. The sixty-frame
-  `Pal_IncreaseTone` loop (`$078F9C`) whitens them with the panels, and only
-  `$078FAE..$078FCC` destroys them. The port closes both when the text ends,
-  so the loop tones the backdrop where they stood. The scene's windows are not
-  modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
-  ([89_Ending.md](../scenes/89_Ending.md)).
+- **`Event_RunDialogue2`'s windows close when their text ends (#644).** The
+  routine (`$5ACDC`, `DialogueWindow::Retained`) returns without destroying
+  the text window or its portrait, and every caller goes on to a battle or a
+  map change, so the window shows until that mode redraws the planes. The
+  port closes it when the text ends. It holds a last page only for the
+  ending's first window (`$078F68..$078F90`, #636), which the scene destroys
+  itself at `$078FAE..$078FCC`. No certified frame yet shows where a
+  `Retained` window goes ([89_Ending.md](../scenes/89_Ending.md)).
+- **The ending's texts wait for Speak (#645).** `RunText3` (`ps4.asm:144053`)
+  reads no pad: it pages after two lines and ends after a wait of nine frames
+  per glyph. The port runs the ending's texts as ordinary windows, so each page
+  waits for a press ([89_Ending.md](../scenes/89_Ending.md)).
 - **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
   `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
   each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the

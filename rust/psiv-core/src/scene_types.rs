@@ -71,7 +71,10 @@ pub enum DialogueWindow {
     /// `Event_GetAndRunDialogue3` (`$5AD32`): the windows close and the chunks
     /// reload, but no `Panel_DestroyAll`, so the panels stay up.
     Cutscene3,
-    /// The ending's first `RunText3` window before the panel sequence.
+    /// The ending's first `RunText3` window before the panel sequence
+    /// (`$078F68..$078F90`, inline): no routine exit destroys it, so the
+    /// window and its portrait stay up until the scene's own `WindowDestroy`
+    /// (`$078FAE..$078FCC`).
     EndingIntro,
     /// `Event_GetAndRunDialogue4` (`$5ADA2`) / `Event_RunDialogue4` in
     /// `$8021`: `RunText3`, no button wait, no `Panel_DestroyAll`.

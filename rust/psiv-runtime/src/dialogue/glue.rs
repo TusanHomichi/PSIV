@@ -80,9 +80,14 @@ impl Runtime {
     }
 
     /// What the renderer draws this frame, or `None` with no window up.
+    ///
+    /// A page the text left on screen is drawn only while a scene runs: a
+    /// scene that ends, however it ends, takes the window with it.
     #[must_use]
     pub fn dialogue_view(&self) -> Option<DialogueView> {
-        self.dialogue.view()
+        self.dialogue
+            .view()
+            .filter(|_| self.dialogue.is_open() || self.scene.is_some())
     }
 
     /// A `$F6` the dialogue fired, once. The shell starts the scene with
@@ -231,6 +236,14 @@ impl Runtime {
             .dialogue
             .open_scene_entry(tree, entry, panel_layout, &self.game)
         {
+            // `Cutscene_Ending`'s first text (`$078F68..$078F90`) runs
+            // `RunText3` inline and returns with the window and portrait up;
+            // the scene destroys both at `$078FAE..$078FCC`, after its first
+            // tone loop (`WindowDestroy`). Every other routine destroys its
+            // own window, except `Event_RunDialogue2`'s (#644).
+            if self.scene_dialogue_window() == Some(psiv_core::DialogueWindow::EndingIntro) {
+                self.dialogue.hold_page_at_end();
+            }
             SceneDialogueOpen::Opened
         } else {
             SceneDialogueOpen::Empty

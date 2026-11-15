@@ -37,9 +37,14 @@ a separate presentation routine. The first bytes make that boundary explicit:
 The first loop is certified against tape 38 at frames 9893, 9910 and 9950
 (`ending-tone-loop-*`,
 [SCENE_PRESENTATION.md](SCENE_PRESENTATION.md#certified-pairs)).
-The native closes the text window and Chaz's portrait when the dialogue's
-text ends. The cartridge keeps both up, toned, until `$078FAE`
-([#636](https://github.com/TusanHomichi/PSIV/issues/636)).
+`RunText3` returns with the text window and Chaz's portrait up, and the loop
+tones them with the panels until `$078FAE` destroys them. The runtime keeps
+the window's last page drawn from the text's end to `WindowDestroy`
+(`DialogueRunner::hold_page_at_end`,
+[#636](https://github.com/TusanHomichi/PSIV/issues/636)). The later texts'
+`Event_RunDialogue4` destroys its own window. Neither routine reads the pad:
+`RunText3` pages and ends on its own, which the runtime does not model yet
+([#645](https://github.com/TusanHomichi/PSIV/issues/645)).
 
 The Menu shortcut is real retail behaviour. It skips the normal panel/dialogue
 sequence and enters the credits renderer at `$079D0C`. The typed normal path

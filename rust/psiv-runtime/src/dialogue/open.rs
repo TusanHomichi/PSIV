@@ -206,5 +206,6 @@ impl DialogueRunner {
         self.flow = None;
         self.open_cells = 0;
         self.scene_dialogue = false;
+        self.hold_last_page = false;
     }
 }

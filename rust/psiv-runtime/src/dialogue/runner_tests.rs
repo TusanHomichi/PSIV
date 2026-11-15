@@ -428,3 +428,67 @@ fn the_open_animation_takes_nine_frames_from_the_packs_window_geometry() {
     assert_eq!(frames, 9);
     assert_eq!(widths, [4, 8, 12, 16, 20, 24, 28, 32, 34]);
 }
+
+#[test]
+fn a_held_scene_window_keeps_its_last_page_until_the_scene_releases_it() {
+    // `Cutscene_Ending`'s first text returns with the window up (#636): the
+    // last page stays drawn, with nothing a press would advance, until the
+    // scene destroys it; the next window replaces it.
+    let mut runner = DialogueRunner::new();
+    let mut game = GameState::new();
+    assert!(runner.open_resolved(&entry(vec![text("bye")]), &game));
+    runner.scene_dialogue = true;
+    runner.hold_page_at_end();
+    idle(&mut runner, &mut game, 12);
+    let open = runner.view().expect("a window");
+    let signals = press_when_ready(&mut runner, &mut game);
+    // A scene's text returns with its cursor saved.
+    assert!(
+        signals.contains(&DialogueSignal::Closed { suspended: true }),
+        "{signals:?}"
+    );
+    assert!(!runner.is_open());
+    for _ in 0..60 {
+        let held = runner.view().expect("the last page stays drawn");
+        assert_eq!(
+            (held.lines, held.portrait),
+            (open.lines.clone(), open.portrait)
+        );
+        assert!(!held.dismissable && !held.waiting && held.choice.is_none());
+        // A press on the held page does nothing.
+        assert!(frame(&mut runner, &mut game, Pad::new(Button::Speak)).is_empty());
+        frame(&mut runner, &mut game, Pad::NEUTRAL);
+    }
+    runner.release_held_page();
+    assert_eq!(runner.view(), None);
+
+    // A new window replaces a held page, and closes with its text when it
+    // is not held itself.
+    assert!(runner.open_resolved(&entry(vec![text("one")]), &game));
+    runner.scene_dialogue = true;
+    runner.hold_page_at_end();
+    press_when_ready(&mut runner, &mut game);
+    assert!(runner.view().is_some());
+    assert!(runner.open_resolved(&entry(vec![text("two")]), &game));
+    assert_eq!(runner.view().expect("a window").lines, ["two"]);
+    press_when_ready(&mut runner, &mut game);
+    assert_eq!(runner.view(), None);
+}
+
+#[test]
+fn only_a_held_scene_window_keeps_its_page() {
+    // Negative controls: an unheld window, and a hold asked of a window that
+    // is not a scene's, both close with their text.
+    for scene in [false, true] {
+        let mut runner = DialogueRunner::new();
+        let mut game = GameState::new();
+        assert!(runner.open_resolved(&entry(vec![text("bye")]), &game));
+        runner.scene_dialogue = scene;
+        if !scene {
+            runner.hold_page_at_end();
+        }
+        press_when_ready(&mut runner, &mut game);
+        assert!(!runner.is_open());
+        assert_eq!(runner.view(), None, "scene {scene}");
+    }
+}

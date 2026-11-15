@@ -177,15 +177,14 @@ class PairTableCase(unittest.TestCase):
                 self.assertIn(tick + 9012, recipe["frames"])
         # Before, the fourth step, white: each a plateau's middle.
         self.assertEqual([p[2] for p in loop], [881, 898, 938])
-        self.assertIs(loop[0][5], certify.TAPE_38_LOOP)
-        self.assertIs(loop[1][5], certify.TAPE_38_LOOP_RISE)
-        self.assertIs(loop[2][5], certify.TAPE_38_LOOP)
-        self.assertEqual(certify.TAPE_38_LOOP["frames"], [9893, 9950])
+        # One recipe and the whole surface for all three: the rise
+        # includes the window and Chaz's portrait, which stay up and toned
+        # through the loop (#636).
+        for pair in loop:
+            self.assertIs(pair[5], certify.TAPE_38_LOOP)
+        self.assertEqual(certify.TAPE_38_LOOP["frames"], [9893, 9910, 9950])
         self.assertEqual(certify.TAPE_38_LOOP["region"], [1, 1, 319, 223])
-        # The rise leaves out the window and portrait the native closes
-        # early (#636): rows 112 down.
-        self.assertEqual(certify.TAPE_38_LOOP_RISE["frames"], [9910])
-        self.assertEqual(certify.TAPE_38_LOOP_RISE["region"], [1, 1, 319, 111])
+        self.assertFalse(hasattr(certify, "TAPE_38_LOOP_RISE"))
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

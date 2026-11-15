@@ -88,6 +88,7 @@ impl Runtime {
             runner.set_fifth_table(table);
         }
         self.scene = Some(runner);
+        self.dialogue.release_held_page();
         self.boarding_body = None;
         self.scene_event = event;
         // Entry indices are relative to whichever tree the scene points the
