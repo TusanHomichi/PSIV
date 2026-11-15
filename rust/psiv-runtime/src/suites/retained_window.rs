@@ -195,6 +195,10 @@ fn air_castle_removes_the_torch_and_runs_all_five_records_on_the_close_frame() {
         return;
     }
     let mut runtime = runtime_on(0x187, [Some(CharId(0)), None, None, None, None], &[]);
+    let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+    runtime
+        .enable_battles(&BattleFiles::load(&pack).expect("battle files"))
+        .expect("battles enabled");
     runtime
         .game
         .inventory_mut()
