@@ -256,7 +256,13 @@ impl Field {
         // presentation only: the idle overlay animation. Attack objects draw
         // the runtime view's absolute age and never tick in the shell.
         if let Some(screen) = self.battle_screen.as_mut() {
-            screen.bind_mut().advance_animation();
+            let first_upload = screen
+                .bind()
+                .view()
+                .is_some_and(|view| view.opening_first_upload);
+            if !first_upload {
+                screen.bind_mut().advance_animation();
+            }
         }
         let mut events = Vec::new();
         if self.session.as_ref().is_some_and(Session::battle_active) {

@@ -192,12 +192,13 @@ Instruction-boundary and video captures of the US ROM give:
 | Tape | Priority roll | Name's first two cells | Whole name | Options' first two cells | First whole options |
 | --- | --- | --- | --- | --- | --- |
 | 45, event battle 7, Chaz | 7875 | 7876 | 7882 | 7888 | 7891 |
-| 07, encounter, Alys/Chaz/Hahn | 24840 | 24841 | 24847 | 24853 | 24857 |
+| 07, encounter, Alys/Chaz/Hahn | 24840 | 24842 | 24847 | 24853 | 24857 |
 
 The video shows the preceding loop's plane writes. Tape 45's 7876 and tape
 07's 24841 and 24853 are lag: `Main_Frame_Count` and the seed stay fixed,
-and no new battle-loop call runs. Thus the two-cell name repeats once;
-on tape 07 the two-cell options also repeat once. Both sequences spend
+and no new battle-loop call runs. On tape 45 the two-cell name repeats;
+on tape 07 the first upload reaches video a frame later and the two-cell
+options repeat once. Both sequences spend
 fourteen counted frames after the roll before the options' full-frame write.
 The eight-frame timer, six name steps and four options steps overlap;
 adding their lengths as separate pauses is incorrect.
@@ -208,6 +209,13 @@ the menu exists. The one- and three-member regression checks pin the widths,
 input exclusion, fourteen seed steps and the first full frame's blue cursor.
 Certification pairs `battle-opening-name` and `battle-opening-options` use
 tape 45 at 7876 and 7891, over the 319×223 region beginning at (1,1).
+
+The first upload is not an atomic image change: tape 45 at 7876 still shows
+the previous plane on name-window pixel rows 0, 1 and 8 (screen rows 8, 9
+and 16). The runtime marks this first upload, and the shell clips those rows
+and retains the loaded enemy overlay before advancing its clock. At 7877
+all window rows are visible. This is a measured opening scanout allowance,
+not a cycle-accurate VDP model for arbitrary party art or window uploads.
 
 ### Not modelled, named
 

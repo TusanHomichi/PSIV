@@ -29,11 +29,20 @@ pub(super) fn compose(screen: &mut BattleScreen) {
         // per-character window opened from them.
         if let Some(width) = view.opening_name_width.filter(|width| *width < 12) {
             let offset = f32::from(((12 - width) & !1) / 2);
-            if let Some(frame) = chrome.frame(WindowRect {
+            let rect = WindowRect {
                 x: ENEMY_NAME_RECT.x + offset * cell,
                 w: f32::from(width) * cell,
                 ..ENEMY_NAME_RECT
-            }) {
+            };
+            // Tape 45's first upload reaches the VDP during scanout: the
+            // first two rows and the next tile row's first scanline still
+            // show the old plane. The following (lag) frame has all rows.
+            let frame = if view.opening_first_upload {
+                chrome.uploading_frame(rect, &[0, 1, 8])
+            } else {
+                chrome.frame(rect)
+            };
+            if let Some(frame) = frame {
                 quads.extend(frame);
             }
         } else if (view.opening_name_width.is_some()
@@ -142,7 +151,9 @@ pub(super) fn compose(screen: &mut BattleScreen) {
             }
             MessageKind::None | MessageKind::Transient | MessageKind::Wide => {}
         }
-        append_status_quads(chrome, &mut screen.tiles, view, &mut quads);
+        if view.opening_name_width != Some(0) {
+            append_status_quads(chrome, &mut screen.tiles, view, &mut quads);
+        }
         if let Some(damage) = view.damage
             && let Some(column) = screen.damage_column(damage.target)
         {

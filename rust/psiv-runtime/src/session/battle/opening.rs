@@ -9,6 +9,7 @@ pub(super) struct Opening {
     step: u8,
     lag: u8,
     options_lag: u8,
+    party_size: usize,
 }
 
 impl Opening {
@@ -17,6 +18,7 @@ impl Opening {
             step: 0,
             lag: 1,
             options_lag: u8::try_from(party_size.saturating_sub(1)).unwrap_or(4) / 2,
+            party_size,
         }
     }
 
@@ -34,7 +36,14 @@ impl Opening {
     }
 
     pub(super) fn name_width(self) -> u8 {
+        if self.first_upload() && self.party_size >= 3 {
+            return 0;
+        }
         (2 * (self.step + 1)).min(12)
+    }
+
+    pub(super) fn first_upload(self) -> bool {
+        self.step == 0 && self.lag != 0
     }
 
     pub(super) fn options_width(self) -> Option<u8> {

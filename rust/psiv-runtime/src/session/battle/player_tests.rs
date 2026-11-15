@@ -121,13 +121,18 @@ fn opening_names_options_and_seed_follow_the_two_retail_tapes() {
         let initial_count = runtime.frames;
         let mut expected_seed = runtime.rng.clone();
         let first = mode.start_frame(&runtime).view.unwrap();
-        assert_eq!(first.opening_name_width, Some(2));
+        assert_eq!(
+            first.opening_name_width,
+            Some(if size == 1 { 2 } else { 0 })
+        );
+        assert!(first.opening_first_upload);
         assert!(first.menu.is_none());
         assert!(!first.ready);
         let mut counted = 0;
         for elapsed in 1..=full_frame {
             let frame = mode.frame(&mut runtime, Pad::new(Button::Speak));
             let view = frame.view.unwrap();
+            assert!(!view.opening_first_upload);
             if !lag_frames.contains(&elapsed) {
                 counted += 1;
                 expected_seed.step();
