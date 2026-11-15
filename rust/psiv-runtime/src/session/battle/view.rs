@@ -403,8 +403,8 @@ pub struct BattleView {
     /// The opening enemy-name window's width, before command input starts.
     /// Twelve cells draws the name; smaller widths draw an empty box.
     pub opening_name_width: Option<u8>,
-    /// First plane upload after the roll. The loaded enemy art still shows;
-    /// the name's scanout can contain rows of the previous plane.
+    /// First plane upload after the roll: the first enemy-overlay call runs,
+    /// while the name's scanout can contain rows of the previous plane.
     pub opening_first_upload: bool,
     /// The command surface, or `None` while a beat owns the frame.
     pub menu: Option<MenuView>,
