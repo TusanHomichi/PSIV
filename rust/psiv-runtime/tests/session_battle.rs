@@ -186,7 +186,7 @@ fn walk_until_encounter(session: &mut Session) -> u16 {
                     let entry = tick(session, pad);
                     assert!(session.camp_view().is_none());
                     assert_eq!(session.runtime().state().cell(), cell);
-                    if elapsed >= 43 && elapsed < 63 {
+                    if (43..63).contains(&elapsed) {
                         let load = session
                             .runtime()
                             .battle_load_view()
