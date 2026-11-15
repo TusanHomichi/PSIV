@@ -47,7 +47,42 @@ fn map_records_keep_their_typed_coordinates_contents_and_ordered_events() {
 fn damaged_real_map_fields_are_rejected_by_the_consumer() {
     let Some(dir) = require_pack() else { return };
     let data = GameData::load(&dir).unwrap();
+    if !data.contains(PIATA) {
+        return;
+    }
+    let chest_available = data.maps().any(|(_, m)| !m.treasure_chests.is_empty());
+    assert_eq!(
+        assert_damaged_fields(&data),
+        4 + usize::from(chest_available)
+    );
+}
+
+#[test]
+fn a_chestless_subset_still_checks_every_available_field() {
+    let Some(dir) = require_pack() else { return };
+    let data = GameData::load(&dir).unwrap();
     let Some(p) = data.map(PIATA) else { return };
+    assert!(p.treasure_chests.is_empty());
+    let mut manifest = data.manifest().clone();
+    let entries = std::mem::take(&mut manifest.maps);
+    for entry in entries {
+        if entry.id == PIATA {
+            manifest.maps.push(entry);
+        } else {
+            manifest.unpacked_warp_targets.push(psiv_data::MapRef {
+                id: entry.id,
+                symbol: entry.symbol,
+            });
+        }
+    }
+    let subset = GameData::from_parts(manifest, vec![p.clone()]).unwrap();
+    assert_eq!(subset.len(), 1);
+    assert_eq!(assert_damaged_fields(&subset), 4);
+}
+
+fn assert_damaged_fields(data: &GameData) -> usize {
+    let p = data.map(PIATA).unwrap();
+    let mut checked = 0;
     for field in [
         "dimensions.cell_pixels",
         "dialogue_tree",
@@ -63,11 +98,10 @@ fn damaged_real_map_fields_are_rejected_by_the_consumer() {
             "treasure_chests[0]" => {
                 // Piata has no chests: use an existing real chest, then break
                 // its tagged contents while keeping the position in bounds.
-                let chest = data
-                    .maps()
-                    .flat_map(|(_, m)| &m.treasure_chests)
-                    .next()
-                    .unwrap();
+                let Some(chest) = data.maps().flat_map(|(_, m)| &m.treasure_chests).next() else {
+                    eprintln!("skipping chest corruption: this subset contains no chests");
+                    continue;
+                };
                 let mut chest = chest.clone();
                 chest.x_cell = 1;
                 chest.y_cell = 1;
@@ -83,5 +117,7 @@ fn damaged_real_map_fields_are_rejected_by_the_consumer() {
             .unwrap_err()
             .to_string();
         assert!(error.contains(field), "{field}: {error}");
+        checked += 1;
     }
+    checked
 }

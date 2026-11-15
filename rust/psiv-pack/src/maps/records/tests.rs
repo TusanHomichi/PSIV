@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../tests/mod.rs"]
+mod retirement;
+
 const AT: usize = 0x10;
 const TREE: usize = 0x20;
 const ART: [u8; 4] = [0, 0, 0, 0x30];

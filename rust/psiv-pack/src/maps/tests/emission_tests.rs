@@ -12,6 +12,7 @@ pub(super) struct Emission {
     pub images: BTreeMap<String, (usize, usize, u8)>,
     pub files: std::collections::BTreeSet<String>,
     pub piata_png: Vec<u8>,
+    pub shops: Value,
 }
 
 pub(super) fn emission() -> Option<&'static Emission> {
@@ -57,6 +58,8 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 .map(|p| format!("maps/{}", p.unwrap().file_name().to_str().unwrap()))
                 .collect();
             let piata_png = std::fs::read(root.join("maps/010_Piata.png")).unwrap();
+            let shops =
+                serde_json::from_slice(&std::fs::read(root.join("shops.json")).unwrap()).unwrap();
             std::fs::remove_dir_all(root).unwrap();
             Some(Emission {
                 fragment,
@@ -64,6 +67,7 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 images,
                 files,
                 piata_png,
+                shops,
             })
         })
         .as_ref()
@@ -269,5 +273,48 @@ fn incorrect_emitted_fields_fail_the_record_contract() {
             std::panic::catch_unwind(|| assert_record_fields(record, &bad)).is_err(),
             "accepted incorrect {path:?}"
         );
+    }
+}
+
+#[test]
+fn shop_locations_and_interaction_event_words_match_the_map_records() {
+    let Some(e) = emission() else { return };
+    let r = retail().unwrap();
+    let mut piata_shops = std::collections::BTreeSet::new();
+    let doors = array(&e.maps[&0x10]["warps"]);
+    for counter in array(&e.shops["counters"]) {
+        let id = num(&counter["map_id"]);
+        let m = &e.maps[&id];
+        let symbol = m["symbol"].as_str().unwrap();
+        if symbol.starts_with("Piata") {
+            piata_shops.insert(symbol);
+            assert!(doors.iter().any(|d| num(&d["target"]["id"]) == id));
+        }
+    }
+    assert_eq!(
+        piata_shops,
+        std::collections::BTreeSet::from(["PiataInn", "PiataItemShop"])
+    );
+    // Interaction_EventIndexes is a word table, including parameters $1B/$1C.
+    for parameter in [0x1b, 0x1c] {
+        assert_eq!(
+            crate::m68k::w(r.rom.bytes(), 0x64f22 + parameter * 2).unwrap() as usize,
+            parameter
+        );
+    }
+    let area = &e.maps[&0x17]["interaction_areas"][0];
+    assert_eq!(area["parameter"], 11);
+    assert_eq!(area["event_index"], 0x6b);
+    for m in e.maps.values() {
+        for area in array(&m["interaction_areas"]) {
+            if area["interaction_type"] == 2 {
+                let parameter = num(&area["parameter"]);
+                assert!(parameter < 32);
+                assert_eq!(
+                    num(&area["event_index"]),
+                    usize::from(crate::m68k::w(r.rom.bytes(), 0x64f22 + parameter * 2).unwrap())
+                );
+            }
+        }
     }
 }

@@ -655,32 +655,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn map_records_shop_locations_and_piata_doorways_agree() {
-        let Some(rom) = crate::test_support::retail_rom("map shop bindings") else {
-            return;
-        };
-        let records =
-            crate::maps::extract_maps(rom.bytes(), &crate::decode::Decodes::new(rom.bytes()))
-                .unwrap();
-        let real: BTreeMap<_, _> = records.real().map(|m| (m.id, m)).collect();
-        let doors: BTreeSet<_> = real[&0x10]
-            .transitions_2
-            .entries
-            .iter()
-            .map(|t| usize::from(t.record.target))
-            .collect();
-        let mut piata_shops = BTreeSet::new();
-        for location in tables::locations(rom.bytes(), SHOP_COUNT).unwrap() {
-            let map = real[&usize::from(location.map_id)];
-            if map.symbol.starts_with("Piata") {
-                piata_shops.insert(map.symbol);
-                assert!(doors.contains(&map.id));
-            }
-        }
-        assert_eq!(piata_shops, BTreeSet::from(["PiataInn", "PiataItemShop"]));
-    }
-
-    #[test]
     fn a_counter_stands_on_the_cell_its_y_is_shifted_into() {
         assert_eq!(cell(656, 464), (41, 30));
         assert_eq!(cell(0, 0), (0, 1));
