@@ -159,7 +159,7 @@ impl BattleEntry {
         if elapsed <= fade_from {
             return Some(ENTRY_WHITE);
         }
-        Some(crate::BattleLoadView::new(self.start(), elapsed - fade_from).palette_word(0))
+        Some(crate::BattleLoadView::new(self.start(), elapsed - fade_from, &[]).palette_word(0))
     }
 }
 
