@@ -301,6 +301,14 @@ mod tests {
         assert_eq!(clock_at_phase(4, &[8, 8, 8, 8], 0), (0, 0));
     }
 
+    /// Full three-member options: one initial call plus fourteen counted
+    /// calls. Counting the two upload holds as calls reproduces the finding.
+    #[test]
+    fn opening_zoran_middle_piece_stays_on_frame_zero_at_full_options() {
+        assert_eq!(clock_at_phase(3, &[4, 4, 4], 15).0, 0);
+        assert_eq!(clock_at_phase(3, &[4, 4, 4], 17).0, 1);
+    }
+
     #[test]
     fn receipt_phase_reaches_the_three_piece_zoran_tuple() {
         // The tick-200 screenshot shows the previous render: 170 rendered

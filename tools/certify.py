@@ -348,6 +348,9 @@ TAPE_45_WINDOW_COVERED = {**TAPE_45_BAND, "region": [0, 16, 320, 192]}
 # Clone tick t shows frame t + 7286 here as on the last page.
 TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
 
+# The name's first two cells and the first whole options window. The roll
+# runs on 7875; video shows its writes from 7876. One lag frame follows it.
+TAPE_45_OPTIONS = {**TAPE_45_ENTRY, "frames": [7876, 7891]}
 # Tape 07's ordinary encounter: fire 24777, white 24794-24821, uniform
 # fade steps 24822-24824. The selector fires just before session tick 30;
 # the result of a session tick is captured on the next tick. This certifies the backdrop, not the later plane sweep (#679).
@@ -575,6 +578,12 @@ PAIRS = [
     ("event-battle-fade-second", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 573,
      "build/certify/oracle/event-battle-entry/frame_7859.png",
      "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
+    ("battle-opening-name", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 590,
+     "build/certify/oracle/battle-opening/frame_7876.png",
+     "87735643050c8cf8a1b909f7929cc81b1878fdba0984d180bd6a763e302dc9d6", TAPE_45_OPTIONS),
+    ("battle-opening-options", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 605,
+     "build/certify/oracle/battle-opening/frame_7891.png",
+     "c77a9d11d2bd215eaf568f02841ac6fba64f18381a84841e6e92cf619ed77216", TAPE_45_OPTIONS),
     ("encounter-white-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 46,
      "build/certify/oracle/encounter-entry/frame_24794.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),

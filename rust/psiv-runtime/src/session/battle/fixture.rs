@@ -214,6 +214,7 @@ impl Session {
             view: None,
             started: None,
             fault: Some(format!("debug battle window {spec:?} refused: {message}")),
+            ..BattleFrame::default()
         };
         let spec = match parse(spec) {
             Ok(spec) => spec,

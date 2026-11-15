@@ -64,7 +64,13 @@ impl BattleMode {
 
     /// What this frame draws.
     pub(super) fn view(&self, runtime: &Runtime, close_ready: bool) -> BattleView {
-        let menu = if self.command_open {
+        let menu = if let Some(opening) = self.opening {
+            opening.options_width().map(|width| MenuView::Top {
+                cursor: self.cursor,
+                width: Some(width),
+                full_width: super::menu::top_width(runtime.vehicle_active()),
+            })
+        } else if self.command_open {
             Some(match self.window.as_ref() {
                 Some(Window::Commands(commands)) => MenuView::Commands(Box::new(commands.view())),
                 Some(Window::VehicleSkills(skills)) => skills.view(runtime),
@@ -102,6 +108,10 @@ impl BattleMode {
             _ => None,
         };
         BattleView {
+            opening_name_width: self.opening.map(super::opening::Opening::name_width),
+            opening_first_upload: self
+                .opening
+                .is_some_and(super::opening::Opening::first_upload),
             menu,
             ready: self.command_open,
             finishing: self.finish_outcome.is_some() || self.finish_request.is_some(),
@@ -114,6 +124,12 @@ impl BattleMode {
             party: self.party.clone(),
             panes: self.panes.clone(),
             shown: match self.window.as_ref() {
+                _ if self
+                    .opening
+                    .is_some_and(|opening| opening.name_width() == 0) =>
+                {
+                    Some(Vec::new())
+                }
                 Some(Window::Commands(commands)) if self.command_open => {
                     commands.actor().map(|actor| vec![actor.get()])
                 }
