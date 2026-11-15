@@ -257,7 +257,7 @@ fn crash_landing_uses_the_temple_bg_stride_and_all_five_animation_frames() {
         })
         .collect();
     assert_eq!(frames.len(), 5);
-    for (frame, retail) in frames.iter().zip(table.chunks_exact(4)) {
+    for (frame, retail) in frames.iter().zip(table.as_chunks::<4>().0) {
         assert_eq!(
             frame.iter().map(|(x, y, _)| (*x, *y)).collect::<Vec<_>>(),
             [(47, 9), (48, 9), (47, 10), (48, 10)]
