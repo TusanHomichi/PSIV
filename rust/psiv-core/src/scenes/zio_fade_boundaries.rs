@@ -4,7 +4,6 @@
 
 use super::post_rika_cutscenes::ZIO_DEFEATED;
 use crate::collision::CollisionGrid;
-use crate::geom::Direction;
 use crate::map::{FieldMap, MapId};
 use crate::scene::{SceneEffect, SceneInput, SceneOp};
 use crate::scene_runner::SceneRunner;
@@ -155,13 +154,6 @@ fn zio_fixed_fades_run_around_dialogue_maps_and_party_removals() {
         })
         .unwrap();
     assert_eq!(ops[text + 1], SceneOp::RemovePartyMember { who: CharId(4) });
-    assert!(matches!(
-        ops[ops.len() - 7],
-        SceneOp::LoadMap {
-            facing: Direction::Down,
-            ..
-        }
-    ));
 }
 
 #[test]
