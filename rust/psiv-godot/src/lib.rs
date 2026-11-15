@@ -894,7 +894,6 @@ impl Field {
         }
     }
 
-
     /// Reloads the leader sprite sheet from the game's party slot 0 and
     /// refreshes the cached view on party changes and native save/title loads.
     fn refresh_party_sheets(&mut self) {
