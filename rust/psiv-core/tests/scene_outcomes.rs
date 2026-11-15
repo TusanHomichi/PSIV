@@ -524,6 +524,7 @@ fn party_at_battle(
         .collect();
     let mut runner = SceneRunner::new(ops, cast, frames());
     let mut input = SceneInput::None;
+    let mut dialogue = false;
     for _ in 0..100 {
         let effects = runner.tick(&map, &mut state, input);
         if let Some(e) = effects.iter().find(|e| {
@@ -538,7 +539,8 @@ fn party_at_battle(
             .iter()
             .any(|e| matches!(e, SceneEffect::BattleRequested { index: 0x0A }))
         {
-            if input != SceneInput::DialogueClosed {
+            // Carnivorous Trees on foot runs no dialogue (`beq.w loc_70826`).
+            if dialogue && input != SceneInput::DialogueClosed {
                 return Err("a tick passed between the dialogue and the battle".into());
             }
             return Ok((0..starts.len())
@@ -549,6 +551,7 @@ fn party_at_battle(
             .iter()
             .any(|e| matches!(e, SceneEffect::DialogueOpen(_)))
         {
+            dialogue = true;
             SceneInput::DialogueClosed
         } else {
             SceneInput::None

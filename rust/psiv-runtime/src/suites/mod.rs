@@ -31,6 +31,7 @@ mod combat_rimit;
 mod combat_route_damage;
 mod combat_skills;
 mod combat_techniques;
+mod dezo_dismounts;
 mod dialogue_choice;
 mod dialogue_resume;
 mod dorin_dialogue;

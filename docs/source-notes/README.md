@@ -429,6 +429,20 @@ agility and dexterity, and enemy paralysis clearing each turn.
     from it ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#drawing-the-cram)). No game
     state reads them.
 
+- **Dezolis dismount frames run no object pass.** The mounted branches of
+  `Event_CarnivorousTrees`, `Event_SavingKyra` and `Event_EclipseTorchUsed`
+  end their dismount with `jsr Field_UpdateObjects` / `jsr VInt_Prepare`
+  (`$07080C`, `$0708EE`, `$070220`): one frame, no `RunMapUpdates`, after the
+  party objects are rebuilt on `Character_1`. The port waits that frame as a
+  bare `WaitFrames { frames: 1 }`, so the frame count and the missing map
+  updates match, but no field object runs on it: native scene frames run no
+  field-object tick at all
+  ([#470](https://github.com/TusanHomichi/PSIV/issues/470)), and the pass's
+  visible work here, the rebuilt party objects' first update, is the
+  runtime's dismount (`set_vehicle_index(0)` stands the party on the
+  machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
+  frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.
