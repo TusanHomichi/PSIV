@@ -301,7 +301,9 @@ fn all_three_core_stages_resolve_their_pack_inputs_and_text_ordinals() {
         let table = &a.commands[usize::from(tick >= 0x400)];
         let opcode = table
             .bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .find(|p| usize::from(p[0]) == tick & 63)
             .map(|p| p[1]);
         if opcode == Some(12) {
