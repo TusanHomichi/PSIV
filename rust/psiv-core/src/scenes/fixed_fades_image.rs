@@ -18,6 +18,10 @@
 //! that fixes them; a listed scene that matches fails too, so the list only
 //! shrinks. The variable fades have their own check, `palette_fades_image`.
 //!
+//! `Cutscene_DarkForce1Defeated` calls `loc_64C1E` at `$07722A`:
+//! its two shared planet-screen fades are inserted at that call boundary,
+//! between the caller's second and third Init, without expanding its range.
+//!
 //! The ship's route is attributed as its bytes are (#654).
 //! `Cutscene_LeRoofAgain` and `Cutscene_FindingAirCastle` end their bytes in
 //! `jmp Cutscene_InsideSpaceship` and their ops in [`INSIDE_SPACESHIP_ROUTE`]:
@@ -92,13 +96,7 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
-const KNOWN: &[(&str, u32)] = &[
-    ("Cutscene_SpaceshipSabotage", 652),
-    ("Cutscene_CrashLaanding", 652),
-    ("Cutscene_DarkForce1Defeated", 652),
-    ("Cutscene_LashiecDefeated", 652),
-    ("Cutscene_Ending", 652),
-];
+const KNOWN: &[(&str, u32)] = &[("Cutscene_LashiecDefeated", 652), ("Cutscene_Ending", 652)];
 
 /// The fixed fade an op is, if it is one.
 fn recorded(op: &SceneOp) -> Option<Fixed> {
@@ -217,7 +215,13 @@ fn mismatches(rom: &[u8], ranges: &Ranges, scenes: &[crate::Scene]) -> Vec<(&'st
         let Some(ranges) = ranges.get(scene.name) else {
             continue;
         };
-        let calls = retail_calls(rom, ranges);
+        let mut calls = retail_calls(rom, ranges);
+        if scene.name == "Cutscene_DarkForce1Defeated" {
+            // $07722A calls loc_64C1E after the second Init, before Zelan.
+            // Count the helper's calls at that boundary, not by ROM address.
+            let at = calls.partition_point(|(at, _)| *at < 0x07722A);
+            calls.splice(at..at, retail_calls(rom, &[(0x064C1E, 0x064D00)]));
+        }
         let mut found = Vec::new();
         if scene.name == SHIP {
             // The entry's own bytes, then the helper by way.
@@ -561,3 +565,6 @@ fn zio_defeated_calls_are_the_verified_us_sites() {
         None
     );
 }
+
+#[path = "post_zio_fades_image.rs"]
+mod post_zio;
