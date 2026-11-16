@@ -142,7 +142,7 @@ fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
     };
     let (name, consumed) = quoted(rest);
     let flags = rest[consumed..]
-        .split_once(") = ")
+        .rsplit_once(" = ")
         .expect("syscall result")
         .0;
     // Read the flags after the path; a filename containing O_WRONLY is still
@@ -316,5 +316,13 @@ fn input_audit_skips_only_absent_roms_and_keeps_flag_names_in_paths() {
         "12",
     );
     assert!(reads.contains(&PathBuf::from("/tree/O_WRONLY-table")));
+    assert_eq!(
+        paths(
+            r#"access("/missing", R_OK)  = -1 ENOENT (No such file or directory)"#,
+            Path::new("/tree"),
+            "12"
+        ),
+        [PathBuf::from("/missing")]
+    );
     std::fs::remove_dir_all(root).unwrap();
 }
