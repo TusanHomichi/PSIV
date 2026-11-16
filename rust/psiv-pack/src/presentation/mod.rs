@@ -533,6 +533,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dialogue_action_panel_set_matches_every_emitted_reference() {
+        let Some(e) = crate::dialogue::retirement::emission() else {
+            return;
+        };
+        let trees = e.document("trees");
+        let mut used = std::collections::BTreeSet::new();
+        for tree in trees["trees"].as_array().unwrap() {
+            for entry in tree["entries"].as_array().unwrap() {
+                for segment in entry["segments"].as_array().unwrap() {
+                    if segment["action"] == "load_panel" {
+                        used.insert(u16::try_from(segment["panel"].as_u64().unwrap()).unwrap());
+                    }
+                }
+            }
+        }
+        assert_eq!(used, DIALOGUE_ACTION_PANEL_IDS.into_iter().collect());
+    }
+
+    #[test]
     fn panel_ids_are_sorted_distinct_and_banked() {
         let ids = panel_ids();
         assert!(ids.windows(2).all(|w| w[0] < w[1]));
