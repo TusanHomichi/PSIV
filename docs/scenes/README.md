@@ -457,7 +457,7 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 
 Post-Rika state extensions are deliberately small and state-bearing:
 `SetVehicleIndex`, `AddItem`, `ConfigureCharacter`, `RestorePartyHp`,
-`RemovePartyMember`, `ClearCharacterStatus` and `ReviveIfDead`. They are used
+`RemovePartyMember` and `ClearCharacterStatus`. They are used
 by the new records rather than hidden in runtime-specific scene names.
 
 ### Dezo campaign extensions
