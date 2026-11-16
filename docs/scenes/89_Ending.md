@@ -254,6 +254,11 @@ credits.”
 
 ## Credits renderer (`$079D0C`)
 
+The raw inputs are carried by [`presentation/credits.json`](../EXTRACTION.md#credits-pack-contract).
+The consumer validates their identities, dimensions, tile references and text/command
+terminators before starting a runtime. This supplies data; credits drawing and
+native visual parity remain outstanding.
+
 The shortcut and the normal path meet here. The routine is a real tile/plane
 renderer, not a bitmap placeholder:
 
@@ -264,11 +269,11 @@ renderer, not a bitmap placeholder:
 | `$1DE278` -> VRAM `$2000` | Kos-decompress small planet | asset field |
 | `$1DEA48` -> VRAM `$4000` | Kos-decompress large planet | asset field |
 | `$07A26C` / `$2A3350` -> tile `$07C0` | read the credit-font tile command table and upload `ArtNem_CreditFont` | asset field |
-| `$1DF09C` -> `$FFFF1000` | Enigma mapping, 0x100 words | stage 1 source |
-| `$1DF17C` -> `$FFFF1380` | Enigma mapping, `$80` words at the retail offset | stage support data |
-| `$1DF294` -> `$FFFF1700` | Enigma mapping, `$C0` words | stage support data |
-| `$1DF3E0` -> `$FFFF1A80` and `$FFFF1E00` | Enigma mapping for Plane B and its companion | stage support data |
-| `$1DF4C2` -> `$FFFF2000` | Enigma mapping, `$2200` bytes | stages 2 and 3 source |
+| `$1DF09C` -> `$FFFF1000` | Enigma mapping, base tile `$0100`, 16×28 cells | stage 1 source |
+| `$1DF17C` -> `$FFFF1380` | Enigma mapping, base tile `$0100`, 16×28 cells | stage support data |
+| `$1DF294` -> `$FFFF1700` | Enigma mapping, base tile `$0100`, 16×28 cells | stage support data |
+| `$1DF3E0` -> `$FFFF1A80` and `$FFFF1E00` | Enigma mapping, base tile `$0100`, 16×28 cells, copied twice | stage support data |
+| `$1DF4C2` -> `$FFFF2000` | Enigma mapping, base tile `$2200`, 16×28 cells | stages 2 and 3 source |
 | `$079E70` | `Pal_FadeIn`, after the initial plane upload, before stage 1 | `FadeIn` |
 | `$079E76..$079F14` | stage 1: `TextCounter` terminal `$380`, BG step `$2000`, source `$FFFF1000`, Plane B, command table `$07A522` | `EndingCreditsStage(1)` |
 | `$079F26..$079FCE` | stage 2: terminal `$400`, FG step `$2000`, BG step `$1000`, source `$FFFF2000`, Plane A, commands `$07A522` | `EndingCreditsStage(2)` |

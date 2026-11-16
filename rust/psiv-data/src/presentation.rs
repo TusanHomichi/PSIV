@@ -10,6 +10,8 @@
 //!
 //! [`GameData::scene_palettes`]: crate::GameData::scene_palettes
 
+pub mod credits;
+
 use std::collections::BTreeMap;
 use std::path::Path;
 

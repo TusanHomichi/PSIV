@@ -104,6 +104,10 @@ impl GameData {
         // Required: the battle stage loads the Fusion frames with the rest of
         // its art, so an older pack without them is rebuilt before any battle.
         crate::FusionArt::load(pack_dir)?;
+        data.ending_credits = Some(crate::EndingCreditsAssets::load(
+            pack_dir,
+            data.manifest.rom.sha256.as_str(),
+        )?);
         // A pack from an extractor that cut the Motavia table short is refused
         // here, before any battle draws from it (#40).
         data.battle_backgrounds = crate::BattleBackgrounds::load(pack_dir)?;

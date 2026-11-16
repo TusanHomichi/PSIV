@@ -108,6 +108,10 @@ pub use new_game::{
     Handoff as TitleHandoff, Init as NewGameInit, NewGame, Settings as NewGameSettings,
     Slot as PartySlot,
 };
+pub use presentation::credits::{
+    CREDITS_FILE, CREDITS_VERSION, CreditsArt, CreditsCommands, CreditsFontUpload, CreditsMapping,
+    CreditsPalette, CreditsText, EndingCreditsAssets,
+};
 pub use presentation::{PRESENTATION_FILE, PanelPalette, ScenePalettes};
 pub use ship_menu::{
     BackgroundRecord, COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, Colors, FlightCaption,

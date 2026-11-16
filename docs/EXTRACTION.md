@@ -239,6 +239,47 @@ Two things worth knowing about the source data:
 - The disassembly's inline range annotation for `Battle_FormationData4` stops at `0x284C3D`, which is only the end of its first annotated chunk. The stream actually runs to `0x284F7C`, where `Battle_BossFormationData` begins. The extractor verifies this by requiring the decompressor to consume exactly the documented range.
 - Formation `0x177` (block 3 record `$77`) declares four enemies in byte 4 but lists three enemy/position pairs. The disassembly's uncompressed source carries the same bytes, so this is the ROM's own inconsistency. Records expose both the declared `enemy_count` and an `enemy_count_matches_entries` flag rather than silently trusting one of them.
 
+## Credits pack contract
+
+`presentation/credits.json` is the versioned input for `EndingCreditsAssets`
+and the three credits stages. `psiv-data::EndingCreditsAssets::load` requires
+it, checks its version and enclosing ROM identity, and rejects absent or
+incompatible records with a pack rebuild message. Rebuild with the
+[full pack command](DEVELOPMENT.md#prepare-the-local-pack); local-input cache
+keys already include both Rust crates, so extractor changes produce a new pack.
+
+The contract keeps packed 4bpp art (32 bytes per tile), complete VDP pattern
+names (tile index, H/V flip, palette and priority), source addresses and
+compressed byte consumption, VRAM/RAM destinations, initial palette uploads,
+both command tables including `$FF` and their alignment byte, and every
+referenced header/name ordinal including empty `$FF` records. Text stays in
+its original charset: credit tile glyphs for headers and RunText2 glyphs for
+names. The fade table holds eight rows of five CRAM words, destined for buffer
+word 50. `$07A274` and `$07A2A0` remain in the existing scene palette contract.
+
+The retail loader at `$079DD2..$079E50` passes additive tile bases in `d0`
+to `EniDecomp` (`$041A90`), which saves that value in `a3` and adds it to
+pattern names. `$0100` and `$2200` are not output lengths. All five streams
+decode to 16×28 cells (448 words), with `$1DF3E0` decoded into two RAM
+locations. The [ending scene](scenes/89_Ending.md#credits-renderer-079d0c)
+records the addresses and stage bindings. Extraction proves the data contract;
+it does not establish native drawing or visual parity.
+
+Focused checks, through the [documented locks](DEVELOPMENT.md#heavy-run-lock):
+
+```bash
+python3 tools/heavy_lock.py run --class build -- cargo test --manifest-path rust/Cargo.toml -p psiv-pack --lib presentation::credits
+python3 tools/heavy_lock.py run --class build -- cargo test --manifest-path rust/Cargo.toml -p psiv-data --lib
+```
+
+Retail tests require the verified ROM at the repository root. The independent
+text encoding comparison additionally reads the local disassembly; it reports
+a skip when that reference is absent. The independent bit interpreter compares
+every Enigma pattern name, including attributes, against a separate MSB-first
+reading. Synthetic negative controls reject missing records, malformed
+terminators, wrong dimensions, destinations, palette words and unavailable tile
+references without requiring any private input.
+
 ## Data-model choices
 
 - All records preserve `rom_offset` and `raw_hex` provenance.

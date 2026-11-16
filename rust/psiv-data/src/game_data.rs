@@ -60,6 +60,7 @@ pub struct GameData {
     /// synthetic pack built with [`GameData::from_parts`] or a pack without
     /// `presentation/panels.json`.
     scene_palettes: crate::ScenePalettes,
+    ending_credits: Option<crate::EndingCreditsAssets>,
     /// The battle background selection tables. `None` for a synthetic pack
     /// built with [`GameData::from_parts`], or a pack with no battle art.
     battle_backgrounds: Option<crate::BattleBackgrounds>,
@@ -104,6 +105,7 @@ impl GameData {
             fifth: None,
             shops: None,
             scene_palettes: crate::ScenePalettes::default(),
+            ending_credits: None,
             battle_backgrounds: None,
         })
     }
@@ -113,6 +115,11 @@ impl GameData {
     #[must_use]
     pub fn scene_palettes(&self) -> &crate::ScenePalettes {
         &self.scene_palettes
+    }
+
+    /// Credits inputs; absent only in synthetic data assembled from parts.
+    pub fn ending_credits(&self) -> Option<&crate::EndingCreditsAssets> {
+        self.ending_credits.as_ref()
     }
 
     /// Replaces the scene palettes: tests and synthetic packs.

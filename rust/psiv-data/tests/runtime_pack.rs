@@ -52,6 +52,10 @@ fn the_real_pack_loads_and_validates() {
     // field that broke.
     let data = GameData::load(&dir).expect("the runtime pack should load and validate");
 
+    let credits = data.ending_credits().expect("required credits contract");
+    assert_eq!(credits.headers.len(), 37);
+    assert_eq!(credits.names.len(), 128);
+    assert_eq!(credits.mappings.len(), 5);
     assert!(!data.is_empty(), "the pack contains no maps");
     assert_eq!(
         data.len(),
