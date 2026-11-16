@@ -9,3 +9,6 @@ pub mod emit;
 pub mod field;
 pub mod objects;
 pub mod records;
+
+#[cfg(test)]
+pub(crate) mod tests;
