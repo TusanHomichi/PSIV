@@ -290,3 +290,30 @@ fn retail_dialogue_regions_bytes_controls_actions_and_provenance() {
     assert_eq!(actions, [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12].into());
     source::dialogue_against_reference(data, &specs, &decodes);
 }
+
+#[test]
+fn decoded_text_and_control_record_mutations_fail_the_same_contract() {
+    fn check(d: &Value) -> Result<(), &'static str> {
+        if d["text"] != "A\nB" {
+            return Err("decoded text");
+        }
+        if d["segments"]
+            != json!([
+                {"text":"A"},
+                {"ctrl":"0xFC","name":"newline","operands":[],"length":1},
+                {"text":"B"},
+            ])
+        {
+            return Err("decoded segments");
+        }
+        Ok(())
+    }
+    let d = decoded(&[1, 0xFC, 2], DIALOGUE, 1);
+    check(&d).unwrap();
+    let mut bad = d.clone();
+    bad["text"] = json!("A B");
+    assert_eq!(check(&bad), Err("decoded text"));
+    let mut bad = d;
+    bad["segments"][1]["length"] = json!(2);
+    assert_eq!(check(&bad), Err("decoded segments"));
+}

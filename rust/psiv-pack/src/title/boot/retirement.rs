@@ -151,7 +151,8 @@ fn cycle_and_every_original_negative_control_match_local_tape_25() {
     assert_eq!(derived["frames"], *expected);
     assert_eq!(derived["line_count"], c["line_count"]);
     assert_eq!(derived["colors_per_line"], c["colors_per_line"]);
-    let cases: Vec<(Vec<(usize, u16)>, Vec<u32>)> = vec![
+    type MutationCase = (Vec<(usize, u16)>, Vec<u32>);
+    let cases: Vec<MutationCase> = vec![
         (vec![(0x41116, 6)], vec![75, 100, 125, 150, 175]),
         // Shine's byte at $411C1 (preserve the adjacent byte).
         (

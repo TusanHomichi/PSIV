@@ -51,13 +51,13 @@ fn charset_source(path: &Path) -> BTreeMap<u8, char> {
             }
             args = args.trim_start().trim_start_matches(',').trim_start();
         }
-        match values.as_slice() {
-            &[first, last, base] => {
+        match *values.as_slice() {
+            [first, last, base] => {
                 for (i, c) in (first..=last).enumerate() {
                     assert!(table.insert(base + i as u8, char::from(c)).is_none());
                 }
             }
-            &[c, code] => {
+            [c, code] => {
                 assert!(table.insert(code, char::from(c)).is_none());
             }
             _ => panic!("unrecognised charset directive"),
