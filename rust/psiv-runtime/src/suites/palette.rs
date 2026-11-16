@@ -17,6 +17,7 @@ mod dorin_saya;
 mod eclipse_torch;
 mod ending;
 mod ending_window;
+mod fixed_aftermaths;
 mod le_roof;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -84,8 +85,13 @@ pub(super) struct Frame {
 /// Runs `event` to its end, closing every window at once, and records every
 /// tick. The palette before the first tick is the trace's base.
 pub(super) fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>) {
-    let base = runtime.cram().words;
     assert!(runtime.start_event(event), "event {event:#x} starts");
+    trace_running(runtime)
+}
+
+/// Trace an already installed negative-control scene with the same driver.
+pub(super) fn trace_running(runtime: &mut Runtime) -> ([u16; 64], Vec<Frame>) {
+    let base = runtime.cram().words;
     let mut frames = Vec::new();
     for _ in 0..50_000 {
         let events = runtime.tick(Input::Neutral);
@@ -123,7 +129,7 @@ pub(super) fn trace(runtime: &mut Runtime, event: u16) -> ([u16; 64], Vec<Frame>
             return (base, frames);
         }
     }
-    panic!("event {event:#x} did not finish");
+    panic!("scene did not finish");
 }
 
 /// The tick a presentation record matching `pick` was emitted on.

@@ -7,6 +7,8 @@ use crate::{
     ActorRef, Cell, Direction, GameState, SceneInput, SceneRunner, ScriptedActor, StepFrames,
 };
 
+mod elevator;
+
 pub(super) const fn row(scene: &'static str, calls: usize) -> Row {
     Row {
         scene,
@@ -71,6 +73,9 @@ const DOORS: &[Door] = &[
 ];
 
 pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
+    if name == "Event_RidingElevator" {
+        return elevator::problems(rom, ops);
+    }
     let Some(door) = DOORS.iter().find(|d| d.name == name) else {
         return vec![format!("{name}: no door phase assignment")];
     };

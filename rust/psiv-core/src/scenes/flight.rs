@@ -222,7 +222,7 @@ const SFX_SPACESHIP_RADAR: u8 = 0xF8;
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// loc_64C1E's ordinary planet screen, shared by both flights and the
-/// Dark Force 1 aftermath. Callers supply the preceding Init themselves.
+/// Dark Force 1 and Lashiec aftermaths. Callers supply the preceding Init themselves.
 const PLANET_SCREEN: [SceneOp; 7] = [
     SceneOp::FlightPlanet,
     SceneOp::SetTextColour { colour: 0 },

@@ -63,8 +63,10 @@ pub static ELEVATOR_DOOR: Scene = Scene {
     ],
 };
 
-/// `$06C33E`: use this map's transition table, open the arrival door, step
+/// `$06C33E..$06C477`: use this map's transition table, open the arrival door, step
 /// out, overlap the party, then close the chunk behind them.
+/// The five one-frame waits are DMA VBlanks ($06C392, $06C44E/$06C45C),
+/// separate from both fixed fades; $06C466 is only a CPU delay.
 pub static ELEVATOR_RIDE: Scene = Scene {
     name: "Event_RidingElevator",
     event: EventIndex(0x14),

@@ -19,3 +19,10 @@ excluded. ROM range: `$07175A..$071822` exclusive end.
 | 2-3 | `$07179B..$0717F5` | five object clears/updates, barrier SFX | object/SFX |
 | 4 | `$0717F6..$071821` | set DeVars defeated `$E5` | flag |
 
+## Fixed fades
+
+The US-image fixed-fade census finds no calls to Init, In or Out in this
+range. Runtime regression keeps the current field palette, map and party,
+sets only the defeat flag, and detects a restored spurious Out. The tone-loop
+implementation and its complete retail clock remain
+[#574](https://github.com/TusanHomichi/PSIV/issues/574).

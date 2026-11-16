@@ -73,6 +73,7 @@ and distinguishes missing CPU refresh boundaries from explicit DMA delays.
 | `Event_MeetingSaya` | `$0D` | [24](24_MeetingSaya.md) | `$06BC6A..$06BE77` |
 | `Event_TonoeBasementDoor` | `$33` | [25](25_TonoeBasementDoor.md) | `$06F1A4..$06F2E9` |
 | `Event_BioPlantAlarm` | `$12` | [26](26_BioPlantAlarm.md) | `$06C27C..$06C2BB` |
+| `Event_RidingElevator` | `$14` | [Elevator](RIDING_ELEVATOR.md) | `$06C33E..$06C477` |
 | `Event_GirlsSneakingOut` | `$23` | [27](27_GirlsSneakingOut.md) | `$06D4A6..$06D615` |
 | `Event_ChazHouse` | `$3B` | [28](28_ChazHouse.md) | `$06FA34..$06FACB` |
 | `Event_LeavingChazHouse` | `$3C` | [29](29_LeavingChazHouse.md) | `$06FACC..$06FAD3` |
