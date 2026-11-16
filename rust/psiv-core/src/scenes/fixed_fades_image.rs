@@ -98,7 +98,7 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
-const KNOWN: &[(&str, u32)] = &[("Cutscene_Ending", 652)];
+const KNOWN: &[(&str, u32)] = &[];
 
 /// The fixed fade an op is, if it is one.
 fn recorded(op: &SceneOp) -> Option<Fixed> {
@@ -578,3 +578,48 @@ mod post_zio;
 
 #[path = "lashiec_elevator_fades_image.rs"]
 mod lashiec_elevator;
+
+/// Ending's nine call sites are executable code, not the inline credits data
+/// after `$07A26C`. Address order is normal-path order here: the held-Menu
+/// branch joins at `$079D0C`, rather than running an additional fade sequence.
+#[test]
+fn ending_calls_and_credits_join_are_the_verified_us_sites() {
+    let Some(rom) = rom() else { return };
+    use Fixed::{In, Init};
+    let calls = [
+        (0x078F5C, Init),
+        (0x078F62, In),
+        (0x078FE6, Init),
+        (0x078FF4, In),
+        (0x07908A, Init),
+        (0x0790AE, In),
+        (0x079874, Init),
+        (0x079D0C, Init),
+        (0x079E70, In),
+    ];
+    assert_eq!(retail_calls(rom, &[(0x078F3E, 0x07A812)]), calls);
+    assert!(
+        retail_calls(
+            rom,
+            &[
+                (0x07A26C, 0x07A2B4), // font command and ramp palettes
+                (0x07A522, 0x07A55E), // CreditCommands1/2
+                (0x07A6DE, 0x07A72E), // CreditsFadeInOut's colour table
+            ]
+        )
+        .is_empty(),
+        "credits data are not calls"
+    );
+    // btst #6, Joypad_Held.w / bne.w $079D0C. The displacement is
+    // relative to the word at $078F52: $078F52 + $0DBA = $079D0C.
+    assert_eq!(
+        &rom[0x078F4A..0x078F54],
+        &[0x08, 0x38, 0, 6, 0xEF, 2, 0x66, 0, 0x0D, 0xBA]
+    );
+    let scene = SCENES
+        .iter()
+        .find(|scene| scene.name == "Cutscene_Ending")
+        .unwrap();
+    assert_eq!(compare(scene.name, &calls, &native(scene.ops)), None);
+    assert!(!KNOWN.iter().any(|(known, _)| *known == scene.name));
+}

@@ -35,7 +35,7 @@
 //! |---|---|---|---:|
 //! | `Cutscene_RajaSick` | `$8012` | `88_RetailBoundaries.md` | 54 |
 //! | `Cutscene_Rykros` | `$801B` | `88_RetailBoundaries.md` | 27 |
-//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 404 |
+//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 407 |
 //!
 //! These are kept beside the opening and next-arc registry because their
 //! retail bytes are deterministic presentation routines, while the remaining
@@ -60,6 +60,8 @@ pub(crate) mod dezolis_route;
 pub(crate) mod dying_boy;
 mod elsydeon;
 mod ending;
+#[cfg(test)]
+mod ending_fixed_fades;
 pub(crate) mod esper_events;
 mod field_reload;
 pub mod fifth_character;

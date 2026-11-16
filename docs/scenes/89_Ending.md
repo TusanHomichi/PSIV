@@ -7,7 +7,7 @@
 - **Pointer:** `CutscenePtrs[$21]` at `$05A580`; scene event `$8021`.
 - **Dispatch:** `RunEventsJmpTbl[$54]` (`RunEvent_Ending`), after event flag
   `$E8` is set by the Profound Darkness battle handoff.
-- **Data:** `ending.rs`, `ENDING` (405 typed ops).
+- **Data:** `ending.rs`, `ENDING` (407 typed ops).
 
 All ranges in this record are inclusive. The cartridge is the USA revision
 (`revision=1`) and the disassembly's retail branch is `grand_cross=0`. The ROM
@@ -56,6 +56,31 @@ does not pretend that a held-menu sample exists: the current runtime exposes
 the final Start gate, but not a separate “held Menu at scene entry” input. The
 shortcut and its exact target remain recorded here rather than silently
 claiming parity.
+
+## Fixed fade call census
+
+The US image has exactly these nine direct fixed-fade calls in the documented
+range, in normal-path execution order:
+
+| Calls | Offsets |
+|---|---|
+| Init, In | `$078F5C`, `$078F62` |
+| Init, In | `$078FE6`, `$078FF4` |
+| Init, In | `$07908A`, `$0790AE` |
+| Init | `$079874` |
+| Init, In | `$079D0C`, `$079E70` |
+
+None is an explicit `PalFadeOut_ClrSpriteTbl` call: each Init owns its internal
+fade-out. The inline credits data at `$07A26C..$07A2B3` (font command and ramp
+palettes), `$07A522..$07A55D` (credit commands) and `$07A6DE..$07A72D`
+(colour table) contain no such calls; executable helpers sit between them.
+The Menu branch at `$078F4A..$078F53` joins the last Init at `$079D0C` and
+skips the preceding seven calls; it does not add a second credits sequence.
+The native normal path retains the entry limitation above. Boundary tests
+also require the last Init after the staff restore and the last fade-in
+after credits assets but before stage 1. Credits upload/DMA accounting and
+rendering remain the separate gaps below. All five certified Ending frames
+precede the repaired credits boundary; their tick pins are unaffected.
 
 ## Panel stream: one retail create op per record
 
@@ -234,7 +259,8 @@ renderer, not a bitmap placeholder:
 
 | ROM offset / data | Retail operation | Typed record |
 |---|---|---|
-| `$079D0C` | clear `TextCounter`, credit counters and FG camera; set BG camera Y `$FF20` | `EndingCreditsAssets` prelude |
+| `$079D0C` | `InitVRAMAndCRAM`, at the normal/held-Menu join | `InitVramAndCram` |
+| `$079D12` onward | clear `TextCounter`, credit counters and FG camera; set BG camera Y `$FF20` | `EndingCreditsAssets` prelude |
 | `$1DE278` -> VRAM `$2000` | Kos-decompress small planet | asset field |
 | `$1DEA48` -> VRAM `$4000` | Kos-decompress large planet | asset field |
 | `$07A26C` / `$2A3350` -> tile `$07C0` | read the credit-font tile command table and upload `ArtNem_CreditFont` | asset field |
@@ -243,7 +269,8 @@ renderer, not a bitmap placeholder:
 | `$1DF294` -> `$FFFF1700` | Enigma mapping, `$C0` words | stage support data |
 | `$1DF3E0` -> `$FFFF1A80` and `$FFFF1E00` | Enigma mapping for Plane B and its companion | stage support data |
 | `$1DF4C2` -> `$FFFF2000` | Enigma mapping, `$2200` bytes | stages 2 and 3 source |
-| `$079E70..$079F14` | stage 1: `TextCounter` terminal `$380`, BG step `$2000`, source `$FFFF1000`, Plane B, command table `$07A522` | `EndingCreditsStage(1)` |
+| `$079E70` | `Pal_FadeIn`, after the initial plane upload, before stage 1 | `FadeIn` |
+| `$079E76..$079F14` | stage 1: `TextCounter` terminal `$380`, BG step `$2000`, source `$FFFF1000`, Plane B, command table `$07A522` | `EndingCreditsStage(1)` |
 | `$079F26..$079FCE` | stage 2: terminal `$400`, FG step `$2000`, BG step `$1000`, source `$FFFF2000`, Plane A, commands `$07A522` | `EndingCreditsStage(2)` |
 | `$079FAE..$07A086` | stage 3: terminal `$480`, same camera steps/source/plane, commands `$07A548` | `EndingCreditsStage(3)` |
 | `$07A0A6..$07A0F9` | fourteen steps, each on a frame whose `Main_Frame_Count & 7` is zero: eight words from `$07A274` word `d5` (14 down to 1) to `Palette_Table_Buffer+$24`, and from step 9 two words from `$07A2A0` byte `4 * (d6 - 9)` to `+$3C` | `EndingCreditsPaletteRamp` |
@@ -268,18 +295,20 @@ The CRAM model (`rust/psiv-runtime/src/cram/ending.rs`, arithmetic in
 - The ramp writes its fourteen steps from the pack's `$07A274` (22 words)
   and `$07A2A0` (10 words), and spends the frames up to and including its
   fourteenth step's. So the third tone loop (`$07A0FA`) starts from the
-  ramp's last words in line 1 over black, not from the second loop's white.
+  ramp's last words in line 1 over the credits entry palette, not from the
+  second loop's white.
 
 Still missing natively:
 
 - The staff text's planes ([#639](https://github.com/TusanHomichi/PSIV/issues/639)).
-- The credits renderer's own palette writes (its `InitVRAMAndCRAM`, the line
-  loads and `CreditsFadeInOut`) and its planes
+- The credits renderer's line loads and `CreditsFadeInOut`, and its planes
   ([#640](https://github.com/TusanHomichi/PSIV/issues/640),
   [#641](https://github.com/TusanHomichi/PSIV/issues/641),
   [#642](https://github.com/TusanHomichi/PSIV/issues/642)). Until they land,
-  the ramp and the third loop step words over the staff roll's black, and the
-  `EndingCreditsAssets` and `EndingCreditsStage` records draw nothing.
+  `EndingCreditsAssets` and `EndingCreditsStage` draw nothing. The credits
+  entry's fixed Init/fade-in now run, so their provisional target is
+  `Pal_Init`; the ramp and the third loop step words over that palette, not
+  the staff roll's black. This is a state result, not credits visual parity.
 - The frames the credits stages spend
   ([#608](https://github.com/TusanHomichi/PSIV/issues/608)). The explicit
   `DMAPlanes_VInt` (`$079CF4`) now spends its one bare frame; the loops'

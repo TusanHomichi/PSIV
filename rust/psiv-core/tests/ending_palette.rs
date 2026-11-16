@@ -188,7 +188,7 @@ fn presentation(op: &SceneOp) -> Option<PresentationOp> {
 
 /// The staff roll's records in retail order (`$079C8E..$079D0B`): the fade
 /// out, 180 frames, the staff-roll music, 180 frames, the fade in, the plane
-/// clear and DMA, the sixty-frame restore; then the credits.
+/// clear and DMA, the sixty-frame restore; then the credits Init.
 #[test]
 fn the_staff_roll_runs_its_loops_waits_and_music_in_retail_order() {
     let scene = scene_for(EventIndex(0x8021)).expect("the ending is registered");
@@ -227,6 +227,7 @@ fn the_staff_roll_runs_its_loops_waits_and_music_in_retail_order() {
             op: PresentationOp::PaletteRestoreTone { frames: 60 },
         },
         SceneOp::WaitFrames { frames: 60 },
+        SceneOp::InitVramAndCram,
     ];
     assert_eq!(scene.ops[at..at + expected.len()], expected);
     assert!(matches!(
