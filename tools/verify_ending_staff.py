@@ -9,6 +9,7 @@ psiv-compare's exact staff rectangle (24,64,256,88), at a 1280x800 viewport.
 All ROM-derived inputs and outputs stay local, under build/ending-staff/.
 """
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,7 @@ def main():
         os.execvp("heavy", ["heavy", "--", sys.executable, *sys.argv])
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
-    output = root / "build" / "ending-staff" / utc_stamp()
+    output = root / "build" / "ending-staff" / utc_stamp(datetime.now(timezone.utc))
     output.mkdir(parents=True)
     started = time.monotonic()
     with hold_heavy_lock(lock_class=EXTENSION):
