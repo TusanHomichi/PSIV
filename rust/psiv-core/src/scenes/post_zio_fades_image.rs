@@ -9,6 +9,61 @@ const SABOTAGE: &str = "Cutscene_SpaceshipSabotage";
 const CRASH: &str = "Cutscene_CrashLaanding";
 const AFTERMATH: &str = "Cutscene_DarkForce1Defeated";
 
+/// Instruction meanings are the expectations; instruction encodings are
+/// decoded from the private image rather than copied into byte fixtures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Flow {
+    Call(u32),
+    Subroutine(u32),
+    CompareByte { value: u8, address: u32 },
+    NotEqual(u32),
+}
+
+fn word_at(rom: &[u8], at: usize) -> u16 {
+    u16::from_be_bytes(rom[at..at + 2].try_into().unwrap())
+}
+
+/// The absolute-long call, word-relative BSR/BNE and immediate byte compare
+/// to absolute-short RAM used at these boundaries (68000 instruction forms).
+fn decoded_flow(rom: &[u8], at: usize) -> Option<Flow> {
+    match word_at(rom, at) {
+        0x4EB9 => Some(Flow::Call(u32::from_be_bytes(
+            rom[at + 2..at + 6].try_into().unwrap(),
+        ))),
+        opcode @ (0x6100 | 0x6600) => {
+            let displacement = i32::from(word_at(rom, at + 2) as i16);
+            let target = u32::try_from(at as i32 + 2 + displacement).ok()?;
+            Some(if opcode == 0x6100 {
+                Flow::Subroutine(target)
+            } else {
+                Flow::NotEqual(target)
+            })
+        }
+        0x0C38 => Some(Flow::CompareByte {
+            value: u8::try_from(word_at(rom, at + 2)).ok()?,
+            address: i32::from(word_at(rom, at + 4) as i16) as u32,
+        }),
+        _ => None,
+    }
+}
+
+/// Call targets, compared world/RAM operand and the two branch destinations.
+/// The helper's world-2 diversion is bypassed with the caller's world 3.
+const CONTROL_FLOW: &[(usize, Flow)] = &[
+    (0x07722A, Flow::Call(0x064C1E)),
+    (0x064C4A, Flow::Subroutine(0x0643B8)),
+    (0x064C4E, Flow::Subroutine(0x0644AE)),
+    (
+        0x064C1E,
+        Flow::CompareByte {
+            value: 2,
+            address: 0xFFFF_F400,
+        },
+    ),
+    (0x064C24, Flow::NotEqual(0x064C4A)),
+    (0x07620C, Flow::NotEqual(0x0764F8)),
+];
+
 #[test]
 fn direct_calls_are_the_verified_us_sites() {
     let Some(rom) = rom() else { return };
@@ -59,7 +114,13 @@ fn direct_calls_are_the_verified_us_sites() {
         assert_eq!(retail_calls(rom, &[span]), expected, "{name}");
         assert!(!KNOWN.iter().any(|(known, _)| *known == name));
     }
-    assert_eq!(&rom[0x07722A..0x077230], &[0x4E, 0xB9, 0, 6, 0x4C, 0x1E]);
+    for &(at, meaning) in CONTROL_FLOW {
+        assert_eq!(
+            decoded_flow(rom, at),
+            Some(meaning),
+            "instruction at ${at:06X}"
+        );
+    }
     assert_eq!(
         retail_calls(rom, &[(0x064C1E, 0x064D00)]),
         [(0x064C8E, In), (0x064CFA, Out)]
@@ -67,14 +128,27 @@ fn direct_calls_are_the_verified_us_sites() {
     // The helper's BSRs enter only asset/sprite setup, with no fixed fade.
     // Sabotage calls the menu and ship setup routines in this same span.
     assert!(retail_calls(rom, &[(0x063F00, 0x064568)]).is_empty());
-    assert_eq!(
-        &rom[0x064C4A..0x064C52],
-        &[0x61, 0, 0xF7, 0x6C, 0x61, 0, 0xF8, 0x5E]
-    );
-    // World 3 bypasses loc_64C1E's world-2 Rykros diversion.
-    assert_eq!(&rom[0x064C1E..0x064C24], &[0x0C, 0x38, 0, 2, 0xF4, 0x00]);
-    // Cancel's conditional branch lands in its own teardown, not the takeoff.
-    assert_eq!(&rom[0x07620C..0x076210], &[0x66, 0, 2, 0xEA]);
+}
+
+/// Neither a wrong instruction kind nor a changed operand may satisfy the
+/// semantic pin. Mutations use a generic RTS encoding and a bit flip on the
+/// local image; no retail byte run becomes a tracked expectation.
+#[test]
+fn semantic_flow_pins_reject_a_changed_instruction_or_operand() {
+    let Some(rom) = rom() else { return };
+    for &(at, meaning) in CONTROL_FLOW {
+        let mut wrong_opcode = rom.to_vec();
+        wrong_opcode[at..at + 2].copy_from_slice(&0x4E75_u16.to_be_bytes());
+        assert_eq!(decoded_flow(&wrong_opcode, at), None, "${at:06X}");
+
+        let mut wrong_operand = rom.to_vec();
+        let length = match meaning {
+            Flow::Call(_) | Flow::CompareByte { .. } => 6,
+            Flow::Subroutine(_) | Flow::NotEqual(_) => 4,
+        };
+        wrong_operand[at + length - 1] ^= 1;
+        assert_ne!(decoded_flow(&wrong_operand, at), Some(meaning), "${at:06X}");
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
