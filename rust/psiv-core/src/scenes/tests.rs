@@ -148,7 +148,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_XeAThoulBeforeBattle", 5),
         ("Event_AirCastleFakeChest", 11),
         ("Event_LashiecAppearance", 12),
-        ("Cutscene_LashiecDefeated", 32),
+        ("Cutscene_LashiecDefeated", 40),
         ("Cutscene_GumbiousBishop", 18),
         ("Event_StrengthTowerTop", 15),
         ("Event_CourageTowerTop", 18),

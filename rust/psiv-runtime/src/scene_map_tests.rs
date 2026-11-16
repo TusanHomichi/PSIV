@@ -4,6 +4,8 @@ use psiv_core::{Input, MapId};
 
 #[path = "scene_crash_tests.rs"]
 mod crash;
+#[path = "scene_elevator_tests.rs"]
+mod elevator;
 #[path = "scene_garuberk_tests.rs"]
 mod garuberk;
 #[path = "scene_landale_tests.rs"]
@@ -144,34 +146,11 @@ fn elevators_open_ride_step_out_close_and_return_using_the_real_tables() {
         // Another confirm on an already-open door is a silent no-op.
         checked_tick(&mut rt, Input::Neutral);
         assert!(checked_tick(&mut rt, Input::Action).is_empty());
-        let mut started = false;
-        let mut closing = Vec::new();
-        for _ in 0..140 {
-            let events = checked_tick(
-                &mut rt,
-                if started {
-                    Input::Neutral
-                } else {
-                    Input::Direction(Direction::Up)
-                },
-            );
-            if events
-                .iter()
-                .any(|e| matches!(e, RuntimeEvent::SceneStarted { trigger: 0x0D }))
-            {
-                started = true;
-            }
-            if rt.map_id() == MapId(target) && events.contains(&RuntimeEvent::MapRefreshed) {
-                closing.push(rt.effects.chunk_patches.last().unwrap().2);
-            }
-            if started && !rt.scene_active() {
-                break;
-            }
-        }
-        assert!(started);
+        let ride = elevator::ride(&mut rt, None);
+        assert!(ride.clock_matches(), "{ride:?}");
         assert_eq!(rt.map_id(), MapId(target));
         assert_eq!(rt.state().cell(), Cell::new(32, arrival));
-        assert_eq!(closing, vec![0x53, 0x52, 0x51, 0x50, 0x4F]);
+        assert_eq!(ride.chunks(), vec![0x53, 0x52, 0x51, 0x50, 0x4F]);
         assert_eq!(rt.effects.chunk_patches, vec![(16, door_y, 0x4F)]);
         assert!(
             rt.party

@@ -120,6 +120,7 @@ const ROWS: &[Row] = &[
     belt("Event_ConveyorBeltRight", 0x06_D146),
     belt("Event_ConveyorBeltLeft", 0x06_D28E),
     doors::row("Event_GaruberkTwDoorOpening1", 1),
+    doors::row("Event_RidingElevator", 4),
     doors::row("Event_GaruberkTwDoorOpening2", 1),
     doors::row("Event_GaruberkTwDoorEntered1", 3),
     doors::row("Event_GaruberkTwDoorEntered2", 3),

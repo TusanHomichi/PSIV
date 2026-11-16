@@ -718,6 +718,13 @@ Corrections this model brought, each checked against the US image:
   transits plus the shared planet screen account for five unique fade-in
   sites, six executions; palette targets and measured boundaries are owned
   by [Inside the spaceship](41_InsideSpaceship.md#frame-clock-and-return-boundary-77).
+- Lashiec's aftermath also calls the shared planet screen, at `$077B68`
+  after its world-1 write; it uses the same shared ops as the flights and
+  Dark Force 1. Its missing direct Out at `$077B2E` now precedes the torch
+  return. [Lashiec](73_LashiecDefeated.md#fixed-fades) owns the exact sites
+  and clock limits. [RidingElevator](RIDING_ELEVATOR.md) now supplies its US
+  range to the census: Out `$06C346`, In `$06C398`; its five DMA waits stay
+  separate from the palette frames (#658).
 - `Event_DeVarsDefeated` and `Event_SaLewsDefeated` recorded a `FadeOut`
   their bytes do not make: they tone the palette to white and back
   (`Pal_IncreaseTone`, `loc_58666`; the loops are

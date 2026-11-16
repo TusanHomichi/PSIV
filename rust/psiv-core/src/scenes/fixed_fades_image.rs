@@ -21,6 +21,8 @@
 //! `Cutscene_DarkForce1Defeated` calls `loc_64C1E` at `$07722A`:
 //! its two shared planet-screen fades are inserted at that call boundary,
 //! between the caller's second and third Init, without expanding its range.
+//! Lashiec calls that helper at `$077B68`, after its third Init/world write
+//! and before Gumbious; its shared fades are inserted there in the same way.
 //!
 //! The ship's route is attributed as its bytes are (#654).
 //! `Cutscene_LeRoofAgain` and `Cutscene_FindingAirCastle` end their bytes in
@@ -96,7 +98,7 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
-const KNOWN: &[(&str, u32)] = &[("Cutscene_LashiecDefeated", 652), ("Cutscene_Ending", 652)];
+const KNOWN: &[(&str, u32)] = &[("Cutscene_Ending", 652)];
 
 /// The fixed fade an op is, if it is one.
 fn recorded(op: &SceneOp) -> Option<Fixed> {
@@ -216,10 +218,15 @@ fn mismatches(rom: &[u8], ranges: &Ranges, scenes: &[crate::Scene]) -> Vec<(&'st
             continue;
         };
         let mut calls = retail_calls(rom, ranges);
-        if scene.name == "Cutscene_DarkForce1Defeated" {
-            // $07722A calls loc_64C1E after the second Init, before Zelan.
+        let planet_call = match scene.name {
+            "Cutscene_DarkForce1Defeated" => Some(0x07722A),
+            "Cutscene_LashiecDefeated" => Some(0x077B68),
+            _ => None,
+        };
+        if let Some(planet_call) = planet_call {
+            // The caller owns Init; loc_64C1E owns its In/Out pair.
             // Count the helper's calls at that boundary, not by ROM address.
-            let at = calls.partition_point(|(at, _)| *at < 0x07722A);
+            let at = calls.partition_point(|(at, _)| *at < planet_call);
             calls.splice(at..at, retail_calls(rom, &[(0x064C1E, 0x064D00)]));
         }
         let mut found = Vec::new();
@@ -568,3 +575,6 @@ fn zio_defeated_calls_are_the_verified_us_sites() {
 
 #[path = "post_zio_fades_image.rs"]
 mod post_zio;
+
+#[path = "lashiec_elevator_fades_image.rs"]
+mod lashiec_elevator;

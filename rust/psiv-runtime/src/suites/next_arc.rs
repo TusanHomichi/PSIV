@@ -917,5 +917,4 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     }));
 }
 
-#[path = "next_arc_fixed_fades.rs"]
-mod fixed_fades;
+use super::fixed_fades;
