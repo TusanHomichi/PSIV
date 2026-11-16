@@ -160,3 +160,7 @@ mod tests {
         assert!(decodes.get(bad).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/support/decoder_observed.rs"]
+pub(crate) mod observed;

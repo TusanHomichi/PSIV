@@ -658,3 +658,6 @@ mod tests {
         assert_packed_worlds(rom.bytes());
     }
 }
+
+#[cfg(test)]
+mod retirement;

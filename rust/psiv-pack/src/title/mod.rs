@@ -612,3 +612,6 @@ fn summary(layout: &Json, sha256: String) -> Result<Json, PackError> {
         .with("palette_cycle", layout.at(&["palette_cycle"])?.clone())
         .with("assets", assets))
 }
+
+#[cfg(test)]
+mod retirement;
