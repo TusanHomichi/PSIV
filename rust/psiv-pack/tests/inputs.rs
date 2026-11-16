@@ -7,7 +7,7 @@ mod audit;
 #[cfg(target_os = "linux")]
 #[test]
 fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
-    use audit::{checked, copy_tree, offenders, trace};
+    use audit::{checked, copy_tree, trace};
     use std::path::Path;
     use std::process::Command;
     use std::time::Instant;
@@ -66,7 +66,7 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
             .arg("-o")
             .arg(&probe),
     );
-    let baseline = trace(&probe, &[], &tree, &scratch.join("runtime.trace"));
+    let baseline = trace(&probe, &[], &tree, &scratch.join("runtime.trace"), None);
     assert!(baseline.process.status.success());
     let mut runtime = baseline.reads;
     runtime.remove(&probe);
@@ -84,10 +84,16 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
     std::fs::create_dir(&output).unwrap();
     let pack = output.join("pack");
     let started = Instant::now();
-    let clean = trace(&binary, &[&rom, &pack], &tree, &scratch.join("clean.trace"));
+    let clean = trace(
+        &binary,
+        &[&rom, &pack],
+        &tree,
+        &scratch.join("clean.trace"),
+        Some(&output),
+    );
     let seconds = started.elapsed().as_secs_f64();
     assert!(clean.reads.contains(&rom), "audit did not observe the ROM");
-    let bad = offenders(&clean.reads, &runtime, &rom, &output, &binary);
+    let bad = clean.offenders(&runtime, &rom, &output, &binary);
     assert!(
         bad.is_empty(),
         "undeclared Rust pack reads/probes: {bad:#?}"
@@ -116,6 +122,20 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
     std::fs::write(&external, "{}").unwrap();
     // The path inside the permitted output resolves to an undeclared input.
     std::os::unix::fs::symlink(&external, output.join("alias")).unwrap();
+    let missing = scratch.join("absent-link-target");
+    let directory = scratch.join("external-directory");
+    std::fs::create_dir(&directory).unwrap();
+    let metadata = scratch.join("metadata-target");
+    let staged = scratch.join("staged-target");
+    for path in [&metadata, &staged] {
+        std::fs::write(path, "{}").unwrap();
+    }
+    std::os::unix::fs::symlink(&missing, output.join("dangling")).unwrap();
+    std::os::unix::fs::symlink(&directory, output.join("directory")).unwrap();
+    std::os::unix::fs::symlink(&output, output.join("branch")).unwrap();
+    let runtime_target = Path::new("/proc/self/maps");
+    assert!(runtime.contains(runtime_target));
+    std::os::unix::fs::symlink(runtime_target, output.join("runtime-alias")).unwrap();
     let main = tree.join("rust/psiv-pack/src/main.rs");
     let source = std::fs::read_to_string(&main).unwrap();
     let injection = format!(
@@ -127,9 +147,26 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
             let _ = std::fs::File::open("oracle/layouts/absent_capture.json");
             let _ = std::fs::metadata(["psiv_tools", "absent_table.json"].join("/"));
         }}).join().unwrap();
+        let out = std::path::Path::new({:?});
+        let _ = std::fs::read(out.join("dangling"));
+        let _ = std::fs::metadata(out.join("directory/missing-descendant"));
+        std::fs::remove_file(out.join("dangling")).unwrap();
+        std::os::unix::fs::symlink({:?}, out.join("transient")).unwrap();
+        let _ = std::fs::metadata(out.join("transient"));
+        std::fs::remove_file(out.join("transient")).unwrap();
+        std::fs::create_dir(out.join("stage")).unwrap();
+        std::os::unix::fs::symlink({:?}, out.join("stage/alias")).unwrap();
+        let _ = std::fs::metadata(out.join("stage/alias"));
+        std::fs::rename(out.join("stage"), out.join("renamed-stage")).unwrap();
+        std::fs::remove_dir_all(out.join("renamed-stage")).unwrap();
+        let _ = std::fs::metadata(out.join("branch/../parent-probe"));
+        let _ = std::fs::metadata(out.join("runtime-alias/missing-descendant"));
     "#,
         planted,
-        output.join("alias")
+        output.join("alias"),
+        output,
+        metadata,
+        staged
     );
     assert_eq!(source.matches("fn main() -> ExitCode {").count(), 1);
     std::fs::write(
@@ -146,12 +183,13 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
         &[Path::new("--claims")],
         &tree,
         &scratch.join("injected.trace"),
+        Some(&output),
     );
     assert!(
         injected.process.status.success(),
         "injection must not rely on a build failure"
     );
-    let bad = offenders(&injected.reads, &runtime, &rom, &output, &binary);
+    let bad = injected.offenders(&runtime, &rom, &output, &binary);
     let expected = [
         tree.join(planted[0]),
         tree.join(planted[1]),
@@ -159,14 +197,20 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
         tree.join("oracle/layouts/absent_capture.json"),
         tree.join("psiv_tools").join("absent_table.json"),
         external,
+        missing,
+        directory,
+        metadata,
+        staged,
+        output.join("branch/../parent-probe"),
+        runtime_target.to_owned(),
     ]
     .into();
     assert_eq!(
         bad, expected,
-        "negative control must name every undeclared read/probe"
+        "negative control must name every undeclared input/link dependency"
     );
     eprintln!(
-        "[pack-inputs] rejected all {} injected Rust reads/probes",
+        "[pack-inputs] rejected all {} injected Rust input/link dependencies",
         bad.len()
     );
 }

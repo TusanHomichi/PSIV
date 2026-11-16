@@ -230,7 +230,13 @@ The Rust integration test `rust/psiv-pack/tests/inputs.rs` builds the actual
 CLI in release from a copy of the tracked tree (including unignored candidate
 files) plus the verified ROM. On Linux it requires `strace` and `rustc`, traces
 all builder threads, and rejects undeclared file reads and metadata probes,
-including missing paths and symlinks escaping the output. Exact loader and std runtime paths
+including missing paths and symlinks escaping the output. Output symlink
+targets are dependencies: the audit records existing links before execution
+and new links at their creation, so deletion or directory renaming cannot
+hide one. External targets are rejected even if unused or dangling. Output
+accesses and link targets containing parent traversal (`..`) are rejected,
+even when they happen to stay inside output; the guard never cancels `..`
+before following a symlink. Exact loader and std runtime paths
 come from a separate std-only probe, not from the builder; the two additional
 thread/allocator metadata files are `/sys/devices/system/cpu/online` and
 `/proc/sys/vm/overcommit_memory`. It recompiles the
@@ -239,9 +245,8 @@ Linux audit; a missing tracer on Linux fails. Only an absent ROM skips: an
 unreadable, wrong or truncated image fails. Evidence stays under
 `build/pack-inputs-<pid>/`. Run it with the `build` heavy-lock class:
 
-```bash
-python3 tools/heavy_lock.py run --class build -- cargo test --manifest-path rust/Cargo.toml -p psiv-pack --test inputs -- --nocapture
-```
+`python3 tools/heavy_lock.py run --class build -- cargo test --manifest-path
+rust/Cargo.toml -p psiv-pack --test inputs -- --nocapture`.
 
 A worktree takes these from the main checkout: in the worktree, run
 `python3 tools/local_inputs.py link`. It links each local input the main
@@ -368,7 +373,7 @@ with that implementation, not before it.
 
 | Python checks | Rust contract and remaining Python-specific purpose |
 | --- | --- |
-| Former Python input audit | `psiv-pack/tests/inputs.rs` audits the real full-pack CLI, with successful and absent undeclared reads, a tracked non-input, a thread and an output symlink escape as controls. Python audit hooks, import-prefix and bytecode allowances are obsolete. |
+| Former Python input audit | `psiv-pack/tests/inputs.rs` audits the real full-pack CLI, with successful and absent undeclared reads, a tracked non-input, a thread, dangling/transient output links, removed staging paths and parent traversal as controls. Python audit hooks, import-prefix and bytecode allowances are obsolete. |
 | `test_pack_manifest.py` | `psiv-pack/src/infrastructure_tests.rs` independently checks ROM identity, file references, hashes, sizes, canonical JSON, versions, map overlay/event census, categories and byte-identical serial/parallel full builds. `maps/tests/pack_structure_tests.rs`, `battle/tests.rs` and `battle/image_tests.rs` and `sound/tests.rs` own section counts and retail censuses; parity checks the whole manifest and each builder's PNG totals. Filtered map builds and unknown `map_ids` are Python-only: the Rust CLI always builds all maps. Python import aliases and shared exception identity retire with their modules. |
 | `test_pack_sections.py` | `psiv-pack/src/lib.rs` tests progress, claims, parallel assembly, duplicate keys, failed/panicking sections and empty section sets; `infrastructure_tests.rs` rejects non-object parts and a manifest after failure. Process-global section replay, empty-directory copying, eviction, deep copies and `fresh()` are Python test-suite optimizations; Rust rebuilds sections for each call. |
 | `test_decode_cache.py` | `decode/mod.rs` checks one shared result across threads, separate ROM/build lifetimes and all decoder/offset/base/limit keys against uncached results. Borrowed immutable ROM data and `Arc<Decoded>` replace mutable Python arguments/results and default/keyword normalization. Rust intentionally caches deterministic errors for one immutable ROM; Python retries errors and records attempted calls for the parity census. Keep the Python census tests while parity uses them. |

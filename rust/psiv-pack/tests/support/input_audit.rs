@@ -109,8 +109,42 @@ fn own_proc(path: PathBuf, pid: &str) -> PathBuf {
     }
 }
 
-/// Paths consulted by one syscall. Successful opens include the resolved
-/// descriptor path too, so a symlink inside output cannot hide an input.
+// Output links are dependencies at creation, even if an eventual read fails
+// or the link is deleted before parsing. A self-contained pack cannot depend
+// on an external link target. Parent traversal is rejected separately rather
+// than incorrectly cancelling `..` before following a symlink.
+fn output_links(root: &Path, reads: &mut BTreeSet<PathBuf>) {
+    let meta = match root.symlink_metadata() {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(e) => panic!("cannot inspect initial output {}: {e}", root.display()),
+    };
+    if meta.is_symlink() {
+        reads.insert(
+            root.parent()
+                .unwrap()
+                .join(std::fs::read_link(root).unwrap()),
+        );
+    } else if meta.is_dir() {
+        for entry in std::fs::read_dir(root).unwrap() {
+            output_links(&entry.unwrap().path(), reads);
+        }
+    }
+}
+
+fn at_path<'a>(args: &'a str, cwd: &Path) -> (PathBuf, &'a str) {
+    let (fd, rest) = args.split_once(", ").expect("dirfd and path");
+    let base = annotation(fd).map(PathBuf::from).unwrap_or_else(|| {
+        assert_eq!(fd, "AT_FDCWD", "unresolved dirfd: {args}");
+        cwd.to_owned()
+    });
+    let (name, used) = quoted(rest);
+    (base.join(name), &rest[used..])
+}
+
+/// Read/probe paths and link dependencies from one syscall. Record both
+/// spellings and the kernel's resolved descriptor; never use a later
+/// canonicalization as the sole protection for output symlinks.
 fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
     if line.starts_with("+++") || line.starts_with("---") {
         return vec![];
@@ -120,6 +154,36 @@ fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
         !matches!(call, "chdir" | "fchdir"),
         "builder changed cwd: {line}"
     );
+    if matches!(call, "symlink" | "symlinkat") {
+        let (target, used) = quoted(args);
+        let rest = args[used..].strip_prefix(", ").unwrap();
+        let link = if call == "symlinkat" {
+            at_path(rest, cwd).0
+        } else {
+            cwd.join(quoted(rest).0)
+        };
+        return vec![link.parent().unwrap().join(target)];
+    }
+    if matches!(
+        call,
+        "rename" | "renameat" | "renameat2" | "link" | "linkat"
+    ) {
+        // Moving or hard-linking a foreign entry into output is also an
+        // undeclared dependency, even if the source later disappears.
+        let (source, rest) = if matches!(call, "rename" | "link") {
+            let (name, used) = quoted(args);
+            (cwd.join(name), &args[used..])
+        } else {
+            at_path(args, cwd)
+        };
+        let rest = rest.strip_prefix(", ").unwrap();
+        let target = if matches!(call, "rename" | "link") {
+            cwd.join(quoted(rest).0)
+        } else {
+            at_path(rest, cwd).0
+        };
+        return vec![source, target];
+    }
     let (base, rest) = if matches!(
         call,
         "openat"
@@ -130,6 +194,7 @@ fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
             | "faccessat"
             | "faccessat2"
             | "execveat"
+            | "unlinkat"
     ) {
         let (fd, rest) = args.split_once(", ").expect("dirfd and path");
         let base = annotation(fd).map(PathBuf::from).unwrap_or_else(|| {
@@ -152,15 +217,19 @@ fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
     {
         return vec![];
     }
-    let requested = normalize(&base.join(name));
-    let mut found = vec![own_proc(requested.clone(), pid)];
+    let raw = base.join(name);
+    let requested = normalize(&raw);
+    let mut found = vec![own_proc(raw.clone(), pid)];
+    if requested != raw {
+        found.push(own_proc(requested, pid));
+    }
     if let Some(path) = line
         .rsplit_once(" = ")
         .and_then(|(_, result)| annotation(result))
     {
         found.push(own_proc(PathBuf::from(path), pid));
-    } else if !requested.starts_with("/proc")
-        && let Ok(path) = requested.canonicalize()
+    } else if !raw.starts_with("/proc")
+        && let Ok(path) = raw.canonicalize()
     {
         found.push(own_proc(path, pid));
     }
@@ -170,15 +239,50 @@ fn paths(line: &str, cwd: &Path, pid: &str) -> Vec<PathBuf> {
 pub struct Trace {
     pub process: Output,
     pub reads: BTreeSet<PathBuf>,
+    links: BTreeSet<PathBuf>,
 }
 
-pub fn trace(binary: &Path, args: &[&Path], cwd: &Path, log: &Path) -> Trace {
+impl Trace {
+    pub fn offenders(
+        &self,
+        runtime: &BTreeSet<PathBuf>,
+        rom: &Path,
+        output: &Path,
+        binary: &Path,
+    ) -> BTreeSet<PathBuf> {
+        let mut bad = offenders(&self.reads, runtime, rom, output, binary);
+        // Runtime/ROM permissions apply to reads, never to output links.
+        // Otherwise a link to an allowed runtime directory could hide a
+        // missing descendant probe outside that exact runtime allowance.
+        bad.extend(
+            self.links
+                .iter()
+                .filter(|p| {
+                    !p.starts_with(output) || p.components().any(|c| c == Component::ParentDir)
+                })
+                .cloned(),
+        );
+        bad
+    }
+}
+
+pub fn trace(
+    binary: &Path,
+    args: &[&Path],
+    cwd: &Path,
+    log: &Path,
+    output: Option<&Path>,
+) -> Trace {
+    let mut reads = BTreeSet::new();
+    let mut links = BTreeSet::new();
+    if let Some(output) = output {
+        output_links(output, &mut links);
+    }
     let process = Command::new("strace").current_dir(cwd)
         .env_remove("LD_PRELOAD").env_remove("LD_LIBRARY_PATH")
         .args(["-ff", "-qq", "-yy", "-s", "0", "-e",
-            "trace=open,openat,openat2,access,faccessat,faccessat2,stat,lstat,newfstatat,statx,readlink,readlinkat,chdir,fchdir,execve,execveat", "-o"])
+            "trace=open,openat,openat2,access,faccessat,faccessat2,stat,lstat,newfstatat,statx,readlink,readlinkat,chdir,fchdir,execve,execveat,symlink,symlinkat,rename,renameat,renameat2,link,linkat,unlink,unlinkat,rmdir", "-o"])
         .arg(log).arg(binary).args(args).output().expect("strace is required on Linux");
-    let mut reads = BTreeSet::new();
     let prefix = format!("{}.", log.file_name().unwrap().to_str().unwrap());
     let entries: Vec<_> = std::fs::read_dir(log.parent().unwrap())
         .unwrap()
@@ -199,7 +303,22 @@ pub fn trace(binary: &Path, args: &[&Path], cwd: &Path, log: &Path) -> Trace {
     let main_pid = main_pid.strip_prefix(&prefix).unwrap();
     for entry in entries {
         for line in std::fs::read_to_string(entry.path()).unwrap().lines() {
-            reads.extend(paths(line, cwd, main_pid));
+            if matches!(
+                line.split_once('(').map(|(call, _)| call),
+                Some(
+                    "symlink"
+                        | "symlinkat"
+                        | "rename"
+                        | "renameat"
+                        | "renameat2"
+                        | "link"
+                        | "linkat"
+                )
+            ) {
+                links.extend(paths(line, cwd, main_pid));
+            } else {
+                reads.extend(paths(line, cwd, main_pid));
+            }
         }
     }
     assert!(
@@ -207,7 +326,11 @@ pub fn trace(binary: &Path, args: &[&Path], cwd: &Path, log: &Path) -> Trace {
         "strace recorded no paths: {}",
         String::from_utf8_lossy(&process.stderr)
     );
-    Trace { process, reads }
+    Trace {
+        process,
+        reads,
+        links,
+    }
 }
 
 pub fn offenders(
@@ -219,7 +342,12 @@ pub fn offenders(
 ) -> BTreeSet<PathBuf> {
     reads
         .iter()
-        .filter(|p| *p != rom && *p != binary && !p.starts_with(output) && !runtime.contains(*p))
+        .filter(|p| {
+            *p != rom
+                && *p != binary
+                && !runtime.contains(*p)
+                && (!p.starts_with(output) || p.components().any(|c| c == Component::ParentDir))
+        })
         .cloned()
         .collect()
 }
@@ -244,7 +372,10 @@ fn trace_paths_resolve_dirfds_missing_probes_and_escaped_names() {
             cwd,
             "12"
         ),
-        [PathBuf::from("/tree/missing")]
+        [
+            PathBuf::from("/tree/hidden/../missing"),
+            PathBuf::from("/tree/missing")
+        ]
     );
     assert_eq!(
         paths(
@@ -325,4 +456,36 @@ fn input_audit_skips_only_absent_roms_and_keeps_flag_names_in_paths() {
         [PathBuf::from("/missing")]
     );
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn link_dependencies_survive_removal_and_parent_traversal_is_not_excused() {
+    let cwd = Path::new("/tree");
+    // Capture the target from creation, without consulting a link that may
+    // already have disappeared. Failed creation is also an attempted dependency.
+    for line in [
+        r#"symlink("/external/missing", "/out/alias") = 0"#,
+        r#"symlinkat("/external/missing", 4</out/stage>, "alias") = 0"#,
+    ] {
+        assert_eq!(paths(line, cwd, "12"), [PathBuf::from("/external/missing")]);
+    }
+    assert_eq!(
+        paths(
+            r#"renameat2(4</out>, "stage", 4</out>, "renamed", 0) = 0"#,
+            cwd,
+            "12"
+        ),
+        [PathBuf::from("/out/stage"), PathBuf::from("/out/renamed")]
+    );
+    let parent = PathBuf::from("/out/branch/../outside");
+    assert_eq!(
+        offenders(
+            &[parent.clone()].into(),
+            &BTreeSet::new(),
+            Path::new("/rom"),
+            Path::new("/out"),
+            Path::new("/bin/pack")
+        ),
+        [parent].into()
+    );
 }
