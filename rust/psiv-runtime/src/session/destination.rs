@@ -65,16 +65,7 @@ const MESSAGE_SPEED: u8 = 2;
 /// The wait after the message, `moveq #$3B, d0` and a `dbf` loop
 /// (`ps4.asm:133797-133803`).
 const CONFIRM_WAIT_FRAMES: u16 = 60;
-/// Frames from a Cancel press to the scene's return, measured on the oracle
-/// (tape 35, Speak/B at frame 7401: the map reload begins at 7456): the two
-/// `Window_Destroy` calls, `PalFadeOut_ClrSpriteTbl`, `Panel_DestroyAll` and
-/// `Map_LoadChunks` (`ps4.asm:133692-133710`). The cartridge reads no pad.
-const CANCEL_CLOSE_FRAMES: u16 = 55;
-/// Frames from the end of the confirm wait to the takeoff's map load, measured
-/// on the same tape (a Zelan row: 173 frames from the press, of which the 29
-/// typed characters take 87 and the wait 60; Motavia's 31 characters: 179):
-/// the same teardown, `ps4.asm:133805-133833`.
-const CONFIRM_CLOSE_FRAMES: u16 = 25;
+// The sabotage copy calls the same teardown at $0762B6/$076524.
 // US $063E0C is entered at tape-35 offsets 155/161; $063E8A at 12.
 // Keep only the pre-fade remainder of the existing close budget here:
 // confirm 7 + 14 fade + 4 chunk setup = 25; Cancel 12 + 14 + 29 = 55.
@@ -207,13 +198,11 @@ pub(crate) struct DestinationMode {
     /// (`None` for a Cancel).
     closing: Option<(u16, Option<u8>)>,
     opening_left: u8,
-    shared_route: bool,
 }
 
 impl DestinationMode {
     /// Builds the list as `loc_63BC4` does (`ps4.asm:133499-133535`).
     pub(crate) fn open(runtime: &Runtime, mask: DestinationMask) -> DestinationMode {
-        let shared_route = mask == DestinationMask::FlagTable;
         let mask = destination_mask_byte(mask, |flag| runtime.game().is_set(flag));
         let rows = destination_worlds(mask, runtime.world_index());
         let rykros_known = runtime.game().is_set(Flag::event(FLAG_RYKROS));
@@ -238,7 +227,6 @@ impl DestinationMode {
             tail: None,
             closing: None,
             opening_left: OPEN_FRAMES,
-            shared_route,
         }
     }
 
@@ -299,14 +287,7 @@ impl DestinationMode {
             // `btst #4` tests Cancel first (`ps4.asm:133617`).
             if pressed.held(Button::Cancel) {
                 self.view.phase = DestinationPhase::Closing;
-                self.closing = Some((
-                    if self.shared_route {
-                        CANCEL_PRE_FADE_FRAMES
-                    } else {
-                        CANCEL_CLOSE_FRAMES
-                    },
-                    None,
-                ));
+                self.closing = Some((CANCEL_PRE_FADE_FRAMES, None));
                 return (DestinationOutcome::Open, None);
             }
             // With no row there is nothing to confirm: the cartridge would
@@ -365,14 +346,7 @@ impl DestinationMode {
         if let Some(left) = self.tail {
             if left <= 1 {
                 self.view.phase = DestinationPhase::Closing;
-                self.closing = Some((
-                    if self.shared_route {
-                        CONFIRM_PRE_FADE_FRAMES
-                    } else {
-                        CONFIRM_CLOSE_FRAMES
-                    },
-                    self.view.selected_world(),
-                ));
+                self.closing = Some((CONFIRM_PRE_FADE_FRAMES, self.view.selected_world()));
                 return DestinationOutcome::Open;
             }
             self.tail = Some(left - 1);
@@ -463,13 +437,8 @@ impl Session {
             (mode.tail == Some(CONFIRM_WAIT_FRAMES)).then_some(SOUND_STOP_SPC_SFX)
         });
         if outcome != DestinationOutcome::Open {
-            let shared = mode.shared_route;
-            if shared {
-                self.runtime.destination_palette(mode.view.palette());
-                mode.view.phase = DestinationPhase::Fading;
-            } else {
-                self.destination = None;
-            }
+            self.runtime.destination_palette(mode.view.palette());
+            mode.view.phase = DestinationPhase::Fading;
             self.runtime.answer_destination(match outcome {
                 DestinationOutcome::Chosen(world) => Some(world),
                 _ => None,
