@@ -64,7 +64,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_PsycoWand", 113),
         ("Event_ZioFortBarrier", 36),
         ("Event_ZioNurvus", 18),
-        ("Cutscene_ZioDefeated", 71),
+        ("Cutscene_ZioDefeated", 76),
         ("Cutscene_MeetingWren", 16),
         ("Cutscene_InsideSpaceship", 54),
         ("Cutscene_SpaceshipSabotage", 40),

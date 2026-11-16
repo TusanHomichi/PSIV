@@ -93,7 +93,6 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
 const KNOWN: &[(&str, u32)] = &[
-    ("Cutscene_ZioDefeated", 652),
     ("Cutscene_SpaceshipSabotage", 652),
     ("Cutscene_CrashLaanding", 652),
     ("Cutscene_DarkForce1Defeated", 652),
@@ -518,5 +517,47 @@ fn a_wrong_ship_way_is_reported() {
     assert_eq!(
         with(&[0x06_3E8A, 0x06_3E90]),
         ["Cancel: no fixed fade call at $063E90"]
+    );
+}
+
+/// Zio's direct calls in execution order. Its elevator helpers and the
+/// spaceport helper have no fixed fades; Init's internal Out belongs to Init.
+#[test]
+fn zio_defeated_calls_are_the_verified_us_sites() {
+    let Some(rom) = rom() else { return };
+    let calls = [
+        (0x075A12, Fixed::Init),
+        (0x075A18, Fixed::In),
+        (0x075B10, Fixed::Out),
+        (0x075B4E, Fixed::In),
+        (0x075C9A, Fixed::Out),
+        (0x075CA0, Fixed::Init),
+        (0x075CA6, Fixed::In),
+        (0x075D66, Fixed::In),
+        (0x075D72, Fixed::Out),
+        (0x075D78, Fixed::Init),
+        (0x075D7E, Fixed::In),
+        (0x075D90, Fixed::Init),
+        (0x075D96, Fixed::In),
+        (0x075EBC, Fixed::In),
+    ];
+    assert_eq!(retail_calls(rom, &[(0x075A12, 0x075EE0)]), calls);
+    assert!(retail_calls(rom, &[(0x075EE0, 0x075FC8), (0x06B6F4, 0x06B86E)]).is_empty());
+    // Both BSRs return into the linear scene body; neither callee owns a fade.
+    for (at, target) in [(0x075C0C_usize, 0x075EE0_i32), (0x075C42, 0x075F54)] {
+        assert_eq!(&rom[at..at + 2], &[0x61, 0]);
+        let displacement = i16::from_be_bytes(rom[at + 2..at + 4].try_into().unwrap());
+        assert_eq!(at as i32 + 2 + i32::from(displacement), target);
+    }
+    assert_eq!(&rom[0x075EDE..0x075EE0], &[0x4E, 0x75]);
+    // $075D6C calls the spaceport helper, returns to the first repaired Out.
+    assert_eq!(&rom[0x075D6C..0x075D72], &[0x4E, 0xB9, 0, 6, 0xB6, 0xF4]);
+    assert_eq!(
+        compare(
+            "Cutscene_ZioDefeated",
+            &calls,
+            &native(super::post_rika_cutscenes::ZIO_DEFEATED.ops)
+        ),
+        None
     );
 }
