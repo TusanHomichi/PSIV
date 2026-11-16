@@ -441,6 +441,7 @@ LoadPalette{$1D2A3C, 64 words};  SetCameraPos{0, 0}
 LoadTitleImage{art: $1CF1F2, map: $1D25BE, 40x16 at plane $9280}
 FadeIn{};  WaitFrames{60};  SetTextColour{$666}
 [ DrawTextToPlane{entry, plane, vram} x4
+  DmaPlanes
   IntroTextFadeUp{} x20 ; WaitFrames{900} ; IntroTextFadeDown{} x20
   WaitFrames{90 | 120} ] x2
 FadeOut{};  PlaySound{Sound_StopMusic};  WaitFrames{40}
@@ -453,7 +454,7 @@ FadeIn{}
 SetFlag{EventFlag_PiataFirstTime}
 ```
 
-**~78 ops** (72 structural + the two prologue pages expanded).
+**~82 ops** (72 structural + the two prologue pages expanded).
 
 ## Where the act's opening state comes from
 
@@ -585,3 +586,11 @@ The intro genuinely requires input: with no presses at all it never leaves map
    yet when the scene writes them, or the writes are dead. Oracle claim: *at the
    first `Pal_FadeIn` of phase 1, `Character_1.curr_x_pos` reads `$230`, not
    `$220`.*
+
+The crawl shares `RunText2`’s staged plane-text path with the
+[ending staff roll](89_Ending.md#palette-state-and-the-remaining-drawing-gaps).
+Its four plane-A destinations are `$FFFF840A/$858A/$870A/$888A` (column 5,
+rows 8/11/14/17), with d3 tile/attribute words `$4200/$4280/$4300/$4380`.
+The plane transfer after the fourth draw exposes the page; the next page
+reuses those VRAM pattern allocations. The title image’s `$9280` destination
+is separate from these text destinations.

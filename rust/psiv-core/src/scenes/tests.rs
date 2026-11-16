@@ -23,7 +23,7 @@ use crate::scene_presentation::PresentationOp;
 #[test]
 fn every_scene_matches_its_docs_op_count() {
     let expected: &[(&str, usize)] = &[
-        ("Event_GameStart", 80),
+        ("Event_GameStart", 82),
         ("Event_PiataChazAlone", 2),
         ("Event_AlysFound", 12),
         ("Cutscene_PiataPrincipal", 10),
@@ -168,7 +168,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Cutscene_ProfoundDarkness", 22),
         ("Cutscene_RajaSick", 54),
         ("Cutscene_Rykros", 31),
-        ("Cutscene_Ending", 407),
+        ("Cutscene_Ending", 408),
         ("Event_RockyOwner", 3),
         ("Event_GirlPrison", 3),
         ("Event_GirlsBail", 3),

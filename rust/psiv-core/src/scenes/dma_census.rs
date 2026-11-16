@@ -102,7 +102,8 @@ const ROWS: &[Row] = &[
         calls: 13,
         why: Why::Unrolled(0x07_4302),
     },
-    open("Event_GameStart", 0, 4),
+    // `$073D1E/$073DD2`: transfer each four-entry RunText2 page.
+    open("Event_GameStart", 2, 4),
     layout_animation::row("Event_RuneFlaeli", 0, 1),
     open("Cutscene_AlysWounded", 1, 3),
     layout_animation::row("Event_MachineCenterAppearing", 0, 1),
@@ -131,8 +132,8 @@ const ROWS: &[Row] = &[
     layout_animation::row("Event_EclipseTorchUsed", 2, 3),
     open("Cutscene_Elsydeon", 19, 23),
     doors::row("Event_SilenceTmDoorOpening", 1),
-    // The ending intro now records its DMA after dialogue 9 explicitly.
-    open("Cutscene_Ending", 86, 95),
+    // The intro DMA and all four staff-entry transfers are explicit.
+    open("Cutscene_Ending", 87, 95),
     open("Event_HuntersGuild", 0, 3),
     layout_animation::row("Event_WreckageEngine", 0, 1),
     open("Event_GettingOffVehicle", 0, 1),
@@ -331,14 +332,14 @@ fn the_dma_census_rejects_an_extra_op_and_a_stale_row() {
         .collect();
     assert_eq!(
         problems(rom, &counted, &dropped),
-        ["Cutscene_Ending: 86 DmaPlanes for 95 helper calls, with no row"]
+        ["Cutscene_Ending: 87 DmaPlanes for 95 helper calls, with no row"]
     );
 
     let mut stale = ROWS.to_vec();
     stale[1].calls += 1;
     assert_eq!(
         problems(rom, &counted, &stale),
-        ["Event_GameStart: the row says 0 for 5, the scene has 0 for 4"]
+        ["Event_GameStart: the row says 2 for 5, the scene has 2 for 4"]
     );
 
     let mut extra = ROWS.to_vec();

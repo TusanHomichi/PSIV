@@ -82,6 +82,9 @@ impl CutsceneLayer {
         if self.picture != PicturePlane::default() {
             godot_print!("scene picture cleared");
         }
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().clear();
+        }
         self.picture.clear();
         self.sync_picture();
         self.panel_destroy_all();

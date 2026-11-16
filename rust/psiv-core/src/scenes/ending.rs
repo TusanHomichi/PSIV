@@ -635,6 +635,7 @@ pub static ENDING: Scene = Scene {
             plane: 0xFFFF_8886,
             vram: 0xC280,
         },
+        SceneOp::DmaPlanes,
         // $079C8E..$079CAD: `Palette_Table_Buffer+$5E` down by `$222` on
         // every eighth frame, until the step that would store zero.
         SceneOp::Presentation {

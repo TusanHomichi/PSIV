@@ -57,6 +57,12 @@ impl PicturePlane {
                 },
                 None => PictureChange::None,
             },
+            SceneOp::Presentation {
+                op: PresentationOp::ClearPlanes,
+            } => {
+                self.staged = None;
+                PictureChange::None
+            }
             SceneOp::DmaPlanes => {
                 self.visible = self.staged;
                 PictureChange::Dma

@@ -15,6 +15,7 @@ fn main() -> ExitCode {
                 Ok(json!({
                     "rust/psiv-native-verify/src/lib.rs": include_str!("lib.rs"),
                     "rust/psiv-native-verify/src/main.rs": include_str!("main.rs"),
+                    "rust/psiv-native-verify/src/ending_staff.rs": include_str!("ending_staff.rs"),
                     "rust/psiv-native-verify/Cargo.toml": include_str!("../Cargo.toml"),
                     "rust/Cargo.toml": include_str!("../../Cargo.toml"),
                     "rust/Cargo.lock": include_str!("../../Cargo.lock"),

@@ -9,6 +9,8 @@ use std::path::Path;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+pub mod ending_staff;
+
 type Result<T> = std::result::Result<T, String>;
 
 pub fn sha256(bytes: &[u8]) -> String {
@@ -303,6 +305,17 @@ pub fn exchange(request: &Value) -> Result<Value> {
             Ok(json!({"pass":true}))
         }
         Some("zema") => zema(&request["native"], &request["map"]),
+        Some("ending-staff-plan") => Ok(ending_staff::plan()),
+        Some("ending-staff-oracle") => {
+            ending_staff::oracle_identity(Path::new(
+                request["directory"].as_str().ok_or("missing directory")?,
+            ))?;
+            Ok(json!({"pass":true}))
+        }
+        Some("ending-staff-observations") => ending_staff::observations(Path::new(
+            request["directory"].as_str().ok_or("missing directory")?,
+        )),
+        Some("ending-staff") => ending_staff::verify(request),
         _ => Err("unknown native verification operation".into()),
     }
 }

@@ -276,7 +276,7 @@ pub enum SceneOp {
         entry: u16,
         /// Plane buffer address.
         plane: u32,
-        /// Destination VRAM address.
+        /// RunText2 d3: tile index (bits 0..10), palette and priority.
         vram: u32,
     },
     /// Ramp the prologue text colour up one step (intro only). The routine
