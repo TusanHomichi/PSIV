@@ -12,7 +12,7 @@ from psiv_tools.core import read_rom
 from psiv_tools import chunk_draw, layouts, render
 from psiv_tools.gfx import COLORS_PER_LINE, TILE_HEIGHT, TILE_WIDTH, decode_tile
 from psiv_tools.maps import extract_maps
-from psiv_tools.pack_layouts import decode_map_section
+from psiv_tools.map_layouts import decode_map_section
 from psiv_tools.planes import PlaneCell, compose
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"

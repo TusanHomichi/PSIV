@@ -280,6 +280,7 @@ name = "psiv-compare"
 version = "0.1.0"
 dependencies = [
  "psiv-pack",
+ "serde",
  "serde_json",
  "sha2",
 ]
@@ -349,6 +350,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "libc",
+ "psiv-core",
  "psiv-data",
  "serde",
  "serde_json",
@@ -362,6 +364,16 @@ dependencies = [
  "psiv-core",
  "psiv-data",
  "serde_json",
+]
+
+[[package]]
+name = "psiv-scene-loads"
+version = "0.1.0"
+dependencies = [
+ "psiv-pack",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

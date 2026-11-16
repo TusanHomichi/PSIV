@@ -1,4 +1,4 @@
-//! `shops.json` and `shops/portraits/`: the port of `psiv_tools/shop_pack.py`,
+//! `shops.json` and `shops/portraits/`: the port of [retired shop_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/shop_pack.py),
 //! which owns the reasons the file is one table and not a per-map section
 //! (#216, slice 5).
 //!
@@ -665,5 +665,65 @@ mod tests {
         let named = serde_json::Value::from(&type_json(8));
         assert_eq!(named["name"], "disposable_item");
         assert!(serde_json::Value::from(&type_json(11))["name"].is_null());
+    }
+
+    #[test]
+    fn counter_portraits_use_inn_or_shop_index_spaces_and_group_two_reuses_shops() {
+        let flow = Flow {
+            json: Json::Null,
+            sell_divisor: 2,
+            inn_table: 0,
+            greetings_table: 0,
+            portrait_pointers: 0,
+            portrait_groups: [vec![0x100, 0x110], vec![0x200, 0x210, 0x220]],
+        };
+        let objects = HashMap::new();
+        let maps = BTreeMap::new();
+        let greetings = [0, 0, 0x0102];
+        for (selector, portrait) in [
+            (0x0001, "0x000110"),
+            (0x0102, "0x000220"),
+            (0x0202, "0x000220"),
+        ] {
+            let row = Location {
+                rom_offset: 0,
+                raw: [0; 8],
+                map_id: 1,
+                x: 16,
+                y: 32,
+                selector,
+            };
+            let c = counter(0, &row, &objects, &maps, &flow, &greetings).unwrap();
+            assert_eq!(c.record.portrait, portrait);
+            if row.is_inn() {
+                assert!(c.record.greeting.is_none());
+                assert_eq!(c.record.inn_index, Some(1));
+                assert_eq!(c.record.shop_inventory_index, None);
+            } else {
+                let greeting = c.record.greeting.unwrap();
+                assert_eq!(
+                    (
+                        greeting.index,
+                        greeting.text_variant,
+                        greeting.trade_fragment
+                    ),
+                    (2, 1, 2)
+                );
+                assert_eq!(c.record.shop_inventory_index, Some(2));
+                assert_eq!(c.record.inn_index, None);
+            }
+        }
+        let row = Location {
+            rom_offset: 0,
+            raw: [0; 8],
+            map_id: 1,
+            x: 16,
+            y: 32,
+            selector: 3,
+        };
+        let error = counter(0, &row, &objects, &maps, &flow, &greetings)
+            .err()
+            .expect("out-of-group portrait accepted");
+        assert!(error.0.contains("selects portrait 3"), "{error}");
     }
 }

@@ -1,4 +1,4 @@
-//! The port of `psiv_tools/battle_tile_art.py`: the battle's command-window
+//! The port of [retired battle_tile_art](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_tile_art.py): the battle's command-window
 //! and damage-number tiles, Nemesis streams the pack carries as CRAM-index
 //! rows for the renderer to colour. That module cites the loaders.
 

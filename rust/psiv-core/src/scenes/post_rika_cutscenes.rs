@@ -102,7 +102,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x43)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::PlaySound { id: SFX_TELEPORT },
         // `$074BD6`: `move.b #3, ($FFFFED52).w` / `jsr Pal_VariableFadeOut`.
@@ -126,7 +126,7 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::Wait { ticks: 70 },
         SceneOp::BranchFlag {
             flag: Flag::event(0x12),
-            if_set: 30,
+            if_set: 32,
             if_clear: 19,
         },
         // First-visit Saya branch: the ROM builds Krup Inn F1 from Motavia,
@@ -148,6 +148,8 @@ pub static ALYS_WOUNDED: Scene = Scene {
             art_tile: 0x02B8,
             frames: 1,
         },
+        // `ps4.asm:154287`: Pal_FadeIn after building Saya, before her text.
+        SceneOp::FadeIn,
         // `$074D5A` (`ps4.asm:154305`, inside `if revision>0`): dialogue `$2C`
         // is tree 6's, not Krup Inn F1's map binding.
         SceneOp::SetDialogueTree { rom_addr: TREE_6 },
@@ -165,6 +167,9 @@ pub static ALYS_WOUNDED: Scene = Scene {
         SceneOp::PlaySound { id: 0xBD },
         SceneOp::RunDialogueResume,
         SceneOp::RunDialogueResume,
+        // `$074EBC`: after Saya's last text, before setting her flag and
+        // entering the common party replacement at `loc_74ECA`.
+        SceneOp::FadeOut,
         SceneOp::SetFlag {
             flag: Flag::event(0x12),
             value: true,
@@ -460,15 +465,16 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::PanelDestroyAll,
-        SceneOp::FadeOut,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
         },
         SceneOp::Wait { ticks: 60 },
+        // `$075B10`: after the second map-update wait, before Demi's refresh.
+        SceneOp::FadeOut,
         // `$075B10..$075CE6`, Demi's sequence in BioPlant B4 (#414). The
         // cartridge clears two objects, places Demi at `($1E8,$1C0)`,
         // refreshes the map with load-flag bit 3 set, fades in and turns the
@@ -554,11 +560,18 @@ pub static ZIO_DEFEATED: Scene = Scene {
             flag: Flag::event(0x66),
             value: true,
         },
+        // `$075D72/$075D78/$075D7E`: after the spaceport helper returns.
+        SceneOp::FadeOut,
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         // `$075D84`: the Motavia aftermath speaks tree 36, which the routine
         // loads unguarded after `Event_MotaSpaceportAppearing` (revision
         // independent, so it is a plain transcription gap rather than a
         // revision one).
         SceneOp::SetDialogueTree { rom_addr: TREE_36 },
+        // `$075D90/$075D96`: a second init/in after loading the tree.
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x73 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 30 },
@@ -577,7 +590,8 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::ClearCharacterStatus { who: GRYZ },
         SceneOp::RemovePartyMember { who: DEMI },
         SceneOp::ClearCharacterStatus { who: DEMI },
-        SceneOp::ReviveIfDead { who: CHAZ },
+        // US `$075E88` clears Demi's status; `$075E8C` immediately starts
+        // this load. The fork's `bugfixes=1` Chaz revival is absent (#736).
         SceneOp::LoadMap {
             map: 0x00,
             prev_map: 0xAC,

@@ -153,6 +153,8 @@ pub fn decompress_with_work(
     data: &[u8],
     offset: usize,
 ) -> Result<(Vec<u8>, usize, Work), DecodeError> {
+    #[cfg(test)]
+    super::observed::record(super::Call::Kosinski { offset });
     if offset > data.len() {
         return Err(error(format!("Offset 0x{offset:X} is outside the input")));
     }
@@ -230,6 +232,118 @@ mod tests {
         let stream = [0x59, 0x00, b'x', 0xFF, 0xF8, 0x00, 0x00];
         let (out, _) = decompress(&stream, 0).unwrap();
         assert_eq!(out, b"xxxxxx");
+    }
+
+    /// A minimal Kosinski encoder for fixtures (tests/test_formations.py's
+    /// `KosinskiWriter`): a description field is reserved the moment the
+    /// previous one fills, before the operand bytes of the element whose
+    /// bit filled it, as `KosDecomp` reloads.
+    struct Writer {
+        out: Vec<u8>,
+        field_at: usize,
+        bits: u16,
+        count: u32,
+    }
+
+    impl Writer {
+        fn new() -> Self {
+            let mut writer = Writer {
+                out: Vec::new(),
+                field_at: 0,
+                bits: 0,
+                count: 0,
+            };
+            writer.reserve();
+            writer
+        }
+
+        fn reserve(&mut self) {
+            self.field_at = self.out.len();
+            self.out.extend([0, 0]);
+            (self.bits, self.count) = (0, 0);
+        }
+
+        fn store(&mut self) {
+            self.out[self.field_at..self.field_at + 2].copy_from_slice(&self.bits.to_le_bytes());
+        }
+
+        fn bit(&mut self, value: bool) {
+            self.bits |= u16::from(value) << self.count;
+            self.count += 1;
+            if self.count == 16 {
+                self.store();
+                self.reserve();
+            }
+        }
+
+        fn literals(mut self, data: &[u8]) -> Self {
+            for &byte in data {
+                self.bit(true);
+                self.out.push(byte);
+            }
+            self
+        }
+
+        fn full(&mut self, displacement: i32, count: u8) {
+            assert!((-8192..=-1).contains(&displacement) && count <= 7);
+            let word = displacement as u16;
+            self.bit(false);
+            self.bit(true);
+            self.out.push(word as u8);
+            self.out.push(((word >> 5) as u8 & 0xF8) | count);
+        }
+
+        fn full_match(mut self, displacement: i32, length: u8) -> Self {
+            assert!((3..=9).contains(&length));
+            self.full(displacement, length - 2);
+            self
+        }
+
+        fn finish(mut self) -> Vec<u8> {
+            self.full(-0x2000, 0);
+            self.out.push(0);
+            self.store();
+            self.out
+        }
+    }
+
+    #[test]
+    fn a_full_match_reaches_back_across_both_displacement_bytes() {
+        // -8 fits the low byte; -300 and -8192 need the high byte's top five
+        // bits, which `KosDecomp_FullMatch` shifts left by five. The window
+        // has no period, so a wrong displacement copies different bytes.
+        let base: Vec<u8> = (0..8192u32)
+            .map(|i| (i.wrapping_mul(0x9E37_79B1) >> 24) as u8)
+            .collect();
+        for (displacement, length) in [(-8, 5u8), (-300, 9), (-8192, 3)] {
+            let stream = Writer::new()
+                .literals(&base)
+                .full_match(displacement, length)
+                .finish();
+            let (out, consumed) = decompress(&stream, 0).unwrap();
+            let from = base.len() - displacement.unsigned_abs() as usize;
+            assert_eq!(&out[base.len()..], &base[from..from + usize::from(length)]);
+            assert_eq!(consumed, stream.len());
+        }
+    }
+
+    #[test]
+    fn twenty_literals_need_a_second_field_before_the_sixteenth_byte() {
+        let data: Vec<u8> = (1..=20).collect();
+        let stream = Writer::new().literals(&data).finish();
+        assert_eq!(decompress(&stream, 0).unwrap(), (data, stream.len()));
+        // Field, sixteen literals, the second field, four literals and the
+        // three-byte terminator.
+        assert_eq!(stream.len(), 2 + 16 + 2 + 4 + 3);
+    }
+
+    #[test]
+    fn a_truncated_stream_is_refused() {
+        let stream = Writer::new().literals(b"abc").finish();
+        assert!(decompress(&stream, 0).is_ok());
+        for cut in 1..stream.len() {
+            assert!(decompress(&stream[..cut], 0).is_err(), "cut at {cut}");
+        }
     }
 
     #[test]

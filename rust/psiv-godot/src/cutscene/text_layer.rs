@@ -1,7 +1,7 @@
 //! RunText2 plane text for the opening and staff roll.
 
 use super::text_plane::TextPlane;
-use crate::cram_art::{IndexedArt, SharedCram};
+use crate::cram_art::{CramState, IndexedArt, SharedCram};
 use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
 use psiv_core::SceneOp;
@@ -56,6 +56,10 @@ impl INode2D for TextPlaneLayer {
         let Some(font) = self.font.clone() else {
             return;
         };
+        let caption = caption_colour(
+            self.cram.as_ref().map(|cram| cram.borrow()).as_deref(),
+            self.colour,
+        );
         let mut quads = Vec::new();
         let mut lines = Vec::new();
         for y in 0..28 {
@@ -90,6 +94,11 @@ impl INode2D for TextPlaneLayer {
                         Vector2::new(glyph.x as f32, glyph.y as f32 + f32::from(cell.half) * 8.0),
                         Vector2::new(8.0, 8.0),
                     ),
+                    if self.intro {
+                        self.colour
+                    } else {
+                        Color::WHITE
+                    },
                 ));
             }
         }
@@ -112,12 +121,15 @@ impl INode2D for TextPlaneLayer {
                         Vector2::new(glyph.x as f32, glyph.y as f32),
                         Vector2::new(8.0, 16.0),
                     ),
+                    caption,
                 ));
             }
         }
-        for (texture, dest, src) in quads {
+        for (texture, dest, src, colour) in quads {
             self.base_mut()
-                .draw_texture_rect_region(&texture, dest, src);
+                .draw_texture_rect_region_ex(&texture, dest, src)
+                .modulate(colour)
+                .done();
         }
     }
 }
@@ -204,8 +216,6 @@ impl TextPlaneLayer {
     pub(super) fn set_colour(&mut self, raw: u16) {
         self.intro = true;
         self.colour = cram_colour(raw);
-        let colour = self.colour;
-        self.base_mut().set_modulate(colour);
         self.base_mut().queue_redraw();
     }
 
@@ -240,7 +250,6 @@ impl TextPlaneLayer {
             )
         };
         self.colour = next;
-        self.base_mut().set_modulate(next);
         self.base_mut().queue_redraw();
     }
 }
@@ -248,4 +257,73 @@ impl TextPlaneLayer {
 fn cram_colour(raw: u16) -> Color {
     let channel = |shift: u16| f32::from((raw >> shift) & 0x7) / 7.0;
     Color::from_rgb(channel(1), channel(5), channel(9))
+}
+
+/// The colour the font's glyphs are baked in: `Pal_Init_Line_3`'s word 15,
+/// `$EEE`, the text word's slot on line 2 (`dialogue/font.png`'s opaque
+/// index).
+const GLYPH_WORD: u16 = 0x0EEE;
+
+/// The caption's modulate: the CRAM's text word over the glyphs' baked
+/// colour while the palette is live, so a glyph pixel draws that word's
+/// colour; else the layer's own colour (`crawl`), as a pack without a live
+/// palette draws it.
+fn caption_colour(cram: Option<&CramState>, crawl: Color) -> Color {
+    match cram {
+        Some(cram) if cram.live => {
+            let word = psiv_data::color::cram_rgb(cram.words[psiv_runtime::TEXT_COLOUR_SLOT]);
+            let baked = psiv_data::color::cram_rgb(GLYPH_WORD);
+            let channel = |index: usize| f32::from(word[index]) / f32::from(baked[index]);
+            Color::from_rgb(channel(0), channel(1), channel(2))
+        }
+        _ => crawl,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CramState, GLYPH_WORD, caption_colour, cram_colour};
+
+    fn live(word: u16) -> CramState {
+        let mut cram = CramState {
+            live: true,
+            ..CramState::default()
+        };
+        cram.words[psiv_runtime::TEXT_COLOUR_SLOT] = word;
+        cram
+    }
+
+    /// What a glyph pixel, baked in [`GLYPH_WORD`], draws under `colour`.
+    fn glyph(colour: godot::prelude::Color) -> [u8; 3] {
+        let baked = psiv_data::color::cram_rgb(GLYPH_WORD);
+        let scale = |index: usize, by: f32| (f32::from(baked[index]) * by).round() as u8;
+        [scale(0, colour.r), scale(1, colour.g), scale(2, colour.b)]
+    }
+
+    /// The caption draws the CRAM's text word: `$EEE` as written, each
+    /// level a fade-out pass leaves, black at its end.
+    #[test]
+    fn the_caption_is_drawn_in_the_live_text_word() {
+        let crawl = cram_colour(0x0EEE);
+        for word in [0x0EEE, 0x0DDD, 0x0CCC, 0x0864, 0x0222, 0x0000] {
+            assert_eq!(
+                glyph(caption_colour(Some(&live(word)), crawl)),
+                psiv_data::color::cram_rgb(word),
+                "{word:#06x}"
+            );
+        }
+    }
+
+    /// Negative control: without a live palette the layer's own colour
+    /// stands, whatever the words hold, so a fade on the words reaches no
+    /// caption.
+    #[test]
+    fn a_palette_that_is_not_live_keeps_the_layer_colour() {
+        let crawl = cram_colour(0x0EEE);
+        let mut cram = live(0);
+        cram.live = false;
+        assert_eq!(caption_colour(Some(&cram), crawl), crawl);
+        assert_eq!(caption_colour(None, crawl), crawl);
+        assert_ne!(glyph(crawl), psiv_data::color::cram_rgb(0));
+    }
 }

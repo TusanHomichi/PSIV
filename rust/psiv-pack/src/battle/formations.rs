@@ -1,5 +1,5 @@
 //! `battle/formations.json`: the port of `psiv_tools/formations.py` and
-//! `build_formations` in `psiv_tools/battle_pack.py`, which own the retail
+//! `build_formations` in [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py), which own the retail
 //! citations. Formation records are `$FF`-terminated runs in four Kosinski
 //! blocks (ids `$80` apart) and a boss block; two more kinds sit uncompressed
 //! in battle-object code. The encounter groups, map bindings and overworld
@@ -504,6 +504,9 @@ pub fn build(rom: &[u8], decodes: &Decodes) -> Result<Json, PackError> {
     overlay(&mut out, &research);
     Ok(out)
 }
+
+#[cfg(test)]
+mod retail_tests;
 
 #[cfg(test)]
 mod tests {

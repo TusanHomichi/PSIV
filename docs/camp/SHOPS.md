@@ -7,8 +7,8 @@ used; `reference/ps4disasm` supplies the labels only. Citation standard is
 is marked as an inference.
 
 Extractors: `psiv_tools/shops.py` (the two tables, pre-existing),
-`psiv_tools/shop_flow.py` (the six routines), `psiv_tools/shop_pack.py`
-(`runtime-pack/shops.json`). Tests: `tests/test_shop_flow.py`.
+`rust/psiv-pack/src/shops/flow.rs` (the six routines), `rust/psiv-pack/src/shops/mod.rs`
+(`runtime-pack/shops.json`). Tests: `cargo test --manifest-path rust/Cargo.toml -p psiv-pack --lib shops::`.
 
 ---
 
@@ -67,7 +67,7 @@ The emitted census measures the correlation exactly — `counter_collision`:
 Thirteen shopkeepers stand on ordinary walkable floor. A runtime that gated
 the shop on collision type would break all thirteen. The pack therefore binds
 each counter to the object standing on it: 65 of 68 rows land exactly on a
-map-object placement, and `psiv_tools.shop_pack` **refuses to build** if a
+map-object placement, and `psiv_pack::shops` **refuses to build** if a
 live row does not.
 
 ## 3. Buying and selling

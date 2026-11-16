@@ -1,4 +1,4 @@
-//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 80 ops.
+//! `Event_GameStart` — retail `$073946..$073ECD`, 1416 bytes, 82 ops.
 //!
 //! The intro: Alys wakes Chaz at his house, they walk out through Aiedo, cross
 //! the Motavia overworld, the AW 2284 prologue crawls over a title image, and

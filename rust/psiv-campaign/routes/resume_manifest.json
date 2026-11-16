@@ -4,65 +4,31 @@
  "about": "Every resume of the route from a chapter save finishes, except these halts (tools/resume_check.py; docs/campaign/CAMPAIGN_RUNNER.md#the-runner). Each entry is one halt, where and how it stops (chapter, objective index, objective kind, halt kind, and for a lost battle the battle: event:N or random), the chapters whose resume reaches it, the issue that owns it and the date it was recorded. An unlisted halt fails the check, and so does a listed resume that no longer halts there.",
  "halts": [
   {
-   "chapter": "aero-prism-dark-force-3",
-   "objective": 0,
-   "objective_kind": "go_to_map",
+   "chapter": "edge-training",
+   "objective": 1,
+   "objective_kind": "patrol",
    "kind": "lost_battle",
-   "battle": "event:18",
+   "battle": "random",
    "resumes": [
-    "dezolis-training"
+    "kuran-arrival",
+    "jut-outfit"
    ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/320",
-   "date": "2026-11-04",
-   "note": "Dark Force 3 (event battle 18) defeats the party: 1 of the resumes that reach it, since the spaceport's objects decode (#83's $68) and the route's RNG moved"
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/579",
+   "date": "2026-11-15",
+   "note": "Observed on integrated main 166812ec after the normal-opening timing changes (#680): kuran-arrival loses to BlindHead formation 475 after formation 499 leaves Rune down; jut-outfit loses to BlindHead mixed formation 496 after formation 475 leaves Chaz and Rune down. Both patrols begin refuge travel before the fatal encounter; the Edge combat weakness remains owned by #579."
   },
   {
-   "chapter": "bioplant-rika",
-   "objective": 2,
+   "chapter": "air-castle-arrival",
+   "objective": 4,
    "objective_kind": "go_to_map",
    "kind": "lost_battle",
    "battle": "random",
    "resumes": [
-    "holt",
-    "zema-outfit"
+    "dezolis-tyler-prepare"
    ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/138",
-   "date": "2026-10-16",
-   "note": "bioplant_survival RUNs every round whatever the escape odds; four failed runs in encounters 191 and 183 wipe the party"
-  },
-  {
-   "chapter": "garuberk-dark-force-2",
-   "objective": 0,
-   "objective_kind": "step_onto",
-   "kind": "lost_battle",
-   "battle": "event:17",
-   "resumes": [
-    "gumbious-torch-stolen"
-   ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/320",
-   "date": "2026-11-04",
-   "note": "Dark Force 2 (event battle 17) defeats the party: 1 of the resumes that reach it, since the spaceport's objects decode (#83's $68) and the route's RNG moved"
-  },
-  {
-   "chapter": "profound-darkness",
-   "objective": 1,
-   "objective_kind": "step_onto",
-   "kind": "lost_battle",
-   "battle": "event:26",
-   "resumes": [
-    "motavia-machine-center",
-    "kuran-arrival",
-    "kuran-dark-force-1",
-    "air-castle-arrival",
-    "jut-outfit",
-    "jut-inn",
-    "dezolis-eclipse-torch",
-    "garuberk-dark-force-2",
-    "edge-training"
-   ],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/171",
-   "date": "2026-11-04",
-   "note": "the Profound Darkness (event battle 26) at the edge-training target, every member at level 61 or above: the same-save 100-trial probes after #173's Megid grant win 92/100 with Megid and 97/100 without (Wilson 95% lower bounds 0.850 and 0.915), a difference within sampling with the same early-wipe class, so these resume losses are #171's, not a Megid valuation defect (#178 closed as premise-corrected)"
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/586",
+   "date": "2026-11-15",
+   "note": "Observed on integrated main 166812ec after the normal-opening timing changes (#680): the Ice Digger loses to formation 132 on the way to the Dezo spaceport, with the human party still standing. This formation and route leg are already documented by #586; the mounted policy's failed-escape risk remains."
   }
  ]
 }

@@ -32,13 +32,9 @@ const SCREEN: (f32, f32) = (
 /// `TextBufferToPlane` writes the 32x4 text map at screen tile (4,21).
 const RETAIL_TEXT_ORIGIN: Vector2 = Vector2::new(8.0, 8.0);
 const RETAIL_TEXT_LINE_PITCH: f32 = 16.0;
-/// `WinGroup_Event` record 2 is at (3,14); normal dialogue uses (5,13).
-/// The pack stores the common talk rect, so scene dialogue applies this
-/// measured event-mode delta at draw time.
-const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
-
 /// Above the field, above the party, above anything a later overlay adds.
-const Z_INDEX: i32 = 1000;
+/// The field window surface; opaque screen covers sit above it.
+pub(crate) const Z_INDEX: i32 = 1000;
 
 mod choice;
 
@@ -391,12 +387,10 @@ impl DialogueWindow {
                 quads.push(Quad {
                     texture: texture.clone(),
                     dest: Rect2::new(
-                        view.portrait_offset
-                            + if snapshot.scene_dialogue && snapshot.cutscene_portrait {
-                                RETAIL_SCENE_PORTRAIT_OFFSET
-                            } else {
-                                Vector2::ZERO
-                            },
+                        view.portrait_offset + {
+                            let (x, y) = snapshot.portrait_offset();
+                            Vector2::new(x as f32, y as f32)
+                        },
                         view.portrait_size,
                     ),
                     src: Rect2::new(Vector2::ZERO, view.portrait_size),

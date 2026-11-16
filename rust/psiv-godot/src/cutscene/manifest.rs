@@ -33,7 +33,7 @@ struct PanelManifest {
     scene_pictures: Vec<ScenePictureRecord>,
 }
 
-/// A plane-A picture a scene draws itself (`presentation_pack.py`,
+/// A plane-A picture a scene draws itself ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py),
 /// `decode_scene_picture`), keyed by the `LoadSceneAsset` source of its cells.
 #[derive(Debug, Deserialize)]
 struct ScenePictureRecord {
@@ -86,7 +86,7 @@ struct TemporaryObjectRecord {
     palette: Option<SheetPaletteRecord>,
 }
 
-/// A sheet's `palette` block (`psiv_tools/sprites/emit.py`, `sheet_json`).
+/// A sheet's `palette` block ([retired emit](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/sprites/emit.py), `sheet_json`).
 #[derive(Debug, Deserialize)]
 struct SheetPaletteRecord {
     /// The CRAM line the object's pixels draw from: the line its sprite
@@ -140,6 +140,9 @@ pub(super) struct SceneAssets {
     pub(super) indexed_panels: BTreeMap<u16, (String, IndexLayout)>,
     pub(super) temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     pub(super) opening_background: Option<Gd<ImageTexture>>,
+    /// The opening background's indexed PNG, drawn in the live palette
+    /// (`IndexLayout::Plane`) once one is known.
+    pub(super) opening_background_path: Option<String>,
     pub(super) generic_portrait: Option<Gd<ImageTexture>>,
     /// `true` when the manifest named the generic portrait at all: the layer
     /// then takes the load result as its portrait whether or not it decoded.
@@ -159,6 +162,7 @@ impl SceneAssets {
             indexed_panels: BTreeMap::new(),
             temporary_assets: BTreeMap::new(),
             opening_background: None,
+            opening_background_path: None,
             generic_portrait: None,
             generic_portrait_named: false,
             window_tiles: BTreeMap::new(),
@@ -287,6 +291,7 @@ impl SceneAssets {
         if assets.opening_background.is_none() {
             godot_error!("opening background failed to load: {background}");
         }
+        assets.opening_background_path = Some(background);
 
         let window_path = format!("{pack_dir}/{}", set.window.png);
         if let Some(window) = Image::load_from_file(&GString::from(window_path.as_str())) {

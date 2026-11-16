@@ -1,7 +1,7 @@
 """The field-mode joins: palettes, the party, a map's staged art, timing.
 
 Where a jump-table routine, a map record and a pattern bank meet and become
-a sheet. `psiv_tools.pack` is the only caller that needs anything here.
+a sheet. Independent sprite research uses these palette and art helpers.
 """
 
 from __future__ import annotations

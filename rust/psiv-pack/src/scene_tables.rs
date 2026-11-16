@@ -1,6 +1,6 @@
 //! `guild/guild.json` and `fifth/fifth.json`: the tables two scenes read from
-//! the pack, the port of `psiv_tools/guild_pack.py` and
-//! `psiv_tools/fifth_pack.py`, whose module docs give the routines and why
+//! the pack, the port of [retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py) and
+//! [retired fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/fifth_pack.py), whose module docs give the routines and why
 //! the data belongs to the pack. Each table is found through the instruction
 //! that names it, and each of those instructions is checked first.
 //!
@@ -269,7 +269,7 @@ mod tests {
         serde_json::Value::from(json)
     }
 
-    /// Ported from tests/test_guild_pack.py (#216).
+    /// Ported from [retired test_guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_guild_pack.py) (#216).
     #[test]
     fn retail_guild_jobs_window_and_anchors() {
         let Some(rom) = crate::test_support::retail_rom("guild retail test") else {
@@ -302,7 +302,7 @@ mod tests {
         }
     }
 
-    /// Ported from tests/test_fifth_pack.py (#216).
+    /// Ported from [retired test_fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_fifth_pack.py) (#216).
     #[test]
     fn retail_fifth_rows_records_and_anchors() {
         let Some(rom) = crate::test_support::retail_rom("fifth retail test") else {

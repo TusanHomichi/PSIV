@@ -13,29 +13,38 @@ const PALETTE_LEVELS: u8 = 7;
 pub(crate) enum TransitionKind {
     /// Doorway/map-change fade-through-black: 13 out, 54 black, 13 in.
     Doorway,
-    /// Encounter flash: field to white, white hold, then battle reveal.
-    BattleEntry,
-    /// Cutscene initialization: fade to black and hold until the scene's
-    /// first presentation window is ready.
+    /// Cutscene initialization off a palette that is not live: fade to
+    /// black and hold until the scene's first presentation window is ready.
+    /// On a live one the scene's `InitVRAMAndCRAM` fades the CRAM itself.
     SceneStart,
     /// The title hand-off's centered screen wipe.  The Godot field has no
     /// title plane, so this is used as a matching black-to-field reveal.
     GameStart,
-    /// A field load's black rows and `Pal_FadeIn` ramp: a scene's direct
-    /// fade-in, a cutscene's field reload, a teleport's destination load.
+    /// A field load's black rows and `Pal_FadeIn` ramp: a cutscene's field
+    /// reload, a teleport's destination load, and a scene's `FadeIn` off a
+    /// palette that is not live (on a live one the CRAM model draws it).
     /// The runtime owns the blocking and the rows; this is the renderer's
     /// 13-step black ramp at their end.
     SceneFadeIn,
-    /// `PalFadeOut_ClrSpriteTbl`: a scene's direct fade-out, and a
-    /// teleport's (`MenuExit_Teleport`) over the field being left.
+    /// `PalFadeOut_ClrSpriteTbl`: a teleport's (`MenuExit_Teleport`) over
+    /// the field being left, and a scene's `FadeOut` off a palette that is
+    /// not live.
     SceneFadeOut,
+    /// One frame of a uniform screen the runtime chose, as a CRAM word: a
+    /// battle's white hold and fade
+    /// (`psiv_runtime::Runtime::battle_entry_screen`). The shell sets it
+    /// again on every frame the runtime still shows it.
+    Screen(u16),
+    /// Runtime-owned opaque rows on the retail surface, over field windows.
+    Band(psiv_runtime::EventBattleBand),
 }
 
 /// The solid colour used by the current palette ramp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TransitionColor {
     Black,
-    White,
+    /// The colour a CRAM word shows, opaque.
+    Cram(u16),
 }
 
 /// What the renderer needs for one frame.
@@ -94,24 +103,38 @@ impl Transition {
     pub(crate) fn visual(self) -> Option<TransitionVisual> {
         match self.kind {
             TransitionKind::Doorway => self.doorway_visual(),
-            TransitionKind::BattleEntry => self.battle_visual(),
             TransitionKind::SceneStart => self.scene_start_visual(),
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
+            TransitionKind::Screen(word)
+            | TransitionKind::Band(psiv_runtime::EventBattleBand { word, .. }) => {
+                (!self.finished()).then_some(TransitionVisual {
+                    color: TransitionColor::Cram(word),
+                    level: PALETTE_LEVELS,
+                    opening: None,
+                })
+            }
         }
     }
 
-    /// Scene fades sit below the dialogue window but above the cutscene plane;
-    /// battle and boot covers must sit above the battle/field nodes too.
-    pub(crate) fn front_layer(self) -> bool {
-        matches!(
-            self.kind,
-            TransitionKind::BattleEntry
-                | TransitionKind::GameStart
-                | TransitionKind::SceneFadeIn
-                | TransitionKind::SceneFadeOut
-        )
+    /// Scene fades sit below field windows. A uniform screen replaces every
+    /// field surface, including a window whose text has already returned.
+    pub(crate) fn z_index(self) -> i32 {
+        match self.kind {
+            TransitionKind::Screen(_) | TransitionKind::Band(_) => super::dialogue::Z_INDEX + 100,
+            TransitionKind::GameStart
+            | TransitionKind::SceneFadeIn
+            | TransitionKind::SceneFadeOut => 600,
+            TransitionKind::Doorway | TransitionKind::SceneStart => 25,
+        }
+    }
+
+    pub(crate) fn band(self) -> Option<psiv_runtime::EventBattleBand> {
+        match self.kind {
+            TransitionKind::Band(band) => Some(band),
+            _ => None,
+        }
     }
 
     fn duration(self) -> u16 {
@@ -120,10 +143,10 @@ impl Transition {
         }
         match self.kind {
             TransitionKind::Doorway => 80,
-            TransitionKind::BattleEntry => 56,
             TransitionKind::SceneStart => 37,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
+            TransitionKind::Screen(_) | TransitionKind::Band(_) => 1,
         }
     }
 
@@ -139,19 +162,6 @@ impl Transition {
             _ => return None,
         };
         Some(black(level))
-    }
-
-    fn battle_visual(self) -> Option<TransitionVisual> {
-        if self.finished() || self.age == 0 {
-            return None;
-        }
-        let visual = match self.age {
-            1..=14 => white(step_up(self.age)),
-            15..=41 => white(PALETTE_LEVELS),
-            42..=55 => white(step_down(self.age - 41)),
-            _ => return None,
-        };
-        Some(visual)
     }
 
     fn scene_start_visual(self) -> Option<TransitionVisual> {
@@ -204,14 +214,6 @@ fn black(level: u8) -> TransitionVisual {
     }
 }
 
-fn white(level: u8) -> TransitionVisual {
-    TransitionVisual {
-        color: TransitionColor::White,
-        level,
-        opening: None,
-    }
-}
-
 /// Retail holds each palette level for two frames. The first changed frame is
 /// level one; the 13th frame reaches level seven (black/full white).
 fn step_up(frame: u16) -> u8 {
@@ -238,6 +240,23 @@ mod tests {
     /// A runtime fade-in ends a doorway cover at any age, and leaves the
     /// other covers, and no cover, as they were.
     #[test]
+    fn the_entry_band_is_opaque_and_above_the_held_window_for_one_frame() {
+        let band = psiv_runtime::EventBattleBand {
+            top: 104,
+            bottom: 120,
+            word: 0xEEE,
+        };
+        let mut cover = Transition::new(TransitionKind::Band(band));
+        assert_eq!(cover.band(), Some(band));
+        assert!(cover.z_index() > crate::dialogue::Z_INDEX);
+        let visual = cover.visual().expect("band drawn on its supplied frame");
+        assert_eq!(visual.color, TransitionColor::Cram(0xEEE));
+        assert_eq!(visual.level, 7);
+        assert!(cover.tick());
+        assert_eq!(cover.visual(), None);
+    }
+
+    #[test]
     fn a_palette_fade_in_ends_only_the_doorway_cover() {
         for age in [0, 1, 13, 40, 70] {
             let mut doorway = Transition::new(TransitionKind::Doorway);
@@ -245,7 +264,6 @@ mod tests {
             assert_eq!(after_palette_fade_in(Some(doorway)), None, "age {age}");
         }
         for kind in [
-            TransitionKind::BattleEntry,
             TransitionKind::SceneStart,
             TransitionKind::GameStart,
             TransitionKind::SceneFadeIn,
@@ -282,25 +300,6 @@ mod tests {
         age_to(&mut transition, 1);
         assert!(transition.finished());
         assert!(transition.visual().is_none());
-    }
-
-    #[test]
-    fn battle_is_white_flash_hold_then_white_reveal() {
-        let mut transition = Transition::new(TransitionKind::BattleEntry);
-        age_to(&mut transition, 1);
-        let first = transition.visual().unwrap();
-        assert_eq!(first.color, TransitionColor::White);
-        assert_eq!(first.level, 1);
-        age_to(&mut transition, 13);
-        assert_eq!(transition.visual().unwrap().level, 7);
-        age_to(&mut transition, 27);
-        assert_eq!(transition.visual().unwrap().level, 7);
-        age_to(&mut transition, 1);
-        assert_eq!(transition.visual().unwrap().level, 6);
-        age_to(&mut transition, 13);
-        assert_eq!(transition.visual().unwrap().level, 0);
-        age_to(&mut transition, 1);
-        assert!(transition.finished());
     }
 
     #[test]
@@ -379,6 +378,23 @@ mod tests {
         assert_eq!(at(8464), 0, "clear on the load's last row");
         let mut load = load.unwrap();
         assert!(load.tick(), "finished at 8465");
+    }
+
+    /// A runtime screen covers the frame it is set on, opaque in its own
+    /// colour, and is gone after one tick unless the shell sets it again.
+    #[test]
+    fn a_screen_lasts_the_one_frame_it_is_set_on() {
+        let mut screen = Transition::new(TransitionKind::Screen(0xCCC));
+        let visual = screen.visual().unwrap();
+        assert_eq!(visual.color, TransitionColor::Cram(0xCCC));
+        assert_eq!(visual.level, 7);
+        assert!(screen.z_index() > crate::dialogue::Z_INDEX);
+        assert!(
+            Transition::new(TransitionKind::SceneFadeOut).z_index() < crate::dialogue::Z_INDEX,
+            "a scene fade keeps its existing position below windows"
+        );
+        assert!(screen.tick(), "finished after its frame");
+        assert!(screen.visual().is_none());
     }
 
     #[test]

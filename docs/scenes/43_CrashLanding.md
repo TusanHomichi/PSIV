@@ -3,7 +3,7 @@
 - **Retail bytes:** `$07658A..$07714F` inclusive, 3,014 bytes.
 - **Pointer:** `CutscenePtrs[$0F]` at `$05A580`; scene event `$800F`.
 - **Trigger:** `RunEventsJmpTbl[$29]` after Chaos Sorcerer `$71` is set.
-- **Data:** `post_zio_cutscenes.rs`, `CRASH_LANDING` (136 ops).
+- **Data:** `post_zio_cutscenes.rs`, `CRASH_LANDING` (137 ops).
 
 ## Clone audit
 
@@ -20,7 +20,7 @@ Grand Cross-only body is used.
 | `$076664..$076724` | blast panel `$86`; Megid/Legeon/`$AD`; `$ED52` 9, `Pal_VariableFadeOut` (`$076710`); stop music | panels/`VariablePaletteFade` out |
 | `$07672A..$07681A` | reload; Dezolis field panel `$87`; tree 14, entry `7`; Dezolis `$001` from Zelan Space `$18C`; camera `($240,$5D0)` | tree/dialogue/map/camera |
 | `$076820..$07684A` | load Raja Temple `$14C`, previous map Dezolis `$001`, clear load bit 3 | `LoadMap`; `$85` remains clear |
-| `$076850..$076AE6` | park party at `($5F0,$120)`; flight/camera; play ElevatorOpen and call `$076E00` | typed motion; five live BG writes |
+| `$076850..$076AE6` | park party at `($5F0,$120)`; flight/camera; play ElevatorOpen and call `$076E00` | `FadeIn` (`$076906`) before typed motion; five live BG writes |
 | `$076AEA..$076C06` | panel `$88`; dialogue entry `8`; actor staging; set `$85`, same-map refresh keeping objects | dialogue/flag/`LoadMap` |
 | `$076C0C..$0770D1` | Wren/Chaz/Rika/Rune motions and facing; final dialogue resumes | actor motion/dialogue |
 | `$0770D2..$07714F` | copy Raja into party slot 5, macro `8`; set `$88`; return `1` | party/macro/flag |

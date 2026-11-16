@@ -8,11 +8,11 @@
 use std::collections::BTreeMap;
 
 use psiv_core::SceneInput;
-use psiv_core::battle::{Battle, BattleEvent, FormationRecord, Outcome, Rng2};
+use psiv_core::battle::{BattleEvent, FormationRecord, Outcome, Rng2};
 use psiv_data::BattleFiles;
 
 use crate::encounters::formation_record;
-use crate::{BattleTimeline, BridgeError, Runtime};
+use crate::{BattleTimeline, BridgeError, Runtime, RuntimeEvent};
 
 /// Converts the pack's boss table using the normal formation-record path.
 pub(crate) fn boss_formation_records(
@@ -36,30 +36,14 @@ pub(crate) fn boss_formation_records(
 impl Runtime {
     /// Starts a boss formation requested by a running scene.
     pub(crate) fn start_boss_battle(&mut self, index: u16) -> Result<BattleTimeline, BridgeError> {
-        let set = self
-            .battles
-            .as_ref()
-            .ok_or_else(|| BridgeError::Rejected("battles not enabled".into()))?;
-        let record = set.boss_formations.get(&index).ok_or_else(|| {
-            BridgeError::Rejected(format!("unknown boss event battle index {index}"))
-        })?;
-        let party = self.battle_party();
-        if party.is_empty() {
-            return Err(BridgeError::Rejected(
-                "boss battle requested with an empty party".into(),
-            ));
-        }
+        let prepared = self.take_battle_load(
+            crate::session::BattleStart::EventBattle(index),
+            self.battle_party(),
+        )?;
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
-        let (battle, events) = if self.vehicle.is_some() {
-            // `RunEventBattle` falls into the same battle setup as a random
-            // encounter. `Vehicle_Index` is the discriminator: it replaces
-            // the party with the saved vehicle fighter even when the scene
-            // supplied Event_Battle_Index for its formation/background.
-            Battle::start_vehicle(record, party, &set.data, &mut rng2)
-        } else {
-            Battle::start(record, party, &set.data, true, &mut rng2)
-        }
-        .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        let (battle, events) = prepared.roll(&mut rng2);
+        // `GameMode_LoadBattle`'s `VDP_EnableDisplay` (`ps4.asm:10062`).
+        self.effects.cram.enable_display();
         self.battle = Some(battle);
         self.scene_battle = Some(index);
         Ok(BattleTimeline {
@@ -67,6 +51,29 @@ impl Runtime {
             sounds: Vec::new(),
             animations: Vec::new(),
         })
+    }
+
+    /// Starts the event battle a scene asked for, once its entry has run: the
+    /// battle and its timeline, or the failure, after which the scene resumes
+    /// as if the party escaped so a malformed pack cannot deadlock it.
+    pub(crate) fn start_requested_battle(&mut self, index: u16) -> RuntimeEvent {
+        match self.start_boss_battle(index) {
+            Ok(initial) => RuntimeEvent::SceneBattleStarted {
+                index,
+                events: initial.events,
+                sounds: initial.sounds,
+                animations: initial.animations,
+            },
+            Err(error) => {
+                self.scene_input = SceneInput::BattleFinished {
+                    outcome: Outcome::Escaped,
+                };
+                RuntimeEvent::SceneBattleFailed {
+                    index,
+                    error: error.to_string(),
+                }
+            }
+        }
     }
 
     /// Finishes either kind of battle and, for a scene battle, returns the

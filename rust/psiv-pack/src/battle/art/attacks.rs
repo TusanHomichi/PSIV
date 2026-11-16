@@ -1,5 +1,5 @@
 //! `battle/art/enemy_attacks.json` and the attack frames: the port of
-//! `psiv_tools/battle_animation_art.py`. Each enemy whose attack composition
+//! [retired battle_animation_art](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_animation_art.py). Each enemy whose attack composition
 //! is exact gets its selected mapping records drawn on one stable canvas
 //! around the shared fighter pivot, from its tile bank with the attack PLC
 //! patterns laid over it. A body whose presentation only an oracle receipt
@@ -596,3 +596,6 @@ mod tests {
         assert!(none.get("limit_hardware").is_none());
     }
 }
+
+#[cfg(test)]
+mod mapping_regressions;

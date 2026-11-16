@@ -1,6 +1,6 @@
 //! `travel.json`, HINAS and RYUKA destinations, `FieldRoutine_PlaceName`'s
 //! entry records and the teleport windows' strings: the port of
-//! `psiv_tools/travel.py` (#216, slice 5), which cites each table and string.
+//! [retired travel](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/travel.py) (#216, slice 5), which cites each table and string.
 //!
 //! The file is `psiv_data::TravelData`. What the game doesn't read (each row's
 //! `rom_offset`, a place id) has no typed home yet and is laid over it.
@@ -205,7 +205,7 @@ mod tests {
         assert!(error.0.contains("guard failed at 0x6115a"), "{}", error.0);
     }
 
-    /// Ported from tests/test_travel.py (#216): what the retail tables hold.
+    /// Ported from [retired test_travel](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_travel.py) (#216): what the retail tables hold.
     #[test]
     fn retail_destinations_entries_and_messages() {
         use crate::test_support::{retail_rom, scratch, text_pin};

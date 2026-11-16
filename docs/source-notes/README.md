@@ -159,14 +159,6 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `Event_GetAndRunDialogue3` window, which closes when the page is
   dismissed; the scene's dialogue windows are not modelled apart from their
   routines' exits ([83_Elsydeon.md](../scenes/83_Elsydeon.md)).
-- **The ending's first window closes before its tone loop (#636).**
-  `Cutscene_Ending` runs dialogue `$09` through `RunText3` (`$078F68..$078F90`),
-  which leaves the text window and Chaz's portrait on screen. The sixty-frame
-  `Pal_IncreaseTone` loop (`$078F9C`) whitens them with the panels, and only
-  `$078FAE..$078FCC` destroys them. The port closes both when the text ends,
-  so the loop tones the backdrop where they stood. The scene's windows are not
-  modelled apart from their routines' exits, as for `Cutscene_Elsydeon` above
-  ([89_Ending.md](../scenes/89_Ending.md)).
 - **The staff roll's fade out stops at `u16::MAX` frames (#638).**
   `loc_79C8E` (`$079C8E..$079CAD`) subtracts `$222` from
   `Palette_Table_Buffer+$5E` until the result is zero. From an odd word it
@@ -174,17 +166,33 @@ agility and dexterity, and enemy paralysis clearing each turn.
   65,535 frames and the scene continues. The ending reaches the loop with
   `$0EEE`, which ends after six stores
   ([89_Ending.md](../scenes/89_Ending.md#palette-state-and-the-remaining-drawing-gaps)).
-- **Scene fades write only their copy to the CRAM model (#162).** `Pal_FadeIn`,
-  `PalFadeOut_ClrSpriteTbl` and `InitVRAMAndCRAM`'s fade (`ps4.asm:85897-85985`)
-  each copy `Palette_Table_Buffer` to `Palette_Table_Buffer_2` and then ramp the
-  live buffer over frames the scene runner does not spend; the shell's cover
-  draws the ramp. The runtime's CRAM model (`rust/psiv-runtime/src/cram.rs`)
-  makes the copy and leaves the live words at the pre-fade palette, so after a
-  `FadeOut` the words read the old palette instead of black, and a line that no
-  op rewrites before the next `FadeIn` comes back with its old words where the
-  cartridge would bring it back black. The variable fades, tone loops, flashes
-  and cycles are stepped frame by frame
-  ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)).
+- **The display comes on when a scene ends (#653).** The runtime keeps VDP
+  register 1's display bit (`CramView::display`): a whole-palette fade-out's
+  `ClearSpriteTableBuf` clears it and `VDP_EnableDisplay` sets it
+  ([SCENE_PRESENTATION.md](../scenes/SCENE_PRESENTATION.md#cram-state)). The
+  port also sets it when a scene hands control back (`Runtime::end_scene`);
+  the Aiedo inn's resume clears it again on that tick and sets it only after
+  its sixty-frame hold and `Pal_FadeIn`'s display wait.
+  Retail does not: `Event_GirlsSneakingOut` fades out and hands
+  `FieldRoutine_Shop` the dark display (`ps4.asm:146993-147044`). The guardian
+  events keep the display lit while their tone loops remain unmodeled (#571).
+  `scenes::dark_display` lists every scene
+  that ends dark and fails on a window drawn dark. A field load sets the bit
+  at the load, where `Pal_FadeIn` sets it after its first frame; the shell's
+  cover draws that frame black either way. The dialogue windows' own
+  `Event_GetAndRunDialogue5` / `Event_RunDialogue5` fade now runs on CRAM
+  before the scene returns ([dialogue close](../scenes/SCENE_DIALOGUE.md#field-entrance-and-panel-cleanup));
+  Alshline's map reload and Igglanova construction remain dark until its
+  `VDP_EnableDisplay` at `$074494` (#670).
+- **The Aiedo inn's fade-in after its scene counts the 60-frame loop only.**
+  After `Event_GirlsSneakingOut` the inn draws the bill's window
+  (`Window_Draw`, whose box opens over frames as `loc_686BC` steps), waits 60
+  frames of `DMAPlane_A_VInt`, and runs `Pal_FadeIn` on the palette it kept
+  (`ps4.asm:136436-136453`). The runtime (`Cram::inn_resume_fade_in`) starts
+  the 60 frames when the scene ends, without the window's frames, and the
+  native window takes input from its first frame where the cartridge's
+  `RunText` waits for the fade. The ordinary night's own fade-out and fade-in
+  are not modelled at all.
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
   it and places the party at five fixed positions. The port records it as
@@ -193,18 +201,39 @@ agility and dexterity, and enemy paralysis clearing each turn.
   `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
   `Pal_VariableFadeIn` returns to
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
-- **An event battle's stage replaces the field at once (#644).** A scene that
-  sets `Routine_Exit_Flags` bit 3 returns through `RunEventBattle`
-  (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event arm
-  (`loc_58498`) spends fifteen passes on the field: each writes a white
+- **Battle entry and its measured loading profiles (#663, #679).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
+  `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
+  arm (`loc_58498`) spends fifteen passes on the field: each writes a white
   plane-A band two cells taller, one above and one below rows 13-14, and calls
-  `Pal_IncreaseTone`. A `Retained` window (`Event_RunDialogue2`, `$5ACDC`)
+  `Pal_IncreaseTone`. A `Retained` window (`Event_GetAndRunDialogue2`, `$5ACDC`)
   stays up under it: tape 45 shows the window and portrait untouched on the
   press frame (7800), the band from 7801, the portrait covered by 7805, the
-  window by 7812, the screen white by 7814, and the battle mode from 7815. The
-  port closes the window with its text and draws the battle stage on the next
-  tick, with no band, tone or white hold
-  ([95_FractOozeFound.md](../scenes/95_FractOozeFound.md)).
+  window by 7812, the screen white by 7814, and the battle mode from 7815.
+  The port keeps the last page while the scene runs (both `Retained`
+  entries and resumes), draws the runtime's band over it and tones all four
+  palette lines through the CRAM model. The portrait is dropped on pass 5
+  and the page on pass 12, once their packed rectangles are covered (#665).
+  Tape 45's toned remainder matches inside the existing field-edge boundary
+  (`1,1,319,223` at pass 5); the top row and left column outside the band
+  still differ ([#409](https://github.com/TusanHomichi/PSIV/issues/409)).
+  `GameMode_LoadBattle` (`ps4.asm:9911`) then holds `$EEE` while it loads the
+  stage (7814-7856), fades it in from white a nibble a frame with the planes
+  sweeping in (`loc_6B20`, 7857-7870) and only then rolls the opening priority
+  (`loc_B62A`, the seed word rotated on 7875). The runtime runs those frames
+  (`battle_entry.rs`): the battle starts and rolls on the 76th frame
+  after the request, with the seed stepped on the 36 frames the cartridge
+  counts, so every event battle's rolls moved with #663. The shell draws the
+  hold and the two-plane sweep (#679): `BattleLoadView` submits the scroll,
+  uploaded rows and nibble fade; setup precedes the fade and the opening roll
+  remains on its own frame. Tape 45's 7863, 7870 and 7873 pairs cover the sweep,
+  settled stage and pre-roll lag. Encounters run the same preparation and
+  sweep using tape 07's schedule: 63 frames after fire, 37 counted and 26 lag
+  ([measurements](../field/TRANSITIONS_DECODED.md#battle-entry-effect)).
+  The formation-selection draw remains on the encounter-fire frame instead
+  of stage setup (tape 07, 24807); the opening roll still rotates the seed on
+  entry's final frame. Stage-load lag remains a measured approximation:
+  tape 45's 37 frames for every event battle, tape 07's 23 for every encounter,
+  although cartridge decompression depends on the stage.
 - **The teleport's teardown drops the native ITEM and TECH windows at once.**
   `DestroyAllWindows` closes every window on the camp's stack in turn
   (`ps4.asm:117527-117543`), and the port closes each window it draws at the
@@ -290,13 +319,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   the runner's two and three). A page whose `$F4` replaces a portrait spends its destroy frame on
   the press frame, so the old portrait leaves with the page clear rather than after the clear's lag
   frame (7400 and 7402 on tape 43).
-- `$F2` text actions spend no frame (`DialogueRunner`, #667). `TextAction_LoadSound`,
-  `TextAction_LoadSound2` and `TextAction_UpdatePalette` end in `VInt_Prepare`, and
-  `TextAction_LoadPanel` and the destroys in `DMAPlanes_VInt`: one counted frame each, in
-  `RunText` and `RunText3` alike. The runner releases them at their byte position and runs on, so
-  `Main_Frame_Count`, the RNG and the text after an action run a frame ahead of the cartridge per
-  action. On tape 38 the ending's seventh page turns two frames before the cartridge's
-  ([record](../scenes/SCENE_DIALOGUE.md#runtext3-the-endings-windows-page-on-their-own)).
+- Panel-load lag outside the isolated `$143`/`$144` measurements on tape 38
+  remains unmodelled. The `$F2` handlers' counted VInts are modelled in both
+  text loops, including conditional panel-destroy waits
+  ([action timing](../scenes/DIALOGUE_ACTIONS.md#retail-timing-and-semantics));
+  loads after page clears or window setup combine those routines' lag with
+  `Panel_Create`'s decompression, so they do not yet establish a panel-only cost.
 - `Event_HuntersGuild`'s teardown (`.terminateguildwindows`, `ps4.asm:151470`,
   [record](../scenes/124_HuntersGuild.md)). The cartridge runs three `Window_Destroy`s, then
   `jmp Map_LoadChunks`; the port takes the windows down on the press and ends the scene on that tick.
@@ -468,6 +496,75 @@ agility and dexterity, and enemy paralysis clearing each turn.
   runtime's dismount (`set_vehicle_index(0)` stands the party on the
   machine, [VEHICLES.md](../field/VEHICLES.md)). The wait census keeps each
   frame as a row with defect #470 (`scenes/wait_census/rows.rs`).
+
+- **Eclipse Torch: what the flashes and creations leave out.**
+  `Event_EclipseTorchUsed` (`docs/scenes/56_EclipseTorchUsed.md`) runs both
+  white flashes, their two map-update frames (`$070266`, `$0702A8`) and
+  their forty `loc_58666` restore frames (`$070270`, `$0702B2`) as the US
+  bytes do, through the runtime's CRAM model. Three parts of the object
+  sequence differ:
+  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait`: map
+    updates on every frame, no `Field_UpdateObjects`, because native scene
+    frames run no field-object pass
+    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
+    per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
+    The objects that pass would move are the nine `$338`s and the standing
+    party. The nine now advance only through the runtime's object-pass API;
+    a scene frame alone cannot animate or clear them.
+  - The nine `$338` objects (`$0702E4..$07041D`) carry their literal
+    positions, `$6` sequences (0/4/8) and initial `$11` delays (7/11/15).
+    The core routine follows US `loc_4FAE0` and `FieldObj_Animate2`: mappings
+    0/1/2/3 change after 8/12/16 passes per mapping, and the pre-animation
+    index-3/duration-0 test clears on pass 32/48/64. Before the first pass
+    no sprite has been built. Runtime snapshots supply Godot's mapping and
+    position, without a renderer timer. The pack extracts the `$338`/`$3AF`
+    sheet from the US Nemesis upload at `$1D712C` on Dezolis map `$001`:
+    mappings `$5132A/$51332/$5133A/$51342`, selected through `$502C2` and
+    sequences `$50396/$503A8/$503BA`. Object-API tests cover the nine slots,
+    every mapping and clearing pass, and VInt-only non-advancement; the
+    scene's missing object passes still prevent native timing acceptance
+    ([#573](https://github.com/TusanHomichi/PSIV/issues/573)). Matching
+    native/retail captures remain
+    [#698](https://github.com/TusanHomichi/PSIV/issues/698).
+  - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
+    over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
+    `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after
+    dialogue `$2A` (`$070466`), are not transcribed: the background is not
+    redrawn with the new chunk during the scene. `DMAPlane_B_VInt`'s frame
+    (`$07043C`) is a bare `WaitFrames`, as at `$070220`
+    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - Against tape 46 (`docs/scenes/SCENE_PRESENTATION.md`), two more
+    differences, neither this scene's alone: panel `$10D` is not decoded
+    ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native
+    keeps the field's foreground, the party and palette line 3 where the
+    cartridge shows the panel. And the cartridge spends eight lag frames on
+    the panel's load and six on the `$1D712C` art's (`$0702DE`), which the
+    port does not ([#681](https://github.com/TusanHomichi/PSIV/issues/681)).
+    The following `RefreshPlaneBG` (`$070436`, also missing under #674)
+    spends two more held frames. The [instruction-boundary measurement](../../oracle/CAPTURE.md#scene-load-measurements)
+    separates those from decompression: Nemesis returns during 7444,
+    background refresh returns during 7446, and the next counted frame is 7447.
+
+- **Garuberk arrival-door refresh** (`$06F612`, `$06F792`): each existing
+  `WaitFrames(1)` spends the explicit `DMAPlanes_VInt` frame after the arrival
+  chunk writes, but does not run the preceding retail `RunMapUpdates`.
+  The refresh CPU boundary and this update gap belong to
+  [#546](https://github.com/TusanHomichi/PSIV/issues/546); the
+  [door frame assignments](../scenes/103_GaruberkTowerDoors.md#dma-frame-ownership)
+  distinguish it from the opening/closing waits and step-out movement.
+
+- **Layout/animation CPU refresh boundaries and two missing DMA frames.**
+  [The seven caller classifications](../scenes/DMA_FRAME_OWNERSHIP.md)
+  distinguish existing wait consumers from missing refresh work owned by
+  [#546](https://github.com/TusanHomichi/PSIV/issues/546). Le Roof's
+  `$070596/$07059C` refreshes and `$0705A2` DMA are one immediate
+  `ReloadMapChunks`; Tyler's grave writes at `$06FCF4` and refreshes at
+  `$06FCF8` before the unspent `$06FCFE` DMA. Neither native op waits.
+  Rune's `$06DBD2`, Machine Center's `$06B5D8`, Eclipse Torch's `$070436`,
+  Juza's `$06FBA6` and Wreckage's `$06DD34` CPU refresh boundaries also
+  remain #546's; their explicit DMA frames already have named wait consumers.
+  Juza now preserves all eight table phases and their 56 explicit DMA frames;
+  this does not establish CPU refresh parity or the grave's event-return timing.
 
 ## Public reverse-engineering references used
 

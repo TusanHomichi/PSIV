@@ -51,6 +51,10 @@ in a scene's documented bytes is a `SetRenderSpritesInCutscene` in the same
 order ([the panel byte](SCENE_DIALOGUE.md)), guarded by `psiv-core`'s
 `scenes::panel_byte_census`.
 
+**DMA/VInt frame consumers are classified.** The layout/animation callers'
+[frame ownership](DMA_FRAME_OWNERSHIP.md) names their waits and repetitions,
+and distinguishes missing CPU refresh boundaries from explicit DMA delays.
+
 ## Next-arc registry
 
 | Scene | Event | Doc | Retail bytes |
@@ -69,6 +73,7 @@ order ([the panel byte](SCENE_DIALOGUE.md)), guarded by `psiv-core`'s
 | `Event_MeetingSaya` | `$0D` | [24](24_MeetingSaya.md) | `$06BC6A..$06BE77` |
 | `Event_TonoeBasementDoor` | `$33` | [25](25_TonoeBasementDoor.md) | `$06F1A4..$06F2E9` |
 | `Event_BioPlantAlarm` | `$12` | [26](26_BioPlantAlarm.md) | `$06C27C..$06C2BB` |
+| `Event_RidingElevator` | `$14` | [Elevator](RIDING_ELEVATOR.md) | `$06C33E..$06C477` |
 | `Event_GirlsSneakingOut` | `$23` | [27](27_GirlsSneakingOut.md) | `$06D4A6..$06D615` |
 | `Event_ChazHouse` | `$3B` | [28](28_ChazHouse.md) | `$06FA34..$06FACB` |
 | `Event_LeavingChazHouse` | `$3C` | [29](29_LeavingChazHouse.md) | `$06FACC..$06FAD3` |
@@ -453,7 +458,7 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 
 Post-Rika state extensions are deliberately small and state-bearing:
 `SetVehicleIndex`, `AddItem`, `ConfigureCharacter`, `RestorePartyHp`,
-`RemovePartyMember`, `ClearCharacterStatus` and `ReviveIfDead`. They are used
+`RemovePartyMember` and `ClearCharacterStatus`. They are used
 by the new records rather than hidden in runtime-specific scene names.
 
 ### Dezo campaign extensions
@@ -518,7 +523,7 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 ## Documents
 
 Cross-checked against the new-game extraction where they overlap:
-`psiv_tools/newgame.py` and `runtime-pack/game_start.json` own the title
+`rust/psiv-pack/src/game_start/mod.rs` and `runtime-pack/game_start.json` own the title
 handoff and `Event_GameStart`'s epilogue, and this set cites them rather than
 re-deriving. We agree on the routine start, on `rom_end = $073ECE`, on the
 mid-scene party `[Alys, Chaz]` at `$073A24`, and on the three fork edits in the
@@ -546,7 +551,7 @@ is the map *resident when the scene starts*, not a map the scene plays on.
 power-on
   ── title screen
        loc_4335C   $04335C  Field_Map_Index = $11 (pre-scene default only)
-       loc_44414   $044414  new-game init  (see psiv_tools/newgame.py)
+       loc_44414   $044414  new-game init  (see rust/psiv-pack/src/game_start/mod.rs)
        Title_StartOption $043788  Game_Mode_Routine = $C, Event_Index = $9F
   └─ Event_GameStart ($9F)              sets EventFlag_PiataFirstTime ($07)
        plays on maps $5E ChazHouse -> $54 Aiedo -> $00 Motavia -> title image

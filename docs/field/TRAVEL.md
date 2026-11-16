@@ -1,6 +1,6 @@
 # Native field travel
 
-`psiv_tools/travel.py` extracts the ROM tables into the ordinary JSON runtime
+`rust/psiv-pack/src/travel.rs` extracts the ROM tables into the ordinary JSON runtime
 pack. `psiv-data` validates their version, ROM hash, selectors and uniqueness.
 The Rust runtime now consumes those tables; Godot's TECH menu exposes HINAS
 and RYUKA when the character has learned them. ITEM exposes TELEPIPE and
@@ -135,7 +135,7 @@ rectangle, with one of three lines chosen by `$FFFFE284` (`loc_5CB66`,
 `loc_60B26`): `Somehow the body` / `has become lighter.` (two rows apart),
 `Cannot be used here!` and `Not enough TP!`. Its acknowledgement plays the
 teleport sound and closes every window. The label and the three lines are
-the pack's: `travel.json`'s `messages` (`psiv_tools/travel.py` `MESSAGES`,
+the pack's: `travel.json`'s `messages` (`rust/psiv-pack/src/travel.rs` `MESSAGES`,
 format 2), decoded through the window charset with `$FC` as a line break and
 the window font's two-tile TP (`$7A $79`, outside the charset) read as `TP`;
 the native window draws those two letters from the ordinary glyphs.
@@ -170,7 +170,7 @@ technique list's pages; then the town list's pages and the message. The
 runtime computes only which record each routine opens (`MenuOptions_Item`,
 `MenuOptions_Tech`, `ps4.asm:117321-117368`); each record's geometry is the
 pack's, `dialogue/window.json`'s `menu_windows`, which
-`psiv_tools/dialogue_pack/chrome.py` reads out of `WinGroup_Menu` through
+`rust/psiv-pack/src/dialogue/chrome.rs` reads out of `WinGroup_Menu` through
 `WinGroupOffsets`. Only the TELEPIPE path's stack was measured. The menu exits on the frame after its last
 step, and the runtime's teleport tail (`travel.rs`) holds the field through
 `RuntimeEvent::TeleportFadeOut`'s fade, loads the destination on the

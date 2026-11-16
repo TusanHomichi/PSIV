@@ -1,5 +1,5 @@
 //! `game_start.json`, where a fresh playthrough begins: the port of
-//! `psiv_tools/newgame.py`, which owns the retail citations (#216, slice 5).
+//! [retired newgame](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/newgame.py), which owns the retail citations (#216, slice 5).
 //!
 //! Nothing here is a constant with a comment claiming provenance: every value
 //! is read from an instruction sequence pinned by its own opcode bytes, and a

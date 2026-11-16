@@ -4,7 +4,7 @@
 Run in the dev shell: python3 tools/verify_ending_staff.py [--no-build].
 Uses the real Ending fixture, empty isolated saves and the shared RunText2
 consumer. Rendering pauses between observations; simulation never skips frames.
-The oracle recipe is tape 46 plus the two tape-38 RAM patches. Comparison is
+The oracle recipe is tape 47 plus the two tape-38 RAM patches. Comparison is
 psiv-compare's exact staff rectangle (24,64,256,88), at a 1280x800 viewport.
 All ROM-derived inputs and outputs stay local, under build/ending-staff/.
 """
@@ -64,7 +64,7 @@ def main():
     oracle.mkdir()
     command = [str(host_binary.ensure()),
                "--core", "oracle/core/genesis_plus_gx_libretro.so", "--rom", "Phantasy Star IV (USA).md",
-               "--map", "oracle/ram_map.tsv", "--tape", "oracle/tapes/46_ending_staff.tape",
+               "--map", "oracle/ram_map.tsv", "--tape", "oracle/tapes/47_ending_staff.tape",
                "--out", "/dev/null", "--ram-patch", "7200:FFFFECA8:8021",
                "--ram-patch", "7200:FFFFEC20:000C", "--dump-frames",
                ",".join(str(frame) for _, frame, _ in PAIRS), "--dump-frames-dir", str(oracle)]
@@ -104,7 +104,7 @@ def main():
     if blank_rmse is None or float(blank_rmse) <= 0:
         raise RuntimeError("missing-transfer negative control was not rejected")
     receipt = {"git": git_info(root), "inputs": {
-        name: sha256(root / name) for name in ("Phantasy Star IV (USA).md", "oracle/tapes/46_ending_staff.tape",
+        name: sha256(root / name) for name in ("Phantasy Star IV (USA).md", "oracle/tapes/47_ending_staff.tape",
                                              "runtime-pack/dialogue/font.png")},
         "run_root": run_root.record, "region": REGION, "results": results,
         "missing_transfer_control": {"rmse": blank_rmse, "comparison": blank_result},

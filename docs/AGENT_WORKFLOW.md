@@ -106,7 +106,7 @@ All commands run from the repository root. Prepare local prerequisites from
 
 | Change | Start with | Extend verification when needed |
 | --- | --- | --- |
-| ROM decoding / pack | Relevant `tests/test_*.py` file | Full Python suite and Rust pack consumers if the pack schema changes |
+| ROM decoding / pack | Relevant `psiv-pack` Rust tests; Python tests for independent research tools | Full gate and Rust pack consumers if the pack schema changes |
 | Battle / field rules | Relevant `psiv-core` tests | Runtime integration, original-game comparison and native input |
 | Camp / persistence | Relevant `psiv-runtime/tests/` target | Ordinary input, SAVE, fresh process, CONTINUE and state comparison |
 | Godot UI / scenes | Build the extension and run the affected interaction | Inspect matching original/native captures; record viewport and region |

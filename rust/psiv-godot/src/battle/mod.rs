@@ -155,7 +155,19 @@ impl Field {
         let Some(setup) = setup else {
             return false;
         };
-        self.begin_battle_presentation(setup, &label);
+        if self
+            .battle_screen
+            .as_ref()
+            .is_some_and(|screen| screen.bind().loading())
+        {
+            self.battle_screen
+                .as_mut()
+                .unwrap()
+                .bind_mut()
+                .finish_loading();
+        } else {
+            self.begin_battle_presentation(setup, &label);
+        }
         true
     }
 
@@ -187,6 +199,15 @@ impl Field {
             }
         }
         if let Some(view) = battle.view {
+            // GameMode_Battle runs Battle_UpdateEnemySprites/Battle_RunObjects
+            // once per loop (ps4.asm:947-966). Use the runtime's loop signal,
+            // including the first call, to hold overlays during upload lag.
+            // Apply the view afterwards so a new attack pose starts at age 0.
+            if battle.advance_enemy_overlays
+                && let Some(screen) = self.battle_screen.as_mut()
+            {
+                screen.bind_mut().advance_animation();
+            }
             self.set_battle_view(view);
         }
     }
@@ -213,20 +234,40 @@ impl Field {
         };
         screen.bind_mut().begin(setup);
         self.hide_field_for_battle();
-        // HOTFIX (live QA: the framed takeover blacked out all battle art
-        // while screen-space windows survived): camera repositioning and the
-        // cinema letterbox are DISABLED for battles until the framing is
-        // rebuilt with live visual verification. The camera stays where the
-        // field left it; battle art parents to the BattleScreen at the
-        // field camera's current view. Ugly float, but visible - the
-        // authentic 320x224 framing returns as its own verified task.
+        // Stage coordinates start at the battle frame's origin. Scene bars
+        // must follow this camera change on the first loading frame too.
         if let Some(camera) = self.camera.as_mut() {
             camera.set_position(Vector2::new(
                 BATTLE_FRAME_WIDTH / 2.0,
                 BATTLE_FRAME_HEIGHT / 2.0,
             ));
         }
+        self.place_letterbox();
         godot_print!("battle started: {label}");
+    }
+
+    pub(super) fn present_battle_load(&mut self, view: psiv_runtime::BattleLoadView) {
+        if !self
+            .battle_screen
+            .as_ref()
+            .is_some_and(|screen| screen.bind().loading())
+        {
+            let (Some(files), Some(runtime)) = (self.battle_files.as_ref(), self.runtime()) else {
+                return;
+            };
+            let setup = match view.start {
+                BattleStart::Encounter(id) => build_setup(files, runtime, id),
+                BattleStart::EventBattle(index) => build_boss_setup(files, runtime, index),
+            };
+            let Some(mut setup) = setup else {
+                return;
+            };
+            setup.enemy_animation_phase_ticks = view.enemy_animation_phase_ticks;
+            self.begin_battle_presentation(setup, "loading");
+        }
+        if let Some(screen) = self.battle_screen.as_mut() {
+            screen.bind_mut().draw_load(view);
+        }
     }
 
     /// Hands the node this frame's view.
@@ -245,24 +286,36 @@ impl Field {
     /// here is the stage: the art clock, the sound cues the frame raised, and
     /// the frame the presentation closes on.
     pub(crate) fn drive_battle_if_active(&mut self) -> bool {
+        if self
+            .runtime()
+            .is_some_and(|runtime| runtime.battle_load_view().is_some())
+        {
+            // The stage exists while the session still owns the loader in
+            // field mode. Advance that mode, with the idle art clock parked.
+            self.drive_game_frame();
+            self.place_letterbox();
+            return true;
+        }
         if !self.battle_presentation_active() {
             return false;
-        }
-        // The art clocks first, then this frame's view: the cartridge creates
-        // an enemy's attack object in `Battle_UpdateFighters` and the object's
-        // first run only draws its first frame, so an animation a frame's
-        // view starts is shown at its start and first advances on the frame
-        // after (`GameMode_Battle`, `ps4.asm:947-966`; #52). The clocks carry
-        // presentation only: the idle overlay animation. Attack objects draw
-        // the runtime view's absolute age and never tick in the shell.
-        if let Some(screen) = self.battle_screen.as_mut() {
-            screen.bind_mut().advance_animation();
         }
         let mut events = Vec::new();
         if self.session.as_ref().is_some_and(Session::battle_active) {
             events = self.drive_battle_frame();
             // The shell's own fixtures never reach this point: they draw a
             // static view with no session battle behind it.
+        } else if let Some(view) = self
+            .battle_screen
+            .as_ref()
+            .and_then(|screen| screen.bind().view().cloned())
+        {
+            // The command-idle oracle fixture has no runtime battle. Preserve
+            // its display-clock animation through the same presentation path.
+            self.present_battle_frame(psiv_runtime::BattleFrame {
+                view: Some(view),
+                advance_enemy_overlays: true,
+                ..psiv_runtime::BattleFrame::default()
+            });
         }
         self.place_letterbox();
         if self.battle_close_ready() {

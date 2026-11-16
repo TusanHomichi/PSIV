@@ -18,6 +18,11 @@ impl Runtime {
         if self.dialogue.lag_frame() {
             return Vec::new();
         }
+        // A battle's entry owns the frame: no mode but its own runs,
+        // and it counts only the frames the cartridge counts.
+        if let Some(events) = self.tick_battle_entry() {
+            return events;
+        }
         // `Main_Frame_Count` first, then the vblank tick: the cartridge
         // stirs the one seed every frame in every game mode (VInt handler,
         // ps4.asm:617) — scenes included.
@@ -43,6 +48,10 @@ impl Runtime {
         if self.teleport_tail.is_some() {
             return self.tick_teleport();
         }
+        let mut dialogue_events = Vec::new();
+        if self.tick_dialogue_close(&mut dialogue_events) {
+            return dialogue_events;
+        }
         self.tick_camera_glide();
         if self.scene.is_some() {
             // The frame the mode dispatcher spends entering event mode.
@@ -54,7 +63,8 @@ impl Runtime {
                 .scene
                 .as_ref()
                 .is_some_and(psiv_core::SceneRunner::completes_map_update_loop);
-            let events = self.scene_tick(input);
+            let mut events = dialogue_events;
+            events.extend(self.scene_tick(input));
             if (motion_frame
                 || self
                     .scene
@@ -217,9 +227,8 @@ impl Runtime {
             // The formation pick is UpdateRNGSeed2's: same seed, other mixer.
             let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
             if let Some(formation) = set.table.select(self.map.id().0, cell, &mut rng2) {
-                events.push(RuntimeEvent::EncounterRolled {
-                    formation: formation.id,
-                });
+                let formation = formation.id;
+                events.push(self.begin_encounter_entry(formation));
             }
         }
 

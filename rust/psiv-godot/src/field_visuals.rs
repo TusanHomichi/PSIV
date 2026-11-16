@@ -8,10 +8,11 @@ use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
+use super::battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH};
 use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, camp_receipt_frame, sequence_name};
 use super::window_palette::{WINDOW_LINE_ROM, WindowFamily, WindowLine, WindowNode, unlit_line};
-use super::{Field, Session};
+use super::{Field, LETTERBOX_BARS, Session};
 
 /// The one material per CRAM line that the native windows draw their art
 /// through (`window_palette`), and `debug_window_line`'s words for each
@@ -59,6 +60,7 @@ impl Field {
             .iter()
             .filter_map(|actor| actor.beam_draw().map(|draw| (actor.npc_index(), draw)))
             .collect();
+        let torch_objects: Vec<_> = runtime.eclipse_torch_objects().copied().collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
         // A scene that drives the leader displaces the party draw: position,
@@ -389,6 +391,8 @@ impl Field {
             }
         }
 
+        custom_slots.extend(self.sync_eclipse_torch(&torch_objects));
+
         if let Some(camera) = self.camera.as_mut() {
             let (x, y) = camera_position;
             let center = Vector2::new(
@@ -634,11 +638,77 @@ impl Field {
         self.sync_transition();
     }
 
+    /// Whether the runtime's CRAM is the cartridge's, so its fades draw
+    /// themselves ([`psiv_runtime::CramView::live`]).
+    pub(super) fn cram_live(&self) -> bool {
+        self.session
+            .as_ref()
+            .is_some_and(|session| session.runtime().cram().live)
+    }
+
+    /// A cutscene (event `$8000` and up) starts. `FieldRoutine_Cutscene`
+    /// fades nothing itself (`ps4.asm:120738-120758`): the scene's own
+    /// `InitVRAMAndCRAM` does, on the CRAM when it is live (#637). Off a
+    /// palette that is not live the shell's cover stands in for it.
+    pub(super) fn start_cutscene_cover(&mut self) {
+        if !self.cram_live() {
+            self.start_transition(TransitionKind::SceneStart);
+        }
+    }
+
+    /// A scene's `Pal_FadeIn` on a live CRAM draws its own reveal from black,
+    /// so whatever cover is up ends now, as the shell's own fade-in used to
+    /// replace it.
+    pub(super) fn palette_fade_in_ends_cover(&mut self) {
+        self.transition = None;
+        self.sync_transition();
+    }
+
     /// A runtime-owned palette fade-in starts: a cover it replaces ends now
     /// ([`super::transitions::after_palette_fade_in`]).
     pub(super) fn palette_fade_in_takes_over(&mut self) {
         self.transition = super::transitions::after_palette_fade_in(self.transition);
         self.sync_transition();
+    }
+
+    /// Hands the window this frame's runtime view. The runtime owns the
+    /// window's state; the node owns its pixels.
+    pub(super) fn sync_dialogue_view(&mut self) {
+        // The field's visibility mask still applies when its window keeps a
+        // page. Syncing that page must not reopen a node the battle hid.
+        let view = if self.battle_field_visibility.is_some() {
+            None
+        } else {
+            self.runtime().and_then(|rt| rt.dialogue_view())
+        };
+        if let Some(window) = self.dialogue.as_mut() {
+            window.bind_mut().set_view(view);
+        }
+    }
+
+    /// Draw the runtime's loaded stage, or its band and uniform hold before setup.
+    /// A loaded stage replaces the cover and retains its own stepped palette.
+    pub(super) fn sync_battle_entry_screen(&mut self) {
+        if let Some(view) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::battle_load_view)
+        {
+            self.present_battle_load(view);
+            self.transition = None;
+            self.sync_transition();
+            return;
+        }
+        let screen = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::battle_entry_screen);
+        if let Some(word) = screen {
+            self.start_transition(TransitionKind::Screen(word));
+        } else if let Some(band) = self
+            .runtime()
+            .and_then(psiv_runtime::Runtime::event_battle_entry_band)
+        {
+            self.start_transition(TransitionKind::Band(band));
+        }
     }
 
     /// Advances transitions even while the battle presentation owns the
@@ -652,6 +722,83 @@ impl Field {
             self.transition = None;
         }
         self.sync_transition();
+    }
+
+    /// Cinema mode: letterbox bars over the world, under the dialogue box.
+    pub(super) fn set_letterbox(&mut self, on: bool) {
+        if on && self.letterbox.is_empty() {
+            for _ in 0..LETTERBOX_BARS {
+                let mut bar = godot::classes::ColorRect::new_alloc();
+                bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
+                bar.set_z_index(500);
+                self.base_mut().add_child(&bar);
+                self.letterbox.push(bar);
+            }
+        }
+        for bar in &mut self.letterbox {
+            bar.set_visible(on);
+        }
+    }
+
+    /// Keeps the bars glued to the camera view and masks everything outside
+    /// the authentic 320x224 frame. At the existing 3x camera zoom this is a
+    /// lossless 960x672 presentation inside the 1280x800 wide viewport.
+    pub(super) fn place_letterbox(&mut self) {
+        if self.letterbox.is_empty() || !self.letterbox[0].is_visible() {
+            return;
+        }
+        let Some(camera) = self.camera.as_ref() else {
+            return;
+        };
+        let viewport = self.base().get_viewport_rect().size;
+        let zoom = camera.get_zoom().x.max(0.01);
+        let view = viewport / zoom;
+        let center = camera.get_position();
+        let top_left = center - view / 2.0;
+        let frame_top_left =
+            center - Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        let frame_bottom_right =
+            center + Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        // The camera centre is fractional, so a bar that starts exactly at
+        // the view edge can rasterize a sub-pixel short and leak a one-pixel
+        // strip of world along the screen border. Overdraw every outward
+        // edge by a couple of world pixels; the frame-facing edges stay
+        // exact.
+        const BLEED: f32 = 2.0;
+        let sizes = [
+            (
+                top_left - Vector2::new(BLEED, BLEED),
+                Vector2::new(
+                    view.x + 2.0 * BLEED,
+                    (frame_top_left.y - top_left.y).max(0.0) + BLEED,
+                ),
+            ),
+            (
+                Vector2::new(top_left.x - BLEED, frame_bottom_right.y),
+                Vector2::new(
+                    view.x + 2.0 * BLEED,
+                    (top_left.y + view.y - frame_bottom_right.y).max(0.0) + BLEED,
+                ),
+            ),
+            (
+                Vector2::new(top_left.x - BLEED, frame_top_left.y),
+                Vector2::new(
+                    (frame_top_left.x - top_left.x).max(0.0) + BLEED,
+                    BATTLE_FRAME_HEIGHT,
+                ),
+            ),
+            (
+                Vector2::new(frame_bottom_right.x, frame_top_left.y),
+                Vector2::new(
+                    (top_left.x + view.x - frame_bottom_right.x).max(0.0) + BLEED,
+                    BATTLE_FRAME_HEIGHT,
+                ),
+            ),
+        ];
+        for (bar, (pos, size)) in self.letterbox.iter_mut().zip(sizes) {
+            bar.set_position(pos);
+            bar.set_size(size);
+        }
     }
 
     /// `InitVramAndCram` blanks the tile planes on hardware; the shell
@@ -674,7 +821,6 @@ impl Field {
         for _ in 0..TRANSITION_RECTS {
             let mut node = ColorRect::new_alloc();
             node.set_visible(false);
-            node.set_z_index(600);
             self.base_mut().add_child(&node);
             self.transition_nodes.push(node);
         }
@@ -699,15 +845,33 @@ impl Field {
         let alpha = f32::from(visual.level) / 7.0;
         let color = match visual.color {
             super::transitions::TransitionColor::Black => Color::from_rgba(0.0, 0.0, 0.0, alpha),
-            super::transitions::TransitionColor::White => Color::from_rgba(1.0, 1.0, 1.0, alpha),
+            super::transitions::TransitionColor::Cram(word) => {
+                let [r, g, b] = psiv_data::color::cram_rgb(word);
+                Color::from_rgba8(r, g, b, 255)
+            }
         };
-        let z = if transition.front_layer() { 600 } else { 25 };
+        let z = transition.z_index();
         for node in &mut self.transition_nodes {
             node.set_color(color);
             node.set_z_index(z);
             node.set_visible(false);
         }
         if alpha <= 0.0 {
+            return;
+        }
+
+        if let Some(band) = transition.band() {
+            let node = &mut self.transition_nodes[0];
+            node.set_position(
+                top_left
+                    + (view - super::retail_surface::SURFACE) / 2.0
+                    + Vector2::new(0.0, f32::from(band.top)),
+            );
+            node.set_size(Vector2::new(
+                super::retail_surface::SURFACE.x,
+                f32::from(band.bottom - band.top),
+            ));
+            node.set_visible(true);
             return;
         }
 

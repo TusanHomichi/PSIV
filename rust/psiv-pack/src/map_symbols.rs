@@ -1,7 +1,6 @@
 //! `psiv_tools/symbols.py`: the disassembly's names for the map and field
 //! object ids and the overworld's event flags. Symbols, not cartridge text.
-//! Generated from the Python tables, and held to them by the `maps` and
-//! `layouts` probes in `tools/pack_parity.py`.
+//! Symbol tables retain the disassembly's naming, independent of pack output.
 
 /// `EVENT_FLAG_SYMBOLS`: the eight flags the overworld page hooks test.
 pub fn event_flag_symbol(flag: u16) -> Option<&'static str> {

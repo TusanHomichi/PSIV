@@ -27,7 +27,7 @@ fn the_ships_eight_waits_are_claimed_through_its_shared_code() {
         .filter(|(_, op)| matches!(op, SceneOp::Wait { .. }))
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(waits, [9, 11, 13, 15, 21, 25, 35, 41]);
+    assert_eq!(waits, [14, 16, 18, 20, 26, 29, 38, 44]);
     let (start, end) = (SHARED_CODE[0].1, SHARED_CODE[0].2);
     for row in ship_rows() {
         assert!((start..end).contains(&retail_at(row.retail)), "{row:?}");
@@ -38,64 +38,64 @@ fn the_ships_eight_waits_are_claimed_through_its_shared_code() {
 fn the_ships_claims_reject_a_duplicate_and_a_wrong_merge() {
     // The second flight's map wait claimed as a `Wait` too: two claims.
     let duplicate = with(&|row| {
-        if row.scene == SHIP && row.claim == Merged(25) {
-            row.claim = Wait(25);
+        if row.scene == SHIP && row.claim == Merged(29) {
+            row.claim = Wait(29);
         }
     });
     assert_eq!(
         claim_problems(&duplicate),
-        [format!("{SHIP} op 25: a Wait with 2 claims")]
+        [format!("{SHIP} op 29: a Wait with 2 claims")]
     );
 
     // A merged copy whose `Wait` row is gone, or that names that row's own
     // wait, or a different kind of loop.
     let orphan = with(&|row| {
-        if row.scene == SHIP && row.claim == Wait(35) {
-            row.claim = Merged(35);
+        if row.scene == SHIP && row.claim == Wait(38) {
+            row.claim = Merged(38);
         }
     });
     assert_eq!(
         claim_problems(&orphan),
         [
-            format!("{SHIP} op 35: a Wait with 0 claims"),
-            format!("{SHIP} op 35: merged into a Wait no row claims"),
-            format!("{SHIP} op 35: merged into a Wait no row claims"),
+            format!("{SHIP} op 38: a Wait with 0 claims"),
+            format!("{SHIP} op 38: merged into a Wait no row claims"),
+            format!("{SHIP} op 38: merged into a Wait no row claims"),
         ]
     );
     let same = with(&|row| {
-        if row.scene == SHIP && row.claim == Merged(41) {
+        if row.scene == SHIP && row.claim == Merged(44) {
             row.retail = own(0x06_4800, true, true);
         }
     });
     assert_eq!(
         claim_problems(&same),
         [format!(
-            "{SHIP} op 41: merged with the retail wait its Wait row names"
+            "{SHIP} op 44: merged with the retail wait its Wait row names"
         )]
     );
     let kind = with(&|row| {
-        if row.scene == SHIP && row.claim == Merged(41) {
+        if row.scene == SHIP && row.claim == Merged(44) {
             row.retail = Map(0x06_4A76);
         }
     });
     assert_eq!(
         claim_problems(&kind),
         [format!(
-            "{SHIP} op 41: merged {:?} into a Wait for {:?}",
+            "{SHIP} op 44: merged {:?} into a Wait for {:?}",
             Map(0x06_4A76),
             own(0x06_4800, true, true)
         )]
     );
     let not_a_wait = with(&|row| {
-        if row.scene == SHIP && row.claim == Merged(25) {
-            row.claim = Merged(24);
+        if row.scene == SHIP && row.claim == Merged(29) {
+            row.claim = Merged(28);
         }
     });
     assert_eq!(
         claim_problems(&not_a_wait),
         [
-            format!("{SHIP} op 24: merged into a Wait, is Some(WaitFrames {{ frames: 1 }})"),
-            format!("{SHIP} op 24: merged into a Wait no row claims"),
+            format!("{SHIP} op 28: merged into a Wait, is Some(WaitFrames {{ frames: 1 }})"),
+            format!("{SHIP} op 28: merged into a Wait no row claims"),
         ]
     );
 }
@@ -177,8 +177,8 @@ fn the_ships_rows_are_its_retail_loops() {
     // A merged copy is held to its own loop's count: the second flight's
     // 60-frame map wait merged into the 257-frame descent.
     let miscounted = with(&|row| {
-        if row.scene == SHIP && row.claim == Merged(25) {
-            row.claim = Merged(41);
+        if row.scene == SHIP && row.claim == Merged(29) {
+            row.claim = Merged(44);
         }
     });
     assert_eq!(
@@ -188,7 +188,7 @@ fn the_ships_rows_are_its_retail_loops() {
         )]
     );
     let wrong = with(&|row| {
-        if row.scene == SHIP && row.claim == Wait(21) {
+        if row.scene == SHIP && row.claim == Wait(26) {
             row.retail = own(0x06_4908, false, true);
         }
     });
@@ -240,11 +240,11 @@ fn the_takeoff_rows_sum_to_each_loops_passes() {
     let dropped: Vec<Row> = ROWS
         .iter()
         .copied()
-        .filter(|row| !(row.scene == SHIP && row.claim == Wait(13)))
+        .filter(|row| !(row.scene == SHIP && row.claim == Wait(18)))
         .collect();
     assert_eq!(takeoff_sums(rom, &dropped)[0].1, 0x1A2);
     let moved = with(&|row| {
-        if row.scene == SHIP && row.claim == Wait(15) {
+        if row.scene == SHIP && row.claim == Wait(20) {
             row.retail = own(0x06_4908, true, true);
         }
     });

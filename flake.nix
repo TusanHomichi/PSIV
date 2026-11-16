@@ -8,7 +8,7 @@
 
   # Pinned by commit, so Renovate moves it with the workflows' pins on burrow
   # (burrow's templates/project/flake.nix).
-  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=9c6ad0248c58f0fe1d5fcc6bc6d97f72361502b9";
+  inputs.burrow.url = "git+https://github.com/FieldmouseWorks/burrow?ref=main&rev=40b4eccfdc225c9791c5c3309c9c749cd1142382";
 
   outputs = { self, burrow }:
     let
@@ -258,7 +258,6 @@
             "tests.test_memory_policy_startup"
             "tests.test_release"
             "tests.test_text_files"
-            "tests.test_pack_swap"
             "tests.test_extract_stamp"
           ];
         in {
@@ -281,7 +280,6 @@
             "tests/test_gate*.py"
             "tests/test_heavy_lock.py"
             "tests/test_heavy_lock_runner_wait.py"
-            "tests/test_pack_parity.py"
           ];
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_FLOAT_GUARD_BINARY = "${floatGuardFor pkgs}/bin/psiv-float-guard";
@@ -405,6 +403,7 @@
             g.godot
             g.xvfb
             pkgs.shellcheck
+            pkgs.strace
             pkgs.git
             pkgs.pkg-config
           ];

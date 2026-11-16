@@ -1,4 +1,5 @@
-//! A scene's map load whose next op is `Pal_VariableFadeIn` (#612):
+//! A scene's map load whose next op is `Pal_VariableFadeIn` (#612) or
+//! `Pal_FadeIn` (#637):
 //! `RefreshMap` (`ps4.asm:121767`) returns with no VBlank, and the fade-in
 //! clears the new palette from the buffer before its first one, so the
 //! runtime holds the load's words unshown while the runner says so.
@@ -56,6 +57,9 @@ fn around_the_load(ops: &'static [SceneOp]) -> (bool, bool) {
 fn a_load_before_a_variable_fade_in_is_reported_until_the_fade_runs() {
     static OPS: &[SceneOp] = &[LOAD, FADE_IN, SceneOp::Wait { ticks: 1 }];
     assert_eq!(around_the_load(OPS), (true, false));
+    // `Pal_FadeIn` copies and clears the same way (#637).
+    static FIXED: &[SceneOp] = &[LOAD, SceneOp::FadeIn, SceneOp::Wait { ticks: 1 }];
+    assert_eq!(around_the_load(FIXED), (true, false));
 }
 
 #[test]
@@ -63,8 +67,8 @@ fn a_load_before_anything_else_is_not() {
     // A wait spends a VBlank first, so the new palette is shown lit.
     static WAIT: &[SceneOp] = &[LOAD, SceneOp::Wait { ticks: 2 }, FADE_IN];
     assert_eq!(around_the_load(WAIT), (false, false));
-    // The shell's fade-in, and the variable fade-out.
-    static SHELL: &[SceneOp] = &[LOAD, SceneOp::FadeIn];
+    // The fade-outs, fixed and variable.
+    static SHELL: &[SceneOp] = &[LOAD, SceneOp::FadeOut];
     assert_eq!(around_the_load(SHELL), (false, false));
     static OUT: &[SceneOp] = &[
         LOAD,

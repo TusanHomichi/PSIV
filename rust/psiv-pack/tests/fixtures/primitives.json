@@ -1,0 +1,2020 @@
+{
+  "decoders": [
+    {
+      "name": "TestEnigmaHeader.test_base_tile_offsets_both_copy_words",
+      "kind": "enigma_header",
+      "data": "040000100020fe00",
+      "offset": 0,
+      "base_tile": 25600,
+      "header": [
+        4,
+        0,
+        25616,
+        25632,
+        25600
+      ]
+    },
+    {
+      "name": "TestEnigmaHeader.test_copy_words_wrap_at_16_bits",
+      "kind": "enigma_header",
+      "data": "0400fff00000fe00",
+      "offset": 0,
+      "base_tile": 32,
+      "header": [
+        4,
+        0,
+        16,
+        32,
+        32
+      ]
+    },
+    {
+      "name": "TestEnigmaHeader.test_header_fields",
+      "kind": "enigma_header",
+      "data": "090301234567fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "header": [
+        9,
+        3,
+        291,
+        17767,
+        0
+      ]
+    },
+    {
+      "name": "TestEnigmaHeader.test_inline_bit_count_must_index_the_mask_table",
+      "kind": "enigma_header",
+      "data": "000000000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_inline_bit_count_must_index_the_mask_table",
+      "kind": "enigma_header",
+      "data": "110000000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_inline_bit_count_must_index_the_mask_table",
+      "kind": "enigma_header",
+      "data": "800000000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_inline_bit_count_must_index_the_mask_table",
+      "kind": "enigma_header",
+      "data": "ff0000000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_truncated_header",
+      "kind": "enigma_header",
+      "data": "040000",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_unsupported_flag_bits_are_rejected",
+      "kind": "enigma_header",
+      "data": "040500000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_unsupported_flag_bits_are_rejected",
+      "kind": "enigma_header",
+      "data": "040900000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaHeader.test_unsupported_flag_bits_are_rejected",
+      "kind": "enigma_header",
+      "data": "041100000000fe00",
+      "offset": 0,
+      "base_tile": 0,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaDecoder.test_base_tile_is_added_to_inline_values",
+      "kind": "enigma",
+      "data": "0801001000200108130fe0000000000000000000",
+      "offset": 0,
+      "base_tile": 25600,
+      "max_words": null,
+      "output": [
+        25616,
+        25632,
+        27696
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000143f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000147f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000014bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000014ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000153f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000157f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000015bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000015ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000163f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000167f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000016bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000016ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000173f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "07000000000177f80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_consumed_length_is_always_even",
+      "kind": "enigma",
+      "data": "0700000000017ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "010100000000f5555557f0000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048,
+        2048
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "020100000000f5a69a69a6fe0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2050,
+        2048,
+        2050,
+        2048,
+        2050,
+        2048,
+        2050,
+        2048,
+        2050,
+        2048,
+        2050
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "030100000000f559d159d159dfc00000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2050,
+        2052,
+        2054,
+        2048,
+        2050,
+        2052,
+        2054,
+        2048,
+        2050,
+        2052,
+        2054
+      ],
+      "consumed": 14
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "040100000000f5aa7b12e5a1aa7bf8000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2058,
+        2052,
+        2062,
+        2056,
+        2050,
+        2060,
+        2054,
+        2048,
+        2058,
+        2052,
+        2062
+      ],
+      "consumed": 16
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "050100000000f5d69751179b61549f7f0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2074,
+        2068,
+        2062,
+        2056,
+        2050,
+        2076,
+        2070,
+        2064,
+        2058,
+        2052,
+        2078
+      ],
+      "consumed": 16
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "060100000000f56ba4ed10ae76a1aa25efe00000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2074,
+        2100,
+        2062,
+        2088,
+        2050,
+        2076,
+        2102,
+        2064,
+        2090,
+        2052,
+        2078
+      ],
+      "consumed": 18
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "070100000000f5b5691dd18539eda15509bdfc000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2138,
+        2100,
+        2062,
+        2152,
+        2114,
+        2076,
+        2166,
+        2128,
+        2090,
+        2052,
+        2142
+      ],
+      "consumed": 20
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "080100000000f55ada43ad1c28e5dba12ac277bf80000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2138,
+        2228,
+        2062,
+        2152,
+        2242,
+        2076,
+        2166,
+        2256,
+        2090,
+        2180,
+        2270
+      ],
+      "consumed": 22
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "090100000000f52d569876d1e14393b5a195709ef7f00000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2138,
+        2228,
+        2318,
+        2408,
+        2498,
+        2076,
+        2166,
+        2256,
+        2346,
+        2436,
+        2526
+      ],
+      "consumed": 22
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0a0100000000f596a5a70ead1f0b0e476da14abc25defe000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2650,
+        2228,
+        2830,
+        2408,
+        3010,
+        2588,
+        2166,
+        2768,
+        2346,
+        2948,
+        2526
+      ],
+      "consumed": 24
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0b0100000000f54b5969e1d2d1785c390ed5a1a55f093bdfc0000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2650,
+        3252,
+        3854,
+        2408,
+        3010,
+        3612,
+        2166,
+        2768,
+        3370,
+        3972,
+        2526
+      ],
+      "consumed": 26
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0c0100000000f5a5aa5a7c3b2d13c2f0e61da5a1d2abc2477bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        4698,
+        3252,
+        5902,
+        4456,
+        3010,
+        5660,
+        4214,
+        2768,
+        5418,
+        3972,
+        2526
+      ],
+      "consumed": 26
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0d0100000000f5d2d696978752d11e17c39c3b65a16954f090ef7f000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        8794,
+        7348,
+        5902,
+        4456,
+        3010,
+        9756,
+        8310,
+        6864,
+        5418,
+        3972,
+        2526
+      ],
+      "consumed": 28
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0e0100000000f5696ba5a4f0ed2d10f0af0e7876a5a1b4aa3c261defe0000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        8794,
+        15540,
+        5902,
+        12648,
+        3010,
+        9756,
+        16502,
+        6864,
+        13610,
+        3972,
+        10718
+      ],
+      "consumed": 30
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "0f0100000000f5b4b569691e1dd2d187853c39f0eda5a15a550f09c3bdfc0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        25178,
+        15540,
+        5902,
+        29032,
+        19394,
+        9756,
+        32886,
+        23248,
+        13610,
+        3972,
+        27102
+      ],
+      "consumed": 30
+    },
+    {
+      "name": "TestEnigmaDecoder.test_every_inline_width_round_trips",
+      "kind": "enigma",
+      "data": "100000000000f4b4b569681e1cd2d187843c38f0eda5a05a550f09c3bdfc0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        23130,
+        46260,
+        3854,
+        26984,
+        50114,
+        7708,
+        30838,
+        53968,
+        11562,
+        34692,
+        57822
+      ],
+      "consumed": 30
+    },
+    {
+      "name": "TestEnigmaDecoder.test_flag_bits_set_the_flip_bits",
+      "kind": "enigma",
+      "data": "040300000000800c08a027034fe00000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        4098,
+        2051,
+        6148
+      ],
+      "consumed": 14
+    },
+    {
+      "name": "TestEnigmaDecoder.test_incremental_copy_word_increments",
+      "kind": "enigma",
+      "data": "0400000500000bf80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        5,
+        6,
+        7
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_incremental_word_carries_across_entries",
+      "kind": "enigma",
+      "data": "04000100000005007f800000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        256,
+        257,
+        0,
+        258,
+        259
+      ],
+      "consumed": 10
+    },
+    {
+      "name": "TestEnigmaDecoder.test_inline_modes",
+      "kind": "enigma",
+      "data": "080000000000828549430b072010203fe0000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        66,
+        66,
+        80,
+        81,
+        82,
+        96,
+        95,
+        1,
+        2,
+        3
+      ],
+      "consumed": 18
+    },
+    {
+      "name": "TestEnigmaDecoder.test_inline_values_straddle_the_window",
+      "kind": "enigma",
+      "data": "0d0300000000fd04020c4c21285370c921d6c436897f15222e8c65a8dc71db23fac87efe0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        4352,
+        4489,
+        4626,
+        4763,
+        4900,
+        5037,
+        5174,
+        5311,
+        5448,
+        5585,
+        5722,
+        5859,
+        5996,
+        6133,
+        6270
+      ],
+      "consumed": 36
+    },
+    {
+      "name": "TestEnigmaDecoder.test_literal_copy_word_does_not",
+      "kind": "enigma",
+      "data": "0400000012344ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        4660,
+        4660,
+        4660,
+        4660
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_max_words_is_enforced",
+      "kind": "enigma",
+      "data": "0400000000017dffe0000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": 20,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaDecoder.test_mode_111_count_f_is_the_terminator_not_sixteen_values",
+      "kind": "enigma",
+      "data": "040000000000fc2468acf13579bdffc00000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "consumed": 16
+    },
+    {
+      "name": "TestEnigmaDecoder.test_offset_outside_input",
+      "kind": "enigma",
+      "data": "0400000000000000",
+      "offset": 99,
+      "base_tile": 0,
+      "max_words": null,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaDecoder.test_only_declared_flags_consume_bits",
+      "kind": "enigma",
+      "data": "040100000000811802e33a7f0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        2049,
+        2,
+        2051,
+        2052
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_repeat_count_is_a_dbf_count",
+      "kind": "enigma",
+      "data": "0400000000077ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "consumed": 8
+    },
+    {
+      "name": "TestEnigmaDecoder.test_six_bit_entries_do_not_eat_the_seventh_bit",
+      "kind": "enigma",
+      "data": "0400000100ff050050050050050050fe0000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1,
+        2,
+        255,
+        3,
+        4,
+        255,
+        5,
+        6,
+        255,
+        7,
+        8,
+        255,
+        9,
+        10,
+        255,
+        11,
+        12,
+        255
+      ],
+      "consumed": 16
+    },
+    {
+      "name": "TestEnigmaDecoder.test_sixteen_bit_values_with_flags_are_rejected",
+      "kind": "enigma",
+      "data": "100300000000e7fffffffffffffffffffc000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "refused": true
+    },
+    {
+      "name": "TestEnigmaDecoder.test_streams_can_be_chained",
+      "kind": "enigma",
+      "data": "060100030000138c185fc00009000000077746948ff80000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        2049,
+        2050
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_streams_can_be_chained",
+      "kind": "enigma",
+      "data": "060100030000138c185fc00009000000077746948ff80000000000000000",
+      "offset": 12,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        1911,
+        1911,
+        291,
+        292,
+        293
+      ],
+      "consumed": 10
+    },
+    {
+      "name": "TestEnigmaDecoder.test_the_base_and_flags_are_added_to_the_value_not_or_ed",
+      "kind": "enigma",
+      "data": "0c0100000000e3800800ff000000000000000000",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "output": [
+        4096,
+        2049
+      ],
+      "consumed": 12
+    },
+    {
+      "name": "TestEnigmaDecoder.test_the_base_and_flags_are_added_to_the_value_not_or_ed",
+      "kind": "enigma",
+      "data": "080000f00000020107f00000000000000000",
+      "offset": 0,
+      "base_tile": 48,
+      "max_words": null,
+      "output": [
+        288,
+        80
+      ],
+      "consumed": 10
+    },
+    {
+      "name": "TestEnigmaDecoder.test_truncated_stream_raises",
+      "kind": "enigma",
+      "data": "080000000001",
+      "offset": 0,
+      "base_tile": 0,
+      "max_words": null,
+      "refused": true
+    },
+    {
+      "name": "TestNemesisDecoder.test_inline_and_table_codes_interleave",
+      "kind": "nemesis",
+      "data": "0001813100ff7ec9fb27ec9fb27ec9fb27ec9fb2000000",
+      "offset": 0,
+      "output": "1111222211112222111122221111222211112222111122221111222211112222",
+      "consumed": 22
+    },
+    {
+      "name": "TestNemesisDecoder.test_inline_data_is_six_ones_then_seven_bits",
+      "kind": "nemesis",
+      "data": "0001800100ffffefff7ffbffdffefff7ffbffd000000",
+      "offset": 0,
+      "output": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "consumed": 21
+    },
+    {
+      "name": "TestNemesisDecoder.test_offset_is_honoured",
+      "kind": "nemesis",
+      "data": "dead0001897100ff00000000",
+      "offset": 2,
+      "output": "9999999999999999999999999999999999999999999999999999999999999999",
+      "consumed": 9
+    },
+    {
+      "name": "TestNemesisDecoder.test_offset_is_honoured",
+      "kind": "nemesis",
+      "data": "0001897100ff00000000",
+      "offset": 0,
+      "output": "9999999999999999999999999999999999999999999999999999999999999999",
+      "consumed": 9
+    },
+    {
+      "name": "TestNemesisDecoder.test_output_length_comes_from_the_header_alone",
+      "kind": "nemesis",
+      "data": "0003847100ff0000000000000000000000",
+      "offset": 0,
+      "output": "444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444",
+      "consumed": 11
+    },
+    {
+      "name": "TestNemesisDecoder.test_pixels_fill_a_row_high_nybble_first",
+      "kind": "nemesis",
+      "data": "0001800300810301820302830303840304850305860306870307ff053977053977053977053977053977053977053977053977000000",
+      "offset": 0,
+      "output": "0123456701234567012345670123456701234567012345670123456701234567",
+      "consumed": 53
+    },
+    {
+      "name": "TestNemesisDecoder.test_repeat_count_spans_row_boundaries",
+      "kind": "nemesis",
+      "data": "0001837100807202ff0aa0000000",
+      "offset": 0,
+      "output": "3333333333333333333333333333333300000000000000000000000000000000",
+      "consumed": 12
+    },
+    {
+      "name": "TestNemesisDecoder.test_single_tile_of_one_colour",
+      "kind": "nemesis",
+      "data": "0001877100ff00000000",
+      "offset": 0,
+      "output": "7777777777777777777777777777777777777777777777777777777777777777",
+      "consumed": 9
+    },
+    {
+      "name": "TestNemesisDecoder.test_truncated_stream_raises",
+      "kind": "nemesis",
+      "data": "0004817100ff00000000",
+      "offset": 0,
+      "refused": true
+    },
+    {
+      "name": "TestNemesisDecoder.test_undefined_code_raises",
+      "kind": "nemesis",
+      "data": "0001817100ff80000000",
+      "offset": 0,
+      "refused": true
+    },
+    {
+      "name": "TestNemesisDecoder.test_unterminated_code_table_raises",
+      "kind": "nemesis",
+      "data": "0001800100",
+      "offset": 0,
+      "refused": true
+    },
+    {
+      "name": "TestNemesisDecoder.test_xor_mode_accumulates_across_every_row",
+      "kind": "nemesis",
+      "data": "8002817100807202ff492492000000",
+      "offset": 0,
+      "output": "11111111111111110000000000000000111111111111111100000000000000001111111111111111000000000000000011111111111111110000000000000000",
+      "consumed": 14
+    },
+    {
+      "name": "TestNemesisDecoder.test_xor_mode_accumulates_across_every_row",
+      "kind": "nemesis",
+      "data": "0002817100807202ff492492000000",
+      "offset": 0,
+      "output": "11111111000000001111111100000000111111110000000011111111000000001111111100000000111111110000000011111111000000001111111100000000",
+      "consumed": 14
+    },
+    {
+      "name": "TestNemesisDecoder.test_zero_tile_header_decodes_to_nothing",
+      "kind": "nemesis",
+      "data": "0000800100ff000000",
+      "offset": 0,
+      "output": "",
+      "consumed": 6
+    }
+  ],
+  "png": [
+    {
+      "name": "indexed/level=0/filter=0",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000f494441547801011400ebff000001020300030258fb2afa000000104944415401000001010202000303000001080019d350c4860000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=0/filter=1",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000f494441547801011400ebff01000101010103ffbb367ca90000001049444154ffff0101000100010300fd002695040a50c4a2880000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=0/filter=2",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000f494441547801011400ebff02000102030203018053a8530000001049444154fffd02feff0102020202fefe2be7060f7f4a58320000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=0/filter=3",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000f494441547801011400ebff0300010202030300828095090000001049444154fffe0300000101030301feff1b1d04159e1bfed70000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=0/filter=4",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000f494441547801011400ebff04000101010403fff51db0260000001049444154fffe04fe000101040200fd0030070512b81f788e0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=1/filter=0",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c49444154780105c101010000008220cd18dc4ce10000000d49444154ff9f0370d104dd283801080019ebb1efac0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=1/filter=1",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c4944415478016364600402e6ffffff3310ba18ba0000000d494441543232002133c35f06002695040a6736b6880000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=1/filter=2",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d4944415478016362606462666266fcff9753e9eab50000000e49444154e9df7f462620f8f70f002be7060f69ab8a740000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=1/filter=3",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d49444154780105c1010100000cc2a0f9f5cc3bbaf70000000e49444154afac07c99db20a89a67b1b1d0415b5e0b6ba0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=1/filter=4",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d49444154780163616064646461feffff1f48b7c3570000000e49444154cb3f20938589e12f0300300705123b7c55d40000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=6/filter=0",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c49444154789c05c101010000008220cd0a5ff0b20000000d49444154ff9f0370d104dd283801080019ebb1efac0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=6/filter=1",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c49444154789c6364600402e6ffffff330239a4e90000000d494441543232002133c35f06002695040a6736b6880000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=6/filter=2",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d49444154789c6362606462666266fcff97a19969470000000e49444154e9df7f462620f8f70f002be7060f69ab8a740000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=6/filter=3",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d49444154789c05c1010100000cc2a0f9f53e4b39050000000e49444154afac07c99db20a89a67b1b1d0415b5e0b6ba0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=6/filter=4",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d49444154789c63616064646461feffff1fbac740a50000000e49444154cb3f20938589e12f0300300705123b7c55d40000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=9/filter=0",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c4944415478da05c101010000008220cd34a2231e0000000d49444154ff9f0370d104dd283801080019ebb1efac0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=9/filter=1",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c4944415478da6364600402e6ffffff333cc477450000000d494441543232002133c35f06002695040a6736b6880000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=9/filter=2",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d4944415478da6362606462666266fcff977ec77b570000000e49444154e9df7f462620f8f70f002be7060f69ab8a740000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=9/filter=3",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d4944415478da05c1010100000cc2a0f9f5e1152b150000000e49444154afac07c99db20a89a67b1b1d0415b5e0b6ba0000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "indexed/level=9/filter=4",
+      "data": "89504e470d0a1a0a0000000d49484452000000040000000408030000009e2f6e4c0000000c504c5445000000ff000000ff000000ff9bc013dc0000000174524e530040e6d8660000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000d4944415478da63616064646461feffff1f659952b50000000e49444154cb3f20938589e12f0300300705123b7c55d40000000049454e44ae426082",
+      "digest": "51bfcd1d7a17c423cf45335a104ac905a81257bae46a5d27b79e887899cffdee"
+    },
+    {
+      "name": "rgb/level=0/filter=0",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c494441547801010e00f1ff00000102030244bdc70000000d49444154040500060708090a0b013b00439cf37fdd0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=0/filter=1",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c494441547801010e00f1ff01000102033f2494770000000d49444154030301060708030303010f002df55447f10000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=0/filter=2",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c494441547801010e00f1ff02000102037884eea70000000d494441540405020606060606060142003823834f250000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=0/filter=3",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c494441547801010e00f1ff030001020345e4c7170000000d49444154040403060707050505015200384e8379c40000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=0/filter=4",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000c494441547801010e00f1ff0400010203f7c41b070000000d49444154030304060606030303014100309ff021d10000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=1/filter=0",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b4944415478016360606462666165608b4e29e60000000b4944415463e7e0e4e20600013b004370bc5b1e0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=1/filter=1",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a4944415478016364606462666666ddfc9f720000000a494441546463e7005200010f002da34f3fb00000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=1/filter=2",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000949444154780163626064626661b6b4bd91000000094944415465620303000142003871d63c180000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=1/filter=3",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b494441547801636660646266616166c02e40500000000b49444154636767656505000152003840e844140000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=1/filter=4",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a49444154780163616064626666668fc4b0d50000000a4944415461636303520001410030bafda95a0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=6/filter=0",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b49444154789c636060646266616560bf1b2abf0000000b4944415463e7e0e4e20600013b004370bc5b1e0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=6/filter=1",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a49444154789c6364606462666666e6263a1b0000000a494441546463e7005200010f002da34f3fb00000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=6/filter=2",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000949444154789c6362606462666102311cb1000000094944415465620303000142003871d63c180000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=6/filter=3",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b49444154789c636660646266616166f47b43090000000b49444154636767656505000152003840e844140000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=6/filter=4",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a49444154789c6361606462666666b41e15bc0000000a4944415461636303520001410030bafda95a0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=9/filter=0",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b4944415478da6360606462666165602cbf5d580000000b4944415463e7e0e4e20600013b004370bc5b1e0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=9/filter=1",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a4944415478da63646064626666664bae40960000000a494441546463e7005200010f002da34f3fb00000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=9/filter=2",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b000000094944415478da63626064626661edc3d7db000000094944415465620303000142003871d63c180000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=9/filter=3",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000b4944415478da63666064626661616667df34ee0000000b49444154636767656505000152003840e844140000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    },
+    {
+      "name": "rgb/level=9/filter=4",
+      "data": "89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001774455874436f6d6d656e7400616e6f7468657220656e636f646572c7db843b0000000a4944415478da636160646266666619966f310000000a4944415461636303520001410030bafda95a0000000049454e44ae426082",
+      "digest": "53fe347ad855215003be3cf06ccdb52c28c101b09e3bae9bbbe3078102fe52ae"
+    }
+  ]
+}

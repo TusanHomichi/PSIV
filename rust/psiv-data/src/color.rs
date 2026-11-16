@@ -26,6 +26,17 @@ pub fn cram_rgb(word: u16) -> [u8; 3] {
     ]
 }
 
+/// The CRAM word for a colour on the cartridge's measured ramps.
+#[must_use]
+pub fn cram_word([r, g, b]: [u8; 3]) -> Option<u16> {
+    let level = |ramp: &[u8; 8], value| ramp.iter().position(|&entry| entry == value);
+    Some(
+        ((level(&RAMP_B, b)? as u16) << 9)
+            | ((level(&RAMP_G, g)? as u16) << 5)
+            | ((level(&RAMP_R, r)? as u16) << 1),
+    )
+}
+
 const SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const COLOR_TYPE_INDEXED: u8 = 3;
 
@@ -100,7 +111,7 @@ pub enum IndexLayout {
     /// A sprite sheet: index `i` of 0-15 is word `i` of CRAM line `line`;
     /// index 0 is the VDP's transparent colour.
     Line(u8),
-    /// A scene panel (`psiv_tools/presentation_pack.py`, `emit_panel`): index
+    /// A scene panel ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py), `emit_panel`): index
     /// 0 transparent, 1-16 layer A's colours 0-15 on line `a`, 17-32 layer
     /// B's on line `b`. A layer's line is its art tile's palette select, bits
     /// 13-14.
@@ -110,7 +121,7 @@ pub enum IndexLayout {
         /// Layer B's line.
         b: u8,
     },
-    /// A whole plane drawn as the VDP shows it (`presentation_pack.py`,
+    /// A whole plane drawn as the VDP shows it ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py),
     /// `decode_scene_picture`): index `i` of 0-63 is CRAM slot `i`, line
     /// `i / 16`, and every index is opaque. A pattern's colour 0 is index 0,
     /// the backdrop (register 7 `$8700`: CRAM word 0), since the plane under
@@ -320,5 +331,18 @@ mod tests {
             vehicle_recolor_failures(2),
             ["vehicle pixels must read line 3"]
         );
+    }
+}
+
+#[cfg(test)]
+mod inverse_tests {
+    #[test]
+    fn every_cram_colour_round_trips_and_off_ramp_colours_are_refused() {
+        for word in 0..=0xEEE {
+            if word & !0xEEE == 0 {
+                assert_eq!(super::cram_word(super::cram_rgb(word)), Some(word));
+            }
+        }
+        assert_eq!(super::cram_word([1, 0, 0]), None);
     }
 }

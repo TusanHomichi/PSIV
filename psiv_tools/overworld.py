@@ -172,7 +172,7 @@ MAP_LAYOUT_BG = 0xB000
 LAYOUT_RAM_SPAN = 0x1000
 
 #: `GetChunkAndCollision` type 1, the only one `MapTransTile_MapChange` fires
-#: from. `psiv_tools.pack` names the same code for the same reason and the test
+#: from. the runtime pack builder names the same code for the same reason and the test
 #: suite pins that the two agree.
 MAP_CHANGE_COLLISION_TYPE = 0x1
 
@@ -767,7 +767,7 @@ class Overworld:
         """The format facts and provenance, without the patch list.
 
         The patches themselves belong to the map record a consumer loads, not
-        to a summary of the format, so `psiv_tools.pack` emits them there and
+        to a summary of the format, so the runtime pack builder emits them there and
         this reports only how many there are.
         """
         return {

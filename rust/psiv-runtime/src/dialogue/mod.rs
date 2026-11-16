@@ -34,7 +34,9 @@
 //! flag write across a field tick, which is a behavior change and not a
 //! refactor.
 
+mod actions;
 mod choice;
+pub(crate) mod close;
 pub mod glue;
 mod open;
 mod selection;
@@ -137,8 +139,14 @@ pub struct DialogueRunner {
     /// The guild board's text mode (`session/job_board.rs`): a window closes
     /// by itself at its terminator and its last page stays drawn.
     board_text: bool,
-    /// That last page, until the next text replaces it.
-    board_page: Option<DialogueView>,
+    /// The open scene window is one its routine leaves on screen when the
+    /// text ends (`Runtime::open_scene_dialogue`): its last page is held.
+    hold_last_page: bool,
+    /// A window's last page, still drawn after its text ended: the guild
+    /// board's, until the next text replaces it, or a scene window's, until
+    /// the scene destroys it ([`DialogueRunner::release_held_page`]) or the
+    /// next text replaces it.
+    held_page: Option<DialogueView>,
     /// The portrait the routine's first text put up; later texts leave it.
     board_portrait: Option<u8>,
     /// The byte under the saved dialogue address after the last stop
@@ -166,6 +174,10 @@ pub struct DialogueRunner {
     text3: bool,
     /// The page's `RunText3` wait: frames left, once its last glyph is drawn.
     text3_wait: Option<u16>,
+    /// Retail `Panel_Num`, shared by scene and dialogue panel operations.
+    panels: u8,
+    /// A panel load waiting for its measured decompression lag.
+    loading_panel: Option<DialogueAction>,
 }
 
 impl Default for DialogueRunner {
@@ -183,7 +195,8 @@ impl DialogueRunner {
             flow: None,
             suspended: None,
             board_text: false,
-            board_page: None,
+            hold_last_page: false,
+            held_page: None,
             board_portrait: None,
             choice: ChoiceState::default(),
             open_cells: 0,
@@ -207,6 +220,8 @@ impl DialogueRunner {
             portrait_plane: None,
             text3: false,
             text3_wait: None,
+            panels: 0,
+            loading_panel: None,
         }
     }
 
@@ -233,8 +248,48 @@ impl DialogueRunner {
     /// The guild board's text mode: see `Runtime::dialogue_board_text`.
     pub(crate) fn set_board_text(&mut self, on: bool) {
         self.board_text = on;
-        self.board_page = None;
+        self.held_page = None;
         self.board_portrait = None;
+    }
+
+    /// The open scene window's routine leaves it on screen when its text
+    /// ends, so its last page stays drawn until the scene destroys it.
+    pub(crate) fn hold_page_at_end(&mut self) {
+        self.hold_last_page = self.scene_dialogue && self.flow.is_some();
+    }
+
+    /// The scene destroyed the window its text left up (`Window_Destroy`).
+    pub(crate) fn release_held_page(&mut self) {
+        self.held_page = None;
+    }
+
+    /// Plane A has been overwritten by an event battle's band. Drop each
+    /// held surface only once its complete packed rectangle is covered;
+    /// until then the shell draws the page underneath the opaque band.
+    pub(crate) fn cover_held_page(&mut self, top: u16, bottom: u16) {
+        let (Some(page), Some(set)) = (&mut self.held_page, &self.set) else {
+            return;
+        };
+        let covers = |y: i32, height: i32| i32::from(top) <= y && i32::from(bottom) >= y + height;
+        let portrait = &set.window.portrait_window.rect;
+        if covers(portrait.y + page.portrait_offset().1, portrait.height) {
+            page.portrait = None;
+        }
+        let text = &set.window.text_window.rect;
+        if page.portrait.is_none() && covers(text.y, text.height) {
+            self.release_held_page();
+        }
+    }
+
+    /// The last page as it stays on screen once its text has ended: drawn,
+    /// with no arrow, no prompt and nothing a press would advance.
+    fn last_page(&self) -> Option<DialogueView> {
+        self.view().map(|page| DialogueView {
+            waiting: false,
+            dismissable: false,
+            choice: None,
+            ..page
+        })
     }
 
     /// Whether a window is on screen. The shell gates its input on this.
@@ -245,8 +300,8 @@ impl DialogueRunner {
 
     /// Whether this frame is a lag frame: its VInt finds `VInt_Flag` clear
     /// (`ps4.asm:548-549`), so it skips `ReadJoypads`, `UpdateRNGSeed` and
-    /// `Main_Frame_Count` (`ps4.asm:614-624`), and the 68000 is still inside
-    /// `TextCtrlCode_Portrait`'s `NemDecomp`. Nothing of the frame runs.
+    /// `Main_Frame_Count` (`ps4.asm:614-624`), while the 68000 is still
+    /// decompressing a portrait or a panel. Nothing of the frame runs.
     #[must_use]
     pub(crate) fn lag_frame(&self) -> bool {
         self.lag > 0
@@ -266,7 +321,7 @@ impl DialogueRunner {
     #[must_use]
     pub(crate) fn view(&self) -> Option<DialogueView> {
         let Some(flow) = self.flow.as_ref() else {
-            return self.board_text.then(|| self.board_page.clone()).flatten();
+            return self.held_page.clone();
         };
         Some(DialogueView {
             lines: flow.lines().to_vec(),
@@ -323,7 +378,7 @@ impl DialogueRunner {
             // `RunText` returns at the terminator; the window stays for the
             // next text, and the guild's routine destroys it itself.
             self.retain_board_portrait();
-            self.board_page = self.view();
+            self.held_page = self.view();
             self.close_window();
             self.detect_close();
             return;
@@ -360,13 +415,18 @@ impl DialogueRunner {
             self.lag -= 1;
             return;
         }
-        // Actions launch after this tick, so frame zero is never consumed here.
-        // Their palette clock runs during the opening animation too.
+        // Keep the old panel planes through decompression; deliver the
+        // completed load before resuming the byte loop.
+        if let Some(action) = self.loading_panel.take() {
+            self.signals.push(DialogueSignal::Action(action));
+        }
+        // New actions launch after this tick: their first VInt is this one.
+        let action_was_holding = self.flow.as_ref().is_some_and(TextFlow::action_holding);
         if let Some(flow) = self.flow.as_mut() {
             flow.tick_action(game);
         }
         self.pump_actions(game);
-        if self.flow.is_none() {
+        if self.flow.is_none() || self.action_holding() || self.lag_frame() {
             return;
         }
         if self.open_cells < self.full_cells() {
@@ -391,12 +451,20 @@ impl DialogueRunner {
             self.retain_board_portrait();
             if let Some(flow) = self.flow.as_mut()
                 && self.revealed >= flow.visible_chars()
+                && !action_was_holding
             {
                 // Delays only run once the box is open; the cartridge's
                 // animation holds the text loop the same way. A `$F9` is a
                 // byte of the text loop, so it starts once the glyphs before
                 // it are drawn, not with the page.
                 flow.tick(game);
+            }
+            // A control after a delay runs as that delay returns. Waiting
+            // until the next window tick would spend its VInt twice.
+            self.pump_actions(game);
+            if self.flow.is_none() || self.action_holding() || self.lag_frame() {
+                self.drain_flow_log();
+                return;
             }
             // A delay that ran out into a `$F4` the typewriter is at: a
             // `$F4 0` finishes before the step, and a load or swap starts as
@@ -590,7 +658,8 @@ impl DialogueRunner {
             }
             Opening::Window(flow) => {
                 self.flow = Some(*flow);
-                self.open_cells = if self.board_text && self.board_page.take().is_some() {
+                let replaced = self.held_page.take().is_some();
+                self.open_cells = if self.board_text && replaced {
                     self.full_cells()
                 } else {
                     0
@@ -612,6 +681,12 @@ impl DialogueRunner {
         if self.is_opening() {
             return;
         }
+        // The page as it was drawn, before the advance moves the flow on.
+        let last_page = if self.hold_last_page {
+            self.last_page()
+        } else {
+            None
+        };
         let Some(flow) = self.flow.as_mut() else {
             return;
         };
@@ -655,6 +730,9 @@ impl DialogueRunner {
         if suspended {
             self.suspended = self.flow.take().map(|flow| (self.tree, flow));
         }
+        if last_page.is_some() {
+            self.held_page = last_page;
+        }
         self.close_window();
     }
 
@@ -692,38 +770,6 @@ impl DialogueRunner {
         self.signals.push(DialogueSignal::Closed {
             suspended: self.suspended.is_some(),
         });
-    }
-
-    /// Releases the next `$F2` whose byte position the typewriter has reached,
-    /// applying `SetEventFlag` to the live game state.
-    ///
-    /// Consecutive actions run back-to-back before the next character
-    /// iteration, exactly as retail does; the byte stream only moves forward,
-    /// so the loop ends at the entry's last action.
-    fn pump_actions(&mut self, game: &mut GameState) {
-        loop {
-            let ready = self
-                .flow
-                .as_ref()
-                .is_some_and(|flow| flow.action_ready(self.revealed));
-            if !ready {
-                return;
-            }
-            let Some(action) = self.flow.as_mut().and_then(TextFlow::take_pending_action) else {
-                return;
-            };
-            if let DialogueAction::SetEventFlag(flag) = action {
-                // The write lands before the text loop resumes, so a `$FA`
-                // later in the same entry reads it.
-                let _ = game.set(psiv_core::Flag::event(u16::from(flag)));
-            }
-            self.signals.push(DialogueSignal::Action(action));
-            if let Some(flow) = self.flow.as_mut() {
-                flow.resume_after_action(action, game);
-            }
-            self.service_flow(game);
-            self.drain_flow_log();
-        }
     }
 
     /// Applies mid-message `$FA` jumps and `$F6` events the flow raised.

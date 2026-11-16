@@ -13,6 +13,7 @@
 //!
 //! | window | opens |
 //! | --- | --- |
+//! | `preemptive` | the measured tape-07 post-roll opening (seed/count fixture) |
 //! | `top` | the COMD/MACR/RUN options |
 //! | `strip` | the first actor's command strip |
 //! | `tech`, `skill`, `item` | that list window |
@@ -27,7 +28,7 @@
 //! | `age=N` | frames the strip has been open when the fixture starts, because the command cursor's two mapping frames alternate on the object's clock and a capture must land on the oracle's phase |
 
 use psiv_core::CharId;
-use psiv_core::battle::{BattleEvent, Command, FighterId, RoundOrders};
+use psiv_core::battle::{BattleEvent, Command, FighterId, HV_SURROGATE, Lcg41, RoundOrders};
 
 use crate::events::{BattleAnimationEvent, BattleTimeline};
 use crate::{Runtime, Session};
@@ -140,13 +141,14 @@ struct Spec {
     statuses: Vec<(u8, u8)>,
     defend_round: bool,
     attack_timeline: bool,
+    preemptive: bool,
 }
 
 fn parse(spec: &str) -> Result<Spec, String> {
     let mut parts = spec.split(',');
     let kind = parts.next().unwrap_or_default().trim();
     let (window, strip) = match kind {
-        "top" => (None, false),
+        "top" | "preemptive" => (None, false),
         "strip" => (None, true),
         "tech" => (Some(MenuPage::Techniques), false),
         "skill" => (Some(MenuPage::Skills), false),
@@ -162,6 +164,7 @@ fn parse(spec: &str) -> Result<Spec, String> {
         statuses: Vec::new(),
         defend_round: false,
         attack_timeline: false,
+        preemptive: kind == "preemptive",
     };
     for part in parts {
         let (key, value) = part
@@ -214,6 +217,7 @@ impl Session {
             view: None,
             started: None,
             fault: Some(format!("debug battle window {spec:?} refused: {message}")),
+            ..BattleFrame::default()
         };
         let spec = match parse(spec) {
             Ok(spec) => spec,
@@ -221,6 +225,9 @@ impl Session {
         };
         if let Err(error) = self.runtime.seat_tape_07_party(&spec.statuses) {
             return refuse(error);
+        }
+        if spec.preemptive {
+            return self.debug_preemptive_opening(formation);
         }
         let party = self.runtime.battle_party();
         if let Err(error) = self.runtime.start_battle(formation, party) {
@@ -243,6 +250,33 @@ impl Session {
             let orders = RoundOrders::Commands(vec![Command::Defend; 5]);
             mode.run_round(&mut self.runtime, &orders);
         }
+        let frame = mode.start_frame(&self.runtime);
+        self.mode = Mode::Battle(Box::new(mode));
+        frame
+    }
+
+    /// Isolated tape-07 origin, not a campaign or natural priority draw.
+    /// The real core rolls preemptive using its ordinary HV surrogate; then
+    /// the fixture seats the measured post-roll seed/count (US f24840).
+    fn debug_preemptive_opening(&mut self, formation: u16) -> BattleFrame {
+        self.runtime.frames = 23949;
+        let word = HV_SURROGATE.wrapping_add(23949).wrapping_sub(0x18FF);
+        self.runtime.rng = Lcg41::new((u32::from(word) << 16) | 0x9843);
+        let timeline = match self
+            .runtime
+            .start_battle_timeline(formation, self.runtime.battle_party())
+        {
+            Ok(timeline) => timeline,
+            Err(error) => {
+                return BattleFrame {
+                    fault: Some(error.to_string()),
+                    ..BattleFrame::default()
+                };
+            }
+        };
+        self.runtime.rng = Lcg41::new(0x2C5A9843);
+        let mut mode =
+            BattleMode::begin(&self.runtime, timeline, BattleStart::Encounter(formation));
         let frame = mode.start_frame(&self.runtime);
         self.mode = Mode::Battle(Box::new(mode));
         frame

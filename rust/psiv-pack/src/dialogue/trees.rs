@@ -1,8 +1,8 @@
 //! `dialogue/trees.json`: the port of `extract_dialogue` in
-//! `psiv_tools/text.py`, of `psiv_tools/dialogue_pack/flow.py` (control
+//! `psiv_tools/text.py`, of [retired flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/dialogue_pack/flow.py) (control
 //! segments, `RunText_CharacterLoop` as pagination, the system messages) and
 //! `selection.py`, and of `window_json` and `interaction_json` in
-//! `window.py`. Those modules' docs give the reasons.
+//! [retired window](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/dialogue_pack/window.py). Those modules' docs give the reasons.
 
 use sha2::{Digest, Sha256};
 
@@ -840,3 +840,6 @@ mod tests {
         assert!(control_segment(&code("0xFB")).is_err());
     }
 }
+
+#[cfg(test)]
+mod retirement;

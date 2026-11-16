@@ -1,5 +1,5 @@
 //! How a shop is reached, what it charges and what an inn does: the port of
-//! `psiv_tools/shop_flow.py`, which owns the retail citations and the table of
+//! [retired shop_flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/shop_flow.py), which owns the retail citations and the table of
 //! routines. Each rule is read from the instruction that applies it, found by
 //! a pinned signature, so `shops.json`'s `rules` is retail's, not a copy.
 
@@ -518,3 +518,6 @@ mod tests {
         assert_eq!(sell_price(0, 2), 0);
     }
 }
+
+#[cfg(test)]
+mod retirement;

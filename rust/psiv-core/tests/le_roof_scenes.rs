@@ -15,21 +15,23 @@ use psiv_core::{
 /// mark per effect and, after each tick's marks, `+` when the tick runs map
 /// updates and `.` when it does not, runs of either compressed to `+N`/`.N`.
 /// A variable fade's length is the runtime's to measure from the palette;
-/// the trace releases every one at [`FADE_UP`] frames, the length the runtime
-/// gives Le Roof's line (`psiv-runtime`'s palette suite checks the words and
-/// the other fades' lengths).
+/// the trace releases a two-line fade at [`FADE_UP`] frames, the length the
+/// runtime gives Le Roof's line, and a 64-word fade-out at [`PANEL_FADE_OUT`]
+/// (`psiv-runtime`'s palette suite checks both). `DmaPlanes` has no mark:
+/// its frame is the `.` after it.
 /// Marks: `U` `Pal_VariableFadeToPal2`, `B` `Pal_VariableFadeOut_Lines_1_2`,
-/// `X` `Pal_VariableFadeOut`,
 /// `K<addr>` a ROM palette copy, `R` the red fade back, `C<n>` a colour loop of `n` passes, `G<n>`
 /// the fade-in of `n` passes, `D<id>` a dialogue, `|` a resume, `S<id>` a
-/// sound, `O`/`I` `FadeOut`/`FadeIn`, `V` `InitVRAMAndCRAM`, `P` a panel, `M`
-/// the map reload, `F` a flag. Stops at the first flag.
+/// sound, `O`/`I` `FadeOut`/`FadeIn`, `X<mode>` `Pal_VariableFadeOut`, `V`
+/// `InitVRAMAndCRAM`, `P` a panel, `M` the map reload, `F` a flag. Stops at
+/// the first flag.
 fn trace(ops: &'static [SceneOp]) -> String {
     let mut state = GameState::new();
     let map = map_with(&["........"; 8], vec![], vec![]);
     let mut runner = SceneRunner::new(ops, vec![], StepFrames::default());
     let mut marks: Vec<String> = Vec::new();
     let mut input = SceneInput::None;
+    let mut fade = FADE_UP;
     for _ in 0..5_000 {
         let effects = runner.tick(&map, &mut state, input);
         input = SceneInput::None;
@@ -51,23 +53,39 @@ fn trace(ops: &'static [SceneOp]) -> String {
                 SceneEffect::Presentation { op } => match op {
                     SceneOp::Presentation { op } => match op {
                         PresentationOp::FadeFromRed { .. } => "R".to_owned(),
-                        PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => "U".to_owned(),
-                        PresentationOp::TwoLinePaletteFade { fade_in: false, .. } => "B".to_owned(),
-                        PresentationOp::VariablePaletteFade { fade_in: false, .. } => {
-                            "X".to_owned()
+                        PresentationOp::TwoLinePaletteFade { fade_in: true, .. } => {
+                            fade = FADE_UP;
+                            "U".to_owned()
+                        }
+                        PresentationOp::TwoLinePaletteFade { fade_in: false, .. } => {
+                            fade = FADE_UP;
+                            "B".to_owned()
                         }
                         PresentationOp::PaletteCopy {
                             source: PaletteSource::Rom(at),
                             ..
                         } => format!("K{at:X}"),
+                        PresentationOp::VariablePaletteFade {
+                            fade_in: false,
+                            mode,
+                        } => {
+                            fade = PANEL_FADE_OUT;
+                            format!("X{mode}")
+                        }
                         PresentationOp::CounterPaletteCycle { frames, .. } => format!("C{frames}"),
                         PresentationOp::PaletteGrowIn { passes, .. } => format!("G{passes}"),
                         PresentationOp::ReloadMapChunks => "M".to_owned(),
                         other => panic!("unexpected record {other:?}"),
                     },
                     SceneOp::PlaySound { id } => format!("S{id:02X}"),
-                    SceneOp::FadeOut => "O".to_owned(),
-                    SceneOp::FadeIn => "I".to_owned(),
+                    SceneOp::FadeOut => {
+                        fade = FADE_UP;
+                        "O".to_owned()
+                    }
+                    SceneOp::FadeIn => {
+                        fade = FADE_UP;
+                        "I".to_owned()
+                    }
                     SceneOp::InitVramAndCram => "V".to_owned(),
                     SceneOp::PanelCreate { .. } => "P".to_owned(),
                     // The panel byte (#630) spends no frame and draws nothing here.
@@ -85,7 +103,7 @@ fn trace(ops: &'static [SceneOp]) -> String {
             break;
         }
         if runner.awaits_palette() {
-            runner.release_palette(FADE_UP);
+            runner.release_palette(fade);
         }
         marks.push(if runner.runs_map_updates() { "+" } else { "." }.to_owned());
     }
@@ -121,6 +139,11 @@ fn trace(ops: &'static [SceneOp]) -> String {
 /// `$E`): fifteen passes, the last changing nothing, of three frames
 /// (`$ED52` 2).
 const FADE_UP: u16 = 15 * 3;
+
+/// `Cutscene_LeRoofAgain`'s `Pal_VariableFadeOut` at `$07845A` (`$ED52` 5)
+/// from panel `$11B`'s palette: fourteen passes of six frames, as the
+/// retail capture spends it (#595).
+const PANEL_FADE_OUT: u16 = 14 * 6;
 
 /// The ops from `first` on: each scene's fade up to Le Roof's palette, past
 /// the actor walk the trace has no cast for.
@@ -183,15 +206,17 @@ fn a_meeting_le_roof_without_its_palette_return_is_rejected() {
 }
 
 /// `$0783E2..$07847A`: the same loops (180, `jsr loc_705D6` at `$078406`,
-/// 120) before dialogue `$0B`, then after the panel's resume
-/// `Pal_VariableFadeOut` (`$078460`), which updates nothing, and
-/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map.
+/// 120) before dialogue `$0B`, a frame for each panel's `DMAPlanes_VInt`,
+/// then after the resume the 84-frame `Pal_VariableFadeOut` and
+/// `$07846C`'s `DoMapUpdateLoop` of 60, which does update the map. Each
+/// `InitVRAMAndCRAM` is its fade-out (`O`), its frame (`V .1`); each fixed
+/// fade is answered with 45 frames here, and no fade updates the map.
 #[test]
 fn le_roof_again_runs_its_loops_then_a_map_update_wait() {
     let trace = trace(from(0x801C, 9));
     assert!(
         trace.starts_with(
-            "U .45 C180 .180 G71 .71 C120 .120 DB .1 V I P | .1 X .45 +60 V I P DC .1 F"
+            "U .45 C180 .180 G71 .71 C120 .120 DB .1 O .45 V .1 I .45 P .1 | .1 X5 .84 +60 O .45 V .1 I .45 P .1 DC .1 F"
         ),
         "{trace}"
     );
@@ -234,7 +259,10 @@ fn the_old_le_roof_policy_is_rejected() {
         },
     ];
     let old = trace(OLD);
-    assert_eq!(old, "R .24 +300 DB .1 V I P | .1 O V I P DC .1 F");
+    assert_eq!(
+        old,
+        "R .24 +300 DB .1 O .45 V .1 I .45 P | .1 O .45 O .45 V .1 I .45 P DC .1 F"
+    );
     assert!(!trace(from(0x801C, 9)).starts_with(&old));
 }
 

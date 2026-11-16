@@ -1,7 +1,7 @@
 //! The pack's JSON text, byte for byte what the Python builder writes.
 //!
 //! Every pack JSON file is `json.dumps(payload, indent=2, sort_keys=True) +
-//! "\n"`, UTF-8 (`psiv_tools/pack.py`, `_write_json`). One file,
+//! "\n"`, UTF-8 ([retired pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack.py), `_write_json`). One file,
 //! `presentation/panels.json`, keeps insertion order instead (no `sort_keys`),
 //! so [`Json::Object`] holds its pairs in order and the writer sorts them
 //! only when asked.
@@ -24,7 +24,7 @@
 //!   them (`allow_nan` is on by default).
 //!
 //! `rust/psiv-pack/tests/fixtures/harness.json` holds cases Python wrote
-//! (`tools/pack_parity.py --write-fixtures`); `tests/harness.rs` holds this
+//! frozen before retirement; `tests/harness.rs` holds this
 //! writer to them.
 
 use std::fmt::Write as _;

@@ -1,5 +1,5 @@
 //! The field-mode joins: palettes, the party, a map's staged art, vehicles and
-//! chests: `psiv_tools/sprites/field.py`, `vehicles.py` and `chest_sprites.py`.
+//! chests: `psiv_tools/sprites/field.py`, `vehicles.py` and [retired chest_sprites](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/chest_sprites.py).
 
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};

@@ -38,10 +38,6 @@ const TEMP_EYEBALL_2: u16 = 0x16;
 /// `DMAPlanes_VInt`, four map-update frames.
 const ROW_FRAMES: SceneOp = SceneOp::Wait { ticks: 4 };
 
-/// `PalFadeOut_ClrSpriteTbl` and `Pal_FadeIn`, held as the elevator ride holds
-/// them (`docs/scenes/SCENE_PRESENTATION.md`: 14 renderer ticks).
-const FADE_FRAMES: SceneOp = SceneOp::WaitFrames { frames: 14 };
-
 /// A table row: the chunk above the leader (`-$20`) and the one under.
 const fn row(chunks: &'static [(i32, i32, u16)]) -> SceneOp {
     SceneOp::WriteActorMapChunks {
@@ -119,12 +115,10 @@ pub static DOOR_ENTERED_1: Scene = Scene {
     event: EventIndex(0x0037),
     ops: &[
         SceneOp::FadeOut,
-        FADE_FRAMES,
         SceneOp::TakeMapTransition,
         row(&[(0, 0, 0x3C), (0, -16, 0x3E)]),
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::FadeIn,
-        FADE_FRAMES,
         SceneOp::PlaySound {
             id: SFX_ENEMY_ATTACK_3,
         },
@@ -159,12 +153,10 @@ pub static DOOR_ENTERED_2: Scene = Scene {
     event: EventIndex(0x0038),
     ops: &[
         SceneOp::FadeOut,
-        FADE_FRAMES,
         SceneOp::TakeMapTransition,
         row(&[(0, 0, 0x3C), (0, -16, 0x34)]),
         SceneOp::WaitFrames { frames: 1 },
         SceneOp::FadeIn,
-        FADE_FRAMES,
         SceneOp::PlaySound {
             id: SFX_ENEMY_ATTACK_3,
         },

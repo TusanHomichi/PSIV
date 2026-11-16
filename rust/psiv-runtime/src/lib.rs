@@ -17,10 +17,14 @@ mod bridge;
 mod camera;
 mod camp;
 mod cram;
-pub use cram::CramView;
+pub use cram::{CramView, TEXT_COLOUR_SLOT};
+mod battle_load;
+pub use battle_load::BattleLoadView;
+mod battle_entry;
 mod dialogue;
 mod effects;
 mod encounters;
+pub use battle_entry::EventBattleBand;
 mod events;
 #[cfg(test)]
 mod field_entry_tests;
@@ -95,7 +99,7 @@ pub use session::{
     SkillEntry, SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TeardownView, TechniqueEntry,
     TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow,
     WindowRecord, WindowRect, WindowTeardown, battle_dwell_frames, camp_fixture,
-    camp_travel_fixture, scene_fixture, town_page_rows,
+    camp_travel_fixture, encounter_entry_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 pub use view::ObjectMotion;
@@ -157,11 +161,14 @@ pub struct Runtime {
     loot: Option<loot::PendingLoot>,
     scene: Option<SceneRunner>,
     scene_input: SceneInput,
+    /// A menu answer, committed by the scene after its teardown.
+    destination_world: Option<u8>,
     scene_event: EventIndex,
     dialogue_answer: Option<bool>,
     scene_choice_pending: bool,
     /// The message box: the retail text loop, its clock and its signals.
     dialogue: dialogue::DialogueRunner,
+    dialogue_close: Option<dialogue::close::DialogueClose>,
     /// The tree a running scene's dialogue entries index into, from its
     /// `SetDialogueTree` (`$53F00`) op. `None` means the map's own binding.
     scene_tree_address: Option<u32>,
@@ -185,6 +192,7 @@ pub struct Runtime {
     /// The map's post-wave-7 bespoke routines, rebuilt in the same map-object
     /// order as [`Runtime::wander`].
     bespoke: BespokeSet,
+    eclipse_torch: std::collections::BTreeMap<usize, psiv_core::EclipseTorchObject>,
     /// The one shared seed, ticked once per frame like the cartridge's
     /// vblank call; wander decisions draw from the same stream, as retail's
     /// FieldObj_GetRandomMove shares UpdateRNGSeed with encounter rolls.
@@ -223,10 +231,13 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    prepared_battle: Option<(session::BattleStart, psiv_core::battle::PreparedBattle)>,
     /// Battle return reloads map data without initializing live field objects.
     battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.
     scene_battle: Option<u16>,
+    /// An event battle's entry, from the scene's request to the roll.
+    battle_entry: Option<battle_entry::BattleEntry>,
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,

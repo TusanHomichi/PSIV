@@ -1,6 +1,6 @@
 //! `battle/art/backgrounds.json`'s selection block: the three tables
 //! `Battle_SetupBackground` (`ps4.asm:10124`) chooses a battle background
-//! from, and the rule that walks them (`psiv_tools/battle_art_pack.py`).
+//! from, and the rule that walks them ([retired battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_art_pack.py)).
 //!
 //! The rule lives here, over the pack's tables, so the runtime that knows the
 //! map, the chunk under the leader and the event flags can answer which

@@ -36,6 +36,9 @@ fn play(event: u16, state: &mut GameState) -> Vec<SceneEffect> {
     let mut log = Vec::new();
     let mut input = SceneInput::None;
     for _ in 0..1_000 {
+        if runner.awaits_palette() {
+            runner.release_palette(1);
+        }
         let effects = runner.tick(&map, state, input);
         input = SceneInput::None;
         for effect in &effects {

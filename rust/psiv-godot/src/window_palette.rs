@@ -8,7 +8,7 @@
 //! and a scene's tone, flash or fade changes them there like any other line.
 //! The Hunter's Guild board draws the same font tiles on lines 1 and 3 too:
 //! `Event_HuntersGuild` writes a collected job's name with `$A000` and a job
-//! that is not open with `$E000` (`psiv_tools/guild_pack.py`).
+//! that is not open with `$E000` ([retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)).
 //!
 //! [`WindowLine`] binds a window's art to the line its indices are drawn on:
 //! the sixteen words the art is baked in and the sixteen it draws with this
@@ -117,13 +117,10 @@ impl WindowNode {
 /// each is on the ramps. The guild's lines are carried as colours; this is
 /// what they draw while no live palette is known.
 pub(crate) fn cram_words(colours: &[[u8; 3]]) -> Option<[u16; 16]> {
-    use psiv_data::color::{RAMP_B, RAMP_G, RAMP_R};
-    let level = |ramp: &[u8; 8], value: u8| ramp.iter().position(|&level| level == value);
     let colours: &[[u8; 3]; 16] = colours.try_into().ok()?;
     let mut words = [0u16; 16];
-    for (word, &[r, g, b]) in words.iter_mut().zip(colours) {
-        let (r, g, b) = (level(&RAMP_R, r)?, level(&RAMP_G, g)?, level(&RAMP_B, b)?);
-        *word = ((b as u16) << 9) | ((g as u16) << 5) | ((r as u16) << 1);
+    for (word, &colour) in words.iter_mut().zip(colours) {
+        *word = psiv_data::color::cram_word(colour)?;
     }
     Some(words)
 }

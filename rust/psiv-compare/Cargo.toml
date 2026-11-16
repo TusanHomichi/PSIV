@@ -17,7 +17,12 @@ path = "src/main.rs"
 name = "tyler-grave"
 path = "src/bin/tyler-grave.rs"
 
+[[bin]]
+name = "flight-fades"
+path = "src/bin/flight-fades.rs"
+
 [dependencies]
+serde.workspace = true
 psiv-pack = { path = "../psiv-pack" }
 serde_json.workspace = true
 sha2 = "0.11"

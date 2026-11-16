@@ -150,6 +150,15 @@ impl ScenePalettes {
         self.words.get(&rom_addr).map(Vec::as_slice)
     }
 
+    /// A big-endian longword in a private packed table, indexed by longword.
+    /// Used by loc_64550's world-palette selection without compiled ROM rows.
+    #[must_use]
+    pub fn longword(&self, table: u32, index: usize) -> Option<u32> {
+        let start = index.checked_mul(2)?;
+        let words = self.words(table)?.get(start..start.checked_add(2)?)?;
+        Some((u32::from(words[0]) << 16) | u32::from(words[1]))
+    }
+
     /// Every ROM palette the pack carries, by address.
     pub fn all(&self) -> impl Iterator<Item = (u32, &[u16])> {
         self.words.iter().map(|(&at, words)| (at, words.as_slice()))
@@ -191,5 +200,16 @@ mod tests {
         assert_eq!(decode("0eee0"), None);
         assert_eq!(address("0x296300"), Some(0x29_6300));
         assert_eq!(address("296300"), None);
+    }
+
+    #[test]
+    fn packed_longwords_preserve_order_width_and_bounds() {
+        let words = BTreeMap::from([(0x100, vec![0x1234, 0x5678, 0xFEDC, 0xBA98, 0xFFFF])]);
+        let palettes = ScenePalettes::from_parts(words, BTreeMap::new());
+        assert_eq!(palettes.longword(0x100, 0), Some(0x12345678));
+        assert_eq!(palettes.longword(0x100, 1), Some(0xFEDCBA98));
+        assert_eq!(palettes.longword(0x100, 2), None, "incomplete longword");
+        assert_eq!(palettes.longword(0x100, usize::MAX), None);
+        assert_eq!(palettes.longword(0x200, 0), None, "absent table");
     }
 }

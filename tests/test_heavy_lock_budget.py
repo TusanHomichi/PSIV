@@ -515,7 +515,7 @@ class BudgetCase(LockProcesses):
         self.assertEqual(CLASS_UNITS[PACK], 1)
 
     def test_a_pack_build_shares_the_machine_with_its_readers(self):
-        """The pack is swapped in whole (psiv_tools/pack_swap.py), so a pack
+        """The pack is swapped in whole (rust/psiv-pack/src/install.rs), so a pack
         build runs beside a cargo test, a Godot run and the Python suite."""
         holders = [self.holder(BUILD), self.holder(GODOT), self.holder(PYTHON)]
         code, stderr = self.immediate("pack", "--class", PACK)

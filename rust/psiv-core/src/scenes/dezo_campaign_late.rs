@@ -5,7 +5,7 @@ use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::{CameraSubject, PresentationOp};
 use crate::scene_runner::Scene;
-use crate::scenes::flight::with_ship_menu;
+use crate::scenes::flight::{with_planet_screen, with_ship_menu};
 use crate::state::Flag;
 use crate::trigger::EventIndex;
 
@@ -479,66 +479,76 @@ pub static LASHIEC_APPEARANCE: Scene = Scene {
 pub static LASHIEC_DEFEATED: Scene = Scene {
     name: "Cutscene_LashiecDefeated",
     event: EventIndex(0x8016),
-    ops: &[
-        SceneOp::InitVramAndCram,
-        SceneOp::FadeIn,
-        SceneOp::PanelCreate { id: 0x107 },
-        SceneOp::DmaPlanes,
-        // `$077A86`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
-        SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        // `$077A8C`: `jsr Event_GetAndRunDialogue3`; the panels stay until
-        // the `Panel_DestroyAll` below.
-        cutscene3(0x38),
-        SceneOp::WaitFrames { frames: 120 },
-        SceneOp::PanelDestroyAll,
-        SceneOp::DmaPlanes,
-        SceneOp::FadeOut,
-        SceneOp::InitVramAndCram,
-        SceneOp::PlaySound {
-            id: MUSIC_EXPLOSION,
-        },
-        SceneOp::WaitFrames { frames: 40 },
-        SceneOp::PanelCreate { id: 0x10A },
-        SceneOp::DmaPlanes,
-        SceneOp::FadeIn,
-        SceneOp::WaitFrames { frames: 240 },
-        SceneOp::PlaySound {
-            id: MUSIC_DEZOLIS_FIELD,
-        },
-        // `$077B22`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
-        SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        // `$077B28`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
-        SceneOp::RunDialogueResumeWithWindow {
-            window: DialogueWindow::Cutscene5,
-        },
-        SceneOp::AddItem {
-            item: ITEM_ECLIPSE_TORCH,
-        },
-        SceneOp::InitVramAndCram,
-        // `move.b #1, (World_Index).w` (`ps4.asm:156940`)
-        SceneOp::SetWorldIndex { world: 1 },
-        SceneOp::LoadMap {
-            map: 0x162,
-            prev_map: 0xFFFF,
-            start_x: 0x4E,
-            start_y: 0x2C,
-            facing: Direction::Up,
-            align: 4,
-            clear_load_flags: 0x08,
-        },
-        SceneOp::PlaySound {
-            id: MUSIC_TEMPLE_NGANGBIUS,
-        },
-        SceneOp::SetSavedMusic {
-            id: MUSIC_TEMPLE_NGANGBIUS,
-        },
-        SceneOp::SetDialogueTree { rom_addr: TREE_22 },
-        // `$077BC0`: `clr.b (Render_Sprites_In_Cutscenes).w`.
-        SceneOp::SetRenderSpritesInCutscene { enabled: false },
-        standard(0x39),
-        SceneOp::SetDialogueTree { rom_addr: TREE_38 },
-        SceneOp::Return { value: 1 },
-    ],
+    ops: &with_planet_screen::<40>(
+        &[
+            SceneOp::InitVramAndCram,
+            SceneOp::FadeIn,
+            SceneOp::PanelCreate { id: 0x107 },
+            SceneOp::DmaPlanes,
+            // `$077A86`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+            SceneOp::SetRenderSpritesInCutscene { enabled: true },
+            // `$077A8C`: `jsr Event_GetAndRunDialogue3`; the panels stay until
+            // the `Panel_DestroyAll` below.
+            cutscene3(0x38),
+            SceneOp::WaitFrames { frames: 120 },
+            SceneOp::PanelDestroyAll,
+            SceneOp::DmaPlanes,
+            SceneOp::FadeOut,
+            SceneOp::InitVramAndCram,
+            SceneOp::PlaySound {
+                id: MUSIC_EXPLOSION,
+            },
+            SceneOp::WaitFrames { frames: 40 },
+            SceneOp::PanelCreate { id: 0x10A },
+            SceneOp::DmaPlanes,
+            SceneOp::FadeIn,
+            SceneOp::WaitFrames { frames: 240 },
+            SceneOp::PlaySound {
+                id: MUSIC_DEZOLIS_FIELD,
+            },
+            // `$077B22`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+            SceneOp::SetRenderSpritesInCutscene { enabled: true },
+            // `$077B28`: `popdlg` / `jsr Event_RunDialogue5`, the `Get5` exit.
+            SceneOp::RunDialogueResumeWithWindow {
+                window: DialogueWindow::Cutscene5,
+            },
+            // $077B2E: after Run5, before both map-update waits and the item.
+            SceneOp::FadeOut,
+            SceneOp::AddItem {
+                item: ITEM_ECLIPSE_TORCH,
+            },
+            SceneOp::InitVramAndCram,
+            // `move.b #1, (World_Index).w` (`ps4.asm:156940`)
+            SceneOp::SetWorldIndex { world: 1 },
+            // $077B68: loc_64C1E owns the planet screen and its In/Out pair.
+        ],
+        &[
+            SceneOp::LoadMap {
+                map: 0x162,
+                prev_map: 0xFFFF,
+                start_x: 0x4E,
+                start_y: 0x2C,
+                facing: Direction::Up,
+                align: 4,
+                clear_load_flags: 0x08,
+            },
+            SceneOp::PlaySound {
+                id: MUSIC_TEMPLE_NGANGBIUS,
+            },
+            SceneOp::SetSavedMusic {
+                id: MUSIC_TEMPLE_NGANGBIUS,
+            },
+            // `ps4.asm:156952`: `jsr Pal_FadeIn` after the `RefreshMap`, which
+            // turns the display back on for the dialogue (#653).
+            SceneOp::FadeIn,
+            SceneOp::SetDialogueTree { rom_addr: TREE_22 },
+            // `$077BC0`: `clr.b (Render_Sprites_In_Cutscenes).w`.
+            SceneOp::SetRenderSpritesInCutscene { enabled: false },
+            standard(0x39),
+            SceneOp::SetDialogueTree { rom_addr: TREE_38 },
+            SceneOp::Return { value: 1 },
+        ],
+    ),
 };
 
 /// `$8018`, `Cutscene_GumbiousBishop`, `$077DC6..$077EAB`.

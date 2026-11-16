@@ -58,5 +58,4 @@ class ExtractCoverage(unittest.TestCase):
             'tests/test_gate*.py',
             'tests/test_heavy_lock.py',
             'tests/test_heavy_lock_runner_wait.py',
-            'tests/test_pack_parity.py',
         })

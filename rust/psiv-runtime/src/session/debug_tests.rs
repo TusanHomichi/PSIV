@@ -365,3 +365,34 @@ fn the_fract_ooze_fixture_stands_chaz_at_tape_45s_object_position() {
         "the camera starts from the same object"
     );
 }
+
+/// #593: the `$47` fixture stands Chaz where tape 46's `$F406`/`$F408` patch
+/// puts the leader object, ($BA0, $F0) on Dezolis, below the Eclipse Torch
+/// trigger's `y<=$E0`, with the trigger's `$9B` and the arrival's `$80` set.
+#[test]
+fn the_eclipse_torch_fixture_stands_chaz_at_tape_46s_object_position() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let session = crate::scene_fixture(pack(), 0x47, StepFrames::default())
+        .expect("0x47 has a fixture")
+        .expect("the fixture builds");
+    let runtime = session.runtime();
+    assert_eq!(runtime.map_id().0, 0x001);
+    let object = psiv_core::PixelPos::from_cell(runtime.state().cell());
+    assert_eq!(
+        (object.x, object.y),
+        (0xBA0, 0xF0),
+        "tape 46's leader object"
+    );
+    assert_eq!(
+        runtime.camera().driver_position(),
+        (0xBA0 << 16, 0xF0 << 16),
+        "the camera starts from the same object"
+    );
+    for flag in [0x80, 0x9B] {
+        assert!(runtime.game().is_set(psiv_core::Flag::event(flag)));
+    }
+    assert!(!runtime.game().is_set(psiv_core::Flag::event(0x9C)));
+}

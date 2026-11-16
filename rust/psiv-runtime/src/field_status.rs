@@ -47,6 +47,8 @@ impl Runtime {
         self.game_over = true;
         self.scene = None;
         self.scene_battle = None;
+        self.battle_entry = None;
+        self.prepared_battle = None;
         self.scene_input = SceneInput::None;
         self.scene_triggers_pending = false;
         self.battle_field_refresh_pending = false;

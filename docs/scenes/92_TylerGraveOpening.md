@@ -126,8 +126,12 @@ runtime tick 2 with retail frame 7200, the runtime's slide starts two frames
 early, its second visible lead one frame early and its return two frames
 early. Equal 131-frame totals counted from different entry boundaries do not
 prove parity; operation requests and visible arrivals are distinct boundaries.
-The refresh/return timing gap is tracked in
-[#489](https://github.com/TusanHomichi/PSIV/issues/489).
+The missing refresh CPU/DMA boundary (`RefreshPlaneBG` at `$06FCF8`,
+`DMAPlane_B_VInt` at `$06FCFE`) belongs to
+[#546](https://github.com/TusanHomichi/PSIV/issues/546); the return discrepancy
+remains under [#489](https://github.com/TusanHomichi/PSIV/issues/489).
+[DMA frame ownership](DMA_FRAME_OWNERSHIP.md) records why no existing pan,
+drift or hold consumes that preceding DMA frame.
 
 `InvisibleBlock` skips `FieldObj_UpdatePosition` while off screen. The leader
 stands at the grave, so all twelve are on screen; the op does not model the

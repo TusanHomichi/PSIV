@@ -289,6 +289,10 @@ fn resolve_scene_battle_with_limit(runtime: &mut Runtime, max_rounds: usize) -> 
     let mut outcome = None;
     let mut last_events = Vec::new();
     for _ in 0..max_rounds {
+        // A frame between rounds, as a played battle has: `Rng2` mixes
+        // `Main_Frame_Count` into every roll, and a count pinned for the
+        // whole battle can pin it in one regime (`psiv_core::battle::Rng2`).
+        let _ = runtime.tick(Input::Neutral);
         let events = runtime
             .battle_round(&RoundOrders::attack_all())
             .expect("battle round resolves");
@@ -553,6 +557,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     use_psycho_wand(&mut runtime);
     assert_eq!(resolve_scene_battle(&mut runtime), Outcome::Victory);
 
+    let chaz = runtime.game().roster().get(CharId(0)).unwrap();
+    let chaz_before = (chaz.curr_hp, chaz.status);
     let _ = drive_scene(&mut runtime, 0x800B);
     assert!(runtime.game().is_set(Flag::event(0x68)));
     assert!(runtime.game().is_set(Flag::event(0x66)));
@@ -562,7 +568,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
         runtime.game().party_members(),
         vec![CharId(0), CharId(5), CharId(3)]
     );
-    assert!(runtime.game().roster().get(CharId(0)).unwrap().curr_hp > 0);
+    let chaz = runtime.game().roster().get(CharId(0)).unwrap();
+    assert_eq!((chaz.curr_hp, chaz.status), chaz_before);
 
     // The player walks from Motavia to Mota Spaceport before the next scene.
     // Re-enter through the same decoded snapshot so this is one persistent arc
@@ -593,7 +600,9 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     // The next trip is the player-selected Zelan -> Kuran route. The scene
     // owns the Chaos Sorcerer battle and must set its flag before handing off.
     post_zio = relocate_with_battles(&post_zio, 0x18D);
+    use SceneOp::{FadeIn as In, FadeOut as Out, InitVramAndCram as Init};
     let sabotage = drive_until_battle(&mut post_zio, 0x800E);
+    fixed_fades::assert_fades(&sabotage, &[Init, In, Out, In, Out, Init, In]);
     assert!(
         sabotage
             .iter()
@@ -603,7 +612,11 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     let _ = resolve_scene_battle(&mut post_zio);
     assert_eq!(post_zio.map_id().0, 0x18C);
 
-    let _ = drive_scene(&mut post_zio, 0x800F);
+    let crash = drive_scene(&mut post_zio, 0x800F);
+    fixed_fades::assert_fades(
+        &crash,
+        &[Init, In, Init, In, Out, In, Out, In, Init, In, In],
+    );
     assert_eq!(post_zio.map_id().0, 0x14C);
     assert!(post_zio.game().is_set(Flag::event(0x85)));
     assert!(post_zio.game().is_set(Flag::event(0x88)));
@@ -635,7 +648,8 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     assert!(post_zio.game().is_set(Flag::event(0x83)));
     let _ = resolve_scene_battle(&mut post_zio);
 
-    let _ = drive_scene(&mut post_zio, 0x8011);
+    let aftermath = drive_scene(&mut post_zio, 0x8011);
+    fixed_fades::assert_fades(&aftermath, &[Init, In, Init, In, Out, Init, In]);
     assert_eq!(post_zio.map_id().0, 0x18E);
     assert!(post_zio.game().is_set(Flag::event(0x89)));
     assert!(post_zio.game().inventory().slots().contains(&0x97));
@@ -902,3 +916,5 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
         )
     }));
 }
+
+use super::fixed_fades;

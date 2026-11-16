@@ -363,6 +363,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn equal_rgb_slots_keep_distinct_indices_and_alpha() {
+        let image = encode_indexed(3, 1, &[0, 1, 2], &[[0, 0, 0]; 3], &[0]).unwrap();
+        let bytes = index_png(&image).unwrap();
+        let indexed = decode(&bytes).unwrap();
+        assert_eq!(indexed.pixels, [0, 1, 2]);
+        assert_eq!(indexed.plte, [0, 0, 0, 1, 0, 0, 2, 0, 0]);
+        assert_eq!(indexed.trns, [0]);
+    }
+
     use super::*;
 
     #[test]

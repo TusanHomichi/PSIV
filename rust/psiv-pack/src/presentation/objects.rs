@@ -1,7 +1,7 @@
 //! The scene art beside the panels: every `LoadArt` site's preview, the
 //! objects scenes build out of it, and the shopkeeper portrait
 //! (`_emit_load_art`, `_emit_temporary_objects` and `_emit_generic_portrait`
-//! in `psiv_tools/presentation_pack.py`, which give the reasons).
+//! in [retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py), which give the reasons).
 //!
 //! `panels.json` keeps Python's dict order, so each record here is built in
 //! the order its Python dict is: the spec's keys first, then what is added.
@@ -44,7 +44,7 @@ struct LoadArt {
     object_ids: &'static [usize],
 }
 
-const LOAD_ART_RECORDS: [LoadArt; 7] = [
+const LOAD_ART_RECORDS: [LoadArt; 8] = [
     LoadArt {
         scene: "Event_PsycoWandChest",
         source: 0x1D5DF0,
@@ -93,6 +93,13 @@ const LOAD_ART_RECORDS: [LoadArt; 7] = [
         destination_tile: 0x04A5,
         map_id: 0x024,
         object_ids: &[0x0194],
+    },
+    LoadArt {
+        scene: "Event_EclipseTorchUsed",
+        source: 0x1D712C,
+        destination_tile: 0x03AF,
+        map_id: 0x001,
+        object_ids: &[0x0338],
     },
 ];
 
@@ -156,7 +163,7 @@ const fn plays(sequence: &'static str, once: bool, before_art_tile: bool) -> Opt
     })
 }
 
-const TEMPORARY_OBJECT_RECORDS: [Temporary; 9] = [
+const TEMPORARY_OBJECT_RECORDS: [Temporary; 10] = [
     temporary(
         "MeetingRika",
         (0x0018, 0x026A),
@@ -228,6 +235,14 @@ const TEMPORARY_OBJECT_RECORDS: [Temporary; 9] = [
         None,
         (0x1D5DF0, SourceKind::Nemesis),
         0x087,
+    ),
+    temporary(
+        "Event_EclipseTorchUsed",
+        (0x0338, 0x03AF),
+        "EclipseTorch",
+        None,
+        (0x1D712C, SourceKind::Nemesis),
+        0x001,
     ),
 ];
 

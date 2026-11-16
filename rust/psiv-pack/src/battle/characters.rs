@@ -1,9 +1,9 @@
 //! `battle/characters.json`: the port of `extract_characters` in
 //! `psiv_tools/core.py` and `build_characters` in
-//! `psiv_tools/battle_records.py`, whose docs give the reasons: the eleven
+//! [retired battle_records](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_records.py), whose docs give the reasons: the eleven
 //! `InitialCharStats` records, and the RAM `InitializeCharStats` leaves once
 //! it has applied one (the `initialized` block, a conformance vector derived
-//! with the rules [`super::rules`] decodes). `battle_pack.py` adds each
+//! with the rules [`super::rules`] decodes). [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py) adds each
 //! character's age and STATUS portrait, and refuses a pack whose initial
 //! equipment the equip filter would refuse.
 //!
@@ -526,6 +526,9 @@ pub fn build(
     overlay(&mut out, &over);
     Ok(out)
 }
+
+#[cfg(test)]
+mod retail_tests;
 
 #[cfg(test)]
 mod tests {

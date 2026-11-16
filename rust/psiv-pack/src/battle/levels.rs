@@ -1,5 +1,5 @@
 //! `battle/levels.json`: the port of `extract_level_progression` in
-//! `psiv_tools/core.py` and `build_levels` in `psiv_tools/battle_pack.py`.
+//! `psiv_tools/core.py` and `build_levels` in [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py).
 //! `CharLevelTablePtrs` holds a `(starting level .w, table .l)` pair per
 //! character; each table runs `99 - starting level` 22-byte records.
 //!
@@ -157,6 +157,9 @@ pub fn build(rom: &[u8]) -> Result<Json, PackError> {
     overlay(&mut out, &extra);
     Ok(out)
 }
+
+#[cfg(test)]
+mod retail_tests;
 
 #[cfg(test)]
 mod tests {

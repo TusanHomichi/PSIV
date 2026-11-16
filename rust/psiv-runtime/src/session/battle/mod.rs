@@ -46,6 +46,9 @@ mod fixture;
 mod fusion;
 mod menu;
 mod narration;
+mod opening;
+#[cfg(test)]
+mod opening_tests;
 mod panes;
 #[cfg(test)]
 mod player_tests;
@@ -116,6 +119,9 @@ pub struct BattleFrame {
     /// The view to draw, or `None` when the frame produced no battle at all —
     /// a battle that could not start, whose `fault` says why.
     pub view: Option<BattleView>,
+    /// Run one idle enemy-overlay update before applying this frame's view.
+    /// False on upload holds: a visible frame need not run the battle loop.
+    pub advance_enemy_overlays: bool,
     /// The battle this frame began, when it did.
     pub started: Option<BattleStart>,
     /// A diagnostic for the shell to log. The mode never stops for one.
@@ -126,6 +132,8 @@ pub struct BattleFrame {
 pub(crate) struct BattleMode {
     queue: queue::QueuedQueue,
     current: Option<ActiveBeat>,
+    /// The load-to-options sequence; it never enters the narration queue.
+    opening: Option<opening::Opening>,
     /// The outcome of the ending beat, until the results page is over.
     finish_outcome: Option<Outcome>,
     /// Set when the queue ran dry with an outcome: the epilogue runs on this
@@ -197,6 +205,7 @@ impl BattleMode {
         let mut mode = BattleMode {
             queue: queue::QueuedQueue::new(),
             current: None,
+            opening: None,
             finish_outcome: None,
             finish_request: None,
             reward_each: 0,
@@ -241,6 +250,7 @@ impl BattleMode {
     pub(crate) fn start_frame(&mut self, runtime: &Runtime) -> BattleFrame {
         BattleFrame {
             view: Some(self.view(runtime, false)),
+            advance_enemy_overlays: self.opening.is_some(),
             // Taken, not copied: the frame a battle begins on is the only one
             // that reports it, whether the shell calls this and then the mode's
             // own `frame` in the same shell frame (the debug selectors) or a
@@ -257,6 +267,9 @@ impl BattleMode {
         self.attacks.advance();
         self.fault = None;
         let previous = std::mem::replace(&mut self.previous_pad, pad);
+        if let Some(frame) = self.frame_opening(runtime) {
+            return frame;
+        }
         // Battles still consume the shared vblank/RNG stream. No field input
         // reaches `Runtime` while the battle owns the frame.
         if runtime.battle_active() {
@@ -274,6 +287,7 @@ impl BattleMode {
         let close_ready = std::mem::take(&mut self.close_ready);
         BattleFrame {
             view: Some(self.view(runtime, close_ready)),
+            advance_enemy_overlays: true,
             started: self.start.take(),
             fault: self.fault.take(),
         }
@@ -693,6 +707,13 @@ impl BattleMode {
             BattleBeat::End(outcome) => self.finish_outcome = Some(outcome),
             _ => {}
         }
+        if let BattleEvent::Started { priority, .. } = event
+            && let Some(opening) = opening::Opening::new(priority, self.party.len())
+        {
+            self.opening = Some(opening);
+            self.command_open = false;
+            return;
+        }
         let remaining = if narrate.beat == BattleBeat::End(Outcome::Defeat) {
             DEFEAT_DWELL_FRAMES
         } else if matches!(&event, BattleEvent::Died { fighter } if fighter.side() == Side::Party)
@@ -838,7 +859,7 @@ impl BattleMode {
 impl Session {
     /// Starts the battle this frame's events asked for, if they asked for one.
     ///
-    /// An `EncounterRolled` is the runtime's own battle to start; a
+    /// An `EncounterBattleReady` is the runtime's own battle to start; a
     /// `SceneBattleStarted` is one the scene runner already started, and the
     /// event carries its opening timeline. A battle that cannot start leaves
     /// the field in control and reports the reason as a fault for the shell to
@@ -846,7 +867,9 @@ impl Session {
     /// produced.
     pub(crate) fn begin_battle(&mut self, events: &[RuntimeEvent]) -> Option<BattleFrame> {
         let start = events.iter().find_map(|event| match event {
-            RuntimeEvent::EncounterRolled { formation } => Some(BattleStart::Encounter(*formation)),
+            RuntimeEvent::EncounterBattleReady { formation } => {
+                Some(BattleStart::Encounter(*formation))
+            }
             RuntimeEvent::SceneBattleStarted { index, .. } => {
                 Some(BattleStart::EventBattle(*index))
             }
@@ -860,6 +883,7 @@ impl Session {
                         view: None,
                         started: None,
                         fault: Some(fault),
+                        ..BattleFrame::default()
                     });
                 }
             },

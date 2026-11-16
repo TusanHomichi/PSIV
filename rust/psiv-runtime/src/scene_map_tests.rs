@@ -4,6 +4,8 @@ use psiv_core::{Input, MapId};
 
 #[path = "scene_crash_tests.rs"]
 mod crash;
+#[path = "scene_elevator_tests.rs"]
+mod elevator;
 #[path = "scene_garuberk_tests.rs"]
 mod garuberk;
 #[path = "scene_landale_tests.rs"]
@@ -144,34 +146,11 @@ fn elevators_open_ride_step_out_close_and_return_using_the_real_tables() {
         // Another confirm on an already-open door is a silent no-op.
         checked_tick(&mut rt, Input::Neutral);
         assert!(checked_tick(&mut rt, Input::Action).is_empty());
-        let mut started = false;
-        let mut closing = Vec::new();
-        for _ in 0..140 {
-            let events = checked_tick(
-                &mut rt,
-                if started {
-                    Input::Neutral
-                } else {
-                    Input::Direction(Direction::Up)
-                },
-            );
-            if events
-                .iter()
-                .any(|e| matches!(e, RuntimeEvent::SceneStarted { trigger: 0x0D }))
-            {
-                started = true;
-            }
-            if rt.map_id() == MapId(target) && events.contains(&RuntimeEvent::MapRefreshed) {
-                closing.push(rt.effects.chunk_patches.last().unwrap().2);
-            }
-            if started && !rt.scene_active() {
-                break;
-            }
-        }
-        assert!(started);
+        let ride = elevator::ride(&mut rt, None);
+        assert!(ride.clock_matches(), "{ride:?}");
         assert_eq!(rt.map_id(), MapId(target));
         assert_eq!(rt.state().cell(), Cell::new(32, arrival));
-        assert_eq!(closing, vec![0x53, 0x52, 0x51, 0x50, 0x4F]);
+        assert_eq!(ride.chunks(), vec![0x53, 0x52, 0x51, 0x50, 0x4F]);
         assert_eq!(rt.effects.chunk_patches, vec![(16, door_y, 0x4F)]);
         assert!(
             rt.party
@@ -258,10 +237,16 @@ fn juzas_stairs_open_on_the_live_map_when_the_event_writes_them() {
 
     assert!(rt.start_event(0x0041), "Juza defeated starts");
     let mut refreshes = Vec::new();
-    for _ in 0..4000 {
+    let mut refresh_ticks = Vec::new();
+    for tick in 0..4000 {
         for event in checked_tick(&mut rt, Input::Neutral) {
             if event == RuntimeEvent::MapRefreshed {
                 refreshes.push(rt.effects.chunk_patches.clone());
+                refresh_ticks.push(tick);
+                assert!(
+                    rt.game.is_clear(Flag::event(0x48)),
+                    "flag follows the last delay"
+                );
             }
         }
         if !rt.scene_active() {
@@ -270,12 +255,16 @@ fn juzas_stairs_open_on_the_live_map_when_the_event_writes_them() {
     }
     assert!(!rt.scene_active(), "the event finished");
     assert!(rt.game.is_set(Flag::event(0x48)));
-    assert_eq!(refreshes.len(), 1, "the restore refreshes once");
-    assert!(
-        !refreshes[0].iter().any(|&(x, y, _)| (x, y) == (12, 9)),
-        "the map effect's own closed-chunk write is gone: {:?}",
-        refreshes[0]
-    );
+    assert_eq!(refreshes.len(), 8, "each alternating stair row refreshes");
+    assert!(refresh_ticks.windows(2).all(|pair| pair[1] - pair[0] == 7));
+    for (index, patches) in refreshes.iter().enumerate() {
+        let closed = patches.iter().find(|&&(x, y, _)| (x, y) == (12, 9));
+        if index % 2 == 0 {
+            assert_eq!(closed, Some(&(12, 9, 0x16)), "closed row {index}");
+        } else {
+            assert_eq!(closed, None, "open row {index} removes the overlay");
+        }
+    }
     assert_eq!(
         rt.map.collision_at(Cell::new(24, 18)),
         Some(psiv_core::CollisionType::MapChange),

@@ -2,6 +2,8 @@
 //! cycle and ramp fade-in, its return of the room palette, and the repeat
 //! visit's cycle and 60-frame wait.
 
+mod timing;
+
 use std::path::Path;
 
 use super::{PACK, pack_present, runtime_at};
@@ -18,14 +20,29 @@ struct LeRoofTick {
     calls: u64,
 }
 
-/// Runs `event` on Le Roof Room (`$F0`) from beside Le Roof, closing every
+/// Retail capture's `$F406`/`$F408` `($1F0, $200)`, with the standing-row
+/// offset of 16 added to native `RetailLocation.char_y`.
+const LE_ROOF_START: (u16, u16) = (0x1F0, 0x210);
+
+/// Runs `event` on Le Roof Room (`$F0`) from the retail capture's start, closing every
 /// window at once, until `stop` holds for a tick's events or the scene ends.
 fn le_roof_run(
     event: u16,
     flags: &[Flag],
     stop: impl Fn(&RuntimeEvent) -> bool,
 ) -> Vec<LeRoofTick> {
-    le_roof_run_on(&mut le_roof_room(flags), event, stop)
+    le_roof_run_from(LE_ROOF_START, event, flags, stop)
+}
+
+/// [`le_roof_run`] from `start`, including the nearer negative control.
+fn le_roof_run_from(
+    start: (u16, u16),
+    event: u16,
+    flags: &[Flag],
+    stop: impl Fn(&RuntimeEvent) -> bool,
+) -> Vec<LeRoofTick> {
+    let party = [Some(CharId(0)), None, None, None, None];
+    le_roof_run_on(&mut runtime_at(0x0F0, start, party, flags), event, stop)
 }
 
 /// Le Roof Room (`$F0`) with Chaz beside Le Roof, its map just loaded.
@@ -425,8 +442,9 @@ fn le_roof_again_cycles_then_waits_with_map_updates() {
     assert_eq!(spent % 6, 0);
     assert_eq!(ticks[fade_out + spent - 1].words, [0; 64]);
     assert_ne!(ticks[fade_out + spent - 7].words, [0; 64]);
+    // `InitVRAMAndCRAM` opens with its `PalFadeOut_ClrSpriteTbl` (#637).
     let reinit = (fade_out..ticks.len())
-        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::InitVramAndCram)))
+        .find(|&at| is(&ticks[at], &|op| matches!(op, SceneOp::FadeOut)))
         .expect("the second InitVRAMAndCRAM");
     assert_eq!(
         reinit - fade_out,

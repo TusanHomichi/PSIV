@@ -1,6 +1,5 @@
 //! Scene execution and translation into runtime events.
 
-use psiv_core::battle::Outcome;
 use psiv_core::{
     ActorRef, Direction, Driver, Input, MapId, Npc, NpcId, ONE_PIXEL, PixelPos, SceneEffect,
     SceneInput, SceneOp, WarpTrigger,
@@ -122,11 +121,16 @@ impl Runtime {
     /// field takes the next frame.
     pub(crate) fn end_scene(&mut self, events: &mut Vec<RuntimeEvent>) {
         self.scene = None;
+        self.destination_world = None;
         self.boarding_body = None;
         self.scene_camera_locked = false;
         self.scene_triggers_pending = true;
         self.scene_tree_address = None;
         self.scene_panel_sprites = false;
+        // Control goes back with the display on: the routine the cartridge
+        // hands it to fades in itself, and the scenes that end dark are
+        // listed in `psiv_core`'s `scenes::dark_display` census (#653).
+        self.effects.cram.enable_display();
         events.push(RuntimeEvent::SceneEnded);
     }
 
@@ -262,23 +266,10 @@ impl Runtime {
                     events.push(RuntimeEvent::SceneChoiceRequested);
                 }
             }
-            SceneEffect::BattleRequested { index } => match self.start_boss_battle(index) {
-                Ok(initial) => events.push(RuntimeEvent::SceneBattleStarted {
-                    index,
-                    events: initial.events,
-                    sounds: initial.sounds,
-                    animations: initial.animations,
-                }),
-                Err(error) => {
-                    events.push(RuntimeEvent::SceneBattleFailed {
-                        index,
-                        error: error.to_string(),
-                    });
-                    self.scene_input = SceneInput::BattleFinished {
-                        outcome: Outcome::Escaped,
-                    };
-                }
-            },
+            // The battle starts at the end of its entry (`battle_entry`).
+            SceneEffect::BattleRequested { index } => {
+                events.push(self.begin_battle_entry(index));
+            }
             SceneEffect::ObjectRoutineStarted { npc_index, routine } => {
                 self.wander.remove(npc_index);
                 if let Some(kind) = psiv_core::scene_routine_kind(routine) {
@@ -322,6 +313,8 @@ impl Runtime {
                 }
             }
             SceneEffect::NpcDespawned { npc_index, count } => {
+                self.eclipse_torch
+                    .retain(|slot, _| !(npc_index..npc_index + count).contains(slot));
                 for i in npc_index..npc_index + count {
                     let _ = self.map.set_npc_active(i, false);
                 }
@@ -525,6 +518,15 @@ impl Runtime {
                             0x08,
                             events,
                         );
+                        if matches!(
+                            leg,
+                            psiv_core::FlightLeg::Takeoff | psiv_core::FlightLeg::Transit
+                        ) {
+                            self.effects.cram.flight_ship(
+                                self.data.scene_palettes(),
+                                self.game.is_set(psiv_core::Flag::event(0x80)),
+                            );
+                        }
                         if leg != psiv_core::FlightLeg::Return {
                             self.scene_camera_locked = true;
                             self.scene_input = SceneInput::None;
@@ -561,6 +563,7 @@ impl Runtime {
             // state (it feeds the RNG stream through the on-screen tests), so
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
+                self.dialogue.scene_panel_op(&op);
                 // The palette's one writer applies every palette record on
                 // the frame the scene emits it; a variable fade answers with
                 // the frames it spends.
@@ -579,16 +582,34 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    SceneOp::CreateEclipseTorch(spawn) => {
+                        self.eclipse_torch
+                            .insert(spawn.slot, psiv_core::EclipseTorchObject::new(spawn));
+                    }
+                    SceneOp::CommitDestination => {
+                        if let Some(world) = self.destination_world.take() {
+                            self.set_world_index(world);
+                        }
+                    }
+                    // The window and portrait a scene's text left up
+                    // (`Runtime::open_scene_dialogue`) go with it.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::WindowDestroy { .. },
+                    } => self.dialogue.release_held_page(),
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::BarrierBeamUpdates { reveal, .. },
                     } => {
                         self.tick_barrier_beams(reveal);
                     }
                     SceneOp::FlightPlanet => {
-                        // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8
-                        // background 18, loc_644AE sprites 2/4, RunText2 3/2
-                        // CPU frames. d4=1 means zero per-character waits.
-                        let frames = if self.map.id().0 == 0 { 38 } else { 37 };
+                        self.effects
+                            .cram
+                            .flight_planet(self.data.scene_palettes(), self.world_index());
+                        // Tape 35: loc_643B8 background 18, loc_644AE
+                        // sprites 2/4, RunText2 3/2 CPU frames, after the
+                        // `InitVramAndCram` before it spent its own 15/13
+                        // (#637). d4=1 means zero per-character waits.
+                        let frames = if self.map.id().0 == 0 { 23 } else { 24 };
                         if let Some(runner) = self.scene.as_mut() {
                             runner.delay_frames(frames);
                         }

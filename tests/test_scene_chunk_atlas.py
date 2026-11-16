@@ -26,7 +26,7 @@ The Rust pack builder (`rust/psiv-pack/src/maps/patches.rs`) carries its own
 copy of the rows that add atlas chunks (`via` `"scene"`). `RustBuilderRows`
 holds the two to the same scenes, maps, chunks, tables and pinned bytes without
 the ROM, so a row added to one builder only fails here rather than in the full
-gate's pack parity (the Wreckage row did, #333).
+Rust emitted-atlas tests (the Wreckage row did, #333).
 """
 from __future__ import annotations
 
@@ -45,6 +45,7 @@ from tests.test_scene_trees import (
     SCENES_DIR,
     STATIC_RE,
 )
+from tests.test_vahal_events import row_writes
 
 ROOT = Path(__file__).resolve().parents[1]
 RUST_PATCHES = ROOT / "rust" / "psiv-pack" / "src" / "maps" / "patches.rs"
@@ -134,6 +135,11 @@ def registry_writes(sources: dict[str, str] | None = None) -> dict[str, list[tup
                 for block in WRITE_RE.findall(ops)
                 for match in TUPLE_RE.findall(block)
             ]
+            if re.search(r"ops:\s*&platform\(", ops):
+                # The shared builder writes each PlatformRow's start/end
+                # pair. Use the retail transcription guard's row reader so
+                # both directions remain in the atlas census.
+                writes.extend(write for pair in row_writes(ops) for write in pair)
             if writes:
                 found[name.group(1)] = writes
     return found
@@ -208,6 +214,67 @@ def unresolved(
                     f"${row.map_id:03X} ({record.get('symbol')}); rebuild the pack"
                 )
     return problems
+
+
+class PlatformBuilderWrites(unittest.TestCase):
+    """Builder arguments participate in the same citation and atlas checks."""
+
+    SOURCE = '''pub static PLATFORM: Scene = Scene {
+    name: "ExamplePlatform",
+    ops: &platform(
+        PLATFORM_SLOT, 0,
+        PlatformRow {
+            object: (0, 0),
+            start: &[(1, 2, 3), (2, 2, 4)],
+            ride: (0x0200, 16),
+            end: &[(1, 3, 5), (2, 3, 6)],
+        },
+        PlatformRow {
+            object: (0, 0),
+            start: &[(1, 3, 7), (2, 3, 8)],
+            ride: (-0x0200, 16),
+            end: &[(1, 2, 9), (2, 2, 10)],
+        },
+    ),
+};'''
+    WRITES = [(1, 2, 3), (2, 2, 4), (1, 3, 5), (2, 3, 6),
+              (1, 3, 7), (2, 3, 8), (1, 2, 9), (2, 2, 10)]
+    ROW = map_patches.SceneChunkWrite(
+        scene="ExamplePlatform", map_id=1, citation="synthetic parser fixture",
+        chunks=tuple(range(3, 11)),
+    )
+
+    def test_both_rows_start_and_end_writes_are_found(self) -> None:
+        self.assertEqual(registry_writes({"fixture": self.SOURCE}),
+                         {"ExamplePlatform": self.WRITES})
+
+    def test_an_uncited_write_in_each_pair_is_named(self) -> None:
+        for x, y, chunk in self.WRITES:
+            with self.subTest(chunk=chunk):
+                changed = self.SOURCE.replace(f"({x}, {y}, {chunk})", f"({x}, {y}, 99)")
+                writes = registry_writes({"fixture": changed})
+                self.assertEqual(uncited_writes(writes, (self.ROW,)), [
+                    f"ExamplePlatform writes chunk $63 at ({x},{y}) and "
+                    "SCENE_CHUNK_WRITES has no row for it"
+                ])
+
+    def test_a_missing_atlas_chunk_in_each_pair_is_named(self) -> None:
+        writes = registry_writes({"fixture": self.SOURCE})
+        record = {"symbol": "fixture", "patch_tiles": {
+            "tiles": [{"index": i, "chunk_id": chunk}
+                      for i, chunk in enumerate(self.ROW.chunks)]
+        }}
+        self.assertEqual(unresolved(writes, Path("unused"), (self.ROW,), maps={1: record}), [])
+        for missing in self.ROW.chunks:
+            with self.subTest(chunk=missing):
+                changed = {**record, "patch_tiles": {"tiles": [
+                    tile for tile in record["patch_tiles"]["tiles"]
+                    if tile["chunk_id"] != missing
+                ]}}
+                self.assertEqual(unresolved(writes, Path("unused"), (self.ROW,), maps={1: changed}), [
+                    f"ExamplePlatform: chunk ${missing:02X} does not resolve in the atlas "
+                    "of map $001 (fixture); rebuild the pack"
+                ])
 
 
 class RustBuilderRows(unittest.TestCase):

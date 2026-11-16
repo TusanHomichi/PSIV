@@ -606,6 +606,11 @@ pub static ENDING: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::ClearPlanes,
         },
+        // `$079C0A`: `jsr VDP_EnableDisplay`; the display has been off since
+        // the `Pal_VariableFadeOut` before the loop.
+        SceneOp::Presentation {
+            op: PresentationOp::EnableDisplay,
+        },
         SceneOp::DmaPlanes,
         SceneOp::DrawTextToPlane {
             entry: 0x12,
@@ -665,6 +670,9 @@ pub static ENDING: Scene = Scene {
             op: PresentationOp::PaletteRestoreTone { frames: 60 },
         },
         SceneOp::WaitFrames { frames: 60 },
+        // `$079D0C`: normal fall-through and the held-Menu shortcut meet
+        // at this Init, after the staff palette restore.
+        SceneOp::InitVramAndCram,
         SceneOp::Presentation {
             op: PresentationOp::EndingCreditsAssets {
                 small_planet_rom_addr: 0x001D_E278,
@@ -675,6 +683,9 @@ pub static ENDING: Scene = Scene {
                 credit_font_tile: 0x07C0,
             },
         },
+        // `$079E70`: after the credits assets/initial plane upload, before
+        // the stage-1 counters and scrolling loop.
+        SceneOp::FadeIn,
         SceneOp::Presentation {
             op: PresentationOp::EndingCreditsStage {
                 stage: 1,

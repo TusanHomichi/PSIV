@@ -150,7 +150,7 @@ def wrong_rom_message(path: str | Path, sha: str) -> str:
     """The refusal the player sees for any other image. It names the file, not
     its path, which would put the player's folders on the setup screen and in
     every screenshot of it. `psiv-pack` words it the same
-    (rust/psiv-pack/src/rom.rs); `tools/pack_parity.py` compares them."""
+    (rust/psiv-pack/src/rom.rs)."""
     name = Path(path).name or str(path)
     return (f"{name} is not the US retail ROM PSIV builds from: its SHA-256 is {sha}, "
             f"expected {EXPECTED_SHA256}")

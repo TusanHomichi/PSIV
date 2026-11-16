@@ -200,22 +200,19 @@ fn every_scene_doc_op_count_matches_the_registry() {
 #[test]
 fn a_stale_data_line_fails_the_check() {
     let constants = constants();
-    for (name, current, stale) in [
-        (
-            "52_LeRoofAgain.md",
-            "`LE_ROOF_AGAIN` (78 ops)",
-            "`LE_ROOF_AGAIN` (72 ops)",
-        ),
-        (
-            "68_FindingAirCastle.md",
-            "`FINDING_AIR_CASTLE` (55 ops)",
-            "`FINDING_AIR_CASTLE` (50 ops)",
-        ),
+    for (name, constant, stale_count) in [
+        ("52_LeRoofAgain.md", "LE_ROOF_AGAIN", 72),
+        ("68_FindingAirCastle.md", "FINDING_AIR_CASTLE", 50),
     ] {
         let (file, text) = doc(name);
-        assert!(text.contains(current), "{file} states {current}");
-        assert!(disagreements(&statements(&file, &text), &constants, SCENES).is_empty());
-        let reverted = text.replacen(current, stale, 1);
+        let parsed = statements(&file, &text);
+        assert!(disagreements(&parsed, &constants, SCENES).is_empty());
+        let statement = parsed.iter().find(|row| row.constant == constant).unwrap();
+        assert_ne!(statement.ops, stale_count);
+        let current = format!("`{constant}` ({} ops)", statement.ops);
+        let stale = format!("`{constant}` ({stale_count} ops)");
+        assert!(text.contains(&current), "{file} states {current}");
+        let reverted = text.replacen(&current, &stale, 1);
         let wrong = disagreements(&statements(&file, &reverted), &constants, SCENES);
         assert_eq!(wrong.len(), 1, "{file}: {wrong:?}");
         assert!(wrong[0].starts_with(&format!("{file}:7: ")), "{wrong:?}");

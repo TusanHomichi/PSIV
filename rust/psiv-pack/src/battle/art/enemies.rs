@@ -1,7 +1,7 @@
 //! `battle/art/enemies.json` and the 153 body PNGs: the port of
 //! `enemy_records`, `enemy_art_bounds`, `build_tile_bank` and `enemy_mapping`
 //! in `psiv_tools/battle_art.py`, and of `enemy_body_png` and
-//! `build_enemies` in `psiv_tools/battle_art_pack.py`. The first module's
+//! `build_enemies` in [retired battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_art_pack.py). The first module's
 //! docs give the record layout and the three facts proven about it: the
 //! `+$00` word is a VRAM reservation, the mapping addresses the three art
 //! blobs in the order art #3, #1, #2, and the width byte is a half-width.
@@ -18,6 +18,9 @@ use crate::battle::names::enemy_symbols;
 use crate::decode::{enigma, nemesis};
 use crate::json::Json;
 use crate::{PackError, gfx, png};
+
+#[cfg(test)]
+mod retail_tests;
 
 /// `ENEMY_ART_TABLE`: the 20-byte graphics records.
 const ART_TABLE: usize = 0x27F3AE;

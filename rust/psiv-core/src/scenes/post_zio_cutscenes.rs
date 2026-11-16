@@ -108,7 +108,7 @@ pub static INSIDE_SPACESHIP: Scene = Scene {
 
 /// Ops between the sabotage menu and its cancel leg: everything after the menu
 /// up to and including the final `Return { value: 1 }`.
-const SABOTAGE_CANCEL_SKIP: u16 = 29;
+const SABOTAGE_CANCEL_SKIP: u16 = 35;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -139,12 +139,16 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
             mask: DestinationMask::Fixed(0x08),
             cancel_skip: SABOTAGE_CANCEL_SKIP,
         },
-        SceneOp::PanelDestroyAll,
+        // $0762B6: fade after the windows, before panels/chunks and the
+        // World_Index write. The menu releases at this fade's boundary.
         SceneOp::FadeOut,
+        SceneOp::PanelDestroyAll,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
         },
+        SceneOp::WaitFrames { frames: 4 },
         SceneOp::PlaySound { id: MUSIC_STOP },
+        SceneOp::CommitDestination,
         SceneOp::LoadMap {
             map: 0x18C,
             prev_map: 0xFFFF,
@@ -155,6 +159,12 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
             clear_load_flags: 0x08,
         },
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
+        // $076344 fades the takeoff map in; $0763CA fades it out before
+        // the alarm panels' Init ($0763F4) and fade-in ($0763FA).
+        SceneOp::FadeIn,
+        SceneOp::FadeOut,
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x7A },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 90 },
@@ -192,6 +202,14 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         },
         SceneOp::StartBattle { index: 8 },
         SceneOp::Return { value: 1 },
+        // $076524: Cancel destroys the windows first, then fades before
+        // Panel_DestroyAll / Map_LoadChunks and the return-map refresh.
+        SceneOp::FadeOut,
+        SceneOp::PanelDestroyAll,
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
+        SceneOp::WaitFrames { frames: 29 },
         SceneOp::LoadFlightMap {
             leg: FlightLeg::Return,
         },
@@ -225,7 +243,7 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::SetRenderSpritesInCutscene { enabled: true },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(3)),
-            window: DialogueWindow::Cutscene,
+            window: DialogueWindow::Inline,
         },
         SceneOp::PanelDestroyAll,
         SceneOp::Presentation {
@@ -332,6 +350,9 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
+        // $076906: Pal_FadeIn after the temple load/party parking,
+        // before the ship's flight and the impact's map-update loops.
+        SceneOp::FadeIn,
         SceneOp::PlaySound {
             id: MUSIC_EXPLOSION,
         },
@@ -703,64 +724,72 @@ pub static DARK_FORCE_1: Scene = Scene {
 pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
     name: "Cutscene_DarkForce1Defeated",
     event: EventIndex(0x8011),
-    ops: &[
-        SceneOp::InitVramAndCram,
-        SceneOp::FadeIn,
-        SceneOp::PanelCreate { id: 0x8E },
-        SceneOp::DmaPlanes,
-        SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogue {
-            source: DialogueSource::Entry(DialogueId(7)),
-            window: DialogueWindow::Cutscene,
-        },
-        SceneOp::Wait { ticks: 60 },
-        SceneOp::PlaySound {
-            id: MUSIC_TAKE_OFF_LANDALE,
-        },
-        SceneOp::Wait { ticks: 60 },
-        SceneOp::InitVramAndCram,
-        // `move.b #3, (World_Index).w` (`ps4.asm:156396`)
-        SceneOp::SetWorldIndex { world: 3 },
-        SceneOp::LoadMap {
-            map: 0x18E,
-            prev_map: 0xFFFF,
-            start_x: 0x3E,
-            start_y: 0x20,
-            facing: Direction::Down,
-            align: 8,
-            clear_load_flags: 0x08,
-        },
-        SceneOp::PlaySound {
-            id: MUSIC_MACHINE_CENTER,
-        },
-        SceneOp::SetSavedMusic {
-            id: MUSIC_MACHINE_CENTER,
-        },
-        SceneOp::FadeIn,
-        SceneOp::PanelCreate { id: 0x92 },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 60 },
-        SceneOp::PanelCreate { id: 0x93 },
-        SceneOp::DmaPlanes,
-        SceneOp::WaitFrames { frames: 120 },
-        SceneOp::PlaySound {
-            id: SFX_SPACESHIP_RADAR,
-        },
-        SceneOp::PlaySound { id: SOUND_STOP_SPC },
-        // `$0772CA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
-        SceneOp::SetRenderSpritesInCutscene { enabled: true },
-        SceneOp::RunDialogue {
-            source: DialogueSource::Entry(DialogueId(8)),
-            window: DialogueWindow::Cutscene,
-        },
-        SceneOp::RemoveItem { item: 0x9A },
-        SceneOp::AddItem { item: 0x97 },
-        SceneOp::SetFlag {
-            flag: Flag::event(0x89),
-            value: true,
-        },
-        SceneOp::Return { value: 0 },
-    ],
+    ops: &super::flight::with_planet_screen::<37>(
+        &[
+            SceneOp::InitVramAndCram,
+            SceneOp::FadeIn,
+            SceneOp::PanelCreate { id: 0x8E },
+            SceneOp::DmaPlanes,
+            SceneOp::SetRenderSpritesInCutscene { enabled: true },
+            SceneOp::RunDialogue {
+                source: DialogueSource::Entry(DialogueId(7)),
+                window: DialogueWindow::Cutscene,
+            },
+            SceneOp::Wait { ticks: 60 },
+            SceneOp::PlaySound {
+                id: MUSIC_TAKE_OFF_LANDALE,
+            },
+            SceneOp::Wait { ticks: 60 },
+            SceneOp::InitVramAndCram,
+            // `move.b #3, (World_Index).w` (`ps4.asm:156396`)
+            SceneOp::SetWorldIndex { world: 3 },
+            // $07722A calls loc_64C1E: its fade-in/out belong here, before
+            // Zelan F1, rather than to a fictitious linear caller range.
+        ],
+        &[
+            SceneOp::LoadMap {
+                map: 0x18E,
+                prev_map: 0xFFFF,
+                start_x: 0x3E,
+                start_y: 0x20,
+                facing: Direction::Down,
+                align: 8,
+                clear_load_flags: 0x08,
+            },
+            SceneOp::PlaySound {
+                id: MUSIC_MACHINE_CENTER,
+            },
+            SceneOp::SetSavedMusic {
+                id: MUSIC_MACHINE_CENTER,
+            },
+            // $07726E: Init again after RefreshMap/music, before Pal_FadeIn.
+            SceneOp::InitVramAndCram,
+            SceneOp::FadeIn,
+            SceneOp::PanelCreate { id: 0x92 },
+            SceneOp::DmaPlanes,
+            SceneOp::WaitFrames { frames: 60 },
+            SceneOp::PanelCreate { id: 0x93 },
+            SceneOp::DmaPlanes,
+            SceneOp::WaitFrames { frames: 120 },
+            SceneOp::PlaySound {
+                id: SFX_SPACESHIP_RADAR,
+            },
+            SceneOp::PlaySound { id: SOUND_STOP_SPC },
+            // `$0772CA`: `move.b #1, (Render_Sprites_In_Cutscenes).w`.
+            SceneOp::SetRenderSpritesInCutscene { enabled: true },
+            SceneOp::RunDialogue {
+                source: DialogueSource::Entry(DialogueId(8)),
+                window: DialogueWindow::Cutscene,
+            },
+            SceneOp::RemoveItem { item: 0x9A },
+            SceneOp::AddItem { item: 0x97 },
+            SceneOp::SetFlag {
+                flag: Flag::event(0x89),
+                value: true,
+            },
+            SceneOp::Return { value: 0 },
+        ],
+    ),
 };
 
 /// `$0040`, `Event_Juza`, retail `$06FB1E..$06FB5D`.
@@ -794,6 +823,12 @@ pub static JUZA: Scene = Scene {
     ],
 };
 
+// The open rows in `$06FBC4` are the baked layout: restoring them removes
+// the closed overlay.
+const JUZA_STAIRS_OPEN: SceneOp = SceneOp::RestoreMapChunks {
+    chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
+};
+
 /// `$0041`, `Event_JuzaDefeated`, retail `$06FB5E..$06FBED`.
 ///
 /// The stairs at chunks `(12,9)`, `(13,9)`, `(12,10)`, `(13,10)` — cells
@@ -812,17 +847,33 @@ pub static JUZA_DEFEATED: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_DOOR_OPENED,
         },
-        // `$06FBC4`: eight five-byte rows — delay, then four chunk ids —
-        // written to the same four chunks, alternating the closed chunk `$16`
-        // with `$23,$1A,$19,$1B`, each row followed by a plane refresh and a
-        // seven-frame `DMAPlane_B_VInt`. The row the table ends on is the map's
-        // *own* layout at those chunks, so the live state the cartridge leaves
-        // is exactly "these chunks are their baked selves again" — which is
-        // what `RestoreMapChunks` asserts and applies. The alternating frames
-        // change nothing the party can reach mid-scene.
-        SceneOp::RestoreMapChunks {
-            chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
+        // `$06FBC4`: eight rows, each followed by seven DMA/VInt frames
+        // (`$06FBB0`, DBF d0). CPU refresh at `$06FBA6` belongs to #546;
+        // these waits spend only the explicit DMA loop, with no updates.
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
         },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(12, 9, 0x16), (13, 9, 0x16), (12, 10, 0x16), (13, 10, 0x16)],
+        },
+        SceneOp::WaitFrames { frames: 7 },
+        JUZA_STAIRS_OPEN,
+        SceneOp::WaitFrames { frames: 7 },
         SceneOp::SetFlag {
             flag: Flag::event(0x48),
             value: true,

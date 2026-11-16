@@ -24,7 +24,7 @@ main checkout's `build/inputs/`, keyed by what builds them:
   artifact, not even the `release/psiv-pack` that `cargo run` runs.
 
 The builders read nothing else that Git does not track
-(`tests/test_pack_inputs.py` fails if the Python builder does;
+(`rust/psiv-pack/tests/inputs.rs` audits the Rust builder;
 `psiv-pack` reads only the ROM it is given, and
 `tests/test_local_inputs.py` fails if it embeds a file outside its key): the
 other linked inputs (the oracle's captures and evidence frames, the

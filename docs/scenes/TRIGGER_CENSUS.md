@@ -225,7 +225,7 @@ $FA $33 +3 -> $03     $FA $08 +21 -> $15   (Alys found -> Cutscene_PiataPrincipa
 > `Interaction_ProcessDialogueTree` (`$5887A`) calls `GetOffsetByID` (`$5917C`),
 > which is `GetDialogueByID` **without** the `lea $FFFF3000` — it advances from
 > wherever `a0` already is, i.e. from inside the current entry. So the target is
-> `current_entry + N`. `psiv_tools/dialogue_pack/flow.py` calls this field
+> `current_entry + N`. `rust/psiv-pack/src/dialogue/trees.rs` calls this field
 > `then_entry` and documents it as an absolute id; that is wrong and mis-wires
 > every `$FA` branch in an entry whose own id is not 0. Filed in the final
 > report.

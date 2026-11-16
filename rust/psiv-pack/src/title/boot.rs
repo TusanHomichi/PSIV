@@ -1,6 +1,6 @@
 //! The title palette cycle, derived from the cartridge: the port of
 //! `_TitleBoot`, `run_title_boot` and `derive_palette_cycle` in
-//! `psiv_tools/title_pack.py`, whose docs give the reasons. It follows
+//! [retired title_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/title_pack.py), whose docs give the reasons. It follows
 //! `Palette_Table_Buffer` from power-on to the title menu one game frame at a
 //! time, under tape 25's input, reading every count, step and table from the
 //! instructions that hold them.
@@ -132,6 +132,10 @@ struct Boot<'a> {
     pressed: bool,
     routine: &'static str,
     routine_mfc: u32,
+    lag: &'a [(&'a str, &'a [(u32, u32)])],
+    start_held: &'a [(u32, u32)],
+    #[cfg(test)]
+    entries: std::collections::BTreeMap<&'static str, u32>,
 }
 
 impl<'a> Boot<'a> {
@@ -147,10 +151,16 @@ impl<'a> Boot<'a> {
             pressed: false,
             routine: "",
             routine_mfc: 0,
+            lag: &LAG,
+            start_held: &START_HELD,
+            #[cfg(test)]
+            entries: std::collections::BTreeMap::new(),
         }
     }
 
     fn enter(&mut self, routine: &'static str) {
+        #[cfg(test)]
+        self.entries.insert(routine, self.mfc);
         self.routine = routine;
         self.routine_mfc = self.mfc;
     }
@@ -159,7 +169,8 @@ impl<'a> Boot<'a> {
     fn wait(&mut self) {
         self.states.push(self.pal);
         let since = self.mfc - self.routine_mfc;
-        let lag = LAG
+        let lag = self
+            .lag
             .iter()
             .find(|(name, _)| *name == self.routine)
             .and_then(|(_, frames)| frames.iter().find(|(k, _)| *k == since))
@@ -167,7 +178,8 @@ impl<'a> Boot<'a> {
         self.frame += 1 + lag;
         self.mfc += 1;
         self.vint_frames.push(self.frame);
-        let held = START_HELD
+        let held = self
+            .start_held
             .iter()
             .any(|&(from, to)| (from..to).contains(&self.frame));
         self.pressed = held && !self.held;
@@ -352,8 +364,8 @@ impl<'a> Boot<'a> {
         self.enter("TitleRoutine_FadingText");
         let source = imm_long(rom, 0x4255C, 0x41F9, "lea (Pal_TitleScreen).l, a0")? as usize;
         let words = usize::from(imm(rom, 0x42566, 0x303C, "move.w #$3F, d0")?) + 1;
-        for i in 0..words {
-            self.pal[i] = w(rom, source + 2 * i)?;
+        for (i, color) in self.pal[..words].iter_mut().enumerate() {
+            *color = w(rom, source + 2 * i)?;
         }
         self.wait();
         expect(rom, 0x42610, 0x08B8, "bclr #0, (CredText_A).w")?;
@@ -661,3 +673,6 @@ mod tests {
         assert!(!boot.pressed && boot.held);
     }
 }
+
+#[cfg(test)]
+mod retirement;

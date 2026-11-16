@@ -1,17 +1,20 @@
 # `Cutscene_InsideSpaceship`
 
 - **Retail bytes:** `$07606C..$07607D` inclusive, 18 bytes, then the shared helper
-  `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
+  `loc_63BC4` through `loc_64C1E`'s closing `jmp` (`ps4.asm:133499-134714`,
+  ROM `$063BC4` to `$064CFF`), the menu and the flight routines it calls. The
+  censuses read that span as this scene's shared code, never as a caller's
+  (`wait_census::shared_code::SHARED_CODE`).
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (48 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (54 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
-- **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
+- **Pack:** `ship_menu/` (`rust/psiv-pack/src/ship_menu.rs`): the strings, the
   `WinGroup_Event` records, the palette and eight backgrounds.
 - **Evidence:** oracle tape `oracle/tapes/35_ship_destination_menu.tape` and the
-  certified pair `ship-menu` (`tools/certify.py`). Its previous image pass was
-  `rmse=0.000000`; the current candidate requires an orchestrator X11 run.
+  certified pair `ship-menu` (`tools/certify.py`): native tick 101 against
+  oracle frame 7293, with state and image checks reported separately.
 
 ## Clone audit
 
@@ -95,6 +98,19 @@ resolve the caption pointer and mode.
 | place-name window to field control | `FieldRoutine_PlaceName`, `:136552-136646`, timer `$78` plus draw/teardown DMA | 124 | 124 |
 | **confirm to field control** | first `Game_Mode=$0C`, `Game_Mode_Routine=0` after landing | **1,861** | **1,596** |
 
+The menu's fixed fade-outs run at their execution boundaries: `$063E0C`
+starts 155 frames after the Mota confirm, 161 after the Zelan confirm; `$063E8A`
+starts 12 frames after Cancel. Both run 14 frames. `Panel_DestroyAll` and
+`Map_LoadChunks` follow at offsets 169/175 (confirm) or 26 (Cancel), with four
+CPU frames of chunk setup. Confirm then writes `World_Index` and takes off at
+173/179. Cancel enters `RefreshMap` at 30 and completes its handoff at 55,
+including 25 refresh frames. The session retains the background, removes both
+windows before the fade, and lends its last marker palette to the existing CRAM
+fade. These frames replace parts of the measured 25/55-frame close budgets;
+they are not added to them. The confirm text/tail model already accounts for
+five of the twelve retail window-destruction frames, leaving seven before the
+scene's fade; Cancel leaves all twelve there.
+
 The last three rows (return VInt and reload preparation, fade-in, place-name
 window) are not flight-specific: they are `FieldRoutine_Cutscene`'s zero return
 through `GameMode_LoadFieldMap` and `FieldRoutine_PlaceName`, which every
@@ -111,9 +127,38 @@ inferred from glyph count. Only these two legs' setup spans are measured.
 Other destinations, other message speeds, interrupted flights and the Rykros
 branch are not frame-exact claims.
 
-**Fade correction:** flight fade-in spends 16 frames, including display enable
-and the terminal palette pass. Fade-out spends 14. The old claim that all fades
-spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`).
+**Fade correction:** all five unique flight `Pal_FadeIn` sites use the same
+fixed CRAM model as the entry: `$0645D6` / `$0648F8` (takeoff), `$064C8E`
+(shared planet screen, counted once), `$0647B8` / `$064A2E` (transit).
+Each spends 16 frames, including display enable and the terminal palette pass. Fade-out spends 14. The old claim that all fades
+spend 14 was wrong (`Pal_FadeIn`/`VDP_EnableDisplay`, `:85897-85950`). Since
+#637 the route's `FadeOut`s and `InitVramAndCram` spend their own frames on the
+CRAM model, as many as the palette's largest nibble needs (14 from white; the
+`InitVRAMAndCRAM` row's 15/13 is its fade and `DMAPlanes_VInt`), so the route
+holds no `WaitFrames` for them, and `FlightPlanet` spends the planet screen's
+setup alone (23/24).
+
+`loc_641A2` copies sixteen ship palette words to line 3 from `$1DE0F8`,
+or `$1DE0D8` with `EventFlag_Snowstorm`, after each flight map refresh.
+The planet helper copies `$1DE138` to line 4 and `$1DE118` to line 2;
+`loc_64550` selects line 1 by world through six longword pointers decoded
+into the private pack, together with their target palettes. Line 3 retains `Pal_Init`, with caption
+word 47 cleared before the fade. These raw words are pack data, applied by
+CRAM's one writer. `Pal_FadeIn` copies the target, clears the live buffer,
+waits a dark frame, enables the display, steps every nibble one per frame,
+and waits one unchanged terminal pass. It is not a screen-cover timer.
+
+`nix develop --command heavy -- python3 -m oracle.ship_flight --fades --out build/ship-fades` measures the
+five sites' six executions on tape 35's two fixtures. It checks call/return
+instruction boundaries, every live palette word against its saved target,
+and the display bit on every fade frame. Python owns capture orchestration and
+CSV-to-JSON adaptation; the `flight-fades` binary in `psiv-compare` owns analysis
+and Rust negative controls for wrong words, timing, display and omitted or
+duplicated calls (`cargo test --manifest-path rust/Cargo.toml -p psiv-compare`).
+The session-pad regression checks those same boundaries at Speak offsets
+218/826/1236 (Mota→Zelan) and 200/556/990 (Zelan→Mota), with the existing
+map/control, caption and propulsion timeline unchanged. These are state and
+timing checks, separate from image certification.
 
 **Propulsion SFX (#629):** the spaceports' loop writes `SFXID_SpaceshipPropelled`
 (`$E3`) to `Sound_Index` at the start of each pass whose counter is `$E1`, `$E2`
@@ -201,8 +246,9 @@ The Landale writes none.
 - Mask and rows: `destination_mask_byte`, `destination_worlds` (`flight.rs`).
 - The menu: `SceneOp::DestinationMenu` blocks the scene; the runtime hands it to
   the session as a `ScenePresentation` event, which opens the destination mode.
-  The answer reaches the scene through `Runtime::answer_destination`, which writes
-  `World_Index` for a confirm (`travel.rs`). A Cancel skips `cancel_skip` ops, so
+  The answer reaches the scene through `Runtime::answer_destination`, which retains
+  the chosen world. `CommitDestination` writes `World_Index` after the fixed fade
+  and chunk teardown (`travel.rs`). A Cancel skips `cancel_skip` ops, so
   an inlined copy needs no absolute index.
 - The legs: `SceneOp::LoadFlightMap { leg }`; `scene_runtime.rs` resolves the table
   by the current map and `World_Index`. A key a table has no row for is a scene
@@ -245,9 +291,11 @@ post-control overlay removal. The correction-ladder rung is **compile-time full-
 for inlined callers, plus regression tests through the owning runtime, with a repository-owned oracle probe; no shell
 sleep or timing workaround.
 
-`ship-menu` retains clone tick **70**, oracle frame **7293** and SHA-256
-`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`.
-The runtime's tick-30 event fixture verifies at tick 70: Choosing, both windows
+`ship-menu` is clone tick **101**, oracle frame **7293** and SHA-256
+`af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8`: tick 70
+before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent their 15 and 16
+frames ([#637](https://github.com/TusanHomichi/PSIV/issues/637)).
+The runtime's tick-30 event fixture verifies at tick 101: Choosing, both windows
 fully uploaded, cursor hidden and marker blink off. `python3 tools/certify.py
 --only ship-menu` is the image comparison; a state-pin pass is not an
 image-parity pass.

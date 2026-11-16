@@ -685,3 +685,6 @@ pub fn decode_map_section(
         rom, decodes, record,
     )?)))
 }
+
+#[cfg(test)]
+mod tests;

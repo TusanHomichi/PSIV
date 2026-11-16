@@ -34,7 +34,7 @@ is negative, which restarts the table without spending a pass. The second word i
 pointer already advanced. For the sixth colour that is `$06E922`, the first word of `loc_6E922`'s
 code (`moveq #7, d0`): the cartridge writes it as a colour twice in the sixteen passes. The table is
 the cartridge's, so the scene record carries only its address and the loop's shape
-(`PaletteCycleFromTable`), and the pack holds the words: `psiv_tools.presentation_pack`'s
+(`PaletteCycleFromTable`), and the pack holds the words: `psiv_pack::presentation`'s
 `PLATE_ENGINE_LIGHT` emits `$06E908..$06E924`, fourteen words through that code word, into
 `presentation/panels.json`'s `palettes`, and `psiv_core::palette_cycle_writes` expands them as the
 loop reads them. Both palette records address `Palette_Line_2 + $18` (`Palette_Table_Buffer + $38`)
@@ -47,7 +47,7 @@ runs exactly one. The records are presentation only, and the renderer does not d
 `rust/psiv-core/tests/plate_wreckage_scenes.rs` holds the line, the resume, the two palette records
 and their offset, the frames that run map updates from the light to Demi's turns, the loop's
 expansion on made-up words, Rune's turn only when he is in the party, and the flag.
-`tests/test_presentation_pack.py` checks the pack's window against the ROM and that it ends at the
+[retired test_presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_presentation_pack.py) checks the pack's window against the ROM and that it ends at the
 loop's deepest read; `rust/psiv-campaign/tests/plate_system.rs` expands the pack's words into the
 sixteen writes.
 `rust/psiv-campaign/tests/plate_system.rs` reads the engine with pads on the real map, and a second

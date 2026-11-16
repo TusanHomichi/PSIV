@@ -345,6 +345,13 @@ pub enum RuntimeEvent {
     /// The scene needs a yes/no answer that has not yet been supplied by
     /// dialogue. Call [`crate::Runtime::dialogue_choice`] with the choice.
     SceneChoiceRequested,
+    /// A scene requested event battle `index`: its entry runs from the next
+    /// frame, and [`RuntimeEvent::SceneBattleStarted`] ends it. The shell plays
+    /// the battle's theme here, as `RunEventBattle` requests it first.
+    EventBattleEntered {
+        /// The event battle index.
+        index: u16,
+    },
     /// A scene requested an event battle and the runtime started it. The
     /// initial setup events are delivered with the same timeline as random
     /// encounters, so the presentation layer can use one battle screen.
@@ -388,10 +395,16 @@ pub enum RuntimeEvent {
         /// The character id whose record changed.
         who: psiv_core::CharId,
     },
-    /// A random encounter fired on this landing. The shell seats the party
-    /// and calls [`crate::Runtime::start_battle`] with this formation.
+    /// A random encounter fired on this landing. Its entry runs before the
+    /// session seats the party and rolls the opening priority.
     EncounterRolled {
         /// The formation id the encounter tables picked.
+        formation: u16,
+    },
+    /// The encounter entry has finished: the session starts and rolls this
+    /// battle on this frame, then hands subsequent frames to the battle loop.
+    EncounterBattleReady {
+        /// The formation retained from the encounter's fire frame.
         formation: u16,
     },
     /// A cleared map object is live again. The renderer shows it, building

@@ -10,6 +10,8 @@ use crate::battle::{StatPair, StatTriple, Stats};
 use crate::scene::{DialogueId, RideOp, SceneFault};
 use crate::{CollisionGrid, Direction, EventIndex, Flag, MapId, PixelPos, scene_for};
 
+mod frames;
+
 fn stats() -> Stats {
     Stats {
         name_bytes: [0; 6],

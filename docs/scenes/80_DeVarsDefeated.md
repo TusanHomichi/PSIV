@@ -4,7 +4,7 @@
 - **Pointer:** `EventPtrs[$64]`; event `$0064`.
 - **Trigger:** `RunEventsJmpTbl[$4B]`, DeVars `$D4` set and defeat `$E5`
   clear.
-- **Data:** `dezo_endgame.rs`, `DE_VARS_DEFEATED` (6 ops).
+- **Data:** `dezo_endgame.rs`, `DE_VARS_DEFEATED` (5 ops).
 
 ## Clone audit
 
@@ -15,7 +15,14 @@ excluded. ROM range: `$07175A..$071822` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-1 | `$07175A..$07179A` | dialogue `$04`, fade and palette ramp | dialogue/presentation |
-| 2-4 | `$07179B..$0717F5` | five object clears/updates, barrier SFX | object/SFX |
-| 5 | `$0717F6..$071821` | set DeVars defeated `$E5` | flag |
+| 0-1 | `$07175A..$07179A` | dialogue `$04`, tone loops to white and back (no fixed fade; op 1's `Wait` stands for the first loop, #571) | dialogue/wait |
+| 2-3 | `$07179B..$0717F5` | five object clears/updates, barrier SFX | object/SFX |
+| 4 | `$0717F6..$071821` | set DeVars defeated `$E5` | flag |
 
+## Fixed fades
+
+The US-image fixed-fade census finds no calls to Init, In or Out in this
+range. Runtime regression keeps the current field palette, map and party,
+sets only the defeat flag, and detects a restored spurious Out. The tone-loop
+implementation and its complete retail clock remain
+[#574](https://github.com/TusanHomichi/PSIV/issues/574).

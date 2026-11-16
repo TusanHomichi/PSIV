@@ -4,15 +4,18 @@
 - **Pointer:** `CutscenePtrs[$1C]`; scene `$801C`.
 - **Trigger:** `RunEventsJmpTbl[$34]`, strength chest `$D5` and courage chest
   `$D3` set, Le Roof story `$D6` clear.
-- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (78 ops).
+- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (84 ops).
 
 ## Clone audit
 
 The `grand_cross=0` cutscene table selects the retail body at
 `Cutscene_LeRoofAgain`; the clone's `grand_cross=1` scene include is not used.
-ROM range: `$078346..$0784B6` exclusive end. The final 48 ops are the
+ROM range: `$078346..$0784B6` exclusive end. The final 54 ops are the
 retail `$800D` spaceship route (`INSIDE_SPACESHIP_ROUTE`, menu and flight) inlined
-because this body jumps to it.
+because this body jumps to it. The censuses read this scene's own bytes against
+the ops before the route; the route, and the entry's own `InitVRAMAndCRAM` and
+`Pal_FadeIn` it runs again after ops 22-23, are
+[`Cutscene_InsideSpaceship`](41_InsideSpaceship.md)'s.
 
 ## Retail transcription
 
@@ -32,12 +35,25 @@ because this body jumps to it.
 | 21 | `$07846A..$078471` | `moveq #$3B, d0` / `DoMapUpdateLoop`: 60 frames with map updates | wait |
 | 22-27 | `$078472..$07849B` | `InitVRAMAndCRAM`, `Pal_FadeIn`, panel `$125`, DMA, dialogue `$0C` | panel/dialogue |
 | 28-29 | `$07849C..$0784AF` | set `$D6/$D7` | flags |
-| 30-77 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
+| 30-83 | `$0784B0..$0784B5` | `jmp Cutscene_InsideSpaceship`: the inlined `$800D` route: the destination menu, takeoff, planet screen, transit, landing, and the cancel leg | `INSIDE_SPACESHIP_ROUTE` ([Inside the spaceship](41_InsideSpaceship.md)) |
 
 The colour loops and the fade-in run `VInt_Prepare` only, no map or object
 update; the scene blocks for every pass. The galaxy picture is drawn as
 [`Event_MeetingLeRoof`](51_MeetingLeRoof.md#the-picture) draws it, until the
 `InitVRAMAndCRAM` of op 14.
 
-Gaps: the loops start 7 counted frames early, which moves the cycle's phase
-([#595](https://github.com/TusanHomichi/PSIV/issues/595)).
+Against the retail capture (as for
+[`Event_MeetingLeRoof`](51_MeetingLeRoof.md), plus flag byte `$F11A=$54`),
+Chaz walks 16 pixels (8 frames). Retail reaches its calls after these
+counted frames from the `Event_Index` write:
+
+- `Pal_VariableFadeOut_Lines_1_2`: 9;
+- `DMAPlanes_VInt`: 111;
+- `Pal_VariableFadeToPal2`: 112;
+- the 180-pass loop: 157;
+- `loc_705D6`: 337.
+
+The runtime reaches each on the same frame. Its words 0-31 equal retail's on
+every frame up to the end of the first 120-pass loop (528 frames). Op 20's fade
+spends 84 frames from panel `$11B`'s palette (fourteen passes of six), as
+retail does before `$07846C`.

@@ -1,7 +1,5 @@
-import json
 import re
 import struct
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,7 +14,6 @@ from psiv_tools.map_effects import (
     GET_MAP_LAYOUT_OFFSET,
     MAP_DATA_MANAGER_ROUTINES,
     MAP_LAYOUT_BYTES,
-    Gate,
     MapEffectsError,
     Write,
     decode_entry,
@@ -29,7 +26,6 @@ from psiv_tools.map_effects import (
     routine_address,
 )
 from psiv_tools.maps import extract_maps
-from psiv_tools.pack import PACK_FORMAT_VERSION, build_pack
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 REFERENCE = Path(__file__).resolve().parents[1] / "reference" / "ps4disasm"
@@ -349,89 +345,6 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(len(listed), 10)
 
 
-@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
-class TestInThePack(unittest.TestCase):
-    """A three-map pack: the two door maps and the one with a layout variant."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.data = read_rom(ROM)
-        cls._temp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls._temp.name) / "pack"
-        cls.manifest = build_pack(
-            cls.data, cls.root,
-            map_ids=[MAP_ZEMA, MAP_BIRTH_VALLEY_B1, MAP_GARUBERK_PART2],
-        )
-        cls.maps = {
-            entry["id"]: json.loads((cls.root / entry["json"]).read_text())
-            for entry in cls.manifest["maps"]
-        }
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._temp.cleanup()
-
-    def test_the_effects_arrive_with_the_map_they_patch(self):
-        for payload in self.maps.values():
-            with self.subTest(map=payload["symbol"]):
-                self.assertIn("map_effects", payload)
-                self.assertIn("layout_variants", payload)
-        self.assertTrue(self.maps[MAP_ZEMA]["map_effects"])
-
-    def test_the_five_stuck_doors_are_the_ones_the_patches_open(self):
-        # These five have been in `doors_without_map_change_cell` since the
-        # pack first reported it. Slice 1 is what opens them.
-        waiting = self.manifest["warps"]["doors_without_map_change_cell"]
-        self.assertEqual(len(waiting), 5)
-        for door in waiting:
-            payload = self.maps[door["id"]]
-            patched = {
-                (write["chunk_x"], write["chunk_y"])
-                for entry in payload["map_effects"] if entry["decoded"]
-                for path in entry["paths"] for write in path["writes"]
-                if write["kind"] == "layout_write"
-            }
-            rect = door["rect"]
-            cells = {(x, y)
-                     for y in range(rect["y"], rect["y"] + rect["height"])
-                     for x in range(rect["x"], rect["x"] + rect["width"])}
-            covered = any(
-                (cx * 2 + dx, cy * 2 + dy) in cells
-                for cx, cy in patched for dx in (0, 1) for dy in (0, 1)
-            )
-            with self.subTest(door=door["target"]["symbol"]):
-                self.assertTrue(covered, "no layout write covers this doorway")
-
-    def test_the_layout_variant_ships_decoded(self):
-        # The lead's requirement: a replacement layout is a first-class variant,
-        # not a blob pointer, so no consumer needs a decompressor.
-        (variant,) = self.maps[MAP_GARUBERK_PART2]["layout_variants"]
-        self.assertEqual(len(variant["planes"]), 2)
-        # One plane of the pair is the map's own base blob: only the other
-        # actually changes.
-        self.assertEqual([p["identical_to_base"] for p in variant["planes"]], [True, False])
-        self.assertGreater(variant["differs_from_base_cells"], 0)
-        self.assertEqual(variant["collision"]["width_cells"], 96)
-        self.assertEqual(len(variant["collision"]["rows"]), 96)
-        for name in ("png", "png_over"):
-            with self.subTest(file=name):
-                self.assertTrue((self.root / variant[name]).exists())
-        base = self.maps[MAP_GARUBERK_PART2]["collision"]
-        self.assertEqual(
-            (variant["collision"]["width_cells"], variant["collision"]["height_cells"]),
-            (base["width_cells"], base["height_cells"]),
-        )
-
-    def test_the_manifest_census(self):
-        census = self.manifest["map_effects"]
-        self.assertEqual(census["slice"], 1)
-        self.assertEqual(census["evaluated"], "map load only")
-        self.assertEqual(
-            [m["id"] for m in census["maps_with_layout_variants"]], [MAP_GARUBERK_PART2]
-        )
-        self.assertIn("object_despawn", census["kinds_emitted"])
-        # Pack-wide, not per map: a filtered build still censuses everything.
-        self.assertEqual(census["referenced_entries"], 127)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

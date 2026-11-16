@@ -1,4 +1,4 @@
-//! The port of `psiv_tools/battle_rules.py`: what five retail routines say an
+//! The port of [retired battle_rules](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_rules.py): what five retail routines say an
 //! equipment record means, decoded from their instructions rather than
 //! transcribed. That module's docs own the table of routines and the reasons;
 //! each signature here must occur exactly as often as retail carries it, and
@@ -8,6 +8,8 @@
 mod char_init;
 mod equip;
 mod mod_stats;
+#[cfg(test)]
+mod retail_tests;
 
 use std::collections::BTreeSet;
 

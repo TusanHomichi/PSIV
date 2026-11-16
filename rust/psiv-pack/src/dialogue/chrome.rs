@@ -1,4 +1,4 @@
-//! The box the text sits in: the port of `psiv_tools/dialogue_pack/chrome.py`.
+//! The box the text sits in: the port of [retired chrome](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/dialogue_pack/chrome.py).
 //! `loc_68704` draws every window out of three tiles of `ArtNem_WindowTiles`
 //! and their flip bits; `WinGroup_Dialogue` and `WinGroup_Menu` are the
 //! cartridge's own window records. That module's docs give the reasons.
@@ -401,3 +401,6 @@ mod tests {
         assert_eq!(roles["corner_top_left"]["x"], 0x69 * 8);
     }
 }
+
+#[cfg(test)]
+mod retirement;

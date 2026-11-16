@@ -257,25 +257,16 @@ TAPE_38_TONE = {
 # The same tape's first 60-frame `Pal_IncreaseTone` loop (`$078F9C`), after
 # the dialogue's last pages page on their own: `Palette_Table_Buffer` steps
 # `+$222` every fourth frame from 9896 (shown from 9897) and is white from
-# 9920 to the fade-out at 10086. The native window closes on tick 2598, the
-# frame the cartridge's last page turns (9893), and clone tick t shows oracle
-# frame t + 7296 through the loop: the fourth step's plateau (9909-9912) on
-# ticks 2613-2616 (#645). The untoned frame before (9893) and the white
-# endpoint inside the loop (9950) certify all but #409's first row and column.
+# 9920 to the fade-out at 10086. With the `$F2` VInts and the measured
+# panel lag (#667), the native window is up through tick 2657, and the chosen
+# pins use t + 7236 through this loop. The fourth step matches 2672-2675;
+# 2674 sits inside it. Regions and oracle hashes stay fixed.
+# The scene retains the window and portrait through this loop (#636), so
+# all three pairs use the full 1,1,319,223 region.
 TAPE_38_LOOP = {
     **TAPE_38,
-    "frames": [9893, 9950],
+    "frames": [9893, 9910, 9950],
     "region": [1, 1, 319, 223],
-}
-
-# The loop's fourth step (9910, backdrop `$888`) over the panels and the
-# backdrop above row 112: the native closes the dialogue's window and Chaz's
-# portrait when the text ends, where the cartridge keeps both up, toned,
-# until the loop is over (#636).
-TAPE_38_LOOP_RISE = {
-    **TAPE_38,
-    "frames": [9910],
-    "region": [1, 1, 319, 111],
 }
 
 # Rykros's third cycle row: the planet has appeared but is still dark,
@@ -290,15 +281,14 @@ TAPE_43 = {
 # `$222` to every word each fourth frame, `Palette_Table_Buffer` first
 # stepping in frame 8143 (shown from 8144) and white from 8167, then
 # `loc_58666` (`$078222`) steps back to the saved copy from 8175, done at 8199
-# (shown from 8200). Clone tick t shows oracle frame t + 7246 once the scene's
-# first dialogue spends its portraits' frames (#625), but for each step's
-# first frame (897, 901 ... 953), which the native shows already stepped: its
-# `Main_Frame_Count` phase is one off the tape's, because the debug run pages
-# the dialogue on other frames than the tape. The pairs sit inside the
-# plateaus: the untoned frame before (8141), the fourth step up (8157,
-# backdrop `$888`), the third step back (8185, every word floored at `$888`)
-# and the restored frame after (8201). Region `1,1,319,223`: the shell's
-# black first row and column (#409) show against the toned backdrop.
+# (shown from 8200). The native tone starts at tick 930 after three
+# explicit panel DMA frames (#595). Both routines still step on
+# Main_Frame_Count modulo four: the rise matches at 945, but the restore
+# still matches at 970. The fixture's dialogue schedule gives it a different
+# phase from the tape, so these are matching palette plateaus, not one tick
+# offset. The samples retain the untoned frame (8141), fourth step up (8157,
+# backdrop `$888`), third step back (8185, every word floored at `$888`),
+# and restored frame (8201). Region `1,1,319,223` excludes the shell edge (#409).
 TAPE_43_TONE = {
     **TAPE_43,
     "frames": [8141, 8157, 8185, 8201],
@@ -308,8 +298,8 @@ TAPE_43_TONE = {
 # The same run's window after the tone (#625): `Event_RunDialogue3` opens the
 # box on frames 8203-8211 (2, 6 ... 34 cells), `TextCtrlCode_Portrait`'s
 # decompression lags 8212-8215, and 8216 draws Rika's portrait at the panel
-# position (24,112) with the first glyph. Clone tick t shows frame t + 7246
-# from the tone's restore (954) through tick 1010.
+# position (24,112) with the first glyph. Three explicit panel DMA frames
+# precede the native tone; the portrait and first glyph now match at tick 1004.
 TAPE_43_PORTRAIT = {**TAPE_43, "frames": [8216]}
 
 # Zio Fort's second ramp row, with the frozen post-reveal beam mapping.
@@ -342,10 +332,64 @@ TAPE_45 = {
     "region": [24, 160, 272, 48],
 }
 
+# The held page after the dismiss press, then the expanding plane-A band
+# (#665). The crops certify only the named window/portrait or covered rows;
+# the toned field remainder has a separate deviation record.
+TAPE_45_PRESS = {**TAPE_45, "frames": [7800]}
+TAPE_45_PORTRAIT = {**TAPE_45_PRESS, "region": [40, 104, 48, 48]}
+TAPE_45_BAND = {**TAPE_45, "frames": [7801, 7805, 7812], "region": [0, 104, 320, 16]}
+TAPE_45_PORTRAIT_COVERED = {**TAPE_45_BAND, "region": [0, 72, 320, 80]}
+TAPE_45_WINDOW_COVERED = {**TAPE_45_BAND, "region": [0, 16, 320, 192]}
+
+# The same run's battle entry (#663, #679): white hold, fade from white,
+# then the two planes sweep in through `loc_6BA4`'s uploaded rows. The stage
+# is settled before `loc_B62A` rolls. Clone tick t shows frame t + 7286.
+TAPE_45_ENTRY = {**TAPE_45, "frames": [7814, 7840, 7857, 7859], "region": [1, 1, 319, 223]}
+TAPE_45_SWEEP = {**TAPE_45, "frames": [7863, 7870, 7873], "region": [1, 1, 319, 223]}
+
+# The name's first two cells and the first whole options window. The roll
+# runs on 7875; video shows its writes from 7876. One lag frame follows it.
+TAPE_45_OPTIONS = {**TAPE_45_ENTRY, "frames": [7876, 7891]}
+# Tape 07's ordinary encounter: fire 24777, white 24794-24821, uniform
+# fade steps 24822-24824. The selector fires just before session tick 30;
+# the result of a session tick is captured on the next tick. This certifies the backdrop, not the later plane sweep (#679).
+TAPE_07_ENTRY = {
+    "tape": "oracle/tapes/07_first_battle.tape", "patches": [],
+    "frames": [24794, 24810, 24822, 24824], "region": [1, 1, 319, 223],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
 # hashes recorded in SCENE_PRESENTATION.md and oracle/README.md.
+# Tape 46: `Event_EclipseTorchUsed` (`$47`) on foot on Dezolis (#593). Frame 7000
+# reloads Dezolis ($001, World_Index 1) with Chaz at ($BA0, $F0), below the
+# trigger, EventFlag_Snowstorm ($80) and EventFlag_Lashiec ($9B) set; 7224 sets
+# Event_Index. The flashes fill the buffer white in frames 7353 and 7395 (shown
+# 7354-7356 and 7396; in the second, a snowstorm map update rewrites words
+# 19-22 before the restore). Clone ticks 152 and 194-196 show the native
+# fills. Only the white frames certify: the restore frames' plane A, sprites
+# and line 3 are panel `$10D`'s, which the pack does not decode (#413).
+TAPE_46 = {
+    "tape": "oracle/tapes/46_eclipse_torch_flash.tape",
+    "patches": ["7000:FFFFEC28:0001", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF400:0001", "7000:FFFFF406:0BA0",
+                "7000:FFFFF408:00F0", "7000:FFFFF110:80", "7000:FFFFF113:10",
+                "7224:FFFFECA8:0047", "7224:FFFFEC20:000C"],
+    "frames": [7355, 7396],
+    "region": [1, 1, 319, 223],  # The field surface edge, #409.
+}
+
+# Isolated #724 fixture: the cartridge rolls priority after a seed high-word
+# patch. Native starts at the recorded post-roll seed/count on tape 07's party.
+TAPE_07_PREEMPTIVE = {
+    "tape": "oracle/tapes/07_first_battle.tape",
+    "patches": ["24840:FFFFEF0C:58B4"],
+    "frames": [24842, 24849, 24850, 24886, 24887, 24894, 24897, 24900],
+    "region": [1, 1, 319, 223],
+}
+PREEMPTIVE = {"PSIV_DEBUG_BATTLE_WINDOW": "preemptive", "PSIV_DEBUG_BATTLE_PHASE": "2"}
+
 PAIRS = [
     ("opening-p1", OPENING, 3550,
      "oracle/frames/opening/frame_4000.png",
@@ -353,9 +397,10 @@ PAIRS = [
     ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
      "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
-    # The first page complete, its arrow up: ticks 161-165 once Chaz's
-    # portrait spends its two lag frames (#625).
-    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 162,
+    # The first page complete, its arrow up: the #667 sweep matches
+    # 194-198 after its leading `$F2` panel wait, portrait lag (#625), and
+    # the scene's 31 `InitVRAMAndCRAM`/`Pal_FadeIn` frames (#637).
+    ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 195,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
     # The barrier's tone at saturation: every line but the held one white
@@ -365,25 +410,25 @@ PAIRS = [
      "93f08b3d8a7078ff98a735ecf835fbded1d36c8ab6a38c4c54aa48038dd0dd59", TAPE_37),
     # The ending's panels and window over map $13's camera, which is not
     # (0,0): the pair that places the scene layers at any camera position.
-    # Ticks 1690-1722 all match: at the break's t + 7245 they show 8935-8967,
-    # which equal 8930 (#645).
-    ("ending-elsydeon", ENDING, 1704,
+    # The #667 sweep matches 1680-1762 before the break, and again 1799-1805
+    # on its restore. The chosen tick is inside the pre-break plateau.
+    ("ending-elsydeon", ENDING, 1744,
      "build/certify/oracle/ending-elsydeon/frame_8930.png",
      "8df256f388e10fedfd36aaf0a63108f5bebd33cf85759841e406adbe2df3d2fb", TAPE_38),
-    # The break's tone at its peak: ticks 1739-1742 are the brightest, as
-    # frames 8984-8987 are, so clone tick t shows frame t + 7245 here (#645).
-    ("ending-elsydeon-tone", ENDING, 1739,
+    # The break's peak matches 1779-1782, eight ticks later with the preceding
+    # inline actions' VInts. Use an interior tick of the measured plateau.
+    ("ending-elsydeon-tone", ENDING, 1780,
      "build/certify/oracle/ending-elsydeon-tone/frame_8984.png",
      "e64b98901e98adcc17acb624adb30b077f27c6305453936ffa9d51209ab38f90", TAPE_38_TONE),
     # The first 60-frame tone loop (`$078F9C`): before, its fourth step and
-    # its white endpoint, one tape-38 run (TAPE_38_LOOP, TAPE_38_LOOP_RISE).
-    ("ending-tone-loop-before", ENDING, 2597,
+    # its white endpoint, one tape-38 run (TAPE_38_LOOP).
+    ("ending-tone-loop-before", ENDING, 2657,
      "build/certify/oracle/ending-tone-loop/frame_9893.png",
      "b2512c571239ffe7bf6852952290103e9027d28970d77758b5cb2f02d18b5f05", TAPE_38_LOOP),
-    ("ending-tone-loop-rise", ENDING, 2614,
+    ("ending-tone-loop-rise", ENDING, 2674,
      "build/certify/oracle/ending-tone-loop/frame_9910.png",
-     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP_RISE),
-    ("ending-tone-loop-white", ENDING, 2654,
+     "418a345a06ea86d18d4ffb8c8b0e8fc96937aaa40ba2b29122b2381b7d2c8621", TAPE_38_LOOP),
+    ("ending-tone-loop-white", ENDING, 2714,
      "build/certify/oracle/ending-tone-loop/frame_9950.png",
      "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_38_LOOP),
     ("title", {"PSIV_DEBUG_TITLE_SHOT": "1"}, 480,
@@ -453,9 +498,11 @@ PAIRS = [
     # marker blink and the clone's runtime clock aligned so the frame is the
     # oracle's frame 7293. The pair is the menu's own draw (the planetary map,
     # both windows, the cursor boxes), certified at 0.000000.
-    # After 12 Window_Draw frames, tick 70 still has full windows, cursor and
-    # marker hidden (session_destination); retain the fixed oracle frame.
-    ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
+    # After 12 Window_Draw frames, tick 101 still has full windows, cursor and
+    # marker hidden (session_destination); retain the fixed oracle frame. It
+    # was tick 70 before the scene's `InitVRAMAndCRAM` and `Pal_FadeIn` spent
+    # their 31 frames (#637).
+    ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 101,
      "build/certify/oracle/ship-menu/frame_7293.png",
      "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),
     # The TELEPIPE town list against tape 36, its window's region only (#128).
@@ -478,36 +525,129 @@ PAIRS = [
     ("recovery-flash", {"PSIV_DEBUG_EVENT": "0x21", **SCENE}, 78,
      "build/certify/oracle/recovery-flash/frame_7246.png",
      "8cbf9084e55223ef8be0f2887c8e5724efc006ba8aaef6291bf927d5e15a7621", TAPE_42),
-    # The cycle's rows run ticks 1277-1298 against frames 8565-8586 once the
-    # scene's portraits lag (#625): 1292 is the third row's second frame.
-    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1292,
+    # The cycle's first three rows run ticks 1312-1333 against frames 8565-8586 once the
+    # scene's portraits lag (#625), its first fades spend 31 frames (#637),
+    # and its four explicit panel DMAs spend one frame each (#595):
+    # 1327 is inside the third row.
+    ("rykros-palette-cycle", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1327,
      "build/certify/oracle/rykros-palette-cycle/frame_8580.png",
      "ecd5f339178c350b6a9e00a041571e64d0a16e14abea57f68f152f6d92c9f056", TAPE_43),
     # Rykros's tone and its restore, one oracle run (TAPE_43_TONE): before,
     # a step up, a step back, and the restored frame.
-    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 895,
+    ("rykros-tone-before", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 929,
      "build/certify/oracle/rykros-tone/frame_8141.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 911,
+    ("rykros-tone-rise", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 945,
      "build/certify/oracle/rykros-tone/frame_8157.png",
      "57b58484211d05edb01659c4b1ac37ecf0f26f4869ef3cd1952fb043036da7d4", TAPE_43_TONE),
-    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 939,
+    ("rykros-tone-restore", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
      "build/certify/oracle/rykros-tone/frame_8185.png",
      "8e741535209dcb16ad0c21d0df433366f5346b7a1e2cf518bba4f123b2a70a2d", TAPE_43_TONE),
-    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 955,
+    ("rykros-tone-after", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 989,
      "build/certify/oracle/rykros-tone/frame_8201.png",
      "42ec0fa013bd820be2e4c513d6132e994bd9b67945215d57df5416013e64557f", TAPE_43_TONE),
-    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 970,
+    ("rykros-portrait", {"PSIV_DEBUG_EVENT": "0x801b", **SCENE}, 1004,
      "build/certify/oracle/rykros-portrait/frame_8216.png",
      "23d700fb35f7b30e03f6a4ebc256dbd3a4463f54bc51963cbfb8da90ce9497e3", TAPE_43_PORTRAIT),
     ("zio-barrier-ramp", {"PSIV_DEBUG_EVENT": "0x30", **SCENE}, 270,
      "build/certify/oracle/zio-barrier-ramp/frame_7462.png",
      "61d204e36a877cb9508e5da5218e9f21292a2d1f6924a6749bee8e1c15869e3f", TAPE_44),
-    # A `Retained` window's last page, typed by tick 509 and up through 513;
-    # the battle stage replaces it on 514 (#644).
+    # A `Retained` window's last page, typed by tick 509; its text returns
+    # on 514 but its pixels remain beneath the entry band (#644, #665).
     ("retained-window-page", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 511,
      "build/certify/oracle/retained-window-page/frame_7797.png",
      "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45),
+    ("retained-window-press", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 514,
+     "build/certify/oracle/event-battle-field/frame_7800.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45_PRESS),
+    ("retained-portrait-press", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 514,
+     "build/certify/oracle/event-battle-field/frame_7800.png",
+     "00cd233b13851317267de94df08a237203ca1a6706622ce951b98a911aa8793c", TAPE_45_PORTRAIT),
+    ("event-battle-band-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 515,
+     "build/certify/oracle/event-battle-field/frame_7801.png",
+     "4a77ff48243155c12df9f89d5ea3e8d164e4ea11c47bf683bbe6ec1ae502b4a8", TAPE_45_BAND),
+    ("event-battle-portrait-covered", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 519,
+     "build/certify/oracle/event-battle-field/frame_7805.png",
+     "554226177814da8089c9483faaf4ff625028d93497a719c4ebca286de088dc91", TAPE_45_PORTRAIT_COVERED),
+    ("event-battle-window-covered", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 526,
+     "build/certify/oracle/event-battle-field/frame_7812.png",
+     "ac61aa29595ccdc8674f4a77637b073efc25413dba2c899c2b176aa1befb0a7e", TAPE_45_WINDOW_COVERED),
+    # The event battle's entry (#663): the first white frame (tick 527 still
+    # shows the field), the hold, the fade's first step (570 is still white)
+    # and its second level.
+    ("event-battle-white-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 528,
+     "build/certify/oracle/event-battle-entry/frame_7814.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_45_ENTRY),
+    ("event-battle-white-hold", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 554,
+     "build/certify/oracle/event-battle-entry/frame_7840.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_45_ENTRY),
+    ("event-battle-fade-first", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 571,
+     "build/certify/oracle/event-battle-entry/frame_7857.png",
+     "bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb", TAPE_45_ENTRY),
+    ("event-battle-fade-second", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 573,
+     "build/certify/oracle/event-battle-entry/frame_7859.png",
+     "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_45_ENTRY),
+    ("event-battle-sweep", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 577,
+     "build/certify/oracle/event-battle-sweep/frame_7863.png",
+     "8cdf0748f98b37d5e19cadb7749da9f9e9c980fa2b73f80a09276ec668b62730", TAPE_45_SWEEP),
+    ("event-battle-settled", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 584,
+     "build/certify/oracle/event-battle-sweep/frame_7870.png",
+     "e2007010945afd6b24948e3289dd2f0933ba026c9a5a9b074f4035b812e65c56", TAPE_45_SWEEP),
+    ("event-battle-before-roll", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 587,
+     "build/certify/oracle/event-battle-sweep/frame_7873.png",
+     "e2007010945afd6b24948e3289dd2f0933ba026c9a5a9b074f4035b812e65c56", TAPE_45_SWEEP),
+    ("battle-opening-name", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 590,
+     "build/certify/oracle/battle-opening/frame_7876.png",
+     "87735643050c8cf8a1b909f7929cc81b1878fdba0984d180bd6a763e302dc9d6", TAPE_45_OPTIONS),
+    ("battle-opening-options", {"PSIV_DEBUG_EVENT": "0x7D", **SCENE}, 605,
+     "build/certify/oracle/battle-opening/frame_7891.png",
+     "c77a9d11d2bd215eaf568f02841ac6fba64f18381a84841e6e92cf619ed77216", TAPE_45_OPTIONS),
+    ("encounter-white-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 46,
+     "build/certify/oracle/encounter-entry/frame_24794.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-white-hold", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 62,
+     "build/certify/oracle/encounter-entry/frame_24810.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_07_ENTRY),
+    ("encounter-fade-first", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 74,
+     "build/certify/oracle/encounter-entry/frame_24822.png",
+     "bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb", TAPE_07_ENTRY),
+    ("encounter-fade-second", {"PSIV_DEBUG_ENCOUNTER_ENTRY": "0x8A"}, 76,
+     "build/certify/oracle/encounter-entry/frame_24824.png",
+     "b41153eced26db30461f1db7f8b027e4559f91c4ad5c70334d1c4935661d9a72", TAPE_07_ENTRY),
+    # The Eclipse Torch's two white flashes (TAPE_46): the native fills on
+    # ticks 157 and 199 with the event entered at 35. This matches the tape's
+    # Main_Frame_Count phase modulo 32: captures 159 and 200 sample the second
+    # and first white frames respectively, before the snow write reaches them.
+    ("eclipse-torch-white", {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35", **SCENE}, 159,
+     "build/certify/oracle/eclipse-torch-white/frame_7355.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
+    ("eclipse-torch-white-2", {"PSIV_DEBUG_EVENT": "0x47", "PSIV_DEBUG_EVENT_FRAME": "35", **SCENE}, 200,
+     "build/certify/oracle/eclipse-torch-white/frame_7396.png",
+     "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d", TAPE_46),
+    ("preemptive-first", PREEMPTIVE, 31,
+     "build/certify/oracle/preemptive/frame_24842.png",
+     "9ff2e6a28c1db6252ed427d092fb34ccc25252f637142f6410d6af2abb68c4ab", TAPE_07_PREEMPTIVE),
+    ("preemptive-grown", PREEMPTIVE, 38,
+     "build/certify/oracle/preemptive/frame_24849.png",
+     "927d56c45a81141f13035a5989e67715e4904d3babe126263436d659de2c16ca", TAPE_07_PREEMPTIVE),
+    ("preemptive-text", PREEMPTIVE, 39,
+     "build/certify/oracle/preemptive/frame_24850.png",
+     "66814df00035fc5969176679b5948d25a5d7fda3268822c08f594a01a57c48bc", TAPE_07_PREEMPTIVE),
+    ("preemptive-text-last", PREEMPTIVE, 75,
+     "build/certify/oracle/preemptive/frame_24886.png",
+     "ce4cc6806cc624604800cf62b498d9e20633aae5b49462b77beacba1683f2926", TAPE_07_PREEMPTIVE),
+    ("preemptive-close", PREEMPTIVE, 76,
+     "build/certify/oracle/preemptive/frame_24887.png",
+     "039cc9b0d05cc0f55bfde5da5e98e0216f2b0997f3414992deb16db1ab30c008", TAPE_07_PREEMPTIVE),
+    ("preemptive-thin", PREEMPTIVE, 83,
+     "build/certify/oracle/preemptive/frame_24894.png",
+     "e5c29d8cf7c0df1c4be9ad4a1a2e7ccd8402ab88fd035d35e10c719bb90ae065", TAPE_07_PREEMPTIVE),
+    ("preemptive-options-grow", PREEMPTIVE, 86,
+     "build/certify/oracle/preemptive/frame_24897.png",
+     "aebd027d26a666dfb791379e326c72213d290ca0e06630385ea1156c9e7a1915", TAPE_07_PREEMPTIVE),
+    ("preemptive-options", PREEMPTIVE, 89,
+     "build/certify/oracle/preemptive/frame_24900.png",
+     "35f64c538781647f4fede4aeb15c23d253e43f4c14ad1173a065a999dd0f6eb5", TAPE_07_PREEMPTIVE),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.
@@ -631,7 +771,8 @@ def capture(name, env, tick, receipt, display, project, run_root):
     full_env = {**{k: v for k, v in os.environ.items() if k != "XAUTHORITY"},
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
-                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env,
+                "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick),
+                "PSIV_DEBUG_STATE": str(receipt / f"{name}-state.json"), **env,
                 # The run root's pack, resolved once: a caller's override would
                 # win over `res://../runtime-pack` in the game (lib.rs `ready`).
                 "PSIV_RUNTIME_PACK": str(project.parent / RUN_ROOT_PACK)}

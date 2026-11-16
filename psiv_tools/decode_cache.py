@@ -3,7 +3,7 @@
 A pack build asks for the same Nemesis, Kosinski and Enigma streams many times:
 an enemy's three art blobs are shared with its palette variants, attack frames
 reload the patterns its body already used, and a panel's art is decoded again
-for every layer that draws it. Before this module one `build_pack` call ran
+for every layer that draws it. Before this module one a research export call ran
 `nemesis.decompress` 4,597 times for a few hundred distinct streams (#130).
 
 The decoders stay pure functions of their arguments. `scope()` opens a table
@@ -11,7 +11,7 @@ that `memoized` decoders consult: inside it a call whose arguments were already
 decoded returns the stored result, outside it every call decodes. The key is
 the decoder, the input `bytes` object's *content* and every other argument, so a
 hit can only return what decoding those exact bytes would return, and two ROMs
-never share an entry even inside one scope. `build_pack` and the section
+never share an entry even inside one scope. a research export and the section
 emitters open the scope (`scoped`) and the table dies with the outermost one:
 nothing is kept across builds, and nothing is written to disk (a cache that
 outlives its inputs is how stale extracts happened once; see
@@ -59,7 +59,7 @@ def scope() -> Iterator[DecodeTable]:
     """Share decodes for the duration of the block.
 
     A nested scope joins the outer one: a section emitter that opens its own
-    scope inside `build_pack` must not discard the build's table.
+    scope inside a research export must not discard the build's table.
     """
     if _active:
         yield _active[-1]
@@ -75,9 +75,9 @@ def scope() -> Iterator[DecodeTable]:
 def scoped(function: Callable[..., T]) -> Callable[..., T]:
     """Run `function` inside `scope()`: for an entry point that decodes.
 
-    `build_pack` and each section emitter carry it, so an emitter called on
+    a research export and each section emitter carry it, so an emitter called on
     its own (a test, a CLI subcommand) shares decodes for its own run, and
-    inside `build_pack` it joins the build's table.
+    inside a research export it joins the build's table.
     """
 
     @functools.wraps(function)

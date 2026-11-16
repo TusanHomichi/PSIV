@@ -661,7 +661,7 @@ It does not stay hot.
 - **Speed table:** `loc_4A202` pointer table and records at `$04A20E`,
   `$04A266`, `$04A2BE`, ending `$04A316`; tape-independent extraction receipt
   is `runtime-pack/npc_commands.json`, whose selector-2 SHA is pinned by the
-  existing `tests/test_npc_commands.py` suite.
+  existing [retired test_npc_commands](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_npc_commands.py) suite.
 - **Grand Cross provenance:** `reference/ps4disasm/ps4.options.asm:10`,
   `grand_cross = 1`; no `grand_cross=0` branch is used to justify the common
   field routines above.

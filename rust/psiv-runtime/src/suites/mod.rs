@@ -37,6 +37,8 @@ mod dialogue_resume;
 mod dorin_dialogue;
 mod encounters;
 mod enemy_dispatch_census;
+#[path = "next_arc_fixed_fades.rs"]
+mod fixed_fades;
 mod golden;
 mod new_game;
 mod next_arc;
@@ -48,6 +50,7 @@ mod player_abilities;
 mod presentation_order;
 mod progression;
 mod retail_boundaries;
+mod retained_window;
 pub(crate) mod save;
 mod scene_load_fade;
 mod talk_repro;

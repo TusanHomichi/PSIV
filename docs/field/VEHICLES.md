@@ -430,7 +430,7 @@ for pixel; `rust/psiv-runtime/tests/battle_background.rs` selects the same two
 backgrounds at those positions.
 
 `GetMotaBattleBGIndex` stores index+1 and reserves zero for background zero;
-the runtime subtracts that bias. `psiv_tools/battle_art_pack.py` extracts all
+the runtime subtracts that bias. `rust/psiv-pack/src/battle/art/mod.rs` extracts all
 32 composite battle backgrounds and emits the three selection tables into
 `runtime-pack/battle/art/backgrounds.json`. Mounted maps use the ordinary field
 table when it has an entry. A mounted debug/map path whose field entry is
@@ -546,7 +546,7 @@ Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in
 `rust/psiv-runtime/src/vehicle.rs` and `boss_battles.rs`, Godot vehicle/battle
 presentation in the runtime vehicle and battle modules, and additive extraction
-in `psiv_tools/vehicle_pack.py` and `psiv_tools/battle_art_pack.py`. No scene
+in `rust/psiv-pack/src/sprites/emit.rs` and `rust/psiv-pack/src/battle/art/mod.rs`. No scene
 runner, dialogue system, enemy animation code or save layout was changed for
 this slice. `title.rs` is touched only by the separate ERASE DATA closure.
 

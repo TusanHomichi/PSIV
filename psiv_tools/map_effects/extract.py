@@ -8,7 +8,7 @@ geometry, and counts what it found -- kinds, gate banks, flag clears, the
 object writes that land past a map's object count (a no-op on a fresh load, not
 a defect) and the entries nothing could decode.
 
-The per-map lists are keyed by map id so `psiv_tools.pack` can drop each one
+The per-map lists are keyed by map id so a consumer can drop each one
 into that map's own record: the data arrives with the map it patches, and a
 kind a consumer does not know fails that map's build rather than the whole pack.
 """
@@ -115,7 +115,7 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
     """Every map's `MapDataManager` list, decoded, with the census.
 
     `maps` is `psiv_tools.maps.extract_maps(rom)["maps"]`. The per-map lists are
-    keyed by map id so `psiv_tools.pack` can drop each one into that map's own
+    keyed by map id so a consumer can drop each one into that map's own
     record: the data arrives with the map it patches, and a kind a consumer does
     not know fails that map's build rather than the whole pack.
     """

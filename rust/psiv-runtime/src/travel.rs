@@ -100,16 +100,29 @@ impl Runtime {
     }
 
     /// The destination menu's answer reaching the scene it blocked: a chosen
-    /// world is written to `World_Index` first (`ps4.asm:133677`), a Cancel
-    /// writes nothing (`ps4.asm:133692`).
+    /// world is retained until `CommitDestination` after the fade and chunk
+    /// reload (`ps4.asm:133677`); a Cancel writes nothing (`ps4.asm:133692`).
     pub(crate) fn answer_destination(&mut self, world: Option<u8>) {
+        self.destination_world = world;
         self.scene_input = match world {
-            Some(world) => {
-                self.set_world_index(world);
-                psiv_core::SceneInput::DestinationChosen
-            }
+            Some(_) => psiv_core::SceneInput::DestinationChosen,
             None => psiv_core::SceneInput::DestinationCancelled,
         };
+    }
+
+    /// `loc_64144`'s last upload, frozen when the menu exits its input loop.
+    pub(crate) fn destination_palette(&mut self, state: psiv_data::ShipPalette) {
+        let Some(words) = self
+            .data
+            .ship_menu()
+            .and_then(|menu| menu.palette_words(state))
+        else {
+            return;
+        };
+        let (cram, _) = self.effects.cram_and_cycle_index();
+        for (slot, word) in words.into_iter().enumerate() {
+            cram.write(slot, word);
+        }
     }
 
     /// The Hunter's Guild board's answer to the scene.

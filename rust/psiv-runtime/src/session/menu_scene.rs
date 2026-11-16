@@ -47,6 +47,9 @@ pub(crate) enum MenuScene {
         counter: usize,
         /// The bill `RecoverStats` was already priced at.
         cost: u32,
+        /// The palette the inn keeps through the scene (`Palette_Table_Buffer_2`
+        /// into `$FFFF1300`, `ps4.asm:136399-136402`) and fades back in after.
+        palette: [u16; psiv_core::palette::PALETTE_WORDS],
     },
 }
 
@@ -93,15 +96,28 @@ impl Session {
                 event: _,
                 counter,
                 cost,
-            }) => self.finish_aiedo_stay(counter, cost),
+                palette,
+            }) => self.finish_aiedo_stay(counter, cost, Some(palette)),
         }
     }
 
     /// Closes the Aiedo rest's transaction after its scene: the bill is
     /// charged, then the window is rebuilt on the "rest well" line
-    /// (`ps4.asm:136411-136463`).
-    pub(crate) fn finish_aiedo_stay(&mut self, counter: usize, cost: u32) {
+    /// (`ps4.asm:136411-136463`). After the scene the inn puts back the
+    /// palette it kept, `palette`, and fades it in
+    /// ([`Runtime::inn_resume_fade_in`](crate::Runtime)): the scene's
+    /// `PalFadeOut_ClrSpriteTbl` left the screen black. `None` when no scene
+    /// ran.
+    pub(crate) fn finish_aiedo_stay(
+        &mut self,
+        counter: usize,
+        cost: u32,
+        palette: Option<[u16; psiv_core::palette::PALETTE_WORDS]>,
+    ) {
         self.runtime.inn_charge(cost);
+        if let Some(palette) = palette {
+            self.runtime.inn_resume_fade_in(palette);
+        }
         let shops = self.runtime.data().shops();
         let Some(counter) = shops.and_then(|shops| shops.counter_index(counter)) else {
             // A counter the pack does not have cannot have opened the window;

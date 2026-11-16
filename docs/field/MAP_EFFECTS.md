@@ -215,7 +215,7 @@ clears a town flag.**
 A consumer modelling five banks will not line up with the cartridge, and temp
 flag *N* and chest flag *N* are the same bit.
 
-This is the second confusion found in this region; `psiv_tools/newgame.py`
+This is the second confusion found in this region; `rust/psiv-pack/src/game_start/mod.rs`
 records the first (the clone's `loc_44414` copies its 32-byte table to
 `Chest_Flags` where retail writes `Extended_Event_Flags`).
 

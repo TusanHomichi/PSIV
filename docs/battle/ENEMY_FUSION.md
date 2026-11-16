@@ -109,7 +109,7 @@ For `$D2` the pieces start at x 112 and 208, arrive on `t = 59`, grow from
 `t = 61`, and the MetaSlug is seated on `t = 80` (f25248); the FUSION window
 then holds 16 more frames and no line names the MetaSlug. Every frame of tape
 33 from f25163 to f25255 fits these pieces, drawn from the pack's
-`battle/art/fusion.json` (`psiv_tools/battle_fusion_art.py`), with no pixel
+`battle/art/fusion.json` (`rust/psiv-pack/src/battle/art/fusion.rs`), with no pixel
 apart. The runtime's beat lasts until the seat and the view carries the
 pieces; Godot draws them. Tests: `rust/psiv-runtime/tests/battle_fusion.rs`
 (the timeline) and `a_fusion_plays_the_slide_and_seats_the_metaslug_at_retail_frames`

@@ -1,11 +1,10 @@
 //! `psiv-pack`: the runtime pack, built from the ROM alone (#216).
 //!
-//! The pack builder: the setup screen, the shared input cache
-//! (`tools/local_inputs.py`) and the documented commands all run it. It is
-//! the port of `python3 -m psiv_tools pack`, and until that builder retires
-//! the full gate's parity step, `tools/pack_parity.py`, builds both from the
-//! ROM and holds every path [`SECTIONS`] claims to the Python builder's bytes
-//! (a PNG to its decoded image).
+//! The sole pack builder: the setup screen, shared input cache
+//! (`tools/local_inputs.py`) and documented commands all run it. Extraction,
+//! manifest, writer, CLI and install contracts are checked by this crate's
+//! tests. The retired Python implementation's final whole-pack comparison is
+//! recorded in the retirement pull request (#562).
 //!
 //! # The program
 //!
@@ -88,8 +87,7 @@ impl From<png::PngError> for PackError {
 pub struct Section {
     /// The name the progress line shows.
     pub name: &'static str,
-    /// The pack-relative paths it writes, all of them: the parity step
-    /// fails on a file it writes outside these. A path names a file, a
+    /// All pack-relative paths written by this section. A path names a file, a
     /// directory and everything in it, or with a `*` in its last part, the
     /// matching files directly in that directory.
     pub claims: &'static [&'static str],
@@ -332,6 +330,7 @@ pub fn build_pack(
 pub fn write_manifest(rom: &Rom, root: &Path, parts: json::Json) -> Result<(), PackError> {
     let mut manifest = json::Json::object()
         .with("format_version", PACK_FORMAT_VERSION)
+        // Keep the established generator marker for pack-format compatibility.
         .with("generator", "psiv_tools.pack")
         .with(
             "rom",
@@ -700,3 +699,6 @@ mod tests {
         assert!(!root.exists());
     }
 }
+
+#[cfg(test)]
+mod infrastructure_tests;

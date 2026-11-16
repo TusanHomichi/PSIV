@@ -3,7 +3,7 @@
 
 use super::Claim::{Merged, Missing, Recorded, Wait, Within};
 use super::Retail::{Facing, Frames, Main, Map, Step};
-use super::{CAMPAIGN, DEZO, OBJECTS, Row, SHIP, frame, own, row};
+use super::{DEZO, OBJECTS, Row, SHIP, frame, own, row};
 
 /// A [`Row`] whose claim is approximate, with the issue that fixes it.
 const fn defect(issue: u32, row: Row) -> Row {
@@ -66,7 +66,7 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_PsycoWand", Map(0x07_5538), Wait(46)),
     row("Cutscene_PsycoWand", Map(0x07_598A), Wait(107)),
     row("Cutscene_ZioDefeated", Map(0x07_5AC0), Wait(13)),
-    row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(17)),
+    row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(16)),
     row("Cutscene_ZioDefeated", Map(0x07_5B7E), Wait(19)),
     row("Cutscene_ZioDefeated", Map(0x07_5BFE), Wait(22)),
     row("Cutscene_ZioDefeated", Map(0x07_5C12), Wait(24)),
@@ -81,36 +81,36 @@ pub(super) const ROWS: &[Row] = &[
     // maps' (`loc_6488A`) is `loc_64908`. Each takeoff carries its own copy of
     // the rest of the flight, which the route runs once: the copy after
     // `loc_6488A` is merged.
-    row(SHIP, own(0x06_45E6, true, true), Wait(9)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(11)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(13)),
-    row(SHIP, own(0x06_45E6, true, true), Wait(15)),
-    row(SHIP, own(0x06_4908, true, true), Wait(21)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(14)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(16)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(18)),
+    row(SHIP, own(0x06_45E6, true, true), Wait(20)),
+    row(SHIP, own(0x06_4908, true, true), Wait(26)),
     // Before the planet screen (`:134302`, `:134463`) and after it
     // (`:134306`, `:134467`).
-    row(SHIP, Map(0x06_4750), Wait(25)),
-    row(SHIP, Map(0x06_49C6), Merged(25)),
-    row(SHIP, Map(0x06_4762), Wait(35)),
-    row(SHIP, Map(0x06_49D8), Merged(35)),
+    row(SHIP, Map(0x06_4750), Wait(29)),
+    row(SHIP, Map(0x06_49C6), Merged(29)),
+    row(SHIP, Map(0x06_4762), Wait(38)),
+    row(SHIP, Map(0x06_49D8), Merged(38)),
     // The descent: `$20000` down by `$200` to below zero (`loc_64800`,
     // `loc_64A76`).
-    row(SHIP, own(0x06_4800, true, true), Wait(41)),
-    row(SHIP, own(0x06_4A76, true, true), Merged(41)),
+    row(SHIP, own(0x06_4800, true, true), Wait(44)),
+    row(SHIP, own(0x06_4A76, true, true), Merged(44)),
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
-    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(64)),
-    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(66)) },
-    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(69)),
+    row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(65)),
+    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(67)) },
+    row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(70)),
     // `bsr loc_76E00`: five frames of the wreck, each followed by six passes
     // of `RunMapUpdates` and `DMAPlane_B_VInt`, no objects.
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(72)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(74)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(76)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(78)),
-    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(80)),
-    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(81)),
-    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(101)),
-    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(123)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(73)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(75)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(77)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(79)),
+    row("Cutscene_CrashLaanding", own(0x07_6E3C, false, true), Wait(81)),
+    row("Cutscene_CrashLaanding", Map(0x07_6AEC), Wait(82)),
+    row("Cutscene_CrashLaanding", Map(0x07_6C14), Wait(102)),
+    row("Cutscene_CrashLaanding", Map(0x07_6D58), Wait(124)),
     // The shared `$170 + 1` pass loop the scene calls at `$0771C8`, split at
     // the BG chunk's beat (d7 `$3D`).
     row("Cutscene_Landale", own(0x06_C0A2, true, true), Wait(16)),
@@ -183,13 +183,13 @@ pub(super) const ROWS: &[Row] = &[
     // A `FadeOut` and 40 frames of map updates stand for the first of two
     // 40-frame `Pal_IncreaseTone` loops; the second, and the restore after
     // the objects' 10-frame wait, have no ops.
-    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(2))),
+    defect(DEZO, row("Event_DeVarsDefeated", own(0x07_1772, false, false), Wait(1))),
     row("Event_DeVarsDefeated", own(0x07_17A8, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(3))),
+    defect(DEZO, row("Event_DeVarsDefeated", Main(0x07_17F8), Recorded(2))),
     row("Event_DeVarsDefeated", own(0x07_1808, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(2))),
+    defect(DEZO, row("Event_SaLewsDefeated", own(0x07_183A, false, false), Wait(1))),
     row("Event_SaLewsDefeated", own(0x07_1870, false, false), Missing(DEZO)),
-    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(3))),
+    defect(DEZO, row("Event_SaLewsDefeated", Main(0x07_18BC), Recorded(2))),
     row("Event_SaLewsDefeated", own(0x07_18CC, false, false), Missing(DEZO)),
     row("Cutscene_BeforeElsydeonCave", Map(0x07_84FC), Wait(5)),
     row("Cutscene_Reunion", Map(0x07_8AB2), Wait(3)),
@@ -240,14 +240,13 @@ pub(super) const ROWS: &[Row] = &[
     updates(OBJECTS, row("Event_EclipseTorchUsed", frame(0x07_0220, true), Within(8))),
     row("Event_EclipseTorchUsed", Map(0x07_0238), Wait(11)),
     // Two white flashes, each 2 frames of map updates and 40 passes of the
-    // `loc_58666` restore; the transcription has the first restore only.
-    row("Event_EclipseTorchUsed", Map(0x07_0266), Missing(CAMPAIGN)),
-    updates(CAMPAIGN, row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Wait(13))),
-    row("Event_EclipseTorchUsed", Map(0x07_02A8), Missing(CAMPAIGN)),
-    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Missing(CAMPAIGN)),
-    // After the nine `$338` spawns, whose `ObjectAnimation`s record one
-    // frame each that no retail loop runs.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Missing(CAMPAIGN)),
+    // `loc_58666` restore with neither update.
+    row("Event_EclipseTorchUsed", Map(0x07_0266), Wait(15)),
+    row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
+    row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
+    row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
+    // After the nine `$338` creations, which wait no frame of their own.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),
@@ -270,25 +269,25 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_ChazHouse", Map(0x06_FAA2), Wait(8)),
     row("Cutscene_MeetingRika", Facing(0x07_45FE), Missing(164)),
     row("Cutscene_MeetingRika", frame(0x07_4652, false), Within(13)),
-    row("Cutscene_MeetingRika", Map(0x07_46F0), Wait(24)),
-    row("Cutscene_MeetingRika", Frames(0x07_4722), Within(31)),
-    row("Cutscene_MeetingRika", Frames(0x07_473C), Within(34)),
-    row("Cutscene_MeetingRika", Map(0x07_47B2), Wait(46)),
+    row("Cutscene_MeetingRika", Map(0x07_46F0), Wait(25)),
+    row("Cutscene_MeetingRika", Frames(0x07_4722), Within(32)),
+    row("Cutscene_MeetingRika", Frames(0x07_473C), Within(35)),
+    row("Cutscene_MeetingRika", Map(0x07_47B2), Wait(48)),
     row("Cutscene_MeetingRika", Facing(0x07_47BE), Missing(164)),
-    row("Cutscene_MeetingRika", Map(0x07_47C8), Wait(48)),
+    row("Cutscene_MeetingRika", Map(0x07_47C8), Wait(50)),
     row("Cutscene_MeetingRika", Facing(0x07_47D4), Missing(164)),
-    row("Cutscene_MeetingRika", Map(0x07_47DE), Wait(50)),
-    row("Cutscene_MeetingRika", Map(0x07_4802), Wait(53)),
-    row("Cutscene_MeetingRika", Map(0x07_4820), Wait(57)),
+    row("Cutscene_MeetingRika", Map(0x07_47DE), Wait(52)),
+    row("Cutscene_MeetingRika", Map(0x07_4802), Wait(55)),
+    row("Cutscene_MeetingRika", Map(0x07_4820), Wait(59)),
     // `move.w #$3B,d0` and 60 bare `VInt_Prepare`s after the palette words.
-    row("Cutscene_MeetingRika", own(0x07_4836, false, false), Within(59)),
-    row("Cutscene_MeetingRika", Map(0x07_494C), Wait(75)),
+    row("Cutscene_MeetingRika", own(0x07_4836, false, false), Within(61)),
+    row("Cutscene_MeetingRika", Map(0x07_494C), Wait(77)),
     row("Cutscene_MeetingRika", Facing(0x07_4972), Missing(164)),
-    row("Cutscene_MeetingRika", Map(0x07_497C), Wait(78)),
+    row("Cutscene_MeetingRika", Map(0x07_497C), Wait(80)),
     row("Cutscene_MeetingRika", Facing(0x07_4984), Missing(164)),
-    row("Cutscene_MeetingRika", Map(0x07_498E), Wait(80)),
+    row("Cutscene_MeetingRika", Map(0x07_498E), Wait(82)),
     row("Cutscene_MeetingRika", Facing(0x07_4996), Missing(164)),
-    row("Cutscene_MeetingRika", frame(0x07_49DE, false), Within(91)),
-    row("Cutscene_MeetingRika", Frames(0x07_4A00), Within(95)),
-    row("Cutscene_MeetingRika", Frames(0x07_4A1A), Within(98)),
+    row("Cutscene_MeetingRika", frame(0x07_49DE, false), Within(93)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A00), Within(97)),
+    row("Cutscene_MeetingRika", Frames(0x07_4A1A), Within(100)),
 ];

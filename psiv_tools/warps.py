@@ -34,7 +34,7 @@ and let the other run to infinity), which is only a rectangle at all because
 the player cannot leave the grid.
 
 This module is the pack's lowest layer: it knows the cartridge's trigger
-geometry and nothing about files, records or emission. `psiv_tools.pack`
+geometry and nothing about files, records or emission. the former Python pack builder
 re-exports everything here, which is where a consumer should reach for it.
 """
 
@@ -50,7 +50,7 @@ class PackError(ValueError):
     """Anything the pack cannot emit honestly.
 
     Defined here because `warps` is the bottom of the pack's own dependency
-    chain and `render` and `pack_layouts` both raise it; `psiv_tools.pack`
+    chain and `render` and `map_layouts` both raise it; the former Python pack builder
     re-exports it, so there is exactly one class and `except PackError` catches
     it wherever it was raised.
     """
