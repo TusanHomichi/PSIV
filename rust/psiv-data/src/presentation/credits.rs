@@ -230,9 +230,9 @@ impl EndingCreditsAssets {
                 commands.rom_addr == at && commands.bytes.len() == length,
                 "credits command table identity or size",
             )?;
-            let pairs: Vec<_> = commands.bytes.chunks_exact(2).collect();
+            let (pairs, _) = commands.bytes.as_chunks::<2>();
             require(
-                pairs.last() == Some(&&[0xFF, 0][..])
+                pairs.last() == Some(&[0xFF, 0])
                     && pairs[..pairs.len() - 1]
                         .iter()
                         .all(|p| p[0] < 64 && p[1] <= 12)
