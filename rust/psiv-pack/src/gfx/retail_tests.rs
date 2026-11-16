@@ -96,7 +96,14 @@ fn named_retail_art_keeps_metadata_lengths_and_all_68_output_digests() {
         "c2a1654303f0144a4f113f745a9d460009ce46627226fb58f75be25eb6f2f895"
     );
     assert_eq!(rows[7], "........");
-    assert_eq!(&tiles[8][..8], &[14, 14, 15, 15, 15, 15, 14, 14]);
+    let top_i: String = tiles[8][..8]
+        .iter()
+        .map(|&p| if p == 15 { '#' } else { '.' })
+        .collect();
+    assert_eq!(
+        sha(top_i.as_bytes()),
+        "6cb9edbb07416577f6dc7c08c2e11021d09f3cb0fe84bf07802f213e9936105c"
+    );
     assert_eq!(
         sha(&rom[0x2A3542..0x2A3A42]),
         "19d37143313650150495f3740e9e8389377014217d93151671ad9ee955895da7"
