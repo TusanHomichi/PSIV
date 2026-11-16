@@ -66,7 +66,7 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_PsycoWand", Map(0x07_5538), Wait(46)),
     row("Cutscene_PsycoWand", Map(0x07_598A), Wait(107)),
     row("Cutscene_ZioDefeated", Map(0x07_5AC0), Wait(13)),
-    row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(17)),
+    row("Cutscene_ZioDefeated", Map(0x07_5B0A), Wait(16)),
     row("Cutscene_ZioDefeated", Map(0x07_5B7E), Wait(19)),
     row("Cutscene_ZioDefeated", Map(0x07_5BFE), Wait(22)),
     row("Cutscene_ZioDefeated", Map(0x07_5C12), Wait(24)),

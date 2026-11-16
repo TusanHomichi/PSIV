@@ -469,11 +469,12 @@ pub static ZIO_DEFEATED: Scene = Scene {
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::PanelDestroyAll,
-        SceneOp::FadeOut,
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
         },
         SceneOp::Wait { ticks: 60 },
+        // `$075B10`: after the second map-update wait, before Demi's refresh.
+        SceneOp::FadeOut,
         // `$075B10..$075CE6`, Demi's sequence in BioPlant B4 (#414). The
         // cartridge clears two objects, places Demi at `($1E8,$1C0)`,
         // refreshes the map with load-flag bit 3 set, fades in and turns the
@@ -559,11 +560,18 @@ pub static ZIO_DEFEATED: Scene = Scene {
             flag: Flag::event(0x66),
             value: true,
         },
+        // `$075D72/$075D78/$075D7E`: after the spaceport helper returns.
+        SceneOp::FadeOut,
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         // `$075D84`: the Motavia aftermath speaks tree 36, which the routine
         // loads unguarded after `Event_MotaSpaceportAppearing` (revision
         // independent, so it is a plain transcription gap rather than a
         // revision one).
         SceneOp::SetDialogueTree { rom_addr: TREE_36 },
+        // `$075D90/$075D96`: a second init/in after loading the tree.
+        SceneOp::InitVramAndCram,
+        SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x73 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 30 },
