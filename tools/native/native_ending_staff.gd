@@ -9,6 +9,7 @@ var output := ""
 var observing := false
 var failed := false
 var seen := false
+var visible_frames := 0
 var next := 0
 var receipts := []
 const LABELS := ["before", "fall", "dark", "rise", "after", "cleared"]
@@ -50,19 +51,29 @@ func _physics_process(_delta):
         return false
     if text.is_visible_in_tree():
         seen = true
-        if next < WORDS.size() and int(state.cram.words[47]) == WORDS[next]:
-            observing = true
-            observe.call_deferred(state)
+        visible_frames += 1
+        # Four DmaPlanes frames expose the four staff entries in order.
+        # Observe before the fade only once the last entry is transferred.
+        if visible_frames >= 4 and next < WORDS.size() and int(state.cram.words[47]) == WORDS[next]:
+            freeze_and_observe(state)
     elif seen and next == WORDS.size():
-        observing = true
-        observe.call_deferred(state)
+        freeze_and_observe(state)
     return false
+
+func freeze_and_observe(state: Dictionary):
+    observing = true
+    # SceneTree's physics callback precedes the field's. Freeze here so the
+    # deferred render cannot accidentally capture the following game tick.
+    game.set_physics_process(false)
+    game.set_process(false)
+    observe.call_deferred(state)
 
 func observe(state: Dictionary):
     game.set_physics_process(false)
     game.set_process(false)
-    # The deferred observation runs after the field's physics callback.
-    # Record the frozen game tick that actually supplies the pixels.
+    if text.position != Vector2.ZERO:
+        fail("text applied a second retail surface origin")
+        return
     state = JSON.parse_string(str(game.debug_play_state()))
     if next < WORDS.size() and int(state.cram.words[47]) != WORDS[next]:
         fail("palette changed before the capture could freeze")

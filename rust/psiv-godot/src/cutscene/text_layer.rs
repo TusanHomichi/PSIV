@@ -9,7 +9,8 @@ use psiv_data::color::IndexLayout;
 use psiv_data::{DialogueEntry, DialogueSet};
 
 /// The opening crawl is a separate drawable child so its CRAM text ramp does
-/// not modulate the opaque black/title image behind it.
+/// not modulate the opaque black/title image behind it. Its coordinates are
+/// relative to CutsceneLayer, which owns the retail surface origin.
 #[derive(GodotClass)]
 #[class(base=Node2D)]
 pub(super) struct TextPlaneLayer {
@@ -164,14 +165,6 @@ impl TextPlaneLayer {
             .iter()
             .find(|tree| tree.rom_address() == Some(address))?;
         tree.entry(entry)
-    }
-
-    pub(super) fn place(&mut self) {
-        let position = crate::retail_surface::surface_origin(
-            self.base().get_canvas_transform().affine_inverse(),
-            self.base().get_viewport_rect(),
-        );
-        self.base_mut().set_position(position);
     }
 
     pub(super) fn draw_entry(&mut self, entry: &DialogueEntry, plane: u32, tile: u32) {

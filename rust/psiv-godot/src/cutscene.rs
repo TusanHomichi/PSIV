@@ -164,9 +164,6 @@ impl CutsceneLayer {
             self.base().get_viewport_rect(),
         );
         self.base_mut().set_position(position);
-        if let Some(text) = self.text_layer.as_mut() {
-            text.bind_mut().place();
-        }
     }
 
     pub(crate) fn tick(&mut self) {
