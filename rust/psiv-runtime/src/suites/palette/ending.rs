@@ -431,9 +431,9 @@ fn first_eighth(count: u16) -> usize {
 /// roll's fade out of word `$2F` from the second loop's white, 180 frames,
 /// the staff-roll music, 180 frames, the fade back in, the sixty-frame
 /// restore toward the cleared copy, the credits' ramp from the pack's two
-/// tables, and the third loop's input: black but for the ramp's last
-/// words. Each record's tick is worked by hand from the one before it: a
-/// staff loop spends up to its terminal stepping frame (`first + 48` after
+/// tables, and the third loop's input: the credits entry palette with the
+/// ramp's last words. Each record's tick is worked by hand from the one
+/// before it: a staff loop spends up to its terminal stepping frame (`first + 48` after
 /// six stores), the ramp through its fourteenth (`first + 105`). The plane
 /// clear spends no frame; `DMAPlanes_VInt` (`$079CF4`) spends one bare frame
 /// between the staff fade-in and the sixty-frame restore.
@@ -442,6 +442,15 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     let Some(frames) = ending_to_third_loop() else {
         return;
     };
+    let events: Vec<_> = frames
+        .iter()
+        .flat_map(|frame| frame.events.clone())
+        .collect();
+    use SceneOp::{FadeIn as In, InitVramAndCram as Init};
+    super::super::fixed_fades::assert_fades(
+        &events,
+        &[Init, In, Init, In, Init, In, Init, Init, In],
+    );
     let out = presentation_at(&frames, 0, |op| {
         matches!(op, PresentationOp::EndingStaffRollFadeOut { .. })
     });
@@ -484,14 +493,60 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     let dma = tick_of(&frames, fade_in, |op| matches!(op, SceneOp::DmaPlanes));
     assert_eq!(dma - fade_in, first + 48, "six stores, then $1110 unstored");
     assert_eq!(restore - dma, 1, "the DMA VInt before the restore");
-    assert_eq!(ramp - restore, 60, "sixty restore frames before the ramp");
+    let credits_init = tick_of(&frames, restore, |op| {
+        matches!(op, SceneOp::InitVramAndCram)
+    });
+    let credits_in = tick_of(&frames, credits_init, |op| matches!(op, SceneOp::FadeIn));
+    assert_eq!(
+        credits_init - restore,
+        61,
+        "sixty restore frames, then one black Out pass"
+    );
+    assert_eq!(credits_in - credits_init, 1, "Init spends its DMA frame");
+    let data = GameData::load(Path::new(super::PACK)).expect("pack loads");
+    // Credits palette uploads remain #640. Until then the fade's input is
+    // Pal_Init, not the preceding staff restore's black (#659).
+    let init = data.scene_palettes().words(0x09_F2BC).expect("Pal_Init");
+    let largest = init
+        .iter()
+        .flat_map(|w| [w & 15, (w >> 4) & 15, (w >> 8) & 15])
+        .max()
+        .unwrap();
+    assert_eq!(
+        ramp - credits_in,
+        usize::from(largest) + 2,
+        "display frame, changing passes, final pass"
+    );
+    assert_eq!(frames[credits_in].words, [0; 64], "fade-in display frame");
+    // Hand-worked nibble ramps: pass n adds one to each component until
+    // its target, then one unchanged pass. No palette-model helper here.
+    for pass in 1..=usize::from(largest) + 1 {
+        let expected: Vec<u16> = init
+            .iter()
+            .map(|word| {
+                [0, 4, 8]
+                    .into_iter()
+                    .map(|shift| ((word >> shift) & 15).min(pass as u16) << shift)
+                    .sum()
+            })
+            .collect();
+        assert_eq!(
+            frames[credits_in + pass].words.as_slice(),
+            expected,
+            "credits In pass {pass}"
+        );
+    }
+    assert_eq!(frames[ramp - 1].words, init);
+    eprintln!(
+        "Ending state: staff restore {restore}, credits Init {credits_init}, In {credits_in}, ramp {ramp}, third tone {third}; fixed In {} frames",
+        ramp - credits_in
+    );
     assert_eq!(frames[restore - 1].words, [0x0EEE; 64]);
     // Sixty restore frames take every component down a level on the
     // fifteen whose count is a multiple of four: seven reach black.
     assert_eq!(frames[restore + 59].words, [0; 64]);
     let first = first_eighth(frames[ramp].count);
     assert_eq!(third - ramp, first + 105, "fourteen steps");
-    let data = GameData::load(Path::new(super::PACK)).expect("pack loads");
     let primary = data
         .scene_palettes()
         .words(0x0007_A274)
@@ -502,11 +557,11 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
         .expect("secondary table");
     assert_eq!((primary.len(), secondary.len()), (22, 10));
     // Step 0 copies primary words 14-21 to words 18-25 on its frame.
-    assert_eq!(frames[ramp + first - 1].words[18..26], [0; 8]);
+    assert_eq!(frames[ramp + first - 1].words[18..26], init[18..26]);
     assert_eq!(frames[ramp + first].words[18..26], primary[14..22]);
     // The third loop's input: step 13's primary words 1-8 and secondary
-    // words 8-9, over the restore's black.
-    let mut input = [0; 64];
+    // words 8-9, over the credits entry's provisional Pal_Init.
+    let mut input: [u16; 64] = init.try_into().unwrap();
     input[18..26].copy_from_slice(&primary[1..9]);
     input[30..32].copy_from_slice(&secondary[8..10]);
     assert_eq!(frames[third - 1].words, input);

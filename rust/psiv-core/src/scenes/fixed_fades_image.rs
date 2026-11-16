@@ -98,7 +98,7 @@ const SHIP_WAYS: [(Way, &[u32]); 3] = [
 
 /// Scenes whose ops do not match their calls yet, and the issue that fixes
 /// each.
-const KNOWN: &[(&str, u32)] = &[("Cutscene_Ending", 652)];
+const KNOWN: &[(&str, u32)] = &[];
 
 /// The fixed fade an op is, if it is one.
 fn recorded(op: &SceneOp) -> Option<Fixed> {
@@ -578,3 +578,95 @@ mod post_zio;
 
 #[path = "lashiec_elevator_fades_image.rs"]
 mod lashiec_elevator;
+
+/// Ending's nine call sites are executable code, not the inline credits data
+/// after `$07A26C`. Address order is normal-path order here: the held-Menu
+/// branch joins at `$079D0C`, rather than running an additional fade sequence.
+#[test]
+fn ending_calls_and_credits_join_are_the_verified_us_sites() {
+    let Some(rom) = rom() else { return };
+    use Fixed::{In, Init};
+    let calls = [
+        (0x078F5C, Init),
+        (0x078F62, In),
+        (0x078FE6, Init),
+        (0x078FF4, In),
+        (0x07908A, Init),
+        (0x0790AE, In),
+        (0x079874, Init),
+        (0x079D0C, Init),
+        (0x079E70, In),
+    ];
+    assert_eq!(retail_calls(rom, &[(0x078F3E, 0x07A812)]), calls);
+    assert!(
+        retail_calls(
+            rom,
+            &[
+                (0x07A26C, 0x07A2B4), // font command and ramp palettes
+                (0x07A522, 0x07A55E), // CreditCommands1/2
+                (0x07A6DE, 0x07A72E), // CreditsFadeInOut's colour table
+            ]
+        )
+        .is_empty(),
+        "credits data are not calls"
+    );
+    assert_eq!(ending_menu_skip(rom, 0x078F4A), Some(ENDING_MENU_SKIP));
+    let scene = SCENES
+        .iter()
+        .find(|scene| scene.name == "Cutscene_Ending")
+        .unwrap();
+    assert_eq!(compare(scene.name, &calls, &native(scene.ops)), None);
+    assert!(!KNOWN.iter().any(|(known, _)| *known == scene.name));
+}
+
+/// The decoded condition and destination, rather than a cartridge-byte fixture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MenuSkip {
+    bit: u16,
+    address: u32,
+    target: usize,
+}
+
+const ENDING_MENU_SKIP: MenuSkip = MenuSkip {
+    bit: 6,               // ButtonCamp
+    address: 0xFFFF_EF02, // Joypad_Held
+    target: 0x079D0C,     // the credits Init
+};
+
+/// Decode immediate BTST on absolute-short memory, then word-relative BNE
+/// (68000 instruction forms). Operands and displacement come from the ignored
+/// US image; no instruction sequence is stored in tracked source.
+fn ending_menu_skip(rom: &[u8], at: usize) -> Option<MenuSkip> {
+    let word = |offset| -> Option<u16> {
+        Some(u16::from_be_bytes(
+            rom.get(offset..offset + 2)?.try_into().ok()?,
+        ))
+    };
+    if word(at)? != 0x0838 || word(at + 6)? != 0x6600 {
+        return None;
+    }
+    Some(MenuSkip {
+        bit: word(at + 2)?,
+        address: i32::from(word(at + 4)? as i16) as u32,
+        target: usize::try_from(at as i64 + 8 + i64::from(word(at + 8)? as i16)).ok()?,
+    })
+}
+
+#[test]
+fn the_ending_join_check_rejects_a_changed_condition_operand_or_target() {
+    let Some(rom) = rom() else { return };
+    let at = 0x078F4A;
+    assert_eq!(ending_menu_skip(rom, at), Some(ENDING_MENU_SKIP));
+    // Mutate the private input in memory: instruction form, Menu bit, held
+    // pad address, branch condition, displacement. No extracted fixture.
+    for offset in [0, 3, 5, 6, 9] {
+        let mut changed = rom.to_vec();
+        changed[at + offset] ^= 1;
+        assert_ne!(
+            ending_menu_skip(&changed, at),
+            Some(ENDING_MENU_SKIP),
+            "offset {offset}"
+        );
+    }
+    assert_eq!(ending_menu_skip(&[], at), None);
+}
