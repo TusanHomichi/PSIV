@@ -3,7 +3,8 @@
 
 Run in the dev shell: python3 tools/verify_ending_staff.py [--no-build].
 Uses the real Ending fixture, empty isolated saves and the shared RunText2
-consumer. Rendering pauses between observations; simulation never skips frames.
+consumer. Acceptance and file identity are owned by psiv-native-verify in Rust.
+Rendering pauses between observations; simulation never skips frames.
 The oracle recipe is tape 47 plus the two tape-38 RAM patches. Comparison is
 psiv-compare's exact staff rectangle (24,64,256,88), at a 1280x800 viewport.
 All ROM-derived inputs and outputs stay local, under build/ending-staff/.
@@ -19,21 +20,11 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary
-from tools.certify import GODOT_FLAGS, compare, sha256
+from tools.certify import GODOT_FLAGS, compare
+from tools import native_verifier
 from tools.gate import git_info, utc_stamp
 from tools.godot import create_run_root, exit_leaks_binary, godot_command, logged_exit_leaks
 from tools.heavy_lock import EXTENSION, GODOT, hold_heavy_lock
-
-# Oracle hashes pin a fresh regeneration; none is an asset distributed in Git.
-PAIRS = [
-    ("before", 42503, "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d"),
-    ("fall", 42525, "805c7aaa712e730d6eee66a4d31f6cad1927ea3df32bff087cf09062c64b945f"),
-    ("dark", 42555, "0baa1fbd6c9ce8a7db30ce57b22d69bb07eee13e7fd8811e3226e49a79d193a6"),
-    ("rise", 42945, "75a610dbc87ff7760c47fe2254fd33c6a551fbf9d989945bcaed2657b54aa6dc"),
-    ("after", 42963, "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d"),
-    ("cleared", 42966, "779f77ad9bb3403f7714ccd9996486fa80fa41c4165bce2d6596afc57844f94d"),
-]
-REGION = [24, 64, 256, 88]
 
 
 def run(command, log, env=None):
@@ -56,6 +47,8 @@ def main():
     output = root / "build" / "ending-staff" / utc_stamp(datetime.now(timezone.utc))
     output.mkdir(parents=True)
     started = time.monotonic()
+    native_verifier.prepare()
+    plan = native_verifier.verify({"operation": "ending-staff-plan"})
     with hold_heavy_lock(lock_class=EXTENSION):
         if not args.no_build:
             run(["cargo", "build", "--manifest-path", "rust/Cargo.toml",
@@ -65,14 +58,13 @@ def main():
     oracle.mkdir()
     command = [str(host_binary.ensure()),
                "--core", "oracle/core/genesis_plus_gx_libretro.so", "--rom", "Phantasy Star IV (USA).md",
-               "--map", "oracle/ram_map.tsv", "--tape", "oracle/tapes/47_ending_staff.tape",
-               "--out", "/dev/null", "--ram-patch", "7200:FFFFECA8:8021",
-               "--ram-patch", "7200:FFFFEC20:000C", "--dump-frames",
-               ",".join(str(frame) for _, frame, _ in PAIRS), "--dump-frames-dir", str(oracle)]
+               "--map", "oracle/ram_map.tsv", "--tape", plan["tape"],
+               "--out", "/dev/null", "--dump-frames",
+               ",".join(str(pair["frame"]) for pair in plan["pairs"]), "--dump-frames-dir", str(oracle)]
+    for patch in plan["patches"]:
+        command += ["--ram-patch", patch]
     run(command, output / "oracle.log")
-    for _, frame, digest in PAIRS:
-        if sha256(oracle / f"frame_{frame}.png") != digest:
-            raise RuntimeError(f"oracle frame {frame} hash changed")
+    native_verifier.verify({"operation": "ending-staff-oracle", "directory": str(oracle)})
     with hold_heavy_lock(lock_class=GODOT):
         run_root = create_run_root(output / "run-root", source=root)
         try:
@@ -87,35 +79,27 @@ def main():
                                     "--script", str(root / "tools/native/native_ending_staff.gd"),
                                     prefix=("timeout", "1200", "xvfb-run", "-a"))
             run(command, output / "native.log", env)
-            if logged_exit_leaks(output / "native.log"):
-                raise RuntimeError(f"Godot exit leaks: {output / 'native.log'}")
+            leaks = logged_exit_leaks(output / "native.log")
         finally:
             run_root.release()
-    captures = json.loads((output / "captures.json").read_text())
-    if [row["label"] for row in captures] != [row[0] for row in PAIRS]:
-        raise RuntimeError("missing or reordered native observations")
-    results = []
-    for native, (label, frame, digest) in zip(captures, PAIRS):
-        rmse, result = compare(output / f"{label}.png", oracle / f"frame_{frame}.png", REGION)
-        results.append({**native, "oracle_frame": frame, "oracle_sha256": digest,
-                        "capture_sha256": sha256(output / f"{label}.png"),
-                        "rmse": rmse, "comparison": result})
-    # A missing plane transfer leaves this rectangle white, as it is after
-    # the clear. Compare that unmodified capture against the fall frame: the
-    # new visual check must reject the missing-text image.
-    blank_rmse, blank_result = compare(output / "cleared.png", oracle / "frame_42525.png", REGION)
-    if blank_rmse is None or float(blank_rmse) <= 0:
-        raise RuntimeError("missing-transfer negative control was not rejected")
-    receipt = {"git": git_info(root), "inputs": {
-        name: sha256(root / name) for name in ("Phantasy Star IV (USA).md", "oracle/tapes/47_ending_staff.tape",
-                                             "runtime-pack/dialogue/font.png", "runtime-pack/dialogue/trees.json",
-                                             "oracle/core/genesis_plus_gx_libretro.so")},
-        "run_root": run_root.record, "region": REGION, "results": results,
-        "missing_transfer_control": {"rmse": blank_rmse, "comparison": blank_result},
-        "elapsed_s": round(time.monotonic() - started, 2)}
+    captures = native_verifier.verify({"operation": "ending-staff-observations", "directory": str(output)})
+    comparisons = []
+    for native, pair in zip(captures, plan["pairs"]):
+        label, frame = pair["label"], pair["frame"]
+        rmse, report = compare(output / f"{label}.png", oracle / f"frame_{frame}.png", plan["region"])
+        comparisons.append({"label": native["label"], "rmse": rmse, "comparison": report})
+    control = plan["negative_control"]
+    rmse, report = compare(output / f"{control['native_label']}.png",
+                           oracle / f"frame_{control['oracle_frame']}.png", plan["region"])
+    request = {"operation": "ending-staff", "directory": str(output), "root": str(root),
+               "comparisons": comparisons, "negative_control": {"rmse": rmse, "comparison": report},
+               "exit_leaks": leaks, "metadata": {"git": git_info(root), "run_root": run_root.record,
+               "elapsed_s": round(time.monotonic() - started, 2)}}
+    (output / "comparisons.json").write_text(json.dumps(request, indent=2) + "\n")
+    receipt = native_verifier.verify(request)
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(json.dumps(receipt, indent=2))
-    return 0 if all(row["rmse"] == "0.000000" for row in results) else 1
+    return 0
 
 
 if __name__ == "__main__":

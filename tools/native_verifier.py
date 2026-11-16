@@ -15,7 +15,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 INPUTS = (
     "rust/psiv-native-verify/src/lib.rs", "rust/psiv-native-verify/src/main.rs",
-    "rust/psiv-native-verify/Cargo.toml", "rust/Cargo.toml", "rust/Cargo.lock",
+    "rust/psiv-native-verify/src/ending_staff.rs", "rust/psiv-native-verify/Cargo.toml", "rust/Cargo.toml", "rust/Cargo.lock",
     "rust-toolchain.toml",
 )
 

@@ -309,7 +309,11 @@ loops. Text cells and clears are staged until `DmaPlanes`; the fourth entry
 has its own transfer before the fade out. The opening uses this same cell
 and pattern path with its own column-5 destinations and tile words.
 
-`python3 tools/verify_ending_staff.py` regenerates six pairs from tape 47. They
+`python3 tools/verify_ending_staff.py` regenerates six pairs from tape 47.
+`psiv-native-verify/src/ending_staff.rs` owns oracle identities, observation
+ordering, CRAM/visibility/viewport checks and the comparison verdict, including
+the negative control. Python only launches the tools and transports their
+requests and receipts. The pairs
 compare the staff rectangle, not the surrounding ending scene; the fixture
 starts the ending by explicit RAM patches and is not a campaign completion
 claim.
