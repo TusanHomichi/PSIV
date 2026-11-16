@@ -590,7 +590,8 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::ClearCharacterStatus { who: GRYZ },
         SceneOp::RemovePartyMember { who: DEMI },
         SceneOp::ClearCharacterStatus { who: DEMI },
-        SceneOp::ReviveIfDead { who: CHAZ },
+        // US `$075E88` clears Demi's status; `$075E8C` immediately starts
+        // this load. The fork's `bugfixes=1` Chaz revival is absent (#736).
         SceneOp::LoadMap {
             map: 0x00,
             prev_map: 0xAC,

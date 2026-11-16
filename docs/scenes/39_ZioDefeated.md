@@ -4,13 +4,14 @@
 - **Pointer:** `CutscenePtrs[$0B]` at `$05A580`; scene event is `$800B`.
 - **Trigger:** Nurvus B4 Part2 `$D3`, `RunEvent_ZioDefeated` (`$20`): Zio
   Nurvus `$65` set and Gryz Gone `$68` clear.
-- **Data:** `post_rika_cutscenes.rs`, `ZIO_DEFEATED` (77 ops).
+- **Data:** `post_rika_cutscenes.rs`, `ZIO_DEFEATED` (76 ops).
 
 ## Clone audit
 
 The source range is the retail `grand_cross=0` body. Grand Cross-only scene
-content is excluded. The final party removals are state operations. The existing native Chaz
-revive is a separate extension ([#736](https://github.com/TusanHomichi/PSIV/issues/736)).
+content is excluded. The final party removals are retail state operations.
+The fork's `bugfixes=1` Chaz revival is absent from the US image and is not
+ported; see the [source correction](../source-notes/disassembly-discrepancies.md#ziodefeateds-fork-only-chaz-revival).
 
 ## Retail transcription
 
@@ -23,8 +24,7 @@ revive is a separate extension ([#736](https://github.com/TusanHomichi/PSIV/issu
 | 49-54 | `$075D72..$075D9B` | fade out, init, fade in; load `DialogueTree36` at `$075D84`; a second init and fade in at `$075D90/$075D96` | fade/tree |
 | 55-65 | `$075D9C..$075DFD` | panel sequence `$73/$74/$75`, waits 30/60/20, sprites on, resume dialogue | panel/dialogue |
 | 66-69 | `$075E30..$075E8B` | clear field objects; remove Gryz `$04`, clear status; remove Demi `$06`, clear status | party/roster writes |
-| 70 | no US call | native Chaz revival, separate from these fade repairs ([#736](https://github.com/TusanHomichi/PSIV/issues/736)) | `ReviveIfDead(Chaz)` |
-| 71-76 | `$075E8C..$075EDF` | final Motavia load from BioPlant B4 Part2 at `($6C,$B8)`, down; fade; set `$68,$66,$61`; return 1 | `LoadMap`, flags, return |
+| 70-75 | `$075E8C..$075EDF` | final Motavia load from BioPlant B4 Part2 at `($6C,$B8)`, down; `RefreshMap` at `$075EB6`, fade-in at `$075EBC`; set `$68,$66,$61`; return 1, `rts` at `$075EDE` | `LoadMap`, flags, return |
 
 The intermediate load is Motavia `$00`, previous BioPlant B4 Part2 `$AC`,
 start `($70,$BC)`. The final load is the same map/previous map with start
@@ -55,9 +55,11 @@ until it was added. See the [revision audit](REVISION_AUDIT.md).
 `scenes::fixed_fades_image` checks the US call sites;
 `scenes::zio_fade_boundaries` traces the fades around maps, dialogue, panels
 and party removals, with missing/misplaced fade controls.
-The end-to-end arc test resolves battle 6, runs this cutscene, and asserts the
+The runtime's synthetic arc test resolves battle 6, runs this cutscene, and asserts the
 final map `$00`, party composition, Gryz Gone `$68`, Mota Spaceport `$66`,
-Plate Engine `$61`, and Chaz's revive/status result.
+Plate Engine `$61`, and preservation of Chaz's HP/status. The focused core
+test `zio_defeated_scene` runs the scene with dead and living-statused Chaz,
+checks his record is unchanged, and checks only Gryz/Demi's statuses clear.
 
 ## Chain stop
 
