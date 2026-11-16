@@ -518,3 +518,6 @@ mod tests {
         assert_eq!(sell_price(0, 2), 0);
     }
 }
+
+#[cfg(test)]
+mod retirement;
