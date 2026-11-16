@@ -798,3 +798,22 @@ def export_battle_art_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, A
             })
     write_png_stamp(directory, "battle_art", [entry["path"] for entry in written])
     return written
+
+
+def enemy_palette(rom: bytes, enemy_id: int) -> list[RGB]:
+    """The sixteen colours an enemy's CRAM line holds, minus the line choice.
+
+    Index 0 is the transparent backdrop and index 15 is the only entry that
+    differs between lines 1 and 2, so both are placeholders here; everything
+    between them is what `loc_10ED4` writes for either line.
+    """
+    words = [0x0000] * COLORS_PER_LINE
+    for index, value in ENEMY_FIXED_COLORS.items():
+        words[index] = value
+    for offset, value in enumerate(enemy_palette_words(rom, enemy_id)):
+        words[ENEMY_PALETTE_FIRST_INDEX + offset] = value
+    words[14] = UI_COLOR_14
+    colors = _rgb_line(words)
+    colors[0] = (0, 0, 0)
+    colors[15] = (0, 0, 0)
+    return colors

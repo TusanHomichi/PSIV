@@ -1,4 +1,4 @@
-//! `shops.json` and `shops/portraits/`: the port of `psiv_tools/shop_pack.py`,
+//! `shops.json` and `shops/portraits/`: the port of [retired shop_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/shop_pack.py),
 //! which owns the reasons the file is one table and not a per-map section
 //! (#216, slice 5).
 //!

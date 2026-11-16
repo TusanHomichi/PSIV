@@ -1,5 +1,5 @@
 //! The formation checks of tests/test_formations.py,
-//! tests/test_inline_formations.py and tests/test_battle_pack.py (#549).
+//! tests/test_inline_formations.py and [retired test_battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_battle_pack.py) (#549).
 //! The constructed inline-record cases copy no cartridge bytes; the rest read
 //! the local retail ROM, and two read the local disassembly clone's
 //! uncompressed formation listings as an independent oracle.

@@ -2,7 +2,7 @@
 //! registered first, in map order, because the first object to ask names a
 //! sheet's file. Then each map's pictures and file are built in parallel: one
 //! map's work is [`map_pictures`] and [`super::file::map_file`], which together
-//! are `psiv_tools/pack.py`'s map loop.
+//! are [retired pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack.py)'s map loop.
 
 use std::collections::BTreeSet;
 use std::path::Path;

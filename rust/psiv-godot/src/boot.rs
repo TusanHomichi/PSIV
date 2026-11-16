@@ -75,7 +75,7 @@ mod new_game_tests {
         let data = GameData::load(pack).expect("pack loads");
         let session = Session::start(data).new_game().expect("new game starts");
         let runtime = session.runtime();
-        // Retail loc_44414, verified by psiv_tools/newgame.py's opcode pins.
+        // Retail loc_44414, verified by the Rust game-start extractor's opcode pins.
         assert_eq!(
             runtime.game().money(),
             500,

@@ -1,6 +1,6 @@
 //! The dialogue font, the menu font, the waiting arrow and the portraits:
-//! the port of `psiv_tools/dialogue_pack/art.py` and the `menu_font.png`
-//! step of `emit.py`. All of them render against `Pal_Init_Line_3`.
+//! the port of [retired art](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/dialogue_pack/art.py) and the `menu_font.png`
+//! step of `the former dialogue emitter`. All of them render against `Pal_Init_Line_3`.
 
 use std::collections::BTreeMap;
 use std::path::Path;

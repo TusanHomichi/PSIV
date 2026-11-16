@@ -1,6 +1,6 @@
 //! What [`build`] writes, read back: the pack-level checks of
-//! tests/test_battle_pack.py (`TestBattlePack`) and
-//! tests/test_battle_records.py (`TestInThePack`), ported for #549. The
+//! [retired test_battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_battle_pack.py) (`TestBattlePack`) and
+//! [retired test_battle_records](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_battle_records.py) (`TestInThePack`), ported for #549. The
 //! retail fixture here is shared with the owning modules' own retail tests
 //! (enemies, levels, abilities, characters, equipment, formations).
 //!

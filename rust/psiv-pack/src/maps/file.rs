@@ -1,4 +1,4 @@
-//! One map's pack file, `maps/<id>_<symbol>.json`: `psiv_tools/pack_map_json.py`
+//! One map's pack file, `maps/<id>_<symbol>.json`: [retired pack_map_json](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack_map_json.py)
 //! and `map_updates_render.bind_updates`.
 //!
 //! The file is a `psiv_data::MapRecord`, which owns the schema the game reads.

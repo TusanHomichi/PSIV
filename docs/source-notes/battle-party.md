@@ -180,7 +180,7 @@ sleep object's agility reduction. `Battle_RestoreStatsAtTurnEnd` rolls once
 per occupied sleeping fighter, wakes on odd, restores modified agility, then
 clears enemy paralysis without a roll.
 
-**PORT BUG — alphabetical resistance census.** `psiv_tools/battle_pack.py`
+**PORT BUG — alphabetical resistance census.** `rust/psiv-pack/src/battle/mod.rs`
 emits `enemies.properties` as sorted names. The Rust bridge incorrectly used
 that census as element-id order for both enemies and newly seated characters.
 For example, Earth (element 11, psychic) read the mechanical immunity at

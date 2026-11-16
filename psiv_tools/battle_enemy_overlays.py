@@ -20,7 +20,6 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Sequence
 
 from . import planes, png
@@ -60,8 +59,6 @@ ZORAN_MAPPING_SIGNATURE = bytes.fromhex(
     "00021102000119200d040001192a040900011934"
 )
 
-OVERLAY_ART_DIRECTORY = "battle/art/enemy_overlays"
-OVERLAY_ART_NAME = "battle/art/enemy_overlays.json"
 
 
 def _slice(data: bytes, offset: int, size: int, what: str) -> bytes:
@@ -575,55 +572,3 @@ def render_overlay_piece_frame(
         _line_palette(data, enemy.enemy_id),
         (0,),
     )
-
-
-def _safe(label: str | None) -> str:
-    return "".join(c if c.isalnum() or c in "-_" else "_" for c in label or "unknown")
-
-
-def emit_enemy_overlays(
-    data: bytes, out_dir: str | Path
-) -> tuple[dict[str, Any], int, int]:
-    """Emit deterministic full-body replacement frames for every active piece."""
-    provenance, decoded = decode_enemy_overlay_records(data)
-    directory = Path(out_dir)
-    root = directory / OVERLAY_ART_DIRECTORY
-    root.mkdir(parents=True, exist_ok=True)
-    payload = overlay_payload(provenance, decoded)
-    by_id = {enemy["id"]: enemy for enemy in payload["enemies"]}
-    total_bytes = 0
-    png_count = 0
-    for enemy in decoded:
-        entry = by_id[enemy.enemy_id]
-        for piece, piece_entry in zip(enemy.pieces, entry["pieces"]):
-            if not piece.enabled:
-                piece_entry["initial_png"] = None
-                piece_entry["frames"] = []
-                continue
-            prefix = f"{enemy.enemy_id:03d}_{_safe(enemy.symbol)}_piece{piece.index:02d}"
-            initial = render_overlay_piece_frame(
-                data, enemy, piece, piece.initial_source_pattern
-            )
-            initial_name = f"{prefix}_initial.png"
-            (root / initial_name).write_bytes(initial)
-            total_bytes += len(initial)
-            png_count += 1
-            piece_entry["initial_png"] = f"{OVERLAY_ART_DIRECTORY}/{initial_name}"
-            piece_entry["initial_png_sha256"] = png.image_sha256(initial)
-            frames: list[dict[str, Any]] = []
-            for frame, source_pattern in enumerate(piece.source_patterns):
-                image = render_overlay_piece_frame(data, enemy, piece, source_pattern)
-                name = f"{prefix}_frame{frame:02d}.png"
-                (root / name).write_bytes(image)
-                total_bytes += len(image)
-                png_count += 1
-                frames.append({
-                    "frame": frame,
-                    "source_pattern": source_pattern,
-                    "duration": piece.durations[frame],
-                    "duration_ticks": piece.durations[frame] + 1,
-                    "png": f"{OVERLAY_ART_DIRECTORY}/{name}",
-                    "png_sha256": png.image_sha256(image),
-                })
-            piece_entry["frames"] = frames
-    return payload, total_bytes, png_count

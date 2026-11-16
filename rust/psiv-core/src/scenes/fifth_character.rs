@@ -20,7 +20,7 @@ const LEADER: ActorRef = ActorRef::PartyMember(0);
 pub(crate) const FIRST_OBJECT: usize = 5;
 
 /// One row of `loc_72182`, eight bytes, as the pack carries it
-/// (`psiv_tools/fifth_pack.py`).
+/// ([retired fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/fifth_pack.py)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FifthRow {
     /// `$0`, where the friend stands: X in pixels.

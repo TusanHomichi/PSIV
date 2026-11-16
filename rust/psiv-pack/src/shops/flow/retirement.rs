@@ -1,4 +1,4 @@
-//! Remaining tests/test_shop_flow.py decoder contracts (#560).
+//! Remaining [retired test_shop_flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_shop_flow.py) decoder contracts (#560).
 use super::*;
 use crate::test_support::retail_rom;
 use serde_json::{Value, json};

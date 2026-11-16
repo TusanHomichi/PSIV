@@ -1,5 +1,5 @@
 //! `npc_commands.json`, what a scene's `MoveActorCommand` byte means: the port of
-//! `psiv_tools/npc_commands.py`, which owns the retail citations (#216, slice 5).
+//! [retired npc_commands](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/npc_commands.py), which owns the retail citations (#216, slice 5).
 //!
 //! `FieldObj_NPCMove` is the only place the speed table is named, so the code
 //! pins it, and the table extents give both counts. No `psiv-data` type reads
@@ -462,7 +462,7 @@ mod tests {
         serde_json::Value::from(&decode(0, raw).unwrap().to_json())
     }
 
-    /// Ported from tests/test_npc_commands.py's record-format cases (#216).
+    /// Ported from the retired Python npc_commands suite's record-format cases (#216).
     #[test]
     fn a_record_decodes_its_direction_frames_and_facing() {
         // 16 pixels at 256/256 is 16 frames, what `FieldObj_UpdateStepDuration`
@@ -503,7 +503,7 @@ mod tests {
         Some((data, payload))
     }
 
-    /// Ported from tests/test_npc_commands.py's ROM cases (#216).
+    /// Ported from the retired Python npc_commands suite's ROM cases (#216).
     #[test]
     fn retail_dispatch_speeds_and_commands() {
         let Some((data, payload)) = retail() else {
@@ -589,7 +589,7 @@ mod tests {
         assert!(extract_npc_commands(&unequal).is_err());
     }
 
-    /// Ported from tests/test_npc_commands.py's pack case (#216): the
+    /// Ported from the retired Python npc_commands suite's pack case (#216): the
     /// manifest's headline names the file it wrote.
     #[test]
     fn retail_manifest_headline_names_the_file() {

@@ -46,5 +46,5 @@ window 0 drawn with window tiles and closed by any direction, A, B or C. Recorde
 `rust/psiv-core/tests/vehicle_get_off_scenes.rs`: both arms against made-up collision.
 `rust/psiv-runtime/tests/session_menu_scenes.rs`: board the Land Rover with pads, press Speak on open
 ground and the party stands down on the machine's cell; press it on ground that refuses and the
-line opens, a press closes it and the party stays mounted. `tests/test_dialogue_pack.py`: the line is
+line opens, a press closes it and the party stays mounted. [retired test_dialogue_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_dialogue_pack.py): the line is
 the string the `lea` names, and a moved `lea` stops the extraction.

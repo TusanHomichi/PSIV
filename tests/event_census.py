@@ -14,7 +14,7 @@ routine. Both are read from the US image:
    two register writers, and the readers are known shapes; anything else fails
    the census naming its address, so a new writer cannot hide.
 2. **Trigger writers** are the immediates inside a `RunEventsJmpTbl` routine
-   (`$560E8`, 128 `bra.w` entries; `psiv_tools.newgame.run_events_jmp_tbl`). A
+   (`$560E8`, 128 `bra.w` entries; `run_events_jmp_tbl`). A
    routine is reachable when some map's event list (`psiv_tools.maps`) names a
    slot that reaches it.
 3. **Interaction areas.** `Interaction_GetEvent` (`InteractionRoutines[2]`,
@@ -43,7 +43,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from psiv_tools import newgame
 from psiv_tools.maps import extract_maps
 from psiv_tools.text import extract_dialogue
 
@@ -55,7 +54,7 @@ ASM = ROOT / "reference" / "ps4disasm" / "ps4.asm"
 EVENT_INDEX_OPERAND = 0xECA8
 #: Everything the 68000 executes (and every event body) lies below this.
 CODE_END = 0x80000
-EVENT_PTRS = newgame.EVENT_PTRS
+EVENT_PTRS = 0x05A2B4
 EVENT_COUNT = 161
 CUTSCENE_PTRS = 0x05A580
 CUTSCENE_COUNT = 34
@@ -122,6 +121,20 @@ class Event:
 
     def kinds(self) -> list[str]:
         return sorted({s.kind for s in self.sources})
+
+
+def run_events_jmp_tbl(rom: bytes) -> int:
+    """`RunEventsJmpTbl`, from the `lea (d16,PC),a2` in `RunEvents` that names it.
+
+    PC-relative, so it cannot be grepped; the site is pinned and the table is
+    computed from its displacement.
+    """
+    site = 0x0560CA
+    if rom[site:site + 2] != b"\x45\xfa":
+        raise ValueError(
+            f"0x{site:06X} is not the `lea (d16,PC),a2` that names RunEventsJmpTbl"
+        )
+    return site + 2 + int.from_bytes(rom[site + 2:site + 4], "big", signed=True)
 
 
 def w16(rom: bytes, at: int) -> int:
@@ -195,7 +208,7 @@ def event_index_sites(rom: bytes) -> list[tuple[int, str, int | None]]:
 
 
 def trigger_starts(rom: bytes) -> list[int]:
-    table = newgame.run_events_jmp_tbl(rom)
+    table = run_events_jmp_tbl(rom)
     starts = []
     for slot in range(128):
         entry = table + 4 * slot

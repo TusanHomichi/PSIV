@@ -96,12 +96,6 @@ def main() -> int:
     p_regenerate.add_argument("rom", type=Path)
     p_regenerate.add_argument("output", type=Path)
 
-    p_pack = sub.add_parser("pack", help="Emit the runtime pack for psiv-data (writes Sega pixels; keep the output gitignored)")
-    p_pack.add_argument("rom", type=Path)
-    p_pack.add_argument("output", type=Path)
-    p_pack.add_argument("--map", dest="map_ids", type=lambda v: int(v, 0), action="append",
-                        help="restrict the pack to these map ids (repeatable)")
-
     p_sound = sub.add_parser(
         "sound",
         help="Extract raw music, SFX, voices, envelopes and DAC data (writes the gitignored sound pack)",
@@ -153,47 +147,6 @@ def main() -> int:
             from .planes import export_plane_pngs
             written = export_plane_pngs(data, args.output)
             print(f"Wrote {len(written)} composed PNGs to {args.output}")
-        elif args.command == "pack":
-            from .pack import PackError, build_pack
-            from .pack_swap import PackSwapError, install_atomically
-            try:
-                # Built beside the output and swapped in whole (#145): a
-                # reader sees the old pack or the new one, never half of one.
-                manifest = install_atomically(
-                    args.output, lambda staging: build_pack(data, staging, map_ids=args.map_ids))
-            except (PackError, PackSwapError) as exc:
-                parser.error(str(exc))
-            print(f"Packed {manifest['map_count']} maps to {args.output}")
-            print(
-                f"Dialogue: {manifest['dialogue']['trees']['tree_count']} trees emitted"
-            )
-            battle = manifest["battle"]["files"]
-            print(
-                f"Battle: {battle['enemies']['count']} enemies, "
-                f"{battle['formations']['count']}+{battle['formations']['boss_count']} "
-                f"formations, {battle['levels']['records']} level records, "
-                f"{sum(battle['abilities'][k] for k in ('techniques','skills','enemy_skills','item_effects'))} "
-                "ability records"
-            )
-            print(
-                f"Enemy attacks: {battle['enemy_animations']['exact_sfx']} exact SFX, "
-                f"{battle['enemy_animations']['generic_sfx']} generic, "
-                f"{manifest['battle']['census']['enemy_animations']['timed_frame_sequences']} timed sequences"
-            )
-            print(
-                f"Party: {battle['characters']['count']} character records, "
-                f"{battle['equipment']['count']} inventory records "
-                f"({battle['equipment']['equippable']} equippable)"
-            )
-            shops = manifest["shops"]
-            print(
-                f"Shops: {shops['counters']} counters, "
-                f"{shops['inventories']} inventories, {shops['inns']} inns"
-            )
-            print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
-            doors = manifest["warps"]["doors_without_map_change_cell"]
-            if doors:
-                print(f"{len(doors)} doorways have no map-change cell in the stored layout")
         elif args.command == "sound":
             from .sound import SoundError, emit_sound
             try:

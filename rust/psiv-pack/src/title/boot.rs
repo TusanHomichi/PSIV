@@ -1,6 +1,6 @@
 //! The title palette cycle, derived from the cartridge: the port of
 //! `_TitleBoot`, `run_title_boot` and `derive_palette_cycle` in
-//! `psiv_tools/title_pack.py`, whose docs give the reasons. It follows
+//! [retired title_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/title_pack.py), whose docs give the reasons. It follows
 //! `Palette_Table_Buffer` from power-on to the title menu one game frame at a
 //! time, under tape 25's input, reading every count, step and table from the
 //! instructions that hold them.

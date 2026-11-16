@@ -206,7 +206,7 @@ the formation-relative `origin_pixels` needed by the Godot local attack layer,
 `psiv_tools.battle_animation_oracle` verifies those hashes and follows the
 hardware SAT link chain when regenerating the evidence PNGs. Compared by pixel
 index, eight bodies' captures are one identical sequence and three more share
-a second; `tests/test_battle_art_pack.py` checks that when the PNGs are
+a second; [retired test_battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_battle_art_pack.py) checks that when the PNGs are
 present. The captured sprite table is therefore the shared hit presentation
 (most likely the targeted party member), not each routine's attack art.
 

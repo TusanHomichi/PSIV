@@ -1,4 +1,4 @@
-//! tests/test_battle_pack.py's level checks (#549): `battle/levels.json` as
+//! the retired Python battle_pack suite's level checks (#549): `battle/levels.json` as
 //! [`build`](super::build) writes it from the local retail ROM.
 
 use psiv_data::LevelsFile;

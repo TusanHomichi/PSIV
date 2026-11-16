@@ -1,4 +1,4 @@
-//! tests/test_battle_records.py's `TestTheRecords`, the character half
+//! the retired Python battle_records suite's `TestTheRecords`, the character half
 //! (#549): `battle/characters.json` as [`build`](super::build) writes it from
 //! the local retail ROM, read through `psiv_data::CharactersFile` and, for
 //! what the schema doesn't carry, the raw JSON.

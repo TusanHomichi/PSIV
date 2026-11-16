@@ -217,7 +217,7 @@ def markdown(result: dict[str, Any]) -> str:
     lines += [
         "## Distinct action-referenced panel ids",
         "",
-        "These are the additive panel records emitted by `presentation_pack.py`; "
+        "These are the additive panel records emitted by the Rust presentation builder; "
         "the scene-owned records remain in the same manifest.",
         "",
     ]

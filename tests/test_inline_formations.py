@@ -8,7 +8,6 @@ the retail records.
 import unittest
 from pathlib import Path
 
-from psiv_tools.battle_pack import build_formations
 from psiv_tools.core import read_rom
 from psiv_tools.formations import (INLINE_FORMATIONS, LEA_ABS_A0, FormationError,
                                    extract_inline_formations)
@@ -99,7 +98,13 @@ class Retail(unittest.TestCase):
             self.assertTrue(record["enemy_count_matches_entries"])
 
     def test_the_pack_carries_them_under_its_own_field_names(self):
-        inline = build_formations(self.data)["inline_formations"]
+        import json
+        import os
+        pack = Path(os.environ.get("PSIV_RUNTIME_PACK", ROM.parent / "runtime-pack")).resolve()
+        path = pack / "battle/formations.json"
+        if not path.is_file():
+            self.skipTest("local runtime pack absent")
+        inline = json.loads(path.read_text(encoding="utf-8"))["inline_formations"]
         self.assertEqual([r["label"] for r in inline],
                          ["loc_1A2F4", "loc_23D00", "loc_1308C", "loc_1987E", "loc_224E8"])
         for record in inline:

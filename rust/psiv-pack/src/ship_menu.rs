@@ -1,4 +1,4 @@
-//! The ship's destination screen: the port of `psiv_tools/ship_menu_pack.py`,
+//! The ship's destination screen: the port of [retired ship_menu_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/ship_menu_pack.py),
 //! which owns the retail citations (#216, slice 5). `loc_63BC4` draws a
 //! planetary map behind its windows; this replays the drawing for each of the
 //! eight cover combinations, and writes the strings, windows and palette.

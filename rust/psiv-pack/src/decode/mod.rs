@@ -3,9 +3,7 @@
 //!
 //! Each decoder is a transcription of its Python counterpart, which owns the
 //! retail citations (`psiv_tools/nemesis.py`, `kosinski.py`, `enigma.py`).
-//! The full gate's parity step decodes every stream a Python full build
-//! decodes (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`)
-//! with both and compares each output and consumed length.
+//! Frozen synthetic and retail contracts check outputs and consumed lengths.
 //!
 //! [`Decodes`] is `psiv_tools/decode_cache.py`'s scope: sections share it,
 //! so a stream several sections read (an enemy's art and its palette

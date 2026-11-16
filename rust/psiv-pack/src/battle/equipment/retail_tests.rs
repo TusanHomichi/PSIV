@@ -1,4 +1,4 @@
-//! tests/test_battle_records.py's `TestTheRecords`, the equipment half
+//! the retired Python battle_records suite's `TestTheRecords`, the equipment half
 //! (#549): `battle/equipment.json` as [`build`](super::build) writes it from
 //! the local retail ROM.
 

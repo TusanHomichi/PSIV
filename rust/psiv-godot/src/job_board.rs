@@ -6,7 +6,7 @@
 //! shared set the camp draws with. `Event_HuntersGuild` writes a row's name
 //! with `$C000` while the job is open, `$A000` once it is collected and
 //! `$E000` while it is not open: the same font tiles on CRAM lines 2, 1 and 3
-//! (`psiv_tools/guild_pack.py`). So the screen draws through three
+//! ([retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)). So the screen draws through three
 //! [`WindowLayer`]s, one per line, and the shell gives each its line's
 //! material (`window_palette::WindowNode`): the frame, the cursor boxes and
 //! the open names on `Window`, the collected names on `Done`, the others on

@@ -1,4 +1,4 @@
-//! The eleven STATUS portraits: the port of `psiv_tools/status_portraits.py`.
+//! The eleven STATUS portraits: the port of [retired status_portraits](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/status_portraits.py).
 //! Each is a Nemesis art blob drawn through its own 10x10 Plane mapping on
 //! CRAM line 2, and the ages sit in their own word table.
 

@@ -111,7 +111,7 @@ pub enum IndexLayout {
     /// A sprite sheet: index `i` of 0-15 is word `i` of CRAM line `line`;
     /// index 0 is the VDP's transparent colour.
     Line(u8),
-    /// A scene panel (`psiv_tools/presentation_pack.py`, `emit_panel`): index
+    /// A scene panel ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py), `emit_panel`): index
     /// 0 transparent, 1-16 layer A's colours 0-15 on line `a`, 17-32 layer
     /// B's on line `b`. A layer's line is its art tile's palette select, bits
     /// 13-14.
@@ -121,7 +121,7 @@ pub enum IndexLayout {
         /// Layer B's line.
         b: u8,
     },
-    /// A whole plane drawn as the VDP shows it (`presentation_pack.py`,
+    /// A whole plane drawn as the VDP shows it ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py),
     /// `decode_scene_picture`): index `i` of 0-63 is CRAM slot `i`, line
     /// `i / 16`, and every index is opaque. A pattern's colour 0 is index 0,
     /// the backdrop (register 7 `$8700`: CRAM word 0), since the plane under

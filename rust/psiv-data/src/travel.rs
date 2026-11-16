@@ -66,7 +66,7 @@ pub struct PlaceEntry {
 }
 
 /// The teleport windows' strings, decoded from the window charset with `$FC`
-/// as a newline (`psiv_tools/travel.py` `MESSAGES` cites each one).
+/// as a newline ([retired travel](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/travel.py) `MESSAGES` cites each one).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TravelMessages {
     /// The town list's label on each page's bottom border (`loc_2AA892`).

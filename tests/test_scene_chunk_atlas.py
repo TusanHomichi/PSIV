@@ -26,7 +26,7 @@ The Rust pack builder (`rust/psiv-pack/src/maps/patches.rs`) carries its own
 copy of the rows that add atlas chunks (`via` `"scene"`). `RustBuilderRows`
 holds the two to the same scenes, maps, chunks, tables and pinned bytes without
 the ROM, so a row added to one builder only fails here rather than in the full
-gate's pack parity (the Wreckage row did, #333).
+Rust emitted-atlas tests (the Wreckage row did, #333).
 """
 from __future__ import annotations
 

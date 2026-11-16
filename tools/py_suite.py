@@ -7,8 +7,7 @@ Runs the modules `python3 -m unittest discover -s tests` would run, each as one
 task, on a pool of worker processes started fresh (`spawn`), so a module's
 tests run in its worker exactly as `unittest` runs them, fixtures and all
 (`setUpModule`, `setUpClass`). A worker keeps running modules until the queue
-is empty, so one-time process fixtures (the pack's map-independent sections,
-the shared PackFixtureCase pack, the map table) are paid once per worker, not
+is empty, so one-time research fixtures are paid once per worker, not
 once per module. `--fast` leaves out SLOW_PYTHON_MODULES: the per-commit
 tier. The full gate runs every module.
 
@@ -61,19 +60,12 @@ PATTERN = "test*.py"
 #: list, measured at 6 s or more. A module added here leaves the fast tier, so a
 #: later long module is a scheduling follow-up (#174), not an entry: the list
 #: also orders the pool's queue, and the two roles are not separate yet.
-#: Intrinsic means measured in a process whose
-#: one-time fixtures are already built -- the pack's map-independent sections
-#: (#130), the shared PackFixtureCase pack and the map table, ~13 s that the
-#: first module to need them pays in any process -- taking the lower of a forward
-#: and a reverse discovery-order run (2026-10-16, CPU capped at 2.3 GHz).
+#: Historical measurements include warmed research fixtures.
 #: Values are those seconds; they also order the pool's queue. Every name must be
 #: a module under tests/ (tests/test_py_suite.py checks), so a rename cannot leave
 #: a stale entry here.
 SLOW_PYTHON_MODULES = {
-    "test_pack_maps": 37.1,
     "test_oracle_battle_fixture_reload": 32.0,
-    "test_battle_art_pack": 14.7,
-    "test_pack_manifest": 14.2,
     "test_map_patches": 12.8,
     "test_oracle_host_binary": 12.3,
     "test_extract_stamp": 7.7,

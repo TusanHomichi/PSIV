@@ -1,7 +1,7 @@
 //! `battle/abilities.json`: the port of `extract_techniques`,
 //! `extract_skills`, `extract_enemy_skills` and `extract_items` in
 //! `psiv_tools/core.py`, and of `ability_effect_count` and `build_abilities`
-//! in `psiv_tools/battle_pack.py`, whose module docs give the reasons: every
+//! in [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py), whose module docs give the reasons: every
 //! record's first byte indexes `AbilityEffectsOffs`, which `TRAP #2`
 //! dispatches through with no bound, so the table's length is derived from
 //! the cartridge and a record past it is marked rather than dropped.

@@ -1,4 +1,4 @@
-//! Emitted presentation contracts from test_presentation_pack.py (#559).
+//! Emitted presentation contracts from the retired test_presentation_pack suite (#559).
 use super::*;
 use crate::test_support::{retail_rom, scratch};
 use serde_json::{Value, json};

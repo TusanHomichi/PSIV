@@ -1,4 +1,4 @@
-//! `battle/`: the port of `psiv_tools/battle_pack.py`, which owns the reasons
+//! `battle/`: the port of [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py), which owns the reasons
 //! for each file's shape (#216, slice 6). This slice writes the enemies, the
 //! formations, the level tables, the abilities, the characters with their
 //! STATUS portraits, the equipment, the enemy animations and the first of the

@@ -1,4 +1,4 @@
-//! Emission contracts from tests/test_battle_art_pack.py (#551). The image
+//! Emission contracts from [retired test_battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_battle_art_pack.py) (#551). The image
 //! decode tests remain with their owning extractors (#550); this reads the
 //! emitted indexes, manifest, files and their relationships.
 

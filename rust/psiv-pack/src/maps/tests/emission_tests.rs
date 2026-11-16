@@ -1,4 +1,4 @@
-//! Emitted map structure from tests/test_pack_maps.py (#552).
+//! Emitted map structure from [retired test_pack_maps](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_pack_maps.py) (#552).
 //! Related file and report checks share this emission in pack_structure_tests.
 
 use super::retail_tests::{array, num, retail};

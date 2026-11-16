@@ -1,5 +1,5 @@
 //! Chunks, plane layouts, tile collision and the VRAM image of a map's layout
-//! section: the port of `psiv_tools/layouts.py` and `psiv_tools/pack_layouts.py`,
+//! section: the port of `psiv_tools/layouts.py` and [retired pack_layouts](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack_layouts.py),
 //! which own the retail citations (#216, slice 3).
 //!
 //! The two world maps store no layout pointers, so [`layout_spec`] refuses

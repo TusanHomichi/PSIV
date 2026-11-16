@@ -1,5 +1,5 @@
 //! Palette requests checked beside the assembled 68000 instructions that
-//! read them (test_presentation_pack.py); these are instruction encodings,
+//! read them (the retired Python presentation_pack suite); these are instruction encodings,
 //! addresses and counts, not copied cartridge bytes or content hashes.
 use super::*;
 

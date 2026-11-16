@@ -1,31 +1,18 @@
-"""`psiv_tools.render`: the priority overlay, from the bit to the pixels.
+"""Independent research renderer's priority bits and synthetic PNG reader.
 
-`priority_tiles` is testable without a ROM -- which pattern words carry bit 15
-and where they sit in a chunk. The rest needs the cartridge, so the ROM-backed
-half builds a one-map pack for Piata: the town whose palm crowns, dome roofs
-and wall top course are the case that found the bug this overlay fixes. How
-the *pack* reports an overlay -- the `png_over` field, the null case, the
-manifest counts -- stays in `test_pack_maps.py` and `test_pack_manifest.py` with the rest of the
-emission.
+Emitted map, overlay and manifest contracts live in the Rust map suites.
 """
 
 import struct
-import tempfile
 import unittest
 import zlib
 from pathlib import Path
 
 from psiv_tools import png
-from psiv_tools.core import read_rom
 from psiv_tools.chunk_draw import (
-    CHUNK_PIXELS_X,
-    CHUNK_PIXELS_Y,
     CHUNK_WORDS,
-    TILE_PIXELS,
 )
 from psiv_tools.layouts import ChunkTable
-from psiv_tools.maps import extract_maps
-from psiv_tools.pack import MAPS_DIRECTORY, build_pack, decode_layout_section, layout_spec
 from psiv_tools.render import OVERLAY_TRANSPARENT_INDICES, PLANE_BYTES, priority_tiles
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
@@ -109,85 +96,3 @@ class TestPriorityTiles(unittest.TestCase):
         # $4000 is collision, $8000 is priority; only the second is video data.
         self.assertEqual(priority_tiles(self.chunks([0x4000] * 16)), {})
         self.assertEqual(len(priority_tiles(self.chunks([0x8000] * 16))[0]), 16)
-
-
-@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
-class TestPiatasOverlay(unittest.TestCase):
-    """One map's overlay, built once and taken apart two ways."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.data = read_rom(ROM)
-        cls._temp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls._temp.name) / "pack"
-        cls.manifest = build_pack(cls.data, cls.root, map_ids=[MAP_PIATA])
-        cls.entry = cls.manifest["maps"][0]
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._temp.cleanup()
-
-    def test_piatas_overlay_is_the_pixels_that_draw_above_sprites(self):
-        # Piata is the case that found the bug: its palm crowns, dome roofs and
-        # the top course of the town wall all carry bit 15, so a character walks
-        # behind them. The digest pins the whole image; the assertions below say
-        # what it is made of.
-        entry = self.entry
-        self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/010_Piata_over.png")
-        self.assertEqual(entry["priority_tiles"], 1068)
-        self.assertEqual(
-            entry["png_over_sha256"],
-            "ae54424b64af7dbb1d60535baa012b6bcb61c06b22bd040d92eeb2170b88d4c8",
-        )
-
-        base = parse_png_chunks((self.root / entry["png"]).read_bytes())
-        overlay = parse_png_chunks((self.root / entry["png_over"]).read_bytes())
-        # Same palette as the base render, plus a tRNS the base does not have.
-        self.assertEqual(dict(base)[b"PLTE"], dict(overlay)[b"PLTE"])
-        self.assertNotIn(b"tRNS", dict(base))
-        alpha = dict(overlay)[b"tRNS"]
-        self.assertEqual(
-            [i for i, a in enumerate(alpha) if a == 0], [0, 16]
-        )
-
-        width, height, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
-        self.assertEqual((width, height), png_size((self.root / entry["png"]).read_bytes()))
-        self.assertEqual((width, height), (1024, 1024))
-        # 16 is CRAM line 1 colour 0, which the compositor never writes: it
-        # skips colour 0 before adding the line shift, so every non-zero byte is
-        # a pixel the cartridge really draws over a sprite.
-        self.assertNotIn(16, set(pixels))
-        opaque = sum(1 for value in pixels if value)
-        self.assertEqual(opaque, 47854)
-        # Far less than the map, and not nothing.
-        self.assertLess(opaque, width * height // 10)
-
-    def test_the_overlay_only_holds_priority_tiles(self):
-        # Re-derived from the chunk definitions rather than from the image: the
-        # set of pixels the overlay may touch is exactly the bounding boxes of
-        # the tiles whose pattern word has bit 15.
-        record = extract_maps(self.data)["maps"][MAP_PIATA]
-        decoded, _ = decode_layout_section(self.data, layout_spec(record))
-        by_chunk = priority_tiles(decoded.chunks)
-        allowed = set()
-        for layout in (decoded.bg, decoded.fg):
-            for chunk_y in range(layout.height_chunks):
-                for chunk_x in range(layout.width_chunks):
-                    for tile_x, tile_y, _ in by_chunk.get(
-                        layout.chunk_at(chunk_x, chunk_y), ()
-                    ):
-                        ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
-                        oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
-                        for y in range(TILE_PIXELS):
-                            for x in range(TILE_PIXELS):
-                                allowed.add((ox + x, oy + y))
-
-        entry = self.entry
-        width, _, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
-        drawn = {
-            (index % width, index // width)
-            for index, value in enumerate(pixels)
-            if value
-        }
-        self.assertTrue(drawn)
-        self.assertEqual(drawn - allowed, set())

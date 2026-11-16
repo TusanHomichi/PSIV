@@ -12,7 +12,7 @@ The implementation is split between:
   fixed provenance regions.
 * `psiv_tools.sound`: byte verification, control-flow census and deterministic
   emission.
-* `psiv_tools.pack`: additive pack integration.
+* `psiv_pack::lib`: additive pack integration.
 * `rust/psiv-pack/src/sound/` and `sound_defs.rs`: the Rust port
   ([#216](https://github.com/TusanHomichi/PSIV/issues/216)), which writes the
   files through `rust/psiv-data/src/sound/schema.rs`, the types the game's

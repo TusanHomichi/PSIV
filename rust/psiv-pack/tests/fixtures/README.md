@@ -21,7 +21,9 @@ input is distributed. Missing inputs print explicit skips; corrupt inputs fail.
 
 These are frozen acceptance vectors, not regenerated expected values during a
 test run. Change an expectation only with a documented retail correction.
-The decoder census remains the separate full-pack Python/Rust parity check.
+The whole-ROM decoder census retired with the Python/Rust parity harness;
+these independent acceptance vectors remain. `harness.json` freezes the
+former Python JSON/PNG writer examples; it contains synthetic data only.
 
 Run the primitive contracts with `cargo test --manifest-path rust/Cargo.toml
 -p psiv-pack --test primitives --test harness`. The `primitives` integration

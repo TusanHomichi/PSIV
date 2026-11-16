@@ -1,6 +1,6 @@
 //! `battle/equipment.json`: the port of `extract_items` in
 //! `psiv_tools/core.py` (its battle half) and `build_equipment` in
-//! `psiv_tools/battle_records.py`: every `InventoryData` record, with the
+//! [retired battle_records](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_records.py): every `InventoryData` record, with the
 //! rules [`super::rules`] decodes giving the type, bonus and element bytes
 //! their meaning.
 //!
