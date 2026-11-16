@@ -610,16 +610,63 @@ fn ending_calls_and_credits_join_are_the_verified_us_sites() {
         .is_empty(),
         "credits data are not calls"
     );
-    // btst #6, Joypad_Held.w / bne.w $079D0C. The displacement is
-    // relative to the word at $078F52: $078F52 + $0DBA = $079D0C.
-    assert_eq!(
-        &rom[0x078F4A..0x078F54],
-        &[0x08, 0x38, 0, 6, 0xEF, 2, 0x66, 0, 0x0D, 0xBA]
-    );
+    assert_eq!(ending_menu_skip(rom, 0x078F4A), Some(ENDING_MENU_SKIP));
     let scene = SCENES
         .iter()
         .find(|scene| scene.name == "Cutscene_Ending")
         .unwrap();
     assert_eq!(compare(scene.name, &calls, &native(scene.ops)), None);
     assert!(!KNOWN.iter().any(|(known, _)| *known == scene.name));
+}
+
+/// The decoded condition and destination, rather than a cartridge-byte fixture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MenuSkip {
+    bit: u16,
+    address: u32,
+    target: usize,
+}
+
+const ENDING_MENU_SKIP: MenuSkip = MenuSkip {
+    bit: 6,               // ButtonCamp
+    address: 0xFFFF_EF02, // Joypad_Held
+    target: 0x079D0C,     // the credits Init
+};
+
+/// Decode immediate BTST on absolute-short memory, then word-relative BNE
+/// (68000 instruction forms). Operands and displacement come from the ignored
+/// US image; no instruction sequence is stored in tracked source.
+fn ending_menu_skip(rom: &[u8], at: usize) -> Option<MenuSkip> {
+    let word = |offset| -> Option<u16> {
+        Some(u16::from_be_bytes(
+            rom.get(offset..offset + 2)?.try_into().ok()?,
+        ))
+    };
+    if word(at)? != 0x0838 || word(at + 6)? != 0x6600 {
+        return None;
+    }
+    Some(MenuSkip {
+        bit: word(at + 2)?,
+        address: i32::from(word(at + 4)? as i16) as u32,
+        target: usize::try_from(at as i64 + 8 + i64::from(word(at + 8)? as i16)).ok()?,
+    })
+}
+
+#[test]
+fn the_ending_join_check_rejects_a_changed_condition_operand_or_target() {
+    let Some(rom) = rom() else { return };
+    let at = 0x078F4A;
+    assert_eq!(ending_menu_skip(rom, at), Some(ENDING_MENU_SKIP));
+    // Mutate the private input in memory: instruction form, Menu bit, held
+    // pad address, branch condition, displacement. No extracted fixture.
+    for offset in [0, 3, 5, 6, 9] {
+        let mut changed = rom.to_vec();
+        changed[at + offset] ^= 1;
+        assert_ne!(
+            ending_menu_skip(&changed, at),
+            Some(ENDING_MENU_SKIP),
+            "offset {offset}"
+        );
+    }
+    assert_eq!(ending_menu_skip(&[], at), None);
 }
