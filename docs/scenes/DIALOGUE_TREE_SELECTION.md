@@ -60,12 +60,13 @@ world-table read.
 
 ## Implementation and pack compatibility
 
-`psiv_tools/dialogue_pack/selection.py` owns extraction. It verifies the retail
+`rust/psiv-pack/src/dialogue/trees.rs` owns runtime extraction. It verifies the retail
 instruction shape, decodes the entry cutoff and extra-slot offset, locates the
 pointer table via its `lea` operand and resolves pointers against freshly
 walked Kosinski tree starts. Malformed opcodes, truncated tables and unknown
 tree pointers fail emission. `psiv-data` validates six world entries and every
-tree reference, including the high-entry override.
+tree reference, including the high-entry override. The independent research
+census retains its decoder in `psiv_tools/dialogue_pack/selection.py`.
 
 `rust/psiv-runtime/src/dialogue/selection.rs` is the sole indexed-open selector.
 NPC opens, type-0 area opens and default/explicit scene opens all use it.
