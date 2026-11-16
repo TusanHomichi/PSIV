@@ -7,7 +7,7 @@ mod audit;
 #[cfg(target_os = "linux")]
 #[test]
 fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
-    use audit::{checked, copy_tree, trace};
+    use audit::{checked, copy_tree, create_run_root, trace};
     use std::path::Path;
     use std::process::Command;
     use std::time::Instant;
@@ -21,8 +21,7 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
     };
     // Everything is kept under build/, including failed traces and the mutated
     // candidate. No ignored input other than the verified ROM enters the tree.
-    let scratch = repo.join(format!("build/pack-inputs-{}", std::process::id()));
-    std::fs::create_dir_all(&scratch).unwrap();
+    let scratch = create_run_root(&repo.join(format!("build/pack-inputs-{}", std::process::id())));
     let tree = scratch.join("tree");
     copy_tree(&repo, &tree);
     let rom = tree.join(rom_name);

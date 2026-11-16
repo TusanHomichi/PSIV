@@ -16,6 +16,15 @@ pub fn checked(command: &mut Command) -> Output {
     output
 }
 
+/// A gate worktree can link build/ to shared storage. Resolve our own root
+/// once, before deriving any ROM, executable, or output allowance; descriptor
+/// annotations name physical paths even if the caller used a linked parent.
+/// This never resolves or broadens a dependency supplied by the builder.
+pub fn create_run_root(path: &Path) -> PathBuf {
+    std::fs::create_dir_all(path).unwrap();
+    path.canonicalize().unwrap()
+}
+
 pub fn copy_tree(repo: &Path, tree: &Path) {
     let files = checked(Command::new("git").current_dir(repo).args([
         "ls-files",
@@ -488,4 +497,38 @@ fn link_dependencies_survive_removal_and_parent_traversal_is_not_excused() {
         ),
         [parent].into()
     );
+}
+
+#[test]
+fn linked_build_parent_keeps_rom_binary_and_output_allowances_exact() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../../build/input-root-identity-{}",
+        std::process::id()
+    ));
+    let root = create_run_root(&root);
+    let physical = root.join("physical");
+    std::fs::create_dir(&physical).unwrap();
+    let alias = root.join("linked-build");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    let run = create_run_root(&alias.join("run"));
+    assert_eq!(run, physical.join("run"));
+    let rom = run.join("rom");
+    let binary = run.join("builder");
+    let output = run.join("output");
+    let reads = [rom.clone(), binary.clone(), output.join("file")].into();
+    assert!(offenders(&reads, &BTreeSet::new(), &rom, &output, &binary).is_empty());
+    // Negative control: lexical allowances reject the very same physical
+    // paths, as the full gate did when build/ was a symlink.
+    let lexical = alias.join("run");
+    assert_eq!(
+        offenders(
+            &reads,
+            &BTreeSet::new(),
+            &lexical.join("rom"),
+            &lexical.join("output"),
+            &lexical.join("builder")
+        ),
+        reads
+    );
+    std::fs::remove_dir_all(root).unwrap();
 }
