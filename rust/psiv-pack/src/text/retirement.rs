@@ -117,6 +117,7 @@ fn retail_names_keep_counts_ids_provenance_and_parallel_fonts() {
         assert_eq!(entries.len(), count);
         assert_eq!(n["tables"][spec.name]["entries"], n[spec.name]);
         assert_eq!(n["tables"][spec.name]["count"], count);
+        let mut cursor = spec.start;
         for (i, entry) in entries.iter().enumerate() {
             assert_eq!(entry["id"], spec.id_base + i);
             let at = usize::from_str_radix(
@@ -127,7 +128,9 @@ fn retail_names_keep_counts_ids_provenance_and_parallel_fonts() {
                 16,
             )
             .unwrap();
+            assert_eq!(at, cursor);
             let raw = unhex_value(&entry["raw_hex"]);
+            cursor += raw.len();
             assert_eq!(&data[at..at + raw.len()], raw);
             assert_eq!(raw.last(), Some(&spec.terminator));
             assert_eq!(
@@ -135,6 +138,7 @@ fn retail_names_keep_counts_ids_provenance_and_parallel_fonts() {
                 entry["name"].as_str().unwrap().chars().count() + 1
             );
         }
+        assert_eq!(cursor, spec.end);
     }
     assert!(
         n["validation"]
