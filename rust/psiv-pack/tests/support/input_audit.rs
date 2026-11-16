@@ -275,12 +275,71 @@ impl Trace {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TraceSource {
+    Builder,
+    IndependentRuntime,
+}
+
+/// The independent probe only contributes known paths to the runtime allowlist.
+/// strace 7.3 can close a dying probe thread with `???( <detached ...>`
+/// (strace.c's droptcb, syscall.c's syscall_entering_decode). Leaving this
+/// terminal record out can only narrow that allowlist. Never discard it from
+/// a builder trace, where it could conceal an undeclared input. Named partial
+/// calls and nonterminal unknown records still fail in both modes.
+fn parse_trace(
+    text: &str,
+    cwd: &Path,
+    pid: &str,
+    source: TraceSource,
+    succeeded: bool,
+) -> (BTreeSet<PathBuf>, BTreeSet<PathBuf>) {
+    let mut reads = BTreeSet::new();
+    let mut links = BTreeSet::new();
+    let lines: Vec<_> = text.lines().collect();
+    for (index, line) in lines.iter().enumerate() {
+        if source == TraceSource::IndependentRuntime
+            && succeeded
+            && index + 1 == lines.len()
+            && *line == "???( <detached ...>"
+        {
+            continue;
+        }
+        if matches!(
+            line.split_once('(').map(|(call, _)| call),
+            Some("symlink" | "symlinkat" | "rename" | "renameat" | "renameat2" | "link" | "linkat")
+        ) {
+            links.extend(paths(line, cwd, pid));
+        } else {
+            reads.extend(paths(line, cwd, pid));
+        }
+    }
+    (reads, links)
+}
+
 pub fn trace(
     binary: &Path,
     args: &[&Path],
     cwd: &Path,
     log: &Path,
     output: Option<&Path>,
+) -> Trace {
+    trace_from(binary, args, cwd, log, output, TraceSource::Builder)
+}
+
+/// This entry point is only for the separately compiled std-only probe.
+/// Builder reads must always go through the strict `trace` entry point.
+pub fn trace_runtime_probe(binary: &Path, cwd: &Path, log: &Path) -> Trace {
+    trace_from(binary, &[], cwd, log, None, TraceSource::IndependentRuntime)
+}
+
+fn trace_from(
+    binary: &Path,
+    args: &[&Path],
+    cwd: &Path,
+    log: &Path,
+    output: Option<&Path>,
+    source: TraceSource,
 ) -> Trace {
     let mut reads = BTreeSet::new();
     let mut links = BTreeSet::new();
@@ -311,24 +370,11 @@ pub fn trace(
         .unwrap();
     let main_pid = main_pid.strip_prefix(&prefix).unwrap();
     for entry in entries {
-        for line in std::fs::read_to_string(entry.path()).unwrap().lines() {
-            if matches!(
-                line.split_once('(').map(|(call, _)| call),
-                Some(
-                    "symlink"
-                        | "symlinkat"
-                        | "rename"
-                        | "renameat"
-                        | "renameat2"
-                        | "link"
-                        | "linkat"
-                )
-            ) {
-                links.extend(paths(line, cwd, main_pid));
-            } else {
-                reads.extend(paths(line, cwd, main_pid));
-            }
-        }
+        let text = std::fs::read_to_string(entry.path()).unwrap();
+        let (observed_reads, observed_links) =
+            parse_trace(&text, cwd, main_pid, source, process.status.success());
+        reads.extend(observed_reads);
+        links.extend(observed_links);
     }
     assert!(
         !reads.is_empty(),
@@ -531,4 +577,67 @@ fn linked_build_parent_keeps_rom_binary_and_output_allowances_exact() {
         reads
     );
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_probe_shutdown_record_cannot_expand_the_runtime_allowlist() {
+    let cwd = Path::new("/tree");
+    let complete = r#"openat(AT_FDCWD, "/known/runtime", O_RDONLY) = 3</known/runtime>"#;
+    let detached = format!("{complete}\n???( <detached ...>\n");
+    let expected = parse_trace(complete, cwd, "12", TraceSource::IndependentRuntime, true);
+    assert_eq!(
+        parse_trace(&detached, cwd, "12", TraceSource::IndependentRuntime, true),
+        expected
+    );
+    // The marker alone supplies no permission to read any path.
+    let empty = parse_trace(
+        "???( <detached ...>\n",
+        cwd,
+        "12",
+        TraceSource::IndependentRuntime,
+        true,
+    );
+    assert!(empty.0.is_empty() && empty.1.is_empty());
+}
+
+#[test]
+fn incomplete_builder_or_named_file_records_still_fail_closed() {
+    let cwd = Path::new("/tree");
+    let complete = r#"openat(AT_FDCWD, "/outside/secret", O_RDONLY) = 3</outside/secret>"#;
+    for (text, source, succeeded) in [
+        (
+            format!("{complete}\n???( <detached ...>\n"),
+            TraceSource::Builder,
+            true,
+        ),
+        (
+            "???( <detached ...>\n".into(),
+            TraceSource::IndependentRuntime,
+            false,
+        ),
+        (
+            format!("???( <detached ...>\n{complete}\n"),
+            TraceSource::IndependentRuntime,
+            true,
+        ),
+        (
+            "openat( <detached ...>\n".into(),
+            TraceSource::IndependentRuntime,
+            true,
+        ),
+        (
+            "openat(AT_FDCWD, \"/outside/secret\", O_RDONLY <detached ...>\n".into(),
+            TraceSource::IndependentRuntime,
+            true,
+        ),
+    ] {
+        assert!(
+            std::panic::catch_unwind(|| parse_trace(&text, cwd, "12", source, succeeded)).is_err(),
+            "accepted incomplete trace: {text}"
+        );
+    }
+    // A filename containing the marker is still an audited read.
+    let line = r#"openat(AT_FDCWD, "???( <detached ...>", O_RDONLY) = -1 ENOENT"#;
+    let (reads, _) = parse_trace(line, cwd, "12", TraceSource::Builder, true);
+    assert_eq!(reads, [cwd.join("???( <detached ...>")].into());
 }

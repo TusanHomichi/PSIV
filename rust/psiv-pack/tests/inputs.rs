@@ -7,7 +7,7 @@ mod audit;
 #[cfg(target_os = "linux")]
 #[test]
 fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
-    use audit::{checked, copy_tree, create_run_root, trace};
+    use audit::{checked, copy_tree, create_run_root, trace, trace_runtime_probe};
     use std::path::Path;
     use std::process::Command;
     use std::time::Instant;
@@ -65,7 +65,7 @@ fn actual_rust_builder_reads_only_declared_inputs_and_rejects_injected_reads() {
             .arg("-o")
             .arg(&probe),
     );
-    let baseline = trace(&probe, &[], &tree, &scratch.join("runtime.trace"), None);
+    let baseline = trace_runtime_probe(&probe, &tree, &scratch.join("runtime.trace"));
     assert!(baseline.process.status.success());
     let mut runtime = baseline.reads;
     runtime.remove(&probe);

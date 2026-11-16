@@ -103,7 +103,7 @@ fn negative_control_must_fail_with_a_finite_positive_metric() {
 
 #[test]
 fn oracle_identity_rejects_changed_or_missing_bytes() {
-    let directory = std::env::temp_dir().join(format!("staff-pin-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!("psiv-staff-pin-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     let path = directory.join("frame.png");
     std::fs::write(&path, b"synthetic frame").unwrap();
@@ -122,7 +122,7 @@ fn the_bridge_exposes_the_plan_and_rejects_invalid_observation_files() {
     assert_eq!(plan["pairs"].as_array().unwrap().len(), 6);
     assert_eq!(plan["region"], json!([24, 64, 256, 88]));
     assert_eq!(plan["tape"], "oracle/tapes/47_ending_staff.tape");
-    let directory = std::env::temp_dir().join(format!("staff-rows-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!("psiv-staff-rows-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     let file = directory.join("captures.json");
     std::fs::write(&file, captures().to_string()).unwrap();
