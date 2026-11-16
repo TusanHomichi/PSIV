@@ -511,3 +511,6 @@ mod tests {
         assert_eq!(extents[&200], 4);
     }
 }
+
+#[cfg(test)]
+mod retail_tests;
