@@ -1,14 +1,14 @@
 //! Local retail acceptance retained from `test_gfx.py` and `test_enigma.py` (#558).
 //! Fixtures contain offsets, lengths and digests only, never decoded art.
-use super::*;
-use crate::decode::{enigma, kosinski};
+use psiv_pack::decode::{enigma, kosinski};
+use psiv_pack::gfx::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 fn fixture() -> Value {
-    serde_json::from_str(include_str!("../../tests/fixtures/primitive_retail.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/primitive_retail.json")).unwrap()
 }
 fn hex(v: &Value) -> usize {
     usize::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap()
@@ -17,7 +17,7 @@ fn num(v: &Value) -> usize {
     v.as_u64().unwrap() as usize
 }
 fn sha(data: &[u8]) -> String {
-    crate::png::hex(&Sha256::digest(data))
+    psiv_pack::png::hex(&Sha256::digest(data))
 }
 fn ptr(rom: &[u8], at: usize) -> usize {
     u32::from_be_bytes(rom[at..at + 4].try_into().unwrap()) as usize
@@ -43,7 +43,7 @@ fn art(rom: &[u8], record: &Value) -> Vec<[u8; 64]> {
 
 #[test]
 fn named_retail_art_keeps_metadata_lengths_and_all_68_output_digests() {
-    let Some(rom) = crate::test_support::retail_rom("graphics primitives") else {
+    let Some(rom) = retail_rom("graphics primitives") else {
         return;
     };
     let rom = rom.bytes();
@@ -122,7 +122,7 @@ fn named_retail_art_keeps_metadata_lengths_and_all_68_output_digests() {
 
 #[test]
 fn all_35_retail_mappings_keep_words_composed_pixels_and_callsite_bases() {
-    let Some(rom) = crate::test_support::retail_rom("Enigma mappings") else {
+    let Some(rom) = retail_rom("Enigma mappings") else {
         return;
     };
     let rom = rom.bytes();
@@ -183,7 +183,7 @@ fn all_35_retail_mappings_keep_words_composed_pixels_and_callsite_bases() {
 
 #[test]
 fn retail_pointer_tables_bound_battle_art_mappings_palettes_and_portraits() {
-    let Some(rom) = crate::test_support::retail_rom("graphics pointer boundaries") else {
+    let Some(rom) = retail_rom("graphics pointer boundaries") else {
         return;
     };
     let rom = rom.bytes();
@@ -298,7 +298,7 @@ fn reference_payloads_pin_stream_lengths_offsets_and_scrolling_text_exception() 
         }
     }
     assert_eq!(characters, 43);
-    let Some(rom) = crate::test_support::retail_rom("reference graphics offsets") else {
+    let Some(rom) = retail_rom("reference graphics offsets") else {
         return;
     };
     let rom = rom.bytes();
@@ -359,4 +359,19 @@ fn reference_payloads_pin_stream_lengths_offsets_and_scrolling_text_exception() 
             "battle palette {i}"
         );
     }
+}
+
+// Public integration-test boundary: only absence skips; malformed or unreadable
+// local inputs fail, just as the crate's unit-test fixture loader requires.
+fn retail_rom(what: &str) -> Option<psiv_pack::Rom> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Phantasy Star IV (USA).md");
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("local retail ROM absent: {what} skipped");
+            return None;
+        }
+        Err(error) => panic!("cannot read local ROM for {what}: {error}"),
+    };
+    Some(psiv_pack::Rom::verify(&path, bytes).unwrap())
 }

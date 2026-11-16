@@ -331,9 +331,6 @@ pub fn hex(bytes: &[u8]) -> String {
 }
 
 #[cfg(test)]
-mod contract_tests;
-
-#[cfg(test)]
 mod tests {
     #[test]
     fn an_index_image_changes_only_the_palette() {

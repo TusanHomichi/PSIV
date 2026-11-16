@@ -1,5 +1,7 @@
 //! Image identity and refusal contracts from test_png.py and TestPngWriter.
-use super::*;
+use flate2::{Compression, write::ZlibEncoder};
+use psiv_pack::png::*;
+use std::io::Write;
 
 const PALETTE: [[u8; 3]; 4] = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255]];
 const PIXELS: [u8; 16] = [0, 1, 2, 3, 3, 2, 1, 0, 1, 1, 2, 2, 3, 3, 0, 0];
@@ -7,20 +9,24 @@ const PIXELS: [u8; 16] = [0, 1, 2, 3, 3, 2, 1, 0, 1, 1, 2, 2, 3, 3, 0, 0];
 /// Replace a chunk with a valid CRC, so malformed-content tests reach the
 /// format/scanline checks rather than merely exercising the CRC refusal.
 fn replace(data: &[u8], wanted: &[u8; 4], payload: &[u8]) -> Vec<u8> {
-    let mut out = SIGNATURE.to_vec();
+    let mut out = data[..8].to_vec();
     let mut pos = 8;
     while pos < data.len() {
         let n = u32::from_be_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
         let kind = data[pos + 4..pos + 8].try_into().unwrap();
-        chunk(
-            &mut out,
-            kind,
-            if kind == wanted {
-                payload
-            } else {
-                &data[pos + 8..pos + 8 + n]
-            },
-        );
+        let kind: &[u8; 4] = kind;
+        let bytes = if kind == wanted {
+            payload
+        } else {
+            &data[pos + 8..pos + 8 + n]
+        };
+        out.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+        out.extend_from_slice(kind);
+        out.extend_from_slice(bytes);
+        let mut crc = flate2::Crc::new();
+        crc.update(kind);
+        crc.update(bytes);
+        out.extend_from_slice(&crc.sum().to_be_bytes());
         pos += n + 12;
     }
     out
@@ -102,9 +108,13 @@ fn corruption_unsupported_formats_and_malformed_rows_are_refused() {
         compressed.write_all(raw).unwrap();
         assert!(image_sha256(&replace(&data, b"IDAT", &compressed.finish().unwrap())).is_err());
     }
-    // Exact-size raw data ensures filter 5 itself is refused.
+    // Valid dimensions and a valid zlib stream/CRC reach filter refusal itself.
+    let mut raw = vec![0; 20];
+    raw[0] = 5;
+    let mut compressed = ZlibEncoder::new(Vec::new(), Compression::default());
+    compressed.write_all(&raw).unwrap();
     assert!(
-        unfilter(&[5, 0, 1, 2, 3], 4, 1, 1)
+        image_sha256(&replace(&data, b"IDAT", &compressed.finish().unwrap()))
             .unwrap_err()
             .0
             .contains("filter type 5")

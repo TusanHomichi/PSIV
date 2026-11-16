@@ -9,6 +9,11 @@ use psiv_pack::{
 };
 use serde_json::Value;
 
+#[path = "primitives/png_contracts.rs"]
+mod png_contracts;
+#[path = "primitives/retail.rs"]
+mod retail;
+
 fn fixture() -> Value {
     serde_json::from_str(include_str!("fixtures/primitives.json")).unwrap()
 }
@@ -20,6 +25,45 @@ fn bytes(text: &str) -> Vec<u8> {
         .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
+}
+
+#[test]
+fn nemesis_headers_and_short_code_boundaries() {
+    for xor in [0, 0x8000u16] {
+        let header = nemesis::read_header(&(xor | 0x24).to_be_bytes(), 0).unwrap();
+        assert_eq!(
+            (header.tile_count, header.row_count, header.xor_mode),
+            (0x24, 0x24 * 8, xor != 0)
+        );
+    }
+    // Every lookahead slot 01xxxxxx must select the same two-bit code.
+    // Other two-bit prefixes are defined so the remaining source bits can
+    // finish the tile; the assertion isolates the first token's eight pixels.
+    for first in 0x40..0x80 {
+        let mut stream = vec![
+            0, 1, 0x80, 0x72, 0, 0x85, 0x72, 1, 0x86, 0x72, 2, 0x87, 0x72, 3, 0xFF, first,
+        ];
+        stream.extend_from_slice(&[0x55; 128]);
+        let (pixels, _) = nemesis::decompress(&stream, 0).unwrap();
+        assert_eq!(&pixels[..4], &[0x55; 4], "lookahead {first:02X}");
+    }
+    for first in [0x3F, 0x80] {
+        let mut stream = vec![0, 1, 0x85, 0x72, 1, 0xFF, first];
+        stream.extend_from_slice(&[0x55; 128]);
+        assert!(nemesis::decompress(&stream, 0).is_err());
+    }
+    // Four-bit code 0011, repeat six (seven pixels), palette B. Consumption
+    // pins the repeat count as well as the output color (Python: 13 bytes).
+    let mut stream = vec![0, 1, 0x8B, 0x64, 3, 0xFF];
+    stream.extend_from_slice(&[0x33; 20]);
+    let (pixels, used) = nemesis::decompress(&stream, 0).unwrap();
+    assert_eq!(pixels, [0xBB; 32]);
+    assert_eq!(used, 13);
+    for table in [[0x80, 0x09, 0, 0xFF], [0x80, 0x01, 0xFF, 0xFF]] {
+        let mut stream = vec![0, 1];
+        stream.extend_from_slice(&table);
+        assert!(nemesis::decompress(&stream, 0).is_err());
+    }
 }
 
 #[test]

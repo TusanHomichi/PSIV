@@ -22,3 +22,10 @@ input is distributed. Missing inputs print explicit skips; corrupt inputs fail.
 These are frozen acceptance vectors, not regenerated expected values during a
 test run. Change an expectation only with a documented retail correction.
 The decoder census remains the separate full-pack Python/Rust parity check.
+
+Run the primitive contracts with `cargo test --manifest-path rust/Cargo.toml
+-p psiv-pack --test primitives --test harness`. The `primitives` integration
+test includes PNG corruption and local retail/reference checks through the
+public library interfaces. Existing `gfx::`, `decode::` and `png::` library
+test filters cover the underlying unit tests. Run Cargo through the `build`
+heavy-run class described in [the development guide](../../../../docs/DEVELOPMENT.md#heavy-run-lock).

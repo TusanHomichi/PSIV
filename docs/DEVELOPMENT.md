@@ -348,14 +348,6 @@ the builder writes JSON also reruns `python3 tools/pack_parity.py
 --write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
 read (`tests/test_pack_parity.py` fails while they are stale).
 
-The Rust primitive checks run without Python: `cargo test --manifest-path
-rust/Cargo.toml -p psiv-pack --test primitives --test harness` checks frozen
-synthetic decoder vectors and PNG image identity. The `gfx::`, `decode::` and
-`png::` library test filters add primitive contracts and local retail/reference
-coverage (explicit skips when those inputs are absent). Run cargo through the
-`build` heavy-run class below. Fixture provenance and content limits are in
-[`rust/psiv-pack/tests/fixtures/README.md`](../rust/psiv-pack/tests/fixtures/README.md).
-
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix
 `-fast`):
