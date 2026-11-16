@@ -287,6 +287,11 @@ fn system_messages_follow_rom_terminators_leader_portraits_and_vehicle_lea() {
     let rom = e.rom.bytes();
     let d = e.document("trees");
     let b = &d["system_messages"];
+    assert_eq!(b["rom_offset"], "0x1FE660");
+    assert_eq!(b["rom_end_exclusive"], "0x1FE7E5");
+    assert!(b["compression"].is_null());
+    assert_eq!(b["size_bytes"], 389);
+    assert_eq!(b["sha256"], sha256(&rom[0x1FE660..0x1FE7E5]));
     assert_eq!(b["count"], 11);
     assert_eq!(b["messages"].as_array().unwrap().len(), 11);
     assert_eq!(b["label"], SYSTEM_MESSAGES_LABEL);
