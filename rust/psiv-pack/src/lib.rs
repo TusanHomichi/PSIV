@@ -700,3 +700,6 @@ mod tests {
         assert!(!root.exists());
     }
 }
+
+#[cfg(test)]
+mod infrastructure_tests;

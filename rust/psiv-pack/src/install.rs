@@ -993,3 +993,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "install_contract_tests.rs"]
+mod contract_tests;

@@ -23,7 +23,7 @@ platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
-documents' `yaml` blocks. The float source guard is the Rust binary `psiv-float-guard`, using the Rust
+documents' `yaml` blocks. The Linux input audit uses strace (included in the development shell). The float source guard is the Rust binary `psiv-float-guard`, using the Rust
 lexer and pulldown-cmark for CommonMark Rustdoc code blocks. Native automated checks on Linux use Xvfb.
 
 On an x86-64 Nix host with flakes enabled, `nix develop`, or direnv reading
@@ -226,10 +226,27 @@ The ignored indexed PNGs under `oracle/fixtures/battle_animation_art/` (184,
 rendered from the captures `oracle/fixtures/battle_animation_remainder.json`
 names) are oracle evidence only: no pack input reads them, and the one test
 that compares them skips without them. Do not commit the ROM-derived PNGs.
-`tests/test_pack_inputs.py` builds a one-map pack from a copy of only the
-tracked tree plus the ROM and fails, naming each path, when the builder opens
-or probes anything but the ROM, tracked `psiv_tools/` and `oracle/fixtures/`
-files, the interpreter's own files and its output (#214).
+The Rust integration test `rust/psiv-pack/tests/inputs.rs` builds the actual
+CLI in release from a copy of the tracked tree (including unignored candidate
+files) plus the verified ROM. On Linux it requires `strace` and `rustc`, traces
+all builder threads, and rejects undeclared file reads and metadata probes,
+including missing paths and symlinks escaping the output. Output symlink
+targets are dependencies: the audit records existing links before execution
+and new links at their creation, so deletion or directory renaming cannot
+hide one. External targets are rejected even if unused or dangling. Output
+accesses and link targets containing parent traversal (`..`) are rejected,
+even when they happen to stay inside output; the guard never cancels `..`
+before following a symlink. Exact loader and std runtime paths
+come from a separate std-only probe, not from the builder; the two additional
+thread/allocator metadata files are `/sys/devices/system/cpu/online` and
+`/proc/sys/vm/overcommit_memory`. It recompiles the
+CLI with injected reads to prove rejection. Other hosts explicitly skip this
+Linux audit; a missing tracer on Linux fails. Only an absent ROM skips: an
+unreadable, wrong or truncated image fails. Evidence stays under
+`build/pack-inputs-<pid>/`. Run it with the `build` heavy-lock class:
+
+`python3 tools/heavy_lock.py run --class build -- cargo test --manifest-path
+rust/Cargo.toml -p psiv-pack --test inputs -- --nocapture`.
 
 A worktree takes these from the main checkout: in the worktree, run
 `python3 tools/local_inputs.py link`. It links each local input the main
@@ -347,6 +364,23 @@ packs for a look at a difference. A change to `psiv_tools/png.py` or to how
 the builder writes JSON also reruns `python3 tools/pack_parity.py
 --write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
 read (`tests/test_pack_parity.py` fails while they are stale).
+
+### Pack infrastructure coverage
+
+The Python builder and parity remain until retirement. Its infrastructure
+contracts have these owners; Python implementation checks below can retire
+with that implementation, not before it.
+
+| Python checks | Rust contract and remaining Python-specific purpose |
+| --- | --- |
+| Former Python input audit | `psiv-pack/tests/inputs.rs` audits the real full-pack CLI, with successful and absent undeclared reads, a tracked non-input, a thread, dangling/transient output links, removed staging paths and parent traversal as controls. Python audit hooks, import-prefix and bytecode allowances are obsolete. |
+| `test_pack_manifest.py` | `psiv-pack/src/infrastructure_tests.rs` independently checks ROM identity, file references, hashes, sizes, canonical JSON, versions, map overlay/event census, categories and byte-identical serial/parallel full builds. `maps/tests/pack_structure_tests.rs`, `battle/tests.rs` and `battle/image_tests.rs` and `sound/tests.rs` own section counts and retail censuses; parity checks the whole manifest and each builder's PNG totals. Filtered map builds and unknown `map_ids` are Python-only: the Rust CLI always builds all maps. Python import aliases and shared exception identity retire with their modules. |
+| `test_pack_sections.py` | `psiv-pack/src/lib.rs` tests progress, claims, parallel assembly, duplicate keys, failed/panicking sections and empty section sets; `infrastructure_tests.rs` rejects non-object parts and a manifest after failure. Process-global section replay, empty-directory copying, eviction, deep copies and `fresh()` are Python test-suite optimizations; Rust rebuilds sections for each call. |
+| `test_decode_cache.py` | `decode/mod.rs` checks one shared result across threads, separate ROM/build lifetimes and all decoder/offset/base/limit keys against uncached results. Borrowed immutable ROM data and `Arc<Decoded>` replace mutable Python arguments/results and default/keyword normalization. Rust intentionally caches deterministic errors for one immutable ROM; Python retries errors and records attempted calls for the parity census. Keep the Python census tests while parity uses them. |
+| `test_pack_swap.py` | `install.rs` and `install_contract_tests.rs` cover failed/panicking/killed builds, staging liveness and recovery, directory-mode rollback, symlink/real-directory installs, external targets, dangling links, old-pack readers, retention, current-version races, pending versions through aliases and post-commit warnings. Directory fallback is exercised directly on Unix as well as natively on Windows. `SpanningReader` and ignore-pattern tests remain live repository tooling contracts: Python run-root readers still use `pack_swap.pinned_pack`; they are not obsolete builder tests. |
+| CLI and parity (`test_pack_parity.py`, `test_release.py`, `test_local_inputs.py`) | `psiv-pack/tests/cli.rs` exercises the executable's claims, invalid arguments and missing/unreadable/wrong ROM failures without changing the old output; parity checks successful progress/install and Python refusal wording. Release/caller/cache tests keep testing those tools; retiring the Python builder does not retire them. |
+| `test_fast_paths.py` and fixture helpers (`test_pack_fixture.py`) | `gfx.rs`, `rust/psiv-pack/tests/primitives.rs`, `maps/draw/tests.rs`, `maps/layouts/retail_tests.rs` and the decoder census cover nybble order, palette/flip/VRAM origin, transparency, priority, collision and bounds. `battle/animations/objects.rs` uses the direct word walk that Python's find-based call-site optimization replaced. Python reference-loop comparisons retire with those optimizations. PNG CRC/image helpers are covered by `rust/psiv-pack/tests/harness.rs` and `rust/psiv-pack/tests/primitives/png_contracts.rs`; shared fixture caches are test plumbing, not player behavior. |
+
 
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix

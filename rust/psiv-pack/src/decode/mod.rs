@@ -164,3 +164,65 @@ mod tests {
 #[cfg(test)]
 #[path = "../../tests/support/decoder_observed.rs"]
 pub(crate) mod observed;
+
+#[cfg(test)]
+mod cache_contracts {
+    use super::*;
+
+    #[test]
+    fn keys_include_rom_decoder_offset_base_tile_and_limit() {
+        let first = [0x83, 0, b'a', b'b', 0xFE, 0, 0xF8, 0];
+        let mut second = first;
+        second[2] = b'z';
+        let call = Call::Kosinski { offset: 0 };
+        let a = Decodes::new(&first);
+        let b = Decodes::new(&second);
+        assert_eq!(a.get(call).unwrap().bytes().as_ref(), b"abab");
+        assert_eq!(b.get(call).unwrap().bytes().as_ref(), b"zbzb");
+        assert!(!Arc::ptr_eq(&a.get(call).unwrap(), &b.get(call).unwrap()));
+        assert!(!Arc::ptr_eq(
+            &a.get(call).unwrap(),
+            &Decodes::new(&first).get(call).unwrap()
+        ));
+        let stream = [4, 0, 0, 0x10, 0, 0x20, 0x09, 0x1F, 0xE0, 0, 0, 0];
+        let rom = [stream, stream].concat();
+        let decodes = Decodes::new(&rom);
+        let calls = [
+            Call::Enigma {
+                offset: 0,
+                base_tile: 0,
+                max_words: None,
+            },
+            Call::Enigma {
+                offset: 0,
+                base_tile: 0x6400,
+                max_words: None,
+            },
+            Call::Enigma {
+                offset: 0,
+                base_tile: 0,
+                max_words: Some(4),
+            },
+            Call::Enigma {
+                offset: 12,
+                base_tile: 0,
+                max_words: None,
+            },
+            Call::Kosinski { offset: 0 },
+            Call::Nemesis { offset: 0 },
+        ];
+        for call in calls {
+            assert_eq!(
+                decodes.get(call).map(|value| (*value).clone()),
+                run(&rom, call)
+            );
+        }
+        assert_eq!(decodes.len(), calls.len());
+        assert_ne!(decodes.get(calls[0]), decodes.get(calls[1]));
+        assert!(decodes.get(calls[2]).is_err());
+        assert!(!Arc::ptr_eq(
+            &decodes.get(calls[0]).unwrap(),
+            &decodes.get(calls[3]).unwrap()
+        ));
+    }
+}

@@ -405,6 +405,7 @@
             g.godot
             g.xvfb
             pkgs.shellcheck
+            pkgs.strace
             pkgs.git
             pkgs.pkg-config
           ];
