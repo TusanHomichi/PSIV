@@ -183,6 +183,12 @@ pub fn decompress(
     base_tile: u16,
     max_words: Option<usize>,
 ) -> Result<(Vec<u16>, usize), DecodeError> {
+    #[cfg(test)]
+    super::observed::record(super::Call::Enigma {
+        offset,
+        base_tile,
+        max_words,
+    });
     if offset > data.len() {
         return Err(error(format!("Offset 0x{offset:X} is outside the input")));
     }

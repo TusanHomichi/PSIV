@@ -301,3 +301,39 @@ pub fn display_names(rom: &[u8]) -> Result<HashMap<&'static str, Display>, PackE
 pub fn display(map: &Display, id: u16) -> Option<String> {
     map.get(&u64::from(id)).cloned().flatten()
 }
+
+#[cfg(test)]
+mod text_retirement {
+    use super::*;
+
+    #[test]
+    fn text_display_lists_match_the_existing_character_technique_and_profession_lists() {
+        let Some(rom) = crate::test_support::retail_rom("text display lists") else {
+            return;
+        };
+        let n = serde_json::Value::from(&crate::text::extract_names(rom.bytes()).unwrap());
+        for (table, expected, uppercase) in [
+            ("character_names", CHARACTERS.as_slice(), false),
+            ("technique_names", TECHNIQUES.as_slice(), true),
+            ("profession_names", PROFESSIONS.as_slice(), true),
+        ] {
+            let actual: Vec<_> = n[table]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| e["name"].as_str().unwrap())
+                .collect();
+            let expected: Vec<_> = expected
+                .iter()
+                .map(|s| {
+                    if uppercase {
+                        s.to_uppercase()
+                    } else {
+                        (*s).to_owned()
+                    }
+                })
+                .collect();
+            assert_eq!(actual, expected);
+        }
+    }
+}

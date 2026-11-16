@@ -850,3 +850,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod retirement;

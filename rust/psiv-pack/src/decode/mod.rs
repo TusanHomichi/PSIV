@@ -160,3 +160,6 @@ mod tests {
         assert!(decodes.get(bad).is_err());
     }
 }
+
+#[cfg(test)]
+pub(crate) mod observed;

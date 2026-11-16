@@ -132,6 +132,10 @@ struct Boot<'a> {
     pressed: bool,
     routine: &'static str,
     routine_mfc: u32,
+    lag: &'a [(&'a str, &'a [(u32, u32)])],
+    start_held: &'a [(u32, u32)],
+    #[cfg(test)]
+    entries: std::collections::BTreeMap<&'static str, u32>,
 }
 
 impl<'a> Boot<'a> {
@@ -147,10 +151,16 @@ impl<'a> Boot<'a> {
             pressed: false,
             routine: "",
             routine_mfc: 0,
+            lag: &LAG,
+            start_held: &START_HELD,
+            #[cfg(test)]
+            entries: std::collections::BTreeMap::new(),
         }
     }
 
     fn enter(&mut self, routine: &'static str) {
+        #[cfg(test)]
+        self.entries.insert(routine, self.mfc);
         self.routine = routine;
         self.routine_mfc = self.mfc;
     }
@@ -159,7 +169,8 @@ impl<'a> Boot<'a> {
     fn wait(&mut self) {
         self.states.push(self.pal);
         let since = self.mfc - self.routine_mfc;
-        let lag = LAG
+        let lag = self
+            .lag
             .iter()
             .find(|(name, _)| *name == self.routine)
             .and_then(|(_, frames)| frames.iter().find(|(k, _)| *k == since))
@@ -167,7 +178,8 @@ impl<'a> Boot<'a> {
         self.frame += 1 + lag;
         self.mfc += 1;
         self.vint_frames.push(self.frame);
-        let held = START_HELD
+        let held = self
+            .start_held
             .iter()
             .any(|&(from, to)| (from..to).contains(&self.frame));
         self.pressed = held && !self.held;
@@ -661,3 +673,6 @@ mod tests {
         assert!(!boot.pressed && boot.held);
     }
 }
+
+#[cfg(test)]
+mod retirement;

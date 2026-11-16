@@ -153,6 +153,8 @@ pub fn decompress_with_work(
     data: &[u8],
     offset: usize,
 ) -> Result<(Vec<u8>, usize, Work), DecodeError> {
+    #[cfg(test)]
+    super::observed::record(super::Call::Kosinski { offset });
     if offset > data.len() {
         return Err(error(format!("Offset 0x{offset:X} is outside the input")));
     }

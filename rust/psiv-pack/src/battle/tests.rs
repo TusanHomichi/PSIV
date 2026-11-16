@@ -208,3 +208,27 @@ fn every_character_equips_items_the_equipment_file_holds() {
         }
     }
 }
+
+#[test]
+fn text_name_counts_line_up_with_emitted_record_tables() {
+    let Some(r) = retail() else { return };
+    let names = Value::from(&crate::text::extract_names(&r.rom).unwrap());
+    for (name_table, file, key) in [
+        ("enemy_names", "enemies", "enemies"),
+        ("enemy_skill_names", "abilities", "enemy_skills"),
+        ("item_names", "equipment", "items"),
+        ("technique_names", "abilities", "techniques"),
+        ("skill_names", "abilities", "skills"),
+        ("character_names", "characters", "characters"),
+    ] {
+        assert_eq!(
+            names[name_table].as_array().unwrap().len(),
+            r.file(file)[key].as_array().unwrap().len(),
+            "{name_table}"
+        );
+    }
+    // The original metadata table has fifteen combo records (including
+    // id zero); no combo record file is emitted by the runtime pack.
+    assert_eq!(names["combo_names"].as_array().unwrap().len() + 1, 15);
+    assert_eq!(names["combo_names"][0]["id"], 1);
+}
