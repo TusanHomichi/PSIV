@@ -2,7 +2,6 @@ import unittest
 
 from psiv_tools.dialogue_census import census
 from psiv_tools.extract_stamp import load_table_file
-from psiv_tools.presentation_pack import DIALOGUE_ACTION_PANEL_IDS
 
 
 class DialogueCensusTests(unittest.TestCase):
@@ -59,7 +58,8 @@ class DialogueCensusTests(unittest.TestCase):
         self.assertEqual(result["entries"], 2736)
         self.assertEqual(result["action_occurrences"], 266)
         self.assertEqual(result["panel_count"], 163)
-        self.assertEqual(set(result["panel_ids"]), set(DIALOGUE_ACTION_PANEL_IDS))
+        # Exact panel identities and pack coverage live in psiv-pack dialogue
+        # and presentation retirement tests; this checks the research census.
         self.assertEqual(
             {
                 action: item["occurrences"]

@@ -6,8 +6,7 @@ Synthetic records/patterns only: these checks run without local game inputs.
 """
 import unittest
 
-from tests.test_battle_art_pack import png_pixels
-
+from tests.test_render import png_pixels
 
 class TestAttackMapping(unittest.TestCase):
     def test_vdp_size_bits_keep_width_and_height_in_cartridge_order(self):
@@ -19,7 +18,7 @@ class TestAttackMapping(unittest.TestCase):
             self.assertNotEqual(expected, tuple(reversed(expected)), "non-square control")
 
     def test_vdp_patterns_run_down_columns_before_the_next_column(self):
-        from psiv_tools.battle_animation_art import _render_attack_mapping
+        from psiv_tools.battle_animation_oracle import _render_attack_mapping
         entry = {"tile_index": 0, "width_tiles": 2, "height_tiles": 3,
                  "h_flip": False, "v_flip": False, "x": 0, "y": 0}
         tiles = [bytes([index]) * 64 for index in range(1, 7)]
@@ -36,7 +35,7 @@ class TestAttackMapping(unittest.TestCase):
                          [6, 3, 5, 2, 4, 1])
 
     def test_sat_order_wins_before_priority_partition_and_transparency_does_not_claim(self):
-        from psiv_tools.battle_animation_art import _render_attack_mapping
+        from psiv_tools.battle_animation_oracle import _render_attack_mapping
         front = bytearray([1] * 64)
         front[0] = 0
         tiles = [bytes(front), bytes([2] * 64)]

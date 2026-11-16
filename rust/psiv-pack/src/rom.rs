@@ -2,8 +2,8 @@
 //!
 //! The identity is the image's SHA-256 (`psiv_tools/core.py`,
 //! `EXPECTED_SHA256`). The refusal's wording is the Python builder's, so the
-//! setup screen shows one sentence whichever builder ran; the parity step
-//! (`tools/pack_parity.py`) runs both on a wrong ROM and compares them.
+//! setup screen keeps the established refusal wording. CLI tests exercise
+//! wrong and unreadable ROMs without changing the output.
 
 use std::path::Path;
 

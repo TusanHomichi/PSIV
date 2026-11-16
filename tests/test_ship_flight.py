@@ -4,40 +4,10 @@ from pathlib import Path
 import unittest
 
 from oracle.ship_flight import measure
-from psiv_tools.ship_menu_pack import FLIGHT_CAPTION_PTRS, ShipMenuError, flight_captions
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-class CaptionCase(unittest.TestCase):
-    def test_captions_use_pointer_order_dialogue_font_and_keep_spacing(self):
-        rom = bytearray(FLIGHT_CAPTION_PTRS + 128)
-        for world in range(6):
-            entry = FLIGHT_CAPTION_PTRS + world * 4
-            ptr = FLIGHT_CAPTION_PTRS + 24 + world * 4
-            rom[entry:entry + 4] = ptr.to_bytes(4, "big")
-            # Dialogue 'a' is $1B; the window charset would decode this as 0.
-            rom[ptr:ptr + 4] = bytes([0, 27, world + 1, 255])
-        captions = flight_captions(bytes(rom))
-        self.assertEqual([row["world"] for row in captions], list(range(6)))
-        self.assertEqual(captions[0]["text"], " aA")
-        self.assertTrue(all(row["instant"] and row["glyph_count"] == 3 for row in captions))
-        # Negative controls: dangling pointer and a line without its terminator.
-        rom[FLIGHT_CAPTION_PTRS:FLIGHT_CAPTION_PTRS + 4] = (len(rom)).to_bytes(4, "big")
-        with self.assertRaisesRegex(ShipMenuError, "outside"):
-            flight_captions(bytes(rom))
-        rom[FLIGHT_CAPTION_PTRS:FLIGHT_CAPTION_PTRS + 4] = (FLIGHT_CAPTION_PTRS + 64).to_bytes(4, "big")
-        with self.assertRaisesRegex(ShipMenuError, "bounded"):
-            flight_captions(bytes(rom))
-
-    def test_local_rom_captions_are_six_complete_instant_lines(self):
-        rom = ROOT / "Phantasy Star IV (USA).md"
-        if not rom.is_file():
-            self.skipTest("local US ROM absent; flight caption extraction skipped")
-        captions = flight_captions(rom.read_bytes())
-        self.assertEqual(len(captions), 6)
-        self.assertTrue(all(0 < row["glyph_count"] <= 32 for row in captions))
-        self.assertTrue(all(row["text"].startswith(" ") for row in captions))
 
 
 class ControlBoundaryCase(unittest.TestCase):

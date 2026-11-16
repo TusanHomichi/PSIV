@@ -196,10 +196,10 @@ times at `DialogueTree22:56`; `$F8` at `DialogueTree42:1`.
 
 ## Panel extraction result
 
-`presentation_pack.py` emits **228** panel records: the original 15
+[retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py) emits **228** panel records: the original 15
 scene-owned records, the **163** distinct `$F2 LoadPanel` ids above, and the
 50 `$8021` ending-only records. Every action-referenced id has a decoded PNG
 and a manifest record; `$30` is `presentation/panels/panel_30.png`, record
-offset `$07B5A0`, decoded size 160x112. `tests/test_presentation_pack.py`
+offset `$07B5A0`, decoded size 160x112. [retired test_presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_presentation_pack.py)
 checks the banked offsets, manifest coverage, both Enigma planes, and the
 known scene-panel geometry.

@@ -1,8 +1,7 @@
 //! Install a pack atomically: build beside it, then swap it in.
 //!
-//! The port of `psiv_tools/pack_swap.py`, which owns the design and its
-//! reasons; the two use the same names, so either builder cleans up after,
-//! and never deletes the work of, the other. In brief:
+//! Version and staging names remain compatible with older builds. The
+//! installer owns cleanup, concurrency and stale-version rules:
 //!
 //! 1. The pack is built into `.<name>.build-<pid>-<hex>` beside `<output>`.
 //! 2. The finished directory is renamed to the version

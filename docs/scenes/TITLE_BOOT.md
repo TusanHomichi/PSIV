@@ -93,8 +93,7 @@ text is drawn, so it measures none of the text-drawing lag.
 
 ## Art extraction and pack surface
 
-`psiv_tools/title_pack.py` calls the existing verified `planes.MAPPINGS`,
-`art_tiles`, `decode_mapping`, and `named_cram` paths. The five visible title
+`rust/psiv-pack/src/title/mod.rs` decodes the verified title mappings, art and CRAM records. The five visible title
 assets use the retail Nemesis records:
 
 - `ArtNem_SegaLogo`
@@ -106,7 +105,7 @@ assets use the retail Nemesis records:
 The background uses `ArtNem_TitleBackground` with its four retail Enigma
 mappings. Every emitted record carries the ROM offset, compression, consumed
 length, compressed/decompressed hashes, VRAM tile, and exact decoded mapping
-range. `build_pack()` emits these additively under `runtime-pack/title/` and
+range. `psiv-pack` emits these additively under `runtime-pack/title/` and
 adds the small `title` manifest fragment; no PNG or generated layout is
 tracked.
 

@@ -1,5 +1,5 @@
 //! `battle/enemies.json`: the port of `extract_enemies` in
-//! `psiv_tools/core.py` and `build_enemies` in `psiv_tools/battle_pack.py`.
+//! `psiv_tools/core.py` and `build_enemies` in [retired battle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_pack.py).
 //! `Battle_EnemyData` holds 153 48-byte records: hit points, the basic
 //! attack's two bytes, stats, the fourteen property slots, the AI lists and the
 //! rewards.

@@ -1,4 +1,4 @@
-//! File/report contracts from the remainder of tests/test_pack_maps.py.
+//! File/report contracts from the remainder of the retired test_pack_maps suite.
 
 use super::emission_tests::{Emission, emission};
 use super::retail_tests::{array, num, retail};

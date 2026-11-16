@@ -1,5 +1,5 @@
 //! `Event_PickingFifthCharacter`'s tables, as the pack carries them
-//! (`psiv_tools/fifth_pack.py`): the five friends waiting at the Mota Spaceport
+//! ([retired fifth_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/fifth_pack.py)): the five friends waiting at the Mota Spaceport
 //! and the records the routine refills.
 
 use std::path::Path;

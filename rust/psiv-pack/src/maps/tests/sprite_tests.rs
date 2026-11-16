@@ -1,4 +1,4 @@
-//! Emitted sprite contract from test_pack_sprites.py and test_chest_sprites.py.
+//! Emitted sprite contract from the retired test_pack_sprites suite and the retired test_chest_sprites suite.
 //! Reuses the full map emission: references and counts span every real map.
 use super::emission_tests::emission;
 use super::retail_tests::{array, num};

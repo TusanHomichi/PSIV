@@ -33,7 +33,7 @@ struct PanelManifest {
     scene_pictures: Vec<ScenePictureRecord>,
 }
 
-/// A plane-A picture a scene draws itself (`presentation_pack.py`,
+/// A plane-A picture a scene draws itself ([retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py),
 /// `decode_scene_picture`), keyed by the `LoadSceneAsset` source of its cells.
 #[derive(Debug, Deserialize)]
 struct ScenePictureRecord {
@@ -86,7 +86,7 @@ struct TemporaryObjectRecord {
     palette: Option<SheetPaletteRecord>,
 }
 
-/// A sheet's `palette` block (`psiv_tools/sprites/emit.py`, `sheet_json`).
+/// A sheet's `palette` block ([retired emit](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/sprites/emit.py), `sheet_json`).
 #[derive(Debug, Deserialize)]
 struct SheetPaletteRecord {
     /// The CRAM line the object's pixels draw from: the line its sprite

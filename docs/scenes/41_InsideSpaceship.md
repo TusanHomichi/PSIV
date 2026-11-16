@@ -10,7 +10,7 @@
 - **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (54 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
-- **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
+- **Pack:** `ship_menu/` (`rust/psiv-pack/src/ship_menu.rs`): the strings, the
   `WinGroup_Event` records, the palette and eight backgrounds.
 - **Evidence:** oracle tape `oracle/tapes/35_ship_destination_menu.tape` and the
   certified pair `ship-menu` (`tools/certify.py`): native tick 101 against

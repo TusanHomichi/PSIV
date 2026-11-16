@@ -1,7 +1,7 @@
 //! The ship's destination screen, as the pack carries it.
 //!
 //! `loc_63BC4` (`ps4.asm:133499`) stands its two windows on a planetary map it
-//! draws itself. `psiv_tools/ship_menu_pack.py` replays that drawing from the
+//! draws itself. [retired ship_menu_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/ship_menu_pack.py) replays that drawing from the
 //! ROM; this module loads the result: the strings, the window records
 //! (`WinGroup_Event`, `ps4.asm:141150`), the palette and one background per
 //! cover combination, and turns a background and a palette state into pixels.

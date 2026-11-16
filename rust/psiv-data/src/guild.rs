@@ -1,5 +1,5 @@
 //! The Hunter's Guild job board, as the pack carries it
-//! (`psiv_tools/guild_pack.py`): the job names, the list window's record and
+//! ([retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)): the job names, the list window's record and
 //! the colour lines `Event_HuntersGuild` draws them in.
 
 use std::path::Path;

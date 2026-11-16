@@ -20,7 +20,7 @@ other opening-act scene put together.
 ## How the title screen gets here
 
 Cross-checked against the new-game extraction
-(`psiv_tools/newgame.py`, `runtime-pack/game_start.json`); we agree on the
+(`rust/psiv-pack/src/game_start/mod.rs`, `runtime-pack/game_start.json`); we agree on the
 routine start (`$073946`) and on `rom_end = $073ECE`.
 
 ```
@@ -93,7 +93,7 @@ The surviving **prologue** matches retail and was useful for naming primitives
 
 The surviving **epilogue does not** — it carries three Grand Cross edits, which
 the fork helpfully annotates itself. Independently confirmed by
-`psiv_tools/newgame.py`, which flags the same three:
+`rust/psiv-pack/src/game_start/mod.rs`, which flags the same three:
 
 | Clone | Retail | Effect |
 |---|---|---|
@@ -458,7 +458,7 @@ SetFlag{EventFlag_PiataFirstTime}
 ## Where the act's opening state comes from
 
 This is the routine the new-game initialiser has to agree with, and it
-does — the epilogue below is decoded identically by `psiv_tools/newgame.py`
+does — the epilogue below is decoded identically by `rust/psiv-pack/src/game_start/mod.rs`
 (`runtime-pack/game_start.json`, `first_control`), which is the citable source
 for it. It ends by writing, in order:
 

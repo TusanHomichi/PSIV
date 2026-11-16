@@ -3,7 +3,7 @@
 //! `character_cram_line` and `verify_ui_colors` in
 //! `psiv_tools/battle_art.py`, and of `character_pose_png`,
 //! `character_palettes` and `build_characters` in
-//! `psiv_tools/battle_art_pack.py`. The first module's docs give the PLC
+//! [retired battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_art_pack.py). The first module's docs give the PLC
 //! block layout: a size word, the uncompressed art, then one Enigma mapping
 //! per pose, with a second art pointer allowed mid-list.
 

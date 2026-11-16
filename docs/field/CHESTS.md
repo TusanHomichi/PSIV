@@ -11,7 +11,7 @@ and Godot neither drew them nor handled their contents.
 `$A0`; the plant/white boxes use `$1D4`. Their opened bits live in `$F120`,
 shared with extended event flags. Facing 0 is closed; facing 4 is open.
 
-`psiv_tools/chest_sprites.py` decodes the original Nemesis assets and both
+`rust/psiv-pack/src/sprites/emit.rs` decodes the original Nemesis assets and both
 lid mappings into the existing field-object sheet index. The 155 placements
 deduplicate to three sheets: normal, map-family `$32`, and white. The legacy
 `npc_placements` manifest count includes the chest users of this shared index.
@@ -335,4 +335,3 @@ Identical shape to the item chest — routine-start +1 to open, +9 to pay — wi
 is a **multiplier of 100**, not an amount and not an item id:
 `mulu.w #100, d0 / add.l d0, (Current_Money)` (`ps4.asm:137348-137351`), so this
 chest's `1` pays 100.
-

@@ -1,4 +1,4 @@
-//! The shopkeeper portraits: the port of `psiv_tools/shop_portraits.py`.
+//! The shopkeeper portraits: the port of [retired shop_portraits](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/shop_portraits.py).
 //! `Win_ShopMeseta` draws one of the art blobs the two portrait groups point
 //! at through the shared 6x6 Plane A mapping, on CRAM line 2.
 

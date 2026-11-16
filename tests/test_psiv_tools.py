@@ -139,5 +139,29 @@ class TestRetailRom(unittest.TestCase):
         self.assertEqual(mirror_end + 2, TABLES["characters"]["offset"])
 
 
+
+
+class TestResearchCli(unittest.TestCase):
+    def test_research_commands_remain_and_the_pack_command_is_rejected(self):
+        import subprocess
+        import sys
+        import tempfile
+        help_result = subprocess.run(
+            [sys.executable, "-m", "psiv_tools", "--help"],
+            capture_output=True, text=True, check=True,
+        )
+        for command in ("inspect", "extract", "regenerate", "sound", "dialogue-census"):
+            self.assertIn(command, help_result.stdout)
+        with tempfile.TemporaryDirectory() as scratch:
+            output = Path(scratch) / "pack"
+            refused = subprocess.run(
+                [sys.executable, "-m", "psiv_tools", "pack", "missing-rom", str(output)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(refused.returncode, 2)
+            self.assertIn("invalid choice: 'pack'", refused.stderr)
+            self.assertFalse(output.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

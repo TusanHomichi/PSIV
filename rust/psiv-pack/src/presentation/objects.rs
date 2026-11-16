@@ -1,7 +1,7 @@
 //! The scene art beside the panels: every `LoadArt` site's preview, the
 //! objects scenes build out of it, and the shopkeeper portrait
 //! (`_emit_load_art`, `_emit_temporary_objects` and `_emit_generic_portrait`
-//! in `psiv_tools/presentation_pack.py`, which give the reasons).
+//! in [retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py), which give the reasons).
 //!
 //! `panels.json` keeps Python's dict order, so each record here is built in
 //! the order its Python dict is: the spec's keys first, then what is added.

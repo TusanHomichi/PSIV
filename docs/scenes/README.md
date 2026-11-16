@@ -523,7 +523,7 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 ## Documents
 
 Cross-checked against the new-game extraction where they overlap:
-`psiv_tools/newgame.py` and `runtime-pack/game_start.json` own the title
+`rust/psiv-pack/src/game_start/mod.rs` and `runtime-pack/game_start.json` own the title
 handoff and `Event_GameStart`'s epilogue, and this set cites them rather than
 re-deriving. We agree on the routine start, on `rom_end = $073ECE`, on the
 mid-scene party `[Alys, Chaz]` at `$073A24`, and on the three fork edits in the
@@ -551,7 +551,7 @@ is the map *resident when the scene starts*, not a map the scene plays on.
 power-on
   ── title screen
        loc_4335C   $04335C  Field_Map_Index = $11 (pre-scene default only)
-       loc_44414   $044414  new-game init  (see psiv_tools/newgame.py)
+       loc_44414   $044414  new-game init  (see rust/psiv-pack/src/game_start/mod.rs)
        Title_StartOption $043788  Game_Mode_Routine = $C, Event_Index = $9F
   └─ Event_GameStart ($9F)              sets EventFlag_PiataFirstTime ($07)
        plays on maps $5E ChazHouse -> $54 Aiedo -> $00 Motavia -> title image

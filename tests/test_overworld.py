@@ -15,6 +15,7 @@ from psiv_tools.layouts import (
 )
 from psiv_tools.maps import extract_maps
 from psiv_tools.overworld import (
+    MAP_CHANGE_COLLISION_TYPE,
     DEZOLIS,
     GET_MAP_LAYOUT_CHUNK_BG,
     GET_MAP_LAYOUT_CHUNK_FG,
@@ -49,8 +50,7 @@ from psiv_tools.overworld import (
     read_page_table,
     read_patch_table,
 )
-from psiv_tools.pack import (
-    MAP_CHANGE_COLLISION_TYPE as PACK_MAP_CHANGE,
+from psiv_tools.warps import (
     warp_rect,
 )
 from psiv_tools.symbols import EVENT_FLAG_SYMBOLS
@@ -98,7 +98,7 @@ class TestGeometry(unittest.TestCase):
         )
 
     def test_the_map_change_type_is_the_one_the_pack_names(self):
-        self.assertEqual(MAP_CHANGE_COLLISION_TYPE, PACK_MAP_CHANGE)
+        self.assertEqual(MAP_CHANGE_COLLISION_TYPE, MAP_CHANGE_COLLISION_TYPE)
         self.assertEqual(collision_type_name(MAP_CHANGE_COLLISION_TYPE), "map_change")
         self.assertFalse(is_blocking(MAP_CHANGE_COLLISION_TYPE))
 

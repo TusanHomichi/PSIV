@@ -5,7 +5,7 @@
 //! Which rows exist, where the cursor is, what has been typed and when the
 //! windows close are the session's (`psiv-runtime/src/session/destination.rs`);
 //! the map's pixels are the pack's (`ship_menu/`, built from the ROM by
-//! `psiv_tools/ship_menu_pack.py`), turned into colours here with the palette
+//! [retired ship_menu_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/ship_menu_pack.py)), turned into colours here with the palette
 //! state the view names.
 //!
 //! The window art, the font and the cursor patterns are the shared window set

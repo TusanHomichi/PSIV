@@ -509,7 +509,7 @@ dialogue-action records and 50 ending-only records), all 7 `LoadArt` source /
 destination pairs, the 6 temporary-object keys, the generic portrait's art /
 mapping / tile contract, both Enigma planes for each panel, their retail
 coordinates, and the opening image addresses in
-`tests/test_presentation_pack.py`. That test also invokes
+[retired test_presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_presentation_pack.py). That test also invokes
 `oracle/decode_layout.py` against the committed frame-4000 state; its
 `self_check.passed` value is `true` and all four layout checks pass.
 
@@ -639,7 +639,7 @@ panel `$10A` and `Pal_FadeIn` (`ps4.asm:156907-156918`), and the ending's
 second tone loop whitens the backdrop alone (`suites::palette::display`).
 
 The ROM words come from the pack: `presentation/panels.json`'s `palettes`
-(`PALETTE_REQUESTS` in `psiv_tools/presentation_pack.py`, and every drawn panel
+(`PALETTE_REQUESTS` in `rust/psiv-pack/src/presentation/mod.rs`, and every drawn panel
 layer's palette), read by `psiv_data::ScenePalettes`.
 
 Corrections this model brought, each checked against the US image:

@@ -46,7 +46,7 @@ The open items are the
 - [x] **Windows and macOS builds**, built and started by CI on each system
   ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
 - [x] **A pack builder that needs no Python**: `psiv-pack`, in Rust, ships in
-  every release download ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
+  every release download and is the sole runtime pack builder ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
 - [ ] **A release package** for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
   The release workflow builds the archives; the first release is not published
   yet.

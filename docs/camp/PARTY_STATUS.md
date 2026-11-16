@@ -31,7 +31,7 @@ STATUS and SAVE with it. Status and command icons use a placeholder.
 
 
 STATUS loads each character's own 80x80 portrait map, including its
-border, at (24,16). `status_portraits.py` reads the eleven Nemesis-art pointers
+border, at (24,16). [retired status_portraits](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/status_portraits.py) reads the eleven Nemesis-art pointers
 at 0x5D548 and raw 10x10 map pointers at 0x5D574; every map uses CRAM line 2.
 The original age words at 0x2A8E12 supply all eleven ages; zero remains
 undisclosed for Alys and Rune. These assets and ages are carried by the JSON

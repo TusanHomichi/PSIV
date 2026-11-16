@@ -108,10 +108,9 @@ listed by `CharFieldArtPtrs`, paired with `CharSpriteMappingsPtrs`.
 * `objects` -- `FieldObjectsJmpTbl` and each routine's init block.
 * `compose` -- tile banks, frame composition, sheets, the census.
 * `field` -- palettes, the party, a map's staged art, walk timing.
-* `emit` -- writing sheets into a runtime pack; the only part that touches
-  the filesystem, and the only part `psiv_tools.pack` needs beyond the above.
 
-Decoded Sega pixels never enter a committed file: `emit` writes only into the
+
+Decoded Sega pixels never enter a committed file; research exports use the
 gitignored pack directory.
 """
 

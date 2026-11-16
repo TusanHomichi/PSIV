@@ -25,7 +25,7 @@ The routine was read from the US image through `EventPtrs[$66]`. The clone's lis
 - The welcome's window is not destroyed before the list opens, and the cursor starts at
   x `$108`, y `$98` (`$071B60`): `grand_cross=1` has its own order and `$100`.
 - `HuntersGuildData` and `HuntersGuildMoneyTbl` are the `else` branch's values, at `$071D74`.
-  The table stays in the local pack: `psiv_tools/guild_pack.py` finds it from the routine's own
+  The table stays in the local pack: `rust/psiv-pack/src/scene_tables.rs` finds it from the routine's own
   `lea`, and the tests run on a synthetic table.
 
 `$12` is the routine's "not offered yet" line as well as "no jobs left". The refusal reads it two

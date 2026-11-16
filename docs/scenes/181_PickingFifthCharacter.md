@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (15 ops); `scene_runner/fifth.rs`; `fifth/fifth.json` in the pack (`psiv_tools/fifth_pack.py`) |
+| `$0068` `Event_PickingFifthCharacter` | `$071E66..$072181` code, `$072182..$0721CB` tables | `EventPtrs[$68]` at `$05A2B4 + $1A0` | `fifth_character.rs`, `PICKING_FIFTH_CHARACTER` (15 ops); `scene_runner/fifth.rs`; `fifth/fifth.json` in the pack (`rust/psiv-pack/src/scene_tables.rs`) |
 
 - **Trigger:** dialogue `$F6 $00 $68`, entry 25 of tree 39: objects 5 to 9 of `MotaSpaceport` `$0BF`
   (`GryzSpaceportWaiting`, `Hahn`, `Demi`, `Raja`, `Kyra`, dialogue 25, `$FFFFC440` on).
@@ -14,7 +14,7 @@
 The routine was read from the US image through `EventPtrs[$68]`, and its words match
 `ps4.asm:151681-151960`; no `revision` or `grand_cross` conditional falls in the range. `loc_72182`
 (`$072182`) has five eight-byte rows: X and Y, the character id, the first line, the flag, and an art offset.
-Both tables stay in the local pack: `psiv_tools/fifth_pack.py` finds them from the routine's own `lea`s
+Both tables stay in the local pack: `rust/psiv-pack/src/scene_tables.rs` finds them from the routine's own `lea`s
 (`$071EEC`, `$071EA6`) and refuses an image where they are not, the runtime loads them (`psiv-data`'s
 `FifthTable`, required, so an older pack is refused with a rebuild message) and hands them to the scene, and
 the tests run on a made-up table.

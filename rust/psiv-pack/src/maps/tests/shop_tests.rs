@@ -1,5 +1,5 @@
-//! Emitted-shop contracts from tests/test_shop_flow.py and
-//! test_shop_portraits.py (#560), sharing the existing map emission.
+//! Emitted-shop contracts from [retired test_shop_flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_shop_flow.py) and
+//! the retired test_shop_portraits suite (#560), sharing the existing map emission.
 use super::emission_tests::emission;
 use super::retail_tests::{array, num, retail};
 use crate::{json::Json, png};

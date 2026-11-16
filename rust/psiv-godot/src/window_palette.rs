@@ -8,7 +8,7 @@
 //! and a scene's tone, flash or fade changes them there like any other line.
 //! The Hunter's Guild board draws the same font tiles on lines 1 and 3 too:
 //! `Event_HuntersGuild` writes a collected job's name with `$A000` and a job
-//! that is not open with `$E000` (`psiv_tools/guild_pack.py`).
+//! that is not open with `$E000` ([retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)).
 //!
 //! [`WindowLine`] binds a window's art to the line its indices are drawn on:
 //! the sixteen words the art is baked in and the sixteen it draws with this

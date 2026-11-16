@@ -8,11 +8,8 @@ The renderer samples the index, never guesses a CRAM slot from an RGB value.
 from __future__ import annotations
 
 import struct
-from pathlib import Path
 
 from . import png
-from .m68k import w
-from .sprites.field import PAL_INIT_LINE_3
 
 
 def index_png(data: bytes) -> bytes:
@@ -35,36 +32,3 @@ def index_png(data: bytes) -> bytes:
     if not found:
         raise ValueError("palette-index input has no palette")
     return bytes(output)
-
-
-def bind_updates(rom: bytes, record: dict, payload: dict, directory: Path,
-                 base: bytes, overlay: bytes | None, updates: dict) -> None:
-    """Attach ordered programs and additive index images to one packed map."""
-    entries = updates["per_map"][record["id"]]
-    payload["map_updates"] = entries
-    pointer = int(record["palette"]["pointer"], 16)
-    words = [w(rom, pointer + i * 2) for i in range(48)]
-    words[32:32] = [w(rom, PAL_INIT_LINE_3 + i * 2) for i in range(16)]
-    payload["map_update_palette"] = words
-    if not any(e["program"]["kind"] in ("palette", "crystals", "edge", "edge_line")
-               for e in entries):
-        return
-    sources = [(payload["png"], base)]
-    if overlay is not None:
-        sources.append((payload["png_over"], overlay))
-    for variant in payload["layout_variants"]:
-        for key in ("png", "png_over"):
-            if variant.get(key):
-                name = variant[key]
-                sources.append((name, (directory / name).read_bytes()))
-    if payload.get("patch_tiles"):
-        for key in ("png", "png_over"):
-            if payload["patch_tiles"].get(key):
-                name = payload["patch_tiles"][key]
-                sources.append((name, (directory / name).read_bytes()))
-    images = {}
-    for name, data in sources:
-        indexed = name.removesuffix(".png") + "_indices.png"
-        (directory / indexed).write_bytes(index_png(data))
-        images[name] = indexed
-    payload["map_update_images"] = images

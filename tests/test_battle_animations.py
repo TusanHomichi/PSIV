@@ -1,3 +1,6 @@
+import hashlib
+import json
+from tests.test_render import png_pixels
 import unittest
 from pathlib import Path
 
@@ -196,3 +199,55 @@ class TestBattleAnimations(unittest.TestCase):
 
     def test_extraction_is_deterministic(self):
         self.assertEqual(self.payload, build_enemy_animations(read_rom(ROM)))
+
+
+RECEIPT_ART = Path(__file__).resolve().parents[1] / "oracle/fixtures/battle_animation_art"
+
+
+@unittest.skipUnless(RECEIPT_ART.is_dir() and any(RECEIPT_ART.glob("*.png")),
+                     "oracle receipt PNGs (ignored evidence) not present")
+class TestReceiptEvidence(unittest.TestCase):
+    """The evidence behind #214's deferral, read from the ignored PNGs.
+
+    The groups are the ones counted by hand from the captures (pixel indices,
+    palette ignored); if a re-render ever made them per-routine, this fails
+    and the deferral in docs/source-notes/README.md should be revisited."""
+
+    SHARED = (
+        ("0x00D526", "0x00D998", "0x00DCD2", "0x00EFB2",
+         "0x00F088", "0x00FCCA", "0x010C7C", "0x010E7A"),
+        ("0x00E394", "0x00F53C", "0x010AB4"),
+    )
+
+    def sequence(self, receipt):
+        prefix = receipt["routine_offset"].removeprefix("0x")
+        # Width, height and indices, hashed so a failure prints short.
+        return tuple(
+            hashlib.sha256(repr(png_pixels(
+                (RECEIPT_ART / f"{prefix}_frame{index:02d}.png").read_bytes()
+            )).encode()).hexdigest()[:12]
+            for index in range(len(receipt["durations"]))
+        )
+
+    def test_receipt_frames_are_shared_across_routine_bodies(self):
+        receipts = {
+            receipt["routine_offset"]: receipt
+            for receipt in json.loads(
+                (RECEIPT_ART.parent / "battle_animation_remainder.json").read_text()
+            )["receipts"]
+        }
+        for group in self.SHARED:
+            with self.subTest(group=group):
+                first = self.sequence(receipts[group[0]])
+                for routine in group[1:]:
+                    self.assertEqual(self.sequence(receipts[routine]), first, routine)
+        # `$E2BE` is the first group's frames 0-7 with frame 5 shown twice;
+        # its capture window ends before the closing blank frame.
+        first = self.sequence(receipts[self.SHARED[0][0]])
+        self.assertEqual(self.sequence(receipts["0x00E2BE"]), first[:6] + first[5:8])
+        # Control: two groups differ from each other.
+        self.assertNotEqual(self.sequence(receipts[self.SHARED[1][0]]), first)
+
+
+if __name__ == "__main__":
+    unittest.main()

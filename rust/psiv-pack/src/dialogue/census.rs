@@ -1,4 +1,4 @@
-//! `Census` in `psiv_tools/dialogue_pack/flow.py`: what the retail script
+//! `Census` in [retired flow](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/dialogue_pack/flow.py): what the retail script
 //! contains, as opposed to what the codes permit. It walks the tree records
 //! `trees.json` holds, entry by entry, as `emit_dialogue` does.
 

@@ -258,7 +258,6 @@
             "tests.test_memory_policy_startup"
             "tests.test_release"
             "tests.test_text_files"
-            "tests.test_pack_swap"
             "tests.test_extract_stamp"
           ];
         in {
@@ -281,7 +280,6 @@
             "tests/test_gate*.py"
             "tests/test_heavy_lock.py"
             "tests/test_heavy_lock_runner_wait.py"
-            "tests/test_pack_parity.py"
           ];
           nativeBuildInputs = [ (pythonFor pkgs) pkgs.git ];
           PSIV_FLOAT_GUARD_BINARY = "${floatGuardFor pkgs}/bin/psiv-float-guard";

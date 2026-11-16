@@ -9,9 +9,8 @@ applies exactly as written. The full gate runs its commands in `GATE_LANES`:
 two lanes side by side, each running its own commands one at a time in the
 block's order. One lane holds every command that builds the debug target
 (cargo fmt, test and clippy, then certify's `psiv-godot` build); the other
-the Python checks and the pack parity, whose cargo build is the release
-profile, which cargo locks apart. So no lane waits on the other's cargo lock,
-and the gate takes its longest lane, not the sum of all seven. The fast tier
+the Python checks. No lane waits on the other's cargo lock,
+and the gate takes its longest lane, not the sum of its commands. The fast tier
 is one lane. Every command runs with
 `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to the cores available, capped
 at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
@@ -122,7 +121,6 @@ GATE_COMMANDS = [
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
-    "python3 tools/pack_parity.py",
     CERTIFY_COMMAND,
 ]
 
@@ -132,8 +130,7 @@ GATE_COMMANDS = [
 #: two debug builds side by side would only queue on cargo's lock.
 GATE_LANES = (
     ("python3 tools/check_docs.py",
-     "PYTHONPATH=. python3 tools/py_suite.py",
-     "python3 tools/pack_parity.py"),
+     "PYTHONPATH=. python3 tools/py_suite.py"),
     ("cargo fmt --manifest-path rust/Cargo.toml --all --check",
      "cargo test --manifest-path rust/Cargo.toml --workspace",
      "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",

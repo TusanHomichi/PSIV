@@ -295,7 +295,7 @@ fn enemy_record(
 }
 
 fn validate_element_names(names: &[String]) -> Result<(), BridgeError> {
-    // battle_pack.py emits an alphabetical census, not byte/element-id order.
+    // the battle extractor emits an alphabetical census, not byte/element-id order.
     // Numeric ability elements always use the cartridge's ELEMENT_NAMES order.
     if names.len() != ELEMENT_SLOTS
         || ELEMENT_NAMES

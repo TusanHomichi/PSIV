@@ -1,4 +1,4 @@
-//! Writing `sprites/`: `psiv_tools/sprites/emit.py`, `vehicle_pack.py`, and the
+//! Writing `sprites/`: [retired emit](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/sprites/emit.py), [retired vehicle_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/vehicle_pack.py), and the
 //! part of `build_pack`'s map loop that registers sheets. A sheet is keyed by
 //! content, so one NPC sheet serves whole towns and a palette makes a new sheet.
 //! Registration is in map order, because the first object to ask names the file.

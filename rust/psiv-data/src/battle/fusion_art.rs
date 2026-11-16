@@ -1,5 +1,5 @@
 //! `battle/art/fusion.json`: the Zol slugs' Fusion frames
-//! (`psiv_tools/battle_fusion_art.py`, #64).
+//! ([retired battle_fusion_art](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_fusion_art.py), #64).
 //!
 //! Required: a pack built before the Fusion was drawn has no such file, and
 //! [`crate::GameData::load`] refuses it with a rebuild message, so the game

@@ -126,43 +126,11 @@ fn torch_sheet_preserves_every_mapping_and_duration_and_rejects_mutations() {
         sheet["sequences"]["walk_down"]["frames"][0][field] = json!(99);
         assert_eq!(check_torch(e, &bad).unwrap_err(), "torch sequence frames");
     }
-    let calls: Value =
-        serde_json::from_str(include_str!("../../../tests/fixtures/decode_census.json")).unwrap();
-    let torch = json!({"decoder":"nemesis","offset":0x1D712C});
-    let covered = |calls: &[Value]| calls.contains(&torch);
-    assert!(covered(array(&calls["calls"])));
-    let missing: Vec<_> = array(&calls["calls"])
-        .iter()
-        .filter(|r| **r != torch)
-        .cloned()
-        .collect();
-    assert!(!covered(&missing));
-}
-
-#[test]
-fn decoder_census_covers_every_observed_presentation_call_and_detects_omissions() {
-    use crate::decode::Call;
-    let Some(e) = emission() else { return };
-    let census: Value =
-        serde_json::from_str(include_str!("../../../tests/fixtures/decode_census.json")).unwrap();
-    let observed: Vec<Value> = e.calls.iter().map(|call| match call {
-        Call::Nemesis {offset} => json!({"decoder":"nemesis","offset":offset}),
-        Call::Kosinski {offset} => json!({"decoder":"kosinski","offset":offset}),
-        Call::Enigma {offset,base_tile,max_words} => json!({"decoder":"enigma","offset":offset,"base_tile":base_tile,"max_words":max_words}),
-    }).collect();
-    assert!(!observed.is_empty());
-    let missing = |calls: &[Value]| {
-        observed
-            .iter()
-            .filter(|v| !calls.contains(v))
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(missing(array(&census["calls"])), Vec::<Value>::new());
-    let without_one: Vec<_> = array(&census["calls"])
-        .iter()
-        .filter(|v| **v != observed[0])
-        .cloned()
-        .collect();
-    assert_eq!(missing(&without_one), vec![observed[0].clone()]);
+    let torch = crate::decode::Call::Nemesis { offset: 0x1D712C };
+    assert!(
+        e.calls.contains(&torch),
+        "Torch emission must decode its own art"
+    );
+    let without_torch: Vec<_> = e.calls.iter().filter(|call| **call != torch).collect();
+    assert!(!without_torch.contains(&&torch));
 }

@@ -1,6 +1,6 @@
 //! `battle/art/backgrounds.json` and the 32 background PNGs: the port of
 //! `background_selection`, `_reachable` and `build_backgrounds` in
-//! `psiv_tools/battle_art_pack.py`, with the parts of `psiv_tools/planes.py`
+//! [retired battle_art_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/battle_art_pack.py), with the parts of `psiv_tools/planes.py`
 //! and `psiv_tools/gfx.py` they draw on (`_battle_pointers`, `_gap_bounds`,
 //! `decompress_art`, `decode_mapping`, `battle_cram`, `render`). Those
 //! modules cite `Battle_SetupBackground`'s three tables and why each count is

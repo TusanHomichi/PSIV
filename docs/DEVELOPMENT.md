@@ -283,7 +283,6 @@ PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-python3 tools/pack_parity.py
 nix develop --command python3 tools/certify.py
 ```
 
@@ -296,17 +295,10 @@ module per task, on min(cores, 4) fresh worker processes
 summed over every module: each failure's block, `Ran N tests` and `OK` or
 `FAILED (...)`. A failure, a module that cannot be imported and a worker that
 dies each fail the step; a dead worker's unfinished modules are named. A worker
-pays the one-time fixtures (the pack's map-independent sections, the shared
-`PackFixtureCase` pack and the map table, about 13 s) once, before its first
-module that needs them, so 4 workers pay them up to 4 times. Four is the
-measured fastest count on the 8-thread, 4-core host: the full suite took 270 s
-in one process and 151, 117, 91, 92, 93 and 100 s on 2, 3, 4, 5, 6 and 8
-workers ([the table](#heavy-run-lock)); past the physical cores the extra
-fixtures and the shared cores cost more than a worker gains. On 4 workers the
-slowest module, `test_pack_maps` (about 50 s), and the summed module seconds
-all workers spend (355 s against 268 s in one process, one-time fixtures and
-waits included) are what is left. A test that fails
-only beside another module is a defect to fix, as in the Rust suites. The gate
+reuses one-time research fixtures within its process. The worker cap is the
+measured configuration in [the table](#heavy-run-lock); the full suite runs
+all remaining research and repository-tool modules. A test that fails only
+beside another module is a defect to fix, as in the Rust suites. The gate
 runs every command with `CARGO_BUILD_JOBS` and
 `RUST_TEST_THREADS` set to the cores available, capped at 8
 (`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
@@ -331,55 +323,34 @@ are most of what is left. After touching `psiv-core`, the two cargo steps took
 76 s together against 182 s at one job and one thread. Tests requiring local
 assets may fail or explicitly skip when their fixtures are absent; report that
 distinction with the result.
-`build_pack` replays the map-independent sections an earlier build in the same
-process emitted from the same ROM; a test that patches an emitter's dependency,
-or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
-
-The last step, `tools/pack_parity.py`, holds `psiv-pack`, the pack builder
-every caller runs, to the Python builder it replaced, until that builder
-retires ([#216](https://github.com/TusanHomichi/PSIV/issues/216)). It builds `psiv-pack` in release, runs both builders on a file that is
-not the retail ROM and requires the same refusal, and, once `psiv-pack` claims
-a section (`psiv-pack --claims` lists each section's paths), builds both packs
-from the ROM: every claimed JSON or binary file must be byte-identical, every
-PNG equal by `image_sha256`, and `psiv-pack` may write nothing outside its
-claims. `manifest.json` records PNG byte totals, which differ between deflate
-implementations, so each builder's totals must equal its own pack's PNGs and
-every other byte must match (`PNG_TOTALS` in the tool). A ported extractor that no claimed section writes yet is a probe:
-`examples/probe.rs` prints its records as one JSON document, `PROBES` in the
-tool builds the same from the Python extractors, and the two must be the same
-text. It also decodes every Nemesis, Kosinski and Enigma call a full
-Python build attempts, refused ones included (the census, `rust/psiv-pack/tests/fixtures/decode_census.json`,
-offsets and arguments only) with both decoders: outputs and consumed lengths
-must agree, and both must refuse the same calls. A lane that adds a decoder call reruns `python3
-tools/pack_parity.py --write-census` (a full build, about two minutes) so the
-census covers it. It prints `psiv-pack`'s wall time beside the load and clock,
-the number a port PR records. Until the switch the Python builder stays the pack everything
-uses, so a PR that edits a section `psiv-pack` already claims changes both
-builders alike: the gate fails on the Python change alone. A claim names a
-file, a directory, or with a `*` the matching files directly in a directory, so
-a section can claim part of a directory Python still writes the rest of. Find whether a
-section is claimed with `cargo run --release --manifest-path rust/Cargo.toml -p
-psiv-pack -- --claims`; `python3 tools/pack_parity.py --keep <dir>` keeps both
-packs for a look at a difference. A change to `psiv_tools/png.py` or to how
-the builder writes JSON also reruns `python3 tools/pack_parity.py
---write-fixtures`, the Python-written cases `rust/psiv-pack`'s writer tests
-read (`tests/test_pack_parity.py` fails while they are stale).
-
 ### Pack infrastructure coverage
 
-The Python builder and parity remain until retirement. Its infrastructure
-contracts have these owners; Python implementation checks below can retire
-with that implementation, not before it.
+`psiv-pack` is the sole builder. Its Rust tests preserve the extraction
+contracts ported before Python retirement. The full gate runs these as part of
+`cargo test --workspace`; only absent local inputs may skip their retail cases.
+The independent Python research tools and their tests remain.
 
-| Python checks | Rust contract and remaining Python-specific purpose |
+| Concern | Contract owner |
 | --- | --- |
-| Former Python input audit | `psiv-pack/tests/inputs.rs` audits the real full-pack CLI, with successful and absent undeclared reads, a tracked non-input, a thread, dangling/transient output links, removed staging paths and parent traversal as controls. Python audit hooks, import-prefix and bytecode allowances are obsolete. |
-| `test_pack_manifest.py` | `psiv-pack/src/infrastructure_tests.rs` independently checks ROM identity, file references, hashes, sizes, canonical JSON, versions, map overlay/event census, categories and byte-identical serial/parallel full builds. `maps/tests/pack_structure_tests.rs`, `battle/tests.rs` and `battle/image_tests.rs` and `sound/tests.rs` own section counts and retail censuses; parity checks the whole manifest and each builder's PNG totals. Filtered map builds and unknown `map_ids` are Python-only: the Rust CLI always builds all maps. Python import aliases and shared exception identity retire with their modules. |
-| `test_pack_sections.py` | `psiv-pack/src/lib.rs` tests progress, claims, parallel assembly, duplicate keys, failed/panicking sections and empty section sets; `infrastructure_tests.rs` rejects non-object parts and a manifest after failure. Process-global section replay, empty-directory copying, eviction, deep copies and `fresh()` are Python test-suite optimizations; Rust rebuilds sections for each call. |
-| `test_decode_cache.py` | `decode/mod.rs` checks one shared result across threads, separate ROM/build lifetimes and all decoder/offset/base/limit keys against uncached results. Borrowed immutable ROM data and `Arc<Decoded>` replace mutable Python arguments/results and default/keyword normalization. Rust intentionally caches deterministic errors for one immutable ROM; Python retries errors and records attempted calls for the parity census. Keep the Python census tests while parity uses them. |
-| `test_pack_swap.py` | `install.rs` and `install_contract_tests.rs` cover failed/panicking/killed builds, staging liveness and recovery, directory-mode rollback, symlink/real-directory installs, external targets, dangling links, old-pack readers, retention, current-version races, pending versions through aliases and post-commit warnings. Directory fallback is exercised directly on Unix as well as natively on Windows. `SpanningReader` and ignore-pattern tests remain live repository tooling contracts: Python run-root readers still use `pack_swap.pinned_pack`; they are not obsolete builder tests. |
-| CLI and parity (`test_pack_parity.py`, `test_release.py`, `test_local_inputs.py`) | `psiv-pack/tests/cli.rs` exercises the executable's claims, invalid arguments and missing/unreadable/wrong ROM failures without changing the old output; parity checks successful progress/install and Python refusal wording. Release/caller/cache tests keep testing those tools; retiring the Python builder does not retire them. |
-| `test_fast_paths.py` and fixture helpers (`test_pack_fixture.py`) | `gfx.rs`, `rust/psiv-pack/tests/primitives.rs`, `maps/draw/tests.rs`, `maps/layouts/retail_tests.rs` and the decoder census cover nybble order, palette/flip/VRAM origin, transparency, priority, collision and bounds. `battle/animations/objects.rs` uses the direct word walk that Python's find-based call-site optimization replaced. Python reference-loop comparisons retire with those optimizations. PNG CRC/image helpers are covered by `rust/psiv-pack/tests/harness.rs` and `rust/psiv-pack/tests/primitives/png_contracts.rs`; shared fixture caches are test plumbing, not player behavior. |
+| ROM-only input boundary | `rust/psiv-pack/tests/inputs.rs` audits the real release CLI and rejects injected undeclared reads, including symlink and thread cases. |
+| Manifest and whole builds | `rust/psiv-pack/src/infrastructure_tests.rs` checks ROM identity, references, hashes, PNG totals, canonical JSON, versions, categories and identical serial/parallel builds. |
+| Section assembly | `rust/psiv-pack/src/lib.rs` tests claims, progress, parallel assembly and failed/panicking sections; infrastructure tests reject non-object fragments and a manifest after failure. |
+| Decoder cache | `rust/psiv-pack/src/decode/mod.rs` checks keys, build/ROM lifetimes, shared results across threads and cached deterministic errors. Python's cache remains for research extraction. |
+| Atomic install | `rust/psiv-pack/src/install.rs` and `rust/psiv-pack/src/install_contract_tests.rs` cover failures, crashes, old readers, retention, alias races, staging recovery, rollback and directory fallback. |
+| CLI and callers | `rust/psiv-pack/tests/cli.rs`, `tests/test_release.py` and `tests/test_local_inputs.py` check the program protocol, packaging and repository consumers. |
+| Writers and primitives | Frozen synthetic acceptance vectors in `rust/psiv-pack/tests/fixtures/harness.json`, `rust/psiv-pack/tests/harness.rs` and `rust/psiv-pack/tests/primitives/` check JSON, PNG CRCs/decoded identity, bounds and decoder behavior. |
+
+The Python pack facade, emitters, installer, filtered-map fixtures and parity
+harness are retired. Python-specific import aliases, exception identity,
+process-global section replay and eviction/deep-copy tests retire with their
+implementations. Independent primitive and renderer optimization checks remain
+in `tests/test_fast_paths.py` alongside their research implementations. Rust
+always builds every map.
+Reader-selection helpers in the former installer suite were test scaffolding,
+not repository APIs; live run-root selection remains covered by
+`tests/test_godot.py`. Pack version/staging ignore checks live in
+`tests/test_gitignore_inputs.py`. The independent selector census retains
+`psiv_tools/dialogue_pack/selection_census.py`; it emits no runtime pack.
 
 
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
@@ -453,13 +424,13 @@ Moving one worktree keeps cargo's file-time freshness sound, which a target
 dir shared between worktrees does not (the tool's docstring says why). A gate missing an input is
 partial, and a partial gate is recorded as a failure: green takes the full
 tier, on a clean tree, with every command exiting 0 and no input missing.
-The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the seven
+The full gate is `python3 tools/gate.py`, run from the root. It runs exactly the six
 commands above, with the env prefixes and flags written there, in two lanes
 side by side (`GATE_LANES`), each running its commands one at a time in the
-order above: the Python checks and the pack parity in one, cargo fmt, test and
+order above: the Python checks in one, cargo fmt, test and
 clippy and then certify in the other, so every command that builds the debug
 target stays in one lane and the run takes its longest lane rather than the
-sum of all seven. The fast tier is one lane. It
+sum of all six. The fast tier is one lane. It
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/` (or the directory `PSIV_GATE_RECEIPT`
 names, which is how `tools/pr_gate.py` reads its own run's receipt and no
@@ -696,7 +667,6 @@ the same way with `tools/tree_rss.py`, at `6da25cd` plus the suite runner:
 | the same, 8 workers, #166, 2.6 GHz, load 8.5 | 100 s | 1,639 MB | - | reads | `exclusive` |
 | the fast tier's Python step before the runner (`build/py-par/base-tools/gate.py --quick-unittest`, 1,593 tests), #166, 2.5 GHz | 154 s | 883 MB | - | reads | `exclusive` (the gate) |
 | `py_suite.py --fast`, 4 workers, #166, 2.9 GHz, load 2.9 | 56 s | 1,197 MB | - | reads | `exclusive` (the gate) |
-| a full pack build (`python3 -m psiv_tools pack`, the Python builder parity runs) | 47 s | 129 MB | 130 MB | writes | `pack` (sizes it) |
 | a full pack build (`psiv-pack`, release), #216, 4.0 GHz, load 15 | 3.2 s | 320 MB | - | writes | `pack` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |

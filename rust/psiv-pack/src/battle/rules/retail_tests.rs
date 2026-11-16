@@ -1,4 +1,4 @@
-//! tests/test_battle_records.py's `TestTheRules` (#549): the five routines,
+//! the retired Python battle_records suite's `TestTheRules` (#549): the five routines,
 //! decoded out of the local retail ROM rather than transcribed. Each value
 //! asserted is an address, an offset, a count or a type id the Python test
 //! already pinned.

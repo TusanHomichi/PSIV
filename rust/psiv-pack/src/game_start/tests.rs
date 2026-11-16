@@ -73,7 +73,7 @@ fn the_flag_id_comes_from_a_moveq_or_a_move_w() {
     assert!(preceding_d0(&[0, 0, 0, 0, 0], 4).is_err());
 }
 
-/// Ported from tests/test_pack_game_start.py (#216): the manifest's headline
+/// Ported from [retired test_pack_game_start](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_pack_game_start.py) (#216): the manifest's headline
 /// of where a new game begins, read from the file this section writes. The
 /// two scenes before control are pinned against oracle/logs/01_newgame.csv
 /// (eflags_00 = 01000400).
@@ -141,7 +141,7 @@ fn retail_headline_is_where_a_new_game_begins() {
     assert_eq!(bank("town_flags"), format!("80008040{}", "00".repeat(28)));
 }
 
-// Ported from tests/test_newgame.py (#548). The synthetic cases first: the
+// Ported from [retired test_newgame](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_newgame.py) (#548). The synthetic cases first: the
 // bit arithmetic of `EventFlags_Set`, on bytes the test writes.
 
 /// `TestFlagPacking`: `lsr.w #3,d0` picks the byte and `move.w #7,d1 /

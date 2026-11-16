@@ -1,5 +1,5 @@
 //! The maps section's part of `manifest.json`: what `build_pack`'s map loop
-//! gathers for `psiv_tools/pack_manifest.py`, which gives each key's reason.
+//! gathers for [retired pack_manifest](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack_manifest.py), which gives each key's reason.
 //! [`map_part`] is one map's share, computed on the map's own thread;
 //! [`fragment`] lays every map's share out in map order.
 

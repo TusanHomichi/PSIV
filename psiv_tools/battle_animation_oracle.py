@@ -16,7 +16,7 @@ from typing import Any, Iterable
 
 from . import png
 from .battle_animation_receipts import receipt_file
-from .battle_art_pack import enemy_palette
+from .battle_art import enemy_palette
 from .gfx import decode_tile, vdp_pattern, vdp_size
 
 SCREEN_WIDTH = 320
@@ -173,6 +173,45 @@ def main() -> int:
     count = render_receipt_art(args.rom.read_bytes(), args.output, args.capture_root)
     print(f"rendered {count} oracle receipt frames")
     return 0
+
+
+def _render_attack_mapping(
+    tiles: list[bytes],
+    record: dict[str, Any],
+    canvas: tuple[int, int, int, int],
+    pivot: tuple[int, int],
+    palette: list[tuple[int, int, int]],
+    priority: bool | None = None,
+) -> bytes:
+    min_x, min_y, width, height = canvas
+    pixels = bytearray(width * height)
+    occupied = bytearray(width * height)
+    if record.get("hidden"):
+        return png.encode_indexed(width, height, pixels, palette, (0,))
+    pivot_x, pivot_y = pivot
+    for entry in record["entries"]:
+        tile_index = entry["tile_index"]
+        width_tiles = entry["width_tiles"]
+        height_tiles = entry["height_tiles"]
+        sprite_x = pivot_x + entry["x"] - min_x
+        sprite_y = pivot_y + entry["y"] - min_y
+        for y in range(height_tiles * 8):
+            source_y = height_tiles * 8 - 1 - y if entry["v_flip"] else y
+            tile_row, pixel_y = divmod(source_y, 8)
+            for x in range(width_tiles * 8):
+                source_x = width_tiles * 8 - 1 - x if entry["h_flip"] else x
+                tile_col, pixel_x = divmod(source_x, 8)
+                tile = tiles[vdp_pattern(tile_index, tile_col, tile_row, height_tiles)]
+                pixel = tile[pixel_y * 8 + pixel_x]
+                target = (sprite_y + y) * width + sprite_x + x
+                # SAT order wins before sprite/plane priority is considered
+                # (GPGX make_lut_bgobj/make_lut_obj). A later high-priority
+                # sprite cannot replace an earlier opaque low-priority one.
+                if pixel and not occupied[target]:
+                    occupied[target] = 1
+                    if priority is None or bool(entry.get("priority", False)) == priority:
+                        pixels[target] = pixel
+    return png.encode_indexed(width, height, pixels, palette, (0,))
 
 
 if __name__ == "__main__":

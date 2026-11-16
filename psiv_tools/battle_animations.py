@@ -17,7 +17,6 @@ import hashlib
 from collections import Counter
 from typing import Any
 
-from .battle_animation_art import emit_enemy_attack_art as emit_enemy_attack_art
 from .battle_animation_mapping import BattleMappingError
 from .battle_animation_mapping import MAPPING_ENTRY_BYTES, MAPPING_HEADER_BYTES
 from .battle_animation_mapping import decode_mapping_record

@@ -340,7 +340,7 @@ Findings:
 ### The `Dialogue2` callers' spans
 
 The local image matches the [accepted US ROM hash](../DEVELOPMENT.md#prepare-the-local-pack).
-`psiv_tools/newgame.py::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the
+`rust/psiv-pack/src/game_start/mod.rs::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the
 retail dispatcher bytes. The pointer slots and adjacent entries establish the
 following spans; labels and fork build-address comments supply no authority.
 All four now have scenes (rows 11 to 14).

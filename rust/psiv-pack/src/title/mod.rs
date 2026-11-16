@@ -1,4 +1,4 @@
-//! `title/`: the port of `psiv_tools/title_pack.py`, whose docs give the
+//! `title/`: the port of [retired title_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/title_pack.py), whose docs give the
 //! reasons (#216, slice 7e). The Sega logo and the title's art are drawn
 //! from their Enigma mappings as the cartridge places them; the background
 //! is composed from its three pieces; and every surface is re-encoded at

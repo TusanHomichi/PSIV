@@ -314,7 +314,7 @@ fn write_file(path: &Path, text: &str) -> Result<(), String> {
 /// field frame stirs the seed twice, so 65,536 frames put trials 131,072 draws
 /// apart; the final battle with the ending is some 40,000 frames, at most two
 /// draws each plus the battle's own rolls, so the windows do not overlap
-/// (`probe.rs`).
+/// ([retired probe](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/rust/psiv-pack/examples/probe.rs)).
 const DEFAULT_PROBE_SPACING: u64 = 65_536;
 
 /// `probe <route> --chapter ID --from-save FILE --trials N [--spacing FRAMES]

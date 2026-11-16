@@ -1,4 +1,4 @@
-//! `presentation/`: the port of `psiv_tools/presentation_pack.py`, whose
+//! `presentation/`: the port of [retired presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/presentation_pack.py), whose
 //! docs give the reasons (#216, slice 7f): every scene panel `Panel_Create`
 //! can draw, the opening narration's background, the palettes scenes read,
 //! the `LoadArt` previews, the objects scenes build, the shopkeeper

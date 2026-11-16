@@ -1,4 +1,4 @@
-//! tests/test_battle_pack.py's ability checks (#549): the effect table read
+//! the retired Python battle_pack suite's ability checks (#549): the effect table read
 //! from the local retail ROM and `battle/abilities.json` as
 //! [`build`](super::super::build) writes it.
 

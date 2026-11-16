@@ -38,7 +38,7 @@ fn on_line_3(words: &[u16; 64], live: bool, baked: &[u16]) -> Option<WindowLine>
 
 /// The line each node's tiles name, pinned here apart from the module:
 /// `$C000` for every window, `$A000` for the guild's collected rows and
-/// `$E000` for its closed ones (`Event_HuntersGuild`, `guild_pack.py`).
+/// `$E000` for its closed ones (`Event_HuntersGuild`, [retired guild_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/guild_pack.py)).
 fn expected_line(node: WindowNode) -> usize {
     match node {
         WindowNode::JobDone => 1,
