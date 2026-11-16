@@ -1,0 +1,1245 @@
+{
+  "nemesis": [
+    {
+      "label": "ArtNem_SegaLogo",
+      "rom_offset": "0x0411D0",
+      "compressed_size": 1004,
+      "consumed": 1005,
+      "tile_count": 70,
+      "xor_mode": true,
+      "decompressed_sha256": "bb477e197ab6b8c5e790050a90fc946cb37876ff66e56849a329954f42fe7f00"
+    },
+    {
+      "label": "ArtNem_TitlePSTitle",
+      "rom_offset": "0x1CC47A",
+      "compressed_size": 2608,
+      "consumed": 2609,
+      "tile_count": 130,
+      "xor_mode": true,
+      "decompressed_sha256": "79e313aa1700d137d001f65afe6c8a7a597d97daa9d4d0e88a8cb235aab66bb9"
+    },
+    {
+      "label": "ArtNem_TitleTheEndOfTheMillennium",
+      "rom_offset": "0x1CCEAA",
+      "compressed_size": 1020,
+      "consumed": 1020,
+      "tile_count": 56,
+      "xor_mode": false,
+      "decompressed_sha256": "0c2afb5ad33b7ffa6262dff4dac40c4346b53b5c59e0304162f9a4ad67d86b60"
+    },
+    {
+      "label": "ArtNem_PressStartButton",
+      "rom_offset": "0x1CD2A6",
+      "compressed_size": 202,
+      "consumed": 202,
+      "tile_count": 11,
+      "xor_mode": false,
+      "decompressed_sha256": "45d60520623d919028a2cd94718fb04bb611f2f287d58f6f47eb5a417d9b43cc"
+    },
+    {
+      "label": "ArtNem_TitleCopyrightText",
+      "rom_offset": "0x1CD370",
+      "compressed_size": 242,
+      "consumed": 243,
+      "tile_count": 13,
+      "xor_mode": false,
+      "decompressed_sha256": "bb8453014798d896019914cfdcc63e0d7f9bc71f868727dfaf3d701b65ba54d2"
+    },
+    {
+      "label": "ArtNem_TitleBackground",
+      "rom_offset": "0x1CD462",
+      "compressed_size": 7568,
+      "consumed": 7569,
+      "tile_count": 414,
+      "xor_mode": true,
+      "decompressed_sha256": "773727dfc02369460cbddbce838f20567d0e159db4dc26ae29f487a7b753d40a"
+    },
+    {
+      "label": "ArtNem_GameStartMotaBG",
+      "rom_offset": "0x1CF1F2",
+      "compressed_size": 5680,
+      "consumed": 5681,
+      "tile_count": 289,
+      "xor_mode": false,
+      "decompressed_sha256": "43a8e2e5fa0c53668b36ce8a77afa6eaa7b2e5a3d45bdc604a15406a9f326a90"
+    },
+    {
+      "label": "ArtNem_TitleScrollingTextBG",
+      "rom_offset": "0x1D0822",
+      "compressed_size": 6260,
+      "consumed": 6261,
+      "tile_count": 260,
+      "xor_mode": false,
+      "decompressed_sha256": "358ccc9b271f78aff3fe1f1972504d2cb6b2e1551fbd17150c16cc990054cc33"
+    },
+    {
+      "label": "ArtNem_SaveBlockGlowingCursor",
+      "rom_offset": "0x1D2096",
+      "compressed_size": 92,
+      "consumed": 92,
+      "tile_count": 11,
+      "xor_mode": true,
+      "decompressed_sha256": "796f111d4eb9263a0ff488b5e6a02ee51f1f91296fc07e7fce4b1b43ee97df68"
+    },
+    {
+      "label": "ArtNem_WindowTiles",
+      "rom_offset": "0x2A2B7E",
+      "compressed_size": 1212,
+      "consumed": 1212,
+      "tile_count": 128,
+      "xor_mode": true,
+      "decompressed_sha256": "96a3a1ce71a1d9c6c6b8e3d79f82e7a928e66ae9e8d5f2e8c13127a8ab4a99d8"
+    },
+    {
+      "label": "ArtNem_Font",
+      "rom_offset": "0x2A303A",
+      "compressed_size": 790,
+      "consumed": 791,
+      "tile_count": 87,
+      "xor_mode": false,
+      "decompressed_sha256": "ed9fe69a6a21a45ff08bf7ad74f3e390c941c548f33998004f706ae8c9bddf1c"
+    },
+    {
+      "label": "ArtNem_CreditFont",
+      "rom_offset": "0x2A3350",
+      "compressed_size": 498,
+      "consumed": 499,
+      "tile_count": 29,
+      "xor_mode": false,
+      "decompressed_sha256": "0c39f5d1085addd6eebd09a165565b660306381a147f3ef6d4556f6e2fad9360"
+    },
+    {
+      "label": "ArtNem_ChazDialPortrait",
+      "rom_offset": "0x29BE5C",
+      "compressed_size": 688,
+      "consumed": 688,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "a87e9a934b75920b4ff6f1211305aa56e50494ad4b05969fb484d901a649212a"
+    },
+    {
+      "label": "ArtNem_AlysDialPortrait",
+      "rom_offset": "0x29C10C",
+      "compressed_size": 705,
+      "consumed": 705,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "72c7cc66bcfec8035fe77627f4bc72ef0f7198089f322d2fb27f801d7ffe40c5"
+    },
+    {
+      "label": "ArtNem_HahnDialPortrait",
+      "rom_offset": "0x29C3CC",
+      "compressed_size": 596,
+      "consumed": 596,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "0d79fd944ac8e2db4e7a2da82993ee5aafa4eb92ebc294ff4308f0ae7767e4b9"
+    },
+    {
+      "label": "ArtNem_RuneDialPortrait",
+      "rom_offset": "0x29C620",
+      "compressed_size": 768,
+      "consumed": 768,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "cb797731f648a3070f662fcc4784fb3e739b6a184b68a88e2ab0e136729585a4"
+    },
+    {
+      "label": "ArtNem_GryzDialPortrait",
+      "rom_offset": "0x29C920",
+      "compressed_size": 672,
+      "consumed": 672,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "b2022a0e74463c926f345c52a2aef86dc6927f01af577b1632696d1edd1994da"
+    },
+    {
+      "label": "ArtNem_RikaDialPortrait",
+      "rom_offset": "0x29CBC0",
+      "compressed_size": 697,
+      "consumed": 697,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "5c9c0c591c56af2f90ba70fba8cfc251d1ce2304f5d91f29bb0d6a3b46b004b3"
+    },
+    {
+      "label": "ArtNem_DemiDialPortrait",
+      "rom_offset": "0x29CE78",
+      "compressed_size": 748,
+      "consumed": 748,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "6a8246e189af2012eee96f3e6cf04b4f41d76a517f29a639b0a8e7a6d256bab7"
+    },
+    {
+      "label": "ArtNem_WrenDialPortrait",
+      "rom_offset": "0x29D164",
+      "compressed_size": 632,
+      "consumed": 632,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "adad9a05eb9a31e065bbeb47875b241986b2e16337e00cf431c7cde43643b5a6"
+    },
+    {
+      "label": "ArtNem_RajaDialPortrait",
+      "rom_offset": "0x29D3DC",
+      "compressed_size": 699,
+      "consumed": 699,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "84abe7627362bc05c01e7b8bdc73be1c6942c50682e33a85ce0502a5e37e2baa"
+    },
+    {
+      "label": "ArtNem_KyraDialPortrait",
+      "rom_offset": "0x29D696",
+      "compressed_size": 730,
+      "consumed": 730,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "0f599eb7966a8ac933835d1b2ccbc8d6a8ced0940ab720de8aa02cd1fddf1836"
+    },
+    {
+      "label": "ArtNem_SethDialPortrait",
+      "rom_offset": "0x29D970",
+      "compressed_size": 590,
+      "consumed": 590,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "64129e123a843b5f49e20275ca86facf2da1f74a5e272e79db1b1df4531e06fe"
+    },
+    {
+      "label": "ArtNem_SayaDialPortrait",
+      "rom_offset": "0x29ED26",
+      "compressed_size": 665,
+      "consumed": 665,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "0115698992e35bdad835a20e6b1c47d1c2e075775bfac8f4f91a7faae7fc4f3f"
+    },
+    {
+      "label": "ArtNem_HoltDialPortrait",
+      "rom_offset": "0x29EFBE",
+      "compressed_size": 659,
+      "consumed": 659,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "c1f275a17bfdd8c5382142660423fe0ca26afe0a001b0bc266485583e42e9d2d"
+    },
+    {
+      "label": "ArtNem_PrincipalDialPortrait",
+      "rom_offset": "0x29F250",
+      "compressed_size": 645,
+      "consumed": 645,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "aada4cf01c710f82c6063d1ba958fe5ea953b4d3c908838b02886d9d6a053824"
+    },
+    {
+      "label": "ArtNem_DorinDialPortrait",
+      "rom_offset": "0x29F4D4",
+      "compressed_size": 760,
+      "consumed": 760,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "6442ffe3ee8ee42db584fe5438ef0f10c97895c60345ea8f64cd2e1d075a9d82"
+    },
+    {
+      "label": "ArtNem_PanaDialPortrait",
+      "rom_offset": "0x29F7CC",
+      "compressed_size": 634,
+      "consumed": 634,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "c1a03ccb8c0e1ea56e8eb66ade11db562064de7ff4668719f61cf162555842bd"
+    },
+    {
+      "label": "ArtNem_HntGuildReceptionistDialPortrait",
+      "rom_offset": "0x29FA46",
+      "compressed_size": 545,
+      "consumed": 545,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "f702c6ebae6f68c584e8294cb18f9bf62d0e5f3eaa8bac49065774ca475f8638"
+    },
+    {
+      "label": "ArtNem_BakerDialPortrait",
+      "rom_offset": "0x29FC66",
+      "compressed_size": 662,
+      "consumed": 662,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "81a3f9660cb55bc8f6cbda354de6716a814ae3bd0776a8a248a8ee00dea0ae04"
+    },
+    {
+      "label": "ArtNem_ZioDialPortrait",
+      "rom_offset": "0x29FEFC",
+      "compressed_size": 508,
+      "consumed": 508,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "5f9080b71cb12cd68c7b55caabeb5175e5a60131e84563da03b32cca90f77388"
+    },
+    {
+      "label": "ArtNem_JuzaDialPortrait",
+      "rom_offset": "0x2A00F8",
+      "compressed_size": 586,
+      "consumed": 586,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "6739f194be8e596ced66c0330cc1983d33dfea44d14e5c481c8d64b47917bbc8"
+    },
+    {
+      "label": "ArtNem_GyunaDialPortrait",
+      "rom_offset": "0x2A0342",
+      "compressed_size": 637,
+      "consumed": 637,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "84310296255eccf2d1554b8da22974b3147a3bb9f0bcc2c9e9f06c6ec599caa9"
+    },
+    {
+      "label": "ArtNem_EsperDialPortrait",
+      "rom_offset": "0x2A05BE",
+      "compressed_size": 639,
+      "consumed": 639,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "c8f190029b18af125399331e188692bf134b00b8a8ac998def5070ecb9f5d9c2"
+    },
+    {
+      "label": "ArtNem_EsperChiefDialPortrait",
+      "rom_offset": "0x2A083C",
+      "compressed_size": 643,
+      "consumed": 643,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "f11ee4162ef0c9bcd715e75d6cfe15dbad7cfebfc5f6085b8a64c7dd77421721"
+    },
+    {
+      "label": "ArtNem_GumbiousPriestDialPortrait",
+      "rom_offset": "0x2A0ABE",
+      "compressed_size": 641,
+      "consumed": 641,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "6c7a41b67a698e44167ee38777e0fca82dd67dfb86a54b6195796394cbaa8a11"
+    },
+    {
+      "label": "ArtNem_GumbiousBishopDialPortrait",
+      "rom_offset": "0x2A0D3E",
+      "compressed_size": 659,
+      "consumed": 659,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "7862b338840ec922b08ca2aa076d5ae3329e3cf27b9a8df3fef6fb13c852daa2"
+    },
+    {
+      "label": "ArtNem_LashiecDialPortrait",
+      "rom_offset": "0x2A0FD0",
+      "compressed_size": 790,
+      "consumed": 790,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "f94e63df1aeddf3dbe9abcca8f06e73e90242c8b38b69b54f669817c30302eb7"
+    },
+    {
+      "label": "ArtNem_XeAThoulDialPortrait",
+      "rom_offset": "0x2A12E6",
+      "compressed_size": 423,
+      "consumed": 423,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "481dce9d4e1389af31092f734390dbf6e1ed43415c58a4dc7587aa6132679f61"
+    },
+    {
+      "label": "ArtNem_XeAThoul2DialPortrait",
+      "rom_offset": "0x2A148C",
+      "compressed_size": 443,
+      "consumed": 443,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "6eabcd5caaa410a600f700d5ca10429849f4d408dec0e7ff5cd72418078274c2"
+    },
+    {
+      "label": "ArtNem_FortuneTellerDialPortrait",
+      "rom_offset": "0x2A1646",
+      "compressed_size": 700,
+      "consumed": 700,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "2910956ea84721a2389ae087cf20ddb9c1a7aad66fdcca6a22dc8c61ce13d98d"
+    },
+    {
+      "label": "ArtNem_DElmLarsDialPortrait",
+      "rom_offset": "0x2A1902",
+      "compressed_size": 499,
+      "consumed": 499,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "dffb55867b248f8ca7723c1add686eb8738f88c1c0658c0bdb1ec5633524cff1"
+    },
+    {
+      "label": "ArtNem_AlysWoundedDialPortrait",
+      "rom_offset": "0x2A1AF4",
+      "compressed_size": 734,
+      "consumed": 734,
+      "tile_count": 36,
+      "xor_mode": false,
+      "decompressed_sha256": "d469b70f75d65ab06750027b870efb58bf27672deb40ae81cda38137d045c104"
+    },
+    {
+      "label": "ArtNem_ReFazeDialPortrait",
+      "rom_offset": "0x2A1DD2",
+      "compressed_size": 933,
+      "consumed": 933,
+      "tile_count": 36,
+      "xor_mode": false,
+      "decompressed_sha256": "4869cc10dd1c1b3a8dd1731fdea93858d785cbf0dd19ae318ecac90aac509fa3"
+    },
+    {
+      "label": "ArtNem_MissingStudentDialPortrait",
+      "rom_offset": "0x2A2176",
+      "compressed_size": 637,
+      "consumed": 637,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "d12fe479133b715f79067e4519860926e860fa6fb698834786b1a2d7a0bb0d74"
+    },
+    {
+      "label": "ArtNem_TallasDialPortrait",
+      "rom_offset": "0x2A23F2",
+      "compressed_size": 591,
+      "consumed": 591,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "4395434329f958dfaaf18cbeba7864a2e74a606d84bc939d7a9d70beb0fa789b"
+    },
+    {
+      "label": "ArtNem_DyingBoyDialPortrait",
+      "rom_offset": "0x2A2640",
+      "compressed_size": 666,
+      "consumed": 666,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "73f04cfd212886dc7509ed780ac645d0e3143fdc27f1674f3c1f3bd0abd3a5e3"
+    },
+    {
+      "label": "ArtNem_SekreasDialPortrait",
+      "rom_offset": "0x2A28DA",
+      "compressed_size": 605,
+      "consumed": 605,
+      "tile_count": 36,
+      "xor_mode": true,
+      "decompressed_sha256": "51cf589fc9bd4d90209720d319672ce72b6d29d03ad318c0b3e6d5ec95cb59a8"
+    },
+    {
+      "label": "ArtNem_MotaDesertBattleBG",
+      "rom_offset": "0x2609C0",
+      "compressed_size": 7584,
+      "consumed": 7585,
+      "tile_count": 348,
+      "xor_mode": false,
+      "decompressed_sha256": "0d62d2bc66259061d8a3a5ed997e110870e617850770560a705a1619fd8aba89"
+    },
+    {
+      "label": "ArtNem_MotaBeachBattleBG",
+      "rom_offset": "0x262A6A",
+      "compressed_size": 5500,
+      "consumed": 5500,
+      "tile_count": 283,
+      "xor_mode": false,
+      "decompressed_sha256": "897e8a921cfb6314e8533743452ed9cde8cf6d6876c81170e85a2553138e708a"
+    },
+    {
+      "label": "ArtNem_MotaGrassBattleBG",
+      "rom_offset": "0x265DA8",
+      "compressed_size": 7396,
+      "consumed": 7397,
+      "tile_count": 342,
+      "xor_mode": false,
+      "decompressed_sha256": "c6e8632437645a779f11910c2e87cb092bf06b1c9411135ad4d04fdffcd16a07"
+    },
+    {
+      "label": "ArtNem_MotaSeaBattleBG",
+      "rom_offset": "0x2642F6",
+      "compressed_size": 6012,
+      "consumed": 6012,
+      "tile_count": 315,
+      "xor_mode": false,
+      "decompressed_sha256": "65de9ce21cb5ec79b6df4bcabdbf8f8619b4b6c185aba40d2239b7426a4a39eb"
+    },
+    {
+      "label": "ArtNem_DezoBattleBG",
+      "rom_offset": "0x267E8A",
+      "compressed_size": 6408,
+      "consumed": 6408,
+      "tile_count": 348,
+      "xor_mode": false,
+      "decompressed_sha256": "37542fd8058fe251fa9259ca0112afa5ac1871c360a9791c6137d5f7257f791f"
+    },
+    {
+      "label": "ArtNem_PowerPlantsBattleBG",
+      "rom_offset": "0x269A4E",
+      "compressed_size": 2686,
+      "consumed": 2687,
+      "tile_count": 205,
+      "xor_mode": true,
+      "decompressed_sha256": "dd9428100dcb841520275eccdafb86d75b9d94ddb35ac19cd97e33d61f909409"
+    },
+    {
+      "label": "ArtNem_AcademyBasementBattleBG",
+      "rom_offset": "0x26A686",
+      "compressed_size": 1026,
+      "consumed": 1027,
+      "tile_count": 49,
+      "xor_mode": false,
+      "decompressed_sha256": "24f5c817293f8b124dc1035553ff2518c6fa64bda9bb2908fff1370ddeb48ea4"
+    },
+    {
+      "label": "ArtNem_LadeaTowerBattleBG",
+      "rom_offset": "0x26AD54",
+      "compressed_size": 4370,
+      "consumed": 4371,
+      "tile_count": 200,
+      "xor_mode": false,
+      "decompressed_sha256": "909f90fd08c52e245220fdc7ba3ddf6e6460192c7381fad38c1472314ba144bf"
+    },
+    {
+      "label": "ArtNem_ZioFortAirCastleBattleBG",
+      "rom_offset": "0x26C032",
+      "compressed_size": 4580,
+      "consumed": 4581,
+      "tile_count": 219,
+      "xor_mode": false,
+      "decompressed_sha256": "5574298ef330ae4b7fe3e2c48b6a7612bdc119e3903f17ad00ebbef8d4dd026b"
+    },
+    {
+      "label": "ArtNem_GaruberkTwBattleBG",
+      "rom_offset": "0x26D426",
+      "compressed_size": 6508,
+      "consumed": 6509,
+      "tile_count": 322,
+      "xor_mode": false,
+      "decompressed_sha256": "a22ed0b79b46d4f5e45cdc0b25253fd5c93d688ff7d880a62797d1a9e8e2275c"
+    },
+    {
+      "label": "ArtNem_TonoeBasementBattleBG",
+      "rom_offset": "0x26EF74",
+      "compressed_size": 4954,
+      "consumed": 4955,
+      "tile_count": 210,
+      "xor_mode": false,
+      "decompressed_sha256": "69a86a629d2cef61025ddeda43994ac2b9f27fa87800575eeedb83ed960624ab"
+    },
+    {
+      "label": "ArtNem_MonsenCavePassagewayBattleBG",
+      "rom_offset": "0x2705F8",
+      "compressed_size": 4134,
+      "consumed": 4135,
+      "tile_count": 218,
+      "xor_mode": false,
+      "decompressed_sha256": "6ab7ee07106aafdbf64abd47c87340ba65b52bbb5bfb20d89d9499153a40cb42"
+    },
+    {
+      "label": "ArtNem_IslandAndElsydeonCaveBattleBG",
+      "rom_offset": "0x27189C",
+      "compressed_size": 3846,
+      "consumed": 3847,
+      "tile_count": 215,
+      "xor_mode": false,
+      "decompressed_sha256": "c152fd589744d22aa6d3376257e933a751bfb9c2c5e3c0fdc81ae53219a7450d"
+    },
+    {
+      "label": "ArtNem_RykrosBattleBG",
+      "rom_offset": "0x272AB2",
+      "compressed_size": 7674,
+      "consumed": 7674,
+      "tile_count": 334,
+      "xor_mode": false,
+      "decompressed_sha256": "cf2f03d9c713be47dc5d25c9f440d99720d578b7e44c855f49fc2f9ec6fd2815"
+    },
+    {
+      "label": "ArtNem_ZemaBattleBG",
+      "rom_offset": "0x274C42",
+      "compressed_size": 5406,
+      "consumed": 5407,
+      "tile_count": 236,
+      "xor_mode": false,
+      "decompressed_sha256": "03651e5d6a0ca0dd7f1d2b2530011c6614c727ff6b3f877b1fce49962603388e"
+    },
+    {
+      "label": "ArtNem_ReshelBattleBG",
+      "rom_offset": "0x2763D6",
+      "compressed_size": 6640,
+      "consumed": 6641,
+      "tile_count": 335,
+      "xor_mode": false,
+      "decompressed_sha256": "8ac1da3ff9086970cd73050d33d684fee56522a2a4b8a0c2f3400978c8f133fd"
+    },
+    {
+      "label": "ArtNem_RykrosTowersBattleBG",
+      "rom_offset": "0x27800E",
+      "compressed_size": 3118,
+      "consumed": 3118,
+      "tile_count": 115,
+      "xor_mode": false,
+      "decompressed_sha256": "c09f541ff9a1cf3e63eae7c09179aade5d863938dcbc138c27b5493e6267343f"
+    },
+    {
+      "label": "ArtNem_TheEdgeBattleBG",
+      "rom_offset": "0x278E2C",
+      "compressed_size": 7848,
+      "consumed": 7849,
+      "tile_count": 331,
+      "xor_mode": true,
+      "decompressed_sha256": "4cb6ac6cdbf90238f60b7babcda24c0c27c6bba3dd246a5cbd6d89f022bde032"
+    },
+    {
+      "label": "ArtNem_CarnivorousTreesBattleBG",
+      "rom_offset": "0x238E04",
+      "compressed_size": 4632,
+      "consumed": 4633,
+      "tile_count": 236,
+      "xor_mode": true,
+      "decompressed_sha256": "226581c09b18cc38e818cc9ea01b1be7f4babc72611d9841455d0df77c66f1dd"
+    },
+    {
+      "label": "ArtNem_DarkForce1BattleBG",
+      "rom_offset": "0x236F80",
+      "compressed_size": 2330,
+      "consumed": 2331,
+      "tile_count": 171,
+      "xor_mode": true,
+      "decompressed_sha256": "53a3f6172f2f9bebdc2adc534ea7f920d2f4118de9520c61dbac35d7f505fd89"
+    }
+  ],
+  "mappings": [
+    {
+      "label": "MapEni_SegaLogo",
+      "rom_offset": "0x0415BC",
+      "compressed_size": 32,
+      "base_tile": "0x0010",
+      "columns": 17,
+      "rows": 5,
+      "art_vram_tile": "0x010",
+      "art_tile_count": 70,
+      "decoded_sha256": "04f16b453e1cabab53fb9fe28e704254672decedfa0d04a2b7043e88c37f871e",
+      "pixels_sha256": "2f2d21d7c847df3734df8d29f102b1a26892bb3edab50aa034b295602e4db1a0",
+      "art": {
+        "rom_offset": "0x0411D0",
+        "compression": "nemesis",
+        "compressed_size": 1004
+      }
+    },
+    {
+      "label": "MapEni_TitlePSTitle",
+      "rom_offset": "0x1D20F2",
+      "compressed_size": 52,
+      "base_tile": "0x0010",
+      "columns": 17,
+      "rows": 13,
+      "art_vram_tile": "0x010",
+      "art_tile_count": 130,
+      "decoded_sha256": "d9c0f7fbed4c2a60058b324c6de8369d28e7f928d41ed37e14b6d7d08726d020",
+      "pixels_sha256": "64dd2669b4dd038960b2f31665f79c8cae5f848be0c2d70ed916a339ec7eec20",
+      "art": {
+        "rom_offset": "0x1CC47A",
+        "compression": "nemesis",
+        "compressed_size": 2608
+      }
+    },
+    {
+      "label": "MapEni_TitleTheEndOfTheMillennium",
+      "rom_offset": "0x1D2126",
+      "compressed_size": 44,
+      "base_tile": "0x0092",
+      "columns": 29,
+      "rows": 3,
+      "art_vram_tile": "0x092",
+      "art_tile_count": 56,
+      "decoded_sha256": "5009e1db85b740ce7abd74a713ad049025321ea95efd5885510cbe3b48ea54dc",
+      "pixels_sha256": "5a7751de3f4aee6183a2eefb11267dd984b01ac8c8ecfb97386e416fce1641a3",
+      "art": {
+        "rom_offset": "0x1CCEAA",
+        "compression": "nemesis",
+        "compressed_size": 1020
+      }
+    },
+    {
+      "label": "MapEni_TitleCopyrightText",
+      "rom_offset": "0x1D2152",
+      "compressed_size": 14,
+      "base_tile": "0x20CA",
+      "columns": 17,
+      "rows": 1,
+      "art_vram_tile": "0x0CA",
+      "art_tile_count": 13,
+      "decoded_sha256": "449d867d7f37baa6d4d4eadd6ec6bfc75787984ea2175df5cf37f9f12f98c342",
+      "pixels_sha256": "51d6063eb6c89b61bf9e2da6c1a79a02a0b832422e5bd5621611803ad9433145",
+      "art": {
+        "rom_offset": "0x1CD370",
+        "compression": "nemesis",
+        "compressed_size": 242
+      }
+    },
+    {
+      "label": "MapEni_PressStartButton",
+      "rom_offset": "0x1D2160",
+      "compressed_size": 18,
+      "base_tile": "0x40D8",
+      "columns": 18,
+      "rows": 1,
+      "art_vram_tile": "0x0D8",
+      "art_tile_count": 11,
+      "decoded_sha256": "233cc0bca3a73cf8ad5a43dfb2d044e0e8dea45cf85683fccc7d5d8f1913b196",
+      "pixels_sha256": "c607f8617494ca59a0edfb9d79956b049a79304161bce1cadf6be49dbdb4739f",
+      "art": {
+        "rom_offset": "0x1CD2A6",
+        "compression": "nemesis",
+        "compressed_size": 202
+      }
+    },
+    {
+      "label": "MapEni_TitleBarBGTopPart",
+      "rom_offset": "0x1D2172",
+      "compressed_size": 204,
+      "base_tile": "0x60E3",
+      "columns": 8,
+      "rows": 28,
+      "art_vram_tile": "0x0E3",
+      "art_tile_count": 414,
+      "decoded_sha256": "0e9c60177a40f007d44120335932df0502dba798a4a709c98907cdad272ea9df",
+      "pixels_sha256": "f1b12c815ff26bcdd8eb2395ac1a6d67fcd76d4bf9e639f9f512e772d228480a",
+      "art": {
+        "rom_offset": "0x1CD462",
+        "compression": "nemesis",
+        "compressed_size": 7568
+      }
+    },
+    {
+      "label": "MapEni_TitleBarBGBottomPart",
+      "rom_offset": "0x1D223E",
+      "compressed_size": 140,
+      "base_tile": "0x60E3",
+      "columns": 8,
+      "rows": 28,
+      "art_vram_tile": "0x0E3",
+      "art_tile_count": 414,
+      "decoded_sha256": "f681bfe23ed576df675e30fb591c5e5420440fcb6353c39d8c5a6dedf0a28221",
+      "pixels_sha256": "7676353594abc6fb591fdc49d1b0fcfe58c20c58c45ce62f0d99d58c11a4216c",
+      "art": {
+        "rom_offset": "0x1CD462",
+        "compression": "nemesis",
+        "compressed_size": 7568
+      }
+    },
+    {
+      "label": "MapEni_TitleBGLeftPart",
+      "rom_offset": "0x1D22CA",
+      "compressed_size": 162,
+      "base_tile": "0x60E3",
+      "columns": 6,
+      "rows": 28,
+      "art_vram_tile": "0x0E3",
+      "art_tile_count": 414,
+      "decoded_sha256": "779a029b227003f2ed62331f222aa0e8662519abe0df096d79fc987c9552a362",
+      "pixels_sha256": "583228380f6a4a8d357973e6cfaf71130c0f092d5b1d02cc63329389adb22cff",
+      "art": {
+        "rom_offset": "0x1CD462",
+        "compression": "nemesis",
+        "compressed_size": 7568
+      }
+    },
+    {
+      "label": "MapEni_TitleBGRightPart",
+      "rom_offset": "0x1D236C",
+      "compressed_size": 594,
+      "base_tile": "0x60E3",
+      "columns": 26,
+      "rows": 28,
+      "art_vram_tile": "0x0E3",
+      "art_tile_count": 414,
+      "decoded_sha256": "3a6006c941f29bc8a18eebe9395bda0ce95ef409fd1cad29468369a4a45f2d0e",
+      "pixels_sha256": "4b13f3e84e3b850e36ca0a55b7f1cf4bc4622ffb6a670bf6445d3956014fe98c",
+      "art": {
+        "rom_offset": "0x1CD462",
+        "compression": "nemesis",
+        "compressed_size": 7568
+      }
+    },
+    {
+      "label": "MapEni_GameStartMotaBG",
+      "rom_offset": "0x1D25BE",
+      "compressed_size": 338,
+      "base_tile": "0x2010",
+      "columns": 40,
+      "rows": 16,
+      "art_vram_tile": "0x010",
+      "art_tile_count": 289,
+      "decoded_sha256": "da40f7674ed35b71aa2d405f9f84e3acc306b8cf0441980267e78f7dd816037e",
+      "pixels_sha256": "fe69dff7edbf1886f4a9d30e5cb6dce6fc6836536adec4057ab6fc525eb0f855",
+      "art": {
+        "rom_offset": "0x1CF1F2",
+        "compression": "nemesis",
+        "compressed_size": 5680
+      }
+    },
+    {
+      "label": "MapEni_TitleScrollingTextBG",
+      "rom_offset": "0x1D2710",
+      "compressed_size": 336,
+      "base_tile": "0x0010",
+      "columns": 40,
+      "rows": 16,
+      "art_vram_tile": "0x010",
+      "art_tile_count": 260,
+      "decoded_sha256": "f50168d7fdd3da1f421efb5163a61017f27c0d5424424603905c62497a82ed06",
+      "pixels_sha256": "3ca1397ca0dcef6faa58d860079ee28c717cc4e2aabb0985d1788c49364c580b",
+      "art": {
+        "rom_offset": "0x1D0822",
+        "compression": "nemesis",
+        "compressed_size": 6260
+      }
+    },
+    {
+      "label": "MapEni_RuneTitlePortrait",
+      "rom_offset": "0x2F478E",
+      "compressed_size": 142,
+      "base_tile": "0x0114",
+      "columns": 40,
+      "rows": 11,
+      "art_vram_tile": "0x114",
+      "art_tile_count": 290,
+      "decoded_sha256": "a5e045e638c9f65027a68f8e80ebe2c436f6ceb53647601d1634c4c7208de26a",
+      "pixels_sha256": "17e7e846ea7c7001ef682b8fa122150f65978df64a694511d09ec6581f049bd1",
+      "art": {
+        "rom_offset": "0x2F114E",
+        "compression": "kosinski",
+        "compressed_size": 3356
+      }
+    },
+    {
+      "label": "MapEni_RikaTitlePortrait",
+      "rom_offset": "0x2F481C",
+      "compressed_size": 84,
+      "base_tile": "0x2236",
+      "columns": 40,
+      "rows": 11,
+      "art_vram_tile": "0x236",
+      "art_tile_count": 206,
+      "decoded_sha256": "8a373fe44c9a14cc4fddd0c41c993328ecf834b61445f141b8c97e259ae755ec",
+      "pixels_sha256": "fc52d6639305ae03765af1f155fcb47ea202d8ec92ffb643823471132ef85a4f",
+      "art": {
+        "rom_offset": "0x2F1E6E",
+        "compression": "kosinski",
+        "compressed_size": 3118
+      }
+    },
+    {
+      "label": "MapEni_WrenTitlePortrait",
+      "rom_offset": "0x2F4870",
+      "compressed_size": 134,
+      "base_tile": "0x4304",
+      "columns": 14,
+      "rows": 28,
+      "art_vram_tile": "0x304",
+      "art_tile_count": 253,
+      "decoded_sha256": "021ef0b971d668f0587b678d127b1cd309476272a4e79db612c0e9e8052200cc",
+      "pixels_sha256": "09d796cb9b6e1ac9dd1ea87eeeb3d068027813fd016348dbe0dc6ef20784f874",
+      "art": {
+        "rom_offset": "0x2F2A9E",
+        "compression": "kosinski",
+        "compressed_size": 4097
+      }
+    },
+    {
+      "label": "MapEni_ChazTitlePortrait",
+      "rom_offset": "0x2F48F6",
+      "compressed_size": 158,
+      "base_tile": "0x6401",
+      "columns": 14,
+      "rows": 28,
+      "art_vram_tile": "0x401",
+      "art_tile_count": 215,
+      "decoded_sha256": "863de16b18a0d1f1d5c733cc957735282303d3236b9cf85c39c408f1944aba9c",
+      "pixels_sha256": "2a03fadf0277ef52b545da81a1fb3fd56e9b2697711ddb6ec12c4933e104babb",
+      "art": {
+        "rom_offset": "0x2F3AAE",
+        "compression": "kosinski",
+        "compressed_size": 3288
+      }
+    },
+    {
+      "label": "MapEni_MotaDesertBattleBG",
+      "rom_offset": "0x262760",
+      "compressed_size": 778,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 348,
+      "decoded_sha256": "a99f92d65bb430387ca47dace2554c54c9c2b08f54ee6dc98f48667e61ac0fa4",
+      "pixels_sha256": "f0b86a200e089b41c37867012db651d1b9822a3d22c8ce710107ce32f1f961c3",
+      "art": {
+        "rom_offset": "0x2609C0",
+        "compression": "nemesis",
+        "compressed_size": 7584
+      }
+    },
+    {
+      "label": "MapEni_MotaBeachBattleBG",
+      "rom_offset": "0x263FE6",
+      "compressed_size": 784,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 283,
+      "decoded_sha256": "77d1f29ac68b64f9fdb0a4cf098dd2ec66380b20f8e6e43d50e9b9322b7f1f8a",
+      "pixels_sha256": "77e364bdb9dfc9626ee298379bd0c421c476c458e3a217de055deae1d83efe69",
+      "art": {
+        "rom_offset": "0x262A6A",
+        "compression": "nemesis",
+        "compressed_size": 5500
+      }
+    },
+    {
+      "label": "MapEni_MotaGrassBattleBG",
+      "rom_offset": "0x267A8C",
+      "compressed_size": 1022,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 342,
+      "decoded_sha256": "04506fac19325461c0bfe58c52e04476379887f9f6206537ec0ba523382fed32",
+      "pixels_sha256": "7a667d4a93abc7a3ada35ade5dc7bb431b02d829d2a4fefc0827021399e8ad10",
+      "art": {
+        "rom_offset": "0x265DA8",
+        "compression": "nemesis",
+        "compressed_size": 7396
+      }
+    },
+    {
+      "label": "MapEni_MotaSeaBattleBG",
+      "rom_offset": "0x265A72",
+      "compressed_size": 822,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 315,
+      "decoded_sha256": "60739669e0d75f2e3583864adc275930a690a7955ebe20ced2f081c733ae0b5f",
+      "pixels_sha256": "0b3cfc1ae5bf182b66f1c1241748158fbb85e628c95230a69822456718bfc53a",
+      "art": {
+        "rom_offset": "0x2642F6",
+        "compression": "nemesis",
+        "compressed_size": 6012
+      }
+    },
+    {
+      "label": "MapEni_DezoBattleBG",
+      "rom_offset": "0x269792",
+      "compressed_size": 700,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 348,
+      "decoded_sha256": "ac2a41aa9c80cf37663b6a4c0e28baf43e237c245e8b1610890aa4b34f1b4d2c",
+      "pixels_sha256": "d7f0c94821bc4758e787863b160f26b14c0cf541bfdb76ee79ebefd7bbb46d4b",
+      "art": {
+        "rom_offset": "0x267E8A",
+        "compression": "nemesis",
+        "compressed_size": 6408
+      }
+    },
+    {
+      "label": "MapEni_PowerPlantsBattleBG",
+      "rom_offset": "0x26A4CC",
+      "compressed_size": 442,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 205,
+      "decoded_sha256": "1f9350dc18209986a0aeaea74818d7318fc35cde6f0647baf773576ccaee1acd",
+      "pixels_sha256": "90aa9a034c95e2ca1a3e00e9332e4b2eeb76781188758b7e9257db5ce373a562",
+      "art": {
+        "rom_offset": "0x269A4E",
+        "compression": "nemesis",
+        "compressed_size": 2686
+      }
+    },
+    {
+      "label": "MapEni_AcademyBasementBattleBG",
+      "rom_offset": "0x26AA88",
+      "compressed_size": 716,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 49,
+      "decoded_sha256": "1e1de1ff5e2031e595902b2df3df3479d9465129b4e6de0649a287a6c1f28a19",
+      "pixels_sha256": "0fa5b53860aedf4de86d65b5193e59de34fb7567e2046feb7ef81dfbcf9beef3",
+      "art": {
+        "rom_offset": "0x26A686",
+        "compression": "nemesis",
+        "compressed_size": 1026
+      }
+    },
+    {
+      "label": "MapEni_LadeaTowerBattleBG",
+      "rom_offset": "0x26BE66",
+      "compressed_size": 460,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 200,
+      "decoded_sha256": "4944af70bac00479ea23eb43f465d3f901c4a95cdeff965a60ccbe7ae990b653",
+      "pixels_sha256": "408422e0ce4dd40173e9ccc9bd8714f9ecac675023f5771b45b14e932a794295",
+      "art": {
+        "rom_offset": "0x26AD54",
+        "compression": "nemesis",
+        "compressed_size": 4370
+      }
+    },
+    {
+      "label": "MapEni_ZioFortAirCastleBattleBG",
+      "rom_offset": "0x26D216",
+      "compressed_size": 528,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 219,
+      "decoded_sha256": "cd152d52e8c856b4cbae8b37ac6e79e3cbe567935aef02f16677285ff00b6fe2",
+      "pixels_sha256": "cc945b9f2ef47a3189309a8a131abdcb4f50ad4dd140a830080e2f94fc74ce7d",
+      "art": {
+        "rom_offset": "0x26C032",
+        "compression": "nemesis",
+        "compressed_size": 4580
+      }
+    },
+    {
+      "label": "MapEni_GaruberkTwBattleBG",
+      "rom_offset": "0x26ED92",
+      "compressed_size": 482,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 322,
+      "decoded_sha256": "e19a8137cfac64aa8cf2dfc171fd1be23b5c57f45d291094e7bd8aa6369fe951",
+      "pixels_sha256": "eb43e124b0a9ee232c255f094085e75d2c5046e3a38a8d891cf28e3acf2c0929",
+      "art": {
+        "rom_offset": "0x26D426",
+        "compression": "nemesis",
+        "compressed_size": 6508
+      }
+    },
+    {
+      "label": "MapEni_TonoeBasementBattleBG",
+      "rom_offset": "0x2702CE",
+      "compressed_size": 810,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 210,
+      "decoded_sha256": "8ba7159a133bb2e0392c9d55d714214973b058008a6094edd6ccfc48281035d8",
+      "pixels_sha256": "90c8818c7cf676e42fe020f84f0104f1d1d8abf1895145b452640a515d104f93",
+      "art": {
+        "rom_offset": "0x26EF74",
+        "compression": "nemesis",
+        "compressed_size": 4954
+      }
+    },
+    {
+      "label": "MapEni_MonsenCavePassagewayBattleBG",
+      "rom_offset": "0x27161E",
+      "compressed_size": 638,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 218,
+      "decoded_sha256": "594e6c4fcb2a572ab577144e7986d9249646ec53b9efcd0ecd094045bec0bfc8",
+      "pixels_sha256": "47b26bb2919938ba05d3858fed6b332d172ee6aee964443989fc0f88dc550ecb",
+      "art": {
+        "rom_offset": "0x2705F8",
+        "compression": "nemesis",
+        "compressed_size": 4134
+      }
+    },
+    {
+      "label": "MapEni_IslandAndElsydeonCaveBattleBG",
+      "rom_offset": "0x2727A2",
+      "compressed_size": 784,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 215,
+      "decoded_sha256": "dd7a0a9d89744f99a554e3ee0ede240f57e91f52f3501d8399656e134dc270df",
+      "pixels_sha256": "1aa7a0c04109215f9a1d5eeaaf5027011ec29161ebd6470ba80ef302b5fa08fa",
+      "art": {
+        "rom_offset": "0x27189C",
+        "compression": "nemesis",
+        "compressed_size": 3846
+      }
+    },
+    {
+      "label": "MapEni_RykrosBattleBG",
+      "rom_offset": "0x2748AC",
+      "compressed_size": 918,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 334,
+      "decoded_sha256": "aeea759df5b84fa2585165dcc36dcaa32577abab17e1a5cf78b3958bcabcd5ff",
+      "pixels_sha256": "dcc0c193417ac1f123d40a478d045963f750bb931ef987368147c1f5e98c42e2",
+      "art": {
+        "rom_offset": "0x272AB2",
+        "compression": "nemesis",
+        "compressed_size": 7674
+      }
+    },
+    {
+      "label": "MapEni_ZemaBattleBG",
+      "rom_offset": "0x276160",
+      "compressed_size": 630,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 236,
+      "decoded_sha256": "9907465767d02faf4389040e8165133cae2f7a4ecf0adf3038982e5bb2a55093",
+      "pixels_sha256": "aebd13316ad7f90dc4205b46623d39f186b84af2c92b1009ff9a00c9ae60db23",
+      "art": {
+        "rom_offset": "0x274C42",
+        "compression": "nemesis",
+        "compressed_size": 5406
+      }
+    },
+    {
+      "label": "MapEni_ReshelBattleBG",
+      "rom_offset": "0x277DC6",
+      "compressed_size": 584,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 335,
+      "decoded_sha256": "b740253a84408de358da6029f0700eec94818c9fdef1882538b196992d37e841",
+      "pixels_sha256": "2a863edbcab350f55aefb2584e5e9de8911717481cfef67664c393e3a9e6b73b",
+      "art": {
+        "rom_offset": "0x2763D6",
+        "compression": "nemesis",
+        "compressed_size": 6640
+      }
+    },
+    {
+      "label": "MapEni_RykrosTowersBattleBG",
+      "rom_offset": "0x278C3C",
+      "compressed_size": 496,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 115,
+      "decoded_sha256": "527fb5f60dc467c385f3b2d96cc561c4e2c6d5b43183a6061d0ac10f6f596508",
+      "pixels_sha256": "8541cf7a86af1fdd3d172a39f3e821e4b865ae0bd2133c686b0069b0cdfc19b1",
+      "art": {
+        "rom_offset": "0x27800E",
+        "compression": "nemesis",
+        "compressed_size": 3118
+      }
+    },
+    {
+      "label": "MapEni_TheEdgeBattleBG",
+      "rom_offset": "0x27ACD4",
+      "compressed_size": 300,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 331,
+      "decoded_sha256": "ca310734d00467cbc1284f1e118666987c2aa44bdbfbd4ac39106661292e46b1",
+      "pixels_sha256": "2e0844750e428030657e594eb792ff96d12d5c00487a7c4ea1927a020212840e",
+      "art": {
+        "rom_offset": "0x278E2C",
+        "compression": "nemesis",
+        "compressed_size": 7848
+      }
+    },
+    {
+      "label": "MapEni_CarnivorousTreesBattleBG",
+      "rom_offset": "0x23A01C",
+      "compressed_size": 522,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 236,
+      "decoded_sha256": "088b0770e714bb02716f65ea44bacdb01ad399ceea8fb2eef34eeef1dc7ab87d",
+      "pixels_sha256": "261e8e197a07fa372aa594719871c1b779a37f2fb0b9a04379a617ce27664270",
+      "art": {
+        "rom_offset": "0x238E04",
+        "compression": "nemesis",
+        "compressed_size": 4632
+      }
+    },
+    {
+      "label": "MapEni_DarkForce1BattleBG",
+      "rom_offset": "0x23789A",
+      "compressed_size": 454,
+      "base_tile": "0x0000",
+      "columns": 64,
+      "rows": 24,
+      "art_vram_tile": "0x000",
+      "art_tile_count": 171,
+      "decoded_sha256": "04666439330c7767050214cff8d00e623e481ec47332744d3cdf20ef6e9f44c3",
+      "pixels_sha256": "f24e7167d2c4937c77dde4c5f4e0f87b827a43b58f10052a5808521c2e6befff",
+      "art": {
+        "rom_offset": "0x236F80",
+        "compression": "nemesis",
+        "compressed_size": 2330
+      }
+    }
+  ],
+  "palettes": [
+    {
+      "label": "Pal_Init",
+      "offset": 651964,
+      "size": 128,
+      "sha256": "b79ff5f71979bf09ce0628fb64fbf90f0658a9f09e12fc260c0f86f8340aa9e8"
+    },
+    {
+      "label": "Pal_Init_Line_3",
+      "offset": 2712320,
+      "size": 32,
+      "sha256": "fea152a9a9c3e44db7d1048aeecb52767a9f36b7be0b2d6ab1235ac9afa31d0b"
+    },
+    {
+      "label": "Pal_TitleScreen",
+      "offset": 1911228,
+      "size": 128,
+      "sha256": "03596a262c104d185890bf7f8656c1d5623cf297408357d11fe5292918e5c51a"
+    },
+    {
+      "label": "Pal_TitleScrollingText",
+      "offset": 1911356,
+      "size": 128,
+      "sha256": "cf239108dfd407cc6bec71521bec3fc975a42b138740759d57fc121dd7ebd52b"
+    },
+    {
+      "label": "Pal_TitleCharPortraits",
+      "offset": 3099028,
+      "size": 128,
+      "sha256": "c8099ae65e9e8405d4fea3b5c522e9c628e8b2846fb207d5c897d9849abb9504"
+    }
+  ]
+}

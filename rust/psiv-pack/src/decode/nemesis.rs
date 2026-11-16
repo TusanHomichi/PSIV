@@ -373,4 +373,24 @@ mod tests {
         undefined.extend_from_slice(&[0x80, 0x00, 0x00]);
         assert!(decompress(&undefined, 0).is_err());
     }
+
+    #[test]
+    fn headers_and_code_table_keep_counts_palette_and_repeat_separate() {
+        for xor in [0, 0x8000u16] {
+            let h = read_header(&(xor | 0x24).to_be_bytes(), 0).unwrap();
+            assert_eq!(h.tile_count, 0x24);
+            assert_eq!(h.row_count, 0x24 * 8);
+            assert_eq!(h.xor_mode, xor != 0);
+        }
+        let mut work = Work::default();
+        let (table, pos) = build_code_table(&[0x85, 0x02, 0x01, 0xFF], 0, &mut work).unwrap();
+        assert_eq!(pos, 4);
+        assert!(table[0x40..0x80].iter().all(|c| *c == Some((2, 0, 5))));
+        assert_eq!(table[0x3F], None);
+        assert_eq!(table[0x80], None);
+        let (table, _) = build_code_table(&[0x8B, 0x64, 0x03, 0xFF], 0, &mut work).unwrap();
+        assert_eq!(table[0x30], Some((4, 6, 0xB)));
+        assert!(build_code_table(&[0x80, 0x09, 0, 0xFF], 0, &mut work).is_err());
+        assert!(build_code_table(&[0x80, 0x01, 0xFF, 0xFF], 0, &mut work).is_err());
+    }
 }
