@@ -336,7 +336,9 @@ and its portrait sit at their retail coordinates in the surface.
 - **The surface origin.** Every screen-space layer (panels, the opening text,
   the dialogue window) is placed at the top-left of the centred 320x224
   surface, read back through the inverse canvas transform and rounded to a
-  whole pixel (`retail_surface.rs`). A 1280-wide viewport is 426.67 world
+  whole pixel (`retail_surface.rs`). The shared plane-text child inherits
+  `CutsceneLayer`'s origin; applying it again would move text off-screen on
+  a nonzero field camera. A 1280-wide viewport is 426.67 world
   pixels at 3x, so the read-back carries f32 error; flooring it lost a pixel at
   camera (0,0), which this document once recorded as a measured `(1,1)`
   plane/window residue, and the compensation drew every other camera position
@@ -453,7 +455,7 @@ border at `(37,2)`.
 | `InitVramAndCram` | Implemented | Its `PalFadeOut_ClrSpriteTbl` first (the runner emits a `FadeOut` and waits for it), then the op: clears staged/visible scene planes and opening text, spends `DMAPlanes_VInt`'s frame and loads `Pal_Init`. |
 | `FadeIn`, `FadeOut` | Implemented | `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` on the runtime's CRAM model, one pass a frame, the scene waiting for them ([CRAM state](#cram-state)). Off a palette that is not live the shell's cover stands in: seven levels, two-frame stepping, 14 renderer ticks, above cutscene planes and below dialogue. |
 | `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is the operand-free typed `PanelDestroyLast` stack pop; loop counters are not panel-art IDs. Only an empty staged stack produces a destroy warning. |
-| `DmaPlanes` | Implemented | Staged panels, and a staged plane-A picture, become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
+| `DmaPlanes` | Implemented | Staged panels, plane text and a staged plane-A picture become visible only at the DMA event. The scene spends the helper's `VInt_Prepare` frame there (`rust/psiv-core/src/scenes/dma_census.rs` ties each op to a retail call). |
 | `LoadSceneAsset` | Implemented for the decoded plane-A pictures; other assets logged | A source the pack decoded as a scene picture (`panels.json`, `scene_pictures`) stages it once its `LoadArt` ran; the next `DmaPlanes` shows it in place of the field map, under the sprites, drawn from the live CRAM with index 0 the backdrop (`cutscene/picture.rs`). `ReloadMapChunks` and `InitVramAndCram` clear it, and so does every teardown that replaces the planes outside the scene's ops (the scene's end, a field reload, a map change, the return to title), staged or shown, through one `clear_planes`. The one picture is Le Roof's galaxy ([51](51_MeetingLeRoof.md), [52](52_LeRoofAgain.md)). |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
@@ -763,7 +765,9 @@ art is indexed draws from it:
 - the opening's image (`presentation/opening_background.png`, each index its
   CRAM slot, as a scene picture's) and its stage, the backdrop word
   (`cutscene/opening.rs`), and the flight's caption in word 47
-  (`cutscene/text_layer.rs`). The prologue crawl keeps its own 20-frame ramp
+  (`cutscene/text_layer.rs`). The ending's staff text uses its tile word's
+  palette select and font index 15, so the staff loops reach word 47 through
+  this same plane-text path ([ending](89_Ending.md#palette-state-and-the-remaining-drawing-gaps)). The prologue crawl keeps its own 20-frame ramp
   (`IntroTextFadeUp`/`Down` are not CRAM records); it is black before the
   prologue's `Pal_FadeIn` draws it and after its last ramp down, so no fixed
   fade runs while it shows. A map change ends the opening, as `RefreshMap`

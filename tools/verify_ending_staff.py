@@ -95,9 +95,11 @@ def main():
     if [row["label"] for row in captures] != [row[0] for row in PAIRS]:
         raise RuntimeError("missing or reordered native observations")
     results = []
-    for native, (label, frame, _) in zip(captures, PAIRS):
+    for native, (label, frame, digest) in zip(captures, PAIRS):
         rmse, result = compare(output / f"{label}.png", oracle / f"frame_{frame}.png", REGION)
-        results.append({**native, "oracle_frame": frame, "rmse": rmse, "comparison": result})
+        results.append({**native, "oracle_frame": frame, "oracle_sha256": digest,
+                        "capture_sha256": sha256(output / f"{label}.png"),
+                        "rmse": rmse, "comparison": result})
     # A missing plane transfer leaves this rectangle white, as it is after
     # the clear. Compare that unmodified capture against the fall frame: the
     # new visual check must reject the missing-text image.
@@ -106,7 +108,8 @@ def main():
         raise RuntimeError("missing-transfer negative control was not rejected")
     receipt = {"git": git_info(root), "inputs": {
         name: sha256(root / name) for name in ("Phantasy Star IV (USA).md", "oracle/tapes/47_ending_staff.tape",
-                                             "runtime-pack/dialogue/font.png")},
+                                             "runtime-pack/dialogue/font.png", "runtime-pack/dialogue/trees.json",
+                                             "oracle/core/genesis_plus_gx_libretro.so")},
         "run_root": run_root.record, "region": REGION, "results": results,
         "missing_transfer_control": {"rmse": blank_rmse, "comparison": blank_result},
         "elapsed_s": round(time.monotonic() - started, 2)}
