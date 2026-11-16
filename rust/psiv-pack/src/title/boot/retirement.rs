@@ -57,7 +57,10 @@ fn mismatches(actual: &Value, expected: &Value) -> Vec<u32> {
 
 #[test]
 fn tape_start_edges_and_sample_frames_match_the_committed_input() {
-    let text = include_str!("../../../../../oracle/tapes/25_title_boot.tape");
+    let text = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/tapes/25_title_boot.tape"),
+    )
+    .unwrap();
     let mut frame = 0;
     let mut held = Vec::new();
     for line in text.lines() {
@@ -106,7 +109,10 @@ fn derived_cycle_shape_and_prompt_offset_and_fail_closed_paths() {
             );
         }
     }
-    let source = include_str!("../../../../psiv-godot/src/title.rs");
+    let source = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../psiv-godot/src/title.rs"),
+    )
+    .unwrap();
     let offset: u32 = source
         .split_once("const TITLE_MAIN_FRAME_OFFSET: u32 = ")
         .unwrap()
