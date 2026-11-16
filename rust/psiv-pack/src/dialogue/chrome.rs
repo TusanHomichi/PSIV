@@ -401,3 +401,6 @@ mod tests {
         assert_eq!(roles["corner_top_left"]["x"], 0x69 * 8);
     }
 }
+
+#[cfg(test)]
+mod retirement;

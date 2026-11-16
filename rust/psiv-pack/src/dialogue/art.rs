@@ -499,3 +499,6 @@ mod tests {
         assert_eq!(PORTRAIT_SYMBOLS[0x27], Some("Sekreas"));
     }
 }
+
+#[cfg(test)]
+mod retirement;

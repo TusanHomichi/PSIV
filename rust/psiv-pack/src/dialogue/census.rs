@@ -342,3 +342,6 @@ mod tests {
         assert_eq!(json["control_codes_by_tree"]["1"]["0xFA"], 2);
     }
 }
+
+#[cfg(test)]
+mod retirement;

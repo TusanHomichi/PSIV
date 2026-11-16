@@ -840,3 +840,6 @@ mod tests {
         assert!(control_segment(&code("0xFB")).is_err());
     }
 }
+
+#[cfg(test)]
+mod retirement;
