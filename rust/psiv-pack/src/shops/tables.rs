@@ -288,6 +288,18 @@ mod tests {
         assert_eq!(lists[0].items, [0x7D]);
         assert_eq!(lists[1].items, [1, 2, 8, 3, 9]);
         assert_eq!(lists[1].rom_offset, INVENTORIES_START + 2);
+        assert_eq!(item_symbol(1), Some("Dagger"));
+        assert_eq!(item_symbol(0), None);
+        assert_eq!(item_symbol(161), None);
+        let mut cursor = INVENTORIES_START;
+        for (index, list) in lists.iter().enumerate() {
+            assert_eq!(list.index, index);
+            assert_eq!(list.rom_offset, cursor);
+            assert_eq!(list.raw.last(), Some(&TERMINATOR));
+            assert_eq!(&list.raw[..list.raw.len() - 1], list.items);
+            cursor += list.raw.len();
+        }
+        assert_eq!(cursor, INVENTORIES_END);
     }
 
     #[test]
@@ -301,6 +313,43 @@ mod tests {
         let mut rom = image();
         rom[INVENTORIES_START + 3] = 0xA1;
         assert!(inventories(&rom).is_err(), "an item id past the table");
+    }
+
+    #[test]
+    fn malformed_lists_are_refused_beyond_the_signature() {
+        // Keep the first two lists intact: these exercise parsing rather
+        // than merely tripping the opening signature check.
+        for (at, value, message) in [
+            (INVENTORIES_END - 1, 1, "unterminated"),
+            (
+                INVENTORIES_START + SIGNATURE.len(),
+                TERMINATOR,
+                "Empty shop",
+            ),
+            (INVENTORIES_START + SIGNATURE.len(), 0, "outside the 1.."),
+            (INVENTORIES_START + SIGNATURE.len(), 161, "outside the 1.."),
+            (INVENTORIES_END + 1, 1, "loc_682A4"),
+        ] {
+            let mut rom = image();
+            rom[at] = value;
+            if message == "Empty shop" {
+                // Retain 49 lists while introducing an empty one: merge
+                // the following list instead of failing the census first.
+                rom[at + 1] = 1;
+            }
+            let error = inventories(&rom).err().expect("malformed table accepted");
+            assert!(error.0.contains(message), "{message}: {error}");
+        }
+        let mut rom = image();
+        rom[0..SIGNATURE.len()].copy_from_slice(&SIGNATURE);
+        assert!(
+            inventories(&rom)
+                .err()
+                .unwrap()
+                .0
+                .contains("must be unique")
+        );
+        assert!(inventories(&image()[..INVENTORIES_START]).is_err());
     }
 
     #[test]
@@ -326,3 +375,6 @@ mod tests {
         assert!(locations(&rom, 1).is_err(), "shop 1 out of range");
     }
 }
+
+#[cfg(test)]
+mod retirement;

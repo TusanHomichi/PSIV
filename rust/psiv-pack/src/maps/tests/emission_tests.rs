@@ -13,6 +13,8 @@ pub(super) struct Emission {
     pub files: std::collections::BTreeSet<String>,
     pub piata_png: Vec<u8>,
     pub shops: Value,
+    pub shop_bytes: Vec<u8>,
+    pub shop_images: BTreeMap<String, Vec<u8>>,
     pub npcs: Value,
     pub party: Value,
     pub vehicles: Value,
@@ -105,8 +107,15 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 .map(|p| format!("maps/{}", p.unwrap().file_name().to_str().unwrap()))
                 .collect();
             let piata_png = std::fs::read(root.join("maps/010_Piata.png")).unwrap();
-            let shops =
-                serde_json::from_slice(&std::fs::read(root.join("shops.json")).unwrap()).unwrap();
+            let shop_bytes = std::fs::read(root.join("shops.json")).unwrap();
+            let shops: Value = serde_json::from_slice(&shop_bytes).unwrap();
+            let shop_images = array(&shops["portraits"])
+                .iter()
+                .map(|p| {
+                    let name = p["png"].as_str().unwrap();
+                    (name.to_owned(), std::fs::read(root.join(name)).unwrap())
+                })
+                .collect();
             std::fs::remove_dir_all(root).unwrap();
             Some(Emission {
                 fragment,
@@ -115,6 +124,8 @@ pub(super) fn emission() -> Option<&'static Emission> {
                 files,
                 piata_png,
                 shops,
+                shop_bytes,
+                shop_images,
                 npcs,
                 party,
                 vehicles,

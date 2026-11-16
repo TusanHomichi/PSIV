@@ -74,3 +74,6 @@ pub fn write(rom: &[u8], root: &Path) -> Result<Vec<Portrait>, PackError> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
