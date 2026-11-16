@@ -207,6 +207,31 @@ class BuildMakesEachPlatformsBinaries(unittest.TestCase):
             self.assertEqual(sum("apple-darwin" in part for part in join), 2)
 
 
+class LinuxGlibcCeiling(unittest.TestCase):
+    def check(self, versions):
+        def readelf(command):
+            self.assertEqual(command[:3], ["readelf", "--version-info", "--wide"])
+            return subprocess.CompletedProcess(command, 0, versions[pathlib.Path(command[-1]).name])
+        release.check_glibc([pathlib.Path("libpsiv_godot.so"), pathlib.Path("psiv-pack")],
+                            runner=readelf)
+
+    def test_both_binaries_allow_the_ceiling_and_compare_versions_numerically(self):
+        self.check({"libpsiv_godot.so": "Name: GLIBC_2.9\nName: GLIBC_2.41\n",
+                    "psiv-pack": "Name: GLIBC_2.34\n"})
+
+    def test_either_binary_requiring_newer_glibc_fails(self):
+        for binary in ("libpsiv_godot.so", "psiv-pack"):
+            versions = dict.fromkeys(("libpsiv_godot.so", "psiv-pack"), "Name: GLIBC_2.34\n")
+            versions[binary] += "Name: GLIBC_2.42\n"
+            with self.subTest(binary=binary), self.assertRaisesRegex(ReleaseError, binary):
+                self.check(versions)
+
+    def test_missing_or_private_version_requirements_fail(self):
+        for text in ("", "Name: GLIBC_2.34\nName: GLIBC_PRIVATE\n"):
+            with self.subTest(text=text), self.assertRaisesRegex(ReleaseError, "missing public"):
+                self.check(dict.fromkeys(("libpsiv_godot.so", "psiv-pack"), text))
+
+
 class PlatformsAgreeWithTheGameAndTheProject(unittest.TestCase):
     """The names `release.py` uses are the ones the game, the export presets
     and the extension file use."""
@@ -510,7 +535,7 @@ class TheNoticesNameEveryPart(unittest.TestCase):
     def write(self, **overrides):
         options = dict(targets=[], roots=["psiv-godot"], pinned="4.7.1",
                        metadata=self.metadata, rust=("rustc 9.9.9", self.sysroot),
-                       sound=self.sound, commit="c" * 40)
+                       sound=self.sound, commit="c" * 40, psiv_commit="d" * 40)
         options.update(overrides)
         return notices.write_notices(self.godot, self.dir / "out", **options)
 
@@ -523,12 +548,18 @@ class TheNoticesNameEveryPart(unittest.TestCase):
                      "https://crates.io/crates/serde/1.0.0", "crate MIT text", "rustc 9.9.9",
                      "GNU LESSER GENERAL PUBLIC LICENSE"):
             self.assertIn(part, text)
+        self.assertIn(f"https://github.com/TusanHomichi/PSIV/tree/{'d' * 40}", text)
+        self.assertIn("oracle/build_core.sh --sources", text)
         self.assertEqual((self.dir / "out" / "nuked-opn2" / "ym3438.c").read_text(),
                          NUKED_SOURCE)
 
     def test_another_godots_records_are_refused(self):
         with self.assertRaisesRegex(NoticeError, "not the pinned 4.7.2-stable"):
             self.write(pinned="4.7.2")
+
+    def test_a_moving_source_reference_is_refused(self):
+        with self.assertRaisesRegex(NoticeError, "full commit hash"):
+            self.write(psiv_commit="main")
 
     def test_a_missing_or_foreign_sound_source_is_refused(self):
         (self.sound / "ym3438.c").write_text("/* something else */\n")
