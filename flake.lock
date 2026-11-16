@@ -119,6 +119,7 @@
         "url": "https://github.com/oxalica/rust-overlay"
       },
       "original": {
+        "rev": "67f1944c7c99d8dbb57fa3d83043bc0a92cbcc56",
         "shallow": true,
         "type": "git",
         "url": "https://github.com/oxalica/rust-overlay"
