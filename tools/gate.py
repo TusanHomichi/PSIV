@@ -119,7 +119,7 @@ GATE_COMMANDS = [
     "python3 tools/check_docs.py",
     "PYTHONPATH=. python3 tools/py_suite.py",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
-    "cargo test --manifest-path rust/Cargo.toml --workspace",
+    "cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     CERTIFY_COMMAND,
 ]
@@ -132,7 +132,7 @@ GATE_LANES = (
     ("python3 tools/check_docs.py",
      "PYTHONPATH=. python3 tools/py_suite.py"),
     ("cargo fmt --manifest-path rust/Cargo.toml --all --check",
-     "cargo test --manifest-path rust/Cargo.toml --workspace",
+     "cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast",
      "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
      CERTIFY_COMMAND),
 )
@@ -145,7 +145,7 @@ FAST_COMMANDS = [
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     "PYTHONPATH=. python3 tools/py_suite.py --fast",
-    "cargo test --manifest-path rust/Cargo.toml --workspace",
+    "cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast",
 ]
 
 #: The local inputs a full gate needs, relative to the root: the ROM, the
