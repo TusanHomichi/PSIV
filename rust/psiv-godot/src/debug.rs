@@ -193,7 +193,7 @@ impl Field {
         let dialogue = rt.dialogue_open();
         let dialogue_view = rt.dialogue_view();
         let cram = self.cram.borrow().clone();
-        let state = serde_json::json!({
+        let mut state = serde_json::json!({
             "tick": self.anim_tick, "map": rt.map_id().0,
             "previous_map": rt.previous_map_id(), "world": rt.world_index(),
             "dungeon_exit": rt.dungeon_exit_index(),
@@ -249,6 +249,20 @@ impl Field {
             "flags": rt.game().set_flags().filter(|f| f.bank == psiv_core::FlagBank::Event).map(|f| f.id).collect::<Vec<_>>(),
             "temp_flags": rt.game().set_flags().filter(|f| f.bank == psiv_core::FlagBank::Temp).map(|f| f.id).collect::<Vec<_>>(),
             "battle": self.battle_screen.as_ref().filter(|_| self.battle_presentation_active()).map(|screen| screen.bind().debug_menu()),
+        });
+        state["credits"] = rt.ending_credits().map_or(serde_json::Value::Null, |c| {
+            serde_json::json!({
+                "stage": c.stage,
+                "text_counter": c.text_counter,
+                "row_counter": c.row_counter,
+                "fade_control": c.fade_control,
+                "cred_text_a": c.cred_text_a,
+                "cred_text_b": c.cred_text_b,
+                "fg_y": c.fg_y_scroll,
+                "bg_y": c.bg_y_scroll,
+                "column_scroll": c.column_scroll,
+                "revision": c.revision,
+            })
         });
         GString::from(state.to_string().as_str())
     }

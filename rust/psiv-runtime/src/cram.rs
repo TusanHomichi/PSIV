@@ -318,6 +318,13 @@ impl Cram {
         }
     }
 
+    /// Writes a contiguous slice of live CRAM words, bumping revision if any
+    /// word changed (used by `EndingCredits` initial uploads and fades).
+    pub(crate) fn write_slice(&mut self, start: usize, values: &[u16]) {
+        self.upload_unshown();
+        self.write_run(start, values);
+    }
+
     fn write_run(&mut self, start: usize, values: &[u16]) {
         let mut words = self.view.words;
         for (offset, &value) in values.iter().enumerate() {

@@ -504,16 +504,33 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     );
     assert_eq!(credits_in - credits_init, 1, "Init spends its DMA frame");
     let data = GameData::load(Path::new(super::PACK)).expect("pack loads");
-    // Credits palette uploads remain #640. Until then the fade's input is
-    // Pal_Init, not the preceding staff restore's black (#659).
-    let init = data.scene_palettes().words(0x09_F2BC).expect("Pal_Init");
-    let largest = init
+    let credits_assets = data
+        .ending_credits()
+        .expect("the pack carries EndingCreditsAssets");
+    let pal_init = data.scene_palettes().words(0x09_F2BC).expect("Pal_Init");
+    // `$079DAA..$079DCE`: lines 0-1 from `$1DF53A`, line 2 kept from `Pal_Init`,
+    // line 3 from `$1DF57A`, faded in by `$079E70` `Pal_FadeIn`.
+    let mut credits_entry: [u16; 64] = pal_init.try_into().unwrap();
+    for palette in &credits_assets.palettes {
+        credits_entry[palette.start_word..palette.start_word + palette.words.len()]
+            .copy_from_slice(&palette.words);
+    }
+    let largest = credits_entry
         .iter()
         .flat_map(|w| [w & 15, (w >> 4) & 15, (w >> 8) & 15])
         .max()
         .unwrap();
+    let stage1 = presentation_at(&frames, credits_in, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 1, .. })
+    });
+    let stage2 = presentation_at(&frames, stage1, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 2, .. })
+    });
+    let stage3 = presentation_at(&frames, stage2, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 3, .. })
+    });
     assert_eq!(
-        ramp - credits_in,
+        stage1 - credits_in,
         usize::from(largest) + 2,
         "display frame, changing passes, final pass"
     );
@@ -521,7 +538,7 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     // Hand-worked nibble ramps: pass n adds one to each component until
     // its target, then one unchanged pass. No palette-model helper here.
     for pass in 1..=usize::from(largest) + 1 {
-        let expected: Vec<u16> = init
+        let expected: Vec<u16> = credits_entry
             .iter()
             .map(|word| {
                 [0, 4, 8]
@@ -536,10 +553,14 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
             "credits In pass {pass}"
         );
     }
-    assert_eq!(frames[ramp - 1].words, init);
+    assert_eq!(frames[stage1 - 1].words, credits_entry);
+    // Stage 1 clears line 4 and word $2F immediately after `Pal_FadeIn`.
+    assert_eq!(&frames[stage1].words[48..64], &[0; 16]);
+    assert_eq!(frames[stage1].words[0x2F], 0);
+    assert!(stage2 > stage1 + 7000 && stage3 > stage2 + 1000 && ramp > stage3 + 1000);
     eprintln!(
-        "Ending state: staff restore {restore}, credits Init {credits_init}, In {credits_in}, ramp {ramp}, third tone {third}; fixed In {} frames",
-        ramp - credits_in
+        "Ending state: staff restore {restore}, credits Init {credits_init}, In {credits_in}, stages {stage1}/{stage2}/{stage3}, ramp {ramp}, third tone {third}; fixed In {} frames",
+        stage1 - credits_in
     );
     assert_eq!(frames[restore - 1].words, [0x0EEE; 64]);
     // Sixty restore frames take every component down a level on the
@@ -556,12 +577,20 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
         .words(0x0007_A2A0)
         .expect("secondary table");
     assert_eq!((primary.len(), secondary.len()), (22, 10));
+    // Expected post-stage-3 palette entering the ramp: lines 0-1 from `$1DF53A`,
+    // line 2 from `Pal_Init` with word $2F cleared, line 3 zero except words
+    // 50..55 holding row 7 of `CreditsFadeInOut` ("PRESENTED BY SEGA").
+    let mut pre_ramp = credits_entry;
+    pre_ramp[0x2F] = 0;
+    pre_ramp[48..64].fill(0);
+    pre_ramp[50..55].copy_from_slice(&credits_assets.fade.words[35..40]);
+    assert_eq!(frames[ramp - 1].words, pre_ramp);
     // Step 0 copies primary words 14-21 to words 18-25 on its frame.
-    assert_eq!(frames[ramp + first - 1].words[18..26], init[18..26]);
+    assert_eq!(frames[ramp + first - 1].words[18..26], pre_ramp[18..26]);
     assert_eq!(frames[ramp + first].words[18..26], primary[14..22]);
     // The third loop's input: step 13's primary words 1-8 and secondary
-    // words 8-9, over the credits entry's provisional Pal_Init.
-    let mut input: [u16; 64] = init.try_into().unwrap();
+    // words 8-9, over the visible post-credits palette.
+    let mut input = pre_ramp;
     input[18..26].copy_from_slice(&primary[1..9]);
     input[30..32].copy_from_slice(&secondary[8..10]);
     assert_eq!(frames[third - 1].words, input);

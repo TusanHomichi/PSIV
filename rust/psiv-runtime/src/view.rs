@@ -43,6 +43,14 @@ impl Runtime {
     pub fn cram(&self) -> &crate::CramView {
         self.effects.cram.view()
     }
+    /// The active ending credits planes and scroll state, from
+    /// `EndingCreditsAssets` until the final Termi map load (`$07A13A`).
+    #[must_use]
+    pub fn ending_credits(&self) -> Option<&crate::EndingCreditsView> {
+        self.credits
+            .as_ref()
+            .map(crate::credits::EndingCredits::view)
+    }
     /// The currently loaded map.
     #[must_use]
     pub fn map_id(&self) -> MapId {

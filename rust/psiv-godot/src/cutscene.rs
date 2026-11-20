@@ -13,6 +13,7 @@
 //! [`window`] the generic window, and [`ops`] the shell that consumes the op
 //! stream.
 
+mod credits;
 mod manifest;
 mod opening;
 mod ops;
@@ -84,6 +85,8 @@ pub(crate) struct CutsceneLayer {
     picture: picture_plane::PicturePlane,
     /// Drawn under the sprites; created on first use.
     picture_sprite: Option<Gd<Sprite2D>>,
+    /// `Cutscene_Ending`'s 320×224 indexed credits plane surface.
+    credits: Option<credits::CreditsSurface>,
 }
 
 #[godot_api]
@@ -113,6 +116,7 @@ impl INode2D for CutsceneLayer {
             picture_art: BTreeMap::new(),
             picture: picture_plane::PicturePlane::default(),
             picture_sprite: None,
+            credits: None,
         }
     }
 
@@ -124,6 +128,7 @@ impl INode2D for CutsceneLayer {
 
     fn draw(&mut self) {
         self.draw_opening();
+        self.draw_credits();
         self.draw_planes();
         self.draw_window();
         self.draw_red_flash();

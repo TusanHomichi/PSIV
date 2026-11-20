@@ -18,6 +18,8 @@ mod camera;
 mod camp;
 mod cram;
 pub use cram::{CramView, TEXT_COLOUR_SLOT};
+mod credits;
+pub use credits::EndingCreditsView;
 mod battle_load;
 pub use battle_load::BattleLoadView;
 mod battle_entry;
@@ -275,6 +277,8 @@ pub struct Runtime {
     scene_returned: Option<u16>,
     /// A zero-returning cutscene's field reload, counting down to control.
     scene_tail: Option<scene_return::ReturnTail>,
+    /// `Cutscene_Ending`'s credits planes, scroll state and command runner.
+    credits: Option<credits::EndingCredits>,
 }
 
 /// An `Event_MoveCamera` pan in flight (`camera.rs`): twelve-bit targets,

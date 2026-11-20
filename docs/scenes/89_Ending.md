@@ -256,8 +256,14 @@ credits.”
 
 The raw inputs are carried by [`presentation/credits.json`](../EXTRACTION.md#credits-pack-contract).
 The consumer validates their identities, dimensions, tile references and text/command
-terminators before starting a runtime. This supplies data; credits drawing and
-native visual parity remain outstanding.
+terminators before starting a runtime. `rust/psiv-runtime/src/credits.rs` runs
+the retail state machine (`TextCounter`, `$FFFFED92`, `FadeControl`,
+`CredText_A`/`B`, `$FFFFECF2`, fixed-point `Camera_Y_Pos_FG`/`BG`, scratch-RAM
+row copies, `CreditCommands1`/`2`, `LoadWindowTiles` extra `DMAPlane_A_VInt`
+frame, `RunText2` VRAM slots and `CreditsFadeInOut`), and
+`rust/psiv-godot/src/cutscene/credits.rs` composites Plane A over Plane B onto
+the 320×224 surface with Mega Drive priority and VDP `$8B04` 2-cell column
+scroll through live CRAM.
 
 The shortcut and the normal path meet here. The routine is a real tile/plane
 renderer, not a bitmap placeholder:
@@ -323,23 +329,23 @@ compare the staff rectangle, not the surrounding ending scene; the fixture
 starts the ending by explicit RAM patches and is not a campaign completion
 claim.
 
-Still missing natively:
+`python3 tools/verify_ending_credits.py` regenerates eight full-screen
+(`320×224`) pairs from tape 48 across stages 1, 2 (including 2-cell column
+scroll), 3, the 14-step palette ramp and the third `PaletteIncreaseTone(60)`
+loop (non-white baseline, active rise midpoint and white endpoint), plus the
+untoned-baseline negative control. `psiv-native-verify/src/ending_credits.rs`
+owns oracle identities, observation ordering, state/CRAM/viewport checks and
+the comparison verdict. As with `verify_ending_staff.py`, the fixture starts
+the ending by explicit RAM patches and is not a campaign completion claim.
 
-- The credits renderer's line loads and `CreditsFadeInOut`, and its planes
-  ([#640](https://github.com/TusanHomichi/PSIV/issues/640),
-  [#641](https://github.com/TusanHomichi/PSIV/issues/641),
-  [#642](https://github.com/TusanHomichi/PSIV/issues/642)). Until they land,
-  `EndingCreditsAssets` and `EndingCreditsStage` draw nothing. The credits
-  entry's fixed Init/fade-in now run, so their provisional target is
-  `Pal_Init`; the ramp and the third loop step words over that palette, not
-  the staff roll's black. This is a state result, not credits visual parity.
-- The frames the credits stages spend
-  ([#608](https://github.com/TusanHomichi/PSIV/issues/608)). The explicit
-  `DMAPlanes_VInt` (`$079CF4`) now spends its one bare frame; the loops'
-  frame phases follow the native count.
+Remaining boundary notes:
 
-Those are drawing and frame gaps; a passing state test of these loops makes
-no visual claim.
+- The held-Menu entry shortcut (`$078F4A..$078F50`) remains documented rather
+  than wired to a separate scene-entry input.
+- Native `RunText2` does not simulate 68000 lag frames that do not increment
+  `Main_Frame_Count`, so credits visual checks match on retail state
+  (`stage`, `TextCounter`, scroll registers and CRAM words) rather than raw
+  wall-clock frame count ([#608](https://github.com/TusanHomichi/PSIV/issues/608)).
 
 The typed stage records retain the terminal counters, camera increments, RAM
 source and command-table addresses. They do not claim that a generic sprite

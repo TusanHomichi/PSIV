@@ -73,6 +73,8 @@ enum Blocked {
     /// A `Pal_VariableFadeIn`/`Out` whose length the runtime has not yet
     /// measured from the palette it holds.
     Palette,
+    /// An `EndingCreditsStage` scroll loop driven tick by tick by the runtime.
+    Credits,
     /// A `RunObjectRoutine` object still on the map.
     ObjectRoutine(usize),
     /// `loc_71E74`: until every party object has stopped.
@@ -326,6 +328,21 @@ impl SceneRunner {
     #[must_use]
     pub fn awaits_palette(&self) -> bool {
         self.blocked == Blocked::Palette
+    }
+
+    /// Whether the scene waits on [`SceneRunner::release_credits`]: an
+    /// `EndingCreditsStage` scroll loop running in the runtime.
+    #[must_use]
+    pub fn awaits_credits(&self) -> bool {
+        self.blocked == Blocked::Credits
+    }
+
+    /// Releases a running `EndingCreditsStage` once `TextCounter` reaches the
+    /// stage's terminal scroll delay, so the scene advances on the same tick.
+    pub fn release_credits(&mut self) {
+        if self.blocked == Blocked::Credits {
+            self.blocked = Blocked::No;
+        }
     }
 
     /// Whether the scene waits on a map load and its next op is

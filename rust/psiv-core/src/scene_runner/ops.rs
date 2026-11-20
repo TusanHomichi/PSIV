@@ -881,6 +881,13 @@ impl SceneRunner {
                 self.pc += 1;
                 self.blocked = Blocked::Palette;
             }
+            SceneOp::Presentation {
+                op: crate::PresentationOp::EndingCreditsStage { .. },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Credits;
+            }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroyLast
             | SceneOp::PanelDestroyAll
