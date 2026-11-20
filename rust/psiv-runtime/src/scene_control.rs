@@ -101,6 +101,7 @@ impl Runtime {
         self.scene_choice_pending = false;
         self.scene_camera_locked = false;
         self.scene_warmup = true;
+        self.credits = None;
         true
     }
 

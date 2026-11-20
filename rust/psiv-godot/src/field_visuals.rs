@@ -43,6 +43,13 @@ impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
     pub(super) fn sync_visuals(&mut self, walking: bool) {
         self.sync_map_palette();
+        if let Some(layer) = self.cutscene_layer.as_mut() {
+            let credits = self
+                .session
+                .as_ref()
+                .and_then(|session| session.runtime().ending_credits());
+            layer.bind_mut().sync_credits(credits);
+        }
         let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };

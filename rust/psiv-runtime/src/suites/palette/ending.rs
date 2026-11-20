@@ -504,16 +504,33 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     );
     assert_eq!(credits_in - credits_init, 1, "Init spends its DMA frame");
     let data = GameData::load(Path::new(super::PACK)).expect("pack loads");
-    // Credits palette uploads remain #640. Until then the fade's input is
-    // Pal_Init, not the preceding staff restore's black (#659).
-    let init = data.scene_palettes().words(0x09_F2BC).expect("Pal_Init");
-    let largest = init
+    let credits_assets = data
+        .ending_credits()
+        .expect("the pack carries EndingCreditsAssets");
+    let pal_init = data.scene_palettes().words(0x09_F2BC).expect("Pal_Init");
+    // `$079DAA..$079DCE`: lines 0-1 from `$1DF53A`, line 2 kept from `Pal_Init`,
+    // line 3 from `$1DF57A`, faded in by `$079E70` `Pal_FadeIn`.
+    let mut credits_entry: [u16; 64] = pal_init.try_into().unwrap();
+    for palette in &credits_assets.palettes {
+        credits_entry[palette.start_word..palette.start_word + palette.words.len()]
+            .copy_from_slice(&palette.words);
+    }
+    let largest = credits_entry
         .iter()
         .flat_map(|w| [w & 15, (w >> 4) & 15, (w >> 8) & 15])
         .max()
         .unwrap();
+    let stage1 = presentation_at(&frames, credits_in, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 1, .. })
+    });
+    let stage2 = presentation_at(&frames, stage1, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 2, .. })
+    });
+    let stage3 = presentation_at(&frames, stage2, |op| {
+        matches!(op, PresentationOp::EndingCreditsStage { stage: 3, .. })
+    });
     assert_eq!(
-        ramp - credits_in,
+        stage1 - credits_in,
         usize::from(largest) + 2,
         "display frame, changing passes, final pass"
     );
@@ -521,7 +538,7 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     // Hand-worked nibble ramps: pass n adds one to each component until
     // its target, then one unchanged pass. No palette-model helper here.
     for pass in 1..=usize::from(largest) + 1 {
-        let expected: Vec<u16> = init
+        let expected: Vec<u16> = credits_entry
             .iter()
             .map(|word| {
                 [0, 4, 8]
@@ -536,10 +553,14 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
             "credits In pass {pass}"
         );
     }
-    assert_eq!(frames[ramp - 1].words, init);
+    assert_eq!(frames[stage1 - 1].words, credits_entry);
+    // Stage 1 clears line 4 and word $2F immediately after `Pal_FadeIn`.
+    assert_eq!(&frames[stage1].words[48..64], &[0; 16]);
+    assert_eq!(frames[stage1].words[0x2F], 0);
+    assert!(stage2 > stage1 + 7000 && stage3 > stage2 + 1000 && ramp > stage3 + 1000);
     eprintln!(
-        "Ending state: staff restore {restore}, credits Init {credits_init}, In {credits_in}, ramp {ramp}, third tone {third}; fixed In {} frames",
-        ramp - credits_in
+        "Ending state: staff restore {restore}, credits Init {credits_init}, In {credits_in}, stages {stage1}/{stage2}/{stage3}, ramp {ramp}, third tone {third}; fixed In {} frames",
+        stage1 - credits_in
     );
     assert_eq!(frames[restore - 1].words, [0x0EEE; 64]);
     // Sixty restore frames take every component down a level on the
@@ -556,14 +577,128 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
         .words(0x0007_A2A0)
         .expect("secondary table");
     assert_eq!((primary.len(), secondary.len()), (22, 10));
+    // Expected post-stage-3 palette entering the ramp: lines 0-1 from `$1DF53A`,
+    // line 2 from `Pal_Init` with word $2F cleared, line 3 zero except words
+    // 50..55 holding row 7 of `CreditsFadeInOut` ("PRESENTED BY SEGA").
+    let mut pre_ramp = credits_entry;
+    pre_ramp[0x2F] = 0;
+    pre_ramp[48..64].fill(0);
+    pre_ramp[50..55].copy_from_slice(&credits_assets.fade.words[35..40]);
+    assert_eq!(frames[ramp - 1].words, pre_ramp);
     // Step 0 copies primary words 14-21 to words 18-25 on its frame.
-    assert_eq!(frames[ramp + first - 1].words[18..26], init[18..26]);
+    assert_eq!(frames[ramp + first - 1].words[18..26], pre_ramp[18..26]);
     assert_eq!(frames[ramp + first].words[18..26], primary[14..22]);
     // The third loop's input: step 13's primary words 1-8 and secondary
-    // words 8-9, over the credits entry's provisional Pal_Init.
-    let mut input: [u16; 64] = init.try_into().unwrap();
+    // words 8-9, over the visible post-credits palette.
+    let mut input = pre_ramp;
     input[18..26].copy_from_slice(&primary[1..9]);
     input[30..32].copy_from_slice(&secondary[8..10]);
     assert_eq!(frames[third - 1].words, input);
     assert_ne!(input, [0x0EEE; 64], "not the stale white");
+}
+
+/// Pack-gated integration check: with the real extracted `presentation/credits.json`
+/// command tables, stages 1, 2 and 3 exit at the exact retail oracle counters
+/// (tape 48: f=50875, f=52043, f=53107) with column scroll enabled from stage 2.
+#[test]
+fn the_pack_credits_stages_match_retail_oracle_counters() {
+    if !pack_present() {
+        return;
+    }
+    let mut runtime = runtime_on(0x013, [Some(CharId(0)), None, None, None, None], &[]);
+    assert!(runtime.start_event(0x8021), "the ending starts");
+    let mut stage1_exit = None;
+    let mut stage2_exit = None;
+    let mut stage3_exit = None;
+    for _ in 0..200_000 {
+        let prev_credits = runtime.ending_credits().cloned();
+        let events = runtime.tick(Input::Neutral);
+        for event in &events {
+            assert!(
+                !matches!(event, RuntimeEvent::SceneFaulted { .. }),
+                "{event:?}"
+            );
+            if matches!(event, RuntimeEvent::SceneChoiceRequested) {
+                runtime.dialogue_choice(true);
+            }
+            if matches!(
+                event,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                runtime.dialogue_closed();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsStage { stage: 2, .. }
+                    }
+                )
+            }) {
+                stage1_exit = prev_credits.clone();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsStage { stage: 3, .. }
+                    }
+                )
+            }) {
+                stage2_exit = prev_credits.clone();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsPaletteRamp { .. }
+                    }
+                )
+            }) {
+                stage3_exit = prev_credits.clone();
+            }
+        }
+        if stage3_exit.is_some() {
+            break;
+        }
+    }
+    let s1 = stage1_exit.expect("stage 1 exits into stage 2");
+    assert_eq!(
+        (
+            s1.text_counter,
+            s1.row_counter,
+            s1.bg_y_scroll,
+            s1.cred_text_a,
+            s1.cred_text_b,
+            s1.column_scroll,
+        ),
+        (0x0380, 0x0070, 0x02A0, 0x00E0, 0x00E0, false)
+    );
+    let s2 = stage2_exit.expect("stage 2 exits into stage 3");
+    assert_eq!(
+        (
+            s2.text_counter,
+            s2.row_counter,
+            s2.fg_y_scroll,
+            s2.bg_y_scroll,
+            s2.cred_text_a,
+            s2.cred_text_b,
+            s2.column_scroll,
+        ),
+        (0x0400, 0x0010, 0x0080, 0x02E0, 0x0100, 0x0100, true)
+    );
+    let s3 = stage3_exit.expect("stage 3 exits into credits ramp");
+    assert_eq!(
+        (
+            s3.text_counter,
+            s3.row_counter,
+            s3.fg_y_scroll,
+            s3.bg_y_scroll,
+            s3.cred_text_a,
+            s3.cred_text_b,
+            s3.fade_control & 0xC0,
+            s3.column_scroll,
+        ),
+        (0x0480, 0x0020, 0x0100, 0x0320, 0x0127, 0x0100, 0xC0, true)
+    );
 }

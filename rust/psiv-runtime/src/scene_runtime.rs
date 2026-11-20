@@ -64,6 +64,22 @@ impl Runtime {
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
+        if self
+            .scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::awaits_credits)
+        {
+            let done = match (self.credits.as_mut(), self.data.ending_credits()) {
+                (Some(credits), Some(assets)) => {
+                    let (cram, _) = self.effects.cram_and_cycle_index();
+                    credits.tick(self.frames, assets, cram)
+                }
+                _ => true,
+            };
+            if done && let Some(runner) = self.scene.as_mut() {
+                runner.release_credits();
+            }
+        }
         let Some(effects) = self.step_scene(|runner, map, game, probe| {
             runner.tick_with(map, game, scene_input, Some(probe))
         }) else {
@@ -127,6 +143,7 @@ impl Runtime {
         self.scene_triggers_pending = true;
         self.scene_tree_address = None;
         self.scene_panel_sprites = false;
+        self.credits = None;
         // Control goes back with the display on: the routine the cartridge
         // hands it to fades in itself, and the scenes that end dark are
         // listed in `psiv_core`'s `scenes::dark_display` census (#653).
@@ -190,6 +207,9 @@ impl Runtime {
         // writes the scene made around it.
         let cell = crate::start_cell(start_x, start_y);
         let shown = self.effects.cram.view().words;
+        // A scene's map reload replaces VDP planes and resets scroll mode
+        // (`$07A132`: `move.w #$8B00, (a6)` before Termi's `RefreshMap`).
+        self.credits = None;
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
             Ok(loaded) => {
                 let cast = self.build_cast();
@@ -582,6 +602,35 @@ impl Runtime {
                     runner.release_palette(frames);
                 }
                 match op {
+                    SceneOp::InitVramAndCram => {
+                        self.credits = None;
+                    }
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::EndingCreditsAssets { .. },
+                    } => {
+                        if let Some(assets) = self.data.ending_credits() {
+                            for palette in &assets.palettes {
+                                self.effects
+                                    .cram
+                                    .write_slice(palette.start_word, &palette.words);
+                            }
+                            self.credits = Some(crate::credits::EndingCredits::new(assets));
+                        }
+                    }
+                    SceneOp::Presentation {
+                        op: stage @ psiv_core::PresentationOp::EndingCreditsStage { .. },
+                    } => {
+                        let done = match (self.credits.as_mut(), self.data.ending_credits()) {
+                            (Some(credits), Some(assets)) => {
+                                let (cram, cycle_index) = self.effects.cram_and_cycle_index();
+                                credits.begin_stage(stage, self.frames, assets, cram, cycle_index)
+                            }
+                            _ => true,
+                        };
+                        if done && let Some(runner) = self.scene.as_mut() {
+                            runner.release_credits();
+                        }
+                    }
                     SceneOp::CreateEclipseTorch(spawn) => {
                         self.eclipse_torch
                             .insert(spawn.slot, psiv_core::EclipseTorchObject::new(spawn));

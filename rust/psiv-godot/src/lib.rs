@@ -582,7 +582,14 @@ impl INode2D for Field {
         // directly and only exposes a new stack on DmaPlanes.
         let mut cutscene_layer = CutsceneLayer::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => cutscene_layer.bind_mut().configure(&self.pack_dir, &set),
+            Ok(set) => {
+                cutscene_layer.bind_mut().configure(&self.pack_dir, &set);
+                if let Some(assets) = session.runtime().data().ending_credits() {
+                    cutscene_layer
+                        .bind_mut()
+                        .configure_credits(assets, &self.pack_dir, &set.font);
+                }
+            }
             Err(e) => {
                 godot_error!("scene presentation pack failed to load: {e}");
             }
@@ -818,6 +825,7 @@ impl Field {
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();
             layer.bind_mut().clear_planes();
+            layer.bind_mut().sync_credits(None);
         }
         self.set_letterbox(false);
     }

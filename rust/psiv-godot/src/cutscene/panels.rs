@@ -134,13 +134,14 @@ impl CutsceneLayer {
         );
     }
 
-    /// Whether the layer has anything to draw: the opening, the generic
+    /// Whether the layer has anything to draw: the opening, credits, the generic
     /// window, a visible panel or a plane-A picture.
     pub(super) fn shows_anything(&self) -> bool {
         self.text_layer
             .as_ref()
             .is_some_and(|text| text.is_visible())
             || self.opening_visible
+            || self.credits_visible()
             || self.generic_window_visible
             || !self.panels.visible.is_empty()
             || self.picture_visible()

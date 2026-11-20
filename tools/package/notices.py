@@ -118,7 +118,7 @@ def pinned_gpgx(script: Path = GPGX_SCRIPT) -> str:
     return match.group(1)
 
 
-def nuked_section(sound: Path, commit: str, texts: Texts) -> str:
+def nuked_section(sound: Path, commit: str, psiv_commit: str, texts: Texts) -> str:
     """Nuked OPN2's notice: its own header, where its source is and how to
     use a changed copy."""
     source = sound / NUKED_NAMES[0]
@@ -138,8 +138,10 @@ def nuked_section(sound: Path, commit: str, texts: Texts) -> str:
         "",
         f"License: {NUKED_LICENSE} {cite}. Its source, {', '.join(NUKED_NAMES)}, is in",
         f"this archive's {NUKED_DIRECTORY} folder. To use a changed copy: PSIV's",
-        f"complete source is at {PSIV_REPOSITORY}; its developer guide",
-        "(docs/DEVELOPMENT.md) builds the extension, which compiles",
+        f"complete source for this build is PSIV commit {psiv_commit}:",
+        f"{PSIV_REPOSITORY}/tree/{psiv_commit}",
+        "Check out that revision and follow its docs/DEVELOPMENT.md to build",
+        "the extension (including oracle/build_core.sh --sources), which compiles",
         "oracle/gpgx-src/core/sound/ym3438.c. Put your copy there, build, and",
         "replace this archive's extension with the one built.",
     ])
@@ -271,15 +273,24 @@ def render(sections: list[tuple[str, str]], texts: Texts) -> str:
 def write_notices(godot_json: Path, out: Path, *, targets: Iterable[str],
                   roots: Iterable[str], pinned: str, metadata: dict | None = None,
                   rust: tuple[str, Path] | None = None, sound: Path = GPGX_SOUND,
-                  commit: str | None = None) -> list[Path]:
+                  commit: str | None = None, psiv_commit: str | None = None) -> list[Path]:
     """Write `FILES` into `out`; their paths. `metadata`, `rust` (rustc's
-    version and sysroot) and `commit` default to this checkout's."""
+    version and sysroot), `commit` (Nuked) and `psiv_commit` default to this
+    checkout's pinned sound source and exact PSIV revision."""
     records = json.loads(Path(godot_json).read_text(encoding="utf-8"))
     roots = list(roots)
+    if psiv_commit is None:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                                capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise NoticeError("cannot identify the PSIV source revision with git rev-parse HEAD")
+        psiv_commit = result.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", psiv_commit):
+        raise NoticeError("the PSIV source revision must be a full commit hash")
     texts = Texts([])
     sections = [
         ("Godot Engine", godot_section(records, pinned, texts)),
-        ("Nuked OPN2", nuked_section(sound, commit or pinned_gpgx(), texts)),
+        ("Nuked OPN2", nuked_section(sound, commit or pinned_gpgx(), psiv_commit, texts)),
         ("Rust", rust_section(metadata if metadata is not None else cargo_metadata(targets),
                               roots, *(rust or toolchain()), texts)),
     ]

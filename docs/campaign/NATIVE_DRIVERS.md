@@ -83,6 +83,7 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_fission.gd` | The Academy boss: Defend twice for both births, Dynamite on one creature, the replacement, with captures | `academy` (0) fights the boss with the policy, not this order of commands | Kept (capture observer) |
 | `native_choices.gd` | YES, NO and Cancel at Chaz's house under retail-paced text, with captures | `aiedo-chaz-house` (14) answers the same prompt; it runs at its own pace and captures nothing | Kept (capture observer) |
 | `native_ending_staff.gd` + `verify_ending_staff.py` | All four staff text entries at their retail plane destinations, six CRAM/clear observations against tape 47 | Isolated Ending fixture; pauses rendering between observations, without changing scene frames | Kept (capture observer) |
+| `native_ending_credits.gd` + `verify_ending_credits.py` | All three credits stages, 2-cell column scroll, 14-step palette ramp and third tone rise against tape 48 (full 320×224 frame) | Isolated Ending fixture; pauses rendering between observations, without changing scene frames | Kept (capture observer) |
 | `native_dialogue.gd` | The post-Igglanova scene from the isolated `dialogue_resume` save, captured page by page without acknowledgement | State only | Kept (capture observer) |
 | `native_rika_fixture.gd` | Rika's join scene from `PSIV_DEBUG_EVENT=8007`, every page and the Holt exit effect, no input | `bioplant-rika` (11) proves the join's state | Kept (capture observer) |
 

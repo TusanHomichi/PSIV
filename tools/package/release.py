@@ -12,6 +12,8 @@ builds the game's extension and the pack builder (`psiv-pack`) for platform P
 builds both architectures and joins each pair into one universal binary with
 `lipo`. The workflow builds Linux on the oldest runner GitHub offers, so the
 binaries' glibc floor suits the Steam Deck and older distributions.
+The Linux build checks both Rust binaries' ELF version requirements with
+`readelf`, refusing any glibc requirement newer than SteamOS's 2.41.
 
     python3 tools/package/release.py install-godot --dir DIR [--cache DIR]
 
@@ -71,6 +73,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -136,6 +139,9 @@ SMOKE_TIMEOUT = 180
 #: Bytes read at a time from a download.
 CHUNK = 1 << 20
 DOWNLOAD_TIMEOUT = 120
+
+#: SteamOS's release compatibility ceiling, checked on both Rust binaries.
+GLIBC_MAX = (2, 41)
 
 
 class ReleaseError(RuntimeError):
@@ -208,6 +214,23 @@ def run(command: list[str], **options) -> subprocess.CompletedProcess:
         raise ReleaseError(f"{' '.join(command[:4])} ... exited {result.returncode}:\n"
                            + "\n".join(output[-40:]))
     return result
+
+
+def check_glibc(paths: list[Path], runner: Callable | None = None) -> None:
+    """Reject Linux binaries that require a newer glibc than SteamOS."""
+    runner = runner or run
+    for path in paths:
+        result = runner(["readelf", "--version-info", "--wide", str(path)])
+        versions = [tuple(map(int, version.split(".")))
+                    for version in re.findall(r"Name: GLIBC_([0-9.]+)\b", result.stdout)]
+        if not versions or "Name: GLIBC_PRIVATE" in result.stdout:
+            raise ReleaseError(f"{path.name}: missing public glibc version requirements")
+        newest = max(versions)
+        if newest > GLIBC_MAX:
+            raise ReleaseError(f"{path.name} requires GLIBC_{'.'.join(map(str, newest))}; "
+                               "SteamOS permits at most GLIBC_2.41")
+        print(f"release: {path.name} requires at most GLIBC_{'.'.join(map(str, newest))}",
+              file=sys.stderr)
 
 
 # --- build -----------------------------------------------------------------
@@ -563,7 +586,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
-            for path in build(PLATFORMS[args.platform], args.out):
+            paths = build(PLATFORMS[args.platform], args.out)
+            if args.platform == "linux":
+                check_glibc(paths)
+            for path in paths:
                 print(f"release: built {path}", file=sys.stderr)
         elif args.command == "install-godot":
             print(install_godot(args.dir, args.cache))

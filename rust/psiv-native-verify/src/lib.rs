@@ -9,6 +9,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+pub mod ending_credits;
 pub mod ending_staff;
 
 type Result<T> = std::result::Result<T, String>;
@@ -316,6 +317,17 @@ pub fn exchange(request: &Value) -> Result<Value> {
             request["directory"].as_str().ok_or("missing directory")?,
         )),
         Some("ending-staff") => ending_staff::verify(request),
+        Some("ending-credits-plan") => Ok(ending_credits::plan()),
+        Some("ending-credits-oracle") => {
+            ending_credits::oracle_identity(Path::new(
+                request["directory"].as_str().ok_or("missing directory")?,
+            ))?;
+            Ok(json!({"pass":true}))
+        }
+        Some("ending-credits-observations") => ending_credits::observations(Path::new(
+            request["directory"].as_str().ok_or("missing directory")?,
+        )),
+        Some("ending-credits") => ending_credits::verify(request),
         _ => Err("unknown native verification operation".into()),
     }
 }

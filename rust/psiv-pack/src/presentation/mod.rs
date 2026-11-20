@@ -5,6 +5,7 @@
 //! portrait, and `panels.json`, which records them all. `panels.json` is the
 //! one pack file Python writes unsorted, so it keeps the dict order.
 
+mod credits;
 pub mod load_work;
 mod objects;
 
@@ -450,6 +451,7 @@ struct PanelPalettes {
 
 /// Everything `emit_presentation` writes, `panels.json` last.
 pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
+    let credits = credits::build(rom, root)?;
     let data = rom.bytes();
     let mut panels = Vec::new();
     let mut drawn = Vec::new();
@@ -499,7 +501,8 @@ pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
         .with("palettes", palette_records.len())
         .with("load_art", load_art.len())
         .with("temporary_objects", temporary.len())
-        .with("portraits", portraits.len());
+        .with("portraits", portraits.len())
+        .with("credits", credits);
     let coverage = Json::object()
         .with("panel_records", panels.len())
         .with("load_art_records", load_art.len())

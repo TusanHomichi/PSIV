@@ -69,6 +69,10 @@ impl TempPack {
             .to_string(),
         );
         self.write_fusion(version);
+        self.write(
+            crate::CREDITS_FILE,
+            &serde_json::to_string(&crate::presentation::credits::tests::fixture(DIGEST)).unwrap(),
+        );
         self.write("sprites/party.json", &empty);
         self.write(
             "sprites/npcs.json",
@@ -264,4 +268,16 @@ fn load_catches_a_map_file_that_disagrees_with_its_manifest_entry() {
         Err(DataError::ManifestMismatch { field, .. }) => assert_eq!(field, "symbol"),
         other => panic!("expected a ManifestMismatch error, got {other:?}"),
     }
+}
+
+#[test]
+fn a_pack_without_credits_is_refused_before_runtime_construction() {
+    let pack = TempPack::new("no-credits");
+    pack.populate(PACK_FORMAT_VERSION);
+    std::fs::remove_file(pack.dir.join(crate::CREDITS_FILE)).unwrap();
+    let error = pack.load().unwrap_err().to_string();
+    assert!(
+        error.contains(crate::CREDITS_FILE) && error.contains("rebuild the pack"),
+        "{error}"
+    );
 }

@@ -37,7 +37,7 @@ The open items are the
   [#71](https://github.com/TusanHomichi/PSIV/issues/71),
   [#81](https://github.com/TusanHomichi/PSIV/issues/81),
   [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
-- [ ] **Scene palette tones**: the tone flashes and held lines scenes draw
+- [x] **Scene palette tones**: the tone flashes and held lines scenes draw
   with ([#162](https://github.com/TusanHomichi/PSIV/issues/162)).
 - [x] **Hosted CI** for the checks that need no ROM
   ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
