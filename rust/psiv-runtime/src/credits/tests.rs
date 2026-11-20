@@ -1,6 +1,6 @@
 //! Unit tests and negative controls for `Cutscene_Ending`'s three-stage
-//! credits engine (`$079D0C..$07A0A5`). All inputs are synthetic fixtures with
-//! no ROM bytes or dialogue text.
+//! credits engine (`$079D0C..$07A0A5`). All inputs are genuinely synthetic
+//! fixtures with no ROM bytes, retail command tables, or dialogue text.
 
 use psiv_core::{CreditsPlane, PresentationOp};
 use psiv_data::{
@@ -31,18 +31,41 @@ fn synthetic_assets() -> EndingCreditsAssets {
             [v, v, v, v, v]
         })
         .collect();
-    let headers: Vec<CreditsText> = (0..37u8)
+    let headers: Vec<CreditsText> = (0..12u8)
         .map(|i| CreditsText {
             rom_addr: 0x1FEE26 + u32::from(i) * 3,
-            bytes: vec![0x80 + (i % 26), 0x81, 0xFF],
+            bytes: vec![0x80 + i, 0x81, 0xFF],
         })
         .collect();
-    let names: Vec<CreditsText> = (0..128u8)
+    let names: Vec<CreditsText> = (0..32u8)
         .map(|i| CreditsText {
             rom_addr: 0x1FEB42 + u32::from(i) * 3,
             bytes: vec![1 + (i % 26), 2, 0xFF],
         })
         .collect();
+    // Synthetic schedules covering every CreditsJumpTable opcode (0..=12)
+    // without embedding the retail command tables from ROM.
+    let stage12_schedule = vec![
+        0x00, 0x00, // header
+        0x01, 0x05, // fade in header
+        0x02, 0x01, // name line 1
+        0x03, 0x02, // name line 2
+        0x04, 0x03, // name line 3
+        0x05, 0x04, // name line 4
+        0x06, 0x06, // fade in names
+        0x10, 0x07, // fade out header
+        0x14, 0x08, // fade out names
+        0xFF, 0x00,
+    ];
+    let stage3_schedule = vec![
+        0x00, 0x09, // offset header
+        0x01, 0x05, // fade in header
+        0x08, 0x07, // fade out header
+        0x0C, 0x0A, // second-line header
+        0x0D, 0x0B, // third-line header
+        0x0E, 0x0C, // final fade-in & latch bit 7
+        0xFF, 0x00,
+    ];
     EndingCreditsAssets {
         version: psiv_data::CREDITS_VERSION,
         source_rom_sha256: "0".repeat(64),
@@ -97,18 +120,11 @@ fn synthetic_assets() -> EndingCreditsAssets {
         commands: vec![
             CreditsCommands {
                 rom_addr: 0x7A522,
-                bytes: vec![
-                    0x00, 0x00, 0x01, 0x05, 0x02, 0x01, 0x03, 0x02, 0x04, 0x03, 0x05, 0x04, 0x06,
-                    0x06, 0x1A, 0x07, 0x1D, 0x08, 0x20, 0x00, 0x21, 0x05, 0x22, 0x01, 0x23, 0x02,
-                    0x24, 0x03, 0x25, 0x04, 0x26, 0x06, 0x3A, 0x07, 0x3D, 0x08, 0xFF, 0x00,
-                ],
+                bytes: stage12_schedule,
             },
             CreditsCommands {
                 rom_addr: 0x7A548,
-                bytes: vec![
-                    0x00, 0x09, 0x01, 0x05, 0x12, 0x07, 0x18, 0x0A, 0x19, 0x0B, 0x1A, 0x05, 0x2A,
-                    0x07, 0x30, 0x0A, 0x31, 0x0B, 0x32, 0x0C, 0xFF, 0x00,
-                ],
+                bytes: stage3_schedule,
             },
         ],
         headers,
@@ -123,7 +139,7 @@ fn synthetic_assets() -> EndingCreditsAssets {
 
 const STAGE1: PresentationOp = PresentationOp::EndingCreditsStage {
     stage: 1,
-    scroll_delay: 0x380,
+    scroll_delay: 0x80,
     foreground_step: 0,
     background_step: 0x2000,
     source_ram: 0xFFFF_1000,
@@ -133,7 +149,7 @@ const STAGE1: PresentationOp = PresentationOp::EndingCreditsStage {
 
 const STAGE2: PresentationOp = PresentationOp::EndingCreditsStage {
     stage: 2,
-    scroll_delay: 0x400,
+    scroll_delay: 0x100,
     foreground_step: 0x2000,
     background_step: 0x1000,
     source_ram: 0xFFFF_2000,
@@ -143,7 +159,7 @@ const STAGE2: PresentationOp = PresentationOp::EndingCreditsStage {
 
 const STAGE3: PresentationOp = PresentationOp::EndingCreditsStage {
     stage: 3,
-    scroll_delay: 0x480,
+    scroll_delay: 0x180,
     foreground_step: 0x2000,
     background_step: 0x1000,
     source_ram: 0xFFFF_2000,
@@ -199,7 +215,7 @@ fn init_seats_bg_camera_and_copies_initial_plane_b_from_1a80() {
 }
 
 #[test]
-fn stage_one_clears_header_and_name_palettes_and_reaches_exact_oracle_counters() {
+fn stage_one_clears_header_and_name_palettes_and_runs_schedule() {
     let assets = synthetic_assets();
     let mut credits = EndingCredits::new(&assets);
     let mut cram = Cram::default();
@@ -230,7 +246,7 @@ fn stage_one_clears_header_and_name_palettes_and_reaches_exact_oracle_counters()
     assert_eq!(credits.view().plane_a[5 * 64 + 17], 0xE7C0);
     assert_eq!(credits.view().plane_a[5 * 64 + 18], 0xE7C1);
 
-    // Run to the end of stage 1; compare against oracle f=50876 counters.
+    // Run to the end of synthetic stage 1 (two 64-count cycles).
     let mut saw_header_fade = false;
     let mut saw_name_fade = false;
     let mut saw_row_copy = false;
@@ -262,11 +278,12 @@ fn stage_one_clears_header_and_name_palettes_and_reaches_exact_oracle_counters()
         saw_row_copy,
         "bit 19 must replace Plane B row 1 from $FFFF1000"
     );
-    assert_eq!(credits.view().text_counter, 0x380);
-    assert_eq!(credits.view().row_counter, 0x70);
-    assert_eq!(credits.view().bg_y_scroll, 0x02A0);
-    assert_eq!(credits.view().cred_text_a, 0x00E0);
-    assert_eq!(credits.view().cred_text_b, 0x00E0);
+    assert_eq!(credits.view().text_counter, 0x80);
+    assert_eq!(credits.view().row_counter, 0x10);
+    assert_eq!(credits.view().bg_y_scroll, 0xFFA0);
+    // Counter 0x00 and 0x40 each fire opcode 0 eight times (plus final 0x80 tick).
+    assert_eq!(credits.view().cred_text_a, 0x10);
+    assert_eq!(credits.view().cred_text_b, 0x10);
     assert!(!credits.view().column_scroll);
 }
 
@@ -288,7 +305,7 @@ fn stages_two_and_three_preserve_state_enable_column_scroll_and_latch_terminal_f
         &mut cram,
         &mut cycle,
     );
-    assert!(s1 > 7000);
+    assert!(s1 > 1000);
     let s2 = run_stage(
         &mut credits,
         STAGE2,
@@ -299,12 +316,12 @@ fn stages_two_and_three_preserve_state_enable_column_scroll_and_latch_terminal_f
     );
     assert!(s2 > 1000);
     assert!(credits.view().column_scroll);
-    assert_eq!(credits.view().text_counter, 0x400);
+    assert_eq!(credits.view().text_counter, 0x100);
     assert_eq!(credits.view().row_counter, 0x10);
     assert_eq!(credits.view().fg_y_scroll, 0x0080);
-    assert_eq!(credits.view().bg_y_scroll, 0x02E0);
-    assert_eq!(credits.view().cred_text_a, 0x0100);
-    assert_eq!(credits.view().cred_text_b, 0x0100);
+    assert_eq!(credits.view().bg_y_scroll, 0xFFE0);
+    assert_eq!(credits.view().cred_text_a, 0x20);
+    assert_eq!(credits.view().cred_text_b, 0x20);
     // Plane A row 0 columns 0..16 hold mapping 4 ($FFFF2000) row 0.
     assert_eq!(
         &credits.view().plane_a[0..16],
@@ -320,20 +337,22 @@ fn stages_two_and_three_preserve_state_enable_column_scroll_and_latch_terminal_f
         &mut cycle,
     );
     assert!(s3 > 1000);
-    assert_eq!(credits.view().text_counter, 0x480);
+    assert_eq!(credits.view().text_counter, 0x180);
     assert_eq!(credits.view().row_counter, 0x20);
     assert_eq!(credits.view().fg_y_scroll, 0x0100);
-    assert_eq!(credits.view().bg_y_scroll, 0x0320);
-    assert_eq!(credits.view().cred_text_a, 0x0127);
-    assert_eq!(credits.view().cred_text_b, 0x0100);
+    assert_eq!(credits.view().bg_y_scroll, 0x0020);
+    // Stage 3 runs opcodes 9, 10, 11 (8 times each, except the first tick of 0x100
+    // already entered with counter 0x00 so 7 + 8 + 8 = 23 header increments).
+    assert_eq!(credits.view().cred_text_a, 0x37);
+    assert_eq!(credits.view().cred_text_b, 0x20);
     assert_eq!(
         credits.view().fade_control & 0xC0,
         0xC0,
         "bits 6 and 7 latched"
     );
-    // Final CreditCommands2 headers sit at rows $14 (col $13) and $16 (col $1A).
-    assert_eq!(credits.view().plane_a[0x14 * 64 + 0x13], 0xE7C0 + (35 % 26));
-    assert_eq!(credits.view().plane_a[0x16 * 64 + 0x1A], 0xE7C0 + (36 % 26));
+    // Stage 3 opcodes 10 and 11 placed headers at rows $14 (col $13) and $16 (col $1A).
+    assert_eq!(credits.view().plane_a[0x14 * 64 + 0x13], 0xE7C0 + 5);
+    assert_eq!(credits.view().plane_a[0x16 * 64 + 0x1A], 0xE7C0 + 6);
     // Terminal fade-in left row 7 of the fade table in words 50..55.
     assert_eq!(
         &cram.view().words[PALETTE_HEADER_START..PALETTE_HEADER_START + 5],
@@ -366,8 +385,8 @@ fn negative_controls_wrong_command_table_and_missing_row_transfer_diverge() {
         &mut cycle,
     );
 
-    // Negative control 1: running stage 3 with CreditCommands1 instead of
-    // CreditCommands2 never latches bit 7 and never writes row $16 col $1A.
+    // Negative control 1: running stage 3 with table 1 instead of table 2
+    // never latches bit 7 and never writes row $16 col $1A.
     let mut wrong_table = STAGE3;
     if let PresentationOp::EndingCreditsStage {
         commands_rom_addr, ..

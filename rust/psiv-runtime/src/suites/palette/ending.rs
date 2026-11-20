@@ -596,3 +596,109 @@ fn the_staff_roll_and_credits_ramp_reach_the_third_loop() {
     assert_eq!(frames[third - 1].words, input);
     assert_ne!(input, [0x0EEE; 64], "not the stale white");
 }
+
+/// Pack-gated integration check: with the real extracted `presentation/credits.json`
+/// command tables, stages 1, 2 and 3 exit at the exact retail oracle counters
+/// (tape 48: f=50875, f=52043, f=53107) with column scroll enabled from stage 2.
+#[test]
+fn the_pack_credits_stages_match_retail_oracle_counters() {
+    if !pack_present() {
+        return;
+    }
+    let mut runtime = runtime_on(0x013, [Some(CharId(0)), None, None, None, None], &[]);
+    assert!(runtime.start_event(0x8021), "the ending starts");
+    let mut stage1_exit = None;
+    let mut stage2_exit = None;
+    let mut stage3_exit = None;
+    for _ in 0..200_000 {
+        let prev_credits = runtime.ending_credits().cloned();
+        let events = runtime.tick(Input::Neutral);
+        for event in &events {
+            assert!(
+                !matches!(event, RuntimeEvent::SceneFaulted { .. }),
+                "{event:?}"
+            );
+            if matches!(event, RuntimeEvent::SceneChoiceRequested) {
+                runtime.dialogue_choice(true);
+            }
+            if matches!(
+                event,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                runtime.dialogue_closed();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsStage { stage: 2, .. }
+                    }
+                )
+            }) {
+                stage1_exit = prev_credits.clone();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsStage { stage: 3, .. }
+                    }
+                )
+            }) {
+                stage2_exit = prev_credits.clone();
+            }
+            if emits(event, |op| {
+                matches!(
+                    op,
+                    SceneOp::Presentation {
+                        op: PresentationOp::EndingCreditsPaletteRamp { .. }
+                    }
+                )
+            }) {
+                stage3_exit = prev_credits.clone();
+            }
+        }
+        if stage3_exit.is_some() {
+            break;
+        }
+    }
+    let s1 = stage1_exit.expect("stage 1 exits into stage 2");
+    assert_eq!(
+        (
+            s1.text_counter,
+            s1.row_counter,
+            s1.bg_y_scroll,
+            s1.cred_text_a,
+            s1.cred_text_b,
+            s1.column_scroll,
+        ),
+        (0x0380, 0x0070, 0x02A0, 0x00E0, 0x00E0, false)
+    );
+    let s2 = stage2_exit.expect("stage 2 exits into stage 3");
+    assert_eq!(
+        (
+            s2.text_counter,
+            s2.row_counter,
+            s2.fg_y_scroll,
+            s2.bg_y_scroll,
+            s2.cred_text_a,
+            s2.cred_text_b,
+            s2.column_scroll,
+        ),
+        (0x0400, 0x0010, 0x0080, 0x02E0, 0x0100, 0x0100, true)
+    );
+    let s3 = stage3_exit.expect("stage 3 exits into credits ramp");
+    assert_eq!(
+        (
+            s3.text_counter,
+            s3.row_counter,
+            s3.fg_y_scroll,
+            s3.bg_y_scroll,
+            s3.cred_text_a,
+            s3.cred_text_b,
+            s3.fade_control & 0xC0,
+            s3.column_scroll,
+        ),
+        (0x0480, 0x0020, 0x0100, 0x0320, 0x0127, 0x0100, 0xC0, true)
+    );
+}
