@@ -1,6 +1,7 @@
 # Playing PSIV
 
-[Project overview](../README.md) · [Documentation index](README.md)
+[Project overview](https://github.com/TusanHomichi/PSIV) ·
+[Documentation index](https://github.com/TusanHomichi/PSIV/blob/main/docs/README.md)
 
 PSIV is Phantasy Star IV, the US Genesis/Mega Drive release, rebuilt as a
 native game. It builds the game's graphics, sound, maps and text from your own
@@ -32,6 +33,9 @@ anywhere, and start the game:
 | Windows (64-bit) | `PSIV-<version>-windows-x86_64.zip` | `PSIV.exe` |
 | macOS (Apple silicon and Intel) | `PSIV-<version>-macos-universal.zip` | `PSIV.app` |
 
+The archive includes the engine and pack builder. You do not need to install
+Godot, Rust or Python, or download this project's source.
+
 The first run opens the setup screen. Choose **Choose your ROM file**, pick
 the ROM, and PSIV builds its pack and starts the game. Starting the game with
 the ROM's path as its argument does the same without the file browser. The
@@ -40,6 +44,8 @@ PSIV needs a new one.
 
 **Linux.** Unpack with `tar xzf PSIV-<version>-linux-x86_64.tar.gz` and run
 `./psiv.x86_64` in the folder it makes.
+You can also start it from another folder using its full path; the working
+directory does not change where your pack or saves go.
 
 **Steam Deck.** In Desktop Mode, unpack the archive and run `psiv.x86_64`
 once, to choose the ROM there. Then, in Steam, choose Games, then Add a
@@ -67,6 +73,8 @@ beside the game, so a new version finds them:
 | Linux and the Steam Deck | `~/.local/share/PSIV` |
 | Windows | `%APPDATA%\PSIV` |
 | macOS | `~/Library/Application Support/PSIV` |
+
+On Linux, setting `XDG_DATA_HOME` moves this folder to `$XDG_DATA_HOME/PSIV`.
 
 `runtime-pack` there is the pack, `saves` your saves and `logs` the game's
 log. Save from the camp menu's STATE, then SAVE, and load with the title

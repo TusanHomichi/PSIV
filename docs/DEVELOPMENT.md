@@ -183,9 +183,10 @@ gh run download <run-id> --name archive-linux
 Unpack the archive on the Deck and start `psiv.x86_64`. It reads its pack and
 keeps its saves in `~/.local/share/PSIV`, so a pack there that suits this
 version is used as it is, and otherwise the setup screen asks for the ROM. The workflow builds Linux on the
-oldest Ubuntu runner GitHub offers, so the archive's glibc floor is below
-SteamOS's; a build on a newer distribution links newer symbol versions, and
-the Deck refuses to load its extension.
+oldest Ubuntu runner GitHub offers. The Linux build checks both the extension
+and `psiv-pack` with `readelf` and refuses glibc requirements above SteamOS's
+2.41; a build on a newer distribution can otherwise link symbols the Deck
+cannot load.
 
 ### Release archives
 
@@ -200,6 +201,11 @@ that is checked for exactly the files a release holds and started headless,
 as a first run, on its own system. It runs on every pull request that touches
 the packaging, and pushing a version tag (`v1.0.0`) publishes the archives as
 that tag's GitHub release.
+
+The notices identify the exact PSIV source revision and pinned Nuked OPN2
+source, include the license texts and sound sources, and link the matching
+rebuild instructions. Pull-request and manual workflow runs validate archives
+without publishing a release; never send private ROM inputs to those runners.
 
 ## Working with agents
 

@@ -54,7 +54,7 @@ Mega Drive ROM extension, not Markdown.)
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Python | 3.10 or newer | standard library only, to build the pack |
+| Python | 3.10 or newer | standard library only, for the source-checkout Godot launcher (`tools/godot.py`) |
 | Rust | the toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) | install [rustup](https://rustup.rs/); it reads that file and fetches the toolchain on first use |
 | Godot | the version in [`.godot-version`](.godot-version), standard build | from the [Godot download archive](https://godotengine.org/download/archive/) |
 | git, GNU `patch`, `make`, a C compiler | any recent | fetch and compile the sound chip's sources |
@@ -106,9 +106,6 @@ Where PSIV knowingly differs from the cartridge, there is an open issue:
   a rule that does not yet match the original.
 - [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
   drawing, animation, audio or timing that looks or sounds different.
-- [Palette effects (#162)](https://github.com/TusanHomichi/PSIV/issues/162):
-  the sabotage alarm overlay still draws baked colours, and existing
-  single-frame comparisons do not certify complete scenes.
 - A few original bugs are fixed on purpose; each is listed in the
   [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 
