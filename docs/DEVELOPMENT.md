@@ -287,7 +287,7 @@ the same pack and skip without it. From the root:
 python3 tools/check_docs.py
 PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
-cargo test --manifest-path rust/Cargo.toml --workspace
+cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 nix develop --command python3 tools/certify.py
 ```
@@ -368,7 +368,7 @@ python3 tools/check_docs.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 PYTHONPATH=. python3 tools/py_suite.py --fast
-cargo test --manifest-path rust/Cargo.toml --workspace
+cargo test --manifest-path rust/Cargo.toml --workspace --no-fail-fast
 ```
 
 `py_suite.py --fast` is the full gate's Python suite minus the modules in
