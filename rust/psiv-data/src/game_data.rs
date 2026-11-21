@@ -64,6 +64,8 @@ pub struct GameData {
     /// The battle background selection tables. `None` for a synthetic pack
     /// built with [`GameData::from_parts`], or a pack with no battle art.
     battle_backgrounds: Option<crate::BattleBackgrounds>,
+    /// Post-clear Title Sound Test tracks (`title/sound_test.json`).
+    sound_test: Option<crate::SoundTestFile>,
 }
 
 impl GameData {
@@ -107,7 +109,15 @@ impl GameData {
             scene_palettes: crate::ScenePalettes::default(),
             ending_credits: None,
             battle_backgrounds: None,
+            sound_test: None,
         })
+    }
+
+    /// Post-clear Title Sound Test table (`title/sound_test.json`), absent in
+    /// synthetic or older packs.
+    #[must_use]
+    pub fn sound_test(&self) -> Option<&crate::SoundTestFile> {
+        self.sound_test.as_ref()
     }
 
     /// The palette words scenes read from the ROM and the panel palette

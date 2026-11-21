@@ -311,6 +311,12 @@ impl SaveStore {
         Runtime::erase_slot(&self.directory, slot)
     }
 
+    /// Whether any slot file in this store carries retail's `Game_Cleared_Flag`.
+    #[must_use]
+    pub(crate) fn game_cleared(&self) -> bool {
+        Runtime::directory_game_cleared(&self.directory)
+    }
+
     /// Writes retail's `Game_Cleared_Flag` into the common header of every
     /// slot file that exists, when `Cutscene_Ending` latches it: retail's own
     /// SRAM write at `ps4.asm:159099`, without waiting for a SAVE. A

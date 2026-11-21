@@ -6,7 +6,9 @@
 
 use godot::prelude::*;
 
-use psiv_runtime::{CampCharacter, CampPage, CampView, ROOT_OPTIONS, WindowRecord, WindowTeardown};
+use psiv_runtime::{
+    CampCharacter, CampPage, CampView, ROOT_OPTIONS, SYSTEM_OPTIONS, WindowRecord, WindowTeardown,
+};
 
 use super::chrome::{CampChrome, Quad};
 use super::layout::{
@@ -60,6 +62,13 @@ impl CampMenu {
             CampPage::SaveSlots => self.draw_save_slots(view, chrome, &mut list),
             CampPage::SaveResult => self.draw_save_result(view, chrome, &mut list),
             CampPage::Status => self.draw_status(view, chrome, &mut list),
+            CampPage::SystemRoot => self.draw_system_root(view, chrome, &mut list),
+            CampPage::SystemMessageSpeed => {
+                self.draw_system_speed(view, chrome, &mut list, "MESSAGE SPEED", view.message_speed)
+            }
+            CampPage::SystemBattleSpeed => {
+                self.draw_system_speed(view, chrome, &mut list, "BATTLE SPEED", view.battle_speed)
+            }
             CampPage::Unsupported => self.draw_unsupported(view, chrome, &mut list),
         }
         if let Some(teardown) = view.teardown.as_ref() {
@@ -248,6 +257,42 @@ impl CampMenu {
         self.draw_root(view, chrome, list, true);
         frame(chrome, list, ITEM_MESSAGE);
         draw_text(chrome, &mut list.quads, &view.message, (8, 22));
+    }
+
+    fn draw_system_root(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        let rect = layout::CellRect::new(10, 2, 13, 10);
+        frame(chrome, list, rect);
+        draw_text(chrome, &mut list.quads, "SYS", (14, 10));
+        for (row, label) in SYSTEM_OPTIONS.iter().enumerate() {
+            draw_text(chrome, &mut list.quads, label, (13, 3 + row as i32 * 2));
+        }
+        draw_selectors(chrome, &mut list.quads, (11, 3), SYSTEM_OPTIONS.len());
+        if let Some(quad) = chrome.window_word(
+            SELECTED_CURSOR_PATTERN,
+            (11, 3 + view.system_selection as i32 * 2),
+        ) {
+            list.quads.push(quad);
+        }
+    }
+
+    fn draw_system_speed(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+        title: &str,
+        speed: u16,
+    ) {
+        self.draw_system_root(view, chrome, list);
+        frame(chrome, list, layout::CellRect::new(14, 12, 18, 6));
+        draw_text(chrome, &mut list.quads, "FAST 1 2 3 4 5 SLOW", (15, 13));
+        if let Some(quad) =
+            chrome.window_word(SELECTED_CURSOR_PATTERN, (20 + speed.min(4) as i32 * 2, 15))
+        {
+            list.quads.push(quad);
+        }
+        frame(chrome, list, ITEM_MESSAGE);
+        draw_text(chrome, &mut list.quads, title, (8, 22));
     }
 }
 

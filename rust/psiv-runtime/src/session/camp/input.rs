@@ -3,7 +3,7 @@
 use crate::item_action::ItemUseOutcome;
 use crate::{CampAbilityKind, CampUseResult, Runtime};
 
-use super::{CampPage, CampView, MenuInput, ROOT_OPTIONS, wrap};
+use super::{CampPage, CampView, MenuInput, ROOT_OPTIONS, SYSTEM_OPTIONS, wrap};
 
 impl CampView {
     /// Handles one frame of camp input and the runtime commands it fires.
@@ -45,7 +45,12 @@ impl CampView {
             return;
         }
         let MenuInput {
-            up, down, accept, ..
+            up,
+            down,
+            left,
+            right,
+            accept,
+            ..
         } = input;
         match self.page {
             CampPage::AbilityCharacters
@@ -124,8 +129,63 @@ impl CampView {
                         self.begin_order();
                     } else {
                         self.save_selection = 0;
+                        self.save_from_system = false;
                         self.page = CampPage::SaveSlots;
                     }
+                }
+            }
+            CampPage::SystemRoot => {
+                if up {
+                    self.system_selection =
+                        wrap(self.system_selection, SYSTEM_OPTIONS.len(), false);
+                } else if down {
+                    self.system_selection = wrap(self.system_selection, SYSTEM_OPTIONS.len(), true);
+                } else if accept {
+                    match self.system_selection {
+                        0 => {
+                            self.save_selection = 0;
+                            self.save_from_system = true;
+                            self.page = CampPage::SaveSlots;
+                        }
+                        1 => {
+                            self.message_speed = runtime.game().message_speed().min(4);
+                            self.page = CampPage::SystemMessageSpeed;
+                        }
+                        _ => {
+                            self.battle_speed = runtime.game().battle_speed().min(4);
+                            self.page = CampPage::SystemBattleSpeed;
+                        }
+                    }
+                }
+            }
+            CampPage::SystemMessageSpeed => {
+                let speed = runtime.game().message_speed().min(4);
+                if left {
+                    let next = speed.saturating_sub(1);
+                    runtime.game.set_message_speed(next);
+                    self.message_speed = next;
+                } else if right {
+                    let next = (speed + 1).min(4);
+                    runtime.game.set_message_speed(next);
+                    self.message_speed = next;
+                } else if accept {
+                    self.close();
+                    return;
+                }
+            }
+            CampPage::SystemBattleSpeed => {
+                let speed = runtime.game().battle_speed().min(4);
+                if left {
+                    let next = speed.saturating_sub(1);
+                    runtime.game.set_battle_speed(next);
+                    self.battle_speed = next;
+                } else if right {
+                    let next = (speed + 1).min(4);
+                    runtime.game.set_battle_speed(next);
+                    self.battle_speed = next;
+                } else if accept {
+                    self.close();
+                    return;
                 }
             }
             CampPage::Order | CampPage::OrderDone | CampPage::OrderAlone => {
@@ -162,7 +222,11 @@ impl CampView {
             }
             CampPage::SaveResult => {
                 if accept {
-                    self.page = CampPage::State;
+                    self.page = if self.save_from_system {
+                        CampPage::SystemRoot
+                    } else {
+                        CampPage::State
+                    };
                 }
             }
             CampPage::TravelReady
@@ -279,7 +343,16 @@ impl CampView {
                 false
             }
             CampPage::SaveSlots | CampPage::SaveResult => {
-                self.page = CampPage::State;
+                self.page = if self.save_from_system {
+                    CampPage::SystemRoot
+                } else {
+                    CampPage::State
+                };
+                false
+            }
+            CampPage::SystemRoot => true,
+            CampPage::SystemMessageSpeed | CampPage::SystemBattleSpeed => {
+                self.page = CampPage::SystemRoot;
                 false
             }
         }

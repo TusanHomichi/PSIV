@@ -44,6 +44,29 @@ fn mode(runtime: &mut Runtime) -> BattleMode {
 }
 
 #[test]
+fn battle_speed_setting_controls_ordinary_beat_dwell() {
+    let Some(mut runtime) = runtime() else { return };
+    for (speed, expected) in [(0, 12), (2, 36), (4, 60)] {
+        runtime.game.set_battle_speed(speed);
+        runtime.start_battle(0x8A, runtime.battle_party()).unwrap();
+        let battle = BattleMode::begin(
+            &runtime,
+            BattleTimeline {
+                events: vec![BattleEvent::Defended {
+                    actor: FighterId::new(1).unwrap(),
+                }],
+                sounds: Vec::new(),
+                animations: Vec::new(),
+            },
+            BattleStart::Encounter(0x8A),
+        );
+        let beat = battle.current.expect("defend beat active");
+        assert_eq!(beat.remaining, expected, "battle_speed={speed}");
+        assert_eq!(beat.total, expected, "battle_speed={speed}");
+    }
+}
+
+#[test]
 fn item_drop_beat_preserves_narration_in_wide_window_and_waits_for_confirm() {
     let Some(mut runtime) = runtime() else { return };
     for (collected, expected) in [

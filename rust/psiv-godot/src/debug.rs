@@ -32,6 +32,7 @@ impl Field {
                 psiv_runtime::TitlePhase::Slots => 4,
                 psiv_runtime::TitlePhase::EraseSlots => 5,
                 psiv_runtime::TitlePhase::EraseConfirm => 6,
+                psiv_runtime::TitlePhase::SoundTest => 7,
             },
         );
         let window = title.map_or(-1, |view| match view.window {
@@ -40,6 +41,7 @@ impl Field {
             psiv_runtime::TitleWindow::SaveOptions => 2,
             psiv_runtime::TitleWindow::Slots => 3,
             psiv_runtime::TitleWindow::EraseConfirm => 4,
+            psiv_runtime::TitleWindow::SoundTest => 5,
         });
         let mut values = PackedInt64Array::new();
         for value in [

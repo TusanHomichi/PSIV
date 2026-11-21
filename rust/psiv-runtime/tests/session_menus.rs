@@ -817,6 +817,118 @@ fn camp_talk_switches_label_by_party_size_and_opens_talk_dialogue_with_portrait_
     );
 }
 
+#[test]
+fn start_opens_field_system_menu_adjusts_speeds_and_dialogue_cadence_and_saves() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut player = Player::new(ITEM_SHOP, &chaz_alone(0));
+    assert_eq!(player.runtime().game().message_speed(), 2);
+    assert_eq!(player.runtime().game().battle_speed(), 2);
+
+    // Start opens SystemRoot (SAVE / MSG.SPEED / BAT.SPEED).
+    player.press(Button::Start);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemRoot),
+        "Start opens SystemRoot"
+    );
+    assert_eq!(player.session.camp_view().unwrap().system_selection, 0);
+
+    // Down -> MSG.SPEED -> Speak opens SystemMessageSpeed; Left twice sets speed 0 (fastest).
+    player.press(Button::Down);
+    player.press(Button::Speak);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemMessageSpeed),
+        "MSG.SPEED opens SystemMessageSpeed"
+    );
+    player.press(Button::Left);
+    player.press(Button::Left);
+    player.press(Button::Left); // clamps at 0
+    assert_eq!(player.runtime().game().message_speed(), 0);
+    // Cancel backs out to SystemRoot while keeping the adjusted speed.
+    player.press(Button::Cancel);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemRoot),
+        "Cancel from SystemMessageSpeed returns to SystemRoot"
+    );
+
+    // Down -> BAT.SPEED -> Speak -> Right three times clamps at 4; Speak confirms and closes.
+    player.press(Button::Down);
+    player.press(Button::Speak);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemBattleSpeed),
+        "BAT.SPEED opens SystemBattleSpeed"
+    );
+    player.press(Button::Right);
+    player.press(Button::Right);
+    player.press(Button::Right);
+    assert_eq!(player.runtime().game().battle_speed(), 4);
+    player.press(Button::Speak);
+    assert!(
+        player.session.camp_view().is_none(),
+        "confirming a speed closes the system menu"
+    );
+
+    // Reopen SystemRoot -> SAVE -> Cancel returns to SystemRoot (not CampPage::State).
+    player.press(Button::Start);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemRoot),
+        "reopen SystemRoot"
+    );
+    player.press(Button::Speak);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SaveSlots),
+        "SAVE opens SaveSlots"
+    );
+    player.press(Button::Cancel);
+    assert_eq!(
+        player.session.camp_view().map(|v| v.page),
+        Some(CampPage::SystemRoot),
+        "Cancel from SaveSlots returns to SystemRoot"
+    );
+    player.press(Button::Start);
+    assert!(player.session.camp_view().is_none());
+
+    // Negative control: message_speed=0 types faster than message_speed=4 on a real dialogue.
+    let mut fast = Player::new(ITEM_SHOP, &chaz_alone(0));
+    fast.press(Button::Start);
+    fast.press(Button::Down);
+    fast.press(Button::Speak);
+    fast.press(Button::Left);
+    fast.press(Button::Left);
+    fast.press(Button::Speak); // speed 0 (1 frame/glyph)
+
+    let mut slow = Player::new(ITEM_SHOP, &chaz_alone(0));
+    slow.press(Button::Start);
+    slow.press(Button::Down);
+    slow.press(Button::Speak);
+    slow.press(Button::Right);
+    slow.press(Button::Right);
+    slow.press(Button::Speak); // speed 4 (5 frames/glyph)
+
+    // Facing Down at ITEM_SHOP searches empty floor and opens Chaz's system
+    // dialogue ("Nothing here"), which types at `Message_Speed`.
+    fast.press(Button::Speak);
+    slow.press(Button::Speak);
+    for _ in 0..25 {
+        fast.tick(Pad::NEUTRAL);
+        slow.tick(Pad::NEUTRAL);
+    }
+    let fast_rev = fast.runtime().dialogue_view().unwrap().revealed;
+    let slow_rev = slow.runtime().dialogue_view().unwrap().revealed;
+    assert!(
+        fast_rev > slow_rev,
+        "message_speed=0 ({fast_rev}) must reveal faster than message_speed=4 ({slow_rev})"
+    );
+}
+
 #[path = "session_menus/hand_cancel.rs"]
 mod hand_cancel;
 #[path = "session_menus/shops.rs"]

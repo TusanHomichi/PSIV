@@ -78,8 +78,19 @@ impl Session {
             };
         }
         let slots = self.save_slots();
+        let game_cleared = self.game_cleared();
+        let sound_test_tracks = self
+            .runtime
+            .data()
+            .sound_test()
+            .map_or(0, |st| st.tracks.len());
         let autostart = self.title_autostart;
-        self.mode = Mode::Title(Box::new(TitleMode::new(slots, autostart)));
+        self.mode = Mode::Title(Box::new(TitleMode::new(
+            slots,
+            game_cleared,
+            sound_test_tracks,
+            autostart,
+        )));
         self.accept_blocked = true;
         let view = match &self.mode {
             Mode::Title(mode) => mode.view(),
@@ -93,6 +104,7 @@ impl Session {
                 entered: None,
                 erased: None,
                 failure: None,
+                sound_request: None,
             }),
             ..Frame::default()
         }

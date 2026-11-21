@@ -49,6 +49,7 @@ enum MenuKind {
     SaveOptions,
     Slots,
     EraseConfirm,
+    SoundTest,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -64,6 +65,9 @@ enum Surface {
     Menu {
         kind: MenuKind,
         option: Option<usize>,
+    },
+    SoundTestTrack {
+        track: usize,
     },
 }
 
@@ -236,10 +240,13 @@ impl TitleScreen {
             Surface::Subtitle => screen_cell(5, 17),
             Surface::PressStart => screen_cell(11, 22),
             Surface::Copyright => screen_cell(12, 25),
-            Surface::Black | Surface::Menu { .. } => Vector2::ZERO,
+            Surface::Black | Surface::Menu { .. } | Surface::SoundTestTrack { .. } => Vector2::ZERO,
         };
         let mut replay = BTreeMap::new();
-        if !matches!(surface, Surface::Black | Surface::Menu { .. }) {
+        if !matches!(
+            surface,
+            Surface::Black | Surface::Menu { .. } | Surface::SoundTestTrack { .. }
+        ) {
             let file = Path::new(relative)
                 .file_name()
                 .and_then(|name| name.to_str())
@@ -375,7 +382,79 @@ impl TitleScreen {
             (23, 14),
             1,
         );
+        self.add_sound_test_art(parent, pack_dir, &roles, &font_texture);
         true
+    }
+
+    fn add_sound_test_art(
+        &mut self,
+        parent: &mut BaseMut<'_, Field>,
+        pack_dir: &str,
+        roles: &HashMap<&'static str, Gd<ImageTexture>>,
+        font_texture: &Gd<ImageTexture>,
+    ) {
+        self.add_frame(parent, roles, MenuKind::SoundTest, (9, 2, 22, 4));
+        self.add_text(
+            parent,
+            font_texture,
+            MenuKind::SoundTest,
+            "PRESS START TO EXIT",
+            (10, 3),
+            usize::MAX,
+        );
+        self.add_frame(parent, roles, MenuKind::SoundTest, (3, 18, 34, 4));
+        self.add_text(
+            parent,
+            font_texture,
+            MenuKind::SoundTest,
+            "A:PLAY   B:STOP   C:FADE",
+            (8, 19),
+            usize::MAX,
+        );
+        self.add_frame(parent, roles, MenuKind::SoundTest, (1, 9, 38, 6));
+        let Ok(sound_test) = psiv_data::SoundTestFile::load(Path::new(pack_dir)) else {
+            return;
+        };
+        for track in &sound_test.tracks {
+            let number = format!("< {:02} >", track.index + 1);
+            self.add_sound_test_text(parent, font_texture, &number, (2, 10), track.index);
+            self.add_sound_test_text(parent, font_texture, &track.title, (4, 11), track.index);
+            self.add_sound_test_text(parent, font_texture, &track.composer, (27, 13), track.index);
+        }
+    }
+
+    fn add_sound_test_text(
+        &mut self,
+        parent: &mut BaseMut<'_, Field>,
+        texture: &Gd<ImageTexture>,
+        text: &str,
+        cell: (i32, i32),
+        track: usize,
+    ) {
+        for (column, character) in text.chars().enumerate() {
+            if let Some(index) = menu_glyph_index(character) {
+                let mut node = Sprite2D::new_alloc();
+                node.set_centered(false);
+                node.set_texture(texture);
+                node.set_region_enabled(true);
+                node.set_region_rect(Rect2::new(
+                    Vector2::new((index % 16) as f32 * CELL, (index / 16) as f32 * CELL),
+                    Vector2::new(CELL, CELL),
+                ));
+                node.set_z_index(93);
+                parent.add_child(&node);
+                self.visuals.push(Visual {
+                    node: VisualNode::Sprite(node),
+                    offset: Vector2::new(
+                        (cell.0 + column as i32) as f32 * CELL - SCREEN_WIDTH / 2.0,
+                        cell.1 as f32 * CELL - SCREEN_HEIGHT / 2.0,
+                    ),
+                    surface: Surface::SoundTestTrack { track },
+                    replay: BTreeMap::new(),
+                    press_cycle: Vec::new(),
+                });
+            }
+        }
     }
 
     fn add_frame(
@@ -504,7 +583,9 @@ impl TitleScreen {
                 Surface::Black => (true, 1.0, false),
                 Surface::SegaLogo => (view.phase == TitlePhase::Sega, sega_alpha, false),
                 Surface::Background => (
-                    view.phase != TitlePhase::Sega && !(reveal && !title_art_ready),
+                    view.phase != TitlePhase::Sega
+                        && view.phase != TitlePhase::SoundTest
+                        && !(reveal && !title_art_ready),
                     1.0,
                     false,
                 ),
@@ -520,6 +601,11 @@ impl TitleScreen {
                     menu_kind == Some(kind),
                     1.0,
                     option.is_some_and(|index| index == view.cursor),
+                ),
+                Surface::SoundTestTrack { track } => (
+                    view.phase == TitlePhase::SoundTest && view.cursor == track,
+                    1.0,
+                    false,
                 ),
             };
             match &mut visual.node {
@@ -596,6 +682,7 @@ fn menu_kind(view: &TitleView) -> Option<MenuKind> {
         TitleWindow::SaveOptions => Some(MenuKind::SaveOptions),
         TitleWindow::Slots => Some(MenuKind::Slots),
         TitleWindow::EraseConfirm => Some(MenuKind::EraseConfirm),
+        TitleWindow::SoundTest => Some(MenuKind::SoundTest),
     }
 }
 

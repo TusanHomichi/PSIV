@@ -716,6 +716,12 @@ impl Field {
             let pack_dir = self.pack_dir.clone();
             self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
         }
+        if let Some(sound_id) = frame.sound_request
+            && let Some(audio) = self.audio.as_mut()
+        {
+            audio.start();
+            audio.play(sound_id);
+        }
         if let Some(view) = frame.view {
             let camera = self.camera.as_ref().map(|node| node.get_position());
             if let Some(screen) = self.title.as_mut() {

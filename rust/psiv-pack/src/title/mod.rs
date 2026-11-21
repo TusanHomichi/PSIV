@@ -6,6 +6,7 @@
 //! the cartridge's own routines.
 
 mod boot;
+mod sound_test;
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -522,6 +523,7 @@ pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
     let mut order: Vec<&Surface> = vec![&background_surface, &transfer_surface];
     order.extend(surfaces.iter());
     let replay = replay(root, cycle, &frames, &order)?;
+    let sound_test_summary = sound_test::write(data, root)?;
     let layout = Json::object()
         .with("format_version", 1u8)
         .with("kind", "psiv_title_pack")
@@ -545,6 +547,7 @@ pub fn build(rom: &Rom, root: &Path) -> Result<crate::json::Json, PackError> {
         .with("background_pieces", pieces)
         .with("background_transfer", transfer)
         .with("palette_cycle", replay)
+        .with("sound_test", sound_test_summary)
         .with(
             "placement_contract",
             Json::object()
@@ -610,6 +613,7 @@ fn summary(layout: &Json, sha256: String) -> Result<Json, PackError> {
             )?,
         )
         .with("palette_cycle", layout.at(&["palette_cycle"])?.clone())
+        .with("sound_test", layout.at(&["sound_test"])?.clone())
         .with("assets", assets))
 }
 

@@ -578,3 +578,73 @@ fn a_defeat_reaches_game_over_and_returns_to_the_title() {
     assert_eq!(view.slots, [false; 3], "the defeat wrote no save");
     std::fs::remove_dir_all(&directory).expect("the run directory is ours");
 }
+
+#[test]
+fn cleared_save_unlocks_title_sound_test_and_plays_repeat_override() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let directory = run_dir("sound-test");
+    let writer = session_at((0x13, 48, 19), &new_game_state(), &directory);
+    let slot_path = writer.save_slot(0).expect("write slot 1");
+
+    // Helper: advance title to Menu phase.
+    let reach_menu = |session: &mut Session| {
+        for _ in 0..4 {
+            title_tick(session, Pad::NEUTRAL);
+            title_tick(session, Pad::new(Button::Start));
+            if session.title().is_some_and(|v| v.phase == TitlePhase::Menu) {
+                break;
+            }
+        }
+        assert_eq!(session.title().unwrap().phase, TitlePhase::Menu);
+    };
+
+    // Negative control: uncleared save cannot enter Sound Test.
+    let mut uncleared = power_on(&directory);
+    reach_menu(&mut uncleared);
+    title_tick(&mut uncleared, Pad::NEUTRAL);
+    let frame = title_tick(&mut uncleared, Pad::new(Button::Cancel));
+    assert_eq!(frame.view.unwrap().phase, TitlePhase::Menu);
+    assert_eq!(frame.sound_request, None);
+
+    // Mark Game_Cleared_Flag in the slot header (as Cutscene_Ending does).
+    let raw = std::fs::read(&slot_path).expect("read slot");
+    let cleared_slot = psiv_core::RetailSlot::from_bytes(&raw, 0)
+        .unwrap()
+        .mark_game_cleared();
+    std::fs::write(&slot_path, cleared_slot.as_bytes()).expect("write cleared slot");
+
+    let mut session = power_on(&directory);
+    reach_menu(&mut session);
+    title_tick(&mut session, Pad::NEUTRAL);
+    let open = title_tick(&mut session, Pad::new(Button::Cancel));
+    assert_eq!(open.view.unwrap().phase, TitlePhase::SoundTest);
+    assert_eq!(open.sound_request, Some(0xFB));
+
+    // Step to track 21 (PS1 DUNGEON ARRANGE 2, sound_id 0xB1) and play twice.
+    for _ in 0..21 {
+        title_tick(&mut session, Pad::NEUTRAL);
+        title_tick(&mut session, Pad::new(Button::Right));
+    }
+    assert_eq!(session.title().unwrap().cursor, 21);
+    title_tick(&mut session, Pad::NEUTRAL);
+    let first = title_tick(&mut session, Pad::new(Button::Speak));
+    assert_eq!(first.sound_request, Some(0xB1));
+    title_tick(&mut session, Pad::NEUTRAL);
+    let second = title_tick(&mut session, Pad::new(Button::Speak));
+    assert_eq!(
+        second.sound_request,
+        Some(0xA7),
+        "consecutive replay triggers MusicID_DungeonArrange2Cont"
+    );
+
+    // Start exits Sound Test back to the title Menu and stops music.
+    title_tick(&mut session, Pad::NEUTRAL);
+    let exit = title_tick(&mut session, Pad::new(Button::Start));
+    assert_eq!(exit.view.unwrap().phase, TitlePhase::Menu);
+    assert_eq!(exit.sound_request, Some(0xFB));
+
+    std::fs::remove_dir_all(&directory).expect("the run directory is ours");
+}

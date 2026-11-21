@@ -155,8 +155,8 @@ use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
 pub use camp::{
-    CampPage, CampView, OrderDraft, ROOT_OPTIONS, TOWN_PAGE_ROWS, TeardownView, WindowRecord,
-    WindowRect, WindowTeardown, town_page_rows,
+    CampPage, CampView, OrderDraft, ROOT_OPTIONS, SYSTEM_OPTIONS, TOWN_PAGE_ROWS, TeardownView,
+    WindowRecord, WindowRect, WindowTeardown, town_page_rows,
 };
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 

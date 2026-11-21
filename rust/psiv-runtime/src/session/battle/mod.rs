@@ -197,6 +197,8 @@ pub(crate) struct BattleMode {
     positions: BTreeMap<u8, u8>,
     /// The Zol slugs' Fusion while its beat plays.
     fusion: Option<fusion::Fusion>,
+    /// Ordinary beat dwell derived from `GameState::battle_speed()` (`0..=4`).
+    dwell_frames: u16,
 }
 
 impl BattleMode {
@@ -237,6 +239,7 @@ impl BattleMode {
             previous_pad: Pad::NEUTRAL,
             positions: runtime.battle_enemy_positions(start),
             fusion: None,
+            dwell_frames: battle_dwell_frames(runtime.game().battle_speed()),
         };
         mode.seat(runtime);
         mode.queue = queue::queue_timeline(timeline);
@@ -262,6 +265,7 @@ impl BattleMode {
 
     /// One battle frame.
     pub(crate) fn frame(&mut self, runtime: &mut Runtime, pad: Pad) -> BattleFrame {
+        self.dwell_frames = battle_dwell_frames(runtime.game().battle_speed());
         self.sounds.clear();
         self.animations.clear();
         self.attacks.advance();
@@ -725,7 +729,7 @@ impl BattleMode {
         } else if fused && matches!(event, BattleEvent::EnemiesFused { .. }) {
             fusion::SEATED_HOLD_FRAMES as u16
         } else {
-            BATTLE_DWELL_FRAMES
+            self.dwell_frames
         };
         self.current = Some(ActiveBeat {
             beat: narrate.beat,
