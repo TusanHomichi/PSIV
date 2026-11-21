@@ -13,6 +13,32 @@ and pick (or drag and drop) your US Phantasy Star IV ROM on the setup screen.
 PSIV builds its data pack once in a few seconds and boots straight to the title
 screen.
 
+## Setting up with an AI assistant
+
+If a player asks you (an AI assistant or coding agent) to get PSIV set up for them:
+
+1. **Use the prebuilt release — do not clone or compile from source** unless
+   they explicitly want to develop or mod PSIV.
+2. **Download the latest release archive for their OS** from
+   `https://github.com/TusanHomichi/PSIV/releases/latest` (via `gh release download`
+   or `curl`/`Invoke-WebRequest`), and verify it against `SHA256SUMS.txt` on the
+   same release:
+   - Linux (x86-64): `PSIV-*-linux-x86_64.tar.gz` → extract with `tar xzf`, run `./psiv.x86_64`.
+   - Windows (64-bit): `PSIV-*-windows-x86_64.zip` → extract with `Expand-Archive`, run `PSIV.exe`.
+   - macOS (Apple silicon & Intel): `PSIV-*-macos-universal.zip` → extract `PSIV.app` (on first run, the player may need **System Settings → Privacy & Security → Open Anyway**).
+3. **Ask the player for the path to their own US Genesis/Mega Drive ROM.**
+   Never search for or download a ROM from the internet. Check its SHA-256
+   matches [the hash below](#the-rom); if it differs (headered `.smd`, another
+   region, or a ROM hack), explain why before launching.
+4. **Launch the game:** either open it normally so the player can pick or drop
+   their ROM on the setup screen, or pass their verified ROM path as the first
+   command-line argument (e.g. `./psiv.x86_64 "/path/to/rom.md"`) to build the
+   pack automatically into their user data folder and boot straight to the title
+   screen.
+5. **Hand back a short summary:** where you extracted PSIV, where their saves
+   live ([below](#where-your-pack-and-saves-live)), and the basic controls
+   ([below](#controls)).
+
 ## The ROM
 
 PSIV builds from one ROM image, the unheadered US retail release, and refuses
@@ -119,9 +145,13 @@ against the hash [above](#the-rom).
 
 Where PSIV knowingly differs from the cartridge, there is an open issue: see
 [known differences](https://github.com/TusanHomichi/PSIV#known-differences).
-For anything else, [open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose)
+For anything else, follow the
+[bug reporting guide](https://github.com/TusanHomichi/PSIV/blob/main/docs/REPORTING.md)
+or [open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose)
 with your system, PSIV's version, what happened and where in the game, and the
-game's log (`logs/godot.log` in the user data folder above).
+game's log (`logs/godot.log` in the user data folder above). Using an AI
+assistant? Point it at the bug reporting guide and it can collect your log,
+save slot info, and system details to file the report for you.
 
 ## License
 

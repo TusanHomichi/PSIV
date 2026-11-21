@@ -11,6 +11,8 @@ issues, not documents.
   the known differences.
 - [Player's guide](PLAYING.md): the ROM, the downloads and their first run,
   where the pack and saves live, and the controls.
+- [Bug reporting guide](REPORTING.md): what logs, saves, and details to include
+  when filing an issue (for players and AI assistants).
 - [Roadmap](ROADMAP.md): the 1.0 bar, the platforms, and what comes after.
 - [Save format](camp/SAVE_FORMAT.md): where saves go and what they hold.
 
@@ -130,4 +132,6 @@ Add a row here when a new rule gets an owner.
 | Toolchain and Godot version; build, pack and launch commands | [Development guide](DEVELOPMENT.md#current-environment) |
 | Gate commands, the heavy-run lock, coverage and repository-owned checks | [Development guide](DEVELOPMENT.md#gate-and-coverage) |
 | File size | [Development guide](DEVELOPMENT.md#file-size) |
+| Bug reporting format and agent-assisted filing | [Bug reporting guide](REPORTING.md) |
+| External contributor and fork PR guide | [Contributing](../CONTRIBUTING.md) |
 | Cartridge comparison method and lanes | [Oracle guide](../oracle/README.md) |
