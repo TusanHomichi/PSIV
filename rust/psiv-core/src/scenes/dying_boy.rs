@@ -41,8 +41,8 @@ const FOLLOW_OFF: u8 = 0b001;
 
 /// Op indices of the two short arms, and of the first op past the
 /// fifth-member chain.
-const NOT_YET: usize = 50;
-const ALREADY: usize = 52;
+const NOT_YET: usize = 51;
+const ALREADY: usize = 53;
 const AFTER_FIFTH: usize = 28;
 
 /// One test of the fifth-member chain (`$072E3A..$072E7F`): `Event_GetCharacter`
@@ -150,6 +150,14 @@ pub static DYING_BOY: Scene = Scene {
             object_id: SWORD_ROUTINE,
             art_tile: SWORD_TILE,
             frames: SWORD_FRAMES,
+        },
+        // `FieldObj_ChazAlisSword` init (`ps4.asm:99856-99857`): `($1D0, $1B8)`.
+        SceneOp::Presentation {
+            op: PresentationOp::SetObjectDestination {
+                slot: SWORD_SLOT,
+                x: 0x1D0,
+                y: 0x1B8,
+            },
         },
         SceneOp::WaitFrames {
             frames: SWORD_FRAMES,

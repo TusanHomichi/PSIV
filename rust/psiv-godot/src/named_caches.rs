@@ -96,6 +96,12 @@ fn temporary_slot_written(op: &psiv_core::SceneOp) -> Option<usize> {
     match op {
         psiv_core::SceneOp::ObjectAnimation { slot, .. }
         | psiv_core::SceneOp::CreateFieldObject { slot, .. } => Some(*slot),
+        psiv_core::SceneOp::Object(psiv_core::ObjectOp::Spawn {
+            slot,
+            routine,
+            art_tile,
+            ..
+        }) if *routine != 0 && *art_tile != 0 => Some(*slot),
         psiv_core::SceneOp::CreateEclipseTorch(spawn) => Some(spawn.slot),
         _ => None,
     }
@@ -103,7 +109,7 @@ fn temporary_slot_written(op: &psiv_core::SceneOp) -> Option<usize> {
 
 /// The op names `temporary_slot_written` matches, for the test.
 #[cfg(test)]
-const TEMPORARY_SLOT_WRITERS: [&str; 2] = ["ObjectAnimation", "CreateFieldObject"];
+const TEMPORARY_SLOT_WRITERS: [&str; 3] = ["Object", "ObjectAnimation", "CreateFieldObject"];
 
 /// The most scene temporary-object slots any transcribed scene uses: the
 /// shell keeps one sprite per slot it has seen.
@@ -140,7 +146,10 @@ mod tests {
                 .take_while(|c| c.is_ascii_alphanumeric())
                 .collect();
             let body = arm.split("SceneOp::").next().unwrap_or("");
-            if body.contains(".object_animation(") || body.contains(".create_field_object(") {
+            if body.contains(".object_animation(")
+                || body.contains(".create_field_object(")
+                || body.contains(".spawn_cast_object(")
+            {
                 writers.push(name);
             }
         }

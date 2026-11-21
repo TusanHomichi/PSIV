@@ -8,7 +8,7 @@ boy is cured. The father's two scenes, `$84` and `$85`, are #331's.
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0086` `Event_DyingBoy` | `$072D94..$072FB3` inclusive, 544 bytes | `EventPtrs[$86]` at `$05A2B4 + $218` | `dying_boy.rs`, `DYING_BOY` (53 ops) |
+| `$0086` `Event_DyingBoy` | `$072D94..$072FB3` inclusive, 544 bytes | `EventPtrs[$86]` at `$05A2B4 + $218` | `dying_boy.rs`, `DYING_BOY` (54 ops) |
 
 - **Trigger:** dialogue `$F6`. The boy's object 2 is not talkable; the invisible blocks 3 and 4 at
   the bed carry dialogue `$32`, which is `$F6 $00 $86`.
@@ -39,13 +39,13 @@ duration of 1.
 | 16-27 | `loc_72E80`, `$072E80..$072E8B` | (`$210`,`$1A0`) for the member found | `MoveActorTo` + `Jump` x 6 |
 | 28-30 | `loc_72E8C`, `$072E8C..$072E9F` | `clr.b (FieldObj_Step_Offset).w`, `bset #0, (Char_Move_Flags).w`, `DoMainUpdatesLoop($95)` | `SetStepOffset` 0, `SetFollowMode` `0b101`, `Wait(150)` |
 | 31-33 | `$072EA0..$072EC5` | `loc_5A97C` with d0 = 0, Chaz `Event_UpdateObjFacing` `$C`, `popdlg` / `Event_RunDialogue` | `FaceParty` down, `Face` Chaz left, `RunDialogueResume` |
-| 34-36 | `$072EC6..$072F17` | Chaz `bset #1, $2(a4)`; slot 6 (`$FFFFC480`) := `$334`; one pass, then `loc_72EF4` until `$1C` is `$FFFF`; each pass is the routine, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `SetCharacterVisible` Chaz off, `ObjectAnimation` slot 6, `WaitFrames(164)` |
-| 37-40 | `$072F18..$072F43` | Chaz `bclr #1, $2(a4)`; `clr.w` slot 6, `RunSingleObject`, the two sprite calls, `VInt_Prepare` | `SetCharacterVisible` Chaz on, `DespawnNpc` 6, `RebuildSprites`, `WaitFrames(1)` |
-| 41-42 | `$072F44..$072F67` | `popdlg` / `Event_RunDialogue`; `Event_MoveSingleObject` on Chaz to (`$1A0`,`$1C0`) | `RunDialogueResume`, `MoveActorTo` Chaz, waits |
-| 43-45 | `$072F68..$072F8D` | `bclr #0, (Char_Move_Flags).w`; `popdlg` / `Event_RunDialogue`; `Event_MoveObjectStatic` on `Character_1` to (`$1A0`,`$1D0`) | `SetFollowMode` `0b100`, `RunDialogueResume`, `MoveActorTo` the leader, waits |
-| 46-49 | `$072F8E..$072FA3` | step offset 1, `bclr #2, (Char_Move_Flags).w`, `EventFlags_Set` `$AA` (tail `jmp`) | `SetStepOffset` 1, `SetFollowMode` 0, `SetFlag`, `End` |
-| 50-51 | `loc_72FA4` | entry `$3B`, tail `jmp` | `RunDialogue`, `End` |
-| 52 | `loc_72FAC` | entry `$3E`, tail `jmp` | `RunDialogue` |
+| 34-37 | `$072EC6..$072F17` | Chaz `bset #1, $2(a4)`; slot 6 (`$FFFFC480`) := `$334` at (`$1D0`,`$1B8`); one pass, then `loc_72EF4` until `$1C` is `$FFFF`; each pass is the routine, `Field_LoadSprites`, `Field_BuildSprites`, `VInt_Prepare` | `SetCharacterVisible` Chaz off, `ObjectAnimation` slot 6, `SetObjectDestination` (`$1D0`,`$1B8`), `WaitFrames(164)` |
+| 38-41 | `$072F18..$072F43` | Chaz `bclr #1, $2(a4)`; `clr.w` slot 6, `RunSingleObject`, the two sprite calls, `VInt_Prepare` | `SetCharacterVisible` Chaz on, `DespawnNpc` 6, `RebuildSprites`, `WaitFrames(1)` |
+| 42-43 | `$072F44..$072F67` | `popdlg` / `Event_RunDialogue`; `Event_MoveSingleObject` on Chaz to (`$1A0`,`$1C0`) | `RunDialogueResume`, `MoveActorTo` Chaz, waits |
+| 44-46 | `$072F68..$072F8D` | `bclr #0, (Char_Move_Flags).w`; `popdlg` / `Event_RunDialogue`; `Event_MoveObjectStatic` on `Character_1` to (`$1A0`,`$1D0`) | `SetFollowMode` `0b100`, `RunDialogueResume`, `MoveActorTo` the leader, waits |
+| 47-50 | `$072F8E..$072FA3` | step offset 1, `bclr #2, (Char_Move_Flags).w`, `EventFlags_Set` `$AA` (tail `jmp`) | `SetStepOffset` 1, `SetFollowMode` 0, `SetFlag`, `End` |
+| 51-52 | `loc_72FA4` | entry `$3B`, tail `jmp` | `RunDialogue`, `End` |
+| 53 | `loc_72FAC` | entry `$3E`, tail `jmp` | `RunDialogue` |
 
 The fifth-member chain and the four untested destinations are `Event_DominatorsDefeated`'s shape
 ([110](110_VahalFortStory.md)), and reuse its `go` helper.

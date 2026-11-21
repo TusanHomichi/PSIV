@@ -172,7 +172,7 @@ const fn plays(sequence: &'static str, once: bool, before_art_tile: bool) -> Opt
     })
 }
 
-const TEMPORARY_OBJECT_RECORDS: [Temporary; 18] = [
+const TEMPORARY_OBJECT_RECORDS: [Temporary; 21] = [
     temporary(
         "MeetingRika",
         (0x0018, 0x026A),
@@ -316,6 +316,30 @@ const TEMPORARY_OBJECT_RECORDS: [Temporary; 18] = [
         None,
         (0, SourceKind::MapArt),
         0x0CA,
+    ),
+    temporary(
+        "Event_DyingBoy",
+        (0x0334, 0x043C),
+        "ChazAlisSword",
+        plays("walk_down", true, false),
+        (0, SourceKind::MapArt),
+        0x0E7,
+    ),
+    temporary(
+        "Event_PenguinFeedStolen",
+        (0x0368, 0x0342),
+        "PenguFeedThief",
+        None,
+        (0, SourceKind::MapArt),
+        0x12A,
+    ),
+    temporary(
+        "Event_FaintingPriest",
+        (0x0180, 0x03FB),
+        "FaintedPriest",
+        plays("walk_down", true, false),
+        (0, SourceKind::MapArt),
+        0x069,
     ),
 ];
 

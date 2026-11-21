@@ -371,7 +371,8 @@ impl Field {
             if !asset.art_loaded(&self.presentation) || object.frames_left == 0 {
                 continue;
             }
-            let Some(position) = temporary_position(self, slot, object.destination, &scene_actors)
+            let Some(position) =
+                temporary_position(self, slot, object.destination, &scene_actors, step_frames)
             else {
                 continue;
             };
@@ -397,14 +398,32 @@ impl Field {
                         sequence_name(kind, dir)
                     })
                     .filter(|name| asset.has_sequence(name));
+                let cast_seq = object
+                    .destination
+                    .is_none()
+                    .then(|| {
+                        scene_actors
+                            .iter()
+                            .find(|a| {
+                                matches!(a.actor, psiv_core::ActorRef::Npc(index) if index == slot)
+                            })
+                            .map(|actor| {
+                                let kind = if actor.is_walking() { "walk" } else { "idle" };
+                                sequence_name(kind, actor.facing)
+                            })
+                    })
+                    .flatten()
+                    .filter(|name| asset.has_sequence(name));
                 let sequence = facing_seq
                     .as_deref()
                     .or(walk_seq.as_deref())
+                    .or(cast_seq.as_deref())
                     .or(asset.playback_sequence.as_deref())
                     .unwrap_or("idle_down");
                 let age = if asset.playback_sequence.is_some()
                     && facing_seq.is_none()
                     && walk_seq.is_none()
+                    && cast_seq.is_none()
                 {
                     object.elapsed
                 } else {
@@ -638,6 +657,7 @@ fn temporary_position(
     slot: usize,
     destination: Option<(i32, i32)>,
     scene_actors: &[psiv_core::ScriptedActor],
+    step_frames: psiv_core::StepFrames,
 ) -> Option<(i32, i32)> {
     if let Some(position) = destination {
         return Some(position);
@@ -646,8 +666,11 @@ fn temporary_position(
         .iter()
         .find(|a| matches!(a.actor, psiv_core::ActorRef::Npc(index) if index == slot))
     {
-        let cell = actor.cell;
-        return Some((i32::from(cell.x) * 16, (i32::from(cell.y) - 1) * 16));
+        let (dx, dy) = actor.render_offset_16ths(step_frames);
+        return Some((
+            i32::from(actor.cell.x) * 16 + dx,
+            (i32::from(actor.cell.y) - 1) * 16 + dy,
+        ));
     }
     field
         .npc_nodes
