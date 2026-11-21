@@ -25,11 +25,12 @@ use super::picture_plane::{PictureChange, PicturePlane};
 /// the map's high-priority overlay (z 20), which the picture hides anyway.
 const PICTURE_Z: i32 = 1;
 
-/// One decoded picture: its PNG, the `LoadArt` its cells index into and its
-/// texture in the file's baked colours.
+/// One decoded picture: its PNG, the `LoadArt` its cells index into, its
+/// screen offset in pixels, and its texture in the file's baked colours.
 pub(super) struct PictureAsset {
     pub(super) path: String,
     pub(super) art: (u32, u16),
+    pub(super) screen_pos: (i32, i32),
     pub(super) baked: Option<Gd<ImageTexture>>,
 }
 
@@ -92,6 +93,11 @@ impl CutsceneLayer {
 
     /// Puts the visible picture, in the live palette, on the picture sprite.
     pub(super) fn sync_picture(&mut self) {
+        let screen_pos = self
+            .picture
+            .visible
+            .and_then(|source| self.pictures.get(&source))
+            .map(|picture| picture.screen_pos);
         let texture = self.picture.visible.and_then(|source| {
             self.live_picture(source)
                 .or_else(|| self.pictures.get(&source)?.baked.clone())
@@ -99,6 +105,9 @@ impl CutsceneLayer {
         let sprite = self.picture_sprite();
         match texture {
             Some(texture) => {
+                if let Some((x, y)) = screen_pos {
+                    sprite.set_position(Vector2::new(x as f32, y as f32));
+                }
                 sprite.set_texture(&texture);
                 sprite.set_visible(true);
             }

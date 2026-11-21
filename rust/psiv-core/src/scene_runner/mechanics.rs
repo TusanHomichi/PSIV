@@ -131,6 +131,21 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
+            SceneOp::Object(ObjectOp::PlacePartyFormation { positions, facing }) => {
+                for (slot, &(x, y)) in positions.iter().enumerate() {
+                    let actor = ActorRef::PartyMember(slot);
+                    if let Some(member) = self.actor_mut(actor) {
+                        member.place_at_pixel((x, y));
+                        member.target = None;
+                        member.facing = facing;
+                        member.animation = None;
+                        let cell = member.cell;
+                        effects.push(SceneEffect::ActorPlaced { actor, at: cell });
+                        effects.push(SceneEffect::ActorFaced { actor, facing });
+                    }
+                }
+                self.pc += 1;
+            }
             SceneOp::Object(spawn) => {
                 let (slot, routine, solid, cell) = match spawn {
                     ObjectOp::Spawn {
@@ -152,6 +167,7 @@ impl SceneRunner {
                         };
                         (slot, routine, solid, source.cell)
                     }
+                    ObjectOp::PlacePartyFormation { .. } => unreachable!(),
                 };
                 let actor = ActorRef::Npc(slot);
                 match self.actor_mut(actor) {

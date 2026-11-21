@@ -215,7 +215,7 @@ fn expected_objects() -> BTreeSet<(usize, usize)> {
 }
 fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), String> {
     if m["coverage"]
-        != json!({"panel_records":panel_ids().len(),"load_art_records":9,"temporary_object_keys":21,"generic_portraits":1,"scene_pictures":1})
+        != json!({"panel_records":panel_ids().len(),"load_art_records":9,"temporary_object_keys":21,"generic_portraits":1,"scene_pictures":2})
     {
         return Err("coverage".into());
     }
@@ -258,7 +258,7 @@ fn opening_scene_pictures_load_art_objects_and_portrait_are_additive() {
         m["opening_background"],
         json!({"art":"0x1CF1F2","art_consumed":5681,"mapping":"0x1D25BE","mapping_consumed":338,"palette":"0x1D2A3C","screen_y":40,"size":[320,128]})
     );
-    assert_eq!(array(&m["scene_pictures"]).len(), 1);
+    assert_eq!(array(&m["scene_pictures"]).len(), 2);
     let g = &m["scene_pictures"][0];
     assert_eq!(g["source_rom_addr"], "0x1DDE0A");
     assert_eq!(g["art"], "0x1DB2C8");
@@ -266,6 +266,7 @@ fn opening_scene_pictures_load_art_objects_and_portrait_are_additive() {
         (num(&g["art_tile"]), num(&g["columns"]), num(&g["rows"])),
         (0x260, 40, 28)
     );
+    assert_eq!((num(&g["screen_x"]), num(&g["screen_y"])), (0, 0));
     assert_eq!(g["size"], json!([320, 224]));
     assert_eq!(
         g["scenes"],
@@ -275,6 +276,26 @@ fn opening_scene_pictures_load_art_objects_and_portrait_are_additive() {
     assert_eq!((im.colour, im.width, im.height), (3, 320, 224));
     assert!(im.trns.is_empty());
     assert!(im.pixels.iter().all(|p| *p < 16));
+    let pd = &m["scene_pictures"][1];
+    assert_eq!(pd["source_rom_addr"], "0x1DE03A");
+    assert_eq!(pd["art"], "0x1DD566");
+    assert_eq!(
+        (num(&pd["art_tile"]), num(&pd["columns"]), num(&pd["rows"])),
+        (0x620E, 16, 16)
+    );
+    assert_eq!((num(&pd["screen_x"]), num(&pd["screen_y"])), (96, 24));
+    assert_eq!(pd["size"], json!([128, 128]));
+    assert_eq!(pd["scenes"], json!(["Cutscene_ProfoundDarkness"]));
+    let pd_im = image(e, pd);
+    assert_eq!((pd_im.colour, pd_im.width, pd_im.height), (3, 128, 128));
+    assert!(pd_im.trns.is_empty());
+    assert!(
+        pd_im
+            .pixels
+            .iter()
+            .all(|&p| p == 0 || (48..64).contains(&p))
+    );
+    assert!(pd_im.pixels.iter().any(|&p| (48..64).contains(&p)));
     for r in array(&m["load_art"]) {
         assert!(num(&r["tile_count"]) > 0);
     }

@@ -58,8 +58,8 @@ const OPENING_ART: usize = 0x1C_F1F2;
 const OPENING_MAPPING: usize = 0x1D_25BE;
 const OPENING_PALETTE: usize = 0x1D_2A3C;
 
-/// `SCENE_PICTURE_RECORDS`: a full-screen picture a scene draws on plane A
-/// itself, not through `Panel_Create`; the Python list documents the steps.
+/// `SCENE_PICTURE_RECORDS`: a picture a scene draws on plane A itself,
+/// not through `Panel_Create`; the Python list documents the steps.
 struct ScenePicture {
     scenes: &'static [&'static str],
     art: usize,
@@ -67,18 +67,38 @@ struct ScenePicture {
     mapping: usize,
     columns: usize,
     rows: usize,
+    screen_x: usize,
+    screen_y: usize,
     palette: usize,
 }
 
-const SCENE_PICTURES: [ScenePicture; 1] = [ScenePicture {
-    scenes: &["Event_MeetingLeRoof", "Cutscene_LeRoofAgain"],
-    art: 0x1D_B2C8,
-    art_tile: 0x0260,
-    mapping: 0x1D_DE0A,
-    columns: 40,
-    rows: 28,
-    palette: 0x1D_E258,
-}];
+const SCENE_PICTURES: [ScenePicture; 2] = [
+    ScenePicture {
+        scenes: &["Event_MeetingLeRoof", "Cutscene_LeRoofAgain"],
+        art: 0x1D_B2C8,
+        art_tile: 0x0260,
+        mapping: 0x1D_DE0A,
+        columns: 40,
+        rows: 28,
+        screen_x: 0,
+        screen_y: 0,
+        palette: 0x1D_E258,
+    },
+    // `Cutscene_ProfoundDarkness` (`ps4.asm:157903-157915`): 16x16 cells drawn
+    // into `Plane_A_Buffer + $198` (`$FFFF8198` = row 3, col 12 -> `(96, 24)`)
+    // on CRAM line 3 (`Pal_TheEdgePart9 + $40` = `$18EFC4`).
+    ScenePicture {
+        scenes: &["Cutscene_ProfoundDarkness"],
+        art: 0x1D_D566,
+        art_tile: 0x620E,
+        mapping: 0x1D_E03A,
+        columns: 16,
+        rows: 16,
+        screen_x: 96,
+        screen_y: 24,
+        palette: 0x18_EFC4,
+    },
+];
 
 /// `PALETTE_REQUESTS`: palette words a scene reads from the ROM, by address
 /// and word count; the Python list cites each one's reader.
@@ -372,8 +392,10 @@ fn scene_picture(rom: &[u8], root: &Path, spec: &ScenePicture) -> Result<Json, P
         &tiles,
         usize::from(spec.art_tile & 0x07FF),
     )?;
-    let mut colours = palette16(rom, spec.palette)?;
-    colours.resize(64, [0, 0, 0]);
+    let line = usize::from((spec.art_tile >> 13) & 3);
+    let mut colours = vec![[0u8; 3]; 64];
+    let pal = palette16(rom, spec.palette)?;
+    colours[line * 16..line * 16 + 16].copy_from_slice(&pal);
     let name = format!(
         "presentation/scene_pictures/picture_{:06x}.png",
         spec.mapping
@@ -390,6 +412,8 @@ fn scene_picture(rom: &[u8], root: &Path, spec: &ScenePicture) -> Result<Json, P
         .with("mapping_consumed", mapping_consumed)
         .with("columns", spec.columns)
         .with("rows", spec.rows)
+        .with("screen_x", spec.screen_x)
+        .with("screen_y", spec.screen_y)
         .with("palette", hex6(spec.palette))
         .with("size", vec![width, height]))
 }

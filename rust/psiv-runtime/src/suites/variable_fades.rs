@@ -167,4 +167,91 @@ fn profound_darkness_fades_back_up_to_the_palette_it_left() {
         )
     });
     assert_eq!(stop - fade_in, up);
+
+    // `$078D4A..$078E40`: camera zeroed, `$1DD566` + `$1DE03A` staged for DMA,
+    // and the five party slots placed in their retail V-formation facing Up.
+    let loaded_art = frames.iter().any(|f| {
+        f.events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::ScenePresentation {
+                    op: SceneOp::LoadArt {
+                        rom_addr: 0x001D_D566,
+                        tile: 0x20E
+                    },
+                    ..
+                }
+            )
+        })
+    });
+    assert!(loaded_art, "Profound Darkness loads art $1DD566 at $20E");
+    let staged_pic = frames.iter().any(|f| {
+        f.events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::ScenePresentation {
+                    op: SceneOp::Presentation {
+                        op: PresentationOp::LoadSceneAsset {
+                            source_rom_addr: 0x001D_E03A,
+                            destination_ram: 0xFFFF_8198
+                        }
+                    },
+                    ..
+                }
+            )
+        })
+    });
+    assert!(staged_pic, "Profound Darkness stages picture $1DE03A");
+    // Check live mid-scene camera and party V-formation on the `DmaPlanes` tick
+    // (before `Return(0)` calls `resume_party_from_scene` and reseats the camera).
+    let mut live = runtime_at(0x108, (0x100, 0x160), party, &[]);
+    assert!(live.start_event(0x8020));
+    let mut saw_dma = false;
+    for _ in 0..200 {
+        let events = live.tick(psiv_core::Input::Neutral);
+        if events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::ScenePresentation {
+                    op: SceneOp::DmaPlanes,
+                    ..
+                }
+            )
+        }) {
+            saw_dma = true;
+            break;
+        }
+    }
+    assert!(saw_dma, "Profound Darkness reaches DmaPlanes");
+    assert_eq!(live.camera().position(), (0, 0));
+    let expected = [
+        (0xA0, 0xA0),
+        (0x90, 0xB0),
+        (0xB0, 0xB0),
+        (0x80, 0xC0),
+        (0xC0, 0xC0),
+    ];
+    for (slot, (px, py)) in expected.into_iter().enumerate() {
+        let actor = live
+            .scene_party_actor(slot)
+            .expect("live party slot present");
+        assert_eq!(
+            actor.cell,
+            psiv_core::Cell::new((px / 16) as u16, (py / 16 + 1) as u16),
+            "slot {slot} cell"
+        );
+        assert_eq!(actor.facing, psiv_core::Direction::Up, "slot {slot} facing");
+    }
+
+    // A four-member party (optional 5th slot empty) must also run cleanly.
+    let four = [
+        Some(CharId(0)),
+        Some(CharId(3)),
+        Some(CharId(5)),
+        Some(CharId(8)),
+        None,
+    ];
+    let mut rt4 = runtime_at(0x108, (0x100, 0x160), four, &[]);
+    let _ = trace(&mut rt4, 0x8020);
+    assert_eq!(rt4.party.members().len(), 4);
 }

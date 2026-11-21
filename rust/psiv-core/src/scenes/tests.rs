@@ -165,7 +165,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_AngerTowerTop", 12),
         ("Event_AngerTowerAlys", 11),
         ("Event_AngerTowerExitTop", 10),
-        ("Cutscene_ProfoundDarkness", 22),
+        ("Cutscene_ProfoundDarkness", 20),
         ("Cutscene_RajaSick", 54),
         ("Cutscene_Rykros", 31),
         ("Cutscene_Ending", 408),
@@ -500,7 +500,14 @@ fn a_tone_loop_without_its_frames_is_reported() {
 fn spawns_not_drawn(ops: &[SceneOp]) -> Vec<usize> {
     ops.iter()
         .enumerate()
-        .filter(|(_, op)| matches!(op, SceneOp::Object(_)))
+        .filter(|(_, op)| {
+            matches!(
+                op,
+                SceneOp::Object(
+                    crate::scene::ObjectOp::Spawn { .. } | crate::scene::ObjectOp::SpawnAt { .. }
+                )
+            )
+        })
         .filter_map(|(i, _)| {
             for op in &ops[i + 1..] {
                 match op {
