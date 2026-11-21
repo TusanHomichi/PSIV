@@ -169,6 +169,9 @@ impl Field {
             }
             SceneOp::Presentation { op } => self.consume_presentation_op(op),
             SceneOp::SetArtTile { actor, tile } => {
+                if let psiv_core::ActorRef::Npc(slot) = actor {
+                    self.presentation.set_npc_art_tile(slot, tile);
+                }
                 godot_print!("scene art tile: {actor:?} -> {tile:#05x}");
             }
             SceneOp::SetDialogueTree { rom_addr } => {
@@ -290,6 +293,9 @@ impl Field {
                 self.presentation
                     .step_field_object(slot, step_x, step_y, u16::MAX);
             }
+            PresentationOp::SetObjectFacingWord { slot, facing_word } => {
+                self.presentation.set_object_facing_word(slot, facing_word);
+            }
             // A runtime-owned fade up draws its own reveal from black, so it
             // ends the doorway cover a scene map load started; `FadeIn` used
             // to replace that cover (`transitions::after_palette_fade_in`).
@@ -355,6 +361,7 @@ impl Field {
     /// blacks out once, for the frames the runtime measured; nothing is drawn
     /// at the scene's `SceneEnded`.
     fn present_field_reload(&mut self, setup: u16, fade: u16) {
+        self.presentation.reload_field_objects();
         self.finish_cutscene_presentation();
         self.set_field_map_visible(true);
         self.load_map_visuals();

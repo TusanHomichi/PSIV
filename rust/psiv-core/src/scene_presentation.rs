@@ -231,6 +231,15 @@ pub enum PresentationOp {
         /// Signed 16.16 Y step per frame.
         step_y: i32,
     },
+    /// Write a raw retail `facing_dir` (`$6(a4)`) sequence selector word to a
+    /// scene-created object, as `Event_StrippersAppearing` (`$073508`) writes
+    /// `$10` to objects 1..=3 before spawning the coats.
+    SetObjectFacingWord {
+        /// Field-object slot.
+        slot: usize,
+        /// Retail facing/sequence table byte offset (`$00`, `$04`, `$08`, `$0C`, `$10`, ...).
+        facing_word: u16,
+    },
     /// Patch a dialogue record's portrait before opening it.
     SetDialoguePortrait {
         /// Dialogue entry whose record was patched.

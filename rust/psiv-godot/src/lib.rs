@@ -34,6 +34,7 @@ mod named_caches;
 mod pack_setup;
 mod resident_memory;
 mod retail_surface;
+mod rewritten_npcs;
 mod runtime_events;
 mod rust_heap;
 mod save_dir;
@@ -777,6 +778,7 @@ impl Field {
                 self.load_map_visuals();
                 self.sync_visuals(false);
                 if event_started {
+                    self.presentation.reload_field_objects();
                     self.presentation.reset_scene();
                     self.set_letterbox(true);
                 } else {
@@ -823,6 +825,7 @@ impl Field {
             screen.bind_mut().release_stage();
         }
         self.battle_field_visibility = None;
+        self.presentation.reload_field_objects();
         self.presentation.reset_scene();
         if let Some(board) = self.job_board.as_mut() {
             board.bind_mut().sync(None, Vector2::ZERO);

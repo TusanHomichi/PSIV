@@ -70,6 +70,12 @@ const fn drift(slot: usize) -> SceneOp {
     }
 }
 
+const fn facing_word(slot: usize, facing_word: u16) -> SceneOp {
+    SceneOp::Presentation {
+        op: PresentationOp::SetObjectFacingWord { slot, facing_word },
+    }
+}
+
 /// `Field_UpdateObjects`, `Field_LoadSprites`, `Field_BuildSprites`,
 /// `RunMapUpdates`, then one `VInt_Prepare`.
 const REBUILD: SceneOp = SceneOp::Presentation {
@@ -118,8 +124,11 @@ pub static STRIPPERS_APPEARING: Scene = Scene {
         },
         // 13: `DoMapUpdateLoop($3B)`.
         SceneOp::Wait { ticks: 60 },
-        // 14-19: `facing_dir = $10` on objects 1 to 3 (renderer state), then
-        // the coats at `$C440`, `$C480`, `$C4C0`.
+        // 14-16: `$073508` `moveq #$10, d0` -> `$6(a4)` on objects 1 to 3.
+        facing_word(1, 0x10),
+        facing_word(2, 0x10),
+        facing_word(3, 0x10),
+        // 17-22: the coats at `$C440`, `$C480`, `$C4C0`.
         stripper(5, COAT, 0x210, 0x210),
         drift(5),
         stripper(6, COAT, 0x1F0, 0x1F0),

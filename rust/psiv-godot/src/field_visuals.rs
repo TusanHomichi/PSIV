@@ -381,8 +381,26 @@ impl Field {
                 self.temporary_nodes.insert(slot, node);
             }
             if let Some(node) = self.temporary_nodes.get_mut(&slot) {
-                let sequence = asset.playback_sequence.as_deref().unwrap_or("idle_down");
-                let age = if asset.playback_sequence.is_some() {
+                let facing_seq = object
+                    .facing_word
+                    .map(|w| format!("walk_facing_0x{w:02X}"))
+                    .filter(|name| asset.has_sequence(name));
+                let walk_seq = object
+                    .walk_dir
+                    .map(|dir| {
+                        let kind = if object.is_walking() { "walk" } else { "idle" };
+                        sequence_name(kind, dir)
+                    })
+                    .filter(|name| asset.has_sequence(name));
+                let sequence = facing_seq
+                    .as_deref()
+                    .or(walk_seq.as_deref())
+                    .or(asset.playback_sequence.as_deref())
+                    .unwrap_or("idle_down");
+                let age = if asset.playback_sequence.is_some()
+                    && facing_seq.is_none()
+                    && walk_seq.is_none()
+                {
                     object.elapsed
                 } else {
                     self.anim_tick
@@ -398,6 +416,7 @@ impl Field {
             }
         }
 
+        self.sync_rewritten_npcs(scene_sprites_visible, &mut custom_slots);
         custom_slots.extend(self.sync_eclipse_torch(&torch_objects));
 
         if let Some(camera) = self.camera.as_mut() {

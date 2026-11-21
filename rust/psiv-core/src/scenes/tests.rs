@@ -177,7 +177,7 @@ fn every_scene_matches_its_docs_op_count() {
         ("Event_AiedoManSavings", 4),
         ("Event_AiedoManCrushOnAlys", 6),
         ("Event_HuntersGuild", 56),
-        ("Event_StrippersAppearing", 33),
+        ("Event_StrippersAppearing", 36),
         ("Event_MonsenEarthquake", 117),
         ("Event_RanchOwner", 13),
         ("Event_RanchOwnerAfterBattle", 3),

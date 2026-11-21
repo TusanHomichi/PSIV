@@ -44,7 +44,7 @@ struct LoadArt {
     object_ids: &'static [usize],
 }
 
-const LOAD_ART_RECORDS: [LoadArt; 8] = [
+const LOAD_ART_RECORDS: [LoadArt; 9] = [
     LoadArt {
         scene: "Event_PsycoWandChest",
         source: 0x1D5DF0,
@@ -101,6 +101,13 @@ const LOAD_ART_RECORDS: [LoadArt; 8] = [
         map_id: 0x001,
         object_ids: &[0x0338],
     },
+    LoadArt {
+        scene: "Event_StrippersAppearing",
+        source: 0x14A1CC,
+        destination_tile: 0x0372,
+        map_id: 0x05A,
+        object_ids: &[0x034C],
+    },
 ];
 
 /// How a temporary object's art reaches it.
@@ -110,6 +117,8 @@ enum SourceKind {
     RawFieldArt,
     /// The preceding `LoadArt` upload.
     Nemesis,
+    /// Already loaded by the map's own tileset/sprite uploads.
+    MapArt,
 }
 
 /// `playback_sequence` (and `playback_once`), and whether the Python spec
@@ -163,7 +172,7 @@ const fn plays(sequence: &'static str, once: bool, before_art_tile: bool) -> Opt
     })
 }
 
-const TEMPORARY_OBJECT_RECORDS: [Temporary; 10] = [
+const TEMPORARY_OBJECT_RECORDS: [Temporary; 17] = [
     temporary(
         "MeetingRika",
         (0x0018, 0x026A),
@@ -244,6 +253,62 @@ const TEMPORARY_OBJECT_RECORDS: [Temporary; 10] = [
         (0x1D712C, SourceKind::Nemesis),
         0x001,
     ),
+    temporary(
+        "Event_KingRappyDefeated",
+        (0x0194, 0x0202),
+        "Sekreas",
+        None,
+        (0, SourceKind::MapArt),
+        0x0ED,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x0344, 0x03BA),
+        "Stripper",
+        plays("walk_down", false, false),
+        (0, SourceKind::MapArt),
+        0x05A,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x0348, 0x03BA),
+        "StripperCoat",
+        plays("walk_down", false, false),
+        (0, SourceKind::MapArt),
+        0x05A,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x034C, 0x0372),
+        "StripClubCustomer",
+        None,
+        (0x14A1CC, SourceKind::Nemesis),
+        0x05A,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x035C, 0x03BA),
+        "DancingStripper1",
+        plays("walk_down", false, false),
+        (0, SourceKind::MapArt),
+        0x05A,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x0360, 0x03BA),
+        "DancingStripper2",
+        plays("walk_down", false, false),
+        (0, SourceKind::MapArt),
+        0x05A,
+    ),
+    temporary(
+        "Event_StrippersAppearing",
+        (0x0364, 0x03BA),
+        "DancingStripper3",
+        plays("walk_down", false, false),
+        (0, SourceKind::MapArt),
+        0x05A,
+    ),
 ];
 
 /// `Event_RuneFlaeli` uploads all four blobs before it builds an object.
@@ -259,6 +324,9 @@ const RUNE_FLAELI_LINE_3: usize = 0x1DE0B8;
 /// `Cutscene_Alshline` loads after the monster art.
 const ALSHLINE_LINE_3: usize = 0x52848;
 const ALSHLINE_LINE_3_WORDS: usize = 14;
+/// `Event_KingRappyDefeated` (`loc_730FC`): sixteen words copied to
+/// `Palette_Line_4` (CRAM line 3) before Sekreas walks in.
+const SEKREAS_LINE_3: usize = 0x730FC;
 const IGGLANOVA: usize = 0x0188;
 const CHEST_BARRIER_SPLINTER: usize = 0x01FC;
 
@@ -388,6 +456,7 @@ fn art_blob(rom: &[u8], spec: &Temporary) -> Result<(Vec<u8>, usize, &'static st
             let (raw, consumed) = nemesis::decompress(rom, spec.source)?;
             Ok((raw, consumed, "nemesis"))
         }
+        SourceKind::MapArt => Ok((Vec::new(), 0, "map")),
     }
 }
 
@@ -557,6 +626,7 @@ pub fn temporary_objects(rom: &[u8], root: &Path, inputs: &Inputs) -> Result<Vec
                 art.ram.insert(spec.source as u32, source);
             }
             SourceKind::Nemesis => art.vram.add(usize::from(spec.art_tile), &raw)?,
+            SourceKind::MapArt => {}
         }
         let mut palette = map_palette_rgb(rom, map.palette.pointer)?;
         let mut palette_source = None;
@@ -578,6 +648,9 @@ pub fn temporary_objects(rom: &[u8], root: &Path, inputs: &Inputs) -> Result<Vec
             palette_source = Some(
                 "Alshline Igglanova CRAM line 3: fourteen words at 0x052848, two retained map words",
             );
+        } else if spec.scene == "Event_KingRappyDefeated" {
+            palette.splice(32..48, palette_words(rom, SEKREAS_LINE_3, 16)?);
+            palette_source = Some("Event_KingRappyDefeated CRAM line 3 at 0x0730FC");
         }
         let rendered = object_sprite(
             rom,

@@ -68,6 +68,23 @@ fn the_dancers_come_out_and_the_flag_is_the_last_write() {
         })
         .collect();
     assert_eq!(routines, [(0, 0x34C)], "the customer, `$0735AE`");
+    let facing_writes: Vec<_> = log
+        .iter()
+        .filter_map(|(_, e)| match e {
+            SceneEffect::Presentation {
+                op:
+                    SceneOp::Presentation {
+                        op: PresentationOp::SetObjectFacingWord { slot, facing_word },
+                    },
+            } => Some((*slot, *facing_word)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        facing_writes,
+        [(1, 0x10), (2, 0x10), (3, 0x10)],
+        "the strippers' facing_dir := $10 writes at `$073508`"
+    );
     let created: Vec<_> = log
         .iter()
         .filter_map(|(_, e)| match e {
