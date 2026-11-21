@@ -4,8 +4,8 @@
 mod common;
 
 use psiv_core::{
-    CharId, Direction, EventIndex, Flag, GameState, SceneEffect, SceneInput, SceneOp, SceneRunner,
-    StepFrames, scene_for,
+    ActorRef, Cell, CharId, Direction, EventIndex, Flag, GameState, SceneEffect, SceneInput,
+    SceneOp, SceneRunner, ScriptedActor, StepFrames, scene_for,
 };
 
 fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
@@ -24,7 +24,16 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
     chaz.status = status;
     let before = state.roster().clone();
 
-    let mut runner = SceneRunner::new(scene.ops, vec![], StepFrames::default());
+    let cast: Vec<ScriptedActor> = (0..party.len())
+        .map(|slot| {
+            ScriptedActor::new(
+                ActorRef::PartyMember(slot),
+                Cell::new(0, 0),
+                Direction::Down,
+            )
+        })
+        .collect();
+    let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::default());
     let mut input = SceneInput::None;
     let mut log = Vec::new();
     for _ in 0..20_000 {
@@ -41,6 +50,15 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
             .any(|e| matches!(e, SceneEffect::MapRequested { .. }))
         {
             SceneInput::MapLoaded
+        } else if effects.iter().any(|e| {
+            matches!(
+                e,
+                SceneEffect::Presentation {
+                    op: SceneOp::PanCamera { .. }
+                }
+            )
+        }) {
+            SceneInput::CameraArrived
         } else {
             SceneInput::DialogueClosed
         };
@@ -70,9 +88,21 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
             _ => None,
         })
         .collect();
-    assert_eq!(loads.len(), 2);
+    assert_eq!(loads.len(), 3);
     assert_eq!(
-        loads[1],
+        loads[0],
+        SceneOp::LoadMap {
+            map: 0xD3,
+            prev_map: 0xAC,
+            start_x: 0x3D,
+            start_y: 0x38,
+            facing: Direction::Down,
+            align: 0,
+            clear_load_flags: 0,
+        }
+    );
+    assert_eq!(
+        loads[2],
         SceneOp::LoadMap {
             map: 0x00,
             prev_map: 0xAC,

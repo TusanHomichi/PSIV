@@ -15,14 +15,14 @@ use patches::scene_tests::cited_rows;
 
 fn uncited(
     writes: &BTreeMap<&str, Vec<(u32, u32, u16)>>,
-    rows: &BTreeMap<&str, (usize, BTreeSet<u16>)>,
+    rows: &BTreeMap<&str, Vec<(usize, BTreeSet<u16>)>>,
 ) -> Vec<String> {
     let mut problems = BTreeSet::new();
     for (scene, writes) in writes {
         for &(_, _, chunk) in writes {
             if !rows
                 .get(scene)
-                .is_some_and(|(_, chunks)| chunks.contains(&chunk))
+                .is_some_and(|maps| maps.iter().any(|(_, chunks)| chunks.contains(&chunk)))
             {
                 problems.insert(format!("{scene}: chunk ${chunk:02X} has no cited row"));
             }
@@ -91,16 +91,27 @@ fn every_compiled_scene_write_and_platform_pair_resolves_in_the_emitted_map() {
         rows.keys().collect()
     );
     for (scene, written) in &writes {
-        let (map, expected) = &rows[scene];
+        let map_rows = &rows[scene];
+        let expected: BTreeSet<u16> = map_rows
+            .iter()
+            .flat_map(|(_, chunks)| chunks.iter().copied())
+            .collect();
         assert_eq!(
             written.iter().map(|(_, _, c)| *c).collect::<BTreeSet<_>>(),
-            *expected,
+            expected,
             "{scene}"
         );
-        assert_eq!(
-            unresolved(scene, &e.maps[map], written),
-            Vec::<String>::new()
-        );
+        for (map, expected_chunks) in map_rows {
+            let map_writes: Vec<_> = written
+                .iter()
+                .copied()
+                .filter(|(_, _, c)| expected_chunks.contains(c))
+                .collect();
+            assert_eq!(
+                unresolved(scene, &e.maps[map], &map_writes),
+                Vec::<String>::new()
+            );
+        }
     }
     // Each of the six compiled platform builders must retain both pairs of
     // start/end writes; the independent retail transcription stays Python.
@@ -156,9 +167,7 @@ fn missing_rows_chunks_and_wrong_composite_references_are_named() {
         ["Event_TylerGraveOpening: chunk $47 has no cited row"]
     );
     let mut missing = rows.clone();
-    missing
-        .get_mut("Cutscene_PsycoWand")
-        .unwrap()
+    missing.get_mut("Cutscene_PsycoWand").unwrap()[0]
         .1
         .remove(&0x90);
     assert_eq!(

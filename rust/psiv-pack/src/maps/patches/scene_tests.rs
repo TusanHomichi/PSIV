@@ -46,19 +46,24 @@ const GUARDS: &[SceneChunkWrite] = &[
     },
 ];
 
-pub(in crate::maps) fn cited_rows(rom: &[u8]) -> BTreeMap<&'static str, (usize, BTreeSet<u16>)> {
-    let mut rows = BTreeMap::new();
+pub(in crate::maps) fn cited_rows(
+    rom: &[u8],
+) -> BTreeMap<&'static str, Vec<(usize, BTreeSet<u16>)>> {
+    let mut rows: BTreeMap<&'static str, Vec<(usize, BTreeSet<u16>)>> = BTreeMap::new();
     for row in SCENE_CHUNK_WRITES.iter().chain(GUARDS) {
         let chunks = row_chunks(rom, row)
             .unwrap()
             .into_iter()
             .map(u16::from)
             .collect();
+        let entry = rows.entry(row.scene).or_default();
         assert!(
-            rows.insert(row.scene, (row.map_id, chunks)).is_none(),
-            "{} repeated",
-            row.scene
+            !entry.iter().any(|(map_id, _)| *map_id == row.map_id),
+            "{} repeated for map {:#05x}",
+            row.scene,
+            row.map_id
         );
+        entry.push((row.map_id, chunks));
     }
     rows
 }
@@ -70,7 +75,11 @@ fn guard_only_rows_pin_their_own_writes_without_adding_atlas_chunks() {
     };
     for row in GUARDS {
         assert!(!row_chunks(rom.bytes(), row).unwrap().is_empty());
-        assert!(!SCENE_CHUNK_WRITES.iter().any(|r| r.scene == row.scene));
+        assert!(
+            !SCENE_CHUNK_WRITES
+                .iter()
+                .any(|r| r.scene == row.scene && r.map_id == row.map_id)
+        );
         for &(at, _) in row.checks {
             let mut broken = rom.bytes().to_vec();
             broken[at] ^= 1;

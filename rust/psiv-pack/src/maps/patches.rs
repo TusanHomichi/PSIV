@@ -145,6 +145,27 @@ const SCENE_CHUNK_WRITES: &[SceneChunkWrite] = &[
             (0x6DD2A, "13BC00A67020"),
         ],
     },
+    SceneChunkWrite {
+        scene: "Cutscene_ZioDefeated",
+        map_id: 0x0D3,
+        chunks: &[
+            0xAD, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA,
+            0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0,
+        ],
+        table: None,
+        // `loc_75F34` (open) and `loc_75FA8` (close): 10 triples of FG chunks
+        // at `(14..=16, 12)` on Nurvus B4 Part 2 (`$0D3`).
+        checks: &[
+            (
+                0x75F34,
+                "ADAEAFB0B1B2B3B4B5B6B7B8B9BABBB9BCBBB9BDBBB9BEBBB9BFBBB9C0BBFF",
+            ),
+            (
+                0x75FA8,
+                "B9C0BBB9BFBBB9BEBBB9BDBBB9BCBBB9BABBB6B7B8B3B4B5B0B1B2ADAEAFFF",
+            ),
+        ],
+    },
 ];
 
 fn refuse<T>(message: String) -> Result<T, PackError> {

@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$0B]` at `$05A580`; scene event is `$800B`.
 - **Trigger:** Nurvus B4 Part2 `$D3`, `RunEvent_ZioDefeated` (`$20`): Zio
   Nurvus `$65` set and Gryz Gone `$68` clear.
-- **Data:** `post_rika_cutscenes.rs`, `ZIO_DEFEATED` (76 ops).
+- **Data:** `post_rika_cutscenes.rs`, `ZIO_DEFEATED` (129 ops).
 
 ## Clone audit
 
@@ -19,12 +19,14 @@ ported; see the [source correction](../source-notes/disassembly-discrepancies.md
 |---:|---|---|---|
 | 0-12 | `$075A12..$075AA6` | init/fade, panel `$6D`, Tandle `$CE` pulses, waits, raw dialogue entry 0 | panel/sound/wait/dialogue |
 | 13-17 | `$075ABE..$075B15` | map update 60, tone ramp, destroy/chunks, map update 60, fade out at `$075B10` | waits/presentation |
-| 18-43 | `$075B16..$075CE9` | Demi's sequence in BioPlant B4: fade in, map update 10; sprites off and `Event_RunDialogue` (`$075BA0`); `SFXID_RidingElevator` twice (`$075C04`, `$075C3A`) between map updates of 60; `Event_RunDialogue` (`$075C56`); `SFXID_PowerDown` (`$075C5C`), map update 120, `Palette_Line_2` words `$0C`/`$0D` := `$024`/`$240` (`$075C70`), 60 frames; `Event_RunDialogue` (`$075C94`); a fresh screen, panel `$70`, 20 frames, sprites on and `Event_RunDialogue5` (`$075CD4`); stop music, map update 20. Demi's placement, the map refresh, the camera, her steps and the two elevator object loops (`loc_75EE0`, `loc_75F54`) are not drawn ([#414](https://github.com/TusanHomichi/PSIV/issues/414)) | fade/dialogue/sound/palette/panel |
-| 44-48 | `$075CEA..$075D71` | Motavia load, music `$8C`, fade in at `$075D66`, `jsr (Event_MotaSpaceportAppearing)` at `$075D6C` — whose `loc_6B7FA` writes BG chunk (26,45)←`$3F` and sets Mota Spaceport `$66` (op 48, `ps4.asm:144825-144826`: before the second `RefreshMap`, so that load carries the spaceport's page hook) | sound/fade/`WriteMapChunks` |
-| 49-54 | `$075D72..$075D9B` | fade out, init, fade in; load `DialogueTree36` at `$075D84`; a second init and fade in at `$075D90/$075D96` | fade/tree |
-| 55-65 | `$075D9C..$075DFD` | panel sequence `$73/$74/$75`, waits 30/60/20, sprites on, resume dialogue | panel/dialogue |
-| 66-69 | `$075E30..$075E8B` | clear field objects; remove Gryz `$04`, clear status; remove Demi `$06`, clear status | party/roster writes |
-| 70-75 | `$075E8C..$075EDF` | final Motavia load from BioPlant B4 Part2 at `($6C,$B8)`, down; `RefreshMap` at `$075EB6`, fade-in at `$075EBC`; set `$68,$66,$61`; return 1, `rts` at `$075EDE` | `LoadMap`, flags, return |
+| 18-28 | `$075B16..$075BA5` | clear `$FFFFC300`/`$FFFFC340`, `RefreshMap` (`$D3`, bit 3 set), place Demi at `($1E8,$1C0)`, fade in, pan camera to Demi (`speed=1`), turn Demi left, map update 10, turn Demi down, sprites off and `Event_RunDialogue` (`$075BA0`) | `DespawnNpc`/`LoadMap`/`PlaceActor`/`PanCamera`/`Face`/`Wait`/dialogue |
+| 29-80 | `$075BA6..$075C55` | set follow mode, pan camera to Demi, `Event_StepObject` 16px up backwards (`$075BD8`), face up, `Event_StepObject` 32px up (`$075BF4`), map update 60, `SFXID_RidingElevator` (`$075C04`), `loc_75EE0` (10 FG chunk triples `$AD..$C0` at `(14..=16,12)` × 8 map-update frames), map update 60, `Event_StepObject` 48px up (`$075C2A`), map update 60, `$E0` (`$075C3A`), `loc_75F54` (reverse 10 triples × 6 map-update frames), map update 60 | `SetFollowMode`/`PanCamera`/`StepObjectAlongFacing`/`WriteMapChunks`/`Wait` |
+| 81-96 | `$075C56..$075CE9` | `Event_RunDialogue` (`$075C56`); `SFXID_PowerDown` (`$075C5C`), map update 120, `Palette_Line_2` words `$0C`/`$0D` := `$024`/`$240` (`$075C70`), 60 frames; `Event_RunDialogue` (`$075C94`); a fresh screen, panel `$70`, 20 frames, sprites on and `Event_RunDialogue5` (`$075CD4`); stop music, map update 20 | fade/dialogue/sound/palette/panel |
+| 97-101 | `$075CEA..$075D71` | Motavia load, music `$8C`, fade in at `$075D66`, `jsr (Event_MotaSpaceportAppearing)` at `$075D6C` — whose `loc_6B7FA` writes BG chunk (26,45)←`$3F` and sets Mota Spaceport `$66` (op 101, `ps4.asm:144825-144826`: before the second `RefreshMap`, so that load carries the spaceport's page hook) | sound/fade/`WriteMapChunks` |
+| 102-107 | `$075D72..$075D9B` | fade out, init, fade in; load `DialogueTree36` at `$075D84`; a second init and fade in at `$075D90/$075D96` | fade/tree |
+| 108-118 | `$075D9C..$075DFD` | panel sequence `$73/$74/$75`, waits 30/60/20, sprites on, resume dialogue | panel/dialogue |
+| 119-122 | `$075E30..$075E8B` | clear field objects; remove Gryz `$04`, clear status; remove Demi `$06`, clear status | party/roster writes |
+| 123-128 | `$075E8C..$075EDF` | final Motavia load from BioPlant B4 Part2 at `($6C,$B8)`, down; `RefreshMap` at `$075EB6`, fade-in at `$075EBC`; set `$68,$66,$61`; return 1, `rts` at `$075EDE` | `LoadMap`, flags, return |
 
 The intermediate load is Motavia `$00`, previous BioPlant B4 Part2 `$AC`,
 start `($70,$BC)`. The final load is the same map/previous map with start
