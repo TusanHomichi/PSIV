@@ -191,6 +191,7 @@ impl Field {
         self.present_shop();
         self.present_camp();
         self.present_destination();
+        self.present_world_map();
         self.sync_visuals(false);
     }
 

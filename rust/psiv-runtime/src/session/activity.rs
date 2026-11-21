@@ -21,6 +21,8 @@ pub enum Activity {
     Battle,
     /// A scene's ship destination menu.
     Destination,
+    /// The overworld planet map screen (`FieldRoutine_WorldMap`, #122).
+    WorldMap,
     /// The shop or inn window.
     Shop,
     /// The camp menu or a chest window.
@@ -43,6 +45,7 @@ impl Activity {
             Activity::GameOver => "game_over",
             Activity::Battle => "battle",
             Activity::Destination => "destination",
+            Activity::WorldMap => "world_map",
             Activity::Shop => "shop",
             Activity::Camp => "camp",
             Activity::Scene => "scene",
@@ -67,6 +70,8 @@ impl Session {
             Activity::GameOver
         } else if self.destination.is_some() {
             Activity::Destination
+        } else if self.world_map.is_some() {
+            Activity::WorldMap
         } else if self.menu_scene.is_some() || self.flight.is_some() {
             Activity::Scene
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {

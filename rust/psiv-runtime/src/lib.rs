@@ -101,8 +101,8 @@ pub use session::{
     SYSTEM_OPTIONS, SceneStart, Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock,
     ShopView, SkillEntry, SkillSlotView, Start, TOWN_PAGE_ROWS, TargetKind, TeardownView,
     TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView,
-    TitleWindow, WindowRecord, WindowRect, WindowTeardown, battle_dwell_frames, camp_fixture,
-    camp_travel_fixture, encounter_entry_fixture, scene_fixture, town_page_rows,
+    TitleWindow, WindowRecord, WindowRect, WindowTeardown, WorldMapView, battle_dwell_frames,
+    camp_fixture, camp_travel_fixture, encounter_entry_fixture, scene_fixture, town_page_rows,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 pub use view::ObjectMotion;

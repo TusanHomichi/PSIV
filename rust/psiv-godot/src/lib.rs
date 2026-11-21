@@ -47,6 +47,7 @@ mod transitions;
 mod view;
 mod window_layer;
 mod window_palette;
+mod world_map;
 use battle::BattleScreen;
 use boot::title_bypassed;
 use camp::CampMenu;
@@ -59,6 +60,7 @@ use save_dir::session_store;
 use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView};
+use world_map::WorldMapScreen;
 
 use psiv_core::StepFrames;
 use psiv_data::GameData;
@@ -211,6 +213,7 @@ struct Field {
     status_presentation: field_status::StatusPresentation,
     shop: Option<Gd<ShopWindow>>,
     destination: Option<Gd<DestinationScreen>>,
+    world_map: Option<Gd<WorldMapScreen>>,
     job_board: Option<Gd<JobBoardScreen>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
@@ -347,6 +350,7 @@ impl INode2D for Field {
             status_presentation: field_status::StatusPresentation::default(),
             shop: None,
             destination: None,
+            world_map: None,
             job_board: None,
             camp_menu: None,
             title: None,
@@ -574,6 +578,13 @@ impl INode2D for Field {
         }
         self.base_mut().add_child(&destination);
         self.destination = Some(destination);
+
+        let mut world_map = WorldMapScreen::new_alloc();
+        if let Ok(set) = psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            world_map.bind_mut().configure(&self.pack_dir, &set);
+        }
+        self.base_mut().add_child(&world_map);
+        self.world_map = Some(world_map);
 
         let mut job_board = JobBoardScreen::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
@@ -916,7 +927,7 @@ impl Field {
             // A battle-mode frame here is the field frame a battle began on;
             // the battle loop's own frames go through `drive_battle_if_active`.
             FrameMode::Field | FrameMode::Battle => self.present_frame(frame),
-            FrameMode::Shop | FrameMode::Camp | FrameMode::Destination => {
+            FrameMode::Shop | FrameMode::Camp | FrameMode::Destination | FrameMode::WorldMap => {
                 self.present_menu_frame(frame);
             }
             // The defeat fade, and the frame its last count hands the title

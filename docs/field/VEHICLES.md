@@ -537,10 +537,10 @@ Still open:
    Dark Force 2; the route's later chapters carry it and replay through the
    Ending. Tape 29 remains the oracle fixture for mounted movement, dismount
    refusal and mounted battle entry.
-2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen in
-   retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
-   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
-   ([#122](https://github.com/TusanHomichi/PSIV/issues/122)).
+2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen
+   (`FieldRoutine_WorldMap`, `ps4.asm:136977-137245`, #122) on Motavia and
+   Dezolis, showing the decoded terrain overview with a blinking party marker
+   and 2 px/frame D-pad scrolling (horizontal-only on Dezolis).
 
 Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in

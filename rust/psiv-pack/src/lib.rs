@@ -116,7 +116,7 @@ pub const SECTIONS: &[Section] = &[
     },
     Section {
         name: "travel",
-        claims: &["travel.json"],
+        claims: &["travel.json", "travel"],
         build: travel::build,
     },
     Section {

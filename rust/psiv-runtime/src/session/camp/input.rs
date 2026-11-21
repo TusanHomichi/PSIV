@@ -444,12 +444,10 @@ impl CampView {
                 self.close();
             }
             ItemUseOutcome::MapScreen => {
-                // `ItemAction_Map` accepted (`Routine_Exit_Flags` bit 2): the
-                // cartridge opens the overworld map screen, which the port does
-                // not have (`docs/camp/SHOPS.md`). The line says so rather than
-                // inventing a refusal the item did not get.
-                self.message = "MAP SCREEN NOT READY".to_owned();
-                self.page = CampPage::ItemResult;
+                // `ItemAction_Map` accepted (`Routine_Exit_Flags` bit 2): close
+                // the camp menu and hand control to `FieldRoutine_WorldMap` (#122).
+                self.world_map_requested = true;
+                self.close();
             }
             ItemUseOutcome::Refused { message } => {
                 self.message = message;
