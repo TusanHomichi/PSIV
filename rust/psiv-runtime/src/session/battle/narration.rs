@@ -181,6 +181,10 @@ pub(crate) fn narration(
             line: format!("{}: {name}", fighter_name(*actor, names)),
             beat: BattleBeat::None,
         },
+        BattleEvent::ComboUsed { name, .. } => Narration {
+            line: name.clone(),
+            beat: BattleBeat::None,
+        },
         BattleEvent::TechniqueRejected { reason, .. } => Narration {
             line: match reason {
                 psiv_core::battle::TechniqueRejection::Sealed => "Tech sealed!",

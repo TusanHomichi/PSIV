@@ -149,6 +149,32 @@ pub fn battle_data(files: &BattleFiles) -> Result<BattleData, BridgeError> {
     data = data.with_skills(skills);
     data = data.with_battle_items(battle_item_records(files)?);
     data = data.with_enemy_skills(enemy_skill_records(files)?);
+    let combos = files
+        .abilities
+        .combos
+        .iter()
+        .map(|record| {
+            let reject = || {
+                BridgeError::Rejected(format!(
+                    "incomplete combo record: {} ({})",
+                    record.id, record.display_name
+                ))
+            };
+            Ok(psiv_core::battle::ComboRecord {
+                id: record.id,
+                name: record.display_name.clone(),
+                effect: record.effect_id,
+                range: record.range,
+                power: record.power_or_hit_chance,
+                resistance: u8::try_from(record.resistance_stat.id).map_err(|_| reject())?,
+                element: u8::try_from(record.element.id).map_err(|_| reject())?,
+                participants: record.participants,
+                ordered: record.ordered,
+                setups: record.setups.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, BridgeError>>()?;
+    data = data.with_combos(combos);
     // The records Fusion's and COMBINE's objects copy over the battle's own
     // (`psiv_core`'s `enemy_fusion`), keyed by the label of their bytes.
     data = data.with_inline_formations(files.formations.inline_formations.iter().map(|inline| {

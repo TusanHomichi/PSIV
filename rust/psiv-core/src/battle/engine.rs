@@ -159,7 +159,7 @@ impl RoundOrders {
         RoundOrders::Commands(Vec::new())
     }
 
-    fn command_for(&self, slot: usize) -> Command {
+    pub(super) fn command_for(&self, slot: usize) -> Command {
         match self {
             RoundOrders::Commands(commands) => commands.get(slot).copied().unwrap_or_default(),
             RoundOrders::Run => Command::Attack,
@@ -516,11 +516,30 @@ impl Battle {
             order: queue.iter().map(|entry| entry.fighter).collect(),
         });
 
-        for entry in &queue {
+        let mut cursor = 0;
+        while cursor < queue.len() {
             if self.settle_outcome().is_some() {
                 break;
             }
             let turn_start = events.len();
+            if !self.vehicle
+                && let Some(matched) =
+                    super::combo::detect_combo(&self.roster, &queue[cursor..], orders, data)?
+            {
+                let consumed = matched.steps.len();
+                let died = super::combo::resolve_combo(
+                    &mut self.roster,
+                    &matched,
+                    data,
+                    rolls,
+                    &mut events,
+                );
+                self.reward_defeated(&died, data)?;
+                self.mark_transient(&events[turn_start..]);
+                cursor += consumed;
+                continue;
+            }
+            let entry = &queue[cursor];
             self.take_turn(
                 entry,
                 orders,
@@ -541,6 +560,7 @@ impl Battle {
                 });
                 return Ok(events);
             }
+            cursor += 1;
         }
 
         // `Battle_RestoreStatsAtTurnEnd` — Defend wears off here, which is why

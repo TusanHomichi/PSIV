@@ -62,7 +62,7 @@ mod travel;
 
 pub use battle::{
     AbilitiesFile, Ability, AbilityTargeting, BATTLE_BACKGROUNDS_PATH, BATTLE_DIRECTORY,
-    BattleBackgrounds, BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt, CommandUiTile,
+    BattleBackgrounds, BattleFiles, COMMAND_UI_ART_PATH, Combo, CommandUiArt, CommandUiTile,
     DAMAGE_DIGIT_ART_PATH, DamageDigitArt, ELEMENT_SLOTS, EffectTable, EncounterGroup,
     EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation, EnemyAnimationCensus,
     EnemyAnimationDispatch, EnemyAnimationEvidence, EnemyAnimationFrameSequence,

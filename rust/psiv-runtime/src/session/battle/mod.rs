@@ -554,18 +554,29 @@ impl BattleMode {
             return;
         };
         if let Some(acted) = self.acted.as_mut() {
-            let actor = match &queued.event {
-                BattleEvent::Attacked { actor, .. }
-                | BattleEvent::Defended { actor }
-                | BattleEvent::TechniqueUsed { actor, .. }
-                | BattleEvent::SkillUsed { actor, .. }
-                | BattleEvent::ItemUsed { actor, .. } => Some(*actor),
-                _ => None,
-            };
-            if let Some(actor) = actor.filter(|actor| actor.side() == Side::Party)
-                && !acted.contains(&actor.get())
-            {
-                acted.push(actor.get());
+            match &queued.event {
+                BattleEvent::ComboUsed { participants, .. } => {
+                    for actor in participants {
+                        if actor.side() == Side::Party && !acted.contains(&actor.get()) {
+                            acted.push(actor.get());
+                        }
+                    }
+                }
+                _ => {
+                    let actor = match &queued.event {
+                        BattleEvent::Attacked { actor, .. }
+                        | BattleEvent::Defended { actor }
+                        | BattleEvent::TechniqueUsed { actor, .. }
+                        | BattleEvent::SkillUsed { actor, .. }
+                        | BattleEvent::ItemUsed { actor, .. } => Some(*actor),
+                        _ => None,
+                    };
+                    if let Some(actor) = actor.filter(|actor| actor.side() == Side::Party)
+                        && !acted.contains(&actor.get())
+                    {
+                        acted.push(actor.get());
+                    }
+                }
             }
         }
         self.sounds.extend(queued.sounds);
@@ -770,6 +781,17 @@ impl BattleMode {
                 remaining_tp,
                 ..
             } => (*actor, None, Some(*remaining_tp)),
+            BattleEvent::ComboUsed { tp_after, .. } => {
+                for &(actor, remaining_tp) in tp_after {
+                    if actor.side() == Side::Party
+                        && let Some(member) =
+                            self.party.iter_mut().find(|m| m.fighter == actor.get())
+                    {
+                        member.tp = remaining_tp;
+                    }
+                }
+                return;
+            }
             BattleEvent::StatusInflicted { target, status, .. } => {
                 self.update_live_status(*target, |word| {
                     // `AbilityEffect_Paralyze` clears the sleep bit it finds.
