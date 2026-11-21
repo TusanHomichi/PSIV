@@ -574,6 +574,15 @@ fn bespoke_kind(symbol: Option<&str>) -> Option<BespokeKind> {
             speed: WanderSpeed::Selector0,
             leash: leash(32, 32, 16, 16),
         },
+        // `FieldObj_Tinkerbell` (`$330`, `ps4.asm:96627`): installed onto
+        // RockyHouse object 2 by `MapDataMan_RockyHouse` once Rocky is home;
+        // records Rocky's (`$FFFFC3C0`, object 3) cell whenever he is between
+        // steps and walks there with `$2020/$1010` leash.
+        "Tinkerbell" => Follow {
+            target: FollowTarget::ObjectCell(3),
+            speed: WanderSpeed::Selector0,
+            leash: leash(32, 32, 16, 16),
+        },
 
         // Input, mode, and cast-owned actors. Their input is scene authority,
         // so inventing a field AI here would put scene logic in the bridge.
@@ -919,5 +928,60 @@ mod tests {
         );
         assert!(bespoke.get(5).is_some(), "and follows");
         assert!(wander.get(7).is_none(), "a despawned walker stops");
+    }
+
+    /// `MapDataMan_RockyHouse` (`ps4.asm:110475`) rewrites object 2 to `$330`
+    /// (`FieldObj_Tinkerbell`, `ps4.asm:96627`) once `EventFlag_RockyHome` is
+    /// set: `build_bespoke` installs the `ObjectCell(3)` follow controller and
+    /// Tinkerbell walks after Rocky instead of standing still.
+    #[test]
+    fn rocky_house_installs_tinkerbell_controller_and_follows_rocky() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return;
+        }
+        let data = GameData::load(pack).expect("pack loads");
+        let record = data
+            .map(psiv_data::MapId(0x065))
+            .expect("RockyHouse")
+            .clone();
+        let outcome = EffectOutcome {
+            rewrites: vec![(2, 0x330)],
+            ..EffectOutcome::default()
+        };
+        let mut map =
+            field_map_retaining_objects(&record, Some(&outcome), &[]).expect("map builds");
+        let mut bespoke = build_bespoke(&map, &record).unwrap();
+        let actor = bespoke
+            .get(2)
+            .expect("object 2 rewritten to $330 gets Tinkerbell controller");
+        assert_eq!(
+            actor.kind(),
+            BespokeKind::Follow {
+                target: FollowTarget::ObjectCell(3),
+                speed: WanderSpeed::Selector0,
+                leash: leash(32, 32, 16, 16),
+            }
+        );
+
+        let start = map.npcs()[2].cell;
+        let mut rolls = psiv_core::battle::SliceRolls::new(&[]);
+        for frame in 0..=160u16 {
+            let ctx = psiv_core::BespokeContext {
+                party: &[],
+                driver_pixels: (0, 0),
+                flags: psiv_core::BespokeFlags::default(),
+                frame,
+            };
+            for i in 0..map.npcs().len() {
+                bespoke.tick_one_for_npc(i, &mut map, &mut rolls, ctx);
+            }
+        }
+        assert_ne!(
+            map.npcs()[2].cell,
+            start,
+            "Tinkerbell must walk after Rocky once $330 is active"
+        );
     }
 }

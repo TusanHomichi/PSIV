@@ -528,3 +528,67 @@ fn barrier_beams_keep_their_timer_visibility_and_pose_between_calls() {
     }
     assert_eq!(rolls.drawn(), 0);
 }
+
+#[test]
+fn object_cell_follower_tracks_exact_cell_when_target_is_between_steps() {
+    // Object 0 = Tinkerbell (`ObjectCell(1)`), Object 1 = Rocky (`Fixed` right).
+    let mut map = map_with_object_pair();
+    map.set_npc_cell(0, Cell::new(2, 4)).unwrap();
+    map.set_npc_cell(1, Cell::new(4, 4)).unwrap();
+    let mut set = BespokeSet::build(
+        &map,
+        &[
+            (
+                0,
+                BespokeKind::Follow {
+                    target: FollowTarget::ObjectCell(1),
+                    speed: WanderSpeed::Selector0,
+                    leash: Leash {
+                        x_max: 32,
+                        y_max: 32,
+                        x: 16,
+                        y: 16,
+                    },
+                },
+            ),
+            (
+                1,
+                BespokeKind::Fixed {
+                    command: 4, // right
+                    speed: WanderSpeed::Selector0,
+                    leash: Leash {
+                        x_max: 4,
+                        y_max: 4,
+                        x: 2,
+                        y: 2,
+                    },
+                },
+            ),
+        ],
+    )
+    .unwrap();
+    let mut rolls = SliceRolls::new(&[]);
+    let ctx = context(&[], BespokeFlags::default(), 0);
+
+    // Frame 0: Rocky is idle at (4,4), so Tinkerbell latches (4,4) and begins
+    // stepping right to (3,4); then Rocky begins stepping right to (5,4).
+    set.tick_one_for_npc(0, &mut map, &mut rolls, ctx);
+    set.tick_one_for_npc(1, &mut map, &mut rolls, ctx);
+    assert_eq!(map.npcs()[0].cell, Cell::new(3, 4));
+    assert_eq!(map.npcs()[1].cell, Cell::new(5, 4));
+    assert!(set.get(1).unwrap().is_stepping());
+
+    // Advance enough ticks for both steps to complete and for Tinkerbell to
+    // follow Rocky to the cell immediately behind him.
+    for frame in 1..=64u16 {
+        let ctx = context(&[], BespokeFlags::default(), frame);
+        set.tick_one_for_npc(0, &mut map, &mut rolls, ctx);
+        set.tick_one_for_npc(1, &mut map, &mut rolls, ctx);
+    }
+    assert!(
+        map.npcs()[0].cell.x > 3,
+        "Tinkerbell must keep walking after Rocky, got {:?}",
+        map.npcs()[0].cell
+    );
+    assert_eq!(rolls.drawn(), 0);
+}
