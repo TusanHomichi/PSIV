@@ -76,7 +76,7 @@ def rust_rows(text: str | None = None) -> list[Row]:
     table = RUST_TABLE_RE.search(text)
     if table is None:
         raise ValueError(f"no SCENE_CHUNK_WRITES table in {RUST_PATCHES}")
-    body = table.group(1)
+    body = re.sub(r"//[^\n]*", "", table.group(1))
     rows: list[Row] = []
     for match in RUST_ROW_RE.finditer(body):
         scene, map_id, chunks, _, t_offset, t_length, checks = match.groups()
