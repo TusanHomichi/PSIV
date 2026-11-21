@@ -71,11 +71,35 @@ fn title_emits_all_assets_layout_placements_and_last_frame_replay() {
     assert_eq!(st["track_count"], 48);
     let tracks = st["tracks"].as_array().unwrap();
     assert_eq!(tracks.len(), 48);
-    assert_eq!(tracks[0]["title"], "THE END OF THE MILLENNIUM");
+    assert_eq!(
+        crate::test_support::text_pin(tracks[0]["title"].as_str().unwrap()),
+        (
+            25,
+            "acb4a5a1446b1b7f8457b61a7ab4c479f77ff3c3f8ee61d77fba8a520196083c".into()
+        )
+    );
     assert_eq!(tracks[0]["sound_id"], 0xAC);
-    assert_eq!(tracks[0]["composer"], "IPPO");
-    assert_eq!(tracks[2]["composer"], "GAKI CHAN");
-    assert_eq!(tracks[47]["title"], "PAO-PAO!");
+    assert_eq!(
+        crate::test_support::text_pin(tracks[0]["composer"].as_str().unwrap()),
+        (
+            4,
+            "f315e35819d70f38f1ec406cef7e2e8df4323409a711023af6086735566f7d8f".into()
+        )
+    );
+    assert_eq!(
+        crate::test_support::text_pin(tracks[2]["composer"].as_str().unwrap()),
+        (
+            9,
+            "87b28a072f555836bfe8f4b52ffc1b8e1447a60d4bfed8a64f2f21f915533db8".into()
+        )
+    );
+    assert_eq!(
+        crate::test_support::text_pin(tracks[47]["title"].as_str().unwrap()),
+        (
+            8,
+            "3152c0b03720c9b8c2e1651a2f33f736ba3255e1dff4f7ae6189afe0c77ef945".into()
+        )
+    );
     assert_eq!(st["repeat_override"]["when_sound_id"], 0xB1);
     assert_eq!(st["repeat_override"]["play_sound_id"], 0xA7);
 
