@@ -8,16 +8,20 @@ use crate::{LootResult, Runtime};
 use super::{CampPage, CampView, MenuInput, wrap};
 
 impl CampView {
-    /// Opens the chest window over the camp's own state.
+    /// Opens the chest or full-pack battle-drop window over the camp's own state.
     pub(crate) fn open_loot(runtime: &Runtime) -> CampView {
         let mut view = CampView::open(runtime);
         view.show_loot_message(runtime);
         view.item_selection = 0;
-        if runtime
-            .loot_state()
-            .is_some_and(|loot| loot.outcome != ChestOutcome::AlreadyOpen)
-        {
-            view.sound_request = Some(0xE1);
+        if let Some(loot) = runtime.loot_state() {
+            if loot.battle_drop {
+                // Battle narration already displayed "<ITEM> found! But itempack full!"
+                // and waited for a confirm press (`loc_3DE0` -> `loc_3BEC`), so open
+                // straight onto the discard picker without the chest-lid SFX.
+                view.page = CampPage::LootItems;
+            } else if loot.outcome != ChestOutcome::AlreadyOpen {
+                view.sound_request = Some(0xE1);
+            }
         }
         view
     }
@@ -27,6 +31,18 @@ impl CampView {
             self.close();
             return;
         };
+        if loot.battle_drop {
+            self.message = match loot.outcome {
+                ChestOutcome::Full { .. } => {
+                    format!("{} found!\nBut itempack full!", loot.item_name)
+                }
+                ChestOutcome::Took { .. } => format!("{} is procured!", loot.item_name),
+                ChestOutcome::Meseta { amount } => format!("{amount} meseta is procured!"),
+                ChestOutcome::AlreadyOpen => String::new(),
+            };
+            self.page = CampPage::LootMessage;
+            return;
+        }
         let opened = if loot.white {
             "Box has been opened!"
         } else {
@@ -88,8 +104,11 @@ impl CampView {
                     self.page = CampPage::LootItems;
                 } else if accept {
                     if self.page == CampPage::LootReturnConfirm {
+                        let battle_drop = runtime.loot_state().is_some_and(|loot| loot.battle_drop);
                         if runtime.return_loot() {
-                            self.sound_request = Some(0xE1);
+                            if !battle_drop {
+                                self.sound_request = Some(0xE1);
+                            }
                             self.close();
                         }
                     } else if let Some(item) = self.snapshot.inventory.get(self.item_selection) {

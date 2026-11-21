@@ -82,6 +82,31 @@ fn narration_uses_retail_damage_and_reward_strings() {
     );
     assert_eq!(reward.line, "Each got");
     assert_eq!(reward.beat, BattleBeat::Reward);
+
+    let got_drop = narration(
+        &BattleEvent::ItemDropped {
+            item: 125,
+            name: "MONOMATE".into(),
+            collected: true,
+        },
+        &names,
+        &BTreeMap::new(),
+    );
+    assert_eq!(got_drop.line, "MONOMATE found! MONOMATE got!");
+    assert_eq!(got_drop.beat, BattleBeat::Reward);
+    assert!(waits_for_confirm(got_drop.beat));
+
+    let full_drop = narration(
+        &BattleEvent::ItemDropped {
+            item: 125,
+            name: "MONOMATE".into(),
+            collected: false,
+        },
+        &names,
+        &BTreeMap::new(),
+    );
+    assert_eq!(full_drop.line, "MONOMATE found! But itempack full!");
+    assert_eq!(full_drop.beat, BattleBeat::Reward);
 }
 
 #[test]

@@ -170,6 +170,30 @@ impl Runtime {
             if battle.outcome() == Some(psiv_core::battle::Outcome::Victory) {
                 self.game.add_money(u32::from(battle.pools().meseta));
                 self.game.set_money(self.game.money().min(9_999_999));
+                // Battle_CheckItemDrop ($3158, ps4.asm:4831): runs after
+                // victory meseta and before Battle_ResultsMessage level-ups.
+                let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+                if let Some(item) = psiv_core::battle::roll_item_drop(
+                    battle.drop_item(),
+                    battle.drop_rate(),
+                    &mut rng2,
+                ) {
+                    let name = self
+                        .battles
+                        .as_ref()
+                        .and_then(|set| set.loot.get(&item))
+                        .map(|entry| entry.name.clone())
+                        .unwrap_or_else(|| format!("ITEM #{item}"));
+                    let collected = self.game.inventory_mut().add(item).is_ok();
+                    if !collected {
+                        self.queue_battle_drop_loot(item, name.clone());
+                    }
+                    timeline.push(BattleEvent::ItemDropped {
+                        item,
+                        name,
+                        collected,
+                    });
+                }
             }
             if battle.is_vehicle() {
                 let index = self.vehicle_index().unwrap_or(0);

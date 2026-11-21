@@ -148,3 +148,41 @@ fn full_chest_discards_first_duplicate_appends_alshline_then_releases_its_scene(
     rt.tick(Input::Neutral);
     assert!(rt.scene_active(), "real chest flag starts FindingAlshline");
 }
+
+#[test]
+fn full_pack_battle_drop_protects_key_items_and_swaps_or_returns_without_touching_chests() {
+    let Some(mut rt) = fixture(0x47, 17, 18) else {
+        return;
+    };
+    let mut items = [125; 40];
+    items[0] = 57; // Psyco Wand (zero-price, protected)
+    *rt.game.inventory_mut() = Inventory::from_slots(items);
+    let before = rt.game.snapshot();
+
+    rt.queue_battle_drop_loot(126, "DIMATE".into());
+    let state = rt.loot_state().unwrap();
+    assert!(state.battle_drop);
+    assert_eq!(state.outcome, ChestOutcome::Full { item: 126 });
+    assert!(!rt.acknowledge_loot());
+    assert_eq!(rt.discard_for_loot(0), LootResult::Necessary);
+    assert_eq!(rt.game.snapshot(), before);
+    assert!(rt.return_loot());
+    assert!(rt.loot_state().is_none());
+    assert_eq!(rt.game.snapshot(), before);
+
+    // Second full-pack drop: swap an ordinary slot for the dropped item.
+    rt.queue_battle_drop_loot(126, "DIMATE".into());
+    assert_eq!(
+        rt.discard_for_loot(1),
+        LootResult::Took {
+            item: 126,
+            discarded: 125
+        }
+    );
+    assert_eq!(rt.game.inventory().get(0), Some(57));
+    assert_eq!(rt.game.inventory().get(39), Some(126));
+    assert!(rt.acknowledge_loot());
+    assert!(rt.loot_state().is_none());
+    // Chest in this room remains untouched.
+    assert!(rt.game.is_clear(Flag::chest(32)));
+}

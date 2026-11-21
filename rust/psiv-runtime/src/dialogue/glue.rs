@@ -225,6 +225,28 @@ impl Runtime {
         self.dialogue.open_entry(tree, u16::from(entry), &self.game)
     }
 
+    /// Camp `TALK` / `MUMBL` (`Win_TalkDialogue`, `ps4.asm:125774-125980`):
+    /// selects `(tree, entry)` from the pack's `TalkOption_DialogueIDs` and
+    /// opens it in `DialogueTree31` or `DialogueTree32`.
+    pub(crate) fn open_talk_dialogue(&mut self) -> bool {
+        let Some((tree, entry)) = self
+            .dialogue_pack()
+            .trees
+            .talk_options
+            .as_ref()
+            .map(|talk| {
+                talk.resolve(self.map.id().0, |flag| {
+                    self.game.is_set(psiv_core::Flag::event(flag))
+                })
+            })
+        else {
+            self.dialogue
+                .fault("camp talk table unavailable; rebuild the runtime pack".to_owned());
+            return false;
+        };
+        self.dialogue.open_entry(tree, entry, &self.game)
+    }
+
     /// Opens a scene-owned line: the entry is resolved against the tree the
     /// scene is reading (its `SetDialogueTree` op, or the map's own binding).
     /// `panel_layout` selects the panel cutscene's portrait placement.

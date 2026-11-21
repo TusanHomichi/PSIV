@@ -749,6 +749,74 @@ fn a_full_pack_can_discard_an_item_to_take_the_chest() {
     assert!(player.session.camp_view().is_none());
 }
 
+#[test]
+fn camp_talk_switches_label_by_party_size_and_opens_talk_dialogue_with_portrait_slots() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    // Solo Chaz shows MUMBL.
+    let mut solo = Player::new(FIELD, &chaz_alone(0));
+    solo.press(Button::Camp);
+    assert_eq!(
+        solo.session.camp_view().unwrap().root_option_label(5),
+        "MUMBL"
+    );
+
+    // Chaz + Alys shows TALK and opens the Tree 31/32 banter when chosen.
+    let mut party = Player::new(FIELD, &fresh_game());
+    party.press(Button::Camp);
+    assert_eq!(
+        party.session.camp_view().unwrap().root_option_label(5),
+        "TALK"
+    );
+    for _ in 0..5 {
+        party.press(Button::Down);
+    }
+    party.press(Button::Speak);
+    assert!(
+        party.session.camp_view().is_none(),
+        "choosing TALK closes the camp menu"
+    );
+    // Advance until dialogue opens and types out a portrait.
+    for _ in 0..10 {
+        party.tick(Pad::NEUTRAL);
+    }
+    let view = party
+        .runtime()
+        .dialogue_view()
+        .expect("TALK opened a dialogue window");
+    assert!(
+        !view.lines.iter().all(String::is_empty),
+        "talk dialogue typed non-empty banter text"
+    );
+    // Talk tree portraits carry a talk_portrait_slot (0..=2) shifting by slot * 96px.
+    if let Some(slot) = view.talk_portrait_slot {
+        assert_eq!(view.portrait_offset(), (i32::from(slot) * 96, 0));
+    }
+
+    // Anger Tower F2 ($00FE) overrides to entry $32 while flag $E7 is clear.
+    let mut tower = Player::new((0x00FE, 12, 12), &chaz_alone(0));
+    tower.press(Button::Camp);
+    for _ in 0..5 {
+        tower.press(Button::Down);
+    }
+    tower.press(Button::Speak);
+    for _ in 0..20 {
+        tower.tick(Pad::NEUTRAL);
+    }
+    let tower_view = tower
+        .runtime()
+        .dialogue_view()
+        .expect("Anger Tower MUMBL opens override dialogue");
+    assert_eq!(tower_view.tree, 32);
+    assert!(
+        tower_view.lines.join(" ").contains("Where is this?"),
+        "expected Anger Tower F2 override text, got {:?}",
+        tower_view.lines
+    );
+}
+
 #[path = "session_menus/hand_cancel.rs"]
 mod hand_cancel;
 #[path = "session_menus/shops.rs"]

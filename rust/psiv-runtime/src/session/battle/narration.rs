@@ -284,6 +284,16 @@ pub(crate) fn narration(
             line: "Each got".into(),
             beat: BattleBeat::Reward,
         },
+        BattleEvent::ItemDropped {
+            name, collected, ..
+        } => Narration {
+            line: if *collected {
+                format!("{name} found! {name} got!")
+            } else {
+                format!("{name} found! But itempack full!")
+            },
+            beat: BattleBeat::Reward,
+        },
         BattleEvent::LearnedAbility { character, name } => Narration {
             line: format!(
                 "{} learned {name}!",

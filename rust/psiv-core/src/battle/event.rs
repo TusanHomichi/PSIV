@@ -513,6 +513,16 @@ pub enum BattleEvent {
         /// Who was alive to collect, in id order.
         recipients: Vec<FighterId>,
     },
+    /// `Battle_CheckItemDrop` (`ps4.asm:4831`) awarded an item after victory.
+    ItemDropped {
+        /// Cartridge item id.
+        item: u8,
+        /// Display name from the item table.
+        name: String,
+        /// `true` when added straight to inventory; `false` when the 16-slot
+        /// pack was full (`But itempack full!`).
+        collected: bool,
+    },
     /// A character gained a level.
     LevelUp {
         /// Index into `Character_Stats`.

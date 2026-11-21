@@ -28,6 +28,59 @@ pub struct FirstWorldOverride {
     pub tree: u8,
 }
 
+/// One `(event_flag, entry)` row of `TalkOption_DialogueIDs` (`$05DF52`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct TalkOptionEntry {
+    /// Event flag tested in priority order; first set flag wins.
+    pub flag: u16,
+    /// Dialogue entry id within the talk trees (`DialogueTree31`/`32`).
+    pub entry: u8,
+}
+
+/// Camp `TALK` / `MUMBL` selection table (`Win_TalkDialogue`, `$05DEBC`).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct TalkOptions {
+    /// Tree holding entries `< tree_high_from` (`DialogueTree31`).
+    pub tree_low: u8,
+    /// Tree holding entries `>= tree_high_from` (`DialogueTree32`).
+    pub tree_high: u8,
+    /// Inclusive entry cutoff where `tree_high` replaces `tree_low` (`$1A`).
+    pub tree_high_from: u8,
+    /// Entry selected when no flag in `entries` is set (`0`).
+    pub default_entry: u8,
+    /// Map id (`MapID_AngerTower_F2`, `$00FE`) that overrides the entry while
+    /// `anger_tower_clear_flag` is still clear.
+    pub anger_tower_map: u16,
+    /// Event flag (`EventFlag_AngerTowerEnd`, `$E7`) that ends the override.
+    pub anger_tower_clear_flag: u16,
+    /// Override entry id (`$32`).
+    pub anger_tower_entry: u8,
+    /// Priority-ordered `(flag, entry)` rows read from `TalkOption_DialogueIDs`.
+    pub entries: Vec<TalkOptionEntry>,
+}
+
+impl TalkOptions {
+    /// Resolves `(tree, entry_id)` for the current `map_id` and event flags,
+    /// matching `Win_TalkDialogue` (`ps4.asm:125774-125980`).
+    #[must_use]
+    pub fn resolve(&self, map_id: u16, is_flag_set: impl Fn(u16) -> bool) -> (u8, u16) {
+        let mut entry = self
+            .entries
+            .iter()
+            .find(|row| is_flag_set(row.flag))
+            .map_or(self.default_entry, |row| row.entry);
+        if map_id == self.anger_tower_map && !is_flag_set(self.anger_tower_clear_flag) {
+            entry = self.anger_tower_entry;
+        }
+        let tree = if entry < self.tree_high_from {
+            self.tree_low
+        } else {
+            self.tree_high
+        };
+        (tree, u16::from(entry))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // trees.json
 // ---------------------------------------------------------------------------
@@ -57,6 +110,10 @@ pub struct TreeFile {
     /// NPC/scene dialogue, but cannot open a world interaction without this.
     #[serde(default)]
     pub world_interaction: Option<WorldInteractionTrees>,
+    /// Camp `TALK` / `MUMBL` selection table (`Win_TalkDialogue`). Absent in
+    /// packs built before talk extraction landed.
+    #[serde(default)]
+    pub talk_options: Option<TalkOptions>,
 }
 
 /// The uncompressed system-message block.
@@ -459,4 +516,46 @@ pub enum ActionKind {
 pub enum FlagScope {
     /// The event flag array.
     EventFlag,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_talk_options() -> TalkOptions {
+        TalkOptions {
+            tree_low: 31,
+            tree_high: 32,
+            tree_high_from: 0x1A,
+            default_entry: 0,
+            anger_tower_map: 0x00FE,
+            anger_tower_clear_flag: 0xE7,
+            anger_tower_entry: 0x32,
+            entries: vec![
+                TalkOptionEntry {
+                    flag: 0x40,
+                    entry: 0x20,
+                },
+                TalkOptionEntry {
+                    flag: 0x10,
+                    entry: 0x05,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn talk_options_resolve_follows_priority_tree_split_and_anger_tower_override() {
+        let talk = sample_talk_options();
+        // Default entry when no flag is set.
+        assert_eq!(talk.resolve(0x0047, |_| false), (31, 0));
+        // Low entry stays in tree_low.
+        assert_eq!(talk.resolve(0x0047, |f| f == 0x10), (31, 0x05));
+        // Higher priority row wins and selects tree_high when >= tree_high_from.
+        assert_eq!(talk.resolve(0x0047, |f| f == 0x10 || f == 0x40), (32, 0x20));
+        // Anger Tower F2 overrides while clear flag is unset.
+        assert_eq!(talk.resolve(0x00FE, |f| f == 0x10), (32, 0x32));
+        // Once Anger Tower is cleared, normal priority resumes.
+        assert_eq!(talk.resolve(0x00FE, |f| f == 0x10 || f == 0xE7), (31, 0x05));
+    }
 }

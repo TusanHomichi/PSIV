@@ -75,10 +75,32 @@ impl Driver {
                         self.tap(Button::Speak)?;
                     }
                     CampPage::LootItems => {
-                        return Err(Halt::new(
-                            HaltKind::UnexpectedState,
-                            format!("a chest found a full item pack: {}", camp.message),
-                        ));
+                        if self.runtime().loot_state().is_some_and(|l| l.battle_drop) {
+                            let message = camp.message.clone();
+                            self.decide(format!(
+                                "battle drop full pack (declining): {}",
+                                message.replace('\n', " / ")
+                            ));
+                            self.tap(Button::Cancel)?;
+                        } else {
+                            return Err(Halt::new(
+                                HaltKind::UnexpectedState,
+                                format!("a chest found a full item pack: {}", camp.message),
+                            ));
+                        }
+                    }
+                    CampPage::LootReturnConfirm => {
+                        if self.runtime().loot_state().is_some_and(|l| l.battle_drop) {
+                            if camp.confirm_selection != 0 {
+                                self.tap(Button::Up)?;
+                            }
+                            self.tap(Button::Speak)?;
+                        } else {
+                            return Err(Halt::new(
+                                HaltKind::UnexpectedState,
+                                "the camp window (LootReturnConfirm) is open and no objective asked",
+                            ));
+                        }
                     }
                     other => {
                         return Err(Halt::new(
