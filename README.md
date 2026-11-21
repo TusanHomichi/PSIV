@@ -137,11 +137,10 @@ to [Discussions](https://github.com/TusanHomichi/PSIV/discussions).
 
 ## Status
 
-Version 1.0 means the unmodified game is completable from New Game to the
-Ending natively with ready-to-play downloads for Linux/Steam Deck, Windows, and
-macOS. The remaining release items are tracked under
-[v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker)
-and the [roadmap](docs/ROADMAP.md) checklist.
+**Version 1.0.0 is out** ([downloads](https://github.com/TusanHomichi/PSIV/releases/tag/v1.0.0)):
+the unmodified US game is completable natively from New Game to the Ending with
+ready-to-play archives for Linux/Steam Deck, Windows, and macOS. Post-1.0 work
+is tracked on the [roadmap](docs/ROADMAP.md) and in open issues.
 
 ## License and third-party code
 

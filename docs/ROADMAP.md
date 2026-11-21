@@ -47,9 +47,10 @@ The open items are the
   ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
 - [x] **A pack builder that needs no Python**: `psiv-pack`, in Rust, ships in
   every release download and is the sole runtime pack builder ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
-- [ ] **A release package** for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
-  The release workflow builds, checks, and first-run smoke-tests the Linux/Steam
-  Deck, Windows, and macOS archives; only tagging and publishing `v1.0.0` remains.
+- [x] **A release package** for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+  Published in [`v1.0.0`](https://github.com/TusanHomichi/PSIV/releases/tag/v1.0.0)
+  with checked, first-run smoke-tested, provenance-attested archives for
+  Linux/Steam Deck, Windows, and macOS.
 - [x] **Documentation for public readers**
   ([#132](https://github.com/TusanHomichi/PSIV/issues/132)).
 - [x] **A README for players:** build the pack, run the game, controls, known
