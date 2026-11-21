@@ -84,6 +84,11 @@ fn frame_line(effects: &[SceneEffect], runner: &SceneRunner) -> String {
                 _ => continue,
             },
             SceneEffect::DialogueOpen(id) => format!("dialogue {:02X}", id.0),
+            SceneEffect::ChunkDefinitionCopied {
+                source_addr,
+                dest_addr,
+                words,
+            } => format!("chunk_copy {source_addr:08X}->{dest_addr:08X}x{words}"),
             SceneEffect::FlagChanged { flag, .. } => format!("flag {:02X}", flag.id),
             SceneEffect::Faulted(fault) => format!("fault {fault:?}"),
             _ => continue,
@@ -179,14 +184,21 @@ fn expected() -> Vec<(String, usize)> {
     ]
     .map(|(slot, x, y)| format!("338/3AF {slot}@{x:X},{y:X}"))
     .join(", ");
-    // `$0702C2`: the panel destroy's DMA, then the nine creations on
-    // `DMAPlane_B_VInt`'s frame; the sound with the first of eighty.
+    // `$0702C2`: the panel destroy's DMA, then the nine creations + chunk copy
+    // `$6100 -> $6960` + `RefreshPlaneBG` on `DMAPlane_B_VInt`'s frame; the
+    // sound with the first of eighty; repeat chunk copy before flag `$9C`.
     lines.push(("unpanel, frame".to_owned(), 1));
-    lines.push((format!("{objects}, frame"), 1));
+    lines.push((
+        format!("{objects}, chunk_copy FFFF6100->FFFF6960x16, ReloadMapChunks, frame"),
+        1,
+    ));
     lines.push(("sound B9, map".to_owned(), 1));
     lines.push(("map".to_owned(), 79));
     lines.push(("dialogue 2A, frame".to_owned(), 1));
-    lines.push(("flag 9C, end".to_owned(), 1));
+    lines.push((
+        "chunk_copy FFFF6100->FFFF6960x16, flag 9C, end".to_owned(),
+        1,
+    ));
     lines
 }
 
