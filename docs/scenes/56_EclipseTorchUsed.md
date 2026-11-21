@@ -4,7 +4,7 @@
 - **Pointer:** `EventPtrs[$47]`; event `$0047`.
 - **Trigger:** `RunEventsJmpTbl[$36]`, Lashiec `$9B` set and Eclipse Torch
   `$9C` clear, position `x=$B80..$BB0`, `y<=$E0`.
-- **Data:** `dezo_campaign.rs`, `ECLIPSE_TORCH_USED` (43 ops).
+- **Data:** `dezo_campaign.rs`, `ECLIPSE_TORCH_USED` (46 ops).
 
 ## Clone audit
 
@@ -22,8 +22,8 @@ alternative is excluded (`ps4.options.asm:10`). ROM range:
 | 18-23 | `$070280..$0702C1` | the second flash (`if revision>0`): the same bytes, waits `$0702A8` and `$0702B2` | as 12-17 |
 | 24-26 | `$0702C2..$0702E3` | `Panel_Destroy`, `DMAPlanes_VInt`, art `$1D712C` at tile `$3AF` | panel/art |
 | 27-35 | `$0702E4..$07041D` | nine `$338` objects at `($BA0,$C0)`, `($B80..$BC0,$A0)`, `($B60..$BE0,$80)`, no frame between them | `CreateFieldObject` |
-| 36-38 | `$07041E..$070451` | chunk copy `$6100` to `$6960`, `Field_UpdateObjects`, `RefreshPlaneBG` (not transcribed, see below), `DMAPlane_B_VInt`'s frame (`$07043C`); EnemyKilled `$B9` (`$070442`); `DoMainUpdatesLoop($4F)` (`$07044C`), 80 frames | `WaitFrames`/SFX/`Wait` |
-| 39-42 | `$070452..$070481` | tree `$1F9580`, dialogue `$2A`, chunk copy again (not transcribed), set `$9C`, return | dialogue/flag |
+| 36-40 | `$07041E..$070451` | chunk copy `$6100` to `$6960` (16 words, `$08 -> $4B`), `Field_UpdateObjects`, `RefreshPlaneBG` (`$070436`), `DMAPlane_B_VInt`'s frame (`$07043C`); EnemyKilled `$B9` (`$070442`); `DoMainUpdatesLoop($4F)` (`$07044C`), 80 frames | `CopyChunkDefinition`/`ReloadMapChunks`/`WaitFrames`/SFX/`Wait` |
+| 41-45 | `$070452..$070481` | tree `$1F9580`, dialogue `$2A`, repeat chunk copy `$6100` to `$6960` (`$070466`), set `$9C`, return | dialogue/`CopyChunkDefinition`/flag |
 
 The frame at `$070220` runs `Field_UpdateObjects`; the port's is a bare frame
 (`docs/source-notes/README.md`, "Dezolis dismount frames").

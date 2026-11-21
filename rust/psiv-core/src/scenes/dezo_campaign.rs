@@ -525,9 +525,17 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
         torch_object(6, 0xBA0, 0x80, crate::EclipseTorchSequence::Slow),
         torch_object(7, 0xBC0, 0x80, crate::EclipseTorchSequence::Slow),
         torch_object(8, 0xBE0, 0x80, crate::EclipseTorchSequence::Slow),
-        // `$07041E..$070441`: a chunk copy, `Field_UpdateObjects`,
-        // `RefreshPlaneBG` and `DMAPlane_B_VInt`'s one frame, waited bare
-        // (`docs/source-notes/README.md`, "Eclipse Torch").
+        // `$07041E..$070441`: copy 16 words from `$FFFF6100` (chunk `$08`) to
+        // `$FFFF6960` (chunk `$4B`), `Field_UpdateObjects`, `RefreshPlaneBG`
+        // (`$070436`), and `DMAPlane_B_VInt`'s one frame (`$07043C`).
+        SceneOp::CopyChunkDefinition {
+            source_addr: 0xFFFF_6100,
+            dest_addr: 0xFFFF_6960,
+            words: 16,
+        },
+        SceneOp::Presentation {
+            op: PresentationOp::ReloadMapChunks,
+        },
         SceneOp::WaitFrames { frames: 1 },
         // `$070442`: `SFXID_EnemyKilled`.
         SceneOp::PlaySound {
@@ -537,6 +545,13 @@ pub static ECLIPSE_TORCH_USED: Scene = Scene {
         SceneOp::Wait { ticks: 80 },
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
         standard(0x2A),
+        // `$070466`: repeat the 16-word `$FFFF6100 -> $FFFF6960` chunk copy
+        // before setting `EventFlag_EclipseTorch` (`$9C`).
+        SceneOp::CopyChunkDefinition {
+            source_addr: 0xFFFF_6100,
+            dest_addr: 0xFFFF_6960,
+            words: 16,
+        },
         SceneOp::SetFlag {
             flag: Flag::event(0x9C),
             value: true,

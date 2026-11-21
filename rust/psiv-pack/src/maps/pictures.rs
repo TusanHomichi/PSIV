@@ -12,6 +12,7 @@ use std::sync::{Mutex, PoisonError};
 use sha2::{Digest, Sha256};
 
 use super::art_cycle::{TileDmaFrames, extract_tile_dma_frames, render_art_cycle_frames};
+use super::chunk_def_copy::resolve_chunk_def_copies;
 use super::draw::{PriorityCounts, priority_overlay, render_layout};
 use super::effects::{MapEffects, extract_map_effects, field, int, text};
 use super::file::map_file;
@@ -195,6 +196,7 @@ pub struct Pictures {
     pub map_effects: Vec<Json>,
     pub patch_counts: PatchCounts,
     pub overworld_patches: Vec<Json>,
+    pub chunk_def_copies: Vec<Json>,
     pub scene_chunks: Vec<u8>,
     pub variants: Vec<Json>,
     pub patch_tiles: Option<Json>,
@@ -298,7 +300,8 @@ pub fn map_pictures(
     let (mut map_effects, written, patch_counts) = resolve_map_effects(decoded, entries)?;
     let (mut overworld_patches, composite_pairs) =
         resolve_overworld_patches(decoded, section.overworld())?;
-    if !composite_pairs.is_empty() && !has_overlay {
+    let (mut chunk_def_copies, chunk_copy_pairs) = resolve_chunk_def_copies(rom, record, decoded)?;
+    if (!composite_pairs.is_empty() || !chunk_copy_pairs.is_empty()) && !has_overlay {
         return Err(PackError(format!(
             "map 0x{:03X}: overworld hook needs a base priority overlay",
             record.id
@@ -306,6 +309,7 @@ pub fn map_pictures(
     }
     let composite_pairs: Vec<(u8, u8)> = composite_pairs
         .into_iter()
+        .chain(chunk_copy_pairs)
         .chain(write_composite_pairs(&map_effects))
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -319,6 +323,7 @@ pub fn map_pictures(
         let (base, over, tiles) = patch_atlas(decoded, &patched, &palette, &composite_pairs)?;
         index_writes(&mut map_effects, &tiles)?;
         index_overworld_patches(&mut overworld_patches, &tiles)?;
+        index_overworld_patches(&mut chunk_def_copies, &tiles)?;
         let base_name = format!("maps/{stem}_patch.png");
         let over_name = over
             .is_some()
@@ -354,6 +359,7 @@ pub fn map_pictures(
         map_effects,
         patch_counts,
         overworld_patches,
+        chunk_def_copies,
         scene_chunks,
         variants,
         patch_tiles,

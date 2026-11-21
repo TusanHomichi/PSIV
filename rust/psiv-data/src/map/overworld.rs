@@ -60,6 +60,24 @@ pub struct OverworldPatch {
     pub tiles: Vec<OverworldPatchTile>,
 }
 
+/// One `Chunk_Table` 16-word chunk-definition copy (`source_chunk` ->
+/// `dest_chunk`) resolved to every `(chunk_x, chunk_y)` cell on this map that
+/// references `dest_chunk` (`MapDataMan_Dezolis` `loc_525AC` /
+/// `Event_EclipseTorchUsed` `$07041E`, `#676`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChunkDefCopy {
+    /// Source chunk id in `Chunk_Table` (`($FFFF6100 - $FFFF6000) / $20 = $08`).
+    pub source_chunk: u8,
+    /// Destination chunk id in `Chunk_Table` (`($FFFF6960 - $FFFF6000) / $20 = $4B`).
+    pub dest_chunk: u8,
+    /// Event bank bit index that activates this copy on map load, when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_flag: Option<u16>,
+    /// Every map chunk referencing `dest_chunk` on FG or BG, with its post-copy
+    /// collision cells and composed patch-atlas tile index.
+    pub tiles: Vec<OverworldPatchTile>,
+}
+
 /// Both visual planes and the collision-authoritative chunk at one location.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OverworldPatchTile {

@@ -48,7 +48,7 @@ pub use interaction::{InteractionArea, InteractionFlagType, InteractionSource};
 pub use layout::{LayoutVariant, VariantCollision, VariantPlane, VehicleBattleLayout};
 pub use object::{Npc, SpriteRef};
 pub use overworld::{
-    OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch, OverworldPatchFlag,
+    ChunkDefCopy, OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch, OverworldPatchFlag,
     OverworldPatchTile, PatchTiles,
 };
 pub use reference::{MapRef, RangeRef};
@@ -157,6 +157,10 @@ pub struct MapRecord {
     /// not claim to model a flag changing while the same map remains loaded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overworld_patches: Option<Vec<OverworldPatch>>,
+    /// Resolved `Chunk_Table` 16-word chunk-definition copies applied live by
+    /// scenes and on flagged map loads (e.g. Dezolis Eclipse Torch `$08 -> $4B`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chunk_def_copies: Vec<ChunkDefCopy>,
 }
 
 impl MapRecord {

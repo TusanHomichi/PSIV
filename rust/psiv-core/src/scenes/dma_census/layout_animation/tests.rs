@@ -65,7 +65,7 @@ fn existing_waits_spend_the_dma_frames_once() {
         [308]
     );
 
-    run(&scene("Event_EclipseTorchUsed")[36..37], 1, false);
+    run(&scene("Event_EclipseTorchUsed")[38..39], 1, false);
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn census_rejects_missing_doubled_and_wrong_policy_consumers() {
     for (name, indices) in [
         ("Event_RuneFlaeli", &[23, 27, 29, 31][..]),
         ("Event_MachineCenterAppearing", &[5, 7][..]),
-        ("Event_EclipseTorchUsed", &[36][..]),
+        ("Event_EclipseTorchUsed", &[38][..]),
         (
             "Event_WreckageEngine",
             &[24, 26, 28, 30, 32, 34, 36, 38][..],

@@ -180,6 +180,69 @@ impl Runtime {
         Ok(())
     }
 
+    /// `SceneOp::CopyChunkDefinition`: apply one 16-word `Chunk_Table` copy
+    /// (`$FFFF6100 -> $FFFF6960`, `#676`) through the same mutation path
+    /// [`crate::effects::apply_chunk_def_copy`] uses on flagged map loads,
+    /// keeping live field objects and layout bytes intact.
+    pub(super) fn copy_scene_chunk_definition(
+        &mut self,
+        source_addr: u32,
+        dest_addr: u32,
+        words: u16,
+    ) -> Result<(), crate::BridgeError> {
+        const CHUNK_TABLE_BASE: u32 = 0xFFFF_6000;
+        const CHUNK_STRIDE: u32 = 0x20;
+        let reject = |message: String| crate::BridgeError::Rejected(message);
+        if words != 16 {
+            return Err(reject(format!(
+                "chunk definition copy expected 16 words, got {words}"
+            )));
+        }
+        let chunk_of = |addr: u32, what: &str| -> Result<u8, crate::BridgeError> {
+            let offset = addr
+                .checked_sub(CHUNK_TABLE_BASE)
+                .ok_or_else(|| reject(format!("{what} {addr:#010x} is below Chunk_Table")))?;
+            if offset % CHUNK_STRIDE != 0 {
+                return Err(reject(format!(
+                    "{what} {addr:#010x} is not 32-byte chunk aligned"
+                )));
+            }
+            u8::try_from(offset / CHUNK_STRIDE)
+                .map_err(|_| reject(format!("{what} {addr:#010x} exceeds Chunk_Table")))
+        };
+        let source_chunk = chunk_of(source_addr, "source")?;
+        let dest_chunk = chunk_of(dest_addr, "destination")?;
+        let record = self
+            .data
+            .map(psiv_data::MapId(self.map.id().0))
+            .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
+        let copy = record
+            .chunk_def_copies
+            .iter()
+            .find(|c| c.source_chunk == source_chunk && c.dest_chunk == dest_chunk)
+            .ok_or_else(|| {
+                reject(format!(
+                    "chunk definition copy {source_chunk:#04x} -> {dest_chunk:#04x} not packed for map {:#05x}",
+                    self.map.id().0
+                ))
+            })?;
+        let mut effects = self.effects.clone();
+        crate::effects::apply_chunk_def_copy(&mut effects, copy);
+        let mut map =
+            crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
+        crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        crate::bridge::reconcile_controllers(
+            self.map.npcs(),
+            &map,
+            record,
+            &mut self.wander,
+            &mut self.bespoke,
+        );
+        self.map = map;
+        self.effects = effects;
+        Ok(())
+    }
+
     /// `SceneOp::ReplaceMapLayout`: install the pack's layout variant decoded
     /// from `fg` and `bg` on the live map, as the map's own load would with
     /// the variant's flag set, keeping the objects, the party and the camera.

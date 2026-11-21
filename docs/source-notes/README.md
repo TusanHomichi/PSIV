@@ -526,13 +526,17 @@ agility and dexterity, and enemy paralysis clearing each turn.
     ([#573](https://github.com/TusanHomichi/PSIV/issues/573)). Matching
     native/retail captures remain
     [#698](https://github.com/TusanHomichi/PSIV/issues/698).
-  - `$07041E..$07043B`, the copy of the chunk definition at `$FFFF6100`
-    over `$FFFF6960` (`move.w #$F, d7` / `trap #1`), the
-    `Field_UpdateObjects` pass and `RefreshPlaneBG`, and the same copy after
-    dialogue `$2A` (`$070466`), are not transcribed: the background is not
-    redrawn with the new chunk during the scene. `DMAPlane_B_VInt`'s frame
-    (`$07043C`) is a bare `WaitFrames`, as at `$070220`
-    ([#674](https://github.com/TusanHomichi/PSIV/issues/674)).
+  - `$07041E..$07043B` and `$070466`, the 16-word copy of the chunk definition
+    at `$FFFF6100` (`$08`) over `$FFFF6960` (`$4B`, `move.w #$F, d7` / `trap #1`),
+    `RefreshPlaneBG` (`$070436`) and `MapDataMan_Dezolis`'s `loc_525AC`
+    flagged load (`$0525AC`) now run through one shared chunk-definition copy
+    path (`CopyChunkDefinition` + `ReloadMapChunks` / `ChunkDefCopy`,
+    [#676](https://github.com/TusanHomichi/PSIV/issues/676)), updating every
+    occurrence of chunk `$4B` on Dezolis live before dialogue `$2A` and on
+    flagged map loads. `Field_UpdateObjects` at `$070430` remains under
+    [#470](https://github.com/TusanHomichi/PSIV/issues/470), and
+    `DMAPlane_B_VInt`'s frame (`$07043C`) stays a bare `WaitFrames` under
+    [#546](https://github.com/TusanHomichi/PSIV/issues/546).
   - Against tape 46 (`docs/scenes/SCENE_PRESENTATION.md`), two more
     differences, neither this scene's alone: panel `$10D` is not decoded
     ([#413](https://github.com/TusanHomichi/PSIV/issues/413)), so the native

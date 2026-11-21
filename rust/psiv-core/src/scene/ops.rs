@@ -123,6 +123,19 @@ pub enum SceneOp {
         /// ROM source of the background layout.
         bg: u32,
     },
+    /// Copy `words` words inside `Chunk_Table` (`$FFFF6000`): retail's
+    /// `lea (source_addr).l, a0 / lea (dest_addr).l, a1 / move.w #(words-1), d7 / trap #1`
+    /// (for example `Event_EclipseTorchUsed` `$07041E` and `$070466`, copying 16
+    /// words from `$FFFF6100` to `$FFFF6960` so every occurrence of chunk `$4B`
+    /// uses chunk `$08`'s definition).
+    CopyChunkDefinition {
+        /// Source address inside `Chunk_Table`.
+        source_addr: u32,
+        /// Destination address inside `Chunk_Table`.
+        dest_addr: u32,
+        /// Number of 16-bit words copied (`d7 + 1`; 16 words = one 32-byte chunk).
+        words: u16,
+    },
     /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`). Its
     /// `jsr PalFadeOut_ClrSpriteTbl` (`ps4.asm:120855`) is the runner's
     /// [`SceneOp::FadeOut`], emitted first and waited for; the op itself is

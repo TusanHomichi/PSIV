@@ -14,9 +14,10 @@
 //! multiple of 4, so from white a component is `max(7 - s, saved)` after `s`
 //! such frames; forty frames hold ten, enough for seven levels.
 
-use super::{pack_present, runtime_at};
+use super::{PACK, pack_present, runtime_at};
 use crate::{Runtime, RuntimeEvent};
-use psiv_core::{CharId, Flag, Input, PaletteSource, PresentationOp, SceneOp, palette};
+use psiv_core::{Cell, CharId, Flag, Input, PaletteSource, PresentationOp, SceneOp, palette};
+use psiv_data::GameData;
 
 /// The words `MapUpdate_DezoSnowstormPal` writes (`$26..$2C(a1)`).
 const SNOW: std::ops::Range<usize> = 19..23;
@@ -215,6 +216,15 @@ fn the_eclipse_torch_flashes_twice_and_restores_the_cram() {
         .count();
     assert_eq!(created, 9, "nine creations on one tick");
     // `DMAPlane_B_VInt`'s frame, then the sound and eighty frames.
+    assert!(
+        ticks[objects].emits(|op| matches!(
+            op,
+            SceneOp::Presentation {
+                op: psiv_core::PresentationOp::ReloadMapChunks
+            }
+        )),
+        "RefreshPlaneBG redraw must fire on the chunk-copy tick before dialogue $2A"
+    );
     assert_eq!(ticks[objects].calls, ticks[objects - 1].calls);
     assert!(ticks[objects + 1].emits(|op| matches!(op, SceneOp::PlaySound { id: 0xB9 })));
     assert_eq!(ticks[objects + 80].calls - ticks[objects].calls, 80);
@@ -226,6 +236,90 @@ fn the_eclipse_torch_flashes_twice_and_restores_the_cram() {
         "dialogue $2A after the eightieth frame"
     );
     assert!(runtime.game().is_set(Flag::event(0x9C)));
+    // All 11 Dezolis `$4B` tree chunks (including (93,6)) must carry live
+    // patch blits pointing to the post-copy `(fg, bg=$08)` snow tiles.
+    let copy_blits: Vec<_> = runtime
+        .map_effects()
+        .patch_blits
+        .iter()
+        .filter(|&&(cx, cy, _)| (91..=95).contains(&cx) && (3..=6).contains(&cy))
+        .copied()
+        .collect();
+    assert_eq!(
+        copy_blits.len(),
+        11,
+        "all 11 Dezolis $4B chunks must carry live patch blits after Eclipse Torch copy"
+    );
+    assert!(
+        copy_blits.iter().any(|&(cx, cy, _)| (cx, cy) == (93, 6)),
+        "chunk (93,6) must carry a live patch blit after Eclipse Torch copy"
+    );
+    assert!(runtime.map().is_walkable(Cell::new(93 * 2, 6 * 2)));
+}
+
+/// Dezolis map loads honor `MapDataMan_Dezolis` (`loc_525AC`, `$0525AC`):
+/// `$9C` clear leaves chunk `$4B` unblitted; `$9C` set applies the exact same
+/// 16-word copy across all 11 chunks on load and across a fresh SaveStore CONTINUE.
+#[test]
+fn dezolis_load_and_continue_apply_eclipse_torch_chunk_copy_only_when_flag_9c_is_set() {
+    if !pack_present() {
+        return;
+    }
+    let data = GameData::load(std::path::Path::new(PACK)).expect("pack");
+    if data
+        .map(psiv_data::MapId(1))
+        .is_some_and(|r| r.chunk_def_copies.is_empty())
+    {
+        eprintln!("pack predates Dezolis chunk_def_copies; rebuild pack to run");
+        return;
+    }
+    let tree_cell = Cell::new(93 * 2, 6 * 2);
+    let party = [Some(CharId(0)), None, None, None, None];
+
+    // Flag $9C clear: none of the 11 $4B chunks carry a chunk-copy blit.
+    let clear_rt = runtime_at(0x001, (0xBA0, 0xD0), party, &[]);
+    assert!(
+        !clear_rt
+            .map_effects()
+            .patch_blits
+            .iter()
+            .any(|&(cx, cy, _)| (cx, cy) == (93, 6))
+    );
+
+    // Flag $9C set: all 11 tree chunks are blitted to snow on load.
+    let set_rt = runtime_at(0x001, (0xBA0, 0xD0), party, &[Flag::event(0x9C)]);
+    assert!(set_rt.map().is_walkable(tree_cell));
+    assert_eq!(set_rt.map_effects().patch_blits.len(), 11);
+    assert!(
+        set_rt
+            .map_effects()
+            .patch_blits
+            .iter()
+            .any(|&(cx, cy, _)| (cx, cy) == (93, 6))
+    );
+
+    // Fresh SaveStore CONTINUE round-trip preserves all 11 $9C-gated blits.
+    let dir = std::env::temp_dir().join(format!(
+        "psiv-eclipse-torch-continue-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    set_rt.save_slot(&dir, 0).expect("save slot 0");
+    let reloaded = crate::Session::start(data)
+        .with_saves(crate::SaveStore::new(&dir))
+        .continue_slot(0)
+        .expect("continue slot 0");
+    assert!(reloaded.runtime().map().is_walkable(tree_cell));
+    assert_eq!(reloaded.runtime().map_effects().patch_blits.len(), 11);
+    assert!(
+        reloaded
+            .runtime()
+            .map_effects()
+            .patch_blits
+            .iter()
+            .any(|&(cx, cy, _)| (cx, cy) == (93, 6))
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The checks reject a flash that never whitens, one whose restore runs map

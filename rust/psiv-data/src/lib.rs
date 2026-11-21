@@ -92,13 +92,14 @@ pub use manifest::{
     RomInfo, SkippedMap,
 };
 pub use map::{
-    COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
-    Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
-    InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
-    Npc, OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch, OverworldPatchFlag,
-    OverworldPatchTile, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement,
-    PatchTiles, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
-    VariantCollision, VariantPlane, VehicleBattleLayout, Warp, WarpSource,
+    COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ChunkDefCopy, ContentsType,
+    DIALOGUE_TREE_COUNT, Dimensions, Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags,
+    InteractionArea, InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord,
+    MapRef, Music, Npc, OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch,
+    OverworldPatchFlag, OverworldPatchTile, PaletteAffectedSprites, PaletteEffect,
+    PaletteSpriteReplacement, PatchTiles, RangeRef, ResolvedCell, SpriteFacing, SpriteRef,
+    TransitionTable, Treasure, VariantCollision, VariantPlane, VehicleBattleLayout, Warp,
+    WarpSource,
 };
 pub use map::{
     MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,

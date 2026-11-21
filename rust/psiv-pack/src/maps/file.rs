@@ -473,6 +473,10 @@ pub fn map_file(
                 )
             })
             .transpose()?,
+        chunk_def_copies: typed(
+            &Json::from(pictures.chunk_def_copies.clone()),
+            "the chunk definition copies",
+        )?,
     };
     let value = serde_json::to_value(&file)
         .map_err(|error| PackError(format!("cannot serialize map {:#x}: {error}", record.id)))?;

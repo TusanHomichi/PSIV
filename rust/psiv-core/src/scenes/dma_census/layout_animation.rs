@@ -170,7 +170,30 @@ pub(super) fn problems(rom: &[u8], name: &str, ops: &[SceneOp]) -> Vec<String> {
                 "Eclipse Torch refresh/DMA changed",
             );
             check(
-                waits(ops, 36..38) == [(36, 1, false)],
+                matches!(
+                    ops.get(36),
+                    Some(SceneOp::CopyChunkDefinition {
+                        source_addr: 0xFFFF_6100,
+                        dest_addr: 0xFFFF_6960,
+                        words: 16,
+                    })
+                ) && matches!(
+                    ops.get(37),
+                    Some(SceneOp::Presentation {
+                        op: PresentationOp::ReloadMapChunks
+                    })
+                ) && matches!(
+                    ops.get(43),
+                    Some(SceneOp::CopyChunkDefinition {
+                        source_addr: 0xFFFF_6100,
+                        dest_addr: 0xFFFF_6960,
+                        words: 16,
+                    })
+                ),
+                "Eclipse Torch chunk copy / RefreshPlaneBG ops changed",
+            );
+            check(
+                waits(ops, 38..40) == [(38, 1, false)],
                 "Eclipse Torch's WaitFrames(1) already spends the DMA frame",
             );
         }
