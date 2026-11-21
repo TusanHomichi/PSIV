@@ -198,11 +198,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
   are not modelled at all.
 - **`ClearPlaneABuf` hides the whole map (#610).** `Cutscene_ProfoundDarkness`
   clears only plane A's buffer (`$078D44`), draws the `$1DE03A` picture into
-  it and places the party at five fixed positions. The port records it as
-  `PresentationOp::ClearPlanes`, which hides the map, plane B included, and
-  draws neither the picture nor the formation. It used to record an
-  `InitVRAMAndCRAM` there, whose fade overwrote the palette copy the scene's
-  `Pal_VariableFadeIn` returns to
+  `$FFFF8198` (`(96, 24)`, CRAM line 3) and places the party at five fixed
+  positions (`($A0,$A0)..($C0,$C0)`, facing Up). The port now extracts and
+  draws the `$1DE03A` picture and places the party formation, while
+  `PresentationOp::ClearPlanes` still hides the field map (plane B included)
+  and `loc_78ECE`'s wavy VSRAM distortion / random `Tandle` flashes remain
+  the 600-tick wait
   ([87_ProfoundDarkness.md](../scenes/87_ProfoundDarkness.md)).
 - **Battle entry and its measured loading profiles (#663, #679).** A scene that sets `Routine_Exit_Flags` bit 3 returns through
   `RunEventBattle` (`ps4.asm:120803`) into `FieldRoutine_Battle2`, whose event
@@ -499,14 +500,14 @@ agility and dexterity, and enemy paralysis clearing each turn.
   their forty `loc_58666` restore frames (`$070270`, `$0702B2`) as the US
   bytes do, through the runtime's CRAM model. Three parts of the object
   sequence differ:
-  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait`: map
-    updates on every frame, no `Field_UpdateObjects`, because native scene
-    frames run no field-object pass
-    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); the explicit
+  - The 80 frames of `DoMainUpdatesLoop($4F)` (`$07044C`) are a `Wait` whose
+    map-update frames now also step the active `$338` Eclipse Torch objects
+    (`Runtime::tick_eclipse_torch`), animating all nine flames through mappings
+    0/1/2/3 and clearing them on passes 32/48/64 before dialogue `$2A` opens,
+    while VInt-only frames (`WaitFrames`) never advance them. General scene
+    `Field_UpdateObjects` policy for other field objects remains
+    ([#470](https://github.com/TusanHomichi/PSIV/issues/470); explicit
     per-wait policy is [#573](https://github.com/TusanHomichi/PSIV/issues/573)).
-    The objects that pass would move are the nine `$338`s and the standing
-    party. The nine now advance only through the runtime's object-pass API;
-    a scene frame alone cannot animate or clear them.
   - The nine `$338` objects (`$0702E4..$07041D`) carry their literal
     positions, `$6` sequences (0/4/8) and initial `$11` delays (7/11/15).
     The core routine follows US `loc_4FAE0` and `FieldObj_Animate2`: mappings
@@ -516,11 +517,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
     position, without a renderer timer. The pack extracts the `$338`/`$3AF`
     sheet from the US Nemesis upload at `$1D712C` on Dezolis map `$001`:
     mappings `$5132A/$51332/$5133A/$51342`, selected through `$502C2` and
-    sequences `$50396/$503A8/$503BA`. Object-API tests cover the nine slots,
-    every mapping and clearing pass, and VInt-only non-advancement; the
-    scene's missing object passes still prevent native timing acceptance
-    ([#573](https://github.com/TusanHomichi/PSIV/issues/573)). Matching
-    native/retail captures remain
+    sequences `$50396/$503A8/$503BA`. Both the isolated object-API suite and
+    the live `Event_EclipseTorchUsed` run verify all nine slots, mapping
+    transitions, clearing passes, and VInt-only non-advancement; the single
+    pre-DMA `Field_UpdateObjects` call at `$070430` remains under
+    [#470](https://github.com/TusanHomichi/PSIV/issues/470)/[#573](https://github.com/TusanHomichi/PSIV/issues/573).
+    Matching native/retail captures remain
     [#698](https://github.com/TusanHomichi/PSIV/issues/698).
   - `$07041E..$07043B` and `$070466`, the 16-word copy of the chunk definition
     at `$FFFF6100` (`$08`) over `$FFFF6960` (`$4B`, `move.w #$F, d7` / `trap #1`),

@@ -39,9 +39,14 @@ struct PanelManifest {
 struct ScenePictureRecord {
     source_rom_addr: String,
     png: String,
-    /// The `LoadArt` source its cells index into, and its VRAM tile.
+    /// The `LoadArt` source its cells index into, and its VRAM tile (including
+    /// any palette/priority bits from the Enigma base word).
     art: String,
     art_tile: u16,
+    #[serde(default)]
+    screen_x: i32,
+    #[serde(default)]
+    screen_y: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -265,7 +270,8 @@ impl SceneAssets {
                         source,
                         PictureAsset {
                             path,
-                            art: (art, picture.art_tile),
+                            art: (art, picture.art_tile & 0x07FF),
+                            screen_pos: (picture.screen_x, picture.screen_y),
                             baked,
                         },
                     );
@@ -469,5 +475,32 @@ mod tests {
             "Igglanova draws the line the scene writes"
         );
         assert_eq!(load, (48, 14));
+    }
+
+    #[test]
+    fn scene_picture_record_masks_enigma_base_word_tile_and_reads_screen_offset() {
+        let pd: super::ScenePictureRecord = serde_json::from_str(
+            r#"{
+                "source_rom_addr": "0x1DE03A",
+                "png": "presentation/scene_pictures/picture_1de03a.png",
+                "art": "0x1DD566",
+                "art_tile": 25102,
+                "screen_x": 96,
+                "screen_y": 24
+            }"#,
+        )
+        .expect("profound darkness record parses");
+        assert_eq!(pd.art_tile & 0x07FF, 0x020E);
+        assert_eq!((pd.screen_x, pd.screen_y), (96, 24));
+        let legacy: super::ScenePictureRecord = serde_json::from_str(
+            r#"{
+                "source_rom_addr": "0x1DDE0A",
+                "png": "presentation/scene_pictures/picture_1dde0a.png",
+                "art": "0x1DB2C8",
+                "art_tile": 608
+            }"#,
+        )
+        .expect("legacy record without screen_x/screen_y parses");
+        assert_eq!((legacy.screen_x, legacy.screen_y), (0, 0));
     }
 }

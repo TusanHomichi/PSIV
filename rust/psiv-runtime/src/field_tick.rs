@@ -73,6 +73,7 @@ impl Runtime {
                 && !self.field_suspended
             {
                 self.run_map_updates();
+                self.tick_eclipse_torch();
             }
             return events;
         }

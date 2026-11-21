@@ -89,11 +89,18 @@ impl Runtime {
         self.eclipse_torch.values()
     }
 
-    pub(crate) fn tick_field_objects(&mut self) {
+    /// One `Field_UpdateObjects` pass over the active `$338` Eclipse Torch
+    /// flame objects (called on field ticks and on scene `DoMainUpdatesLoop`
+    /// frames, never on VInt-only frames).
+    pub(crate) fn tick_eclipse_torch(&mut self) {
         self.eclipse_torch.retain(|_, object| {
             object.object_pass();
             object.active()
         });
+    }
+
+    pub(crate) fn tick_field_objects(&mut self) {
+        self.tick_eclipse_torch();
         if self.wander.is_empty() && self.bespoke.is_empty() {
             return;
         }

@@ -27,6 +27,7 @@ struct Tick {
     events: Vec<RuntimeEvent>,
     words: [u16; 64],
     calls: u64,
+    torch: Vec<(usize, Option<u8>)>,
 }
 
 impl Tick {
@@ -63,6 +64,10 @@ fn torch_run() -> (Vec<Tick>, Runtime) {
             events,
             words: runtime.cram().words,
             calls: runtime.map_updates().calls,
+            torch: runtime
+                .eclipse_torch_objects()
+                .map(|o| (o.spawn().slot, o.mapping()))
+                .collect(),
         });
         if !runtime.scene_active() {
             assert!(
@@ -226,8 +231,39 @@ fn the_eclipse_torch_flashes_twice_and_restores_the_cram() {
         "RefreshPlaneBG redraw must fire on the chunk-copy tick before dialogue $2A"
     );
     assert_eq!(ticks[objects].calls, ticks[objects - 1].calls);
+    assert_eq!(
+        ticks[objects].torch.len(),
+        9,
+        "all 9 flames exist un-advanced on the VInt-only frame"
+    );
+    assert!(ticks[objects].torch.iter().all(|(_, m)| m.is_none()));
     assert!(ticks[objects + 1].emits(|op| matches!(op, SceneOp::PlaySound { id: 0xB9 })));
+    assert_eq!(
+        ticks[objects + 1].torch.len(),
+        9,
+        "first DoMainUpdatesLoop frame draws mapping 0 for all 9 flames"
+    );
+    assert!(ticks[objects + 1].torch.iter().all(|(_, m)| *m == Some(0)));
+    assert_eq!(ticks[objects + 31].torch.len(), 9);
+    assert_eq!(
+        ticks[objects + 32].torch.len(),
+        8,
+        "fast slot 0 clears on pass 32"
+    );
+    assert_eq!(ticks[objects + 47].torch.len(), 8);
+    assert_eq!(
+        ticks[objects + 48].torch.len(),
+        5,
+        "medium slots 1..=3 clear on pass 48"
+    );
+    assert_eq!(ticks[objects + 63].torch.len(), 5);
+    assert_eq!(
+        ticks[objects + 64].torch.len(),
+        0,
+        "slow slots 4..=8 clear on pass 64"
+    );
     assert_eq!(ticks[objects + 80].calls - ticks[objects].calls, 80);
+    assert!(ticks[objects + 80].torch.is_empty());
     assert!(
         ticks[objects + 81]
             .events
@@ -361,6 +397,7 @@ fn copy(tick: &Tick) -> Tick {
         events: tick.events.clone(),
         words: tick.words,
         calls: tick.calls,
+        torch: tick.torch.clone(),
     }
 }
 

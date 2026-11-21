@@ -720,4 +720,14 @@ pub enum ObjectOp {
         /// As for [`ObjectOp::Spawn`].
         solid: bool,
     },
+    /// Write fixed pixel coordinates (`$30/$34/$38/$3A`) and a shared facing
+    /// (`$6`) directly across `Character_1..Character_5`, skipping empty party
+    /// slots without faulting (hardware writes all five RAM slots unconditionally;
+    /// e.g. `Cutscene_ProfoundDarkness` at `$078D8C..$078E36`).
+    PlacePartyFormation {
+        /// Pixel `(x, y)` for `PartyMember(0..5)`.
+        positions: [(i32, i32); PARTY_SLOTS],
+        /// Shared facing written to `$6(a4)`.
+        facing: Direction,
+    },
 }

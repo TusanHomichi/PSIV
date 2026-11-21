@@ -7,7 +7,7 @@
 
 use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
-use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, ObjectOp, SceneOp};
 use crate::scene_presentation::{
     CameraSubject, PaletteHold, PresentationOp, RESTORE_PALETTE, variable_fade,
 };
@@ -797,40 +797,32 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::ClearPlanes,
         },
+        // `$078D4A`: zero `Camera_Y_Pos_FG` and `Camera_X_Pos_FG`.
+        SceneOp::SetCameraPos { x: 0, y: 0 },
+        // `$078D54..$078D8A`: Nemesis art `$1DD566` -> VRAM tile `$20E`,
+        // Enigma mapping `$1DE03A` (base word `$620E`, palette line 3) copied
+        // 16x16 cells to `Plane_A_Buffer + $198` (`$FFFF8198`, screen `(96, 24)`).
         SceneOp::LoadArt {
             rom_addr: 0x001D_D566,
             tile: 0x20E,
         },
-        SceneOp::ObjectAnimation {
-            slot: 0,
-            object_id: 0,
-            art_tile: 0,
-            frames: 1,
+        SceneOp::Presentation {
+            op: PresentationOp::LoadSceneAsset {
+                source_rom_addr: 0x001D_E03A,
+                destination_ram: 0xFFFF_8198,
+            },
         },
-        SceneOp::ObjectAnimation {
-            slot: 1,
-            object_id: 0,
-            art_tile: 0,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 2,
-            object_id: 0,
-            art_tile: 0,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 3,
-            object_id: 0,
-            art_tile: 0,
-            frames: 1,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 4,
-            object_id: 0,
-            art_tile: 0,
-            frames: 1,
-        },
+        // `$078D8C..$078E36`: place `Character_1..5` in V-formation facing Up (`4`).
+        SceneOp::Object(ObjectOp::PlacePartyFormation {
+            positions: [
+                (0xA0, 0xA0),
+                (0x90, 0xB0),
+                (0xB0, 0xB0),
+                (0x80, 0xC0),
+                (0xC0, 0xC0),
+            ],
+            facing: Direction::Up,
+        }),
         SceneOp::DmaPlanes,
         // `$078E4A..$078E69`: the 64 words back from `Palette_Table_Buffer_2`
         // (`moveq #$3F, d7` / `trap #1`), the teleport sound again, and
