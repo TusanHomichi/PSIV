@@ -55,6 +55,17 @@ impl Session {
             .map_or([false; 3], |store| store.slots(self.runtime.data()))
     }
 
+    /// Whether the game-cleared flag is set in the live runtime or save store
+    /// (unlocks `Title_SoundTest` on Cancel at the Title menu, `ps4.asm:87520`).
+    #[must_use]
+    pub fn game_cleared(&self) -> bool {
+        self.runtime.game_cleared()
+            || self
+                .save_store
+                .as_ref()
+                .is_some_and(SaveStore::game_cleared)
+    }
+
     /// Writes the current state to `slot`.
     ///
     /// # Errors

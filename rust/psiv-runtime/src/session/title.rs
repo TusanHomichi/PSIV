@@ -82,6 +82,11 @@ const SEGA_HOLD_TICKS: u32 = 200;
 /// the reveal's own 300-frame script (tape 25).
 const TITLE_REVEAL_TICKS: u32 = 299;
 
+/// Retail `Sound_StopMusic` (`$FB`) and `Sound_StopAll` / fade (`$FE`) used by
+/// `Title_SoundTest` (`ps4.asm:88421`, `88566`, `88571`, `88649`).
+const SOUND_STOP_MUSIC: u8 = 0xFB;
+const SOUND_STOP_ALL: u8 = 0xFE;
+
 /// The phases of the front door, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitlePhase {
@@ -99,6 +104,9 @@ pub enum TitlePhase {
     EraseSlots,
     /// ERASE DATA's ARE YOU SURE? window.
     EraseConfirm,
+    /// Post-clear `Title_SoundTest` (`ps4.asm:88420`): unlocked by Cancel on
+    /// `Menu` when `Game_Cleared_Flag == 1`.
+    SoundTest,
 }
 
 /// Which of the title's windows the phase shows.
@@ -114,6 +122,8 @@ pub enum TitleWindow {
     Slots,
     /// ARE YOU SURE? with YES and NO.
     EraseConfirm,
+    /// The Sound Test screen (`Title_SoundTest`).
+    SoundTest,
 }
 
 /// What the shell draws this frame.
@@ -123,7 +133,7 @@ pub struct TitleView {
     pub phase: TitlePhase,
     /// The window the phase shows.
     pub window: TitleWindow,
-    /// The row the cursor is on.
+    /// The row the cursor is on (or the selected Sound Test track index).
     pub cursor: usize,
     /// The three visible slots: `true` where a valid save sits.
     pub slots: [bool; 3],
@@ -145,6 +155,10 @@ pub(crate) enum TitleAction {
     Continue(usize),
     /// ERASE DATA the populated slot.
     Erase(usize),
+    /// Play the Sound Test track at `index` (`ps4.asm:88547-88562`).
+    SoundTestPlay(usize),
+    /// Dispatch a raw retail sound command (`$FB` stop music, `$FE` stop/fade).
+    SoundCommand(u8),
 }
 
 /// The title flow's state.
@@ -154,9 +168,20 @@ pub(crate) struct TitleMode {
     elapsed: u32,
     cursor: usize,
     slots: [bool; 3],
+    /// Retail `Game_Cleared_Flag`: unlocks Sound Test via Cancel on `Menu`.
+    game_cleared: bool,
+    /// Number of tracks in `title/sound_test.json` (48 in US retail).
+    sound_test_tracks: usize,
+    /// `$FFFFE201`: last base sound id played in Sound Test, for the retail
+    /// `DungeonArrange2` -> `DungeonArrange2Cont` repeat override.
+    sound_test_last_played: Option<u8>,
     /// The slot ERASE DATA is asking about.
     erase_slot: usize,
     accept_down: bool,
+    cancel_down: bool,
+    speak_down: bool,
+    camp_down: bool,
+    start_down: bool,
     direction_down: bool,
     /// The debug harness's switch (`PSIV_DEBUG_TITLE_AUTOSTART`): walk the
     /// phases with synthetic accepts and select START.
@@ -165,15 +190,27 @@ pub(crate) struct TitleMode {
 
 impl TitleMode {
     /// The title over `slots`, at its first frame.
-    pub(crate) fn new(slots: [bool; 3], autostart: bool) -> TitleMode {
+    pub(crate) fn new(
+        slots: [bool; 3],
+        game_cleared: bool,
+        sound_test_tracks: usize,
+        autostart: bool,
+    ) -> TitleMode {
         TitleMode {
             phase: TitlePhase::Sega,
             ticks: 0,
             elapsed: 0,
             cursor: 0,
             slots,
+            game_cleared,
+            sound_test_tracks,
+            sound_test_last_played: None,
             erase_slot: 0,
             accept_down: false,
+            cancel_down: false,
+            speak_down: false,
+            camp_down: false,
+            start_down: false,
             direction_down: false,
             autostart,
         }
@@ -198,6 +235,7 @@ impl TitleMode {
             TitlePhase::Menu => TitleWindow::NoSave,
             TitlePhase::Slots | TitlePhase::EraseSlots => TitleWindow::Slots,
             TitlePhase::EraseConfirm => TitleWindow::EraseConfirm,
+            TitlePhase::SoundTest => TitleWindow::SoundTest,
             TitlePhase::Sega | TitlePhase::Reveal | TitlePhase::PressStart => TitleWindow::None,
         }
     }
@@ -226,12 +264,73 @@ impl TitleMode {
             }
             return self.accept();
         }
-        // The option window's three buttons, held or pressed: this port reads
-        // the held pad and latches, which is the same edge once.
-        let accept_down =
-            pad.held(Button::Speak) || pad.held(Button::Camp) || pad.held(Button::Start);
+        // Edge latches for individual buttons (needed by Sound Test and the
+        // Menu Cancel trigger) as well as the combined accept latch.
+        let speak_down = pad.held(Button::Speak);
+        let camp_down = pad.held(Button::Camp);
+        let start_down = pad.held(Button::Start);
+        let cancel_down = pad.held(Button::Cancel);
+        let speak_pressed = speak_down && !self.speak_down;
+        let camp_pressed = camp_down && !self.camp_down;
+        let start_pressed = start_down && !self.start_down;
+        let cancel_pressed = cancel_down && !self.cancel_down;
+        self.speak_down = speak_down;
+        self.camp_down = camp_down;
+        self.start_down = start_down;
+        self.cancel_down = cancel_down;
+
+        let accept_down = speak_down || camp_down || start_down;
         let pressed = accept_down && !self.accept_down;
         self.accept_down = accept_down;
+
+        if self.phase == TitlePhase::SoundTest {
+            let direction = match pad.field_input() {
+                Input::Direction(direction) => Some(direction),
+                _ => None,
+            };
+            let direction_pressed = direction.is_some() && !self.direction_down;
+            self.direction_down = direction.is_some();
+            // `Title_SoundTestLoop` (`ps4.asm:88525-88572`):
+            // Start exits; Down/Right next track; Up/Left previous track;
+            // Speak plays; Cancel stops music ($FB); Camp stops/fades all ($FE).
+            if start_pressed {
+                self.phase = TitlePhase::Menu;
+                self.cursor = 0;
+                self.ticks = 0;
+                self.sound_test_last_played = None;
+                return TitleAction::SoundCommand(SOUND_STOP_MUSIC);
+            }
+            if direction_pressed && let Some(direction) = direction {
+                self.move_menu(direction);
+            }
+            if speak_pressed {
+                return TitleAction::SoundTestPlay(self.cursor);
+            }
+            if cancel_pressed {
+                return TitleAction::SoundCommand(SOUND_STOP_MUSIC);
+            }
+            if camp_pressed {
+                return TitleAction::SoundCommand(SOUND_STOP_ALL);
+            }
+            return TitleAction::None;
+        }
+
+        // `TitleRoutine_PickOption` (`ps4.asm:87517-87526`): Cancel on the
+        // save-present option window opens `Title_SoundTest` when
+        // `Game_Cleared_Flag == 1`.
+        if self.phase == TitlePhase::Menu
+            && cancel_pressed
+            && self.game_cleared
+            && self.sound_test_tracks > 0
+            && self.slots.iter().any(|slot| *slot)
+        {
+            self.phase = TitlePhase::SoundTest;
+            self.cursor = 0;
+            self.ticks = 0;
+            self.sound_test_last_played = None;
+            return TitleAction::SoundCommand(SOUND_STOP_MUSIC);
+        }
+
         // An accept row is not also a cursor move: the cartridge's confirm
         // branch runs before its cursor routine on the same `Joypad_Pressed`.
         let direction = if accept_down {
@@ -274,6 +373,18 @@ impl TitleMode {
 
     /// Moves the cursor over the phase's rows.
     fn move_menu(&mut self, direction: Direction) {
+        if self.phase == TitlePhase::SoundTest {
+            let count = self.sound_test_tracks;
+            if count == 0 {
+                return;
+            }
+            self.cursor = match direction {
+                Direction::Up | Direction::Left if self.cursor == 0 => count - 1,
+                Direction::Up | Direction::Left => self.cursor - 1,
+                Direction::Down | Direction::Right => (self.cursor + 1) % count,
+            };
+            return;
+        }
         let count = match self.phase {
             TitlePhase::Menu if self.slots.iter().any(|slot| *slot) => 3,
             TitlePhase::Menu => 1,
@@ -336,6 +447,7 @@ impl TitleMode {
                 self.phase = TitlePhase::EraseSlots;
                 self.cursor = self.erase_slot;
             }
+            TitlePhase::SoundTest => {}
         }
         TitleAction::None
     }
@@ -369,6 +481,9 @@ pub struct TitleFrame {
     pub erased: Option<TitleErase>,
     /// Why a row could not complete, for the shell's log. The title stays up.
     pub failure: Option<TitleFailure>,
+    /// Retail `Sound_Index` byte requested by `Title_SoundTest` (track id,
+    /// `$FB` stop music, or `$FE` stop/fade all).
+    pub sound_request: Option<u8>,
 }
 
 /// The game a title frame entered.
@@ -430,9 +545,20 @@ impl Session {
     /// enters the game.
     pub fn start_title(&mut self) -> TitleView {
         let slots = self.save_slots();
+        let game_cleared = self.game_cleared();
+        let sound_test_tracks = self
+            .runtime
+            .data()
+            .sound_test()
+            .map_or(0, |st| st.tracks.len());
         let autostart = self.title_autostart;
         self.reset_job_board();
-        self.mode = Mode::Title(Box::new(TitleMode::new(slots, autostart)));
+        self.mode = Mode::Title(Box::new(TitleMode::new(
+            slots,
+            game_cleared,
+            sound_test_tracks,
+            autostart,
+        )));
         match &self.mode {
             Mode::Title(mode) => mode.view(),
             _ => unreachable!("the title was just installed"),
@@ -477,8 +603,27 @@ impl Session {
         let mut entered = None;
         let mut erased = None;
         let mut failure = None;
+        let mut sound_request = None;
         match action {
             TitleAction::None => {}
+            TitleAction::SoundCommand(id) => sound_request = Some(id),
+            TitleAction::SoundTestPlay(index) => {
+                let last_played = match &self.mode {
+                    Mode::Title(mode) => mode.sound_test_last_played,
+                    _ => None,
+                };
+                if let Some((play_id, base_id)) = self
+                    .runtime
+                    .data()
+                    .sound_test()
+                    .and_then(|st| st.resolve_play(index, last_played))
+                {
+                    if let Mode::Title(mode) = &mut self.mode {
+                        mode.sound_test_last_played = Some(base_id);
+                    }
+                    sound_request = Some(play_id);
+                }
+            }
             TitleAction::Erase(slot) => match self.erase_slot(slot) {
                 Ok(path) => {
                     if let Mode::Title(mode) = &mut self.mode {
@@ -523,6 +668,7 @@ impl Session {
                 entered,
                 erased,
                 failure,
+                sound_request,
             }),
             ..Frame::default()
         }

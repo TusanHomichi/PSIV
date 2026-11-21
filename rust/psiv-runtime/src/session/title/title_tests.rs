@@ -12,7 +12,7 @@ use crate::pad::Button;
 use super::*;
 
 fn title(slots: [bool; 3]) -> TitleMode {
-    TitleMode::new(slots, false)
+    TitleMode::new(slots, false, 48, false)
 }
 
 /// The press-start hold is the retail `#$233` and it opens the option
@@ -161,4 +161,64 @@ fn an_accept_button_does_not_step_the_cursor() {
     // A Down read first would wrap the cursor onto CONTINUE and open the slot
     // list; the confirm wins and opens ERASE DATA's own list.
     assert_eq!(title.view().phase, TitlePhase::EraseSlots);
+}
+
+#[test]
+fn sound_test_requires_cleared_game_and_wraps_plays_stops_and_exits() {
+    // Negative controls: uncleared game or save-less card ignore Cancel on Menu.
+    let mut uncleared = TitleMode::new([true, false, false], false, 48, false);
+    uncleared.phase = TitlePhase::Menu;
+    assert_eq!(uncleared.frame(Pad::new(Button::Cancel)), TitleAction::None);
+    assert_eq!(uncleared.view().phase, TitlePhase::Menu);
+
+    let mut no_saves = TitleMode::new([false; 3], true, 48, false);
+    no_saves.phase = TitlePhase::Menu;
+    assert_eq!(no_saves.frame(Pad::new(Button::Cancel)), TitleAction::None);
+    assert_eq!(no_saves.view().phase, TitlePhase::Menu);
+
+    // Cleared game with saved data opens Sound Test on Cancel and stops music.
+    let mut cleared = TitleMode::new([true, false, false], true, 48, false);
+    cleared.phase = TitlePhase::Menu;
+    assert_eq!(
+        cleared.frame(Pad::new(Button::Cancel)),
+        TitleAction::SoundCommand(SOUND_STOP_MUSIC)
+    );
+    assert_eq!(cleared.view().phase, TitlePhase::SoundTest);
+    assert_eq!(cleared.view().window, TitleWindow::SoundTest);
+    assert_eq!(cleared.view().cursor, 0);
+
+    // Up/Left wraps 0 -> 47; Down/Right wraps 47 -> 0.
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(cleared.frame(Pad::new(Button::Left)), TitleAction::None);
+    assert_eq!(cleared.view().cursor, 47);
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(cleared.frame(Pad::new(Button::Right)), TitleAction::None);
+    assert_eq!(cleared.view().cursor, 0);
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(cleared.frame(Pad::new(Button::Down)), TitleAction::None);
+    assert_eq!(cleared.view().cursor, 1);
+
+    // Speak plays selected track; Cancel stops music; Camp stops/fades all; Start exits.
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(
+        cleared.frame(Pad::new(Button::Speak)),
+        TitleAction::SoundTestPlay(1)
+    );
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(
+        cleared.frame(Pad::new(Button::Cancel)),
+        TitleAction::SoundCommand(SOUND_STOP_MUSIC)
+    );
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(
+        cleared.frame(Pad::new(Button::Camp)),
+        TitleAction::SoundCommand(SOUND_STOP_ALL)
+    );
+    cleared.frame(Pad::NEUTRAL);
+    assert_eq!(
+        cleared.frame(Pad::new(Button::Start)),
+        TitleAction::SoundCommand(SOUND_STOP_MUSIC)
+    );
+    assert_eq!(cleared.view().phase, TitlePhase::Menu);
+    assert_eq!(cleared.view().window, TitleWindow::SaveOptions);
 }

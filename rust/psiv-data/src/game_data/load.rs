@@ -129,6 +129,9 @@ impl GameData {
         if pack_dir.join(crate::PRESENTATION_FILE).is_file() {
             data.scene_palettes = crate::ScenePalettes::load(pack_dir)?;
         }
+        if pack_dir.join(crate::SOUND_TEST_FILE).is_file() {
+            data.sound_test = Some(crate::SoundTestFile::load(pack_dir)?);
+        }
         // The message box walks these files, so a pack that has them carries
         // the whole set and a broken one fails here, where the error names the
         // file. A synthetic pack built from parts has no `dialogue/` directory

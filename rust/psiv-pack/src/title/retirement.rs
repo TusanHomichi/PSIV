@@ -61,8 +61,40 @@ fn title_emits_all_assets_layout_placements_and_last_frame_replay() {
         "title/replay/frame_650/background.png",
         "title/replay/frame_650/title_logo.png",
         "title/titlebarbgtoppart.png",
+        "title/sound_test.json",
     ] {
         assert!(root.join(path).is_file());
+    }
+    let st: Value =
+        serde_json::from_slice(&std::fs::read(root.join("title/sound_test.json")).unwrap())
+            .unwrap();
+    assert_eq!(st["track_count"], 48);
+    let tracks = st["tracks"].as_array().unwrap();
+    assert_eq!(tracks.len(), 48);
+    assert_eq!(tracks[0]["title"], "THE END OF THE MILLENNIUM");
+    assert_eq!(tracks[0]["sound_id"], 0xAC);
+    assert_eq!(tracks[0]["composer"], "IPPO");
+    assert_eq!(tracks[2]["composer"], "GAKI CHAN");
+    assert_eq!(tracks[47]["title"], "PAO-PAO!");
+    assert_eq!(st["repeat_override"]["when_sound_id"], 0xB1);
+    assert_eq!(st["repeat_override"]["play_sound_id"], 0xA7);
+
+    // Negative controls: opcode corruption in Title_SoundTestLoop is refused.
+    for offset in [
+        sound_test::TRACK_MAX_CMPI,
+        sound_test::PLAY_TABLE_LEA,
+        sound_test::STRINGS_LEA,
+        sound_test::REPEAT_CHECK_CMPI,
+    ] {
+        let mut corrupt = rom.bytes().to_vec();
+        corrupt[offset] ^= 1;
+        assert!(
+            sound_test::extract(&corrupt)
+                .unwrap_err()
+                .0
+                .contains("opcode mismatch"),
+            "corrupting 0x{offset:06X} must fail"
+        );
     }
     std::fs::remove_dir_all(root).unwrap();
 }

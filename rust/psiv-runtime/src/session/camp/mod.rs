@@ -113,12 +113,22 @@ pub enum CampPage {
     SaveResult,
     /// STATUS.
     Status,
+    /// Field System Menu (`Start` button, `Win_System`, `ps4.asm:119411`):
+    /// SAVE, MSG.SPEED, BAT.SPEED.
+    SystemRoot,
+    /// `Win_MessageSpeed` (`ps4.asm:119871`): 0 (fastest) ..= 4 (slowest).
+    SystemMessageSpeed,
+    /// `Win_BattleSpeed` (`ps4.asm:119938`): 0 (fastest) ..= 4 (slowest).
+    SystemBattleSpeed,
     /// An option the port does not have yet, or an order the party refused.
     Unsupported,
 }
 
 /// The seven root options, in menu order.
 pub const ROOT_OPTIONS: [&str; 7] = ["ITEM", "TECH", "SKILL", "EQUIP", "STATE", "MUMBL", "MACRO"];
+
+/// The field System Menu options (`Win_System`, `ps4.asm:119411`).
+pub const SYSTEM_OPTIONS: [&str; 3] = ["SAVE", "MSG.SPEED", "BAT.SPEED"];
 
 /// The camp menu: its state and what the shell draws from it.
 #[derive(Clone, Debug)]
@@ -131,6 +141,14 @@ pub struct CampView {
     pub state_selection: usize,
     /// The cursor on SAVE's slots.
     pub save_selection: usize,
+    /// The cursor on the System Menu (`Win_System`).
+    pub system_selection: usize,
+    /// Current `Message_Speed` (`0..=4`, default `2`).
+    pub message_speed: u16,
+    /// Current `Battle_Speed` (`0..=4`, default `2`).
+    pub battle_speed: u16,
+    /// Whether `SaveSlots` was entered from `SystemRoot` rather than `State`.
+    pub save_from_system: bool,
     /// The cursor on the pack list (ITEM, or a full-pack chest's).
     pub item_selection: usize,
     /// The cursor on a target pick.
@@ -243,6 +261,10 @@ impl CampView {
             root_selection: 0,
             state_selection: 0,
             save_selection: 0,
+            system_selection: 0,
+            message_speed: runtime.game().message_speed().min(4),
+            battle_speed: runtime.game().battle_speed().min(4),
+            save_from_system: false,
             item_selection: 0,
             target_selection: 0,
             confirm_selection: 1,
@@ -287,6 +309,13 @@ impl CampView {
         }
     }
 
+    /// Opens the field System Menu (`Start`, `Win_System`, `ps4.asm:119411`).
+    pub(crate) fn open_system(runtime: &Runtime) -> CampView {
+        let mut view = CampView::open(runtime);
+        view.page = CampPage::SystemRoot;
+        view
+    }
+
     /// Whether the window is a chest's rather than the camp's.
     #[must_use]
     pub fn is_loot(&self) -> bool {
@@ -324,6 +353,8 @@ impl CampView {
             return;
         }
         self.snapshot = runtime.camp_state();
+        self.message_speed = runtime.game().message_speed().min(4);
+        self.battle_speed = runtime.game().battle_speed().min(4);
         self.item_selection = self
             .item_selection
             .min(self.snapshot.inventory.len().saturating_sub(1));
@@ -371,10 +402,14 @@ impl Session {
             None => {
                 self.camp = Some(if self.runtime.loot_state().is_some() {
                     CampView::open_loot(&self.runtime)
-                } else if self.runtime.scene_active() || !pressed.held(Button::Camp) {
+                } else if self.runtime.scene_active() {
                     return None;
-                } else {
+                } else if pressed.held(Button::Camp) {
                     CampView::open(&self.runtime)
+                } else if pressed.held(Button::Start) {
+                    CampView::open_system(&self.runtime)
+                } else {
+                    return None;
                 });
             }
             Some(camp) => {

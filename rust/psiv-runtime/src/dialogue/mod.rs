@@ -472,7 +472,7 @@ impl DialogueRunner {
             // one reached by typing does. The step, if due, waits for it.
             self.portrait_work(None, false, game);
             let pad = self.deferred_pad.take().unwrap_or(self.pad);
-            self.reveal(pad);
+            self.reveal(pad, game.message_speed());
             self.settle_portrait_plane();
         }
         self.text3_tick();
@@ -825,7 +825,7 @@ impl DialogueRunner {
     ///
     /// The typewriter never draws past a `$F4` whose frames have not run:
     /// a step due there waits, and is the first after them.
-    fn reveal(&mut self, pad: Pad) {
+    fn reveal(&mut self, pad: Pad, message_speed: u16) {
         let Some(flow) = self.flow.as_ref() else {
             return;
         };
@@ -843,10 +843,13 @@ impl DialogueRunner {
             return;
         }
         // `RunText3` draws a glyph every frame and reads no pad.
+        // Ordinary `RunText_CharacterLoop` (`ps4.asm:142612-142630`) runs
+        // `dbf d7, .wait` with `Message_Speed` (`0..=4` -> 1..=5 frames/glyph,
+        // default 2 -> 3 frames/glyph), or 1 frame/glyph while Speak is held.
         let cadence = if self.text3 || pad.held(Button::Speak) {
             1
         } else {
-            3
+            (message_speed.min(4) as u8) + 1
         };
         self.reveal_tick += 1;
         if self.reveal_tick >= cadence {
