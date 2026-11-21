@@ -186,11 +186,4 @@ impl CutsceneLayer {
     ) -> Option<TemporarySpriteAsset> {
         self.temporary_assets.get(&(object_id, art_tile)).cloned()
     }
-
-    pub(crate) fn temporary_asset_by_object(&self, object_id: u16) -> Option<TemporarySpriteAsset> {
-        self.temporary_assets
-            .iter()
-            .find(|&(&(id, _), _)| id == object_id)
-            .map(|(_, asset)| asset.clone())
-    }
 }

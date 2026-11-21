@@ -22,6 +22,7 @@ pub(crate) struct PresentationState {
     pub(super) hidden_characters: std::collections::BTreeSet<u8>,
     pub(super) loaded_palettes: BTreeMap<u32, u16>,
     loaded_art: BTreeMap<(u32, u16), u64>,
+    npc_art_tiles: BTreeMap<usize, u16>,
     pub(super) current_dialogue_tree: Option<u32>,
     dialogue_trees: BTreeMap<u32, u8>,
     pub(super) op_count: u64,
@@ -110,6 +111,14 @@ impl PresentationState {
 
     pub(crate) fn art_loaded(&self, rom_addr: u32, tile: u16) -> bool {
         self.loaded_art.contains_key(&(rom_addr, tile))
+    }
+
+    pub(crate) fn set_npc_art_tile(&mut self, slot: usize, tile: u16) {
+        self.npc_art_tiles.insert(slot, tile);
+    }
+
+    pub(crate) fn npc_art_tile(&self, slot: usize) -> Option<u16> {
+        self.npc_art_tiles.get(&slot).copied()
     }
 
     pub(crate) fn configure_dialogue_trees(&mut self, set: &DialogueSet) {
@@ -249,6 +258,7 @@ impl PresentationState {
     pub(crate) fn reload_field_objects(&mut self) {
         self.temporary_objects.clear();
         self.loaded_art.clear();
+        self.npc_art_tiles.clear();
     }
 
     pub(super) fn advance_objects(&mut self) {

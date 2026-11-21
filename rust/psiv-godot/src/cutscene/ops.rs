@@ -169,6 +169,9 @@ impl Field {
             }
             SceneOp::Presentation { op } => self.consume_presentation_op(op),
             SceneOp::SetArtTile { actor, tile } => {
+                if let psiv_core::ActorRef::Npc(slot) = actor {
+                    self.presentation.set_npc_art_tile(slot, tile);
+                }
                 godot_print!("scene art tile: {actor:?} -> {tile:#05x}");
             }
             SceneOp::SetDialogueTree { rom_addr } => {
