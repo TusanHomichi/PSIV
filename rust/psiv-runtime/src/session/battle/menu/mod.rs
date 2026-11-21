@@ -48,10 +48,12 @@ use super::view::{MenuView, SkillSlotView};
 const VEHICLE_SKILL_SLOTS: usize = 8;
 
 mod commands;
+pub(crate) mod macros;
 pub(crate) mod window_phase;
 
 pub(crate) use commands::CommandsMenu;
 pub use commands::CursorMemory;
+pub(crate) use macros::MacroWindow;
 
 /// What a main-options accept chose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +62,8 @@ pub(crate) enum TopChoice {
     Nothing,
     /// COMD: open the per-character command window.
     Commands,
+    /// MACR: open the battle macro selector (`Battle_OpenMacroLetters`).
+    Macros,
     /// OPTIN: open the mounted surface's skill window.
     VehicleSkills,
     /// COMD on a mounted surface (its ATTAC row): everybody attacks.
@@ -95,11 +99,10 @@ pub(crate) fn top_input(cursor: &mut usize, vehicle: bool, previous: Pad, pad: P
     }
     match (*cursor, vehicle) {
         (0, false) => TopChoice::Commands,
+        (1, false) => TopChoice::Macros,
         (0, true) => TopChoice::AttackAll,
         (1, true) => TopChoice::VehicleSkills,
         (2, _) => TopChoice::Run,
-        // MACR is visible for ordinary-party parity; macro execution is
-        // Tier 3 and the row does nothing.
         _ => TopChoice::Nothing,
     }
 }

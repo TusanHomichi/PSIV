@@ -550,11 +550,11 @@ fn the_main_options_wrap_on_up_and_down_and_ignore_left_right() {
     assert_eq!(
         top_input(&mut cursor, false, none, held),
         TopChoice::Nothing,
-        "the second row (MACR) chooses nothing"
+        "moving to the second row (MACR) does not accept"
     );
     for (row, choice) in [
         (0, TopChoice::Commands),
-        (1, TopChoice::Nothing),
+        (1, TopChoice::Macros),
         (2, TopChoice::Run),
     ] {
         let mut cursor = row;

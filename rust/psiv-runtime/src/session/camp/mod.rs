@@ -36,6 +36,7 @@ mod abilities;
 mod equipment;
 mod input;
 mod loot;
+mod macro_edit;
 mod order;
 mod teardown;
 mod travel;
@@ -52,6 +53,7 @@ use crate::{
 use super::menu_scene::MenuScene;
 use super::{Frame, FrameMode, SceneStart, Session};
 
+pub use macro_edit::{MACRO_ACTIONS, MacroDraft};
 pub use order::OrderDraft;
 
 /// The page the camp window shows.
@@ -120,6 +122,18 @@ pub enum CampPage {
     SystemMessageSpeed,
     /// `Win_BattleSpeed` (`ps4.asm:119938`): 0 (fastest) ..= 4 (slowest).
     SystemBattleSpeed,
+    /// MACRO with only one party member (`MenuOptions_Macro`).
+    MacroNotice,
+    /// MACRO slot list (`A`..`H`) with preview of the selected macro.
+    MacroList,
+    /// MACRO erase confirmation (`YES` / `NO`) for an occupied slot.
+    MacroEraseConfirm,
+    /// MACRO builder: pick the next unassigned party member.
+    MacroPickMember,
+    /// MACRO builder: pick ATTACK / TECH / SKILL / ITEM / DEFENSE.
+    MacroPickAction,
+    /// MACRO builder: pick a technique, skill, or item for the member.
+    MacroPickAbility,
     /// An option the port does not have yet, or an order the party refused.
     Unsupported,
 }
@@ -185,6 +199,8 @@ pub struct CampView {
     pub status_from_state: bool,
     /// ORDER's draft.
     pub order_draft: OrderDraft,
+    /// MACRO editor state and formatted slot preview.
+    pub macro_draft: MacroDraft,
     /// The cursor on EQUIP's members.
     pub equipment_character_selection: usize,
     /// The cursor on EQUIP's slots (head, right, left, body).
@@ -281,6 +297,7 @@ impl CampView {
             status_selection: 0,
             status_from_state: false,
             order_draft: OrderDraft::default(),
+            macro_draft: MacroDraft::default(),
             equipment_character_selection: 0,
             equipment_slot_selection: 0,
             equipment_item_selection: 0,
@@ -378,6 +395,7 @@ impl CampView {
         self.equipment_item_selection = self
             .equipment_item_selection
             .min(self.equipment_options.len().saturating_sub(1));
+        self.sync_macros(runtime);
     }
 
     /// Drains what the frame produced for the session.

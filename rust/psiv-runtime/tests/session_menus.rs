@@ -931,5 +931,7 @@ fn start_opens_field_system_menu_adjusts_speeds_and_dialogue_cadence_and_saves()
 
 #[path = "session_menus/hand_cancel.rs"]
 mod hand_cancel;
+#[path = "session_menus/macros.rs"]
+mod macros;
 #[path = "session_menus/shops.rs"]
 mod shops;

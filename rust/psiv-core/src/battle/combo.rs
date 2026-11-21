@@ -92,7 +92,23 @@ pub(super) fn detect_combo<'a>(
         if !fighter.is_alive() || !fighter.stats.can_act() || fighter.transient {
             break;
         }
-        match orders.command_for(actor.slot()) {
+        let cmd = match orders {
+            RoundOrders::Macro(macro_rec) => {
+                match super::macro_exec::command_entry(roster, actor, macro_rec) {
+                    Some(entry) if entry.command_index == 2 => Command::Technique {
+                        technique: entry.ability_id,
+                        target: None,
+                    },
+                    Some(entry) if entry.command_index == 3 => Command::Skill {
+                        skill: entry.ability_id,
+                        target: None,
+                    },
+                    _ => break,
+                }
+            }
+            _ => orders.command_for(actor.slot()),
+        };
+        match cmd {
             Command::Technique { technique, target } => {
                 // `loc_27DEFE`: tech-sealed or insufficient TP stops scanning.
                 if fighter.stats.status & status::TECH_SEALED != 0 {

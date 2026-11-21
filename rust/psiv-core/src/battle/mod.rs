@@ -82,6 +82,7 @@ mod equipment;
 mod event;
 mod fighters;
 mod item;
+mod macro_exec;
 mod order;
 mod player_animation;
 mod player_effect;

@@ -148,6 +148,10 @@ pub enum RoundOrders {
     /// cartridge's own default and the whole reason a player can win by
     /// pressing C.
     Commands(Vec<Command>),
+    /// MACR. Execute one saved retail macro (`Battle_MacroWindows`, `loc_55DE`,
+    /// `MacroSpecialActionTable`), enforcing its character turn order and
+    /// dynamically auto-targeting allies and enemies.
+    Macro(crate::MacroRecord),
     /// RUN.
     Run,
 }
@@ -162,7 +166,7 @@ impl RoundOrders {
     pub(super) fn command_for(&self, slot: usize) -> Command {
         match self {
             RoundOrders::Commands(commands) => commands.get(slot).copied().unwrap_or_default(),
-            RoundOrders::Run => Command::Attack,
+            RoundOrders::Macro(_) | RoundOrders::Run => Command::Attack,
         }
     }
 }
@@ -502,7 +506,12 @@ impl Battle {
         for fighter in self.roster.iter_mut() {
             fighter.transient = false;
         }
-        let queue = build_queue(&self.roster, priority, rolls);
+        let mut queue = build_queue(&self.roster, priority, rolls);
+        if !self.vehicle
+            && let RoundOrders::Macro(macro_rec) = orders
+        {
+            super::macro_exec::reorder_queue_for_macro(&mut queue, &self.roster, macro_rec);
+        }
 
         // `loc_56A8`: four `Enemy_TargetCharacter` calls, one per enemy slot,
         // occupied or not — four rolls regardless of how many enemies live.
@@ -656,104 +665,118 @@ impl Battle {
         }
 
         let intended = match actor.side() {
-            Side::Party => match orders.command_for(actor.slot()) {
-                Command::Defend => {
-                    let fighter = self.roster.get_mut(actor).expect("present");
-                    fighter.stats.begin_defending();
-                    events.push(BattleEvent::Defended { actor });
-                    return Ok(());
-                }
-                Command::Attack => None,
-                Command::AttackTarget(target) => Some(target),
-                Command::Item {
-                    item,
-                    source,
-                    target,
-                } => {
-                    if self.vehicle {
-                        events.push(BattleEvent::ItemRejected {
-                            actor,
-                            item,
-                            reason: super::item::ItemRejection::Unavailable,
-                        });
-                        return Ok(());
-                    }
-                    let died = super::item::resolve_item(
-                        &mut self.roster,
+            Side::Party => {
+                let command = match orders {
+                    RoundOrders::Macro(macro_rec) => super::macro_exec::resolve_macro_command(
+                        &self.roster,
                         inventory,
                         actor,
-                        (item, source, target),
+                        macro_rec,
                         data,
                         rolls,
-                        events,
-                    );
-                    self.reward_defeated(&died, data)?;
-                    return Ok(());
-                }
-                Command::Skill { skill, target } => {
-                    if self.vehicle {
-                        events.push(BattleEvent::SkillRejected {
+                    ),
+                    _ => orders.command_for(actor.slot()),
+                };
+                match command {
+                    Command::Defend => {
+                        let fighter = self.roster.get_mut(actor).expect("present");
+                        fighter.stats.begin_defending();
+                        events.push(BattleEvent::Defended { actor });
+                        return Ok(());
+                    }
+                    Command::Attack => None,
+                    Command::AttackTarget(target) => Some(target),
+                    Command::Item {
+                        item,
+                        source,
+                        target,
+                    } => {
+                        if self.vehicle {
+                            events.push(BattleEvent::ItemRejected {
+                                actor,
+                                item,
+                                reason: super::item::ItemRejection::Unavailable,
+                            });
+                            return Ok(());
+                        }
+                        let died = super::item::resolve_item(
+                            &mut self.roster,
+                            inventory,
+                            actor,
+                            (item, source, target),
+                            data,
+                            rolls,
+                            events,
+                        );
+                        self.reward_defeated(&died, data)?;
+                        return Ok(());
+                    }
+                    Command::Skill { skill, target } => {
+                        if self.vehicle {
+                            events.push(BattleEvent::SkillRejected {
+                                actor,
+                                skill,
+                                reason: super::skill::SkillRejection::Unavailable,
+                            });
+                            return Ok(());
+                        }
+                        let died = super::skill::resolve_skill(
+                            &mut self.roster,
                             actor,
                             skill,
-                            reason: super::skill::SkillRejection::Unavailable,
-                        });
+                            target,
+                            data,
+                            rolls,
+                            events,
+                        )?;
+                        self.reward_defeated(&died, data)?;
                         return Ok(());
                     }
-                    let died = super::skill::resolve_skill(
-                        &mut self.roster,
-                        actor,
-                        skill,
-                        target,
-                        data,
-                        rolls,
-                        events,
-                    )?;
-                    self.reward_defeated(&died, data)?;
-                    return Ok(());
-                }
-                Command::Technique { technique, target } => {
-                    let died = super::technique::resolve_technique(
-                        &mut self.roster,
-                        actor,
-                        technique,
-                        target,
-                        data,
-                        rolls,
-                        events,
-                    );
-                    self.reward_defeated(&died, data)?;
-                    return Ok(());
-                }
-                Command::VehicleSkill(skill) => {
-                    let valid = self.vehicle
-                        && skill
-                            .checked_sub(1)
-                            .and_then(|slot| {
-                                fighter
-                                    .stats
-                                    .skills
-                                    .get(slot as usize)
-                                    .zip(fighter.stats.curr_skill_uses.get(slot as usize))
-                            })
-                            .is_some_and(|(&known, &uses)| known == skill && uses > 0);
-                    if !valid {
-                        events.push(BattleEvent::VehicleSkillRejected { actor, skill });
+                    Command::Technique { technique, target } => {
+                        let died = super::technique::resolve_technique(
+                            &mut self.roster,
+                            actor,
+                            technique,
+                            target,
+                            data,
+                            rolls,
+                            events,
+                        );
+                        self.reward_defeated(&died, data)?;
                         return Ok(());
                     }
+                    Command::VehicleSkill(skill) => {
+                        let valid = self.vehicle
+                            && skill
+                                .checked_sub(1)
+                                .and_then(|slot| {
+                                    fighter
+                                        .stats
+                                        .skills
+                                        .get(slot as usize)
+                                        .zip(fighter.stats.curr_skill_uses.get(slot as usize))
+                                })
+                                .is_some_and(|(&known, &uses)| known == skill && uses > 0);
+                        if !valid {
+                            events.push(BattleEvent::VehicleSkillRejected { actor, skill });
+                            return Ok(());
+                        }
 
-                    let fighter = self.roster.get_mut(actor).expect("present");
-                    let slot = usize::from(skill - 1);
-                    fighter.stats.curr_skill_uses[slot] -= 1;
-                    events.push(BattleEvent::VehicleSkillUsed {
-                        actor,
-                        skill,
-                        remaining: fighter.stats.curr_skill_uses[slot],
-                    });
-                    let died = resolve_vehicle_skill(&mut self.roster, actor, skill, rolls, events);
-                    self.reward_defeated(&died, data)?;
-                    return Ok(());
+                        let fighter = self.roster.get_mut(actor).expect("present");
+                        let slot = usize::from(skill - 1);
+                        fighter.stats.curr_skill_uses[slot] -= 1;
+                        events.push(BattleEvent::VehicleSkillUsed {
+                            actor,
+                            skill,
+                            remaining: fighter.stats.curr_skill_uses[slot],
+                        });
+                        let died =
+                            resolve_vehicle_skill(&mut self.roster, actor, skill, rolls, events);
+                        self.reward_defeated(&died, data)?;
+                        return Ok(());
+                    }
                 }
-            },
+            }
             Side::Enemy => {
                 // loc_5A98 / loc_5ACE refresh a dead or just-revived target
                 // before Enemy_Attack's ability roll. Retargeting consumes

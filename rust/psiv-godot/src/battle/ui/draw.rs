@@ -119,6 +119,72 @@ pub(super) fn compose(screen: &mut BattleScreen) {
                 }
             }
             Some(MenuView::Commands(commands)) => menu_draw::draw(chrome, commands, &mut quads),
+            Some(MenuView::Macros { cursor, slots }) => {
+                // `Battle_OpenMacroLetters` (5x17 at col 4, row 4) +
+                // `Battle_OpenMacroChar` (17x11 at col 10, row 9).
+                let letters_rect = WindowRect {
+                    x: 4.0 * cell,
+                    y: 4.0 * cell,
+                    w: 5.0 * cell,
+                    h: 17.0 * cell,
+                };
+                if let Some(frame) = chrome.frame(letters_rect) {
+                    quads.extend(frame);
+                }
+                for (row, slot) in slots.iter().enumerate() {
+                    let y = 5 + row as i32 * 2;
+                    let pattern = if row == *cursor && view.cursor_red {
+                        0x6e8
+                    } else {
+                        0x6e7
+                    };
+                    if let Some(quad) = chrome.window_word(pattern, false, false, tile_dest(5, y)) {
+                        quads.push(quad);
+                    }
+                    let line = match slot.state {
+                        psiv_runtime::MacroSlotState::Ready => 3,
+                        psiv_runtime::MacroSlotState::Partial => 1,
+                        psiv_runtime::MacroSlotState::Empty => 2,
+                    };
+                    let label = slot.letter.to_string();
+                    quads.extend(chrome.text_on(
+                        line,
+                        &label,
+                        WindowRect {
+                            x: 7.0 * cell,
+                            y: y as f32 * cell,
+                            w: cell,
+                            h: cell,
+                        },
+                    ));
+                }
+                let detail_rect = WindowRect {
+                    x: 10.0 * cell,
+                    y: 9.0 * cell,
+                    w: 17.0 * cell,
+                    h: 11.0 * cell,
+                };
+                if let Some(frame) = chrome.frame(detail_rect) {
+                    quads.extend(frame);
+                }
+                if let Some(selected) = slots.get(*cursor) {
+                    for (idx, entry) in selected.entries.iter().enumerate() {
+                        let y = (10 + idx as i32 * 2) as f32 * cell;
+                        let line = if entry.available { 3 } else { 2 };
+                        let text = format!("{:<4} {}", entry.character_name, entry.command_label);
+                        quads.extend(chrome.text_on(
+                            line,
+                            &text,
+                            WindowRect {
+                                x: 11.0 * cell,
+                                y,
+                                w: 15.0 * cell,
+                                h: cell,
+                            },
+                        ));
+                    }
+                }
+            }
             Some(MenuView::VehicleSkills { slots, cursor }) => {
                 vehicle_ui::draw(chrome, slots, *cursor, &mut quads);
             }

@@ -132,8 +132,8 @@ pub use activity::Activity;
 pub use battle::{
     AttackView, BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
     CommandMenuView, CursorMemory, DamageView, EnemyStatus, Fusion, FusionPiece, GrowingWindow,
-    MenuPage, MenuRow, MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind,
-    TechniqueEntry, battle_dwell_frames,
+    MacroEntryView, MacroSlotState, MacroSlotView, MenuPage, MenuRow, MenuView, MessageKind,
+    PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
 };
 pub use debug::{camp_fixture, camp_travel_fixture, encounter_entry_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
@@ -155,8 +155,8 @@ use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
 pub use camp::{
-    CampPage, CampView, OrderDraft, ROOT_OPTIONS, SYSTEM_OPTIONS, TOWN_PAGE_ROWS, TeardownView,
-    WindowRecord, WindowRect, WindowTeardown, town_page_rows,
+    CampPage, CampView, MACRO_ACTIONS, MacroDraft, OrderDraft, ROOT_OPTIONS, SYSTEM_OPTIONS,
+    TOWN_PAGE_ROWS, TeardownView, WindowRecord, WindowRect, WindowTeardown, town_page_rows,
 };
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 

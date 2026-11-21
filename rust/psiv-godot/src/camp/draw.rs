@@ -69,6 +69,12 @@ impl CampMenu {
             CampPage::SystemBattleSpeed => {
                 self.draw_system_speed(view, chrome, &mut list, "BATTLE SPEED", view.battle_speed)
             }
+            CampPage::MacroNotice
+            | CampPage::MacroList
+            | CampPage::MacroEraseConfirm
+            | CampPage::MacroPickMember
+            | CampPage::MacroPickAction
+            | CampPage::MacroPickAbility => self.draw_macro(view, chrome, &mut list),
             CampPage::Unsupported => self.draw_unsupported(view, chrome, &mut list),
         }
         if let Some(teardown) = view.teardown.as_ref() {
@@ -250,6 +256,134 @@ impl CampMenu {
                 portrait.clone(),
                 Rect2::new(Vector2::new(24.0, 16.0), Vector2::new(80.0, 80.0)),
             ));
+        }
+    }
+
+    fn draw_macro(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        use layout::CellRect;
+        self.draw_root(view, chrome, list, false);
+        if view.page == CampPage::MacroNotice {
+            frame(chrome, list, ITEM_MESSAGE);
+            draw_text(chrome, &mut list.quads, &view.message, (15, 22));
+            return;
+        }
+        // Macro letter list A..H on the left + selected slot details on the right.
+        let letters_rect = CellRect {
+            x: 10,
+            y: 1,
+            w: 5,
+            h: 18,
+        };
+        let detail_rect = CellRect {
+            x: 16,
+            y: 1,
+            w: 22,
+            h: 14,
+        };
+        frame(chrome, list, letters_rect);
+        for (row, slot) in view.macro_draft.slots.iter().enumerate() {
+            let y = 2 + row as i32 * 2;
+            draw_text(chrome, &mut list.quads, &slot.letter.to_string(), (13, y));
+            if row == view.macro_draft.slot
+                && let Some(quad) = chrome.window_word(CHILD_CURSOR_PATTERN, (11, y))
+            {
+                list.quads.push(quad);
+            }
+        }
+        frame(chrome, list, detail_rect);
+        if let Some(selected) = view.macro_draft.slots.get(view.macro_draft.slot) {
+            for (idx, entry) in selected.entries.iter().enumerate() {
+                let text = format!("{:<5} {}", entry.character_name, entry.command_label);
+                draw_text(chrome, &mut list.quads, &text, (17, 2 + idx as i32 * 2));
+            }
+        }
+        match view.page {
+            CampPage::MacroEraseConfirm => {
+                frame(chrome, list, ITEM_MESSAGE);
+                draw_text(chrome, &mut list.quads, &view.message, (15, 22));
+                let confirm_rect = CellRect {
+                    x: 24,
+                    y: 15,
+                    w: 8,
+                    h: 6,
+                };
+                frame(chrome, list, confirm_rect);
+                draw_text(chrome, &mut list.quads, "YES", (27, 16));
+                draw_text(chrome, &mut list.quads, "NO", (27, 18));
+                if let Some(quad) = chrome.window_word(
+                    CHILD_CURSOR_PATTERN,
+                    (25, 16 + view.macro_draft.erase_confirm as i32 * 2),
+                ) {
+                    list.quads.push(quad);
+                }
+            }
+            CampPage::MacroPickMember => {
+                let rect = CellRect {
+                    x: 16,
+                    y: 15,
+                    w: 12,
+                    h: 11,
+                };
+                frame(chrome, list, rect);
+                for (row, (_, name)) in view.macro_draft.remaining_members.iter().enumerate() {
+                    draw_text(chrome, &mut list.quads, name, (19, 16 + row as i32 * 2));
+                }
+                if !view.macro_draft.remaining_members.is_empty()
+                    && let Some(quad) = chrome.window_word(
+                        CHILD_CURSOR_PATTERN,
+                        (17, 16 + view.macro_draft.member_cursor as i32 * 2),
+                    )
+                {
+                    list.quads.push(quad);
+                }
+            }
+            CampPage::MacroPickAction => {
+                let rect = CellRect {
+                    x: 16,
+                    y: 15,
+                    w: 12,
+                    h: 12,
+                };
+                frame(chrome, list, rect);
+                for (row, label) in psiv_runtime::MACRO_ACTIONS.iter().enumerate() {
+                    draw_text(chrome, &mut list.quads, label, (19, 16 + row as i32 * 2));
+                }
+                if let Some(quad) = chrome.window_word(
+                    CHILD_CURSOR_PATTERN,
+                    (17, 16 + view.macro_draft.action_cursor as i32 * 2),
+                ) {
+                    list.quads.push(quad);
+                }
+            }
+            CampPage::MacroPickAbility => {
+                let rect = CellRect {
+                    x: 16,
+                    y: 15,
+                    w: 18,
+                    h: 11,
+                };
+                frame(chrome, list, rect);
+                let page = view.macro_draft.ability_cursor / 4;
+                for (row, (_, name)) in view
+                    .macro_draft
+                    .ability_options
+                    .iter()
+                    .skip(page * 4)
+                    .take(4)
+                    .enumerate()
+                {
+                    draw_text(chrome, &mut list.quads, name, (19, 16 + row as i32 * 2));
+                }
+                if !view.macro_draft.ability_options.is_empty()
+                    && let Some(quad) = chrome.window_word(
+                        CHILD_CURSOR_PATTERN,
+                        (17, 16 + (view.macro_draft.ability_cursor % 4) as i32 * 2),
+                    )
+                {
+                    list.quads.push(quad);
+                }
+            }
+            _ => {}
         }
     }
 
