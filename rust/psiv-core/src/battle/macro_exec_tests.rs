@@ -289,3 +289,132 @@ fn macro_special_targeting_heals_most_injured_human_cures_poison_revives_dead_an
         "RepairKit must heal injured android fighter 4: {ev2:?}"
     );
 }
+
+#[test]
+fn macro_single_target_combo_resolves_lead_macro_target_and_tie_draws() {
+    // 1. Single-target combo (range 1) triggered by a macro must target the
+    // wounded enemy in slot 7 via `loc_5A98` / `loc_5AE6`, not default slot 6.
+    let single_data = test_data().with_combos([ComboRecord {
+        id: 1,
+        name: "SYNTH_ONE".into(),
+        effect: 1,
+        range: 1,
+        power: 0,
+        resistance: 7,
+        element: 7,
+        participants: 2,
+        ordered: true,
+        setups: vec![vec![4, 0x80 | 11]],
+    }]);
+    let p0 = member(0, 30, 100, 100, &[4], &[]);
+    let p1 = member(1, 20, 100, 100, &[], &[11]);
+    let mut rolls = SliceRolls::new(&[0; 256]);
+    let (mut b, _) = Battle::start(
+        &formation(2),
+        vec![p0.clone(), p1.clone()],
+        &single_data,
+        true,
+        &mut rolls,
+    )
+    .unwrap();
+    // Round 1: wound enemy slot 7 with single-target WAT while slot 6 stays untouched.
+    b.round(
+        &RoundOrders::Commands(vec![
+            Command::Technique {
+                technique: 4,
+                target: Some(id(7)),
+            },
+            Command::Defend,
+        ]),
+        &single_data,
+        &mut rolls,
+    )
+    .unwrap();
+    assert_eq!(b.roster().get(id(6)).unwrap().stats.curr_hp, 400);
+    assert!(b.roster().get(id(7)).unwrap().stats.curr_hp < 400);
+
+    // Round 2: macro triggers single-target combo -> must hit wounded slot 7.
+    let ev = b
+        .round(
+            &RoundOrders::Macro(macro_from(&[(0, 2, 4), (1, 3, 11)])),
+            &single_data,
+            &mut rolls,
+        )
+        .unwrap();
+    assert!(
+        ev.iter()
+            .any(|e| matches!(e, BattleEvent::ComboUsed { combo: 1, .. }))
+    );
+    let hits: Vec<FighterId> = ev
+        .iter()
+        .filter_map(|e| match e {
+            BattleEvent::Resolved {
+                actor,
+                target,
+                damage: Some(_),
+                ..
+            } if *actor == id(1) => Some(*target),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        hits,
+        vec![id(7)],
+        "macro single-target combo must target wounded slot 7 via loc_5AE6"
+    );
+
+    // 2. All-enemy combo (range 2) with single-enemy lead (WAT) against two
+    // equal-deficit enemies consumes 1 tie-break draw before combo damage rolls,
+    // unlike when one enemy is wounded (0 tie-break draws).
+    let aoe_data = test_data();
+    let mut r_tied = SliceRolls::new(&[0; 256]);
+    let (mut b_tied, _) = Battle::start(
+        &formation(2),
+        vec![p0.clone(), p1.clone()],
+        &aoe_data,
+        true,
+        &mut r_tied,
+    )
+    .unwrap();
+    let before_tied = r_tied.drawn();
+    b_tied
+        .round(
+            &RoundOrders::Macro(macro_from(&[(0, 2, 4), (1, 3, 11)])),
+            &aoe_data,
+            &mut r_tied,
+        )
+        .unwrap();
+    let draws_tied = r_tied.drawn() - before_tied;
+
+    let mut r_unequal = SliceRolls::new(&[0; 256]);
+    let (mut b_unequal, _) =
+        Battle::start(&formation(2), vec![p0, p1], &aoe_data, true, &mut r_unequal).unwrap();
+    // Wound slot 7 first so slot 6 (deficit 0) and slot 7 (deficit > 0) do not tie.
+    b_unequal
+        .round(
+            &RoundOrders::Commands(vec![
+                Command::Technique {
+                    technique: 4,
+                    target: Some(id(7)),
+                },
+                Command::Defend,
+            ]),
+            &aoe_data,
+            &mut r_unequal,
+        )
+        .unwrap();
+    let before_unequal = r_unequal.drawn();
+    b_unequal
+        .round(
+            &RoundOrders::Macro(macro_from(&[(0, 2, 4), (1, 3, 11)])),
+            &aoe_data,
+            &mut r_unequal,
+        )
+        .unwrap();
+    let draws_unequal = r_unequal.drawn() - before_unequal;
+    assert_eq!(
+        draws_tied,
+        draws_unequal + 1,
+        "equal-deficit macro lead must consume 1 tie-break draw before all-enemy combo"
+    );
+}

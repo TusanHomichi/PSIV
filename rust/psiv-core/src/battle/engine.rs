@@ -539,6 +539,7 @@ impl Battle {
                 let died = super::combo::resolve_combo(
                     &mut self.roster,
                     &matched,
+                    matches!(orders, RoundOrders::Macro(_)),
                     data,
                     rolls,
                     &mut events,
