@@ -277,6 +277,18 @@ const RETAIL_PANS: &[(&str, CameraSubject, u16, &str)] = &[
         1,
         "`Event_MoveCamera` (`ps4.asm:147778`)",
     ),
+    (
+        "Cutscene_ZioDefeated",
+        live(ActorRef::Character(CharId(6))),
+        1,
+        "`Event_MoveCamera` (`ps4.asm:155097`)",
+    ),
+    (
+        "Cutscene_ZioDefeated",
+        live(ActorRef::Character(CharId(6))),
+        1,
+        "`Event_MoveCamera` (`ps4.asm:155117`)",
+    ),
 ];
 
 type Pans = BTreeMap<&'static str, Vec<(CameraSubject, u16)>>;

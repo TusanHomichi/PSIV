@@ -475,27 +475,173 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::Wait { ticks: 60 },
         // `$075B10`: after the second map-update wait, before Demi's refresh.
         SceneOp::FadeOut,
-        // `$075B10..$075CE6`, Demi's sequence in BioPlant B4 (#414). The
-        // cartridge clears two objects, places Demi at `($1E8,$1C0)`,
-        // refreshes the map with load-flag bit 3 set, fades in and turns the
-        // camera and Demi to each other; those, her steps and the two elevator
-        // object loops (`loc_75EE0`, `loc_75F54`) are not drawn here. The
-        // pages, sounds, palette write, panel and waits are the cartridge's.
+        // `$075B16..$075C56`: Demi's sequence in Nurvus B4 Part 2 (#414).
+        // Retail clears `$FFFFC300` and `$FFFFC340`, stages Demi at
+        // `($1E8,$1C0)`, sets `Map_Load_Flags` bit 3 and refreshes `0xD3`,
+        // fades in, pans to Demi, steps her into the chamber while `loc_75EE0`
+        // opens the 3-chunk door at `(14..=16, 12)` (10 rows × 8 frames), and
+        // closes it behind her with `loc_75F54` (10 rows × 6 frames).
+        SceneOp::DespawnNpc {
+            npc_index: 0,
+            count: 2,
+        },
+        SceneOp::SetMapLoadFlags {
+            set: 0x08,
+            clear: 0,
+        },
+        SceneOp::LoadMap {
+            map: 0xD3,
+            prev_map: 0xAC,
+            start_x: 0x3D,
+            start_y: 0x38,
+            facing: Direction::Down,
+            align: 0,
+            clear_load_flags: 0,
+        },
+        SceneOp::PlaceActor {
+            actor: ActorRef::Character(DEMI),
+            x: 0x1E8,
+            y: 0x1C0,
+        },
         SceneOp::FadeIn,
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(ActorRef::Character(DEMI)),
+            speed: 1,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(DEMI),
+            facing: Direction::Left,
+        },
         SceneOp::Wait { ticks: 10 },
+        SceneOp::Face {
+            actor: ActorRef::Character(DEMI),
+            facing: Direction::Down,
+        },
         // `$075BA0`: `popdlg` / `clr.b Render_Sprites_In_Cutscenes` /
         // `jsr Event_RunDialogue`.
         SceneOp::SetRenderSpritesInCutscene { enabled: false },
         SceneOp::RunDialogueResumeWithWindow {
             window: DialogueWindow::Standard,
         },
+        SceneOp::SetFollowMode { bits: 5 },
+        SceneOp::PanCamera {
+            subject: CameraSubject::Actor(ActorRef::Character(DEMI)),
+            speed: 1,
+        },
+        // `$075BD8`: `Event_StepObject` (`d1 = -$10000`, `d2 = $0F`) while
+        // facing down -> 16 frames backwards (up) from `$1C0` to `$1B0`.
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::Character(DEMI),
+            backwards: true,
+            frames: 16,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(DEMI),
+            facing: Direction::Up,
+        },
+        // `$075BF4`: `Event_StepObject` (`d1 = -$10000`, `d2 = $1F`) -> 32
+        // frames up from `$1B0` to `$190`.
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::Character(DEMI),
+            backwards: false,
+            frames: 32,
+        },
         SceneOp::Wait { ticks: 60 },
-        // `$075C04`, `$075C3A`: `SFXID_RidingElevator`, each beside its
-        // elevator loop, with the map-update waits around them.
+        // `$075C04`: `SFXID_RidingElevator` + `loc_75EE0` (10 triples × 8
+        // map-update frames at FG `(14..=16, 12)`).
         SceneOp::PlaySound { id: 0xE0 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 8 },
         SceneOp::Wait { ticks: 60 },
+        // `$075C2A`: `Event_StepObject` (`d1 = -$10000`, `d2 = $2F`) -> 48
+        // frames up from `$190` to `$160`.
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::Character(DEMI),
+            backwards: false,
+            frames: 48,
+        },
         SceneOp::Wait { ticks: 60 },
+        // `$075C3A`: `SFXID_RidingElevator` + `loc_75F54` (10 triples × 6
+        // map-update frames at FG `(14..=16, 12)`).
         SceneOp::PlaySound { id: 0xE0 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xC0), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBF), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBE), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBD), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBC), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB9), (15, 12, 0xBA), (16, 12, 0xBB)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB6), (15, 12, 0xB7), (16, 12, 0xB8)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB3), (15, 12, 0xB4), (16, 12, 0xB5)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xB0), (15, 12, 0xB1), (16, 12, 0xB2)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(14, 12, 0xAD), (15, 12, 0xAE), (16, 12, 0xAF)],
+        },
+        SceneOp::Wait { ticks: 6 },
         SceneOp::Wait { ticks: 60 },
         // `$075C56`.
         SceneOp::RunDialogueResume,

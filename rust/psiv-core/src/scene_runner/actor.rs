@@ -128,6 +128,16 @@ impl ScriptedActor {
         self.slide = (at.0 - origin.x, at.1 - origin.y);
     }
 
+    /// Current whole-pixel position (`$30`/`$34`), including any sub-cell slide.
+    #[must_use]
+    pub fn pixel_pos(&self) -> crate::trigger::PixelPos {
+        let origin = crate::trigger::PixelPos::from_cell(self.cell);
+        crate::trigger::PixelPos {
+            x: origin.x + self.slide.0,
+            y: origin.y + self.slide.1,
+        }
+    }
+
     /// Whether it still has walking to do.
     #[must_use]
     pub const fn is_walking(&self) -> bool {

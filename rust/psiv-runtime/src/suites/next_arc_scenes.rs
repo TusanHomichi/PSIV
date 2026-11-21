@@ -324,6 +324,15 @@ fn every_next_arc_scene_reaches_its_return_edge() {
             })
         } else if event == 0x8007 || event == 0x0027 {
             runtime_with_four_party_at(map)
+        } else if event == 0x8004 {
+            let mut rt = runtime_at(map);
+            rt.change_map(
+                psiv_core::MapId(map),
+                Cell::new(0x1E, 0x1F),
+                Direction::Down,
+            )
+            .expect("Dorin house room cell");
+            rt
         } else {
             runtime_at(map)
         };
@@ -397,6 +406,13 @@ fn dorin_motion_lands_in_the_live_field_map() {
         return;
     }
     let mut runtime = runtime_at(0x43);
+    runtime
+        .change_map(
+            psiv_core::MapId(0x43),
+            Cell::new(0x1E, 0x1F),
+            Direction::Down,
+        )
+        .expect("Dorin house room cell");
     let _ = drive_scene(&mut runtime, 0x8004);
 
     assert_eq!(runtime.map_id().0, 0x43, "Dorin refreshes TonoeGryzHouse");

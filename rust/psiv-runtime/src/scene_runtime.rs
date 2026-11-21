@@ -219,11 +219,16 @@ impl Runtime {
         // A scene's map reload replaces VDP planes and resets scroll mode
         // (`$07A132`: `move.w #$8B00, (a6)` before Termi's `RefreshMap`).
         self.credits = None;
+        let keep_objects = (self.map_load_flags & !clear_load_flags)
+            & crate::map_change::LOAD_FLAG_REFRESH_KEEP_OBJECTS
+            != 0;
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
             Ok(loaded) => {
-                let cast = self.build_cast();
-                if let Some(runner) = self.scene.as_mut() {
-                    runner.recast(cast);
+                if !keep_objects {
+                    let cast = self.build_cast();
+                    if let Some(runner) = self.scene.as_mut() {
+                        runner.recast(cast);
+                    }
                 }
                 self.hold_palette_for_fade_in(shown);
                 events.push(loaded.event(WarpTrigger::MapChange));
@@ -735,13 +740,13 @@ impl Runtime {
                                 .scene
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
-                                .map(|walker| PixelPos::from_cell(walker.cell)),
+                                .map(psiv_core::ScriptedActor::pixel_pos),
                             psiv_core::CameraSubject::ActorX { actor, y } => self
                                 .scene
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| PixelPos {
-                                    x: PixelPos::from_cell(walker.cell).x,
+                                    x: walker.pixel_pos().x,
                                     y,
                                 }),
                             psiv_core::CameraSubject::ActorShifted { actor, dx } => self
@@ -749,7 +754,7 @@ impl Runtime {
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| {
-                                    let at = PixelPos::from_cell(walker.cell);
+                                    let at = walker.pixel_pos();
                                     PixelPos {
                                         x: at.x + dx,
                                         y: at.y,

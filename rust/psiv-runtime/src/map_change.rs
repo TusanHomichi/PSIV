@@ -105,6 +105,8 @@ pub(crate) enum MapLoad {
 pub(crate) const LOAD_FLAG_AFTER_BATTLE: u8 = 0b0000_0001;
 /// Bit 2, set by `FieldRoutine_Cutscene` on a zero return (`ps4.asm:120746`).
 pub(crate) const LOAD_FLAG_AFTER_CUTSCENE: u8 = 0b0000_0100;
+/// Bit 3, set by scenes before `RefreshMap` to preserve live objects (`ps4.asm:121767`).
+pub(crate) const LOAD_FLAG_REFRESH_KEEP_OBJECTS: u8 = 0b0000_1000;
 /// Bit 7: "skip palette fade in" (`ps4.asm:107628`).
 pub(crate) const LOAD_FLAG_SKIP_FADE: u8 = 0b1000_0000;
 
@@ -224,7 +226,11 @@ impl Runtime {
     /// The retained objects keep what a scene wrote into them, so the
     /// dialogue ids it set (`$14(a4)`, `SceneEffect::NpcDialogueSet`) survive
     /// the walk, which rewrites only the objects its own entries name.
-    fn rewalk_map_retaining_objects(&mut self, target: MapId) -> Result<(), BridgeError> {
+    fn rewalk_map_retaining_objects(
+        &mut self,
+        target: MapId,
+        enable_display: bool,
+    ) -> Result<(), BridgeError> {
         let record = self
             .data
             .map(psiv_data::MapId(target.0))
@@ -234,8 +240,11 @@ impl Runtime {
             effects.dialogue_overrides.entry(index).or_insert(id);
         }
         effects.cram.follow(&self.effects.cram);
-        // Both callers are `GameMode_LoadFieldMap`, whose display comes on.
-        effects.cram.enable_display();
+        // `GameMode_LoadFieldMap` turns the display on; `RefreshMap` leaves it
+        // as the caller set it.
+        if enable_display {
+            effects.cram.enable_display();
+        }
         let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
         bridge::reconcile_controllers(
@@ -272,7 +281,7 @@ impl Runtime {
         let music_written = self.write_map_music(target, raw_music);
         // Bit 2 spares the objects and the vehicle; the byte is spent.
         let skip_fade = self.apply_map_load_flags(MapLoad::Field);
-        self.rewalk_map_retaining_objects(target)?;
+        self.rewalk_map_retaining_objects(target, true)?;
         self.saved_map_index_2 = load.previous_map;
         let record = self
             .data
@@ -355,7 +364,7 @@ impl Runtime {
         // counters (#59). A scene's `RefreshMap` (`:121797`) and the cutscene
         // reload rebuild the camera from the record, which writes the same.
         self.refresh_map_camera_gates_for(load.map)?;
-        self.rewalk_map_retaining_objects(load.map)?;
+        self.rewalk_map_retaining_objects(load.map, true)?;
         self.saved_map_index_2 = load.previous_map;
         // The battle set bit 0 when it began (`bset #0`, `ps4.asm:118057` and
         // `120803`), so this load keeps the objects — and the party stays
@@ -464,6 +473,8 @@ impl Runtime {
         };
         let keep_old_music =
             matches!(kind, MapLoad::Field) && self.map_load_flags & LOAD_FLAG_AFTER_BATTLE != 0;
+        let keep_refresh_objects = matches!(kind, MapLoad::Refresh)
+            && self.map_load_flags & LOAD_FLAG_REFRESH_KEEP_OBJECTS != 0;
         // The routine's flag test comes first in the cartridge: the object
         // memory and `Vehicle_Index` are cleared — or spared — before a byte
         // of map data is read (`ps4.asm:107507-107521`, `:121769-121780`).
@@ -483,48 +494,74 @@ impl Runtime {
         if let Some(id) = music {
             self.saved_sound_index = id;
         }
-        // MapDataManager runs inside map load, and its walk is STATEFUL:
-        // flag_clear writes (from the pack's decoded data) land mid-walk so
-        // later entries' gates see them — the Xanafalgue-respawn mechanism
-        // tape 18 measured. Cleared flags resurrect gated objects on OTHER
-        // maps at their next build; this map's own build below already sees
-        // the post-clear state.
-        let mut effects = effects::evaluate(record, &mut self.game);
-        effects.cram.follow(&self.effects.cram);
-        // `GameMode_LoadFieldMap` turns the display on (the shell draws its
-        // `Pal_FadeIn`); a scene's `RefreshMap` leaves it as it was.
-        if matches!(kind, MapLoad::Field) {
-            effects.cram.enable_display();
-        }
-        let map = bridge::field_map_entered(record, &effects, &self.game)?;
-        clear_bespoke_entry_flags(&mut self.game, record);
-        self.effects = effects;
-        // LoadMapObjects creates a fresh cast. Scene despawns only change
-        // the live objects; persistent removals come from MapDataManager's
-        // extracted flag gates above (including recruited party members).
-        self.party
-            .enter_map(&map, cell, facing)
-            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
-        if let Some(toward) = alignment {
-            self.party.line_up(&map, toward);
-        }
-        self.wander = build_wander(&map, record)?;
-        self.bespoke = build_bespoke(&map, record)?;
-        self.eclipse_torch.clear();
-        // Map entry places the view rather than scrolling it in, so the camera
-        // starts framed on the party wherever the warp dropped them.
-        self.camera = camera_for_record(driver_of(self.party.leader()), &map, record)
-            .map_err(BridgeError::Rejected)?;
-        self.map = map;
-        if let Some(vehicle) = self.vehicle.as_mut() {
-            if !vehicle.enter_map(&self.map, cell, facing) {
-                return Err(BridgeError::Rejected(format!(
-                    "vehicle destination ({}, {}) is outside map {}",
-                    cell.x, cell.y, target.0
-                )));
+        if keep_refresh_objects {
+            // `RefreshMap` with bit 3 set spares `Field_Objects_Memory` and
+            // skips `loc_53546` / `LoadMapObjects` / `LoadTreasureChests`, so
+            // live party formation, vehicle, and NPC active states/positions
+            // survive while `MapDataManager` re-evaluates over them.
+            self.rewalk_map_retaining_objects(target, false)?;
+            let record = self
+                .data
+                .map(psiv_data::MapId(target.0))
+                .ok_or(BridgeError::NotPacked(target.0))?;
+            clear_bespoke_entry_flags(&mut self.game, record);
+            let leader = if let Some(vehicle) = self.vehicle.as_ref() {
+                vehicle::driver_of(vehicle)
+            } else if let Some(actor) = self.scene_party_actor(0) {
+                let at = actor.pixel_pos();
+                psiv_core::Driver {
+                    x: at.x * psiv_core::ONE_PIXEL,
+                    y: at.y * psiv_core::ONE_PIXEL,
+                }
+            } else {
+                driver_of(self.party.leader())
+            };
+            self.camera =
+                camera_for_record(leader, &self.map, record).map_err(BridgeError::Rejected)?;
+        } else {
+            // MapDataManager runs inside map load, and its walk is STATEFUL:
+            // flag_clear writes (from the pack's decoded data) land mid-walk so
+            // later entries' gates see them — the Xanafalgue-respawn mechanism
+            // tape 18 measured. Cleared flags resurrect gated objects on OTHER
+            // maps at their next build; this map's own build below already sees
+            // the post-clear state.
+            let mut effects = effects::evaluate(record, &mut self.game);
+            effects.cram.follow(&self.effects.cram);
+            // `GameMode_LoadFieldMap` turns the display on (the shell draws its
+            // `Pal_FadeIn`); a scene's `RefreshMap` leaves it as it was.
+            if matches!(kind, MapLoad::Field) {
+                effects.cram.enable_display();
             }
-            self.camera = camera_for_record(vehicle::driver_of(vehicle), &self.map, record)
+            let map = bridge::field_map_entered(record, &effects, &self.game)?;
+            clear_bespoke_entry_flags(&mut self.game, record);
+            self.effects = effects;
+            // LoadMapObjects creates a fresh cast. Scene despawns only change
+            // the live objects; persistent removals come from MapDataManager's
+            // extracted flag gates above (including recruited party members).
+            self.party
+                .enter_map(&map, cell, facing)
+                .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+            if let Some(toward) = alignment {
+                self.party.line_up(&map, toward);
+            }
+            self.wander = build_wander(&map, record)?;
+            self.bespoke = build_bespoke(&map, record)?;
+            self.eclipse_torch.clear();
+            // Map entry places the view rather than scrolling it in, so the camera
+            // starts framed on the party wherever the warp dropped them.
+            self.camera = camera_for_record(driver_of(self.party.leader()), &map, record)
                 .map_err(BridgeError::Rejected)?;
+            self.map = map;
+            if let Some(vehicle) = self.vehicle.as_mut() {
+                if !vehicle.enter_map(&self.map, cell, facing) {
+                    return Err(BridgeError::Rejected(format!(
+                        "vehicle destination ({}, {}) is outside map {}",
+                        cell.x, cell.y, target.0
+                    )));
+                }
+                self.camera = camera_for_record(vehicle::driver_of(vehicle), &self.map, record)
+                    .map_err(BridgeError::Rejected)?;
+            }
         }
         // The first field control tick checks RunEvents before accepting a
         // step. loc_518D2 also resets the encounter countdown on EVERY load.
@@ -704,5 +741,159 @@ mod kept_load_redirects {
             rt.reload_field_after_cutscene().unwrap();
             assert_eq!(rt.map_id(), MapId(want), "Dark Force 2 {flag}");
         }
+    }
+
+    /// `RefreshMap` with `Map_Load_Flags` bit 3 set (`ps4.asm:121767`) keeps
+    /// live party formation, NPC active states, and the active scene cast,
+    /// as `Cutscene_ZioDefeated`'s Nurvus B4 refresh requires.
+    #[test]
+    fn refresh_map_bit_3_preserves_live_party_npcs_and_scene_cast_across_zio_defeated() {
+        let pack = Path::new(PACK);
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack absent; skipping");
+            return;
+        }
+        let data = GameData::load(pack).unwrap();
+        let party = [
+            Some(psiv_core::CharId(0)),
+            Some(psiv_core::CharId(4)),
+            Some(psiv_core::CharId(5)),
+            Some(psiv_core::CharId(6)),
+            Some(psiv_core::CharId(3)),
+        ];
+        // 1) Direct RefreshMap bit-3 preservation vs clear-bit-3 negative control
+        // on TonoeGryzHouse (0x43), which has active NPCs with no map gate hiding slot 0.
+        {
+            let mut kept = Runtime::new(
+                data.clone(),
+                0x43,
+                Cell::new(0x1E, 0x1F),
+                Direction::Up,
+                StepFrames::default(),
+            )
+            .unwrap();
+            assert!(kept.map().npcs()[0].active, "NPC 0 starts active on 0x43");
+            kept.map.set_npc_active(0, false).unwrap();
+            kept.map_load_flags = LOAD_FLAG_REFRESH_KEEP_OBJECTS;
+            kept.change_map_refresh(MapId(0x43), Cell::new(0x1E, 0x20), Direction::Down, 0x43, 0)
+                .unwrap();
+            assert!(
+                !kept.map().npcs()[0].active,
+                "despawned NPC must stay inactive across bit-3 RefreshMap"
+            );
+            assert_eq!(
+                kept.state().cell(),
+                Cell::new(0x1E, 0x1F),
+                "leader position must survive bit-3 RefreshMap"
+            );
+
+            // Negative control: clearing bit 3 resets NPCs and teleports party to start cell.
+            kept.change_map_refresh(
+                MapId(0x43),
+                Cell::new(0x1E, 0x20),
+                Direction::Down,
+                0x43,
+                LOAD_FLAG_REFRESH_KEEP_OBJECTS,
+            )
+            .unwrap();
+            assert!(
+                kept.map().npcs()[0].active,
+                "clear bit 3 rebuilds NPCs fresh"
+            );
+            assert_eq!(kept.state().cell(), Cell::new(0x1E, 0x20));
+        }
+
+        // 2) Run Cutscene_ZioDefeated (0x800B) on Nurvus B4 Part 2 (0xD3) with a
+        // 5-member party spread in formation through its bit-3 Nurvus refresh.
+        let seed = Runtime::new_game(data.clone(), StepFrames::default()).unwrap();
+        let mut game = GameState::from_snapshot(&seed.game().snapshot());
+        game.set_party(party);
+        // Retail state when Cutscene_ZioDefeated runs: Zio has just been fought ($65 set).
+        game.set(Flag::event(0x65)).unwrap();
+        let mut rt = Runtime::from_save(
+            data,
+            psiv_core::RetailSave {
+                snapshot: game.snapshot(),
+                location: psiv_core::RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0xAC,
+                    map_index: 0xD3,
+                    char_x: 30 * 16,
+                    char_y: 32 * 16,
+                },
+            },
+            StepFrames::default(),
+        )
+        .unwrap();
+        // Spread all 5 party members into a distinct non-stacked corridor formation
+        // before Cutscene_ZioDefeated runs its bit-3 Nurvus refresh.
+        rt.party.line_up(&rt.map, Direction::Down);
+        let formation: Vec<Cell> = rt.members().iter().map(|m| m.cell).collect();
+        assert_eq!(formation.len(), 5);
+        assert_ne!(
+            formation[0], formation[4],
+            "party must be spread in formation before refresh"
+        );
+
+        assert!(rt.start_event(0x800B));
+        let mut checked_nurvus_refresh = false;
+        let mut saw_demi_placed = false;
+        for _ in 0..20_000 {
+            let events = rt.tick(psiv_core::Input::Neutral);
+            for event in &events {
+                if matches!(
+                    event,
+                    RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+                ) {
+                    rt.dialogue_closed();
+                }
+                if let RuntimeEvent::MapChanged { map, .. } = event
+                    && map.id() == MapId(0xD3)
+                {
+                    let after_members: Vec<Cell> = rt.members().iter().map(|m| m.cell).collect();
+                    assert_eq!(
+                        after_members, formation,
+                        "party formation must survive bit-3 RefreshMap"
+                    );
+                    for (slot, &want) in formation.iter().enumerate() {
+                        if slot == 3 {
+                            // Demi (slot 3) is repositioned right after LoadMap by PlaceActor.
+                            continue;
+                        }
+                        assert_eq!(
+                            rt.scene_party_actor(slot).map(|a| a.cell),
+                            Some(want),
+                            "scene cast slot {slot} must survive bit-3 RefreshMap"
+                        );
+                    }
+                    checked_nurvus_refresh = true;
+                }
+            }
+            if checked_nurvus_refresh
+                && !saw_demi_placed
+                && rt
+                    .scene_party_actor(3)
+                    .map(psiv_core::ScriptedActor::pixel_pos)
+                    == Some(psiv_core::PixelPos { x: 0x1E8, y: 0x1C0 })
+            {
+                saw_demi_placed = true;
+                // Confirm the other four characters are still in their formation.
+                for (slot, &want) in formation.iter().enumerate() {
+                    if slot != 3 {
+                        assert_eq!(
+                            rt.scene_party_actor(slot).map(|a| a.cell),
+                            Some(want),
+                            "slot {slot} stays in formation when Demi moves"
+                        );
+                    }
+                }
+            }
+            if !rt.scene_active() {
+                break;
+            }
+        }
+        assert!(checked_nurvus_refresh, "saw Nurvus 0xD3 bit-3 refresh");
+        assert!(saw_demi_placed, "saw Demi placed at (0x1E8, 0x1C0)");
+        assert!(!rt.scene_active(), "Cutscene_ZioDefeated finished");
     }
 }

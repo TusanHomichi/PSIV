@@ -4,16 +4,17 @@
 
 use super::post_rika_cutscenes::ZIO_DEFEATED;
 use crate::collision::CollisionGrid;
+use crate::geom::{Cell, Direction};
 use crate::map::{FieldMap, MapId};
-use crate::scene::{SceneEffect, SceneInput, SceneOp};
+use crate::scene::{ActorRef, SceneEffect, SceneInput, SceneOp, ScriptedActor};
 use crate::scene_runner::SceneRunner;
 use crate::state::{CharId, GameState};
 use crate::{DialogueWindow, PresentationOp};
 
 fn trace(ops: &'static [SceneOp]) -> Vec<String> {
     let map = FieldMap::new(
-        MapId(0xAC),
-        CollisionGrid::filled(8, 8, 0).unwrap(),
+        MapId(0xD3),
+        CollisionGrid::filled(64, 64, 0).unwrap(),
         vec![],
         vec![],
     )
@@ -26,7 +27,16 @@ fn trace(ops: &'static [SceneOp]) -> Vec<String> {
         Some(CharId(5)),
         Some(CharId(3)),
     ]);
-    let mut runner = SceneRunner::new(ops, vec![], crate::StepFrames::default());
+    let actors = (0..5)
+        .map(|slot| {
+            ScriptedActor::new(
+                ActorRef::PartyMember(slot),
+                Cell::new(30, 29),
+                Direction::Down,
+            )
+        })
+        .collect();
+    let mut runner = SceneRunner::new(ops, actors, crate::StepFrames::default());
     let mut input = SceneInput::None;
     let mut steps = Vec::new();
     for _ in 0..5_000 {
@@ -52,10 +62,17 @@ fn trace(ops: &'static [SceneOp]) -> Vec<String> {
                 }
                 SceneEffect::PartyChanged => steps.push("remove party".into()),
                 SceneEffect::MapChunksWritten { chunks } => {
-                    assert_eq!(chunks, [(26, 45, 0x3F)]);
-                    steps.push("spaceport".into());
+                    if chunks == [(26, 45, 0x3F)] {
+                        steps.push("spaceport".into());
+                    } else {
+                        assert_eq!(chunks.len(), 3);
+                        assert!(chunks.iter().all(|&(x, y, id)| {
+                            (14..=16).contains(&x) && y == 12 && (0xAD..=0xC0).contains(&id)
+                        }));
+                    }
                 }
                 SceneEffect::Presentation { op } => match op {
+                    SceneOp::PanCamera { .. } => input = SceneInput::CameraArrived,
                     SceneOp::FadeOut => steps.push("out".into()),
                     SceneOp::FadeIn => steps.push("in".into()),
                     SceneOp::InitVramAndCram => {
@@ -90,6 +107,7 @@ fn expected() -> Vec<String> {
         "dialogue",
         "chunks",
         "out",
+        "map 3D,38",
         "in",
         "dialogue",
         "dialogue",
@@ -180,17 +198,31 @@ fn missing_or_misplaced_repaired_fades_change_the_zio_trace() {
     }
 }
 
-/// $075B10 follows the chunk reload and the full $3B+1 map updates.
+/// $075B10 follows the chunk reload and the full $3B+1 map updates, then
+/// refreshes 0xD3 and stages Demi before fading in.
 fn bioplant_boundary(ops: &[SceneOp]) -> bool {
-    ops.windows(4).any(|span| {
-        span == [
-            SceneOp::Presentation {
-                op: PresentationOp::ReloadMapChunks,
-            },
-            SceneOp::Wait { ticks: 60 },
-            SceneOp::FadeOut,
-            SceneOp::FadeIn,
-        ]
+    ops.windows(8).any(|span| {
+        matches!(
+            span,
+            [
+                SceneOp::Presentation {
+                    op: PresentationOp::ReloadMapChunks,
+                },
+                SceneOp::Wait { ticks: 60 },
+                SceneOp::FadeOut,
+                SceneOp::DespawnNpc {
+                    npc_index: 0,
+                    count: 2
+                },
+                SceneOp::SetMapLoadFlags {
+                    set: 0x08,
+                    clear: 0
+                },
+                SceneOp::LoadMap { map: 0xD3, .. },
+                SceneOp::PlaceActor { .. },
+                SceneOp::FadeIn,
+            ]
+        )
     })
 }
 
