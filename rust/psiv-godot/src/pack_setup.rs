@@ -25,19 +25,21 @@ use std::thread::JoinHandle;
 use std::time::Instant;
 
 use godot::classes::box_container::AlignmentMode;
-use godot::classes::control::LayoutPreset;
+use godot::classes::control::{LayoutPreset, SizeFlags};
 use godot::classes::file_dialog::{Access, FileMode};
-use godot::classes::text_server::AutowrapMode;
 use godot::classes::{
-    Button, CanvasLayer, ColorRect, FileDialog, ICanvasLayer, Label, MarginContainer, Os,
-    VBoxContainer,
+    Button, CanvasLayer, CenterContainer, FileDialog, ICanvasLayer, Label, MarginContainer, Os,
+    ProgressBar, VBoxContainer,
 };
-use godot::global::HorizontalAlignment;
 use godot::obj::Singleton;
 use godot::prelude::*;
 use godot::signal::ConnectHandle;
 
 use crate::install::{BuilderCommand, Install, Platform, builder_command, checkout_instructions};
+use crate::pack_setup_style::{
+    SetupBackdrop, TEXT_BODY, TEXT_CYAN, TEXT_GOLD, TEXT_MUTED, TEXT_WHITE, divider, progress_bar,
+    psiv_window, style_button, styled_label,
+};
 
 /// The builder's last lines a failed build shows when it named no error.
 const FAILURE_LINES: usize = 12;
@@ -231,6 +233,7 @@ pub(crate) struct PackSetup {
     overridden: bool,
     problem: Option<String>,
     status: Option<Gd<Label>>,
+    progress: Option<Gd<ProgressBar>>,
     choose: Option<Gd<Button>>,
     dialog: Option<Gd<FileDialog>>,
     dropped: Option<ConnectHandle>,
@@ -254,20 +257,12 @@ impl PackSetup {
             overridden,
             problem,
             status: None,
+            progress: None,
             choose: None,
             dialog: None,
             dropped: None,
             build: None,
         })
-    }
-
-    fn label(text: &str, size: i32) -> Gd<Label> {
-        let mut label = Label::new_alloc();
-        label.set_text(text);
-        label.set_autowrap_mode(AutowrapMode::WORD_SMART);
-        label.set_horizontal_alignment(HorizontalAlignment::CENTER);
-        label.add_theme_font_size_override("font_size", size);
-        label
     }
 
     fn on_choose(&mut self) {
@@ -317,6 +312,7 @@ impl PackSetup {
     fn show(&mut self, text: &str) {
         if let Some(status) = self.status.as_mut() {
             status.set_text(text);
+            status.set_visible(!text.is_empty());
         }
     }
 }
@@ -324,34 +320,77 @@ impl PackSetup {
 #[godot_api]
 impl ICanvasLayer for PackSetup {
     fn ready(&mut self) {
-        let mut backdrop = ColorRect::new_alloc();
-        backdrop.set_color(Color::from_rgb(0.05, 0.05, 0.08));
+        let mut backdrop = SetupBackdrop::new_alloc();
         backdrop.set_anchors_preset(LayoutPreset::FULL_RECT);
         self.base_mut().add_child(&backdrop);
 
         let mut margin = MarginContainer::new_alloc();
         margin.set_anchors_preset(LayoutPreset::FULL_RECT);
         for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"] {
-            margin.add_theme_constant_override(side, 96);
+            margin.add_theme_constant_override(side, 24);
         }
+
+        let mut center = CenterContainer::new_alloc();
+        center.set_h_size_flags(SizeFlags::EXPAND_FILL);
+        center.set_v_size_flags(SizeFlags::EXPAND_FILL);
+
+        let mut stack = VBoxContainer::new_alloc();
+        stack.set_alignment(AlignmentMode::CENTER);
+        stack.add_theme_constant_override("separation", 22);
+
+        // Classic PSIV top nameplate box.
+        let mut header_box = VBoxContainer::new_alloc();
+        header_box.set_alignment(AlignmentMode::CENTER);
+        header_box.add_theme_constant_override("separation", 4);
+        header_box.add_child(&styled_label("PHANTASY STAR IV", 30, TEXT_GOLD, false));
+        header_box.add_child(&styled_label(
+            "NATIVE ENGINE  ·  FIRST-RUN SETUP",
+            14,
+            TEXT_CYAN,
+            false,
+        ));
+        let mut header_panel = psiv_window(&header_box, 38.0, 14.0);
+        header_panel.set_h_size_flags(SizeFlags::SHRINK_CENTER);
+        stack.add_child(&header_panel);
+
+        // Main cobalt-blue beveled PSIV dialog window.
         let mut column = VBoxContainer::new_alloc();
         column.set_alignment(AlignmentMode::CENTER);
-        column.add_theme_constant_override("separation", 28);
-        column.add_child(&Self::label("PSIV needs your copy of the game", 32));
+        column.set_custom_minimum_size(Vector2::new(712.0, 0.0));
+        column.add_theme_constant_override("separation", 18);
+        column.add_child(&styled_label(
+            "PSIV needs your copy of the game",
+            24,
+            TEXT_WHITE,
+            false,
+        ));
+        column.add_child(&divider());
         let installed = self.install.user_data().is_some();
-        column.add_child(&Self::label(
+        column.add_child(&styled_label(
             &introduction(
                 &self.pack,
                 self.problem.as_deref(),
                 installed,
                 self.overridden,
             ),
-            20,
+            17,
+            TEXT_BODY,
+            true,
         ));
         if installed {
             self.add_picker(&mut column);
+            column.add_child(&styled_label(
+                "Accepts the unheadered US Genesis / Mega Drive ROM (.md / .bin / .gen)",
+                14,
+                TEXT_MUTED,
+                true,
+            ));
         }
-        margin.add_child(&column);
+        let main_panel = psiv_window(&column, 42.0, 28.0);
+        stack.add_child(&main_panel);
+
+        center.add_child(&stack);
+        margin.add_child(&center);
         self.base_mut().add_child(&margin);
         // Focus once the button is in the tree, so a controller starts on it.
         if let Some(choose) = self.choose.as_mut() {
@@ -399,15 +438,18 @@ impl PackSetup {
     fn add_picker(&mut self, column: &mut Gd<VBoxContainer>) {
         let mut choose = Button::new_alloc();
         choose.set_text("Choose your ROM file");
-        choose.add_theme_font_size_override("font_size", 22);
-        choose.set_h_size_flags(godot::classes::control::SizeFlags::SHRINK_CENTER);
+        style_button(&mut choose);
         choose
             .signals()
             .pressed()
             .connect_other(&self.to_gd(), Self::on_choose);
         column.add_child(&choose);
 
-        let status = Self::label("", 20);
+        let bar = progress_bar();
+        column.add_child(&bar);
+
+        let mut status = styled_label("", 17, TEXT_CYAN, true);
+        status.set_visible(false);
         column.add_child(&status);
 
         let mut dialog = FileDialog::new_alloc();
@@ -434,6 +476,7 @@ impl PackSetup {
             );
         }
         self.choose = Some(choose);
+        self.progress = Some(bar);
         self.status = Some(status);
         self.dialog = Some(dialog);
     }
@@ -448,12 +491,20 @@ impl PackSetup {
             Ok(None) => {
                 let seconds = build.started.elapsed().as_secs();
                 let lines = build.lines();
-                let text = match progress(&lines) {
+                let progress_state = progress(&lines);
+                let text = match progress_state {
                     Some((done, total, part)) => {
                         format!("Building {part} ({done} of {total})... {seconds} s")
                     }
                     None => format!("Building from {}... {seconds} s", build.rom.display()),
                 };
+                if let Some(bar) = self.progress.as_mut() {
+                    bar.set_visible(true);
+                    let pct = progress_state.map_or(5.0, |(done, total, _)| {
+                        (done as f64 / total.max(1) as f64) * 100.0
+                    });
+                    bar.set_value(pct);
+                }
                 self.show(&text);
             }
             Ok(Some(_)) | Err(_) => {
@@ -465,6 +516,9 @@ impl PackSetup {
                     godot_print!("pack builder: {line}");
                 }
                 if succeeded {
+                    if let Some(bar) = self.progress.as_mut() {
+                        bar.set_value(100.0);
+                    }
                     self.show("Built. Starting the game...");
                     // The reload removes this screen at once, which calls its
                     // `exit_tree` while `poll` still holds `&mut self`; the
@@ -472,6 +526,9 @@ impl PackSetup {
                     let base = self.base_mut();
                     base.get_tree().reload_current_scene();
                 } else {
+                    if let Some(bar) = self.progress.as_mut() {
+                        bar.set_visible(false);
+                    }
                     self.show(&format!("The build failed:\n{}", failure(&lines)));
                     if let Some(choose) = self.choose.as_mut() {
                         choose.set_disabled(false);

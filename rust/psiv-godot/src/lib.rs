@@ -32,6 +32,7 @@ mod job_board;
 mod menu_font;
 mod named_caches;
 mod pack_setup;
+mod pack_setup_style;
 mod resident_memory;
 mod retail_surface;
 mod rewritten_npcs;
