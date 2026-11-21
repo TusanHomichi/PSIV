@@ -129,6 +129,11 @@ pub struct MapRecord {
     /// Original PNG -> additive palette-index PNG (including variants/atlases).
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub map_update_images: std::collections::BTreeMap<String, String>,
+    /// Original PNG (base, variant, or priority overlay) -> ordered per-frame
+    /// PNGs for tile-DMA art cycles (`[frame0, frame1, ...]`, where frame 0 is
+    /// the key itself). Palette-index counterparts live in `map_update_images`.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub art_cycle_images: std::collections::BTreeMap<String, Vec<String>>,
     /// Decoded whole-layout replacements referenced by `layout_replace`
     /// writes, shipped as first-class variants with their own collision.
     #[serde(default)]

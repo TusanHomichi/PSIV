@@ -17,8 +17,16 @@ impl Field {
         let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
+        self.map_art_frames.clear();
+        self.overlay_art_frames.clear();
+        self.map_art_frame = 0;
         let id = runtime.map_id().0;
+        let active_art_frame = usize::from(runtime.tile_art_frame());
         let palette_images = runtime.map_record().map(|r| &r.map_update_images);
+        let art_cycles = runtime
+            .map_record()
+            .map(|r| r.art_cycle_images.clone())
+            .unwrap_or_default();
         // Map pictures draw from the live CRAM only once it holds the map's
         // palette; a record without the 64-word shadow keeps its baked
         // colours on every picture (base, overlay, variant, patch atlas).
@@ -116,6 +124,20 @@ impl Field {
                             // actor sprites ride the same reload.
                             sprite.set_visible(true);
                             self.presentation.set_vram_blanked(false);
+                            if let Some(frames) = art_cycles.get(&name).filter(|f| f.len() > 1) {
+                                self.map_art_frames = build_art_cycle_textures(
+                                    &self.pack_dir,
+                                    palette.is_some(),
+                                    palette_images,
+                                    &name,
+                                    &texture,
+                                    indexed,
+                                    frames,
+                                    atlas.as_ref(),
+                                    &blits,
+                                    false,
+                                );
+                            }
                         }
                     }
                     None => {
@@ -180,6 +202,22 @@ impl Field {
                                         palette.as_ref().filter(|_| indexed),
                                     );
                                     sprite.set_visible(true);
+                                    if let Some(frames) =
+                                        art_cycles.get(&name).filter(|f| f.len() > 1)
+                                    {
+                                        self.overlay_art_frames = build_art_cycle_textures(
+                                            &self.pack_dir,
+                                            palette.is_some(),
+                                            palette_images,
+                                            &name,
+                                            &texture,
+                                            indexed,
+                                            frames,
+                                            atlas.as_ref(),
+                                            &blits,
+                                            true,
+                                        );
+                                    }
                                 }
                                 None => {
                                     godot_error!("could not texture overlay {path}");
@@ -308,7 +346,98 @@ impl Field {
                 base,
             });
         }
+        self.apply_map_art_frame(active_art_frame);
     }
+
+    /// Swaps the map and priority-overlay textures to match the runtime's
+    /// live tile-DMA art-cycle frame (`Runtime::tile_art_frame`), leaving the
+    /// live CRAM palette material intact.
+    pub(crate) fn sync_map_art_frame(&mut self) {
+        let Some(frame) = self
+            .session
+            .as_ref()
+            .map(|session| usize::from(session.runtime().tile_art_frame()))
+        else {
+            return;
+        };
+        if frame != self.map_art_frame {
+            self.apply_map_art_frame(frame);
+        }
+    }
+
+    fn apply_map_art_frame(&mut self, frame: usize) {
+        self.map_art_frame = frame;
+        if let (Some(sprite), Some(texture)) =
+            (self.map_sprite.as_mut(), self.map_art_frames.get(frame))
+        {
+            sprite.set_texture(texture);
+        }
+        if let (Some(sprite), Some(texture)) = (
+            self.overlay_sprite.as_mut(),
+            self.overlay_art_frames.get(frame),
+        ) {
+            sprite.set_texture(texture);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_art_cycle_textures(
+    pack_dir: &str,
+    palette_live: bool,
+    palette_images: Option<&std::collections::BTreeMap<String, String>>,
+    base_name: &str,
+    base_texture: &Gd<ImageTexture>,
+    base_indexed: bool,
+    frame_names: &[String],
+    atlas: Option<&psiv_data::PatchTiles>,
+    blits: &[(u32, u32, u32)],
+    overlay: bool,
+) -> Vec<Gd<ImageTexture>> {
+    let atlas_img = atlas.and_then(|tiles| {
+        let atlas_name = if overlay {
+            tiles.png_over.as_deref()?
+        } else {
+            tiles.png.as_str()
+        };
+        let source = map_image_source(palette_live, palette_images, atlas_name);
+        let (img, indexed) = load_map_image(pack_dir, source, atlas_name);
+        (indexed == base_indexed).then_some(img).flatten()
+    });
+    frame_names
+        .iter()
+        .map(|frame_name| {
+            if frame_name == base_name {
+                return base_texture.clone();
+            }
+            let source = map_image_source(palette_live, palette_images, frame_name);
+            let (loaded, frame_indexed) = load_map_image(pack_dir, source, frame_name);
+            if frame_indexed != base_indexed {
+                godot_error!("art-cycle frame {frame_name} does not match the map's colours");
+                return base_texture.clone();
+            }
+            let Some(mut image) = loaded else {
+                godot_error!("could not load art-cycle frame {pack_dir}/{frame_name}");
+                return base_texture.clone();
+            };
+            if let (Some(tiles), Some(atlas_img)) = (atlas, atlas_img.as_ref()) {
+                let edge = tiles.tile_pixels as i32;
+                for &(cx, cy, index) in blits {
+                    if let Some(tile) = tiles.tiles.iter().find(|t| t.index == index) {
+                        image.blit_rect(
+                            atlas_img,
+                            Rect2i::new(Vector2i::new(tile.x as i32, 0), Vector2i::new(edge, edge)),
+                            Vector2i::new(cx as i32 * edge, cy as i32 * edge),
+                        );
+                    }
+                }
+            }
+            ImageTexture::create_from_image(&image).unwrap_or_else(|| {
+                godot_error!("could not texture art-cycle frame {pack_dir}/{frame_name}");
+                base_texture.clone()
+            })
+        })
+        .collect()
 }
 
 // Indexed textures are an additive pack input. Timing, gates and color writes

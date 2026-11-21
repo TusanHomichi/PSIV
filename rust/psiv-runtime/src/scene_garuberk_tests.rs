@@ -204,13 +204,24 @@ fn the_first_eye_swaps_part2_onto_its_other_layout() {
         )),
         "{events:?}"
     );
+    let mut seen_frames = Vec::new();
     for _ in 0..200 {
         checked_tick(&mut rt, Input::Neutral);
+        let frame = rt.tile_art_frame();
+        if seen_frames.last().copied() != Some(frame) {
+            seen_frames.push(frame);
+        }
         if !rt.scene_active() {
             break;
         }
     }
     assert!(!rt.scene_active());
+    // Sixty frames = 30 even frames = 5 complete 0->1->2->1->0 ping-pong cycles.
+    assert!(
+        seen_frames.contains(&1) && seen_frames.contains(&2),
+        "eye art cycle must visit frames 1 and 2: {seen_frames:?}"
+    );
+    assert_eq!(rt.tile_art_frame(), 0, "60 frames end back on frame 0");
     assert!(rt.game.is_set(Flag::temp(0x14)));
     assert_eq!(rt.effects.variant, Some(0));
     assert!(

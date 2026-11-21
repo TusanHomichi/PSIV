@@ -61,6 +61,14 @@ impl Runtime {
             self.tick_barrier_beams(false);
         }
         self.tick_quake(&mut events);
+        if self.garuberk_eye_frames > 0 {
+            if self.frames & 1 == 0 {
+                let updates = &mut self.effects.updates;
+                updates.tile_art_frame =
+                    crate::map_updates::step_tile_dma_ping_pong(&mut updates.counters, 3);
+            }
+            self.garuberk_eye_frames -= 1;
+        }
         if let Some(npc) = self.running_object_routine() {
             self.tick_scene_object(npc, &mut events);
         }
@@ -144,6 +152,7 @@ impl Runtime {
         self.scene_tree_address = None;
         self.scene_panel_sprites = false;
         self.credits = None;
+        self.garuberk_eye_frames = 0;
         // Control goes back with the display on: the routine the cartridge
         // hands it to fades in itself, and the scenes that end dark are
         // listed in `psiv_core`'s `scenes::dark_display` census (#653).
@@ -700,6 +709,9 @@ impl Runtime {
                     SceneOp::Presentation {
                         op: psiv_core::PresentationOp::Quake { frames, opening },
                     } => self.quake = Some(crate::quake::Quake::new(frames, opening)),
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::GaruberkEyeArtCycle { frames },
+                    } => self.garuberk_eye_frames = frames,
                     SceneOp::PanCamera { subject, speed } => {
                         let at = match subject {
                             psiv_core::CameraSubject::At { x, y } => Some(PixelPos { x, y }),

@@ -210,6 +210,7 @@ pub(super) fn construct_runtime(
         scene_returned: None,
         scene_tail: None,
         credits: None,
+        garuberk_eye_frames: 0,
     };
     runtime.sync_vehicle_selector()?;
     runtime.apply_travel_entry();

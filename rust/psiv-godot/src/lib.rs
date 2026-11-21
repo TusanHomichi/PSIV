@@ -177,6 +177,11 @@ struct Field {
     /// Priority tiles — what the VDP draws above sprites (palm crowns,
     /// archways). Sits over the party and NPCs, under the dialogue window.
     overlay_sprite: Option<Gd<Sprite2D>>,
+    /// Pre-loaded per-frame textures when the active map has a tile-DMA art
+    /// cycle (`MapRecord::art_cycle_images`, e.g. Garuberk Tower eyes `#101`).
+    map_art_frames: Vec<Gd<godot::classes::ImageTexture>>,
+    overlay_art_frames: Vec<Gd<godot::classes::ImageTexture>>,
+    map_art_frame: usize,
     party: Option<Gd<Sprite2D>>,
     party_view: Option<SheetView>,
     vehicle: Option<Gd<Sprite2D>>,
@@ -312,6 +317,9 @@ impl INode2D for Field {
             tape_save_writes: [0; 3],
             map_sprite: None,
             overlay_sprite: None,
+            map_art_frames: Vec::new(),
+            overlay_art_frames: Vec::new(),
+            map_art_frame: 0,
             party: None,
             party_view: None,
             vehicle: None,

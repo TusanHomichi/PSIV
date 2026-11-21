@@ -36,6 +36,12 @@ impl Runtime {
     pub fn map_updates(&self) -> &crate::MapUpdateView {
         &self.effects.updates
     }
+    /// Active tile-DMA art-cycle frame (`0` = base tileset, `1..` = alternate
+    /// `art_cycle_images` frames for Garuberk Tower eyes).
+    #[must_use]
+    pub fn tile_art_frame(&self) -> u8 {
+        self.effects.updates.tile_art_frame
+    }
     /// The palette: `Palette_Table_Buffer`'s 64 words as the cartridge would
     /// upload them to CRAM this frame, with a revision for upload suppression
     /// ([`crate::cram`]).

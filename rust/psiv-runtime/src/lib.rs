@@ -280,6 +280,9 @@ pub struct Runtime {
     scene_tail: Option<scene_return::ReturnTail>,
     /// `Cutscene_Ending`'s credits planes, scroll state and command runner.
     credits: Option<credits::EndingCredits>,
+    /// Remaining frames of `PresentationOp::GaruberkEyeArtCycle` (`loc_6F91E` /
+    /// `loc_6F9BC`), stepping `effects.updates.tile_art_frame` on even frames.
+    garuberk_eye_frames: u16,
 }
 
 /// An `Event_MoveCamera` pan in flight (`camera.rs`): twelve-bit targets,

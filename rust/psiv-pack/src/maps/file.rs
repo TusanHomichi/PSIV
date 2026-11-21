@@ -456,6 +456,7 @@ pub fn map_file(
         map_updates: Some(typed(&updates_json, "the map updates")?),
         map_update_palette: Some(update_palette(rom, record.palette.pointer)?),
         map_update_images,
+        art_cycle_images: pictures.art_cycle_images.clone(),
         layout_variants: typed(&variants_json, "the layout variants")?,
         vehicle_battle: Some(vehicle_battle),
         patch_tiles: pictures

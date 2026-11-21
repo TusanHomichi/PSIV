@@ -4,13 +4,14 @@
 //! map's work is [`map_pictures`] and [`super::file::map_file`], which together
 //! are [retired pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/psiv_tools/pack.py)'s map loop.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use sha2::{Digest, Sha256};
 
+use super::art_cycle::{TileDmaFrames, extract_tile_dma_frames, render_art_cycle_frames};
 use super::draw::{PriorityCounts, priority_overlay, render_layout};
 use super::effects::{MapEffects, extract_map_effects, field, int, text};
 use super::file::map_file;
@@ -55,7 +56,9 @@ fn layout_variants(
     replacements: &[&Json],
     palette: &[[u8; 3]],
     stem: &str,
+    dma: Option<&TileDmaFrames>,
     files: &mut Vec<(String, Vec<u8>)>,
+    art_cycle_images: &mut BTreeMap<String, Vec<String>>,
 ) -> Result<Vec<Json>, PackError> {
     if replacements.is_empty() {
         return Ok(Vec::new());
@@ -163,9 +166,24 @@ fn layout_variants(
                 .with("rows", rows(&layout.cells, layout.width_chunks)),
         )
         .with("differs_from_base_cells", differs);
-    files.push((png_name, image));
-    if let (Some(name), Some(image)) = (over_name, overlay) {
+    let base_ref = image.clone();
+    let over_ref = overlay.clone();
+    files.push((png_name.clone(), image));
+    if let (Some(name), Some(image)) = (over_name.clone(), overlay) {
         files.push((name, image));
+    }
+    if let Some(dma) = dma {
+        render_art_cycle_frames(
+            &variant,
+            palette,
+            dma,
+            &png_name,
+            &base_ref,
+            over_name.as_deref(),
+            over_ref.as_deref(),
+            files,
+            art_cycle_images,
+        )?;
     }
     Ok(vec![json])
 }
@@ -182,6 +200,8 @@ pub struct Pictures {
     pub patch_tiles: Option<Json>,
     /// `map_update_images`, when an update needs palette-index renders.
     pub update_images: Option<Vec<(String, String)>>,
+    /// `art_cycle_images`, when a tile-DMA cycle swaps pattern blocks on this map.
+    pub art_cycle_images: BTreeMap<String, Vec<String>>,
     /// The above-sprites layer's counts, and whether it has a file.
     pub priority: PriorityCounts,
     pub has_overlay: bool,
@@ -221,6 +241,11 @@ pub fn map_pictures(
     let mut palette = map_palette_rgb(rom, decoded.spec.palette)?;
     palette.truncate(32);
     let stem = map_stem(record);
+    let programs = updates
+        .per_map
+        .get(&record.id)
+        .map_or(&[][..], Vec::as_slice);
+    let dma = extract_tile_dma_frames(rom, decodes, record, programs, &decoded.patterns)?;
     let image = render_layout(
         &decoded.chunks,
         &decoded.bg,
@@ -229,10 +254,28 @@ pub fn map_pictures(
         &palette,
     )?;
     let (overlay, priority) = priority_overlay(decoded, &palette)?;
-    let mut files = vec![(format!("maps/{stem}.png"), image)];
+    let base_png_name = format!("maps/{stem}.png");
+    let over_png_name = format!("maps/{stem}_over.png");
+    let base_ref = dma.as_ref().map(|_| image.clone());
+    let over_ref = dma.as_ref().and_then(|_| overlay.clone());
+    let mut files = vec![(base_png_name.clone(), image)];
     let has_overlay = overlay.is_some();
     if let Some(overlay) = overlay {
-        files.push((format!("maps/{stem}_over.png"), overlay));
+        files.push((over_png_name.clone(), overlay));
+    }
+    let mut art_cycle_images = BTreeMap::new();
+    if let (Some(dma), Some(base_bytes)) = (dma.as_ref(), base_ref.as_deref()) {
+        render_art_cycle_frames(
+            decoded,
+            &palette,
+            dma,
+            &base_png_name,
+            base_bytes,
+            has_overlay.then_some(over_png_name.as_str()),
+            over_ref.as_deref(),
+            &mut files,
+            &mut art_cycle_images,
+        )?;
     }
 
     let replacements: Vec<&Json> = effects
@@ -247,7 +290,9 @@ pub fn map_pictures(
         &replacements,
         &palette,
         &stem,
+        dma.as_ref(),
         &mut files,
+        &mut art_cycle_images,
     )?;
 
     let (mut map_effects, written, patch_counts) = resolve_map_effects(decoded, entries)?;
@@ -292,10 +337,6 @@ pub fn map_pictures(
         }
     }
 
-    let programs = updates
-        .per_map
-        .get(&record.id)
-        .map_or(&[][..], Vec::as_slice);
     let mut update_images = None;
     if needs_index_images(programs) {
         let mut names = Vec::with_capacity(files.len());
@@ -317,6 +358,7 @@ pub fn map_pictures(
         variants,
         patch_tiles,
         update_images,
+        art_cycle_images,
         priority,
         has_overlay,
         patched_chunks: patched.len(),
