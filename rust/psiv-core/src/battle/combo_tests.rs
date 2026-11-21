@@ -611,3 +611,158 @@ fn combo_aborts_if_participant_lacks_tp_is_unarmed_or_separated_by_enemy() {
     assert_ne!(flags & crate::battle::fighters::reaction::MAGIC, 0);
     assert_eq!(flags & crate::battle::fighters::reaction::TECHNIQUE, 0);
 }
+
+struct CountingRolls {
+    value: u16,
+    count: usize,
+}
+
+impl crate::battle::rng::Rolls for CountingRolls {
+    fn next_roll(&mut self) -> u16 {
+        self.count += 1;
+        self.value
+    }
+}
+
+#[test]
+fn all_enemy_combo_consumes_lead_retarget_tie_draws() {
+    let mut enemy = fixtures::zoran_bult();
+    enemy.hp = 150;
+    enemy.agility = 1;
+    enemy.mental = 10;
+    enemy.mental_defence = 10;
+    enemy.defence = 10;
+    enemy.properties = [2; 14];
+    let data = base_data().with_enemies([enemy]);
+    // Round 1: kill enemy slot 6 with single-target FOI while leaving slots 7
+    // and 8 untouched (tied at HP deficit 0). Round 2: run all-enemy SYNTH_TWO
+    // (FOI + ZAN) twice from identical states — once with FOI aimed at dead
+    // slot 6 (triggers `loc_5A98` tie draw between slots 7 and 8 before
+    // `loc_27DE7C` / `loc_AF74`), once aimed at living slot 7 (no retarget).
+    let make_battle = || {
+        let killer = make_member(0, 40, 200, 30, &[1], &[], true);
+        let caster = make_member(1, 30, 20, 30, &[10], &[], true);
+        let mut rolls = CountingRolls {
+            value: 0x3F,
+            count: 0,
+        };
+        let (mut b, _) =
+            Battle::start(&formation(3), vec![killer, caster], &data, true, &mut rolls).unwrap();
+        // Kill slot 6 on round 1 with single-target FOI while caster defends.
+        b.round(
+            &RoundOrders::Commands(vec![
+                Command::Technique {
+                    technique: 1,
+                    target: Some(id(6)),
+                },
+                Command::Defend,
+            ]),
+            &data,
+            &mut rolls,
+        )
+        .unwrap();
+        assert!(!b.roster().get(id(6)).unwrap().is_alive());
+        assert!(b.roster().get(id(7)).unwrap().is_alive());
+        assert!(b.roster().get(id(8)).unwrap().is_alive());
+        b
+    };
+
+    let mut b_dead = make_battle();
+    let mut rolls_dead = CountingRolls { value: 0, count: 0 };
+    let ev_dead = b_dead
+        .round(
+            &RoundOrders::Commands(vec![
+                Command::Technique {
+                    technique: 1,
+                    target: Some(id(6)),
+                },
+                Command::Technique {
+                    technique: 10,
+                    target: None,
+                },
+            ]),
+            &data,
+            &mut rolls_dead,
+        )
+        .unwrap();
+
+    let mut b_live = make_battle();
+    let mut rolls_live = CountingRolls { value: 0, count: 0 };
+    let ev_live = b_live
+        .round(
+            &RoundOrders::Commands(vec![
+                Command::Technique {
+                    technique: 1,
+                    target: Some(id(7)),
+                },
+                Command::Technique {
+                    technique: 10,
+                    target: None,
+                },
+            ]),
+            &data,
+            &mut rolls_live,
+        )
+        .unwrap();
+
+    assert!(
+        ev_dead
+            .iter()
+            .any(|e| matches!(e, BattleEvent::ComboUsed { combo: 2, .. }))
+    );
+    assert!(
+        ev_live
+            .iter()
+            .any(|e| matches!(e, BattleEvent::ComboUsed { combo: 2, .. }))
+    );
+    assert_eq!(rolls_dead.count, rolls_live.count + 1);
+}
+
+#[test]
+fn instant_death_combo_miss_leaves_enemy_reaction_flags_clear() {
+    let mut data = base_data();
+    let mut resistant = fixtures::zoran_bult();
+    resistant.hp = 500;
+    resistant.agility = 1;
+    resistant.mental = 250;
+    resistant.properties = [0; 14]; // 0 element factor -> guaranteed miss
+    data = data.with_enemies([resistant]);
+
+    let party = vec![
+        make_member(0, 30, 20, 30, &[13], &[], true),
+        make_member(1, 20, 20, 30, &[], &[27], true),
+    ];
+    let mut rolls = SliceRolls::new(&[0; 256]);
+    let (mut b, _) = Battle::start(&formation(1), party, &data, true, &mut rolls).unwrap();
+    let ev = b
+        .round(
+            &RoundOrders::Commands(vec![
+                Command::Technique {
+                    technique: 13,
+                    target: None,
+                },
+                Command::Skill {
+                    skill: 27,
+                    target: None,
+                },
+            ]),
+            &data,
+            &mut rolls,
+        )
+        .unwrap();
+    assert!(
+        ev.iter()
+            .any(|e| matches!(e, BattleEvent::ComboUsed { combo: 10, .. }))
+    );
+    assert!(ev.iter().any(|e| matches!(
+        e,
+        BattleEvent::Resolved {
+            verdict: Verdict::Miss,
+            ..
+        }
+    )));
+    // Retail `loc_5FB4` (`ps4.asm:8817`) runs `bset #2, $2A(a4)` where `a4` is
+    // the acting lead character from `Character_DoCombo`; the enemy loop
+    // (`loc_6020`) never writes enemy `$2A`.
+    assert_eq!(b.roster().get(id(6)).unwrap().reaction_flags, 0);
+}

@@ -229,18 +229,37 @@ pub(super) fn resolve_combo(
         name: combo.name.clone(),
     });
 
+    // `loc_57C4` -> `loc_5BDC` -> `loc_5A98` runs on the lead participant's
+    // own command before `loc_5B8E` -> `loc_27DE7C` detects the combo. A
+    // fallen enemy aim therefore consumes its retarget tie draws even when
+    // `loc_AF74` later switches `Current_Target_Index` to `-1` for an
+    // all-enemy combo.
+    let (lead_range, lead_effect) = match matched.steps[0].ability {
+        ComboAbility::Technique(id) => {
+            let tech = data.technique(id).expect("validated tech");
+            (tech.targeting & 0x0F, tech.effect)
+        }
+        ComboAbility::Skill(id) => {
+            let skill = data.skill(id).expect("validated skill");
+            (skill.targeting & 0x0F, skill.effect)
+        }
+    };
+    let retargeted_lead = retarget::ability_target(
+        roster,
+        matched.steps[0].target,
+        lead_range,
+        lead_effect,
+        rolls,
+    );
+
     let multi = combo.range == 2;
     let targets: Vec<FighterId> = if multi {
         roster.living(Side::Enemy).map(|f| f.id).collect()
     } else {
-        let aim = matched.steps[0]
-            .target
-            .or_else(|| roster.living(Side::Enemy).next().map(|f| f.id));
-        let intended = retarget::ability_target(roster, aim, 1, 1, rolls);
-        intended
+        let intended = retargeted_lead
             .filter(|id| roster.get(*id).is_some_and(|f| f.is_alive()))
-            .into_iter()
-            .collect()
+            .or_else(|| roster.living(Side::Enemy).next().map(|f| f.id));
+        intended.into_iter().collect()
     };
 
     let mut died = Vec::new();

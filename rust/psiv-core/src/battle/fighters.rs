@@ -104,9 +104,14 @@ pub mod reaction {
     /// Bit 2 — hit by a technique, or a damage combo containing at least one
     /// technique participant: `bset #2, $2A(a4)` at `ps4.asm:4025` (`loc_281E`,
     /// the technique arm) and `ps4.asm:4077` (`loc_28B4`, reached only when a
-    /// combo participant has `cmd == 2`, `0x00287C: 0C1D 0002 672E` →
-    /// `0x0028B4: 08EC 0002 002A`; `ps4.asm:8817` sits inside the same
-    /// `cmd == 2` branch). A plain skill or skill-only combo sets bit 1 only.
+    /// damage-combo participant has `cmd == 2`, `0x00287C: 0C1D 0002 672E` →
+    /// `0x0028B4: 08EC 0002 002A`). A plain skill or skill-only combo sets bit
+    /// 1 only. Note that instant-death combo `loc_5FB4` (`ps4.asm:8817`,
+    /// `0x006008`) also executes `bset #2, $2A(a4)` in its `cmd == 2` branch,
+    /// but `loc_5FB4` is called from `Character_DoCombo` (`loc_AEB6..loc_AEEE`)
+    /// with `a4` pointing to the acting lead character rather than an enemy;
+    /// its enemy loop (`loc_6020`, `a1 = Fighter_Enemy_1..4`) never writes
+    /// `$2A(a1)`.
     pub const TECHNIQUE: u8 = 1 << 2;
     /// Bit 3 — this battle opened with an ambush: `bset #3, $2A(a0)` for every
     /// enemy slot in `loc_B62A`'s tail (`ps4.asm:17456-17463`), which runs once,
