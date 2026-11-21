@@ -79,6 +79,26 @@ pub struct TravelMessages {
     pub not_enough_tp: String,
 }
 
+/// One planet overview image decoded from `FieldRoutine_WorldMap`
+/// (`ps4.asm:136977-137245`, #122).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorldMapAsset {
+    /// World byte: Motavia 0, Dezolis 1.
+    pub world: u8,
+    /// Planet title shown in the world-map caption window.
+    pub name: String,
+    /// Relative PNG path inside the runtime pack.
+    pub png: String,
+    /// Width in pixels (256: 128 chunks x 2 px).
+    pub width: u16,
+    /// Height in pixels (256 for Motavia, 128 for Dezolis).
+    pub height: u16,
+    /// Whether vertical scrolling is active (`true` on Motavia, `false` on Dezolis).
+    pub scroll_y: bool,
+    /// Initial vertical camera offset (`0` on Motavia, `-48` / `$FFD0` on Dezolis).
+    pub initial_y: i16,
+}
+
 /// Validated travel tables. Old/synthetic packs may omit the entire file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TravelData {
@@ -96,9 +116,17 @@ pub struct TravelData {
     pub entries: Vec<PlaceEntry>,
     /// The teleport windows' strings.
     pub messages: TravelMessages,
+    /// Decoded overworld planet overview images (`FieldRoutine_WorldMap`, #122).
+    #[serde(default)]
+    pub world_maps: Vec<WorldMapAsset>,
 }
 
 impl TravelData {
+    /// The world-map overview asset for `world` (0 Motavia, 1 Dezolis), if packed.
+    #[must_use]
+    pub fn world_map(&self, world: u8) -> Option<&WorldMapAsset> {
+        self.world_maps.iter().find(|entry| entry.world == world)
+    }
     pub(crate) fn load(
         directory: &Path,
         file: &TravelFile,
@@ -171,6 +199,18 @@ impl TravelData {
                     "invalid entry {}:{}",
                     entry.map, entry.previous_map
                 ));
+            }
+        }
+        let mut worlds = BTreeSet::new();
+        for map in &self.world_maps {
+            if map.world > 1
+                || !worlds.insert(map.world)
+                || map.name.is_empty()
+                || map.png.is_empty()
+                || map.width == 0
+                || map.height == 0
+            {
+                return Err(format!("invalid world map {}", map.world));
             }
         }
         Ok(())

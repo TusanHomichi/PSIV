@@ -46,6 +46,9 @@ as one.
    wrong, smaller map buffer, leaving 1,280 cells dependent on stale layout RAM.
 6. **RETAIL CARTRIDGE BUG — world-map viewer.** The viewer starts 64 bytes
    before the planet page data and renders the pointer table as terrain.
+   The port's `FieldRoutine_WorldMap` extractor (`rust/psiv-pack/src/travel/world_map.rs`,
+   #122) deliberately dereferences the strip pointer tables (`$10BE02` / `$1175C4`)
+   so Motavia (256x256) and Dezolis (256x128) render cleanly with a party marker.
 7. **RETAIL CARTRIDGE BUG — `Battle_ProcessRUN`.** It passes an uninitialised
    critical threshold to `Battle_CalculateChances`; the sign-only caller makes
    the result dormant in retail.

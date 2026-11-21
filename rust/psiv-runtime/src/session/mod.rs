@@ -127,6 +127,7 @@ mod saves;
 mod shop;
 mod start;
 mod title;
+mod world_map;
 
 pub use activity::Activity;
 pub use battle::{
@@ -145,6 +146,7 @@ pub use start::{FALLBACK_SPAWN, Start};
 pub use title::{
     TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow,
 };
+pub use world_map::WorldMapView;
 
 use psiv_core::{Cell, Input};
 use psiv_data::BattleFiles;
@@ -166,6 +168,7 @@ use game_over::GameOverMode;
 use job_board::JobBoardMode;
 use menu_scene::MenuScene;
 use title::TitleMode;
+use world_map::WorldMapMode;
 
 /// A `$F6` the dialogue fired, and whether its scene began.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,6 +195,8 @@ pub enum FrameMode {
     Battle,
     /// The ship's destination menu, including the frame it answered on.
     Destination,
+    /// The overworld planet map screen (`FieldRoutine_WorldMap`, #122).
+    WorldMap,
     /// The title, including the frame a defeat's fade restored it on.
     Title,
     /// The defeat fade, before the title comes back.
@@ -356,6 +361,8 @@ pub struct Session {
     /// The destination menu a scene's `SceneOp::DestinationMenu` opened
     /// (`destination.rs`). `Some` means the menu owns the pad.
     destination: Option<DestinationMode>,
+    /// The overworld planet map screen (`FieldRoutine_WorldMap`, #122).
+    world_map: Option<WorldMapMode>,
     /// The Hunter's Guild list window its scene holds (`job_board.rs`).
     job_board: Option<JobBoardMode>,
     flight: Option<FlightView>,
@@ -420,6 +427,7 @@ impl Session {
             shop: None,
             camp: None,
             destination: None,
+            world_map: None,
             job_board: None,
             flight: None,
             menu_scene: None,
@@ -487,6 +495,8 @@ impl Session {
             // A scene handed the frame to the ship's destination menu: it owns
             // the pad until the player answers (`destination.rs`).
             self.destination_frame(pad, pressed)
+        } else if self.world_map.is_some() {
+            self.world_map_frame(pad, pressed)
         } else if self.job_board_waiting() {
             self.job_board_frame(pressed)
         } else if self.menu_scene.is_some() {

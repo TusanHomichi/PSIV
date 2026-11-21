@@ -5,6 +5,8 @@
 //! The file is `psiv_data::TravelData`. What the game doesn't read (each row's
 //! `rom_offset`, a place id) has no typed home yet and is laid over it.
 
+mod world_map;
+
 use std::path::Path;
 
 use psiv_data::{
@@ -175,6 +177,7 @@ pub fn extract_travel(rom: &[u8], stamp: &str) -> Result<(TravelData, Json), Pac
         dungeons,
         entries,
         messages,
+        world_maps: Vec::new(),
     };
     let research = Json::object()
         .with("towns", town_notes)
@@ -186,7 +189,8 @@ pub fn extract_travel(rom: &[u8], stamp: &str) -> Result<(TravelData, Json), Pac
 /// The section.
 pub fn build(rom: &Rom, root: &Path) -> Result<Json, PackError> {
     let stamp = hex(&Sha256::digest(rom.bytes()));
-    let (data, research) = extract_travel(rom.bytes(), &stamp)?;
+    let (mut data, research) = extract_travel(rom.bytes(), &stamp)?;
+    data.world_maps = world_map::extract_and_write(rom.bytes(), root)?;
     let value = serde_json::to_value(&data)
         .map_err(|error| PackError(format!("cannot serialize travel.json: {error}")))?;
     let mut file = Json::from(&value);

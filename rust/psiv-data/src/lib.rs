@@ -129,4 +129,5 @@ pub use sound_test::{SOUND_TEST_FILE, SoundTestFile, SoundTestRepeatOverride, So
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
 pub use travel::{
     DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile, TravelMessages,
+    WorldMapAsset,
 };

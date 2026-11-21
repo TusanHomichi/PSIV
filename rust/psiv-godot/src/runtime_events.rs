@@ -410,6 +410,7 @@ impl Field {
         self.sync_battle_entry_screen();
         self.present_shop();
         self.present_destination();
+        self.present_world_map();
         self.present_job_board();
 
         // The entry's roll frame supplies the first battle view.

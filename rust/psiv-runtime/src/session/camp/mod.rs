@@ -226,6 +226,8 @@ pub struct CampView {
     pub(crate) scene_event: Option<u16>,
     /// Camp `TALK` / `MUMBL` (`Win_TalkDialogue`) requested on close.
     pub(crate) talk_requested: bool,
+    /// Overworld planet map screen (`ItemAction_Map`, #122) requested on close.
+    pub(crate) world_map_requested: bool,
 }
 
 /// One frame of the menu, as the session needs it.
@@ -235,6 +237,7 @@ pub(crate) struct CampFrame {
     pub(crate) closed: bool,
     pub(crate) scene_event: Option<u16>,
     pub(crate) talk_requested: bool,
+    pub(crate) world_map_requested: bool,
 }
 
 /// The pad's edges and levels the menu pages read.
@@ -312,6 +315,7 @@ impl CampView {
             closed: false,
             scene_event: None,
             talk_requested: false,
+            world_map_requested: false,
         }
     }
 
@@ -406,6 +410,7 @@ impl CampView {
             closed: self.closed,
             scene_event: self.scene_event.take(),
             talk_requested: std::mem::take(&mut self.talk_requested),
+            world_map_requested: std::mem::take(&mut self.world_map_requested),
         }
     }
 }
@@ -467,6 +472,9 @@ impl Session {
             });
             if drained.talk_requested {
                 self.runtime.open_talk_dialogue();
+            }
+            if drained.world_map_requested {
+                let _ = self.open_world_map();
             }
             return Some(Frame {
                 mode: FrameMode::Camp,
