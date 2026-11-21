@@ -407,7 +407,7 @@ mod fusion_art;
 mod levels;
 mod party;
 
-pub use abilities::{AbilitiesFile, Ability, AbilityTargeting, EffectTable};
+pub use abilities::{AbilitiesFile, Ability, AbilityTargeting, Combo, EffectTable};
 pub use animations::{
     EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
@@ -469,6 +469,7 @@ mod tests {
             skills: Vec::new(),
             enemy_skills: records,
             item_effects: Vec::new(),
+            combos: Vec::new(),
         }
     }
 

@@ -68,6 +68,7 @@
 mod action;
 mod ai;
 mod chances;
+mod combo;
 mod damage;
 mod enemy_ai;
 mod enemy_damage;
@@ -117,6 +118,7 @@ pub use action::{
 };
 pub use ai::{ABILITY_ROLL_MASK, TARGET_RATES, choose_ability, choose_target, targetable_party};
 pub use chances::{CHANCE_ROLL_MASK, ESCAPE, PHYSICAL, START_PRIORITY, Verdict, calculate_chances};
+pub use combo::ComboRecord;
 pub use damage::{
     DAMAGE_DRAWS, DAMAGE_ROLL_MASK, MAX_DAMAGE, MIN_DAMAGE, calc_healing, calculate_damage,
     clamp_damage,

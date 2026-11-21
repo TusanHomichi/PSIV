@@ -319,6 +319,7 @@ pub fn build(rom: &[u8], names: &HashMap<&'static str, Display>) -> Result<Json,
             &mut out_of_range,
         )?;
     }
+    let combos = super::combos::extract(rom)?;
     let [techniques, skills, enemy_skills, item_effects] = tables;
     let mut over = Json::object()
         .with("kind", "battle_abilities")
@@ -334,6 +335,7 @@ pub fn build(rom: &[u8], names: &HashMap<&'static str, Display>) -> Result<Json,
         counts.insert(table.kind, table.records.len());
         over.insert(table.kind, table.extra.clone());
     }
+    counts.insert("combos", combos.len());
     let file = AbilitiesFile {
         format_version: FORMAT_VERSION,
         effects: EffectTable {
@@ -345,6 +347,7 @@ pub fn build(rom: &[u8], names: &HashMap<&'static str, Display>) -> Result<Json,
         skills: skills.records,
         enemy_skills: enemy_skills.records,
         item_effects: item_effects.records,
+        combos,
     };
     over.insert("counts", counts);
     over.insert("census", census(&file, count, out_of_range));

@@ -318,6 +318,20 @@ pub enum BattleEvent {
         /// TP after paying the cost.
         remaining_tp: u16,
     },
+    /// Two to four consecutive party Tech/Skill turns combined into a retail
+    /// Combination Attack (`Character_DoCombo`, `ps4.asm:16493`).
+    ComboUsed {
+        /// Lead participant (first in turn order).
+        actor: FighterId,
+        /// All participants in turn order (2..=4 fighters, starting with `actor`).
+        participants: Vec<FighterId>,
+        /// Remaining TP for each participant whose contribution was a technique.
+        tp_after: Vec<(FighterId, u16)>,
+        /// One-based combo id (`1..=14`).
+        combo: u8,
+        /// Cartridge display name from `ComboNames`.
+        name: String,
+    },
     /// A technique could not execute. Invalid orders spend nothing; sealing
     /// after selection is reported after `TechniqueUsed` has charged TP.
     TechniqueRejected {

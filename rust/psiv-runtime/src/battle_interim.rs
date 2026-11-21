@@ -125,6 +125,7 @@ fn resolving_enemy_skill(
                 | BattleEvent::EnemySkillUsed { .. }
                 | BattleEvent::TechniqueUsed { .. }
                 | BattleEvent::SkillUsed { .. }
+                | BattleEvent::ComboUsed { .. }
                 | BattleEvent::ItemUsed { .. }
         )
     }) {

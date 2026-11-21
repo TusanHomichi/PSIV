@@ -516,6 +516,7 @@ pub struct BattleData {
     skills: BTreeMap<u8, super::skill::Skill>,
     enemy_skills: BTreeMap<u8, super::enemy_skill::EnemySkill>,
     battle_items: BTreeMap<u8, super::item::BattleItem>,
+    combos: BTreeMap<u8, super::combo::ComboRecord>,
     inline_formations: BTreeMap<String, InlineFormation>,
 }
 
@@ -622,6 +623,34 @@ impl BattleData {
     /// Technique definitions in id order.
     pub fn techniques(&self) -> impl Iterator<Item = &super::technique::Technique> {
         self.techniques.values()
+    }
+
+    /// Installs the retail combination attack records (`ComboData` + `ComboSetupData`).
+    #[must_use]
+    pub fn with_combos(
+        mut self,
+        records: impl IntoIterator<Item = super::combo::ComboRecord>,
+    ) -> Self {
+        self.combos
+            .extend(records.into_iter().map(|record| (record.id, record)));
+        self
+    }
+
+    /// A combination attack by its one-based id (`1..=14`).
+    #[must_use]
+    pub fn combo(&self, id: u8) -> Option<&super::combo::ComboRecord> {
+        self.combos.get(&id)
+    }
+
+    /// Combination attacks in retail id order (`1..=14`).
+    pub fn combos(&self) -> impl Iterator<Item = &super::combo::ComboRecord> {
+        self.combos.values()
+    }
+
+    /// Whether no combination attacks are loaded.
+    #[must_use]
+    pub fn combos_empty(&self) -> bool {
+        self.combos.is_empty()
     }
     /// An empty set, to be filled with the `with_*` builders.
     #[must_use]

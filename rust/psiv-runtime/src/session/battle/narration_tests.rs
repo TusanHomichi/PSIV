@@ -158,6 +158,20 @@ fn narration_matches_retail_transient_strings() {
     );
     assert_eq!(surprise.line, "Surprise Attack!");
     assert_eq!(surprise.beat, BattleBeat::None);
+
+    let combo = narration(
+        &BattleEvent::ComboUsed {
+            actor: id(1),
+            participants: vec![id(1), id(2)],
+            tp_after: vec![(id(1), 10), (id(2), 12)],
+            combo: 2,
+            name: "SYNTH COMBO".into(),
+        },
+        &names,
+        &BTreeMap::new(),
+    );
+    assert_eq!(combo.line, "SYNTH COMBO");
+    assert_eq!(combo.beat, BattleBeat::None);
 }
 
 #[test]

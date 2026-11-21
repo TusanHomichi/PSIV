@@ -170,3 +170,44 @@ fn the_effect_census_separates_used_from_unused() {
         .collect();
     assert_eq!(used, every);
 }
+
+#[test]
+fn all_fourteen_retail_combos_extract_with_expected_shapes() {
+    let Some(retail) = retail() else { return };
+    let file: AbilitiesFile = retail.typed("abilities");
+    assert_eq!(file.combos.len(), 14);
+    assert_eq!(retail.file("abilities")["counts"]["combos"], 14);
+    let shapes: Vec<(u8, u8, u8, bool, usize)> = file
+        .combos
+        .iter()
+        .map(|c| (c.id, c.effect_id, c.participants, c.ordered, c.setups.len()))
+        .collect();
+    assert_eq!(
+        shapes,
+        vec![
+            (1, 1, 2, false, 1),
+            (2, 1, 2, false, 23),
+            (3, 1, 2, false, 15),
+            (4, 1, 2, true, 6),
+            (5, 1, 2, false, 1),
+            (6, 1, 2, false, 1),
+            (7, 1, 2, true, 5),
+            (8, 1, 3, false, 1),
+            (9, 2, 2, false, 1),
+            (10, 2, 2, false, 3),
+            (11, 2, 2, false, 2),
+            (12, 2, 2, false, 1),
+            (13, 2, 2, false, 1),
+            (14, 1, 4, true, 6),
+        ]
+    );
+    assert_eq!(file.combos[0].range, 1, "combo 1 is single-target");
+    assert!(
+        file.combos[1..].iter().all(|c| c.range == 2),
+        "combos 2..=14 target all enemies"
+    );
+    assert!(
+        file.combos.iter().all(|c| !c.display_name.is_empty()),
+        "every combo decodes a non-empty wincharset display name"
+    );
+}

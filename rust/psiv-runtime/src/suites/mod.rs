@@ -18,6 +18,7 @@ mod camp_equipment;
 mod camp_order;
 mod camp_recovery;
 mod camp_status;
+mod combat_combos;
 mod combat_death;
 mod combat_enemy_attacks;
 mod combat_enemy_effects;

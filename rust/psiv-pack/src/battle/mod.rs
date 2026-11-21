@@ -8,6 +8,7 @@ mod abilities;
 pub mod animations;
 mod art;
 mod characters;
+mod combos;
 mod enemies;
 mod equipment;
 mod formations;

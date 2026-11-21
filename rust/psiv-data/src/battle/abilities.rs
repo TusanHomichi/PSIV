@@ -18,6 +18,35 @@ pub struct AbilitiesFile {
     pub enemy_skills: Vec<Ability>,
     /// The eight-byte records embedded in inventory entries.
     pub item_effects: Vec<Ability>,
+    /// Combination attacks (`ComboData` + `ComboSetupData` + `ComboNames`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub combos: Vec<Combo>,
+}
+
+/// One retail combination attack record (`ComboData` + `ComboSetupData` + `ComboNames`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Combo {
+    /// One-based combo id (`1..=14`).
+    pub id: u8,
+    /// Cartridge display name from `ComboNames`.
+    pub display_name: String,
+    /// Byte 0 of `ComboData`: `1` = damage (`loc_2864`), `2` = instant death (`loc_5FB4`).
+    pub effect_id: u8,
+    /// Byte 2 of `ComboData`: range (`1` = single enemy, `2` = all enemies).
+    pub range: u8,
+    /// Byte 3 of `ComboData`: chance threshold (`0x40`) for instant-death combos, `0` for damage.
+    pub power_or_hit_chance: u8,
+    /// Byte 4 of `ComboData`: target stat selector (`1..=7`).
+    pub resistance_stat: NamedId,
+    /// Byte 5 of `ComboData`: target element selector (`1..=14`).
+    pub element: NamedId,
+    /// Number of consecutive party participants (`2`, `3`, or `4`).
+    pub participants: u8,
+    /// Whether participant order is fixed (`ComboSetupData` header bit 7).
+    pub ordered: bool,
+    /// Valid ability sequences from `ComboSetupData`.
+    /// Each byte encodes a technique (`id`, `< 0x80`) or skill (`0x80 | id`).
+    pub setups: Vec<Vec<u8>>,
 }
 
 impl AbilitiesFile {
