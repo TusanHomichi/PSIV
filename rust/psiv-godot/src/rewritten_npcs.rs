@@ -86,8 +86,14 @@ impl Field {
                 self.temporary_nodes.insert(slot, node);
             }
             if let Some(node) = self.temporary_nodes.get_mut(&slot) {
-                let seq = sequence_name("idle", facing);
-                let frame = asset.frame_at(&seq, self.anim_tick);
+                let (seq, age) = match asset.playback_sequence.as_deref() {
+                    Some(playback) => (
+                        playback.to_owned(),
+                        self.presentation.rewritten_age(slot, self.anim_tick),
+                    ),
+                    None => (sequence_name("idle", facing), self.anim_tick),
+                };
+                let frame = asset.frame_at(&seq, age);
                 asset.apply(node, frame, &self.cram.borrow());
                 node.set_position(Vector2::new(
                     (pos.0 - asset.origin_x) as f32,

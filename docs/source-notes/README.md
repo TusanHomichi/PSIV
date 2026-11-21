@@ -360,18 +360,12 @@ agility and dexterity, and enemy paralysis clearing each turn.
     (`FieldObj_GetAutoInput`, `ps4.asm:93232`); the port's trail otherwise snaps a follower that is not
     adjacent. `Party::walk_in` gives that walk to the members the routine seats off the trail, and to those
     behind them, and keeps it across a scene handoff. Other followers keep the snap.
-- **The Pengu Feed thief is not drawn (`$96`, #241).** `Event_PenguinFeedStolen`
+- **The Pengu Feed thief's walk pace (`$96`).** `Event_PenguinFeedStolen`
   (`$0735F6`, `ps4.asm:153259-153328`, [record](../scenes/161_PenguinFeedStolen.md)) writes
   field-object slot 2 (`$FFFFC380`) with routine `$368` (`loc_4B30C`) and art tile `$342`, then
-  runs `Field_LoadSprites` and `Field_BuildSprites`, so on the cartridge the thief is on screen
-  while it runs in, spins and runs off. The port runs the slot's state (`ObjectOp::Spawn`, its
-  walks and facings, the `clr.w` that removes it, the map load that drops it), but the pack has no
-  sprite sheet for tile `$342`: the runtime places the object with no sprite, Godot's presentation
-  consumer ignores the spawn record, and Godot builds its NPC sprite nodes only when a map loads, so nothing is drawn for
-  slot 2. The scene's timing, the take and the flags are unaffected. Drawing
-  it needs the art extracted and a sprite node that follows the slot's position and facing and goes
-  on despawn or map load; that is the same gap as the strip club's dancers, deferred to
-  [#241](https://github.com/TusanHomichi/PSIV/issues/241). The thief's walk speed, eight frames a
+  runs `Field_LoadSprites` and `Field_BuildSprites`. The pack extracts the `($368, $342)` sheet
+  from `ZosaItemShop` (`$12A`) and Godot draws `ObjectOp::Spawn` actors following the scene cast's
+  live pixel position and facing until despawn or map load. The thief's walk speed, eight frames a
   cell, is the cast's step rate and is not measured against `loc_4B30C`.
 - `Event_MonsenEarthquake`'s facing frames (`$2C`, `ps4.asm:147499-147814`,
   [record](../scenes/143_MonsenEarthquake.md)). Retail's `Event_UpdateObjFacing`
@@ -401,12 +395,11 @@ agility and dexterity, and enemy paralysis clearing each turn.
     none ([#164](https://github.com/TusanHomichi/PSIV/issues/164)), so each opens its text one frame
     sooner. Nothing moves on that frame; the RNG seed and `Main_Frame_Count` (`ps4.asm:617,623`) fall
     one frame behind.
-  - **The faint is not drawn.** `$24` gives the priest routine `$180` (`FieldObj_FaintedPriest`) and
-    holds 46 frames for its script. The port records the routine and the frames, but the renderer
-    draws each map object from the sheet its record names when the map loads, so the priest stays
-    standing on screen through the faint and afterwards. His state (the routine, his `$38`, the block
-    in his second cell) matches the cartridge. Drawing a scene-changed routine belongs with
-    [#329](https://github.com/TusanHomichi/PSIV/issues/329).
+  - **The faint animation is not oracle-captured.** `$24` gives the priest routine `$180`
+    (`FieldObj_FaintedPriest`) and holds 46 frames for its script. The pack extracts the
+    `($180, $3FB)` sheet from `KadaryChurch` (`$069`) and Godot swaps the rewritten NPC onto its
+    play-once `walk_down` faint animation (holding the final collapsed pose until map reload);
+    native vs. oracle capture verification remains unpinned.
   - **The writhing believer takes a cell, not 8-pixel-rounded pixels.** `$31` copies object 4's
     live `$30`/`$34` into object 9 and rounds each down to 8 pixels (`lsr.w #3` / `lsl.w #3`,
     `$06EE5E..$06EE81`). The port's `ObjectOp::SpawnAt` gives object 9 object 4's cell, the one the
@@ -436,10 +429,10 @@ agility and dexterity, and enemy paralysis clearing each turn.
     ([#337](https://github.com/TusanHomichi/PSIV/issues/337)), so they walk at eight. The gathering
     still ends inside its fixed 150-frame wait; Chaz's two walks, which end their waits, take half
     the cartridge's frames.
-  - **The sword is not drawn.** `FieldObj_ChazAlisSword` (`$334`, tile `$43C`) has no record among
-    the pack's temporary objects, so the 164 frames pass with Chaz's sprite hidden and nothing in
-    his place. Drawing it needs the art staged for `CulversHouse`
-    ([#329](https://github.com/TusanHomichi/PSIV/issues/329) owns scene-built objects).
+  - **The sword animation is not oracle-captured.** `FieldObj_ChazAlisSword` (`$334`, tile `$43C`)
+    is extracted from `CulversHouse` (`$0E7`) and drawn at its literal `($1D0, $1B8)` position as a
+    play-once `walk_down` temporary object while Chaz's sprite is hidden for 164 frames; native vs.
+    oracle capture verification remains unpinned.
 
 - The facing frame in Torinco's `Event_DyingBoyFather` (`$84`), `Event_FatherAfterBoyRecovery`
   (`$85`) and `Event_MeetingSekreas` (`$87`) (`ps4.asm:152706-152725`, `:152856-152865`,

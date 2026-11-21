@@ -23,6 +23,7 @@ pub(crate) struct PresentationState {
     pub(super) loaded_palettes: BTreeMap<u32, u16>,
     loaded_art: BTreeMap<(u32, u16), u64>,
     npc_art_tiles: BTreeMap<usize, u16>,
+    rewritten_since: BTreeMap<usize, u64>,
     pub(super) current_dialogue_tree: Option<u32>,
     dialogue_trees: BTreeMap<u32, u8>,
     pub(super) op_count: u64,
@@ -119,6 +120,13 @@ impl PresentationState {
 
     pub(crate) fn npc_art_tile(&self, slot: usize) -> Option<u16> {
         self.npc_art_tiles.get(&slot).copied()
+    }
+
+    /// Ticks elapsed since `slot`'s rewritten routine first drew on this map,
+    /// so play-once animations (e.g. `FieldObj_FaintedPriest`) play from frame 0.
+    pub(crate) fn rewritten_age(&mut self, slot: usize, tick: u64) -> u64 {
+        let start = *self.rewritten_since.entry(slot).or_insert(tick);
+        tick.saturating_sub(start)
     }
 
     pub(crate) fn configure_dialogue_trees(&mut self, set: &DialogueSet) {
@@ -234,6 +242,14 @@ impl PresentationState {
         object.destination = Some((x, y));
     }
 
+    /// Registers an `ObjectOp::Spawn` actor whose live position and facing come
+    /// from the runtime's scene cast (`destination: None`) until despawn/reload.
+    pub(super) fn spawn_cast_object(&mut self, slot: usize, id: u16, tile: u16) {
+        self.object_animation(slot, id, tile, u16::MAX);
+        let object = self.temporary_objects.get_mut(&slot).unwrap();
+        object.persistent = true;
+    }
+
     pub(super) fn step_field_object(&mut self, slot: usize, step_x: i32, step_y: i32, frames: u16) {
         if let Some(object) = self.temporary_objects.get_mut(&slot)
             && let Some((x, y)) = object.destination
@@ -259,6 +275,7 @@ impl PresentationState {
         self.temporary_objects.clear();
         self.loaded_art.clear();
         self.npc_art_tiles.clear();
+        self.rewritten_since.clear();
     }
 
     pub(super) fn advance_objects(&mut self) {
@@ -577,5 +594,24 @@ mod tests {
             state.temporary_objects[&9].walk_dir,
             Some(psiv_core::Direction::Up)
         );
+    }
+
+    #[test]
+    fn spawn_cast_object_follows_cast_until_despawn_and_rewritten_age_starts_at_zero() {
+        let mut state = PresentationState::default();
+        state.spawn_cast_object(2, 0x368, 0x342);
+        let obj = state.temporary_objects[&2];
+        assert_eq!((obj.object_id, obj.art_tile), (0x368, 0x342));
+        assert_eq!(obj.destination, None);
+        assert!(obj.persistent);
+        state.reset_scene();
+        assert!(state.temporary_objects.contains_key(&2));
+        state.despawn_objects(2, 1);
+        assert!(!state.temporary_objects.contains_key(&2));
+
+        assert_eq!(state.rewritten_age(9, 100), 0);
+        assert_eq!(state.rewritten_age(9, 145), 45);
+        state.reload_field_objects();
+        assert_eq!(state.rewritten_age(9, 200), 0);
     }
 }

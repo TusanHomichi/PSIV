@@ -158,6 +158,16 @@ impl Field {
                 self.presentation
                     .create_field_object(slot, object_id, art_tile, x, y);
             }
+            SceneOp::Object(psiv_core::ObjectOp::Spawn {
+                slot,
+                routine,
+                art_tile,
+                ..
+            }) => {
+                if routine != 0 && art_tile != 0 {
+                    self.presentation.spawn_cast_object(slot, routine, art_tile);
+                }
+            }
             SceneOp::StepFieldObject {
                 slot,
                 step_x,
