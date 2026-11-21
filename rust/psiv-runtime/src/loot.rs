@@ -4,7 +4,7 @@ use psiv_core::{Chest, ChestOutcome, Direction};
 use std::collections::BTreeMap;
 
 pub(super) struct LootItem {
-    name: String,
+    pub(super) name: String,
     necessary: bool,
 }
 
@@ -33,7 +33,7 @@ pub(super) fn catalog(files: &psiv_data::BattleFiles) -> BTreeMap<u8, LootItem> 
 /// The visible chest transaction. The runtime owns the grant and its flag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootState {
-    /// Slot in the shared NPC/chest pool.
+    /// Slot in the shared NPC/chest pool (`0` for a battle drop).
     pub object_slot: usize,
     /// What opening the chest did, or the item still waiting for space.
     pub outcome: ChestOutcome,
@@ -41,10 +41,13 @@ pub struct LootState {
     pub item_name: String,
     /// Retail uses "Box" for a white chest.
     pub white: bool,
+    /// `true` for a full-pack post-battle item drop (`Battle_CheckItemDrop`),
+    /// `false` for a field chest.
+    pub battle_drop: bool,
 }
 
 pub(super) struct PendingLoot {
-    chest: Chest,
+    chest: Option<Chest>,
     state: LootState,
 }
 
@@ -87,15 +90,31 @@ impl Runtime {
             .map(|item| item.name.clone())
             .unwrap_or_default();
         self.loot = Some(PendingLoot {
-            chest,
+            chest: Some(chest),
             state: LootState {
                 object_slot: slot,
                 outcome,
                 item_name: name,
                 white: chest.white,
+                battle_drop: false,
             },
         });
         true
+    }
+
+    /// Queues a full-pack post-battle item drop (`Battle_CheckItemDrop`,
+    /// `ps4.asm:4831`, `loc_3DE0..loc_3BEC`) for the discard/swap window.
+    pub(super) fn queue_battle_drop_loot(&mut self, item: u8, name: String) {
+        self.loot = Some(PendingLoot {
+            chest: None,
+            state: LootState {
+                object_slot: 0,
+                outcome: ChestOutcome::Full { item },
+                item_name: name,
+                white: false,
+                battle_drop: true,
+            },
+        });
     }
 
     /// Acknowledge a completed grant. Full packs require an explicit decision.
@@ -112,7 +131,8 @@ impl Runtime {
         true
     }
 
-    /// Return the waiting item to its chest, closing the lid without a flag.
+    /// Return the waiting item to its chest (closing the lid without a flag),
+    /// or leave a full-pack battle drop behind.
     pub(crate) fn return_loot(&mut self) -> bool {
         let Some(loot) = self.loot.as_ref() else {
             return false;
@@ -120,15 +140,18 @@ impl Runtime {
         if !matches!(loot.state.outcome, ChestOutcome::Full { .. }) {
             return false;
         }
-        let _ = self
-            .map
-            .set_npc_facing(loot.state.object_slot, Direction::Down);
+        if !loot.state.battle_drop {
+            let _ = self
+                .map
+                .set_npc_facing(loot.state.object_slot, Direction::Down);
+        }
         self.loot = None;
         true
     }
 
-    /// loc_67ABA / loc_67C5C: protect plot items, discard the first matching
-    /// inventory byte, compact once, then put the found item at the end.
+    /// loc_67ABA / loc_67C5C (and `Battle_CheckItemDrop`'s `loc_3BEC`):
+    /// protect plot items, discard the first matching inventory byte, compact
+    /// once, then put the found item at the end.
     pub(crate) fn discard_for_loot(&mut self, slot: usize) -> LootResult {
         let Some(loot) = self.loot.as_ref() else {
             return LootResult::Invalid;
@@ -147,11 +170,24 @@ impl Runtime {
         {
             return LootResult::Necessary;
         }
-        let chest = loot.chest;
-        let Ok(outcome) = self.game.complete_chest_swap(&chest, slot) else {
-            return LootResult::Invalid;
+        let outcome = if let Some(chest) = loot.chest {
+            let Ok(outcome) = self.game.complete_chest_swap(&chest, slot) else {
+                return LootResult::Invalid;
+            };
+            outcome
+        } else {
+            if self.game.inventory_mut().remove_in_field(slot).is_none() {
+                return LootResult::Invalid;
+            }
+            let Ok(added_slot) = self.game.inventory_mut().add(item) else {
+                return LootResult::Invalid;
+            };
+            ChestOutcome::Took {
+                item,
+                slot: added_slot,
+            }
         };
-        self.loot.as_mut().expect("pending chest").state.outcome = outcome;
+        self.loot.as_mut().expect("pending loot").state.outcome = outcome;
         LootResult::Took { item, discarded }
     }
 }

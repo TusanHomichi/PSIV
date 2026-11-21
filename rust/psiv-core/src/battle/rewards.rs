@@ -40,7 +40,25 @@
 use super::event::BattleEvent;
 use super::fighters::{FighterId, Roster, Side};
 use super::records::{BattleData, BattleDataError};
+use super::rng::Rolls;
 use super::stats::Stats;
+
+/// Mask applied to `UpdateRNGSeed2`'s low byte in `Battle_CheckItemDrop`
+/// (`andi.b #$7F, d0`, `ps4.asm:4838`).
+pub const ITEM_DROP_ROLL_MASK: u16 = 0x7F;
+
+/// `Battle_CheckItemDrop` (`ps4.asm:4831-4841`): draws one `UpdateRNGSeed2`
+/// word, masks its low byte with `$7F`, and awards `drop_item` when
+/// `(roll & $7F) < drop_rate`. Always consumes one roll on victory, even when
+/// `drop_rate == 0`.
+pub fn roll_item_drop(drop_item: Option<u8>, drop_rate: u8, rolls: &mut impl Rolls) -> Option<u8> {
+    let roll = (rolls.next_roll() & ITEM_DROP_ROLL_MASK) as u8;
+    if roll < drop_rate {
+        drop_item.filter(|&id| id != 0)
+    } else {
+        None
+    }
+}
 
 /// The ceiling on both pools: `add.w` then `bcc` to `$FFFF` on carry
 /// (`ps4.asm:59635`).
@@ -523,5 +541,40 @@ mod tests {
             level_up(9, &mut chaz, &data),
             Err(BattleDataError::UnknownLevelTable(9))
         );
+    }
+
+    #[test]
+    fn roll_item_drop_masks_to_7f_and_always_consumes_one_roll() {
+        struct Scripted {
+            rolls: std::collections::VecDeque<u16>,
+            drawn: usize,
+        }
+        impl Rolls for Scripted {
+            fn next_roll(&mut self) -> u16 {
+                self.drawn += 1;
+                self.rolls.pop_front().unwrap_or(0)
+            }
+        }
+
+        // Low 7 bits < drop_rate drops the item (even when high bits are set).
+        let mut rng = Scripted {
+            rolls: [0xFF83, 0x0004, 0x0000, 0x0000].into(),
+            drawn: 0,
+        };
+        assert_eq!(roll_item_drop(Some(125), 4, &mut rng), Some(125));
+        assert_eq!(rng.drawn, 1);
+
+        // Low 7 bits == drop_rate fails (`bge.s` skips the drop).
+        assert_eq!(roll_item_drop(Some(125), 4, &mut rng), None);
+        assert_eq!(rng.drawn, 2);
+
+        // Zero rate still consumes one roll and drops nothing.
+        assert_eq!(roll_item_drop(Some(125), 0, &mut rng), None);
+        assert_eq!(rng.drawn, 3);
+
+        // Item id 0 or None drops nothing even if the roll is below drop_rate.
+        assert_eq!(roll_item_drop(Some(0), 127, &mut rng), None);
+        assert_eq!(roll_item_drop(None, 127, &mut rng), None);
+        assert_eq!(rng.drawn, 5);
     }
 }

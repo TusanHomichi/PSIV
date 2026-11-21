@@ -78,7 +78,7 @@ impl CampMenu {
         // The cartridge's order (`Win_MenuOptions`, `ps4.asm:117201-117247`):
         // the options, the stats, the meseta, each window's contents with it.
         frame(chrome, list, ROOT_MENU);
-        draw_root_options(chrome, &mut list.quads);
+        draw_root_options(view, chrome, &mut list.quads);
         let cursor = (
             ROOT_CURSOR_CELL.0,
             ROOT_CURSOR_CELL.1 + view.root_selection as i32 * 2,
@@ -316,9 +316,9 @@ pub(super) fn draw_text(chrome: &CampChrome, quads: &mut Vec<Quad>, text: &str, 
     quads.extend(chrome.text(text, cell));
 }
 
-fn draw_root_options(chrome: &CampChrome, quads: &mut Vec<Quad>) {
-    for text in &ROOT_TEXT[4..11] {
-        draw_text(chrome, quads, text.text, text.cell);
+fn draw_root_options(view: &CampView, chrome: &CampChrome, quads: &mut Vec<Quad>) {
+    for (row, text) in ROOT_TEXT[4..11].iter().enumerate() {
+        draw_text(chrome, quads, view.root_option_label(row), text.cell);
     }
     draw_selectors(chrome, quads, ROOT_CURSOR_CELL, ROOT_OPTIONS.len());
 }

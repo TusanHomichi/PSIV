@@ -185,3 +185,143 @@ fn a_battle_round_trips_through_the_roster() {
     // and whatever it is, it is the ROSTER's copy that says so.
     assert!(after[0].stats.curr_hp <= hp_before);
 }
+
+#[test]
+fn victory_item_drop_grants_when_space_exists_and_queues_swap_when_pack_is_full() {
+    let pack = Path::new(PACK);
+    if !pack.join("manifest.json").exists() {
+        return;
+    }
+    let data = GameData::load(pack).unwrap();
+    let files = psiv_data::BattleFiles::load(pack).unwrap();
+    let (formation_id, expected_item) = files
+        .formations
+        .formations
+        .iter()
+        .find_map(|f| {
+            let id = f.id?;
+            let item = f.drop_item?;
+            (item != 0 && f.drop_rate > 0).then_some((id, item))
+        })
+        .expect("pack has a formation with a non-zero item drop");
+
+    // Try successive frame seeds until a real formation victory rolls a drop,
+    // then replay that exact seed with a full pack.
+    let mut winning_seed = None;
+    for seed_frames in 0u16..256 {
+        let mut rt = Runtime::new(
+            data.clone(),
+            0x00,
+            Cell::new(10, 10),
+            Direction::Down,
+            StepFrames::default(),
+        )
+        .unwrap();
+        rt.enable_battles(&files).unwrap();
+        rt.frames = seed_frames;
+        let mut party = rt.battle_party();
+        for m in &mut party {
+            m.stats.curr_hp = 999;
+            m.stats.max_hp = 999;
+            m.stats.attack.derived = 999;
+            m.stats.agility.modified = 255;
+            m.stats.dexterity.modified = 255;
+        }
+        rt.start_battle(formation_id, party).unwrap();
+        let mut won = false;
+        for _ in 0..30 {
+            let round = rt
+                .battle_round(&psiv_core::battle::RoundOrders::attack_all())
+                .unwrap();
+            if round.iter().any(|e| {
+                matches!(
+                    e,
+                    psiv_core::battle::BattleEvent::Ended {
+                        outcome: psiv_core::battle::Outcome::Victory
+                    }
+                )
+            }) {
+                won = true;
+                break;
+            }
+        }
+        assert!(won, "over-leveled party wins formation {formation_id}");
+        let events = rt.finish_battle_absorbing(10);
+        if let Some(pos) = events.iter().position(|e| {
+            matches!(
+                e,
+                psiv_core::battle::BattleEvent::ItemDropped {
+                    item,
+                    collected: true,
+                    ..
+                } if *item == expected_item
+            )
+        }) {
+            if let Some(lvl_pos) = events
+                .iter()
+                .position(|e| matches!(e, psiv_core::battle::BattleEvent::LevelUp { .. }))
+            {
+                assert!(pos < lvl_pos, "item drop precedes level-up");
+            }
+            assert!(
+                rt.game().inventory().slots().contains(&expected_item),
+                "dropped item was added to inventory"
+            );
+            assert!(rt.loot_state().is_none());
+            winning_seed = Some(seed_frames);
+            break;
+        }
+    }
+    let seed_frames = winning_seed.expect("found a seed that drops the formation's item");
+
+    // Replay the exact same seed with a full 40-slot inventory: drop must
+    // emit collected=false and queue the battle_drop swap window.
+    let mut rt = Runtime::new(
+        data,
+        0x00,
+        Cell::new(10, 10),
+        Direction::Down,
+        StepFrames::default(),
+    )
+    .unwrap();
+    rt.enable_battles(&files).unwrap();
+    rt.frames = seed_frames;
+    *rt.game.inventory_mut() = psiv_core::Inventory::from_slots([125; 40]);
+    let mut party = rt.battle_party();
+    for m in &mut party {
+        m.stats.curr_hp = 999;
+        m.stats.max_hp = 999;
+        m.stats.attack.derived = 999;
+        m.stats.agility.modified = 255;
+        m.stats.dexterity.modified = 255;
+    }
+    rt.start_battle(formation_id, party).unwrap();
+    for _ in 0..30 {
+        let round = rt
+            .battle_round(&psiv_core::battle::RoundOrders::attack_all())
+            .unwrap();
+        if round
+            .iter()
+            .any(|e| matches!(e, psiv_core::battle::BattleEvent::Ended { .. }))
+        {
+            break;
+        }
+    }
+    let events = rt.finish_battle_absorbing(10);
+    assert!(events.iter().any(|e| matches!(
+        e,
+        psiv_core::battle::BattleEvent::ItemDropped {
+            item,
+            collected: false,
+            ..
+        } if *item == expected_item
+    )));
+    let loot = rt.loot_state().expect("full-pack drop queues pending loot");
+    assert!(loot.battle_drop);
+    assert_eq!(
+        loot.outcome,
+        psiv_core::ChestOutcome::Full {
+            item: expected_item
+        }
+    );
+}

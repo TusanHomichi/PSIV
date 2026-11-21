@@ -667,6 +667,86 @@ fn selection(rom: &[u8], decodes: &Decodes) -> Result<Json, PackError> {
         ))
 }
 
+/// `Win_TalkDialogue` (`$05DEBC`) and `loc_5DF2A` (`$05DF2A`): the camp's
+/// `TALK`/`MUMBL` selection routine (`ps4.asm:125774-125980`).
+const TALK_ROUTINE: usize = 0x05DEBC;
+const TALK_TABLE_LEA: usize = 0x05DF2A;
+
+/// `talk_options`: reads `Win_TalkDialogue`'s retail constants and the
+/// `$FFFF`-terminated `(event_flag, entry)` table (`TalkOption_DialogueIDs`)
+/// directly from the ROM.
+fn talk_options(rom: &[u8], decodes: &Decodes) -> Result<Json, PackError> {
+    let code = slice(rom, TALK_ROUTINE, 0x38, "Win_TalkDialogue")?;
+    // cmpi.w #<map>, ($EC28).w at +0x00
+    if code[0..2] != [0x0C, 0x78] || code[4..6] != [0xEC, 0x28] {
+        return refuse("Win_TalkDialogue map compare opcode mismatch".into());
+    }
+    let anger_tower_map = u16::from_be_bytes([code[2], code[3]]);
+    // move.b #<flag>, d0 at +0x0C; move.b #<entry>, d0 at +0x1C
+    if code[0x0C..0x0E] != [0x10, 0x3C] || code[0x1C..0x1E] != [0x10, 0x3C] {
+        return refuse("Win_TalkDialogue Anger Tower flag/entry opcode mismatch".into());
+    }
+    let anger_tower_clear_flag = u16::from(code[0x0F]);
+    let anger_tower_entry = code[0x1F];
+    // move.l #<tree_low>, d0 at +0x24; cmpi.w #<cutoff>, d1 at +0x2A; move.l #<tree_high>, d0 at +0x30
+    if code[0x24..0x26] != [0x20, 0x3C]
+        || code[0x2A..0x2C] != [0x0C, 0x41]
+        || code[0x30..0x32] != [0x20, 0x3C]
+    {
+        return refuse("Win_TalkDialogue tree dispatch opcode mismatch".into());
+    }
+    let low_ptr = u32::from_be_bytes([code[0x26], code[0x27], code[0x28], code[0x29]]) as usize;
+    let tree_high_from = u16::from_be_bytes([code[0x2C], code[0x2D]]);
+    let high_ptr = u32::from_be_bytes([code[0x32], code[0x33], code[0x34], code[0x35]]) as usize;
+    let specs = dialogue_tree_specs(rom, decodes)?;
+    let find_tree = |ptr: usize| -> Result<usize, PackError> {
+        specs
+            .iter()
+            .find(|s| s.start == ptr)
+            .map(|s| s.tree)
+            .ok_or_else(|| PackError(format!("talk dialogue pointer 0x{ptr:06X} is not a tree")))
+    };
+    let tree_low = find_tree(low_ptr)?;
+    let tree_high = find_tree(high_ptr)?;
+
+    let lea = slice(rom, TALK_TABLE_LEA, 6, "loc_5DF2A lea")?;
+    if lea[..2] != LEA_ABS_A0 {
+        return refuse("loc_5DF2A lea opcode mismatch".into());
+    }
+    let table_offset = u32::from_be_bytes([lea[2], lea[3], lea[4], lea[5]]) as usize;
+    let mut at = table_offset;
+    let mut entries = Vec::new();
+    loop {
+        let pair = slice(rom, at, 2, "TalkOption_DialogueIDs")?;
+        if pair == [0xFF, 0xFF] {
+            break;
+        }
+        entries.push(
+            Json::object()
+                .with("flag", u16::from(pair[0]))
+                .with("entry", pair[1]),
+        );
+        at += 2;
+        if entries.len() > 256 {
+            return refuse("TalkOption_DialogueIDs terminator not found".into());
+        }
+    }
+    if entries.is_empty() {
+        return refuse("TalkOption_DialogueIDs is empty".into());
+    }
+    Ok(Json::object()
+        .with("routine_offset", hex6(TALK_ROUTINE))
+        .with("table_offset", hex6(table_offset))
+        .with("tree_low", tree_low)
+        .with("tree_high", tree_high)
+        .with("tree_high_from", tree_high_from)
+        .with("default_entry", 0u8)
+        .with("anger_tower_map", anger_tower_map)
+        .with("anger_tower_clear_flag", anger_tower_clear_flag)
+        .with("anger_tower_entry", anger_tower_entry)
+        .with("entries", entries))
+}
+
 /// `window_json`: what a renderer needs to lay the window out.
 fn window(scroll_arrow: &Json) -> Json {
     Json::object()
@@ -760,6 +840,7 @@ pub fn write(
         .with("chrome", "dialogue/window.json")
         .with("system_messages", system_messages(rom)?)
         .with("world_interaction", selection(rom, &decodes)?)
+        .with("talk_options", talk_options(rom, &decodes)?)
         .with("portraits", "dialogue/portraits.json")
         .with("trees", trees);
     let sha = crate::write_json(root, "dialogue/trees.json", &payload)?;

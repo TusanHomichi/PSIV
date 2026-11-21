@@ -312,6 +312,10 @@ impl CampView {
                 self.page = CampPage::EquipCharacters;
             }
             4 => self.page = CampPage::State,
+            5 => {
+                self.talk_requested = true;
+                self.close();
+            }
             _ => {
                 self.page = CampPage::Unsupported;
                 self.message = format!("{} NOT READY", ROOT_OPTIONS[self.root_selection]);

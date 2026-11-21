@@ -672,7 +672,7 @@ impl BattleMode {
                 self.message.clear();
                 MessageKind::VictoryRewards
             }
-            BattleBeat::End(_) | BattleBeat::LevelUp => MessageKind::Wide,
+            BattleBeat::End(_) | BattleBeat::ItemDrop | BattleBeat::LevelUp => MessageKind::Wide,
             BattleBeat::Reward => {
                 self.message = "Victory!".into();
                 MessageKind::Victory

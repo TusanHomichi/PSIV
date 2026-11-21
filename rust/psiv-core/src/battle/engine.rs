@@ -197,6 +197,10 @@ pub struct Battle {
     /// `Enemy_Run_Chance`, or `None` for a formation at or above `$F0` that
     /// cannot be escaped at all.
     run_chance: Option<u8>,
+    /// `Item_Drop_Rate` (`ps4.asm:4839`): compared against `UpdateRNGSeed2 & $7F`.
+    drop_rate: u8,
+    /// `Dropped_Item`: item id awarded when the post-victory drop roll succeeds.
+    drop_item: Option<u8>,
     /// Whether this is the one-fighter vehicle battle surface.
     vehicle: bool,
     /// `$FFFFEE98`, the Zio routines' shared phase counter (see [`super::zio`]).
@@ -311,6 +315,8 @@ impl Battle {
                 outcome: None,
                 last_ability_index: 0,
                 run_chance: formation.can_run().then_some(formation.run_chance),
+                drop_rate: formation.drop_rate,
+                drop_item: formation.drop_item,
                 vehicle,
                 enemy_phase: 0,
                 scripted_latch: scripted,
@@ -323,6 +329,18 @@ impl Battle {
     #[must_use]
     pub const fn roster(&self) -> &Roster {
         &self.roster
+    }
+
+    /// The formation's retail `Item_Drop_Rate` byte (`0..=128`).
+    #[must_use]
+    pub const fn drop_rate(&self) -> u8 {
+        self.drop_rate
+    }
+
+    /// The formation's retail `Dropped_Item` id, if any.
+    #[must_use]
+    pub const fn drop_item(&self) -> Option<u8> {
+        self.drop_item
     }
 
     /// `$FFFFEEA8` as the battle holds it: `0` until an enemy draws an ability

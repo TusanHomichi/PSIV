@@ -26,6 +26,8 @@ pub struct DialogueView {
     pub total: usize,
     /// The portrait id currently shown, if any.
     pub portrait: Option<u8>,
+    /// Talk-mode portrait slot (`$FFFFEC9D`: 0, 1, or 2), `None` outside Talk trees.
+    pub talk_portrait_slot: Option<u8>,
     /// How the page on screen ended, when it has.
     pub page_end: Option<PageEnd>,
     /// Whether the retail scroll arrow is up: a full page with more to come.
@@ -51,10 +53,14 @@ pub struct DialogueView {
 
 impl DialogueView {
     /// The panel-event branch selects `WinGroup_Event`'s portrait origin
-    /// (3,14), instead of `WinGroup_Dialogue`'s (5,13).
+    /// (3,14), instead of `WinGroup_Dialogue`'s (5,13). In Talk mode
+    /// (`Game_Mode_Routine == 4`, `ps4.asm:142751`), `$FFFFEC9D` shifts the
+    /// portrait right by `slot * 12` cells (`slot * 96` px).
     #[must_use]
     pub fn portrait_offset(&self) -> (i32, i32) {
-        if self.scene_dialogue && self.cutscene_portrait {
+        if let Some(slot) = self.talk_portrait_slot {
+            (i32::from(slot) * 12 * 8, 0)
+        } else if self.scene_dialogue && self.cutscene_portrait {
             (-16, 8)
         } else {
             (0, 0)

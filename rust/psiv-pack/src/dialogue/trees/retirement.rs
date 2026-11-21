@@ -376,3 +376,65 @@ fn action_payloads_and_entry_locations_survive_emission_and_census() {
     assert_eq!(c["text_actions"]["load_sound"], 1);
     assert_eq!(c["longest_line_at"], json!({"tree":7,"entry":3}));
 }
+
+#[test]
+fn talk_options_reads_retail_table_and_refuses_opcode_corruption() {
+    let Some(e) = emission() else { return };
+    let rom = e.rom.bytes();
+    let d = e.document("trees");
+    let t = &d["talk_options"];
+    assert_eq!(t["routine_offset"], hex6(TALK_ROUTINE));
+    assert_eq!(t["tree_low"], 31);
+    assert_eq!(t["tree_high"], 32);
+    assert_eq!(t["tree_high_from"], 0x1A);
+    assert_eq!(t["default_entry"], 0);
+    assert_eq!(t["anger_tower_map"], 0x00FE);
+    assert_eq!(t["anger_tower_clear_flag"], 0xE7);
+    assert_eq!(t["anger_tower_entry"], 0x32);
+    let entries = t["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 48);
+    let tree_len = |id: u64| {
+        d["trees"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tr| tr["tree"] == id)
+            .unwrap()["entry_count"]
+            .as_u64()
+            .unwrap()
+    };
+    let (low_len, high_len) = (tree_len(31), tree_len(32));
+    for row in entries {
+        let entry = row["entry"].as_u64().unwrap();
+        if entry < 0x1A {
+            assert!(
+                entry < low_len,
+                "talk entry {entry} out of range for tree 31"
+            );
+        } else {
+            assert!(
+                entry < high_len,
+                "talk entry {entry} out of range for tree 32"
+            );
+        }
+    }
+    assert!(0x32 < high_len);
+
+    // Negative controls: opcode corruption in Win_TalkDialogue or loc_5DF2A must fail.
+    let mut corrupt = rom.to_vec();
+    corrupt[TALK_ROUTINE] ^= 1;
+    assert!(
+        talk_options(&corrupt, &Decodes::new(&corrupt))
+            .unwrap_err()
+            .0
+            .contains("opcode mismatch")
+    );
+    corrupt = rom.to_vec();
+    corrupt[TALK_TABLE_LEA] ^= 1;
+    assert!(
+        talk_options(&corrupt, &Decodes::new(&corrupt))
+            .unwrap_err()
+            .0
+            .contains("opcode mismatch")
+    );
+}

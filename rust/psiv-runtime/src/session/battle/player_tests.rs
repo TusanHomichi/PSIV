@@ -44,6 +44,36 @@ fn mode(runtime: &mut Runtime) -> BattleMode {
 }
 
 #[test]
+fn item_drop_beat_preserves_narration_in_wide_window_and_waits_for_confirm() {
+    let Some(mut runtime) = runtime() else { return };
+    for (collected, expected) in [
+        (true, "MONOMATE found! MONOMATE got!"),
+        (false, "MONOMATE found! But itempack full!"),
+    ] {
+        runtime.start_battle(0x8A, runtime.battle_party()).unwrap();
+        let mut battle = BattleMode::begin(
+            &runtime,
+            BattleTimeline {
+                events: vec![BattleEvent::ItemDropped {
+                    item: 125,
+                    name: "MONOMATE".into(),
+                    collected,
+                }],
+                sounds: Vec::new(),
+                animations: Vec::new(),
+            },
+            BattleStart::Encounter(0x8A),
+        );
+        battle.start_next_event();
+        assert_eq!(battle.message, expected);
+        assert_eq!(battle.message_kind, MessageKind::Wide);
+        let current = battle.current.as_ref().expect("item drop beat is active");
+        assert_eq!(current.beat, BattleBeat::ItemDrop);
+        assert!(current.waits_for_confirm);
+    }
+}
+
+#[test]
 fn tp_event_updates_only_its_recipient_at_the_played_beat() {
     let Some(mut runtime) = runtime() else { return };
     let mut mode = mode(&mut runtime);

@@ -59,8 +59,12 @@ pub struct PortraitChange {
     pub at: usize,
     /// The portrait up before it: the one the previous `$F4` loaded.
     pub previous: Option<u8>,
+    /// The talk-mode slot (`$FFFFEC9D`, 0..=2) up before it, if any.
+    pub previous_slot: Option<u8>,
     /// The portrait it loads; `None` for `$F4 0`.
     pub portrait: Option<u8>,
+    /// The talk-mode slot (`$FFFFEC9D`, 0..=2) it loads, if any.
+    pub portrait_slot: Option<u8>,
     /// Counted frames: the `DMAPlane_A_VInt` after destroying a portrait
     /// that was up (`$06A1B4`), which shows the window without one.
     pub destroy_frames: u8,
@@ -126,6 +130,8 @@ pub struct TextFlow {
     line: usize,
     column: usize,
     portrait: Option<u8>,
+    /// Talk-mode portrait slot (`$FFFFEC9D`, 0..=2), `None` outside Talk trees.
+    portrait_slot: Option<u8>,
     /// Frames left on a `$F9`.
     hold: u16,
     /// Counted frames inside the current `$F2`, after the box opens.
@@ -211,6 +217,7 @@ impl TextFlow {
             line: 0,
             column: 0,
             portrait: None,
+            portrait_slot: None,
             hold: 0,
             action_hold: 0,
             stop: None,
@@ -249,6 +256,12 @@ impl TextFlow {
     #[must_use]
     pub fn portrait(&self) -> Option<u8> {
         self.portrait
+    }
+
+    /// The talk-mode portrait slot (`$FFFFEC9D`) the walk has reached, if any.
+    #[must_use]
+    pub fn portrait_slot(&self) -> Option<u8> {
+        self.portrait_slot
     }
 
     /// The first `$F4` the window has not finished, if any.
@@ -503,17 +516,21 @@ impl TextFlow {
     /// `TextCtrlCode_Portrait`: `$F4 0` destroys the portrait with no frame
     /// (`loc_6A29C`); any other id destroys the one up, if any, with a
     /// `DMAPlane_A_VInt` (`$06A1B4`), then decompresses the new art.
-    fn change_portrait(&mut self, id: u8) {
+    fn change_portrait(&mut self, id: u8, slot: Option<u8>) {
         let previous = self.portrait;
+        let previous_slot = self.portrait_slot;
         let up = previous.is_some();
         let load = id != PORTRAIT_HIDE;
         self.portrait = load.then_some(id);
+        self.portrait_slot = load.then_some(slot).flatten();
         let destroy = u8::from(load && up);
         let lag = if load { PORTRAIT_LOAD_LAG_FRAMES } else { 0 };
         self.portrait_changes.push_back(PortraitChange {
             at: self.visible_chars(),
             previous,
+            previous_slot,
             portrait: self.portrait,
+            portrait_slot: self.portrait_slot,
             destroy_frames: destroy,
             lag_frames: lag,
         });
@@ -663,12 +680,7 @@ impl TextFlow {
                 true
             }
             Ctrl::Portrait { id, position, .. } => {
-                self.change_portrait(*id);
-                if let Some(slot) = position {
-                    self.log.push(format!(
-                        "portrait: talk slot {slot} ignored (talk mode is later)"
-                    ));
-                }
+                self.change_portrait(*id, *position);
                 false
             }
             Ctrl::Delay { frames, .. } => {

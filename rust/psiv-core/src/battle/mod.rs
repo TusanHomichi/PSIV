@@ -139,7 +139,10 @@ pub use records::{
     InlineFormation, ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, SKILL_SLOTS,
     TECHNIQUE_SLOTS, UNRUNNABLE,
 };
-pub use rewards::{MAX_LEVEL, POOL_CAP, Pools, Split, level_up, level_up_absent, split_rewards};
+pub use rewards::{
+    ITEM_DROP_ROLL_MASK, MAX_LEVEL, POOL_CAP, Pools, Split, level_up, level_up_absent,
+    roll_item_drop, split_rewards,
+};
 pub use rng::{HV_SURROGATE, Lcg41, RESEED, Rng2, Rolls, SliceRolls};
 pub use skill::{Skill, SkillRejection, skill_targets};
 pub use stats::{

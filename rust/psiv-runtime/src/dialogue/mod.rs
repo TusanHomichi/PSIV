@@ -328,6 +328,7 @@ impl DialogueRunner {
             revealed: self.revealed,
             total: flow.visible_chars(),
             portrait: self.shown_portrait(flow),
+            talk_portrait_slot: self.shown_portrait_slot(flow),
             page_end: flow.page_end(),
             // `RunText3` draws no arrow and reads no press.
             waiting: flow.is_waiting() && !self.text3,
@@ -639,6 +640,15 @@ impl DialogueRunner {
             flow.portrait()
         };
         portrait.or(self.board_portrait)
+    }
+
+    fn shown_portrait_slot(&self, flow: &TextFlow) -> Option<u8> {
+        self.shown_portrait(flow)?;
+        if let Some(change) = flow.pending_portrait() {
+            change.previous_slot
+        } else {
+            flow.portrait_slot()
+        }
     }
 
     fn start(&mut self, opening: Opening, who: &str) -> bool {

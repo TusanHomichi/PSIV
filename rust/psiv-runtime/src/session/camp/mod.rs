@@ -190,6 +190,8 @@ pub struct CampView {
     /// menu is gone (`menu_scene.rs`). The ITEM menu's accepted action is the
     /// only command that has one (`ps4.asm:123419-123431`).
     pub(crate) scene_event: Option<u16>,
+    /// Camp `TALK` / `MUMBL` (`Win_TalkDialogue`) requested on close.
+    pub(crate) talk_requested: bool,
 }
 
 /// One frame of the menu, as the session needs it.
@@ -198,6 +200,7 @@ pub(crate) struct CampFrame {
     pub(crate) sound: Option<u8>,
     pub(crate) closed: bool,
     pub(crate) scene_event: Option<u16>,
+    pub(crate) talk_requested: bool,
 }
 
 /// The pad's edges and levels the menu pages read.
@@ -269,6 +272,18 @@ impl CampView {
             save_slot_request: None,
             closed: false,
             scene_event: None,
+            talk_requested: false,
+        }
+    }
+
+    /// The label of root option `index`: row 5 is `"TALK"` with two or more
+    /// party members and `"MUMBL"` when solo (`Win_TalkLabel`, `ps4.asm:125751`).
+    #[must_use]
+    pub fn root_option_label(&self, index: usize) -> &'static str {
+        if index == 5 && self.snapshot.party.len() >= 2 {
+            "TALK"
+        } else {
+            ROOT_OPTIONS[index]
         }
     }
 
@@ -341,6 +356,7 @@ impl CampView {
             sound: self.sound_request.take(),
             closed: self.closed,
             scene_event: self.scene_event.take(),
+            talk_requested: std::mem::take(&mut self.talk_requested),
         }
     }
 }
@@ -396,6 +412,9 @@ impl Session {
                 event,
                 started: self.start_menu_scene(MenuScene::ItemAction { event }),
             });
+            if drained.talk_requested {
+                self.runtime.open_talk_dialogue();
+            }
             return Some(Frame {
                 mode: FrameMode::Camp,
                 menu_events: drained.events,

@@ -32,7 +32,10 @@ pub(crate) struct Narration {
 pub(crate) const fn waits_for_confirm(beat: BattleBeat) -> bool {
     matches!(
         beat,
-        BattleBeat::Reward | BattleBeat::LevelUp | BattleBeat::End(Outcome::Victory)
+        BattleBeat::Reward
+            | BattleBeat::ItemDrop
+            | BattleBeat::LevelUp
+            | BattleBeat::End(Outcome::Victory)
     )
 }
 
@@ -283,6 +286,16 @@ pub(crate) fn narration(
         BattleEvent::Rewarded { .. } => Narration {
             line: "Each got".into(),
             beat: BattleBeat::Reward,
+        },
+        BattleEvent::ItemDropped {
+            name, collected, ..
+        } => Narration {
+            line: if *collected {
+                format!("{name} found! {name} got!")
+            } else {
+                format!("{name} found! But itempack full!")
+            },
+            beat: BattleBeat::ItemDrop,
         },
         BattleEvent::LearnedAbility { character, name } => Narration {
             line: format!(

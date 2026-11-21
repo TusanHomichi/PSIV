@@ -96,6 +96,8 @@ pub enum BattleBeat {
     Hide(FighterId),
     /// The victory banner's reward page.
     Reward,
+    /// A post-battle item drop page (`Battle_CheckItemDrop`).
+    ItemDrop,
     /// A level-up or learning page.
     LevelUp,
     /// The battle's last page.
