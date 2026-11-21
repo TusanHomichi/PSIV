@@ -4,8 +4,8 @@
 mod common;
 
 use psiv_core::{
-    ActorRef, Cell, CharId, Direction, EventIndex, Flag, GameState, SceneEffect, SceneInput,
-    SceneOp, SceneRunner, ScriptedActor, StepFrames, scene_for,
+    ActorRef, Cell, CharId, Direction, EventIndex, Flag, GameState, PixelPos, SceneEffect,
+    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, scene_for,
 };
 
 fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
@@ -36,6 +36,8 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
     let mut runner = SceneRunner::new(scene.ops, cast, StepFrames::default());
     let mut input = SceneInput::None;
     let mut log = Vec::new();
+    let mut demi_pan_positions = Vec::new();
+    let mut last_demi_pos = None;
     for _ in 0..20_000 {
         if runner.awaits_palette() {
             runner.release_palette(1);
@@ -45,6 +47,9 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
             !effects.iter().any(|e| matches!(e, SceneEffect::Faulted(_))),
             "{effects:?}"
         );
+        if let Some(demi) = runner.actor(ActorRef::Character(CharId(6))) {
+            last_demi_pos = Some(demi.pixel_pos());
+        }
         input = if effects
             .iter()
             .any(|e| matches!(e, SceneEffect::MapRequested { .. }))
@@ -58,6 +63,12 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
                 }
             )
         }) {
+            demi_pan_positions.push(
+                runner
+                    .actor(ActorRef::Character(CharId(6)))
+                    .expect("Demi in cast")
+                    .pixel_pos(),
+            );
             SceneInput::CameraArrived
         } else {
             SceneInput::DialogueClosed
@@ -68,6 +79,19 @@ fn zio_defeated_preserves_chaz(hp: u16, status: u8) {
         }
     }
     assert!(runner.is_finished(), "ZioDefeated returns");
+    assert_eq!(
+        demi_pan_positions,
+        vec![
+            PixelPos { x: 0x1E8, y: 0x1C0 },
+            PixelPos { x: 0x1E8, y: 0x1C0 }
+        ],
+        "Demi's sub-cell X ($1E8) must survive PlaceActor into both Nurvus camera pans"
+    );
+    assert_eq!(
+        last_demi_pos,
+        Some(PixelPos { x: 0x1E8, y: 0x160 }),
+        "Demi's three vertical steps (16 + 32 + 48 px up) preserve X=$1E8 before leaving"
+    );
     assert!(log.contains(&SceneEffect::Returned { value: 1 }));
     assert_eq!(state.party_members(), [CharId(0), CharId(5), CharId(3)]);
     for who in party {

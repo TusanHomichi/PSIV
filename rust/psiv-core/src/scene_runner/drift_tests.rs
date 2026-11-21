@@ -449,3 +449,47 @@ fn a_placement_drops_the_slide_a_step_left() {
     assert_eq!(placed.cell, Cell::new(0x1F, 0x20));
     assert_eq!(placed.render_offset_16ths(frames), (0, 0));
 }
+
+#[test]
+fn a_subcell_placement_preserves_its_pixel_remainder_across_vertical_steps() {
+    static OPS: &[SceneOp] = &[
+        SceneOp::PlaceActor {
+            actor: ActorRef::PartyMember(0),
+            x: 0x1E8,
+            y: 0x1C0,
+        },
+        SceneOp::Wait { ticks: 1 },
+        SceneOp::Face {
+            actor: ActorRef::PartyMember(0),
+            facing: Direction::Up,
+        },
+        SceneOp::StepObjectAlongFacing {
+            actor: ActorRef::PartyMember(0),
+            backwards: false,
+            frames: 16,
+        },
+    ];
+    let map = map_of(&[]);
+    let mut state = GameState::new();
+    let leader = ActorRef::PartyMember(0);
+    let mut runner = SceneRunner::new(
+        OPS,
+        vec![ScriptedActor::new(leader, Cell::new(5, 5), Direction::Down)],
+        StepFrames::new(8).unwrap(),
+    );
+    let frames = StepFrames::new(8).unwrap();
+    runner.tick(&map, &mut state, SceneInput::None);
+    let placed = *runner.actor(leader).unwrap();
+    assert_eq!(placed.pixel_pos(), crate::PixelPos { x: 0x1E8, y: 0x1C0 });
+    assert_eq!(placed.render_offset_16ths(frames), (8, 0));
+    for _ in 0..32 {
+        if runner.is_finished() {
+            break;
+        }
+        runner.tick(&map, &mut state, SceneInput::None);
+    }
+    assert!(runner.is_finished());
+    let stepped = *runner.actor(leader).unwrap();
+    assert_eq!(stepped.pixel_pos(), crate::PixelPos { x: 0x1E8, y: 0x1B0 });
+    assert_eq!(stepped.render_offset_16ths(frames), (8, 0));
+}

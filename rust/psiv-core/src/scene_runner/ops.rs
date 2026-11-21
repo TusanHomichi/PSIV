@@ -364,15 +364,15 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::PlaceActor { actor, x, y } => {
-                let cell = pixel_cell(x, y);
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
-                // An absolute write to `$30`/`$34`: whatever sub-cell slide a
-                // step or ride left goes with the old position.
-                walker.cell = cell;
+                // An absolute write to `$30`/`$34`: replaces any prior sub-cell
+                // slide while preserving the new coordinate's own sub-cell pixel
+                // remainder (e.g. Demi at `($1E8, $1C0)` in `Cutscene_ZioDefeated`).
+                walker.place_at_pixel((x, y));
                 walker.target = None;
-                walker.slide = (0, 0);
+                let cell = walker.cell;
                 effects.push(SceneEffect::ActorPlaced { actor, at: cell });
                 self.pc += 1;
             }

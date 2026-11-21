@@ -735,13 +735,13 @@ impl Runtime {
                                 .scene
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
-                                .map(|walker| PixelPos::from_cell(walker.cell)),
+                                .map(psiv_core::ScriptedActor::pixel_pos),
                             psiv_core::CameraSubject::ActorX { actor, y } => self
                                 .scene
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| PixelPos {
-                                    x: PixelPos::from_cell(walker.cell).x,
+                                    x: walker.pixel_pos().x,
                                     y,
                                 }),
                             psiv_core::CameraSubject::ActorShifted { actor, dx } => self
@@ -749,7 +749,7 @@ impl Runtime {
                                 .as_ref()
                                 .and_then(|runner| runner.actor(actor))
                                 .map(|walker| {
-                                    let at = PixelPos::from_cell(walker.cell);
+                                    let at = walker.pixel_pos();
                                     PixelPos {
                                         x: at.x + dx,
                                         y: at.y,
