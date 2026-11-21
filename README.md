@@ -1,65 +1,93 @@
 # PSIV
 
 **Phantasy Star IV, rebuilt as a native game.** PSIV reads the game's data out
-of your own copy of the US Genesis/Mega Drive cartridge and runs it natively:
-a pack builder extracts the maps, graphics, sound, dialogue and battle tables
-into a local data pack, Rust reproduces the game's rules frame by frame, and
-Godot draws it and reads your controller. No emulator runs while you play, and
-the goal is the original game's behavior, quirks included.
-
-**How far it plays.** An automated playthrough, pressing the same buttons a
-player would, plays from New Game to the Ending's final gate headlessly, in 84
-chapters, including the ending's final Start press that clears the game; the
-native game replays all 84 of them, from New Game to the Ending, in one
-continuous tape (84/84 chapter saves match byte for byte).
-Every player technique and skill, and every
-enemy ability up to Dark Force 2, is implemented from the cartridge's code; most
-of them are also captured on the cartridge and replayed against it, and the
-battle documents list the ones that are not
-([player abilities](docs/battle/PLAYER_ABILITIES.md),
-[enemy abilities](docs/battle/ENEMY_ABILITIES.md)). Presentation (some
-animations, whole-scene staging, audio timing) still differs from the original
-in places; the [known differences](#known-differences) are listed.
-
-**Platforms.** Linux and the Steam Deck today. Windows and macOS builds come
-out of CI ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), which
-starts each one on its own system as far as the setup screen; nobody has
-played them through yet. The [roadmap](docs/ROADMAP.md) owns the release bar
-and the platform list.
+of your own copy of the US Sega Genesis/Mega Drive cartridge and runs it
+natively: a built-in pack builder extracts the maps, graphics, sound, dialogue
+and battle tables into a local data pack, Rust reproduces the game's rules
+frame by frame, and Godot draws it and reads your controller. No emulator runs
+while you play, and the goal is the original game's behavior, quirks included.
 
 | I want to… | Start here |
 | --- | --- |
-| **Play** | [Quick start](#quick-start-linux) below |
-| **Mod or contribute** | [Modding guide](docs/MODDING.md) and [contributing](CONTRIBUTING.md) |
-| **Read how the cartridge works** | The [documentation index](docs/README.md#retail-reference) |
-| **Work on it with a coding agent** | [AGENTS.md](AGENTS.md) and the [agent workflow](docs/AGENT_WORKFLOW.md) |
+| **Play now** | [Quick start](#quick-start) below & [Player's guide](docs/PLAYING.md) |
+| **Build from source** | [Build from source](#build-from-source) below |
+| **Mod or contribute** | [Modding guide](docs/MODDING.md) & [Contributing](CONTRIBUTING.md) |
+| **Read how the cartridge works** | [Documentation index](docs/README.md#retail-reference) |
+| **Work on it with a coding agent** | [AGENTS.md](AGENTS.md) & [Agent workflow](docs/AGENT_WORKFLOW.md) |
 
-## Quick start (Linux)
+## Quick start
 
-PSIV runs from a source checkout until the first release is published
-([#115](https://github.com/TusanHomichi/PSIV/issues/115)). The release
-downloads need no Python, Rust or Godot: they build the pack with `psiv-pack`,
-the Rust port of the Python builder below, held to the same tables and images
-by the gate ([#216](https://github.com/TusanHomichi/PSIV/issues/216)).
+Play in three steps — **no Godot, Rust or Python install required**:
 
-**You bring the ROM.** PSIV builds the game's graphics, sound, maps, text and
-data tables from a ROM image of the US retail release that you supply, and does
-not distribute them; what the repository does hold from the game is listed
-under [license](#license-and-third-party-code). Check yours against the
-SHA-256 in the [player's guide](docs/PLAYING.md#the-rom) before you start; the
-pack builder checks the same hash and refuses any other image. (`.md` is the
-Mega Drive ROM extension, not Markdown.)
+1. **Download** the archive for your system from the
+   [Releases page](https://github.com/TusanHomichi/PSIV/releases) and extract
+   it anywhere.
+2. **Start the game** (`psiv.x86_64`, `PSIV.exe`, or `PSIV.app`).
+3. **Supply your US Phantasy Star IV ROM once** — click **Choose your ROM
+   file** or drag and drop the ROM onto the setup window. PSIV verifies the
+   ROM, builds its data pack in a few seconds into your user data folder, and
+   starts the game.
 
-**Prerequisites**
+| Platform | Download archive | Launch | Notes |
+| --- | --- | --- | --- |
+| **Linux & Steam Deck** (x86-64) | `PSIV-<version>-linux-x86_64.tar.gz` | `./psiv.x86_64` | On Steam Deck, run once in Desktop Mode to pick your ROM, then add as a Non-Steam Game for Game Mode. |
+| **Windows** (64-bit) | `PSIV-<version>-windows-x86_64.zip` | `PSIV.exe` | Extract the zip first. On SmartScreen, choose **More info → Run anyway**. |
+| **macOS** (Apple silicon & Intel) | `PSIV-<version>-macos-universal.zip` | `PSIV.app` | Unsigned/unnotarized: on first open, allow it in **System Settings → Privacy & Security → Open Anyway**. |
+
+> **Bring your own ROM:** PSIV ships none of Sega's game assets. It accepts
+> only the unheadered US retail ROM (`.md` / `.bin` / `.gen`) with SHA-256:
+> ```text
+> 511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a
+> ```
+> See the [player's guide](docs/PLAYING.md) for OS-specific first-run steps,
+> how to check your ROM hash, and where your pack and saves are stored.
+
+### Controls
+
+| Action | Keyboard | Controller |
+| --- | --- | --- |
+| Move / menu cursor | Arrow keys or WASD | D-pad or left stick |
+| Confirm / talk (Genesis C) | Enter, Space or Z | A (bottom face button) |
+| Cancel (Genesis B) | Escape or X | B (right face button) |
+| Camp menu (Genesis A) | C | X (left face button) |
+| Start | Tab | Start |
+
+Save anytime on the field or overworld from **Camp (`C`) → STATE → SAVE**, and
+load from the title screen's **CONTINUE**.
+
+## How far it plays & platforms
+
+- **Full campaign playable start to finish.** An automated playthrough pressing
+  the same buttons a player does completes New Game through the Ending and its
+  final Start press in 84 chapters; the native game replays all 84 chapters in
+  one continuous tape with every chapter save matching byte for byte.
+- **Rules & abilities.** Every player technique and skill, all 83 distinct
+  regular enemy abilities through the final boss, vehicles, overworld planet
+  maps, Hunter's Guild, shops/inns, saves, sound driver, and ending credits are
+  implemented from the cartridge's code. Most abilities are also captured on
+  the cartridge and replayed against it
+  ([player abilities](docs/battle/PLAYER_ABILITIES.md),
+  [enemy abilities](docs/battle/ENEMY_ABILITIES.md)).
+- **Platforms.** Release downloads target **Linux & Steam Deck**, **Windows**,
+  and **macOS**. Linux and the Steam Deck are played on real hardware; Windows
+  and macOS archives are built and first-run smoke-tested on native GitHub
+  runners ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), and
+  playtest reports on Windows and macOS are very welcome. The
+  [roadmap](docs/ROADMAP.md) owns the release bar and platform list.
+
+## Build from source
+
+If you want to run straight from Git (or hack on the code) instead of using a
+release archive, you need:
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Python | 3.10 or newer | standard library only, for the source-checkout Godot launcher (`tools/godot.py`) |
-| Rust | the toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) | install [rustup](https://rustup.rs/); it reads that file and fetches the toolchain on first use |
+| Python | 3.10 or newer | standard library only, for the checkout launcher (`tools/godot.py`) |
+| Rust | the toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) | install [rustup](https://rustup.rs/); it fetches the pinned toolchain on first use |
 | Godot | the version in [`.godot-version`](.godot-version), standard build | from the [Godot download archive](https://godotengine.org/download/archive/) |
 | git, GNU `patch`, `make`, a C compiler | any recent | fetch and compile the sound chip's sources |
 
-**Commands**, from a directory of your choice:
+From a directory of your choice:
 
 ```bash
 git clone https://github.com/TusanHomichi/PSIV.git
@@ -75,38 +103,32 @@ PSIV_SAVE_DIR="$PWD/saves" python3 tools/godot.py run
 1. `./oracle/build_core.sh` fetches the pinned Genesis Plus GX sources into
    `oracle/gpgx-src/`. The game compiles one file of them, the sound chip
    emulation, into itself.
-2. `psiv-pack` builds the data pack from your ROM into `runtime-pack/`, in a
-   few seconds. The ROM is an argument; it can live anywhere.
-3. `cargo build` compiles the game's library for Godot.
+2. `psiv-pack` builds the data pack from your ROM into `runtime-pack/` in a
+   few seconds. The ROM can live anywhere.
+3. `cargo build` compiles the GDExtension library for Godot.
 4. `PSIV_GODOT` names your Godot executable (or put it on `PATH` as `godot` and
-   skip that line). `python3 tools/godot.py prepare` checks it (a missing file,
-   the wrong version or a build that is not `stable` is refused, with the
-   reason) and writes the project's extension index (`godot/.godot/`, which Git
-   ignores), which a fresh clone needs before the game's classes load.
-5. The last line starts the game from a run root: a copy of the project beside
-   a snapshot of the library just built, removed when the game exits. Godot
-   arguments go after `--` (`python3 tools/godot.py run -- --help`).
-
-Saves go to the directory `PSIV_SAVE_DIR` names. Saving, loading and the
-controls are in the [player's guide](docs/PLAYING.md).
-
-**On the Steam Deck**, run the Linux release archive, as the
-[player's guide](docs/PLAYING.md#download-and-start) describes. Until the first
-release, the developer guide says
-[how to get one built](docs/DEVELOPMENT.md#a-build-for-the-steam-deck).
+   skip that line). `python3 tools/godot.py prepare` verifies the Godot build
+   and writes `godot/.godot/`, which a fresh clone needs before the game's
+   classes load.
+5. `python3 tools/godot.py run` starts the game from an isolated run root.
+   Godot arguments go after `--` (`python3 tools/godot.py run -- --help`), and
+   saves go to `PSIV_SAVE_DIR`.
 
 The [developer guide](docs/DEVELOPMENT.md) covers everything past playing:
-the tests, the oracle and the checks a change runs.
+tests, Steam Deck branch builds, the cartridge oracle, and the verification
+gate.
 
 ## Known differences
 
-Where PSIV knowingly differs from the cartridge, there is an open issue:
+Presentation (some animations, whole-scene staging, audio timing) still differs
+from the original cartridge in places. Where PSIV knowingly differs, there is
+an open issue:
 
 - [Gameplay differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Agameplay-fidelity):
   a rule that does not yet match the original.
 - [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
   drawing, animation, audio or timing that looks or sounds different.
-- A few original bugs are fixed on purpose; each is listed in the
+- A few original cartridge bugs are fixed on purpose; each is listed in the
   [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 
 Found a difference that is not listed? [Open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose)
@@ -115,10 +137,11 @@ to [Discussions](https://github.com/TusanHomichi/PSIV/discussions).
 
 ## Status
 
-Version 1.0 means the unmodified game is completable from New Game to the Ending
-natively. The open items are the
-[v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker),
-and the [roadmap](docs/ROADMAP.md) keeps the checklist.
+Version 1.0 means the unmodified game is completable from New Game to the
+Ending natively with ready-to-play downloads for Linux/Steam Deck, Windows, and
+macOS. The remaining release items are tracked under
+[v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker)
+and the [roadmap](docs/ROADMAP.md) checklist.
 
 ## License and third-party code
 

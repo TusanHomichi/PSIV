@@ -169,6 +169,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          notes=$(cat <<EOF
+          **Phantasy Star IV, rebuilt natively in Rust + Godot.** Playable from New Game to the Ending with no emulator required.
+
+          ### Quick start
+          1. Download and extract the archive for your OS below (**Linux & Steam Deck**, **Windows**, or **macOS**).
+          2. Launch \`psiv.x86_64\`, \`PSIV.exe\`, or \`PSIV.app\`.
+          3. Choose (or drag and drop) your own copy of the **US Phantasy Star IV ROM** on the first-run setup screen. PSIV verifies the ROM, extracts its data pack in a few seconds, and starts the game.
+
+          Full instructions, ROM SHA-256 check, OS first-run tips, save locations, and controls are in the [Player's Guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/PLAYING.md) (also included inside each archive as \`README.txt\`). Known cartridge differences are tracked under [known differences](https://github.com/$GITHUB_REPOSITORY#known-differences).
+          EOF
+          )
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "PSIV ${GITHUB_REF_NAME#v}" \
-            --notes "Download the archive for your system and read the [player's guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/PLAYING.md). PSIV needs your own copy of the US Phantasy Star IV ROM, which it builds the game's graphics, sound, maps and text from."
+            --notes "$notes"
