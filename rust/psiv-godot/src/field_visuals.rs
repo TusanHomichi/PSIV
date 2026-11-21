@@ -387,7 +387,10 @@ impl Field {
                     .filter(|name| asset.has_sequence(name));
                 let walk_seq = object
                     .walk_dir
-                    .map(|dir| sequence_name("walk", dir))
+                    .map(|dir| {
+                        let kind = if object.is_walking() { "walk" } else { "idle" };
+                        sequence_name(kind, dir)
+                    })
                     .filter(|name| asset.has_sequence(name));
                 let sequence = facing_seq
                     .as_deref()

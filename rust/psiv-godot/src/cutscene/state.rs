@@ -41,10 +41,17 @@ pub(crate) struct TemporaryObject {
     motion: Option<ObjectMotion>,
     /// The walk's target, and whether it closes the Y gap first.
     walk: Option<(i32, i32, bool)>,
-    /// Current facing while a scripted walk is moving the object.
+    /// Last facing direction from a scripted walk (retained after arrival so
+    /// the idle pose keeps facing the walk's direction).
     pub(crate) walk_dir: Option<psiv_core::Direction>,
     /// Raw retail `facing_dir` word written by `SetObjectFacingWord` (e.g. `$10`).
     pub(crate) facing_word: Option<u16>,
+}
+
+impl TemporaryObject {
+    pub(crate) fn is_walking(&self) -> bool {
+        self.walk.is_some()
+    }
 }
 
 /// The normal step, `$0200` in 16.16: two pixels a frame.
@@ -283,7 +290,6 @@ impl PresentationState {
                 object.destination = Some((nx, ny));
                 if object.destination == Some((tx, ty)) {
                     object.walk = None;
-                    object.walk_dir = None;
                 }
             }
             object.elapsed += 1;
@@ -536,5 +542,30 @@ mod tests {
         state.reload_field_objects();
         assert!(state.temporary_objects.is_empty());
         assert!(!state.art_loaded(0x14A1CC, 0x372));
+    }
+
+    #[test]
+    fn completed_walk_retains_last_facing_for_idle_pose() {
+        let mut state = PresentationState::default();
+        state.create_field_object(9, 0x194, 0x202, 0x3E0, 0x130);
+        state.walk_object(9, 0x3E0, 0x120, false);
+        for _ in 0..7 {
+            state.advance_objects();
+            assert!(state.temporary_objects[&9].is_walking());
+            assert_eq!(
+                state.temporary_objects[&9].walk_dir,
+                Some(psiv_core::Direction::Up)
+            );
+        }
+        state.advance_objects();
+        assert_eq!(
+            state.temporary_objects[&9].destination,
+            Some((0x3E0, 0x120))
+        );
+        assert!(!state.temporary_objects[&9].is_walking());
+        assert_eq!(
+            state.temporary_objects[&9].walk_dir,
+            Some(psiv_core::Direction::Up)
+        );
     }
 }
