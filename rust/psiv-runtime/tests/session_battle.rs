@@ -257,7 +257,7 @@ fn fight_press(view: &BattleView) -> Pad {
             MenuPage::Targets(_) => Pad::new(Button::Up),
             _ => Pad::new(Button::Cancel),
         },
-        Some(MenuView::VehicleSkills { .. }) | None => Pad::NEUTRAL,
+        Some(MenuView::Macros { .. } | MenuView::VehicleSkills { .. }) | None => Pad::NEUTRAL,
     }
 }
 

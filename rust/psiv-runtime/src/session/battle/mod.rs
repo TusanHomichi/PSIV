@@ -44,7 +44,7 @@ mod attacks;
 mod blink;
 mod fixture;
 mod fusion;
-mod menu;
+pub(crate) mod menu;
 mod narration;
 mod opening;
 #[cfg(test)]
@@ -62,8 +62,9 @@ mod view;
 pub use menu::CursorMemory;
 pub use view::{
     AttackView, BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView,
-    EnemyStatus, GrowingWindow, MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus,
-    SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
+    EnemyStatus, GrowingWindow, MacroEntryView, MacroSlotState, MacroSlotView, MenuPage, MenuRow,
+    MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView, TargetKind,
+    TechniqueEntry,
 };
 pub use view::{Fusion, FusionPiece};
 
@@ -109,6 +110,8 @@ struct ActiveBeat {
 enum Window {
     /// The per-character command window.
     Commands(Box<menu::CommandsMenu>),
+    /// The battle macro selector (`A`..`H`).
+    Macros(menu::MacroWindow),
     /// The mounted surface's skill window.
     VehicleSkills(menu::VehicleWindow),
 }
@@ -317,7 +320,7 @@ impl BattleMode {
         // strip and the target pickers move a sprite instead.
         let ticks = match &self.window {
             None => self.top_phase.is_none(),
-            Some(Window::VehicleSkills(_)) => true,
+            Some(Window::VehicleSkills(_) | Window::Macros(_)) => true,
             Some(Window::Commands(commands)) => commands.red_cursor_window(),
         };
         if ticks {
@@ -335,6 +338,15 @@ impl BattleMode {
                     self.command_bytes = commands.command_bytes();
                     self.cursor_memory = commands.cursor_memory();
                     (orders, keep)
+                }
+                Window::Macros(macros) => {
+                    if pad.is_pressed(previous, Button::Cancel) {
+                        (None, false)
+                    } else {
+                        let orders = macros.input(runtime, previous, pad);
+                        let keep = orders.is_none();
+                        (orders, keep)
+                    }
                 }
                 Window::VehicleSkills(skills) => {
                     if pad.is_pressed(previous, Button::Cancel) {
@@ -396,6 +408,10 @@ impl BattleMode {
                     self.window = Some(Window::Commands(Box::new(commands)));
                     None
                 }
+            }
+            menu::TopChoice::Macros => {
+                self.window = Some(Window::Macros(menu::MacroWindow::default()));
+                None
             }
             menu::TopChoice::VehicleSkills => {
                 self.window = Some(Window::VehicleSkills(menu::VehicleWindow { cursor: 0 }));

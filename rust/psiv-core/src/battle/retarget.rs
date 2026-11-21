@@ -189,6 +189,14 @@ pub(super) fn ability_target(
 /// or an out one — this port reports "nothing to re-aim at" and lets the
 /// caller's own turn decide, which is the same battle outcome without an aim at
 /// an empty slot.
+pub(super) fn scan_enemies(
+    roster: &Roster,
+    deficit: Deficit,
+    rolls: &mut impl Rolls,
+) -> Option<FighterId> {
+    scan(roster, deficit, rolls)
+}
+
 fn scan(roster: &Roster, deficit: Deficit, rolls: &mut impl Rolls) -> Option<FighterId> {
     let mut best = match deficit {
         // `moveq #-1, d4` (`ps4.asm:8346`). HP is floored at zero and every

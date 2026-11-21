@@ -95,6 +95,7 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
             let wanted = slots.iter().position(|slot| slot.current > 0)?;
             Some(toward(*cursor, wanted))
         }
+        MenuView::Macros { .. } => Some(Button::Cancel),
         MenuView::Commands(menu) => command_button(menu, driver.runtime(), policy),
     }
 }
@@ -104,7 +105,7 @@ fn menu_settling(menu: &MenuView) -> bool {
     match menu {
         MenuView::Top { width, .. } => width.is_some(),
         MenuView::Commands(menu) => menu.settling,
-        MenuView::VehicleSkills { .. } => false,
+        MenuView::Macros { .. } | MenuView::VehicleSkills { .. } => false,
     }
 }
 

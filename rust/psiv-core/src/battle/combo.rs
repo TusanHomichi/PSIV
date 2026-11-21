@@ -92,7 +92,23 @@ pub(super) fn detect_combo<'a>(
         if !fighter.is_alive() || !fighter.stats.can_act() || fighter.transient {
             break;
         }
-        match orders.command_for(actor.slot()) {
+        let cmd = match orders {
+            RoundOrders::Macro(macro_rec) => {
+                match super::macro_exec::command_entry(roster, actor, macro_rec) {
+                    Some(entry) if entry.command_index == 2 => Command::Technique {
+                        technique: entry.ability_id,
+                        target: None,
+                    },
+                    Some(entry) if entry.command_index == 3 => Command::Skill {
+                        skill: entry.ability_id,
+                        target: None,
+                    },
+                    _ => break,
+                }
+            }
+            _ => orders.command_for(actor.slot()),
+        };
+        match cmd {
             Command::Technique { technique, target } => {
                 // `loc_27DEFE`: tech-sealed or insufficient TP stops scanning.
                 if fighter.stats.status & status::TECH_SEALED != 0 {
@@ -193,6 +209,7 @@ fn matches_combo(combo: &ComboRecord, codes: &[u8]) -> bool {
 pub(super) fn resolve_combo(
     roster: &mut Roster,
     matched: &MatchedCombo<'_>,
+    is_macro: bool,
     data: &BattleData,
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
@@ -230,10 +247,13 @@ pub(super) fn resolve_combo(
     });
 
     // `loc_57C4` -> `loc_5BDC` -> `loc_5A98` runs on the lead participant's
-    // own command before `loc_5B8E` -> `loc_27DE7C` detects the combo. A
-    // fallen enemy aim therefore consumes its retarget tie draws even when
-    // `loc_AF74` later switches `Current_Target_Index` to `-1` for an
-    // all-enemy combo.
+    // own command before `loc_5B8E` -> `loc_27DE7C` detects the combo. For a
+    // manual command, a fallen enemy aim consumes its retarget tie draws even
+    // when `loc_AF74` later switches `Current_Target_Index` to `-1` for an
+    // all-enemy combo. For a macro round (`Battle_Macro_Flag != 0`),
+    // `loc_5A98` unconditionally scans enemies (`loc_5AE6`) whenever the lead
+    // command is single-enemy (`lead_range == 1`), selecting the target for a
+    // single-target combo and consuming its tie draws for all-enemy combos too.
     let (lead_range, lead_effect) = match matched.steps[0].ability {
         ComboAbility::Technique(id) => {
             let tech = data.technique(id).expect("validated tech");
@@ -244,13 +264,21 @@ pub(super) fn resolve_combo(
             (skill.targeting & 0x0F, skill.effect)
         }
     };
-    let retargeted_lead = retarget::ability_target(
-        roster,
-        matched.steps[0].target,
-        lead_range,
-        lead_effect,
-        rolls,
-    );
+    let retargeted_lead = if is_macro {
+        if lead_range == 1 {
+            retarget::scan_enemies(roster, retarget::deficit_for_effect(lead_effect), rolls)
+        } else {
+            None
+        }
+    } else {
+        retarget::ability_target(
+            roster,
+            matched.steps[0].target,
+            lead_range,
+            lead_effect,
+            rolls,
+        )
+    };
 
     let multi = combo.range == 2;
     let targets: Vec<FighterId> = if multi {

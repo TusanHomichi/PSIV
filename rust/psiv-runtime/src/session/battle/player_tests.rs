@@ -392,3 +392,68 @@ fn opening_overlay_clock_holds_for_every_supported_party_size() {
         );
     }
 }
+
+#[test]
+fn battle_macro_menu_opens_from_macr_row_cancels_and_executes_saved_macro() {
+    let Some(mut runtime) = runtime() else { return };
+    // Populate macro slot A (index 0) with Alys (1), Chaz (0), Hahn (2) attacking.
+    let mut rec = psiv_core::MacroRecord::default();
+    for (idx, char_id) in [1u8, 0, 2].into_iter().enumerate() {
+        rec.commands[idx] = psiv_core::MacroCommand {
+            character_id: char_id,
+            command_index: 1,
+            ability_id: 0,
+            reserved: 0,
+        };
+    }
+    runtime.game.macros_mut()[0] = rec;
+    let mut battle = mode(&mut runtime);
+    // Settle the opening top-options window growth.
+    for _ in 0..10 {
+        battle.frame(&mut runtime, Pad::NEUTRAL);
+    }
+    // Move cursor to MACR (row 1) and accept.
+    battle.frame(&mut runtime, Pad::new(Button::Down));
+    battle.frame(&mut runtime, Pad::NEUTRAL);
+    battle.frame(&mut runtime, Pad::new(Button::Speak));
+    // Wait for top-options window shrink to finish and open MacroWindow.
+    for _ in 0..10 {
+        let frame = battle.frame(&mut runtime, Pad::NEUTRAL);
+        if matches!(
+            frame.view.as_ref().and_then(|v| v.menu.as_ref()),
+            Some(MenuView::Macros { .. })
+        ) {
+            break;
+        }
+    }
+    let view = battle.frame(&mut runtime, Pad::NEUTRAL).view.unwrap();
+    let Some(MenuView::Macros { cursor, slots }) = view.menu else {
+        panic!("expected MenuView::Macros, got {:?}", view.menu);
+    };
+    assert_eq!(cursor, 0);
+    assert_eq!(slots.len(), 8);
+    assert_eq!(slots[0].state, MacroSlotState::Ready);
+    assert_eq!(slots[1].state, MacroSlotState::Empty);
+
+    // Accepting empty slot B (index 1) does nothing; Cancel returns to Top.
+    battle.frame(&mut runtime, Pad::new(Button::Down));
+    battle.frame(&mut runtime, Pad::NEUTRAL);
+    let stay = battle
+        .frame(&mut runtime, Pad::new(Button::Speak))
+        .view
+        .unwrap();
+    assert!(matches!(
+        stay.menu,
+        Some(MenuView::Macros { cursor: 1, .. })
+    ));
+
+    // Move back to slot A and accept -> executes the macro round!
+    battle.frame(&mut runtime, Pad::NEUTRAL);
+    battle.frame(&mut runtime, Pad::new(Button::Up));
+    battle.frame(&mut runtime, Pad::NEUTRAL);
+    let ran = battle
+        .frame(&mut runtime, Pad::new(Button::Speak))
+        .view
+        .unwrap();
+    assert!(ran.menu.is_none(), "accepting a valid macro runs the round");
+}

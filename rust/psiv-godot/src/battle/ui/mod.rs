@@ -466,7 +466,7 @@ impl BattleScreen {
 /// `"Targets(Technique(31))"`), which is what those drivers compare against.
 fn menu_json(menu: &MenuView) -> Option<serde_json::Value> {
     match menu {
-        MenuView::Top { .. } | MenuView::VehicleSkills { .. } => None,
+        MenuView::Top { .. } | MenuView::Macros { .. } | MenuView::VehicleSkills { .. } => None,
         MenuView::Commands(commands) => Some(commands_json(commands)),
     }
 }

@@ -202,6 +202,14 @@ impl CampView {
                         wrap(self.status_selection, self.snapshot.party.len(), true);
                 }
             }
+            CampPage::MacroNotice
+            | CampPage::MacroList
+            | CampPage::MacroEraseConfirm
+            | CampPage::MacroPickMember
+            | CampPage::MacroPickAction
+            | CampPage::MacroPickAbility => {
+                self.macro_frame(runtime, up, down, accept);
+            }
             CampPage::Unsupported => {
                 if accept {
                     self.page = CampPage::Root;
@@ -342,6 +350,12 @@ impl CampView {
                 };
                 false
             }
+            CampPage::MacroNotice
+            | CampPage::MacroList
+            | CampPage::MacroEraseConfirm
+            | CampPage::MacroPickMember
+            | CampPage::MacroPickAction
+            | CampPage::MacroPickAbility => self.macro_go_back(),
             CampPage::SaveSlots | CampPage::SaveResult => {
                 self.page = if self.save_from_system {
                     CampPage::SystemRoot
@@ -389,6 +403,7 @@ impl CampView {
                 self.talk_requested = true;
                 self.close();
             }
+            6 => self.begin_macro_menu(runtime),
             _ => {
                 self.page = CampPage::Unsupported;
                 self.message = format!("{} NOT READY", ROOT_OPTIONS[self.root_selection]);

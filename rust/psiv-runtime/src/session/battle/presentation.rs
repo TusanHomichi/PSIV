@@ -73,6 +73,7 @@ impl BattleMode {
         } else if self.command_open {
             Some(match self.window.as_ref() {
                 Some(Window::Commands(commands)) => MenuView::Commands(Box::new(commands.view())),
+                Some(Window::Macros(macros)) => macros.view(runtime),
                 Some(Window::VehicleSkills(skills)) => skills.view(runtime),
                 None => {
                     let full_width = super::menu::top_width(runtime.vehicle_active());

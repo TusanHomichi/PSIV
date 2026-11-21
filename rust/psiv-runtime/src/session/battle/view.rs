@@ -364,6 +364,41 @@ pub struct SkillSlotView {
     pub max: u8,
 }
 
+/// Availability of one saved macro slot in the battle `MACR` selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MacroSlotState {
+    /// Unassigned macro slot (dimmed, cannot be accepted).
+    Empty,
+    /// Every command in the macro is currently executable.
+    Ready,
+    /// At least one command cannot currently execute (yellow tint, still selectable).
+    Partial,
+}
+
+/// One character command row inside a macro preview window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MacroEntryView {
+    /// Character id (`0..=10`).
+    pub character_id: u8,
+    /// Display name of the character.
+    pub character_name: String,
+    /// Display label of the command (`ATTACK`, tech/skill/item name, or `DEFENSE`).
+    pub command_label: String,
+    /// Whether this entry is currently executable.
+    pub available: bool,
+}
+
+/// One `A`..`H` macro slot in the battle `MACR` selector.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MacroSlotView {
+    /// Slot letter `'A'`..=`'H'`.
+    pub letter: char,
+    /// Slot availability state.
+    pub state: MacroSlotState,
+    /// Up to five character commands in execution order.
+    pub entries: Vec<MacroEntryView>,
+}
+
 /// What the command surface shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MenuView {
@@ -381,6 +416,13 @@ pub enum MenuView {
     },
     /// The command window of the actor whose turn it is.
     Commands(Box<CommandMenuView>),
+    /// The battle `MACR` selector (`A`..`H` + selected macro entries).
+    Macros {
+        /// Selected macro slot (`0..8`).
+        cursor: usize,
+        /// All eight macro slots.
+        slots: Vec<MacroSlotView>,
+    },
     /// The mounted surface's own skill window.
     VehicleSkills {
         /// The slots, in learned-slot order.
