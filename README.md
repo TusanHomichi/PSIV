@@ -10,14 +10,17 @@ while you play, and the goal is the original game's behavior, quirks included.
 | I want to… | Start here |
 | --- | --- |
 | **Play now** | [Quick start](#quick-start) below & [Player's guide](docs/PLAYING.md) |
+| **Report a bug or weirdness** | [Bug reporting guide](docs/REPORTING.md) (works for humans & AI assistants) |
+| **Help out / contribute** | [Contributing](CONTRIBUTING.md) (works for humans & AI assistants) & [Modding guide](docs/MODDING.md) |
 | **Build from source** | [Build from source](#build-from-source) below |
-| **Mod or contribute** | [Modding guide](docs/MODDING.md) & [Contributing](CONTRIBUTING.md) |
 | **Read how the cartridge works** | [Documentation index](docs/README.md#retail-reference) |
 | **Work on it with a coding agent** | [AGENTS.md](AGENTS.md) & [Agent workflow](docs/AGENT_WORKFLOW.md) |
 
 ## Quick start
 
-Play in three steps — **no Godot, Rust or Python install required**:
+Play in three steps — **no Godot, Rust or Python install required** (or point
+your AI assistant at this repo and ask it to follow
+[Setting up with an AI assistant](docs/PLAYING.md#setting-up-with-an-ai-assistant)):
 
 1. **Download** the archive for your system from the
    [Releases page](https://github.com/TusanHomichi/PSIV/releases) and extract
@@ -131,9 +134,13 @@ an open issue:
 - A few original cartridge bugs are fixed on purpose; each is listed in the
   [deviation record](docs/source-notes/README.md#deliberate-fixes-to-retail-battle-bugs).
 
-Found a difference that is not listed? [Open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose)
-with what you saw, where in the game, and what the original does. Questions go
-to [Discussions](https://github.com/TusanHomichi/PSIV/discussions).
+Found a bug or unlisted difference? Follow the
+[bug reporting guide](docs/REPORTING.md) or
+[open an issue](https://github.com/TusanHomichi/PSIV/issues/new/choose) with
+what you saw, where in the game, and your `logs/godot.log`. You can also point
+an AI assistant straight at this repo to gather those details and file the
+issue (or help fix it via [CONTRIBUTING.md](CONTRIBUTING.md)). Questions go to
+[Discussions](https://github.com/TusanHomichi/PSIV/discussions).
 
 ## Status
 

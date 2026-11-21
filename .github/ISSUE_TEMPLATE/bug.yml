@@ -7,19 +7,36 @@ body:
       value: |
         Questions go to [Discussions](https://github.com/TusanHomichi/PSIV/discussions) instead.
         Check the [known differences](https://github.com/TusanHomichi/PSIV#known-differences) first.
-        Never attach the ROM, the data pack or anything extracted from them.
+        **Using an AI assistant?** Point it at [`docs/REPORTING.md`](https://github.com/TusanHomichi/PSIV/blob/main/docs/REPORTING.md) — it explains what logs/saves to gather and how to format the issue.
+        Never attach the ROM, the data pack, or anything extracted from them.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the game this affects.
+      options:
+        - Setup / Launch
+        - Field / Overworld
+        - Battle
+        - Cutscene / Dialogue
+        - Camp / Shops / Saves
+        - Audio
+        - Platform / Controller / Display
+        - Other
+    validations:
+      required: true
   - type: textarea
     id: what
     attributes:
       label: What happened
-      description: What you did, what PSIV did, and where in the game.
+      description: What you did, what PSIV did, and where in the game (location, party, story point, or battle enemies/abilities).
     validations:
       required: true
   - type: textarea
     id: original
     attributes:
       label: What the original does
-      description: What the cartridge does at the same point, if you know.
+      description: What the cartridge does at the same point, if you know ("unsure" is fine).
   - type: input
     id: version
     attributes:
@@ -53,3 +70,9 @@ body:
     attributes:
       label: Save or steps to reproduce
       description: A PSIV save file reproduces most problems fastest ([where your saves live](https://github.com/TusanHomichi/PSIV/blob/main/docs/PLAYING.md#where-your-pack-and-saves-live)); attach it, or list the steps.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt (`logs/godot.log`)
+      description: Paste any `ERROR:` / `WARNING:` lines or the last ~40 lines from `logs/godot.log` in your user data folder (redact personal usernames in paths).
+      render: text

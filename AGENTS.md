@@ -72,18 +72,16 @@ a key that isn't its author's shows as Unverified, and CI fails it.
 
 ## Start here
 
-Before editing, check `AGENTS.override.md`, `git status --short --branch`,
-worktrees and running build or game processes; preserve others' changes. Work
-is GitHub issues: define an observable outcome and acceptance there first, and
-new ideas don't change scope. Read only what the task needs:
+- **Setting up PSIV for a player?** Follow [docs/PLAYING.md](docs/PLAYING.md#setting-up-with-an-ai-assistant) (download the release archive; don't build from source).
+- **Filing a player bug report?** Follow [docs/REPORTING.md](docs/REPORTING.md).
+- **Contributing from a fork?** Start with [CONTRIBUTING.md](CONTRIBUTING.md) (what runs with vs. without a ROM, PR rules).
 
-- [Feature map](docs/FEATURE_MAP.md): each feature's owning paths and focused test.
-- [Documentation index](docs/README.md): every subsystem document, and the
-  [rule owners](docs/README.md#rule-owners), each rule's one home.
-- [Agent workflow](docs/AGENT_WORKFLOW.md): record policy, roles, authority,
-  verification, safe native runs, receipts, the correction ladder.
-- [Development guide](docs/DEVELOPMENT.md): toolchain, build and launch, the
-  gate, and the heavy-run lock every heavy check runs under.
+Before editing, check `AGENTS.override.md`, `git status --short --branch`, worktrees and running build or game processes; preserve others' changes. Active work is GitHub issues: state outcome and acceptance first. Read only what the task needs:
+
+- [Feature map](docs/FEATURE_MAP.md): owning paths and focused test per feature.
+- [Documentation index](docs/README.md): subsystem docs and [rule owners](docs/README.md#rule-owners).
+- [Agent workflow](docs/AGENT_WORKFLOW.md): record policy, roles, authority, verification, safe native runs, receipts, correction ladder.
+- [Development guide](docs/DEVELOPMENT.md): toolchain, build/launch, gate, and heavy-run lock.
 
 ## Retail and layer boundaries
 
