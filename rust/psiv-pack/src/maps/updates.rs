@@ -336,10 +336,7 @@ fn program(rom: &[u8], code: &[u8], address: usize, index: usize) -> Result<Json
         return Ok(kind("noop"));
     }
     match index {
-        0x11 | 0x12 => Ok(kind("unsupported").with(
-            "missing",
-            "live Map_Layout_FG byte buffer, conveyor chunk definitions, plane refresh/DMA",
-        )),
+        0x11 | 0x12 => conveyor_belts(rom, code),
         0x22 => tile_dma_cycle(code, address),
         5 | 7 | 0x0D | 0x0F | 0x10 | 0x25 => {
             let mut shifts = Vec::new();
@@ -456,6 +453,209 @@ fn tile_dma_cycle(code: &[u8], address: usize) -> Result<Json, PackError> {
         .with("frame_count", max_frame + 1))
 }
 
+const CONVEYOR_HEADER: [u8; 10] = [0x10, 0x38, 0xEC, 0x24, 0x52, 0x00, 0x11, 0xC0, 0xEC, 0xF6];
+const CONVEYOR_LOOP: [u8; 18] = [
+    0x30, 0x38, 0xEF, 0x1C, // move.w (Main_Frame_Count).w, d0
+    0x02, 0x40, 0x00, 0x07, // andi.w #7, d0
+    0x32, 0x5A, // movea.w (a2)+, a1
+    0x12, 0xB3, 0x00, 0x00, // move.b (a3,d0.w), (a1)
+    0x51, 0xCF, 0xFF, 0xF8, // dbf d7, -
+];
+const CONVEYOR_FOOTER: [u8; 18] = [
+    0x08, 0x38, 0x00, 0x00, 0xEF, 0x1D, // btst #0, (Main_Frame_Count+1).w
+    0x66, 0x06, // bne.s +
+    0x4E, 0xB9, 0x00, 0x05, 0x45, 0x28, // jsr (loc_54528).l
+    0x70, 0x00, // moveq #0, d0
+    0x4E, 0x75, // rts
+];
+const MAP_LAYOUT_FG_WORD: u16 = 0xA000;
+
+/// `MapUpdate_VahFortConveyorBelts` (`$11`, `$054F20`) and
+/// `MapUpdate_WpnPlntConveyorBelts` (`$12`, `$055094`): six groups of
+/// `Map_Layout_FG` offsets written from 8-byte chunk-id tables indexed by
+/// `Main_Frame_Count & 7`, with optional temp-flag direction reversal and
+/// even-frame plane-A refresh (`loc_54528`).
+fn conveyor_belts(rom: &[u8], code: &[u8]) -> Result<Json, PackError> {
+    if !code.starts_with(&CONVEYOR_HEADER) {
+        return refuse("conveyor belt routine header moved");
+    }
+    if !code.ends_with(&CONVEYOR_FOOTER) {
+        return refuse("conveyor belt routine footer moved");
+    }
+    let end = code.len() - CONVEYOR_FOOTER.len();
+    let mut at = CONVEYOR_HEADER.len();
+    let mut current_flag: Option<u8> = None;
+    let mut groups = Vec::new();
+    while at < end {
+        if w(code, at)? == 0x7200 {
+            current_flag = None;
+            at += 2;
+        }
+        let d7_word = w(code, at)?;
+        if d7_word & 0xFF00 != 0x7E00 {
+            return refuse(format!("conveyor belt group count missing at +{at:#x}"));
+        }
+        let count = usize::from(d7_word & 0xFF) + 1;
+        at += 2;
+        if w(code, at)? != 0x45F9 {
+            return refuse(format!("conveyor belt offset table missing at +{at:#x}"));
+        }
+        let offset_table = l(code, at + 2)? as usize;
+        at += 6;
+        if w(code, at)? != 0x47F9 {
+            return refuse(format!("conveyor belt frame table missing at +{at:#x}"));
+        }
+        let clear_table = l(code, at + 2)? as usize;
+        at += 6;
+        let (temp_flag, set_table) = if w(code, at)? == 0x103C {
+            let flag_word = w(code, at + 2)?;
+            if flag_word > 0xFF
+                || w(code, at + 4)? != 0x4EB9
+                || l(code, at + 6)? != 0x57638
+                || w(code, at + 10)? != 0x6708
+                || w(code, at + 12)? != 0x47F9
+                || w(code, at + 18)? != 0x7201
+            {
+                return refuse(format!("conveyor belt flag test moved at +{at:#x}"));
+            }
+            let flag = flag_word as u8;
+            let set_table = l(code, at + 14)? as usize;
+            current_flag = Some(flag);
+            at += 20;
+            (Some(flag), set_table)
+        } else if w(code, at)? == 0x4A01 {
+            let Some(flag) = current_flag else {
+                return refuse(format!("conveyor belt tst.b d1 without flag at +{at:#x}"));
+            };
+            if w(code, at + 2)? != 0x6706 || w(code, at + 4)? != 0x47F9 {
+                return refuse(format!("conveyor belt flag reuse moved at +{at:#x}"));
+            }
+            let set_table = l(code, at + 6)? as usize;
+            at += 10;
+            (Some(flag), set_table)
+        } else {
+            (None, clear_table)
+        };
+        if code.get(at..at + CONVEYOR_LOOP.len()) != Some(&CONVEYOR_LOOP) {
+            return refuse(format!("conveyor belt write loop moved at +{at:#x}"));
+        }
+        at += CONVEYOR_LOOP.len();
+        let offsets = words_at(rom, offset_table, count)?;
+        if offsets.iter().any(|&addr| addr < MAP_LAYOUT_FG_WORD) {
+            return refuse("conveyor belt offset falls outside Map_Layout_FG");
+        }
+        let read_frames = |table: usize| -> Result<Vec<u8>, PackError> {
+            let Some(slice) = rom.get(table..table + 8) else {
+                return refuse("conveyor belt frame table runs outside the ROM");
+            };
+            Ok(slice.to_vec())
+        };
+        groups.push(
+            Json::object()
+                .with("temp_flag", temp_flag)
+                .with("offsets", offsets)
+                .with("chunks", Json::Array(Vec::new()))
+                .with("frames_clear", read_frames(clear_table)?)
+                .with("frames_set", read_frames(set_table)?),
+        );
+    }
+    if groups.is_empty() {
+        return refuse("conveyor belt routine decoded no groups");
+    }
+    Ok(Json::object()
+        .with("kind", "conveyor_belts")
+        .with("groups", groups))
+}
+
+fn bind_conveyor_groups(program: &mut Json, record: &MapRecord) -> Result<(), PackError> {
+    let width = usize::from(record.dimensions.fg_row_size) + 1;
+    let height = usize::from(record.dimensions.fg_column_size) + 1;
+    let Json::Object(pairs) = program else {
+        return Ok(());
+    };
+    let Some((_, Json::Array(groups))) = pairs.iter_mut().find(|(key, _)| key == "groups") else {
+        return Ok(());
+    };
+    for group in groups {
+        let Json::Object(fields) = group else {
+            continue;
+        };
+        let offsets: Vec<u16> = fields
+            .iter()
+            .find(|(k, _)| k == "offsets")
+            .and_then(|(_, v)| match v {
+                Json::Array(items) => items
+                    .iter()
+                    .map(|item| match item {
+                        Json::Int(n) => u16::try_from(*n).ok(),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => None,
+            })
+            .ok_or_else(|| PackError("conveyor belt group missing offsets".into()))?;
+        let mut chunks = Vec::with_capacity(offsets.len());
+        for addr in offsets {
+            let rel = usize::from(addr.checked_sub(MAP_LAYOUT_FG_WORD).ok_or_else(|| {
+                PackError(format!("conveyor offset {addr:#06x} below Map_Layout_FG"))
+            })?);
+            let x = rel % width;
+            let y = rel / width;
+            if y >= height {
+                return refuse(format!(
+                    "conveyor offset {addr:#06x} -> ({x},{y}) outside map {:#05x} ({width}x{height})",
+                    record.id
+                ));
+            }
+            chunks.push(Json::Array(vec![Json::from(x), Json::from(y)]));
+        }
+        fields.retain(|(k, _)| k != "offsets");
+        if let Some((_, value)) = fields.iter_mut().find(|(k, _)| k == "chunks") {
+            *value = Json::Array(chunks);
+        }
+    }
+    Ok(())
+}
+
+/// Distinct chunk ids referenced by any `conveyor_belts` map update on one map.
+pub fn conveyor_belt_chunks(updates: &[Json]) -> Vec<u8> {
+    let mut chunks = std::collections::BTreeSet::new();
+    for entry in updates {
+        let Json::Object(pairs) = entry else {
+            continue;
+        };
+        let Some((_, Json::Object(program))) = pairs.iter().find(|(k, _)| k == "program") else {
+            continue;
+        };
+        if !matches!(
+            program.iter().find(|(k, _)| k == "kind"),
+            Some((_, Json::Str(kind))) if kind == "conveyor_belts"
+        ) {
+            continue;
+        }
+        let Some((_, Json::Array(groups))) = program.iter().find(|(k, _)| k == "groups") else {
+            continue;
+        };
+        for group in groups {
+            let Json::Object(fields) = group else {
+                continue;
+            };
+            for key in ["frames_clear", "frames_set"] {
+                if let Some((_, Json::Array(frames))) = fields.iter().find(|(k, _)| k == key) {
+                    for frame in frames {
+                        if let Json::Int(id) = frame
+                            && let Ok(id) = u8::try_from(*id)
+                        {
+                            chunks.insert(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    chunks.into_iter().collect()
+}
+
 /// The Edge's line programs read their frames from the map's own palette blob,
 /// `$60` past its pointer.
 fn edge_line_frames(rom: &[u8], record: &MapRecord, index: usize) -> Result<Json, PackError> {
@@ -532,6 +732,11 @@ pub fn extract_map_updates<'a>(
                 {
                     program.insert("frames", frames);
                 }
+            } else if matches!(index, 0x11 | 0x12)
+                && let Json::Object(pairs) = &mut entry
+                && let Some((_, program)) = pairs.iter_mut().find(|(key, _)| key == "program")
+            {
+                bind_conveyor_groups(program, record)?;
             }
             entries.push(entry);
             uses[index].push(record.id);

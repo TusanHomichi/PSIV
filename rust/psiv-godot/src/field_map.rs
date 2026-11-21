@@ -20,6 +20,15 @@ impl Field {
         self.map_art_frames.clear();
         self.overlay_art_frames.clear();
         self.map_art_frame = 0;
+        for node in &mut self.belt_tile_nodes {
+            node.queue_free();
+        }
+        self.belt_tile_nodes.clear();
+        self.belt_tile_texture = None;
+        self.belt_tile_material = None;
+        self.belt_tile_x.clear();
+        self.belt_tile_edge = 0;
+        self.belt_revision = 0;
         let id = runtime.map_id().0;
         let active_art_frame = usize::from(runtime.tile_art_frame());
         let palette_images = runtime.map_record().map(|r| &r.map_update_images);
@@ -27,6 +36,18 @@ impl Field {
             .map_record()
             .map(|r| r.art_cycle_images.clone())
             .unwrap_or_default();
+        let has_conveyor_belts = runtime
+            .map_record()
+            .and_then(|r| r.map_updates.as_ref())
+            .is_some_and(|updates| {
+                updates
+                    .iter()
+                    .any(|e| matches!(e.program, psiv_data::UpdateProgram::ConveyorBelts { .. }))
+            });
+        let belt_atlas = runtime
+            .map_record()
+            .and_then(|r| r.patch_tiles.clone())
+            .filter(|_| has_conveyor_belts);
         // Map pictures draw from the live CRAM only once it holds the map's
         // palette; a record without the 64-word shadow keeps its baked
         // colours on every picture (base, overlay, variant, patch atlas).
@@ -233,6 +254,26 @@ impl Field {
             }
         }
 
+        if let Some(tiles) = &belt_atlas {
+            let source = map_image_source(palette.is_some(), palette_images, &tiles.png);
+            let (loaded, indexed) = load_map_image(&self.pack_dir, source, &tiles.png);
+            if let Some(image) = loaded
+                && let Some(texture) = ImageTexture::create_from_image(&image)
+            {
+                self.belt_tile_texture = Some(texture);
+                self.belt_tile_material = palette
+                    .as_ref()
+                    .filter(|_| indexed)
+                    .map(create_palette_material);
+                self.belt_tile_edge = tiles.tile_pixels as i32;
+                self.belt_tile_x = tiles
+                    .tiles
+                    .iter()
+                    .map(|tile| (tile.index, tile.x as i32))
+                    .collect();
+            }
+        }
+
         for NpcNode { node, .. } in &mut self.npc_nodes {
             node.queue_free();
         }
@@ -347,6 +388,62 @@ impl Field {
             });
         }
         self.apply_map_art_frame(active_art_frame);
+        self.sync_belt_tiles();
+    }
+
+    /// Updates conveyor-belt overlay sprites whenever the runtime's even-frame
+    /// belt blit list advances (`MapUpdateView::belt_revision`, `#99`).
+    pub(crate) fn sync_belt_tiles(&mut self) {
+        let Some(texture) = self.belt_tile_texture.clone() else {
+            return;
+        };
+        let edge = self.belt_tile_edge;
+        if edge <= 0 {
+            return;
+        }
+        let Some((revision, blits)) = self.session.as_ref().map(|session| {
+            let updates = session.runtime().map_updates();
+            (updates.belt_revision, updates.belt_blits.clone())
+        }) else {
+            return;
+        };
+        if revision == self.belt_revision {
+            return;
+        }
+        self.belt_revision = revision;
+        while self.belt_tile_nodes.len() > blits.len() {
+            if let Some(mut node) = self.belt_tile_nodes.pop() {
+                node.queue_free();
+            }
+        }
+        while self.belt_tile_nodes.len() < blits.len() {
+            let mut node = Sprite2D::new_alloc();
+            node.set_centered(false);
+            node.set_z_index(1);
+            node.set_region_enabled(true);
+            node.set_texture(&texture);
+            if let Some(material) = self.belt_tile_material.as_ref() {
+                node.set_material(material);
+            }
+            self.base_mut().add_child(&node);
+            self.belt_tile_nodes.push(node);
+        }
+        let edge_f = edge as f32;
+        for (node, &(cx, cy, tile_index)) in self.belt_tile_nodes.iter_mut().zip(&blits) {
+            let Some(&tile_x) = self.belt_tile_x.get(&tile_index) else {
+                node.set_visible(false);
+                continue;
+            };
+            node.set_position(Vector2::new(
+                (cx as i32 * edge) as f32,
+                (cy as i32 * edge) as f32,
+            ));
+            node.set_region_rect(Rect2::new(
+                Vector2::new(tile_x as f32, 0.0),
+                Vector2::new(edge_f, edge_f),
+            ));
+            node.set_visible(true);
+        }
     }
 
     /// Swaps the map and priority-overlay textures to match the runtime's
@@ -524,15 +621,9 @@ pub(crate) fn map_palette_colors(words: &[u16; 64], revision: u64) -> MapPalette
     }
 }
 
-/// Points a map sprite's shader at `palette`, unless it already holds that
-/// revision. A sprite without the shader is left alone.
-pub(crate) fn upload_map_palette(sprite: &mut Gd<Sprite2D>, palette: &MapPalette) {
-    let Some(mut material) = sprite
-        .get_material()
-        .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
-    else {
-        return;
-    };
+/// Points a palette shader material at `palette`, unless it already holds that
+/// revision.
+pub(crate) fn upload_map_palette_material(material: &mut Gd<ShaderMaterial>, palette: &MapPalette) {
     if material
         .get_shader_parameter("revision")
         .try_to::<i64>()
@@ -545,16 +636,33 @@ pub(crate) fn upload_map_palette(sprite: &mut Gd<Sprite2D>, palette: &MapPalette
     material.set_shader_parameter("revision", &palette.revision.to_variant());
 }
 
+/// Points a map sprite's shader at `palette`, unless it already holds that
+/// revision. A sprite without the shader is left alone.
+pub(crate) fn upload_map_palette(sprite: &mut Gd<Sprite2D>, palette: &MapPalette) {
+    let Some(mut material) = sprite
+        .get_material()
+        .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
+    else {
+        return;
+    };
+    upload_map_palette_material(&mut material, palette);
+}
+
+fn create_palette_material(palette: &MapPalette) -> Gd<ShaderMaterial> {
+    let mut shader = Shader::new_gd();
+    shader.set_code(MAP_PALETTE_SHADER);
+    let mut material = ShaderMaterial::new_gd();
+    material.set_shader(&shader);
+    upload_map_palette_material(&mut material, palette);
+    material
+}
+
 /// Draws an indexed map picture through the palette shader, its palette set
 /// before the first frame draws it; `None` draws the baked colours.
 fn install_palette_material(sprite: &mut Gd<Sprite2D>, palette: Option<&MapPalette>) {
     if let Some(palette) = palette {
-        let mut shader = Shader::new_gd();
-        shader.set_code(MAP_PALETTE_SHADER);
-        let mut material = ShaderMaterial::new_gd();
-        material.set_shader(&shader);
+        let material = create_palette_material(palette);
         sprite.set_material(&material);
-        upload_map_palette(sprite, palette);
     } else {
         sprite.set_material(Gd::<Material>::null_arg());
     }

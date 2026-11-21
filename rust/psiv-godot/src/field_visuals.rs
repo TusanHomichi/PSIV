@@ -44,6 +44,7 @@ impl Field {
     pub(super) fn sync_visuals(&mut self, walking: bool) {
         self.sync_map_palette();
         self.sync_map_art_frame();
+        self.sync_belt_tiles();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             let credits = self
                 .session
@@ -382,6 +383,9 @@ impl Field {
                 self.temporary_nodes.insert(slot, node);
             }
             if let Some(node) = self.temporary_nodes.get_mut(&slot) {
+                // Moving platforms (`$124`, `#99`) ride under the party and
+                // followers (z-index 5) and above the map/belts (0..=1).
+                node.set_z_index(if object.object_id == 0x0124 { 4 } else { 5 });
                 let facing_seq = object
                     .facing_word
                     .map(|w| format!("walk_facing_0x{w:02X}"))
@@ -510,6 +514,9 @@ impl Field {
             .flatten()
         {
             super::field_map::upload_map_palette(sprite, &palette);
+        }
+        if let Some(material) = self.belt_tile_material.as_mut() {
+            super::field_map::upload_map_palette_material(material, &palette);
         }
     }
 

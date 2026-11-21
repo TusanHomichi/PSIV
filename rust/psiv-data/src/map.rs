@@ -55,8 +55,8 @@ pub use reference::{MapRef, RangeRef};
 pub use settings::{Flags, Music};
 pub use treasure::{ContentsType, Treasure};
 pub use updates::{
-    MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
-    UpdateProgram,
+    ConveyorGroup, MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank,
+    UpdateGate, UpdateProgram,
 };
 pub use warp::{TransitionTable, Warp, WarpSource};
 

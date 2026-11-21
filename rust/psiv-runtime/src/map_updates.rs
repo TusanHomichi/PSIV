@@ -44,6 +44,12 @@ pub struct MapUpdateView {
     /// Active tile-DMA art-cycle frame (`0` = base tileset; `1..` = alternate
     /// `art_cycle_images` frames for Garuberk Tower eyes, `#101`).
     pub tile_art_frame: u8,
+    /// Active conveyor-belt chunk blits `(chunk_x, chunk_y, atlas_tile_index)`
+    /// produced by `$11` (`MapUpdate_VahFortConveyorBelts`) and `$12`
+    /// (`MapUpdate_WpnPlntConveyorBelts`), `#99`.
+    pub belt_blits: Vec<(u32, u32, u32)>,
+    /// Monotonic revision bumped whenever `belt_blits` changes.
+    pub belt_revision: u64,
     /// Missing native inputs, surfaced rather than approximated.
     pub unsupported: Vec<UnsupportedMapUpdate>,
 }
@@ -321,6 +327,44 @@ impl Runtime {
                     if active && self.frames & frame_mask == 0 {
                         view.tile_art_frame =
                             step_tile_dma_ping_pong(&mut view.counters, *frame_count);
+                    }
+                }
+                UpdateProgram::ConveyorBelts { groups } => {
+                    // Retail `$054F20` / `$055094`: `Main_Frame_Count & 7` picks
+                    // the 8-byte phase table (flipped by the group's temp flag)
+                    // and `btst #0, (Main_Frame_Count+1).w` refreshes Plane A on
+                    // even frames only.
+                    if self.frames & 1 != 0 {
+                        continue;
+                    }
+                    let Some(atlas) = record.patch_tiles.as_ref() else {
+                        continue;
+                    };
+                    let phase = usize::from(self.frames & 7);
+                    let mut next = Vec::new();
+                    for group in groups {
+                        let chunk_id = if group
+                            .temp_flag
+                            .is_some_and(|f| self.game.is_set(Flag::temp(u16::from(f))))
+                        {
+                            group.frames_set[phase]
+                        } else {
+                            group.frames_clear[phase]
+                        };
+                        let Some(tile) = atlas
+                            .tiles
+                            .iter()
+                            .find(|tile| tile.chunk_id == Some(u16::from(chunk_id)))
+                        else {
+                            continue;
+                        };
+                        for &(cx, cy) in &group.chunks {
+                            next.push((u32::from(cx), u32::from(cy), tile.index));
+                        }
+                    }
+                    if next != view.belt_blits {
+                        view.belt_blits = next;
+                        view.belt_revision = view.belt_revision.wrapping_add(1);
                     }
                 }
             }

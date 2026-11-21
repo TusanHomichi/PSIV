@@ -241,19 +241,16 @@ are recorded in [the source notes](../source-notes/README.md#other-recorded-devi
 
 ## What is not modelled
 
-- **The platform's sprite.** Object `$124` has no map placement and the pack's
-  sprite catalogue has no sheet for it (`sprites/npcs.json`, object type 73,
-  `placements: 0`), so the renderer receives the platform's motion as a
-  `StepFieldObject` it cannot draw. The collision, chunk and party state are
-  exact; the moving platform picture during a ride is not drawn.
-- **`MapUpdate_VahFortConveyorBelts` / `MapUpdate_WpnPlntConveyorBelts`**
-  (`$054F20`, `$055094`): the belts' *animation* is still the missing-input
-  program recorded in [MAP_UPDATES](MAP_UPDATES.md); the belts carry correctly
-  on their static chunk ids.
 - **`Event_OverlapCharacters` is a frame loop** (`$05A88A`) that runs until the
   followers converge; the port's op is instant, as everywhere else it is used.
 - **The single `RunMapUpdates` call** before the 60-frame settle and the camera's
   BG parallax step (`d0 - d0/4`) beyond what the scene camera follows.
+
+Object `$124`'s platform sprite (decoded from map VRAM tiles `$2B2..$2BD` and
+`loc_4E788` into `temporary_objects`, rendered under the party at `z_index = 4`
+with live CRAM palette line 1) and the even-frame conveyor-belt chunk animation
+(`$11`/`$12`, decoded into `UpdateProgram::ConveyorBelts` and drawn from each
+map's `patch_tiles` atlas) are both modelled and active.
 
 ## Verification
 
