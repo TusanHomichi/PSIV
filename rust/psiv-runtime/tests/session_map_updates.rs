@@ -454,17 +454,83 @@ fn positional_encounter_override_preserves_the_unsigned_inclusive_boundary() {
 }
 
 #[test]
-fn missing_dma_and_conveyor_buffers_are_reported_without_invented_effects() {
+fn conveyor_belt_map_updates_cycle_all_groups_and_reverse_on_terminal_flags() {
     if !pack_available() {
         return;
     }
-    for (map, index) in [(202, 0x11), (199, 0x12)] {
+    for (map, flag_a, flag_b) in [
+        (202u16, 0x0Bu16, 0x0Cu16), // 0xCA VahalFort_F2 ($11)
+        (199u16, 0x11u16, 0x12u16), // 0xC7 WeaponPlant_F3 ($12)
+    ] {
         let mut session = session_at(map, ground(map, None), &fresh_game());
+        assert!(
+            session.runtime().map_updates().unsupported.is_empty(),
+            "map {map:#x} conveyor update must be decoded"
+        );
+        let atlas = session
+            .runtime()
+            .map_record()
+            .and_then(|r| r.patch_tiles.as_ref())
+            .expect("conveyor map has patch_tiles")
+            .clone();
+        let chunk_for_tile = |tile_index: u32| -> u16 {
+            atlas
+                .tiles
+                .iter()
+                .find(|t| t.index == tile_index)
+                .and_then(|t| t.chunk_id)
+                .unwrap()
+        };
+
+        // Frame 1 is odd: retail skips Plane A refresh (`btst #0`).
         tick(&mut session, Pad::NEUTRAL);
-        let skipped = &session.runtime().map_updates().unsupported;
-        assert_eq!(skipped.len(), 1);
-        assert_eq!(skipped[0].index, index);
-        assert!(!skipped[0].missing.is_empty());
+        assert!(session.runtime().map_updates().belt_blits.is_empty());
+        assert_eq!(session.runtime().map_updates().belt_revision, 0);
+
+        // Even frames 2, 4, 6, 8 cycle through all 4 conveyor frames across all
+        // 28 belt cells and bump belt_revision on each even frame.
+        let mut clear_seq = Vec::new();
+        for step in 1..=4u64 {
+            tick(&mut session, Pad::NEUTRAL); // even frame (2, 4, 6, 8)
+            let view = session.runtime().map_updates();
+            assert_eq!(view.belt_blits.len(), 28, "map {map:#x} has 28 belt cells");
+            assert_eq!(view.belt_revision, step);
+            let chunks: Vec<u16> = view
+                .belt_blits
+                .iter()
+                .map(|&(_, _, idx)| chunk_for_tile(idx))
+                .collect();
+            assert!(chunks.iter().all(|&c| (0xA8..=0xAF).contains(&c)));
+            clear_seq.push((chunks[0], *chunks.last().unwrap()));
+            tick(&mut session, Pad::NEUTRAL); // odd frame: revision unchanged
+            assert_eq!(session.runtime().map_updates().belt_revision, step);
+        }
+        // Group 0 and last group must each visit 4 distinct frames.
+        let first_unique: std::collections::BTreeSet<u16> =
+            clear_seq.iter().map(|&(a, _)| a).collect();
+        let last_unique: std::collections::BTreeSet<u16> =
+            clear_seq.iter().map(|&(_, b)| b).collect();
+        assert_eq!(first_unique.len(), 4, "map {map:#x}: {clear_seq:?}");
+        assert_eq!(last_unique.len(), 4, "map {map:#x}: {clear_seq:?}");
+
+        // Setting both terminal temp flags reverses the belt animation phase.
+        let mut toggled = fresh_game();
+        toggled.set(Flag::temp(flag_a)).unwrap();
+        toggled.set(Flag::temp(flag_b)).unwrap();
+        let mut rev = session_at(map, ground(map, None), &toggled);
+        let mut set_seq = Vec::new();
+        for _ in 0..4 {
+            tick(&mut rev, Pad::NEUTRAL); // odd
+            tick(&mut rev, Pad::NEUTRAL); // even
+            let view = rev.runtime().map_updates();
+            let first = chunk_for_tile(view.belt_blits[0].2);
+            let last = chunk_for_tile(view.belt_blits.last().unwrap().2);
+            set_seq.push((first, last));
+        }
+        assert_ne!(
+            set_seq, clear_seq,
+            "map {map:#x} terminal flags must reverse belt animation"
+        );
     }
 }
 

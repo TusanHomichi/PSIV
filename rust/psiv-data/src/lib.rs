@@ -102,8 +102,8 @@ pub use map::{
     WarpSource,
 };
 pub use map::{
-    MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
-    UpdateProgram,
+    ConveyorGroup, MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank,
+    UpdateGate, UpdateProgram,
 };
 pub use new_game::{
     Event as HandoffEvent, File as GameStartFile, FlagList, Flags as NewGameFlags,

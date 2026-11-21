@@ -90,6 +90,24 @@ pub enum ScrollMode {
     Vertical,
 }
 
+/// One group of conveyor belt chunks sharing a direction toggle and 8-frame
+/// chunk-id table (`MapUpdate_VahFortConveyorBelts` `$11` /
+/// `MapUpdate_WpnPlntConveyorBelts` `$12`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConveyorGroup {
+    /// Optional temporary event flag (`$0B`/`$0C` or `$11`/`$12`) selecting
+    /// `frames_set` over `frames_clear`.
+    pub temp_flag: Option<u8>,
+    /// Foreground chunk coordinates `(chunk_x, chunk_y)` written in `Map_Layout_FG`.
+    pub chunks: Vec<(u16, u16)>,
+    /// 8-entry chunk-id table indexed by `Main_Frame_Count & 7` when `temp_flag`
+    /// is absent or clear.
+    pub frames_clear: [u8; 8],
+    /// 8-entry chunk-id table indexed by `Main_Frame_Count & 7` when `temp_flag`
+    /// is set.
+    pub frames_set: [u8; 8],
+}
+
 /// Update instructions and extracted tables. Unsupported hardware inputs are
 /// explicit records, never substituted with invented state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -175,6 +193,12 @@ pub enum UpdateProgram {
         /// Number of staged frames in the ping-pong sequence (`3`: `0..=2`).
         frame_count: u8,
     },
+    /// Conveyor-belt foreground chunk animation (`MapUpdate_VahFortConveyorBelts` `$11`,
+    /// `MapUpdate_WpnPlntConveyorBelts` `$12`).
+    ConveyorBelts {
+        /// Ordered groups of foreground chunks and their 8-frame tables.
+        groups: Vec<ConveyorGroup>,
+    },
     /// Input the runtime does not represent: a known routine whose required
     /// native buffer/subsystem is absent. The decoder reports it rather than
     /// guessing its effect.
@@ -223,6 +247,9 @@ impl MapUpdate {
                     frames.len() == if *sliding { 14 } else { 28 } && writes(frames)
                 }
                 UpdateProgram::TileDmaCycle { frame_count, .. } => (2..=16).contains(frame_count),
+                UpdateProgram::ConveyorBelts { groups } => {
+                    !groups.is_empty() && groups.iter().all(|g| !g.chunks.is_empty())
+                }
                 UpdateProgram::Unsupported { missing } => !missing.is_empty(),
                 _ => true,
             }
@@ -286,5 +313,22 @@ mod tests {
             frame_count: 1,
         };
         assert!(!dma.valid(), "single-frame tile DMA negative control");
+
+        let mut belts = MapUpdate {
+            index: 0x11,
+            routine: "MapUpdate_VahFortConveyorBelts".into(),
+            address: "0x054F20".into(),
+            program: UpdateProgram::ConveyorBelts {
+                groups: vec![ConveyorGroup {
+                    temp_flag: Some(0x0B),
+                    chunks: vec![(12, 17)],
+                    frames_clear: [0xA8, 0xA8, 0xA9, 0xA9, 0xAA, 0xAA, 0xAB, 0xAB],
+                    frames_set: [0xAB, 0xAB, 0xAA, 0xAA, 0xA9, 0xA9, 0xA8, 0xA8],
+                }],
+            },
+        };
+        assert!(belts.valid());
+        belts.program = UpdateProgram::ConveyorBelts { groups: vec![] };
+        assert!(!belts.valid(), "empty conveyor groups negative control");
     }
 }

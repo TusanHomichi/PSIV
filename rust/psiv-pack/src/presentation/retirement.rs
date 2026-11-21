@@ -206,12 +206,13 @@ fn expected_objects() -> BTreeSet<(usize, usize)> {
         (0x35C, 0x3BA),
         (0x360, 0x3BA),
         (0x364, 0x3BA),
+        (0x124, 0x000),
     ]
     .into()
 }
 fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), String> {
     if m["coverage"]
-        != json!({"panel_records":panel_ids().len(),"load_art_records":9,"temporary_object_keys":17,"generic_portraits":1,"scene_pictures":1})
+        != json!({"panel_records":panel_ids().len(),"load_art_records":9,"temporary_object_keys":18,"generic_portraits":1,"scene_pictures":1})
     {
         return Err("coverage".into());
     }
@@ -226,7 +227,7 @@ fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), Str
         .iter()
         .map(|r| (num(&r["object_id"]), num(&r["art_tile"])))
         .collect();
-    if objects != expected_objects() || array(&m["temporary_objects"]).len() != 17 {
+    if objects != expected_objects() || array(&m["temporary_objects"]).len() != 18 {
         return Err("temporary object identities".into());
     }
     for section in [

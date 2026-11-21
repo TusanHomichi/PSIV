@@ -97,8 +97,8 @@ against a cartridge frame. There is no replacement RNG algorithm.
 | `$0E` | `MapUpdate_BioPlantPal` | `0x054E52` / 113326 | slots 12,13; 8-frame absolute clock; ECF2, 6 phases / slots 28,29; 8-frame absolute clock; ECF3, 8 phases | none | 11 | implemented |
 | `$0F` | `MapUpdate_MachCntrMoveUpdateRate` | `0x054EF0` / 113374 | BG X/Y longword step -= step ASR 3/3 | none | 8 | implemented |
 | `$10` | `MapUpdate_PlateSysMoveUpdateRate` | `0x054F08` / 113387 | BG X/Y longword step -= step ASR 1/1 | none | 1 | implemented |
-| `$11` | `MapUpdate_VahFortConveyorBelts` | `0x054F20` / 113400 | Conveyor layout/chunk writes + plane refresh/DMA; temp $0B/$0C; frame & 7; even-frame refresh (missing buffers) | none | 1 | missing input |
-| `$12` | `MapUpdate_WpnPlntConveyorBelts` | `0x055094` / 113518 | Conveyor layout/chunk writes + plane refresh/DMA; temp $11/$12; frame & 7; even-frame refresh (missing buffers) | none | 1 | missing input |
+| `$11` | `MapUpdate_VahFortConveyorBelts` | `0x054F20` / 113400 | Conveyor layout/chunk writes + plane refresh/DMA; temp $0B/$0C; frame & 7; even-frame refresh (`patch_tiles` blits) | none | 1 | implemented |
+| `$12` | `MapUpdate_WpnPlntConveyorBelts` | `0x055094` / 113518 | Conveyor layout/chunk writes + plane refresh/DMA; temp $11/$12; frame & 7; even-frame refresh (`patch_tiles` blits) | none | 1 | implemented |
 | `$13` | `MapUpdate_WreckagePal` | `0x05521C` / 113645 | slots 12,13; 8-frame absolute clock; ECF2, 6 phases | none | 7 | implemented |
 | `$14` | `MapUpdate_WreckagePal2` | `0x055270` / 113675 | slots 28,29; 8-frame absolute clock; ECF3, 8 phases | none | 2 | implemented |
 | `$15` | `MapUpdate_MachCenterPal` | `0x0552CC` / 113706 | slots 12,13; 8-frame absolute clock; ECF2, 6 phases | none | 22 | implemented |
@@ -145,11 +145,12 @@ against a cartridge frame. There is no replacement RNG algorithm.
 | `$3E` | `MapUpdate_NoUpdate6` | `0x055FA8` / 114876 | No writes; moveq #0,d0 / rts | none | 0 | implemented |
 | `$3F` | `MapUpdate_NoUpdate7` | `0x055FAC` / 114883 | No writes; moveq #0,d0 / rts | none | 0 | implemented |
 
-`$11` and `$12` (the Vahal Fort and Weapon Plant belt animation) stay the
-missing-input programs above. The belts' *carry* (events `$1D..$20`) does not
-depend on them: it tests the chunk ids `$A8..$AB` / `$AC..$AF` that the
-animation cycles through, and the static layout holds ids in those ranges
-([PLATFORMS_AND_BELTS](PLATFORMS_AND_BELTS.md#the-conveyor-belts)).
+`$11` and `$12` (the Vahal Fort and Weapon Plant belt animation) are decoded
+into `UpdateProgram::ConveyorBelts` (6 groups, 28 cells each), emitting
+even-frame `patch_tiles` blits through `MapUpdateView::belt_blits` and
+reversing direction on temp flags `$0B`/`$0C` (Vahal Fort) and `$11`/`$12`
+(Weapon Plant). The belts' *carry* (events `$1D..$20`) tests the same chunk ids
+`$A8..$AB` / `$AC..$AF` ([PLATFORMS_AND_BELTS](PLATFORMS_AND_BELTS.md#the-conveyor-belts)).
 
 ### Retail quirks retained
 
@@ -170,12 +171,8 @@ animation cycles through, and the static layout holds ids in those ranges
 
 ### Missing modeled inputs
 
-`$11/$12` require writable `Map_Layout_FG` bytes, conveyor chunk definitions,
-plane refresh/DMA and `$ECF6` plane flags. Their exact conditions and effects are in
-the census. They are emitted as `unsupported` with the absent subsystem,
-visible through `Runtime::map_updates()` and logged by Godot. No partial
-counter/layout/tile effects are applied. This is **62 implemented entries,
-two explicit missing-input entries**, not complete conveyor parity.
+All **64 / 64** `MapUpdateJmpTbl` entries are decoded and executed by the
+runtime (**0 missing-input entries**).
 
 Horizontal/vertical scroll entries emit exact sparse word writes with the DMA
 destination class. Godot's composed-map renderer does not yet draw per-line or

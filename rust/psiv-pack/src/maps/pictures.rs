@@ -26,7 +26,7 @@ use super::patches::{
     resolve_map_effects, resolve_overworld_patches, scene_patch_chunks, write_composite_pairs,
 };
 use super::records::MapRecord;
-use super::updates::{MapUpdates, extract_map_updates};
+use super::updates::{MapUpdates, conveyor_belt_chunks, extract_map_updates};
 use super::{ExtractedMaps, extract_maps};
 use crate::decode::{Call, Decodes};
 use crate::json::Json;
@@ -315,7 +315,17 @@ pub fn map_pictures(
         .into_iter()
         .collect();
     let scene_chunks = scene_patch_chunks(rom, record)?;
-    let patched: BTreeSet<u8> = written.iter().chain(&scene_chunks).copied().collect();
+    let belt_chunks = updates
+        .per_map
+        .get(&record.id)
+        .map(|entries| conveyor_belt_chunks(entries))
+        .unwrap_or_default();
+    let patched: BTreeSet<u8> = written
+        .iter()
+        .chain(&scene_chunks)
+        .chain(&belt_chunks)
+        .copied()
+        .collect();
     let mut patch_tiles = None;
     let atlas = !patched.is_empty() || !composite_pairs.is_empty();
     let mut atlas_over = false;

@@ -172,7 +172,7 @@ const fn plays(sequence: &'static str, once: bool, before_art_tile: bool) -> Opt
     })
 }
 
-const TEMPORARY_OBJECT_RECORDS: [Temporary; 17] = [
+const TEMPORARY_OBJECT_RECORDS: [Temporary; 18] = [
     temporary(
         "MeetingRika",
         (0x0018, 0x026A),
@@ -308,6 +308,14 @@ const TEMPORARY_OBJECT_RECORDS: [Temporary; 17] = [
         plays("walk_down", false, false),
         (0, SourceKind::MapArt),
         0x05A,
+    ),
+    temporary(
+        "Event_VahFortMovingPlatform1",
+        (0x0124, 0x0000),
+        "MovingPlatform",
+        None,
+        (0, SourceKind::MapArt),
+        0x0CA,
     ),
 ];
 

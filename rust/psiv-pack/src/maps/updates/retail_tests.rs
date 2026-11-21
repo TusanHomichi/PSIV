@@ -104,13 +104,49 @@ fn every_retail_update_is_accounted_for_in_map_list_order() {
             "frame_count": 3,
         })
     );
-    assert_eq!(
+    assert!(
         routines
             .iter()
-            .filter(|r| r["program"]["kind"] == "unsupported")
-            .map(|r| r["index"].as_u64().unwrap())
-            .collect::<Vec<_>>(),
-        [0x11, 0x12]
+            .all(|r| r["program"]["kind"] != "unsupported"),
+        "all 64 retail map updates must decode cleanly"
+    );
+    let vah_fort = Value::from(
+        updates.per_map[&0xCA]
+            .iter()
+            .find(|e| Value::from(*e)["index"] == 0x11)
+            .unwrap(),
+    );
+    let vah_groups = vah_fort["program"]["groups"].as_array().unwrap();
+    assert_eq!(vah_groups.len(), 6);
+    assert_eq!(
+        vah_groups
+            .iter()
+            .map(|g| g["chunks"].as_array().unwrap().len())
+            .sum::<usize>(),
+        28
+    );
+    assert_eq!(
+        conveyor_belt_chunks(&updates.per_map[&0xCA]),
+        (0xA8..=0xAF).collect::<Vec<u8>>()
+    );
+    let wpn_plnt = Value::from(
+        updates.per_map[&0xC7]
+            .iter()
+            .find(|e| Value::from(*e)["index"] == 0x12)
+            .unwrap(),
+    );
+    let wpn_groups = wpn_plnt["program"]["groups"].as_array().unwrap();
+    assert_eq!(wpn_groups.len(), 6);
+    assert_eq!(
+        wpn_groups
+            .iter()
+            .map(|g| g["chunks"].as_array().unwrap().len())
+            .sum::<usize>(),
+        28
+    );
+    assert_eq!(
+        conveyor_belt_chunks(&updates.per_map[&0xC7]),
+        (0xA8..=0xAF).collect::<Vec<u8>>()
     );
 }
 
@@ -161,5 +197,17 @@ fn corrupt_retail_branch_clock_and_map_index_are_rejected() {
             .unwrap()
             .0
             .contains("tile DMA cycle")
+    );
+    // Corrupting MapUpdate_VahFortConveyorBelts's even-frame refresh check
+    // (`btst #0, (Main_Frame_Count+1).w` at $05502A) must be refused.
+    broken.copy_from_slice(data);
+    assert_eq!(w(&broken, 0x5502A).unwrap(), 0x0838);
+    broken[0x5502A..0x5502C].copy_from_slice(&0x4E71u16.to_be_bytes());
+    assert!(
+        extract_map_updates(&broken, maps.real())
+            .err()
+            .unwrap()
+            .0
+            .contains("conveyor belt")
     );
 }

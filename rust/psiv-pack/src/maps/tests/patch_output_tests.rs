@@ -51,6 +51,20 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
                 .into_iter()
                 .map(usize::from),
             )
+            .chain(
+                m["map_updates"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|u| u["program"]["kind"] == "conveyor_belts")
+                    .flat_map(|u| array(&u["program"]["groups"]))
+                    .flat_map(|g| {
+                        array(&g["frames_clear"])
+                            .iter()
+                            .chain(array(&g["frames_set"]).iter())
+                    })
+                    .map(num),
+            )
             .collect();
         let pairs: BTreeSet<_> = written
             .iter()
