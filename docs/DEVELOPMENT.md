@@ -3,8 +3,9 @@
 [Project overview](../README.md) · [Documentation index](README.md)
 
 This guide is developer setup and the checks. Playing needs less: the
-[quick start](../README.md#quick-start-linux) covers the ROM check, the
-prerequisites and the commands to build and start the game.
+[quick start](../README.md#quick-start) covers downloading and starting a
+release, and [build from source](../README.md#build-from-source) covers
+building a checkout.
 
 ## Current environment
 

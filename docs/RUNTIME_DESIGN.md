@@ -6,14 +6,15 @@ linked below.
 
 ## Data and runtime layers
 
-Python extracts the verified US ROM into a local pack. The native game loads
-that pack; it does not run the emulator. The Cargo workspace contains these crates:
+`psiv-pack` extracts the verified US ROM into a local pack. The native game
+loads that pack; it does not run the emulator. The Cargo workspace contains
+these crates:
 
 | Component | Role |
 | --- | --- |
-| [psiv_tools](../psiv_tools/) | ROM decoding, extraction and pack generation in Python |
+| [psiv_tools](../psiv_tools/) | Python ROM research tools, table extraction (`generated/`), and oracle and census helpers |
 | [psiv-data](../rust/psiv-data/) | Serde types, pack loading and validation |
-| [psiv-pack](../rust/psiv-pack/) | The pack builder, `psiv-pack <rom> <pack>`: the setup screen, the shared input cache and the documented commands run it. The gate's parity step holds it to the Python builder it replaced until that retires ([#216](https://github.com/TusanHomichi/PSIV/issues/216)) |
+| [psiv-pack](../rust/psiv-pack/) | The sole runtime pack builder, `psiv-pack <rom> <pack>`: the setup screen, release packages, and repository tools all run it |
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
@@ -23,9 +24,10 @@ that pack; it does not run the emulator. The Cargo workspace contains these crat
 | [psiv-memory-verdict](../rust/psiv-memory-verdict/) | Counter availability and release memory-verdict policy; the Python native verifier calls its JSON bridge |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
-results and sends input, deciding nothing about game state. Keep ROM decoding in
-Python. Pack schema changes need matching extraction and consumer validation;
-see [extraction](EXTRACTION.md). The pack is a local input
+results and sends input, deciding nothing about game state. Runtime pack
+extraction belongs in `psiv-pack` (`rust/psiv-pack/`); pack schema changes need
+matching extraction and consumer validation; see [extraction](EXTRACTION.md).
+The pack is a local input
 ([AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence)).
 
 ## The public runtime API
