@@ -245,8 +245,8 @@ pub(super) const ROWS: &[Row] = &[
     row("Event_EclipseTorchUsed", own(0x07_0270, false, false), Within(17)),
     row("Event_EclipseTorchUsed", Map(0x07_02A8), Wait(21)),
     row("Event_EclipseTorchUsed", own(0x07_02B2, false, false), Within(23)),
-    // After the nine `$338` creations, which wait no frame of their own.
-    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(38)),
+    // After the nine `$338` creations, chunk copy and `DMAPlane_B_VInt`.
+    row("Event_EclipseTorchUsed", Main(0x07_044C), Wait(40)),
     row("Cutscene_LutzRevelation", Map(0x07_78A0), Wait(1)),
     row("Cutscene_LutzRevelation", Facing(0x07_7944), Missing(164)),
     row("Cutscene_LutzRevelation", Main(0x07_794C), Wait(10)),

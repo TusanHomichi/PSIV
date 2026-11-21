@@ -63,6 +63,14 @@ fn emitted_writes_resolve_every_chunk_cells_atlas_reference_and_census() {
                     .flat_map(|g| array(&g["tiles"]))
                     .map(|t| (num(&t["fg_chunk_id"]), num(&t["bg_chunk_id"]))),
             )
+            .chain(
+                m["chunk_def_copies"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|g| array(&g["tiles"]))
+                    .map(|t| (num(&t["fg_chunk_id"]), num(&t["bg_chunk_id"]))),
+            )
             .collect();
         // The manifest also lists scene-only raw atlases, while the decoder
         // census above counts only maps with MapDataManager layout writes.

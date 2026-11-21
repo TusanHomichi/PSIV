@@ -140,6 +140,27 @@ pub(crate) fn layout_replace_variant(record: &MapRecord, source: u32) -> Result<
     Err(())
 }
 
+/// One shared mutation path for `Chunk_Table` 16-word chunk-definition copies
+/// (`#676`): updates every affected `(chunk_x, chunk_y)` cell's collision and
+/// patch-atlas blit while preserving `Map_Layout` chunk bytes.
+pub(crate) fn apply_chunk_def_copy(out: &mut EffectOutcome, copy: &psiv_data::ChunkDefCopy) {
+    for tile in &copy.tiles {
+        out.cell_patches
+            .retain(|&(cx, cy, _)| (cx / 2, cy / 2) != (tile.chunk_x, tile.chunk_y));
+        out.patch_blits
+            .retain(|&(cx, cy, _)| (cx, cy) != (tile.chunk_x, tile.chunk_y));
+        for (index, collision) in tile.collision.iter().copied().enumerate() {
+            out.cell_patches.push((
+                tile.chunk_x * 2 + index as u32 % 2,
+                tile.chunk_y * 2 + index as u32 / 2,
+                collision,
+            ));
+        }
+        out.patch_blits
+            .push((tile.chunk_x, tile.chunk_y, tile.patch_tile));
+    }
+}
+
 /// Evaluates a record's effect list, walking entries in list order exactly
 /// as `MapDataManager` does — which means `flag_clear` writes MUTATE the
 /// state mid-walk, so a later entry's gates see the cleared flag. This is
@@ -174,6 +195,17 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                 out.patch_blits
                     .push((tile.chunk_x, tile.chunk_y, tile.patch_tile));
             }
+        }
+    }
+
+    // `MapDataMan_Dezolis` (`loc_525AC`, `$0525AC`) runs the Eclipse Torch
+    // chunk-definition copy after the overworld page hooks when `$9C` is set.
+    for copy in &record.chunk_def_copies {
+        if copy
+            .event_flag
+            .is_some_and(|flag| game.is_set(Flag::event(flag)))
+        {
+            apply_chunk_def_copy(&mut out, copy);
         }
     }
 

@@ -580,6 +580,15 @@ pub enum SceneEffect {
     },
     /// The volatile retail `Game_Cleared_Flag` was set.
     GameCleared,
+    /// The scene copied a `Chunk_Table` chunk definition (`trap #1`).
+    ChunkDefinitionCopied {
+        /// Source address inside `Chunk_Table`.
+        source_addr: u32,
+        /// Destination address inside `Chunk_Table`.
+        dest_addr: u32,
+        /// Number of 16-bit words copied (`d7 + 1`).
+        words: u16,
+    },
     /// The scene wrote `World_Index`.
     WorldIndexSet {
         /// The world.

@@ -9,6 +9,7 @@
 //! emitted-pack tests cover records, layouts, effects, updates and sprites.
 
 pub mod art_cycle;
+pub mod chunk_def_copy;
 pub mod draw;
 pub mod effects;
 pub mod encounters;

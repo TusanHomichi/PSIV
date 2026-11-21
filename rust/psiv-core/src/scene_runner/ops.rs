@@ -416,6 +416,18 @@ impl SceneRunner {
                 effects.push(SceneEffect::MapLayoutReplaced { fg, bg });
                 self.pc += 1;
             }
+            SceneOp::CopyChunkDefinition {
+                source_addr,
+                dest_addr,
+                words,
+            } => {
+                effects.push(SceneEffect::ChunkDefinitionCopied {
+                    source_addr,
+                    dest_addr,
+                    words,
+                });
+                self.pc += 1;
+            }
             SceneOp::Return { value } => {
                 effects.push(SceneEffect::Returned { value });
                 effects.push(SceneEffect::Finished);

@@ -437,6 +437,22 @@ impl Runtime {
                     }
                 }
             }
+            SceneEffect::ChunkDefinitionCopied {
+                source_addr,
+                dest_addr,
+                words,
+            } => match self.copy_scene_chunk_definition(source_addr, dest_addr, words) {
+                Ok(()) => events.push(RuntimeEvent::MapRefreshed),
+                Err(error) => {
+                    self.scene = None;
+                    events.push(RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    });
+                    events.push(RuntimeEvent::SceneFaulted {
+                        fault: psiv_core::SceneFault::BadWrite,
+                    });
+                }
+            },
             SceneEffect::VehicleChanged { index } => {
                 if self.set_vehicle_index(index).is_err() {
                     events.push(RuntimeEvent::SceneFaulted {
