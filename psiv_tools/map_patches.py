@@ -200,6 +200,17 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         via="overworld_patches",
     ),
     SceneChunkWrite(
+        scene="Cutscene_ZioDefeated",
+        map_id=0x0D3,
+        citation=(
+            "Nurvus B4 Part 2 ($0D3) barrier open/close routines `loc_75EE0` "
+            "(`lea (loc_75F34).l, a0` at $075EF0) and `loc_75F54` (`lea (loc_75FA8).l, a0` "
+            "at $075F64): 10 `$FF`-terminated FG chunk triples at `(14..=16, 12)`"
+        ),
+        table=(0x75F34, 31),
+        checks=((0x75EF0, "41F900075F34"), (0x75F64, "41F900075FA8")),
+    ),
+    SceneChunkWrite(
         scene="Cutscene_CrashLaanding",
         map_id=0x14C,
         citation=(
