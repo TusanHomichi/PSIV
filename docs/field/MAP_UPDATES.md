@@ -114,7 +114,7 @@ against a cartridge frame. There is no replacement RNG algorithm.
 | `$1F` | `MapUpdate_AirCastlePal2` | `0x055714` / 114050 | slots 27,29; 8-frame absolute clock; (frame & $0) >> 3 | none | 30 | implemented |
 | `$20` | `MapUpdate_WreckageEnginePal` | `0x05577E` / 114079 | slots 28,29; 8-frame absolute clock; ECF2, 6 phases; event $40 set | none | 1 | implemented |
 | `$21` | `MapUpdate_KuranF2Pal` | `0x0557DE` / 114112 | slots 28,29; 8-frame absolute clock; ECF2, 6 phases | none | 1 | implemented |
-| `$22` | `MapUpdate_GaruberkTowerPart4` | `0x055832` / 114142 | Pattern staging + queued tile DMA; temp $15/$17 clear; frame & 7; ECF2 ping-pong 0..2, ECF3 direction (missing buffer) | none | 4 | missing input |
+| `$22` | `MapUpdate_GaruberkTowerPart4` | `0x055832` / 114142 | Pattern staging + queued tile DMA; temp $15/$17 clear; frame & 7; ECF2 ping-pong 0..2, ECF3 direction (`art_cycle_images`) | none | 4 | implemented |
 | `$23` | `MapUpdate_GaruberkTowerPal` | `0x0558C8` / 114196 | slots 10,11,12; 4-frame absolute clock; (frame & $C) >> 2 | none | 3 | implemented |
 | `$24` | `MapUpdate_GaruberkTowerPal2` | `0x055916` / 114224 | slots 17,18,19,20; 8-frame absolute clock; (frame & $18) >> 3 | none | 2 | implemented |
 | `$25` | `loc_55972` | `0x055972` / 114253 | FG X/Y longword step -= step ASR 3/3 | none | 0 | implemented |
@@ -171,12 +171,11 @@ animation cycles through, and the static layout holds ids in those ranges
 ### Missing modeled inputs
 
 `$11/$12` require writable `Map_Layout_FG` bytes, conveyor chunk definitions,
-plane refresh/DMA and `$ECF6` plane flags; `$22` requires the shared `RAM_Start`
-pattern staging image and tile DMA. Their exact conditions and effects are in
+plane refresh/DMA and `$ECF6` plane flags. Their exact conditions and effects are in
 the census. They are emitted as `unsupported` with the absent subsystem,
 visible through `Runtime::map_updates()` and logged by Godot. No partial
-counter/layout/tile effects are applied. This is **61 implemented entries,
-three explicit missing-input entries**, not complete conveyor/tile-DMA parity.
+counter/layout/tile effects are applied. This is **62 implemented entries,
+two explicit missing-input entries**, not complete conveyor parity.
 
 Horizontal/vertical scroll entries emit exact sparse word writes with the DMA
 destination class. Godot's composed-map renderer does not yet draw per-line or

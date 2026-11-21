@@ -96,9 +96,9 @@ pub use map::{
     Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
     InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
     Npc, OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch, OverworldPatchFlag,
-    OverworldPatchTile, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement, RangeRef,
-    ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision,
-    VariantPlane, VehicleBattleLayout, Warp, WarpSource,
+    OverworldPatchTile, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement,
+    PatchTiles, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
+    VariantCollision, VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
 pub use map::{
     MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,

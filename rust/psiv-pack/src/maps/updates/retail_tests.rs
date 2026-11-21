@@ -93,12 +93,24 @@ fn every_retail_update_is_accounted_for_in_map_list_order() {
         14
     );
     assert_eq!(
+        routines[0x22]["program"],
+        json!({
+            "kind": "tile_dma_cycle",
+            "gates": [
+                {"bank": "temp", "flag": 0x15, "set": false},
+                {"bank": "temp", "flag": 0x17, "set": false},
+            ],
+            "frame_mask": 7,
+            "frame_count": 3,
+        })
+    );
+    assert_eq!(
         routines
             .iter()
             .filter(|r| r["program"]["kind"] == "unsupported")
             .map(|r| r["index"].as_u64().unwrap())
             .collect::<Vec<_>>(),
-        [0x11, 0x12, 0x22]
+        [0x11, 0x12]
     );
 }
 
@@ -136,5 +148,18 @@ fn corrupt_retail_branch_clock_and_map_index_are_rejected() {
             .unwrap()
             .0
             .contains("lsr.w")
+    );
+    // Corrupting MapUpdate_GaruberkTowerPart4's DMA length ($04F0 at $0558BC)
+    // must be refused.
+    broken.copy_from_slice(data);
+    let dma_len_at = 0x55832 + 0x8A;
+    assert_eq!(w(&broken, dma_len_at).unwrap(), 0x04F0);
+    broken[dma_len_at..dma_len_at + 2].copy_from_slice(&0x0500u16.to_be_bytes());
+    assert!(
+        extract_map_updates(&broken, maps.real())
+            .err()
+            .unwrap()
+            .0
+            .contains("tile DMA cycle")
     );
 }

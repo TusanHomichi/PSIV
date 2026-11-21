@@ -458,12 +458,57 @@ fn missing_dma_and_conveyor_buffers_are_reported_without_invented_effects() {
     if !pack_available() {
         return;
     }
-    for (map, index) in [(202, 0x11), (199, 0x12), (412, 0x22)] {
+    for (map, index) in [(202, 0x11), (199, 0x12)] {
         let mut session = session_at(map, ground(map, None), &fresh_game());
         tick(&mut session, Pad::NEUTRAL);
         let skipped = &session.runtime().map_updates().unsupported;
         assert_eq!(skipped.len(), 1);
         assert_eq!(skipped[0].index, index);
         assert!(!skipped[0].missing.is_empty());
+    }
+}
+
+#[test]
+fn garuberk_tower_part4_tile_dma_cycles_every_eight_frames_and_respects_temp_gates() {
+    if !pack_available() {
+        return;
+    }
+    let map = 0x19C; // GaruberkTower_Part4 (update $22)
+    let mut session = session_at(map, ground(map, None), &fresh_game());
+    if session
+        .runtime()
+        .map_record()
+        .is_some_and(|r| r.art_cycle_images.is_empty())
+    {
+        eprintln!("pack predates Garuberk art_cycle_images; rebuild pack to run");
+        return;
+    }
+    assert!(session.runtime().map_updates().unsupported.is_empty());
+    let mut sequence = Vec::new();
+    for _ in 0..48 {
+        tick(&mut session, Pad::NEUTRAL);
+        let frame = session.runtime().tile_art_frame();
+        if sequence.last().copied() != Some(frame) {
+            sequence.push(frame);
+        }
+    }
+    assert!(
+        sequence.contains(&1) && sequence.contains(&2),
+        "expected tile-DMA ping-pong across 1 and 2, got {sequence:?}"
+    );
+
+    // Setting either temp gate pauses update $22. Note: Part 4's MapDataMan
+    // ($0529A4) clears temp $15 on load outside the Moon Slasher room, and
+    // Part 5's ($0529D0) clears temp $17, so test each gate on the sibling
+    // floor that preserves it.
+    for (gated_map, gate_flag) in [(0x19Cu16, Flag::temp(0x17)), (0x19Du16, Flag::temp(0x15))] {
+        let mut gated = fresh_game();
+        gated.set(gate_flag).unwrap();
+        let mut gated_session = session_at(gated_map, ground(gated_map, None), &gated);
+        assert!(gated_session.runtime().game().is_set(gate_flag));
+        for _ in 0..32 {
+            tick(&mut gated_session, Pad::NEUTRAL);
+            assert_eq!(gated_session.runtime().tile_art_frame(), 0);
+        }
     }
 }

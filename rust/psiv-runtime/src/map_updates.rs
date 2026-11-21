@@ -41,6 +41,9 @@ pub struct MapUpdateView {
     pub vertical_scroll: bool,
     /// Live Random_Battles_Flag override, if an update writes it.
     pub random_battles: Option<bool>,
+    /// Active tile-DMA art-cycle frame (`0` = base tileset; `1..` = alternate
+    /// `art_cycle_images` frames for Garuberk Tower eyes, `#101`).
+    pub tile_art_frame: u8,
     /// Missing native inputs, surfaced rather than approximated.
     pub unsupported: Vec<UnsupportedMapUpdate>,
 }
@@ -76,6 +79,32 @@ fn writes(cram: &mut crate::cram::Cram, writes: &[PaletteWrite]) {
     for write in writes {
         cram.write(usize::from(write.slot), write.word);
     }
+}
+
+/// Retail `loc_55864` / `loc_6F91E` / `loc_6F9BC`: ping-pong `$FFFFECF2`
+/// (`counters[0]`) across `0..frame_count` using `$FFFFECF3` (`counters[1]`)
+/// as direction (`0` = up, `1` = down), holding each endpoint for one step on
+/// reversal (`1, 2, 2, 1, 0, 0, ...` starting from `(0, 0)`).
+pub(crate) fn step_tile_dma_ping_pong(counters: &mut [u8; 3], frame_count: u8) -> u8 {
+    let max = frame_count.saturating_sub(1);
+    if counters[1] == 0 {
+        let next = counters[0].wrapping_add(1);
+        if next <= max {
+            counters[0] = next;
+        } else {
+            counters[0] = max;
+            counters[1] = counters[1].wrapping_add(1) & 1;
+        }
+    } else {
+        let next = counters[0].wrapping_sub(1);
+        if (next as i8) >= 0 {
+            counters[0] = next;
+        } else {
+            counters[0] = 0;
+            counters[1] = counters[1].wrapping_add(1) & 1;
+        }
+    }
+    counters[0]
 }
 
 fn flag(bank: UpdateBank, id: u8) -> Flag {
@@ -281,7 +310,35 @@ impl Runtime {
                 UpdateProgram::Encounters { y_max } => {
                     view.random_battles = Some(y > *y_max);
                 }
+                UpdateProgram::TileDmaCycle {
+                    gates,
+                    frame_mask,
+                    frame_count,
+                } => {
+                    let active = gates
+                        .iter()
+                        .all(|g| self.game.is_set(flag(g.bank, g.flag)) == g.set);
+                    if active && self.frames & frame_mask == 0 {
+                        view.tile_art_frame =
+                            step_tile_dma_ping_pong(&mut view.counters, *frame_count);
+                    }
+                }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::step_tile_dma_ping_pong;
+
+    #[test]
+    fn ping_pong_matches_retail_endpoint_hold_sequence() {
+        let mut counters = [0u8; 3];
+        let seq: Vec<u8> = (0..12)
+            .map(|_| step_tile_dma_ping_pong(&mut counters, 3))
+            .collect();
+        assert_eq!(seq, [1, 2, 2, 1, 0, 0, 1, 2, 2, 1, 0, 0]);
+        assert_eq!(counters, [0, 0, 0]);
     }
 }

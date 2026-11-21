@@ -340,10 +340,7 @@ fn program(rom: &[u8], code: &[u8], address: usize, index: usize) -> Result<Json
             "missing",
             "live Map_Layout_FG byte buffer, conveyor chunk definitions, plane refresh/DMA",
         )),
-        0x22 => Ok(kind("unsupported").with(
-            "missing",
-            "shared RAM_Start pattern staging buffer and tile DMA",
-        )),
+        0x22 => tile_dma_cycle(code, address),
         5 | 7 | 0x0D | 0x0F | 0x10 | 0x25 => {
             let mut shifts = Vec::new();
             for at in (0..code.len().saturating_sub(1)).step_by(2) {
@@ -427,6 +424,36 @@ fn program(rom: &[u8], code: &[u8], address: usize, index: usize) -> Result<Json
         0x39 => Ok(kind("encounters").with("y_max", w(code, one(code, 0x0C40)? + 2)?)),
         _ => palette(rom, code, address, index),
     }
+}
+
+/// `MapUpdate_GaruberkTowerPart4` (`$22`, `ps4.asm:114142-114191`): ping-pong
+/// tile DMA of `$4F0` words (`$9E0` bytes, 79 tiles) from `RAM_Start` to VRAM
+/// `$4060` (tile `$203`) when the temp gates are clear and `Main_Frame_Count &
+/// frame_mask == 0`.
+fn tile_dma_cycle(code: &[u8], address: usize) -> Result<Json, PackError> {
+    let (gates, bypass) = gates(code, address)?;
+    if bypass.is_some() {
+        return refuse("tile DMA cycle has an unexpected bypass gate");
+    }
+    let frame_mask = w(code, one(code, 0x0240)? + 2)?;
+    let max_frame = w(code, one(code, 0x0C00)? + 2)?;
+    if max_frame == 0 || max_frame > 15 {
+        return refuse(format!(
+            "tile DMA cycle max frame {max_frame} out of bounds"
+        ));
+    }
+    let vram_dest = w(code, one(code, 0x323C)? + 2)?;
+    let dma_words = w(code, one(code, 0x343C)? + 2)?;
+    if vram_dest != 0x4060 || dma_words != 0x04F0 {
+        return refuse(format!(
+            "tile DMA cycle destination {vram_dest:#06x} / length {dma_words:#06x} moved"
+        ));
+    }
+    Ok(Json::object()
+        .with("kind", "tile_dma_cycle")
+        .with("gates", gates)
+        .with("frame_mask", frame_mask)
+        .with("frame_count", max_frame + 1))
 }
 
 /// The Edge's line programs read their frames from the map's own palette blob,

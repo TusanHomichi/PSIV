@@ -166,6 +166,15 @@ pub enum UpdateProgram {
         /// Disabled at and below this unsigned word.
         y_max: u16,
     },
+    /// Ping-pong tile DMA from RAM_Start staging frames (`MapUpdate_GaruberkTowerPart4`, `$22`).
+    TileDmaCycle {
+        /// Temp/event/chest gates that must all hold (`temp $15` and `temp $17` clear).
+        gates: Vec<UpdateGate>,
+        /// Execute when `Main_Frame_Count & frame_mask == 0`.
+        frame_mask: u16,
+        /// Number of staged frames in the ping-pong sequence (`3`: `0..=2`).
+        frame_count: u8,
+    },
     /// Input the runtime does not represent: a known routine whose required
     /// native buffer/subsystem is absent. The decoder reports it rather than
     /// guessing its effect.
@@ -213,6 +222,7 @@ impl MapUpdate {
                 UpdateProgram::EdgeLine { sliding, frames } => {
                     frames.len() == if *sliding { 14 } else { 28 } && writes(frames)
                 }
+                UpdateProgram::TileDmaCycle { frame_count, .. } => (2..=16).contains(frame_count),
                 UpdateProgram::Unsupported { missing } => !missing.is_empty(),
                 _ => true,
             }
@@ -258,5 +268,23 @@ mod tests {
         };
         cycles[0].phase = PalettePhase::Counter { slot: 2 };
         assert!(!entry.valid(), "absent counter negative control");
+
+        let mut dma = MapUpdate {
+            index: 0x22,
+            routine: "MapUpdate_GaruberkTowerPart4".into(),
+            address: "0x055832".into(),
+            program: UpdateProgram::TileDmaCycle {
+                gates: vec![],
+                frame_mask: 7,
+                frame_count: 3,
+            },
+        };
+        assert!(dma.valid());
+        dma.program = UpdateProgram::TileDmaCycle {
+            gates: vec![],
+            frame_mask: 7,
+            frame_count: 1,
+        };
+        assert!(!dma.valid(), "single-frame tile DMA negative control");
     }
 }

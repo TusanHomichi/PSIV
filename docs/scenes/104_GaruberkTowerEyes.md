@@ -40,9 +40,13 @@ variant decoded from the two sources and keeps every object where it stands
 (`replace_scene_map_layout`). The second eye changes nothing on Part5; its flag opens Part6 the next
 time the party enters it.
 
-`GaruberkEyeArtCycle` is a new presentation record (the eye frames' ping-pong DMA, `$9E0` bytes per
-frame, `$4F0` words to VRAM command `$4060` on even frames); Godot logs it with the other records it
-does not draw (`rust/psiv-godot/src/cutscene/ops.rs`).
+`GaruberkEyeArtCycle` is a presentation record (the eye frames' ping-pong DMA, `$9E0` bytes per
+frame, `$4F0` words to VRAM `$4060` / tile `$203` on even frames). The pack extracts the three
+staged eye frames into each affected Garuberk Tower map's `art_cycle_images` (and palette-indexed
+counterparts where `map_update_images` is active), `psiv-runtime` advances the shared `$ECF2`/`$ECF3`
+ping-pong state on even frames during `GaruberkEyeArtCycle` (and every eight frames during
+`MapUpdate_GaruberkTowerPart4`, `$22`), and `psiv-godot` swaps the map and priority-overlay textures
+from `Runtime::tile_art_frame()` (`rust/psiv-godot/src/field_map.rs`).
 
 ## In the route
 `garuberk-tower` touches both eyes: the first opens Part2's way to its far door, the second opens
