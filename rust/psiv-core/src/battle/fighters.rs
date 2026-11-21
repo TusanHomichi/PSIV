@@ -101,9 +101,12 @@ pub mod reaction {
     /// `ps4.asm:3989`, on the arms of `Character_DamageEnemy` that run when the
     /// actor's `ability(a3)` is nonzero — a technique, skill, item or combo.
     pub const MAGIC: u8 = 1 << 1;
-    /// Bit 2 — hit by a technique or a combo: `bset #2, $2A(a4)` at
-    /// `ps4.asm:4025` (`loc_281E`, the technique arm) and `ps4.asm:8817` (the
-    /// combo path). A plain *skill* sets bit 1 only.
+    /// Bit 2 — hit by a technique, or a damage combo containing at least one
+    /// technique participant: `bset #2, $2A(a4)` at `ps4.asm:4025` (`loc_281E`,
+    /// the technique arm) and `ps4.asm:4077` (`loc_28B4`, reached only when a
+    /// combo participant has `cmd == 2`, `0x00287C: 0C1D 0002 672E` →
+    /// `0x0028B4: 08EC 0002 002A`; `ps4.asm:8817` sits inside the same
+    /// `cmd == 2` branch). A plain skill or skill-only combo sets bit 1 only.
     pub const TECHNIQUE: u8 = 1 << 2;
     /// Bit 3 — this battle opened with an ambush: `bset #3, $2A(a0)` for every
     /// enemy slot in `loc_B62A`'s tail (`ps4.asm:17456-17463`), which runs once,

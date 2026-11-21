@@ -604,4 +604,10 @@ fn combo_aborts_if_participant_lacks_tp_is_unarmed_or_separated_by_enemy() {
         })
         .collect();
     assert_eq!(hits, vec![id(7)]);
+    // Skill-only combo (PARADINBLW) sets MAGIC without TECHNIQUE (`loc_2872`
+    // only executes `bset #2, $2A(a4)` at `loc_28B4` for `cmd == 2` tech
+    // participants, `ps4.asm:4057-4077`).
+    let flags = b4.roster().get(id(7)).unwrap().reaction_flags;
+    assert_ne!(flags & crate::battle::fighters::reaction::MAGIC, 0);
+    assert_eq!(flags & crate::battle::fighters::reaction::TECHNIQUE, 0);
 }
