@@ -2,7 +2,7 @@
 
 | Event | Retail bytes | Pointer | Data |
 |---|---|---|---|
-| `$0094` `Event_StrippersAppearing` | `$073440..$0735ED` inclusive, 430 bytes | `EventPtrs[$94]` at `$05A2B4 + $250` | `strip_club.rs`, `STRIPPERS_APPEARING` (33 ops) |
+| `$0094` `Event_StrippersAppearing` | `$073440..$0735ED` inclusive, 430 bytes | `EventPtrs[$94]` at `$05A2B4 + $250` | `strip_club.rs`, `STRIPPERS_APPEARING` (36 ops) |
 | `$0095` `Event_ExitingStripClub` | `$0735EE..$0735F5` inclusive, 8 bytes | `EventPtrs[$95]` at `$05A2B4 + $254` | `strip_club.rs`, `EXITING_STRIP_CLUB` (1 op) |
 
 - **Triggers:** map trigger `$79` on `StripClub` (`$05A`), `RunEvent_StrippersDance`
@@ -43,17 +43,17 @@ empty until it does. `DoMapUpdateLoop(n)` and `DoMainUpdatesLoop(n)` are `Wait(n
 | 9-10 | `$0734CE..$0734ED` | `dest` (`$38`/`$3A`) of object 2 := (`$200,$1F0`), object 3 := (`$240,$1F0`) | `WalkObject` x 2 |
 | 11-12 | `$0734EE..$0734FF` | `Event_MoveObjectStatic` on object 1 to (`$220,$210`) | `WalkObject`, `Wait(160)` |
 | 13 | `$073500..$073507` | `DoMapUpdateLoop($3B)` | `Wait(60)` |
-| - | `$073508..$073519` | `facing_dir := $10` on objects 1 to 3 | (renderer state, not typed) |
-| 14-19 | `$07351A..$07354D` | objects 5 to 7 (`$C440`, `$C480`, `$C4C0`): routine `$348` at (`$210,$210`), (`$1F0,$1F0`), (`$230,$1F0`) | `CreateFieldObject`, `DriftObject` x 3 |
-| 20-21 | `$07354E..$07356B` | the five-call rebuild | `RebuildSprites`, `WaitFrames(1)` |
-| 22 | `$07356C..$073573` | `DoMainUpdatesLoop($59)` | `Wait(90)` |
-| 23 | `$073574..$073583` | `clr.w` the routine words of `$C400`, `$C440`, `$C480` | `DespawnNpc` 4, three objects |
-| 24 | `$073584..$073599` | `NemDecomp` of `$14A1CC` to tile `$372` | `LoadArt` |
-| 25 | `$07359A..$0735AD` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `PanCamera` the leader |
-| 26 | `$0735AE..$0735B5` | `Field_Obj_Secondary` routine := `$34C` | `SetObjectRoutine` object 0 |
-| 27-29 | `$0735B6..$0735C7` | objects 1 to 3 routines := `$35C`, `$360`, `$364` | `CreateFieldObject` x 3 at the spots they walked to |
-| 30-31 | `$0735C8..$0735E5` | the five-call rebuild | `RebuildSprites`, `WaitFrames(1)` |
-| 32 | `$0735E6..$0735ED` | `moveq #TempEveFlag_StrippersDance, d0` / `jmp TempEveFlags_Set` | `SetFlag` temp `$1B` |
+| 14-16 | `$073508..$073519` | `facing_dir := $10` on objects 1 to 3 | `SetObjectFacingWord` x 3 |
+| 17-22 | `$07351A..$07354D` | objects 5 to 7 (`$C440`, `$C480`, `$C4C0`): routine `$348` at (`$210,$210`), (`$1F0,$1F0`), (`$230,$1F0`) | `CreateFieldObject`, `DriftObject` x 3 |
+| 23-24 | `$07354E..$07356B` | the five-call rebuild | `RebuildSprites`, `WaitFrames(1)` |
+| 25 | `$07356C..$073573` | `DoMainUpdatesLoop($59)` | `Wait(90)` |
+| 26 | `$073574..$073583` | `clr.w` the routine words of `$C400`, `$C440`, `$C480` | `DespawnNpc` 4, three objects |
+| 27 | `$073584..$073599` | `NemDecomp` of `$14A1CC` to tile `$372` | `LoadArt` |
+| 28 | `$07359A..$0735AD` | `Event_MoveCamera` to `Character_1`'s `$30/$34`, speed 1 | `PanCamera` the leader |
+| 29 | `$0735AE..$0735B5` | `Field_Obj_Secondary` routine := `$34C` | `SetObjectRoutine` object 0 |
+| 30-32 | `$0735B6..$0735C7` | objects 1 to 3 routines := `$35C`, `$360`, `$364` | `CreateFieldObject` x 3 at the spots they walked to |
+| 33-34 | `$0735C8..$0735E5` | the five-call rebuild | `RebuildSprites`, `WaitFrames(1)` |
+| 35 | `$0735E6..$0735ED` | `moveq #TempEveFlag_StrippersDance, d0` / `jmp TempEveFlags_Set` | `SetFlag` temp `$1B` |
 
 **The pans.** `Event_MoveCamera` (`ps4.asm:121468`) returns on arrival: X in its own loop, then
 Y, a pixel a frame at speed 1, with map updates and the objects running and the pad cleared. A

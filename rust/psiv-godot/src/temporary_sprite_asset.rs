@@ -38,6 +38,10 @@ impl TemporarySpriteAsset {
         mapping_frame(&self.sequences, sequence, mapping)
     }
 
+    pub(crate) fn has_sequence(&self, sequence: &str) -> bool {
+        self.sequences.contains_key(sequence)
+    }
+
     pub(crate) fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
         let Some((frames, total)) = self.sequences.get(sequence) else {
             return 0;

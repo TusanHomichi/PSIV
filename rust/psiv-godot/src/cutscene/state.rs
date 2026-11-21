@@ -41,6 +41,10 @@ pub(crate) struct TemporaryObject {
     motion: Option<ObjectMotion>,
     /// The walk's target, and whether it closes the Y gap first.
     walk: Option<(i32, i32, bool)>,
+    /// Current facing while a scripted walk is moving the object.
+    pub(crate) walk_dir: Option<psiv_core::Direction>,
+    /// Raw retail `facing_dir` word written by `SetObjectFacingWord` (e.g. `$10`).
+    pub(crate) facing_word: Option<u16>,
 }
 
 /// The normal step, `$0200` in 16.16: two pixels a frame.
@@ -56,9 +60,11 @@ struct ObjectMotion {
 impl PresentationState {
     pub(crate) fn reset_scene(&mut self) {
         self.vram_blanked = false;
-        self.temporary_objects.clear();
+        // Persistent scene-created field objects (e.g. StripClub dancers and
+        // third flying coat) and VRAM LoadArt uploads survive scene end on the
+        // cartridge until `reload_field_objects` runs on map change or title.
+        self.temporary_objects.retain(|_, object| object.persistent);
         self.hidden_characters.clear();
-        self.loaded_art.clear();
         self.current_dialogue_tree = None;
         self.scene_music_retained = false;
     }
@@ -176,8 +182,16 @@ impl PresentationState {
                 persistent: false,
                 motion: None,
                 walk: None,
+                walk_dir: None,
+                facing_word: None,
             },
         );
+    }
+
+    pub(super) fn set_object_facing_word(&mut self, slot: usize, word: u16) {
+        if let Some(object) = self.temporary_objects.get_mut(&slot) {
+            object.facing_word = Some(word);
+        }
     }
 
     pub(super) fn object_destination(&mut self, slot: usize, x: i32, y: i32) {
@@ -227,6 +241,7 @@ impl PresentationState {
 
     pub(crate) fn reload_field_objects(&mut self) {
         self.temporary_objects.clear();
+        self.loaded_art.clear();
     }
 
     pub(super) fn advance_objects(&mut self) {
@@ -249,13 +264,26 @@ impl PresentationState {
                 let toward =
                     |from: i32, to: i32| from + (to - from).clamp(-WALK_PIXELS, WALK_PIXELS);
                 let y_now = if y_first { y != ty } else { x == tx };
-                object.destination = Some(if y_now {
+                let (nx, ny) = if y_now {
                     (x, toward(y, ty))
                 } else {
                     (toward(x, tx), y)
-                });
+                };
+                object.walk_dir = if nx < x {
+                    Some(psiv_core::Direction::Left)
+                } else if nx > x {
+                    Some(psiv_core::Direction::Right)
+                } else if ny < y {
+                    Some(psiv_core::Direction::Up)
+                } else if ny > y {
+                    Some(psiv_core::Direction::Down)
+                } else {
+                    object.walk_dir
+                };
+                object.destination = Some((nx, ny));
                 if object.destination == Some((tx, ty)) {
                     object.walk = None;
+                    object.walk_dir = None;
                 }
             }
             object.elapsed += 1;
@@ -485,5 +513,28 @@ mod tests {
             state.temporary_objects[&10].destination,
             Some((0x312, 0x210))
         );
+    }
+
+    #[test]
+    fn reset_scene_retains_persistent_field_objects_and_loaded_art_until_reload() {
+        let mut state = PresentationState::default();
+        state.load_art(0x14A1CC, 0x372);
+        state.object_animation(4, 0x214, 0x179, 20);
+        state.create_field_object(1, 0x35C, 0x3BA, 0x220, 0x210);
+        state.set_object_facing_word(1, 0x10);
+        assert_eq!(state.temporary_objects[&1].facing_word, Some(0x10));
+
+        state.reset_scene();
+        assert!(!state.temporary_objects.contains_key(&4));
+        assert!(state.temporary_objects.contains_key(&1));
+        assert!(state.art_loaded(0x14A1CC, 0x372));
+
+        // Replacing the routine clears any earlier facing_word override.
+        state.create_field_object(1, 0x35C, 0x3BA, 0x220, 0x210);
+        assert_eq!(state.temporary_objects[&1].facing_word, None);
+
+        state.reload_field_objects();
+        assert!(state.temporary_objects.is_empty());
+        assert!(!state.art_loaded(0x14A1CC, 0x372));
     }
 }

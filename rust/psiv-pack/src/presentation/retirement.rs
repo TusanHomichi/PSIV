@@ -183,6 +183,7 @@ fn expected_loads() -> BTreeSet<(usize, usize)> {
         (0x12951A, 0x3A5),
         (0x1289FA, 0x4A5),
         (0x1D712C, 0x3AF),
+        (0x14A1CC, 0x372),
     ]
     .into()
 }
@@ -190,6 +191,7 @@ fn expected_objects() -> BTreeSet<(usize, usize)> {
     [
         (0x18, 0x26A),
         (0x18, 0x55C),
+        (0x194, 0x202),
         (0x194, 0x4A5),
         (0x214, 0x179),
         (0x218, 0x191),
@@ -198,12 +200,18 @@ fn expected_objects() -> BTreeSet<(usize, usize)> {
         (0x188, 0x3A5),
         (0x1FC, 0x2E6),
         (0x338, 0x3AF),
+        (0x344, 0x3BA),
+        (0x348, 0x3BA),
+        (0x34C, 0x372),
+        (0x35C, 0x3BA),
+        (0x360, 0x3BA),
+        (0x364, 0x3BA),
     ]
     .into()
 }
 fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), String> {
     if m["coverage"]
-        != json!({"panel_records":panel_ids().len(),"load_art_records":8,"temporary_object_keys":10,"generic_portraits":1,"scene_pictures":1})
+        != json!({"panel_records":panel_ids().len(),"load_art_records":9,"temporary_object_keys":17,"generic_portraits":1,"scene_pictures":1})
     {
         return Err("coverage".into());
     }
@@ -211,14 +219,14 @@ fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), Str
         .iter()
         .map(|r| (hex(&r["source_rom_addr"]), hex(&r["destination_tile"])))
         .collect();
-    if loads != expected_loads() || array(&m["load_art"]).len() != 8 {
+    if loads != expected_loads() || array(&m["load_art"]).len() != 9 {
         return Err("load art identities".into());
     }
     let objects: BTreeSet<_> = array(&m["temporary_objects"])
         .iter()
         .map(|r| (num(&r["object_id"]), num(&r["art_tile"])))
         .collect();
-    if objects != expected_objects() || array(&m["temporary_objects"]).len() != 10 {
+    if objects != expected_objects() || array(&m["temporary_objects"]).len() != 17 {
         return Err("temporary object identities".into());
     }
     for section in [
@@ -275,7 +283,11 @@ fn opening_scene_pictures_load_art_objects_and_portrait_are_additive() {
     assert_eq!(object(0x214, 0x179)["playback_sequence"], "walk_down");
     assert_eq!(object(0x218, 0x191)["playback_sequence"], "walk_up");
     assert_eq!(object(0x218, 0x191)["playback_once"], true);
-    for (id, tile, at, words) in [(0x218, 0x191, 0x1DE0B8, 16), (0x188, 0x3A5, 0x52848, 14)] {
+    for (id, tile, at, words) in [
+        (0x218, 0x191, 0x1DE0B8, 16),
+        (0x188, 0x3A5, 0x52848, 14),
+        (0x194, 0x202, 0x730FC, 16),
+    ] {
         let colors =
             gfx::palette_rgb(&gfx::decode_palette(&e.rom.bytes()[at..at + words * 2]).unwrap());
         assert_eq!(
@@ -284,9 +296,33 @@ fn opening_scene_pictures_load_art_objects_and_portrait_are_additive() {
         );
     }
     assert_eq!(object(0x188, 0x3A5)["playback_sequence"], "walk_down");
-    for tile in [0x26A, 0x55C] {
-        assert_eq!(object(0x18, tile)["render_status"], "exact");
+    for (id, tile) in [
+        (0x18, 0x26A),
+        (0x18, 0x55C),
+        (0x194, 0x202),
+        (0x344, 0x3BA),
+        (0x348, 0x3BA),
+        (0x34C, 0x372),
+        (0x35C, 0x3BA),
+        (0x360, 0x3BA),
+        (0x364, 0x3BA),
+    ] {
+        assert_eq!(object(id, tile)["render_status"], "exact");
     }
+    assert!(
+        object(0x344, 0x3BA)["sequences"]
+            .as_object()
+            .unwrap()
+            .contains_key("walk_facing_0x10"),
+        "Stripper $344 must include facing_dir $10 sequence"
+    );
+    assert!(
+        object(0x34C, 0x372)["sequences"]
+            .as_object()
+            .unwrap()
+            .contains_key("idle_up"),
+        "StripClubCustomer $34C must include up/down facing sequences"
+    );
     assert_eq!(
         object(0x1FC, 0x2E6)["render_status"],
         "partial_transparent_holes"

@@ -165,10 +165,22 @@ pub(crate) fn table_sequences(
     table: usize,
     facings: usize,
 ) -> Result<Vec<(String, usize)>, PackError> {
+    // `FieldObj_StripClubCustomer` (`$34C`, `loc_4C3C4`, `ps4.asm:100182`) has
+    // only two facing pointers (down and up) before `loc_4C3CC` sequence data.
+    let facings = if table == 0x04C3C4 {
+        facings.min(2)
+    } else {
+        facings
+    };
     let mut selectors = FACINGS[..facings].to_vec();
     // Grave scene $06FD0E/$06FD50 selects two additional sequence pointers.
     if table == 0x04DF1C {
         selectors.extend([(0x10, "facing_0x10"), (0x14, "facing_0x14")]);
+    }
+    // Event_StrippersAppearing ($073508) writes facing_dir := $10 on the
+    // three strippers (`loc_4C3A0` + $10 = `loc_4CA1E`) before the coats drop.
+    if table == 0x04C3A0 {
+        selectors.push((0x10, "facing_0x10"));
     }
     selectors
         .iter()
