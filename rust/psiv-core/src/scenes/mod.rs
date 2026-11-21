@@ -404,5 +404,41 @@ pub fn scene_for(event: EventIndex) -> Option<&'static Scene> {
     SCENES.iter().find(|scene| scene.event == event)
 }
 
+/// Every distinct [`SceneOp::PanelCreate`] id referenced by `scenes`, sorted in
+/// ascending order.
+#[must_use]
+pub fn panel_create_ids(scenes: &[Scene]) -> Vec<u16> {
+    let mut ids: Vec<u16> = scenes
+        .iter()
+        .flat_map(|scene| scene.ops.iter())
+        .filter_map(|op| match op {
+            SceneOp::PanelCreate { id } => Some(*id),
+            _ => None,
+        })
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+/// Every `(scene_name, panel_id)` pair for each [`SceneOp::PanelCreate`] in
+/// `scenes` whose `panel_id` is absent from `decoded`.
+#[must_use]
+pub fn missing_panel_ids(scenes: &[Scene], decoded: &[u16]) -> Vec<(&'static str, u16)> {
+    let mut missing = Vec::new();
+    for scene in scenes {
+        for op in scene.ops {
+            if let SceneOp::PanelCreate { id } = op
+                && !decoded.contains(id)
+            {
+                missing.push((scene.name, *id));
+            }
+        }
+    }
+    missing.sort_unstable();
+    missing.dedup();
+    missing
+}
+
 #[cfg(test)]
 mod tests;

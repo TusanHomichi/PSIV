@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 flate2 = "1"
+psiv-core = { path = "../psiv-core" }
 psiv-data = { path = "../psiv-data" }
 serde.workspace = true
 serde_json.workspace = true
@@ -22,6 +23,3 @@ sha2 = "0.11"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[dev-dependencies]
-psiv-core = { path = "../psiv-core" }

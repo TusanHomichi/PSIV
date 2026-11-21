@@ -133,6 +133,8 @@ class ScratchCase(unittest.TestCase):
         for crate in ("psiv-pack", "psiv-data", "psiv-core"):
             (self.main / "rust" / crate).mkdir(parents=True)
             (self.main / "rust" / crate / "lib.rs").write_text("// 1\n")
+        (self.main / "rust" / "psiv-runtime" / "src").mkdir(parents=True)
+        (self.main / "rust" / "psiv-runtime" / "src" / "lib.rs").write_text("// 1\n")
         (self.main / "rust" / "Cargo.toml").write_text("[workspace]\n")
         (self.main / "rust" / "Cargo.lock").write_text("# lock\n")
         (self.main / "oracle" / "fixtures" / "battle_animation_art").mkdir(parents=True)
@@ -196,8 +198,8 @@ class SharedCacheCase(ScratchCase):
         self.assertEqual(builds.builder(new, "runtime-pack"), "old")
 
     def test_a_change_to_what_psiv_pack_is_built_from_builds_only_the_pack(self):
-        for relative in ("rust/psiv-pack/lib.rs", "rust/psiv-data/lib.rs", "rust/Cargo.lock",
-                         "rust/Cargo.toml"):
+        for relative in ("rust/psiv-pack/lib.rs", "rust/psiv-data/lib.rs",
+                         "rust/psiv-core/lib.rs", "rust/Cargo.lock", "rust/Cargo.toml"):
             with self.subTest(relative=relative):
                 builds = Builds()
                 old = self.worktree(f"old-{relative.replace('/', '-')}")
@@ -214,7 +216,7 @@ class SharedCacheCase(ScratchCase):
         builds = Builds()
         old = self.worktree("old")
         link(old, build=builds)
-        self.commit("rust/psiv-core/lib.rs", "// 2\n")
+        self.commit("rust/psiv-runtime/src/lib.rs", "// 2\n")
         new = self.worktree("new")
         link(new, build=builds)
         self.assertEqual(builds.names(), ["generated", "runtime-pack"])
@@ -291,7 +293,7 @@ class RefusalCase(ScratchCase):
     def test_negative_control_changes_elsewhere_are_not(self):
         worktree = self.worktree("elsewhere")
         (worktree / "README.md").write_text("edited\n")
-        (worktree / "rust" / "psiv-core" / "lib.rs").write_text("// edited\n")
+        (worktree / "rust" / "psiv-runtime" / "src" / "lib.rs").write_text("// edited\n")
         link(worktree, build=Builds())
         self.assertTrue((worktree / "generated").is_symlink())
 
@@ -507,7 +509,8 @@ class SnapshotCase(ScratchCase):
             "generated": {"extractor": "EXTRACTOR = 1\n", "workspace": []},
             # all of rust/, not just what keys it, so the workspace loads
             "runtime-pack": {"extractor": "// 1\n", "workspace": [
-                "Cargo.lock", "Cargo.toml", "psiv-core", "psiv-data", "psiv-pack"]},
+                "Cargo.lock", "Cargo.toml", "psiv-core", "psiv-data", "psiv-pack",
+                "psiv-runtime"]},
         }
         for name in ("generated", "runtime-pack"):
             with self.subTest(name=name):
@@ -643,12 +646,16 @@ class CargoTargetCase(unittest.TestCase):
         self.root = Path(scratch.name)
         repo = self.root / "repo"
         rust = repo / "rust"
+        (rust / "psiv-core" / "src").mkdir(parents=True)
         (rust / "psiv-data" / "src").mkdir(parents=True)
         (rust / "psiv-pack" / "src").mkdir(parents=True)
         (repo / "oracle" / "fixtures").mkdir(parents=True)
         (repo / "oracle" / "fixtures" / "receipt.json").write_text("{}\n")
         (rust / "Cargo.toml").write_text(
-            '[workspace]\nmembers = ["psiv-data", "psiv-pack"]\nresolver = "2"\n')
+            '[workspace]\nmembers = ["psiv-core", "psiv-data", "psiv-pack"]\nresolver = "2"\n')
+        (rust / "psiv-core" / "Cargo.toml").write_text(
+            '[package]\nname = "psiv-core"\nversion = "0.1.0"\nedition = "2021"\n')
+        (rust / "psiv-core" / "src" / "lib.rs").write_text("pub const CORE: u8 = 1;\n")
         (rust / "psiv-data" / "Cargo.toml").write_text(
             '[package]\nname = "psiv-data"\nversion = "0.1.0"\nedition = "2021"\n')
         (rust / "psiv-pack" / "Cargo.toml").write_text(
@@ -721,12 +728,62 @@ class EmbedCase(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
     INCLUDE = r'include_(?:str|bytes)!\(\s*"([^"]+)"'
 
+    def _strip_cfg_test(self, text):
+        """Return only non-`#[cfg(test)]` Rust source lines."""
+        import re
+        lines = text.splitlines()
+        out = []
+        i = 0
+        while i < len(lines):
+            if re.match(r"^\s*#\[cfg\(test\)\]\s*$", lines[i]):
+                i += 1
+                while i < len(lines) and re.match(r"^\s*(#\[|//|$)", lines[i]):
+                    i += 1
+                if i < len(lines):
+                    if lines[i].rstrip().endswith(";"):
+                        i += 1
+                    else:
+                        depth = lines[i].count("{") - lines[i].count("}")
+                        i += 1
+                        while i < len(lines) and depth > 0:
+                            depth += lines[i].count("{") - lines[i].count("}")
+                            i += 1
+                continue
+            out.append(lines[i])
+            i += 1
+        return "\n".join(out)
+
+    def _production_files(self, crate_dir):
+        """Walk non-`#[cfg(test)]` module files reachable from src/lib.rs and src/main.rs."""
+        import re
+        src = crate_dir / "src"
+        queue = [p for p in (src / "lib.rs", src / "main.rs") if p.is_file()]
+        seen = set()
+        result = []
+        mod_re = re.compile(
+            r'(?:#\[path\s*=\s*"([^"]+)"\]\s*)?(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z0-9_]+)\s*;')
+        while queue:
+            path = queue.pop(0)
+            if path in seen or not path.is_file():
+                continue
+            seen.add(path)
+            text = self._strip_cfg_test(path.read_text(encoding="utf-8"))
+            result.append((path, text))
+            base = path.parent if path.name in ("lib.rs", "main.rs", "mod.rs") else path.with_suffix("")
+            for explicit, name in mod_re.findall(text):
+                if explicit:
+                    queue.append(path.parent / explicit)
+                else:
+                    cand = base / f"{name}.rs"
+                    queue.append(cand if cand.is_file() else base / name / "mod.rs")
+        return result
+
     def outside(self, root, crates, keyed):
         import re
         found = []
         for crate in crates:
-            for path in sorted((root / crate).rglob("*.rs")):
-                for target in re.findall(self.INCLUDE, path.read_text(encoding="utf-8")):
+            for path, text in self._production_files(root / crate):
+                for target in re.findall(self.INCLUDE, text):
                     resolved = (path.parent / target).resolve()
                     relative = resolved.relative_to(root.resolve()).as_posix()
                     if not any(relative == key or relative.startswith(key + "/")
@@ -738,7 +795,7 @@ class EmbedCase(unittest.TestCase):
         pack = next(entry for entry in ENTRIES if entry.name == "runtime-pack")
         crates = [tree for tree in pack.trees
                   if tree.startswith("rust/") and not tree.endswith((".toml", ".lock"))]
-        self.assertEqual(crates, ["rust/psiv-data", "rust/psiv-pack"])
+        self.assertEqual(crates, ["rust/psiv-core", "rust/psiv-data", "rust/psiv-pack"])
         self.assertEqual(self.outside(self.ROOT, crates, pack.trees), [])
 
     def test_negative_control_an_unkeyed_embed_is_named(self):
@@ -749,7 +806,9 @@ class EmbedCase(unittest.TestCase):
             (root / "docs" / "a.md").write_text("x\n")
             (root / "rust" / "psiv-pack" / "src" / "lib.rs").write_text(
                 'const A: &str = include_str!("../../../docs/a.md");\n'
-                'const B: &[u8] = include_bytes!(\n    "lib.rs");\n')
+                'const B: &[u8] = include_bytes!(\n    "lib.rs");\n'
+                '#[cfg(test)]\nmod tests {\n'
+                '    const T: &str = include_str!("../../../docs/a.md");\n}\n')
             self.assertEqual(self.outside(root, ["rust/psiv-pack"], ["rust/psiv-pack"]),
                              ["rust/psiv-pack/src/lib.rs: ../../../docs/a.md"])
 

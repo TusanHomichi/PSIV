@@ -167,7 +167,8 @@ pub use scenes::{
     DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,
     SCENES, SPACEPORT_MAPS, WORLD_AIR_CASTLE, WORLD_COUNT, WORLD_DEZOLIS, WORLD_KURAN,
     WORLD_MOTAVIA, WORLD_RYKROS, WORLD_ZELAN, destination_mask_byte, destination_worlds,
-    field_reload_is_proxy, field_reload_rows, flight_target, scene_for,
+    field_reload_is_proxy, field_reload_rows, flight_target, missing_panel_ids, panel_create_ids,
+    scene_for,
 };
 pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS};
 pub use state::{

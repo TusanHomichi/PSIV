@@ -65,11 +65,21 @@ fn image<'a>(e: &'a Emission, record: &Value) -> png::Image<'a> {
 
 fn check_panels(rom: &[u8], m: &Value) -> Result<(), String> {
     let records = array(&m["panels"]);
-    if records.len() != 231 {
+    let expected = panel_ids();
+    let ids_vec: Vec<u16> = records.iter().map(|r| num(&r["id"]) as u16).collect();
+    let missing = psiv_core::missing_panel_ids(psiv_core::SCENES, &ids_vec);
+    if !missing.is_empty() {
+        let details: Vec<String> = missing
+            .into_iter()
+            .map(|(scene, id)| format!("{scene}:0x{id:X}"))
+            .collect();
+        return Err(format!("missing registry panels: {}", details.join(", ")));
+    }
+    if records.len() != expected.len() {
         return Err("panel count".into());
     }
-    let ids: BTreeSet<_> = records.iter().map(|r| num(&r["id"]) as u16).collect();
-    if ids != panel_ids().into_iter().collect() || ids.len() != records.len() {
+    let ids: BTreeSet<_> = ids_vec.into_iter().collect();
+    if ids != expected.into_iter().collect() || ids.len() != records.len() {
         return Err("panel identities".into());
     }
     for r in records {
@@ -149,6 +159,18 @@ fn all_panel_records_keep_retail_layout_both_planes_and_generated_files() {
         check_panels(e.rom.bytes(), &bad).unwrap_err(),
         "panel layout"
     );
+    // Negative control (#413): dropping a registry-referenced panel fails with
+    // the offending scene name and panel id.
+    let mut dropped = m.clone();
+    dropped["panels"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|p| p["id"] != 0x10D);
+    let err = check_panels(e.rom.bytes(), &dropped).unwrap_err();
+    assert!(
+        err.contains("missing registry panels") && err.contains("0x10D"),
+        "{err}"
+    );
 }
 
 fn expected_loads() -> BTreeSet<(usize, usize)> {
@@ -181,7 +203,7 @@ fn expected_objects() -> BTreeSet<(usize, usize)> {
 }
 fn check_records(m: &Value, files: &BTreeMap<String, Vec<u8>>) -> Result<(), String> {
     if m["coverage"]
-        != json!({"panel_records":231,"load_art_records":8,"temporary_object_keys":10,"generic_portraits":1,"scene_pictures":1})
+        != json!({"panel_records":panel_ids().len(),"load_art_records":8,"temporary_object_keys":10,"generic_portraits":1,"scene_pictures":1})
     {
         return Err("coverage".into());
     }
