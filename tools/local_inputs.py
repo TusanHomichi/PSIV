@@ -14,7 +14,7 @@ main checkout's `build/inputs/`, keyed by what builds them:
 * `generated-<key>`: the Git tree of `psiv_tools/` and the ROM's SHA-256, built
   with `python3 -m psiv_tools regenerate`.
 * `runtime-pack-<key>`: what `psiv-pack` is built from (`rust/Cargo.toml`,
-  `rust/Cargo.lock`, `rust/psiv-data/`, `rust/psiv-pack/`, and
+  `rust/Cargo.lock`, `rust/psiv-core/`, `rust/psiv-data/`, `rust/psiv-pack/`, and
   `oracle/fixtures/`, which it embeds a receipt from) and the ROM's SHA-256,
   built with `cargo run --release -p psiv-pack -- ROM OUT`. Its snapshot holds
   all of `rust/` at that commit, so the workspace loads, and its key only what
@@ -161,8 +161,8 @@ ENTRIES = (
     Entry("generated", ("psiv_tools",), "python",
           ("python3", "-m", "psiv_tools", "regenerate", "{rom}", "{output}")),
     Entry("runtime-pack",
-          ("oracle/fixtures", "rust/Cargo.lock", "rust/Cargo.toml", "rust/psiv-data",
-           "rust/psiv-pack"),
+          ("oracle/fixtures", "rust/Cargo.lock", "rust/Cargo.toml", "rust/psiv-core",
+           "rust/psiv-data", "rust/psiv-pack"),
           "build",
           ("cargo", "run", "--release", "--locked", "--quiet", "--manifest-path",
            "rust/Cargo.toml", "-p", "psiv-pack", "--", "{rom}", "{output}"),

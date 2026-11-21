@@ -53,17 +53,6 @@ const DIALOGUE_ACTION_PANEL_IDS: [u16; 163] = [
     0x180, 0x181, 0x183, 0x184, 0x185, 0x186, 0x18D,
 ];
 
-/// `ENDING_PANEL_IDS`: `Cutscene_Ending`'s whole panel stream.
-const ENDING_PANEL_IDS: [u16; 50] = [
-    0x147, 0x148, 0x149, 0x14A, 0x14B, 0x14C, 0x14D, 0x14E, 0x14F, 0x150, 0x151, 0x152, 0x153,
-    0x154, 0x155, 0x156, 0x157, 0x158, 0x159, 0x15A, 0x15D, 0x15F, 0x160, 0x161, 0x162, 0x163,
-    0x164, 0x165, 0x166, 0x167, 0x168, 0x169, 0x16A, 0x16B, 0x16C, 0x16D, 0x16E, 0x16F, 0x170,
-    0x171, 0x173, 0x175, 0x177, 0x179, 0x17C, 0x17E, 0x182, 0x187, 0x188, 0x189,
-];
-
-/// The transcribed story scenes' own panels.
-const SCENE_PANEL_IDS: [u16; 9] = [0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C, 0x18B, 0x18F, 0x190];
-
 /// The opening narration's art, mapping and palette.
 const OPENING_ART: usize = 0x1C_F1F2;
 const OPENING_MAPPING: usize = 0x1D_25BE;
@@ -129,12 +118,13 @@ fn hex6(value: usize) -> String {
     format!("0x{value:06X}")
 }
 
-/// `PANEL_IDS`: sorted and distinct.
+/// Every panel id decoded into the presentation pack, sorted and distinct:
+/// dialogue `$F2 LoadPanel` actions plus every `SceneOp::PanelCreate` in the
+/// scene registry (`psiv_core::SCENES`, #413).
 pub fn panel_ids() -> Vec<u16> {
-    let mut ids: Vec<u16> = (0x1A..0x23)
-        .chain(SCENE_PANEL_IDS)
-        .chain(DIALOGUE_ACTION_PANEL_IDS)
-        .chain(ENDING_PANEL_IDS)
+    let mut ids: Vec<u16> = DIALOGUE_ACTION_PANEL_IDS
+        .into_iter()
+        .chain(psiv_core::panel_create_ids(psiv_core::SCENES))
         .collect();
     ids.sort_unstable();
     ids.dedup();
@@ -558,14 +548,38 @@ mod tests {
     fn panel_ids_are_sorted_distinct_and_banked() {
         let ids = panel_ids();
         assert!(ids.windows(2).all(|w| w[0] < w[1]));
-        assert_eq!(ids.len(), 231);
-        assert!([0x18B, 0x18F, 0x190].iter().all(|id| ids.contains(id)));
+        assert_eq!(ids.len(), 310);
+        assert!(
+            [0x40, 0x73, 0x10D, 0x129, 0x18B, 0x18F, 0x190]
+                .iter()
+                .all(|id| ids.contains(id))
+        );
         assert_eq!(
             panel_record_offset(0x41).unwrap(),
             0x09F940 + PANEL_RECORD_SIZE
         );
         assert!(panel_record_offset(0xC0).unwrap_err().0.contains("Part4"));
         assert!(panel_record_offset(0x1C0).is_err());
+    }
+
+    #[test]
+    fn every_registry_panel_create_id_is_covered_and_missing_ids_are_reported() {
+        let decoded = panel_ids();
+        assert_eq!(
+            psiv_core::missing_panel_ids(psiv_core::SCENES, &decoded),
+            Vec::<(&str, u16)>::new()
+        );
+        // Negative control: a scene referencing an undecoded panel id is reported
+        // with its scene name and id.
+        let synthetic = [psiv_core::Scene {
+            event: psiv_core::EventIndex(0x00FF),
+            name: "Synthetic_MissingPanel",
+            ops: &[psiv_core::SceneOp::PanelCreate { id: 0x01BF }],
+        }];
+        assert_eq!(
+            psiv_core::missing_panel_ids(&synthetic, &decoded),
+            vec![("Synthetic_MissingPanel", 0x01BF)]
+        );
     }
 
     #[test]

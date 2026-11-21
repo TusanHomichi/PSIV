@@ -481,10 +481,9 @@ The rebuilt pack reports this exact census in
 
 | Surface | Count | Result |
 |---|---:|---|
-| scene-owned panel records | 18 | exact decoded scene records |
+| scene-registry `PanelCreate` ids | 147 | derived directly from `psiv_core::scenes::SCENES` ([#413](https://github.com/TusanHomichi/PSIV/issues/413)) |
 | dialogue action panel records | 163 | every distinct `$F2 LoadPanel` id, including `$30` |
-| ending-only panel records | 50 | `$8021` post-battle story sequence |
-| total panel records | 231 | all PNGs present in the runtime manifest |
+| total panel records | 310 | sorted distinct union of dialogue and scene-registry panels, all PNGs present in the runtime manifest |
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
@@ -506,12 +505,13 @@ power-on-to-first-control schedule for `Event_GameStart ($9F)`. Its captures
 are in `oracle/frames/opening/`; the frame-4000 state is
 `oracle/states/opening/frame_4000.json`.
 
-The pack decoder asserts all 231 panel records (18 scene-owned, 163
-dialogue-action records and 50 ending-only records), all 7 `LoadArt` source /
-destination pairs, the 6 temporary-object keys, the generic portrait's art /
+The pack decoder asserts all 310 panel records (the distinct union of the 163
+dialogue-action `$F2 LoadPanel` records and the 147 `SceneOp::PanelCreate` records
+in `psiv_core::scenes::SCENES`, with a missing-id negative control in
+`rust/psiv-pack/src/presentation/retirement.rs`), all 8 `LoadArt` source /
+destination pairs, the 10 temporary-object keys, the generic portrait's art /
 mapping / tile contract, both Enigma planes for each panel, their retail
-coordinates, and the opening image addresses in
-[retired test_presentation_pack](https://github.com/TusanHomichi/PSIV/blob/902868b517fd6b8eb0aee15b5dd500623cc7954c/tests/test_presentation_pack.py). That test also invokes
+coordinates, and the opening image addresses. That suite also invokes
 `oracle/decode_layout.py` against the committed frame-4000 state; its
 `self_check.passed` value is `true` and all four layout checks pass.
 
