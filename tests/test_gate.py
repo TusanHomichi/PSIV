@@ -190,6 +190,16 @@ class DocAgreementCase(unittest.TestCase):
         for command in (DOCS_COMMAND, FMT_COMMAND, CLIPPY_COMMAND):
             self.assertIn(command, FAST_COMMANDS)
 
+    def test_both_tiers_run_all_cargo_test_binaries_after_a_failure(self):
+        for commands in (GATE_COMMANDS, FAST_COMMANDS):
+            with self.subTest(commands=commands):
+                cargo_test, = (
+                    command.split()
+                    for command in commands
+                    if command.startswith("cargo test ")
+                )
+                self.assertIn("--no-fail-fast", cargo_test)
+
 
 class EntryPointCase(unittest.TestCase):
     """The `--list` path: print the commands, run none of them."""
