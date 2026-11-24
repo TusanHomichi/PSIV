@@ -88,6 +88,7 @@ pub struct Warp {
 
 /// A transition's source coordinate, raw and resolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WarpSource {
     /// The raw X byte from the record.
     pub x_byte: u32,

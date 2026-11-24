@@ -17,6 +17,7 @@ pub struct MapUpdate {
 
 /// A flag read by an update.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateGate {
     /// Physical flag door, independent of fork labels.
     pub bank: UpdateBank,
@@ -40,6 +41,7 @@ pub enum UpdateBank {
 
 /// One CRAM-shadow word write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaletteWrite {
     /// CRAM slot, 0..63.
     pub slot: u8,
@@ -49,7 +51,7 @@ pub struct PaletteWrite {
 
 /// Phase selection for a palette table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PalettePhase {
     /// `(Main_Frame_Count & mask) >> shift`.
     Frame {
@@ -67,6 +69,7 @@ pub enum PalettePhase {
 
 /// One independently clocked set of palette writes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaletteCycle {
     /// Execute when clock & frame_mask == 0.
     pub frame_mask: u16,
@@ -94,6 +97,7 @@ pub enum ScrollMode {
 /// chunk-id table (`MapUpdate_VahFortConveyorBelts` `$11` /
 /// `MapUpdate_WpnPlntConveyorBelts` `$12`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConveyorGroup {
     /// Optional temporary event flag (`$0B`/`$0C` or `$11`/`$12`) selecting
     /// `frames_set` over `frames_clear`.
@@ -111,7 +115,7 @@ pub struct ConveyorGroup {
 /// Update instructions and extracted tables. Unsupported hardware inputs are
 /// explicit records, never substituted with invented state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UpdateProgram {
     /// Retail `moveq #0,d0; rts`.
     Noop,

@@ -56,6 +56,7 @@ pub struct Level {
 /// The four base stats a level record sets.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LevelStats {
     pub strength: u8,
     pub mental: u8,

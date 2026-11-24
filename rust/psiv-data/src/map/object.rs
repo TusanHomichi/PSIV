@@ -76,6 +76,7 @@ impl Npc {
 
 /// An object's binding to a sprite sheet.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpriteRef {
     /// Sheet id inside the index file named by `sheets`.
     pub sheet: String,

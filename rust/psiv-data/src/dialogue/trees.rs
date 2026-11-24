@@ -186,6 +186,7 @@ pub struct DialogueEntry {
 
 /// One windowful of text.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Page {
     /// One or two lines, already broken exactly as the cartridge breaks them.
     pub lines: Vec<String>,
