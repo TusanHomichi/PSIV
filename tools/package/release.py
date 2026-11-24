@@ -12,8 +12,12 @@ builds the game's extension and the pack builder (`psiv-pack`) for platform P
 builds both architectures and joins each pair into one universal binary with
 `lipo`. The workflow builds Linux on the oldest runner GitHub offers, so the
 binaries' glibc floor suits the Steam Deck and older distributions.
-The Linux build checks both Rust binaries' ELF version requirements with
-`readelf`, refusing any glibc requirement newer than SteamOS's 2.41.
+The Linux build emits an ELF GNU build-id and DWARF line tables, extracts
+`<binary>.debug` and `build-symbols.json` beside the build outputs while
+stripping `.debug_*` from the shipped binaries (keeping `.note.gnu.build-id`,
+`.symtab` and `.gnu_debuglink`), and checks both Rust binaries' ELF version
+requirements with `readelf`, refusing any glibc requirement newer than
+SteamOS's 2.41.
 
     python3 tools/package/release.py install-godot --dir DIR [--cache DIR]
 
@@ -29,7 +33,10 @@ exports the game for every platform from one release run root
 `build`, and the run root holds them where `godot/psiv.gdextension` names
 them. `OUT/<platform>/` gets the export: the Linux and Windows executables
 with the extension beside them, and the macOS app, zipped. `OUT/godot.json`
-gets Godot's own license and copyright records, for the notices.
+gets Godot's own license and copyright records, for the notices;
+`OUT/export-metadata.json` records the pinned Godot editor and export template
+versions/hashes plus exported binary hashes, and `OUT/symbols/` preserves any
+sidecar `.debug` files from `--libraries`.
 
     python3 tools/package/release.py notices --godot FILE --out DIR
 
@@ -54,15 +61,19 @@ refuses an archive that holds anything but what `assemble` puts there (no
 pack, no ROM, nothing from `oracle/`), or whose programs lost their
 executable bit.
 
-    python3 tools/package/release.py smoke ARCHIVE --platform P
+    python3 tools/package/release.py smoke ARCHIVE --platform P [--symbols DIR] \\
+        [--failure-dir DIR] [--no-keep-on-failure]
 
 unpacks the archive and starts the game in it as a player's first run does,
 headless, on the platform it is for, with a scratch save directory. With no
 pack it must show the setup screen. Given a file that is not the ROM on its
 command line, it must run the `psiv-pack` beside it and show the builder's
 refusal. Each run must also exit 0 and log no `ERROR:` line: a missing pack
-and a file that is not the ROM are what a first run expects, not errors. What
-a real ROM builds is the full gate's to prove, on the machine that holds one.
+and a file that is not the ROM are what a first run expects, not errors. On
+any crash or non-zero exit, the unpacked export, logs, sidecar symbols and
+`failure.json` are retained by default (reported in the error, or moved to
+`--failure-dir`) so dumps remain diagnosable. What a real ROM builds is the
+full gate's to prove, on the machine that holds one.
 
 Stdlib only, Python 3. `tools/godot.py` is imported only where Godot runs,
 since it needs `fcntl`, which Windows lacks.
@@ -72,6 +83,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -90,6 +102,17 @@ sys.path.insert(0, str(ROOT))
 
 from tools.package.notices import FILES as NOTICE_FILES  # noqa: E402
 from tools.package.notices import NoticeError, write_notices  # noqa: E402
+from tools.package.symbols import (  # noqa: E402
+    EXPORT_METADATA_FILE,
+    FAILURE_REPORT_FILE,
+    SymbolError,
+    copy_sidecar_symbols,
+    move_failure_dir,
+    sha256,
+    signal_name,
+    split_linux_symbols,
+    try_read_build_id,
+)
 
 #: The workspace packages a release ships: the extension and the builder.
 EXTENSION_PACKAGE = "psiv-godot"
@@ -195,7 +218,8 @@ class Platform:
 PLATFORMS = {
     "linux": Platform("linux", ("x86_64-unknown-linux-gnu",), "libpsiv_godot.so",
                       "psiv-pack", "Linux", "psiv.x86_64", "linux_release.x86_64",
-                      "psiv.x86_64", "x86_64", ".tar.gz"),
+                      "psiv.x86_64", "x86_64", ".tar.gz",
+                      ("-C", "link-arg=-Wl,--build-id=sha1")),
     "windows": Platform("windows", ("x86_64-pc-windows-msvc",), "psiv_godot.dll",
                         "psiv-pack.exe", "Windows", "PSIV.exe", "windows_release_x86_64.exe",
                         "PSIV.exe", "x86_64", ".zip", ("-C", "target-feature=+crt-static")),
@@ -233,6 +257,38 @@ def check_glibc(paths: list[Path], runner: Callable | None = None) -> None:
               file=sys.stderr)
 
 
+def preserve_linux_symbols(
+    paths: list[Path], out: Path | None = None, runner: Callable | None = None,
+) -> tuple[list[Path], Path]:
+    """Split Linux `.debug` files beside `paths` and verify ELF build-ids."""
+    try:
+        return split_linux_symbols(paths, out=out, runner=runner or run)
+    except SymbolError as error:
+        raise ReleaseError(str(error)) from error
+
+
+def pinned_godot_info(
+    version_file: Path = ROOT / ".godot-version",
+    downloads_file: Path = ROOT / "tools" / "godot-downloads.json",
+) -> dict[str, object]:
+    """Pinned Godot version and official download metadata (cross-platform)."""
+    version = version_file.read_text(encoding="utf-8").strip()
+    downloads = json.loads(downloads_file.read_text(encoding="utf-8"))
+    entry = downloads.get(version, {}) if isinstance(downloads, dict) else {}
+    info: dict[str, object] = {"version": version}
+    for kind in ("editor", "templates"):
+        part = entry.get(kind)
+        if (isinstance(part, dict) and isinstance(part.get("file"), str)
+                and isinstance(part.get("sha512"), str)):
+            info[kind] = {
+                "file": part["file"],
+                "sha512": part["sha512"],
+                "url": f"https://github.com/godotengine/godot/releases/download/"
+                       f"{version}-stable/{part['file']}",
+            }
+    return info
+
+
 # --- build -----------------------------------------------------------------
 
 def target_directory() -> Path:
@@ -246,7 +302,9 @@ def build(platform: Platform, out: Path, runner: Callable = run) -> list[Path]:
         environment = dict(os.environ)
         if platform.rustflags:
             variable = f"CARGO_TARGET_{target.upper().replace('-', '_')}_RUSTFLAGS"
-            environment[variable] = " ".join(platform.rustflags)
+            existing = environment.get(variable, "").strip()
+            extra = " ".join(platform.rustflags)
+            environment[variable] = f"{existing} {extra}".strip() if existing else extra
         runner(["cargo", "build", "--release", "--locked",
                 "--manifest-path", str(ROOT / "rust" / "Cargo.toml"), "--target", target,
                 "-p", EXTENSION_PACKAGE, "-p", BUILDER_PACKAGE], env=environment)
@@ -338,16 +396,100 @@ GODOT_RECORDS_SCRIPT = Path(__file__).resolve().parent / "godot_records.gd"
 RECORDS_MARK = "PSIV-GODOT-RECORDS "
 
 
-def export(libraries: Path, out: Path) -> dict[str, Path]:
+def _template_version_dir(pinned_version: str, reported: object) -> Path:
+    """Resolve the Godot export templates directory matching the exported version."""
+    candidates = []
+    if isinstance(reported, dict):
+        major, minor, patch = reported.get("major"), reported.get("minor"), reported.get("patch")
+        status = reported.get("status")
+        if all(isinstance(v, int) for v in (major, minor, patch)) and isinstance(status, str):
+            candidates.append(f"{major}.{minor}.{patch}.{status}")
+            if patch == 0:
+                candidates.append(f"{major}.{minor}.{status}")
+    candidates.append(f"{pinned_version}.stable")
+    for candidate in candidates:
+        directory = templates_directory(candidate)
+        if directory.is_dir():
+            return directory
+    return templates_directory(candidates[0])
+
+
+def _write_export_metadata(libraries: Path, out: Path, records_text: str) -> Path:
+    """Write `export-metadata.json` with template version/SHA and copy sidecar symbols."""
+    pinned = pinned_godot_info()
+    try:
+        godot_records = json.loads(records_text)
+    except ValueError:
+        godot_records = {}
+    reported = godot_records.get("version") if isinstance(godot_records, dict) else None
+    tpl_dir = _template_version_dir(str(pinned["version"]), reported)
+    templates_meta: dict[str, object] = dict(pinned.get("templates", {}))
+    templates_meta["directory"] = str(tpl_dir)
+    version_file = tpl_dir / "version.txt"
+    if version_file.is_file():
+        templates_meta["version_txt"] = version_file.read_text(encoding="utf-8", errors="replace").strip()
+    template_files = {}
+    for platform in PLATFORMS.values():
+        tpl_file = tpl_dir / platform.template
+        if tpl_file.is_file():
+            template_files[platform.name] = {"file": platform.template, "sha256": sha256(tpl_file)}
+    if template_files:
+        templates_meta["files"] = template_files
+
+    exports_meta: dict[str, dict[str, object]] = {}
+    for platform in PLATFORMS.values():
+        target = out / platform.name / platform.export
+        lib_path = (libraries / platform.library if platform.name == "macos"
+                    else target.parent / platform.library)
+        entry: dict[str, object] = {
+            "export": platform.export,
+            "export_sha256": sha256(target),
+            "library": platform.library,
+            "library_sha256": sha256(lib_path),
+        }
+        if platform.name == "linux":
+            build_id = try_read_build_id(lib_path, run)
+            if build_id:
+                entry["library_build_id"] = build_id
+        exports_meta[platform.name] = entry
+
+    copied_symbols = copy_sidecar_symbols(libraries, out / "symbols")
+    metadata = {
+        "godot_version": pinned["version"],
+        "godot_reported_version": reported,
+        "editor": pinned.get("editor"),
+        "templates": templates_meta,
+        "exports": exports_meta,
+        "symbols": copied_symbols,
+    }
+    metadata_path = out / EXPORT_METADATA_FILE
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+                             encoding="utf-8", newline="\n")
+    return metadata_path
+
+
+def export(
+    libraries: Path,
+    out: Path,
+    *,
+    failure_dir: Path | None = None,
+    keep_on_failure: bool = True,
+) -> dict[str, Path]:
     """Export every platform from one release run root; their exports."""
     from tools.godot import GodotError
     try:
-        return _export(libraries, out)
+        return _export(libraries, out, failure_dir=failure_dir, keep_on_failure=keep_on_failure)
     except GodotError as error:
         raise ReleaseError(str(error)) from error
 
 
-def _export(libraries: Path, out: Path) -> dict[str, Path]:
+def _export(
+    libraries: Path,
+    out: Path,
+    *,
+    failure_dir: Path | None = None,
+    keep_on_failure: bool = True,
+) -> dict[str, Path]:
     from tools.godot import create_run_root, godot_command, library_path, remove_run_root, require
     require()
     # Godot reads a relative export path from the project, in the run root.
@@ -358,39 +500,62 @@ def _export(libraries: Path, out: Path) -> dict[str, Path]:
     if missing:
         raise ReleaseError(f"{libraries} lacks {', '.join(missing)}; run `build` for each platform")
     exports = {}
-    with tempfile.TemporaryDirectory(prefix="psiv-export-") as scratch:
-        made = create_run_root(Path(scratch) / "run", profile="release",
+    scratch = Path(tempfile.mkdtemp(prefix="psiv-export-"))
+    made = None
+    try:
+        made = create_run_root(scratch / "run", profile="release",
                                library=libraries / linux.library)
-        try:
-            for platform in PLATFORMS.values():
-                if platform is not linux:
-                    shutil.copy2(libraries / platform.library,
-                                 made.library.parent / platform.library)
-            # The editor that exports is a debug build of Godot and loads the
-            # extension's debug entry; with the Linux library there too, the
-            # export runs with the game's classes loaded.
-            debug = library_path(made.root, "debug")
-            debug.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(made.library, debug)
-            for platform in PLATFORMS.values():
-                target = out / platform.name / platform.export
-                target.parent.mkdir(parents=True, exist_ok=True)
-                run(godot_command(made, "--headless", "--export-release", platform.preset,
-                                  str(target)))
-                beside = [] if platform.name == "macos" else [target.parent / platform.library]
-                for made_file in (target, *beside):
-                    if not made_file.is_file():
-                        raise ReleaseError(f"the {platform.preset} export wrote no {made_file}")
-                exports[platform.name] = target.parent
-            records = run(godot_command(made, "--headless", "--script",
-                                        str(GODOT_RECORDS_SCRIPT))).stdout
-        finally:
+        for platform in PLATFORMS.values():
+            if platform is not linux:
+                shutil.copy2(libraries / platform.library,
+                             made.library.parent / platform.library)
+        # The editor that exports is a debug build of Godot and loads the
+        # extension's debug entry; with the Linux library there too, the
+        # export runs with the game's classes loaded.
+        debug = library_path(made.root, "debug")
+        debug.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(made.library, debug)
+        for platform in PLATFORMS.values():
+            target = out / platform.name / platform.export
+            target.parent.mkdir(parents=True, exist_ok=True)
+            run(godot_command(made, "--headless", "--export-release", platform.preset,
+                              str(target)))
+            beside = [] if platform.name == "macos" else [target.parent / platform.library]
+            for made_file in (target, *beside):
+                if not made_file.is_file():
+                    raise ReleaseError(f"the {platform.preset} export wrote no {made_file}")
+            exports[platform.name] = target.parent
+        records = run(godot_command(made, "--headless", "--script",
+                                    str(GODOT_RECORDS_SCRIPT))).stdout
+    except Exception as error:
+        if keep_on_failure:
+            report = {
+                "stage": "export",
+                "reason": str(error),
+                "libraries": str(libraries),
+                "out": str(out),
+                "godot": pinned_godot_info(),
+                "symbols": copy_sidecar_symbols(libraries, scratch / "symbols"),
+            }
+            (scratch / FAILURE_REPORT_FILE).write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8", newline="\n",
+            )
+            kept = move_failure_dir(scratch, failure_dir)
+            raise ReleaseError(f"{error}\nretained failure directory: {kept}") from error
+        if made is not None:
             remove_run_root(made.root)
+        shutil.rmtree(scratch, ignore_errors=True)
+        raise
+    else:
+        remove_run_root(made.root)
+        shutil.rmtree(scratch, ignore_errors=True)
     lines = [line for line in records.splitlines() if line.startswith(RECORDS_MARK)]
     if len(lines) != 1:
         raise ReleaseError("Godot printed no license records")
-    (out / "godot.json").write_text(lines[0][len(RECORDS_MARK):] + "\n", encoding="utf-8",
-                                    newline="\n")
+    records_text = lines[0][len(RECORDS_MARK):] + "\n"
+    (out / "godot.json").write_text(records_text, encoding="utf-8", newline="\n")
+    _write_export_metadata(libraries, out, records_text)
     return exports
 
 
@@ -492,14 +657,93 @@ def first_run_environment(home: Path, saves: Path) -> dict[str, str]:
     return environment
 
 
-def smoke(archive: Path, platform: Platform) -> list[str]:
+def _as_text(data: str | bytes | None) -> str:
+    if data is None:
+        return ""
+    return data.decode("utf-8", errors="replace") if isinstance(data, bytes) else data
+
+
+def _unpacked_library(folder: Path, platform: Platform) -> Path:
+    if platform.name == "macos":
+        return folder / APP / "Contents" / "Frameworks" / platform.library
+    return folder / platform.library
+
+
+def smoke(
+    archive: Path,
+    platform: Platform,
+    *,
+    failure_dir: Path | None = None,
+    keep_on_failure: bool = True,
+    symbols_dir: Path | None = None,
+) -> list[str]:
     """Run the archive's game as a first run does; the lines it showed."""
-    with tempfile.TemporaryDirectory(prefix="psiv-smoke-") as scratch:
-        scratch_path = Path(scratch) / "first run (portabilité)"
-        scratch_path.mkdir()
+    scratch = Path(tempfile.mkdtemp(prefix="psiv-smoke-"))
+    scratch_path = scratch / "first run (portabilité)"
+    scratch_path.mkdir()
+    folder = scratch_path / "game" / archive.name.removesuffix(platform.suffix)
+    game = folder / platform.executable
+
+    def fail(
+        step: str,
+        reason: str,
+        command: list[str],
+        *,
+        returncode: int | None = None,
+        stdout: str = "",
+        stderr: str = "",
+        log: Path | None = None,
+    ) -> None:
+        stdout_log = scratch_path / f"{step}.stdout.log"
+        stderr_log = scratch_path / f"{step}.stderr.log"
+        stdout_log.write_text(stdout, encoding="utf-8", errors="replace")
+        stderr_log.write_text(stderr, encoding="utf-8", errors="replace")
+        lib_path = _unpacked_library(folder, platform)
+        copied_symbols = (copy_sidecar_symbols(symbols_dir, scratch_path / "symbols")
+                          if symbols_dir is not None else [])
+        retained_root = (failure_dir.resolve()
+                         if keep_on_failure and failure_dir is not None else scratch)
+
+        def final_path(path: Path | None) -> str | None:
+            if path is None:
+                return None
+            return str(retained_root / path.relative_to(scratch))
+
+        report: dict[str, object] = {
+            "stage": "smoke",
+            "archive": str(archive),
+            "platform": platform.name,
+            "step": step,
+            "reason": reason,
+            "command": command,
+            "returncode": returncode,
+            "signal": signal_name(returncode),
+            "retained_dir": str(retained_root) if keep_on_failure else None,
+            "unpacked_dir": final_path(folder),
+            "executable": final_path(game),
+            "executable_sha256": sha256(game) if game.is_file() else None,
+            "library": final_path(lib_path),
+            "library_sha256": sha256(lib_path) if lib_path.is_file() else None,
+            "library_build_id": (try_read_build_id(lib_path, run)
+                                 if platform.name == "linux" and lib_path.is_file() else None),
+            "log_file": final_path(log),
+            "stdout_file": final_path(stdout_log),
+            "stderr_file": final_path(stderr_log),
+            "symbols": copied_symbols,
+            "godot": pinned_godot_info(),
+        }
+        (scratch_path / FAILURE_REPORT_FILE).write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8", newline="\n",
+        )
+        if keep_on_failure:
+            kept = move_failure_dir(scratch, failure_dir)
+            raise ReleaseError(f"{reason}\nretained failure directory: {kept}")
+        shutil.rmtree(scratch, ignore_errors=True)
+        raise ReleaseError(reason)
+
+    try:
         unpack(archive, scratch_path / "game")
-        folder = scratch_path / "game" / archive.name.removesuffix(platform.suffix)
-        game = folder / platform.executable
         not_the_rom = scratch_path / NOT_THE_ROM_NAME
         not_the_rom.write_bytes(bytes(4096))
         home = scratch_path / "home"
@@ -512,30 +756,44 @@ def smoke(archive: Path, platform: Platform) -> list[str]:
                 ("refusal", [str(not_the_rom)], [SETUP_SHOWN, BUILD_STARTED,
                                                  f"{NOT_THE_ROM_NAME} {NOT_THE_ROM}"])):
             log = scratch_path / f"{step}.log"
+            command = [str(game), "--headless", "--max-fps", "60", "--quit-after",
+                       SMOKE_FRAMES[step], "--log-file", str(log), *extra]
             try:
                 result = subprocess.run(
-                    [str(game), "--headless", "--max-fps", "60", "--quit-after",
-                     SMOKE_FRAMES[step], "--log-file", str(log), *extra],
-                    env=first_run_environment(home, saves), capture_output=True, text=True,
-                    encoding="utf-8", errors="replace", timeout=SMOKE_TIMEOUT, check=False)
+                    command, env=first_run_environment(home, saves), capture_output=True,
+                    text=True, encoding="utf-8", errors="replace", timeout=SMOKE_TIMEOUT,
+                    check=False)
             except subprocess.TimeoutExpired as error:
-                raise ReleaseError(f"the {step} run did not end in {SMOKE_TIMEOUT} s") from error
+                fail(step, f"the {step} run did not end in {SMOKE_TIMEOUT} s", command,
+                     stdout=_as_text(error.stdout), stderr=_as_text(error.stderr), log=log)
             lines = log.read_text(encoding="utf-8", errors="replace").splitlines() \
                 if log.is_file() else []
             if result.returncode != 0:
                 output = (result.stdout + result.stderr).strip().splitlines()
-                raise ReleaseError(f"the {step} run exited {result.returncode}; it logged:\n"
-                                   + "\n".join(lines[-40:] + output[-40:]))
+                fail(step, f"the {step} run exited {result.returncode}; it logged:\n"
+                     + "\n".join(lines[-40:] + output[-40:]), command,
+                     returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
+                     log=log)
             missing = [text for text in wanted if not any(text in line for line in lines)]
             if missing:
-                raise ReleaseError(f"the {step} run never showed {missing}; it logged:\n"
-                                   + "\n".join(lines[-40:]))
+                fail(step, f"the {step} run never showed {missing}; it logged:\n"
+                     + "\n".join(lines[-40:]), command,
+                     returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
+                     log=log)
             errors = [line for line in lines if line.startswith(LOGGED_ERROR)]
             if errors:
-                raise ReleaseError(f"the {step} run logged an error; it logged:\n"
-                                   + "\n".join(errors[:40]))
+                fail(step, f"the {step} run logged an error; it logged:\n"
+                     + "\n".join(errors[:40]), command,
+                     returncode=result.returncode, stdout=result.stdout, stderr=result.stderr,
+                     log=log)
             shown += [line for line in lines if line.startswith(("pack setup:", "pack builder:"))]
-        return shown
+    except ReleaseError:
+        raise
+    except Exception:
+        shutil.rmtree(scratch, ignore_errors=True)
+        raise
+    shutil.rmtree(scratch, ignore_errors=True)
+    return shown
 
 
 # --- command line ----------------------------------------------------------
@@ -569,6 +827,8 @@ def main(argv: list[str] | None = None) -> int:
     step = commands.add_parser("export")
     step.add_argument("--libraries", type=Path, required=True)
     step.add_argument("--out", type=Path, required=True)
+    step.add_argument("--failure-dir", type=Path, default=None)
+    step.add_argument("--no-keep-on-failure", action="store_false", dest="keep_on_failure")
     step = commands.add_parser("notices")
     step.add_argument("--godot", type=Path, required=True)
     step.add_argument("--out", type=Path, required=True)
@@ -579,22 +839,33 @@ def main(argv: list[str] | None = None) -> int:
     step.add_argument("--notices", type=Path, required=True)
     step.add_argument("--version", required=True)
     step.add_argument("--out", type=Path, required=True)
-    for name in ("check", "smoke"):
-        step = commands.add_parser(name)
-        step.add_argument("archive", type=Path)
-        step.add_argument("--platform", choices=PLATFORMS, required=True)
+    step = commands.add_parser("check")
+    step.add_argument("archive", type=Path)
+    step.add_argument("--platform", choices=PLATFORMS, required=True)
+    step = commands.add_parser("smoke")
+    step.add_argument("archive", type=Path)
+    step.add_argument("--platform", choices=PLATFORMS, required=True)
+    step.add_argument("--symbols", type=Path, default=None)
+    step.add_argument("--failure-dir", type=Path, default=None)
+    step.add_argument("--no-keep-on-failure", action="store_false", dest="keep_on_failure")
     args = parser.parse_args(argv)
     try:
         if args.command == "build":
             paths = build(PLATFORMS[args.platform], args.out)
             if args.platform == "linux":
+                debug_paths, manifest_path = preserve_linux_symbols(paths, out=args.out)
                 check_glibc(paths)
+                for path in (*debug_paths, manifest_path):
+                    print(f"release: wrote symbols {path}", file=sys.stderr)
             for path in paths:
                 print(f"release: built {path}", file=sys.stderr)
         elif args.command == "install-godot":
             print(install_godot(args.dir, args.cache))
         elif args.command == "export":
-            for name, path in export(args.libraries, args.out).items():
+            for name, path in export(
+                args.libraries, args.out,
+                failure_dir=args.failure_dir, keep_on_failure=args.keep_on_failure,
+            ).items():
                 print(f"release: exported {name} to {path}", file=sys.stderr)
         elif args.command == "notices":
             for path in notices(args.godot, args.out):
@@ -611,7 +882,11 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             print(f"release: {args.archive.name} holds exactly the release", file=sys.stderr)
         elif args.command == "smoke":
-            for line in smoke(args.archive, PLATFORMS[args.platform]):
+            for line in smoke(
+                args.archive, PLATFORMS[args.platform],
+                failure_dir=args.failure_dir, keep_on_failure=args.keep_on_failure,
+                symbols_dir=args.symbols,
+            ):
                 print(f"release: {line}", file=sys.stderr)
             print(f"release: {args.archive.name} starts and runs its pack builder",
                   file=sys.stderr)

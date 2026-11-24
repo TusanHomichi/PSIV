@@ -43,3 +43,9 @@ opt-level = 3
 
 [profile.test.package.psiv-sound]
 opt-level = 3
+
+# Release builds keep DWARF line tables so Linux `release.py build` can split
+# separate `.debug` symbol files beside the shipped binaries (issue #770) and
+# crash dumps resolve frames without inflating the shipped archives.
+[profile.release]
+debug = "line-tables-only"

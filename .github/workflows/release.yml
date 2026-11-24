@@ -80,12 +80,24 @@ jobs:
           cp build/release/build/build-linux/libpsiv_godot.so \
              build/release/build/build-windows/psiv_godot.dll \
              build/release/build/build-macos/libpsiv_godot.dylib build/release/libraries/
+          cp build/release/build/build-linux/*.debug \
+             build/release/build/build-linux/build-symbols.json build/release/libraries/
       - name: Install the pinned Godot and its export templates
         run: |
           godot=$(python tools/package/release.py install-godot --dir "$RUNNER_TEMP/godot" --cache "$RUNNER_TEMP/godot-downloads")
           echo "PSIV_GODOT=$godot" >> "$GITHUB_ENV"
       - name: Export every platform
-        run: python tools/package/release.py export --libraries build/release/libraries --out build/release/export
+        run: >-
+          python tools/package/release.py export --libraries build/release/libraries
+          --out build/release/export --failure-dir build/release/export-failure
+      - name: Upload export failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: export-failure
+          path: build/release/export-failure
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Write the third-party notices
         run: python tools/package/release.py notices --godot build/release/export/godot.json --out build/release/notices
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -137,8 +149,29 @@ jobs:
           echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
       - name: Check what it holds
         run: python tools/package/release.py check "$ARCHIVE" --platform ${{ matrix.platform }}
+      - name: Upload Linux debug symbols and export metadata
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: symbols-linux
+          path: |
+            build/release/build/*.debug
+            build/release/build/build-symbols.json
+            build/release/export/export-metadata.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Start its game as a first run
-        run: python tools/package/release.py smoke "$ARCHIVE" --platform ${{ matrix.platform }}
+        run: >-
+          python tools/package/release.py smoke "$ARCHIVE" --platform ${{ matrix.platform }}
+          --symbols build/release/build --failure-dir build/release/smoke-failure
+      - name: Upload smoke failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smoke-failure-${{ matrix.platform }}
+          path: build/release/smoke-failure
+          retention-days: 7
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: archive-${{ matrix.platform }}
