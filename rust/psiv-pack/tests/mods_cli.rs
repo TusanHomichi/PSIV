@@ -151,7 +151,10 @@ fn mod_init_diff_and_check_round_trip_and_refuse_invalid_mod() {
     let stderr = String::from_utf8_lossy(&bad_typo.stderr);
     assert!(stderr.contains("starter"), "{stderr}");
     assert!(stderr.contains("battle/enemies.json"), "{stderr}");
-    assert!(stderr.contains("enemies.10.HP"), "{stderr}");
+    assert!(
+        stderr.contains("enemies[10].HP") || stderr.contains("enemies.10.HP"),
+        "{stderr}"
+    );
 
     // 6. Negative control: unknown field in mod.json fails with exit code 2 naming mod.json and field
     let bad_manifest_dir = scratch.join("bad-manifest");

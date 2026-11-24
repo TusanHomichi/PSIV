@@ -297,190 +297,6 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
     assert!(err.file.contains("battle/enemies.json"), "{err}");
     assert!(err.detail.contains("9999"), "{err}");
 
-    // Negative control 3: typo field ("HP": 99) fails closed naming mod, file, and field.
-    let bad_typo = scratch.join("bad-typo");
-    init_mod_dir(
-        &bad_typo,
-        &ModManifest::new("bad-typo", "Bad Typo", "1.0.0"),
-    )
-    .unwrap();
-    fs::create_dir_all(bad_typo.join("patches/battle")).unwrap();
-    fs::write(
-        bad_typo.join("patches/battle/enemies.json"),
-        r#"{"enemies":{"10":{"HP":99}}}"#,
-    )
-    .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_typo).unwrap()],
-        &scratch.join("bad-typo-out"),
-    )
-    .expect_err("typo field HP must be refused");
-    assert_eq!(err.mod_id, "bad-typo");
-    assert!(err.file.contains("battle/enemies.json"), "{err}");
-    assert!(err.detail.contains("enemies.10.HP"), "{err}");
-
-    // Negative control 4: legacy wrong map key ("treasures") fails closed.
-    let bad_map_key = scratch.join("bad-map-key");
-    init_mod_dir(
-        &bad_map_key,
-        &ModManifest::new("bad-map-key", "Bad Map Key", "1.0.0"),
-    )
-    .unwrap();
-    fs::create_dir_all(bad_map_key.join("patches/maps")).unwrap();
-    fs::write(
-        bad_map_key.join("patches/maps/010_Piata.json"),
-        r#"{"treasures":{"0":{"meseta":500}}}"#,
-    )
-    .unwrap();
-    let err = apply_mods(
-        &base,
-        &[load_mod(&bad_map_key).unwrap()],
-        &scratch.join("bad-map-key-out"),
-    )
-    .expect_err("unknown map key treasures must be refused");
-    assert_eq!(err.mod_id, "bad-map-key");
-    assert!(err.file.contains("maps/010_Piata.json"), "{err}");
-    assert!(err.detail.contains("treasures"), "{err}");
-
-    // Positive + round-trip control: sparse treasure_chests patch by `index` on a real map.
-    let base_game = GameData::load(&base).unwrap();
-    let (chest_map_id, chest_map) = base_game
-        .maps()
-        .find(|(_, m)| !m.treasure_chests.is_empty())
-        .expect("retail pack has maps with treasure chests");
-    let chest_map_rel = base_game
-        .manifest()
-        .entry(chest_map_id)
-        .unwrap()
-        .json
-        .clone();
-    let orig_chest = &chest_map.treasure_chests[0];
-    let toggled_white = !orig_chest.white_chest;
-    let chest_mod = scratch.join("chest-mod");
-    init_mod_dir(
-        &chest_mod,
-        &ModManifest::new("chest-mod", "Chest Mod", "1.0.0"),
-    )
-    .unwrap();
-    let chest_patch_path = chest_mod.join("patches").join(&chest_map_rel);
-    fs::create_dir_all(chest_patch_path.parent().unwrap()).unwrap();
-    fs::write(
-        &chest_patch_path,
-        serde_json::to_string_pretty(&json!({
-            "treasure_chests": {
-                orig_chest.index.to_string(): {
-                    "white_chest": toggled_white,
-                    "contents_type": "meseta",
-                    "item_id": null,
-                    "item_symbol": null,
-                    "meseta": 777
-                }
-            }
-        }))
-        .unwrap(),
-    )
-    .unwrap();
-    let chest_applied = apply_mods(
-        &base,
-        &[load_mod(&chest_mod).unwrap()],
-        &scratch.join("chest-out"),
-    )
-    .unwrap();
-    let chest_game = GameData::load(&chest_applied.effective_pack).unwrap();
-    let patched_chest = &chest_game.map(chest_map_id).unwrap().treasure_chests[0];
-    assert_eq!(patched_chest.white_chest, toggled_white);
-    assert_eq!(patched_chest.contents_type, crate::ContentsType::Meseta);
-    assert_eq!(patched_chest.item_id, None);
-    assert_eq!(patched_chest.meseta, Some(777));
-
-    let chest_exported = scratch.join("chest-exported");
-    let chest_summary = diff_packs(
-        &base,
-        &chest_applied.effective_pack,
-        &chest_exported,
-        &ModManifest::new("chest-exported", "Chest Exported", "1.0.0"),
-    )
-    .unwrap();
-    assert_eq!(chest_summary.patches, vec![chest_map_rel.clone()]);
-    let exported_patch_json: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(chest_exported.join("patches").join(&chest_map_rel)).unwrap(),
-    )
-    .unwrap();
-    assert!(
-        exported_patch_json["treasure_chests"]
-            .get(orig_chest.index.to_string())
-            .is_some(),
-        "diff_packs must emit sparse index-keyed treasure_chests patch: {exported_patch_json}"
-    );
-    let chest_reapplied = apply_mods(
-        &base,
-        &[load_mod(&chest_exported).unwrap()],
-        &scratch.join("chest-reapplied"),
-    )
-    .unwrap();
-    let chest_reapplied_game = GameData::load(&chest_reapplied.effective_pack).unwrap();
-    let re_chest = &chest_reapplied_game
-        .map(chest_map_id)
-        .unwrap()
-        .treasure_chests[0];
-    assert_eq!(re_chest.white_chest, toggled_white);
-    assert_eq!(re_chest.meseta, Some(777));
-
-    // Negative control 5: unknown field inside a `null`-replacing SpriteRef object
-    // is caught by `#[serde(deny_unknown_fields)]` during `GameData::load`.
-    if let Some((null_npc_map_id, null_npc_map)) = base_game
-        .maps()
-        .find(|(_, m)| m.npcs.iter().any(|n| n.sprite.is_none()))
-    {
-        let null_npc = null_npc_map
-            .npcs
-            .iter()
-            .find(|n| n.sprite.is_none())
-            .unwrap();
-        let map_rel = base_game
-            .manifest()
-            .entry(null_npc_map_id)
-            .unwrap()
-            .json
-            .clone();
-        let bad_sprite_mod = scratch.join("bad-sprite");
-        init_mod_dir(
-            &bad_sprite_mod,
-            &ModManifest::new("bad-sprite", "Bad Sprite", "1.0.0"),
-        )
-        .unwrap();
-        let patch_path = bad_sprite_mod.join("patches").join(&map_rel);
-        fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
-        fs::write(
-            &patch_path,
-            serde_json::to_string_pretty(&json!({
-                "npcs": {
-                    null_npc.index.to_string(): {
-                        "sprite": {
-                            "sheet": "Chaz",
-                            "sheets": "sprites/party.json",
-                            "idle_sequence": "idle_down",
-                            "walk_sequence": "walk_down",
-                            "typo_field": true
-                        }
-                    }
-                }
-            }))
-            .unwrap(),
-        )
-        .unwrap();
-        let err = apply_mods(
-            &base,
-            &[load_mod(&bad_sprite_mod).unwrap()],
-            &scratch.join("bad-sprite-out"),
-        )
-        .expect_err("unknown field in null-replacing SpriteRef must be refused");
-        assert_eq!(err.mod_id, "bad-sprite");
-        assert_eq!(err.file, map_rel);
-        assert!(err.detail.contains("typo_field"), "{err}");
-    }
-
     // Round-trip: diffing the effective pack back against base reproduces the edits.
     let exported = scratch.join("exported-mod");
     let summary = diff_packs(
@@ -1069,4 +885,49 @@ fn inspect_mods_dir_lists_enabled_disabled_and_invalid_and_set_enabled_persists(
     assert_eq!(saved["custom_nested"]["tag"], "v1");
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn strict_manifest_and_patch_fields_fail_closed_without_rom() {
+    let scratch = temp_dir("strict-no-rom");
+    let bad_mod = scratch.join("bad-manifest");
+    fs::create_dir_all(&bad_mod).unwrap();
+    fs::write(
+        bad_mod.join(MOD_MANIFEST_FILE),
+        r#"{"format_version":1,"id":"bad","name":"Bad","version":"1.0.0","enabled_flag":true}"#,
+    )
+    .unwrap();
+    let err = load_mod(&bad_mod).expect_err("unknown field in mod.json must be rejected");
+    assert!(err.detail.contains("enabled_flag"), "{err}");
+
+    let bad_profile = scratch.join("bad-profile");
+    fs::create_dir_all(&bad_profile).unwrap();
+    fs::write(
+        bad_profile.join(MOD_PROFILE_FILE),
+        r#"{"format_version":1,"mods":[],"extra_key":1}"#,
+    )
+    .unwrap();
+    let perr = ModProfile::read_from_dir(&bad_profile)
+        .expect_err("unknown field in mod_profile.json must be rejected");
+    assert!(perr.detail.contains("extra_key"), "{perr}");
+
+    let mut enemies = json!({"enemies": [{"id": 10, "hp": 25}]});
+    let typo_err = apply_json_patch(
+        &mut enemies,
+        &json!({"enemies": {"10": {"HP": 99}}}),
+        "battle/enemies.json",
+    )
+    .expect_err("unknown patch field HP must fail closed");
+    assert!(typo_err.contains("enemies.10.HP"), "{typo_err}");
+
+    let mut map = json!({"treasure_chests": [{"index": 0, "meseta": 100}]});
+    apply_json_patch(
+        &mut map,
+        &json!({"treasure_chests": {"0": {"meseta": 777}}}),
+        "maps/010_Piata.json",
+    )
+    .unwrap();
+    assert_eq!(map["treasure_chests"][0]["meseta"], 777);
+
+    let _ = fs::remove_dir_all(&scratch);
 }

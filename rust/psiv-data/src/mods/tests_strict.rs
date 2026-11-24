@@ -121,17 +121,25 @@ fn apply_json_patch_fails_closed_on_unknown_fields_and_supports_allowed_optional
         assert!(err.contains(needle), "{err}");
     }
 
-    // Dynamic maps and declared optional fields remain patchable and removable.
-    let mut map = json!({
-        "id": 16,
-        "treasure_chests": [{
-            "index": 0,
-            "contents_type": "item",
-            "item_id": 125,
-            "meseta": null
-        }],
-        "map_update_images": {}
-    });
+    // Dynamic maps and modeled optional fields remain patchable and removable on full MapRecord JSON.
+    let mut map = minimal_valid_map_json();
+    map.as_object_mut().unwrap().remove("png_over");
+    map["treasure_chests"] = json!([{
+        "index": 0,
+        "record_offset": "0x129004",
+        "x_cell": 1,
+        "y_cell": 1,
+        "x_pixels": 16,
+        "y_pixels": 0,
+        "white_chest": false,
+        "object_symbol": "TreasureChest",
+        "contents_type": "item",
+        "item_id": 125,
+        "item_symbol": "Dagger",
+        "meseta": null,
+        "chest_flag": 0
+    }]);
+    map["map_update_images"] = json!({});
     // Legacy wrong key "treasures" fails closed.
     let err = apply_json_patch(
         &mut map,
@@ -391,15 +399,61 @@ fn keyed_arrays_match_real_runtime_pack() {
 }
 
 #[test]
-fn newly_inserted_or_null_replaced_optional_subtrees_reject_typos() {
-    // Legacy map JSON omitting `interaction_areas` must still reject typos on insert.
-    let mut legacy_map = json!({
+fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() {
+    // 1. Modeled optional field omitted from base (`Ability.symbol`) round-trips through diff -> apply,
+    // while a misspelled key (`symbl`) fails closed.
+    let base_abilities = json!({
         "format_version": 2,
-        "id": 10,
-        "png": "maps/010_Piata.png",
-        "patch_tiles": null,
-        "map_updates": null
+        "effects": {
+            "table": "0x0061BE",
+            "count": 44,
+            "bounds_checked": false
+        },
+        "techniques": [{
+            "id": 0,
+            "kind": "techniques",
+            "name": "Foi",
+            "effect_id": 0,
+            "tp_cost": 2,
+            "targeting": {"raw": 0},
+            "effect_out_of_range": false
+        }],
+        "skills": [],
+        "enemy_skills": [],
+        "item_effects": [],
+        "combos": []
     });
+    assert!(
+        serde_json::from_value::<crate::battle::AbilitiesFile>(base_abilities.clone()).is_ok(),
+        "test fixture must parse as AbilitiesFile"
+    );
+    let mut edited_abilities = base_abilities.clone();
+    edited_abilities["techniques"][0]["symbol"] = json!("Tech_Foi");
+    let patch = diff_json(&base_abilities, &edited_abilities, "battle/abilities.json")
+        .unwrap()
+        .expect("adding optional Ability.symbol produces a diff");
+    let mut patched_abilities = base_abilities.clone();
+    apply_json_patch(&mut patched_abilities, &patch, "battle/abilities.json")
+        .expect("modeled optional Ability.symbol omitted from base must be accepted");
+    assert_eq!(patched_abilities["techniques"][0]["symbol"], "Tech_Foi");
+
+    let mut bad_abilities = base_abilities;
+    let err = apply_json_patch(
+        &mut bad_abilities,
+        &json!({"techniques": {"0": {"symbl": "Tech_Foi"}}}),
+        "battle/abilities.json",
+    )
+    .expect_err("misspelled optional field must fail closed");
+    assert!(err.contains("symbl"), "{err}");
+
+    // 2. Legacy map JSON omitting `interaction_areas`, replacing `patch_tiles: null`,
+    // and replacing non-null unkeyed `map_effects` all fail closed on typos.
+    let base_map = minimal_valid_map_json();
+    let mut legacy_map = base_map.clone();
+    legacy_map
+        .as_object_mut()
+        .unwrap()
+        .remove("interaction_areas");
     let err = apply_json_patch(
         &mut legacy_map,
         &json!({
@@ -419,11 +473,12 @@ fn newly_inserted_or_null_replaced_optional_subtrees_reject_typos() {
         "maps/010_Piata.json",
     )
     .expect_err("typo inside newly inserted interaction_areas must fail");
-    assert!(err.contains("interaction_areas[0].typo_field"), "{err}");
+    assert!(err.contains("typo_field"), "{err}");
 
-    // Replacing a null optional field (`patch_tiles: null`) must reject typos too.
+    let mut null_patch_tiles_map = base_map.clone();
+    null_patch_tiles_map["patch_tiles"] = json!(null);
     let err = apply_json_patch(
-        &mut legacy_map,
+        &mut null_patch_tiles_map,
         &json!({
             "patch_tiles": {
                 "png": "maps/010_patch.png",
@@ -438,22 +493,305 @@ fn newly_inserted_or_null_replaced_optional_subtrees_reject_typos() {
     .expect_err("typo inside null-replaced patch_tiles must fail");
     assert!(err.contains("patch_tiles.extra_typo"), "{err}");
 
-    // Inserting a missing shop counter `greeting` with a typo must fail, valid must pass.
-    let mut shops = json!({
-        "counters": [{"id": 1, "inventory_index": 0}]
-    });
+    // Non-null unkeyed array `map_effects` replaced wholesale must also reject typos.
+    let mut non_null_effects_map = base_map;
+    non_null_effects_map["map_effects"] = json!([{"entry": 1, "decoded": true}]);
     let err = apply_json_patch(
-        &mut shops,
-        &json!({"counters": {"1": {"greeting": {"index": 0, "trade_typo": 1}}}}),
-        "shops.json",
+        &mut non_null_effects_map,
+        &json!({"map_effects": [{"entry": 1, "decoded": true, "bogus_effect_key": 7}]}),
+        "maps/010_Piata.json",
     )
-    .expect_err("typo inside newly inserted shop greeting must fail");
-    assert!(err.contains("counters.1.greeting.trade_typo"), "{err}");
+    .expect_err("typo inside replaced non-null map_effects must fail");
+    assert!(err.contains("map_effects[0].bogus_effect_key"), "{err}");
 
-    apply_json_patch(
-        &mut shops,
-        &json!({"counters": {"1": {"greeting": {"index": 0, "trade_fragment": 1, "text_variant": 0}}}}),
-        "shops.json",
+    // 3. Legacy `dialogue/trees.json` omitting `system_messages` rejects typos inside nested `DialogueEntry`.
+    let mut legacy_trees = json!({
+        "format_version": 2,
+        "tree_count": 1,
+        "entry_count": 1,
+        "window": {
+            "chars_per_line": 32,
+            "lines_per_window": 2,
+            "glyph_width": 8,
+            "glyph_height": 16,
+            "rect": {"x": 32, "y": 160, "width": 256, "height": 32},
+            "scroll_arrow": {"screen_x": 280, "screen_y": 192, "png": "dialogue/arrow.png", "width": 16, "height": 8}
+        },
+        "trees": [{
+            "tree": 1,
+            "label": "DialogueTree1",
+            "is_talk_tree": false,
+            "portrait_operand_bytes": 1,
+            "entry_count": 1,
+            "entries": [{
+                "id": 0,
+                "segments": [{"text": "Hi"}],
+                "pages": [{"lines": ["Hi"], "end": "end"}],
+                "text": "Hi"
+            }]
+        }]
+    });
+    assert!(
+        serde_json::from_value::<crate::dialogue::TreeFile>(legacy_trees.clone()).is_ok(),
+        "test fixture must parse as TreeFile"
+    );
+    let err = apply_json_patch(
+        &mut legacy_trees,
+        &json!({
+            "system_messages": {
+                "messages": [{
+                    "id": 0,
+                    "segments": [{"text": "Sys"}],
+                    "pages": [{"lines": ["Sys"], "end": "end"}],
+                    "text": "Sys",
+                    "typo": 1
+                }]
+            }
+        }),
+        "dialogue/trees.json",
     )
-    .expect("valid shop greeting insert succeeds");
+    .expect_err("typo inside newly inserted system_messages.messages[0] must fail");
+    assert!(err.contains("system_messages.messages[0].typo"), "{err}");
+}
+
+fn minimal_valid_map_json() -> serde_json::Value {
+    let val = json!({
+        "format_version": 2,
+        "id": 16,
+        "symbol": "Piata",
+        "png": "maps/010_Piata.png",
+        "png_over": null,
+        "dimensions": {
+            "width_chunks": 1,
+            "height_chunks": 1,
+            "width_cells": 2,
+            "height_cells": 2,
+            "width_pixels": 32,
+            "height_pixels": 32,
+            "cell_pixels": 16
+        },
+        "collision": {
+            "plane": "bg",
+            "plane_byte": 1,
+            "width_cells": 2,
+            "height_cells": 2,
+            "rows": [[0, 0], [0, 0]]
+        },
+        "music": {"id": 132, "symbol": "MotabiaTown", "changes_music": true},
+        "flags": {
+            "poison": 0,
+            "random_battles": 0,
+            "town_teleport": 1,
+            "dungeon_teleport_index": 0
+        },
+        "dialogue_tree": 2,
+        "events": [0],
+        "warps": [],
+        "interaction_areas": [],
+        "npcs": [],
+        "treasure_chests": []
+    });
+    assert!(
+        serde_json::from_value::<crate::MapRecord>(val.clone()).is_ok(),
+        "test fixture must parse as MapRecord"
+    );
+    val
+}
+
+#[test]
+fn real_pack_strict_fields_and_treasure_chests_round_trip() {
+    let Some(base) = real_pack() else {
+        eprintln!("runtime-pack absent; skipping real-pack strict fields test");
+        return;
+    };
+
+    let scratch = temp_dir("real-strict");
+
+    // Negative control 1: typo field ("HP": 99) fails closed naming mod, file, and field.
+    let bad_typo = scratch.join("bad-typo");
+    init_mod_dir(
+        &bad_typo,
+        &ModManifest::new("bad-typo", "Bad Typo", "1.0.0"),
+    )
+    .unwrap();
+    fs::create_dir_all(bad_typo.join("patches/battle")).unwrap();
+    fs::write(
+        bad_typo.join("patches/battle/enemies.json"),
+        r#"{"enemies":{"10":{"HP":99}}}"#,
+    )
+    .unwrap();
+    let err = apply_mods(
+        &base,
+        &[load_mod(&bad_typo).unwrap()],
+        &scratch.join("bad-typo-out"),
+    )
+    .expect_err("typo field HP must be refused");
+    assert_eq!(err.mod_id, "bad-typo");
+    assert!(err.file.contains("battle/enemies.json"), "{err}");
+    assert!(
+        err.detail.contains("enemies[10].HP") || err.detail.contains("enemies.10.HP"),
+        "{err}"
+    );
+
+    // Negative control 2: legacy wrong map key ("treasures") fails closed.
+    let bad_map_key = scratch.join("bad-map-key");
+    init_mod_dir(
+        &bad_map_key,
+        &ModManifest::new("bad-map-key", "Bad Map Key", "1.0.0"),
+    )
+    .unwrap();
+    fs::create_dir_all(bad_map_key.join("patches/maps")).unwrap();
+    fs::write(
+        bad_map_key.join("patches/maps/010_Piata.json"),
+        r#"{"treasures":{"0":{"meseta":500}}}"#,
+    )
+    .unwrap();
+    let err = apply_mods(
+        &base,
+        &[load_mod(&bad_map_key).unwrap()],
+        &scratch.join("bad-map-key-out"),
+    )
+    .expect_err("unknown map key treasures must be refused");
+    assert_eq!(err.mod_id, "bad-map-key");
+    assert!(err.file.contains("maps/010_Piata.json"), "{err}");
+    assert!(err.detail.contains("treasures"), "{err}");
+
+    // Positive + round-trip control: sparse treasure_chests patch by `index` on a real map.
+    let base_game = GameData::load(&base).unwrap();
+    let (chest_map_id, chest_map) = base_game
+        .maps()
+        .find(|(_, m)| !m.treasure_chests.is_empty())
+        .expect("retail pack has maps with treasure chests");
+    let chest_map_rel = base_game
+        .manifest()
+        .entry(chest_map_id)
+        .unwrap()
+        .json
+        .clone();
+    let orig_chest = &chest_map.treasure_chests[0];
+    let toggled_white = !orig_chest.white_chest;
+    let chest_mod = scratch.join("chest-mod");
+    init_mod_dir(
+        &chest_mod,
+        &ModManifest::new("chest-mod", "Chest Mod", "1.0.0"),
+    )
+    .unwrap();
+    let chest_patch_path = chest_mod.join("patches").join(&chest_map_rel);
+    fs::create_dir_all(chest_patch_path.parent().unwrap()).unwrap();
+    fs::write(
+        &chest_patch_path,
+        serde_json::to_string_pretty(&json!({
+            "treasure_chests": {
+                orig_chest.index.to_string(): {
+                    "white_chest": toggled_white,
+                    "contents_type": "meseta",
+                    "item_id": null,
+                    "item_symbol": null,
+                    "meseta": 777
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let chest_applied = apply_mods(
+        &base,
+        &[load_mod(&chest_mod).unwrap()],
+        &scratch.join("chest-out"),
+    )
+    .unwrap();
+    let chest_game = GameData::load(&chest_applied.effective_pack).unwrap();
+    let patched_chest = &chest_game.map(chest_map_id).unwrap().treasure_chests[0];
+    assert_eq!(patched_chest.white_chest, toggled_white);
+    assert_eq!(patched_chest.contents_type, crate::ContentsType::Meseta);
+    assert_eq!(patched_chest.item_id, None);
+    assert_eq!(patched_chest.meseta, Some(777));
+
+    let chest_exported = scratch.join("chest-exported");
+    let chest_summary = diff_packs(
+        &base,
+        &chest_applied.effective_pack,
+        &chest_exported,
+        &ModManifest::new("chest-exported", "Chest Exported", "1.0.0"),
+    )
+    .unwrap();
+    assert_eq!(chest_summary.patches, vec![chest_map_rel.clone()]);
+    let exported_patch_json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(chest_exported.join("patches").join(&chest_map_rel)).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        exported_patch_json["treasure_chests"]
+            .get(orig_chest.index.to_string())
+            .is_some(),
+        "diff_packs must emit sparse index-keyed treasure_chests patch: {exported_patch_json}"
+    );
+    let chest_reapplied = apply_mods(
+        &base,
+        &[load_mod(&chest_exported).unwrap()],
+        &scratch.join("chest-reapplied"),
+    )
+    .unwrap();
+    let chest_reapplied_game = GameData::load(&chest_reapplied.effective_pack).unwrap();
+    let re_chest = &chest_reapplied_game
+        .map(chest_map_id)
+        .unwrap()
+        .treasure_chests[0];
+    assert_eq!(re_chest.white_chest, toggled_white);
+    assert_eq!(re_chest.meseta, Some(777));
+
+    // Negative control 3: unknown field inside a `null`-replacing SpriteRef object fails closed.
+    if let Some((null_npc_map_id, null_npc_map)) = base_game
+        .maps()
+        .find(|(_, m)| m.npcs.iter().any(|n| n.sprite.is_none()))
+    {
+        let null_npc = null_npc_map
+            .npcs
+            .iter()
+            .find(|n| n.sprite.is_none())
+            .unwrap();
+        let map_rel = base_game
+            .manifest()
+            .entry(null_npc_map_id)
+            .unwrap()
+            .json
+            .clone();
+        let bad_sprite_mod = scratch.join("bad-sprite");
+        init_mod_dir(
+            &bad_sprite_mod,
+            &ModManifest::new("bad-sprite", "Bad Sprite", "1.0.0"),
+        )
+        .unwrap();
+        let patch_path = bad_sprite_mod.join("patches").join(&map_rel);
+        fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
+        fs::write(
+            &patch_path,
+            serde_json::to_string_pretty(&json!({
+                "npcs": {
+                    null_npc.index.to_string(): {
+                        "sprite": {
+                            "sheet": "Chaz",
+                            "sheets": "sprites/party.json",
+                            "idle_sequence": "idle_down",
+                            "walk_sequence": "walk_down",
+                            "typo_field": true
+                        }
+                    }
+                }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let err = apply_mods(
+            &base,
+            &[load_mod(&bad_sprite_mod).unwrap()],
+            &scratch.join("bad-sprite-out"),
+        )
+        .expect_err("unknown field in null-replacing SpriteRef must be refused");
+        assert_eq!(err.mod_id, "bad-sprite");
+        assert!(err.file.contains(&map_rel), "{err}");
+        assert!(err.detail.contains("typo_field"), "{err}");
+    }
+
+    let _ = fs::remove_dir_all(&scratch);
 }

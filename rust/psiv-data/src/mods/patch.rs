@@ -12,7 +12,7 @@
 //!   — rebuilds `segments`, `pages`, and `text` cleanly (preserving any leading
 //!   portrait control code unless `"keep_portrait": false`).
 
-use super::optional_schema::validate_optional_subtree;
+use super::schema_check;
 use serde_json::{Map, Value, json};
 
 /// Pattern matching one or more pack-relative JSON paths.
@@ -195,37 +195,11 @@ fn is_dynamic_map(rel_file: &str, schema_path: &[&str]) -> bool {
     }
 }
 
-/// Returns `true` when `field` is a known optional field on the schema struct
-/// at `(rel_file, schema_path)` that the packer may omit from base JSON when
-/// empty or `None`.
-fn is_allowed_optional_field(rel_file: &str, schema_path: &[&str], field: &str) -> bool {
-    match (rel_file, schema_path, field) {
-        (
-            file,
-            [],
-            "art_cycle_images" | "chunk_def_copies" | "events" | "interaction_areas"
-            | "layout_patches" | "layout_variants" | "map_effects" | "map_update_images"
-            | "map_update_palette" | "map_updates" | "overworld_patches" | "patch_tiles"
-            | "png_over" | "scroll" | "symbol" | "vehicle_battle",
-        ) if MAPS_JSON.matches(file) => true,
-        ("shops.json", ["counters", "*"], "greeting") => true,
-        ("dialogue/trees.json", [], "system_messages" | "world_interaction" | "talk_options") => {
-            true
-        }
-        (file, [], "kind" | "palette_variants")
-            if file.starts_with("sprites/") && file.ends_with(".json") =>
-        {
-            true
-        }
-        _ => false,
-    }
-}
-
 fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
     rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
 }
 
-pub(crate) fn format_path(display_path: &[&str], key: &str) -> String {
+fn format_path(display_path: &[&str], key: &str) -> String {
     if display_path.is_empty() {
         key.to_owned()
     } else {
@@ -234,10 +208,22 @@ pub(crate) fn format_path(display_path: &[&str], key: &str) -> String {
 }
 
 /// Applies `patch` onto `base` in place, using ID-keyed merging for known
-/// table arrays and strict recursive merge for objects (rejecting unknown
-/// object fields that are absent from `base`).
+/// table arrays and strict schema-validated merging for objects.
+///
+/// When `rel_file` has a `psiv-data` Rust schema and `base` is a complete file
+/// of that schema, unknown/ignored fields are rejected against the crate's own
+/// `Deserialize` implementation (allowing all modeled optional fields while
+/// rejecting typos even in newly inserted optional subtrees or replaced unkeyed
+/// arrays). For files outside `psiv-data` or partial JSON fixtures, keys absent
+/// from `base` (outside dynamic maps) are rejected directly.
 pub fn apply_json_patch(base: &mut Value, patch: &Value, rel_file: &str) -> Result<(), String> {
-    apply_at_slice(base, patch, rel_file, &[], &[])
+    let baseline = schema_check::prepare_baseline(rel_file, base);
+    let strict_base_keys = baseline.is_none();
+    apply_at_slice(base, patch, rel_file, &[], &[], strict_base_keys)?;
+    if let Some(baseline) = &baseline {
+        schema_check::verify_patched(rel_file, baseline, base)?;
+    }
+    Ok(())
 }
 
 fn apply_at_slice(
@@ -246,6 +232,7 @@ fn apply_at_slice(
     rel_file: &str,
     schema_path: &[&str],
     display_path: &[&str],
+    strict_base_keys: bool,
 ) -> Result<(), String> {
     if is_dialogue_entry(rel_file, schema_path)
         && let (Value::Object(base_obj), Value::Object(patch_obj)) = (base as &mut Value, patch)
@@ -262,7 +249,15 @@ fn apply_at_slice(
                 if matches!(k.as_str(), "replace" | "lines" | "keep_portrait") {
                     continue;
                 }
-                apply_object_entry(base_obj, k, v, rel_file, schema_path, display_path)?;
+                apply_object_entry(
+                    base_obj,
+                    k,
+                    v,
+                    rel_file,
+                    schema_path,
+                    display_path,
+                    strict_base_keys,
+                )?;
             }
             return Ok(());
         }
@@ -278,13 +273,22 @@ fn apply_at_slice(
             schema_path,
             display_path,
             key_field,
+            strict_base_keys,
         );
     }
 
     match (base, patch) {
         (Value::Object(base_map), Value::Object(patch_map)) => {
             for (k, v) in patch_map {
-                apply_object_entry(base_map, k, v, rel_file, schema_path, display_path)?;
+                apply_object_entry(
+                    base_map,
+                    k,
+                    v,
+                    rel_file,
+                    schema_path,
+                    display_path,
+                    strict_base_keys,
+                )?;
             }
             Ok(())
         }
@@ -302,17 +306,17 @@ fn apply_object_entry(
     rel_file: &str,
     schema_path: &[&str],
     display_path: &[&str],
+    strict_base_keys: bool,
 ) -> Result<(), String> {
     let dynamic = is_dynamic_map(rel_file, schema_path);
-    let allowed_optional = is_allowed_optional_field(rel_file, schema_path, k);
-    if !base_map.contains_key(k) && !dynamic && !allowed_optional {
+    if strict_base_keys && !base_map.contains_key(k) && !dynamic {
         return Err(format!(
             "unknown field `{}` (not present in base `{rel_file}`)",
             format_path(display_path, k)
         ));
     }
     if v.is_null() {
-        if dynamic || allowed_optional {
+        if dynamic || !base_map.contains_key(k) {
             base_map.remove(k);
         } else if let Some(existing) = base_map.get_mut(k) {
             *existing = Value::Null;
@@ -320,18 +324,19 @@ fn apply_object_entry(
         return Ok(());
     }
     if let Some(existing) = base_map.get_mut(k) {
-        if existing.is_null() && allowed_optional {
-            validate_optional_subtree(rel_file, schema_path, k, v, display_path)?;
-        }
         let mut next_schema: Vec<&str> = schema_path.to_vec();
         next_schema.push(k);
         let mut next_display: Vec<&str> = display_path.to_vec();
         next_display.push(k);
-        apply_at_slice(existing, v, rel_file, &next_schema, &next_display)?;
+        apply_at_slice(
+            existing,
+            v,
+            rel_file,
+            &next_schema,
+            &next_display,
+            strict_base_keys,
+        )?;
     } else {
-        if allowed_optional {
-            validate_optional_subtree(rel_file, schema_path, k, v, display_path)?;
-        }
         base_map.insert(k.to_owned(), v.clone());
     }
     Ok(())
@@ -353,6 +358,7 @@ fn apply_keyed_array(
     schema_path: &[&str],
     display_path: &[&str],
     key_field: &str,
+    strict_base_keys: bool,
 ) -> Result<(), String> {
     let mut child_schema: Vec<&str> = schema_path.to_vec();
     child_schema.push("*");
@@ -370,7 +376,14 @@ fn apply_keyed_array(
                 };
                 let mut child_display: Vec<&str> = display_path.to_vec();
                 child_display.push(id_key.as_str());
-                apply_at_slice(record, entry_patch, rel_file, &child_schema, &child_display)?;
+                apply_at_slice(
+                    record,
+                    entry_patch,
+                    rel_file,
+                    &child_schema,
+                    &child_display,
+                    strict_base_keys,
+                )?;
             }
             Ok(())
         }
@@ -392,7 +405,14 @@ fn apply_keyed_array(
                 };
                 let mut child_display: Vec<&str> = display_path.to_vec();
                 child_display.push(id_key.as_str());
-                apply_at_slice(record, entry_patch, rel_file, &child_schema, &child_display)?;
+                apply_at_slice(
+                    record,
+                    entry_patch,
+                    rel_file,
+                    &child_schema,
+                    &child_display,
+                    strict_base_keys,
+                )?;
             }
             Ok(())
         }

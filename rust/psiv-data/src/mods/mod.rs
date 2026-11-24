@@ -20,9 +20,9 @@ mod diff;
 mod guide_tests;
 mod inventory;
 mod map_art;
-mod optional_schema;
 mod patch;
 mod profile;
+mod schema_check;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
