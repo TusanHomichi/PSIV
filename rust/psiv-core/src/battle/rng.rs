@@ -20,6 +20,15 @@
 pub trait Rolls {
     /// The next raw roll.
     fn next_roll(&mut self) -> u16;
+
+    /// Called between consecutive action beats inside a battle round.
+    ///
+    /// On the cartridge, each action beat runs tens of frames apart while VInt
+    /// steps `RNG_Seed` and `Main_Frame_Count` every frame. Captured-roll
+    /// replay sources ([`SliceRolls`]) leave this a no-op; [`RoundRng`] uses
+    /// it so separate actions in a round do not collapse onto one rotated seed
+    /// word (#585).
+    fn advance_action(&mut self) {}
 }
 
 /// A fixed sequence of rolls, for tests and for replaying a captured stream.
@@ -298,6 +307,47 @@ impl Rolls for Rng2<'_> {
     }
 }
 
+/// Per-round battle roll source wrapping [`Rng2`] that advances the shared
+/// [`Lcg41`] seed and frame term between consecutive action beats (#585).
+///
+/// Resolving a whole round on one frozen `(seed, frame_count)` causes 16-draw
+/// damage rolls (a full 16-bit rotation) to repeat identically across identical
+/// enemies in the same round. Stepping `UpdateRNGSeed` (`Lcg41::step`) and
+/// bumping `frame_count` between actions models the VInt ticks separating
+/// retail action beats without disturbing single-frame [`Rng2`] or captured
+/// [`SliceRolls`] replays.
+#[derive(Debug)]
+pub struct RoundRng<'a> {
+    inner: Rng2<'a>,
+}
+
+impl<'a> RoundRng<'a> {
+    /// Wraps the shared seed with an explicit starting frame count and H/V surrogate.
+    pub const fn new(seed: &'a mut Lcg41, frame_count: u16, hv: u16) -> RoundRng<'a> {
+        RoundRng {
+            inner: Rng2::new(seed, frame_count, hv),
+        }
+    }
+
+    /// Wraps the shared seed with [`HV_SURROGATE`].
+    pub const fn with_surrogate(seed: &'a mut Lcg41, frame_count: u16) -> RoundRng<'a> {
+        RoundRng {
+            inner: Rng2::with_surrogate(seed, frame_count),
+        }
+    }
+}
+
+impl Rolls for RoundRng<'_> {
+    fn next_roll(&mut self) -> u16 {
+        self.inner.next_roll()
+    }
+
+    fn advance_action(&mut self) {
+        self.inner.seed.step();
+        self.inner.frame_count = self.inner.frame_count.wrapping_add(1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,6 +508,46 @@ mod tests {
         assert!(
             first.windows(2).any(|pair| pair[0] != pair[1]),
             "the sequence must actually move"
+        );
+    }
+
+    #[test]
+    fn round_rng_uncorrelates_consecutive_sixteen_draw_actions() {
+        let sum16 = |rolls: &mut dyn Rolls| -> u32 {
+            (0..16).map(|_| u32::from(rolls.next_roll() & 7)).sum()
+        };
+
+        // Negative control: frozen-frame Rng2 repeats the exact same 16-draw
+        // damage sum across four consecutive actions.
+        let mut frozen_seed = Lcg41::new(0x1357_9BDF);
+        let mut frozen = Rng2::with_surrogate(&mut frozen_seed, 42);
+        let frozen_sums: Vec<u32> = (0..4)
+            .map(|i| {
+                if i > 0 {
+                    frozen.advance_action();
+                }
+                sum16(&mut frozen)
+            })
+            .collect();
+        assert!(
+            frozen_sums.windows(2).all(|w| w[0] == w[1]),
+            "frozen Rng2 collapses four 16-draw actions to one sum: {frozen_sums:?}"
+        );
+
+        // RoundRng steps the seed and frame term between actions (#585).
+        let mut round_seed = Lcg41::new(0x1357_9BDF);
+        let mut round = RoundRng::with_surrogate(&mut round_seed, 42);
+        let round_sums: Vec<u32> = (0..4)
+            .map(|i| {
+                if i > 0 {
+                    round.advance_action();
+                }
+                sum16(&mut round)
+            })
+            .collect();
+        assert!(
+            round_sums.windows(2).any(|w| w[0] != w[1]),
+            "RoundRng must vary 16-draw action sums across a round: {round_sums:?}"
         );
     }
 }

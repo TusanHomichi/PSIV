@@ -530,6 +530,9 @@ impl Battle {
             if self.settle_outcome().is_some() {
                 break;
             }
+            if cursor > 0 {
+                rolls.advance_action();
+            }
             let turn_start = events.len();
             if !self.vehicle
                 && let Some(matched) =
