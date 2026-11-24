@@ -121,7 +121,7 @@ pub(super) const ROWS: &[Row] = &[
     row("Cutscene_CrashLaanding", Map(0x07_6734), Wait(40)),
     row("Cutscene_CrashLaanding", Map(0x07_67FE), Wait(52)),
     row("Cutscene_CrashLaanding", Map(0x07_69DC), Wait(65)),
-    Row { defect: Some(504), ..row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(67)) },
+    row("Cutscene_CrashLaanding", Map(0x07_69F2), Wait(67)),
     row("Cutscene_CrashLaanding", Map(0x07_6AD8), Wait(70)),
     // `bsr loc_76E00`: five frames of the wreck, each followed by six passes
     // of `RunMapUpdates` and `DMAPlane_B_VInt`, no objects.
