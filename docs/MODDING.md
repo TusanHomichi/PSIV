@@ -35,7 +35,9 @@ mods/
      disabled.
    - Set `PSIV_MODS=/path/to/mod-a:/path/to/mod-b` (use `;` on Windows) to load
      explicit mod folders in that exact order.
-2. Otherwise, the `mods/` directory beside your pack:
+2. Otherwise, the install's `mods/` directory (independent of `PSIV_RUNTIME_PACK`,
+   so pointing `PSIV_RUNTIME_PACK` at an alternate or read-only base pack still
+   uses your writable `mods/` folder):
    - **Installed release build:** `<user data folder>/mods/` (see
      [where your pack and saves live](PLAYING.md#where-your-pack-and-saves-live)).
    - **Source checkout:** `mods/` at the repository root.
