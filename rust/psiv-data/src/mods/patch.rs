@@ -241,12 +241,6 @@ fn apply_dialogue_shorthand(
         } else {
             None
         };
-        let portrait_operand = leading_portrait
-            .as_ref()
-            .and_then(|seg| seg.get("operands"))
-            .and_then(Value::as_array)
-            .and_then(|ops| ops.first())
-            .and_then(Value::as_u64);
 
         let mut new_segments = Vec::new();
         if let Some(p) = leading_portrait {
@@ -254,6 +248,7 @@ fn apply_dialogue_shorthand(
         }
         let mut new_pages = Vec::new();
         let mut flat_lines = Vec::new();
+        let page_count = pages_lines.len();
         for (page_idx, page) in pages_lines.iter().enumerate() {
             if page_idx > 0 {
                 new_segments.push(json!({"code": "0xFD", "ctrl": "wait", "operands": []}));
@@ -265,11 +260,14 @@ fn apply_dialogue_shorthand(
                 new_segments.push(json!({"text": line}));
                 flat_lines.push(line.as_str());
             }
+            let end = if page_idx + 1 < page_count {
+                "wait"
+            } else {
+                "end"
+            };
             let mut page_obj = Map::new();
             page_obj.insert("lines".to_owned(), json!(page));
-            if let Some(pid) = portrait_operand {
-                page_obj.insert("portrait".to_owned(), json!(pid));
-            }
+            page_obj.insert("end".to_owned(), json!(end));
             new_pages.push(Value::Object(page_obj));
         }
 

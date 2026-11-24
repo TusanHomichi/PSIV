@@ -112,7 +112,7 @@ fn dialogue_replace_and_lines_update_segments_pages_and_text() {
             "34": {
                 "entries": {
                     "0": {
-                        "lines": ["Hello!", "Modded world!"]
+                        "lines": [["Hello!", "Modded world!"], ["Page two!"]]
                     }
                 }
             }
@@ -120,14 +120,19 @@ fn dialogue_replace_and_lines_update_segments_pages_and_text() {
     });
     apply_json_patch(&mut trees, &lines_patch, "dialogue/trees.json").unwrap();
     let entry = &trees["trees"][0]["entries"][0];
-    assert_eq!(entry["text"], "Hello!\nModded world!");
+    assert_eq!(entry["text"], "Hello!\nModded world!\nPage two!");
     assert_eq!(entry["segments"][0]["ctrl"], "portrait");
     assert_eq!(entry["segments"][1]["text"], "Hello!");
     assert_eq!(entry["segments"][2]["ctrl"], "newline");
     assert_eq!(entry["segments"][3]["text"], "Modded world!");
+    assert_eq!(entry["segments"][4]["ctrl"], "wait");
+    assert_eq!(entry["segments"][5]["text"], "Page two!");
     assert_eq!(
-        entry["pages"][0]["lines"],
-        json!(["Hello!", "Modded world!"])
+        entry["pages"],
+        json!([
+            {"lines": ["Hello!", "Modded world!"], "end": "wait"},
+            {"lines": ["Page two!"], "end": "end"}
+        ])
     );
 }
 
@@ -183,7 +188,7 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
     )
     .unwrap();
 
-    // 2. Patch dialogue tree 34 entry 0 via replace shorthand.
+    // 2. Patch dialogue tree 34 entry 0 via replace shorthand, and entry 1 via lines shorthand.
     fs::create_dir_all(mod_dir.join("patches/dialogue")).unwrap();
     fs::write(
         mod_dir.join("patches/dialogue/trees.json"),
@@ -193,6 +198,9 @@ fn apply_mods_layers_table_patch_dialogue_and_asset_and_rejects_bad_schema() {
                     "entries": {
                         "0": {
                             "replace": [["Thank goodness you're safe!", "Glad to see you in one piece!"]]
+                        },
+                        "1": {
+                            "lines": [["Hello!", "Modded lines!"], ["Second page."]]
                         }
                     }
                 }
