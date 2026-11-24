@@ -571,6 +571,16 @@ pub fn apply_mods(
     {
         return Err(attribute_data_error(&error, out_dir, &provenance, mods));
     }
+    if out_dir.join(crate::battle::COMMAND_UI_ART_PATH).is_file()
+        && let Err(error) = crate::battle::CommandUiArt::load(out_dir)
+    {
+        return Err(attribute_data_error(&error, out_dir, &provenance, mods));
+    }
+    if out_dir.join(crate::battle::DAMAGE_DIGIT_ART_PATH).is_file()
+        && let Err(error) = crate::battle::DamageDigitArt::load(out_dir)
+    {
+        return Err(attribute_data_error(&error, out_dir, &provenance, mods));
+    }
 
     Ok(AppliedMods {
         effective_pack: out_dir.to_path_buf(),

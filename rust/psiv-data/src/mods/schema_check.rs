@@ -51,24 +51,31 @@ pub(crate) fn verify_patched(
     let Some(res) = collect_ignored_for_file(rel_file, patched) else {
         return Ok(());
     };
-    let patched_ignored = match res {
-        Ok(set) => set,
-        Err(error) => {
-            if error.contains("unknown field") {
-                return Err(error);
-            }
-            // Value/type/range errors (e.g. hp = 70000 for u16) are reported by
-            // GameData::load / BattleFiles::load with full file/line context.
-            return Ok(());
-        }
-    };
-    if let Some(unknown) = patched_ignored.difference(&baseline.ignored).next() {
+    let patched_extra = collect_flatten_keys(rel_file, patched);
+    if let Some(unknown) = patched_extra.difference(&baseline.extra_keys).next() {
         return Err(format!(
             "unknown field `{unknown}` (not in schema for `{rel_file}`)"
         ));
     }
-    let patched_extra = collect_flatten_keys(rel_file, patched);
-    if let Some(unknown) = patched_extra.difference(&baseline.extra_keys).next() {
+    let patched_ignored = match res {
+        Ok(set) => set,
+        Err(error) => {
+            // Files reloaded by GameData::load / BattleFiles::load (e.g. battle/enemies.json)
+            // defer non-unknown-field value/range errors (like hp = 70000) to those loaders so
+            // they report full pack file context; files outside GameData/BattleFiles fail closed
+            // immediately here as well as in apply_mods' explicit loaders.
+            if error.contains("unknown field")
+                || matches!(
+                    rel_file,
+                    crate::battle::COMMAND_UI_ART_PATH | crate::battle::DAMAGE_DIGIT_ART_PATH
+                )
+            {
+                return Err(error);
+            }
+            return Ok(());
+        }
+    };
+    if let Some(unknown) = patched_ignored.difference(&baseline.ignored).next() {
         return Err(format!(
             "unknown field `{unknown}` (not in schema for `{rel_file}`)"
         ));

@@ -596,52 +596,21 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     assert!(err.contains("system_messages.messages[0].typo"), "{err}");
 
     // 4. `battle/enemy_animations.json` rejects typos inside replaced `animations` entries.
-    let mut anim_json = json!({
-        "format_version": 2,
-        "count": 1,
-        "source": {
-            "label": "EnemyAttackOffs",
-            "rom_offset": "0x000100",
-            "table_end": "0x000200",
-            "record_count": 1,
-            "record_bytes": 4,
-            "rom_size": 3145728,
-            "rom_sha256": "0",
-            "grand_cross": 0,
-            "reference_clone": "test",
-            "reference_grand_cross": 1,
-            "reference_role": "labels",
-            "tables": []
-        },
-        "animations": [{
-            "enemy_id": 10,
-            "symbol": "Zoran",
-            "display_name": "ZORAN",
-            "routine_offset": "0x001000",
-            "root_object_ids": [1],
-            "object_ids": [1],
-            "sfx_id": 1,
-            "sfx_name": null,
-            "dispatch": {"kind": "routine", "rom_offset": "0x001000", "object_id": null},
-            "sfx_writes": [],
-            "frame_sequence": null,
-            "movement_proven": false,
-            "flash_timing_proven": false,
-            "sprite_sheet_proven": false
-        }],
-        "census": {
-            "enemy_count": 1,
-            "distinct_attack_routines": 1,
-            "exact_sfx": 1,
-            "generic_sfx": 0,
-            "frame_sequence_records": 0,
-            "timed_frame_sequences": 0,
-            "frame_sequence_deferred": 1,
-            "movement_deferred": 1,
-            "flash_timing": 0,
-            "sprite_sheet_deferred": 1
-        }
-    });
+    let mut anim_json: serde_json::Value = serde_json::from_str(concat!(
+        r#"{"format_version":2,"count":1,"source":{"label":"EnemyAttackOffs","#,
+        r#""rom_offset":"0x000100","table_end":"0x000200","record_count":1,"record_bytes":4,"#,
+        r#""rom_size":3145728,"rom_sha256":"0","grand_cross":0,"reference_clone":"test","#,
+        r#""reference_grand_cross":1,"reference_role":"labels","tables":[]},"animations":[{"#,
+        r#""enemy_id":10,"symbol":"Zoran","display_name":"ZORAN","routine_offset":"0x001000","#,
+        r#""root_object_ids":[1],"object_ids":[1],"sfx_id":1,"sfx_name":null,"#,
+        r#""dispatch":{"kind":"routine","rom_offset":"0x001000","object_id":null},"#,
+        r#""sfx_writes":[],"frame_sequence":null,"movement_proven":false,"#,
+        r#""flash_timing_proven":false,"sprite_sheet_proven":false}],"census":{"#,
+        r#""enemy_count":1,"distinct_attack_routines":1,"exact_sfx":1,"generic_sfx":0,"#,
+        r#""frame_sequence_records":0,"timed_frame_sequences":0,"frame_sequence_deferred":1,"#,
+        r#""movement_deferred":1,"flash_timing":0,"sprite_sheet_deferred":1}}"#,
+    ))
+    .unwrap();
     assert!(
         serde_json::from_value::<crate::battle::EnemyAnimationsFile>(anim_json.clone()).is_ok(),
         "test fixture must parse as EnemyAnimationsFile"
@@ -711,6 +680,23 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     )
     .expect_err("unknown key alongside palette_overrides must still fail");
     assert!(err.contains("enemies[0].palette_typo"), "{err}");
+
+    // 6. Type errors before an unknown key on standalone battle-art schemas (e.g. command_ui.json)
+    //    fail closed immediately instead of being swallowed by verify_patched.
+    let mut cmd_ui = json!({
+        "format_version": 2,
+        "tile_count": 1,
+        "palette_line_3": [0],
+        "tiles": [{"vram_tile": 350, "rows": ["00000000"]}]
+    });
+    assert!(serde_json::from_value::<crate::battle::CommandUiArt>(cmd_ui.clone()).is_ok());
+    let err = apply_json_patch(
+        &mut cmd_ui,
+        &json!({"format_version": "bad", "z_typo": 1}),
+        "battle/art/command_ui.json",
+    )
+    .expect_err("type error before unknown key must fail closed");
+    assert!(err.contains("invalid type"), "{err}");
 }
 
 fn minimal_valid_map_json() -> serde_json::Value {
