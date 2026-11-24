@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// The pack resolves both into the same 16-pixel collision-cell rectangle the
 /// runtime uses for landing checks, while retaining the raw bytes for audit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InteractionArea {
     /// Position in this map's interaction-area list.
     pub index: u32,

@@ -20,6 +20,7 @@ mod diff;
 mod guide_tests;
 mod inventory;
 mod map_art;
+mod optional_schema;
 mod patch;
 mod profile;
 #[cfg(test)]

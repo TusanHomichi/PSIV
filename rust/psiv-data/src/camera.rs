@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 /// are 16.16 signed longwords, not pixel counts. Runtime code parses them at
 /// the camera boundary and rejects no information by narrowing them to words.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ScrollCounters {
     /// `Camera_X_Step_Counter_*`, as an eight-digit hexadecimal string.
     pub x: String,

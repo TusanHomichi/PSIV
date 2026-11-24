@@ -27,6 +27,7 @@ pub struct LayoutVariant {
 
 /// One plane of a layout variant.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VariantPlane {
     /// `fg` or `bg`.
     pub plane: String,
@@ -55,6 +56,7 @@ pub struct VariantCollision {
 
 /// Raw chunk ids in the collision-authoritative layout plane.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VehicleBattleLayout {
     /// `fg` or `bg`, matching the decoded map plane.
     #[serde(default)]

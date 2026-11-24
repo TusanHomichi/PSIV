@@ -37,6 +37,7 @@ pub struct SheetFile {
 
 /// One CRAM-line-3 vehicle palette used by one or more maps.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct VehiclePaletteVariant {
     /// Map ids whose vehicle sprites use this palette.
     pub map_ids: Vec<u16>,

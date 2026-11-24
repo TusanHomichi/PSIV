@@ -12,6 +12,7 @@
 //!   — rebuilds `segments`, `pages`, and `text` cleanly (preserving any leading
 //!   portrait control code unless `"keep_portrait": false`).
 
+use super::optional_schema::validate_optional_subtree;
 use serde_json::{Map, Value, json};
 
 /// Pattern matching one or more pack-relative JSON paths.
@@ -50,7 +51,7 @@ pub(crate) struct KeyedArraySpec {
     pub key_field: &'static str,
 }
 
-const MAPS_JSON: FilePattern = FilePattern::Prefix {
+pub(crate) const MAPS_JSON: FilePattern = FilePattern::Prefix {
     prefix: "maps/",
     suffix: ".json",
 };
@@ -224,7 +225,7 @@ fn is_dialogue_entry(rel_file: &str, path: &[&str]) -> bool {
     rel_file == "dialogue/trees.json" && path == ["trees", "*", "entries", "*"]
 }
 
-fn format_path(display_path: &[&str], key: &str) -> String {
+pub(crate) fn format_path(display_path: &[&str], key: &str) -> String {
     if display_path.is_empty() {
         key.to_owned()
     } else {
@@ -319,12 +320,18 @@ fn apply_object_entry(
         return Ok(());
     }
     if let Some(existing) = base_map.get_mut(k) {
+        if existing.is_null() && allowed_optional {
+            validate_optional_subtree(rel_file, schema_path, k, v, display_path)?;
+        }
         let mut next_schema: Vec<&str> = schema_path.to_vec();
         next_schema.push(k);
         let mut next_display: Vec<&str> = display_path.to_vec();
         next_display.push(k);
         apply_at_slice(existing, v, rel_file, &next_schema, &next_display)?;
     } else {
+        if allowed_optional {
+            validate_optional_subtree(rel_file, schema_path, k, v, display_path)?;
+        }
         base_map.insert(k.to_owned(), v.clone());
     }
     Ok(())

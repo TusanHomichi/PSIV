@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// One raw paged-overworld hook, in page-loader order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OverworldLayoutPatch {
     /// Plane whose page copy invokes the hook (`fg` or `bg`).
     pub triggered_by_plane: String,
@@ -23,6 +24,7 @@ pub struct OverworldLayoutPatch {
 
 /// Source event-flag identity for a page hook.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OverworldPatchFlag {
     /// Event bank bit index.
     pub id: u16,
@@ -34,6 +36,7 @@ pub struct OverworldPatchFlag {
 
 /// Raw page-hook write; `chunk_ids` retain the cartridge's byte notation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OverworldLayoutWrite {
     /// Plane written (`fg` or `bg`).
     pub plane: String,
@@ -53,6 +56,7 @@ pub struct OverworldLayoutWrite {
 
 /// One flag's final composed chunks after all its page hooks run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OverworldPatch {
     /// Event bank bit index; active when set.
     pub event_flag: u16,
@@ -65,6 +69,7 @@ pub struct OverworldPatch {
 /// references `dest_chunk` (`MapDataMan_Dezolis` `loc_525AC` /
 /// `Event_EclipseTorchUsed` `$07041E`, `#676`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChunkDefCopy {
     /// Source chunk id in `Chunk_Table` (`($FFFF6100 - $FFFF6000) / $20 = $08`).
     pub source_chunk: u8,
@@ -80,6 +85,7 @@ pub struct ChunkDefCopy {
 
 /// Both visual planes and the collision-authoritative chunk at one location.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OverworldPatchTile {
     /// Horizontal world chunk coordinate.
     pub chunk_x: u32,

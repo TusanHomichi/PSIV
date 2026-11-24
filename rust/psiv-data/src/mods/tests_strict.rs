@@ -389,3 +389,71 @@ fn keyed_arrays_match_real_runtime_pack() {
         );
     }
 }
+
+#[test]
+fn newly_inserted_or_null_replaced_optional_subtrees_reject_typos() {
+    // Legacy map JSON omitting `interaction_areas` must still reject typos on insert.
+    let mut legacy_map = json!({
+        "format_version": 2,
+        "id": 10,
+        "png": "maps/010_Piata.png",
+        "patch_tiles": null,
+        "map_updates": null
+    });
+    let err = apply_json_patch(
+        &mut legacy_map,
+        &json!({
+            "interaction_areas": [{
+                "index": 0,
+                "record_offset": "0x0",
+                "range": {"id": 0, "name": "XYExact"},
+                "source": {"x_byte": 0, "y_byte": 0, "x_cell": 0, "y_cell": 0},
+                "rect": null,
+                "flag_type": {"id": 0, "name": null},
+                "flag": 0,
+                "interaction_type": 0,
+                "parameter": 0,
+                "typo_field": 1
+            }]
+        }),
+        "maps/010_Piata.json",
+    )
+    .expect_err("typo inside newly inserted interaction_areas must fail");
+    assert!(err.contains("interaction_areas[0].typo_field"), "{err}");
+
+    // Replacing a null optional field (`patch_tiles: null`) must reject typos too.
+    let err = apply_json_patch(
+        &mut legacy_map,
+        &json!({
+            "patch_tiles": {
+                "png": "maps/010_patch.png",
+                "tile_pixels": 32,
+                "count": 0,
+                "tiles": [],
+                "extra_typo": true
+            }
+        }),
+        "maps/010_Piata.json",
+    )
+    .expect_err("typo inside null-replaced patch_tiles must fail");
+    assert!(err.contains("patch_tiles.extra_typo"), "{err}");
+
+    // Inserting a missing shop counter `greeting` with a typo must fail, valid must pass.
+    let mut shops = json!({
+        "counters": [{"id": 1, "inventory_index": 0}]
+    });
+    let err = apply_json_patch(
+        &mut shops,
+        &json!({"counters": {"1": {"greeting": {"index": 0, "trade_typo": 1}}}}),
+        "shops.json",
+    )
+    .expect_err("typo inside newly inserted shop greeting must fail");
+    assert!(err.contains("counters.1.greeting.trade_typo"), "{err}");
+
+    apply_json_patch(
+        &mut shops,
+        &json!({"counters": {"1": {"greeting": {"index": 0, "trade_fragment": 1, "text_variant": 0}}}}),
+        "shops.json",
+    )
+    .expect("valid shop greeting insert succeeds");
+}
