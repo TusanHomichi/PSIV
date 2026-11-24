@@ -499,3 +499,25 @@ fn overlapping_output_paths_are_rejected_without_touching_sources() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[cfg(unix)]
+#[test]
+fn symlinks_inside_mod_folders_are_rejected_without_recursing() {
+    let scratch = temp_dir("mod-symlink-guard");
+    let base = scratch.join("base-pack");
+    let mod_dir = scratch.join("mods/loop-mod");
+    fs::create_dir_all(&base).unwrap();
+    fs::write(base.join("manifest.json"), "{}\n").unwrap();
+
+    let manifest = ModManifest::new("loop-mod", "Loop Mod", "1.0.0");
+    init_mod_dir(&mod_dir, &manifest).unwrap();
+    std::os::unix::fs::symlink(&mod_dir, mod_dir.join("patches/self-loop")).unwrap();
+
+    let loaded = [load_mod(&mod_dir).unwrap()];
+    let err = apply_mods(&base, &loaded, &scratch.join("out"))
+        .expect_err("cyclic symlink in mod patches must be rejected");
+    assert_eq!(err.mod_id, "loop-mod");
+    assert!(err.detail.contains("symlinks"), "{err}");
+
+    let _ = fs::remove_dir_all(&scratch);
+}

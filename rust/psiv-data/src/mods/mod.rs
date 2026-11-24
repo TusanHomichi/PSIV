@@ -458,7 +458,14 @@ pub fn apply_mods(
         reject_overlapping_output(out_dir, &m.root, "mod directory", &m.manifest.id)?;
     }
     reset_directory(out_dir)?;
-    mirror_base_pack(&base_canonical, &base_canonical, out_dir)?;
+    let mut visited_base_dirs = std::collections::BTreeSet::new();
+    visited_base_dirs.insert(base_canonical.clone());
+    mirror_base_pack(
+        &base_canonical,
+        &base_canonical,
+        out_dir,
+        &mut visited_base_dirs,
+    )?;
 
     let mut provenance: BTreeMap<String, String> = BTreeMap::new();
     let mut patched_set: BTreeMap<String, ()> = BTreeMap::new();
@@ -665,7 +672,12 @@ fn reset_directory(dir: &Path) -> Result<(), ModError> {
     })
 }
 
-fn mirror_base_pack(base_root: &Path, current: &Path, out_root: &Path) -> Result<(), ModError> {
+fn mirror_base_pack(
+    base_root: &Path,
+    current: &Path,
+    out_root: &Path,
+    visited_dirs: &mut std::collections::BTreeSet<PathBuf>,
+) -> Result<(), ModError> {
     let entries = fs::read_dir(current).map_err(|error| {
         ModError::new(
             "base-pack",
@@ -692,6 +704,14 @@ fn mirror_base_pack(base_root: &Path, current: &Path, out_root: &Path) -> Result
             )
         })?;
         if meta.is_dir() {
+            let canon = src.canonicalize().unwrap_or_else(|_| src.clone());
+            if !visited_dirs.insert(canon.clone()) {
+                return Err(ModError::new(
+                    "base-pack",
+                    rel.display().to_string(),
+                    "cyclic directory symlink is not allowed in base pack",
+                ));
+            }
             fs::create_dir_all(&dst).map_err(|error| {
                 ModError::new(
                     "base-pack",
@@ -699,7 +719,8 @@ fn mirror_base_pack(base_root: &Path, current: &Path, out_root: &Path) -> Result
                     format!("mkdir failed: {error}"),
                 )
             })?;
-            mirror_base_pack(base_root, &src, out_root)?;
+            mirror_base_pack(base_root, &src, out_root, visited_dirs)?;
+            visited_dirs.remove(&canon);
         } else if meta.is_file() {
             link_or_copy(&src, &dst).map_err(|error| {
                 ModError::new(
@@ -729,7 +750,18 @@ pub(crate) fn collect_relative_files(
     label: &str,
 ) -> Result<Vec<PathBuf>, ModError> {
     let mut out = Vec::new();
-    collect_recursive(root, root, mod_id, label, &mut out)?;
+    let mut visited_dirs = std::collections::BTreeSet::new();
+    visited_dirs.insert(root.canonicalize().unwrap_or_else(|_| root.to_path_buf()));
+    let reject_symlinks = label == MOD_PATCHES_DIR || label == MOD_ASSETS_DIR;
+    collect_recursive(
+        root,
+        root,
+        mod_id,
+        label,
+        reject_symlinks,
+        &mut visited_dirs,
+        &mut out,
+    )?;
     out.sort();
     Ok(out)
 }
@@ -739,6 +771,8 @@ fn collect_recursive(
     current: &Path,
     mod_id: &str,
     label: &str,
+    reject_symlinks: bool,
+    visited_dirs: &mut std::collections::BTreeSet<PathBuf>,
     out: &mut Vec<PathBuf>,
 ) -> Result<(), ModError> {
     let entries = fs::read_dir(current)
@@ -753,11 +787,44 @@ fn collect_recursive(
             continue;
         }
         let path = entry.path();
-        let meta = fs::metadata(&path).map_err(|error| {
+        let sym_meta = fs::symlink_metadata(&path).map_err(|error| {
             ModError::new(mod_id, label, format!("could not stat entry: {error}"))
         })?;
+        if sym_meta.file_type().is_symlink() && reject_symlinks {
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            return Err(ModError::new(
+                mod_id,
+                format!("{label}/{}", rel.display()),
+                "symlinks are not allowed inside mod folders",
+            ));
+        }
+        let meta = if sym_meta.file_type().is_symlink() {
+            fs::metadata(&path).map_err(|error| {
+                ModError::new(mod_id, label, format!("could not stat entry: {error}"))
+            })?
+        } else {
+            sym_meta
+        };
         if meta.is_dir() {
-            collect_recursive(root, &path, mod_id, label, out)?;
+            let canon = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if !visited_dirs.insert(canon.clone()) {
+                let rel = path.strip_prefix(root).unwrap_or(&path);
+                return Err(ModError::new(
+                    mod_id,
+                    format!("{label}/{}", rel.display()),
+                    "cyclic directory symlink is not allowed",
+                ));
+            }
+            collect_recursive(
+                root,
+                &path,
+                mod_id,
+                label,
+                reject_symlinks,
+                visited_dirs,
+                out,
+            )?;
+            visited_dirs.remove(&canon);
         } else if meta.is_file() {
             let rel = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
             out.push(rel);
