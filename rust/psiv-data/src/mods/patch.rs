@@ -433,10 +433,20 @@ fn apply_object_entry(
         if dynamic {
             base_map.remove(k);
         } else {
-            // Keep null entries on non-dynamic structs so schema_check::verify_patched
-            // still sees (and rejects) unknown null-valued keys like `{"HP": null}`
-            // instead of silently dropping them as a no-op.
-            base_map.insert(k.to_owned(), Value::Null);
+            match base_map.get(k) {
+                Some(Value::Null) => {}
+                Some(_) => {
+                    // Removing an existing non-null key matches `diff_json` encoding omitted
+                    // keys as `null` (so `#[serde(default)]` fields revert to default and
+                    // `Option<T>` fields become `None`).
+                    base_map.remove(k);
+                }
+                None => {
+                    // Keep absent keys as `null` so `schema_check::verify_patched` still
+                    // sees and rejects unknown null-valued keys like `{"HP": null}`.
+                    base_map.insert(k.to_owned(), Value::Null);
+                }
+            }
         }
         return Ok(());
     }

@@ -437,7 +437,7 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
         .expect("modeled optional Ability.symbol omitted from base must be accepted");
     assert_eq!(patched_abilities["techniques"][0]["symbol"], "Tech_Foi");
 
-    let mut bad_abilities = base_abilities;
+    let mut bad_abilities = base_abilities.clone();
     let err = apply_json_patch(
         &mut bad_abilities,
         &json!({"techniques": {"0": {"symbl": "Tech_Foi"}}}),
@@ -697,6 +697,24 @@ fn schema_driven_validation_allows_omitted_optionals_and_rejects_nested_typos() 
     )
     .expect_err("type error before unknown key must fail closed");
     assert!(err.contains("invalid type"), "{err}");
+
+    // 7. Omitting a `#[serde(default)]` field (`combos` in `battle/abilities.json`)
+    //    round-trips through `diff_json` (`null`) -> `apply_json_patch` (key removal).
+    let mut edited_abilities = base_abilities.clone();
+    edited_abilities.as_object_mut().unwrap().remove("combos");
+    let remove_patch = diff_json(&base_abilities, &edited_abilities, "battle/abilities.json")
+        .unwrap()
+        .expect("removing combos must emit a patch");
+    assert!(remove_patch["combos"].is_null());
+    let mut applied_abilities = base_abilities;
+    apply_json_patch(
+        &mut applied_abilities,
+        &remove_patch,
+        "battle/abilities.json",
+    )
+    .unwrap();
+    let parsed: crate::battle::AbilitiesFile = serde_json::from_value(applied_abilities).unwrap();
+    assert!(parsed.combos.is_empty());
 }
 
 fn minimal_valid_map_json() -> serde_json::Value {
