@@ -62,10 +62,9 @@ fn plays_through(party: [Option<CharId>; 5]) {
         "the leader's last walk, to ($310,$220)"
     );
     // The shake's frames cancel and the camera pans back to him: `($310,$220)`
-    // less `$98`/`$58`, with the walk's last two pixels of X still on it (#291).
+    // less `$98`/`$58` = `($278,$1C8)` (#291).
     let (x, y) = driver.runtime().camera().position();
-    assert_eq!(y, 0x1C8);
-    assert!((0x278..=0x27A).contains(&x), "{x:#X}");
+    assert_eq!((x, y), (0x278, 0x1C8), "({x:#X}, {y:#X})");
 }
 
 /// Tree 12 entry `$0A`: `$65`, `$61` and `$60` clear reach `$F6 $2C`.
